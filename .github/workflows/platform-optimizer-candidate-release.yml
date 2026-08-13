@@ -1,0 +1,509 @@
+name: Platform optimizer candidate release
+
+# Publication is a separately authorized supply-chain operation. It closes
+# distribution evidence only: every image and receipt remains UNADMITTED, and
+# this workflow has no lifecycle store, Hub, tenant, deployment, or Plan access.
+on:
+  workflow_dispatch:
+    inputs:
+      backend:
+        description: Unadmitted optimizer backend to build natively
+        required: true
+        type: choice
+        options:
+          - highs
+          - cpsat
+      revision:
+        description: Full commit SHA at the selected main workflow revision
+        required: true
+        type: string
+      authorization:
+        description: Enter publish:<backend>:<full revision>
+        required: true
+        type: string
+
+concurrency:
+  group: optimizer-candidate-release-${{ inputs.backend }}-${{ inputs.revision }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  validate-request:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          ref: ${{ inputs.revision }}
+      - name: Bind manual request to an immutable reachable revision
+        env:
+          AUTHORIZATION: ${{ inputs.authorization }}
+          BACKEND: ${{ inputs.backend }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          [[ "${GITHUB_REF}" == refs/heads/main ]] || {
+            echo 'dispatch this workflow from the main branch' >&2
+            exit 1
+          }
+          [[ "${REVISION}" =~ ^[0-9a-f]{40}$ ]] || {
+            echo 'revision must be a full lowercase Git SHA-1' >&2
+            exit 1
+          }
+          [[ "${AUTHORIZATION}" == "publish:${BACKEND}:${REVISION}" ]] || {
+            echo 'authorization phrase does not bind the selected backend and revision' >&2
+            exit 1
+          }
+          [[ "$(git rev-parse HEAD)" == "${REVISION}" ]]
+          [[ "${REVISION}" == "${GITHUB_SHA}" ]] || {
+            echo 'revision must equal the immutable main revision executing this workflow' >&2
+            exit 1
+          }
+          [[ -z "$(git status --porcelain=v1 --untracked-files=all)" ]] || {
+            echo 'checkout is not clean' >&2
+            exit 1
+          }
+
+  contract:
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.revision }}
+      - name: Install pinned Hadolint
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-x86_64 \
+            --output /tmp/hadolint
+          echo 'c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507  /tmp/hadolint' | sha256sum --check
+          chmod 0755 /tmp/hadolint
+      - name: Verify candidate and cross-architecture contracts
+        env:
+          BACKEND: ${{ inputs.backend }}
+          HADOLINT_BIN: /tmp/hadolint
+        run: |
+          ./scripts/verify-containerfiles.sh
+          "./scripts/verify-${BACKEND}-candidate.test.sh"
+          ./scripts/assemble-optimizer-candidate-gate.test.sh
+          ruby ./scripts/verify-optimizer-candidate-release-workflow.rb
+          ./scripts/verify-optimizer-candidate-release-workflow.test.sh
+
+  prepare-security-db:
+    needs: validate-request
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install pinned Grype
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_amd64.tar.gz \
+            --output /tmp/grype.tar.gz
+          echo '0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458  /tmp/grype.tar.gz' | sha256sum --check
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+          install -m 0644 /dev/null /tmp/grype-empty.yaml
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /tmp/grype-db
+          key: optimizer-release-grype-v0.116.1-${{ github.run_id }}
+      - name: Update and validate vulnerability database
+        env:
+          GRYPE_DB_CACHE_DIR: /tmp/grype-db
+        run: |
+          timeout 10m /tmp/grype db update --config /tmp/grype-empty.yaml
+          /tmp/grype db status --config /tmp/grype-empty.yaml
+
+  native-candidate:
+    needs: [contract, prepare-security-db]
+    permissions:
+      contents: read
+    timeout-minutes: 150
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.revision }}
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Build and independently verify native candidate
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          BACKEND: ${{ inputs.backend }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          image="local/platform-${BACKEND}:${REVISION}-${ARCHITECTURE}"
+          case "${BACKEND}" in
+            highs) source_date_epoch=1786406400 ;;
+            cpsat) source_date_epoch=1768232310 ;;
+            *) exit 1 ;;
+          esac
+          docker build \
+            --platform "linux/${ARCHITECTURE}" \
+            --build-arg "TARGETARCH=${ARCHITECTURE}" \
+            --build-arg "REVISION=${REVISION}" \
+            --build-arg "SOURCE_DATE_EPOCH=${source_date_epoch}" \
+            --provenance=false \
+            --tag "${image}" \
+            --file "Containerfile.optimizer-${BACKEND}" \
+            .
+          EXPECTED_PLATFORM_REVISION="${REVISION}" \
+            "./scripts/verify-${BACKEND}-candidate.sh" \
+              "${image}" "dist/${BACKEND}-${ARCHITECTURE}" | \
+            tee "dist/${BACKEND}-${ARCHITECTURE}.gate.txt"
+      - name: Require a cache-independent byte-identical rebuild
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          BACKEND: ${{ inputs.backend }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          image="local/platform-${BACKEND}:${REVISION}-${ARCHITECTURE}"
+          rebuild="local/platform-${BACKEND}:${REVISION}-${ARCHITECTURE}-clean-rebuild"
+          case "${BACKEND}" in
+            highs) source_date_epoch=1786406400 ;;
+            cpsat) source_date_epoch=1768232310 ;;
+            *) exit 1 ;;
+          esac
+          first_image_id="$(docker image inspect --format '{{.Id}}' "${image}")"
+          docker builder prune --all --force
+          docker build \
+            --no-cache \
+            --platform "linux/${ARCHITECTURE}" \
+            --build-arg "TARGETARCH=${ARCHITECTURE}" \
+            --build-arg "REVISION=${REVISION}" \
+            --build-arg "SOURCE_DATE_EPOCH=${source_date_epoch}" \
+            --provenance=false \
+            --tag "${rebuild}" \
+            --file "Containerfile.optimizer-${BACKEND}" \
+            .
+          second_image_id="$(docker image inspect --format '{{.Id}}' "${rebuild}")"
+          test "${second_image_id}" = "${first_image_id}"
+          jq --null-input --sort-keys \
+            --arg backend "${BACKEND}" \
+            --arg architecture "${ARCHITECTURE}" \
+            --arg platformRevision "${REVISION}" \
+            --arg firstImageId "${first_image_id}" \
+            --arg secondImageId "${second_image_id}" \
+            '{apiVersion: "optimization.platform.example/optimizer-reproducibility/v1alpha1",
+              kind: "OptimizerCandidateReproducibility", admission: "UNADMITTED",
+              backend: $backend, architecture: $architecture,
+              platformRevision: $platformRevision, cachePruned: true, noCache: true,
+              firstImageId: $firstImageId, secondImageId: $secondImageId,
+              byteIdenticalImage: ($firstImageId == $secondImageId),
+              registryMutated: false, optimizerStateMutated: false}' \
+            > "dist/${BACKEND}-${ARCHITECTURE}-reproducibility.json"
+      - name: Install pinned native Syft and Grype
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+        run: |
+          case "${ARCHITECTURE}" in
+            amd64)
+              syft_sha='bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788'
+              grype_sha='0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458'
+              ;;
+            arm64)
+              syft_sha='887c57cbcc2d0e8c5c110a4571a3fc7150058b24d74f993ee4663516e5c8ce86'
+              grype_sha='a8d7504a149629324eb5f4ce3dc25dfd211bbfe047e64ee2bf7844b466c3d84d'
+              ;;
+            *) exit 1 ;;
+          esac
+          curl --fail --location --silent --show-error \
+            "https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_linux_${ARCHITECTURE}.tar.gz" \
+            --output /tmp/syft.tar.gz
+          echo "${syft_sha}  /tmp/syft.tar.gz" | sha256sum --check
+          tar -xzf /tmp/syft.tar.gz -C /tmp syft
+          curl --fail --location --silent --show-error \
+            "https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_${ARCHITECTURE}.tar.gz" \
+            --output /tmp/grype.tar.gz
+          echo "${grype_sha}  /tmp/grype.tar.gz" | sha256sum --check
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /tmp/grype-db
+          key: optimizer-release-grype-v0.116.1-${{ github.run_id }}
+          fail-on-cache-miss: true
+      - name: Generate bounded security evidence and export the verified image
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          BACKEND: ${{ inputs.backend }}
+          GRYPE_DB_CACHE_DIR: /tmp/grype-db
+          REVISION: ${{ inputs.revision }}
+        run: |
+          image="local/platform-${BACKEND}:${REVISION}-${ARCHITECTURE}"
+          SYFT_BIN=/tmp/syft GRYPE_BIN=/tmp/grype \
+            "./scripts/scan-${BACKEND}-candidate.sh" \
+              "${image}" "dist/${BACKEND}-${ARCHITECTURE}" \
+              "dist/${BACKEND}-${ARCHITECTURE}-security" | \
+            tee "dist/${BACKEND}-${ARCHITECTURE}-security.gate.txt"
+          docker save "${image}" | gzip -1 -n > "dist/${BACKEND}-${ARCHITECTURE}-image.tar.gz"
+          test -s "dist/${BACKEND}-${ARCHITECTURE}-image.tar.gz"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: optimizer-candidate-${{ inputs.backend }}-${{ matrix.architecture }}
+          path: |
+            dist/${{ inputs.backend }}-${{ matrix.architecture }}
+            dist/${{ inputs.backend }}-${{ matrix.architecture }}.gate.txt
+            dist/${{ inputs.backend }}-${{ matrix.architecture }}-security
+            dist/${{ inputs.backend }}-${{ matrix.architecture }}-security.gate.txt
+            dist/${{ inputs.backend }}-${{ matrix.architecture }}-reproducibility.json
+            dist/${{ inputs.backend }}-${{ matrix.architecture }}-image.tar.gz
+          if-no-files-found: error
+
+  cross-architecture-gate:
+    needs: native-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.revision }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: optimizer-candidate-${{ inputs.backend }}-*
+          path: ${{ runner.temp }}/optimizer-native
+      - name: Compile immutable cross-architecture gate evidence
+        env:
+          BACKEND: ${{ inputs.backend }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          ./scripts/assemble-optimizer-candidate-gate.sh \
+            "${BACKEND}" "${REVISION}" \
+            "${RUNNER_TEMP}/optimizer-native/optimizer-candidate-${BACKEND}-amd64" \
+            "${RUNNER_TEMP}/optimizer-native/optimizer-candidate-${BACKEND}-arm64" \
+            "${RUNNER_TEMP}/optimizer-candidate-gate.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: optimizer-candidate-${{ inputs.backend }}-gate
+          path: ${{ runner.temp }}/optimizer-candidate-gate.json
+          if-no-files-found: error
+
+  publish-unadmitted-candidate:
+    needs: cross-architecture-gate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    environment: optimizer-candidate-publish
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          ref: ${{ inputs.revision }}
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: optimizer-candidate-${{ inputs.backend }}-*
+          path: ${{ runner.temp }}/optimizer-release
+      - name: Revalidate explicit protected-environment authorization
+        env:
+          AUTHORIZATION: ${{ inputs.authorization }}
+          BACKEND: ${{ inputs.backend }}
+          POLICY: ${{ vars.OPTIMIZER_CANDIDATE_PUBLISH_POLICY }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          [[ "${POLICY}" == manual-v1 ]] || {
+            echo 'protected environment variable OPTIMIZER_CANDIDATE_PUBLISH_POLICY=manual-v1 is required' >&2
+            exit 1
+          }
+          [[ "${AUTHORIZATION}" == "publish:${BACKEND}:${REVISION}" ]]
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.2
+      - name: Push native manifests, assemble the index, sign, attest, and verify
+        env:
+          BACKEND: ${{ inputs.backend }}
+          REVISION: ${{ inputs.revision }}
+        run: |
+          set -euo pipefail
+          release_root="${RUNNER_TEMP}/optimizer-release"
+          gate="${release_root}/optimizer-candidate-${BACKEND}-gate/optimizer-candidate-gate.json"
+          test "$(jq -er '.admission' "${gate}")" = UNADMITTED
+          test "$(jq -er '.selectable' "${gate}")" = false
+          test "$(jq -er '.platformRevision' "${gate}")" = "${REVISION}"
+          image="ghcr.io/${GITHUB_REPOSITORY_OWNER}/platform-optimizer-${BACKEND}"
+          version="$(jq -er '.upstreamVersion' "${gate}")"
+          tag="candidate-${version}-${REVISION}-run-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}"
+          identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"
+          issuer='https://token.actions.githubusercontent.com'
+          invocation="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
+          mkdir -p "${RUNNER_TEMP}/optimizer-release-work"
+          export TMPDIR="${RUNNER_TEMP}/optimizer-release-work"
+          export XDG_CACHE_HOME="${RUNNER_TEMP}/optimizer-release-work/cache"
+          mkdir -p "${XDG_CACHE_HOME}"
+
+          ./scripts/assemble-optimizer-candidate-gate.sh \
+            "${BACKEND}" "${REVISION}" \
+            "${release_root}/optimizer-candidate-${BACKEND}-amd64" \
+            "${release_root}/optimizer-candidate-${BACKEND}-arm64" \
+            "${TMPDIR}/revalidated-candidate-gate.json"
+          cmp "${gate}" "${TMPDIR}/revalidated-candidate-gate.json"
+
+          declare -A platform_digest platform_reference
+          for architecture in amd64 arm64; do
+            artifact_root="${release_root}/optimizer-candidate-${BACKEND}-${architecture}"
+            archive="${artifact_root}/${BACKEND}-${architecture}-image.tar.gz"
+            candidate="${artifact_root}/${BACKEND}-${architecture}/candidate-metadata.json"
+            security_dir="${artifact_root}/${BACKEND}-${architecture}-security"
+            expected_archive_sha="$(jq -er ".architectures.${architecture}.imageArchiveSha256" "${gate}")"
+            test "$(sha256sum "${archive}" | cut -d' ' -f1)" = "${expected_archive_sha}"
+            gzip -dc "${archive}" | docker load >/dev/null
+            image_id="$(jq -er '.imageId' "${candidate}")"
+            test "$(docker image inspect --format '{{.Id}}' "${image_id}")" = "${image_id}"
+            tagged="${image}:${tag}-${architecture}"
+            docker tag "${image_id}" "${tagged}"
+            push_output="$(docker push "${tagged}")"
+            digest="$(awk '$1 == "digest:" {print $2}' <<<"${push_output}" | tail -1)"
+            [[ "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+            platform_digest[$architecture]="${digest}"
+            platform_reference[$architecture]="${image}@${digest}"
+            docker buildx imagetools inspect --raw "${platform_reference[$architecture]}" \
+              > "${TMPDIR}/${architecture}-manifest.json"
+            test "$(jq -er '.config.digest' "${TMPDIR}/${architecture}-manifest.json")" = "${image_id}"
+
+            ./scripts/retry-keyless-signing.sh cosign sign --yes "${platform_reference[$architecture]}"
+            ./scripts/retry-keyless-signing.sh cosign attest --yes \
+              --predicate "${security_dir}/${BACKEND}-${architecture}.spdx.json" \
+              --type spdxjson "${platform_reference[$architecture]}"
+            ./scripts/retry-keyless-signing.sh cosign attest --yes \
+              --predicate "${security_dir}/${BACKEND}-${architecture}.grype.json" \
+              --type 'https://platform.delivery/attestations/grype/v1' \
+              "${platform_reference[$architecture]}"
+            predicate="${TMPDIR}/${architecture}-provenance.json"
+            jq -n \
+              --arg buildType 'https://platform.delivery/buildtypes/optimizer-native-candidate/v1' \
+              --arg backend "${BACKEND}" \
+              --arg architecture "${architecture}" \
+              --arg version "${version}" \
+              --arg source "git+${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}@${REVISION}" \
+              --arg commit "${REVISION}" \
+              --arg builder "${identity}" \
+              --arg invocation "${invocation}" \
+              '{buildDefinition: {buildType: $buildType,
+                  externalParameters: {backend: $backend, architecture: $architecture, version: $version},
+                  internalParameters: {},
+                  resolvedDependencies: [{uri: $source, digest: {gitCommit: $commit}}]},
+                runDetails: {builder: {id: $builder},
+                  metadata: {invocationId: $invocation}, byproducts: []}}' > "${predicate}"
+            ./scripts/retry-keyless-signing.sh cosign attest --yes \
+              --predicate "${predicate}" --type slsaprovenance1 \
+              "${platform_reference[$architecture]}"
+            cosign verify --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}" \
+              "${platform_reference[$architecture]}" >/dev/null
+            cosign verify-attestation --type slsaprovenance1 \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}" \
+              "${platform_reference[$architecture]}" >/dev/null
+            cosign verify-attestation --type spdxjson \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}" \
+              "${platform_reference[$architecture]}" >/dev/null
+            cosign verify-attestation \
+              --type 'https://platform.delivery/attestations/grype/v1' \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}" \
+              "${platform_reference[$architecture]}" >/dev/null
+          done
+
+          docker buildx imagetools create --tag "${image}:${tag}" \
+            "${platform_reference[amd64]}" "${platform_reference[arm64]}"
+          index_digest="$(docker buildx imagetools inspect "${image}:${tag}" | awk '$1 == "Digest:" {print $2; exit}')"
+          [[ "${index_digest}" =~ ^sha256:[0-9a-f]{64}$ ]]
+          index_reference="${image}@${index_digest}"
+          docker buildx imagetools inspect --raw "${index_reference}" > "${TMPDIR}/index.json"
+          jq -e \
+            --arg amd64 "${platform_digest[amd64]}" \
+            --arg arm64 "${platform_digest[arm64]}" '
+              [.manifests[] | select(.platform.os == "linux") |
+                {architecture: .platform.architecture, digest: .digest}] |
+              sort_by(.architecture) ==
+                [{architecture: "amd64", digest: $amd64},
+                 {architecture: "arm64", digest: $arm64}]
+            ' "${TMPDIR}/index.json" >/dev/null
+          ./scripts/retry-keyless-signing.sh cosign sign --yes "${index_reference}"
+          ./scripts/retry-keyless-signing.sh cosign attest --yes \
+            --predicate "${gate}" \
+            --type 'https://platform.delivery/attestations/optimizer-candidate-gate/v1' \
+            "${index_reference}"
+          cosign verify --certificate-identity "${identity}" \
+            --certificate-oidc-issuer "${issuer}" "${index_reference}" >/dev/null
+          cosign verify-attestation \
+            --type 'https://platform.delivery/attestations/optimizer-candidate-gate/v1' \
+            --certificate-identity "${identity}" \
+            --certificate-oidc-issuer "${issuer}" "${index_reference}" >/dev/null
+
+          gate_sha="$(sha256sum "${gate}" | cut -d' ' -f1)"
+          published_at="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+          receipt="${release_root}/optimizer-candidate-distribution.json"
+          jq --null-input --sort-keys \
+            --arg backend "${BACKEND}" \
+            --arg version "${version}" \
+            --arg revision "${REVISION}" \
+            --arg sourceTreeDigest "$(jq -er '.sourceTreeDigest' "${gate}")" \
+            --arg gateSha256 "${gate_sha}" \
+            --arg indexReference "${index_reference}" \
+            --arg indexDigest "${index_digest}" \
+            --arg amd64Reference "${platform_reference[amd64]}" \
+            --arg arm64Reference "${platform_reference[arm64]}" \
+            --arg certificateIdentity "${identity}" \
+            --arg certificateOIDCIssuer "${issuer}" \
+            --arg invocation "${invocation}" \
+            --arg initiatedBy "${GITHUB_ACTOR}" \
+            --arg publishedAt "${published_at}" \
+            '{apiVersion: "optimization.platform.example/optimizer-candidate-distribution/v1alpha1",
+              kind: "OptimizerCandidateDistribution", admission: "UNADMITTED", selectable: false,
+              backend: $backend, upstreamVersion: $version, platformRevision: $revision,
+              sourceTreeDigest: $sourceTreeDigest, candidateGateSha256: $gateSha256,
+              index: {reference: $indexReference, digest: $indexDigest},
+              platforms: {amd64: {reference: $amd64Reference}, arm64: {reference: $arm64Reference}},
+              signature: {certificateIdentity: $certificateIdentity,
+                certificateOIDCIssuer: $certificateOIDCIssuer},
+              authorization: {environment: "optimizer-candidate-publish",
+                policy: "manual-v1", initiatedBy: $initiatedBy},
+              invocation: $invocation, publishedAt: $publishedAt,
+              registryMutated: true, optimizerStateMutated: false,
+              openAdmissionGates: ["REPRODUCIBLE_OR_BOUNDED_BUILD", "SHADOW_CALIBRATION",
+                "independent finite-lived lifecycle admission"],
+              limitation: "Signed distribution is evidence for later independent assessment; it does not admit or enable this candidate."}' \
+            > "${receipt}"
+          ./scripts/retry-keyless-signing.sh cosign attest --yes \
+            --predicate "${receipt}" \
+            --type 'https://platform.delivery/attestations/optimizer-candidate-distribution/v1' \
+            "${index_reference}"
+          cosign verify-attestation \
+            --type 'https://platform.delivery/attestations/optimizer-candidate-distribution/v1' \
+            --certificate-identity "${identity}" \
+            --certificate-oidc-issuer "${issuer}" "${index_reference}" >/dev/null
+          printf '### Unadmitted optimizer candidate\n\n' >> "${GITHUB_STEP_SUMMARY}"
+          printf -- '- Backend: `%s`\n- Immutable index: `%s`\n- Admission: `UNADMITTED`\n- Selectable: `false`\n' \
+            "${BACKEND}" "${index_reference}" >> "${GITHUB_STEP_SUMMARY}"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: optimizer-candidate-${{ inputs.backend }}-distribution
+          path: |
+            ${{ runner.temp }}/optimizer-release/optimizer-candidate-${{ inputs.backend }}-gate/optimizer-candidate-gate.json
+            ${{ runner.temp }}/optimizer-release/optimizer-candidate-distribution.json
+          if-no-files-found: error

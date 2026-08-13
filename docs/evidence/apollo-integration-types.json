@@ -1,0 +1,391 @@
+{
+  "apiVersion": "apollo.platform.example/integration-types/v1alpha1",
+  "kind": "ApolloIntegrationTypes",
+  "source": {
+    "typeSystem": "../mcp/foundry/evidence/artifacts-registry/conjure-type-system-2026-07-20.json",
+    "note": "javap-harvested Conjure type catalog over SHA-verified Foundry -api jars"
+  },
+  "fidelity": {
+    "namesFieldsBaseTypes": "Primary \u2014 recovered from Foundry service bytecode.",
+    "cardinality": "Derived \u2014 the catalog truncates collection/optional wrappers (trailing '>'); the full bean is in the named fetchable jar.",
+    "scope": "This is the Foundry->Apollo integration surface (what Foundry sends to and stores about Apollo), NOT Apollo's own Hub API. The com.palantir.apollo:* backend jars remain unfetchable (see apollo-api-coordinates.json)."
+  },
+  "counts": {
+    "types": 48,
+    "wrapperTruncated": 14,
+    "groups": 11
+  },
+  "byCoordinate": {
+    "com.palantir.aip-hub-broker:aip-hub-broker-api-objects": 1,
+    "com.palantir.controlpanel:control-panel-api-objects": 11,
+    "com.palantir.foundry.data-health:data-health-api-objects": 8,
+    "com.palantir.foundry:edge-packager-service-api-objects": 1,
+    "com.palantir.marketplace:marketplace-api-objects": 27
+  },
+  "byGroup": {
+    "agent": [
+      {
+        "name": "ApolloAgentEntityInfo",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{installationEntityId: ApolloEntityId, apolloSpaceId: ApolloSpaceId, apolloEnvironmentId: ApolloEnvironmentId, foundrySpaceMavenGroup: ApolloFoundrySpaceIdentifier, secretInputMapping: SecretResolvedBlockSetInputShape>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloAgentInfoUpdate",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{secretInputMapping: SecretResolvedBlockSetInputShape>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloAgentSecretType",
+        "kind": "enum",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "enum[\"TOFU_SECRET\", \"PRIVATE_KEY_PASSPHRASE\"]",
+        "wrapperTruncated": false
+      }
+    ],
+    "environment": [
+      {
+        "name": "ApolloEnvironment",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{id: ApolloEnvironmentId, privileged: boolean}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloEnvironmentId",
+        "kind": "alias",
+        "coordinate": "com.palantir.aip-hub-broker:aip-hub-broker-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      }
+    ],
+    "identity": [
+      {
+        "name": "ApolloEntityId",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloHostUri",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloSecretAndKeyName",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{secretName: ApolloSecretName, secretKeyName: SecretKey}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloSecretName",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      }
+    ],
+    "installation": [
+      {
+        "name": "ApolloManagedInstallationConfigurationV0",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{secretInputMapping: SecretResolvedBlockSetInputShape>, presetInputMapping: InputShapeResolver>, inputMapping: ResolvedBlockSetInputShape>, cbacMarkings: MarkingId>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloUniversalInstallationConfigurationV0",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{managedConfig: ApolloManagedInstallationConfigurationV0, namespaceDenylist: NamespaceRid>, enrollmentDenylist: EnrollmentRid>, enrollmentAllowlist: EnrollmentRid>}",
+        "wrapperTruncated": true
+      }
+    ],
+    "labels": [
+      {
+        "name": "AppliedApolloLabels",
+        "kind": "object",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "{palSecSecurityAccreditation: PalSecSecurityAccreditation>, palSecPersonhood: PalSecPersonhood>, palSecOfferingType: PalSecOfferingType>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "AvailableButEmptyApolloLabels",
+        "kind": "marker",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "GetAppliedApolloLabelsResponse",
+        "kind": "union",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "union",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "UnavailableApolloLabels",
+        "kind": "marker",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      }
+    ],
+    "notification": [
+      {
+        "name": "AddApolloEventReceiverNotificationDefaultActionRequest",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{eventReceiverId: String, name: String, organizationRid: OrganizationRid, applicationConfiguration: ApolloEventReceiverApplicationConfiguration>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloEventReceiverApplicationConfiguration",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{values: Object>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloEventReceiverInfo",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{eventReceiverId: String, eventReceiverName: String}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloEventReceiverNotification",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{id: DefaultActionId, name: String, organizationRid: OrganizationRid, applicationConfiguration: ApolloEventReceiverApplicationConfiguration>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "PlaceholderApolloEventReceiverApplicationConfiguration",
+        "kind": "marker",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "RemoveApolloEventReceiverNotificationDefaultActionRequest",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{id: DefaultActionId}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "SafeApolloEventReceiverNotification",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{id: DefaultActionId, organizationRid: OrganizationRid}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "TemplatedApolloEventReceiverNotification",
+        "kind": "object",
+        "coordinate": "com.palantir.foundry.data-health:data-health-api-objects",
+        "shape": "{id: DefaultActionId, name: String, templatedOrganizationRid: UUID, applicationConfiguration: PlaceholderApolloEventReceiverApplicationConfiguration}",
+        "wrapperTruncated": false
+      }
+    ],
+    "other": [
+      {
+        "name": "MarketplaceApolloErrors",
+        "kind": "marker",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      }
+    ],
+    "plan": [
+      {
+        "name": "ApolloPlanId",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<UUID>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloPlanRid",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<ResourceIdentifier>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloPlanTaskRid",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<ResourceIdentifier>",
+        "wrapperTruncated": false
+      }
+    ],
+    "publishing": [
+      {
+        "name": "ApolloArtifactUri",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloBlockSetPublishingStatus",
+        "kind": "union",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "union",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloDockerPublishMetadata",
+        "kind": "marker",
+        "coordinate": "com.palantir.foundry:edge-packager-service-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloPublishError",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{reason: String}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "BatchGetApolloBlockSetVersionPublishingStatusRequest",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{blockSetVersionIds: BlockSetVersionId>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "BatchGetApolloBlockSetVersionPublishingStatusResponse",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{blockSetVersionIdToSpacesStatus: ApolloSpaceToPublishingStatus>}",
+        "wrapperTruncated": true
+      }
+    ],
+    "space-provisioning": [
+      {
+        "name": "ApolloFoundrySpaceIdentifier",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloSpaceId",
+        "kind": "alias",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "alias<String>",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloSpaceIdentifiers",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{environmentId: ApolloEnvironmentId, spaceId: ApolloSpaceId}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloSpaceToPublishingStatus",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{apolloSpacePublishingStatus: ApolloBlockSetPublishingStatus>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "CreateApolloSpaceForOrganizationAuditParams",
+        "kind": "object",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "{enrollmentRid: EnrollmentRid, organizationRid: OrganizationRid}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "CreateApolloSpaceForOrganizationResponse",
+        "kind": "object",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "{spaceRid: ResourceIdentifier}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "CreateApolloSpaceRequest",
+        "kind": "object",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "{admins: PrincipalIdWithType>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "RestoreApolloPermissionsAuditParams",
+        "kind": "object",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "{enrollmentRid: EnrollmentRid, request: RestoreApolloPermissionsRequest}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "RestoreApolloPermissionsRequest",
+        "kind": "object",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "{organizationRid: OrganizationRid, principal: PrincipalIdWithType}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "RestoreApolloPermissionsResponse",
+        "kind": "marker",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      }
+    ],
+    "stack-bootstrap": [
+      {
+        "name": "ApolloBootstrapConfiguration",
+        "kind": "marker",
+        "coordinate": "com.palantir.controlpanel:control-panel-api-objects",
+        "shape": "marker",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloCrossStackManifest",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{stackConfiguration: ApolloStackManagementConfig, storeName: StoreName}",
+        "wrapperTruncated": false
+      },
+      {
+        "name": "ApolloGranularConfig",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{enrollmentsRids: EnrollmentRid>, organizationRids: OrganizationRid>, groupIds: GroupId>, disallowedEnrollmentRids: EnrollmentRid>, disallowedOrganizationRids: OrganizationRid>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloStackLevelConfig",
+        "kind": "object",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "{defaultEnabled: Boolean>, forceDefault: Boolean>, defaultStoreAccess: ManagedStoreAccessLevel>}",
+        "wrapperTruncated": true
+      },
+      {
+        "name": "ApolloStackManagementConfig",
+        "kind": "union",
+        "coordinate": "com.palantir.marketplace:marketplace-api-objects",
+        "shape": "union",
+        "wrapperTruncated": false
+      }
+    ]
+  },
+  "hypothesisLinks": {
+    "space-provisioning": "H56 \u2014 enrollment Apollo-space provisioning, previously opaque ConjureBean; now typed.",
+    "agent": "H18 \u2014 the Hub/Agent surface: ApolloAgentEntityInfo, ApolloAgentSecretType, ApolloHostUri.",
+    "installation": "H16 \u2014 managed and universal installation configuration.",
+    "notification": "docs/apollo/reference/notifications.md \u2014 ApolloEventReceiverInfo is fuller than the GraphQL {id,name}."
+  }
+}

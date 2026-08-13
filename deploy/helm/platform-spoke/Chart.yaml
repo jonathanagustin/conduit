@@ -1,0 +1,12 @@
+apiVersion: v2
+name: platform-spoke
+description: Outbound-only Platform delivery control plane Spoke Agent
+type: application
+version: 0.14.0
+appVersion: "0.14.0"
+home: https://github.com/jonathanagustin/palantir
+sources:
+  - https://github.com/jonathanagustin/palantir
+annotations:
+  artifacthub.io/license: Apache-2.0
+  platform.delivery/compatibility: platform-native

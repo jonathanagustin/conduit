@@ -1,0 +1,31 @@
+[tools]
+direnv = "2.32.1"
+go = "1.26.5"
+node = "24.14.0"
+
+[tasks.install-cursor]
+description = "Install the pinned Cursor Agent used for independent evaluation"
+run = '''
+set -eu
+version="2026.08.04-aaa8809"
+archive_sha256="e282068dcb5cdd668b8ce2e3456c58be13bb64a834e1ad49f8534b5cd7aa2fe5"
+case "$(uname -s)/$(uname -m)" in
+  Linux/x86_64) platform="linux/x64" ;;
+  *) echo "unsupported Cursor Agent platform: $(uname -s)/$(uname -m)" >&2; exit 1 ;;
+esac
+versions="${HOME}/.local/share/cursor-agent/versions"
+final="${versions}/${version}"
+mkdir -p "${versions}" "${HOME}/.local/bin"
+if [ ! -x "${final}/cursor-agent" ]; then
+  archive="$(mktemp)"
+  extracted="$(mktemp -d "${versions}/.tmp.XXXXXX")"
+  trap 'rm -f "${archive}"; rm -rf "${extracted}"' EXIT
+  curl -fsSL "https://downloads.cursor.com/lab/${version}/${platform}/agent-cli-package.tar.gz" -o "${archive}"
+  echo "${archive_sha256}  ${archive}" | sha256sum --check
+  tar --strip-components=1 -xzf "${archive}" -C "${extracted}"
+  rm -rf "${final}"
+  mv "${extracted}" "${final}"
+fi
+ln -sfn "${final}/cursor-agent" "${HOME}/.local/bin/cursor-agent"
+"${HOME}/.local/bin/cursor-agent" --version
+'''

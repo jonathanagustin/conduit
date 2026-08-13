@@ -1,0 +1,4 @@
+image:
+  repository: registry.example/conformance-fixture
+  tag: 1.2.3
+  digest: sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa

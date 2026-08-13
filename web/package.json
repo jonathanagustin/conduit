@@ -1,0 +1,48 @@
+{
+  "name": "@platform/console",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Platform control-plane console. Static assets embedded in the Hub binary under /console/.",
+  "provenance": {
+    "kind": "evidence-led-reconstruction",
+    "designBaseline": "docs/ui/CONTROL-PLANE-UI-PLAN.md",
+    "evidencePolicy": "Blueprint is Palantir's own Apache-2.0 toolkit and is depended on directly. Upstream Apollo screens inform layout only, via the graded evidence in the plan; no private DOM, CSS, or wire-format claim.",
+    "portedFrom": "packages/foundry/packages/foundry-ui, ported from Blueprint 5.19.1 to 6.18.0"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "test:e2e": "playwright test",
+    "test": "pnpm typecheck && pnpm test:unit && pnpm test:e2e",
+    "test:unit": "vitest run",
+    "test:mutation": "stryker run"
+  },
+  "dependencies": {
+    "@blueprintjs/core": "6.18.0",
+    "@blueprintjs/icons": "6.13.0",
+    "@blueprintjs/select": "6.3.4",
+    "@blueprintjs/table": "6.2.4",
+    "@tanstack/react-query": "5.101.4",
+    "normalize.css": "8.0.1",
+    "react": "19.2.8",
+    "react-dom": "19.2.8",
+    "react-router-dom": "7.18.2"
+  },
+  "devDependencies": {
+    "@axe-core/playwright": "4.10.2",
+    "@playwright/mcp": "0.0.79",
+    "@playwright/test": "^1.62.1",
+    "@stryker-mutator/core": "^9.6.1",
+    "@stryker-mutator/vitest-runner": "^9.6.1",
+    "@types/node": "^26.1.2",
+    "@types/react": "19.2.18",
+    "@types/react-dom": "19.2.4",
+    "@vitejs/plugin-react": "6.0.5",
+    "typescript": "5.9.3",
+    "vite": "8.2.1",
+    "vitest": "^4.1.10"
+  }
+}

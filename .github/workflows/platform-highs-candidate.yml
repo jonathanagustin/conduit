@@ -1,0 +1,204 @@
+name: Platform HiGHS candidate
+
+on:
+  workflow_dispatch:
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  prepare-security-db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install pinned Grype
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_amd64.tar.gz \
+            --output /tmp/grype.tar.gz
+          echo '0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458  /tmp/grype.tar.gz' | sha256sum --check
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+          install -m 0644 /dev/null /tmp/grype-empty.yaml
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /tmp/grype-db
+          key: highs-grype-db-v0.116.1-${{ github.run_id }}
+          restore-keys: |
+            highs-grype-db-v0.116.1-
+      - name: Update and validate vulnerability database
+        env:
+          GRYPE_DB_CACHE_DIR: /tmp/grype-db
+        run: |
+          timeout 10m /tmp/grype db update --config /tmp/grype-empty.yaml
+          /tmp/grype db status --config /tmp/grype-empty.yaml
+
+  contract:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install pinned Hadolint
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-x86_64 \
+            --output /tmp/hadolint
+          echo 'c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507  /tmp/hadolint' | sha256sum --check
+          chmod 0755 /tmp/hadolint
+      - name: Validate immutable candidate contract
+        env:
+          HADOLINT_BIN: /tmp/hadolint
+        run: |
+          ./scripts/verify-containerfiles.sh
+          ./scripts/verify-highs-candidate.test.sh
+
+  native-candidate:
+    needs: [contract, prepare-security-db]
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - architecture: amd64
+            runner: ubuntu-24.04
+          - architecture: arm64
+            runner: ubuntu-24.04-arm
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Build native pinned candidate
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          REVISION: ${{ github.sha }}
+        run: |
+          image="local/platform-highs:${REVISION}-${ARCHITECTURE}"
+          docker build \
+            --platform "linux/${ARCHITECTURE}" \
+            --build-arg "TARGETARCH=${ARCHITECTURE}" \
+            --build-arg "REVISION=${REVISION}" \
+            --build-arg "SOURCE_DATE_EPOCH=1786406400" \
+            --provenance=false \
+            --tag "${image}" \
+            --file Containerfile.optimizer-highs \
+            .
+          EXPECTED_PLATFORM_REVISION="${REVISION}" \
+            ./scripts/verify-highs-candidate.sh "${image}" "dist/highs-${ARCHITECTURE}" | \
+            tee "dist/highs-${ARCHITECTURE}.gate.txt"
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /tmp/grype-db
+          key: highs-grype-db-v0.116.1-${{ github.run_id }}
+          fail-on-cache-miss: true
+      - name: Generate bounded SBOM and vulnerability evidence
+        env:
+          ARCHITECTURE: ${{ matrix.architecture }}
+          GRYPE_DB_CACHE_DIR: /tmp/grype-db
+        run: |
+          case "${ARCHITECTURE}" in
+            amd64)
+              syft_sha='bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788'
+              grype_sha='0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458'
+              ;;
+            arm64)
+              syft_sha='887c57cbcc2d0e8c5c110a4571a3fc7150058b24d74f993ee4663516e5c8ce86'
+              grype_sha='a8d7504a149629324eb5f4ce3dc25dfd211bbfe047e64ee2bf7844b466c3d84d'
+              ;;
+            *) exit 1 ;;
+          esac
+          curl --fail --location --silent --show-error \
+            "https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_linux_${ARCHITECTURE}.tar.gz" \
+            --output /tmp/syft.tar.gz
+          echo "${syft_sha}  /tmp/syft.tar.gz" | sha256sum --check
+          tar -xzf /tmp/syft.tar.gz -C /tmp syft
+          curl --fail --location --silent --show-error \
+            "https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_${ARCHITECTURE}.tar.gz" \
+            --output /tmp/grype.tar.gz
+          echo "${grype_sha}  /tmp/grype.tar.gz" | sha256sum --check
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+          image="local/platform-highs:${{ github.sha }}-${ARCHITECTURE}"
+          SYFT_BIN=/tmp/syft GRYPE_BIN=/tmp/grype \
+            ./scripts/scan-highs-candidate.sh \
+              "${image}" "dist/highs-${ARCHITECTURE}" "dist/highs-${ARCHITECTURE}-security" | \
+            tee "dist/highs-${ARCHITECTURE}-security.gate.txt"
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: highs-candidate-${{ matrix.architecture }}
+          path: |
+            dist/highs-${{ matrix.architecture }}
+            dist/highs-${{ matrix.architecture }}.gate.txt
+            dist/highs-${{ matrix.architecture }}-security
+            dist/highs-${{ matrix.architecture }}-security.gate.txt
+          if-no-files-found: error
+
+  cross-architecture-equivalence:
+    needs: native-candidate
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: highs-candidate-*
+          path: dist/native
+      - name: Require byte-identical native semantics
+        run: |
+          amd64_dir='dist/native/highs-candidate-amd64/highs-amd64'
+          arm64_dir='dist/native/highs-candidate-arm64/highs-arm64'
+          amd64_security='dist/native/highs-candidate-amd64/highs-amd64-security/security-metadata.json'
+          arm64_security='dist/native/highs-candidate-arm64/highs-arm64-security/security-metadata.json'
+          test "$(jq -er '.architecture' "${amd64_dir}/candidate-metadata.json")" = amd64
+          test "$(jq -er '.architecture' "${arm64_dir}/candidate-metadata.json")" = arm64
+          test "$(jq -er '.architecture' "${amd64_security}")" = amd64
+          test "$(jq -er '.architecture' "${arm64_security}")" = arm64
+          test "$(jq -er '.admission' "${amd64_security}")" = UNADMITTED
+          test "$(jq -er '.admission' "${arm64_security}")" = UNADMITTED
+          test "$(jq -er '.platformRevision' "${amd64_security}")" = '${{ github.sha }}'
+          test "$(jq -er '.platformRevision' "${arm64_security}")" = '${{ github.sha }}'
+          test "$(jq -er '.vulnerability.grypeExitStatus' "${amd64_security}")" = 0
+          test "$(jq -er '.vulnerability.grypeExitStatus' "${arm64_security}")" = 0
+          test "$(jq -cer '.tools' "${amd64_security}")" = "$(jq -cer '.tools' "${arm64_security}")"
+          test "$(jq -er '.vulnerability.database.source' "${amd64_security}")" = \
+            "$(jq -er '.vulnerability.database.source' "${arm64_security}")"
+          amd64_request="$(jq -er '.requestSha256' "${amd64_dir}/candidate-metadata.json")"
+          arm64_request="$(jq -er '.requestSha256' "${arm64_dir}/candidate-metadata.json")"
+          amd64_response="$(jq -er '.semanticResponseSha256' "${amd64_dir}/candidate-metadata.json")"
+          arm64_response="$(jq -er '.semanticResponseSha256' "${arm64_dir}/candidate-metadata.json")"
+          test "${amd64_request}" = "${arm64_request}"
+          test "${amd64_response}" = "${arm64_response}"
+          cmp "${amd64_dir}/semantic-response.json" "${arm64_dir}/semantic-response.json"
+          mkdir -p dist/equivalence
+          jq --null-input \
+            --arg requestSha256 "${amd64_request}" \
+            --arg semanticResponseSha256 "${amd64_response}" \
+            --arg amd64ImageId "$(jq -er '.imageId' "${amd64_dir}/candidate-metadata.json")" \
+            --arg arm64ImageId "$(jq -er '.imageId' "${arm64_dir}/candidate-metadata.json")" \
+            --arg amd64BinarySha256 "$(jq -er '.binarySha256' "${amd64_dir}/candidate-metadata.json")" \
+            --arg arm64BinarySha256 "$(jq -er '.binarySha256' "${arm64_dir}/candidate-metadata.json")" \
+            --arg amd64ManifestDigest "$(jq -er '.manifestDigest' "${amd64_security}")" \
+            --arg arm64ManifestDigest "$(jq -er '.manifestDigest' "${arm64_security}")" \
+            --arg amd64SpdxSha256 "$(jq -er '.sbom.spdxSha256' "${amd64_security}")" \
+            --arg arm64SpdxSha256 "$(jq -er '.sbom.spdxSha256' "${arm64_security}")" \
+            --arg amd64VulnerabilityReportSha256 "$(jq -er '.vulnerability.reportSha256' "${amd64_security}")" \
+            --arg arm64VulnerabilityReportSha256 "$(jq -er '.vulnerability.reportSha256' "${arm64_security}")" \
+            '{schemaVersion: 1, admission: "UNADMITTED", architectures: ["amd64", "arm64"],
+              requestSha256: $requestSha256,
+              semanticResponseSha256: $semanticResponseSha256,
+              images: {amd64: $amd64ImageId, arm64: $arm64ImageId},
+              binaries: {amd64: $amd64BinarySha256, arm64: $arm64BinarySha256},
+              manifests: {amd64: $amd64ManifestDigest, arm64: $arm64ManifestDigest},
+              spdx: {amd64: $amd64SpdxSha256, arm64: $arm64SpdxSha256},
+              vulnerabilityReports: {amd64: $amd64VulnerabilityReportSha256,
+                arm64: $arm64VulnerabilityReportSha256}}' \
+            > dist/equivalence/cross-architecture-equivalence.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: highs-candidate-equivalence
+          path: dist/equivalence/cross-architecture-equivalence.json
+          if-no-files-found: error

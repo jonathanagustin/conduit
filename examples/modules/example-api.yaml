@@ -1,0 +1,61 @@
+name: example-api
+displayName: Example API
+description: Foundational identity, policy, metadata, ontology, object, and action API Entity.
+
+variables:
+  k8sNamespace:
+    type: string
+    string:
+      defaultValue: example
+      description: Existing Restricted Kubernetes namespace for the API.
+  apiServiceAccount:
+    type: string
+    string:
+      defaultValue: example-api
+      description: Existing workload-identity ServiceAccount for the API.
+  databaseCidr:
+    type: string
+    string:
+      description: CIDR containing the PostgreSQL endpoint.
+
+entities:
+  - type: helmChart
+    helmChart:
+      productId: app.example:example-api
+      entityName: example-api
+      k8sNamespace: "{{ moduleVariable.k8sNamespace }}"
+      ignoredDependencies: []
+      syncConfigOverrides: MERGE
+      configOverrides: |
+        0.1.0:
+          overrides:
+            serviceAccountName: "{{ moduleVariable.apiServiceAccount }}"
+            envFromSecrets:
+              - example-foundation-runtime
+            network:
+              database:
+                cidrs:
+                  - "{{ moduleVariable.databaseCidr }}"
+                port: 5432
+      secretRequirements:
+        example-foundation-runtime:
+          type: multikey
+          multikey:
+            description: Runtime settings and credentials projected as environment variables.
+            keys:
+              - DB_HOST
+              - DB_NAME
+              - DB_USER
+              - DB_PASSWORD
+              - COGNITO_USER_POOL_ID
+              - COGNITO_CLIENT_ID
+              - CEDAR_POLICY_STORES
+              - EVIDENCE_BUCKET
+              - FIELD_CRYPTO_KEY
+              - FIELD_CRYPTO_INDEX_KEY
+
+restrictions:
+  newInstallations:
+    allowed: false
+  submoduleUsage:
+    allowEntityOverrides: false

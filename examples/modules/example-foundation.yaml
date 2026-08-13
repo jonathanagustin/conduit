@@ -1,0 +1,38 @@
+name: example-foundation
+displayName: Example Foundation
+description: Composes the independently releasable API and Workspace platform modules.
+
+variables:
+  k8sNamespace:
+    type: string
+    string:
+      defaultValue: example
+      description: Existing Restricted Kubernetes namespace for the foundation.
+      constraint:
+        type: regex
+        regex: "[a-z0-9]([-a-z0-9]*[a-z0-9])?"
+  apiServiceAccount:
+    type: string
+    string:
+      defaultValue: example-api
+      description: Existing workload-identity ServiceAccount for the API.
+  databaseCidr:
+    type: string
+    string:
+      description: CIDR containing the PostgreSQL endpoint.
+
+submodules:
+  - name: example-api
+    version: local
+    variableOverrides:
+      k8sNamespace: "{{ moduleVariable.k8sNamespace }}"
+      apiServiceAccount: "{{ moduleVariable.apiServiceAccount }}"
+      databaseCidr: "{{ moduleVariable.databaseCidr }}"
+  - name: example-workspace
+    version: local
+    variableOverrides:
+      k8sNamespace: "{{ moduleVariable.k8sNamespace }}"
+
+restrictions:
+  submoduleUsage:
+    allowEntityOverrides: false

@@ -1,0 +1,142 @@
+{
+  "apiVersion": "optimization.platform.example/substrate-observation/v1alpha3",
+  "kind": "SubstrateObservation",
+  "id": "sobs_3aa0619abfe8d46e4af28a9766c6c37655148da3582ac0a99001856784e3ef69",
+  "snapshotAt": "2026-08-09T12:00:00Z",
+  "maximumStalenessSeconds": 60,
+  "calls": [
+    {
+      "id": "aws-cni",
+      "provider": "aws",
+      "operation": "simulate-cni-permissions",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    },
+    {
+      "id": "compute-offering",
+      "provider": "aws",
+      "operation": "resolve-eligible-instance-types",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:9999999999999999999999999999999999999999999999999999999999999999",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    },
+    {
+      "id": "kubernetes-capacity",
+      "provider": "kubernetes",
+      "operation": "list-nodes",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    },
+    {
+      "id": "network-policy",
+      "provider": "kubernetes",
+      "operation": "evaluate-network-policy",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    },
+    {
+      "id": "network-telemetry",
+      "provider": "hubble",
+      "operation": "verify-flow-ingestion",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    },
+    {
+      "id": "node-pool-projection",
+      "provider": "aws",
+      "operation": "simulate-node-pool-change",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    },
+    {
+      "id": "node-storage",
+      "provider": "kubernetes",
+      "operation": "get-node-storage-stats",
+      "observedAt": "2026-08-09T11:59:30Z",
+      "sourceRevision": "cluster-r43",
+      "requestDigest": "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+      "responseDigest": "sha256:8888888888888888888888888888888888888888888888888888888888888888",
+      "collectorIdentity": "collector:substrate",
+      "fidelity": "EXACT"
+    }
+  ],
+  "capacity": {
+    "availableCallId": "kubernetes-capacity",
+    "projectionCallId": "node-pool-projection",
+    "available": {
+      "podSlots": 10,
+      "milliCpu": 10000,
+      "memoryBytes": 20000000000,
+      "ipAddresses": 10,
+      "ephemeralStorageBytes": 40000000000
+    },
+    "readyNodes": 3,
+    "nodesAfterChange": 3
+  },
+  "storage": {
+    "callId": "node-storage",
+    "observedNodeCount": 3,
+    "nodes": [
+      {"nodeId": "node-a", "diskPressureStatus": "FALSE", "freeBytes": 10000000000, "freeBytesObserved": true, "freeInodes": 1000000, "freeInodesObserved": true},
+      {"nodeId": "node-b", "diskPressureStatus": "FALSE", "freeBytes": 10000000000, "freeBytesObserved": true, "freeInodes": 1000000, "freeInodesObserved": true},
+      {"nodeId": "node-c", "diskPressureStatus": "FALSE", "freeBytes": 10000000000, "freeBytesObserved": true, "freeInodes": 1000000, "freeInodesObserved": true}
+    ]
+  },
+  "dependencies": [
+    {
+      "callId": "aws-cni",
+      "id": "cni-permission",
+      "kind": "CNI_PERMISSION",
+      "required": true,
+      "status": "HEALTHY",
+      "defectOrigin": "UNKNOWN"
+    },
+    {
+      "callId": "compute-offering",
+      "id": "compute-offering",
+      "kind": "COMPUTE_OFFERING",
+      "required": true,
+      "status": "HEALTHY",
+      "defectOrigin": "UNKNOWN"
+    },
+    {
+      "callId": "network-policy",
+      "id": "network-policy",
+      "kind": "NETWORK_POLICY",
+      "required": true,
+      "status": "HEALTHY",
+      "defectOrigin": "UNKNOWN"
+    },
+    {
+      "callId": "network-telemetry",
+      "id": "network-telemetry",
+      "kind": "NETWORK_TELEMETRY",
+      "required": true,
+      "status": "HEALTHY",
+      "defectOrigin": "UNKNOWN"
+    }
+  ]
+}

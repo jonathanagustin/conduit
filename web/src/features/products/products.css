@@ -1,0 +1,15 @@
+.console-products { padding: 16px; }
+.console-products__table { width: 100%; }
+.console-products__pipeline {
+  margin: 12px 0 16px;
+  padding: 12px;
+  border: 1px solid var(--bp-border-color, #d3d8de);
+  background: var(--bp-background-color, #fff);
+}
+.console-products__pipeline > h2 { margin: 0 0 12px; font-size: 16px; }
+/* A digest is long and never wrapped: a broken digest is worse than a scrollbar. */
+.console-products__digest {
+  font-family: var(--bp-font-family-monospace, monospace);
+  font-size: 12px;
+  white-space: nowrap;
+}

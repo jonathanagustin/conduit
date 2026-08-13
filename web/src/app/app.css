@@ -1,0 +1,12 @@
+.console-shell {
+  display: flex;
+  flex: 1;
+  min-height: 0;
+}
+
+.console-shell__canvas {
+  flex: 1;
+  min-width: 0;
+  overflow: auto;
+  background: var(--bp-surface-background-color-subtle-rest, #f6f7f9);
+}

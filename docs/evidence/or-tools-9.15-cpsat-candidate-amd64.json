@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "evidenceType": "platform.optimizer.cpsat-candidate",
+  "admission": "UNADMITTED",
+  "capturedAt": "2026-08-12T11:33:05Z",
+  "platformRevision": "d35058c7182ba9222a9ab10c1e1c53921eaf09cc+WORKTREE",
+  "architecture": "amd64",
+  "source": {
+    "upstreamProject": "google/or-tools",
+    "upstreamVersion": "9.15.6755",
+    "upstreamCommit": "551ad10d94835c99e5e1e684500d3db398c0e345",
+    "upstreamSourceSha256": "599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311",
+    "upstreamEvidence": "docs/evidence/or-tools-9.15-release.json",
+    "upstreamEvidenceSha256": "546dcbf8a1a70452042ab77f0736d57c4e3506a81a34303f59d44c9f88447fb4",
+    "containerfileSha256": "808d2f6908e9ef192a8524d7a6c3749105435b662e88f64671cb941db8f33540",
+    "verifierSha256": "41acb4820c08f53f25ef0fea8e219c97ad9acc9131b4566d307e1371e49b78e9",
+    "verifierFixtureSha256": "8bdf301598fdaaa923040bdb716a90088756da8b89d357a218a4a9ac2a997f9a",
+  "scannerSha256": "98a01af230ccaf2101e6246c4684092f01506fbe58c9970e456f0fdefb8c5d83",
+    "workflowSha256": "7d5165e96e9c009f03c732118f7bbbd3ca9d29b808eaad93f6834a7982572b1a",
+    "cargoLockSha256": "9ae63ef0947fc1490eb4f946bccd1a81bb4a08e2bf13e472bd5f434c516aa495",
+    "bazelTargetSha256": "a4b306bf6ec57efbae6319bd7fc47328feb75141d4d3d02865cce3f93cc271b3",
+    "bridgeSha256": "0e4641d3757b44c23b4678f809aa4996e326b4d010cf4925003d186a434b8d46",
+    "rustNativeAdapterSha256": "cee82f43a05cbbd85bc2f4e387c1c38f19a6bafa525c5f163bf37db382e33c7c",
+    "platformSourceManifestSha256": "09ba7fabbdee31cc31b81819517090ed2aa056b362d6fc0c2c723a4e58814301"
+  },
+  "toolchain": {
+    "rust": "1.97.0",
+    "rustCommit": "2d8144b7880597b6e6d3dfd63a9a9efae3f533d3",
+    "bazelisk": "1.29.0",
+    "bazel": "8.7.0",
+    "syft": "1.50.0",
+    "grype": "0.116.1",
+    "notes": [
+      "Bazel 9.2 was rejected after the pinned OR-Tools 9.15 transitive rules_go/rules_cc graph failed to build.",
+      "All local builder, Docker, Go, Cargo, Bazel and scanner state remained on /tmp-backed storage."
+    ]
+  },
+  "candidate": {
+    "kind": "LOCAL_UNADMITTED_OCI",
+    "imageId": "sha256:8de245a4090a1c160017cb37a9f350ff0cc5e83f1651de874c2cafcfa9a3259c",
+    "manifestDigest": "sha256:18e85804f2b442459f3c2b286d3b8bc03bc0d9146aaca66361cecaf41b873c1f",
+    "runtimeBaseDigest": "sha256:1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a",
+    "imageSizeBytes": 9442301,
+    "binarySizeBytes": 37713640,
+    "binarySha256": "55dfb3ca7fc4ad48916b0ee0ccfb864ab06eb8a783dd3b4e8f3a8fa41f302796",
+    "elf": "ELF 64-bit LSB executable, x86-64, statically linked, stripped",
+    "dynamicSectionPresent": false,
+    "dynamicNeededEntries": 0,
+    "runtimeUser": "65532:65532",
+    "rootfs": "pinned distroless static runtime plus one candidate-owned layer",
+    "semanticNativeRuns": 5,
+    "semanticResponseSha256": "5ffbb0e0e427b4d917dafd072d0b0c001ef49c5150377a20957d8704e46f1065",
+    "candidateMetadataSha256": "592ed924530b5384b9ae01c457d58f4e02ece418b06f9bfa6a2cf98b4b8b9b21",
+    "linkActionSha256": "5f38cdc10605829ab2fcbf7f15721659edba793365c57a9b973ae03b10b53429",
+    "licenseHashesSha256": "275a1eca0ead0c94ee5aeb9bc62899527a2caec008a2ae7db14c716bbdb4cb57",
+    "licenseFiles": 55,
+    "staticClosureEntries": 10,
+    "raceDetector": true
+  },
+  "security": {
+    "metadataSha256": "689bf9c929869bb859c15939100106419c0bb1dd7c2ae7fb5f495878890de22e",
+    "syftJsonSha256": "03c4fdacebf9fedb6d6a5f9760a9c4b7c8d54d838eda4ee5e2693696d840cee7",
+    "spdxJsonSha256": "37e4bfcc34e0c1b19b93779a0666fc30762ff9a7ee0b7c671488a9c17b79cad3",
+    "grypeJsonSha256": "db07e7f661b021e964759113463b2b363ec4879489242383c03af22f100827c3",
+    "syftDiscoveredPackages": 4,
+    "staticClosureEntries": 10,
+    "vulnerabilityMatches": 0,
+    "failThreshold": "high",
+    "databaseSchema": "v6.1.9",
+    "databaseBuilt": "2026-08-12T06:38:08Z",
+    "databaseValid": true,
+    "coverageLimitation": "Syft and Grype may not infer every component linked into a stripped static ELF; compiler-owned closure and immutable license evidence remain independently required.",
+    "retention": "The detailed local reports are content-addressed by these digests; the native amd64/arm64 workflow uploads the same bounded evidence and cross-architecture receipt without publishing an image."
+  },
+  "sandbox": {
+    "network": "none",
+    "rootFilesystem": "read-only",
+    "capabilities": "all dropped",
+    "noNewPrivileges": true,
+    "pidsLimit": 128,
+    "memoryLimit": "512m",
+    "cpuLimit": 1
+  },
+  "failedPrecursor": {
+    "binarySizeBytes": 69891112,
+    "binarySha256": "81efa6517d0218e2cf77018600e0f4aea7c43fcaf55e4eebadb8b64250cbfd7c",
+    "reason": "rules_cc appended an explicit dynamic -lstdc++ after target -static-libstdc++; the candidate exceeded 64 MiB and retained libstdc++.so.6 and libgcc_s.so.1, so the admission gate rejected it",
+    "correctiveAction": "activate the toolchain fully_static_link feature, section GC, and an explicit final strip-all step; do not weaken the closure or size gates"
+  },
+  "verifiedGates": [
+    "official source, toolchains, build and runtime bases are immutable digest-pinned",
+    "the Platform bridge uses the five audited official C functions rather than solver C++ internals",
+    "malformed protobuf is parsed and reserialized before the upstream abort-on-malformed boundary",
+    "the Rust adapter owns one environment per request and coordinates interrupt, solve, destruction, and response free",
+    "the exact Go compiler requires makespan, optional cost, stable task lane/start fixing and canonical optimality",
+    "the final OCI rootfs is the pinned static runtime plus one candidate layer and runs as 65532:65532",
+    "the final 37,713,640-byte ELF is fully static and stripped with no dynamic NEEDED entries",
+    "five real native executions passed the Go race test and independent schedule/proof verifier",
+    "networkless, read-only, capability-free and CPU/PID/memory-bounded container execution passed",
+    "compiler-owned link, source, license and static-closure evidence is embedded and immutable",
+    "Syft/SPDX plus a valid current Grype database found zero high-or-greater vulnerabilities",
+    "actionlint, Containerfile lint, verifier self-audit and adversarial mutation fixtures passed"
+  ],
+  "openAdmissionGates": [
+    "run the native arm64 workflow and require byte-identical canonical semantic output across architectures",
+    "prove cache-independent reproducibility or explicitly bind and bound any nondeterministic build metadata",
+    "publish an immutable signed and provenance-attested multi-architecture registry artifact",
+    "run same-input shadow calibration and retain measured governed outcomes",
+    "close every gate and record a fresh independently assessed lifecycle admission before selection"
+  ]
+}

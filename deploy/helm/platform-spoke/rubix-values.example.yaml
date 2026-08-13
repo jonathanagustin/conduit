@@ -1,0 +1,20 @@
+# Replace the image with an exact digest from platform-oci-manifest.json.
+# Replace identity, endpoint, and Secret names with deployment-owned values.
+image: example.invalid/platform-spoke-agent@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+environmentId: replace-me-environment
+agentId: replace-me-agent
+controlPlaneURL: https://replace-me-hub.example.internal
+tls:
+  # The client certificate must carry the Platform Environment/Agent URI SAN.
+  # Public evidence does not establish that Rubix pod-cert supplies that identity.
+  clientSecretName: replace-me-agent-tls
+  externalCAConfigMapName: tls-external-ca-pem-bundle
+  externalCAKey: ca.pem
+affinity:
+  nodeAffinity:
+    requiredDuringSchedulingIgnoredDuringExecution:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: com.palantir.rubix/instance-group
+              operator: In
+              values: [replace-me-instance-group]

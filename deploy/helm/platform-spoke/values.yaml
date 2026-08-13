@@ -1,0 +1,47 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image: ""
+imagePullPolicy: IfNotPresent
+imagePullSecrets: []
+environmentId: ""
+agentId: ""
+controlPlaneURL: ""
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+podAnnotations: {}
+podLabels: {}
+# See the Hub chart. Keep empty unless the container runtime requires an
+# explicit image-root traversal group.
+runtimeSupplementalGroups: []
+
+tls:
+  clientSecretName: ""
+  externalCAConfigMapName: ""
+  externalCAKey: ca.pem
+
+leaseDuration: 2m
+pollInterval: 15s
+helmTimeout: 5m
+# Test-only compatibility for registries that do not serve TLS. Production
+# registries must leave this false.
+helmPlainHTTP: false
+healthPollInterval: 5s
+healthProbeCAConfigMapName: ""
+healthProbeCAKey: ca.pem
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+affinity: {}
+tolerations: []

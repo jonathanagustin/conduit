@@ -1,0 +1,78 @@
+# Reconciles one blank Foundry tenant from a digest-pinned chart.
+#
+# One of these per tenant. Everything that distinguishes a tenant is a value,
+# so the copy-a-directory-and-rename-what-you-noticed failure mode has nowhere
+# to hide: the chart is the same exact digest for every tenant.
+#
+# The digest is authority; the tag beside it is discovery metadata only.
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: foundry-tenant
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: oci://ghcr.io/example/charts/foundry-tenant
+  ref:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: helm.toolkit.fluxcd.io/v2
+kind: HelmRelease
+metadata:
+  name: foundry-tenant-replace-me
+  namespace: flux-system
+spec:
+  interval: 5m
+  releaseName: foundry-tenant-replace-me
+  chartRef:
+    kind: OCIRepository
+    name: foundry-tenant
+  # Impersonate the bounded tenant identity rather than Flux's own controller
+  # permissions, so the blast radius is the enumerated ClusterRole.
+  serviceAccountName: foundry-tenant-reconciler
+  # Every resource this chart renders is an external-secrets kind, so without
+  # the CRDs the first reconcile fails on unknown types rather than waiting.
+  # Naming the release here makes the ordering explicit instead of leaving it to
+  # retry timing. Adjust the name/namespace to match your ESO installation.
+  dependsOn:
+    - name: external-secrets
+      namespace: external-secrets
+  install:
+    # The chart creates its Namespace itself, with the tenant labels on it.
+    createNamespace: false
+    # An ExternalSecret only goes Ready once it has actually fetched from AWS,
+    # so waiting ties this release to state outside the cluster: one Secrets
+    # Manager key that does not exist yet fails the install, and remediation
+    # then uninstalls the ClusterSecretStore and all nineteen siblings with it.
+    # Provisioning a tenant is creating these objects. Whether each secret has
+    # synced is the ExternalSecret's own status to report, and is exactly what
+    # you want to read when bootstrapping against a half-populated account.
+    disableWait: true
+    remediation:
+      retries: 3
+  upgrade:
+    disableWait: true
+    remediation:
+      retries: 3
+      # Keep a failed upgrade in place for inspection rather than rolling the
+      # tenant's credentials back underneath running services.
+      strategy: rollback
+  driftDetection:
+    mode: enabled
+  values:
+    tenant:
+      name: replace-me
+      resourcePrefix: replace-me
+      serviceAccounts:
+        - api
+        - workspace
+    foundry:
+      # Set true only when bootstrapping a tenant before Foundry is installed.
+      # Foundry's own installer normally owns this namespace, and Helm will not
+      # adopt one it does not own.
+      createNamespace: false
+    secretStore:
+      region: replace-me
+      # The role this tenant's reads assume. Omitting it silently falls back to
+      # the external-secrets controller's own identity, which is shared.
+      roleArn: replace-me

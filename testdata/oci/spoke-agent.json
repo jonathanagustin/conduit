@@ -1,0 +1,16 @@
+{
+  "component": "spoke-agent",
+  "image": "ghcr.io/example/platform-spoke-agent",
+  "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "reference": "ghcr.io/example/platform-spoke-agent@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "version": "1.2.3",
+  "commit": "0123456789abcdef0123456789abcdef01234567",
+  "sboms": [
+    {"architecture": "amd64", "file": "spoke-agent-amd64.spdx.json", "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc"},
+    {"architecture": "arm64", "file": "spoke-agent-arm64.spdx.json", "sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd"}
+  ],
+  "vulnerabilityReports": [
+    {"architecture": "amd64", "file": "spoke-agent-amd64.grype.json", "sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee"},
+    {"architecture": "arm64", "file": "spoke-agent-arm64.grype.json", "sha256": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"}
+  ]
+}

@@ -1,0 +1,109 @@
+{{- $podLabels := deepCopy .Values.podLabels -}}
+{{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-spoke.name" .) -}}
+{{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
+{{- $_ := set $podLabels "app.kubernetes.io/component" "spoke" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform-spoke.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-spoke.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "platform-spoke.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: spoke
+  template:
+    metadata:
+      labels:
+        {{- toYaml $podLabels | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "platform-spoke.serviceAccountName" . }}
+      automountServiceAccountToken: true
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        {{- with .Values.runtimeSupplementalGroups }}
+        supplementalGroups:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: spoke-agent
+          image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          env:
+            - { name: CONTROL_PLANE_URL, value: {{ required "controlPlaneURL is required" .Values.controlPlaneURL | quote }} }
+            - { name: CONTROL_PLANE_CA_FILE, value: /etc/ssl/platform-ca/ca.pem }
+            - { name: CONTROL_PLANE_CLIENT_CERT_FILE, value: /run/platform-tls/tls.crt }
+            - { name: CONTROL_PLANE_CLIENT_KEY_FILE, value: /run/platform-tls/tls.key }
+            - { name: ENVIRONMENT_ID, value: {{ required "environmentId is required" .Values.environmentId | quote }} }
+            - { name: AGENT_ID, value: {{ required "agentId is required" .Values.agentId | quote }} }
+            - { name: LEASE_DURATION, value: {{ .Values.leaseDuration | quote }} }
+            - { name: POLL_INTERVAL, value: {{ .Values.pollInterval | quote }} }
+            - { name: HELM_TIMEOUT, value: {{ .Values.helmTimeout | quote }} }
+            {{- if .Values.helmPlainHTTP }}
+            - { name: HELM_PLAIN_HTTP, value: "true" }
+            {{- end }}
+            - { name: HEALTH_POLL_INTERVAL, value: {{ .Values.healthPollInterval | quote }} }
+            {{- if .Values.healthProbeCAConfigMapName }}
+            - { name: HEALTH_PROBE_CA_FILE, value: /etc/ssl/platform-health-ca/ca.pem }
+            {{- end }}
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: temporary, mountPath: /tmp }
+            - { name: client-tls, mountPath: /run/platform-tls, readOnly: true }
+            - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
+            {{- if .Values.healthProbeCAConfigMapName }}
+            - { name: health-ca, mountPath: /etc/ssl/platform-health-ca, readOnly: true }
+            {{- end }}
+      volumes:
+        - name: temporary
+          emptyDir: {}
+        - name: client-tls
+          secret:
+            secretName: {{ required "tls.clientSecretName is required" .Values.tls.clientSecretName }}
+            optional: false
+        - name: external-ca
+          configMap:
+            name: {{ required "tls.externalCAConfigMapName is required" .Values.tls.externalCAConfigMapName }}
+            items:
+              - { key: {{ .Values.tls.externalCAKey }}, path: ca.pem }
+        {{- if .Values.healthProbeCAConfigMapName }}
+        - name: health-ca
+          configMap:
+            name: {{ .Values.healthProbeCAConfigMapName }}
+            items:
+              - { key: {{ .Values.healthProbeCAKey }}, path: ca.pem }
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

@@ -1,0 +1,135 @@
+{
+  "apiVersion": "evidence.platform.example/upstream-release/v1alpha1",
+  "kind": "UpstreamReleaseAvailability",
+  "status": "AVAILABLE_NOT_ADMITTED",
+  "capturedAt": "2026-08-12T01:58:00Z",
+  "upstream": {
+    "project": "google/or-tools",
+    "release": "v9.15",
+    "version": "9.15.6755",
+    "publishedAt": "2026-01-12T15:38:30Z",
+    "sourceCommit": "551ad10d94835c99e5e1e684500d3db398c0e345",
+    "publishedAssetCount": 122,
+    "releaseURL": "https://github.com/google/or-tools/releases/tag/v9.15",
+    "license": "Apache-2.0"
+  },
+  "artifacts": [
+    {
+      "name": "or-tools-9.15.tar.gz",
+      "architecture": "source",
+      "sizeBytes": 21741398,
+      "upstreamPublishedSHA256": "599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311",
+      "observedSHA256": "599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311",
+      "url": "https://github.com/google/or-tools/releases/download/v9.15/or-tools-9.15.tar.gz",
+      "observedDigestMatchesRelease": true
+    },
+    {
+      "name": "or-tools_x86_64_AlmaLinux-8.10_cpp_v9.15.6755.tar.gz",
+      "architecture": "amd64",
+      "sizeBytes": 56912204,
+      "upstreamPublishedSHA256": "c43b473b0d141cee253659e8e9e9f46255b7a5edd3839abe7bf4c42a7910a1e9",
+      "observedSHA256": "c43b473b0d141cee253659e8e9e9f46255b7a5edd3839abe7bf4c42a7910a1e9",
+      "url": "https://github.com/google/or-tools/releases/download/v9.15/or-tools_x86_64_AlmaLinux-8.10_cpp_v9.15.6755.tar.gz",
+      "observedDigestMatchesRelease": true,
+      "satRunnerSHA256": "405ec71d9c6fcc7f94c3cb2f9a48fd7270d043136bb4533a9c2a21abb0e98b10",
+      "libortoolsSHA256": "3b5fd92b720b6113af9e1d299db86a4b5dad310785fe71da45a2ba7a06299193"
+    },
+    {
+      "name": "or-tools_aarch64_AlmaLinux-8.10_cpp_v9.15.6755.tar.gz",
+      "architecture": "arm64",
+      "sizeBytes": 54480729,
+      "upstreamPublishedSHA256": "422320008143611479b05216f3fa4dce65ca9d1a4751a070ecbe3a2ef1ebea4b",
+      "observedSHA256": "422320008143611479b05216f3fa4dce65ca9d1a4751a070ecbe3a2ef1ebea4b",
+      "url": "https://github.com/google/or-tools/releases/download/v9.15/or-tools_aarch64_AlmaLinux-8.10_cpp_v9.15.6755.tar.gz",
+      "observedDigestMatchesRelease": true,
+      "satRunnerSHA256": "82b028c7e1b00d50f0c9d4ce113c88a91dd18732fd2e18f462ebd3902d1b8c76",
+      "libortoolsSHA256": "ca6d49c6e8857317022ea29c6fb520921607b54bdf52bc8a8451bd8eaa45bf82"
+    },
+    {
+      "name": "Google.OrTools.runtime.linux-x64.9.15.6755.nupkg",
+      "architecture": "amd64",
+      "sizeBytes": 26431265,
+      "upstreamPublishedSHA256": "6a1366073a385ef49cd84c15bead06268495d50a83c4636633ccfd65487f6bd8",
+      "observedSHA256": "6a1366073a385ef49cd84c15bead06268495d50a83c4636633ccfd65487f6bd8",
+      "url": "https://github.com/google/or-tools/releases/download/v9.15/Google.OrTools.runtime.linux-x64.9.15.6755.nupkg",
+      "observedDigestMatchesRelease": true
+    },
+    {
+      "name": "Google.OrTools.runtime.linux-arm64.9.15.6755.nupkg",
+      "architecture": "arm64",
+      "sizeBytes": 24585503,
+      "upstreamPublishedSHA256": "0595cd93752bad6639f46c8bc9ccbdba6b499dc57c2487d4f307da5be99f052e",
+      "observedSHA256": "0595cd93752bad6639f46c8bc9ccbdba6b499dc57c2487d4f307da5be99f052e",
+      "url": "https://github.com/google/or-tools/releases/download/v9.15/Google.OrTools.runtime.linux-arm64.9.15.6755.nupkg",
+      "observedDigestMatchesRelease": true
+    }
+  ],
+  "measuredArtifactCount": 5,
+  "measuredArtifactBytes": 184151099,
+  "sourceContracts": {
+    "cpSolverCHeaderSHA256": "2483d71a81f4696af6a8ada62ef5ee8e1c3854793bfaeff6b79f851b6c84d2b7",
+    "cpModelProtoSHA256": "c967180600fab5db4fc8b7477fef56c3c6d3c0714b1f0355697f96d147f77d96",
+    "satParametersProtoSHA256": "9a5e08486a63414191870bd9953f9e561af221e165654913a33662bf1b674308",
+    "exportedCFunctionsPerArchitecture": 5,
+    "functions": [
+      "SolveCpDestroyEnv",
+      "SolveCpInterruptible",
+      "SolveCpModelWithParameters",
+      "SolveCpNewEnv",
+      "SolveCpStopSearch"
+    ],
+    "statuses": [
+      "UNKNOWN",
+      "MODEL_INVALID",
+      "FEASIBLE",
+      "INFEASIBLE",
+      "OPTIMAL"
+    ]
+  },
+  "binaryArchiveAudit": {
+    "upstreamElfArchitecturesVerified": 2,
+    "upstreamNativeExecutionArchitectures": 1,
+    "platformCandidateNativeExecutionArchitectures": 0,
+    "regularLib64FilesPerArchitecture": 123,
+    "sharedObjectFilesPerArchitecture": 112,
+    "staticArchivesPerArchitecture": 11,
+    "symlinksPerArchitecture": 129,
+    "libortoolsStaticArchivesPerArchitecture": 0,
+    "directNeededEntriesFromLibortools": 105,
+    "retainedLicenseNamedFilesPerArchitecture": 7,
+    "licenseClosureComplete": false,
+    "includesUnrelatedSolverDependencies": [
+      "CBC/CLP/COIN-OR",
+      "HiGHS",
+      "SCIP/SoPlex"
+    ],
+    "runnerProtocol": "file-and-flags",
+    "strictPlatformJSONEnvelope": false,
+    "notes": [
+      "The release README separately warns consumers to review SCIP licensing.",
+      "The C API aborts through CHECK on malformed protobuf input rather than returning a typed error.",
+      "The response allocation uses upstream memdup but the public C header exposes no matching response-free function.",
+      "No prebuilt static CP-SAT or libortools.a release artifact was found; the archives do contain eleven unrelated static libraries per architecture.",
+      "The NuGet runtime packages contain no bundled license files and only declare Apache-2.0 metadata.",
+      "Availability does not establish dependency closure, sandbox behavior, deterministic receipts, or Platform model semantics."
+    ]
+  },
+  "determinismProbe": {
+    "architecture": "amd64",
+    "runs": 20,
+    "semanticAssignmentsIdentical": 20,
+    "uniqueRawCpSolverResponseSHA256": 20,
+    "uniqueTimingStrippedTextProtoSHA256": 1,
+    "timingStrippedTextProtoSHA256": "731f01be6a424104fff63827ac4d0f2cb014f1bf36a768414d60308b6217bdf6",
+    "excludedVolatileFields": ["wall_time", "user_time"],
+    "goSemanticProjectionSchema": ["status", "canonical task/lane/start choices", "inner_objective_lower_bound"],
+    "conclusion": "The measured textproto projection removed wall_time and user_time and matched 20/20; the distinct Go projection hashes parsed status, canonical choices, and the inner integer bound. Raw response bytes are nondeterministic, and tied-optimum equality across architectures remains unproven."
+  },
+  "decision": {
+    "officialBinaryArchiveAsRuntime": "REJECT",
+    "officialSourceAndCAPIAsBuildInput": "ACCEPT_FOR_TRIAL",
+    "reason": "Reconcile the provisional Rust/C++ source scaffold to a measured narrow ABI, then build a minimal CP-SAT-only closure from pinned source; do not ship the monolithic archive or treat third-party Rust bindings as authority.",
+    "nativeCandidateExecutables": 0,
+    "admittedArtifacts": 0
+  }
+}

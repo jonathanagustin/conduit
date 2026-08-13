@@ -1,0 +1,125 @@
+{
+  "apiVersion": "optimization.platform.example/conformance-v1",
+  "cases": [
+    {
+      "name": "exact equality boundary",
+      "constraintClasses": ["equality"],
+      "problem": {
+        "items": [
+          {"id": "first", "demand": 1},
+          {"id": "second", "demand": 1}
+        ],
+        "resources": [
+          {"id": "a", "capacity": 1},
+          {"id": "b", "capacity": 1}
+        ]
+      },
+      "expectedTermination": "OPTIMAL",
+      "expectedAssignments": {"first": "a", "second": "b"}
+    },
+    {
+      "name": "architecture eligibility",
+      "constraintClasses": ["architecture"],
+      "problem": {
+        "items": [
+          {"id": "portable", "demand": 4},
+          {"id": "native", "demand": 3, "eligible": ["arm64"]}
+        ],
+        "resources": [
+          {"id": "amd64", "capacity": 1},
+          {"id": "arm64", "capacity": 1}
+        ]
+      },
+      "expectedTermination": "FEASIBLE",
+      "expectedAssignments": {"native": "arm64"}
+    },
+    {
+      "name": "failure domain pin",
+      "constraintClasses": ["failure-domain"],
+      "problem": {
+        "items": [{"id": "recovery", "demand": 2, "eligible": ["zone-b"]}],
+        "resources": [
+          {"id": "zone-a", "capacity": 1},
+          {"id": "zone-b", "capacity": 1}
+        ]
+      },
+      "expectedTermination": "OPTIMAL",
+      "expectedAssignments": {"recovery": "zone-b"}
+    },
+    {
+      "name": "maintenance exclusion",
+      "constraintClasses": ["maintenance"],
+      "problem": {
+        "items": [{"id": "rollout", "demand": 2, "eligible": ["active"]}],
+        "resources": [
+          {"id": "active", "capacity": 1},
+          {"id": "maintenance", "capacity": 1}
+        ]
+      },
+      "expectedTermination": "OPTIMAL",
+      "expectedAssignments": {"rollout": "active"}
+    },
+    {
+      "name": "pdb disruption lane",
+      "constraintClasses": ["pdb"],
+      "problem": {
+        "items": [
+          {"id": "retained", "demand": 2, "eligible": ["stable"]},
+          {"id": "surge", "demand": 2, "eligible": ["surge"]}
+        ],
+        "resources": [
+          {"id": "stable", "capacity": 1},
+          {"id": "surge", "capacity": 1}
+        ]
+      },
+      "expectedTermination": "OPTIMAL",
+      "expectedAssignments": {"retained": "stable", "surge": "surge"}
+    },
+    {
+      "name": "disk pressure exclusion",
+      "constraintClasses": ["disk-pressure"],
+      "problem": {
+        "items": [{"id": "image-unpack", "demand": 5, "eligible": ["healthy-node"]}],
+        "resources": [
+          {"id": "disk-pressure-node", "capacity": 10},
+          {"id": "healthy-node", "capacity": 1}
+        ]
+      },
+      "expectedTermination": "OPTIMAL",
+      "expectedAssignments": {"image-unpack": "healthy-node"}
+    },
+    {
+      "name": "cost overflow rejected",
+      "constraintClasses": ["overflow"],
+      "problem": {
+        "items": [
+          {"id": "one", "demand": 1, "estimatedCostMicros": {"node": 9223372036854775807}},
+          {"id": "two", "demand": 1, "estimatedCostMicros": {"node": 9223372036854775807}}
+        ],
+        "resources": [{"id": "node", "capacity": 1}],
+        "costModel": {"currency": "USD", "source": "fixture", "asOf": "2026-08-09T17:00:00Z"}
+      },
+      "rejected": true
+    },
+    {
+      "name": "time budget remains time limit",
+      "constraintClasses": ["timeout"],
+      "mode": "timeout",
+      "problem": {
+        "items": [{"id": "work", "demand": 1}],
+        "resources": [{"id": "worker", "capacity": 1}]
+      },
+      "expectedTermination": "TIME_LIMIT"
+    },
+    {
+      "name": "infeasible remains distinct",
+      "constraintClasses": ["infeasible"],
+      "mode": "infeasible",
+      "problem": {
+        "items": [{"id": "work", "demand": 1}],
+        "resources": [{"id": "worker", "capacity": 1}]
+      },
+      "expectedTermination": "INFEASIBLE"
+    }
+  ]
+}

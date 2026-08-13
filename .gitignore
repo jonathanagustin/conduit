@@ -1,0 +1,20 @@
+.platform-delivery/
+coverage.out
+dist/
+!internal/consoleui/dist/
+!internal/consoleui/dist/**
+*.tmp
+.env
+.direnv/
+web/.stryker-tmp/
+
+# `go build ./cmd/<name>` writes the binary to the working directory, which is
+# the repository root. ci.yml's build step does exactly that for all six, so a
+# local run of the same commands leaves six committable binaries behind.
+/conduit
+/platform-delivery
+/platform-grype-scanner
+/platform-module-publisher
+/platform-operator
+/platform-spoke-agent
+/platform-optimizer

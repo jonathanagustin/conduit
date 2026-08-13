@@ -1,0 +1,13 @@
+manifest-version: "1.0"
+product-group: com.example.conformance
+product-name: conformance-fixture
+product-version: 1.2.3
+product-type: helm-chart.v1
+extensions:
+  artifacts:
+    - type: oci
+      uri: registry.example/conformance-fixture:1.2.3@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+  helm-chart:
+    helm-chart-name: conformance-fixture
+    helm-chart-version: 1.2.3
+    helm-repository-url: oci://registry.example/charts/conformance-fixture

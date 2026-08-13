@@ -1,0 +1,33 @@
+name: example-workspace
+displayName: Example Workspace
+description: Browser workspace and same-origin edge proxy Entity.
+
+variables:
+  k8sNamespace:
+    type: string
+    string:
+      defaultValue: example
+      description: Existing Restricted Kubernetes namespace for the Workspace.
+
+entities:
+  - type: helmChart
+    helmChart:
+      productId: app.example:example-workspace
+      entityName: example-workspace
+      k8sNamespace: "{{ moduleVariable.k8sNamespace }}"
+      ignoredDependencies: []
+      syncConfigOverrides: MERGE
+      configOverrides: |
+        0.1.0:
+          overrides:
+            apiUpstream:
+              enabled: true
+              host: example-api
+              port: 8080
+              tls: false
+
+restrictions:
+  newInstallations:
+    allowed: false
+  submoduleUsage:
+    allowEntityOverrides: false

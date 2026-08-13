@@ -1,0 +1,102 @@
+{
+  "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+  "kind": "EvaluatorRun",
+  "id": "eval_0b442d9a2489b386464407424a1881085a72fd0270b83e8795725c89c1687852",
+  "provider": "cursor",
+  "modelFamily": "grok",
+  "model": "cursor-grok-4.5-high",
+  "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+  "promptSha256": "9769640ebbb59c5507c94463e2e245cbee62ca59e6782ee1e2dfa0ef404c278d",
+  "inputSnapshotId": "snap_767ee880ecbbc73b150ee0a6b98f94e1d490dd79605b2f17c2e8bfa4624e5a48",
+  "snapshot": {
+    "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+    "kind": "EvaluatorSnapshot",
+    "repository": "jonathanagustin/palantir",
+    "path": "platform",
+    "commit": "899bbc3047feede582140fedd53930eaa6664ae7",
+    "tree": "de377de3304c6840e5ea45bdfee33bbf4ee844be",
+    "archiveSha256": "767ee880ecbbc73b150ee0a6b98f94e1d490dd79605b2f17c2e8bfa4624e5a48",
+    "snapshotId": "snap_767ee880ecbbc73b150ee0a6b98f94e1d490dd79605b2f17c2e8bfa4624e5a48",
+    "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+    "secretMatches": 0
+  },
+  "readOnly": true,
+  "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+  "invocationId": "b98ce364-4869-4e22-bddd-03d2172adf29",
+  "sessionId": "a808b0bf-3b02-4b72-84aa-9ca67e1924cf",
+  "receiptSha256": "fafc056393c59714fab4927cbba4748a1f351c95bd111a8bb05f7cd51f1f4e5e",
+  "usage": {
+    "inputTokens": 134267,
+    "outputTokens": 23922,
+    "cacheReadTokens": 965760,
+    "cacheWriteTokens": 0
+  },
+  "inputAccessStatus": "COMPLETE",
+  "residualUnknowns": [
+    "This Ask-mode session could not execute go test -race ./internal/optimization ./cmd/platform-optimizer against the extracted tree.",
+    "Whether Dinic push recursion can overflow the goroutine stack at maxItems/maxResources.",
+    "Whether binary-search RelaxedMakespan (feasible hi) can exceed RoundedMakespan on zero-integrality-gap instances enough to yield a negative OptimalityGap under float64, absent an executable non-negativity gate.",
+    "Whether the 2e6-node acquisition search budget can spuriously exhaust inside the 63×20 limits on some solvable topology."
+  ],
+  "startedAt": "2026-08-08T22:41:34.741Z",
+  "finishedAt": "2026-08-08T22:45:38.318Z",
+  "costStatus": "UNAVAILABLE",
+  "costMicros": 0,
+  "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+  "priceRevision": "HTTP-401@2026-08-08",
+  "costUnavailableReason": "personal integration key cannot read the Cursor team billing API",
+  "findings": [
+    {
+      "id": "grok-F1",
+      "clusterKey": "experiment-pass-flags-vs-eligibility",
+      "category": "correctness",
+      "target": "internal/optimization/experiment.go:103",
+      "summary": "AssessExperiment initializes PrimaryPassed and GuardrailsPassed to true and never clears them when a preregistered primary or guardrail metric is absent from outcome.Effects, so those booleans can read true while Eligible is false solely due to missing-effect Reasons.",
+      "confidence": "9/10",
+      "evidence": [
+        "Lines 103–145 only set PrimaryPassed/GuardrailsPassed false on inconclusive present effects; the missing-metric loop appends Reasons without updating the booleans, yet Eligible requires both flags and empty Reasons.",
+        "Missing gate: go test ./internal/optimization -run 'TestAssessExperimentClearsPassFlagsWhenEffectsMissing' (no such test; TestAssessExperimentRequiresPrimaryGuardrailsAndSample and TestAssessExperimentRejectsUnregisteredAndUnderpoweredEvidence never assert PrimaryPassed/GuardrailsPassed under missing effects)."
+      ],
+      "hypothesis": true
+    },
+    {
+      "id": "grok-F2",
+      "clusterKey": "experiment-pass-flags-vs-eligibility",
+      "category": "correctness",
+      "target": "internal/optimization/experiment.go:116",
+      "summary": "When a present primary effect fails the preregistered MinimumSampleSize, AssessExperiment records a Reason but leaves PrimaryPassed true, so PrimaryPassed does not track the doc rule that sample must pass for primary success toward eligibility.",
+      "confidence": "4/5",
+      "evidence": [
+        "Sample failure only appends Reasons at lines 116–118 and never assigns PrimaryPassed=false; Eligible then fails only via len(Reasons)!=0.",
+        "docs/architecture/ADVISORY-OPTIMIZATION.md:143–144 states eligibility requires sample, primary, and every guardrail to pass; go test ./internal/optimization -run TestAssessExperimentRejectsUnregisteredAndUnderpoweredEvidence asserts Eligible/Reasons but not PrimaryPassed==false."
+      ],
+      "hypothesis": true
+    },
+    {
+      "id": "grok-F3",
+      "clusterKey": "evaluator-resolution-metrics-gap",
+      "category": "correctness",
+      "target": "cmd/platform-optimizer/main.go:285",
+      "summary": "resolve-evaluators persists EvaluatorResolution dispositions but neither the CLI nor internal/optimization recomputes EvaluatorMetric against batch dispositions merged with that resolution, so post-resolution precision/FDR/recall/unique-yield cannot be reproduced from stored artifacts via MeasureEvaluatorBatch.",
+      "confidence": "3/4",
+      "evidence": [
+        "go test ./cmd/platform-optimizer -run TestRecordEvaluatorsPersistsCalibratedBatch loads the resolution but never remeasures metrics; go test ./internal/optimization -run TestEvaluatorResolutionOnlyAmendsUnresolvedFindings likewise omits post-resolution MeasureEvaluatorBatch.",
+        "resolve-evaluators returns only the resolution document after SaveResolution; MeasureEvaluatorBatch reads solely batch.Dispositions and no ApplyResolution/merge helper exists under internal/optimization."
+      ],
+      "hypothesis": true
+    },
+    {
+      "id": "grok-F4",
+      "clusterKey": "evaluator-fdr-doc-mismatch",
+      "category": "documentation",
+      "target": "docs/architecture/ADVISORY-OPTIMIZATION.md:158",
+      "summary": "ADVISORY-OPTIMIZATION still claims evaluator batch metrics retain a false-positive rate, while EvaluatorMetric exposes and tests FalseDiscoveryRate as FP/(TP+FP).",
+      "confidence": "5/6",
+      "evidence": [
+        "docs/architecture/ADVISORY-OPTIMIZATION.md:158 lists \"false-positive rate\" among retained batch metrics.",
+        "internal/optimization/evaluator.go:145,444 and evaluator_test.go:124 name and assert FalseDiscoveryRate; docs/operations/CAPABILITY-MAP.md H72 already says \"false discovery rate\"."
+      ],
+      "hypothesis": true
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+.console-environments__table { width: 100%; }
+.console-environment { padding: 16px; }
+.console-environment__header {
+  display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 12px; gap: 8px;
+}
+.console-environment__header h3 { margin: 0 8px 0 0; }
+
+.console-environment__summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  margin-bottom: 12px;
+  gap: 12px;
+}
+
+.console-environment__mobile-records { display: none; }
+
+@media (max-width: 767px) {
+  .console-environment { padding: 12px; }
+  .console-environment__entity-table,
+  .console-environment__responsive-table { display: none; }
+  .console-environment__mobile-records {
+    display: grid;
+    gap: 8px;
+  }
+  .console-environment__mobile-record {
+    margin: 0;
+    padding: 12px;
+    border: 1px solid var(--bp-border-color, #d3d8de);
+    border-radius: 2px;
+    background: var(--bp-background-color, #fff);
+  }
+  .console-environment__mobile-record > div {
+    display: grid;
+    grid-template-columns: minmax(72px, 0.35fr) minmax(0, 1fr);
+    gap: 8px;
+  }
+  .console-environment__mobile-record > div + div { margin-top: 6px; }
+  .console-environment__mobile-record dt {
+    color: var(--bp-typography-color-muted, #5f6b7c);
+    font-weight: 600;
+  }
+  .console-environment__mobile-record dd {
+    min-width: 0;
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+}

@@ -1,0 +1,54 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-delivery
+  namespace: platform-system
+spec:
+  template:
+    spec:
+      serviceAccountName: platform-delivery
+      containers:
+        - name: delivery-control-plane
+          env:
+            - { name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///run/spire/sockets/socket" }
+            - { name: BUNDLE_SIGNING_KEY_FILE, value: "/run/platform-signing/bundle-signing-key.pem" }
+          startupProbe:
+            httpGet: { path: /health/live, port: http, scheme: HTTPS }
+          readinessProbe:
+            httpGet: { path: /health/ready, port: http, scheme: HTTPS }
+          livenessProbe:
+            httpGet: { path: /health/live, port: http, scheme: HTTPS }
+          volumeMounts:
+            - { name: spiffe-workload-api, mountPath: /run/spire/sockets, readOnly: true }
+            - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
+      volumes:
+        - name: spiffe-workload-api
+          csi:
+            driver: csi.spiffe.io
+            readOnly: true
+        - name: bundle-signing
+          secret:
+            secretName: platform-bundle-signing
+            optional: false
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-spoke-agent
+  namespace: platform-system
+spec:
+  template:
+    spec:
+      containers:
+        - name: spoke-agent
+          env:
+            - { name: CONTROL_PLANE_URL, value: "https://platform-delivery.platform-system.svc.cluster.local:8081" }
+            - { name: CONTROL_PLANE_SPIFFE_ID, value: "spiffe://platform.delivery/hub" }
+            - { name: SPIFFE_ENDPOINT_SOCKET, value: "unix:///run/spire/sockets/socket" }
+          volumeMounts:
+            - { name: spiffe-workload-api, mountPath: /run/spire/sockets, readOnly: true }
+      volumes:
+        - name: spiffe-workload-api
+          csi:
+            driver: csi.spiffe.io
+            readOnly: true

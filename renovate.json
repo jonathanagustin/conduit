@@ -1,0 +1,58 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests"
+  ],
+  "dependencyDashboard": true,
+  "labels": [
+    "dependencies"
+  ],
+  "dockerfile": {
+    "managerFilePatterns": [
+      "/(^|/)(Dockerfile|Containerfile)(\\.[^/]*)?$/"
+    ]
+  },
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 5,
+  "prHourlyLimit": 2,
+  "semanticCommits": "enabled",
+  "schedule": [
+    "before 5am on Monday"
+  ],
+  "packageRules": [
+    {
+      "description": "Group digest-pinned GitHub Actions updates",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "groupName": "GitHub Actions"
+    },
+    {
+      "description": "Keep container bases pinned by tag and digest",
+      "matchDatasources": [
+        "docker"
+      ],
+      "rangeStrategy": "pinDigest"
+    },
+    {
+      "description": "Group non-major Go dependency updates",
+      "matchManagers": [
+        "gomod"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "digest"
+      ],
+      "groupName": "Go dependencies"
+    },
+    {
+      "description": "Require review for major dependency updates",
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "dependencyDashboardApproval": true
+    }
+  ]
+}

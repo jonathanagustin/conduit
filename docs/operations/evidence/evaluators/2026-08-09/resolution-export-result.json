@@ -1,0 +1,109 @@
+{
+  "resolution": {
+    "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+    "kind": "EvaluatorResolution",
+    "id": "evr_181acb96493548876c83a4cb2fefd8a4866598013a990eb1b2f0a0a46d978a7a",
+    "batchId": "evb_3c0225dad8941938effd13729fb48820d20b9cf1c010a9776a766f3974b9e0d2",
+    "dispositions": [
+      {
+        "findingId": "kimi-F7",
+        "canonicalClusterKey": "zenith-export-resolutions",
+        "status": "VERIFIED_DEFECT",
+        "verifier": "independent-script-gate",
+        "source": "jonathanagustin/palantir",
+        "sourceRevision": "f3c46cf41b4ecd877580ac85e543c5b74fb1b593",
+        "executableGate": "scripts/test-evaluator-runner.sh",
+        "verifiedAt": "2026-08-09T08:12:33.762Z",
+        "notes": "A real stored resolution was absent from the prior Zenith export; the exporter now binds its path, SHA-256, batch ID, and dispositions, and the non-empty fixture rejects the deletion mutant."
+      },
+      {
+        "findingId": "opus-F11",
+        "canonicalClusterKey": "zenith-export-resolutions",
+        "status": "VERIFIED_DEFECT",
+        "verifier": "independent-script-gate",
+        "source": "jonathanagustin/palantir",
+        "sourceRevision": "f3c46cf41b4ecd877580ac85e543c5b74fb1b593",
+        "executableGate": "scripts/test-evaluator-runner.sh",
+        "verifiedAt": "2026-08-09T08:12:33.762Z",
+        "notes": "Independent model description maps to the same reproduced resolution-export omission as kimi-F7."
+      }
+    ]
+  },
+  "metrics": [
+    {
+      "runId": "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a",
+      "provider": "cursor",
+      "modelFamily": "opus",
+      "model": "claude-opus-5-thinking-high",
+      "latencyNanoseconds": 586147000000,
+      "usage": {
+        "inputTokens": 52,
+        "outputTokens": 37461,
+        "cacheReadTokens": 2820807,
+        "cacheWriteTokens": 174505
+      },
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "costUnavailableReason": "model-level monetary cost was not exposed in the Cursor Agent receipts",
+      "disposedFindings": 2,
+      "verifiedDefects": 2,
+      "verifiedClusters": 2,
+      "falsePositives": 0,
+      "uniqueVerifiedDefects": 0,
+      "precision": "1",
+      "falseDiscoveryRate": "0",
+      "recallAgainstBatchTruth": "2/3",
+      "recallStatus": "MEASURED"
+    },
+    {
+      "runId": "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f",
+      "provider": "cursor",
+      "modelFamily": "kimi",
+      "model": "kimi-k3-max",
+      "latencyNanoseconds": 582407000000,
+      "usage": {
+        "inputTokens": 145478,
+        "outputTokens": 38235,
+        "cacheReadTokens": 2176992,
+        "cacheWriteTokens": 0
+      },
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "costUnavailableReason": "model-level monetary cost was not exposed in the Cursor Agent receipts",
+      "disposedFindings": 3,
+      "verifiedDefects": 3,
+      "verifiedClusters": 3,
+      "falsePositives": 0,
+      "uniqueVerifiedDefects": 0,
+      "precision": "1",
+      "falseDiscoveryRate": "0",
+      "recallAgainstBatchTruth": "1",
+      "recallStatus": "MEASURED"
+    },
+    {
+      "runId": "eval_dc3eb6392ae6b39d51d7b63d17eedb1fd5aa1f3f406d87eaf1916d25d37d66b7",
+      "provider": "cursor",
+      "modelFamily": "grok",
+      "model": "cursor-grok-4.5-high",
+      "latencyNanoseconds": 232084000000,
+      "usage": {
+        "inputTokens": 141453,
+        "outputTokens": 17510,
+        "cacheReadTokens": 604288,
+        "cacheWriteTokens": 0
+      },
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "costUnavailableReason": "model-level monetary cost was not exposed in the Cursor Agent receipts",
+      "disposedFindings": 2,
+      "verifiedDefects": 2,
+      "verifiedClusters": 2,
+      "falsePositives": 0,
+      "uniqueVerifiedDefects": 0,
+      "precision": "1",
+      "falseDiscoveryRate": "0",
+      "recallAgainstBatchTruth": "2/3",
+      "recallStatus": "MEASURED"
+    }
+  ]
+}

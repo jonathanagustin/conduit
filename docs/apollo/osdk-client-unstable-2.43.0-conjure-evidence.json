@@ -1,0 +1,49 @@
+{
+  "capturedAt": "2026-08-02",
+  "source": {
+    "npmPackage": "@osdk/client.unstable",
+    "npmVersion": "2.43.0",
+    "npmIntegrity": "sha512-bF+J/3lXgo/xtRKd4tz20XtWN9sKuc0HhlA+Tx8+EHigN11fnjiQnD/vIePmw3iII0xZWhAf5ZcoJ1zuIROK2Q==",
+    "npmTarballSha256": "a892d51988c83c9008aedf0e74ccf1ead8d5c808cb53c615b54d290e2817c02e",
+    "repository": "https://github.com/palantir/osdk-ts",
+    "provenanceCommit": "c40ca076c1459019a9327d79cf0581b6daf978a4",
+    "provenanceWorkflow": ".github/workflows/release.yml",
+    "provenanceRun": "https://github.com/palantir/osdk-ts/actions/runs/28870035017/attempts/1"
+  },
+  "files": [
+    {
+      "path": "packages/client.unstable/src/generated/marketplace/api/__components.ts",
+      "sha256": "cde416ac609adc45621ab316f1f98650915d8cd56f42e87b31dab7fb98117708"
+    },
+    {
+      "path": "packages/client.unstable/src/generated/marketplace/apolloagent/api/__components.ts",
+      "sha256": "07fb8dc2c629522c9356f2b345aea7dfe7fe8c82c9e0f7e3efbc82755f635968"
+    },
+    {
+      "path": "packages/client.unstable/src/generated/marketplace/installmanager/api/__components.ts",
+      "sha256": "828c0773f398a3a0946103502efd0077f0ec631dfb683b188952674180ee80ab"
+    },
+    {
+      "path": "packages/client.unstable/src/generated/marketplace/release/api/__components.ts",
+      "sha256": "c9c0a4ebdb28d423efab9ecee5aed130dd268b790f00c488ea5d0d1f3a14869a"
+    }
+  ],
+  "derived": {
+    "conjureIrPath": "api/conjure/foundry-apollo.conjure.json",
+    "conjureIrSha256": "e6e012c64d45efb3644b99e19b915075504947f96097dbd8f5278b9fe8e3e5f1",
+    "typeCount": 59,
+    "typeKinds": {
+      "alias": 29,
+      "enum": 2,
+      "object": 25,
+      "union": 3
+    },
+    "sourceTypeScriptFileCountScanned": 940,
+    "javaInventoryCount": 42
+  },
+  "limitations": [
+    "The original Marketplace Maven Conjure IR is not present in the public osdk-ts repository.",
+    "The committed IR is a deterministic bounded derivation from generated TypeScript, not a vendor-published IR artifact.",
+    "The evidence establishes published client type structure only and does not establish private Apollo service behavior or wire compatibility."
+  ]
+}

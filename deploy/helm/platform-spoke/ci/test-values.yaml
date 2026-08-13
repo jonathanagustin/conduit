@@ -1,0 +1,11 @@
+image: example.invalid/platform-spoke-agent@sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+imagePullSecrets:
+  - name: platform-registry
+podLabels:
+  app.kubernetes.io/component: conflicting-user-value
+environmentId: test-environment
+agentId: test-agent
+controlPlaneURL: https://platform-hub.platform-system.svc.cluster.local:8081
+tls:
+  clientSecretName: platform-agent-tls
+  externalCAConfigMapName: platform-external-ca

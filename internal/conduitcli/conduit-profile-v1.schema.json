@@ -1,0 +1,113 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jonathanagustin/conduit/schemas/conduit-profile-v1.schema.json",
+  "title": "Conduit profile document v1",
+  "description": "The complete persisted configuration used by conduit connection profiles. Runtime validation additionally requires current to name an existing profile and each profile name to equal its map key.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "profiles"],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "current": {
+      "type": "string",
+      "minLength": 1
+    },
+    "profiles": {
+      "type": "object",
+      "propertyNames": {
+        "minLength": 1
+      },
+      "additionalProperties": {
+        "$ref": "#/$defs/profile"
+      }
+    }
+  },
+  "$defs": {
+    "profile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "server"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "server": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://"
+        },
+        "timeout": {
+          "type": "string",
+          "minLength": 2,
+          "description": "A positive Go duration such as 30s, 5m, or 1h30m."
+        },
+        "output": {
+          "type": "string",
+          "enum": ["json", "yaml", "pretty"]
+        },
+        "caFile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "clientCertFile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "clientKeyFile": {
+          "type": "string",
+          "minLength": 1
+        },
+        "spiffeEndpoint": {
+          "type": "string",
+          "minLength": 1
+        },
+        "hubSpiffeId": {
+          "type": "string",
+          "pattern": "^spiffe://"
+        },
+        "bearerTokenFile": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to a mode-0600 file containing one short-lived Multipass bearer token. The token itself is never persisted in this profile."
+        }
+      },
+      "oneOf": [
+        {
+          "required": ["caFile", "clientCertFile", "clientKeyFile"],
+          "not": {
+            "anyOf": [
+              { "required": ["spiffeEndpoint"] },
+              { "required": ["hubSpiffeId"] },
+              { "required": ["bearerTokenFile"] }
+            ]
+          }
+        },
+        {
+          "required": ["spiffeEndpoint", "hubSpiffeId"],
+          "not": {
+            "anyOf": [
+              { "required": ["caFile"] },
+              { "required": ["clientCertFile"] },
+              { "required": ["clientKeyFile"] },
+              { "required": ["bearerTokenFile"] }
+            ]
+          }
+        },
+        {
+          "required": ["bearerTokenFile"],
+          "not": {
+            "anyOf": [
+              { "required": ["clientCertFile"] },
+              { "required": ["clientKeyFile"] },
+              { "required": ["spiffeEndpoint"] },
+              { "required": ["hubSpiffeId"] }
+            ]
+          }
+        }
+      ]
+    }
+  }
+}

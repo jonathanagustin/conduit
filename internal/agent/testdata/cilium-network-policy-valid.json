@@ -1,0 +1,28 @@
+{
+  "apiVersion": "cilium.io/v2",
+  "kind": "CiliumNetworkPolicy",
+  "metadata": {
+    "name": "platform-current-fixture",
+    "namespace": "planeconnection",
+    "uid": "cnp-fixture-uid",
+    "generation": 6,
+    "annotations": {
+      "apollo.palantir.com/metadata.environment.id": "dev-use1",
+      "apollo.palantir.com/metadata.entity.id": "aeid:dev-use1:helm-chart:planeconnection",
+      "platform.palantir.dev/plan.id": "pln_fixture",
+      "platform.palantir.dev/plan.attempt": "2",
+      "platform.palantir.dev/network-policy.digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+    }
+  },
+  "status": {
+    "conditions": [
+      {
+        "type": "Valid",
+        "status": "True",
+        "reason": "PolicyImported",
+        "message": "Policy validation succeeded"
+      }
+    ],
+    "derivativePolicies": {}
+  }
+}

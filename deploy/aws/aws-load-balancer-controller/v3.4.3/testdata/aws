@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+module=$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")/.." && pwd)
+command_name=${2:-}
+case "$command_name" in
+  list-attached-role-policies)
+    if [[ ${FAKE_AWS_MODE:-} == broad ]]; then
+      printf '%s\n' '{"AttachedPolicies":[{"PolicyArn":"arn:aws:iam::123456789012:policy/controller"},{"PolicyArn":"arn:aws:iam::aws:policy/ElasticLoadBalancingFullAccess"}]}'
+    else
+      printf '%s\n' '{"AttachedPolicies":[{"PolicyArn":"arn:aws:iam::123456789012:policy/controller"}]}'
+    fi
+    ;;
+  list-role-policies)
+    printf '%s\n' '{"PolicyNames":[]}'
+    ;;
+  get-policy)
+    printf '%s\n' 'v1'
+    ;;
+  get-policy-version)
+    jq -c . "$module/iam-policy.json"
+    ;;
+  simulate-principal-policy)
+    decision=allowed
+    if [[ ${FAKE_AWS_MODE:-} == denied ]]; then
+      decision=implicitDeny
+    fi
+    jq -n --arg decision "$decision" '{EvaluationResults:[
+      {EvalActionName:"ec2:CreateSecurityGroup",EvalDecision:$decision},
+      {EvalActionName:"elasticloadbalancing:CreateListener",EvalDecision:"allowed"},
+      {EvalActionName:"elasticloadbalancing:RegisterTargets",EvalDecision:"allowed"},
+      {EvalActionName:"elasticloadbalancing:DescribeTargetHealth",EvalDecision:"allowed"}
+    ]}'
+    ;;
+  *)
+    echo "unexpected fake aws command: $*" >&2
+    exit 2
+    ;;
+esac

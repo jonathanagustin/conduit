@@ -1,0 +1,60 @@
+name: Spoke E2E
+
+# Manual only: this boots an ephemeral cluster, which is the most expensive
+# thing in the repository to run and the least likely to change between commits.
+on:
+  workflow_dispatch:
+# Same reasoning as ci.yml: acceptance against a superseded commit answers a
+# question nobody asked.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  spoke:
+    name: spoke (Helm ${{ matrix.helm.version }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        helm:
+          - version: 3.21.1
+            checksum: a349c62d6ab2d5d11f044fc0d3afa6deed7d27cc7d5c351f536b169d9fc2cc1a
+            image: alpine/helm:3.21.1@sha256:d9d0a0f96293efa313bd4227bfbf984ceaa3a4c2d47d79b180d01843084b81ac
+            use-upstream: "true"
+          - version: 4.2.3
+            checksum: e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c
+            image: alpine/helm:4.2.3@sha256:b97ba4f9b27fe7af16ee3d37e6815783c9d4a51289b6240a9024ec471611ae9b
+            use-upstream: "false"
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Install pinned k3d
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/k3d-io/k3d/releases/download/v5.7.4/k3d-linux-amd64 \
+            --output /tmp/k3d
+          echo '1ac1da365236736a8df8c32107b54aca208384ab1d9a06771443c85ad698a5eb  /tmp/k3d' | sha256sum --check
+          sudo install -m 0755 /tmp/k3d /usr/local/bin/k3d
+      - name: Install pinned Helm ${{ matrix.helm.version }}
+        run: |
+          curl --fail --silent --show-error --location \
+            https://get.helm.sh/helm-v${{ matrix.helm.version }}-linux-amd64.tar.gz \
+            --output /tmp/helm.tar.gz
+          echo '${{ matrix.helm.checksum }}  /tmp/helm.tar.gz' | sha256sum --check
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+      - name: Validate runtime chart with Helm ${{ matrix.helm.version }}
+        run: ruby scripts/verify-helm-runtime.rb
+      - name: Run Hub and Spoke acceptance
+        env:
+          PLATFORM_HELM_IMAGE: ${{ matrix.helm.image }}
+          PLATFORM_USE_UPSTREAM_HELM: ${{ matrix.helm.use-upstream }}
+        run: ./scripts/test-spoke-e2e.sh

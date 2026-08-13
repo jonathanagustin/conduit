@@ -1,0 +1,111 @@
+{
+  "schemaVersion": 1,
+  "capturedAt": "2026-08-11T22:20:00Z",
+  "status": "AVAILABLE_NOT_ADMITTED",
+  "upstream": {
+    "repository": "https://github.com/ERGO-Code/HiGHS",
+    "release": "https://github.com/ERGO-Code/HiGHS/releases/tag/v1.15.1",
+    "tag": "v1.15.1",
+    "commit": "04024d701f79feb8e2f18bc3df0dffc04ef05088",
+    "sourceArchive": {
+      "name": "source-archive.tar.gz",
+      "sizeBytes": 6318480,
+      "sha256": "30132da2b21899c62f07c4d6566325a3b869a7da4ce61d8b25f833b38e1562b1",
+      "verification": "official-release-metadata"
+    }
+  },
+  "license": {
+    "selection": "MIT static non-HiPO distribution",
+    "licenseFileSha256": "795e6090936bcf2e1a0bfb339053de0c5bb6f3102035ead0ecc0ed4a7c41f1b7",
+    "thirdPartyNoticesSourceSha256": "a93082ab82d5f0a01c86b48a142ccea2ed2175f7dccb9e95a04770f4e2ae39a2",
+    "compiledOrIncludedThirdPartyLicenseSha256": {
+      "highs/io/filereaderlp/LICENSE": "4374bb8064e5302f5ac6b82fd3e153a36670f04d0a6ee1bc55b3dc3faee923cc",
+      "extern/pdqsort/license.txt": "323fc18e35fcf058d69d684022ef844f206cb8fefb2bac1298fa1767e0b9ae38",
+      "extern/zstr/LICENSE": "bd61d5fb15992f4c188a0f96dd836b20d449cd080b4e949ab89f9eda3f61c59a"
+    },
+    "notice": "The SDK archive ships the top-level LICENSE.txt and AUTHORS but not the complete static-link notice closure. A Platform distribution must carry the source-derived THIRD_PARTY_NOTICES.md, the named component licenses, exact ZLIB and compiler/runtime packages, and the final SBOM."
+  },
+  "sdkSurface": {
+    "includeFileCountPerArchitecture": 278,
+    "cHeader": "include/highs/interfaces/highs_c_api.h",
+    "cHeaderSha256": "4113bf1ef60782e90f77a28bda8cc866e91cd80625452a8abb101c29718737d6",
+    "staticLibraries": [
+      "lib/libhighs.a",
+      "lib/libhighs_extras.a"
+    ],
+    "requiredSymbolsVerifiedPerArchitecture": [
+      "Highs_create",
+      "Highs_destroy",
+      "Highs_passMip",
+      "Highs_run",
+      "Highs_getModelStatus",
+      "Highs_getSolution",
+      "Highs_getDoubleInfoValue"
+    ],
+    "staticLinkDependencies": [
+      "libhighs_extras",
+      "zlib",
+      "dl",
+      "pthread",
+      "selected static C and C++ runtimes"
+    ],
+    "statusSurfaceGap": "The C++ HighsModelStatus enum defines memory-limit and HiGHS-interrupt values 18 and 19, but the installed C header names statuses only through interrupt value 17. A fail-closed shim must use the typed C++ enum or compile-check both additional values."
+  },
+  "artifacts": [
+    {
+      "architecture": "amd64",
+      "archive": "highs-1.15.1-x86_64-linux-gnu-static-mit.tar.gz",
+      "archiveUrl": "https://github.com/ERGO-Code/HiGHS/releases/download/v1.15.1/highs-1.15.1-x86_64-linux-gnu-static-mit.tar.gz",
+      "archiveSizeBytes": 7723248,
+      "archiveSha256": "5b05b157e512390b6bcc14517f2c68736b89aae286ab89fd0666c3c80a1569bc",
+      "binarySha256": "118b77ee1728a85adfaf857f61c8dcc04855879d58019a08f823f171816d689c",
+      "elfMachine": "Advanced Micro Devices X86-64",
+      "minimumLinuxAbi": "3.2.0",
+      "staticallyLinked": true,
+      "programInterpreter": false,
+      "dynamicSection": false,
+      "executedVersionProbe": "HiGHS version 1.15.1 Githash 04024d7"
+    },
+    {
+      "architecture": "arm64",
+      "archive": "highs-1.15.1-aarch64-linux-gnu-static-mit.tar.gz",
+      "archiveUrl": "https://github.com/ERGO-Code/HiGHS/releases/download/v1.15.1/highs-1.15.1-aarch64-linux-gnu-static-mit.tar.gz",
+      "archiveSizeBytes": 7044260,
+      "archiveSha256": "82a2050617f6b7a3cc75ee2aa0c15855f683012fa9260391ef696db6cdf2267c",
+      "binarySha256": "f43f13436a8f47d60ce1268b983376f903ef806686e6ebeba7931d820495ee56",
+      "elfMachine": "AArch64",
+      "minimumLinuxAbi": "3.7.0",
+      "staticallyLinked": true,
+      "programInterpreter": false,
+      "dynamicSection": false,
+      "executedVersionProbe": null
+    }
+  ],
+  "verification": {
+    "archiveBytesDownloaded": 14767508,
+    "archiveSha256Matches": 2,
+    "binarySha256Computed": 2,
+    "staticElfClosures": 2,
+    "sdkHeaderClosures": 2,
+    "requiredCApiSymbolsPerArchitecture": 7,
+    "nativeVersionProbes": 1,
+    "commands": [
+      "sha256sum <archive> <extracted-bin/highs>",
+      "file <extracted-bin/highs>",
+      "readelf -h -l -d <extracted-bin/highs>",
+      "tar -xOf <archive> include/highs/interfaces/highs_c_api.h | sha256sum",
+      "nm -g --defined-only <extracted-lib/libhighs.a>",
+      "<amd64-extracted-bin/highs> --version",
+      "<amd64-extracted-bin/highs> --notice"
+    ]
+  },
+  "openAdmissionGates": [
+    "one Platform-owned JSON stdin/stdout protocol shim bound to the selected HiGHS bytes",
+    "truthful backend status, proof-bound, integrality-gap, and time-limited-incumbent receipt semantics",
+    "typed handling for HiGHS model statuses 18 and 19 that the v1.15.1 C header does not name",
+    "real solver conformance and adversarial corpus on native amd64 and arm64 runners",
+    "networkless, memory-bounded, PID-contained, read-only non-root sandbox evidence",
+    "signed multi-architecture OCI index with SBOM, vulnerability report, provenance, complete static-link license closure, and notices",
+    "shadow calibration without Plan, approval, lease, or execution authority"
+  ]
+}

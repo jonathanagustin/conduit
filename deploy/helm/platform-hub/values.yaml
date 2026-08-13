@@ -1,0 +1,92 @@
+nameOverride: ""
+fullnameOverride: ""
+
+image: ""
+imagePullPolicy: IfNotPresent
+imagePullSecrets: []
+bootstrapAdministrators: []
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+service:
+  annotations: {}
+  port: 8081
+
+rubix:
+  podCertificate: false
+  spp:
+    enabled: false
+    contextPath: "/"
+    domainAlias: ""
+
+podAnnotations: {}
+podLabels: {}
+# Compatibility escape hatch for runtimes such as local k3d/containerd that
+# materialize the image root as 0754. Production defaults grant no supplemental
+# groups; prefer a runtime that preserves executable rootfs directory modes.
+runtimeSupplementalGroups: []
+
+tls:
+  serverSecretName: ""
+  externalCAConfigMapName: ""
+  externalCAKey: ca.pem
+
+bundleSigningSecretName: ""
+
+# Human and service-user authentication. Multipass is the preferred profile
+# when the downstream tenant already has it; generic supports any conforming
+# OIDC issuer and cognito-access is the inexpensive standalone AWS profile.
+operatorOIDC:
+  enabled: false
+  profile: generic
+  issuer: ""
+  jwksURL: ""
+  clientID: ""
+  usernameClaim: ""
+  groupsClaim: ""
+  serviceAccountClaim: ""
+  audienceClaim: ""
+  tokenPurposeClaim: ""
+  expectedTokenPurpose: ""
+  scopeClaim: ""
+  requiredScopes: []
+  signingAlgorithms:
+    - RS256
+  caFile: /etc/ssl/platform-ca/ca.pem
+
+# Optional provider-neutral scanner process. Platform supplies the Grype JSON
+# normalizer at /platform-grype-scanner; the Environment supplies the scanner
+# executable, database/cache, and registry identity through existing objects.
+artifactScanner:
+  command: ""
+  timeout: 2m
+  grypeBinaryPath: ""
+  grypeConfigFile: ""
+  grypeCacheDirectory: ""
+  toolsPersistentVolumeClaimName: ""
+  toolsMountPath: /opt/platform-scanner
+  cachePersistentVolumeClaimName: ""
+  cacheMountPath: /var/lib/platform-scanner
+  registryAuthSecretName: ""
+  registryAuthMountPath: /run/platform-scanner-registry
+
+storage:
+  size: 1Gi
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 500m
+    memory: 256Mi
+
+nodeSelector: {}
+affinity: {}
+tolerations: []

@@ -1,0 +1,6 @@
+{
+  "note": "Ceiling for internal/controlplane, in non-test Go lines. The bounded-context migration may only move this down. Raising it requires saying why in the same commit.",
+  "recordedAt": "2026-08-13",
+  "lines": 25960,
+  "reason": "Lowered by the Plan extraction (internal/delivery/plan): the Plan, its steps, secret mutations, maintenance constraint and upgrade rationale now live in Delivery."
+}

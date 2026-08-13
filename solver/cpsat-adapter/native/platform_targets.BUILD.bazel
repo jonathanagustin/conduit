@@ -1,0 +1,61 @@
+# Platform-owned replacement for the pinned OR-Tools c_api package BUILD file.
+# It preserves the measured upstream C API target and adds only the narrow
+# bridge, Rust archive, and executable needed by the candidate.
+
+load("@rules_cc//cc:cc_binary.bzl", "cc_binary")
+load("@rules_cc//cc:cc_import.bzl", "cc_import")
+load("@rules_cc//cc:cc_library.bzl", "cc_library")
+
+package(default_visibility = ["//visibility:public"])
+
+cc_library(
+    name = "cp_solver_c",
+    srcs = ["cp_solver_c.cc"],
+    hdrs = ["cp_solver_c.h"],
+    deps = [
+        "//ortools/base:memutil",
+        "//ortools/base:numbers",
+        "//ortools/sat:cp_model_cc_proto",
+        "//ortools/sat:cp_model_solver",
+        "//ortools/sat:model",
+        "//ortools/sat:sat_parameters_cc_proto",
+        "//ortools/sat:util",
+        "@abseil-cpp//absl/log:check",
+    ],
+)
+
+cc_library(
+    name = "platform_cpsat_bridge",
+    srcs = ["platform_cpsat_bridge.cc"],
+    hdrs = ["platform_cpsat_bridge.h"],
+    alwayslink = True,
+    deps = [
+        ":cp_solver_c",
+        "//ortools/sat:cp_model_cc_proto",
+        "//ortools/sat:sat_parameters_cc_proto",
+    ],
+)
+
+cc_import(
+    name = "platform_cpsat_rust",
+    static_library = "libplatform_cpsat_adapter.a",
+    alwayslink = True,
+)
+
+cc_binary(
+    name = "platform-cpsat-adapter",
+    srcs = ["platform_cpsat_main.cc"],
+    # rules_cc appends an explicit dynamic -lstdc++ after target linkopts, so
+    # -static-libstdc++ alone is not a closure gate. Activate the toolchain's
+    # fully-static link feature and let section GC remove the unused portions of
+    # the Rust/C++ runtime closure.
+    features = ["fully_static_link"],
+    linkopts = [
+        "-Wl,--gc-sections",
+    ],
+    linkstatic = True,
+    deps = [
+        ":platform_cpsat_bridge",
+        ":platform_cpsat_rust",
+    ],
+)

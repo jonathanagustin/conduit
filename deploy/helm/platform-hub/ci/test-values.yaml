@@ -1,0 +1,11 @@
+image: example.invalid/platform-hub@sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+imagePullSecrets:
+  - name: platform-registry
+podLabels:
+  app.kubernetes.io/component: conflicting-user-value
+bootstrapAdministrators:
+  - platform-admin
+tls:
+  serverSecretName: platform-hub-tls
+  externalCAConfigMapName: platform-external-ca
+bundleSigningSecretName: platform-bundle-signing

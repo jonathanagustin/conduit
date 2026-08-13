@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["image", "environmentId", "agentId", "controlPlaneURL", "serviceAccount", "tls"],
+  "properties": {
+    "nameOverride": {"type": "string"},
+    "fullnameOverride": {"type": "string"},
+    "image": {"type": "string", "pattern": "^.+@sha256:[a-f0-9]{64}$"},
+    "imagePullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]},
+    "imagePullSecrets": {"type": "array", "items": {"$ref": "#/definitions/localObjectReference"}},
+    "environmentId": {"$ref": "#/definitions/dnsName"},
+    "agentId": {"$ref": "#/definitions/dnsName"},
+    "controlPlaneURL": {"type": "string", "pattern": "^https://[^[:space:]]+$"},
+    "serviceAccount": {"$ref": "#/definitions/serviceAccount"},
+    "podAnnotations": {"type": "object", "additionalProperties": {"type": "string"}},
+    "podLabels": {"type": "object", "additionalProperties": {"type": "string"}},
+    "runtimeSupplementalGroups": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 2147483647}},
+    "tls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["clientSecretName", "externalCAConfigMapName", "externalCAKey"],
+      "properties": {
+        "clientSecretName": {"$ref": "#/definitions/dnsName"},
+        "externalCAConfigMapName": {"$ref": "#/definitions/dnsName"},
+        "externalCAKey": {"type": "string", "minLength": 1}
+      }
+    },
+    "leaseDuration": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h)$"},
+    "pollInterval": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h)$"},
+    "helmTimeout": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h)$"},
+    "helmPlainHTTP": {"type": "boolean"},
+    "healthPollInterval": {"type": "string", "pattern": "^[1-9][0-9]*(ms|s|m|h)$"},
+    "healthProbeCAConfigMapName": {"type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+    "healthProbeCAKey": {"type": "string", "minLength": 1},
+    "resources": {"type": "object"},
+    "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
+    "affinity": {"type": "object"},
+    "tolerations": {"type": "array", "items": {"type": "object"}}
+  },
+  "definitions": {
+    "localObjectReference": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name"],
+      "properties": {"name": {"$ref": "#/definitions/dnsName"}}
+    },
+    "dnsName": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 253},
+    "serviceAccount": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "name", "annotations"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "name": {"type": "string", "pattern": "^$|^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"},
+        "annotations": {"type": "object", "additionalProperties": {"type": "string"}}
+      }
+    }
+  }
+}

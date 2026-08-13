@@ -1,0 +1,61 @@
+{
+  "storeDirectory": "docs/operations/evidence/evaluators/2026-08-09/store",
+  "batchId": "evb_3c0225dad8941938effd13729fb48820d20b9cf1c010a9776a766f3974b9e0d2",
+  "dispositions": [
+    {
+      "findingId": "grok-F1",
+      "canonicalClusterKey": "evaluator-resolution-conflict",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-go-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "0a49db4cc7bf065c243d0d006bc9d9526f45c467",
+      "executableGate": "go test -race ./internal/optimization -run TestEvaluatorResolutionRejectsConflictingTerminalDispositions",
+      "verifiedAt": "2026-08-09T08:10:18.777Z",
+      "notes": "Two independently valid terminal resolutions reproduced last-writer-by-input-order behavior; the measurement path now rejects any second terminal resolution for the same finding."
+    },
+    {
+      "findingId": "grok-F2",
+      "canonicalClusterKey": "evaluator-resolution-store-scope",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-go-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "0a49db4cc7bf065c243d0d006bc9d9526f45c467",
+      "executableGate": "go test -race ./internal/optimization -run TestListEvaluatorResolutionsScopesRecordsToRequestedBatch",
+      "verifiedAt": "2026-08-09T08:10:18.777Z",
+      "notes": "A second batch resolution in one durable store reproduced a foreign-batch verification error; listing now filters by exact batch ID before verification."
+    },
+    {
+      "findingId": "kimi-F1",
+      "canonicalClusterKey": "evaluator-resolution-store-scope",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-go-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "0a49db4cc7bf065c243d0d006bc9d9526f45c467",
+      "executableGate": "go test -race ./internal/optimization -run TestListEvaluatorResolutionsScopesRecordsToRequestedBatch",
+      "verifiedAt": "2026-08-09T08:10:18.777Z",
+      "notes": "Independent model description maps to the same reproduced shared-store isolation defect as grok-F2."
+    },
+    {
+      "findingId": "kimi-F2",
+      "canonicalClusterKey": "evaluator-resolution-conflict",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-go-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "0a49db4cc7bf065c243d0d006bc9d9526f45c467",
+      "executableGate": "go test -race ./internal/optimization -run TestEvaluatorResolutionRejectsConflictingTerminalDispositions",
+      "verifiedAt": "2026-08-09T08:10:18.777Z",
+      "notes": "Independent model description maps to the same reproduced conflicting-resolution precedence defect as grok-F1."
+    },
+    {
+      "findingId": "opus-F3",
+      "canonicalClusterKey": "evaluator-resolution-conflict",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-go-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "0a49db4cc7bf065c243d0d006bc9d9526f45c467",
+      "executableGate": "go test -race ./internal/optimization -run TestEvaluatorResolutionRejectsConflictingTerminalDispositions",
+      "verifiedAt": "2026-08-09T08:10:18.777Z",
+      "notes": "Independent model description maps to the same reproduced conflicting-resolution precedence defect as grok-F1."
+    }
+  ]
+}

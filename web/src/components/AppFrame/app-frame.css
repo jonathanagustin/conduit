@@ -1,0 +1,31 @@
+.console-app-frame {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+  color: var(--bp-typography-color-default-active, #1c2127);
+  background: var(--surface-0, var(--bp-palette-light-gray-5, #f6f7f9));
+}
+
+.console-app-frame__skip-link {
+  position: fixed;
+  z-index: 1000;
+  top: 8px;
+  left: 8px;
+  padding: 8px 12px;
+  color: #fff;
+  background: #1c2127;
+  transform: translateY(calc(-100% - 16px));
+}
+
+.console-app-frame__skip-link:focus {
+  transform: translateY(0);
+}
+
+.console-app-frame__body {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  min-height: 0;
+  overflow: hidden;
+}

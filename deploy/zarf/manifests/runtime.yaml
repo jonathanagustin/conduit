@@ -1,0 +1,164 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: platform-system
+  labels:
+    # Provenance (reviewed 2026-08-02): Zarf's labeled mutation policy
+    # rewrites only explicitly labeled namespaces.
+    # https://github.com/zarf-dev/zarf/blob/356f4b6041346854e42c71cb93c9837b48f977eb/src/internal/agent/operations/mutate.go
+    zarf.dev/agent: mutate
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: platform-spoke-agent
+  namespace: platform-system
+automountServiceAccountToken: true
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: platform-delivery-state
+  namespace: platform-system
+  annotations:
+    helm.sh/resource-policy: keep
+spec:
+  accessModes: ["ReadWriteOnce"]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-delivery
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-delivery
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-delivery
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-delivery
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: delivery-control-plane
+          image: "###ZARF_CONST_HUB_IMAGE###"
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: AGENT_CLIENT_CA_FILE, value: /run/platform-tls/ca.crt }
+            - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
+            - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
+            - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
+            - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
+          ports:
+            - { name: https, containerPort: 8081 }
+          startupProbe:
+            httpGet: { path: /health/live, port: https, scheme: HTTPS }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /health/ready, port: https, scheme: HTTPS }
+          livenessProbe:
+            httpGet: { path: /health/live, port: https, scheme: HTTPS }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: state, mountPath: /var/lib/platform-delivery }
+            - { name: hub-tls, mountPath: /run/platform-tls, readOnly: true }
+            - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: platform-delivery-state
+        - name: hub-tls
+          secret:
+            secretName: "###ZARF_VAR_HUB_TLS_SECRET###"
+        - name: bundle-signing
+          secret:
+            secretName: "###ZARF_VAR_BUNDLE_SIGNING_SECRET###"
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: platform-delivery
+  namespace: platform-system
+spec:
+  selector:
+    app.kubernetes.io/name: platform-delivery
+  ports:
+    - { name: https, port: 8081, targetPort: https }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-spoke-agent
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-spoke-agent
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-spoke-agent
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-spoke-agent
+    spec:
+      serviceAccountName: platform-spoke-agent
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: spoke-agent
+          image: "###ZARF_CONST_SPOKE_AGENT_IMAGE###"
+          imagePullPolicy: IfNotPresent
+          env:
+            - { name: CONTROL_PLANE_URL, value: "https://platform-delivery.platform-system.svc.cluster.local:8081" }
+            - { name: CONTROL_PLANE_CA_FILE, value: /run/platform-tls/ca.crt }
+            - { name: CONTROL_PLANE_CLIENT_CERT_FILE, value: /run/platform-tls/tls.crt }
+            - { name: CONTROL_PLANE_CLIENT_KEY_FILE, value: /run/platform-tls/tls.key }
+            - { name: ENVIRONMENT_ID, value: "###ZARF_VAR_ENVIRONMENT_ID###" }
+            - { name: AGENT_ID, value: "###ZARF_VAR_AGENT_ID###" }
+            - { name: LEASE_DURATION, value: 2m }
+            - { name: POLL_INTERVAL, value: 15s }
+            - { name: HELM_TIMEOUT, value: 5m }
+            - { name: HELM_PLAIN_HTTP, value: "###ZARF_VAR_HELM_PLAIN_HTTP###" }
+          resources:
+            requests: { cpu: 50m, memory: 64Mi }
+            limits: { cpu: 500m, memory: 256Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities: { drop: ["ALL"] }
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: temporary, mountPath: /tmp }
+            - { name: agent-tls, mountPath: /run/platform-tls, readOnly: true }
+      volumes:
+        - name: temporary
+          emptyDir: {}
+        - name: agent-tls
+          secret:
+            secretName: "###ZARF_VAR_AGENT_TLS_SECRET###"

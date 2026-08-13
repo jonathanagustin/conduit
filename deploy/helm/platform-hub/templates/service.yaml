@@ -1,0 +1,30 @@
+{{- $serviceAnnotations := deepCopy .Values.service.annotations -}}
+{{- if .Values.rubix.podCertificate -}}
+{{- $_ := set $serviceAnnotations "com.palantir.rubix.service/pod-cert" "{}" -}}
+{{- end -}}
+{{- if .Values.rubix.spp.enabled -}}
+{{- $spp := dict "endpoints" (list (dict "name" "service" "prefix" .Values.rubix.spp.contextPath "domain-aliases" (list (required "rubix.spp.domainAlias is required when rubix.spp.enabled=true" .Values.rubix.spp.domainAlias)))) -}}
+{{- $_ := set $serviceAnnotations "com.palantir.rubix.service.spp/v3" ($spp | toJson) -}}
+{{- end -}}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "platform-hub.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-hub.labels" . | nindent 4 }}
+  {{- with $serviceAnnotations }}
+  annotations:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+spec:
+  type: ClusterIP
+  selector:
+    app.kubernetes.io/name: {{ include "platform-hub.name" . }}
+    app.kubernetes.io/instance: {{ .Release.Name }}
+    app.kubernetes.io/component: hub
+  ports:
+    - name: https
+      port: {{ .Values.service.port }}
+      targetPort: https
+      protocol: TCP

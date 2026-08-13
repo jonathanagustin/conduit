@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "sourceCatalogSha256": "f29e0db63b0157b08d02a2ffe197ae28b33dfa9a2b63c96325030f9c1a8c5459",
+  "scope": "Exhaustive facts-only inventory of all 11 APOLLO media rows in the authenticated Rosetta corpus",
+  "items": [
+    {
+      "sha256": "9209f4b1573dc3b618c09d25cfa5ddf6eeb15fc6e844c0b2e42fb61d3748f5e4",
+      "filename": "2025-11-04-150030-autopilot-image-pn.png",
+      "noteDate": "2025-11-06T00:00:00Z",
+      "surface": "Environment settings — Kubernetes namespaces",
+      "features": ["Environment resource header and Actions menu", "Overview/Activity/Entities/Modules/Changes/Config/Settings tabs", "settings secondary navigation", "namespace creation", "pending namespace state", "namespace description and Entity count"],
+      "uiPatterns": ["resource header", "horizontal tabs", "secondary navigation", "bordered summary card", "status tag", "row overflow menu"]
+    },
+    {
+      "sha256": "35e6694f1434ed2a1eb9d05a34e04699062e305e2723c05aa3b15fe23a4a18a0",
+      "filename": "2025-11-04-150036-autopilot-image-pn.png",
+      "noteDate": "2025-11-06T00:00:00Z",
+      "surface": "Environment settings — install Entities form",
+      "features": ["Product selection", "immutable installation name guidance", "searchable Kubernetes namespace selection", "version selection", "release-channel/version-range guidance"],
+      "uiPatterns": ["secondary navigation", "nested form", "required labels", "helper text", "searchable select", "step-local Manage back action"]
+    },
+    {
+      "sha256": "7ad27bdadf0820cc4eee40ff538d1d5ef15cad4d7207781286b28a3143a14400",
+      "filename": "2025-12-01-160116-autopilot-ramped-rollouts-pn.png",
+      "noteDate": "2025-12-02T00:00:00Z",
+      "surface": "Ramped rollout explanatory diagram",
+      "features": ["instant versus gradual upgrade comparison", "staggering window", "Entities-upgraded percentage over time"],
+      "uiPatterns": ["paired comparison", "labelled axes", "shaded time window", "non-interactive explanatory graphic"]
+    },
+    {
+      "sha256": "3210028f275a13d20fecba05cc7262b7d36599b8596acc7a40ebd03e67009331",
+      "filename": "2025-12-01-160124-autopilot-edit-product-settings-ramped-rollout-pn.png",
+      "noteDate": "2025-12-02T00:00:00Z",
+      "surface": "Product settings — ramped rollout",
+      "features": ["ramped rollout enablement", "per-Release-Channel rollout windows", "duration values and units", "custom Release Channel names", "add and remove channel windows", "random gradual Entity order explanation"],
+      "uiPatterns": ["settings card", "toggle", "repeating field rows", "selects", "duration unit control", "inline remove action", "full-width add action"]
+    },
+    {
+      "sha256": "d5f98b0f75a827672481f0438ec26175b5209476e9328c0f0f5661722a137fd2",
+      "filename": "2026-05-08-131021-autopilot-terminal-interact-pn.png",
+      "noteDate": "2026-05-07T00:00:00Z",
+      "surface": "Environment terminal interaction",
+      "features": ["Environment connection state", "You-to-Hub-to-Spoke latency breakdown", "terminal identity and groups", "namespace context", "interactive kubectl output", "Pod readiness/status/restart/age columns"],
+      "uiPatterns": ["compact resource header", "connection status tag", "latency topology strip", "full-width dark terminal", "monospace tabular output"]
+    },
+    {
+      "sha256": "c085d9f059f09e743422fdb6e7408baf017d07a8f57eeeedce095d6f58a9c24e",
+      "filename": "2026-05-08-131026-autopilot-jit-request-pn.png",
+      "noteDate": "2026-05-07T00:00:00Z",
+      "surface": "Request terminal-access policy dialog",
+      "features": ["access-policy selection", "policy description", "fixed grant duration", "cluster and namespace rule preview", "expandable YAML definition", "request submission"],
+      "uiPatterns": ["large modal", "policy select", "bordered properties card", "read-only code editor", "expand action", "cancel/primary-submit footer"]
+    },
+    {
+      "sha256": "43657cd1400d0c753b64a3a86e898f69ffbf2602dd54385ec30d173997b32a30",
+      "filename": "2026-05-08-131030-autopilot-jit-approval-pn.png",
+      "noteDate": "2026-05-07T00:00:00Z",
+      "surface": "Terminal-access Change Request detail",
+      "features": ["request type and policy name", "author and relative creation time", "attributable description", "exact Environment grant change", "duration and expiration", "activity history"],
+      "uiPatterns": ["request header", "collapsible Description and Changes sections", "nested evidence card", "duration tag", "timeline/activity card"]
+    },
+    {
+      "sha256": "8d8a467a7d0ea835ae2cb8fb535bc9141a340a407fd6dc43721e7782dc06f649",
+      "filename": "2026-05-21-141711-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z",
+      "surface": "Module release promotion pipeline",
+      "features": ["Module resource header", "Overview/Releases/Recalls/Contents/Installations/Settings tabs", "ordered Release stages", "per-stage version", "passed and evaluating states", "revision history", "configuration view", "pipeline editing"],
+      "uiPatterns": ["resource header", "horizontal tabs", "bordered graph panel", "semantic stage nodes and edges", "status icons", "secondary actions"]
+    },
+    {
+      "sha256": "e9c37f0776d9634dc822c3645c53513a1d40a82eed791a65c02b442249904e80",
+      "filename": "2026-05-21-141715-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z",
+      "surface": "Install Module wizard",
+      "features": ["two-step installation flow", "Module and version selection", "Release Channel selection", "existing-installation detection", "update versus new installation choice", "existing installation selection"],
+      "uiPatterns": ["step indicator", "focused single-column form", "large selects", "mutually exclusive choice cards", "selected-state icon"]
+    },
+    {
+      "sha256": "65fe60ea819f41f66cd93ce76a488fa9339658e20cbfaea2d1f035425f35fa22",
+      "filename": "2026-05-21-141718-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z",
+      "surface": "Environment Module installations index",
+      "features": ["Environment connection/editability state", "Activity/Entities/Modules/Changes/Monitors/Security/Config/Terminal/Settings tabs", "Module search", "new Module installation", "version and channel columns", "Entity rollout progress", "last-updated age", "update/edit variables/change channel/pause/unlink actions"],
+      "uiPatterns": ["resource header", "dense searchable table", "progress bar plus exact count", "new-update tag", "per-row action menu", "disabled actions with visible labels"]
+    },
+    {
+      "sha256": "d91c43623bc40594fe4fa79c7df436ea7e2f1a00d2f6df4d0dceff0f0f72c2c6",
+      "filename": "2026-05-21-141723-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z",
+      "surface": "Module Releases index and Actions menu",
+      "features": ["install/edit/settings/pipeline/pause/roles/labels/recall/delete actions", "promotion pipeline", "release filtering and reload", "Release Channel tags", "installation counts", "promoted and evaluating statuses", "relative release ages"],
+      "uiPatterns": ["grouped Actions menu", "disabled and destructive menu states", "pipeline above dense table", "filter action", "status icon plus explanatory sentence", "overflowed tag count"]
+    }
+  ]
+}

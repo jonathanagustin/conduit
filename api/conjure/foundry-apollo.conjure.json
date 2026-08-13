@@ -1,0 +1,1923 @@
+{
+  "version": 1,
+  "errors": [],
+  "types": [
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloAgentEntityInfo",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloEnvironmentId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloEnvironmentId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "apolloSpaceId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloSpaceId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "foundrySpaceMavenGroup",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloFoundrySpaceIdentifier",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "installationEntityId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloEntityId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "secretInputMapping",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "InputBlockSetShapeId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "SecretResolvedBlockSetInputShape",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloAgentInfoUpdate",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "secretInputMapping",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "InputBlockSetShapeId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "SecretResolvedBlockSetInputShape",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "enum",
+      "enum": {
+        "typeName": {
+          "name": "ApolloAgentSecretType",
+          "package": "platform.foundryinterop.wire"
+        },
+        "values": [
+          {
+            "value": "TOFU_SECRET"
+          },
+          {
+            "value": "PRIVATE_KEY_PASSPHRASE"
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloArtifactUri",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "union",
+      "union": {
+        "typeName": {
+          "name": "ApolloBlockSetPublishingStatus",
+          "package": "platform.foundryinterop.wire"
+        },
+        "union": [
+          {
+            "fieldName": "success",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetPublishingJobSuccess",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "inProgress",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetPublishingJobInProgress",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "failure",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetPublishingJobFailure",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloCrossStackManifest",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "stackConfiguration",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloStackManagementConfig",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "storeName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "StoreName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloEntityId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloEnvironment",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "id",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloEnvironmentId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "privileged",
+            "type": {
+              "type": "primitive",
+              "primitive": "BOOLEAN"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloEnvironmentId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloFoundrySpaceIdentifier",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloGranularConfig",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "disallowedEnrollmentRids",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "EnrollmentRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "disallowedOrganizationRids",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "OrganizationRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "enrollmentsRids",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "EnrollmentRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "groupIds",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "GroupId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "organizationRids",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "OrganizationRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloHostUri",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloManagedInstallationConfigurationV0",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "cbacMarkings",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "MarkingId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "inputMapping",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "InputBlockSetShapeId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "presetInputMapping",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "InputBlockSetShapeId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "secretInputMapping",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "InputBlockSetShapeId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "SecretResolvedBlockSetInputShape",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloPlanId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloPlanRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloPlanTaskRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloPublishError",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "reason",
+            "type": {
+              "type": "primitive",
+              "primitive": "STRING"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloSecretAndKeyName",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "secretKeyName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "SecretKey",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "secretName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloSecretName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloSecretName",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ApolloSpaceId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloSpaceIdentifiers",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "environmentId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloEnvironmentId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "spaceId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloSpaceId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloSpaceToPublishingStatus",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloSpacePublishingStatus",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloSpaceId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloBlockSetPublishingStatus",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloStackLevelConfig",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "defaultEnabled",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "BOOLEAN"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "defaultStoreAccess",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ManagedStoreAccessLevel",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "forceDefault",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "BOOLEAN"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "union",
+      "union": {
+        "typeName": {
+          "name": "ApolloStackManagementConfig",
+          "package": "platform.foundryinterop.wire"
+        },
+        "union": [
+          {
+            "fieldName": "stackLevelConfig",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloStackLevelConfig",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "granularConfig",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloGranularConfig",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ApolloUniversalInstallationConfigurationV0",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "enrollmentAllowlist",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "EnrollmentRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "enrollmentDenylist",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "EnrollmentRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "managedConfig",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloManagedInstallationConfigurationV0",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "namespaceDenylist",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "NamespaceRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "BatchGetApolloBlockSetVersionPublishingStatusResponse",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "blockSetVersionIdToSpacesStatus",
+            "type": {
+              "type": "map",
+              "map": {
+                "keyType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "BlockSetVersionId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                },
+                "valueType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloSpaceToPublishingStatus",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "BlockInternalId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "BlockSetId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "BlockSetInstallationRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "BlockSetPublishingJobFailure",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "error",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "BlockSetPublishingJobInProgress",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": []
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "BlockSetPublishingJobSuccess",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "artifactUri",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloArtifactUri",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "BlockSetShapeId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "reference",
+          "reference": {
+            "name": "BlockInternalId",
+            "package": "platform.foundryinterop.wire"
+          }
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "BlockSetVersionId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "CompassProjectRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "CreateInstallationForBlockSetRequest",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloAgentEntityInfo",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloAgentEntityInfo",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "blockSetId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "configuration",
+            "type": {
+              "type": "primitive",
+              "primitive": "ANY"
+            }
+          },
+          {
+            "fieldName": "displayMetadata",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "installationName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ManagedInstallationName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "marketplaceRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "MarketplaceRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "namespaceRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "NamespaceRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "roleGrants",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "targetBlockSetVersionId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetVersionId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "EnrollmentRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "FailedInstallationCreationRequest",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloAgentEntityInfo",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloAgentEntityInfo",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "blockSetId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "configuration",
+            "type": {
+              "type": "primitive",
+              "primitive": "ANY"
+            }
+          },
+          {
+            "fieldName": "installationName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ManagedInstallationName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "marketplaceRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "MarketplaceRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "mavenProductId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "MavenProductId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "namespaceRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "NamespaceRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "status",
+            "type": {
+              "type": "primitive",
+              "primitive": "ANY"
+            }
+          },
+          {
+            "fieldName": "targetBlockSetVersionId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetVersionId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "FoundryProductsDownloaderStore",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloCrossStackManifest",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloCrossStackManifest",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "apolloSpaceId",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloSpaceId",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "deprecateAllUnlistedProducts",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "BOOLEAN"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "products",
+            "type": {
+              "type": "list",
+              "list": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "GroupId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "InputBlockSetShapeId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "reference",
+          "reference": {
+            "name": "BlockSetShapeId",
+            "package": "platform.foundryinterop.wire"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ManagedInstallation",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloAgentEntityInfo",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloAgentEntityInfo",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "blockSetId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "configuration",
+            "type": {
+              "type": "primitive",
+              "primitive": "ANY"
+            }
+          },
+          {
+            "fieldName": "installationName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ManagedInstallationName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "installationRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetInstallationRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "marketplaceRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "MarketplaceRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "mavenProductId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "MavenProductId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "namespaceRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "NamespaceRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "projectRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "CompassProjectRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "slsVersion",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "SlsVersion",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "status",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "ManagedInstallationName",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "enum",
+      "enum": {
+        "typeName": {
+          "name": "ManagedStoreAccessLevel",
+          "package": "platform.foundryinterop.wire"
+        },
+        "values": [
+          {
+            "value": "INSTALL_EVERYTHING"
+          },
+          {
+            "value": "VIEW_EVERYTHING"
+          },
+          {
+            "value": "NONE"
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ManageExistingInstallationRequest",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloAgentEntityInfo",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloAgentEntityInfo",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "installationName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ManagedInstallationName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "installationRid",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetInstallationRid",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "MarketplaceRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "MarkingId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "MavenProductId",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "NamespaceRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "OrganizationRid",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "ReleaseCreationError_apolloPublishError",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "type",
+            "type": {
+              "type": "primitive",
+              "primitive": "STRING"
+            }
+          },
+          {
+            "fieldName": "apolloPublishError",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloPublishError",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "SecretKey",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "union",
+      "union": {
+        "typeName": {
+          "name": "SecretResolvedBlockSetInputShape",
+          "package": "platform.foundryinterop.wire"
+        },
+        "union": [
+          {
+            "fieldName": "edgePipelineMagritteSource",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "SecretResolvedEdgePipelineMagritteSourceInputShape",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "markings",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "SecretResolvedMarkingsInputShape",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "namedCredential",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "SecretResolvedNamedCredentialInputShape",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "SecretResolvedEdgePipelineMagritteSourceInputShape",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "config",
+            "type": {
+              "type": "primitive",
+              "primitive": "ANY"
+            }
+          },
+          {
+            "fieldName": "secretName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloSecretName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "taskConfig",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "SecretResolvedMarkingsInputShape",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "reference",
+          "reference": {
+            "name": "ApolloSecretAndKeyName",
+            "package": "platform.foundryinterop.wire"
+          }
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "SecretResolvedNamedCredentialInputShape",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "secretName",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "ApolloSecretName",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "SlsVersion",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "alias",
+      "alias": {
+        "typeName": {
+          "name": "StoreName",
+          "package": "platform.foundryinterop.wire"
+        },
+        "alias": {
+          "type": "primitive",
+          "primitive": "STRING"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "object": {
+        "typeName": {
+          "name": "UpdateInstallationForBlockSetRequest",
+          "package": "platform.foundryinterop.wire"
+        },
+        "fields": [
+          {
+            "fieldName": "apolloAgentUpdate",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "ApolloAgentInfoUpdate",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "configurationUpdate",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "displayMetadata",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "primitive",
+                  "primitive": "ANY"
+                }
+              }
+            }
+          },
+          {
+            "fieldName": "targetBlockSetVersionId",
+            "type": {
+              "type": "reference",
+              "reference": {
+                "name": "BlockSetVersionId",
+                "package": "platform.foundryinterop.wire"
+              }
+            }
+          },
+          {
+            "fieldName": "targetMarketplaceRid",
+            "type": {
+              "type": "optional",
+              "optional": {
+                "itemType": {
+                  "type": "reference",
+                  "reference": {
+                    "name": "MarketplaceRid",
+                    "package": "platform.foundryinterop.wire"
+                  }
+                }
+              }
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "services": [],
+  "extensions": {
+    "platform": {
+      "contract": {
+        "version": "0.1.0",
+        "adapterId": "foundry-apollo-v0",
+        "managedMode": "managed-v0",
+        "universalMode": "universal-v0",
+        "irPath": "api/conjure/foundry-apollo.conjure.json",
+        "goOutput": "internal/foundryinterop/wire",
+        "goPackage": "wire",
+        "evidencePath": "docs/apollo/osdk-client-unstable-2.43.0-conjure-evidence.json"
+      },
+      "source": {
+        "repository": "https://github.com/palantir/osdk-ts",
+        "commit": "c40ca076c1459019a9327d79cf0581b6daf978a4",
+        "npmPackage": "@osdk/client.unstable",
+        "npmVersion": "2.43.0",
+        "npmTarballSha256": "a892d51988c83c9008aedf0e74ccf1ead8d5c808cb53c615b54d290e2817c02e",
+        "typescriptVersion": "5.5.4",
+        "generatedDir": "packages/client.unstable/src/generated",
+        "packageJson": "packages/client.unstable/package.json"
+      },
+      "rootTypes": [
+        "ApolloAgentEntityInfo",
+        "ApolloAgentInfoUpdate",
+        "ApolloAgentSecretType",
+        "ApolloArtifactUri",
+        "ApolloBlockSetPublishingStatus",
+        "ApolloCrossStackManifest",
+        "ApolloEntityId",
+        "ApolloEnvironment",
+        "ApolloEnvironmentId",
+        "ApolloFoundrySpaceIdentifier",
+        "ApolloGranularConfig",
+        "ApolloHostUri",
+        "ApolloManagedInstallationConfigurationV0",
+        "ApolloPlanId",
+        "ApolloPlanRid",
+        "ApolloPlanTaskRid",
+        "ApolloPublishError",
+        "ApolloSecretAndKeyName",
+        "ApolloSecretName",
+        "ApolloSpaceId",
+        "ApolloSpaceIdentifiers",
+        "ApolloSpaceToPublishingStatus",
+        "ApolloStackLevelConfig",
+        "ApolloStackManagementConfig",
+        "ApolloUniversalInstallationConfigurationV0",
+        "BatchGetApolloBlockSetVersionPublishingStatusResponse",
+        "BlockSetPublishingJobSuccess",
+        "CreateInstallationForBlockSetRequest",
+        "FailedInstallationCreationRequest",
+        "FoundryProductsDownloaderStore",
+        "ManageExistingInstallationRequest",
+        "ManagedInstallation",
+        "ReleaseCreationError_apolloPublishError",
+        "SecretResolvedBlockSetInputShape",
+        "SecretResolvedEdgePipelineMagritteSourceInputShape",
+        "SecretResolvedMarkingsInputShape",
+        "SecretResolvedNamedCredentialInputShape",
+        "UpdateInstallationForBlockSetRequest"
+      ],
+      "opaqueTypes": [
+        "BlockSetInstallationDisplayMetadata",
+        "EdgeMagritteSourceConfig",
+        "EdgeMagritteTaskConfig",
+        "InputShapeResolver",
+        "ManagedInstallationConfiguration",
+        "ManagedInstallationConfigurationUpdate",
+        "ManagedInstallationStatus",
+        "MavenProductIdOrCoordinate",
+        "ResolvedBlockSetInputShape",
+        "RoleGrant"
+      ],
+      "javaInventory": [
+        "ApolloAgentEntityInfo.java",
+        "ApolloAgentInfoUpdate.java",
+        "ApolloAgentSecretType.java",
+        "ApolloArtifactUri.java",
+        "ApolloBlockSetPublishingStatus.java",
+        "ApolloBlockSetPublishingStatusfailure.java",
+        "ApolloBlockSetPublishingStatusinProgress.java",
+        "ApolloBlockSetPublishingStatussuccess.java",
+        "ApolloCrossStackManifest.java",
+        "ApolloEntityId.java",
+        "ApolloEnvironment.java",
+        "ApolloEnvironmentId.java",
+        "ApolloFoundrySpaceIdentifier.java",
+        "ApolloGranularConfig.java",
+        "ApolloHostUri.java",
+        "ApolloManagedInstallationConfigurationV0.java",
+        "ApolloPlanId.java",
+        "ApolloPlanRid.java",
+        "ApolloPlanTaskRid.java",
+        "ApolloPublishError.java",
+        "ApolloSecretAndKeyName.java",
+        "ApolloSecretName.java",
+        "ApolloSpaceId.java",
+        "ApolloSpaceIdentifiers.java",
+        "ApolloSpaceToPublishingStatus.java",
+        "ApolloStackLevelConfig.java",
+        "ApolloStackManagementConfig.java",
+        "ApolloStackManagementConfiggranularConfig.java",
+        "ApolloStackManagementConfigstackLevelConfig.java",
+        "ApolloUniversalInstallationConfigurationV0.java",
+        "BatchGetApolloBlockSetVersionPublishingStatusResponse.java",
+        "BlockSetPublishingJobSuccess.java",
+        "CreateInstallationForBlockSetRequest.java",
+        "FailedInstallationCreationRequest.java",
+        "FoundryProductsDownloaderStore.java",
+        "ManageExistingInstallationRequest.java",
+        "ManagedInstallation.java",
+        "ReleaseCreationErrorapolloPublishError.java",
+        "SecretResolvedEdgePipelineMagritteSourceInputShape.java",
+        "SecretResolvedMarkingsInputShape.java",
+        "SecretResolvedNamedCredentialInputShape.java",
+        "UpdateInstallationForBlockSetRequest.java"
+      ]
+    }
+  }
+}

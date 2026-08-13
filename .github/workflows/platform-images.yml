@@ -1,0 +1,495 @@
+name: OCI images
+
+# Manual only: publishing is a release action and should be a decision rather
+# than a side effect of merging.
+on:
+  workflow_dispatch:
+# Never cancelled. Every run of this workflow is now a deliberate one, and a
+# cancelled publish leaves blobs in the registry that no manifest references.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  prepare-security-db:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Install pinned Grype
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_amd64.tar.gz \
+            --output /tmp/grype.tar.gz
+          echo '0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458  /tmp/grype.tar.gz' | sha256sum --check
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+          install -m 0644 /dev/null /tmp/grype-empty.yaml
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /tmp/grype-db
+          key: grype-db-v0.116.1-${{ github.run_id }}
+          restore-keys: |
+            grype-db-v0.116.1-
+      - name: Update and validate Grype vulnerability database
+        env:
+          GRYPE_DB_CACHE_DIR: /tmp/grype-db
+        run: |
+          timeout 10m /tmp/grype db update --config /tmp/grype-empty.yaml
+          /tmp/grype db status --config /tmp/grype-empty.yaml
+
+  build:
+    needs: prepare-security-db
+    permissions:
+      contents: read
+      id-token: write
+      packages: write
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - component: hub
+            dockerfile: Containerfile
+          - component: spoke-agent
+            dockerfile: Containerfile.agent
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: docker/setup-qemu-action@c7c53464625b32c7a7e944ae62b3e17d2b600130 # v3
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - if: github.event_name != 'pull_request'
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - id: build-info
+        name: Resolve reproducible build metadata
+        shell: bash
+        run: |
+          echo "version=$(tr -d '\n' < VERSION)" >> "$GITHUB_OUTPUT"
+          echo "created=$(git show -s --format=%cI HEAD)" >> "$GITHUB_OUTPUT"
+      - id: metadata
+        uses: docker/metadata-action@c299e40c65443455700f0fdfc63efafe5b349051 # v5
+        with:
+          images: ghcr.io/${{ github.repository_owner }}/platform-${{ matrix.component }}
+          tags: |
+            type=ref,event=pr
+            type=sha,prefix=sha-
+            type=raw,value=${{ steps.build-info.outputs.version }},enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+      - id: build
+        uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
+        with:
+          # uses: inputs ignore defaults.run.working-directory. The context is
+          # the platform tree, not the repository root: the Containerfiles COPY
+          # relative to it, and .dockerignore is read from it.
+          context: platform
+          file: ${{ matrix.dockerfile }}
+          platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
+          load: ${{ github.event_name == 'pull_request' }}
+          push: ${{ github.event_name != 'pull_request' }}
+          tags: ${{ steps.metadata.outputs.tags }}
+          labels: ${{ steps.metadata.outputs.labels }}
+          build-args: |
+            VERSION=${{ steps.build-info.outputs.version }}
+            COMMIT=${{ github.sha }}
+            BUILD_DATE=${{ steps.build-info.outputs.created }}
+          cache-from: type=gha,scope=${{ matrix.component }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.component }}
+          # Docker's PR-only --load exporter cannot load the manifest list
+          # produced by native attestations. Tagged/pushed releases retain
+          # BuildKit provenance and SBOMs; PRs generate pinned Syft/Grype
+          # evidence from the loaded single-platform image below.
+          provenance: ${{ github.event_name != 'pull_request' && 'mode=max' || 'false' }}
+          sbom: ${{ github.event_name != 'pull_request' }}
+      - if: github.event_name != 'pull_request'
+        name: Record immutable image reference
+        run: |
+          echo '`${{ matrix.component }}`: `ghcr.io/${{ github.repository_owner }}/platform-${{ matrix.component }}@${{ steps.build.outputs.digest }}`' >> "$GITHUB_STEP_SUMMARY"
+      - if: github.event_name != 'pull_request'
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.2
+      - if: github.event_name != 'pull_request'
+        name: Sign immutable image with GitHub OIDC
+        run: >-
+          ./scripts/retry-keyless-signing.sh cosign sign --yes
+          'ghcr.io/${{ github.repository_owner }}/platform-${{ matrix.component }}@${{ steps.build.outputs.digest }}'
+      - name: Write immutable image descriptor
+        run: |
+          mkdir -p dist
+          jq --null-input \
+            --arg component '${{ matrix.component }}' \
+            --arg image 'ghcr.io/${{ github.repository_owner }}/platform-${{ matrix.component }}' \
+            --arg digest '${{ steps.build.outputs.digest }}' \
+            --arg version '${{ steps.build-info.outputs.version }}' \
+            --arg commit '${{ github.sha }}' \
+            '{component: $component, image: $image, digest: $digest, reference: ($image + "@" + $digest), version: $version, commit: $commit}' \
+            > 'dist/${{ matrix.component }}.json'
+      - name: Install pinned Syft and Grype
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_linux_amd64.tar.gz \
+            --output /tmp/syft.tar.gz
+          echo 'bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788  /tmp/syft.tar.gz' | sha256sum --check
+          tar -xzf /tmp/syft.tar.gz -C /tmp syft
+          curl --fail --location --silent --show-error \
+            https://github.com/anchore/grype/releases/download/v0.116.1/grype_0.116.1_linux_amd64.tar.gz \
+            --output /tmp/grype.tar.gz
+          echo '0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458  /tmp/grype.tar.gz' | sha256sum --check
+          tar -xzf /tmp/grype.tar.gz -C /tmp grype
+      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+        with:
+          path: /tmp/grype-db
+          key: grype-db-v0.116.1-${{ github.run_id }}
+          fail-on-cache-miss: true
+      - name: Generate digest-bound SBOM and vulnerability evidence
+        shell: bash
+        env:
+          GRYPE_DB_CACHE_DIR: /tmp/grype-db
+          GRYPE_DB_AUTO_UPDATE: "false"
+          GRYPE_DB_REQUIRE_UPDATE_CHECK: "false"
+        run: |
+          if [[ '${{ github.event_name }}' == 'pull_request' ]]; then
+            image_reference="$(head -n1 <<< '${{ steps.metadata.outputs.tags }}')"
+            syft_source="docker:${image_reference}"
+          else
+            image_reference='ghcr.io/${{ github.repository_owner }}/platform-${{ matrix.component }}@${{ steps.build.outputs.digest }}'
+            syft_source="registry:${image_reference}"
+          fi
+          install -m 0644 /dev/null /tmp/grype-empty.yaml
+          architectures=(amd64)
+          if [[ '${{ github.event_name }}' != 'pull_request' ]]; then
+            architectures+=(arm64)
+          fi
+          sboms='[]'
+          reports='[]'
+          release_scan_status=0
+          for architecture in "${architectures[@]}"; do
+            native_sbom='dist/${{ matrix.component }}-'"${architecture}"'.syft.json'
+            spdx_sbom='dist/${{ matrix.component }}-'"${architecture}"'.spdx.json'
+            scan_report='dist/${{ matrix.component }}-'"${architecture}"'.grype.json'
+            /tmp/syft scan "${syft_source}" --quiet --platform "linux/${architecture}" \
+              --output "syft-json=${native_sbom}" --output "spdx-json=${spdx_sbom}"
+            test "$(jq -er '.descriptor.name' "${native_sbom}")" = syft
+            test "$(jq -er '.source.metadata.architecture' "${native_sbom}")" = "${architecture}"
+            if [[ '${{ github.event_name }}' != 'pull_request' ]]; then
+              test "$(jq -er '.source.metadata.userInput' "${native_sbom}")" = "${image_reference}"
+            fi
+            set +e
+            timeout 10m /tmp/grype "sbom:${native_sbom}" \
+              --config /tmp/grype-empty.yaml --quiet --by-cve --output json \
+              --file "${scan_report}" --fail-on high
+            scan_status="$?"
+            set -e
+            test -s "${scan_report}"
+            test "$(jq -er '.descriptor.name' "${scan_report}")" = grype
+            if [[ "${scan_status}" -eq 2 ]]; then
+              release_scan_status=2
+            else
+              test "${scan_status}" -eq 0
+            fi
+            sbom_sha256="$(sha256sum "${spdx_sbom}" | cut -d' ' -f1)"
+            scan_sha256="$(sha256sum "${scan_report}" | cut -d' ' -f1)"
+            sboms="$(jq --arg architecture "${architecture}" --arg file "$(basename "${spdx_sbom}")" \
+              --arg sha256 "${sbom_sha256}" '. + [{architecture: $architecture, file: $file, sha256: $sha256}]' <<<"${sboms}")"
+            reports="$(jq --arg architecture "${architecture}" --arg file "$(basename "${scan_report}")" \
+              --arg sha256 "${scan_sha256}" '. + [{architecture: $architecture, file: $file, sha256: $sha256}]' <<<"${reports}")"
+          done
+          jq --argjson sboms "${sboms}" --argjson reports "${reports}" \
+            '. + {sboms: $sboms, vulnerabilityReports: $reports}' \
+            'dist/${{ matrix.component }}.json' > 'dist/${{ matrix.component }}.json.tmp'
+          mv 'dist/${{ matrix.component }}.json.tmp' 'dist/${{ matrix.component }}.json'
+          if [[ "${release_scan_status}" -eq 2 ]]; then
+            echo 'Grype found a vulnerability at or above the high-severity release threshold' >&2
+            exit 1
+          fi
+      - if: github.event_name != 'pull_request'
+        name: Attest SBOM and vulnerability report to immutable image
+        run: |
+          reference='ghcr.io/${{ github.repository_owner }}/platform-${{ matrix.component }}@${{ steps.build.outputs.digest }}'
+          for architecture in amd64 arm64; do
+            ./scripts/retry-keyless-signing.sh cosign attest --yes --predicate 'dist/${{ matrix.component }}-'"${architecture}"'.spdx.json' --type spdxjson "${reference}"
+            ./scripts/retry-keyless-signing.sh cosign attest --yes --predicate 'dist/${{ matrix.component }}-'"${architecture}"'.grype.json' \
+              --type 'https://platform.delivery/attestations/grype/v1' "${reference}"
+          done
+      - if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: oci-${{ matrix.component }}
+          path: |
+            dist/${{ matrix.component }}.json
+            dist/${{ matrix.component }}-*
+          if-no-files-found: error
+
+  manifest:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+      id-token: write
+      packages: write
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+        with:
+          pattern: oci-*
+          path: dist
+          merge-multiple: true
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6 # v4.1.2
+        with:
+          cosign-release: v3.1.2
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Install pinned Flux CLI
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/fluxcd/flux2/releases/download/v2.9.3/flux_2.9.3_linux_amd64.tar.gz \
+            --output /tmp/flux.tar.gz
+          echo 'eae4e8608c0ade2bf4e8dec1669dbb6b0c28b5822b252d97feccfb4fb1181fd2  /tmp/flux.tar.gz' | sha256sum --check
+          tar -xzf /tmp/flux.tar.gz -C /tmp flux
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Publish reusable Flux runtime source
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          artifact_json="$(/tmp/flux push artifact \
+            "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/platform-runtime:${version}" \
+            --path=deploy/flux \
+            --source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
+            --revision="${GITHUB_REF_NAME}@sha1:${GITHUB_SHA}" \
+            --reproducible \
+            --output=json)"
+          artifact_digest="$(jq -er '.digest | select(test("^sha256:[a-f0-9]{64}$"))' <<<"${artifact_json}")"
+          artifact_reference="ghcr.io/${GITHUB_REPOSITORY_OWNER}/platform-runtime:${version}@${artifact_digest}"
+          ./scripts/retry-keyless-signing.sh cosign sign --yes "${artifact_reference}"
+          jq --null-input \
+            --arg reference "${artifact_reference}" \
+            --arg digest "${artifact_digest}" \
+            --arg version "${version}" \
+            --arg commit "${GITHUB_SHA}" \
+            '{reference: $reference, digest: $digest, version: $version, commit: $commit}' \
+            > platform-runtime.json
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Install pinned Zarf
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            --output /tmp/zarf
+          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          chmod 0755 /tmp/zarf
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Install pinned Helm
+        run: |
+          curl --fail --silent --show-error --location \
+            https://get.helm.sh/helm-v4.2.3-linux-amd64.tar.gz \
+            --output /tmp/helm.tar.gz
+          echo 'e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c  /tmp/helm.tar.gz' | sha256sum --check
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Package, publish, and sign Helm runtime charts
+        env:
+          HELM_REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          echo "${HELM_REGISTRY_TOKEN}" | helm registry login ghcr.io \
+            --username "${GITHUB_ACTOR}" --password-stdin
+          mkdir -p helm-dist
+          descriptors='[]'
+          for component in hub spoke; do
+            chart="platform-${component}"
+            helm package "deploy/helm/${chart}" --destination helm-dist \
+              --version "${version}" --app-version "${version}"
+            package="helm-dist/${chart}-${version}.tgz"
+            push_output="$(helm push "${package}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}")"
+            digest="$(awk '/Digest:/ {print $2}' <<<"${push_output}" | tail -1)"
+            [[ "${digest}" =~ ^sha256:[a-f0-9]{64}$ ]]
+            reference="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${chart}:${version}@${digest}"
+            ./scripts/retry-keyless-signing.sh cosign sign --yes "${reference}"
+            SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
+              ruby scripts/generate-helm-sbom.rb \
+                "${package}" "${package}.spdx.json" "${chart}" "${version}"
+            (cd helm-dist && sha256sum "$(basename "${package}")" > "$(basename "${package}").sha256")
+            descriptors="$(jq --arg component "${component}" --arg reference "${reference}" \
+              --arg digest "${digest}" --arg version "${version}" --arg commit "${GITHUB_SHA}" \
+              '. + [{component: $component, reference: $reference, digest: $digest, version: $version, commit: $commit}]' \
+              <<<"${descriptors}")"
+          done
+          jq --null-input --arg version "${version}" --arg commit "${GITHUB_SHA}" \
+            --argjson charts "${descriptors}" \
+            '{apiVersion: "platform.delivery/helm-release/v1", version: $version, commit: $commit, charts: $charts}' \
+            > platform-helm-charts.json
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Build and sign air-gap packages
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          hub_reference="$(jq -er '.reference' dist/hub.json)"
+          agent_reference="$(jq -er '.reference' dist/spoke-agent.json)"
+          platform_reference() {
+            source_reference="$1"
+            architecture="$2"
+            manifest_digest="$(docker buildx imagetools inspect --raw "${source_reference}" | jq -er \
+              --arg architecture "${architecture}" \
+              '[.manifests[] | select(.platform.os == "linux" and .platform.architecture == $architecture) | .digest] | if length == 1 then .[0] else error("expected one platform manifest") end')"
+            printf '%s@%s\n' "${source_reference%@*}" "${manifest_digest}"
+          }
+          mkdir -p zarf-dist
+          for architecture in amd64 arm64; do
+            hub_platform_reference="$(platform_reference "${hub_reference}" "${architecture}")"
+            agent_platform_reference="$(platform_reference "${agent_reference}" "${architecture}")"
+            /tmp/zarf package create deploy/zarf \
+              --architecture "${architecture}" \
+              --confirm \
+              --output zarf-dist \
+              --set "PLATFORM_VERSION=${version}" \
+              --set "HUB_IMAGE=${hub_platform_reference}" \
+              --set "SPOKE_AGENT_IMAGE=${agent_platform_reference}"
+            package="zarf-dist/zarf-package-platform-runtime-${architecture}-${version}.tar.zst"
+            test -f "${package}"
+            # GITHUB_WORKFLOW_REF is owner/repo/.github/workflows/<file>@<ref>,
+            # which is exactly the keyless SAN minus the server prefix. Spelling
+            # the filename here is how this broke: the repository half already
+            # self-corrected when the workflow moved, the filename did not, so
+            # signing and verification disagreed about the same run.
+            identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"
+            ./scripts/retry-keyless-signing.sh /tmp/zarf package sign "${package}" --keyless --confirm
+            /tmp/zarf package verify "${package}" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com
+            (cd zarf-dist && sha256sum "$(basename "${package}")" > "$(basename "${package}").sha256")
+          done
+      - if: startsWith(github.ref, 'refs/tags/v')
+        name: Build, inventory, and sign standalone Conduit CLI
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          created="$(git show -s --format=%cI HEAD)"
+          epoch="$(git show -s --format=%ct HEAD)"
+          mkdir -p cli-dist/archives cli-dist/provenance cli-dist/sbom /tmp/conduit-build
+          curl --fail --location --silent --show-error \
+            https://github.com/anchore/syft/releases/download/v1.50.0/syft_1.50.0_linux_amd64.tar.gz \
+            --output /tmp/syft.tar.gz
+          echo 'bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788  /tmp/syft.tar.gz' | sha256sum --check
+          tar -xzf /tmp/syft.tar.gz -C /tmp syft
+          targets=(linux/amd64 linux/arm64 darwin/amd64 darwin/arm64 windows/amd64 windows/arm64)
+          for target in "${targets[@]}"; do
+            os="${target%/*}"
+            architecture="${target#*/}"
+            suffix=""
+            if [[ "${os}" == windows ]]; then suffix='.exe'; fi
+            directory="/tmp/conduit-build/conduit_${version}_${os}_${architecture}"
+            mkdir -p "${directory}"
+            CGO_ENABLED=0 GOOS="${os}" GOARCH="${architecture}" go build \
+              -trimpath -buildvcs=false \
+              -ldflags="-s -w -X github.com/jonathanagustin/conduit/internal/buildinfo.Version=${version} -X github.com/jonathanagustin/conduit/internal/buildinfo.Commit=${GITHUB_SHA} -X github.com/jonathanagustin/conduit/internal/buildinfo.BuildDate=${created}" \
+              -o "${directory}/conduit${suffix}" ./cmd/conduit
+            touch -d "@${epoch}" "${directory}/conduit${suffix}"
+            /tmp/syft scan "file:${directory}/conduit${suffix}" --quiet \
+              --output "spdx-json=cli-dist/sbom/conduit_${version}_${os}_${architecture}.spdx.json"
+            if [[ "${os}" == windows ]]; then
+              archive="cli-dist/archives/conduit_${version}_${os}_${architecture}.zip"
+              (cd "${directory}" && zip -X -q "${GITHUB_WORKSPACE}/${archive}" "conduit${suffix}")
+            else
+              archive="cli-dist/archives/conduit_${version}_${os}_${architecture}.tar.gz"
+              tar --sort=name --mtime="@${epoch}" --owner=0 --group=0 --numeric-owner \
+                -C "${directory}" -cf - "conduit${suffix}" | gzip -n > "${archive}"
+            fi
+            ./scripts/retry-keyless-signing.sh cosign sign-blob --yes --bundle "${archive}.sigstore.json" "${archive}"
+            predicate="cli-dist/provenance/conduit_${version}_${os}_${architecture}.slsa.json"
+            builder="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"
+            invocation="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/attempts/${GITHUB_RUN_ATTEMPT}"
+            jq -n \
+              --arg buildType "https://platform.delivery/buildtypes/conduit-cli/v1" \
+              --arg target "${target}" \
+              --arg version "${version}" \
+              --arg source "git+${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}@${GITHUB_REF}" \
+              --arg commit "${GITHUB_SHA}" \
+              --arg builder "${builder}" \
+              --arg invocation "${invocation}" \
+              '{
+                buildDefinition: {
+                  buildType: $buildType,
+                  externalParameters: {target: $target, version: $version},
+                  internalParameters: {},
+                  resolvedDependencies: [{uri: $source, digest: {gitCommit: $commit}}]
+                },
+                runDetails: {
+                  builder: {id: $builder},
+                  metadata: {invocationId: $invocation},
+                  byproducts: []
+                }
+              }' > "${predicate}"
+            ./scripts/retry-keyless-signing.sh cosign attest-blob --yes \
+              --predicate "${predicate}" --type slsaprovenance1 \
+              --bundle "${archive}.provenance.sigstore.json" "${archive}"
+            cosign verify-blob-attestation \
+              --bundle "${archive}.provenance.sigstore.json" \
+              --type slsaprovenance1 \
+              --certificate-identity "${builder}" \
+              --certificate-oidc-issuer https://token.actions.githubusercontent.com \
+              "${archive}" >/dev/null
+          done
+          # Keep the checksum index limited to the six executable archives. The
+          # adjacent Sigstore bundles authenticate those archives but are not
+          # themselves release subjects.
+          (cd cli-dist/archives && sha256sum conduit_*.tar.gz conduit_*.zip | sort -k2 > ../SHA256SUMS)
+      - name: Assemble release manifest
+        run: |
+          ./scripts/assemble-oci-manifest.sh \
+            platform-oci-manifest.json dist/hub.json dist/spoke-agent.json
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: platform-oci-manifest
+          path: platform-oci-manifest.json
+          if-no-files-found: error
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: platform-runtime
+          path: platform-runtime.json
+          if-no-files-found: error
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: platform-helm-charts
+          path: |
+            platform-helm-charts.json
+            helm-dist/*
+          if-no-files-found: error
+      - if: startsWith(github.ref, 'refs/tags/v')
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: platform-zarf-packages
+          path: zarf-dist/*
+          if-no-files-found: error
+      - if: startsWith(github.ref, 'refs/tags/v')
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        name: Publish release manifest
+        run: |
+          gh release view '${{ github.ref_name }}' --repo '${{ github.repository }}' >/dev/null 2>&1 || \
+            gh release create '${{ github.ref_name }}' --repo '${{ github.repository }}' --verify-tag --generate-notes
+          gh release upload '${{ github.ref_name }}' \
+            platform-oci-manifest.json platform-runtime.json platform-helm-charts.json \
+            dist/*.syft.json dist/*.spdx.json dist/*.grype.json helm-dist/* zarf-dist/* cli-dist/archives/* cli-dist/provenance/* cli-dist/sbom/* cli-dist/SHA256SUMS \
+            --repo '${{ github.repository }}' --clobber

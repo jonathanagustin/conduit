@@ -1,0 +1,79 @@
+# Reconciliation identity for the foundry-tenant chart.
+#
+# This is deliberately NOT platform-runtime-reconciler. That identity is bounded
+# to platform-system and must stay that way; a tenant creates its own Namespace
+# and a cluster-scoped ClusterSecretStore, so it needs authority the runtime
+# reconciler is specifically forbidden from holding.
+#
+# The grants below are enumerated rather than wildcarded, and carry no delete on
+# Namespace: pruning a tenant must not take the namespace, and everything inside
+# it, with it. Removing a tenant is a deliberate operator action.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: foundry-tenant-reconciler
+  namespace: flux-system
+automountServiceAccountToken: false
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: foundry-tenant-reconciler
+rules:
+  # The tenant namespace is named from values, so it cannot be constrained by
+  # resourceNames here. Delete is withheld deliberately.
+  - apiGroups: [""]
+    resources: ["namespaces"]
+    verbs: ["get", "list", "watch", "create", "patch"]
+  - apiGroups: [""]
+    resources: ["serviceaccounts"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  # ClusterSecretStore is cluster-scoped by kind; ExternalSecret is namespaced
+  # but lands in the Foundry namespace, which is also values-named.
+  - apiGroups: ["external-secrets.io"]
+    resources: ["clustersecretstores"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+  - apiGroups: ["external-secrets.io"]
+    resources: ["externalsecrets"]
+    verbs: ["get", "list", "watch", "create", "patch", "delete"]
+---
+# Helm keeps release state as Secrets in the storage namespace, so without this
+# the very first reconcile fails on "cannot list resource secrets" before it
+# reads the chart. Namespaced on purpose: the tenant identity has no business
+# reading Secrets anywhere else, least of all cluster-wide.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: foundry-tenant-reconciler-release-storage
+  namespace: flux-system
+rules:
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: foundry-tenant-reconciler-release-storage
+  namespace: flux-system
+subjects:
+  - kind: ServiceAccount
+    name: foundry-tenant-reconciler
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: foundry-tenant-reconciler-release-storage
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: foundry-tenant-reconciler
+subjects:
+  - kind: ServiceAccount
+    name: foundry-tenant-reconciler
+    namespace: flux-system
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: foundry-tenant-reconciler

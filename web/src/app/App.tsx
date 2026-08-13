@@ -1,0 +1,70 @@
+import { Route, Routes } from "react-router-dom";
+import { Callout } from "@blueprintjs/core";
+
+import { useSession } from "../api/session.js";
+import { AppFrame, NavigationRail } from "../components/index.js";
+import { FleetPage } from "../features/fleet/FleetPage.js";
+import { PlansPage } from "../features/plans/PlansPage.js";
+import { PlanDetailPage } from "../features/plans/PlanDetailPage.js";
+import { ChangeRequestsPage } from "../features/changes/ChangeRequestsPage.js";
+import { ChangeRequestDetailPage } from "../features/changes/ChangeRequestDetailPage.js";
+import { EnvironmentsPage } from "../features/environments/EnvironmentsPage.js";
+import { EnvironmentDetailPage } from "../features/environments/EnvironmentDetailPage.js";
+import { ProductsPage, ProductDetailPage } from "../features/products/ProductsPage.js";
+import { PromotionsPage } from "../features/promotions/PromotionsPage.js";
+import { OverviewPage } from "../features/overview/OverviewPage.js";
+import { APPLICATION_DESTINATIONS, RAIL_DESTINATIONS } from "./navigation.js";
+import { NotFound } from "./NotFound.js";
+import { Placeholder } from "./Placeholder.js";
+import "./app.css";
+
+export function App() {
+  const session = useSession();
+  const enabledApplications = new Set(
+    (session.data?.applications ?? [])
+      .filter((application) => application.enabled)
+      .map((application) => application.id),
+  );
+  const applications = APPLICATION_DESTINATIONS.filter((destination) =>
+    enabledApplications.has(destination.id),
+  );
+  return (
+    <AppFrame icon="dashboard" accent="#2d72d2" title="Platform" subtitle="Control plane">
+      <div className="console-shell">
+        <NavigationRail primary={RAIL_DESTINATIONS} applications={applications} />
+        <div className="console-shell__canvas" data-testid="console-workspace-canvas">
+          {session.error !== null ? (
+            <Callout
+              compact
+              intent="warning"
+              icon="warning-sign"
+              role="status"
+              data-testid="session-capabilities-unavailable"
+            >
+              Session capabilities could not be read, so application navigation is incomplete.
+            </Callout>
+          ) : null}
+          <Routes>
+            <Route path="/" element={<OverviewPage />} />
+            <Route path="/overview" element={<OverviewPage />} />
+            <Route path="/fleet" element={<FleetPage />} />
+            <Route path="/environments" element={<EnvironmentsPage />} />
+            <Route path="/environments/:environmentId" element={<EnvironmentDetailPage />} />
+            <Route path="/products" element={<ProductsPage />} />
+            <Route path="/products/:product" element={<ProductDetailPage />} />
+            <Route path="/promotions" element={<PromotionsPage />} />
+            <Route path="/plans" element={<PlansPage />} />
+            <Route path="/plans/:planId" element={<PlanDetailPage />} />
+            <Route path="/change-requests" element={<ChangeRequestsPage />} />
+            <Route path="/change-requests/:changeRequestId" element={<ChangeRequestDetailPage />} />
+            <Route path="/export" element={<Placeholder title="Export" />} />
+            <Route path="/import" element={<Placeholder title="Import" />} />
+            <Route path="/risk" element={<Placeholder title="Risk Management" />} />
+            <Route path="/teams" element={<Placeholder title="Teams" />} />
+            <Route path="*" element={<NotFound />} />
+          </Routes>
+        </div>
+      </div>
+    </AppFrame>
+  );
+}

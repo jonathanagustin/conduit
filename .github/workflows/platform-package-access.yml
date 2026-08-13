@@ -1,0 +1,49 @@
+name: Platform package access
+
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - package: platform-hub
+            package_id: 14160284
+            digest: sha256:ba7972b9ee37768709bdb2cda0860c1e4374df34d5114d1bc53636fa6614f4b3
+          - package: platform-spoke-agent
+            package_id: 14160289
+            digest: sha256:548a7d552ab2eb3215a62df65c659a7b4896502796907aa99327c62e2870d985
+          - package: platform-runtime
+            package_id: 14167028
+            digest: sha256:bc2d5b7a9c53c491e864376fed9807f46e340917472be2ef5bd469b73273afde
+          - package: platform-spoke
+            package_id: 14181627
+            digest: sha256:f5786bc594015419cfb4ba3192d04885ee13aef3035164d93a28abdf9e7b5e8b
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Test package cutover verifier
+        run: scripts/test-ghcr-package-cutover.sh
+      - name: Verify package identity, privacy, and repository ownership
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: >-
+          scripts/verify-ghcr-package-cutover.sh
+          '${{ github.repository }}'
+          '${{ matrix.package }}'
+          '${{ matrix.package_id }}'
+      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
+      - name: Resolve immutable package coordinate
+        run: >-
+          docker buildx imagetools inspect
+          'ghcr.io/${{ github.repository_owner }}/${{ matrix.package }}@${{ matrix.digest }}'

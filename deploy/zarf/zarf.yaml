@@ -1,0 +1,66 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/zarf-dev/zarf/v0.82.0/zarf.schema.json
+apiVersion: zarf.dev/v1alpha1
+kind: ZarfPackageConfig
+metadata:
+  name: platform-runtime
+  version: "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
+  description: Product-agnostic Platform Hub and outbound-only Spoke runtime
+  source: https://github.com/jonathanagustin/palantir
+  documentation: https://github.com/jonathanagustin/palantir/blob/main/platform/deploy/zarf/README.md
+  allowNamespaceOverride: false
+  annotations:
+    org.opencontainers.image.source: https://github.com/jonathanagustin/palantir
+
+constants:
+  - name: HUB_IMAGE
+    value: "###ZARF_PKG_TMPL_HUB_IMAGE###"
+    pattern: "^.+@sha256:[a-f0-9]{64}$"
+  - name: SPOKE_AGENT_IMAGE
+    value: "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"
+    pattern: "^.+@sha256:[a-f0-9]{64}$"
+
+variables:
+  - name: ENVIRONMENT_ID
+    description: Immutable Environment ID assigned to this Spoke
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  - name: AGENT_ID
+    description: Unique Agent ID within the Environment
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"
+  - name: BOOTSTRAP_ADMINISTRATORS
+    description: Comma-separated authenticated subjects allowed to establish initial governance
+    default: ""
+  - name: HELM_PLAIN_HTTP
+    description: Permit plain HTTP only for an explicitly isolated local OCI registry
+    default: "false"
+    pattern: "^(true|false)$"
+  - name: HUB_TLS_SECRET
+    description: Existing Secret containing ca.crt, tls.crt, and tls.key for the Hub
+    default: platform-hub-tls
+  - name: AGENT_TLS_SECRET
+    description: Existing Secret containing ca.crt, tls.crt, and tls.key for the Spoke Agent
+    default: platform-agent-tls
+  - name: BUNDLE_SIGNING_SECRET
+    description: Existing Secret containing bundle-signing-key.pem
+    default: platform-bundle-signing
+
+components:
+  - name: runtime
+    required: true
+    description: Installs the secure Hub and Spoke runtime; credentials and application RBAC remain Environment-owned
+    manifests:
+      - name: platform-runtime
+        namespace: platform-system
+        files:
+          - manifests/runtime.yaml
+    images:
+      - "###ZARF_PKG_TMPL_HUB_IMAGE###"
+      - "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"
+    healthChecks:
+      - apiVersion: apps/v1
+        kind: Deployment
+        namespace: platform-system
+        name: platform-delivery
+      - apiVersion: apps/v1
+        kind: Deployment
+        namespace: platform-system
+        name: platform-spoke-agent

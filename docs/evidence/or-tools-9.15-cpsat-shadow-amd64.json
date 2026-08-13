@@ -1,0 +1,514 @@
+{
+  "apiVersion": "optimization.platform.example/discrete-solver-calibration/v1alpha1",
+  "kind": "DiscreteSolverShadowCalibration",
+  "id": "dsolcal_1a453ac6c08781cb793d6004d231fdc6ac62d5d64464f39ecd684de38b1dd9d7",
+  "mode": "SHADOW",
+  "influencedProposal": false,
+  "mutatedState": false,
+  "inputDigest": "sha256:fbd5aabdd386f2207066bfd01052ff9e38e89f67ed0f4ac2bbc4c235e20a2684",
+  "reference": {
+    "request": {
+      "apiVersion": "optimization.platform.example/discrete-solver/v1alpha1",
+      "kind": "DiscreteSolverRequest",
+      "id": "dsolreq_e1be920faff4fb4d1f91442cb9c2d7b3ba09af627aeef4eb42398c193c57df3f",
+      "recommendation": {
+        "apiVersion": "optimization.platform.example/v1alpha1",
+        "kind": "DiscreteRecommendationRequest",
+        "snapshot": {
+          "id": "snap_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "synthetic-shadow",
+          "revision": "scenario-v1",
+          "capturedAt": "2026-08-12T10:59:00Z"
+        },
+        "objective": {
+          "primary": "minimize_makespan",
+          "secondary": [
+            "minimize_estimated_cost"
+          ]
+        },
+        "constraints": [
+          {
+            "id": "synthetic-only",
+            "source": "local-evidence",
+            "revision": "v1",
+            "observedAt": "2026-08-12T10:59:00Z"
+          }
+        ],
+        "problem": {
+          "origin": "2026-08-12T11:00:00Z",
+          "timeUnit": "seconds",
+          "horizonSeconds": 30,
+          "tasks": [
+            {
+              "id": "prepare",
+              "durationSeconds": 3,
+              "earliestStart": 0,
+              "latestFinish": 15,
+              "eligibleLanes": [
+                "lane-a",
+                "lane-b"
+              ],
+              "demand": {
+                "slots": 1
+              },
+              "estimatedCostMicros": {
+                "lane-a": 10,
+                "lane-b": 20
+              }
+            },
+            {
+              "id": "rollout",
+              "durationSeconds": 4,
+              "earliestStart": 0,
+              "latestFinish": 25,
+              "eligibleLanes": [
+                "lane-a",
+                "lane-b"
+              ],
+              "demand": {
+                "slots": 1
+              },
+              "estimatedCostMicros": {
+                "lane-a": 30,
+                "lane-b": 15
+              }
+            },
+            {
+              "id": "verify",
+              "durationSeconds": 2,
+              "earliestStart": 0,
+              "latestFinish": 30,
+              "eligibleLanes": [
+                "lane-a",
+                "lane-b"
+              ],
+              "demand": {
+                "slots": 1
+              },
+              "estimatedCostMicros": {
+                "lane-a": 5,
+                "lane-b": 25
+              }
+            }
+          ],
+          "lanes": [
+            {
+              "id": "lane-a",
+              "capacity": {
+                "slots": 1
+              }
+            },
+            {
+              "id": "lane-b",
+              "capacity": {
+                "slots": 1
+              }
+            }
+          ],
+          "precedences": [
+            {
+              "before": "prepare",
+              "after": "rollout",
+              "lagSeconds": 0
+            },
+            {
+              "before": "rollout",
+              "after": "verify",
+              "lagSeconds": 0
+            }
+          ],
+          "costModel": {
+            "currency": "USD",
+            "source": "synthetic-price-v1",
+            "asOf": "2026-08-12T10:59:00Z"
+          }
+        }
+      },
+      "model": {
+        "name": "discrete.schedule",
+        "revision": "discrete.schedule.v1",
+        "digest": "sha256:8771946eb459b72f7a896dd1d64b3075ea960f47ecdf8c0bebbbfad375b212a2",
+        "hardConstraintsDigest": "sha256:b55303926dacd9adde03de47c66b4a4300401c45825a2cc36e540274043af1d1",
+        "objectiveDigest": "sha256:0cfc368cad35507f0e2473806d611536b84c32dd5717a3654c4882a9ab2c9c9d"
+      },
+      "capability": "discrete-schedule-v1",
+      "selection": {
+        "preferredBackend": "native"
+      },
+      "determinism": {
+        "seed": 0,
+        "workers": 1
+      },
+      "limits": {
+        "timeLimitMilliseconds": 5000,
+        "memoryLimitBytes": 268435456
+      }
+    },
+    "receipt": {
+      "apiVersion": "optimization.platform.example/discrete-solver/v1alpha1",
+      "kind": "DiscreteSolverReceipt",
+      "id": "dsolrcpt_d98492f0af4d7ca0594949fae99d4516fd8ccbde3b220e4c5d28cda7fe7f20e8",
+      "requestId": "dsolreq_e1be920faff4fb4d1f91442cb9c2d7b3ba09af627aeef4eb42398c193c57df3f",
+      "requestedBackend": "native",
+      "attemptedBackends": [
+        "native"
+      ],
+      "selectedBackend": {
+        "name": "native",
+        "version": "1.0.0",
+        "executableDigest": "sha256:57e57e5288fd7e01cc1481a628acf3e5485ab86140c56b19ede870c287c23019",
+        "architecture": "amd64",
+        "capabilities": [
+          "discrete-schedule-v1"
+        ]
+      },
+      "termination": "FEASIBLE",
+      "result": {
+        "assignments": [
+          {
+            "task": "prepare",
+            "lane": "lane-a",
+            "start": 0,
+            "finish": 3,
+            "estimatedCostMicros": 10
+          },
+          {
+            "task": "rollout",
+            "lane": "lane-b",
+            "start": 3,
+            "finish": 7,
+            "estimatedCostMicros": 15
+          },
+          {
+            "task": "verify",
+            "lane": "lane-a",
+            "start": 7,
+            "finish": 9,
+            "estimatedCostMicros": 5
+          }
+        ],
+        "makespanSeconds": 9,
+        "estimatedTotalCostMicros": 30,
+        "costModel": {
+          "currency": "USD",
+          "source": "synthetic-price-v1",
+          "asOf": "2026-08-12T10:59:00Z"
+        }
+      },
+      "startedAt": "2026-08-12T12:25:58.297556334Z",
+      "finishedAt": "2026-08-12T12:25:58.297609523Z"
+    }
+  },
+  "candidate": {
+    "request": {
+      "apiVersion": "optimization.platform.example/discrete-solver/v1alpha1",
+      "kind": "DiscreteSolverRequest",
+      "id": "dsolreq_482731ff7c545ea57179ce4db9fc4072779558596b0f9b0d90270cb5fb410d17",
+      "recommendation": {
+        "apiVersion": "optimization.platform.example/v1alpha1",
+        "kind": "DiscreteRecommendationRequest",
+        "snapshot": {
+          "id": "snap_aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+          "source": "synthetic-shadow",
+          "revision": "scenario-v1",
+          "capturedAt": "2026-08-12T10:59:00Z"
+        },
+        "objective": {
+          "primary": "minimize_makespan",
+          "secondary": [
+            "minimize_estimated_cost"
+          ]
+        },
+        "constraints": [
+          {
+            "id": "synthetic-only",
+            "source": "local-evidence",
+            "revision": "v1",
+            "observedAt": "2026-08-12T10:59:00Z"
+          }
+        ],
+        "problem": {
+          "origin": "2026-08-12T11:00:00Z",
+          "timeUnit": "seconds",
+          "horizonSeconds": 30,
+          "tasks": [
+            {
+              "id": "prepare",
+              "durationSeconds": 3,
+              "earliestStart": 0,
+              "latestFinish": 15,
+              "eligibleLanes": [
+                "lane-a",
+                "lane-b"
+              ],
+              "demand": {
+                "slots": 1
+              },
+              "estimatedCostMicros": {
+                "lane-a": 10,
+                "lane-b": 20
+              }
+            },
+            {
+              "id": "rollout",
+              "durationSeconds": 4,
+              "earliestStart": 0,
+              "latestFinish": 25,
+              "eligibleLanes": [
+                "lane-a",
+                "lane-b"
+              ],
+              "demand": {
+                "slots": 1
+              },
+              "estimatedCostMicros": {
+                "lane-a": 30,
+                "lane-b": 15
+              }
+            },
+            {
+              "id": "verify",
+              "durationSeconds": 2,
+              "earliestStart": 0,
+              "latestFinish": 30,
+              "eligibleLanes": [
+                "lane-a",
+                "lane-b"
+              ],
+              "demand": {
+                "slots": 1
+              },
+              "estimatedCostMicros": {
+                "lane-a": 5,
+                "lane-b": 25
+              }
+            }
+          ],
+          "lanes": [
+            {
+              "id": "lane-a",
+              "capacity": {
+                "slots": 1
+              }
+            },
+            {
+              "id": "lane-b",
+              "capacity": {
+                "slots": 1
+              }
+            }
+          ],
+          "precedences": [
+            {
+              "before": "prepare",
+              "after": "rollout",
+              "lagSeconds": 0
+            },
+            {
+              "before": "rollout",
+              "after": "verify",
+              "lagSeconds": 0
+            }
+          ],
+          "costModel": {
+            "currency": "USD",
+            "source": "synthetic-price-v1",
+            "asOf": "2026-08-12T10:59:00Z"
+          }
+        }
+      },
+      "model": {
+        "name": "discrete.schedule",
+        "revision": "discrete.schedule.v1",
+        "digest": "sha256:8771946eb459b72f7a896dd1d64b3075ea960f47ecdf8c0bebbbfad375b212a2",
+        "hardConstraintsDigest": "sha256:b55303926dacd9adde03de47c66b4a4300401c45825a2cc36e540274043af1d1",
+        "objectiveDigest": "sha256:0cfc368cad35507f0e2473806d611536b84c32dd5717a3654c4882a9ab2c9c9d"
+      },
+      "capability": "discrete-schedule-v1",
+      "selection": {
+        "preferredBackend": "cp-sat"
+      },
+      "determinism": {
+        "seed": 0,
+        "workers": 1
+      },
+      "limits": {
+        "timeLimitMilliseconds": 5000,
+        "memoryLimitBytes": 268435456
+      }
+    },
+    "receipt": {
+      "apiVersion": "optimization.platform.example/discrete-solver/v1alpha1",
+      "kind": "DiscreteSolverReceipt",
+      "id": "dsolrcpt_4f22bf613ff0e1de688f0dd6bbae29649f0951b5fc68a546bc6b8c5373d3a140",
+      "requestId": "dsolreq_482731ff7c545ea57179ce4db9fc4072779558596b0f9b0d90270cb5fb410d17",
+      "requestedBackend": "cp-sat",
+      "attemptedBackends": [
+        "cp-sat"
+      ],
+      "selectedBackend": {
+        "name": "cp-sat",
+        "version": "9.15.6755-unadmitted.1",
+        "executableDigest": "sha256:55dfb3ca7fc4ad48916b0ee0ccfb864ab06eb8a783dd3b4e8f3a8fa41f302796",
+        "architecture": "amd64",
+        "capabilities": [
+          "discrete-schedule-v1"
+        ]
+      },
+      "termination": "OPTIMAL",
+      "backendReportedEvidence": {
+        "status": "OPTIMAL",
+        "proofKind": "CP_SAT_EXACT_LEXICOGRAPHIC_V1",
+        "trace": {
+          "revision": "task-lane-start.v1",
+          "complete": true,
+          "stopReason": "COMPLETE",
+          "planDigest": "sha256:919e4812ca11aa2b7a565fed8b474c643bbe77b817701056b9578479dcd98f81",
+          "canonicalResultDigest": "sha256:8e594260fd347796e8627a6b4c8697483b596a931b885f6bff574fd3bcdfd3ea",
+          "phases": [
+            {
+              "index": 0,
+              "kind": "OBJECTIVE",
+              "key": "minimize_makespan",
+              "unit": "seconds",
+              "modelDigest": "sha256:db2eef7467d0db692786ddfc1fda04d968716a55e524dc6bb4db1e221e0a3bb9",
+              "parametersDigest": "sha256:637267bdf6515d2a2abeeca3d33383c94461d0c1f95f10b47a49adf493c22ad9",
+              "responseDigest": "sha256:7c7339273b4d9a08e70fa7e2515a2a48854d2ca175d0863f03e0bfa7bb69460f",
+              "status": "OPTIMAL",
+              "incumbent": "9",
+              "bestBound": "9",
+              "gap": "0"
+            },
+            {
+              "index": 1,
+              "kind": "OBJECTIVE",
+              "key": "minimize_estimated_cost",
+              "unit": "micros",
+              "modelDigest": "sha256:914c1c02a43cbcd459429c3f3603cc8809adf62a285ae36b3001fa8d41865365",
+              "parametersDigest": "sha256:637267bdf6515d2a2abeeca3d33383c94461d0c1f95f10b47a49adf493c22ad9",
+              "responseDigest": "sha256:beb3f742d9d1f7bea880c559d640f49fb5027d980c53c99267ebf6dfbf765ab1",
+              "status": "OPTIMAL",
+              "incumbent": "30",
+              "bestBound": "30",
+              "gap": "0"
+            },
+            {
+              "index": 2,
+              "kind": "CANONICAL_CHOICE",
+              "key": "prepare",
+              "unit": "lane_then_start",
+              "modelDigest": "sha256:d39928e42f0dc7d2e4806f06636a83b581796a042e962862a4f84e128d606b76",
+              "parametersDigest": "sha256:637267bdf6515d2a2abeeca3d33383c94461d0c1f95f10b47a49adf493c22ad9",
+              "responseDigest": "sha256:b32485b33a7abf7b6ea880ff3d76fdba8e7229e8353b83351da57551317a7387",
+              "status": "OPTIMAL",
+              "incumbent": "0",
+              "bestBound": "0",
+              "gap": "0"
+            },
+            {
+              "index": 3,
+              "kind": "CANONICAL_CHOICE",
+              "key": "rollout",
+              "unit": "lane_then_start",
+              "modelDigest": "sha256:c18efc368b2b53a11aaf969580c9ee5d36ccef69f5af3329c0045beb9d181d8b",
+              "parametersDigest": "sha256:637267bdf6515d2a2abeeca3d33383c94461d0c1f95f10b47a49adf493c22ad9",
+              "responseDigest": "sha256:4ecefc6373f934bf5d2a765c47a94b58a1430ca00b1f79a7f1b2b94fa5a22758",
+              "status": "OPTIMAL",
+              "incumbent": "34",
+              "bestBound": "34",
+              "gap": "0"
+            },
+            {
+              "index": 4,
+              "kind": "CANONICAL_CHOICE",
+              "key": "verify",
+              "unit": "lane_then_start",
+              "modelDigest": "sha256:7b3216baadefc144a8450e410f444cd5f41e4d23eca1f198f2982f1c4e0ec551",
+              "parametersDigest": "sha256:637267bdf6515d2a2abeeca3d33383c94461d0c1f95f10b47a49adf493c22ad9",
+              "responseDigest": "sha256:a5e9e31dc5134ce56f81df98c98325567c5306064c5af644f971bdaef23783b4",
+              "status": "OPTIMAL",
+              "incumbent": "7",
+              "bestBound": "7",
+              "gap": "0"
+            }
+          ]
+        },
+        "objectives": [
+          {
+            "objective": "minimize_makespan",
+            "unit": "seconds",
+            "incumbent": "9",
+            "bestBound": "9",
+            "gap": "0"
+          },
+          {
+            "objective": "minimize_estimated_cost",
+            "unit": "micros",
+            "incumbent": "30",
+            "bestBound": "30",
+            "gap": "0"
+          }
+        ]
+      },
+      "result": {
+        "assignments": [
+          {
+            "task": "prepare",
+            "lane": "lane-a",
+            "start": 0,
+            "finish": 3,
+            "estimatedCostMicros": 10
+          },
+          {
+            "task": "rollout",
+            "lane": "lane-b",
+            "start": 3,
+            "finish": 7,
+            "estimatedCostMicros": 15
+          },
+          {
+            "task": "verify",
+            "lane": "lane-a",
+            "start": 7,
+            "finish": 9,
+            "estimatedCostMicros": 5
+          }
+        ],
+        "makespanSeconds": 9,
+        "estimatedTotalCostMicros": 30,
+        "costModel": {
+          "currency": "USD",
+          "source": "synthetic-price-v1",
+          "asOf": "2026-08-12T10:59:00Z"
+        }
+      },
+      "startedAt": "2026-08-12T12:26:33.98824651Z",
+      "finishedAt": "2026-08-12T12:26:34.462984876Z"
+    }
+  },
+  "feasibility": "AGREE_FEASIBLE",
+  "metrics": {
+    "referenceLatencyNanoseconds": 53189,
+    "candidateLatencyNanoseconds": 474738366,
+    "referenceMakespanSeconds": 9,
+    "candidateMakespanSeconds": 9,
+    "candidateMinusReferenceMakespan": 0,
+    "referenceEstimatedCostMicros": 30,
+    "candidateEstimatedCostMicros": 30,
+    "candidateMinusReferenceCostMicros": 0,
+    "assignmentDisagreementCount": 0,
+    "referenceHadOperationalFailure": false,
+    "candidateHadOperationalFailure": false
+  },
+  "realizedOutcome": {
+    "scheduleError": "UNKNOWN_NOT_EXECUTED",
+    "costError": "UNKNOWN_NOT_EXECUTED",
+    "valueError": "UNKNOWN_NOT_EXECUTED"
+  },
+  "unknowns": [
+    "candidate realized cost error: shadow candidate was not executed",
+    "candidate realized schedule error: shadow candidate was not executed",
+    "candidate realized value error: shadow candidate was not executed"
+  ],
+  "comparedAt": "2026-08-12T12:26:34.487100573Z"
+}

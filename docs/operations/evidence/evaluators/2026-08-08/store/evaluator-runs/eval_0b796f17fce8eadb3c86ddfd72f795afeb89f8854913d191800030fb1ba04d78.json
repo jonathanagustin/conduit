@@ -1,0 +1,42 @@
+{
+  "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+  "kind": "EvaluatorRun",
+  "id": "eval_0b796f17fce8eadb3c86ddfd72f795afeb89f8854913d191800030fb1ba04d78",
+  "provider": "cursor",
+  "modelFamily": "grok",
+  "model": "grok-4.5-high",
+  "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+  "promptSha256": "b60f3ce70e9b10f07c20c5692946d4feaa4aa82470e05e6fab950db590a8e083",
+  "inputSnapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+  "snapshot": {
+    "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+    "kind": "EvaluatorSnapshot",
+    "repository": "jonathanagustin/palantir",
+    "path": "platform",
+    "commit": "b399c05f577944347e4b1c5de03ea9090fbf6929",
+    "tree": "f1183b4af3b561085bb337bb8daf95098bb3d155",
+    "archiveSha256": "cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+    "snapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+    "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+    "secretMatches": 0
+  },
+  "readOnly": true,
+  "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+  "invocationId": "eaa2f8c7-eb94-4839-a72d-c59c3a78c94c",
+  "sessionId": "2b7af746-caf4-477c-b208-409902fac80b",
+  "receiptSha256": "363abb15f726541170b941facdd46388d61a6e0587301686d5c8ba5120edb442",
+  "usage": {
+    "inputTokens": 42782,
+    "outputTokens": 3141,
+    "cacheReadTokens": 391296,
+    "cacheWriteTokens": 0
+  },
+  "startedAt": "2026-08-08T22:08:50.000Z",
+  "finishedAt": "2026-08-08T22:10:27.818Z",
+  "costStatus": "UNAVAILABLE",
+  "costMicros": 0,
+  "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+  "priceRevision": "HTTP-401@2026-08-08",
+  "costUnavailableReason": "personal integration key cannot read the Cursor team billing API",
+  "findings": null
+}

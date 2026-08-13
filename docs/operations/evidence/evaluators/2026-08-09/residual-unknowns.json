@@ -1,0 +1,19 @@
+{
+  "claude-opus-5-thinking-high": [
+    "Whether `git archive --format=tar` output, and therefore archiveSha256 and snapshotId in scripts/build-evaluator-snapshot.sh, is byte-stable across git versions; the receipt records no git version and no command could be executed in this read-only evaluation.",
+    "Whether the 2,000,000-node branch-and-bound budget in acquisition.go:129 is reachable by any instance within the 63-requirement/20-call contract limits; the pruned worst case was not derived here (carried open from the prior batch's recorded unknowns).",
+    "Whether any finding above reproduces under `go test -race ./...`, `go vet ./...`, or scripts/test-evaluator-runner.sh; no command execution was available, so every claim rests on source reading of the pinned tree.",
+    "Whether Taskfile.yml or .github workflows actually invoke scripts/test-evaluator-runner.sh and the optimization package tests in CI; those files were outside the requested scope and were not read.",
+    "Whether the committed evaluator evidence under docs/operations/evidence/evaluators/*/store* replays byte-identically against this tree's NewEvaluatorRun/NewEvaluatorBatch canonicalization; schema and ordering review suggests compatibility but no round-trip could be executed."
+  ],
+  "cursor-grok-4.5-high": [
+    "Executable gates above were not executed in this read-only session (shell non-readonly), so current pass/fail of go test ./internal/optimization ./cmd/platform-optimizer is unverified here.",
+    "Whether Dinic float64 max-flow fractions are bit-identical across GOARCH for recommendation identity DeepEqual replay was not measured on this host.",
+    "Whether any deployed twin/evaluator store filesystem returns short Write successes is unknown; the missing check is still observable in source versus the value-store gate."
+  ],
+  "kimi-k3-max": [
+    "No executable gate was run during this evaluation (read-only mode): `go test -race ./internal/optimization/...`, `go vet ./...`, and `scripts/test-evaluator-runner.sh` were not executed, so every finding remains an unexecuted hypothesis.",
+    "Intended precedence semantics for multiple resolutions of the same finding (content-digest order versus verification recency) are not documented in docs/architecture/ADVISORY-OPTIMIZATION.md, so F2's defect status depends on unstated design intent.",
+    "Whether the provider's duration_api_ms is contractually permitted to under-report wall-clock invocation time is outside this repository, so the severity of F4 cannot be bounded from these sources alone."
+  ]
+}

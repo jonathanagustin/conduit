@@ -1,0 +1,17 @@
+{
+  "items": [
+    {"id": "mutant-001", "demand": 2},
+    {"id": "mutant-002", "demand": 2},
+    {"id": "mutant-003", "demand": 2},
+    {"id": "mutant-004", "demand": 2},
+    {"id": "mutant-005", "demand": 2},
+    {"id": "mutant-006", "demand": 2},
+    {"id": "mutant-007", "demand": 3},
+    {"id": "mutant-008", "demand": 3},
+    {"id": "mutant-009", "demand": 3}
+  ],
+  "resources": [
+    {"id": "tmp-shard-1", "capacity": 1},
+    {"id": "tmp-shard-2", "capacity": 1}
+  ]
+}

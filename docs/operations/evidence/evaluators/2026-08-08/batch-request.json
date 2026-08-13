@@ -1,0 +1,404 @@
+{
+  "storeDirectory": "docs/operations/evidence/evaluators/2026-08-08/store",
+  "runs": [
+    {
+      "provider": "cursor",
+      "modelFamily": "grok",
+      "model": "grok-4.5-high",
+      "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+      "promptSha256": "b60f3ce70e9b10f07c20c5692946d4feaa4aa82470e05e6fab950db590a8e083",
+      "inputSnapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+      "snapshot": {
+        "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+        "kind": "EvaluatorSnapshot",
+        "repository": "jonathanagustin/palantir",
+        "path": "platform",
+        "commit": "b399c05f577944347e4b1c5de03ea9090fbf6929",
+        "tree": "f1183b4af3b561085bb337bb8daf95098bb3d155",
+        "archiveSha256": "cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+        "snapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+        "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+        "secretMatches": 0
+      },
+      "readOnly": true,
+      "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+      "invocationId": "eaa2f8c7-eb94-4839-a72d-c59c3a78c94c",
+      "sessionId": "2b7af746-caf4-477c-b208-409902fac80b",
+      "receiptSha256": "363abb15f726541170b941facdd46388d61a6e0587301686d5c8ba5120edb442",
+      "usage": {
+        "inputTokens": 42782,
+        "outputTokens": 3141,
+        "cacheReadTokens": 391296,
+        "cacheWriteTokens": 0
+      },
+      "startedAt": "2026-08-08T22:08:50.000Z",
+      "finishedAt": "2026-08-08T22:10:27.818Z",
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+      "priceRevision": "HTTP-401@2026-08-08",
+      "costUnavailableReason": "personal integration key cannot read the Cursor team billing API",
+      "findings": []
+    },
+    {
+      "provider": "cursor",
+      "modelFamily": "gemini",
+      "model": "gemini-3.1-pro",
+      "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+      "promptSha256": "b60f3ce70e9b10f07c20c5692946d4feaa4aa82470e05e6fab950db590a8e083",
+      "inputSnapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+      "snapshot": {
+        "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+        "kind": "EvaluatorSnapshot",
+        "repository": "jonathanagustin/palantir",
+        "path": "platform",
+        "commit": "b399c05f577944347e4b1c5de03ea9090fbf6929",
+        "tree": "f1183b4af3b561085bb337bb8daf95098bb3d155",
+        "archiveSha256": "cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+        "snapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+        "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+        "secretMatches": 0
+      },
+      "readOnly": true,
+      "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+      "invocationId": "a205724c-5f25-4004-ba6d-c9f9799fde78",
+      "sessionId": "1b221d20-9429-4eef-abea-72e30aff00a3",
+      "receiptSha256": "2acd8a4167419d85789f41173655e560f58ebcbdcb795b46db26162967a21eaf",
+      "usage": {
+        "inputTokens": 486932,
+        "outputTokens": 37552,
+        "cacheReadTokens": 1582511,
+        "cacheWriteTokens": 0
+      },
+      "startedAt": "2026-08-08T22:08:50.000Z",
+      "finishedAt": "2026-08-08T22:17:18.448Z",
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+      "priceRevision": "HTTP-401@2026-08-08",
+      "costUnavailableReason": "personal integration key cannot read the Cursor team billing API",
+      "findings": [
+        {
+          "id": "gemini-F1",
+          "clusterKey": "twin-snapshot-nondeterminism",
+          "category": "correctness",
+          "target": "platform/internal/optimization/twin.go:139",
+          "summary": "TwinSnapshot FactIDs for stale facts are appended in the non-deterministic input order of facts, causing unstable snapshot identities.",
+          "confidence": "1/1",
+          "evidence": [
+            "In BuildTwinSnapshot, stale facts are appended to the stale slice as they are encountered in the unsorted facts input.",
+            "The stale slice is then iterated to populate field.FactIDs without sorting, unlike the matching slice which is explicitly sorted.",
+            "Because twinSnapshotID hashes the JSON representation of these fields, different input orders of the same facts produce different snapshot IDs."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "gemini-F2",
+          "clusterKey": "evaluator-token-overflow",
+          "category": "correctness",
+          "target": "platform/internal/optimization/evaluator.go:120",
+          "summary": "Token usage sum can silently overflow int64 to exactly zero, incorrectly rejecting valid non-empty evaluator runs.",
+          "confidence": "1/1",
+          "evidence": [
+            "validateEvaluatorRun sums InputTokens, OutputTokens, CacheReadTokens, and CacheWriteTokens using int64 addition.",
+            "If the sum overflows to exactly 0 (e.g., each field is 1<<62), the validation fails with 'requires non-negative, non-empty measured token usage'.",
+            "Unlike cost calculations in scheduler.go and value.go, this sum lacks an overflow check against math.MaxInt64."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "gemini-F3",
+          "clusterKey": "evaluator-fdr-labeled-fpr",
+          "category": "documentation",
+          "target": "platform/internal/optimization/evaluator.go:346",
+          "summary": "EvaluatorMetric.FalsePositiveRate computes the False Discovery Rate (FP / (TP + FP)) rather than the statistical False Positive Rate.",
+          "confidence": "1/1",
+          "evidence": [
+            "MeasureEvaluatorBatch calculates FalsePositiveRate as metric.FalsePositives / metric.DisposedFindings.",
+            "DisposedFindings is the sum of VerifiedDefects (TP) and FalsePositives (FP).",
+            "The ratio FP / (TP + FP) is the False Discovery Rate, whereas False Positive Rate is strictly FP / Actual Negatives."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "gemini-F4",
+          "clusterKey": "scheduler-absolute-tolerance",
+          "category": "correctness",
+          "target": "platform/internal/optimization/scheduler.go:231",
+          "summary": "Absolute tolerance of 1e-9 fails to absorb float64 rounding errors for large demands or capacities, breaking max-flow feasibility checks.",
+          "confidence": "1/1",
+          "evidence": [
+            "The feasible function checks g.max(source, sink)+tolerance < total using a hardcoded absolute tolerance of 1e-9.",
+            "WorkItem.Demand and Resource.Capacity are only bounded by being finite and positive.",
+            "For large values (e.g., 1e15), float64 precision gaps far exceed 1e-9, causing valid max-flows to be rejected due to normal floating-point rounding."
+          ],
+          "hypothesis": true
+        }
+      ]
+    },
+    {
+      "provider": "cursor",
+      "modelFamily": "kimi",
+      "model": "kimi-k3-max",
+      "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+      "promptSha256": "b60f3ce70e9b10f07c20c5692946d4feaa4aa82470e05e6fab950db590a8e083",
+      "inputSnapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+      "snapshot": {
+        "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+        "kind": "EvaluatorSnapshot",
+        "repository": "jonathanagustin/palantir",
+        "path": "platform",
+        "commit": "b399c05f577944347e4b1c5de03ea9090fbf6929",
+        "tree": "f1183b4af3b561085bb337bb8daf95098bb3d155",
+        "archiveSha256": "cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+        "snapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+        "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+        "secretMatches": 0
+      },
+      "readOnly": true,
+      "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+      "invocationId": "04f7fe84-bb77-405c-b766-3079922c43b5",
+      "sessionId": "8450af58-a18e-49b6-823f-b5431a972ec9",
+      "receiptSha256": "b2871b780ca4c94a01afe0e3e65bb0ef9cdefe0f63a78a29adc68fc5d195ae5c",
+      "usage": {
+        "inputTokens": 119731,
+        "outputTokens": 14834,
+        "cacheReadTokens": 3155659,
+        "cacheWriteTokens": 0
+      },
+      "startedAt": "2026-08-08T22:08:50.000Z",
+      "finishedAt": "2026-08-08T22:17:25.850Z",
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+      "priceRevision": "HTTP-401@2026-08-08",
+      "costUnavailableReason": "personal integration key cannot read the Cursor team billing API",
+      "findings": [
+        {
+          "id": "kimi-F1",
+          "clusterKey": "scenario-policy-identity-fmt-sprint-collision",
+          "category": "correctness",
+          "target": "platform/internal/optimization/value_scenario.go:49",
+          "summary": "Alternative-inventory change detection compares `fmt.Sprint(ids)` where ids is a sorted []string; because fmt.Sprint is not injective (e.g. [\"a\",\"b\"] and [\"a b\"] both render as \"[a b]\"), two scenarios with genuinely different alternative identities can be treated as identical, silently bypassing the inventory-change guard the doc promises.",
+          "confidence": "9/10",
+          "evidence": [
+            "value_scenario.go builds `encodedIDs := fmt.Sprint(ids)` and compares strings; an executable probe (scenario1 alternatives [\"a\",\"b\"], scenario2 [\"a b\"]) returned nil error, confirming the guard was bypassed",
+            "go test ./internal/optimization with a probe constructing colliding ID sets shows AssessValueScenarios does not reject the identity change"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F2",
+          "clusterKey": "scenario-policy-identity-fmt-sprint-collision",
+          "category": "correctness",
+          "target": "platform/internal/optimization/value_policy.go:88",
+          "summary": "Policy selection-change detection uses `fmt.Sprint(policyResult.Selected)` as the comparison key; the same non-injective rendering means two different Selected sets can compare equal when an alternative ID contains a space, so SelectionChanges can be falsely reported as false.",
+          "confidence": "8/10",
+          "evidence": [
+            "value_policy.go sets `selection := fmt.Sprint(policyResult.Selected)` and compares to firstSelection; fmt.Sprint on []string is not injective for space-bearing IDs",
+            "same root cause as value_scenario.go; a crafted ID set renders distinct selections identically"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F3",
+          "clusterKey": "twin-fact-value-byte-sensitivity",
+          "category": "correctness",
+          "target": "platform/internal/optimization/twin.go:131",
+          "summary": "BuildTwinSnapshot detects conflicting facts by comparing `string(fact.Value) != string(field.Value)` (raw bytes after json.Compact, which preserves key order), so two semantically identical JSON values with different key order are reported as CONFLICTING rather than KNOWN.",
+          "confidence": "9/10",
+          "evidence": [
+            "probe: two facts with values {\"x\":1,\"y\":2} and {\"y\":2,\"x\":1} for the same requirement produced Status CONFLICTING, though the values are semantically equal",
+            "json.Compact in NewTemporalFact does not canonicalize object key order, so conflict detection is byte-order sensitive"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F4",
+          "clusterKey": "twin-fact-value-byte-sensitivity",
+          "category": "correctness",
+          "target": "platform/internal/optimization/twin.go:289",
+          "summary": "NewTemporalFact derives the content-addressed fact ID from the marshaled struct including the byte-exact Value, so semantically equal facts with different JSON key order yield different fact IDs, fragmenting identity for identical observations.",
+          "confidence": "9/10",
+          "evidence": [
+            "probe: NewTemporalFact on the same logical value with keys in two orders produced id1 != id2",
+            "fact identity is byte-sensitive, not value-canonical (no JCS/canonical JSON normalization of Value)"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F5",
+          "clusterKey": "costmodel-validation-skipped-when-no-item-costs",
+          "category": "correctness",
+          "target": "platform/internal/optimization/scheduler.go:191",
+          "summary": "When a Problem supplies a CostModel but no item carries EstimatedCostMicros (hasCosts==false), validate() skips CostModel currency/source/asOf checks entirely, so a malformed CostModel (bad currency, empty source, non-RFC3339 asOf) is accepted and echoed into Result.CostModel.",
+          "confidence": "8/10",
+          "evidence": [
+            "validate() only enforces CostModel fields inside `if hasCosts {...}`; a probe with CostModel{Currency:\"bad\",Source:\"\",AsOf:\"not-a-time\"} and costless items returned err=nil and the malformed CostModel in the Result",
+            "the Result then carries an unvalidated cost model that downstream cost-evidence checks (MeasureCostAccuracy) never re-validate for well-formedness"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F6",
+          "clusterKey": "cost-tiebreak-treats-unknown-as-worst",
+          "category": "documentation",
+          "target": "platform/internal/optimization/scheduler.go:300",
+          "summary": "On an exact load tie with optimizeCost enabled, a candidate with a KNOWN cost is preferred over one whose cost is UNKNOWN (`cheaper := optimizeCost && candidateKnown && (!bestKnown || ...)`), so a missing estimate is effectively treated as worst-case for placement even though the doc states only that a missing estimate 'suppresses aggregate cost' and is 'not treated as free'; the tie-break direction is undocumented.",
+          "confidence": "6/10",
+          "evidence": [
+            "round() sets cheaper true when candidateKnown && !bestKnown; a probe with one known-cost and one unknown-cost equal-capacity resource assigned the item to the known-cost resource on the tie",
+            "ADVISORY-OPTIMIZATION.md says 'a missing estimate remains unknown and suppresses aggregate cost instead of being treated as free' but does not state that unknown cost loses ties to any known cost"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F7",
+          "clusterKey": "evaluator-snapshot-binding-not-executable",
+          "category": "provenance",
+          "target": "platform/internal/optimization/evaluator.go:174",
+          "summary": "The binding between an EvaluatorRun and the immutable git snapshot is only format-checked: validateEvaluatorRun requires InputSnapshotID to match `snap_`+64-hex, but no code recomputes the platform/ archive digest or cross-checks it against a receipt produced by build-evaluator-snapshot.sh, so a run can claim any well-formed snap_ ID that does not correspond to the audited commit.",
+          "confidence": "7/10",
+          "evidence": [
+            "validateEvaluatorRun calls only validContentID(run.InputSnapshotID, \"snap_\") (length/prefix/hex), never hashing the tree or comparing to build-evaluator-snapshot.sh output",
+            "build-evaluator-snapshot.sh emits snap_<sha256-of-tar>, but there is no executable gate linking a recorded EvaluatorRun.InputSnapshotID to that receipt; git grep shows InputSnapshotID is only ever format-validated"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F8",
+          "clusterKey": "dora-window-duration-overflow-saturation",
+          "category": "correctness",
+          "target": "platform/internal/optimization/dora.go:52",
+          "summary": "AssessDORA computes windowDuration = windowEnd.Sub(windowStart) and later uses windowDuration.Nanoseconds() as a big.Rat denominator and WindowSeconds; for windows approaching/exceeding the int64 duration range (~292 years) time.Time.Sub saturates and Nanoseconds() can overflow, so WindowSeconds/DeploymentFrequencyPerSecond silently misreport for extreme windows with no guard.",
+          "confidence": "4/10",
+          "evidence": [
+            "dora.go: `windowDuration := windowEnd.Sub(windowStart)`, `exactDurationSeconds(windowDuration)`, and `SetFrac(..., big.NewInt(windowDuration.Nanoseconds()))` use the saturated int64 nanosecond count",
+            "a probe at 290 years produced a finite WindowSeconds (9145440000) with no error; there is no upper-bound check on the window such as exists for MaximumDurationSec in experiment plans"
+          ],
+          "hypothesis": true
+        }
+      ]
+    }
+  ],
+  "dispositions": [
+    {
+      "findingId": "gemini-F1",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestTwinCanonicalizesJSONValuesAndStaleOrdering",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "gemini-F2",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestEvaluatorRunRepresentsUnavailableCostWithoutClaimingFree",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "gemini-F3",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestEvaluatorBatchClustersDisagreementAndMeasuresCalibration",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "gemini-F4",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Not promoted to fact: the current evidence does not establish a defect or intended policy."
+    },
+    {
+      "findingId": "kimi-F1",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestAssessValueScenariosRejectsAmbiguousRenderedInventoryChanges",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "kimi-F2",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestAssessValuePoliciesDetectsAmbiguousRenderedSelectionChanges",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "kimi-F3",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestTwinCanonicalizesJSONValuesAndStaleOrdering",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "kimi-F4",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestTwinCanonicalizesJSONValuesAndStaleOrdering",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "kimi-F5",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestSolveRejectsMalformedUnusedCostModel",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "kimi-F6",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Not promoted to fact: the current evidence does not establish a defect or intended policy."
+    },
+    {
+      "findingId": "kimi-F7",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestEvaluatorRunRepresentsUnavailableCostWithoutClaimingFree",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    },
+    {
+      "findingId": "kimi-F8",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-reproduction-and-go-test",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "70829a72fea63403faf084232069f85d373edc21",
+      "executableGate": "go test ./internal/optimization -run TestAssessDORARejectsWindowOutsideExactDurationRange",
+      "verifiedAt": "2026-08-08T23:00:00Z",
+      "notes": "Reproduced against the pinned snapshot and constrained by the named regression gate."
+    }
+  ]
+}

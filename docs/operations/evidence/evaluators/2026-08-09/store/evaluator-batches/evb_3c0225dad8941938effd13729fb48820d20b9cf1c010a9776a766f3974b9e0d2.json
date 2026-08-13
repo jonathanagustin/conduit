@@ -1,0 +1,1099 @@
+{
+  "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+  "kind": "EvaluatorBatch",
+  "id": "evb_3c0225dad8941938effd13729fb48820d20b9cf1c010a9776a766f3974b9e0d2",
+  "promptSha256": "d9941527718333416996d0a28b4b9c4423355871c278510733498305bd9b9103",
+  "inputSnapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+  "runs": [
+    {
+      "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+      "kind": "EvaluatorRun",
+      "id": "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a",
+      "provider": "cursor",
+      "modelFamily": "opus",
+      "model": "claude-opus-5-thinking-high",
+      "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+      "promptSha256": "d9941527718333416996d0a28b4b9c4423355871c278510733498305bd9b9103",
+      "inputSnapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+      "snapshot": {
+        "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+        "kind": "EvaluatorSnapshot",
+        "repository": "jonathanagustin/palantir",
+        "path": "platform",
+        "commit": "78af3be3bbd73202cc06bbe0f5ef1639e8159a10",
+        "tree": "f1c3755a482c448ede1c9c919dae31b2d6fe5c1a",
+        "archiveSha256": "f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+        "snapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+        "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+        "secretMatches": 0
+      },
+      "readOnly": true,
+      "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+      "invocationId": "a3280378-05d5-4d03-bcf7-dd59c31f00ed",
+      "sessionId": "bcd28593-0cab-47dc-9383-f3d513c608c8",
+      "receiptSha256": "233567daf05d068c764bd9ce332ef7e19c8f9bdbf5989041aac660a6fd3b955b",
+      "usage": {
+        "inputTokens": 52,
+        "outputTokens": 37461,
+        "cacheReadTokens": 2820807,
+        "cacheWriteTokens": 174505
+      },
+      "inputAccessStatus": "COMPLETE",
+      "residualUnknowns": [
+        "Whether Taskfile.yml or .github workflows actually invoke scripts/test-evaluator-runner.sh and the optimization package tests in CI; those files were outside the requested scope and were not read.",
+        "Whether `git archive --format=tar` output, and therefore archiveSha256 and snapshotId in scripts/build-evaluator-snapshot.sh, is byte-stable across git versions; the receipt records no git version and no command could be executed in this read-only evaluation.",
+        "Whether any finding above reproduces under `go test -race ./...`, `go vet ./...`, or scripts/test-evaluator-runner.sh; no command execution was available, so every claim rests on source reading of the pinned tree.",
+        "Whether the 2,000,000-node branch-and-bound budget in acquisition.go:129 is reachable by any instance within the 63-requirement/20-call contract limits; the pruned worst case was not derived here (carried open from the prior batch's recorded unknowns).",
+        "Whether the committed evaluator evidence under docs/operations/evidence/evaluators/*/store* replays byte-identically against this tree's NewEvaluatorRun/NewEvaluatorBatch canonicalization; schema and ordering review suggests compatibility but no round-trip could be executed."
+      ],
+      "startedAt": "2026-08-09T07:54:01.500Z",
+      "finishedAt": "2026-08-09T08:03:47.647Z",
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+      "priceRevision": "not-queried@2026-08-09",
+      "costUnavailableReason": "model-level monetary cost was not exposed in the Cursor Agent receipts",
+      "findings": [
+        {
+          "id": "opus-F1",
+          "clusterKey": "twin-snapshot-complete-flag-not-recomputed",
+          "category": "correctness",
+          "target": "internal/optimization/twin.go:171",
+          "summary": "VerifyTwinSnapshot never recomputes TwinSnapshot.Complete from field statuses, so a hand-built snapshot whose fields are all UNKNOWN but whose Complete is true is self-consistent under twinSnapshotID and is accepted by RecommendationSnapshot, defeating the documented rule that an incomplete twin snapshot cannot back a recommendation.",
+          "confidence": "4/5",
+          "evidence": [
+            "Missing gate: no test constructs TwinSnapshot{Complete:true, Fields:[{Status:KnowledgeUnknown,...}]}, recomputes its snap_ id, and asserts VerifyTwinSnapshot or RecommendationSnapshot rejects it; TestBuildTwinSnapshotCompletenessAllowsExplicitNotApplicableOnly (twin_test.go:59-83) only exercises constructor-produced snapshots",
+            "twin.go:207-220 twinSnapshotID hashes Complete as an input field; twin.go:171-205 VerifyTwinSnapshot checks apiVersion, kind, time parsing, field uniqueness/order, KNOWN-field value presence, and digest equality, but contains no comparison of Complete against the derived predicate computed at twin.go:157-162, and evidence.go:56-67 RecommendationSnapshot trusts twin.Complete directly after that verification"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F10",
+          "clusterKey": "recommendation-snapshot-completeness-unenforced",
+          "category": "documentation",
+          "target": "internal/optimization/evidence.go:134",
+          "summary": "validateRecommendationRequest only checks that Snapshot.ID matches the snap_\u003c64 hex\u003e shape, so Recommend accepts any well-formed identifier without evidence that a complete twin snapshot exists, contradicting the architecture claim that only a complete content-addressed snapshot can be promoted into a recommendation request.",
+          "confidence": "3/5",
+          "evidence": [
+            "Missing gate: no test feeds `recommend` a snapshot id of 64 arbitrary hex characters that corresponds to no stored twin snapshot and asserts rejection; evidence_test.go:56 only covers a malformed prefix",
+            "evidence.go:131-140 validates snapshot id shape, non-empty source/revision, and RFC3339 capturedAt only; the documented bridge RecommendationSnapshot (evidence.go:56-67) is an optional helper that Recommend never calls, and cmd/platform-optimizer/main.go:100-109 passes caller JSON straight through, while docs/architecture/ADVISORY-OPTIMIZATION.md:125-127 states \"only a complete content-addressed `snap_` snapshot can be promoted into a recommendation request\""
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F11",
+          "clusterKey": "zenith-export-drops-resolutions",
+          "category": "provenance",
+          "target": "scripts/export-zenith-evaluator-trial.mjs:105",
+          "summary": "export-zenith-evaluator-trial.mjs hardcodes trial.resolutions to an empty array and never reads the evaluator-resolutions store, so a batch whose findings were amended by a stored EvaluatorResolution exports as if no resolution existed, and --check still passes.",
+          "confidence": "3/5",
+          "evidence": [
+            "Missing gate: scripts/test-evaluator-runner.sh:42-46 only runs --check against 2026-08-08-02, the directory that has no resolutions, so the empty-resolutions path is never contrasted with a batch that has one",
+            "scripts/export-zenith-evaluator-trial.mjs:87-107 builds the trial from snapshot.json, prompt.txt, batch.runs, and batch.dispositions with `resolutions: []` literal, and the digest at line 107 commits to that empty list; docs/operations/evidence/evaluators/2026-08-08/store/evaluator-resolutions/evr_fe329e1c…json shows resolutions are real committed evidence for that batch"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F12",
+          "clusterKey": "cli-subcommand-coverage-gap",
+          "category": "testing",
+          "target": "cmd/platform-optimizer/main_test.go:13",
+          "summary": "Ten of the fifteen platform-optimizer subcommands documented in ADVISORY-OPTIMIZATION.md have no test, so their request struct field names, DisallowUnknownFields behavior, and RFC3339Nano time-parsing branches are unexercised.",
+          "confidence": "3/5",
+          "evidence": [
+            "Missing gate: for example nothing decodes a doraRequest through runCommand, so the windowStart/windowEnd parse errors at main.go:244-251 and the json tags on doraRequest are never validated against the documented CLI contract",
+            "cmd/platform-optimizer/main_test.go exercises only the default solve path, trailing-input rejection, recommend, record-value, record-twin-snapshot, record-evaluators, and resolve-evaluators; evaluate-schedule, evaluate-cost, plan-acquisition, assess-value, assess-value-policies, assess-value-scenarios, evaluate-value, assess-experiment, assess-dora, and assess-evaluators (main.go:110-289) have no caller in any test"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F2",
+          "clusterKey": "value-policy-normalization-guard-scoped-to-frontier",
+          "category": "correctness",
+          "target": "internal/optimization/value_policy.go:90",
+          "summary": "AssessValuePolicies validates that each criterion's target improves on its baseline only inside the loop over Pareto-efficient alternatives, so identical criteria are rejected or silently accepted depending on whether any alternative survives the Pareto stage.",
+          "confidence": "7/10",
+          "evidence": [
+            "Missing gate: reproduce with criteria Baseline==Target (e.g. both \"5\") plus one alternative violating HardMinimum, and compare against the same criteria with a feasible alternative; value_policy_test.go covers only cases with a non-empty frontier",
+            "value_policy.go:75-95: the denominator.Sign() \u003c= 0 check that raises \"criterion %q target does not improve on baseline\" is nested inside `for _, alternativeID := range assessment.ParetoEfficient`, so when AssessValue returns an empty ParetoEfficient slice (all alternatives infeasible via HardMinimum/HardMaximum or carrying insufficient evidence) the malformed criterion is never inspected and the call returns a ValuePolicySensitivity with empty Scores and nil error"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F3",
+          "clusterKey": "evaluator-conflicting-resolution-precedence",
+          "category": "provenance",
+          "target": "internal/optimization/evaluator.go:521",
+          "summary": "Two independently valid EvaluatorResolutions that dispose the same UNRESOLVED finding with opposite statuses are both accepted, and MeasureEvaluatorBatchAfterResolutions silently lets the later one win in SHA-256 digest order rather than rejecting the contradiction or ordering by verifiedAt.",
+          "confidence": "3/5",
+          "evidence": [
+            "Missing gate: no test in evaluator_test.go builds two resolutions for one finding (one VERIFIED_DEFECT, one FALSE_POSITIVE) and asserts either a rejection or a provenance-ordered precedence rule",
+            "evaluator.go:376-400 NewEvaluatorResolution computes the unresolved set only from batch.Runs and batch.Dispositions and never consults previously stored resolutions, so a second resolution for the same findingId validates; evaluator.go:521-528 overwrites dispositions[index] on each pass, and evaluator_store.go:82-97 ListResolutions feeds them in sort.Strings order over evr_\u003csha256\u003e ids, which cmd/platform-optimizer/main.go:307-315 uses for the reported metrics"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F4",
+          "clusterKey": "evaluator-finishedat-synthesized-from-api-duration",
+          "category": "provenance",
+          "target": "scripts/normalize-evaluator-receipts.mjs:62",
+          "summary": "normalize-evaluator-receipts.mjs sets EvaluatorRun.finishedAt to startedAt plus the provider-reported duration_api_ms and discards the measured wall finish, so the persisted run timestamps mix two clock sources and EvaluatorMetric.LatencyNanoseconds reports provider API time while being presented as an observed start-to-finish interval.",
+          "confidence": "4/5",
+          "evidence": [
+            "Missing gate: scripts/test-evaluator-runner.sh never invokes normalize-evaluator-receipts.mjs, so no executable check compares a normalized run's finishedAt with the recorded timing.json finishedAt",
+            "scripts/normalize-evaluator-receipts.mjs:61-62 computes `new Date(started.getTime() + receipt.duration_api_ms)` from timing.startedAt, ignoring timing.finishedAt and timing.wallDurationMilliseconds written by scripts/run-evaluator-batch.sh:60-65; the committed evidence shows the divergence, with docs/operations/evidence/evaluators/2026-08-08-02/kimi-k3-max.timing.json finishedAt 2026-08-08T22:57:33.300Z against store-v2/evaluator-runs/eval_09271c6b…json finishedAt 2026-08-08T22:57:29.577Z, and evaluator.go:466 derives LatencyNanoseconds from that synthesized pair"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F5",
+          "clusterKey": "snapshot-secret-scan-self-exclusion",
+          "category": "security",
+          "target": "scripts/build-evaluator-snapshot.sh:26",
+          "summary": "build-evaluator-snapshot.sh unconditionally excludes platform/scripts/build-evaluator-snapshot.sh from its credential scan yet emits secretMatches: 0 for the whole platform tree, so credential-shaped content inside that one file is never detected while the receipt asserts a passing scan.",
+          "confidence": "3/5",
+          "evidence": [
+            "Reproduction: add a `crsr_` credential-shaped literal to platform/scripts/build-evaluator-snapshot.sh, commit, and run `scripts/build-evaluator-snapshot.sh \u003ccommit\u003e /tmp/out.json`; the script still exits 0 and writes secretMatches: 0",
+            "scripts/build-evaluator-snapshot.sh:24-31 runs `git grep -I -l -E \"$secret_pattern\" \"$commit\" -- platform ':(exclude)platform/scripts/build-evaluator-snapshot.sh'` and lines 34-52 hardcode secretMatches: 0 into the receipt that evaluator.go:270-284 validateEvaluatorSnapshotReceipt treats as a passing pinned scan over path \"platform\"; the -I flag additionally skips binary blobs without recording that limitation"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F6",
+          "clusterKey": "schedule-accuracy-ppm-float-overflow",
+          "category": "correctness",
+          "target": "internal/optimization/schedule_outcome.go:118",
+          "summary": "ratioPartsPerMillion multiplies before dividing in float64, so a contract-valid recommendation whose absolute makespan error exceeds about 1.8e302 seconds renders absoluteErrorPpmRounded as the non-numeric string \"+Inf\", unlike the exact big.Int path used for the same metric in MeasureCostAccuracy.",
+          "confidence": "3/5",
+          "evidence": [
+            "Missing gate: no test in schedule_outcome_test.go asserts the rendered ppm string stays numeric at extreme but representable makespans; reproduce with an item demand near 1e303, capacity 1, makespanUnit seconds, and observed start/finish 1ns apart",
+            "schedule_outcome.go:115-119 returns fmt.Sprintf(\"%.0f\", numerator*1_000_000/denominator); validate() in scheduler.go:152-163 admits any finite positive demand, so RoundedMakespan and hence AbsoluteErrorSeconds may reach ~1e308 while cost_outcome.go:102-105 computes the analogous parts-per-million with new(big.Int).Mul/Quo"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F7",
+          "clusterKey": "value-error-identity-depends-on-map-iteration",
+          "category": "correctness",
+          "target": "internal/optimization/value.go:121",
+          "summary": "AssessValue and MeasureValueAccuracy select which offending criterion to name by ranging over the Estimates map, so with two or more offending criteria the returned error text varies run to run despite the package's stated determinism contract.",
+          "confidence": "3/5",
+          "evidence": [
+            "Missing gate: no test asserts a stable error string when an alternative names two unknown criteria or omits two realized criteria; reproduce with `go test ./internal/optimization -count=50` over such a case and compare messages",
+            "value.go:121-125 returns on the first unknown criterion found while ranging over alternative.Estimates, and value_outcome.go:80-91 ranges over the same map before emitting \"prediction references unknown criterion %q\" or \"missing realized criterion %q\"; every other rejection path in this package sorts its inputs first (value.go:90-91, dora.go:110, experiment.go:154)"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F8",
+          "clusterKey": "file-store-accepts-trailing-bytes",
+          "category": "provenance",
+          "target": "internal/optimization/twin_store.go:114",
+          "summary": "FileTwinStore.get and FileValueAssessmentStore.Get decode one JSON value and ignore any trailing bytes, so a stored evidence file whose bytes differ from the canonical serialization still loads as valid while a later Save of the identical record fails with \"immutable record contains different bytes\".",
+          "confidence": "1/2",
+          "evidence": [
+            "Reproduction: append \"\\n{}\\n\" to a stored facts/fact_\u003cdigest\u003e.json and call FileTwinStore.GetFact with that id; it returns successfully, then FileTwinStore.SaveFact of the same fact reports differing bytes",
+            "twin_store.go:106-120 and value_store.go:188-193 call decoder.Decode once with DisallowUnknownFields but never probe for a trailing value, whereas cmd/platform-optimizer/main.go:339-345 does exactly that for CLI input; twin_store.go:65-69 compares full file bytes on write, making read and write disagree about what the immutable record is"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "opus-F9",
+          "clusterKey": "normalizer-has-no-executable-gate",
+          "category": "testing",
+          "target": "scripts/test-evaluator-runner.sh:42",
+          "summary": "scripts/test-evaluator-runner.sh exercises run-evaluator-batch.sh, build-evaluator-snapshot.sh, and export-zenith-evaluator-trial.mjs --check but never runs normalize-evaluator-receipts.mjs, leaving the receipt-to-batch contract that produces every stored EvaluatorRun without any executable gate.",
+          "confidence": "4/5",
+          "evidence": [
+            "Missing gate: no command in this workspace regenerates docs/operations/evidence/evaluators/2026-08-08-02/batch-request-v2.json from the committed receipts and normalization.json and diffs it against the committed file",
+            "scripts/test-evaluator-runner.sh:33-46 invokes the runner, four jq assertions, and the Zenith exporter, with no reference to normalize-evaluator-receipts.mjs, even though docs/architecture/ADVISORY-OPTIMIZATION.md:83-84 names it as the step that converts raw receipts into the Platform batch contract"
+          ],
+          "hypothesis": true
+        }
+      ]
+    },
+    {
+      "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+      "kind": "EvaluatorRun",
+      "id": "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f",
+      "provider": "cursor",
+      "modelFamily": "kimi",
+      "model": "kimi-k3-max",
+      "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+      "promptSha256": "d9941527718333416996d0a28b4b9c4423355871c278510733498305bd9b9103",
+      "inputSnapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+      "snapshot": {
+        "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+        "kind": "EvaluatorSnapshot",
+        "repository": "jonathanagustin/palantir",
+        "path": "platform",
+        "commit": "78af3be3bbd73202cc06bbe0f5ef1639e8159a10",
+        "tree": "f1c3755a482c448ede1c9c919dae31b2d6fe5c1a",
+        "archiveSha256": "f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+        "snapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+        "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+        "secretMatches": 0
+      },
+      "readOnly": true,
+      "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+      "invocationId": "ea80c6c0-aa64-420c-8fd4-f58826efbb52",
+      "sessionId": "493f45c7-6117-4d10-a8d1-8bb0c3b56620",
+      "receiptSha256": "30f98e40ec2363e81227da09ef952731ab99c8f74a31edc79387ce20a980d2c5",
+      "usage": {
+        "inputTokens": 145478,
+        "outputTokens": 38235,
+        "cacheReadTokens": 2176992,
+        "cacheWriteTokens": 0
+      },
+      "inputAccessStatus": "COMPLETE",
+      "residualUnknowns": [
+        "Intended precedence semantics for multiple resolutions of the same finding (content-digest order versus verification recency) are not documented in docs/architecture/ADVISORY-OPTIMIZATION.md, so F2's defect status depends on unstated design intent.",
+        "No executable gate was run during this evaluation (read-only mode): `go test -race ./internal/optimization/...`, `go vet ./...`, and `scripts/test-evaluator-runner.sh` were not executed, so every finding remains an unexecuted hypothesis.",
+        "Whether the provider's duration_api_ms is contractually permitted to under-report wall-clock invocation time is outside this repository, so the severity of F4 cannot be bounded from these sources alone."
+      ],
+      "startedAt": "2026-08-09T07:54:01.406Z",
+      "finishedAt": "2026-08-09T08:03:43.813Z",
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+      "priceRevision": "not-queried@2026-08-09",
+      "costUnavailableReason": "model-level monetary cost was not exposed in the Cursor Agent receipts",
+      "findings": [
+        {
+          "id": "kimi-F1",
+          "clusterKey": "evaluator-store-list-resolutions-cross-batch",
+          "category": "correctness",
+          "target": "internal/optimization/evaluator_store.go:92",
+          "summary": "FileEvaluatorStore.ListResolutions loads every evr_*.json in the shared evaluator-resolutions directory and verifies each against the caller's batch, so a single durable store directory cannot hold resolutions for two batches: any foreign-batch resolution makes ListResolutions fail, and resolve-evaluators (cmd/platform-optimizer/main.go:304-311) persists its new resolution via SaveResolution before hitting that failure, leaving a durable write followed by an error.",
+          "confidence": "9/10",
+          "evidence": [
+            "Missing gate: no test stores resolutions for two batches in one directory; reproduction is a Go test that saves batch A + resolution RA and batch B + resolution RB into one FileEvaluatorStore and asserts store.ListResolutions(A) — it returns an error instead of A's resolutions",
+            "evaluator_store.go:73-99 ranges over all directory entries and returns the first GetResolution error; VerifyEvaluatorResolution (evaluator.go:411) rejects resolution.BatchID != batch.ID; main.go:304 saves before main.go:307 lists"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F2",
+          "clusterKey": "evaluator-resolution-precedence-digest-order",
+          "category": "correctness",
+          "target": "internal/optimization/evaluator.go:523",
+          "summary": "When two stored resolutions dispose the same finding with different terminal statuses, the effective disposition is chosen by application order, and the store supplies that order as ascending lexicographic content-digest (evr_ id) order: EvaluatorResolution carries no timestamp and FindingDisposition.VerifiedAt is never consulted, so the winning disposition is decided by SHA-256 hash ordering rather than verification recency.",
+          "confidence": "4/5",
+          "evidence": [
+            "MeasureEvaluatorBatchAfterResolutions (evaluator.go:521-528) overwrites dispositions[index] in slice order with last-one-wins; ListResolutions (evaluator_store.go:89) sorts by resolution content id; NewEvaluatorResolution validates each resolution only against the immutable batch, so two resolutions disposing the same unresolved finding both verify and both persist",
+            "Missing gate: no test pins conflict precedence; reproduction is a Go test creating resolutions R1(finding=FALSE_POSITIVE) and R2(finding=VERIFIED_DEFECT) for one batch finding, then showing MeasureEvaluatorBatchAfterResolutions(batch, store.ListResolutions(batch)) picks the disposition whose evr_ digest is lexicographically larger, independent of VerifiedAt"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F3",
+          "clusterKey": "dora-duration-saturation",
+          "category": "correctness",
+          "target": "internal/optimization/dora.go:78",
+          "summary": "AssessDORA emits deployedAt.Sub(commitAt) and recoveredAt.Sub(deployedAt) as exact rationals without detecting time.Duration saturation: a commitAt more than ~292 years before deployedAt yields a lead time of exactly 9223372036854775807/1000000000 seconds presented as exact evidence, while the measurement window itself gets an explicit saturation guard at dora.go:51-54.",
+          "confidence": "1/2",
+          "evidence": [
+            "Missing gate: no test exercises sub-second-expressible-but-unsatisfiable durations; reproduction is `go test` calling AssessDORA with windowStart=2026-01-01, windowEnd=2026-01-02 and one observation with CommitAt=\"0001-01-01T00:00:00Z\", DeployedAt=\"2026-01-01T00:00:00Z\" — ChangeLeadTimeSeconds[0] equals the saturated constant instead of an error or gap",
+            "dora.go:78 and dora.go:94 subtract parsed timestamps directly; Go documents that time.Sub saturates at math.MaxInt64 nanoseconds; the window guard at dora.go:52 (windowStart.Add(windowDuration).Before(windowEnd)) shows the same hazard was considered for the window but not for observation intervals"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F4",
+          "clusterKey": "evaluator-run-synthetic-finished-at",
+          "category": "provenance",
+          "target": "scripts/normalize-evaluator-receipts.mjs:62",
+          "summary": "normalize-evaluator-receipts.mjs sets each EvaluatorRun's FinishedAt to startedAt + provider-reported duration_api_ms and discards the measured wall-clock finishedAt from timing.json, so the content-addressed batch records a finish instant that was never observed and LatencyNanoseconds equals provider self-reported API time even when it understates wall time.",
+          "confidence": "4/5",
+          "evidence": [
+            "Reproduction: `node scripts/normalize-evaluator-receipts.mjs \u003cdir\u003e \u003ccommit\u003e \u003ccfg\u003e` on a fixture whose receipt duration_api_ms is smaller than timing wallDurationMilliseconds yields a normalized run whose finishedAt precedes the observed wall finish; the only guard (export-zenith-evaluator-trial.mjs:56) bounds duration_api_ms above by wall time, never below",
+            "normalize-evaluator-receipts.mjs:61-62 computes finished from receipt.duration_api_ms; run-evaluator-batch.sh:55-65 records both wall timestamps in timing.json; committed evidence shows the divergence: docs/operations/evidence/evaluators/2026-08-08-02/kimi-k3-max.timing.json wall finishedAt 22:57:33.300 vs batch-request-v2.json finishedAt 22:57:29.577 (= start + 467110 ms), and batch-result-v2.json latencyNanoseconds 467110000000"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F5",
+          "clusterKey": "value-outcome-asof-unordered",
+          "category": "correctness",
+          "target": "internal/optimization/value_outcome.go:89",
+          "summary": "MeasureValueAccuracy accepts a realized ValueEstimate whose own asOf predates the prediction's asOf (and even the assessment record's createdAt): only the envelope observedAt is ordered against createdAt and only horizonSeconds equality is checked per criterion, so stale measurements can be joined as post-hoc realized outcomes.",
+          "confidence": "1/2",
+          "evidence": [
+            "Missing gate: no test supplies a realized estimate older than its prediction; reproduction is `go test` calling MeasureValueAccuracy with prediction AsOf 2026-08-08, realized estimate AsOf 2020-01-01, ObservedAt 2026-08-09 — it returns an accuracy entry instead of an error",
+            "value_outcome.go:54-57 orders only evidence.ObservedAt against record.CreatedAt; value_outcome.go:89-95 checks horizon equality and revalidates the estimate but never compares outcome.AsOf to prediction.AsOf; contrast with MeasureCostAccuracy (cost_outcome.go:66) which orders observedAt against both createdAt and the cost model asOf"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F6",
+          "clusterKey": "receipt-embedded-object-first-match",
+          "category": "security",
+          "target": "scripts/normalize-evaluator-receipts.mjs:22",
+          "summary": "embeddedObject normalizes the first brace-balanced JSON object in the receipt text that happens to contain findings and residualUnknowns arrays, so an evaluator whose result text quotes an example object (or emits schema-shaped prose) before its actual answer has the earlier object recorded as its content-addressed run.",
+          "confidence": "2/5",
+          "evidence": [
+            "Reproduction: craft a \u003cmodel\u003e.receipt.json whose result string contains an illustrative object with empty findings/residualUnknowns followed by the real answer object, run `node scripts/normalize-evaluator-receipts.mjs`, and observe the illustrative object become the normalized run",
+            "normalize-evaluator-receipts.mjs:21-42 scans left-to-right from every '{' and returns the first parseable object with both arrays; there is no check that the extracted object is the model's final or only answer, and the run is then hashed and persisted as that model's evidence"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F7",
+          "clusterKey": "zenith-export-resolutions-dropped",
+          "category": "provenance",
+          "target": "scripts/export-zenith-evaluator-trial.mjs:105",
+          "summary": "export-zenith-evaluator-trial.mjs always writes resolutions: [] and never reads the evaluator store, so a batch with stored resolutions exports a provider-neutral Zenith trial that silently omits resolution history even though the export format carries the field and the repository's own 2026-08-08 trial required a resolution to close two findings.",
+          "confidence": "2/5",
+          "evidence": [
+            "Reproduction: run `node scripts/export-zenith-evaluator-trial.mjs docs/operations/evidence/evaluators/2026-08-08 \u003cbatch-result\u003e out.json` for a batch directory containing a stored resolution and observe resolutions remains []",
+            "export-zenith-evaluator-trial.mjs:105 hardcodes resolutions: []; the script reads only snapshot.json, prompt.txt, receipts, and the batch-result file; docs/operations/evidence/evaluators/2026-08-08/store/evaluator-resolutions/evr_fe329e1c54aaa4a8115359a19184234212b55251f4fcee494dc0fbc9038255d4.json exists with no export path that could include it"
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "kimi-F8",
+          "clusterKey": "disposition-verified-at-unordered",
+          "category": "correctness",
+          "target": "internal/optimization/evaluator.go:432",
+          "summary": "NewEvaluatorBatch and NewEvaluatorResolution accept dispositions whose verifiedAt predates the disposed run's finishedAt: validateFindingDisposition only parses verifiedAt, and no batch- or resolution-level check orders the claimed verification event after the run that produced the finding, unlike the temporal ordering enforced for cost, schedule, and value outcome evidence.",
+          "confidence": "1/2",
+          "evidence": [
+            "Missing gate: no test supplies a disposition verified before its run finished; reproduction is `go test` building a run with FinishedAt 2026-08-08T12:00:01Z and a disposition with VerifiedAt 2020-01-01T00:00:00Z — NewEvaluatorBatch accepts it",
+            "evaluator.go:432-434 parses disposition.VerifiedAt without comparing it to anything; NewEvaluatorBatch (evaluator.go:298-330) has each run's FinishedAt available but never uses it; cost_outcome.go:66, schedule_outcome.go:85-90, and value_outcome.go:55-57 all enforce ordering for their outcome evidence"
+          ],
+          "hypothesis": true
+        }
+      ]
+    },
+    {
+      "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+      "kind": "EvaluatorRun",
+      "id": "eval_dc3eb6392ae6b39d51d7b63d17eedb1fd5aa1f3f406d87eaf1916d25d37d66b7",
+      "provider": "cursor",
+      "modelFamily": "grok",
+      "model": "cursor-grok-4.5-high",
+      "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+      "promptSha256": "d9941527718333416996d0a28b4b9c4423355871c278510733498305bd9b9103",
+      "inputSnapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+      "snapshot": {
+        "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+        "kind": "EvaluatorSnapshot",
+        "repository": "jonathanagustin/palantir",
+        "path": "platform",
+        "commit": "78af3be3bbd73202cc06bbe0f5ef1639e8159a10",
+        "tree": "f1c3755a482c448ede1c9c919dae31b2d6fe5c1a",
+        "archiveSha256": "f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+        "snapshotId": "snap_f166a7394215c4a9f95eb78bcc853b66f46a3ba54719f3f6eb1f9754f87337da",
+        "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+        "secretMatches": 0
+      },
+      "readOnly": true,
+      "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+      "invocationId": "701e6e8b-1a0d-4e27-a883-276c8f1dd317",
+      "sessionId": "521703fb-5cd7-4650-9889-da054b9766dc",
+      "receiptSha256": "6ff3253f5ae0c4274dfa666f19273337cbeae8d6fbf6728daf8d7d3db83a8648",
+      "usage": {
+        "inputTokens": 141453,
+        "outputTokens": 17510,
+        "cacheReadTokens": 604288,
+        "cacheWriteTokens": 0
+      },
+      "inputAccessStatus": "COMPLETE",
+      "residualUnknowns": [
+        "Executable gates above were not executed in this read-only session (shell non-readonly), so current pass/fail of go test ./internal/optimization ./cmd/platform-optimizer is unverified here.",
+        "Whether Dinic float64 max-flow fractions are bit-identical across GOARCH for recommendation identity DeepEqual replay was not measured on this host.",
+        "Whether any deployed twin/evaluator store filesystem returns short Write successes is unknown; the missing check is still observable in source versus the value-store gate."
+      ],
+      "startedAt": "2026-08-09T07:54:01.264Z",
+      "finishedAt": "2026-08-09T07:57:53.348Z",
+      "costStatus": "UNAVAILABLE",
+      "costMicros": 0,
+      "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+      "priceRevision": "not-queried@2026-08-09",
+      "costUnavailableReason": "model-level monetary cost was not exposed in the Cursor Agent receipts",
+      "findings": [
+        {
+          "id": "grok-F1",
+          "clusterKey": "evaluator-resolution-concurrent-conflict",
+          "category": "correctness",
+          "target": "internal/optimization/evaluator.go:368",
+          "summary": "NewEvaluatorResolution and MeasureEvaluatorBatchAfterResolutions allow two append-only resolutions that assign conflicting terminal statuses to the same originally unresolved finding; remeasurement silently last-wins by resolution iteration order without fail-closed conflict detection.",
+          "confidence": "9/10",
+          "evidence": [
+            "NewEvaluatorResolution computes unresolved solely from the original batch dispositions, so two different terminal dispositions for the same finding both verify; MeasureEvaluatorBatchAfterResolutions overwrites byFinding without comparing prior terminal status (evaluator.go:368-407, 506-534); SaveResolution only VerifyEvaluatorResolution then immutable-put by content id (evaluator_store.go:55-59).",
+            "go test ./internal/optimization -run 'TestEvaluatorResolutionRejectsConflictingTerminalDispositions' (gate absent: create batch with finding X unresolved, build VERIFIED and FALSE_POSITIVE resolutions for X, Save both, MeasureEvaluatorBatchAfterResolutions must error rather than emit one overwritten metric)."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "grok-F2",
+          "clusterKey": "evaluator-store-resolution-index-unscoped",
+          "category": "correctness",
+          "target": "internal/optimization/evaluator_store.go:73",
+          "summary": "ListResolutions loads every evr_*.json under a shared store directory and verifies each against the requested batch, so a foreign batch's resolution makes resolve-evaluators fail closed even when the target batch's own resolutions are valid.",
+          "confidence": "17/20",
+          "evidence": [
+            "ListResolutions collects all validContentID names in evaluator-resolutions/ then GetResolution→VerifyEvaluatorResolution requires resolution.BatchID == batch.ID (evaluator_store.go:73-98, evaluator.go:410-412); platform-optimizer resolve-evaluators always ListResolutions after SaveResolution (cmd/platform-optimizer/main.go:304-311).",
+            "go test ./internal/optimization -run 'TestListResolutionsIgnoresForeignBatchIDs' (gate absent: one Directory, save resolutions for batch A and B, ListResolutions(A) must return only A); go test ./cmd/platform-optimizer -run TestRecordEvaluatorsPersistsCalibratedBatch does not cover two batches in one store."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "grok-F3",
+          "clusterKey": "outcome-observedat-rfc3339-vs-nano",
+          "category": "correctness",
+          "target": "internal/optimization/cost_outcome.go:60",
+          "summary": "MeasureCostAccuracy parses ObservedAt with time.RFC3339 (second resolution) and compares it to recommendation CreatedAt parsed as RFC3339Nano, so a same-UTC-second outcome at second precision is rejected as predating a sub-second CreatedAt produced by Recommend/time.Now.",
+          "confidence": "9/10",
+          "evidence": [
+            "cost_outcome.go:60-67 uses time.Parse(time.RFC3339, evidence.ObservedAt) vs time.Parse(time.RFC3339Nano, recommendation.CreatedAt) with observedAt.Before(createdAt); Recommend sets CreatedAt via now.UTC().Format(time.RFC3339Nano) (evidence.go:94); CLI recommend passes time.Now() (cmd/platform-optimizer/main.go:16,105).",
+            "go test ./internal/optimization -run 'TestMeasureCostAccuracyAcceptsSameSecondObservedAt' (gate absent: CreatedAt=2026-08-08T12:00:00.5Z, ObservedAt=2026-08-08T12:00:00Z with otherwise valid complete costs must not return realized cost predates recommendation)."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "grok-F4",
+          "clusterKey": "outcome-observedat-rfc3339-vs-nano",
+          "category": "correctness",
+          "target": "internal/optimization/schedule_outcome.go:54",
+          "summary": "MeasureScheduleAccuracy parses outcome ObservedAt as RFC3339 while assignment FinishedAt is RFC3339Nano, so a finish with fractional seconds in second S cannot be covered by ObservedAt=S and requires bumping observation to S+1, falsely rejecting temporally valid complete outcomes.",
+          "confidence": "4/5",
+          "evidence": [
+            "go test ./internal/optimization -run 'TestMeasureScheduleAccuracyAcceptsSubsecondFinishInsideObservedSecond' (gate absent: FinishedAt=2026-08-08T12:00:01.5Z with ObservedAt=2026-08-08T12:00:01Z and starts after CreatedAt must be accepted or ObservedAt must be documented/enforced as RFC3339Nano).",
+            "schedule_outcome.go:54-56 parses ObservedAt with time.RFC3339; lines 78-89 parse FinishedAt with RFC3339Nano and reject finished.After(observedAt); docs/architecture/ADVISORY-OPTIMIZATION.md states schedule outcomes measure elapsed wall time including queueing under the RFC3339 observation contract."
+          ],
+          "hypothesis": true
+        },
+        {
+          "id": "grok-F5",
+          "clusterKey": "twin-store-short-write",
+          "category": "correctness",
+          "target": "internal/optimization/twin_store.go:79",
+          "summary": "FileTwinStore.save (also used by FileEvaluatorStore) ignores short writes when persisting immutable JSON, unlike FileValueAssessmentStore which treats written != len(encoded) as io.ErrShortWrite before link/sync.",
+          "confidence": "3/4",
+          "evidence": [
+            "go test ./internal/optimization -run 'TestTwinStoreRejectsShortWrite' (gate absent: inject Write returning (len-1, nil) on the twin temporary path and assert SaveFact/SaveSnapshot/SaveRun fail before os.Link).",
+            "twin_store.go:79-80 does `_, err = temporary.Write(encoded)` with no length check; value_store.go:117-121 returns io.ErrShortWrite on short write; TestWriteValueAssessmentTemporaryPropagatesDurabilityFailures covers value only (value_store_test.go:30-52)."
+          ],
+          "hypothesis": true
+        }
+      ]
+    }
+  ],
+  "dispositions": [
+    {
+      "findingId": "grok-F1",
+      "canonicalClusterKey": "evaluator-resolution-concurrent-conflict",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "grok-F2",
+      "canonicalClusterKey": "evaluator-store-resolution-index-unscoped",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "grok-F3",
+      "canonicalClusterKey": "outcome-observedat-rfc3339-vs-nano",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "grok-F4",
+      "canonicalClusterKey": "outcome-observedat-rfc3339-vs-nano",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "grok-F5",
+      "canonicalClusterKey": "twin-store-short-write",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F1",
+      "canonicalClusterKey": "evaluator-store-list-resolutions-cross-batch",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F2",
+      "canonicalClusterKey": "evaluator-resolution-precedence-digest-order",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F3",
+      "canonicalClusterKey": "dora-duration-saturation",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F4",
+      "canonicalClusterKey": "evaluator-run-synthetic-finished-at",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F5",
+      "canonicalClusterKey": "value-outcome-asof-unordered",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F6",
+      "canonicalClusterKey": "receipt-embedded-object-first-match",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F7",
+      "canonicalClusterKey": "zenith-export-resolutions-dropped",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "kimi-F8",
+      "canonicalClusterKey": "disposition-verified-at-unordered",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F1",
+      "canonicalClusterKey": "twin-snapshot-complete-flag-not-recomputed",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F10",
+      "canonicalClusterKey": "recommendation-snapshot-completeness-unenforced",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F11",
+      "canonicalClusterKey": "zenith-export-drops-resolutions",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F12",
+      "canonicalClusterKey": "cli-subcommand-coverage-gap",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F2",
+      "canonicalClusterKey": "value-policy-normalization-guard-scoped-to-frontier",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F3",
+      "canonicalClusterKey": "evaluator-conflicting-resolution-precedence",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F4",
+      "canonicalClusterKey": "evaluator-finishedat-synthesized-from-api-duration",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F5",
+      "canonicalClusterKey": "snapshot-secret-scan-self-exclusion",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F6",
+      "canonicalClusterKey": "schedule-accuracy-ppm-float-overflow",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F7",
+      "canonicalClusterKey": "value-error-identity-depends-on-map-iteration",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F8",
+      "canonicalClusterKey": "file-store-accepts-trailing-bytes",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    },
+    {
+      "findingId": "opus-F9",
+      "canonicalClusterKey": "normalizer-has-no-executable-gate",
+      "status": "UNRESOLVED",
+      "verifier": "independent-reproduction",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "6077b092bca27bb6853365616823dc8b315e3925",
+      "verifiedAt": "2026-08-09T08:05:34.399Z",
+      "notes": "Not promoted to fact: independent verification is incomplete."
+    }
+  ],
+  "clusters": [
+    {
+      "key": "cli-subcommand-coverage-gap",
+      "findingIds": [
+        "opus-F12"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "disposition-verified-at-unordered",
+      "findingIds": [
+        "kimi-F8"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "1/2"
+      ]
+    },
+    {
+      "key": "dora-duration-saturation",
+      "findingIds": [
+        "kimi-F3"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "1/2"
+      ]
+    },
+    {
+      "key": "evaluator-conflicting-resolution-precedence",
+      "findingIds": [
+        "opus-F3"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "evaluator-finishedat-synthesized-from-api-duration",
+      "findingIds": [
+        "opus-F4"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "4/5"
+      ]
+    },
+    {
+      "key": "evaluator-resolution-concurrent-conflict",
+      "findingIds": [
+        "grok-F1"
+      ],
+      "runIds": [
+        "eval_dc3eb6392ae6b39d51d7b63d17eedb1fd5aa1f3f406d87eaf1916d25d37d66b7"
+      ],
+      "modelFamilies": [
+        "grok"
+      ],
+      "confidenceValues": [
+        "9/10"
+      ]
+    },
+    {
+      "key": "evaluator-resolution-precedence-digest-order",
+      "findingIds": [
+        "kimi-F2"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "4/5"
+      ]
+    },
+    {
+      "key": "evaluator-run-synthetic-finished-at",
+      "findingIds": [
+        "kimi-F4"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "4/5"
+      ]
+    },
+    {
+      "key": "evaluator-store-list-resolutions-cross-batch",
+      "findingIds": [
+        "kimi-F1"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "9/10"
+      ]
+    },
+    {
+      "key": "evaluator-store-resolution-index-unscoped",
+      "findingIds": [
+        "grok-F2"
+      ],
+      "runIds": [
+        "eval_dc3eb6392ae6b39d51d7b63d17eedb1fd5aa1f3f406d87eaf1916d25d37d66b7"
+      ],
+      "modelFamilies": [
+        "grok"
+      ],
+      "confidenceValues": [
+        "17/20"
+      ]
+    },
+    {
+      "key": "file-store-accepts-trailing-bytes",
+      "findingIds": [
+        "opus-F8"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "1/2"
+      ]
+    },
+    {
+      "key": "normalizer-has-no-executable-gate",
+      "findingIds": [
+        "opus-F9"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "4/5"
+      ]
+    },
+    {
+      "key": "outcome-observedat-rfc3339-vs-nano",
+      "findingIds": [
+        "grok-F3",
+        "grok-F4"
+      ],
+      "runIds": [
+        "eval_dc3eb6392ae6b39d51d7b63d17eedb1fd5aa1f3f406d87eaf1916d25d37d66b7"
+      ],
+      "modelFamilies": [
+        "grok"
+      ],
+      "confidenceValues": [
+        "4/5",
+        "9/10"
+      ]
+    },
+    {
+      "key": "receipt-embedded-object-first-match",
+      "findingIds": [
+        "kimi-F6"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "2/5"
+      ]
+    },
+    {
+      "key": "recommendation-snapshot-completeness-unenforced",
+      "findingIds": [
+        "opus-F10"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "schedule-accuracy-ppm-float-overflow",
+      "findingIds": [
+        "opus-F6"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "snapshot-secret-scan-self-exclusion",
+      "findingIds": [
+        "opus-F5"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "twin-snapshot-complete-flag-not-recomputed",
+      "findingIds": [
+        "opus-F1"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "4/5"
+      ]
+    },
+    {
+      "key": "twin-store-short-write",
+      "findingIds": [
+        "grok-F5"
+      ],
+      "runIds": [
+        "eval_dc3eb6392ae6b39d51d7b63d17eedb1fd5aa1f3f406d87eaf1916d25d37d66b7"
+      ],
+      "modelFamilies": [
+        "grok"
+      ],
+      "confidenceValues": [
+        "3/4"
+      ]
+    },
+    {
+      "key": "value-error-identity-depends-on-map-iteration",
+      "findingIds": [
+        "opus-F7"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "value-outcome-asof-unordered",
+      "findingIds": [
+        "kimi-F5"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "1/2"
+      ]
+    },
+    {
+      "key": "value-policy-normalization-guard-scoped-to-frontier",
+      "findingIds": [
+        "opus-F2"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "7/10"
+      ]
+    },
+    {
+      "key": "zenith-export-drops-resolutions",
+      "findingIds": [
+        "opus-F11"
+      ],
+      "runIds": [
+        "eval_47fd0acafa993f294c286c3c3381be7a2eb63e6a62f0862abde032c6f69b0c1a"
+      ],
+      "modelFamilies": [
+        "opus"
+      ],
+      "confidenceValues": [
+        "3/5"
+      ]
+    },
+    {
+      "key": "zenith-export-resolutions-dropped",
+      "findingIds": [
+        "kimi-F7"
+      ],
+      "runIds": [
+        "eval_7dd8279ce4281b1dbd6801da8f9dbd7f1c7a2fe82a41885afaf58cc7b89f4d1f"
+      ],
+      "modelFamilies": [
+        "kimi"
+      ],
+      "confidenceValues": [
+        "2/5"
+      ]
+    }
+  ]
+}

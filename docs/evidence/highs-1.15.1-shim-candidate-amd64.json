@@ -1,0 +1,94 @@
+{
+  "schemaVersion": 1,
+  "evidenceType": "platform.optimizer.highs-candidate",
+  "admission": "UNADMITTED",
+  "capturedAt": "2026-08-12T01:35:00Z",
+  "platformRevision": "WORKTREE",
+  "architecture": "amd64",
+  "source": {
+    "containerfile": "Containerfile.optimizer-highs",
+    "containerfileSha256": "7e220424f2aa2fd47a56715a980c17d8dd7adaa3b3bf966743ec1c1547f4b997",
+    "verifier": "scripts/verify-highs-candidate.sh",
+    "verifierSha256": "930fb6e40c0229018a0ad53cae556369a1cb3830ba840a1897b055c166f9c480",
+    "scanner": "scripts/scan-highs-candidate.sh",
+    "scannerSha256": "e3bbc7346391be0dc22b5918ba2ebf4e4319e7aadcd966dbaa5837b3cb5e6332",
+    "upstreamEvidence": "docs/evidence/highs-1.15.1-release.json",
+    "upstreamEvidenceSha256": "d8ea033afc2b95f7186e9b83c6892ba6cf6713df4d44660642a4f6699b98f95b"
+  },
+  "candidate": {
+    "localImageReference": "local/platform-highs:deterministic-f",
+    "imageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
+    "imageSizeBytes": 5839493,
+    "binarySizeBytes": 11545760,
+    "binarySha256": "1c13960de9660dce474315ad43df1b7aadaa03802ce277b13988d8fdcf9b9dfd",
+    "requestSha256": "92feb2af36b5993d969a214b57abaf75c51caeb2ab8776ba8a85ca0a526ac3c9",
+    "semanticResponseSha256": "29a24d4cf3c79c375f5ac1f4af4fbda38c7f6a3f66354926370aa47ea7492cba",
+    "semanticRuns": 20,
+    "dormantNativeNetworkSymbols": 4,
+    "buildInputsSha256": "92682f51e9c6f1004f0391451eb0e2ea476b0b0297da5a3f35affe51affe4d3e",
+    "staticClosureSha256": "8644e719c19bd7b2d03893b9f4adec22863a9daf24399afa9cf043dbe446b502",
+    "staticClosureEntries": 15,
+    "licenseHashesSha256": "812e1b57dbd3ef73b9466583cc421809fb4a3341bd3c0e2d610efb166bc5be91",
+    "linkerMapSha256": "1433088b7be47a88e60666f61d70e1545a0a18fac9a29dd19b0a583d0b3bd7b9"
+  },
+  "reproducibility": {
+    "sourceInputManifestSha256": "966c15f2069f2686eef53f69dda714fa3999b9fd9cac4e52e3a1d911e1dc0b15",
+    "sourceInputManifestFormat": "sha256sum lines for the named files followed by lexically sorted regular files under each named tree",
+    "sourceInputScope": [
+      "Containerfile.optimizer-highs",
+      ".dockerignore",
+      "go.mod",
+      "go.sum",
+      "LICENSE",
+      "NOTICE",
+      "docs/evidence/highs-1.15.1-release.json",
+      "cmd/platform-highs-shim",
+      "internal/highsshim",
+      "internal/optimization/solverprotocol"
+    ],
+    "sourceInputsChangedDuringCleanBuild": false,
+    "cachedImageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
+    "cleanImageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
+    "cleanBuildElapsedMilliseconds": 56652,
+    "sourceDateEpoch": 1786406400,
+    "provenanceAttestationDisabledForComparison": true,
+    "byteIdenticalImage": true
+  },
+  "security": {
+    "capturedAt": "2026-08-12T01:37:29Z",
+    "directory": "docs/evidence/highs-1.15.1-shim-candidate-amd64-security",
+    "metadataSha256": "dcbc59fb2df7d0e9987f03517055e35fdd19689c9aa83197268eed3f4a4c1629",
+    "manifestDigest": "sha256:35c78ef7b202a67cadfa17828bfd854df12747e50e968db56f7790603d9f863c",
+    "tools": {
+      "syft": "1.50.0",
+      "grype": "0.116.1"
+    },
+    "syftDiscoveredPackages": 2,
+    "staticClosureEntries": 15,
+    "vulnerabilityMatches": 0,
+    "failThreshold": "high",
+    "databaseSchema": "v6.1.9",
+    "databaseBuilt": "2026-08-11T06:26:49Z",
+    "coverage": "standard SBOM plus compiler/linker-owned static closure"
+  },
+  "verifiedGates": [
+    "official HiGHS 1.15.1 SDK and source archives matched committed SHA-256 evidence",
+    "real official static SDK passed tagged native shim tests before the candidate was linked",
+    "the final ELF is static and has no interpreter or dynamic NEEDED entries",
+    "the Go closure has no transport, TLS, or process-execution dependency and exactly three Platform packages",
+    "the final ELF has no undefined native network reference and its four dormant glibc definitions match the retained manifest",
+    "the scratch filesystem contains no group- or world-writable file or directory",
+    "twenty runs were byte-identical under network-none, cap-drop-all, no-new-privileges, read-only, one CPU, 128 PIDs, 256 MiB memory, and UID 65532:GID 0",
+    "the static archive/package owner map and fourteen license or notice files replayed by digest",
+    "Hadolint 2.15.1 passed all three Platform Containerfiles at info severity",
+    "sixteen verifier and scanner mutations were rejected",
+    "pinned Syft 1.50.0 and Grype 0.116.1 retained local amd64 SBOM and zero-match high-threshold scan evidence",
+    "cached and no-cache builds with stable source-input hashes produced the same complete image digest"
+  ],
+  "openAdmissionGates": [
+    "native arm64 build, sandbox execution, and byte-for-byte semantic comparison",
+    "immutable registry digest, native multi-architecture SBOM and vulnerability result, signature, and provenance attestation",
+    "bounded shadow workload calibration and realized outcome measurement",
+    "explicit release decision that changes UNADMITTED state without adding Plan authority"
+  ]
+}

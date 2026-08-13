@@ -1,0 +1,115 @@
+#!/usr/bin/env node
+// Reports how far the bounded-context migration has actually got.
+//
+// The register says H83 is OPEN and the boundaries document lists eight
+// contexts to extract, but neither says how much has moved, so the honest
+// answer has been "someone would have to go and count". The first count found
+// the monolith 2,073 lines *larger* than when the migration began, which is the
+// kind of thing a migration should not be able to hide.
+//
+// Everything here is measured from the tree rather than declared. There is no
+// checked-in number to update and therefore none to forget.
+//
+// Run: node scripts/report-migration-progress.mjs [--json]
+import { readdirSync, readFileSync, statSync } from "node:fs";
+import { dirname, join, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+
+const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const internal = join(root, "internal");
+
+// The contexts DOMAIN-BOUNDARIES.md names, in the order it sequences them.
+const CONTEXTS = [
+  "reporting", "identity", "artifacts", "catalog",
+  "environments", "governance", "delivery", "execution",
+];
+
+const goFiles = (directory) => {
+  const out = [];
+  const walk = (dir) => {
+    let entries;
+    try { entries = readdirSync(dir); } catch { return; }
+    for (const entry of entries) {
+      const path = join(dir, entry);
+      if (statSync(path).isDirectory()) walk(path);
+      else if (entry.endsWith(".go") && !entry.endsWith("_test.go")) out.push(path);
+    }
+  };
+  walk(directory);
+  return out;
+};
+
+const lines = (paths) =>
+  paths.reduce((total, path) => total + readFileSync(path, "utf8").split("\n").length, 0);
+
+const monolith = goFiles(join(internal, "controlplane"));
+
+const extracted = CONTEXTS.map((name) => {
+  const paths = goFiles(join(internal, name));
+  return { context: name, present: paths.length > 0, files: paths.length, lines: lines(paths) };
+});
+
+// A context that only holds adapters has not taken ownership of anything; one
+// with a domain has. The distinction matters because adapters can be written
+// without moving a single decision out of the monolith.
+const withDomain = extracted.filter((c) =>
+  goFiles(join(internal, c.context)).some((p) => p.includes("/domain/"))
+);
+
+const report = {
+  monolith: { files: monolith.length, lines: lines(monolith) },
+  contextsNamed: CONTEXTS.length,
+  contextsPresent: extracted.filter((c) => c.present).length,
+  contextsWithDomain: withDomain.length,
+  contexts: extracted,
+  compositionRootPresent: goFiles(join(internal, "hub", "composition")).length > 0,
+};
+
+// The ratchet. A recorded ceiling the monolith may not exceed, so the migration
+// can only move one way. It is checked in rather than computed, because a
+// ceiling derived from the current state is not a ceiling.
+const CEILING = join(root, "docs/operations/controlplane-ceiling.json");
+
+if (process.argv.includes("--gate")) {
+  // Read here rather than at load: the report is useful on its own, and should
+  // not need the gate's file to exist.
+  const ceiling = JSON.parse(readFileSync(CEILING, "utf8"));
+  const { lines: current } = report.monolith;
+  if (current > ceiling.lines) {
+    console.error(
+      `internal/controlplane is ${current} lines, over its ${ceiling.lines} ceiling by ${current - ceiling.lines}.\n\n` +
+      "New behaviour belongs in a bounded context, not here. If this growth is\n" +
+      "genuinely unavoidable, raise the ceiling in the same commit and say why —\n" +
+      "the point is that it cannot happen silently."
+    );
+    process.exit(1);
+  }
+  const headroom = ceiling.lines - current;
+  console.log(
+    headroom === 0
+      ? `controlplane ceiling: at ${current} lines, exactly on the ceiling`
+      : `controlplane ceiling: ${current} lines, ${headroom} under the ${ceiling.lines} ceiling`
+  );
+  if (headroom > 500) {
+    console.log("  the ceiling is stale by more than 500 lines; lower it to lock the ground in");
+  }
+  process.exit(0);
+}
+
+if (process.argv.includes("--json")) {
+  console.log(JSON.stringify(report, null, 2));
+} else {
+  console.log(`internal/controlplane   ${report.monolith.files} files, ${report.monolith.lines} lines`);
+  console.log(`contexts extracted      ${report.contextsPresent}/${report.contextsNamed} present, ${report.contextsWithDomain} owning a domain`);
+  console.log(`hub composition root    ${report.compositionRootPresent ? "present" : "MISSING"}`);
+  console.log("");
+  for (const context of report.contexts) {
+    const state = context.present
+      ? `${String(context.files).padStart(3)} files, ${String(context.lines).padStart(5)} lines`
+      : "  not started";
+    console.log(`  ${context.context.padEnd(14)} ${state}`);
+  }
+  console.log("");
+  console.log("The monolith line count is the number that matters: a migration that");
+  console.log("adds contexts while controlplane keeps growing has not moved anything.");
+}

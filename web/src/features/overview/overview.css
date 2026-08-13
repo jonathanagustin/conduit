@@ -1,0 +1,17 @@
+.console-overview { padding: 16px; }
+.console-overview__grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  margin-top: 12px;
+  gap: 12px;
+}
+.console-overview__panel { padding: 12px; }
+.console-overview__panel h4 { margin: 0 0 8px; }
+.console-overview__panel ul { margin: 0; padding-left: 18px; }
+.console-overview__panel li { margin-bottom: 4px; }
+
+/* "Clear" is a result, not an absence, so it is not styled as muted filler. */
+.console-overview__clear {
+  color: var(--bp-intent-success-text-color, #1c6e42);
+  font-weight: 500;
+}

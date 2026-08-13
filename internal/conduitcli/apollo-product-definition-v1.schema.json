@@ -1,0 +1,344 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/jonathanagustin/conduit/schemas/apollo-product-definition-v1.schema.json",
+  "title": "Apollo Product Definition v1",
+  "description": "The manifest.yml and configuration.yml pair a Product ships. This schema constrains each document's shape. Rules JSON Schema cannot express are enforced by the Go validator and are named in the description of the property they bound: cross-document reference integrity, the volume size ceiling expressed in a smaller unit, upsize-only volume overrides, and substitution targets.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["manifest"],
+  "properties": {
+    "manifest": { "$ref": "#/$defs/manifest" },
+    "configuration": { "$ref": "#/$defs/configuration" }
+  },
+  "$defs": {
+    "manifest": {
+      "type": "object",
+      "required": ["product-group", "product-name", "product-version", "product-type"],
+      "properties": {
+        "manifest-version": {
+          "const": "1.0",
+          "description": "Optional. The Product Manifest page lists four required fields and its minimal example omits this one; apollo-cli emits it, so the packaging validator that gates execution still requires it."
+        },
+        "product-group": { "$ref": "#/$defs/coordinateSegment" },
+        "product-name": { "$ref": "#/$defs/coordinateSegment" },
+        "product-version": { "$ref": "#/$defs/version" },
+        "product-type": {
+          "type": "string",
+          "description": "The Product Types page enumerates asset.v1 and helm.v1; its sibling pages write service.v1 in every example. Both spellings are accepted, since rejecting either would reject documents the specification publishes.",
+          "enum": [
+            "helm-chart.v1", "terraform.v1", "service.v1", "service.v2", "daemon-set.v1",
+            "asset.v1", "helm.v1"
+          ]
+        },
+        "extensions": { "$ref": "#/$defs/extensions" }
+      }
+    },
+    "extensions": {
+      "type": "object",
+      "description": "Unknown extensions are preserved rather than rejected, so this object stays open.",
+      "properties": {
+        "artifacts": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["type", "uri"],
+            "properties": {
+              "type": { "const": "oci" },
+              "uri": { "type": "string", "minLength": 1, "not": { "pattern": "://" } }
+            }
+          }
+        },
+        "helm-chart": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["helm-chart-name", "helm-chart-version", "helm-repository-url"],
+          "properties": {
+            "helm-chart-name": { "type": "string", "minLength": 1 },
+            "helm-chart-version": { "$ref": "#/$defs/version" },
+            "helm-repository-url": { "type": "string", "pattern": "^(https|oci)://" }
+          }
+        },
+        "product-dependencies": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["product-group", "product-name", "minimum-version", "maximum-version"],
+            "properties": {
+              "product-group": { "$ref": "#/$defs/coordinateSegment" },
+              "product-name": { "$ref": "#/$defs/coordinateSegment" },
+              "minimum-version": { "$ref": "#/$defs/version" },
+              "maximum-version": { "$ref": "#/$defs/versionMatcher" },
+              "recommended-version": { "$ref": "#/$defs/version" },
+              "optional": { "type": "boolean" }
+            }
+          }
+        },
+        "product-incompatibilities": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["product-group", "product-name"],
+            "properties": {
+              "product-group": { "$ref": "#/$defs/coordinateSegment" },
+              "product-name": { "$ref": "#/$defs/coordinateSegment" },
+              "product-type": { "type": "string", "minLength": 1 },
+              "minimum-version": { "$ref": "#/$defs/version" },
+              "maximum-version": { "$ref": "#/$defs/versionMatcher" }
+            }
+          }
+        },
+        "rollout-strategy": { "type": "string", "enum": ["manageRollout", "applyChangesNoWait"] },
+        "resource-readiness-timeout": { "$ref": "#/$defs/duration" },
+        "image-pre-pull-config": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["timeout"],
+          "properties": { "timeout": { "$ref": "#/$defs/duration" } }
+        },
+        "volumes-v2": {
+          "type": "object",
+          "description": "The volumes a Product may be given, keyed by name. configuration.yml must size exactly these names and no others; the Go validator enforces that pairing in both directions.",
+          "propertyNames": { "$ref": "#/$defs/volumeName" },
+          "additionalProperties": { "$ref": "#/$defs/manifestVolume" }
+        },
+        "public-proxy-endpoints": { "$ref": "#/$defs/endpointNameList" },
+        "public-tcp-endpoints": { "$ref": "#/$defs/endpointNameList" },
+        "public-udp-endpoints": { "$ref": "#/$defs/endpointNameList" },
+        "require-stable-hostname": { "type": "boolean" },
+        "allow-traffic-when-not-ready": { "type": "boolean" },
+        "quorum-requirement": {
+          "type": "string",
+          "enum": ["all", "all-but-one", "any", "simple-majority"],
+          "description": "Defaults to all-but-one when absent."
+        },
+        "upgrade-strategy": { "type": "string", "enum": ["rolling", "shutdown"] }
+      }
+    },
+    "manifestVolume": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["volume-type"],
+      "properties": { "volume-type": { "$ref": "#/$defs/volumeType" } }
+    },
+    "volumeType": {
+      "type": "object",
+      "description": "A tagged union. durable-volume is the only member and it is empty; the presence of the key is the whole signal.",
+      "additionalProperties": false,
+      "required": ["durable-volume"],
+      "properties": {
+        "durable-volume": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {}
+        }
+      }
+    },
+    "configuration": {
+      "type": "object",
+      "description": "Unknown top-level traits are preserved rather than rejected, so this object stays open.",
+      "properties": {
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "requests": { "$ref": "#/$defs/resourceQuantities" },
+            "limits": { "$ref": "#/$defs/resourceQuantities" }
+          }
+        },
+        "replication": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "desired": {
+              "type": "integer",
+              "minimum": 1,
+              "description": "A Product Definition publishes what it wants to run and may not ask for nothing; an installation is stopped through its Entity."
+            }
+          }
+        },
+        "volumes": {
+          "type": "object",
+          "description": "Sizes the volumes declared under the volumes-v2 manifest extension. Every configured name must be declared there, and every declared name must appear here.",
+          "propertyNames": { "$ref": "#/$defs/volumeName" },
+          "additionalProperties": { "$ref": "#/$defs/volumeConfiguration" }
+        },
+        "endpoints": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "definitions": {
+              "type": "object",
+              "propertyNames": { "$ref": "#/$defs/endpointName" },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["desired-port"],
+                "properties": {
+                  "desired-port": { "$ref": "#/$defs/port" },
+                  "external-port": { "$ref": "#/$defs/port" },
+                  "path": { "$ref": "#/$defs/absolutePath" }
+                }
+              }
+            },
+            "sls-status-endpoint": { "$ref": "#/$defs/endpointName" }
+          }
+        },
+        "conf": {
+          "type": "object",
+          "description": "The Product's own configuration tree. Its shape belongs to the Product; only the substitutions inside its strings are the platform's concern."
+        },
+        "managed_files": {
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[^/]",
+            "not": { "pattern": "\\.\\." }
+          },
+          "additionalProperties": {
+            "oneOf": [
+              {
+                "type": "string",
+                "description": "Shorthand: the value is the conf key and the file extension is the type. The shorthand fixes the reload type to install."
+              },
+              { "$ref": "#/$defs/managedFile" }
+            ]
+          }
+        },
+        "generated_secrets": {
+          "type": "object",
+          "propertyNames": { "$ref": "#/$defs/name" },
+          "additionalProperties": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["secret-type"],
+            "properties": {
+              "secret-type": {
+                "type": "string",
+                "enum": ["random_string", "random_bytes", "rsa_pkcs8", "ec_pkcs8", "stig_password"]
+              },
+              "length": { "type": "integer", "minimum": 1 },
+              "allow-chars": { "type": "string" },
+              "disallow-chars": { "type": "string" }
+            }
+          }
+        },
+        "discovery": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "produce-to-additional-stacks": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/name" },
+              "uniqueItems": true,
+              "description": "Widens every produced entry; there is no per-entry form."
+            },
+            "produces": {
+              "type": "object",
+              "propertyNames": { "$ref": "#/$defs/name" },
+              "additionalProperties": {
+                "type": "object",
+                "description": "Open: the payload is the Product's own contract with its consumers.",
+                "properties": {
+                  "role": { "$ref": "#/$defs/name" },
+                  "port": { "$ref": "#/$defs/port" },
+                  "path": { "$ref": "#/$defs/absolutePath" },
+                  "scheme": { "type": "string", "minLength": 1 }
+                }
+              }
+            },
+            "consumes": {
+              "type": "object",
+              "propertyNames": { "$ref": "#/$defs/name" },
+              "additionalProperties": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "role": { "$ref": "#/$defs/name" },
+                  "select": {
+                    "$ref": "#/$defs/name",
+                    "description": "Picks one field out of the producer's payload."
+                  },
+                  "stack": { "$ref": "#/$defs/name" },
+                  "tags": { "type": "array", "items": { "$ref": "#/$defs/name" }, "uniqueItems": true }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "managedFile": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "type": { "type": "string", "enum": ["json", "yaml", "yml", "tmpl"] },
+        "reload-type": { "type": "string", "enum": ["install", "runtime"] },
+        "content": {}
+      }
+    },
+    "volumeConfiguration": {
+      "type": "object",
+      "description": "A union matching the manifest's volume-type: durable-storage-configuration configures a durable-volume. desired-size written directly here is the specification's worked-example spelling and is rejected, because the platform would ignore it.",
+      "additionalProperties": false,
+      "required": ["durable-storage-configuration"],
+      "properties": {
+        "durable-storage-configuration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["desired-size"],
+          "properties": { "desired-size": { "$ref": "#/$defs/volumeSize" } }
+        }
+      }
+    },
+    "volumeSize": {
+      "type": "string",
+      "pattern": "^([1-9][0-9]*[MG]|10T|[1-9]T)$",
+      "description": "A positive whole number of megabytes, gigabytes, or terabytes; the unit is required and is one of M, G, T. The 10T ceiling is expressed here only for terabyte values — the Go validator also rejects an equivalent excess written in a smaller unit, such as 10001G."
+    },
+    "endpointNameList": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "$ref": "#/$defs/endpointName" },
+      "description": "Names of endpoints.definitions entries. The Go validator checks each one resolves, and that a name is not both proxied and raw."
+    },
+    "resourceQuantities": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "cpu": {
+          "oneOf": [
+            { "type": "number", "exclusiveMinimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?$" }
+          ],
+          "description": "A unit-less core count. A suffixed value is rejected rather than read as some other unit."
+        },
+        "memory": {
+          "oneOf": [
+            { "type": "integer", "minimum": 0 },
+            { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(Ki|K|Mi|M|Gi|G|T)?$" }
+          ]
+        }
+      }
+    },
+    "name": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_-]*$" },
+    "volumeName": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9-]+$",
+      "description": "Alphanumerics and hyphens only."
+    },
+    "endpointName": {
+      "type": "string",
+      "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$",
+      "description": "Kebab-cased: endpoint names become DNS and Service object names downstream, where case is not preserved."
+    },
+    "absolutePath": { "type": "string", "pattern": "^/" },
+    "port": { "type": "integer", "minimum": 1024, "maximum": 19999 },
+    "duration": { "type": "string", "pattern": "^[0-9]+(\\.[0-9]+)?(ns|us|ms|s|m|h)" },
+    "coordinateSegment": { "type": "string", "pattern": "^[a-zA-Z0-9_.-]+$" },
+    "version": { "type": "string", "minLength": 1 },
+    "versionMatcher": { "type": "string", "minLength": 1 }
+  }
+}

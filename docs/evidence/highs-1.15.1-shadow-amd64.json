@@ -1,0 +1,336 @@
+{
+  "apiVersion": "optimization.platform.example/solver-calibration/v1alpha1",
+  "kind": "SolverShadowCalibration",
+  "id": "solcal_2b827ca04bfc3d9a3b80e233d4f7091b3529a93011b64934ca3a0bb4cd512e25",
+  "mode": "SHADOW",
+  "influencedProposal": false,
+  "mutatedState": false,
+  "inputDigest": "sha256:0a7f6426efe3162f8dc0ea4d10a4d9d8a9adea4fc26e2b2efa2207f2d2408586",
+  "reference": {
+    "request": {
+      "apiVersion": "optimization.platform.example/v1alpha2",
+      "kind": "SolverRequest",
+      "id": "solreq_34c9b6e2c75aec8cb51e6de776a54646d4891db126456915f89a7dff4fd200f8",
+      "recommendation": {
+        "apiVersion": "optimization.platform.example/v1alpha1",
+        "kind": "RecommendationRequest",
+        "snapshot": {
+          "id": "snap_0000000000000000000000000000000000000000000000000000000000000000",
+          "source": "candidate-verifier",
+          "revision": "v1",
+          "capturedAt": "2026-08-11T00:00:00Z"
+        },
+        "objective": {
+          "primary": "minimize_makespan"
+        },
+        "constraints": null,
+        "problem": {
+          "items": [
+            {
+              "id": "first",
+              "demand": 1
+            },
+            {
+              "id": "second",
+              "demand": 1
+            }
+          ],
+          "resources": [
+            {
+              "id": "a",
+              "capacity": 1
+            },
+            {
+              "id": "b",
+              "capacity": 1
+            }
+          ],
+          "makespanUnit": "seconds"
+        }
+      },
+      "model": {
+        "name": "allocation.makespan",
+        "revision": "allocation.makespan.v1",
+        "digest": "sha256:7cd6354d2d7ff2f5aa7126e091783349da51b5f49767174cf792e8e2ab302f26",
+        "hardConstraintsDigest": "sha256:6e7170edccbe20eec0a7a542bc4f5849fb08bdc7143a14a4ee0eedb945cb96a6",
+        "objectiveDigest": "sha256:37b14a9f76e7311feb952585512b885ec2016b229bd5a940440f6fe31346d37e"
+      },
+      "capability": "allocation.makespan.v1",
+      "selection": {
+        "preferredBackend": "native"
+      },
+      "determinism": {
+        "seed": 0,
+        "workers": 1
+      },
+      "limits": {
+        "timeLimitMilliseconds": 30000,
+        "memoryLimitBytes": 268435456
+      }
+    },
+    "receipt": {
+      "apiVersion": "optimization.platform.example/v1alpha2",
+      "kind": "SolverReceipt",
+      "id": "solrcpt_ec288d592b60da07f8e205140e8c792164a2252d6950136e33d79fe1b766871a",
+      "requestId": "solreq_34c9b6e2c75aec8cb51e6de776a54646d4891db126456915f89a7dff4fd200f8",
+      "requestedBackend": "native",
+      "attemptedBackends": [
+        "native"
+      ],
+      "selectedBackend": {
+        "name": "native",
+        "version": "1.0.0",
+        "executableDigest": "sha256:57e57e5288fd7e01cc1481a628acf3e5485ab86140c56b19ede870c287c23019",
+        "architecture": "amd64",
+        "capabilities": [
+          "allocation.makespan.v1"
+        ]
+      },
+      "termination": "OPTIMAL",
+      "backendReportedEvidence": {
+        "status": "OPTIMAL",
+        "objectives": [
+          {
+            "objective": "minimize_makespan",
+            "unit": "normalized_load_ratio",
+            "incumbent": "1",
+            "bestBound": "1",
+            "gap": "0"
+          }
+        ]
+      },
+      "objective": {
+        "unit": "normalized_load_ratio",
+        "incumbent": "1",
+        "lowerBound": "0.9999999995",
+        "gap": "5.000000413701855e-10"
+      },
+      "result": {
+        "relaxedMakespan": 0.9999999995,
+        "baselineMakespan": 1,
+        "roundedMakespan": 1,
+        "improvement": 0,
+        "optimalityGap": 5.000000413701855e-10,
+        "meanUtilization": 1,
+        "imbalance": 0,
+        "fractions": {
+          "first": [
+            {
+              "resource": "a",
+              "share": 0.9999999995
+            }
+          ],
+          "second": [
+            {
+              "resource": "b",
+              "share": 0.9999999995
+            }
+          ]
+        },
+        "assignments": [
+          {
+            "item": "first",
+            "resource": "a",
+            "demand": 1
+          },
+          {
+            "item": "second",
+            "resource": "b",
+            "demand": 1
+          }
+        ],
+        "resources": [
+          {
+            "resource": "a",
+            "load": 1,
+            "normalizedLoad": 1,
+            "utilization": 1
+          },
+          {
+            "resource": "b",
+            "load": 1,
+            "normalizedLoad": 1,
+            "utilization": 1
+          }
+        ]
+      },
+      "startedAt": "2026-08-12T12:41:45.07984027Z",
+      "finishedAt": "2026-08-12T12:41:45.080027739Z"
+    }
+  },
+  "candidate": {
+    "request": {
+      "apiVersion": "optimization.platform.example/v1alpha2",
+      "kind": "SolverRequest",
+      "id": "solreq_1a6fcbd3e4d91feb2a7704cc9708cc860beaf27ae6e61290dad2d047cd08e6fe",
+      "recommendation": {
+        "apiVersion": "optimization.platform.example/v1alpha1",
+        "kind": "RecommendationRequest",
+        "snapshot": {
+          "id": "snap_0000000000000000000000000000000000000000000000000000000000000000",
+          "source": "candidate-verifier",
+          "revision": "v1",
+          "capturedAt": "2026-08-11T00:00:00Z"
+        },
+        "objective": {
+          "primary": "minimize_makespan"
+        },
+        "constraints": null,
+        "problem": {
+          "items": [
+            {
+              "id": "first",
+              "demand": 1
+            },
+            {
+              "id": "second",
+              "demand": 1
+            }
+          ],
+          "resources": [
+            {
+              "id": "a",
+              "capacity": 1
+            },
+            {
+              "id": "b",
+              "capacity": 1
+            }
+          ],
+          "makespanUnit": "seconds"
+        }
+      },
+      "model": {
+        "name": "allocation.makespan",
+        "revision": "allocation.makespan.v1",
+        "digest": "sha256:7cd6354d2d7ff2f5aa7126e091783349da51b5f49767174cf792e8e2ab302f26",
+        "hardConstraintsDigest": "sha256:6e7170edccbe20eec0a7a542bc4f5849fb08bdc7143a14a4ee0eedb945cb96a6",
+        "objectiveDigest": "sha256:37b14a9f76e7311feb952585512b885ec2016b229bd5a940440f6fe31346d37e"
+      },
+      "capability": "allocation.makespan.v1",
+      "selection": {
+        "preferredBackend": "highs"
+      },
+      "determinism": {
+        "seed": 0,
+        "workers": 1
+      },
+      "limits": {
+        "timeLimitMilliseconds": 30000,
+        "memoryLimitBytes": 268435456
+      }
+    },
+    "receipt": {
+      "apiVersion": "optimization.platform.example/v1alpha2",
+      "kind": "SolverReceipt",
+      "id": "solrcpt_9d3f6b0b0fc15be4ac3ad97f8cb529cb06f7fd8debd4a56ec0924606cb2c63fd",
+      "requestId": "solreq_1a6fcbd3e4d91feb2a7704cc9708cc860beaf27ae6e61290dad2d047cd08e6fe",
+      "requestedBackend": "highs",
+      "attemptedBackends": [
+        "highs"
+      ],
+      "selectedBackend": {
+        "name": "highs",
+        "version": "1.15.1-unadmitted.1",
+        "executableDigest": "sha256:1c13960de9660dce474315ad43df1b7aadaa03802ce277b13988d8fdcf9b9dfd",
+        "architecture": "amd64",
+        "capabilities": [
+          "allocation.makespan.v1"
+        ]
+      },
+      "termination": "OPTIMAL",
+      "backendReportedEvidence": {
+        "status": "kOptimal",
+        "objectives": [
+          {
+            "objective": "minimize_makespan",
+            "unit": "normalized_load_ratio",
+            "incumbent": "1",
+            "bestBound": "1",
+            "gap": "0"
+          }
+        ]
+      },
+      "objective": {
+        "unit": "normalized_load_ratio",
+        "incumbent": "1",
+        "lowerBound": "0.9999999995",
+        "gap": "5.000000413701855e-10"
+      },
+      "result": {
+        "relaxedMakespan": 0.9999999995,
+        "baselineMakespan": 1,
+        "roundedMakespan": 1,
+        "improvement": 0,
+        "optimalityGap": 5.000000413701855e-10,
+        "meanUtilization": 1,
+        "imbalance": 0,
+        "fractions": {
+          "first": [
+            {
+              "resource": "a",
+              "share": 0.9999999995
+            }
+          ],
+          "second": [
+            {
+              "resource": "b",
+              "share": 0.9999999995
+            }
+          ]
+        },
+        "assignments": [
+          {
+            "item": "first",
+            "resource": "b",
+            "demand": 1
+          },
+          {
+            "item": "second",
+            "resource": "a",
+            "demand": 1
+          }
+        ],
+        "resources": [
+          {
+            "resource": "a",
+            "load": 1,
+            "normalizedLoad": 1,
+            "utilization": 1
+          },
+          {
+            "resource": "b",
+            "load": 1,
+            "normalizedLoad": 1,
+            "utilization": 1
+          }
+        ]
+      },
+      "startedAt": "2026-08-12T12:41:45.088973663Z",
+      "finishedAt": "2026-08-12T12:41:45.131721639Z"
+    }
+  },
+  "feasibility": "AGREE_FEASIBLE",
+  "metrics": {
+    "referenceLatencyNanoseconds": 187469,
+    "candidateLatencyNanoseconds": 42747976,
+    "referenceOptimalityGap": "281475/562949953421312",
+    "candidateOptimalityGap": "281475/562949953421312",
+    "candidateMinusReferenceGap": "0",
+    "candidateMinusReferenceMakespan": "0",
+    "assignmentDisagreementCount": 2,
+    "referenceHadOperationalFailure": false,
+    "candidateHadOperationalFailure": false
+  },
+  "realizedOutcome": {
+    "scheduleError": "UNKNOWN_NOT_EXECUTED",
+    "costError": "UNKNOWN_NOT_EXECUTED",
+    "valueError": "UNKNOWN_NOT_EXECUTED"
+  },
+  "unknowns": [
+    "candidate realized cost error: shadow candidate was not executed",
+    "candidate realized schedule error: shadow candidate was not executed",
+    "candidate realized value error: shadow candidate was not executed"
+  ],
+  "comparedAt": "2026-08-12T12:41:45.154273599Z"
+}

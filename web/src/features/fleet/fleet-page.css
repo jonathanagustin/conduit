@@ -1,0 +1,63 @@
+.console-fleet {
+  display: flex;
+  flex-direction: column;
+  min-height: 100%;
+}
+
+.console-fleet__controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  padding: 12px 16px;
+  gap: 8px;
+}
+
+.console-fleet__search {
+  display: flex;
+  gap: 8px;
+}
+
+.console-fleet__search .bp6-input-group {
+  min-width: min(360px, 70vw);
+}
+
+.console-fleet__stale {
+  margin: 0 16px 12px;
+}
+
+.console-fleet__table {
+  width: 100%;
+}
+
+.console-fleet__stale-marker {
+  color: var(--bp-typography-color-muted, #5f6b7c);
+}
+
+.console-fleet__pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  gap: 16px;
+}
+
+.console-fleet__pagination > div {
+  display: flex;
+  gap: 8px;
+}
+
+@media (max-width: 600px) {
+  .console-fleet__search,
+  .console-fleet__search .bp6-input-group {
+    width: 100%;
+  }
+
+  .console-fleet__pagination {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .console-fleet__pagination > div .bp6-button {
+    flex: 1;
+  }
+}

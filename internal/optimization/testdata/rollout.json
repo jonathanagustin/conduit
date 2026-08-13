@@ -1,0 +1,13 @@
+{
+  "items": [
+    {"id": "approved-candidate-a", "demand": 8, "eligible": ["standard-1", "standard-2"]},
+    {"id": "approved-candidate-b", "demand": 5, "eligible": ["standard-1", "standard-2"]},
+    {"id": "approved-candidate-c", "demand": 3, "eligible": ["isolated"]},
+    {"id": "approved-candidate-d", "demand": 2, "eligible": ["standard-1", "standard-2", "isolated"]}
+  ],
+  "resources": [
+    {"id": "isolated", "capacity": 1},
+    {"id": "standard-1", "capacity": 1},
+    {"id": "standard-2", "capacity": 1}
+  ]
+}

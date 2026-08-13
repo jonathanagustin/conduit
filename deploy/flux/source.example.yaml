@@ -1,0 +1,38 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: platform-runtime
+  namespace: flux-system
+spec:
+  interval: 5m
+  url: oci://ghcr.io/example/platform-runtime
+  ref:
+    digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: platform-runtime
+  namespace: flux-system
+spec:
+  interval: 5m
+  retryInterval: 30s
+  timeout: 10m
+  path: ./runtime
+  prune: true
+  wait: true
+  serviceAccountName: platform-runtime-reconciler
+  sourceRef:
+    kind: OCIRepository
+    name: platform-runtime
+  postBuild:
+    substitute:
+      quote: '"'
+      PLATFORM_HUB_IMAGE: ghcr.io/example/platform-hub:0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      PLATFORM_SPOKE_AGENT_IMAGE: ghcr.io/example/platform-spoke-agent:0.0.0@sha256:0000000000000000000000000000000000000000000000000000000000000000
+      PLATFORM_ENVIRONMENT_ID: replace-me
+      PLATFORM_AGENT_ID: replace-me
+      PLATFORM_ALLOW_INSECURE_AGENT_IDENTITY_HEADERS: "false"
+      PLATFORM_ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS: "false"
+      PLATFORM_BOOTSTRAP_ADMINISTRATORS: ""
+      PLATFORM_HELM_PLAIN_HTTP: "false"

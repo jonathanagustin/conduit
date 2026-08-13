@@ -1,0 +1,185 @@
+{
+  "apiVersion": "apollo.platform.example/api-coordinates/v1alpha2",
+  "kind": "ApolloApiCoordinates",
+  "source": {
+    "closure": "../mcp/foundry/evidence/artifacts/foundry-maven-coordinate-closure-2026-07-17.json",
+    "sha256": "c0b26c84bc64d406e1828f56880c6079f2014a9af556fb0d8bc45313f002840f",
+    "rawProvenanceIncluded": false,
+    "capturedAt": "2026-07-17"
+  },
+  "fidelity": {
+    "namesAndRetainedVersions": "Primary only for the bounded historical closure \u2014 exact coordinate/version strings read over the authenticated Eddie proxy.",
+    "publicationAndLinkage": "Unknown \u2014 the flattened object has no dependency edges or scopes; the later trace found Apollo entries only in dependencyManagement.",
+    "contents": "Unknown \u2014 the jar contents (Conjure types and routes, the wire protocol) are not recovered."
+  },
+  "fetchResult": {
+    "channel": "POST /artifacts/api/search/maven across every repository the tenant token can see",
+    "outcome": "NOT_RESOLVED_ON_INSPECTED_TENANT_CHANNELS \u2014 exact Apollo POM/JAR probes returned 404. This does not prove publication absence outside those repositories.",
+    "probed": [
+      "com.palantir.apollo.commons:apollo-artifact-registry-api-objects",
+      "com.palantir.apollo.commons:apollo-entity-id",
+      "com.palantir.apollo.commons:apollo-maven-api",
+      "com.palantir.apollo:apollo-auth-broker-api",
+      "com.palantir.apollo:apollo-auth-broker-client-java-core",
+      "com.palantir.apollo:apollo-bundling-api-objects",
+      "com.palantir.apollo:apollo-bundling-api-primitive-objects",
+      "com.palantir.apollo:apollo-catalog-api-objects",
+      "com.palantir.apollo:apollo-catalog-primitive-objects",
+      "com.palantir.apollo:apollo-deployment-state-api",
+      "com.palantir.apollo:apollo-deployment-state-api-objects",
+      "com.palantir.apollo:apollo-deployment-state-primitive-objects",
+      "com.palantir.apollo:apollo-labels-primitive-objects",
+      "com.palantir.apollo:scoped-token-service-api"
+    ]
+  },
+  "coordinates": {
+    "com.palantir.apollo.commons:apollo-artifact-registry-api-objects": {
+      "retainedVersion": "2.911.0",
+      "lexicalCapabilityFamilyHint": "artifact-registry",
+      "lexicalRoleHint": "artifact registry object beans",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo.commons:apollo-entity-id": {
+      "retainedVersion": "2.911.0",
+      "lexicalCapabilityFamilyHint": "entity",
+      "lexicalRoleHint": "entity identifier types",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo.commons:apollo-maven-api": {
+      "retainedVersion": "2.911.0",
+      "lexicalCapabilityFamilyHint": "artifact",
+      "lexicalRoleHint": "maven artifact API",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-auth-broker-api": {
+      "retainedVersion": "0.197.0",
+      "lexicalCapabilityFamilyHint": "H18 auth broker",
+      "lexicalRoleHint": "Hub/Agent auth-broker contract",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-auth-broker-client-java-core": {
+      "retainedVersion": "0.197.0",
+      "lexicalCapabilityFamilyHint": "H18 auth broker",
+      "lexicalRoleHint": "auth-broker client core",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-bundling-api-objects": {
+      "retainedVersion": "1.197.0",
+      "lexicalCapabilityFamilyHint": "pipelines",
+      "lexicalRoleHint": "bundling pipeline object beans",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-bundling-api-primitive-objects": {
+      "retainedVersion": "1.197.0",
+      "lexicalCapabilityFamilyHint": "pipelines",
+      "lexicalRoleHint": "bundling primitives",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-catalog-api-objects": {
+      "retainedVersion": "3.2119.0",
+      "lexicalCapabilityFamilyHint": "bundle/module",
+      "lexicalRoleHint": "product/release catalog object beans",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-catalog-primitive-objects": {
+      "retainedVersion": "3.2119.0",
+      "lexicalCapabilityFamilyHint": "bundle/module",
+      "lexicalRoleHint": "catalog primitives",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-deployment-state-api": {
+      "retainedVersion": "4.3632.0",
+      "lexicalCapabilityFamilyHint": "environments/entity",
+      "lexicalRoleHint": "installations, product releases, and entity deployment state",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-deployment-state-api-objects": {
+      "retainedVersion": "4.3632.0",
+      "lexicalCapabilityFamilyHint": "environments/entity",
+      "lexicalRoleHint": "deployment-state object beans",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-deployment-state-primitive-objects": {
+      "retainedVersion": "4.3632.0",
+      "lexicalCapabilityFamilyHint": "environments/entity",
+      "lexicalRoleHint": "deployment-state primitives",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:apollo-labels-primitive-objects": {
+      "retainedVersion": "0.287.0",
+      "lexicalCapabilityFamilyHint": "label",
+      "lexicalRoleHint": "label primitives",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    },
+    "com.palantir.apollo:scoped-token-service-api": {
+      "retainedVersion": "0.197.0",
+      "lexicalCapabilityFamilyHint": "H18 auth broker",
+      "lexicalRoleHint": "scoped-token service contract",
+      "interpretationEvidence": "inferred-from-artifact-name"
+    }
+  },
+  "indirectRecovery": {
+    "check": "Apollo type references in the recovered Foundry contracts corpus (jar-contracts.json)",
+    "referenceCount": 0,
+    "outcome": "NOT_OBSERVED_IN_INSPECTED_CONTRACT_CORPUS \u2014 no Apollo type spelling appears in these recovered wire signatures. This does not prove transitive depth, non-linkage, or absence from another contract tier. A nonzero count would be a new lead."
+  },
+  "releaseCohorts": {
+    "derivation": "Grouping of the retained coordinates above by exact version string. No new capture; an unextracted reading of the same closure.",
+    "claim": "Artifacts sharing an exact version string were published by one release of one build, so each cohort is a module boundary in Apollo's own layout rather than in ours.",
+    "cohorts": {
+      "0.197.0": {
+        "artifacts": [
+          "com.palantir.apollo:apollo-auth-broker-api",
+          "com.palantir.apollo:apollo-auth-broker-client-java-core",
+          "com.palantir.apollo:scoped-token-service-api"
+        ],
+        "commitOrdinal": 197
+      },
+      "0.287.0": {
+        "artifacts": [
+          "com.palantir.apollo:apollo-labels-primitive-objects"
+        ],
+        "commitOrdinal": 287
+      },
+      "1.197.0": {
+        "artifacts": [
+          "com.palantir.apollo:apollo-bundling-api-objects",
+          "com.palantir.apollo:apollo-bundling-api-primitive-objects"
+        ],
+        "commitOrdinal": 197
+      },
+      "2.911.0": {
+        "artifacts": [
+          "com.palantir.apollo.commons:apollo-artifact-registry-api-objects",
+          "com.palantir.apollo.commons:apollo-entity-id",
+          "com.palantir.apollo.commons:apollo-maven-api"
+        ],
+        "commitOrdinal": 911
+      },
+      "3.2119.0": {
+        "artifacts": [
+          "com.palantir.apollo:apollo-catalog-api-objects",
+          "com.palantir.apollo:apollo-catalog-primitive-objects"
+        ],
+        "commitOrdinal": 2119
+      },
+      "4.3632.0": {
+        "artifacts": [
+          "com.palantir.apollo:apollo-deployment-state-api",
+          "com.palantir.apollo:apollo-deployment-state-api-objects",
+          "com.palantir.apollo:apollo-deployment-state-primitive-objects"
+        ],
+        "commitOrdinal": 3632
+      }
+    },
+    "findingsTheLexicalHintsMiss": [
+      "scoped-token-service-api shares a version with the auth broker, so it ships with it. Its name carries no apollo-auth-broker prefix, so the lexical hint files it apart.",
+      "apollo-entity-id and apollo-maven-api share a version with apollo-artifact-registry-api-objects, so they belong to that release unit rather than being free-standing commons, despite the com.palantir.apollo.commons group."
+    ],
+    "hypotheses": [
+      "Two cohorts sharing a middle component across different majors would be consistent with one repository releasing two major lines. Nothing here settles it; a coincidence of commit counts produces the same string."
+    ],
+    "boundary": "This groups coordinate strings and nothing more. It does not establish publication, dependency direction, jar contents, or that a cohort is one repository rather than one release pipeline over several. The contents fidelity above is unchanged."
+  },
+  "boundary": "The closure establishes only that a historical four-seed BOM vocabulary retained these coordinate/version strings. Artifact-name roles are lexical hints. It does not establish publication, direct dependency, linkage, module decomposition, version maturity, deployment, or wire behavior, and it does not close H38 or H18."
+}

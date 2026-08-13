@@ -1,0 +1,3763 @@
+{
+  "apiVersion": "apollo.platform.example/authorization-graph/v1alpha1",
+  "kind": "ApolloAuthorizationGraph",
+  "source": {
+    "host": "https://droneconnection.usw-23.palantirfoundry.com",
+    "endpoint": "/multipass/api/roles/v2/config",
+    "method": "GET",
+    "status": 200,
+    "responseSha256": "sha256:592a8d4ba35648ba7dfd7dee3eb94f4af23c26f109f80de18c3a552ce29f7da0",
+    "responseBytes": 799688,
+    "capturedAt": "2026-08-12T16:11:42.826Z"
+  },
+  "counts": {
+    "roles": 100,
+    "operations": 134,
+    "workflows": 94,
+    "categories": 22,
+    "roleOperationEdges": 272,
+    "roleCanAssignEdges": 129,
+    "roleTrackedWorkflowEdges": 104,
+    "workflowOperationEdges": 134,
+    "categoryWorkflowEdges": 83
+  },
+  "sourceTotals": {
+    "templateRoles": 181,
+    "operations": 1704,
+    "workflows": 747,
+    "categories": 137
+  },
+  "rolesWithNoRetainedOperations": [
+    "apollo-artifact-registry:container-downloader",
+    "apollo-base-image:viewer",
+    "apollo-bundle:viewer",
+    "apollo-cel-policy:viewer",
+    "apollo-environments:creator",
+    "apollo-environments:deleter",
+    "apollo-hubs:viewer",
+    "apollo-notifications:viewer",
+    "apollo-template:viewer",
+    "apollo-transfer-target:attester",
+    "apollo-webhook:viewer"
+  ],
+  "unresolvedEdgeTargets": [],
+  "unresolvedEdgeTargetCount": 0,
+  "graphCloses": true,
+  "borrowedOperationTargets": [
+    "ENROLLMENT",
+    "NETWORK_POLICY",
+    "ccs:create-namespace",
+    "connectivityconfig:network-policy:view",
+    "connectivityconfig:view-network-policy",
+    "containers:delete",
+    "containers:delete-privileged",
+    "containers:disassemble",
+    "containers:get-catalog",
+    "containers:pull",
+    "containers:pull-privileged",
+    "containers:push",
+    "containers:push-privileged",
+    "entity-edit-labels-workflow",
+    "entity-edit-workflow",
+    "entity-operate-workflow",
+    "entity-privileged-action-workflow",
+    "entity-secrets-workflow",
+    "entity-subscription-workflow",
+    "entity:apply-label",
+    "entity:create-secret",
+    "entity:create-secret-request",
+    "entity:delete-secret",
+    "entity:mute-monitors",
+    "entity:remove-label",
+    "entity:render-config",
+    "entity:subscription-exclude-installation",
+    "entity:subscription-suppress-installation",
+    "entity:update-secret",
+    "entity:update-secret-description",
+    "entity:update-secret-value",
+    "entity:view-recycled-encryption-keys-history",
+    "environment-generate-certificates-workflow",
+    "environment-generate-manifest-workflow",
+    "environment-manage-labels-workflow",
+    "environment-manage-roles-workflow",
+    "environment-manage-secrets-workflow",
+    "environment-manage-subscriptions-workflow",
+    "environment-manage-templates-workflow",
+    "environment-manage-terminal-access-grants-workflow",
+    "environment-mute-monitors-workflow",
+    "environment-operate-terminal-access-grants-workflow",
+    "environment-use-terminal-workflow",
+    "environment-view-workflow",
+    "environment:apply-label",
+    "environment:generate-certificates",
+    "environment:generate-manifest",
+    "environment:mute-monitors",
+    "environment:remove-label",
+    "environment:subscription-create",
+    "environment:subscription-delete",
+    "environment:subscription-edit",
+    "environment:subscription-exclude-environment",
+    "environment:template-create",
+    "environment:template-delete",
+    "environment:template-edit",
+    "environment:terminal-access-grant-list",
+    "environment:terminal-access-grant-revoke",
+    "environment:terminal-session-create",
+    "environment:update-role-policy",
+    "environment:view-agent-info",
+    "environment:view-all-config",
+    "environment:view-all-hosts",
+    "environment:view-all-secrets",
+    "environment:view-and-edit-change-requests",
+    "environment:view-applied-label",
+    "environment:view-config-editability",
+    "environment:view-config-history",
+    "environment:view-entity-state",
+    "module:create",
+    "module:edit",
+    "module:toggle-automatic-approval",
+    "module:update-role-policy",
+    "module:view",
+    "namespace:approve-delete",
+    "namespace:approve-update",
+    "namespace:create",
+    "namespace:edit",
+    "namespace:update-role-policy",
+    "namespace:view",
+    "repositories:create",
+    "repositories:get-component",
+    "repositories:set-role-policy",
+    "team:create",
+    "team:delete",
+    "team:edit",
+    "team:edit-members",
+    "team:update-role-policy",
+    "team:view",
+    "transfer-target:create",
+    "transfer-target:delete",
+    "transfer-target:manage-security-settings",
+    "transfer-target:test-connection",
+    "transfer-target:update",
+    "transfer-target:update-policy",
+    "transfer-target:view"
+  ],
+  "borrowedOperationTargetCount": 96,
+  "graph": {
+    "roles": {
+      "apollo-artifact:creator": {
+        "id": "apollo-artifact:creator",
+        "displayName": "Creator",
+        "description": "Can publish artifacts to Apollo.",
+        "operations": [
+          "apollo-artifact:viewer",
+          "containers:push",
+          "repositories:create"
+        ],
+        "canAssigns": [
+          "apollo-artifact:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-publish-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-namespace:creator": {
+        "id": "apollo-namespace:creator",
+        "displayName": "Namespace creator",
+        "description": "Create namespaces.",
+        "operations": [
+          "apollo-namespace:viewer",
+          "ccs:create-namespace",
+          "namespace:create"
+        ],
+        "canAssigns": [
+          "apollo-namespace:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-namespace-create"
+        ],
+        "isDeleted": false
+      },
+      "apollo-webhook:viewer": {
+        "id": "apollo-webhook:viewer",
+        "displayName": "Viewer",
+        "description": "View registered webhooks.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:assigner": {
+        "id": "apollo-artifact-registry:assigner",
+        "displayName": "Assigner",
+        "description": "Can assign Artifact Registries to environments.",
+        "operations": [
+          "apollo-artifact-registry:assign",
+          "apollo-artifact-registry:viewer"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-registry-assign-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-hubs:administrator": {
+        "id": "apollo-hubs:administrator",
+        "displayName": "Administrator",
+        "description": "Manage everything about Hubs including permissions.",
+        "operations": [
+          "apollo-hubs:editor",
+          "apollo-hubs:viewer"
+        ],
+        "canAssigns": [
+          "apollo-hubs:editor",
+          "apollo-hubs:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-environments:terminal-access-approver": {
+        "id": "apollo-environments:terminal-access-approver",
+        "displayName": "Environment Terminal Access Approver",
+        "description": "Approve and revoke terminal access grants.",
+        "operations": [
+          "environment:terminal-access-grant-revoke"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "environment-manage-terminal-access-grants-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-cel-policy:create-change-request-policy": {
+        "id": "apollo-cel-policy:create-change-request-policy",
+        "displayName": "Change Request Policy Creator",
+        "description": "Create new Change Request Policies.",
+        "operations": [
+          "apollo-cel-policy:viewer"
+        ],
+        "canAssigns": [
+          "apollo-cel-policy:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-namespace:viewer": {
+        "id": "apollo-namespace:viewer",
+        "displayName": "Namespace viewer",
+        "description": "View namespaces.",
+        "operations": [
+          "namespace:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-namespace-view"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:privileged-container-uploader": {
+        "id": "apollo-artifact-registry:privileged-container-uploader",
+        "displayName": "Privileged container uploader",
+        "description": "Can push and delete container images in privileged repositories in an Artifact Registry.",
+        "operations": [
+          "apollo-artifact-registry:container-deleter",
+          "apollo-artifact-registry:container-uploader",
+          "apollo-artifact-registry:privileged-container-downloader"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:container-deleter",
+          "apollo-artifact-registry:container-uploader",
+          "apollo-artifact-registry:privileged-container-downloader"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-transfer-target:viewer": {
+        "id": "apollo-transfer-target:viewer",
+        "displayName": "Viewer",
+        "description": "View Target Hubs, associated metadata, and manually test connections to confirm that they are working.",
+        "operations": [
+          "transfer-target:test-connection",
+          "transfer-target:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-transfer-target-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:creator": {
+        "id": "apollo-artifact-registry:creator",
+        "displayName": "Creator",
+        "description": "Can create new Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:create",
+          "apollo-artifact-registry:viewer"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-registry-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-transfer-target:security-administrator": {
+        "id": "apollo-transfer-target:security-administrator",
+        "displayName": "Security Administrator",
+        "description": "Manage security settings for Target Hubs.",
+        "operations": [
+          "transfer-target:manage-security-settings"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-transfer-target-manage-security-settings-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-template:viewer": {
+        "id": "apollo-template:viewer",
+        "displayName": "Viewer",
+        "description": "Can view Apollo templates.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-notifications:viewer": {
+        "id": "apollo-notifications:viewer",
+        "displayName": "Viewer",
+        "description": "Can view the user's own notifications inbox and subscriptions. Can view subscriptions of teams on which the user has the 'Viewer' role.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-imported-bundles:importer": {
+        "id": "apollo-imported-bundles:importer",
+        "displayName": "Importer",
+        "description": "Import bundles from another Apollo Hub.",
+        "operations": [
+          "apollo-imported-bundle:import",
+          "apollo-imported-bundles:viewer"
+        ],
+        "canAssigns": [
+          "apollo-imported-bundles:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-imported-bundle-import-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-hubs:viewer": {
+        "id": "apollo-hubs:viewer",
+        "displayName": "Viewer",
+        "description": "View metadata of Hubs.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-build-factory:administrator": {
+        "id": "apollo-build-factory:administrator",
+        "displayName": "Administrator",
+        "description": "Have unrestricted access to manage settings and assign roles in the Apollo Build Factory.",
+        "operations": [
+          "apollo-build-factory:editor",
+          "apollo-build-factory:update-role-policy",
+          "apollo-build-factory:viewer"
+        ],
+        "canAssigns": [
+          "apollo-build-factory:editor",
+          "apollo-build-factory:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-build-factory-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-label:creator": {
+        "id": "apollo-label:creator",
+        "displayName": "Label creator",
+        "description": "Can create labels.",
+        "operations": [
+          "apollo-label:create"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-label-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-transfer-target:editor": {
+        "id": "apollo-transfer-target:editor",
+        "displayName": "Editor",
+        "description": "Edit existing Target Hubs to update connection setup or metadata shown about this Target Hub in other workflows.",
+        "operations": [
+          "apollo-transfer-target:creator",
+          "apollo-transfer-target:viewer",
+          "transfer-target:delete",
+          "transfer-target:update"
+        ],
+        "canAssigns": [
+          "apollo-transfer-target:creator",
+          "apollo-transfer-target:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-transfer-target-edit-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-mesh-manager:editor": {
+        "id": "apollo-mesh-manager:editor",
+        "displayName": "Editor",
+        "description": "Have permission to create and edit resources in the Apollo Mesh Manager.",
+        "operations": [
+          "apollo-mesh-manager:edit",
+          "apollo-mesh-manager:viewer"
+        ],
+        "canAssigns": [
+          "apollo-mesh-manager:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-mesh-manager-edit-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-team:administrator": {
+        "id": "apollo-team:administrator",
+        "displayName": "Team administrator",
+        "description": "Manage everything about teams including permissions.",
+        "operations": [
+          "apollo-team:creator",
+          "apollo-team:editor",
+          "team:update-role-policy"
+        ],
+        "canAssigns": [
+          "apollo-team:creator",
+          "apollo-team:editor"
+        ],
+        "trackedWorkflows": [
+          "apollo-team-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-bundle:viewer": {
+        "id": "apollo-bundle:viewer",
+        "displayName": "Bundle Viewer",
+        "description": "View, preview, and discover bundles.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-bundle-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-base-image:viewer": {
+        "id": "apollo-base-image:viewer",
+        "displayName": "Viewer",
+        "description": "Can view base images.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-template:contributor": {
+        "id": "apollo-template:contributor",
+        "displayName": "Contributor",
+        "description": "Can create, edit, and delete Apollo templates.",
+        "operations": [
+          "apollo-template:viewer"
+        ],
+        "canAssigns": [
+          "apollo-template:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-terminal-profile:editor": {
+        "id": "apollo-terminal-profile:editor",
+        "displayName": "Editor",
+        "description": "View terminal profile details and create or modify terminal profiles.",
+        "operations": [
+          "apollo-terminal-profile:edit",
+          "apollo-terminal-profile:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-terminal-profile-edit-workflow",
+          "apollo-terminal-profile-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-label:contributor": {
+        "id": "apollo-label:contributor",
+        "displayName": "Label restricted contributor",
+        "description": "Can apply labels to resources where they have the required operation.",
+        "operations": [
+          "apollo-label:delete-value",
+          "apollo-label:update-value",
+          "apollo-label:viewer"
+        ],
+        "canAssigns": [
+          "apollo-label:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-label-contribute-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-bundle:creator": {
+        "id": "apollo-bundle:creator",
+        "displayName": "Bundle Creator",
+        "description": "Create bundles.",
+        "operations": [
+          "apollo-bundle:create",
+          "apollo-bundle:viewer"
+        ],
+        "canAssigns": [
+          "apollo-bundle:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-bundle-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-webhook:creator": {
+        "id": "apollo-webhook:creator",
+        "displayName": "Creator",
+        "description": "Create new webhooks.",
+        "operations": [
+          "apollo-webhook:viewer"
+        ],
+        "canAssigns": [
+          "apollo-webhook:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-egress-policy:administrator": {
+        "id": "apollo-egress-policy:administrator",
+        "displayName": "Administrator",
+        "description": "Manage everything about egress policies including permissions.",
+        "operations": [
+          "apollo-egress-policy:editor",
+          "apollo-egress-policy:viewer"
+        ],
+        "canAssigns": [
+          "apollo-egress-policy:editor",
+          "apollo-egress-policy:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-imported-bundles:viewer": {
+        "id": "apollo-imported-bundles:viewer",
+        "displayName": "Viewer",
+        "description": "View metadata and trusted key material for Imported Bundles.",
+        "operations": [
+          "apollo-imported-bundle:view",
+          "apollo-imported-bundle:view-import-policy",
+          "apollo-imported-bundle:view-import-transfer",
+          "apollo-imported-bundle:view-trusted-keys"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-imported-bundle-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-imported-bundles:transfer-manager": {
+        "id": "apollo-imported-bundles:transfer-manager",
+        "displayName": "Transfer manager",
+        "description": "Manage import transfer sources, pipelines and perform actions on import transfer workers.",
+        "operations": [
+          "apollo-imported-bundle:manage-sources-import-transfer",
+          "apollo-imported-bundles:transfer-operator",
+          "apollo-imported-bundles:viewer"
+        ],
+        "canAssigns": [
+          "apollo-imported-bundles:transfer-operator",
+          "apollo-imported-bundles:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-imported-bundle-manage-sources-import-transfer-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-terminal-profile:administrator": {
+        "id": "apollo-terminal-profile:administrator",
+        "displayName": "Administrator",
+        "description": "View terminal profile details, create or modify terminal profiles, and manage role assignments.",
+        "operations": [
+          "apollo-terminal-profile:edit",
+          "apollo-terminal-profile:editor",
+          "apollo-terminal-profile:update-role-policy",
+          "apollo-terminal-profile:view",
+          "apollo-terminal-profile:viewer"
+        ],
+        "canAssigns": [
+          "apollo-terminal-profile:editor",
+          "apollo-terminal-profile:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-terminal-profile-edit-workflow",
+          "apollo-terminal-profile-update-role-policy-workflow",
+          "apollo-terminal-profile-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:viewer": {
+        "id": "apollo-environments:viewer",
+        "displayName": "Environment Viewer",
+        "description": "View the Environment and its Entities.",
+        "operations": [
+          "environment:terminal-access-grant-list",
+          "environment:view-agent-info",
+          "environment:view-all-config",
+          "environment:view-all-hosts",
+          "environment:view-and-edit-change-requests",
+          "environment:view-applied-label",
+          "environment:view-config-editability",
+          "environment:view-config-history",
+          "environment:view-entity-state"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "environment-operate-terminal-access-grants-workflow",
+          "environment-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-cel-policy:viewer": {
+        "id": "apollo-cel-policy:viewer",
+        "displayName": "Viewer",
+        "description": "View CEL Policies.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:container-downloader": {
+        "id": "apollo-artifact-registry:container-downloader",
+        "displayName": "Container downloader",
+        "description": "Can pull unprivileged container images in an Artifact Registry.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:viewer": {
+        "id": "apollo-artifact-registry:viewer",
+        "displayName": "Viewer",
+        "description": "Can view Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-artifact-registry-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-bundle:administrator": {
+        "id": "apollo-bundle:administrator",
+        "displayName": "Bundle Administrator",
+        "description": "Manage role assignments related to Apollo bundles.",
+        "operations": [
+          "apollo-bundle:creator",
+          "apollo-bundle:unbundler",
+          "apollo-bundle:update-role-policy",
+          "apollo-bundle:viewer"
+        ],
+        "canAssigns": [
+          "apollo-bundle:creator",
+          "apollo-bundle:unbundler",
+          "apollo-bundle:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-bundle-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-build-factory:viewer": {
+        "id": "apollo-build-factory:viewer",
+        "displayName": "Viewer",
+        "description": "Have permission to view resources in the Apollo Build Factory.",
+        "operations": [
+          "apollo-build-factory:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-build-factory-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-notifications:administrator": {
+        "id": "apollo-notifications:administrator",
+        "displayName": "Administrator",
+        "description": "Have unrestricted access to view, create and delete any notifications or notification subscriptions. Administrator access does not respect user and team boundaries. Should only be reserved for platform and security administrators.",
+        "operations": [
+          "apollo-notifications:editor",
+          "apollo-notifications:viewer"
+        ],
+        "canAssigns": [
+          "apollo-notifications:editor",
+          "apollo-notifications:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-pipelines:builder": {
+        "id": "apollo-pipelines:builder",
+        "displayName": "Builder",
+        "description": "Build Bundles for pipelines which can be downloaded or transferred automatically.",
+        "operations": [
+          "apollo-bundling-pipeline:cancel-build",
+          "apollo-bundling-pipeline:trigger-build",
+          "apollo-pipelines:viewer"
+        ],
+        "canAssigns": [
+          "apollo-pipelines:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-pipeline-builder-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:operator": {
+        "id": "apollo-environments:operator",
+        "displayName": "Environment Operator",
+        "description": "Perform non-destructive operations on Entities in the Environment.",
+        "operations": [
+          "apollo-environments:terminal-user",
+          "apollo-environments:viewer",
+          "entity:apply-label",
+          "entity:mute-monitors",
+          "entity:remove-label",
+          "environment:terminal-access-grant-list",
+          "environment:terminal-session-create"
+        ],
+        "canAssigns": [
+          "apollo-environments:terminal-user",
+          "apollo-environments:viewer"
+        ],
+        "trackedWorkflows": [
+          "entity-edit-labels-workflow",
+          "entity-operate-workflow",
+          "environment-operate-terminal-access-grants-workflow",
+          "environment-use-terminal-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact:privileged-editor": {
+        "id": "apollo-artifact:privileged-editor",
+        "displayName": "Privileged editor",
+        "description": "Can create, modify and delete artifacts in privileged repositories in Apollo.",
+        "operations": [
+          "apollo-artifact:creator",
+          "apollo-artifact:editor",
+          "apollo-artifact:privileged-viewer",
+          "containers:delete-privileged",
+          "containers:push-privileged"
+        ],
+        "canAssigns": [
+          "apollo-artifact:creator",
+          "apollo-artifact:editor",
+          "apollo-artifact:privileged-viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-delete-privileged-workflow",
+          "apollo-artifact-publish-privileged-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-cel-policy:edit-change-request-policy": {
+        "id": "apollo-cel-policy:edit-change-request-policy",
+        "displayName": "Change Request Policy Editor",
+        "description": "Edit Change Request Policies.",
+        "operations": [
+          "apollo-cel-policy:viewer"
+        ],
+        "canAssigns": [
+          "apollo-cel-policy:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-environments:security-administrator": {
+        "id": "apollo-environments:security-administrator",
+        "displayName": "Environment Security Administrator",
+        "description": "Can assign security roles on Environments and Entities as well as approve security change requests.",
+        "operations": [
+          "apollo-environments:terminal-access-approver",
+          "apollo-environments:terminal-user",
+          "environment:terminal-access-grant-revoke"
+        ],
+        "canAssigns": [
+          "apollo-environments:terminal-access-approver",
+          "apollo-environments:terminal-user"
+        ],
+        "trackedWorkflows": [
+          "environment-manage-terminal-access-grants-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-permissions:administrator": {
+        "id": "apollo-permissions:administrator",
+        "displayName": "Permissions administrator",
+        "description": "Manage role assignments in the Apollo platform.",
+        "operations": [
+          "apollo-permissions:update-role-policy",
+          "apollo-permissions:viewer"
+        ],
+        "canAssigns": [
+          "apollo-permissions:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-permissions-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-imported-bundles:administrator": {
+        "id": "apollo-imported-bundles:administrator",
+        "displayName": "Administrator",
+        "description": "Manage role assignments and trusted key material for Import Bundle workflows.",
+        "operations": [
+          "apollo-imported-bundle:add-trusted-key",
+          "apollo-imported-bundle:manage-import-policy",
+          "apollo-imported-bundle:remove-trusted-key",
+          "apollo-imported-bundle:update-role-policy",
+          "apollo-imported-bundle:update-trusted-key",
+          "apollo-imported-bundles:importer",
+          "apollo-imported-bundles:transfer-manager",
+          "apollo-imported-bundles:transfer-operator",
+          "apollo-imported-bundles:viewer"
+        ],
+        "canAssigns": [
+          "apollo-imported-bundles:importer",
+          "apollo-imported-bundles:transfer-manager",
+          "apollo-imported-bundles:transfer-operator",
+          "apollo-imported-bundles:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-imported-bundle-manage-import-policies-workflow",
+          "apollo-imported-bundle-manage-roles-workflow",
+          "apollo-imported-bundle-manage-trusted-keys-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact:editor": {
+        "id": "apollo-artifact:editor",
+        "displayName": "Editor",
+        "description": "Can modify and delete artifacts in Apollo.",
+        "operations": [
+          "apollo-artifact:viewer",
+          "containers:delete"
+        ],
+        "canAssigns": [
+          "apollo-artifact:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-delete-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-transfer-target:creator": {
+        "id": "apollo-transfer-target:creator",
+        "displayName": "Creator",
+        "description": "Define new Target Hubs which may be used in Export workflows as the targets of Pipeline build outputs.",
+        "operations": [
+          "apollo-transfer-target:viewer",
+          "transfer-target:create"
+        ],
+        "canAssigns": [
+          "apollo-transfer-target:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-transfer-target-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-pipelines:creator": {
+        "id": "apollo-pipelines:creator",
+        "displayName": "Creator",
+        "description": "Define new Export Pipelines which generate downloadable Bundles.",
+        "operations": [
+          "apollo-bundling-pipeline:approve-create",
+          "apollo-pipelines:viewer"
+        ],
+        "canAssigns": [
+          "apollo-pipelines:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-pipeline-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:administrator": {
+        "id": "apollo-artifact-registry:administrator",
+        "displayName": "Administrator",
+        "description": "Can perform all operations on Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:assigner",
+          "apollo-artifact-registry:container-deleter",
+          "apollo-artifact-registry:container-downloader",
+          "apollo-artifact-registry:container-uploader",
+          "apollo-artifact-registry:creator",
+          "apollo-artifact-registry:delete",
+          "apollo-artifact-registry:editor",
+          "apollo-artifact-registry:privileged-container-downloader",
+          "apollo-artifact-registry:privileged-container-uploader",
+          "apollo-artifact-registry:update-role-policy",
+          "apollo-artifact-registry:viewer"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:assigner",
+          "apollo-artifact-registry:container-deleter",
+          "apollo-artifact-registry:container-downloader",
+          "apollo-artifact-registry:container-uploader",
+          "apollo-artifact-registry:creator",
+          "apollo-artifact-registry:editor",
+          "apollo-artifact-registry:privileged-container-downloader",
+          "apollo-artifact-registry:privileged-container-uploader",
+          "apollo-artifact-registry:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-registry-delete-workflow",
+          "apollo-artifact-registry-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:deleter": {
+        "id": "apollo-environments:deleter",
+        "displayName": "Environment Deleter",
+        "description": "Delete Environments.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-team:viewer": {
+        "id": "apollo-team:viewer",
+        "displayName": "Team viewer",
+        "description": "Can view team.",
+        "operations": [
+          "team:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-team-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-label:editor": {
+        "id": "apollo-label:editor",
+        "displayName": "Label editor",
+        "description": "Can edit labels.",
+        "operations": [
+          "apollo-label:contributor",
+          "apollo-label:edit",
+          "apollo-label:viewer"
+        ],
+        "canAssigns": [
+          "apollo-label:contributor",
+          "apollo-label:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-label-edit-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-cel-policy:administrator": {
+        "id": "apollo-cel-policy:administrator",
+        "displayName": "Administrator",
+        "description": "Manage CEL Policy permissions and perform all CEL Policy operations.",
+        "operations": [
+          "apollo-cel-policy:create-change-request-policy",
+          "apollo-cel-policy:edit-change-request-policy",
+          "apollo-cel-policy:viewer"
+        ],
+        "canAssigns": [
+          "apollo-cel-policy:create-change-request-policy",
+          "apollo-cel-policy:edit-change-request-policy",
+          "apollo-cel-policy:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-module:editor": {
+        "id": "apollo-module:editor",
+        "displayName": "Module editor",
+        "description": "Can edit modules.",
+        "operations": [
+          "module:edit"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-module-edit-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-permissions:viewer": {
+        "id": "apollo-permissions:viewer",
+        "displayName": "Permissions viewer",
+        "description": "Can view role assignments in the Apollo platform.",
+        "operations": [
+          "apollo-permissions:view-role-policy"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-permissions-view-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-module:change-manager": {
+        "id": "apollo-module:change-manager",
+        "displayName": "Change manager",
+        "description": "Module change manager. Can toggle automatic approval of module updates.",
+        "operations": [
+          "module:toggle-automatic-approval"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-module-toggle-automatic-updates-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:terminal-user": {
+        "id": "apollo-environments:terminal-user",
+        "displayName": "Environment Terminal User",
+        "description": "Create terminal sessions and request terminal access grants.",
+        "operations": [
+          "environment:terminal-access-grant-list",
+          "environment:terminal-session-create"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "environment-operate-terminal-access-grants-workflow",
+          "environment-use-terminal-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-transfer-target:attester": {
+        "id": "apollo-transfer-target:attester",
+        "displayName": "Attester",
+        "description": "Sign manifests to authorize outbound cross-domain transfers.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-pipelines:editor": {
+        "id": "apollo-pipelines:editor",
+        "displayName": "Editor",
+        "description": "Edit existing Pipelines to change schedules, included artifacts, and other settings.",
+        "operations": [
+          "apollo-bundling-pipeline:approve-archive",
+          "apollo-bundling-pipeline:approve-delete",
+          "apollo-bundling-pipeline:approve-update",
+          "apollo-pipelines:viewer"
+        ],
+        "canAssigns": [
+          "apollo-pipelines:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-pipeline-editor-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-imported-bundles:transfer-operator": {
+        "id": "apollo-imported-bundles:transfer-operator",
+        "displayName": "Transfer operator",
+        "description": "Manage import transfer pipelines and perform actions on import transfer workers.",
+        "operations": [
+          "apollo-imported-bundle:action-import-transfer",
+          "apollo-imported-bundle:manage-pipelines-import-transfer",
+          "apollo-imported-bundles:viewer"
+        ],
+        "canAssigns": [
+          "apollo-imported-bundles:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-imported-bundle-action-import-transfer-workflow",
+          "apollo-imported-bundle-manage-pipelines-import-transfer-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:container-uploader": {
+        "id": "apollo-artifact-registry:container-uploader",
+        "displayName": "Container uploader",
+        "description": "Can push unprivileged container images to an Artifact Registry.",
+        "operations": [
+          "apollo-artifact-registry:container-downloader"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:container-downloader"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-mesh-manager:viewer": {
+        "id": "apollo-mesh-manager:viewer",
+        "displayName": "Viewer",
+        "description": "Have permission to view resources in the Apollo Mesh Manager.",
+        "operations": [
+          "apollo-mesh-manager:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-mesh-manager-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-egress-policy:editor": {
+        "id": "apollo-egress-policy:editor",
+        "displayName": "Editor",
+        "description": "Edit egress policies.",
+        "operations": [
+          "apollo-egress-policy:viewer"
+        ],
+        "canAssigns": [
+          "apollo-egress-policy:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-team:editor": {
+        "id": "apollo-team:editor",
+        "displayName": "Team editor",
+        "description": "Can modify and delete a team.",
+        "operations": [
+          "apollo-team:viewer",
+          "team:delete",
+          "team:edit",
+          "team:edit-members"
+        ],
+        "canAssigns": [
+          "apollo-team:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-team-delete-workflow",
+          "apollo-team-edit-members-workflow",
+          "apollo-team-edit-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-team:creator": {
+        "id": "apollo-team:creator",
+        "displayName": "Team creator",
+        "description": "Can create teams.",
+        "operations": [
+          "apollo-team:viewer",
+          "team:create"
+        ],
+        "canAssigns": [
+          "apollo-team:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-team-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-terminal-profile:viewer": {
+        "id": "apollo-terminal-profile:viewer",
+        "displayName": "Viewer",
+        "description": "View terminal profile details.",
+        "operations": [
+          "apollo-terminal-profile:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-terminal-profile-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-webhook:administrator": {
+        "id": "apollo-webhook:administrator",
+        "displayName": "Administrator",
+        "description": "Manage webhook permissions and perform all webhook operations.",
+        "operations": [
+          "apollo-webhook:creator",
+          "apollo-webhook:editor",
+          "apollo-webhook:viewer"
+        ],
+        "canAssigns": [
+          "apollo-webhook:creator",
+          "apollo-webhook:editor",
+          "apollo-webhook:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-label:privileged-contributor": {
+        "id": "apollo-label:privileged-contributor",
+        "displayName": "Label privileged contributor",
+        "description": "Can apply labels to all resources they can view.",
+        "operations": [
+          "apollo-label:contributor",
+          "apollo-label:viewer"
+        ],
+        "canAssigns": [
+          "apollo-label:contributor",
+          "apollo-label:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-artifact:administrator": {
+        "id": "apollo-artifact:administrator",
+        "displayName": "Administrator",
+        "description": "Manage role assignments related to Apollo artifacts.",
+        "operations": [
+          "apollo-artifact-registry:assign",
+          "apollo-artifact-registry:create",
+          "apollo-artifact-registry:edit",
+          "apollo-artifact-registry:view",
+          "apollo-artifact:creator",
+          "apollo-artifact:editor",
+          "apollo-artifact:privileged-editor",
+          "apollo-artifact:update-role-policy",
+          "repositories:set-role-policy"
+        ],
+        "canAssigns": [
+          "apollo-artifact:creator",
+          "apollo-artifact:editor",
+          "apollo-artifact:privileged-editor"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-registry-assign-workflow",
+          "apollo-artifact-registry-create-workflow",
+          "apollo-artifact-registry-edit-workflow",
+          "apollo-artifact-registry-view-workflow",
+          "apollo-artifact-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-webhook:editor": {
+        "id": "apollo-webhook:editor",
+        "displayName": "Editor",
+        "description": "Edit and delete webhooks.",
+        "operations": [
+          "apollo-webhook:viewer"
+        ],
+        "canAssigns": [
+          "apollo-webhook:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-template:administrator": {
+        "id": "apollo-template:administrator",
+        "displayName": "Administrator",
+        "description": "Manage role assignments related to Apollo templates and perform all actions on Apollo templates.",
+        "operations": [
+          "apollo-template:contributor"
+        ],
+        "canAssigns": [
+          "apollo-template:contributor"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-bundle:unbundler": {
+        "id": "apollo-bundle:unbundler",
+        "displayName": "Unbundler",
+        "description": "Import data from other Apollo Hubs.",
+        "operations": [
+          "apollo-bundle:unbundle",
+          "apollo-bundle:viewer"
+        ],
+        "canAssigns": [
+          "apollo-bundle:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-bundle-unbundle-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-label:administrator": {
+        "id": "apollo-label:administrator",
+        "displayName": "Label administrator",
+        "description": "Manage label administration.",
+        "operations": [
+          "apollo-label:archive",
+          "apollo-label:contributor",
+          "apollo-label:creator",
+          "apollo-label:editor",
+          "apollo-label:privileged-contributor",
+          "apollo-label:unarchive",
+          "apollo-label:update-role-policy",
+          "apollo-label:viewer"
+        ],
+        "canAssigns": [
+          "apollo-label:contributor",
+          "apollo-label:creator",
+          "apollo-label:editor",
+          "apollo-label:privileged-contributor",
+          "apollo-label:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-label-archive-workflow",
+          "apollo-label-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-namespace:editor": {
+        "id": "apollo-namespace:editor",
+        "displayName": "Namespace editor",
+        "description": "Edit and delete namespaces.",
+        "operations": [
+          "apollo-namespace:viewer",
+          "namespace:approve-delete",
+          "namespace:approve-update"
+        ],
+        "canAssigns": [
+          "apollo-namespace:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-namespace-edit"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:privileged-container-downloader": {
+        "id": "apollo-artifact-registry:privileged-container-downloader",
+        "displayName": "Privileged container downloader",
+        "description": "Can pull container images from privileged repositories in an Artifact Registry.",
+        "operations": [
+          "apollo-artifact-registry:container-downloader"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:container-downloader"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-artifact:privileged-viewer": {
+        "id": "apollo-artifact:privileged-viewer",
+        "displayName": "Privileged viewer",
+        "description": "Can view and consume Apollo artifacts in privileged repositories.",
+        "operations": [
+          "apollo-artifact:viewer",
+          "containers:pull-privileged"
+        ],
+        "canAssigns": [
+          "apollo-artifact:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-pull-privileged-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-notifications:editor": {
+        "id": "apollo-notifications:editor",
+        "displayName": "Editor",
+        "description": "Can manage the user's own notification subscriptions or subscriptions of teams on which the user has the 'Editor' role.",
+        "operations": [
+          "apollo-notifications:viewer"
+        ],
+        "canAssigns": [
+          "apollo-notifications:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-hubs:editor": {
+        "id": "apollo-hubs:editor",
+        "displayName": "Editor",
+        "description": "Edit metadata of Hubs.",
+        "operations": [
+          "apollo-hubs:viewer"
+        ],
+        "canAssigns": [
+          "apollo-hubs:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-artifact:viewer": {
+        "id": "apollo-artifact:viewer",
+        "displayName": "Viewer",
+        "description": "Can view and consume Apollo artifacts and repositories.",
+        "operations": [
+          "containers:disassemble",
+          "containers:get-catalog",
+          "containers:pull",
+          "repositories:get-component"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-artifact-disassemble-workflow",
+          "apollo-artifact-pull-workflow",
+          "apollo-artifact-repository-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-module:creator": {
+        "id": "apollo-module:creator",
+        "displayName": "Module creator",
+        "description": "Can create modules.",
+        "operations": [
+          "module:create"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-module-create-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:container-deleter": {
+        "id": "apollo-artifact-registry:container-deleter",
+        "displayName": "Container deleter",
+        "description": "Can delete unprivileged container images in an Artifact Registry.",
+        "operations": [
+          "apollo-artifact-registry:container-downloader"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:container-downloader"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-base-image:administrator": {
+        "id": "apollo-base-image:administrator",
+        "displayName": "Administrator",
+        "description": "Manage role assignments for base images and perform all actions on base images.",
+        "operations": [
+          "apollo-base-image:editor",
+          "apollo-base-image:viewer"
+        ],
+        "canAssigns": [
+          "apollo-base-image:editor",
+          "apollo-base-image:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-mesh-manager:administrator": {
+        "id": "apollo-mesh-manager:administrator",
+        "displayName": "Administrator",
+        "description": "Have unrestricted access to manage settings and assign roles in the Apollo Mesh Manager.",
+        "operations": [
+          "apollo-mesh-manager:editor",
+          "apollo-mesh-manager:update-role-policy",
+          "apollo-mesh-manager:viewer"
+        ],
+        "canAssigns": [
+          "apollo-mesh-manager:editor",
+          "apollo-mesh-manager:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-mesh-manager-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-namespace:administrator": {
+        "id": "apollo-namespace:administrator",
+        "displayName": "Namespace administrator",
+        "description": "Manage namespace role policy, creation, build bundles.",
+        "operations": [
+          "apollo-namespace:builder",
+          "apollo-namespace:creator",
+          "apollo-namespace:editor",
+          "apollo-namespace:viewer",
+          "namespace:update-role-policy"
+        ],
+        "canAssigns": [
+          "apollo-namespace:builder",
+          "apollo-namespace:creator",
+          "apollo-namespace:editor",
+          "apollo-namespace:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-namespace-update-policy"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:administrator": {
+        "id": "apollo-environments:administrator",
+        "displayName": "Environment Administrator",
+        "description": "Can assign roles on Environments and Entities as well as perform all operations from other roles.",
+        "operations": [
+          "apollo-environments:creator",
+          "apollo-environments:deleter",
+          "apollo-environments:editor",
+          "apollo-environments:operator",
+          "apollo-environments:security-administrator",
+          "apollo-environments:terminal-access-approver",
+          "apollo-environments:terminal-user",
+          "apollo-environments:viewer",
+          "environment:update-role-policy"
+        ],
+        "canAssigns": [
+          "apollo-environments:creator",
+          "apollo-environments:deleter",
+          "apollo-environments:editor",
+          "apollo-environments:operator",
+          "apollo-environments:security-administrator",
+          "apollo-environments:terminal-access-approver",
+          "apollo-environments:terminal-user",
+          "apollo-environments:viewer"
+        ],
+        "trackedWorkflows": [
+          "environment-manage-roles-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-base-image:editor": {
+        "id": "apollo-base-image:editor",
+        "displayName": "Editor",
+        "description": "Can view and modify base images.",
+        "operations": [
+          "apollo-base-image:viewer"
+        ],
+        "canAssigns": [
+          "apollo-base-image:viewer"
+        ],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-module:viewer": {
+        "id": "apollo-module:viewer",
+        "displayName": "Module viewer",
+        "description": "Can view modules.",
+        "operations": [
+          "module:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-module-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-label:viewer": {
+        "id": "apollo-label:viewer",
+        "displayName": "Label viewer",
+        "description": "Can view labels.",
+        "operations": [
+          "apollo-label:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-label-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:creator": {
+        "id": "apollo-environments:creator",
+        "displayName": "Environment Creator",
+        "description": "Create Environments.",
+        "operations": [],
+        "canAssigns": [],
+        "trackedWorkflows": [],
+        "isDeleted": false
+      },
+      "apollo-pipelines:exporter": {
+        "id": "apollo-pipelines:exporter",
+        "displayName": "Bundle Exporter",
+        "description": "Download Bundles generated by Pipelines.",
+        "operations": [
+          "apollo-bundling-pipeline:download",
+          "apollo-pipelines:viewer"
+        ],
+        "canAssigns": [
+          "apollo-pipelines:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-pipeline-exporter-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-pipelines:viewer": {
+        "id": "apollo-pipelines:viewer",
+        "displayName": "Viewer",
+        "description": "View Pipelines and metadata of associated Bundles.",
+        "operations": [
+          "apollo-bundle:view",
+          "apollo-bundling-pipeline:create-pipeline-level-key",
+          "apollo-bundling-pipeline:view",
+          "apollo-bundling-pipeline:view-signing-keys"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "apollo-pipeline-manage-pipeline-level-keys-workflow",
+          "apollo-pipeline-view-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-namespace:builder": {
+        "id": "apollo-namespace:builder",
+        "displayName": "Bundle builder",
+        "description": "Build bundles for namespace.",
+        "operations": [
+          "apollo-namespace:viewer",
+          "namespace:edit"
+        ],
+        "canAssigns": [
+          "apollo-namespace:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-namespace-build"
+        ],
+        "isDeleted": false
+      },
+      "apollo-transfer-target:administrator": {
+        "id": "apollo-transfer-target:administrator",
+        "displayName": "Administrator",
+        "description": "Manage role assignments for Target Hubs.",
+        "operations": [
+          "apollo-transfer-target:attester",
+          "apollo-transfer-target:creator",
+          "apollo-transfer-target:editor",
+          "apollo-transfer-target:security-administrator",
+          "apollo-transfer-target:viewer",
+          "transfer-target:update-policy"
+        ],
+        "canAssigns": [
+          "apollo-transfer-target:attester",
+          "apollo-transfer-target:creator",
+          "apollo-transfer-target:editor",
+          "apollo-transfer-target:security-administrator",
+          "apollo-transfer-target:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-transfer-target-update-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-module:administrator": {
+        "id": "apollo-module:administrator",
+        "displayName": "Module administrator",
+        "description": "Manage role assignments related to modules.",
+        "operations": [
+          "apollo-module:change-manager",
+          "apollo-module:creator",
+          "apollo-module:editor",
+          "apollo-module:viewer",
+          "module:update-role-policy"
+        ],
+        "canAssigns": [
+          "apollo-module:change-manager",
+          "apollo-module:creator",
+          "apollo-module:editor",
+          "apollo-module:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-module-update-role-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-pipelines:administrator": {
+        "id": "apollo-pipelines:administrator",
+        "displayName": "Administrator",
+        "description": "Manage role assignments related to Export Pipelines, Bundles and Signing Keys.",
+        "operations": [
+          "apollo-bundling-pipeline:add-space-level-key",
+          "apollo-bundling-pipeline:create-pipeline-level-key",
+          "apollo-bundling-pipeline:remove-space-level-key",
+          "apollo-bundling-pipeline:update-role-policy",
+          "apollo-pipelines:builder",
+          "apollo-pipelines:creator",
+          "apollo-pipelines:editor",
+          "apollo-pipelines:exporter",
+          "apollo-pipelines:viewer"
+        ],
+        "canAssigns": [
+          "apollo-pipelines:builder",
+          "apollo-pipelines:creator",
+          "apollo-pipelines:editor",
+          "apollo-pipelines:exporter",
+          "apollo-pipelines:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-pipeline-manage-pipeline-level-keys-workflow",
+          "apollo-pipeline-manage-space-level-keys-workflow",
+          "apollo-pipeline-update-policy-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-egress-policy:viewer": {
+        "id": "apollo-egress-policy:viewer",
+        "displayName": "Viewer",
+        "description": "View egress policies.",
+        "operations": [
+          "connectivityconfig:network-policy:view"
+        ],
+        "canAssigns": [],
+        "trackedWorkflows": [
+          "connectivityconfig:view-network-policy"
+        ],
+        "isDeleted": false
+      },
+      "apollo-environments:editor": {
+        "id": "apollo-environments:editor",
+        "displayName": "Environment Editor",
+        "description": "Manage the Environment and its Entities.",
+        "operations": [
+          "apollo-environments:operator",
+          "apollo-environments:viewer",
+          "entity:create-secret",
+          "entity:create-secret-request",
+          "entity:delete-secret",
+          "entity:render-config",
+          "entity:subscription-exclude-installation",
+          "entity:subscription-suppress-installation",
+          "entity:update-secret",
+          "entity:update-secret-description",
+          "entity:update-secret-value",
+          "entity:view-recycled-encryption-keys-history",
+          "environment:apply-label",
+          "environment:generate-certificates",
+          "environment:generate-manifest",
+          "environment:mute-monitors",
+          "environment:remove-label",
+          "environment:subscription-create",
+          "environment:subscription-delete",
+          "environment:subscription-edit",
+          "environment:subscription-exclude-environment",
+          "environment:template-create",
+          "environment:template-delete",
+          "environment:template-edit",
+          "environment:view-all-secrets"
+        ],
+        "canAssigns": [
+          "apollo-environments:operator",
+          "apollo-environments:viewer"
+        ],
+        "trackedWorkflows": [
+          "entity-edit-workflow",
+          "entity-privileged-action-workflow",
+          "entity-secrets-workflow",
+          "entity-subscription-workflow",
+          "environment-generate-certificates-workflow",
+          "environment-generate-manifest-workflow",
+          "environment-manage-labels-workflow",
+          "environment-manage-secrets-workflow",
+          "environment-manage-subscriptions-workflow",
+          "environment-manage-templates-workflow",
+          "environment-mute-monitors-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-artifact-registry:editor": {
+        "id": "apollo-artifact-registry:editor",
+        "displayName": "Editor",
+        "description": "Can edit existing Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:edit",
+          "apollo-artifact-registry:viewer"
+        ],
+        "canAssigns": [
+          "apollo-artifact-registry:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-artifact-registry-edit-workflow"
+        ],
+        "isDeleted": false
+      },
+      "apollo-build-factory:editor": {
+        "id": "apollo-build-factory:editor",
+        "displayName": "Editor",
+        "description": "Have permission to create and edit resources in the Apollo Build Factory.",
+        "operations": [
+          "apollo-build-factory:edit",
+          "apollo-build-factory:viewer"
+        ],
+        "canAssigns": [
+          "apollo-build-factory:viewer"
+        ],
+        "trackedWorkflows": [
+          "apollo-build-factory-edit-workflow"
+        ],
+        "isDeleted": false
+      }
+    },
+    "operations": {
+      "transfer-target:update-policy": {
+        "id": "transfer-target:update-policy",
+        "name": "Update role policy on a hub",
+        "description": "Update role policy on a hub."
+      },
+      "environment:view-all-config": {
+        "id": "environment:view-all-config",
+        "name": "View Environment and Entity configurations",
+        "description": "View Environment and Entity configurations."
+      },
+      "apollo-label:update-role-policy": {
+        "id": "apollo-label:update-role-policy",
+        "name": "Update role policy on a resource label",
+        "description": "Update role policy on a resource label."
+      },
+      "apollo-imported-bundle:view-import-policy": {
+        "id": "apollo-imported-bundle:view-import-policy",
+        "name": "View import policies",
+        "description": "View import policies that control which resource types can be imported from bundles."
+      },
+      "apollo-imported-bundle:manage-pipelines-import-transfer": {
+        "id": "apollo-imported-bundle:manage-pipelines-import-transfer",
+        "name": "Manage import transfer pipelines",
+        "description": "Manage import transfer pipelines including creating, updating, and deleting pipelines."
+      },
+      "apollo-bundling-pipeline:add-space-level-key": {
+        "id": "apollo-bundling-pipeline:add-space-level-key",
+        "name": "Add default bundle signing key",
+        "description": "Add default bundle signing key for space."
+      },
+      "transfer-target:delete": {
+        "id": "transfer-target:delete",
+        "name": "Delete a hub",
+        "description": "Delete a hub."
+      },
+      "environment:template-delete": {
+        "id": "environment:template-delete",
+        "name": "Delete templates",
+        "description": "Delete templates."
+      },
+      "apollo-imported-bundle:import": {
+        "id": "apollo-imported-bundle:import",
+        "name": "Import bundle",
+        "description": "Import bundles produced by other Apollo hubs."
+      },
+      "apollo-imported-bundle:manage-sources-import-transfer": {
+        "id": "apollo-imported-bundle:manage-sources-import-transfer",
+        "name": "Manage import transfer sources",
+        "description": "Manage import transfer sources including creating, updating, and deleting sources."
+      },
+      "namespace:update-role-policy": {
+        "id": "namespace:update-role-policy",
+        "name": "Update role policy on a namespace",
+        "description": "Update role policy on a namespace."
+      },
+      "entity:update-secret": {
+        "id": "entity:update-secret",
+        "name": "Update entity secret",
+        "description": "Update entity secret."
+      },
+      "environment:subscription-delete": {
+        "id": "environment:subscription-delete",
+        "name": "Delete subscriptions for Environment",
+        "description": "Delete subscriptions for Environment."
+      },
+      "apollo-build-factory:update-role-policy": {
+        "id": "apollo-build-factory:update-role-policy",
+        "name": "Update Apollo Build Factory role assignments",
+        "description": "Update Apollo Build Factory role assignments."
+      },
+      "entity:update-secret-description": {
+        "id": "entity:update-secret-description",
+        "name": "Update secret description",
+        "description": "Update secret description."
+      },
+      "team:edit": {
+        "id": "team:edit",
+        "name": "Edit team",
+        "description": "Edit team."
+      },
+      "environment:update-role-policy": {
+        "id": "environment:update-role-policy",
+        "name": "Update Environment and Entity role assignments",
+        "description": "Update Environment and Entity role assignments."
+      },
+      "apollo-bundling-pipeline:download": {
+        "id": "apollo-bundling-pipeline:download",
+        "name": "Export pipeline's bundles",
+        "description": "Download bundles from a pipeline."
+      },
+      "environment:view-config-editability": {
+        "id": "environment:view-config-editability",
+        "name": "View Environment and Entity configuration editibility",
+        "description": "View Environment and Entity configuration editibility."
+      },
+      "team:view": {
+        "id": "team:view",
+        "name": "View team",
+        "description": "View team."
+      },
+      "transfer-target:create": {
+        "id": "transfer-target:create",
+        "name": "Create a hub",
+        "description": "Create a hub."
+      },
+      "environment:template-create": {
+        "id": "environment:template-create",
+        "name": "Create templates",
+        "description": "Create templates."
+      },
+      "apollo-mesh-manager:update-role-policy": {
+        "id": "apollo-mesh-manager:update-role-policy",
+        "name": "Update Apollo Mesh Manager role assignments",
+        "description": "Update Apollo Mesh Manager role assignments."
+      },
+      "environment:view-all-secrets": {
+        "id": "environment:view-all-secrets",
+        "name": "View all secrets",
+        "description": "View all secrets."
+      },
+      "environment:subscription-edit": {
+        "id": "environment:subscription-edit",
+        "name": "Edit subscriptions for Environment",
+        "description": "Edit subscriptions for Environment."
+      },
+      "module:edit": {
+        "id": "module:edit",
+        "name": "Edit a module",
+        "description": "Edit a module."
+      },
+      "entity:view-recycled-encryption-keys-history": {
+        "id": "entity:view-recycled-encryption-keys-history",
+        "name": "View recycled encryption key history",
+        "description": "View recycled encryption key history."
+      },
+      "apollo-terminal-profile:edit": {
+        "id": "apollo-terminal-profile:edit",
+        "name": "Edit terminal profiles",
+        "description": "Create or modify terminal profiles."
+      },
+      "apollo-mesh-manager:edit": {
+        "id": "apollo-mesh-manager:edit",
+        "name": "Create and Edit Apollo Mesh Manager resources",
+        "description": "Create and Edit Apollo Mesh Manager resources."
+      },
+      "environment:subscription-create": {
+        "id": "environment:subscription-create",
+        "name": "Create subscriptions for Environment",
+        "description": "Create subscriptions for Environment."
+      },
+      "module:view": {
+        "id": "module:view",
+        "name": "View a module",
+        "description": "View a module."
+      },
+      "apollo-bundle:update-role-policy": {
+        "id": "apollo-bundle:update-role-policy",
+        "name": "Update role policy for bundles",
+        "description": "Update role policy for bundles."
+      },
+      "apollo-terminal-profile:view": {
+        "id": "apollo-terminal-profile:view",
+        "name": "View terminal profiles",
+        "description": "View terminal profile details."
+      },
+      "apollo-terminal-profile:update-role-policy": {
+        "id": "apollo-terminal-profile:update-role-policy",
+        "name": "Update role policy for terminal profiles",
+        "description": "Update role policy for terminal profiles."
+      },
+      "apollo-mesh-manager:view": {
+        "id": "apollo-mesh-manager:view",
+        "name": "View Apollo Mesh Manager resources",
+        "description": "View Apollo Mesh Manager resources."
+      },
+      "apollo-bundling-pipeline:approve-archive": {
+        "id": "apollo-bundling-pipeline:approve-archive",
+        "name": "Archive a pipeline",
+        "description": "Archive a pipeline."
+      },
+      "apollo-imported-bundle:action-import-transfer": {
+        "id": "apollo-imported-bundle:action-import-transfer",
+        "name": "Perform actions on import transfer workers",
+        "description": "Perform actions on import transfer workers such as triggering bundle transfers."
+      },
+      "marketplace:read-block-set-apollo-publishing-status": {
+        "id": "marketplace:read-block-set-apollo-publishing-status",
+        "name": "Read Apollo publishing status",
+        "description": "Read Apollo publishing status for BlockSetVersion"
+      },
+      "containers:get-catalog": {
+        "id": "containers:get-catalog",
+        "name": "View a container image repository",
+        "description": "View a container image repository."
+      },
+      "apollo-bundling-pipeline:create-pipeline-level-key": {
+        "id": "apollo-bundling-pipeline:create-pipeline-level-key",
+        "name": "Create pipeline signing key",
+        "description": "Create signing key for pipeline."
+      },
+      "environment:view-entity-state": {
+        "id": "environment:view-entity-state",
+        "name": "View Environment Entity state",
+        "description": "View Environment Entity state."
+      },
+      "environment:view-agent-info": {
+        "id": "environment:view-agent-info",
+        "name": "View All Entity agent info",
+        "description": "View All Entity agent info."
+      },
+      "entity:delete-secret": {
+        "id": "entity:delete-secret",
+        "name": "Delete secret",
+        "description": "Delete secret."
+      },
+      "namespace:approve-update": {
+        "id": "namespace:approve-update",
+        "name": "Approve an update of namespace settings",
+        "description": "Approve an update of namespace settings."
+      },
+      "apollo-bundling-pipeline:update-role-policy": {
+        "id": "apollo-bundling-pipeline:update-role-policy",
+        "name": "Update role policy on a pipeline",
+        "description": "Update role policy on a pipeline."
+      },
+      "module:update-role-policy": {
+        "id": "module:update-role-policy",
+        "name": "Update role policy on a module",
+        "description": "Update role policy on a module."
+      },
+      "environment:generate-certificates": {
+        "id": "environment:generate-certificates",
+        "name": "Generate environment certificates",
+        "description": "Generate environment certificates."
+      },
+      "apollo-artifact:update-role-policy": {
+        "id": "apollo-artifact:update-role-policy",
+        "name": "Update Apollo artifacts role assignments",
+        "description": "Update Apollo artifacts role assignments."
+      },
+      "entity:remove-label": {
+        "id": "entity:remove-label",
+        "name": "Remove labels",
+        "description": "Remove labels."
+      },
+      "entity:subscription-exclude-installation": {
+        "id": "entity:subscription-exclude-installation",
+        "name": "Exclude Entity from subscription",
+        "description": "Exclude Entity from subscription."
+      },
+      "containers:delete-privileged": {
+        "id": "containers:delete-privileged",
+        "name": "Delete a container image from a privileged repository",
+        "description": "Delete a container image from a privileged repository."
+      },
+      "namespace:create": {
+        "id": "namespace:create",
+        "name": "Create namespace in DSS",
+        "description": "Create namespace in DSS."
+      },
+      "apollo-imported-bundle:view-trusted-keys": {
+        "id": "apollo-imported-bundle:view-trusted-keys",
+        "name": "View trusted keys",
+        "description": "View trusted keys used for verifying signatures of bundles imported from other hubs."
+      },
+      "repositories:set-role-policy": {
+        "id": "repositories:set-role-policy",
+        "name": "Update OCI repository role assignments",
+        "description": "Update OCI repository artifacts role assignments."
+      },
+      "apollo-bundle:view": {
+        "id": "apollo-bundle:view",
+        "name": "View bundle",
+        "description": "View bundle."
+      },
+      "module:create": {
+        "id": "module:create",
+        "name": "Create a module",
+        "description": "Create a module."
+      },
+      "apollo-label:create": {
+        "id": "apollo-label:create",
+        "name": "Create resource label",
+        "description": "Create resource label."
+      },
+      "entity:create-secret": {
+        "id": "entity:create-secret",
+        "name": "Create secret",
+        "description": "Create secret."
+      },
+      "environment:apply-label": {
+        "id": "environment:apply-label",
+        "name": "Apply labels to Environment and Entities",
+        "description": "Apply labels to Environment and Entities."
+      },
+      "apollo-bundling-pipeline:view": {
+        "id": "apollo-bundling-pipeline:view",
+        "name": "View pipeline",
+        "description": "View pipeline."
+      },
+      "entity:create-secret-request": {
+        "id": "entity:create-secret-request",
+        "name": "Create secret request",
+        "description": "Create secret request."
+      },
+      "entity:render-config": {
+        "id": "entity:render-config",
+        "name": "Render Entity configuration",
+        "description": "Render Entity configuration."
+      },
+      "apollo-permissions:update-role-policy": {
+        "id": "apollo-permissions:update-role-policy",
+        "name": "Update role policy",
+        "description": "Update role policy in the Apollo platform."
+      },
+      "apollo-build-factory:edit": {
+        "id": "apollo-build-factory:edit",
+        "name": "Create and Edit Apollo Build Factory resources",
+        "description": "Create and Edit Apollo Build Factory resources."
+      },
+      "apollo-artifact-registry:assign": {
+        "id": "apollo-artifact-registry:assign",
+        "name": "Assign Artifact Registries to an Environment",
+        "description": "Assign Artifact Registries to an Environment."
+      },
+      "containers:disassemble": {
+        "id": "containers:disassemble",
+        "name": "Disassemble a resource from a container image repository",
+        "description": "Disassemble a resource from a container image repository."
+      },
+      "environment:view-applied-label": {
+        "id": "environment:view-applied-label",
+        "name": "View Environment labels",
+        "description": "View Environment labels."
+      },
+      "apollo-build-factory:view": {
+        "id": "apollo-build-factory:view",
+        "name": "View Apollo Build Factory resources",
+        "description": "View Apollo Build Factory resources."
+      },
+      "apollo-imported-bundle:add-trusted-key": {
+        "id": "apollo-imported-bundle:add-trusted-key",
+        "name": "Add trusted key",
+        "description": "Add trusted key used for verifying signatures of bundles imported from other Apollo hubs."
+      },
+      "apollo-imported-bundle:view": {
+        "id": "apollo-imported-bundle:view",
+        "name": "View imported bundles",
+        "description": "View the status and history of imported bundles."
+      },
+      "containers:push": {
+        "id": "containers:push",
+        "name": "Push a container image",
+        "description": "Push a container image."
+      },
+      "repositories:create": {
+        "id": "repositories:create",
+        "name": "Create an OCI repository",
+        "description": "Create an OCI repository."
+      },
+      "environment:view-config-history": {
+        "id": "environment:view-config-history",
+        "name": "View Environment and Entity configuration history",
+        "description": "View Environment and Entity configuration history."
+      },
+      "repositories:get-component": {
+        "id": "repositories:get-component",
+        "name": "Get metadata for an OCI repository",
+        "description": "Get metadata for an OCI repository."
+      },
+      "secure-development-space-manager:edit-enrollment-apollo-connection": {
+        "id": "secure-development-space-manager:edit-enrollment-apollo-connection",
+        "name": "Edit Enrollment Apollo Connection",
+        "description": "Edit the Apollo connections for an Enrollment. Checked on the enrollment rid."
+      },
+      "transfer-target:view": {
+        "id": "transfer-target:view",
+        "name": "View a hub",
+        "description": "View a hub."
+      },
+      "apollo-bundling-pipeline:approve-delete": {
+        "id": "apollo-bundling-pipeline:approve-delete",
+        "name": "Delete a pipeline",
+        "description": "Delete a pipeline."
+      },
+      "containers:pull": {
+        "id": "containers:pull",
+        "name": "Pull a container image",
+        "description": "Pull a container image."
+      },
+      "environment:subscription-exclude-environment": {
+        "id": "environment:subscription-exclude-environment",
+        "name": "Exclude entire Environment from subscriptions",
+        "description": "Exclude entire Environment from subscriptions."
+      },
+      "containers:pull-privileged": {
+        "id": "containers:pull-privileged",
+        "name": "Pull a container image from a privileged repository",
+        "description": "Pull a container image from a privileged repository."
+      },
+      "transfer-target:update": {
+        "id": "transfer-target:update",
+        "name": "Edit a hub",
+        "description": "Edit a hub."
+      },
+      "environment:view-and-edit-change-requests": {
+        "id": "environment:view-and-edit-change-requests",
+        "name": "View and edit change requests",
+        "description": "View and edit change requests."
+      },
+      "team:update-role-policy": {
+        "id": "team:update-role-policy",
+        "name": "Update policy",
+        "description": "Update policy."
+      },
+      "connectivityconfig:network-policy:view": {
+        "id": "connectivityconfig:network-policy:view",
+        "name": "View network policies",
+        "description": "View network policies."
+      },
+      "apollo-bundling-pipeline:approve-create": {
+        "id": "apollo-bundling-pipeline:approve-create",
+        "name": "Create a pipeline",
+        "description": "Create a pipeline."
+      },
+      "apollo-imported-bundle:update-trusted-key": {
+        "id": "apollo-imported-bundle:update-trusted-key",
+        "name": "Update trusted key",
+        "description": "Update metadata associated with a trusted key."
+      },
+      "entity:subscription-suppress-installation": {
+        "id": "entity:subscription-suppress-installation",
+        "name": "Suppress Entity subscription",
+        "description": "Suppress Entity subscription."
+      },
+      "namespace:edit": {
+        "id": "namespace:edit",
+        "name": "Build bundle for namespace",
+        "description": "Build bundle for namespace."
+      },
+      "transfer-target:manage-security-settings": {
+        "id": "transfer-target:manage-security-settings",
+        "name": "Manage security settings for a hub",
+        "description": "Manage security settings for a hub."
+      },
+      "apollo-bundling-pipeline:cancel-build": {
+        "id": "apollo-bundling-pipeline:cancel-build",
+        "name": "Cancel a bundle build for a pipeline",
+        "description": "Cancel a bundle build for a pipeline."
+      },
+      "namespace:view": {
+        "id": "namespace:view",
+        "name": "View namespace",
+        "description": "View namespace."
+      },
+      "containers:delete": {
+        "id": "containers:delete",
+        "name": "Delete a container image",
+        "description": "Delete a container image."
+      },
+      "apollo-artifact-registry:edit": {
+        "id": "apollo-artifact-registry:edit",
+        "name": "Edit Artifact Registries",
+        "description": "Edit Artifact Registries."
+      },
+      "apollo-bundle:unbundle": {
+        "id": "apollo-bundle:unbundle",
+        "name": "Unbundle",
+        "description": "Unbundle to an Apollo hub."
+      },
+      "team:edit-members": {
+        "id": "team:edit-members",
+        "name": "Edit team members",
+        "description": "Edit team members."
+      },
+      "apollo-label:delete-value": {
+        "id": "apollo-label:delete-value",
+        "name": "Delete label on a resource",
+        "description": "Delete label on a resource."
+      },
+      "apollo-artifact-registry:view": {
+        "id": "apollo-artifact-registry:view",
+        "name": "View Artifact Registries",
+        "description": "View Artifact Registries."
+      },
+      "environment:generate-manifest": {
+        "id": "environment:generate-manifest",
+        "name": "Generate environment manifest",
+        "description": "Generate environment manifest."
+      },
+      "ccs:create-namespace": {
+        "id": "ccs:create-namespace",
+        "name": "Create namespace in CCS",
+        "description": "Create namespace in CCS."
+      },
+      "apollo-imported-bundle:manage-import-policy": {
+        "id": "apollo-imported-bundle:manage-import-policy",
+        "name": "Manage import policies",
+        "description": "Manage import policies for controlling which resource types can be imported from bundles."
+      },
+      "apollo-imported-bundle:view-import-transfer": {
+        "id": "apollo-imported-bundle:view-import-transfer",
+        "name": "View import transfer",
+        "description": "View import transfer resources such as transfer sources and pipelines."
+      },
+      "module:toggle-automatic-approval": {
+        "id": "module:toggle-automatic-approval",
+        "name": "Toggle automatically-approved module updates",
+        "description": "Toggle automatically-approved module updates."
+      },
+      "apollo-label:edit": {
+        "id": "apollo-label:edit",
+        "name": "Edit label metadata",
+        "description": "Edit label metadata."
+      },
+      "environment:template-edit": {
+        "id": "environment:template-edit",
+        "name": "Edit templates",
+        "description": "Edit templates."
+      },
+      "apollo-artifact-registry:delete": {
+        "id": "apollo-artifact-registry:delete",
+        "name": "Delete Artifact Registries",
+        "description": "Delete Artifact Registries."
+      },
+      "environment:terminal-access-grant-list": {
+        "id": "environment:terminal-access-grant-list",
+        "name": "List terminal access grants",
+        "description": "List terminal access grants."
+      },
+      "entity:mute-monitors": {
+        "id": "entity:mute-monitors",
+        "name": "Mute monitors",
+        "description": "Mute monitors."
+      },
+      "apollo-label:view": {
+        "id": "apollo-label:view",
+        "name": "View a resource label",
+        "description": "View a resource label."
+      },
+      "environment:mute-monitors": {
+        "id": "environment:mute-monitors",
+        "name": "Mute monitors",
+        "description": "Mute monitors."
+      },
+      "transfer-target:test-connection": {
+        "id": "transfer-target:test-connection",
+        "name": "Test the connection to a hub",
+        "description": "Test the connection to a hub."
+      },
+      "containers:push-privileged": {
+        "id": "containers:push-privileged",
+        "name": "Push a container image to a privileged repository",
+        "description": "Push a container image to a privileged repository."
+      },
+      "apollo-permissions:view-role-policy": {
+        "id": "apollo-permissions:view-role-policy",
+        "name": "View role policy",
+        "description": "View role policy in the Apollo platform."
+      },
+      "apollo-imported-bundle:update-role-policy": {
+        "id": "apollo-imported-bundle:update-role-policy",
+        "name": "Update role policy for imported bundles",
+        "description": "Update role policy for imported bundles."
+      },
+      "apollo-label:update-value": {
+        "id": "apollo-label:update-value",
+        "name": "Update label on a resource",
+        "description": "Update label on a resource."
+      },
+      "environment:terminal-session-create": {
+        "id": "environment:terminal-session-create",
+        "name": "Create terminal sessions",
+        "description": "Create terminal sessions."
+      },
+      "namespace:approve-delete": {
+        "id": "namespace:approve-delete",
+        "name": "Approve the deletion of a namespace",
+        "description": "Approve the deletion of a namespace."
+      },
+      "apollo-artifact-registry:update-role-policy": {
+        "id": "apollo-artifact-registry:update-role-policy",
+        "name": "Update role policy for Artifact Registries",
+        "description": "Update role policy for Artifact Registries."
+      },
+      "apollo-artifact-registry:create": {
+        "id": "apollo-artifact-registry:create",
+        "name": "Create Artifact Registries",
+        "description": "Create Artifact Registries."
+      },
+      "environment:remove-label": {
+        "id": "environment:remove-label",
+        "name": "Remove labels from Environment and Entities",
+        "description": "Remove labels from Environment and Entities."
+      },
+      "apollo-bundle:create": {
+        "id": "apollo-bundle:create",
+        "name": "Create bundle",
+        "description": "Create bundle."
+      },
+      "environment:terminal-access-grant-revoke": {
+        "id": "environment:terminal-access-grant-revoke",
+        "name": "Revoke terminal access grants",
+        "description": "Revoke terminal access grants."
+      },
+      "team:delete": {
+        "id": "team:delete",
+        "name": "Delete team",
+        "description": "Delete team."
+      },
+      "secure-development-space-manager:view-enrollment-apollo-connection": {
+        "id": "secure-development-space-manager:view-enrollment-apollo-connection",
+        "name": "View Enrollment Apollo Connection",
+        "description": "View the Apollo connections for an Enrollment. Checked on the enrollment rid."
+      },
+      "apollo-bundling-pipeline:view-signing-keys": {
+        "id": "apollo-bundling-pipeline:view-signing-keys",
+        "name": "View bundle signing keys",
+        "description": "View bundle signing keys."
+      },
+      "apollo-bundling-pipeline:remove-space-level-key": {
+        "id": "apollo-bundling-pipeline:remove-space-level-key",
+        "name": "Remove default bundle signing key",
+        "description": "Remove default bundle signing key for space."
+      },
+      "environment:view-all-hosts": {
+        "id": "environment:view-all-hosts",
+        "name": "View all hosts",
+        "description": "View all hosts."
+      },
+      "team:create": {
+        "id": "team:create",
+        "name": "Create teams",
+        "description": "Create teams."
+      },
+      "apollo-label:archive": {
+        "id": "apollo-label:archive",
+        "name": "Archive a label",
+        "description": "Archive a label."
+      },
+      "entity:update-secret-value": {
+        "id": "entity:update-secret-value",
+        "name": "Update secret value",
+        "description": "Update secret value."
+      },
+      "apollo-label:unarchive": {
+        "id": "apollo-label:unarchive",
+        "name": "Unarchive a label",
+        "description": "Unarchive a label."
+      },
+      "apollo-imported-bundle:remove-trusted-key": {
+        "id": "apollo-imported-bundle:remove-trusted-key",
+        "name": "Remove trusted key",
+        "description": "Remove trusted key used for verifying signatures of bundles imported from other Apollo hubs."
+      },
+      "apollo-bundling-pipeline:approve-update": {
+        "id": "apollo-bundling-pipeline:approve-update",
+        "name": "Update a pipeline",
+        "description": "Update a pipeline."
+      },
+      "entity:apply-label": {
+        "id": "entity:apply-label",
+        "name": "Apply labels",
+        "description": "Apply labels."
+      },
+      "apollo-bundling-pipeline:trigger-build": {
+        "id": "apollo-bundling-pipeline:trigger-build",
+        "name": "Trigger pipeline build",
+        "description": "Create a new bundle for a pipeline."
+      }
+    },
+    "workflows": {
+      "apollo-pipeline-update-policy-workflow": {
+        "id": "apollo-pipeline-update-policy-workflow",
+        "name": "Update role policy for pipelines",
+        "description": "Update role policy for pipelines.",
+        "operations": [
+          "apollo-bundling-pipeline:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "apollo-build-factory-edit-workflow": {
+        "id": "apollo-build-factory-edit-workflow",
+        "name": "Edit resources in Apollo Build Factory",
+        "description": "Edit resources in Apollo Build Factory.",
+        "operations": [
+          "apollo-build-factory:edit"
+        ],
+        "contexts": [
+          "APOLLO_BUILD_FACTORY"
+        ]
+      },
+      "apollo-artifact-repository-view-workflow": {
+        "id": "apollo-artifact-repository-view-workflow",
+        "name": "View an artifact repository in Apollo",
+        "description": "View an artifact repository in Apollo.",
+        "operations": [
+          "containers:get-catalog",
+          "repositories:get-component"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-artifact-pull-privileged-workflow": {
+        "id": "apollo-artifact-pull-privileged-workflow",
+        "name": "Pull an artifact from a privileged repository in Apollo",
+        "description": "Pull an artifact from a privileged repository in Apollo.",
+        "operations": [
+          "containers:pull-privileged"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-label-update-role-policy-workflow": {
+        "id": "apollo-label-update-role-policy-workflow",
+        "name": "Update role policy for labels",
+        "description": "Update role policy for labels.",
+        "operations": [
+          "apollo-label:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_LABEL"
+        ]
+      },
+      "environment-manage-templates-workflow": {
+        "id": "environment-manage-templates-workflow",
+        "name": "Manage the Environment's templates",
+        "description": "Manage the Environment's templates.",
+        "operations": [
+          "environment:template-create",
+          "environment:template-delete",
+          "environment:template-edit"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-imported-bundle-manage-trusted-keys-workflow": {
+        "id": "apollo-imported-bundle-manage-trusted-keys-workflow",
+        "name": "Manage trusted keys for bundle import workflows",
+        "description": "Manage trusted keys for bundle import workflows.",
+        "operations": [
+          "apollo-imported-bundle:add-trusted-key",
+          "apollo-imported-bundle:remove-trusted-key",
+          "apollo-imported-bundle:update-trusted-key"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-transfer-target-edit-workflow": {
+        "id": "apollo-transfer-target-edit-workflow",
+        "name": "Edit transfer target",
+        "description": "Edit transfer target.",
+        "operations": [
+          "transfer-target:delete",
+          "transfer-target:update"
+        ],
+        "contexts": [
+          "APOLLO_TRANSFER_TARGETS"
+        ]
+      },
+      "apollo-team-view-workflow": {
+        "id": "apollo-team-view-workflow",
+        "name": "View team",
+        "description": "View team.",
+        "operations": [
+          "team:view"
+        ],
+        "contexts": [
+          "APOLLO_TEAM"
+        ]
+      },
+      "apollo-label-archive-workflow": {
+        "id": "apollo-label-archive-workflow",
+        "name": "Archive or unarchive a label",
+        "description": "Archive or unarchive a label.",
+        "operations": [
+          "apollo-label:archive",
+          "apollo-label:unarchive"
+        ],
+        "contexts": [
+          "APOLLO_LABEL"
+        ]
+      },
+      "apollo-imported-bundle-manage-sources-import-transfer-workflow": {
+        "id": "apollo-imported-bundle-manage-sources-import-transfer-workflow",
+        "name": "Manage import transfer sources",
+        "description": "Manage import transfer sources including creating, updating, and deleting sources.",
+        "operations": [
+          "apollo-imported-bundle:manage-sources-import-transfer"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "environment-use-terminal-workflow": {
+        "id": "environment-use-terminal-workflow",
+        "name": "Use terminal",
+        "description": "Create terminal sessions.",
+        "operations": [
+          "environment:terminal-session-create"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "environment-mute-monitors-workflow": {
+        "id": "environment-mute-monitors-workflow",
+        "name": "Mute the Environment's monitors",
+        "description": "Mute the Environment's monitors.",
+        "operations": [
+          "environment:mute-monitors"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "entity-edit-workflow": {
+        "id": "entity-edit-workflow",
+        "name": "Edit Entity",
+        "description": "Edit Entity.",
+        "operations": [],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-bundle-view-workflow": {
+        "id": "apollo-bundle-view-workflow",
+        "name": "View Apollo bundle",
+        "description": "View, preview, and discover an apollo bundles.",
+        "operations": [],
+        "contexts": [
+          "APOLLO_BUNDLES"
+        ]
+      },
+      "apollo-label-view-workflow": {
+        "id": "apollo-label-view-workflow",
+        "name": "View labels",
+        "description": "View labels.",
+        "operations": [
+          "apollo-label:view"
+        ],
+        "contexts": [
+          "APOLLO_LABEL"
+        ]
+      },
+      "apollo-build-factory-view-workflow": {
+        "id": "apollo-build-factory-view-workflow",
+        "name": "View resources in Apollo Build Factory",
+        "description": "View resources in Apollo Build Factory.",
+        "operations": [
+          "apollo-build-factory:view"
+        ],
+        "contexts": [
+          "APOLLO_BUILD_FACTORY"
+        ]
+      },
+      "apollo-artifact-disassemble-workflow": {
+        "id": "apollo-artifact-disassemble-workflow",
+        "name": "Disassemble an artifact in Apollo",
+        "description": "Disassemble an artifact in Apollo.",
+        "operations": [
+          "containers:disassemble"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-module-create-workflow": {
+        "id": "apollo-module-create-workflow",
+        "name": "Create modules",
+        "description": "Create modules.",
+        "operations": [
+          "module:create"
+        ],
+        "contexts": [
+          "APOLLO_MODULE"
+        ]
+      },
+      "apollo-mesh-manager-edit-workflow": {
+        "id": "apollo-mesh-manager-edit-workflow",
+        "name": "Edit resources in Apollo Mesh Manager",
+        "description": "Edit resources in Apollo Mesh Manager.",
+        "operations": [
+          "apollo-mesh-manager:edit"
+        ],
+        "contexts": [
+          "APOLLO_MESH_MANAGER"
+        ]
+      },
+      "environment-manage-labels-workflow": {
+        "id": "environment-manage-labels-workflow",
+        "name": "Manage labels for Environment and its Entities",
+        "description": "Manage labels for Environment and its Entities.",
+        "operations": [
+          "environment:apply-label",
+          "environment:remove-label"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-transfer-target-view-workflow": {
+        "id": "apollo-transfer-target-view-workflow",
+        "name": "View transfer target",
+        "description": "View transfer target.",
+        "operations": [
+          "transfer-target:test-connection",
+          "transfer-target:view"
+        ],
+        "contexts": [
+          "APOLLO_TRANSFER_TARGETS"
+        ]
+      },
+      "apollo-bundle-create-workflow": {
+        "id": "apollo-bundle-create-workflow",
+        "name": "Create bundle",
+        "description": "Create bundle.",
+        "operations": [
+          "apollo-bundle:create"
+        ],
+        "contexts": [
+          "APOLLO_BUNDLES"
+        ]
+      },
+      "apollo-team-delete-workflow": {
+        "id": "apollo-team-delete-workflow",
+        "name": "Delete team",
+        "description": "Delete team.",
+        "operations": [
+          "team:delete"
+        ],
+        "contexts": [
+          "APOLLO_TEAM"
+        ]
+      },
+      "apollo-module-toggle-automatic-updates-workflow": {
+        "id": "apollo-module-toggle-automatic-updates-workflow",
+        "name": "Toggle automatically-approved module updates",
+        "description": "Toggle automatically-approved module updates.",
+        "operations": [
+          "module:toggle-automatic-approval"
+        ],
+        "contexts": [
+          "APOLLO_MODULE"
+        ]
+      },
+      "apollo-imported-bundle-manage-import-policies-workflow": {
+        "id": "apollo-imported-bundle-manage-import-policies-workflow",
+        "name": "Manage import policies for bundle import workflows",
+        "description": "Manage import policies that control which resource types can be imported from bundles.",
+        "operations": [
+          "apollo-imported-bundle:manage-import-policy"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-imported-bundle-view-workflow": {
+        "id": "apollo-imported-bundle-view-workflow",
+        "name": "View the status and history of imported bundles",
+        "description": "View the status and history of imported bundles.",
+        "operations": [
+          "apollo-imported-bundle:view",
+          "apollo-imported-bundle:view-import-policy",
+          "apollo-imported-bundle:view-import-transfer",
+          "apollo-imported-bundle:view-trusted-keys"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-artifact-registry-create-workflow": {
+        "id": "apollo-artifact-registry-create-workflow",
+        "name": "Create Artifact Registries",
+        "description": "Create Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:create"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS",
+          "APOLLO_ARTIFACT_REGISTRIES"
+        ]
+      },
+      "environment-manage-roles-workflow": {
+        "id": "environment-manage-roles-workflow",
+        "name": "Manage role assignments for the Environment and its Entities",
+        "description": "Manage role assignments for the Environment and its Entities.",
+        "operations": [
+          "environment:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "secure-development-space-manager:manage-enrollment-apollo-connection": {
+        "id": "secure-development-space-manager:manage-enrollment-apollo-connection",
+        "name": "Manage Enrollment<>Apollo Connections",
+        "description": "Allows viewing, creating, and deleting Apollo connections for an enrollment.",
+        "operations": [
+          "secure-development-space-manager:edit-enrollment-apollo-connection",
+          "secure-development-space-manager:view-enrollment-apollo-connection"
+        ],
+        "contexts": [
+          "ENROLLMENT"
+        ]
+      },
+      "apollo-artifact-update-role-policy-workflow": {
+        "id": "apollo-artifact-update-role-policy-workflow",
+        "name": "Update role policy for Apollo artifacts",
+        "description": "Update role policy for Apollo artifacts.",
+        "operations": [
+          "apollo-artifact:update-role-policy",
+          "repositories:set-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-transfer-target-manage-security-settings-workflow": {
+        "id": "apollo-transfer-target-manage-security-settings-workflow",
+        "name": "Manage transfer target security settings",
+        "description": "Manage transfer target security settings.",
+        "operations": [
+          "transfer-target:manage-security-settings"
+        ],
+        "contexts": [
+          "APOLLO_TRANSFER_TARGETS"
+        ]
+      },
+      "apollo-artifact-delete-privileged-workflow": {
+        "id": "apollo-artifact-delete-privileged-workflow",
+        "name": "Delete an artifact from a privileged repository in Apollo",
+        "description": "Delete an artifact from a privileged repository in Apollo.",
+        "operations": [
+          "containers:delete-privileged"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-build-factory-update-role-policy-workflow": {
+        "id": "apollo-build-factory-update-role-policy-workflow",
+        "name": "Update role policy for Apollo Build Factory",
+        "description": "Update role policy for Apollo Build Factory.",
+        "operations": [
+          "apollo-build-factory:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_BUILD_FACTORY"
+        ]
+      },
+      "apollo-namespace-view": {
+        "id": "apollo-namespace-view",
+        "name": "View namespace",
+        "description": "View namespace.",
+        "operations": [
+          "namespace:view"
+        ],
+        "contexts": [
+          "APOLLO_NAMESPACES"
+        ]
+      },
+      "environment-generate-manifest-workflow": {
+        "id": "environment-generate-manifest-workflow",
+        "name": "Generate a manifest for an environment",
+        "description": "Generate a manifest for an environment.",
+        "operations": [
+          "environment:generate-manifest"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-label-contribute-workflow": {
+        "id": "apollo-label-contribute-workflow",
+        "name": "Update or remove labels",
+        "description": "Update or remove labels.",
+        "operations": [
+          "apollo-label:delete-value",
+          "apollo-label:update-value"
+        ],
+        "contexts": [
+          "APOLLO_LABEL"
+        ]
+      },
+      "environment-operate-terminal-access-grants-workflow": {
+        "id": "environment-operate-terminal-access-grants-workflow",
+        "name": "View terminal access grants",
+        "description": "View terminal access grants.",
+        "operations": [
+          "environment:terminal-access-grant-list"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "entity-subscription-workflow": {
+        "id": "entity-subscription-workflow",
+        "name": "Manage Entity subscriptions",
+        "description": "Manage Entity subscriptions.",
+        "operations": [
+          "entity:subscription-exclude-installation",
+          "entity:subscription-suppress-installation"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-team-update-role-policy-workflow": {
+        "id": "apollo-team-update-role-policy-workflow",
+        "name": "Update policy",
+        "description": "Update policy.",
+        "operations": [
+          "team:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_TEAM"
+        ]
+      },
+      "apollo-imported-bundle-import-workflow": {
+        "id": "apollo-imported-bundle-import-workflow",
+        "name": "Import bundles from other Apollo hubs",
+        "description": "Import bundles from other Apollo hubs.",
+        "operations": [
+          "apollo-imported-bundle:import"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-pipeline-builder-workflow": {
+        "id": "apollo-pipeline-builder-workflow",
+        "name": "Build bundles",
+        "description": "Build bundles for a pipeline.",
+        "operations": [
+          "apollo-bundling-pipeline:cancel-build",
+          "apollo-bundling-pipeline:trigger-build"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "environment-manage-secrets-workflow": {
+        "id": "environment-manage-secrets-workflow",
+        "name": "Manage secrets within the Environment",
+        "description": "Manage secrets within the Environment.",
+        "operations": [
+          "environment:view-all-secrets"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-artifact-registry-delete-workflow": {
+        "id": "apollo-artifact-registry-delete-workflow",
+        "name": "Delete Artifact Registries",
+        "description": "Delete Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:delete"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACT_REGISTRIES"
+        ]
+      },
+      "secure-development-space-manager:view-enrollment-apollo-connection": {
+        "id": "secure-development-space-manager:view-enrollment-apollo-connection",
+        "name": "View Enrollment<>Apollo Connections",
+        "description": "View Apollo connections for an enrollment.",
+        "operations": [
+          "secure-development-space-manager:view-enrollment-apollo-connection"
+        ],
+        "contexts": [
+          "ENROLLMENT"
+        ]
+      },
+      "environment-generate-certificates-workflow": {
+        "id": "environment-generate-certificates-workflow",
+        "name": "Generate certificates for an environment",
+        "description": "Generate certificates for an environment.",
+        "operations": [
+          "environment:generate-certificates"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-artifact-publish-workflow": {
+        "id": "apollo-artifact-publish-workflow",
+        "name": "Publish an artifact to Apollo",
+        "description": "Publish an artifact to Apollo.",
+        "operations": [
+          "containers:push",
+          "repositories:create"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-imported-bundle-manage-pipelines-import-transfer-workflow": {
+        "id": "apollo-imported-bundle-manage-pipelines-import-transfer-workflow",
+        "name": "Manage import transfer pipelines",
+        "description": "Manage import transfer pipelines including creating, updating, and deleting pipelines.",
+        "operations": [
+          "apollo-imported-bundle:manage-pipelines-import-transfer"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-permissions-update-role-policy-workflow": {
+        "id": "apollo-permissions-update-role-policy-workflow",
+        "name": "Update role policies",
+        "description": "Update role policies in Apollo.",
+        "operations": [
+          "apollo-permissions:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_PERMISSIONS"
+        ]
+      },
+      "apollo-mesh-manager-view-workflow": {
+        "id": "apollo-mesh-manager-view-workflow",
+        "name": "View resources in Apollo Mesh Manager",
+        "description": "View resources in Apollo Mesh Manager.",
+        "operations": [
+          "apollo-mesh-manager:view"
+        ],
+        "contexts": [
+          "APOLLO_MESH_MANAGER"
+        ]
+      },
+      "apollo-mesh-manager-update-role-policy-workflow": {
+        "id": "apollo-mesh-manager-update-role-policy-workflow",
+        "name": "Update role policy for Apollo Mesh Manager",
+        "description": "Update role policy for Apollo Mesh Manager.",
+        "operations": [
+          "apollo-mesh-manager:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_MESH_MANAGER"
+        ]
+      },
+      "apollo-team-edit-members-workflow": {
+        "id": "apollo-team-edit-members-workflow",
+        "name": "Edit team members",
+        "description": "Edit team members.",
+        "operations": [
+          "team:edit-members"
+        ],
+        "contexts": [
+          "APOLLO_TEAM"
+        ]
+      },
+      "apollo-imported-bundle-manage-roles-workflow": {
+        "id": "apollo-imported-bundle-manage-roles-workflow",
+        "name": "Manage role assignments for bundle import workflows",
+        "description": "Manage role assignments for bundle import workflows.",
+        "operations": [
+          "apollo-imported-bundle:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-namespace-edit": {
+        "id": "apollo-namespace-edit",
+        "name": "Edit namespace",
+        "description": "Edit namespace.",
+        "operations": [
+          "namespace:approve-delete",
+          "namespace:approve-update"
+        ],
+        "contexts": [
+          "APOLLO_NAMESPACES"
+        ]
+      },
+      "environment-manage-terminal-access-grants-workflow": {
+        "id": "environment-manage-terminal-access-grants-workflow",
+        "name": "Revoke terminal access grants",
+        "description": "Revoke terminal access grants.",
+        "operations": [
+          "environment:terminal-access-grant-revoke"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-module-edit-workflow": {
+        "id": "apollo-module-edit-workflow",
+        "name": "Edit modules",
+        "description": "Edit modules.",
+        "operations": [
+          "module:edit"
+        ],
+        "contexts": [
+          "APOLLO_MODULE"
+        ]
+      },
+      "apollo-imported-bundle-action-import-transfer-workflow": {
+        "id": "apollo-imported-bundle-action-import-transfer-workflow",
+        "name": "Perform actions on import transfer workers",
+        "description": "Perform actions on import transfer workers such as triggering bundle transfers.",
+        "operations": [
+          "apollo-imported-bundle:action-import-transfer"
+        ],
+        "contexts": [
+          "APOLLO_IMPORTED_BUNDLE"
+        ]
+      },
+      "apollo-pipeline-manage-space-level-keys-workflow": {
+        "id": "apollo-pipeline-manage-space-level-keys-workflow",
+        "name": "Manage default signing key for pipelines in space",
+        "description": "Manage default signing key for pipelines in space.",
+        "operations": [
+          "apollo-bundling-pipeline:add-space-level-key",
+          "apollo-bundling-pipeline:remove-space-level-key"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "environment-manage-subscriptions-workflow": {
+        "id": "environment-manage-subscriptions-workflow",
+        "name": "Manage the Environment's subscriptions",
+        "description": "Manage the Environment's subscriptions.",
+        "operations": [
+          "environment:subscription-create",
+          "environment:subscription-delete",
+          "environment:subscription-edit",
+          "environment:subscription-exclude-environment"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-bundle-update-role-policy-workflow": {
+        "id": "apollo-bundle-update-role-policy-workflow",
+        "name": "Update policy for apollo bundle",
+        "description": "Update policy for apollo bundle.",
+        "operations": [
+          "apollo-bundle:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_BUNDLES"
+        ]
+      },
+      "apollo-namespace-update-policy": {
+        "id": "apollo-namespace-update-policy",
+        "name": "Update role policy for namespaces",
+        "description": "Update role policy for namespaces.",
+        "operations": [
+          "namespace:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_NAMESPACES"
+        ]
+      },
+      "apollo-artifact-publish-privileged-workflow": {
+        "id": "apollo-artifact-publish-privileged-workflow",
+        "name": "Publish an artifact to a privileged repository in Apollo",
+        "description": "Publish an artifact to a privileged repository in Apollo.",
+        "operations": [
+          "containers:push-privileged"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "entity-secrets-workflow": {
+        "id": "entity-secrets-workflow",
+        "name": "Manage Entity secrets",
+        "description": "Manage Entity secrets.",
+        "operations": [
+          "entity:create-secret",
+          "entity:create-secret-request",
+          "entity:delete-secret",
+          "entity:update-secret",
+          "entity:update-secret-description",
+          "entity:update-secret-value",
+          "entity:view-recycled-encryption-keys-history"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-namespace-build": {
+        "id": "apollo-namespace-build",
+        "name": "Build bundles for namespace",
+        "description": "Build bundles for namespace.",
+        "operations": [
+          "namespace:edit"
+        ],
+        "contexts": [
+          "APOLLO_NAMESPACES"
+        ]
+      },
+      "apollo-bundle-unbundle-workflow": {
+        "id": "apollo-bundle-unbundle-workflow",
+        "name": "Unbundle",
+        "description": "Unbundle.",
+        "operations": [
+          "apollo-bundle:unbundle"
+        ],
+        "contexts": [
+          "APOLLO_BUNDLES"
+        ]
+      },
+      "apollo-pipeline-view-workflow": {
+        "id": "apollo-pipeline-view-workflow",
+        "name": "View pipeline",
+        "description": "View pipeline and its history.",
+        "operations": [
+          "apollo-bundle:view",
+          "apollo-bundling-pipeline:view",
+          "apollo-bundling-pipeline:view-signing-keys"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "apollo-pipeline-editor-workflow": {
+        "id": "apollo-pipeline-editor-workflow",
+        "name": "Edit pipelines",
+        "description": "Edit pipelines.",
+        "operations": [
+          "apollo-bundling-pipeline:approve-archive",
+          "apollo-bundling-pipeline:approve-delete",
+          "apollo-bundling-pipeline:approve-update"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "apollo-transfer-target-update-policy-workflow": {
+        "id": "apollo-transfer-target-update-policy-workflow",
+        "name": "Update policy",
+        "description": "Update policy.",
+        "operations": [
+          "transfer-target:update-policy"
+        ],
+        "contexts": [
+          "APOLLO_TRANSFER_TARGETS"
+        ]
+      },
+      "environment-view-workflow": {
+        "id": "environment-view-workflow",
+        "name": "View the Environment and Entities",
+        "description": "View the Environment and Entities.",
+        "operations": [
+          "environment:view-agent-info",
+          "environment:view-all-config",
+          "environment:view-all-hosts",
+          "environment:view-and-edit-change-requests",
+          "environment:view-applied-label",
+          "environment:view-config-editability",
+          "environment:view-config-history",
+          "environment:view-entity-state"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-permissions-view-role-policy-workflow": {
+        "id": "apollo-permissions-view-role-policy-workflow",
+        "name": "View role policies",
+        "description": "View role policies in Apollo.",
+        "operations": [
+          "apollo-permissions:view-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_PERMISSIONS"
+        ]
+      },
+      "apollo-transfer-target-create-workflow": {
+        "id": "apollo-transfer-target-create-workflow",
+        "name": "Create transfer target",
+        "description": "Create transfer target.",
+        "operations": [
+          "transfer-target:create"
+        ],
+        "contexts": [
+          "APOLLO_TRANSFER_TARGETS"
+        ]
+      },
+      "apollo-module-update-role-policy-workflow": {
+        "id": "apollo-module-update-role-policy-workflow",
+        "name": "Update role policy for modules",
+        "description": "Update role policy for modules.",
+        "operations": [
+          "module:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_MODULE"
+        ]
+      },
+      "apollo-artifact-registry-update-role-policy-workflow": {
+        "id": "apollo-artifact-registry-update-role-policy-workflow",
+        "name": "Update role policy for Artifact Registries",
+        "description": "Update role policy for Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACT_REGISTRIES"
+        ]
+      },
+      "apollo-terminal-profile-edit-workflow": {
+        "id": "apollo-terminal-profile-edit-workflow",
+        "name": "Edit terminal profiles",
+        "description": "Create or modify terminal profiles.",
+        "operations": [
+          "apollo-terminal-profile:edit"
+        ],
+        "contexts": [
+          "APOLLO_TERMINAL_PROFILE"
+        ]
+      },
+      "apollo-label-edit-workflow": {
+        "id": "apollo-label-edit-workflow",
+        "name": "Edit label metadata",
+        "description": "Edit label metadata.",
+        "operations": [
+          "apollo-label:edit"
+        ],
+        "contexts": [
+          "APOLLO_LABEL"
+        ]
+      },
+      "apollo-artifact-delete-workflow": {
+        "id": "apollo-artifact-delete-workflow",
+        "name": "Delete an artifact from Apollo",
+        "description": "Delete an artifact from Apollo.",
+        "operations": [
+          "containers:delete"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-artifact-pull-workflow": {
+        "id": "apollo-artifact-pull-workflow",
+        "name": "Pull an artifact from Apollo",
+        "description": "Pull an artifact from Apollo.",
+        "operations": [
+          "containers:pull"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS"
+        ]
+      },
+      "apollo-terminal-profile-update-role-policy-workflow": {
+        "id": "apollo-terminal-profile-update-role-policy-workflow",
+        "name": "Update role policy for terminal profiles",
+        "description": "Update role policy for terminal profiles.",
+        "operations": [
+          "apollo-terminal-profile:update-role-policy"
+        ],
+        "contexts": [
+          "APOLLO_TERMINAL_PROFILE"
+        ]
+      },
+      "apollo-artifact-registry-edit-workflow": {
+        "id": "apollo-artifact-registry-edit-workflow",
+        "name": "Edit Artifact Registries",
+        "description": "Edit Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:edit"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS",
+          "APOLLO_ARTIFACT_REGISTRIES"
+        ]
+      },
+      "apollo-namespace-create": {
+        "id": "apollo-namespace-create",
+        "name": "Create namespaces",
+        "description": "Create namespaces.",
+        "operations": [
+          "ccs:create-namespace",
+          "namespace:create"
+        ],
+        "contexts": [
+          "APOLLO_NAMESPACES"
+        ]
+      },
+      "entity-privileged-action-workflow": {
+        "id": "entity-privileged-action-workflow",
+        "name": "Restart, enforce Entity config and/or version",
+        "description": "Restart, enforce Entity config and/or version.",
+        "operations": [
+          "entity:render-config"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "entity-edit-labels-workflow": {
+        "id": "entity-edit-labels-workflow",
+        "name": "Edit Entity labels",
+        "description": "Edit Entity labels.",
+        "operations": [
+          "entity:apply-label",
+          "entity:remove-label"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "connectivityconfig:view-network-policy": {
+        "id": "connectivityconfig:view-network-policy",
+        "name": "View network policy",
+        "description": "View network policies.",
+        "operations": [
+          "connectivityconfig:network-policy:view"
+        ],
+        "contexts": [
+          "APOLLO_EGRESS_POLICY",
+          "ENROLLMENT",
+          "NETWORK_POLICY"
+        ]
+      },
+      "apollo-pipeline-exporter-workflow": {
+        "id": "apollo-pipeline-exporter-workflow",
+        "name": "Export bundles",
+        "description": "Export bundles from pipeline.",
+        "operations": [
+          "apollo-bundling-pipeline:download"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "apollo-artifact-registry-assign-workflow": {
+        "id": "apollo-artifact-registry-assign-workflow",
+        "name": "Assign Artifact Registry to environment",
+        "description": "Assign Artifact Registry to environment.",
+        "operations": [
+          "apollo-artifact-registry:assign"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS",
+          "APOLLO_ARTIFACT_REGISTRIES"
+        ]
+      },
+      "apollo-terminal-profile-view-workflow": {
+        "id": "apollo-terminal-profile-view-workflow",
+        "name": "View terminal profiles",
+        "description": "View terminal profiles.",
+        "operations": [
+          "apollo-terminal-profile:view"
+        ],
+        "contexts": [
+          "APOLLO_TERMINAL_PROFILE"
+        ]
+      },
+      "entity-operate-workflow": {
+        "id": "entity-operate-workflow",
+        "name": "Operate on Entities",
+        "description": "Operate on Entities.",
+        "operations": [
+          "entity:mute-monitors"
+        ],
+        "contexts": [
+          "APOLLO_ENVIRONMENTS"
+        ]
+      },
+      "apollo-team-edit-workflow": {
+        "id": "apollo-team-edit-workflow",
+        "name": "Edit team",
+        "description": "Edit team.",
+        "operations": [
+          "team:edit"
+        ],
+        "contexts": [
+          "APOLLO_TEAM"
+        ]
+      },
+      "apollo-team-create-workflow": {
+        "id": "apollo-team-create-workflow",
+        "name": "Create teams",
+        "description": "Create teams.",
+        "operations": [
+          "team:create"
+        ],
+        "contexts": [
+          "APOLLO_TEAM"
+        ]
+      },
+      "apollo-pipeline-create-workflow": {
+        "id": "apollo-pipeline-create-workflow",
+        "name": "Create pipelines",
+        "description": "Create pipelines.",
+        "operations": [
+          "apollo-bundling-pipeline:approve-create"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "apollo-module-view-workflow": {
+        "id": "apollo-module-view-workflow",
+        "name": "View modules",
+        "description": "View modules.",
+        "operations": [
+          "module:view"
+        ],
+        "contexts": [
+          "APOLLO_MODULE"
+        ]
+      },
+      "apollo-artifact-registry-view-workflow": {
+        "id": "apollo-artifact-registry-view-workflow",
+        "name": "View Artifact Registries",
+        "description": "View Artifact Registries.",
+        "operations": [
+          "apollo-artifact-registry:view"
+        ],
+        "contexts": [
+          "APOLLO_ARTIFACTS",
+          "APOLLO_ARTIFACT_REGISTRIES"
+        ]
+      },
+      "apollo-pipeline-manage-pipeline-level-keys-workflow": {
+        "id": "apollo-pipeline-manage-pipeline-level-keys-workflow",
+        "name": "Manage signing key for pipelines in space",
+        "description": "Manage signing key for pipelines in space.",
+        "operations": [
+          "apollo-bundling-pipeline:create-pipeline-level-key"
+        ],
+        "contexts": [
+          "APOLLO_PIPELINES"
+        ]
+      },
+      "apollo-label-create-workflow": {
+        "id": "apollo-label-create-workflow",
+        "name": "Create labels",
+        "description": "Create labels.",
+        "operations": [
+          "apollo-label:create"
+        ],
+        "contexts": [
+          "APOLLO_LABEL"
+        ]
+      }
+    },
+    "categories": {
+      "apollo-notifications-category": {
+        "id": "apollo-notifications-category",
+        "name": "Apollo Notifications",
+        "description": "Permissions associated with notifications in the Apollo platform.",
+        "workflows": []
+      },
+      "apollo-webhook-category": {
+        "id": "apollo-webhook-category",
+        "name": "Webhook",
+        "description": "Permissions associated with webhook management in the Apollo platform.",
+        "workflows": []
+      },
+      "apollo-namespace-category": {
+        "id": "apollo-namespace-category",
+        "name": "Namespaces",
+        "description": "Permissions associated with namespaces in the Apollo platform.",
+        "workflows": [
+          "apollo-namespace-build",
+          "apollo-namespace-create",
+          "apollo-namespace-edit",
+          "apollo-namespace-update-policy",
+          "apollo-namespace-view"
+        ]
+      },
+      "apollo-mesh-manager-category": {
+        "id": "apollo-mesh-manager-category",
+        "name": "Apollo Mesh Manager",
+        "description": "Permissions associated with the Apollo Mesh Manager.",
+        "workflows": [
+          "apollo-mesh-manager-edit-workflow",
+          "apollo-mesh-manager-update-role-policy-workflow",
+          "apollo-mesh-manager-view-workflow"
+        ]
+      },
+      "apollo-template-category": {
+        "id": "apollo-template-category",
+        "name": "Apollo Templates",
+        "description": "Permissions associated with managing templates in Apollo.",
+        "workflows": []
+      },
+      "apollo-label-category": {
+        "id": "apollo-label-category",
+        "name": "Labels",
+        "description": "Permissions associated with labels in the Apollo platform.",
+        "workflows": [
+          "apollo-label-archive-workflow",
+          "apollo-label-contribute-workflow",
+          "apollo-label-create-workflow",
+          "apollo-label-edit-workflow",
+          "apollo-label-update-role-policy-workflow",
+          "apollo-label-view-workflow"
+        ]
+      },
+      "apollo-bundle-category": {
+        "id": "apollo-bundle-category",
+        "name": "Apollo bundles",
+        "description": "Permissions associated with managing bundles in Apollo.",
+        "workflows": [
+          "apollo-bundle-create-workflow",
+          "apollo-bundle-unbundle-workflow",
+          "apollo-bundle-update-role-policy-workflow",
+          "apollo-bundle-view-workflow"
+        ]
+      },
+      "apollo-hub-category": {
+        "id": "apollo-hub-category",
+        "name": "Hubs",
+        "description": "Permissions associated with hubs metadata in the Apollo platform.",
+        "workflows": []
+      },
+      "apollo-module-category": {
+        "id": "apollo-module-category",
+        "name": "Modules",
+        "description": "Permissions associated with modules in the Apollo platform.",
+        "workflows": [
+          "apollo-module-create-workflow",
+          "apollo-module-edit-workflow",
+          "apollo-module-toggle-automatic-updates-workflow",
+          "apollo-module-update-role-policy-workflow",
+          "apollo-module-view-workflow"
+        ]
+      },
+      "apollo-terminal-profile-category": {
+        "id": "apollo-terminal-profile-category",
+        "name": "Terminal profiles",
+        "description": "Permissions associated with terminal profiles in Apollo.",
+        "workflows": [
+          "apollo-terminal-profile-edit-workflow",
+          "apollo-terminal-profile-update-role-policy-workflow",
+          "apollo-terminal-profile-view-workflow"
+        ]
+      },
+      "apollo-build-factory-category": {
+        "id": "apollo-build-factory-category",
+        "name": "Apollo Build Factory",
+        "description": "Permissions associated with the Apollo Build Factory.",
+        "workflows": [
+          "apollo-build-factory-edit-workflow",
+          "apollo-build-factory-update-role-policy-workflow",
+          "apollo-build-factory-view-workflow"
+        ]
+      },
+      "apollo-base-image-category": {
+        "id": "apollo-base-image-category",
+        "name": "Apollo Base Images",
+        "description": "Permissions associated with managing Base Images in Apollo.",
+        "workflows": []
+      },
+      "apollo-cel-policy-category": {
+        "id": "apollo-cel-policy-category",
+        "name": "Apollo CEL Policies",
+        "description": "Permissions associated with managing CEL Policies in Apollo.",
+        "workflows": []
+      },
+      "apollo-artifact-registry-category": {
+        "id": "apollo-artifact-registry-category",
+        "name": "Apollo Artifact Registries",
+        "description": "Permissions associated with managing Artifact Registries in Apollo.",
+        "workflows": [
+          "apollo-artifact-registry-assign-workflow",
+          "apollo-artifact-registry-create-workflow",
+          "apollo-artifact-registry-delete-workflow",
+          "apollo-artifact-registry-edit-workflow",
+          "apollo-artifact-registry-update-role-policy-workflow",
+          "apollo-artifact-registry-view-workflow"
+        ]
+      },
+      "apollo-transfer-target-category": {
+        "id": "apollo-transfer-target-category",
+        "name": "Transfer Targets",
+        "description": "Permissions associated with transfer targets in the Apollo platform.",
+        "workflows": [
+          "apollo-transfer-target-create-workflow",
+          "apollo-transfer-target-edit-workflow",
+          "apollo-transfer-target-manage-security-settings-workflow",
+          "apollo-transfer-target-update-policy-workflow",
+          "apollo-transfer-target-view-workflow"
+        ]
+      },
+      "apollo-pipeline": {
+        "id": "apollo-pipeline",
+        "name": "Pipelines",
+        "description": "Permissions associated with managing pipelines in Apollo.",
+        "workflows": [
+          "apollo-pipeline-builder-workflow",
+          "apollo-pipeline-create-workflow",
+          "apollo-pipeline-editor-workflow",
+          "apollo-pipeline-exporter-workflow",
+          "apollo-pipeline-manage-pipeline-level-keys-workflow",
+          "apollo-pipeline-manage-space-level-keys-workflow",
+          "apollo-pipeline-update-policy-workflow",
+          "apollo-pipeline-view-workflow"
+        ]
+      },
+      "apollo-egress-policy-category": {
+        "id": "apollo-egress-policy-category",
+        "name": "Egress policies",
+        "description": "Permissions associated with egress policies in the Apollo platform.",
+        "workflows": []
+      },
+      "apollo-entity-category": {
+        "id": "apollo-entity-category",
+        "name": "Entities",
+        "description": "Permissions associated with administering and configuring Entities.",
+        "workflows": [
+          "entity-edit-labels-workflow",
+          "entity-edit-workflow",
+          "entity-operate-workflow",
+          "entity-privileged-action-workflow",
+          "entity-secrets-workflow",
+          "entity-subscription-workflow"
+        ]
+      },
+      "apollo-team-category": {
+        "id": "apollo-team-category",
+        "name": "Teams",
+        "description": "Permissions associated with teams in the Apollo platform.",
+        "workflows": [
+          "apollo-team-create-workflow",
+          "apollo-team-delete-workflow",
+          "apollo-team-edit-members-workflow",
+          "apollo-team-edit-workflow",
+          "apollo-team-update-role-policy-workflow",
+          "apollo-team-view-workflow"
+        ]
+      },
+      "apollo-permissions-category": {
+        "id": "apollo-permissions-category",
+        "name": "Apollo Permissions",
+        "description": "Permissions associated with assigning roles in the Apollo platform.",
+        "workflows": [
+          "apollo-permissions-update-role-policy-workflow",
+          "apollo-permissions-view-role-policy-workflow"
+        ]
+      },
+      "apollo-environment-category": {
+        "id": "apollo-environment-category",
+        "name": "Environments",
+        "description": "Permissions associated with administering and configuring Environments.",
+        "workflows": [
+          "environment-generate-certificates-workflow",
+          "environment-generate-manifest-workflow",
+          "environment-manage-labels-workflow",
+          "environment-manage-roles-workflow",
+          "environment-manage-secrets-workflow",
+          "environment-manage-subscriptions-workflow",
+          "environment-manage-templates-workflow",
+          "environment-manage-terminal-access-grants-workflow",
+          "environment-mute-monitors-workflow",
+          "environment-operate-terminal-access-grants-workflow",
+          "environment-use-terminal-workflow",
+          "environment-view-workflow"
+        ]
+      },
+      "apollo-artifact-category": {
+        "id": "apollo-artifact-category",
+        "name": "Apollo artifacts",
+        "description": "Permissions associated with managing artifacts in Apollo.",
+        "workflows": [
+          "apollo-artifact-delete-privileged-workflow",
+          "apollo-artifact-delete-workflow",
+          "apollo-artifact-disassemble-workflow",
+          "apollo-artifact-publish-privileged-workflow",
+          "apollo-artifact-publish-workflow",
+          "apollo-artifact-pull-privileged-workflow",
+          "apollo-artifact-pull-workflow",
+          "apollo-artifact-repository-view-workflow",
+          "apollo-artifact-update-role-policy-workflow"
+        ]
+      }
+    }
+  },
+  "boundary": "Tenant-observed Apollo authorization configuration. It establishes the identifier graph this tenant serves. It does not establish private Hub behavior, nor that a Platform role granting the same identifier grants the same authority."
+}

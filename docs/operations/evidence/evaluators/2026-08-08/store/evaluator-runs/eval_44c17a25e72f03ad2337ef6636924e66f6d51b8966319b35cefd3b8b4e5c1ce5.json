@@ -1,0 +1,99 @@
+{
+  "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+  "kind": "EvaluatorRun",
+  "id": "eval_44c17a25e72f03ad2337ef6636924e66f6d51b8966319b35cefd3b8b4e5c1ce5",
+  "provider": "cursor",
+  "modelFamily": "gemini",
+  "model": "gemini-3.1-pro",
+  "modelVersion": "cursor-agent@2026.08.04-aaa8809",
+  "promptSha256": "b60f3ce70e9b10f07c20c5692946d4feaa4aa82470e05e6fab950db590a8e083",
+  "inputSnapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+  "snapshot": {
+    "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+    "kind": "EvaluatorSnapshot",
+    "repository": "jonathanagustin/palantir",
+    "path": "platform",
+    "commit": "b399c05f577944347e4b1c5de03ea9090fbf6929",
+    "tree": "f1183b4af3b561085bb337bb8daf95098bb3d155",
+    "archiveSha256": "cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+    "snapshotId": "snap_cf8ecd3a9ae3fc7cd5e65e9bac262f823a7d1bdb07db91d32b3094a401adacba",
+    "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+    "secretMatches": 0
+  },
+  "readOnly": true,
+  "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+  "invocationId": "a205724c-5f25-4004-ba6d-c9f9799fde78",
+  "sessionId": "1b221d20-9429-4eef-abea-72e30aff00a3",
+  "receiptSha256": "2acd8a4167419d85789f41173655e560f58ebcbdcb795b46db26162967a21eaf",
+  "usage": {
+    "inputTokens": 486932,
+    "outputTokens": 37552,
+    "cacheReadTokens": 1582511,
+    "cacheWriteTokens": 0
+  },
+  "startedAt": "2026-08-08T22:08:50.000Z",
+  "finishedAt": "2026-08-08T22:17:18.448Z",
+  "costStatus": "UNAVAILABLE",
+  "costMicros": 0,
+  "priceSource": "https://cursor.com/docs/account/teams/analytics-api",
+  "priceRevision": "HTTP-401@2026-08-08",
+  "costUnavailableReason": "personal integration key cannot read the Cursor team billing API",
+  "findings": [
+    {
+      "id": "gemini-F1",
+      "clusterKey": "twin-snapshot-nondeterminism",
+      "category": "correctness",
+      "target": "platform/internal/optimization/twin.go:139",
+      "summary": "TwinSnapshot FactIDs for stale facts are appended in the non-deterministic input order of facts, causing unstable snapshot identities.",
+      "confidence": "1/1",
+      "evidence": [
+        "Because twinSnapshotID hashes the JSON representation of these fields, different input orders of the same facts produce different snapshot IDs.",
+        "In BuildTwinSnapshot, stale facts are appended to the stale slice as they are encountered in the unsorted facts input.",
+        "The stale slice is then iterated to populate field.FactIDs without sorting, unlike the matching slice which is explicitly sorted."
+      ],
+      "hypothesis": true
+    },
+    {
+      "id": "gemini-F2",
+      "clusterKey": "evaluator-token-overflow",
+      "category": "correctness",
+      "target": "platform/internal/optimization/evaluator.go:120",
+      "summary": "Token usage sum can silently overflow int64 to exactly zero, incorrectly rejecting valid non-empty evaluator runs.",
+      "confidence": "1/1",
+      "evidence": [
+        "If the sum overflows to exactly 0 (e.g., each field is 1\u003c\u003c62), the validation fails with 'requires non-negative, non-empty measured token usage'.",
+        "Unlike cost calculations in scheduler.go and value.go, this sum lacks an overflow check against math.MaxInt64.",
+        "validateEvaluatorRun sums InputTokens, OutputTokens, CacheReadTokens, and CacheWriteTokens using int64 addition."
+      ],
+      "hypothesis": true
+    },
+    {
+      "id": "gemini-F3",
+      "clusterKey": "evaluator-fdr-labeled-fpr",
+      "category": "documentation",
+      "target": "platform/internal/optimization/evaluator.go:346",
+      "summary": "EvaluatorMetric.FalsePositiveRate computes the False Discovery Rate (FP / (TP + FP)) rather than the statistical False Positive Rate.",
+      "confidence": "1/1",
+      "evidence": [
+        "DisposedFindings is the sum of VerifiedDefects (TP) and FalsePositives (FP).",
+        "MeasureEvaluatorBatch calculates FalsePositiveRate as metric.FalsePositives / metric.DisposedFindings.",
+        "The ratio FP / (TP + FP) is the False Discovery Rate, whereas False Positive Rate is strictly FP / Actual Negatives."
+      ],
+      "hypothesis": true
+    },
+    {
+      "id": "gemini-F4",
+      "clusterKey": "scheduler-absolute-tolerance",
+      "category": "correctness",
+      "target": "platform/internal/optimization/scheduler.go:231",
+      "summary": "Absolute tolerance of 1e-9 fails to absorb float64 rounding errors for large demands or capacities, breaking max-flow feasibility checks.",
+      "confidence": "1/1",
+      "evidence": [
+        "For large values (e.g., 1e15), float64 precision gaps far exceed 1e-9, causing valid max-flows to be rejected due to normal floating-point rounding.",
+        "The feasible function checks g.max(source, sink)+tolerance \u003c total using a hardcoded absolute tolerance of 1e-9.",
+        "WorkItem.Demand and Resource.Capacity are only bounded by being finite and positive."
+      ],
+      "hypothesis": true
+    }
+  ]
+}

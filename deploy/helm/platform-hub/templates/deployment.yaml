@@ -1,0 +1,163 @@
+{{- $podLabels := deepCopy .Values.podLabels -}}
+{{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-hub.name" .) -}}
+{{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
+{{- $_ := set $podLabels "app.kubernetes.io/component" "hub" -}}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform-hub.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-hub.labels" . | nindent 4 }}
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "platform-hub.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: hub
+  template:
+    metadata:
+      labels:
+        {{- toYaml $podLabels | nindent 8 }}
+      {{- with .Values.podAnnotations }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      serviceAccountName: {{ include "platform-hub.serviceAccountName" . }}
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        fsGroupChangePolicy: OnRootMismatch
+        {{- with .Values.runtimeSupplementalGroups }}
+        supplementalGroups:
+          {{- toYaml . | nindent 10 }}
+        {{- end }}
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: delivery-control-plane
+          image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          env:
+            - { name: AGENT_CLIENT_CA_FILE, value: /etc/ssl/platform-ca/ca.pem }
+            - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
+            - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
+            - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
+            - name: PLATFORM_BOOTSTRAP_ADMINISTRATORS
+              value: {{ join "," .Values.bootstrapAdministrators | quote }}
+            {{- if .Values.operatorOIDC.enabled }}
+            - { name: OPERATOR_OIDC_PROFILE, value: {{ .Values.operatorOIDC.profile | quote }} }
+            - { name: OPERATOR_OIDC_ISSUER, value: {{ required "operatorOIDC.issuer is required when operatorOIDC.enabled" .Values.operatorOIDC.issuer | quote }} }
+            - { name: OPERATOR_OIDC_CLIENT_ID, value: {{ required "operatorOIDC.clientID is required when operatorOIDC.enabled" .Values.operatorOIDC.clientID | quote }} }
+            - { name: OPERATOR_OIDC_CA_FILE, value: {{ .Values.operatorOIDC.caFile | quote }} }
+            - { name: OPERATOR_OIDC_REQUIRED_SCOPES, value: {{ join "," .Values.operatorOIDC.requiredScopes | quote }} }
+            - { name: OPERATOR_OIDC_SIGNING_ALGORITHMS, value: {{ join "," .Values.operatorOIDC.signingAlgorithms | quote }} }
+            {{- range $name, $value := dict "OPERATOR_OIDC_JWKS_URL" .Values.operatorOIDC.jwksURL "OPERATOR_OIDC_USERNAME_CLAIM" .Values.operatorOIDC.usernameClaim "OPERATOR_OIDC_GROUPS_CLAIM" .Values.operatorOIDC.groupsClaim "OPERATOR_OIDC_SERVICE_ACCOUNT_CLAIM" .Values.operatorOIDC.serviceAccountClaim "OPERATOR_OIDC_AUDIENCE_CLAIM" .Values.operatorOIDC.audienceClaim "OPERATOR_OIDC_TOKEN_PURPOSE_CLAIM" .Values.operatorOIDC.tokenPurposeClaim "OPERATOR_OIDC_EXPECTED_TOKEN_PURPOSE" .Values.operatorOIDC.expectedTokenPurpose "OPERATOR_OIDC_SCOPE_CLAIM" .Values.operatorOIDC.scopeClaim }}
+            {{- with $value }}
+            - { name: {{ $name }}, value: {{ . | quote }} }
+            {{- end }}
+            {{- end }}
+            {{- end }}
+            {{- if .Values.artifactScanner.command }}
+            - { name: EXTERNAL_ARTIFACT_SCANNER, value: {{ .Values.artifactScanner.command | quote }} }
+            - { name: EXTERNAL_ARTIFACT_SCANNER_TIMEOUT, value: {{ .Values.artifactScanner.timeout | quote }} }
+            {{- with .Values.artifactScanner.grypeBinaryPath }}
+            - { name: GRYPE_BIN, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.artifactScanner.grypeConfigFile }}
+            - { name: GRYPE_CONFIG_FILE, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.artifactScanner.grypeCacheDirectory }}
+            - { name: GRYPE_DB_CACHE_DIR, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.artifactScanner.registryAuthSecretName }}
+            - { name: DOCKER_CONFIG, value: {{ $.Values.artifactScanner.registryAuthMountPath | quote }} }
+            {{- end }}
+            {{- end }}
+          ports:
+            - { name: https, containerPort: {{ .Values.service.port }} }
+          startupProbe:
+            httpGet: { path: /health/live, port: https, scheme: HTTPS }
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet: { path: /health/ready, port: https, scheme: HTTPS }
+          livenessProbe:
+            httpGet: { path: /health/live, port: https, scheme: HTTPS }
+          resources:
+            {{- toYaml .Values.resources | nindent 12 }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: state, mountPath: /var/lib/platform-delivery }
+            - { name: server-tls, mountPath: /run/platform-tls, readOnly: true }
+            - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
+            - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
+            {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
+            - { name: artifact-scanner-tools, mountPath: {{ $.Values.artifactScanner.toolsMountPath | quote }}, readOnly: true }
+            {{- end }}
+            {{- with .Values.artifactScanner.cachePersistentVolumeClaimName }}
+            - { name: artifact-scanner-cache, mountPath: {{ $.Values.artifactScanner.cacheMountPath | quote }} }
+            {{- end }}
+            {{- with .Values.artifactScanner.registryAuthSecretName }}
+            - { name: artifact-scanner-registry-auth, mountPath: {{ $.Values.artifactScanner.registryAuthMountPath | quote }}, readOnly: true }
+            {{- end }}
+      volumes:
+        - name: state
+          persistentVolumeClaim:
+            claimName: {{ include "platform-hub.fullname" . }}-state
+        - name: server-tls
+          secret:
+            secretName: {{ required "tls.serverSecretName is required" .Values.tls.serverSecretName }}
+            optional: false
+        - name: external-ca
+          configMap:
+            name: {{ required "tls.externalCAConfigMapName is required" .Values.tls.externalCAConfigMapName }}
+            items:
+              - { key: {{ .Values.tls.externalCAKey }}, path: ca.pem }
+        - name: bundle-signing
+          secret:
+            secretName: {{ required "bundleSigningSecretName is required" .Values.bundleSigningSecretName }}
+            optional: false
+        {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
+        - name: artifact-scanner-tools
+          persistentVolumeClaim:
+            claimName: {{ . }}
+        {{- end }}
+        {{- with .Values.artifactScanner.cachePersistentVolumeClaimName }}
+        - name: artifact-scanner-cache
+          persistentVolumeClaim:
+            claimName: {{ . }}
+        {{- end }}
+        {{- with .Values.artifactScanner.registryAuthSecretName }}
+        - name: artifact-scanner-registry-auth
+          secret:
+            secretName: {{ . }}
+            optional: false
+        {{- end }}
+      {{- with .Values.nodeSelector }}
+      nodeSelector:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.affinity }}
+      affinity:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.tolerations }}
+      tolerations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}

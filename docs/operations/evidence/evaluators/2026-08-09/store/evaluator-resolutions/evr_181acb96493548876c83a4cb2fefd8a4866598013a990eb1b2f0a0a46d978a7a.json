@@ -1,0 +1,30 @@
+{
+  "apiVersion": "optimization.platform.example/evaluator/v1alpha1",
+  "kind": "EvaluatorResolution",
+  "id": "evr_181acb96493548876c83a4cb2fefd8a4866598013a990eb1b2f0a0a46d978a7a",
+  "batchId": "evb_3c0225dad8941938effd13729fb48820d20b9cf1c010a9776a766f3974b9e0d2",
+  "dispositions": [
+    {
+      "findingId": "kimi-F7",
+      "canonicalClusterKey": "zenith-export-resolutions",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-script-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "f3c46cf41b4ecd877580ac85e543c5b74fb1b593",
+      "executableGate": "scripts/test-evaluator-runner.sh",
+      "verifiedAt": "2026-08-09T08:12:33.762Z",
+      "notes": "A real stored resolution was absent from the prior Zenith export; the exporter now binds its path, SHA-256, batch ID, and dispositions, and the non-empty fixture rejects the deletion mutant."
+    },
+    {
+      "findingId": "opus-F11",
+      "canonicalClusterKey": "zenith-export-resolutions",
+      "status": "VERIFIED_DEFECT",
+      "verifier": "independent-script-gate",
+      "source": "jonathanagustin/palantir",
+      "sourceRevision": "f3c46cf41b4ecd877580ac85e543c5b74fb1b593",
+      "executableGate": "scripts/test-evaluator-runner.sh",
+      "verifiedAt": "2026-08-09T08:12:33.762Z",
+      "notes": "Independent model description maps to the same reproduced resolution-export omission as kimi-F7."
+    }
+  ]
+}

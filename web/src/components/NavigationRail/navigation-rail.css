@@ -1,0 +1,60 @@
+/* A 48px rail. Dark regardless of the page theme, which is what makes the page
+   canvas beside it read as the working surface rather than as chrome. */
+.console-rail {
+  display: flex;
+  flex: none;
+  flex-direction: column;
+  align-items: center;
+  width: 48px;
+  padding: 8px 0;
+  gap: 4px;
+  background: var(--bp-surface-background-color-default-rest, #1c2127);
+}
+
+.console-rail__spacer {
+  flex: 1;
+}
+
+.console-rail__item {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  color: #abb3bf;
+  background: transparent;
+  border: 0;
+  border-radius: 2px;
+  cursor: pointer;
+}
+
+.console-rail__item:hover {
+  color: #f6f7f9;
+  background: rgba(255, 255, 255, 0.1);
+}
+
+.console-rail__item--active {
+  color: #f6f7f9;
+  background: rgba(255, 255, 255, 0.16);
+}
+
+/* The rail is the one control that must stay reachable by keyboard even when a
+   popover has focus, so the ring is drawn inside the item rather than clipped. */
+.console-rail__item:focus-visible {
+  outline: 2px solid #8abbff;
+  outline-offset: -2px;
+}
+
+/* Keep the chrome narrow on phones, but make every icon target meet the 44px
+   touch recommendation. The observed 230px tenant sidebar left only 160px of
+   a 390px viewport; this contract reserves 342px for Platform's workspace. */
+@media (max-width: 600px) {
+  .console-rail {
+    padding: 4px 0;
+  }
+
+  .console-rail__item {
+    width: 44px;
+    height: 44px;
+  }
+}

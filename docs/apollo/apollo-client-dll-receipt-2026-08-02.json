@@ -1,0 +1,17 @@
+{
+  "capturedAt": "2026-08-02",
+  "sourceKind": "authenticated-content-addressable-frontend-asset",
+  "staticAsset": "foundry-frontend-workshop/6.511.5/default/asset/apollo-client-dll",
+  "casPath": "frontend/2804ee8a6a0c9f5cc6b711cc345421adfaac324cb89a69f7a2648583e9f0026c.js",
+  "bytes": 304341,
+  "sha256": "2804ee8a6a0c9f5cc6b711cc345421adfaac324cb89a69f7a2648583e9f0026c",
+  "casIdentifierMatchesSha256": true,
+  "authentication": "authorized bearer; credential not retained",
+  "classification": "open-source Apollo GraphQL client shared library",
+  "embeddedVersions": {
+    "@apollo/client": "4.1.2",
+    "graphql": "16.7.0"
+  },
+  "globalExport": "window.foundryApolloClientDll",
+  "palantirApolloDeploymentClient": false
+}

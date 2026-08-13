@@ -1,0 +1,252 @@
+# syntax=docker/dockerfile:1.7@sha256:a57df69d0ea827fb7266491f2813635de6f17269be881f696fbfdf2d83dda33e
+
+# UNADMITTED candidate only. This file deliberately has no Helm, Zarf, or
+# runtime selection wiring. Admission remains a separate decision.
+ARG GO_IMAGE=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+ARG BUILDER_IMAGE=ubuntu:24.04@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
+ARG CA_BOOTSTRAP_IMAGE=cgr.dev/chainguard/static:latest@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791
+ARG SOURCE_DATE_EPOCH=1786406400
+ARG TARGETARCH=amd64
+
+FROM scratch AS highs-sdk
+ADD --checksum=sha256:5b05b157e512390b6bcc14517f2c68736b89aae286ab89fd0666c3c80a1569bc \
+    https://github.com/ERGO-Code/HiGHS/releases/download/v1.15.1/highs-1.15.1-x86_64-linux-gnu-static-mit.tar.gz /highs-sdk-amd64.tar.gz
+
+ADD --checksum=sha256:82a2050617f6b7a3cc75ee2aa0c15855f683012fa9260391ef696db6cdf2267c \
+    https://github.com/ERGO-Code/HiGHS/releases/download/v1.15.1/highs-1.15.1-aarch64-linux-gnu-static-mit.tar.gz /highs-sdk-arm64.tar.gz
+
+FROM scratch AS highs-source
+ADD --checksum=sha256:30132da2b21899c62f07c4d6566325a3b869a7da4ce61d8b25f833b38e1562b1 \
+    https://github.com/ERGO-Code/HiGHS/releases/download/v1.15.1/source-archive.tar.gz /highs-source.tar.gz
+
+FROM ${GO_IMAGE} AS go-toolchain
+FROM ${CA_BOOTSTRAP_IMAGE} AS ca-bootstrap
+
+FROM ${BUILDER_IMAGE} AS build
+ARG TARGETARCH
+ARG SNAPSHOT=20260811T000000Z
+ARG SOURCE_DATE_EPOCH
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+ENV PATH=/usr/local/go/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin \
+    GOTOOLCHAIN=local \
+    GOFLAGS=-mod=readonly \
+    TZ=UTC \
+    LC_ALL=C.UTF-8
+
+# The audited Ubuntu builder needs the pinned static C/C++ closure. HTTPS is
+# bootstrapped from a digest-pinned minimal image and every apt byte resolves
+# through one immutable Ubuntu snapshot.
+COPY --from=ca-bootstrap /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+COPY --from=go-toolchain /usr/local/go /usr/local/go
+RUN test "$SNAPSHOT" = 20260811T000000Z && \
+    sed -i \
+      -e "s#http://archive.ubuntu.com/ubuntu/#https://snapshot.ubuntu.com/ubuntu/${SNAPSHOT}/#" \
+      -e "s#http://security.ubuntu.com/ubuntu/#https://snapshot.ubuntu.com/ubuntu/${SNAPSHOT}/#" \
+      /etc/apt/sources.list.d/ubuntu.sources && \
+    apt-get update && \
+    DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends \
+      file=1:5.45-3build1 \
+      g++-13=13.3.0-6ubuntu2~24.04.1 \
+      libc6-dev=2.39-0ubuntu8.8 \
+      zlib1g-dev=1:1.3.dfsg-3.1ubuntu2.1 && \
+    test "$(dpkg-query -W -f='${Version}' file)" = 1:5.45-3build1 && \
+    test "$(g++-13 -dumpfullversion)" = 13.3.0 && \
+    test "$(dpkg-query -W -f='${Version}' g++-13)" = 13.3.0-6ubuntu2~24.04.1 && \
+    test "$(dpkg-query -W -f='${Version}' libc6-dev)" = 2.39-0ubuntu8.8 && \
+    test "$(dpkg-query -W -f='${Version}' zlib1g-dev)" = 1:1.3.dfsg-3.1ubuntu2.1 && \
+    rm -rf /var/lib/apt/lists/*
+
+# Both upstream inputs are release-owned bytes and independently pinned to the
+# committed evidence document. The SDK is the compiled input; the source
+# archive supplies notices absent from the SDK distribution.
+COPY --from=highs-sdk /highs-sdk-amd64.tar.gz /tmp/highs-sdk-amd64.tar.gz
+COPY --from=highs-sdk /highs-sdk-arm64.tar.gz /tmp/highs-sdk-arm64.tar.gz
+COPY --from=highs-source /highs-source.tar.gz /tmp/highs-source.tar.gz
+COPY docs/evidence/highs-1.15.1-release.json /tmp/highs-1.15.1-release.json
+RUN case "$TARGETARCH" in \
+      amd64) highs_archive=/tmp/highs-sdk-amd64.tar.gz; highs_archive_sha256=5b05b157e512390b6bcc14517f2c68736b89aae286ab89fd0666c3c80a1569bc ;; \
+      arm64) highs_archive=/tmp/highs-sdk-arm64.tar.gz; highs_archive_sha256=82a2050617f6b7a3cc75ee2aa0c15855f683012fa9260391ef696db6cdf2267c ;; \
+      *) exit 1 ;; \
+    esac && \
+    test "$(sha256sum "$highs_archive" | cut -d' ' -f1)" = "$highs_archive_sha256" && \
+    test "$(sha256sum /tmp/highs-1.15.1-release.json | cut -d' ' -f1)" = d8ea033afc2b95f7186e9b83c6892ba6cf6713df4d44660642a4f6699b98f95b && \
+    grep -Fq '"commit": "04024d701f79feb8e2f18bc3df0dffc04ef05088"' /tmp/highs-1.15.1-release.json && \
+    grep -Fq "\"archiveSha256\": \"${highs_archive_sha256}\"" /tmp/highs-1.15.1-release.json && \
+    grep -Fq '"sha256": "30132da2b21899c62f07c4d6566325a3b869a7da4ce61d8b25f833b38e1562b1"' /tmp/highs-1.15.1-release.json && \
+    mkdir -p /opt/highs /opt/highs-source && \
+    tar -xzf "$highs_archive" -C /opt/highs && \
+    tar -xzf /tmp/highs-source.tar.gz -C /opt/highs-source --strip-components=1 && \
+    test "$(sha256sum /opt/highs/include/highs/interfaces/highs_c_api.h | cut -d' ' -f1)" = 4113bf1ef60782e90f77a28bda8cc866e91cd80625452a8abb101c29718737d6 && \
+    test -s /opt/highs/lib/libhighs.a && \
+    test -s /opt/highs/lib/libhighs_extras.a
+
+WORKDIR /workspace
+COPY go.mod go.sum ./
+COPY cmd/platform-highs-shim ./cmd/platform-highs-shim
+COPY internal/highsshim ./internal/highsshim
+COPY internal/optimization/solverprotocol ./internal/optimization/solverprotocol
+COPY LICENSE NOTICE ./
+
+# Only the transport-free compiler/shim packages enter this build context.
+# Tests execute against the real official static SDK before producing the
+# candidate. The external link map is retained as first-class closure evidence.
+RUN mkdir -p /out/evidence /out/licenses /out/source && \
+    go list -tags highs -deps ./cmd/platform-highs-shim | LC_ALL=C sort > /out/evidence/go-deps.txt && \
+    ! grep -Eq '^(net|net/|net/http|crypto/tls|os/exec|google\.golang\.org/grpc|golang\.org/x/net)' /out/evidence/go-deps.txt && \
+    test "$(grep -Ec '^github.com/jonathanagustin/conduit/' /out/evidence/go-deps.txt)" = 3 && \
+    ! grep -RIE 'net/http|net\.Dial|\bsocket[[:space:]]*\(|\bconnect[[:space:]]*\(' \
+      cmd/platform-highs-shim internal/highsshim internal/optimization/solverprotocol && \
+    CGO_ENABLED=1 GOOS=linux GOARCH="$TARGETARCH" CC=gcc-13 CXX=g++-13 \
+      CGO_CPPFLAGS='-I/opt/highs/include -I/workspace/internal/highsshim' \
+      CGO_LDFLAGS='-L/opt/highs/lib' \
+      go test -tags highs -count=1 ./internal/highsshim && \
+    CGO_ENABLED=1 GOOS=linux GOARCH="$TARGETARCH" CC=gcc-13 CXX=g++-13 \
+      CGO_CPPFLAGS='-I/opt/highs/include -I/workspace/internal/highsshim' \
+      CGO_LDFLAGS='-L/opt/highs/lib' \
+      go build -tags highs -trimpath -buildvcs=false \
+        -ldflags="-buildid= -linkmode=external -extldflags '-static -static-libgcc -static-libstdc++ -Wl,--build-id=none -Wl,-Map=/out/evidence/linker.map'" \
+        -o /out/platform-highs-shim ./cmd/platform-highs-shim && \
+    test "$(go env GOVERSION)" = go1.26.5 && \
+    case "$TARGETARCH" in \
+      amd64) elf_machine='Advanced Micro Devices X86-64' ;; \
+      arm64) elf_machine='AArch64' ;; \
+      *) exit 1 ;; \
+    esac && \
+    readelf -h /out/platform-highs-shim | grep -Fq "Machine:                           ${elf_machine}" && \
+    file /out/platform-highs-shim | grep -Fq 'statically linked' && \
+    ! readelf -l /out/platform-highs-shim | grep -q 'INTERP' && \
+    ! readelf -d /out/platform-highs-shim 2>&1 | grep -q 'NEEDED' && \
+    ! nm -u /out/platform-highs-shim | grep -Eq '[[:space:]](socket|socketpair|connect|accept|accept4|bind|listen|send|sendto|sendmsg|recv|recvfrom|recvmsg)($|@)' && \
+    nm --defined-only /out/platform-highs-shim | \
+      awk '$NF ~ /^(socket|socketpair|connect|accept|accept4|bind|listen|send|sendto|sendmsg|recv|recvfrom|recvmsg)(@@.*)?$/ {print $NF}' | \
+      LC_ALL=C sort -u > /out/evidence/dormant-native-network-symbols.txt && \
+    wc -l < /out/evidence/dormant-native-network-symbols.txt | tr -d ' ' > /out/evidence/dormant-native-network-symbol-count.txt && \
+    go version -m /out/platform-highs-shim > /out/evidence/go-buildinfo.txt && \
+    cp -R cmd/platform-highs-shim internal/highsshim internal/optimization/solverprotocol /out/source/
+
+# Record the archive-member map plus the package owner, package version, path,
+# and digest for every static native archive/startup object that may satisfy the
+# final link. This survives in the final image and does not depend on scanning
+# the package-less runtime filesystem.
+RUN set -eu; \
+    case "$TARGETARCH" in \
+      amd64) target_triplet=x86_64-linux-gnu; highs_archive_sha256=5b05b157e512390b6bcc14517f2c68736b89aae286ab89fd0666c3c80a1569bc ;; \
+      arm64) target_triplet=aarch64-linux-gnu; highs_archive_sha256=82a2050617f6b7a3cc75ee2aa0c15855f683012fa9260391ef696db6cdf2267c ;; \
+      *) exit 1 ;; \
+    esac; \
+    printf 'kind\towner\tversion\tsha256\tpath\n' > /out/evidence/static-closure.tsv; \
+    record_sdk() { \
+      path="$1"; \
+      digest="$(sha256sum "$path" | cut -d' ' -f1)"; \
+      printf 'upstream-sdk\tERGO-Code/HiGHS\t1.15.1\t%s\t%s\n' "$digest" "$path" >> /out/evidence/static-closure.tsv; \
+    }; \
+    record_package() { \
+      path="$(readlink -f "$1")"; \
+      owner_line="$(dpkg-query -S "$path" | head -n1)"; \
+      owner="${owner_line%%:*}"; \
+      version="$(dpkg-query -W -f='${Version}' "$owner")"; \
+      digest="$(sha256sum "$path" | cut -d' ' -f1)"; \
+      printf 'ubuntu-package\t%s\t%s\t%s\t%s\n' "$owner" "$version" "$digest" "$path" >> /out/evidence/static-closure.tsv; \
+    }; \
+    record_sdk /opt/highs/lib/libhighs.a; \
+    record_sdk /opt/highs/lib/libhighs_extras.a; \
+    record_package "/usr/lib/${target_triplet}/libz.a"; \
+    record_package "/usr/lib/${target_triplet}/libc.a"; \
+    record_package "/usr/lib/${target_triplet}/libm.a"; \
+    record_package "/usr/lib/${target_triplet}/libpthread.a"; \
+    record_package "/usr/lib/${target_triplet}/libdl.a"; \
+    record_package "$(g++-13 -print-file-name=libstdc++.a)"; \
+    record_package "$(gcc-13 -print-libgcc-file-name)"; \
+    record_package "$(gcc-13 -print-file-name=libgcc_eh.a)"; \
+    record_package "$(gcc-13 -print-file-name=crtbeginT.o)"; \
+    record_package "$(gcc-13 -print-file-name=crtend.o)"; \
+    record_package "/usr/lib/${target_triplet}/crt1.o"; \
+    record_package "/usr/lib/${target_triplet}/crti.o"; \
+    record_package "/usr/lib/${target_triplet}/crtn.o"; \
+    { \
+      printf '{\n'; \
+      printf '  "schemaVersion": 1,\n'; \
+      printf '  "admission": "UNADMITTED",\n'; \
+      printf '  "architecture": "%s",\n' "$TARGETARCH"; \
+      printf '  "ubuntuSnapshot": "20260811T000000Z",\n'; \
+      printf '  "builderDigest": "sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea",\n'; \
+      printf '  "caBootstrapImageDigest": "sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791",\n'; \
+      printf '  "goToolchainDigest": "sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",\n'; \
+      printf '  "highsArchiveSha256": "%s",\n' "$highs_archive_sha256"; \
+      printf '  "highsSourceArchiveSha256": "30132da2b21899c62f07c4d6566325a3b869a7da4ce61d8b25f833b38e1562b1",\n'; \
+      printf '  "evidenceDocumentSha256": "d8ea033afc2b95f7186e9b83c6892ba6cf6713df4d44660642a4f6699b98f95b",\n'; \
+      printf '  "compiler": "g++-13 13.3.0-6ubuntu2~24.04.1",\n'; \
+      printf '  "libc6Dev": "2.39-0ubuntu8.8",\n'; \
+      printf '  "zlibDev": "1:1.3.dfsg-3.1ubuntu2.1"\n'; \
+      printf '}\n'; \
+    } > /out/evidence/build-inputs.json
+
+# Retain every source-derived HiGHS notice and all package/toolchain copyright
+# files that own bytes in the static closure. Hashes are verified here and
+# checked again after extracting the final image.
+RUN set -eu; \
+    cp LICENSE /out/licenses/PLATFORM-LICENSE; \
+    cp NOTICE /out/licenses/PLATFORM-NOTICE; \
+    cp /usr/local/go/LICENSE /out/licenses/GO-LICENSE; \
+    cp /usr/local/go/PATENTS /out/licenses/GO-PATENTS; \
+    cp /opt/highs/share/doc/HIGHS/LICENSE.txt /out/licenses/HIGHS-SDK-LICENSE.txt; \
+    cp /opt/highs/share/doc/HIGHS/AUTHORS /out/licenses/HIGHS-SDK-AUTHORS; \
+    cp /opt/highs-source/LICENSE.txt /out/licenses/HIGHS-SOURCE-LICENSE.txt; \
+    cp /opt/highs-source/THIRD_PARTY_NOTICES.md /out/licenses/HIGHS-THIRD_PARTY_NOTICES.md; \
+    cp /opt/highs-source/highs/io/filereaderlp/LICENSE /out/licenses/HIGHS-FILEREADERLP-LICENSE; \
+    cp /opt/highs-source/extern/pdqsort/license.txt /out/licenses/HIGHS-PDQSORT-LICENSE.txt; \
+    cp /opt/highs-source/extern/zstr/LICENSE /out/licenses/HIGHS-ZSTR-LICENSE; \
+    cp /usr/share/doc/zlib1g-dev/copyright /out/licenses/UBUNTU-ZLIB-COPYRIGHT; \
+    cp /usr/share/doc/libc6-dev/copyright /out/licenses/UBUNTU-GLIBC-COPYRIGHT; \
+    cp /usr/share/doc/gcc-13-base/copyright /out/licenses/UBUNTU-GCC-RUNTIME-COPYRIGHT; \
+    test "$(sha256sum /out/licenses/HIGHS-SOURCE-LICENSE.txt | cut -d' ' -f1)" = 795e6090936bcf2e1a0bfb339053de0c5bb6f3102035ead0ecc0ed4a7c41f1b7; \
+    test "$(sha256sum /out/licenses/HIGHS-THIRD_PARTY_NOTICES.md | cut -d' ' -f1)" = a93082ab82d5f0a01c86b48a142ccea2ed2175f7dccb9e95a04770f4e2ae39a2; \
+    test "$(sha256sum /out/licenses/HIGHS-FILEREADERLP-LICENSE | cut -d' ' -f1)" = 4374bb8064e5302f5ac6b82fd3e153a36670f04d0a6ee1bc55b3dc3faee923cc; \
+    test "$(sha256sum /out/licenses/HIGHS-PDQSORT-LICENSE.txt | cut -d' ' -f1)" = 323fc18e35fcf058d69d684022ef844f206cb8fefb2bac1298fa1767e0b9ae38; \
+    test "$(sha256sum /out/licenses/HIGHS-ZSTR-LICENSE | cut -d' ' -f1)" = bd61d5fb15992f4c188a0f96dd836b20d449cd080b4e949ab89f9eda3f61c59a; \
+    sed -E -i \
+      -e 's#/tmp/go-link-[0-9]+#/tmp/go-link-STABLE#g' \
+      -e 's#/tmp/go-build[0-9]+#/tmp/go-buildSTABLE#g' \
+      /out/evidence/linker.map; \
+    LC_ALL=C sha256sum /out/licenses/* | sed 's#  /out/licenses/#  #' > /out/evidence/license-hashes.sha256; \
+    chmod 0555 /out /out/evidence /out/licenses /out/source; \
+    find /out/evidence /out/licenses /out/source -type d -exec chmod 0555 {} +; \
+    find /out/evidence /out/licenses /out/source -type f -exec chmod 0444 {} +; \
+    chmod 0555 /out/platform-highs-shim; \
+    find /out -depth -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" {} +; \
+    mkdir -p /rootfs/usr/share/platform-highs; \
+    cp -a /out/platform-highs-shim /rootfs/platform-highs-shim; \
+    cp -a /out/evidence /out/licenses /out/source /rootfs/usr/share/platform-highs/; \
+    chmod 0555 /rootfs /rootfs/usr /rootfs/usr/share /rootfs/usr/share/platform-highs; \
+    find /rootfs -depth -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" {} +
+
+# The executable is fully static. Keep the final rootfs pure scratch so no
+# runtime package or inaccessible base-root metadata enters the candidate.
+# The digest-pinned Chainguard image above is only the HTTPS CA bootstrap.
+FROM scratch
+ARG TARGETARCH
+ARG VERSION=1.15.1-unadmitted.1
+ARG BUILD_DATE=2026-08-11T00:00:00Z
+ARG REVISION=WORKTREE
+LABEL org.opencontainers.image.title="Platform HiGHS Optimizer Candidate" \
+      org.opencontainers.image.description="UNADMITTED transport-free Platform optimizer shim for official HiGHS 1.15.1" \
+      org.opencontainers.image.source="https://github.com/jonathanagustin/palantir" \
+      org.opencontainers.image.version=$VERSION \
+      org.opencontainers.image.revision=$REVISION \
+      org.opencontainers.image.created=$BUILD_DATE \
+      org.opencontainers.image.licenses="Apache-2.0 AND MIT AND BSD-3-Clause AND Zlib AND LGPL-2.1-or-later AND (GPL-3.0-or-later WITH GCC-exception-3.1)" \
+      io.palantir.platform.optimizer.admission="UNADMITTED" \
+      io.palantir.platform.optimizer.architecture=$TARGETARCH \
+      io.palantir.platform.optimizer.protocol.request="optimization.platform.example/v1alpha2" \
+      io.palantir.platform.optimizer.protocol.response="optimization.platform.example/external-solver-process/v1alpha3" \
+      io.palantir.platform.optimizer.upstream.version="1.15.1" \
+      io.palantir.platform.optimizer.upstream.commit="04024d701f79feb8e2f18bc3df0dffc04ef05088" \
+      io.palantir.platform.optimizer.upstream.sdk.amd64.sha256="5b05b157e512390b6bcc14517f2c68736b89aae286ab89fd0666c3c80a1569bc" \
+      io.palantir.platform.optimizer.upstream.sdk.arm64.sha256="82a2050617f6b7a3cc75ee2aa0c15855f683012fa9260391ef696db6cdf2267c" \
+      io.palantir.platform.optimizer.upstream.source.sha256="30132da2b21899c62f07c4d6566325a3b869a7da4ce61d8b25f833b38e1562b1" \
+      io.palantir.platform.optimizer.input.evidence.sha256="d8ea033afc2b95f7186e9b83c6892ba6cf6713df4d44660642a4f6699b98f95b" \
+      io.palantir.platform.optimizer.ubuntu.snapshot="20260811T000000Z"
+COPY --from=build --chown=65532:0 /rootfs/ /
+USER 65532:0
+WORKDIR /
+ENTRYPOINT ["/platform-highs-shim"]

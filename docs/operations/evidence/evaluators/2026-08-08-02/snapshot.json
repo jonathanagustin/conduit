@@ -1,0 +1,12 @@
+{
+  "apiVersion": "optimization.platform.example/evaluator-snapshot/v1alpha1",
+  "kind": "EvaluatorSnapshot",
+  "repository": "jonathanagustin/palantir",
+  "path": "platform",
+  "commit": "899bbc3047feede582140fedd53930eaa6664ae7",
+  "tree": "de377de3304c6840e5ea45bdfee33bbf4ee844be",
+  "archiveSha256": "767ee880ecbbc73b150ee0a6b98f94e1d490dd79605b2f17c2e8bfa4624e5a48",
+  "snapshotId": "snap_767ee880ecbbc73b150ee0a6b98f94e1d490dd79605b2f17c2e8bfa4624e5a48",
+  "secretScanRevision": "sha256:1b83da285cc803935985ac59c50ccc5cd8b3619e8570c53cb6fd2c3b31a028ca",
+  "secretMatches": 0
+}

@@ -1,0 +1,27 @@
+{
+  "$schema": "./node_modules/@stryker-mutator/core/schema/stryker-schema.json",
+  "testRunner": "vitest",
+  "vitest": {
+    "configFile": "vitest.config.ts"
+  },
+  "reporters": [
+    "clear-text",
+    "progress"
+  ],
+  "coverageAnalysis": "perTest",
+  "mutate": [
+    "src/features/fleet/filter.ts",
+    "src/features/changes/order.ts",
+    "src/components/Timestamp.tsx",
+    "src/features/promotions/ReleaseChannelGraph.tsx"
+  ],
+  "thresholds": {
+    "high": 100,
+    "low": 90,
+    "break": null
+  },
+  "timeoutMS": 30000,
+  "plugins": [
+    "@stryker-mutator/vitest-runner"
+  ]
+}
