@@ -29,6 +29,7 @@ defaults:
 
 jobs:
   verify:
+    name: Trunk gate
     runs-on: ubuntu-24.04
     # Observed at about a minute. An uncapped job runs to GitHub's six-hour
     # default, so a hang costs six hours of runner time instead of failing.
