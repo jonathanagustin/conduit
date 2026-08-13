@@ -1,4 +1,4 @@
-name: Platform HiGHS candidate
+name: Conduit HiGHS candidate
 
 on:
   workflow_dispatch:

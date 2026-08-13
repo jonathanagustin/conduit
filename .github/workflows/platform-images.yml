@@ -1,5 +1,7 @@
 name: OCI images
 
+# Standalone Conduit publication workflow. A merge never invokes it.
+
 # Manual only: publishing is a release action and should be a decision rather
 # than a side effect of merging.
 on:

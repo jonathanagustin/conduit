@@ -59,8 +59,8 @@ document = {
     "filesAnalyzed" => true,
     "packageVerificationCode" => {"packageVerificationCodeValue" => verification_code},
     "checksums" => [{"algorithm" => "SHA256", "checksumValue" => archive_digest}],
-    "licenseConcluded" => "Apache-2.0",
-    "licenseDeclared" => "Apache-2.0",
+    "licenseConcluded" => "LicenseRef-Proprietary",
+    "licenseDeclared" => "LicenseRef-Proprietary",
     "copyrightText" => "NOASSERTION"
   }],
   "files" => files,

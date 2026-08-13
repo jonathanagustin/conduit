@@ -38,11 +38,11 @@ ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 LABEL org.opencontainers.image.title="Platform Hub" \
       org.opencontainers.image.description="Platform delivery control plane" \
-      org.opencontainers.image.source="https://github.com/jonathanagustin/palantir" \
+      org.opencontainers.image.source="https://github.com/jonathanagustin/conduit" \
       org.opencontainers.image.version=$VERSION \
       org.opencontainers.image.revision=$COMMIT \
       org.opencontainers.image.created=$BUILD_DATE \
-      org.opencontainers.image.licenses="Apache-2.0"
+      org.opencontainers.image.licenses="LicenseRef-Proprietary"
 COPY --from=build --chown=65532:65532 --chmod=0755 /out/platform-delivery /platform-delivery
 COPY --from=build --chown=65532:65532 --chmod=0755 /out/platform-module-publisher /platform-module-publisher
 COPY --from=build --chown=65532:65532 --chmod=0755 /out/platform-grype-scanner /platform-grype-scanner

@@ -1,4 +1,4 @@
-name: Platform package access
+name: Conduit package access
 
 on:
   workflow_dispatch:

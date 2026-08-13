@@ -1,0 +1,10 @@
+{
+  "name": "plugin-zenith-protocol",
+  "version": "0.4.0",
+  "description": "A portable, evidence-driven operating model with durable ledgers, calibrated heterogeneous evaluators, MADRs, Pareto optimization, ground-truth gates, and measured process improvement.",
+  "author": { "name": "drengskapur" },
+  "keywords": ["orchestration", "verification", "evaluators", "optimization", "madr", "adr", "pdr", "ledger", "metrics", "agents"],
+  "commands": "./commands",
+  "skills": "./skills",
+  "hooks": "./hooks/hooks.json"
+}

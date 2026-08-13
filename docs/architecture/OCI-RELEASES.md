@@ -48,7 +48,7 @@ The release process is:
    release, use the exact workflow identity and GitHub OIDC issuer:
 
    ```bash
-   identity="https://github.com/jonathanagustin/palantir/.github/workflows/platform-images.yml@refs/tags/platform/v${version}"
+   identity="https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/platform/v${version}"
 
    cosign verify \
      --certificate-identity "${identity}" \

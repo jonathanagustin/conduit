@@ -13,6 +13,11 @@ the [tenant fidelity contract](docs/operations/TENANT-FIDELITY.md), which keeps
 public contracts, sanitized tenant observations, Conduit extensions, and
 unknowns distinct. See [CONTRIBUTING.md](CONTRIBUTING.md).
 
+Conduit is proprietary and confidential; see [LICENSE](LICENSE). The pinned,
+private [Zenith Protocol](tools/zenith-protocol/VENDORED.md) playbook is vendored
+for repository-local operation and verification. Third-party snapshots retain
+their own licenses beside the corresponding material.
+
 The repository owns the reusable platform implementation. Application Product
 catalogs, Helm charts, environment inventories, credentials, and Module
 installations belong in their respective product repositories. The files under

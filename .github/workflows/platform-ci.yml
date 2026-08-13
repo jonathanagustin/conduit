@@ -199,7 +199,15 @@ jobs:
       # append-only property on the metrics ledger and the PDR/hypothesis
       # gatekeeping were unenforced. It passes today.
       - name: Validate Zenith protocol ledgers
-        run: node scripts/verify-zenith-protocol.mjs
+        run: |
+          node scripts/verify-zenith-protocol.mjs
+          node tools/zenith-protocol/scripts/conform.test.mjs
+          node tools/zenith-protocol/scripts/verify-evaluator-trial.test.mjs
+          node tools/zenith-protocol/skills/review-writing/scripts/review-writing.test.mjs
+          node tools/zenith-protocol/scripts/conform.mjs \
+            --config .zenith-protocol.json \
+            --profile structural \
+            --enforcement standard
       - name: Validate Module publication
         run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
       - name: GitOps acceptance
