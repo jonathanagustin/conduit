@@ -5,10 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
-	"net/http/httptest"
 	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/apollo"
+	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 )
 
 func TestCatalogRetirementPreconditionsAndImmutableHistory(t *testing.T) {
@@ -116,10 +118,9 @@ func TestCatalogRetirementPersistsAndBlocksPublicRepublish(t *testing.T) {
 		t.Fatalf("reopened retirement = %#v, %v", stored, err)
 	}
 	api := newApolloPublicAPI(reopened, NewGovernanceService(reopened), HandlerOptions{})
-	response := httptest.NewRecorder()
-	api.publish(ctx, response, "app.example:api:1.2.3", nil)
-	if response.Code != http.StatusConflict {
-		t.Fatalf("retired public republish = %d %s", response.Code, response.Body.String())
+	err = api.application.PublishService(ctx, "app.example:api:1.2.3", apollo.PublishServiceRequest{})
+	if !apolloapp.IsKind(err, apolloapp.Conflict) {
+		t.Fatalf("retired public republish = %v, want conflict", err)
 	}
 }
 

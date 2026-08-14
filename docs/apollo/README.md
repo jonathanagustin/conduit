@@ -5,14 +5,12 @@ vocabulary that Conduit can prove, the evidence behind each compatibility
 claim, and translation at the edge of Conduit's native domains. It does not own
 delivery policy, governance, execution, persistence, or the Spoke lifecycle.
 
-Conduit currently implements a bounded public-profile adapter. The pinned
-OpenAPI snapshot generates the 13-route registration table, while request and
-response types and the server handlers remain handwritten. The contract-first
-target is stricter: the pinned document generates DTOs, strict server and
-client interfaces, and the router; an adapter then translates those generated
-types through narrow native ports. Until that target lands, the compatibility
-claim stays limited to the routes and payload behavior covered by the current
-tests.
+Conduit implements a bounded public-profile adapter. The pinned OpenAPI snapshot
+generates the request and response DTOs, strict server interface, and 13-route
+standard-library router used in production. The adapter still bridges into the
+legacy control-plane facade; moving that translation through narrow native
+ports is the next bounded-context step. The compatibility claim stays limited
+to the generated surface and payload behavior covered by the current tests.
 
 ## Read this set
 

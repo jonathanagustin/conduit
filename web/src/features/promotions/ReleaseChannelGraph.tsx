@@ -90,7 +90,8 @@ export function latestForChannel(
       }
       // Missing timestamps sort oldest, so a record that carries one always
       // wins over one that does not.
-      return (candidate.evaluationStartedAt ?? "") >= (latest.evaluationStartedAt ?? "")
+      return (candidate.evaluatedAt ?? candidate.evaluationStartedAt ?? "") >=
+        (latest.evaluatedAt ?? latest.evaluationStartedAt ?? "")
         ? candidate
         : latest;
     }, undefined);

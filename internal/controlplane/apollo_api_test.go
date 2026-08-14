@@ -15,6 +15,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 	"time"
@@ -31,7 +32,7 @@ func TestApolloPublicAPIPublishAndReadCatalog(t *testing.T) {
 			"artifacts": []map[string]any{{"artifactUrl": "registry.example/fixture:1.2.3"}},
 			"productDependencies": []map[string]any{{
 				"productGroup": "com.example", "productName": "database",
-				"minimumVersion": "2.0.0", "maximumVersion": "2.x.x", "optional": true,
+				"minimumVersion": "2.0.0", "maximumVersion": "2.x.x",
 			}},
 		},
 	}
@@ -63,7 +64,7 @@ func TestApolloPublicAPIPublishAndReadCatalog(t *testing.T) {
 	}
 	decodeResponse(t, response, http.StatusOK, &releases)
 	if len(releases.Releases) != 1 || releases.Releases[0].MavenCoordinate != "com.example:fixture:1.2.3" ||
-		len(releases.Releases[0].ProductDependencies) != 1 || !releases.Releases[0].ProductDependencies[0].Optional {
+		len(releases.Releases[0].ProductDependencies) != 1 || releases.Releases[0].ProductDependencies[0].Optional {
 		t.Fatalf("releases = %#v", releases)
 	}
 
@@ -90,6 +91,20 @@ func TestApolloPublicAPIPublishHelmChartDoesNotAdmitPlatformNativeBundleFields(t
 		"/api/v0/products/helmChart/com.example:fixture:1.2.3/publish", payload)
 	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), "unknown field") {
 		t.Fatalf("public adapter admitted Platform-native field: %d %s", response.Code, response.Body.String())
+	}
+
+	// ProductDependencyLocator in the pinned publication request does not carry
+	// the optional flag used by the Release response and Conduit's native
+	// dependency model. Similar vocabulary is not authority to add the field.
+	delete(payload["extensions"].(map[string]any), "platformBundle")
+	payload["extensions"].(map[string]any)["productDependencies"] = []map[string]any{{
+		"productGroup": "com.example", "productName": "database",
+		"minimumVersion": "2.0.0", "maximumVersion": "2.x.x", "optional": true,
+	}}
+	response = requestJSON(t, handler, http.MethodPost,
+		"/api/v0/products/helmChart/com.example:fixture:1.2.3/publish", payload)
+	if response.Code != http.StatusBadRequest || !strings.Contains(response.Body.String(), `unknown field \"optional\"`) {
+		t.Fatalf("public adapter admitted field absent from pinned OpenAPI: %d %s", response.Code, response.Body.String())
 	}
 }
 
@@ -595,31 +610,20 @@ func decodeResponse(t *testing.T, response *httptest.ResponseRecorder, status in
 	}
 }
 
-// The generated route table and the handler map are two halves of one binding,
-// and nothing else checks they are total. A route with no handler panics at
-// startup, which is late; a handler with no route serves nothing and would
-// otherwise sit unnoticed as an operation the contract no longer declares.
-func TestApolloRoutesAndHandlersAreTotal(t *testing.T) {
+// The generated strict interface is the complete operation inventory. The
+// compile-time assertion beside apolloOpenAPIAdapter makes a newly generated
+// operation a build failure; this test also reports the exact missing method.
+func TestApolloGeneratedStrictAdapterCoversEveryOperation(t *testing.T) {
 	t.Parallel()
-	api := &apolloPublicAPI{}
-	handlers := api.operationHandlers()
-
-	if len(apollo.Routes) == 0 {
-		t.Fatal("generated route table is empty")
+	contract := reflect.TypeOf((*apollo.StrictServerInterface)(nil)).Elem()
+	implementation := reflect.TypeOf((*apolloOpenAPIAdapter)(nil))
+	if contract.NumMethod() != 13 {
+		t.Fatalf("generated strict interface has %d operations, want the pinned 13", contract.NumMethod())
 	}
-	routed := make(map[string]struct{}, len(apollo.Routes))
-	for _, route := range apollo.Routes {
-		if _, bound := handlers[route.Operation]; !bound {
-			t.Errorf("pinned operation %s (%s) has no handler", route.Operation, route.Pattern)
-		}
-		if _, duplicate := routed[route.Operation]; duplicate {
-			t.Errorf("operation %s is routed twice", route.Operation)
-		}
-		routed[route.Operation] = struct{}{}
-	}
-	for operation := range handlers {
-		if _, exists := routed[operation]; !exists {
-			t.Errorf("handler %s answers no pinned operation", operation)
+	for index := range contract.NumMethod() {
+		operation := contract.Method(index)
+		if _, exists := implementation.MethodByName(operation.Name); !exists {
+			t.Errorf("generated operation %s has no adapter method", operation.Name)
 		}
 	}
 }
@@ -895,12 +899,8 @@ func TestApolloLeavesAnUnreportedEntityAlone(t *testing.T) {
 	}
 
 	// Deliberately empty: Apollo has told us nothing about this Environment.
-	api := &apolloPublicAPI{
-		repository:   repository,
-		entityInfo:   map[string][]apolloEntityInfo{},
-		entityHealth: map[string][]apolloEntityHealth{},
-	}
-	if err := api.persistReportedState(ctx, state.Environment.ID); err != nil {
+	api := newApolloPublicAPI(repository, NewGovernanceService(repository), HandlerOptions{})
+	if err := api.application.PutEntityInfo(ctx, state.Environment.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	report, err := repository.GetEnvironmentReport(ctx, state.Environment.ID)
@@ -949,17 +949,15 @@ func TestApolloPartialReportDoesNotInventNamespaceOrLifecycle(t *testing.T) {
 	step := plans[0].Plan.Steps[0]
 	group, name, _ := strings.Cut(step.Product, ":")
 
-	api := &apolloPublicAPI{
-		repository: repository,
-		// Info with NO nodes and NO namespace: Apollo has the Entity but not its placement.
-		entityInfo: map[string][]apolloEntityInfo{state.Environment.ID: {{
-			ID: step.Entity, ProductGroup: group, ProductName: name, Quorum: "ANY",
-		}}},
-		entityHealth: map[string][]apolloEntityHealth{state.Environment.ID: {{
-			ProductGroup: group, ProductName: name, ProductVersion: step.Version, NodeID: "n1",
-		}}},
+	api := newApolloPublicAPI(repository, NewGovernanceService(repository), HandlerOptions{})
+	info := generatedEntityInfo(apolloEntityInfo{EntityType: "SERVICE", ID: step.Entity, ProductGroup: group, ProductName: name, Quorum: "ANY"})
+	if err := api.application.PutEntityInfo(ctx, state.Environment.ID, []apollo.EntityInfo{info}); err != nil {
+		t.Fatal(err)
 	}
-	if err := api.persistReportedState(ctx, state.Environment.ID); err != nil {
+	health := generatedEntityHealth([]apolloEntityHealth{{
+		ProductGroup: group, ProductName: name, ProductVersion: step.Version, NodeID: "n1",
+	}})
+	if err := api.application.PutEntityHealth(ctx, state.Environment.ID, health); err != nil {
 		t.Fatal(err)
 	}
 	report, err := repository.GetEnvironmentReport(ctx, state.Environment.ID)
@@ -1019,12 +1017,8 @@ func TestApolloRefreshCarriesTheExistingReportForward(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	api := &apolloPublicAPI{
-		repository:   repository,
-		entityInfo:   map[string][]apolloEntityInfo{},
-		entityHealth: map[string][]apolloEntityHealth{},
-	}
-	if err := api.persistReportedState(ctx, state.Environment.ID); err != nil {
+	api := newApolloPublicAPI(repository, NewGovernanceService(repository), HandlerOptions{})
+	if err := api.application.PutEntityInfo(ctx, state.Environment.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	report, err := repository.GetEnvironmentReport(ctx, state.Environment.ID)

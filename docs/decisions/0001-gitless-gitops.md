@@ -59,17 +59,20 @@ adapters. Flux and registry API types do not enter Conduit domain packages.
   workload identity and a separate one-time Flux bootstrap path.
 - Bad: promotion requires an explicit release operation; moving a convenient
   tag cannot silently deploy different bytes.
-- Unknown: the complete clean-cluster bootstrap and wrong-signer rejection path
-  has not yet passed an executable acceptance test.
+- Confirmed: the clean-cluster bootstrap accepts only the trusted signature at
+  the exact digest, rejects the wrong signer, and contains no Git source or
+  credential.
 
 ### Confirmation
 
 `scripts/verify-flux-runtime.rb` checks digest pinning, private pull-secret
 references, signer policy, and bounded Flux identity. `scripts/verify-trusted-
 supply-chain.rb` checks manual publication's signing and release descriptor.
-The final confirmation is backlog item B7: a clean-cluster acceptance test with
-private OCI pull, signer rejection, exact reconciliation, and no Git resources
-or credentials.
+`scripts/test-gitless-clean-cluster.sh` is the executable confirmation for
+backlog item B7. It uses a disposable authenticated registry and cluster to
+prove pull-only access, signer rejection, exact reconciliation, and the absence
+of Git resources and credentials. `.github/workflows/platform-gitless-e2e.yml`
+exposes the same proof as a manual-only acceptance workflow.
 
 ## Pros and cons of the options
 

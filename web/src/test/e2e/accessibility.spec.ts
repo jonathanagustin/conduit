@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
-import { expect, test, type HubStub } from "./harness.js";
+import { expect, indexPage, test, type HubStub } from "./harness.js";
 import {
   ConsoleShell,
   EnvironmentDetailPom,
@@ -50,6 +50,7 @@ test("keyboard users can skip the application chrome", async ({ page, hub }) => 
   await page.goto("overview");
   const shell = new ConsoleShell(page);
 
+  await expect(shell.skipLink).toBeAttached();
   await page.keyboard.press("Tab");
   await expect(shell.skipLink).toBeFocused();
   await shell.skipLink.press("Enter");
@@ -99,7 +100,7 @@ test("Product promotion pipeline remains accessible on mobile", async ({ page, h
       },
     ],
   });
-  hub.get("/promotions", [
+  hub.get("/promotions", indexPage("promotions", [
     {
       id: "prm_mobile",
       product: "app.example:payments",
@@ -109,7 +110,7 @@ test("Product promotion pipeline remains accessible on mobile", async ({ page, h
       status: "BLOCKED",
       blockers: [{ kind: "SOAK", message: "48 hour soak has not elapsed" }],
     },
-  ]);
+  ]));
   await page.goto("products/app.example%3Apayments");
   const product = new ProductDetailPom(page);
 

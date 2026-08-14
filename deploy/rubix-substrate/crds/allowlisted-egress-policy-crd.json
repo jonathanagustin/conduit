@@ -1,0 +1,241 @@
+{
+  "apiVersion": "apiextensions.k8s.io/v1",
+  "kind": "CustomResourceDefinition",
+  "metadata": {
+    "name": "allowlistedegresspolicies.policy.rubix.palantir.com"
+  },
+  "spec": {
+    "conversion": {
+      "strategy": "None"
+    },
+    "group": "policy.rubix.palantir.com",
+    "names": {
+      "categories": [
+        "all"
+      ],
+      "kind": "AllowlistedEgressPolicy",
+      "listKind": "AllowlistedEgressPolicyList",
+      "plural": "allowlistedegresspolicies",
+      "shortNames": [
+        "aep"
+      ],
+      "singular": "allowlistedegresspolicy"
+    },
+    "scope": "Namespaced",
+    "versions": [
+      {
+        "name": "v1alpha1",
+        "schema": {
+          "openAPIV3Schema": {
+            "properties": {
+              "spec": {
+                "oneOf": [
+                  {
+                    "not": {
+                      "required": [
+                        "openContainerEgress"
+                      ]
+                    },
+                    "required": [
+                      "egress"
+                    ]
+                  },
+                  {
+                    "not": {
+                      "required": [
+                        "clusterEgressAllowed",
+                        "egress"
+                      ]
+                    },
+                    "required": [
+                      "openContainerEgress"
+                    ]
+                  }
+                ],
+                "properties": {
+                  "clusterEgressAllowed": {
+                    "type": "boolean"
+                  },
+                  "connectProxy": {
+                    "type": "boolean"
+                  },
+                  "egress": {
+                    "items": {
+                      "allOf": [
+                        {
+                          "properties": {
+                            "justification": {}
+                          }
+                        },
+                        {
+                          "properties": {
+                            "podSelector": {}
+                          }
+                        },
+                        {
+                          "oneOf": [
+                            {
+                              "required": [
+                                "port"
+                              ]
+                            },
+                            {
+                              "required": [
+                                "portRanges"
+                              ]
+                            }
+                          ]
+                        },
+                        {
+                          "oneOf": [
+                            {
+                              "required": [
+                                "dnsName"
+                              ]
+                            },
+                            {
+                              "required": [
+                                "egressCIDRs"
+                              ]
+                            }
+                          ]
+                        }
+                      ],
+                      "properties": {
+                        "dnsName": {
+                          "pattern": "^([*][.])?([-a-zA-Z0-9_]+[.]?)+$",
+                          "type": "string"
+                        },
+                        "egressCIDRs": {
+                          "items": {
+                            "format": "cidr",
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "required": [
+                            "egressCIDRs"
+                          ],
+                          "type": "array"
+                        },
+                        "justification": {
+                          "type": "string"
+                        },
+                        "podSelector": {
+                          "properties": {
+                            "matchExpressions": {
+                              "items": {
+                                "properties": {
+                                  "key": {
+                                    "type": "string"
+                                  },
+                                  "operator": {
+                                    "type": "string"
+                                  },
+                                  "values": {
+                                    "items": {
+                                      "type": "string"
+                                    },
+                                    "type": "array"
+                                  }
+                                },
+                                "type": "object"
+                              },
+                              "type": "array"
+                            },
+                            "matchLabels": {
+                              "type": "object",
+                              "x-kubernetes-preserve-unknown-fields": true
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "port": {
+                          "maximum": 65535,
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "portRanges": {
+                          "items": {
+                            "properties": {
+                              "max": {
+                                "maximum": 65535,
+                                "minimum": 1,
+                                "type": "integer"
+                              },
+                              "min": {
+                                "maximum": 65535,
+                                "minimum": 1,
+                                "type": "integer"
+                              }
+                            },
+                            "required": [
+                              "min",
+                              "max"
+                            ],
+                            "type": "object"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        },
+                        "safeRuleName": {
+                          "type": "string"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "openContainerEgress": {
+                    "properties": {
+                      "podSelector": {
+                        "properties": {
+                          "matchExpressions": {
+                            "items": {
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "operator": {
+                                  "type": "string"
+                                },
+                                "values": {
+                                  "items": {
+                                    "type": "string"
+                                  },
+                                  "type": "array"
+                                }
+                              },
+                              "type": "object"
+                            },
+                            "type": "array"
+                          },
+                          "matchLabels": {
+                            "type": "object",
+                            "x-kubernetes-preserve-unknown-fields": true
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "podSelector"
+                    ],
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "spec"
+            ],
+            "type": "object"
+          }
+        },
+        "served": true,
+        "storage": true
+      }
+    ]
+  }
+}

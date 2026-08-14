@@ -1,0 +1,181 @@
+{
+  "apiVersion": "apiextensions.k8s.io/v1",
+  "kind": "CustomResourceDefinition",
+  "metadata": {
+    "name": "demands.scaler.palantir.com"
+  },
+  "spec": {
+    "conversion": {
+      "strategy": "None"
+    },
+    "group": "scaler.palantir.com",
+    "names": {
+      "categories": [
+        "all"
+      ],
+      "kind": "Demand",
+      "listKind": "DemandList",
+      "plural": "demands",
+      "shortNames": [
+        "dem"
+      ],
+      "singular": "demand"
+    },
+    "scope": "Namespaced",
+    "versions": [
+      {
+        "additionalPrinterColumns": [
+          {
+            "description": "The phase of the Demand request",
+            "jsonPath": ".status.phase",
+            "name": "status",
+            "type": "string"
+          },
+          {
+            "description": "The instance group for the Demand request",
+            "jsonPath": ".spec.instance-group",
+            "name": "instance group",
+            "type": "string"
+          },
+          {
+            "description": "The lifecycle description of the Demand request",
+            "jsonPath": ".spec.is-long-lived",
+            "name": "long lived",
+            "type": "boolean"
+          },
+          {
+            "description": "The zone distribution description of the Demand request",
+            "jsonPath": ".spec.enforce-single-zone-scheduling",
+            "name": "single zone",
+            "type": "boolean"
+          },
+          {
+            "description": "The zone where the demand should be fulfilled if specified",
+            "jsonPath": ".spec.zone",
+            "name": "zone",
+            "type": "string"
+          },
+          {
+            "description": "The zone scaled to satisfy the single zone Demand request",
+            "jsonPath": ".status.fulfilled-zone",
+            "name": "fulfilled zone",
+            "type": "boolean"
+          },
+          {
+            "description": "The units of the Demand request",
+            "jsonPath": ".spec.units",
+            "name": "units",
+            "priority": 1,
+            "type": "string"
+          }
+        ],
+        "name": "v1alpha2",
+        "schema": {
+          "openAPIV3Schema": {
+            "properties": {
+              "spec": {
+                "properties": {
+                  "enforce-single-zone-scheduling": {
+                    "type": "boolean"
+                  },
+                  "instance-group": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "instruction-set-architectures": {
+                    "items": {
+                      "pattern": "^(amd64|arm64)$",
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "is-long-lived": {
+                    "type": "boolean"
+                  },
+                  "units": {
+                    "items": {
+                      "properties": {
+                        "count": {
+                          "minimum": 1,
+                          "type": "integer"
+                        },
+                        "pod-names-by-namespace": {
+                          "type": "object",
+                          "x-kubernetes-preserve-unknown-fields": true
+                        },
+                        "resources": {
+                          "properties": {
+                            "cpu": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "memory": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "nvidia.com/gpu": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        }
+                      },
+                      "required": [
+                        "count",
+                        "resources"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "zone": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "units",
+                  "instance-group"
+                ],
+                "type": "object"
+              },
+              "status": {
+                "properties": {
+                  "fulfilled-zone": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "last-transition-time": {
+                    "format": "date-time",
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "phase": {
+                    "enum": [
+                      "",
+                      "pending",
+                      "fulfilled",
+                      "cannot-fulfill"
+                    ],
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "phase"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "spec"
+            ],
+            "type": "object"
+          }
+        },
+        "served": true,
+        "storage": true,
+        "subresources": {}
+      }
+    ]
+  }
+}

@@ -1,0 +1,262 @@
+{
+  "apiVersion": "apiextensions.k8s.io/v1",
+  "kind": "CustomResourceDefinition",
+  "metadata": {
+    "name": "domainingresses.ingress.deployability.palantir.com"
+  },
+  "spec": {
+    "conversion": {
+      "strategy": "None"
+    },
+    "group": "ingress.deployability.palantir.com",
+    "names": {
+      "categories": [
+        "all"
+      ],
+      "kind": "DomainIngress",
+      "listKind": "DomainIngressList",
+      "plural": "domainingresses",
+      "shortNames": [
+        "di"
+      ],
+      "singular": "domainingress"
+    },
+    "scope": "Namespaced",
+    "versions": [
+      {
+        "name": "v1alpha1",
+        "schema": {
+          "openAPIV3Schema": {
+            "properties": {
+              "spec": {
+                "properties": {
+                  "aliases": {
+                    "items": {
+                      "maxLength": 253,
+                      "pattern": "\\*|[a-zA-Z0-9]+([\\._-]?[a-zA-Z0-9]+)*\\.?",
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "blocklistConfiguration": {
+                    "nullable": true,
+                    "properties": {
+                      "s3Blocklists": {
+                        "items": {
+                          "properties": {
+                            "bucket": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "keys": {
+                              "items": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "minItems": 1,
+                              "type": "array"
+                            },
+                            "region": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "corsConfiguration": {
+                    "properties": {
+                      "allowedOrigins": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "domain": {
+                    "maxLength": 253,
+                    "pattern": "^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?)+\\.?$",
+                    "type": "string"
+                  },
+                  "frontdoorCertificate": {
+                    "properties": {
+                      "frontdoorCert": {
+                        "properties": {
+                          "name": {
+                            "minLength": 1,
+                            "type": "string"
+                          },
+                          "namespace": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "name",
+                          "namespace"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "frontdoorCert"
+                    ],
+                    "type": "object"
+                  },
+                  "ipAllowlist": {
+                    "properties": {
+                      "allowedCIDRs": {
+                        "items": {
+                          "format": "cidr",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "allowedCountryCodes": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "mTLSConfiguration": {
+                    "properties": {
+                      "trustedCACertificates": {
+                        "items": {
+                          "properties": {
+                            "name": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "namespace": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "name",
+                            "namespace"
+                          ],
+                          "type": "object"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "orgEnrollment": {
+                    "properties": {
+                      "enrollmentIDs": {
+                        "items": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "minItems": 1,
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "playerOwnership": {
+                    "properties": {
+                      "allowedNamespaces": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "playerID": {
+                        "properties": {
+                          "apolloEnvironmentID": {
+                            "minLength": 1,
+                            "type": "string"
+                          }
+                        },
+                        "required": [
+                          "apolloEnvironmentID"
+                        ],
+                        "type": "object"
+                      }
+                    },
+                    "required": [
+                      "playerID",
+                      "allowedNamespaces"
+                    ],
+                    "type": "object"
+                  },
+                  "routePathModifications": {
+                    "properties": {
+                      "prefixRedirects": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "redirects": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      },
+                      "rewrites": {
+                        "additionalProperties": true,
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "vpcAllowlist": {
+                    "properties": {
+                      "allowedCIDRs": {
+                        "items": {
+                          "format": "cidr",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "allowedEndpointIDs": {
+                        "items": {
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "domain",
+                  "aliases",
+                  "routePathModifications",
+                  "ipAllowlist",
+                  "vpcAllowlist",
+                  "corsConfiguration",
+                  "frontdoorCertificate"
+                ],
+                "type": "object"
+              }
+            },
+            "required": [
+              "spec"
+            ],
+            "type": "object",
+            "x-kubernetes-validations": [
+              {
+                "message": "The name of a DomainIngress must be identical to the .spec.domain value",
+                "rule": "self.metadata.name == self.spec.domain"
+              }
+            ]
+          }
+        },
+        "served": true,
+        "storage": true
+      }
+    ]
+  }
+}

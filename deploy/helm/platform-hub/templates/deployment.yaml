@@ -10,9 +10,16 @@ metadata:
   labels:
     {{- include "platform-hub.labels" . | nindent 4 }}
 spec:
-  replicas: 1
+  replicas: {{ .Values.replicaCount }}
   strategy:
+    {{- if eq .Values.repository.kind "postgres" }}
+    type: RollingUpdate
+    rollingUpdate:
+      maxUnavailable: 0
+      maxSurge: 1
+    {{- else }}
     type: Recreate
+    {{- end }}
   selector:
     matchLabels:
       app.kubernetes.io/name: {{ include "platform-hub.name" . }}
@@ -22,8 +29,9 @@ spec:
     metadata:
       labels:
         {{- toYaml $podLabels | nindent 8 }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/console-bootstrap: {{ include "platform-hub.consoleBootstrap" . | sha256sum | quote }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
@@ -50,10 +58,17 @@ spec:
           image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
           imagePullPolicy: {{ .Values.imagePullPolicy }}
           env:
+            - { name: REPOSITORY_KIND, value: {{ .Values.repository.kind | quote }} }
+            {{- if eq .Values.repository.kind "postgres" }}
+            - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/{{ .Values.repository.postgres.dsnKey }} }
+            {{- else }}
+            - { name: DATA_DIRECTORY, value: /var/lib/platform-delivery }
+            {{- end }}
             - { name: AGENT_CLIENT_CA_FILE, value: /etc/ssl/platform-ca/ca.pem }
             - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
             - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
+            - { name: CONSOLE_BOOTSTRAP_FILE, value: /etc/conduit/console/bootstrap.json }
             - name: PLATFORM_BOOTSTRAP_ADMINISTRATORS
               value: {{ join "," .Values.bootstrapAdministrators | quote }}
             {{- if .Values.operatorOIDC.enabled }}
@@ -103,10 +118,15 @@ spec:
               drop: ["ALL"]
             readOnlyRootFilesystem: true
           volumeMounts:
+            {{- if eq .Values.repository.kind "file" }}
             - { name: state, mountPath: /var/lib/platform-delivery }
+            {{- else }}
+            - { name: database, mountPath: /run/conduit-database, readOnly: true }
+            {{- end }}
             - { name: server-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
+            - { name: console-bootstrap, mountPath: /etc/conduit/console, readOnly: true }
             {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
             - { name: artifact-scanner-tools, mountPath: {{ $.Values.artifactScanner.toolsMountPath | quote }}, readOnly: true }
             {{- end }}
@@ -117,9 +137,19 @@ spec:
             - { name: artifact-scanner-registry-auth, mountPath: {{ $.Values.artifactScanner.registryAuthMountPath | quote }}, readOnly: true }
             {{- end }}
       volumes:
+        {{- if eq .Values.repository.kind "file" }}
         - name: state
           persistentVolumeClaim:
             claimName: {{ include "platform-hub.fullname" . }}-state
+        {{- else }}
+        - name: database
+          secret:
+            secretName: {{ required "repository.postgres.secretName is required for PostgreSQL" .Values.repository.postgres.secretName }}
+            optional: false
+            items:
+              - key: {{ .Values.repository.postgres.dsnKey }}
+                path: {{ .Values.repository.postgres.dsnKey }}
+        {{- end }}
         - name: server-tls
           secret:
             secretName: {{ required "tls.serverSecretName is required" .Values.tls.serverSecretName }}
@@ -133,6 +163,11 @@ spec:
           secret:
             secretName: {{ required "bundleSigningSecretName is required" .Values.bundleSigningSecretName }}
             optional: false
+        - name: console-bootstrap
+          configMap:
+            name: {{ include "platform-hub.fullname" . }}-console-bootstrap
+            items:
+              - { key: bootstrap.json, path: bootstrap.json }
         {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
         - name: artifact-scanner-tools
           persistentVolumeClaim:

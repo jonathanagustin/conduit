@@ -192,6 +192,11 @@ export interface ChangeRequest {
   revision: number;
 }
 
+export interface ChangeRequestPage extends PageMetadata {
+  changeRequests: ChangeRequest[];
+  total: number;
+}
+
 export function useEnvironments(query: CatalogQuery) {
   return useQuery({
     queryKey: ["environments", query],
@@ -232,13 +237,11 @@ export function usePlan(planId: string) {
   });
 }
 
-export function useChangeRequests() {
+export function useChangeRequests(query: CatalogQuery = {}) {
   return useQuery({
-    queryKey: ["change-requests"],
+    queryKey: ["change-requests", query],
     queryFn: ({ signal }) =>
-      getJSON<{ changeRequests: ChangeRequest[] }>("/change-requests", { signal }).then(
-        (body) => body.changeRequests,
-      ),
+      getJSON<ChangeRequestPage>("/change-requests", { signal, query: { ...query } }),
     refetchInterval: 30_000,
   });
 }

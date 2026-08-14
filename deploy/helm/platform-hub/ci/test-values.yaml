@@ -9,3 +9,8 @@ tls:
   serverSecretName: platform-hub-tls
   externalCAConfigMapName: platform-external-ca
 bundleSigningSecretName: platform-bundle-signing
+repository:
+  kind: postgres
+  postgres:
+    secretName: platform-postgres
+    dsnKey: dsn

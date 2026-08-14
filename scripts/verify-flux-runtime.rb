@@ -164,5 +164,39 @@ abort "tenant reconciler must not read Secrets cluster-wide" if tenant_rules.any
   rule.fetch("apiGroups").include?("") && rule.fetch("resources").include?("secrets")
 end
 
+# The static source contract above is necessary but cannot prove that the
+# selected tools interoperate. Keep the expensive clean-cluster proof manual,
+# while making its adversarial coverage and manual-only workflow part of the
+# ordinary repository gate.
+acceptance = File.read(File.join(root, "scripts/test-gitless-clean-cluster.sh"))
+acceptance_requirements = {
+  "checksum-pinned k3d" => "1ac1da365236736a8df8c32107b54aca208384ab1d9a06771443c85ad698a5eb",
+  "checksum-pinned Flux" => "c2c397a52930f52d2005c01d276116b059d062de379386d58e98115380a766a2",
+  "checksum-pinned Cosign" => "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71",
+  "checksum-pinned Zot" => "a32e42d042d1f17b5b1317e55cc1a415a744c873dcd05c25c56b665478258bcb",
+  "checksum-pinned ORAS" => "9ce999f8d2de03fc03968b29d743077a58783e545e5eaa53917ca177352d0e59",
+  "clean ephemeral cluster" => "k3d cluster create",
+  "Git-free Flux install" => "--components=source-controller,kustomize-controller",
+  "pull-only authority check" => "cluster pull identity unexpectedly has registry write authority",
+  "exact digest source" => "digest: ${right_digest}",
+  "Cosign verification" => "provider: cosign",
+  "wrong-signer rejection" => ".reason == \"VerificationError\"",
+  "exact applied revision" => ".status.lastAppliedRevision == $digest",
+  "zero Git source inventory" => "gitrepositories.source.toolkit.fluxcd.io",
+  "zero Git credential inventory" => "kubernetes.io/ssh-auth"
+}
+acceptance_requirements.each do |description, fragment|
+  abort "clean-cluster acceptance is missing #{description}" unless acceptance.include?(fragment)
+end
+
+acceptance_workflow = File.read(File.join(root, ".github/workflows/platform-gitless-e2e.yml"))
+abort "Gitless acceptance workflow must remain manually dispatched" unless
+  acceptance_workflow.include?("on:\n  workflow_dispatch:")
+abort "Gitless acceptance workflow must not gain an automatic trigger" if
+  acceptance_workflow.match?(/^\s{2}(push|pull_request|schedule):/)
+abort "Gitless acceptance workflow must run the clean-cluster proof" unless
+  acceptance_workflow.include?("./scripts/test-gitless-clean-cluster.sh")
+
 puts "Flux runtime source and bounded reconciliation contract verified"
 puts "Foundry tenant GitOps source, pinning, and bounded tenant identity verified"
+puts "Gitless clean-cluster acceptance contract and manual workflow verified"

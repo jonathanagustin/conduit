@@ -14,6 +14,11 @@ tls:
   externalCAConfigMapName: tls-external-ca-pem-bundle
   externalCAKey: ca.pem
 bundleSigningSecretName: replace-me-bundle-signing
+repository:
+  kind: postgres
+  postgres:
+    secretName: replace-me-postgres
+    dsnKey: dsn
 affinity:
   nodeAffinity:
     requiredDuringSchedulingIgnoredDuringExecution:
