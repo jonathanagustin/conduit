@@ -280,11 +280,13 @@ func nativePublicationPayload(publication NativeHelmPublication) helmPayload {
 		result.Extensions.Artifacts = append(result.Extensions.Artifacts, publicationArtifact{ArtifactURL: artifact})
 	}
 	for _, dependency := range publication.Dependencies {
-		result.Extensions.ProductDependencies = append(result.Extensions.ProductDependencies, publicationDependency{
-			ProductGroup: dependency.ProductGroup, ProductName: dependency.ProductName,
-			MinimumVersion: dependency.MinimumVersion, MaximumVersion: dependency.MaximumVersion,
-			RecommendedVersion: dependency.RecommendedVersion, Optional: dependency.Optional,
-		})
+		// A conversion rather than a field-by-field literal: the two structs
+		// differ only in JSON tags, which conversion ignores. It also fails
+		// closed — if NativeDependency gains a field the conversion stops
+		// compiling, where the literal would silently drop it from every
+		// published payload.
+		result.Extensions.ProductDependencies = append(
+			result.Extensions.ProductDependencies, publicationDependency(dependency))
 	}
 	result.Extensions.PlatformBundle = &publication.Assets
 	return result
