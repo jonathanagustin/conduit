@@ -165,6 +165,10 @@ jobs:
         run: ./scripts/verify-version-matches-tag.sh
       - name: Validate controlplane ceiling
         run: node scripts/report-migration-progress.mjs --gate
+      - name: Validate domain boundaries
+        run: |
+          node scripts/verify-domain-boundaries.mjs
+          node scripts/test-domain-boundaries.mjs
       - name: Validate trusted supply-chain policy
         run: |
           ruby scripts/verify-trusted-supply-chain.rb

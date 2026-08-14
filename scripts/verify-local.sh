@@ -182,6 +182,7 @@ gate 'Validate OCI release manifest assembly' oci_manifest
 gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-source-descriptor.test.mjs
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs --gate
+gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate trusted supply-chain policy' supply_chain
 gate 'Validate optimizer candidate release policy' optimizer_candidate_release
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb

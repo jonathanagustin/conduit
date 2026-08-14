@@ -20,6 +20,7 @@ try {
   write("internal/hub/composition/composition.go", 'package composition\nimport "example/internal/controlplane"\n');
   write("internal/controlplane/apollo_openapi_adapter.go", "package controlplane\n");
   write("internal/apollo/application/service.go", "package application\n");
+  write("internal/delivery/reconciliation/application/worker.go", "package application\n");
   write("cmd/platform-delivery/main.go", 'package main\nfunc main(){ composition.NewHubHandler() }\n');
   if (!run().includes("PASS domain boundaries")) throw new Error("positive fixture did not pass");
 
@@ -28,6 +29,7 @@ try {
     ["internal/reporting/domain/model.go", 'package domain\nimport "net/http"\n', null],
     ["internal/hub/composition/composition.go", 'package composition\nimport "example/internal/agent"\n', 'package composition\nimport "example/internal/controlplane"\n'],
     ["internal/apollo/application/service.go", 'package application\nimport "example/internal/controlplane"\n', "package application\n"],
+    ["internal/delivery/reconciliation/application/worker.go", 'package application\nimport "example/internal/controlplane"\n', "package application\n"],
     ["internal/controlplane/apollo_openapi_adapter.go", "package controlplane\n// invokeApolloFacade\n", "package controlplane\n"],
   ];
   for (const [path, contents, original] of controls) {
@@ -38,7 +40,7 @@ try {
     if (original === null) rmSync(join(fixture, path));
     else write(path, original);
   }
-  console.log("PASS domain boundary regression: positive=1 planted=5 caught=5");
+  console.log("PASS domain boundary regression: positive=1 planted=6 caught=6");
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }

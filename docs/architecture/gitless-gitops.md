@@ -40,9 +40,10 @@ cluster prerequisites. Conduit owns Product intent, artifact admission, Plans,
 approval, leases, rollback intent, and attributed reported state. The Spoke
 executes approved tenant work through its Helm adapter.
 
-The direct tenant `HelmRelease` example under `deploy/flux` is retained as a
-bounded migration and bootstrap example. It is not the target owner of tenant
-delivery after native Conduit reconciliation is production-consumed.
+The direct tenant `HelmRelease` example under `deploy/flux` is retained only as
+a bounded migration and bootstrap example. Production PostgreSQL Hubs now run
+native Conduit reconciliation, so the example is not an owner of tenant
+delivery.
 
 ## Ports and adapters
 

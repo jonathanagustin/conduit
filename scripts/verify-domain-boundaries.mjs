@@ -44,6 +44,14 @@ for (const path of filesBelow(join(root, "internal"))) {
       }
     }
   }
+  if (local.startsWith("internal/delivery/reconciliation/") &&
+      !local.startsWith("internal/delivery/reconciliation/adapters/controlplane/")) {
+    for (const dependency of dependencies) {
+      if (dependency.includes("/internal/controlplane")) {
+        failures.push(`${local}: reconciliation core imports legacy control plane ${dependency}`);
+      }
+    }
+  }
 }
 const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
 if (apolloAdapter.includes("invokeApolloFacade")) {
@@ -56,4 +64,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`FAIL ${failure}`);
   process.exit(1);
 }
-console.log("PASS domain boundaries: Hub composition is mandatory; Apollo has no control-plane backedge; domain infrastructure imports are rejected");
+console.log("PASS domain boundaries: Hub composition is mandatory; Apollo and reconciliation core have no control-plane backedge; domain infrastructure imports are rejected");
