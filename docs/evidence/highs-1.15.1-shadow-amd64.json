@@ -1,7 +1,7 @@
 {
   "apiVersion": "optimization.platform.example/solver-calibration/v1alpha1",
   "kind": "SolverShadowCalibration",
-  "id": "solcal_2b827ca04bfc3d9a3b80e233d4f7091b3529a93011b64934ca3a0bb4cd512e25",
+  "id": "solcal_f2ee69bdf6f8eb6066d68052c48861e321953fbd776d13e9d129e3596b19e821",
   "mode": "SHADOW",
   "influencedProposal": false,
   "mutatedState": false,
@@ -223,7 +223,7 @@
     "receipt": {
       "apiVersion": "optimization.platform.example/v1alpha2",
       "kind": "SolverReceipt",
-      "id": "solrcpt_9d3f6b0b0fc15be4ac3ad97f8cb529cb06f7fd8debd4a56ec0924606cb2c63fd",
+      "id": "solrcpt_61d7a72073d6c4a0d7bda612db1888090e0550cfe0990614adb0c9cd2562e3df",
       "requestId": "solreq_1a6fcbd3e4d91feb2a7704cc9708cc860beaf27ae6e61290dad2d047cd08e6fe",
       "requestedBackend": "highs",
       "attemptedBackends": [
@@ -232,7 +232,7 @@
       "selectedBackend": {
         "name": "highs",
         "version": "1.15.1-unadmitted.1",
-        "executableDigest": "sha256:1c13960de9660dce474315ad43df1b7aadaa03802ce277b13988d8fdcf9b9dfd",
+        "executableDigest": "sha256:f15ccfbe52e06f9d3b2e009e995553477f3f603ef11aef8da4a0781354607722",
         "architecture": "amd64",
         "capabilities": [
           "allocation.makespan.v1"
