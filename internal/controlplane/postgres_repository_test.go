@@ -33,7 +33,8 @@ UPDATE conduit_repository_state SET generation = 0, state = '{}'::jsonb WHERE si
 
 	firstGovernance := NewGovernanceService(first)
 	if _, err := firstGovernance.PutTeam(ctx, Team{
-		Name: "release-managers", DisplayName: "Release managers", MemberGroups: []string{"release-reviewers"},
+		Name: "release-managers", DisplayName: "Release managers", AdminUsers: []string{"admin@example.test"},
+		MemberGroups: []string{"release-reviewers"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +164,8 @@ UPDATE conduit_repository_state SET generation = 0, state = '{}'::jsonb WHERE si
 	}
 	service := NewGovernanceService(repository)
 	if _, err := service.PutTeam(ctx, Team{
-		Name: "release-managers", DisplayName: "Release managers", MemberGroups: []string{"release-reviewers"},
+		Name: "release-managers", DisplayName: "Release managers", AdminUsers: []string{"admin@example.test"},
+		MemberGroups: []string{"release-reviewers"},
 	}); err != nil {
 		t.Fatal(err)
 	}
