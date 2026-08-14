@@ -87,12 +87,14 @@ publisher_password="conduit-test-publisher"
 puller_user="puller"
 puller_password="conduit-test-puller"
 
-sha_password() {
-  printf '{SHA}%s' "$(printf '%s' "$1" | openssl dgst -binary -sha1 | base64 | tr -d '\r\n')"
-}
+# Zot v2 accepts bcrypt entries only. These hashes bind the fixed, synthetic
+# credentials above and are safe to commit because the registry is disposable
+# and reachable only for this acceptance run.
+publisher_password_hash='$2a$10$ppWQTPosFZ93V6MvLvibh.BEMKXeIZYJBgz2dBObb0FvSGYgeCZxe'
+puller_password_hash='$2a$10$Yk54pPhhOfPu1LP6ayh59OVE9HRuev6fJj9L5LgtJAwyRIr4SYYn.'
 printf '%s:%s\n%s:%s\n' \
-  "${publisher_user}" "$(sha_password "${publisher_password}")" \
-  "${puller_user}" "$(sha_password "${puller_password}")" \
+  "${publisher_user}" "${publisher_password_hash}" \
+  "${puller_user}" "${puller_password_hash}" \
   >"${test_root}/htpasswd"
 cat >"${test_root}/zot.json" <<EOF
 {
