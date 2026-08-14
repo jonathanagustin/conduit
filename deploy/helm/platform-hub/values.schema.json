@@ -150,8 +150,8 @@
     "tolerations": {"type": "array", "items": {"type": "object"}}
   },
   "definitions": {
-    "displayText80": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"},
-    "displayText120": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"},
+    "displayText80": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^<>[:cntrl:]]+$"},
+    "displayText120": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^<>[:cntrl:]]+$"},
     "localObjectReference": {
       "type": "object",
       "additionalProperties": false,
