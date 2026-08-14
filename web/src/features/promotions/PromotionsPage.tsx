@@ -1,9 +1,11 @@
 import { useState } from "react";
-import { Callout, Section, SectionCard, Tag } from "@blueprintjs/core";
+import { Button, Callout, InputGroup, Section, SectionCard, Tag } from "@blueprintjs/core";
 
 import { usePromotions, type PromotionRecord } from "../../api/catalog.js";
 import { QueryState } from "../../components/QueryState.js";
 import { ReleaseChannelGraph } from "./ReleaseChannelGraph.js";
+import { IndexPagination } from "../../components/IndexPagination.js";
+import { useIndexQuery } from "../useIndexQuery.js";
 import "./promotions.css";
 
 /** Promotion -- P0: "Can this Release advance, and why?"
@@ -18,7 +20,8 @@ import "./promotions.css";
  * but upstream has no such screen, and presenting it as the Apollo pipeline
  * would teach a model of the product that does not exist. */
 export function PromotionsPage() {
-  const { data, error, isPending, refetch } = usePromotions();
+  const index = useIndexQuery();
+  const { data, error, isPending, refetch } = usePromotions(index.query);
   const [selected, setSelected] = useState<string | undefined>(undefined);
 
   return (
@@ -29,7 +32,8 @@ export function PromotionsPage() {
       subject="promotions"
       onRetry={() => void refetch()}
     >
-      {(promotions) => {
+      {(page) => {
+        const promotions = page.promotions;
         const byProduct = new Map<string, PromotionRecord[]>();
         for (const promotion of promotions) {
           const group = byProduct.get(promotion.product) ?? [];
@@ -38,33 +42,55 @@ export function PromotionsPage() {
         }
         const chosen = promotions.find((promotion) => promotion.id === selected);
 
-        return promotions.length === 0 ? (
-          <p className="console-empty">No promotions have been evaluated.</p>
-        ) : (
+        return (
           <div className="console-promotions" data-testid="promotions-page">
             <Callout icon="info-sign" compact className="console-promotions__scope">
               This fleet-wide view is a Platform extension. Upstream reaches promotion through a
               Product, where the pipeline belongs.
             </Callout>
+            <form className="console-index-controls" role="search" onSubmit={index.applySearch}>
+              <InputGroup
+                leftIcon="search"
+                aria-label="Search Promotions"
+                placeholder="Search Product, version, channel, or status"
+                value={index.search}
+                onValueChange={index.setSearch}
+              />
+              <Button type="submit" text="Search" />
+            </form>
 
-            {[...byProduct.entries()].map(([product, group]) => (
-              <Section key={product} className="console-promotions__card" compact title={product}>
-                <SectionCard padded>
-                  <ReleaseChannelGraph
-                    promotions={group}
-                    selectedId={selected}
-                    onSelect={(id) => setSelected(id === selected ? undefined : id)}
-                  />
-                  {chosen !== undefined && group.some((entry) => entry.id === chosen.id) ? (
-                    <TransitionDetail promotion={chosen} />
-                  ) : (
-                    <p className="console-empty">
-                      Select a transition to see what governs it.
-                    </p>
-                  )}
-                </SectionCard>
-              </Section>
-            ))}
+            {promotions.length === 0 ? (
+              <p className="console-empty">
+                {index.query.search === undefined
+                  ? "No promotions have been evaluated."
+                  : `No promotion matches "${index.query.search}".`}
+              </p>
+            ) : (
+              [...byProduct.entries()].map(([product, group]) => (
+                <Section key={product} className="console-promotions__card" compact title={product}>
+                  <SectionCard padded>
+                    <ReleaseChannelGraph
+                      promotions={group}
+                      selectedId={selected}
+                      onSelect={(id) => setSelected(id === selected ? undefined : id)}
+                    />
+                    {chosen !== undefined && group.some((entry) => entry.id === chosen.id) ? (
+                      <TransitionDetail promotion={chosen} />
+                    ) : (
+                      <p className="console-empty">
+                        Select a transition to see what governs it.
+                      </p>
+                    )}
+                  </SectionCard>
+                </Section>
+              ))
+            )}
+            <IndexPagination
+              page={page}
+              total={page.total}
+              testId="promotions-pagination"
+              onMove={index.moveToCursor}
+            />
           </div>
         );
       }}

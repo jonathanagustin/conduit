@@ -1606,7 +1606,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		requests, err := repository.ListChangeRequests(request.Context(), request.URL.Query().Get("environment"))
+		query := request.URL.Query()
+		cursor, limit, err := parsePageQuery(query, defaultPageLimit, maxPageLimit)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		requests, err := repository.ListChangeRequests(request.Context(), "")
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
@@ -1617,7 +1623,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				visible = append(visible, changeRequest)
 			}
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"changeRequests": visible})
+		page, err := paginateChangeRequests(visible, ChangeRequestQuery{
+			Environment: query.Get("environment"), Status: query.Get("status"), Search: query.Get("search"),
+		}, cursor, limit)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
 	})
 	mux.HandleFunc("GET /v1/change-requests/{changeRequestID}", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
@@ -1888,12 +1901,25 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
 			return
 		}
-		records, err := repository.ListPromotions(request.Context(), request.URL.Query().Get("product"))
+		query := request.URL.Query()
+		cursor, limit, err := parsePageQuery(query, defaultPageLimit, maxPageLimit)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		records, err := repository.ListPromotions(request.Context(), "")
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
 		}
-		writeJSON(w, http.StatusOK, records)
+		page, err := paginatePromotions(records, PromotionQuery{
+			Product: query.Get("product"), Status: query.Get("status"), Search: query.Get("search"),
+		}, cursor, limit)
+		if err != nil {
+			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			return
+		}
+		writeJSON(w, http.StatusOK, page)
 	})
 	// Plans are readable one at a time already; a console needs the index.
 	// Authorization is per record rather than per request, because a Plan is

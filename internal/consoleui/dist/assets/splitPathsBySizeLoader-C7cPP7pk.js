@@ -1,0 +1,2 @@
+const __vite__mapDeps=(i,m=__vite__mapDeps,d=(m.f||(m.f=["assets/paths-DzSWiDw4.js","assets/index-Dy25Edf6.js","assets/index-bek_p2pD.css","assets/paths-K-_O8Vkk.js"])))=>i.map(i=>d[i]);
+import{n as e,r as t,t as n}from"./index-Dy25Edf6.js";var r=async(r,i)=>{let a=e(r),o;return o=i===n.STANDARD?await t(()=>import(`./paths-DzSWiDw4.js`),__vite__mapDeps([0,1,2])):await t(()=>import(`./paths-K-_O8Vkk.js`),__vite__mapDeps([3,1,2])),o[a]};export{r as splitPathsBySizeLoader};

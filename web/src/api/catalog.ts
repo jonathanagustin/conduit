@@ -66,6 +66,17 @@ export interface PromotionRecord {
   blockers?: PromotionBlocker[];
   reasons?: string[];
   evaluationStartedAt?: string;
+  evaluatedAt?: string;
+}
+
+export interface PromotionPage extends PageMetadata {
+  promotions: PromotionRecord[];
+  total: number;
+}
+
+export interface PromotionQuery extends CatalogQuery {
+  product?: string;
+  status?: string;
 }
 
 /** GET /v1/environments/{id}/commands returns PlanRecord values whose Command
@@ -131,13 +142,13 @@ export function useProductReleases(product: string) {
   });
 }
 
-export function usePromotions(product?: string) {
+export function usePromotions(query: PromotionQuery = {}) {
   return useQuery({
-    queryKey: ["promotions", product ?? null],
+    queryKey: ["promotions", query],
     queryFn: ({ signal }) =>
-      getJSON<PromotionRecord[]>("/promotions", {
+      getJSON<PromotionPage>("/promotions", {
         signal,
-        ...(product === undefined ? {} : { query: { product } }),
+        query: { ...query },
       }),
     refetchInterval: 30_000,
   });

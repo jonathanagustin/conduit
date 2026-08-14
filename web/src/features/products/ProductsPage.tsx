@@ -162,7 +162,7 @@ export function ProductDetailPage() {
 }
 
 function ProductPromotionPipeline({ product }: { product: string }) {
-  const { data, error, isPending, refetch } = usePromotions(product);
+  const { data, error, isPending, refetch } = usePromotions({ product, limit: 200 });
   const [selected, setSelected] = useState<string | undefined>(undefined);
   return (
     <section className="console-products__pipeline" aria-labelledby="product-promotion-title">
@@ -175,7 +175,8 @@ function ProductPromotionPipeline({ product }: { product: string }) {
         onRetry={() => void refetch()}
         headingLevel={2}
       >
-        {(promotions) => {
+        {(page) => {
+          const promotions = page.promotions;
           const chosen = promotions.find((promotion) => promotion.id === selected);
           return promotions.length === 0 ? (
             <p className="console-empty">
