@@ -10,10 +10,13 @@ import (
 
 // fixtureRoute mirrors one entry in deploy/rubix-substrate/http-contract.json.
 type fixtureRoute struct {
-	Service  string `json:"service"`
-	Endpoint string `json:"endpoint"`
-	Method   string `json:"method"`
-	Path     string `json:"path"`
+	Service    string   `json:"service"`
+	Endpoint   string   `json:"endpoint"`
+	Method     string   `json:"method"`
+	Path       string   `json:"path"`
+	Request    string   `json:"request"`
+	Response   string   `json:"response"`
+	PathParams []string `json:"pathParams"`
 }
 
 type fixture struct {
@@ -33,6 +36,63 @@ func loadFixture(t *testing.T) fixture {
 		t.Fatalf("parse committed contract fixture: %v", err)
 	}
 	return parsed
+}
+
+// TestFixtureSignaturesAreModeled proves the recovered request/response beans
+// named per endpoint in the fixture are all modeled types (or the boolean
+// scalar), and that each endpoint's declared path parameters are exactly the
+// {name} segments in its path. This binds the recovered service signatures to
+// the beans and the paths, so neither can drift silently.
+func TestFixtureSignaturesAreModeled(t *testing.T) {
+	parsed := loadFixture(t)
+	modeled := map[string]bool{"": true, "boolean": true}
+	for name := range objectRegistry() {
+		modeled[name] = true
+	}
+	for name := range unionRegistry() {
+		modeled[name] = true
+	}
+	for name := range aliasRegistry() {
+		modeled[name] = true
+	}
+
+	for _, ep := range parsed.Endpoints {
+		if !modeled[ep.Request] {
+			t.Errorf("%s.%s request bean %q is not modeled", ep.Service, ep.Endpoint, ep.Request)
+		}
+		if !modeled[ep.Response] {
+			t.Errorf("%s.%s response bean %q is not modeled", ep.Service, ep.Endpoint, ep.Response)
+		}
+		var inPath []string
+		for _, seg := range splitSegments(ep.Path) {
+			if len(seg) > 2 && seg[0] == '{' && seg[len(seg)-1] == '}' {
+				inPath = append(inPath, seg[1:len(seg)-1])
+			}
+		}
+		declared := append([]string(nil), ep.PathParams...)
+		if !equalSets(inPath, declared) {
+			t.Errorf("%s.%s path params %v != declared %v", ep.Service, ep.Endpoint, inPath, declared)
+		}
+	}
+}
+
+func splitSegments(path string) []string {
+	var out []string
+	cur := ""
+	for _, r := range path {
+		if r == '/' {
+			if cur != "" {
+				out = append(out, cur)
+			}
+			cur = ""
+			continue
+		}
+		cur += string(r)
+	}
+	if cur != "" {
+		out = append(out, cur)
+	}
+	return out
 }
 
 func TestTableIsInternallyConsistent(t *testing.T) {
