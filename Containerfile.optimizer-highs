@@ -2,7 +2,7 @@
 
 # UNADMITTED candidate only. This file deliberately has no Helm, Zarf, or
 # runtime selection wiring. Admission remains a separate decision.
-ARG GO_IMAGE=golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651
+ARG GO_IMAGE=golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
 ARG BUILDER_IMAGE=ubuntu:24.04@sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea
 ARG CA_BOOTSTRAP_IMAGE=cgr.dev/chainguard/static:latest@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791
 ARG SOURCE_DATE_EPOCH=1786406400
@@ -106,7 +106,7 @@ RUN mkdir -p /out/evidence /out/licenses /out/source && \
       go build -tags highs -trimpath -buildvcs=false \
         -ldflags="-buildid= -linkmode=external -extldflags '-static -static-libgcc -static-libstdc++ -Wl,--build-id=none -Wl,-Map=/out/evidence/linker.map'" \
         -o /out/platform-highs-shim ./cmd/platform-highs-shim && \
-    test "$(go env GOVERSION)" = go1.26.5 && \
+    test "$(go env GOVERSION)" = go1.26.6 && \
     case "$TARGETARCH" in \
       amd64) elf_machine='Advanced Micro Devices X86-64' ;; \
       arm64) elf_machine='AArch64' ;; \
@@ -171,7 +171,7 @@ RUN set -eu; \
       printf '  "ubuntuSnapshot": "20260811T000000Z",\n'; \
       printf '  "builderDigest": "sha256:561618e2c15bf2397621dd04f96926663a3b5616c189cf7e38db7e82f5c538ea",\n'; \
       printf '  "caBootstrapImageDigest": "sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791",\n'; \
-      printf '  "goToolchainDigest": "sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651",\n'; \
+      printf '  "goToolchainDigest": "sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36",\n'; \
       printf '  "highsArchiveSha256": "%s",\n' "$highs_archive_sha256"; \
       printf '  "highsSourceArchiveSha256": "30132da2b21899c62f07c4d6566325a3b869a7da4ce61d8b25f833b38e1562b1",\n'; \
       printf '  "evidenceDocumentSha256": "d8ea033afc2b95f7186e9b83c6892ba6cf6713df4d44660642a4f6699b98f95b",\n'; \
