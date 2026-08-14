@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jonathanagustin/conduit/internal/apollo"
 	"net/http"
 	"sort"
 	"strings"
@@ -181,46 +180,8 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 	return api
 }
 
-// operationHandlers binds each pinned public operation to the handler that
-// answers it. The patterns are not spelled here: apollo.Routes is generated from
-// the pinned OpenAPI snapshot, so a path this adapter serves cannot diverge
-// from one the published contract declares.
-func (api *apolloPublicAPI) operationHandlers() map[string]http.HandlerFunc {
-	return map[string]http.HandlerFunc{
-		"publishHelmChart":        api.publishHelmChart,
-		"publishService":          api.publishService,
-		"listProducts":            api.listProducts,
-		"getProduct":              api.getProduct,
-		"listReleases":            api.listReleases,
-		"getRelease":              api.getRelease,
-		"listEnvironments":        api.listEnvironments,
-		"getEnvironment":          api.getEnvironment,
-		"listInstallations":       api.listInstallations,
-		"getInstallation":         api.getInstallation,
-		"putStatusEntitiesInfo":   api.putEntityInfo,
-		"putStatusEntitiesHealth": api.putEntityHealth,
-		"listNamespaces":          api.listNamespaces,
-	}
-}
-
 func (api *apolloPublicAPI) register(mux *http.ServeMux) {
-	handlers := api.operationHandlers()
-	for _, route := range apollo.Routes {
-		handler, bound := handlers[route.Operation]
-		if !bound {
-			// The snapshot declares an operation this adapter cannot answer.
-			// Serving the other twelve and quietly 404ing the thirteenth would
-			// misreport the contract as met, so refuse to start.
-			panic("Apollo public operation " + route.Operation + " has no handler")
-		}
-		mux.HandleFunc(route.Pattern, func(w http.ResponseWriter, request *http.Request) {
-			if api.initializationError != nil {
-				writeLifecycleError(w, api.initializationError)
-				return
-			}
-			handler(w, request)
-		})
-	}
+	registerApolloOpenAPI(mux, api)
 }
 
 func (api *apolloPublicAPI) publishHelmChart(w http.ResponseWriter, request *http.Request) {

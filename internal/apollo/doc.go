@@ -12,17 +12,17 @@
 // a separate question answered elsewhere, and keeping the two apart is what
 // stops a captured vocabulary from quietly becoming a grant.
 //
-// It imports nothing, which is the point. This surface sat inside
-// internal/controlplane, so reading the contract meant importing the monolith,
-// and the monolith imports the contract back. Any context can now read it
-// without that.
+// It does not import Conduit domain or application packages. The generated HTTP
+// transport depends only on the standard library and its pinned OpenAPI runtime,
+// so native contexts can depend on the contract without importing the legacy
+// control-plane facade.
 //
 // This context owns Apollo vocabulary, conformance rules, and translation into
 // narrow Conduit application ports. Conduit's delivery, governance, execution,
 // and persistence policy remain native contexts rather than becoming guessed
 // Apollo internals.
 //
-// The files beside this one are generated. Edit the generators in
-// internal/tools/apolloroleg and internal/tools/apolloroutegen, and the pinned
-// evidence they read, rather than the output.
+// The files beside this one are generated. Edit the pinned oapi-codegen
+// configuration, the role generator, and the evidence they read rather than
+// the output.
 package apollo

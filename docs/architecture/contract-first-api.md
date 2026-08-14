@@ -60,19 +60,19 @@ decides which exact roles, if any, map to native permissions. See
 
 ## Current state and migration target
 
-Current code generates Apollo route and role metadata, while much of the HTTP
-surface, DTO layer, and service composition remains handwritten inside
-[`internal/controlplane`](../../internal/controlplane/). Contract-first
-generation is therefore incomplete.
+Current code generates and serves the Apollo DTOs, strict server interface, and
+router, plus separate role metadata. The generated adapter still bridges into
+handwritten translation and service composition inside
+[`internal/controlplane`](../../internal/controlplane/), so the bounded-context
+extraction is not complete.
 
 The migration target is a generated strict transport boundary calling narrow
 application ports. Work should proceed operation by operation:
 
-1. pin the source contract and generator;
-2. generate the complete transport slice for the chosen operations;
-3. add an adapter into an existing native application port;
-4. run fixture, round-trip, and negative conformance tests; and
-5. remove the duplicate handwritten transport code.
+1. define a narrow native application port for one operation group;
+2. move its translation behind the generated adapter;
+3. run fixture, round-trip, and negative conformance tests; and
+4. remove the duplicate legacy projection code for that group.
 
 Do not regenerate a broad surface and declare completion while the generated
 interface is bypassed in production.

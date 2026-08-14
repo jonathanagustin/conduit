@@ -17,8 +17,8 @@ unqualified superset of Apollo.
 
 | Surface | Source and gate | Supported claim |
 | --- | --- | --- |
-| Public API v0 routes | Pinned OpenAPI snapshot; `scripts/verify-apollo-routes.sh` | The generated router table contains exactly the 13 operations in the snapshot |
-| Public API v0 payload behavior | `scripts/apollo-docs/verify-public-api-adapter.rb`; `go test ./internal/controlplane -run TestApolloPublicAPI` | The named adapter implements the tested route and envelope profile |
+| Public API v0 transport | Pinned OpenAPI snapshot; `scripts/verify-apollo-routes.sh` | Generated DTOs, strict server interface, and router contain exactly the 13 operations in the snapshot |
+| Public API v0 payload behavior | `scripts/apollo-docs/verify-public-api-adapter.rb`; `go test ./internal/controlplane -run TestApolloPublicAPI` | The production router uses the generated strict interface and the named adapter implements the tested envelope profile |
 | Published Apollo Agent configuration types | Pinned generated OSDK evidence; `go test ./internal/foundryinterop` | Structural compatibility with the named generated types, not a private service protocol |
 | CLI Product fixtures | `scripts/apollo-docs/validate-cli-fixtures.rb`; byte comparison fixture | Semantic validation of the reconstructed 0.814.0 shape; byte compatibility is not claimed without a native capture |
 | Module examples | `scripts/apollo-docs/validate-module-definitions.rb` | The committed examples satisfy the reviewed public Module constraints |
@@ -26,14 +26,15 @@ unqualified superset of Apollo.
 
 ## Contract-first completion gate
 
-The OpenAPI boundary is incomplete while only routes are generated. Completion
-requires all of the following:
+The OpenAPI transport boundary is generated and active. Completion of the wider
+context extraction still requires all of the following:
 
 1. A pinned OpenAPI input produces deterministic DTOs, a strict server
-   interface, a client interface, and router bindings.
+   interface, and router bindings; supported client consumers use a generated
+   client rather than copied types.
 2. Regeneration reproduces committed bytes without network access.
 3. The HTTP adapter implements the generated server interface rather than a
-   parallel handwritten transport model.
+   parallel handwritten route contract.
 4. Domain behavior is reached through narrow application ports; generated
    transport types do not enter Delivery, Governance, Reporting, or storage.
 5. Frontend or SDK consumers import generated client types instead of declaring
@@ -43,8 +44,9 @@ requires all of the following:
 
 ## Explicit gaps
 
-- The OpenAPI generator emits routes only. DTOs and strict client/server
-  interfaces are still handwritten.
+- Apollo-to-Conduit translation and duplicate legacy projection structs remain
+  in `internal/controlplane`; moving them behind neutral ports is separate work.
+- No supported client consumer currently requires a generated client package.
 - Native Apollo CLI byte evidence has no captured tenant output in the
   committed fixture set.
 - The Hub lease, heartbeat, cancellation, result, and reported-state protocol
