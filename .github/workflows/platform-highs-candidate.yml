@@ -55,9 +55,28 @@ jobs:
       - name: Validate immutable candidate contract
         env:
           HADOLINT_BIN: /tmp/hadolint
-        run: |
-          ./scripts/verify-containerfiles.sh
-          ./scripts/verify-highs-candidate.test.sh
+        run: ./scripts/verify-containerfiles.sh
+
+  # Deliberately NOT a dependency of native-candidate.
+  #
+  # This checks that the committed candidate evidence still describes the
+  # current Containerfile, verifier and scanner. When one of those changes the
+  # check fails by design -- that is the signal to rebuild. Gating the rebuild
+  # on it deadlocked the workflow: `build: move highs candidate to go 1.26.6`
+  # changed the Containerfile, this check began failing, and native-candidate,
+  # the only job that regenerates the evidence, stopped running behind it. The
+  # gate blocked its own remedy, which is why B8/H12 could not be closed by
+  # dispatching the workflow.
+  #
+  # Run in parallel instead: the dispatch always produces fresh evidence, and
+  # this job reports whether the committed copy still matches.
+  committed-evidence:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Check committed candidate evidence is current
+        run: ./scripts/verify-highs-candidate.test.sh
 
   native-candidate:
     needs: [contract, prepare-security-db]
