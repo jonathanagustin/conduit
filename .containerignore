@@ -1,7 +1,14 @@
 *
 !go.mod
 !go.sum
+!LICENSE
+!NOTICE
 !cmd/
 !cmd/**
 !internal/
 !internal/**
+!docs/
+docs/*
+!docs/evidence/
+docs/evidence/*
+!docs/evidence/highs-1.15.1-release.json
