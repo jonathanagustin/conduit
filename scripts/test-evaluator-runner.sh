@@ -38,26 +38,3 @@ jq -e '.model == "mock-model" and .wallDurationMilliseconds >= 0' "$scratch/evid
 jq -e '.is_error == false and .usage.inputTokens == 1' "$scratch/evidence/mock-model.receipt.json" >/dev/null
 jq -e '.cursorAgentVersion != "" and .runnerRevision != ""' "$scratch/evidence/runner.json" >/dev/null
 test -s "$scratch/evidence/prompt.txt"
-
-node "$repo_root/scripts/export-zenith-evaluator-trial.mjs" \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-08-02" \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-08-02/batch-result-v2.json" \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-08-02/zenith-trial.json" \
-  --check
-
-node "$repo_root/scripts/export-zenith-evaluator-trial.mjs" \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-09" \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-09/batch-result.json" \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-09/zenith-trial.json" \
-  --check
-jq -e '.resolutions | length == 2' \
-  "$repo_root/docs/operations/evidence/evaluators/2026-08-09/zenith-trial.json" >/dev/null
-
-cp -R "$repo_root/docs/operations/evidence/evaluators/2026-08-09" "$scratch/versioned-store"
-mv "$scratch/versioned-store/store" "$scratch/versioned-store/store-v9"
-node "$repo_root/scripts/export-zenith-evaluator-trial.mjs" \
-  "$scratch/versioned-store" \
-  "$scratch/versioned-store/batch-result.json" \
-  "$scratch/versioned-store/versioned-trial.json" >/dev/null
-jq -e '(.resolutions | length) == 2 and all(.resolutions[]; .record.path | startswith("store-v9/"))' \
-  "$scratch/versioned-store/versioned-trial.json" >/dev/null

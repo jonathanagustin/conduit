@@ -42,10 +42,6 @@ var (
 
 func sha256Digest(sum [sha256.Size]byte) string { return artifacts.Digest(sum) }
 
-func bundleResourceDigest(resource BundleResource) string {
-	return artifacts.ResourceDigest(resource)
-}
-
 func bundleManifestIdentity(manifest BundleManifest) (string, error) {
 	return artifacts.ManifestIdentity(manifest)
 }
@@ -77,14 +73,6 @@ func incrementalsSinceCheckpoint(bundles []BundleEnvelope) int {
 // specific message, so nothing a caller could observe changes.
 func (service *BundleService) verifyEnvelope(envelope BundleEnvelope) error {
 	err := artifacts.VerifyEnvelope(envelope, service.trusted)
-	if errors.Is(err, artifacts.ErrEnvelopeInvalid) {
-		return fmt.Errorf("%w: %w", ErrConflict, err)
-	}
-	return err
-}
-
-func verifyBundleChunks(envelope BundleEnvelope) error {
-	err := artifacts.VerifyChunks(envelope)
 	if errors.Is(err, artifacts.ErrEnvelopeInvalid) {
 		return fmt.Errorf("%w: %w", ErrConflict, err)
 	}

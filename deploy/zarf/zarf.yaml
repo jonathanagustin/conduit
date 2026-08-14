@@ -5,11 +5,11 @@ metadata:
   name: platform-runtime
   version: "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
   description: Product-agnostic Platform Hub and outbound-only Spoke runtime
-  source: https://github.com/jonathanagustin/palantir
-  documentation: https://github.com/jonathanagustin/palantir/blob/main/platform/deploy/zarf/README.md
+  source: https://github.com/jonathanagustin/conduit
+  documentation: https://github.com/jonathanagustin/conduit/blob/main/deploy/zarf/README.md
   allowNamespaceOverride: false
   annotations:
-    org.opencontainers.image.source: https://github.com/jonathanagustin/palantir
+    org.opencontainers.image.source: https://github.com/jonathanagustin/conduit
 
 constants:
   - name: HUB_IMAGE

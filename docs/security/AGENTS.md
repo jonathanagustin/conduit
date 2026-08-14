@@ -1,11 +1,18 @@
-# Security technology references
+# Security documentation rules
 
-- Prefer standards and graduated or vendor-supported projects over custom
-  cryptography, identity issuance, vulnerability databases, or secret stores.
-- Pin reviewed versions and upstream primary sources. Distinguish a stable core
-  feature from alpha/optional integrations in the same project.
-- Platform owns authorization decisions and provider-neutral evidence; cluster
-  bootstrap repositories own operator installation, credentials, trust roots,
-  KMS policy, and provider configuration.
-- Never copy credentials, private keys, vulnerability feeds, or entire upstream
-  documentation bodies into this directory.
+Use primary standards and upstream project documentation. State what the
+repository integrates separately from what a deployment has configured or
+proven.
+
+Conduit owns authorization decisions, bounded provider-neutral evidence, and
+verification of immutable artifact coordinates. Deployment repositories own
+identity issuers, trust roots, credentials, secret-provider configuration,
+registry access, scanners, and cluster operators.
+
+Never commit credentials, private keys, raw scanner responses, tenant payloads,
+vulnerability databases, or copied upstream manuals. Pin third-party tools and
+record checksums or immutable source coordinates. Experimental or optional
+features must not be described as stable defaults.
+
+Preserve `PALANTIR-SECURITY-BULLETIN-REVIEW.md` as historical evidence. It is
+not a current security policy or a substitute for a fresh advisory check.

@@ -7,5 +7,12 @@
   "metricsDoc": "docs/operations/METRICS.md",
   "metricsLedger": "docs/operations/metrics-ledger.jsonl",
   "operatingModelDoc": "AGENTS.md",
+  "operatingModelStartMarker": "## Zenith operating model",
+  "operatingModelEndMarker": "## Mutation testing",
+  "contextDocs": [
+    "AGENTS.md",
+    "docs/operations/AGENTS.md",
+    "docs/operations/TENANT-FIDELITY.md"
+  ],
   "generatedTrees": []
 }

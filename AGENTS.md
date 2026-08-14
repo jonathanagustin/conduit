@@ -1,4 +1,4 @@
-# Platform repository
+# Conduit repository
 
 This repository owns the product-agnostic Hub/Spoke delivery control plane.
 The former `platform/` subtree in `jonathanagustin/palantir` and the archived
@@ -40,6 +40,13 @@ orchestrate → verify loop: decompose by independently testable capability,
 name the ground-truth source and acceptance gate, preserve a single writer per
 file set, and independently rerun every reported gate before commit. Delegate
 only when the user or applicable higher-priority instructions authorize it.
+
+The complete repository-local Zenith playbook is pinned under
+`tools/zenith-protocol/`; read
+`tools/zenith-protocol/skills/zenith-protocol/SKILL.md` for a substantial
+cycle. Its ledgers resolve through `.zenith-protocol.json`. Do not publish the
+vendored private plugin or treat its workflow as authority to delegate, commit,
+push, release, or deploy.
 
 Write domain findings to their canonical evidence or contract note in the same
 change, reflect closure state in the capability map, gatekeep new hypotheses,

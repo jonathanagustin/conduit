@@ -93,10 +93,6 @@ func assessmentCoversReleaseImages(digests []string, release Release) bool {
 	return catalog.AssessmentCoversReleaseImages(digests, release)
 }
 
-func assessmentCoversArtifacts(digests []string, artifacts []Artifact) bool {
-	return catalog.AssessmentCoversArtifacts(digests, artifacts)
-}
-
 // catalogPromotions narrows this package's promotion records to the five fields
 // Catalog reads. Everything else a PromotionRecord carries — approvals,
 // conditions, health evidence, the environments involved — has no bearing on

@@ -6,7 +6,7 @@
   remain bounded to its declared reconciliation role.
 - Consumers pin source revisions and image digests. Do not introduce mutable
   runtime tags or an implicit checkout-HEAD dependency.
-- Flux distributes the reviewed runtime source; it does not replace Platform
+- Flux distributes the reviewed runtime source; it does not replace Conduit
   Plans, approvals, health gates, or the Spoke execution contract.
 - Verify Flux changes with `ruby scripts/verify-flux-runtime.rb`, Helm changes
   with `ruby scripts/verify-helm-runtime.rb`, and use the Spoke E2E gate for

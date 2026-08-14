@@ -22,6 +22,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+  statuses: write
 
 defaults:
   run:
@@ -61,6 +62,15 @@ jobs:
           ./scripts/verify-pr-fidelity.test.sh
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}" --jq .body |
             ./scripts/verify-pr-fidelity.sh
+      - name: Publish pending Trunk status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state=pending \
+            -f context='Trunk gate' \
+            -f description='Manual Trunk verification is running' \
+            -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           # uses: inputs are not covered by defaults.run.working-directory,
@@ -147,6 +157,8 @@ jobs:
             testdata/oci/hub.json testdata/oci/spoke-agent.json
           jq --exit-status '.apiVersion == "platform.delivery/oci-release/v2" and .version == "1.2.3" and (.images | length == 2) and all(.images[]; (.sboms | length == 2) and (.vulnerabilityReports | length == 2))' \
             /tmp/platform-oci-manifest.json >/dev/null
+      - name: Validate Gitless runtime source descriptor
+        run: node scripts/render-runtime-source-descriptor.test.mjs
       - name: Validate version and tag agreement
         run: ./scripts/verify-version-matches-tag.sh
       - name: Validate controlplane ceiling
@@ -185,12 +197,12 @@ jobs:
           go build -o /dev/null ./cmd/conduit
       - name: Validate Apollo public contract
         run: |
-          ruby docs/apollo/validate-public-api.rb \
+          ruby scripts/apollo-docs/validate-public-api.rb \
             docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
           ./scripts/verify-apollo-routes.sh
-          ruby docs/apollo/verify-public-api-adapter.rb
-          ruby docs/apollo/validate-cli-fixtures.rb
-          ruby docs/apollo/validate-module-definitions.rb
+          ruby scripts/apollo-docs/verify-public-api-adapter.rb
+          ruby scripts/apollo-docs/validate-cli-fixtures.rb
+          ruby scripts/apollo-docs/validate-module-definitions.rb
           ./scripts/verify-foundry-interop.sh
           node scripts/verify-conduit-cli-contract.mjs
           node scripts/verify-foundry-audit3-capture.mjs
@@ -199,8 +211,27 @@ jobs:
       # append-only property on the metrics ledger and the PDR/hypothesis
       # gatekeeping were unenforced. It passes today.
       - name: Validate Zenith protocol ledgers
-        run: node scripts/verify-zenith-protocol.mjs
+        run: |
+          node scripts/verify-zenith-protocol.mjs
+          node tools/zenith-protocol/scripts/conform.test.mjs
+          node tools/zenith-protocol/scripts/verify-evaluator-trial.test.mjs
+          node tools/zenith-protocol/skills/review-writing/scripts/review-writing.test.mjs
+          node tools/zenith-protocol/scripts/conform.mjs \
+            --config .zenith-protocol.json \
+            --profile structural \
+            --enforcement standard
       - name: Validate Module publication
         run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
       - name: GitOps acceptance
         run: ./scripts/test-gitops.sh
+      - name: Publish final Trunk status
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUNK_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state="${TRUNK_STATE}" \
+            -f context='Trunk gate' \
+            -f description="Manual Trunk verification ${TRUNK_STATE}" \
+            -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"

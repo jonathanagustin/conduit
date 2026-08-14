@@ -1,71 +1,52 @@
-# Public Apollo contract validation
+# Apollo integration documentation
 
-The public Apollo OpenAPI document is an upstream drift detector and vocabulary
-source. An unmodified, licensed snapshot is pinned under
-[`snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c`](snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c)
-for repeatable validation. Capturing it does not make the Go delivery control
-plane API-compatible with Apollo.
+Apollo is a bounded integration context in Conduit. It owns the public Apollo
+vocabulary that Conduit can prove, the evidence behind each compatibility
+claim, and translation at the edge of Conduit's native domains. It does not own
+delivery policy, governance, execution, persistence, or the Spoke lifecycle.
 
-The exact automated claims and the native-interoperability boundary are listed
-in [`CONFORMANCE.md`](CONFORMANCE.md).
+Conduit currently implements a bounded public-profile adapter. The pinned
+OpenAPI snapshot generates the 13-route registration table, while request and
+response types and the server handlers remain handwritten. The contract-first
+target is stricter: the pinned document generates DTOs, strict server and
+client interfaces, and the router; an adapter then translates those generated
+types through narrow native ports. Until that target lands, the compatibility
+claim stays limited to the routes and payload behavior covered by the current
+tests.
 
-The complete public-documentation review is recorded in
-[`PUBLIC-DOCUMENTATION-COVERAGE.md`](PUBLIC-DOCUMENTATION-COVERAGE.md). Its
-companion manifest inventories and hashes all 241 official pages captured on
-2026-08-01 without vendoring their source bodies.
+## Read this set
 
-Compact source-derived facts are routed through
-[`reference/`](reference/README.md). Authorized private-wire evidence has a
-separate fail-closed intake under
-[`private-interop/`](private-interop/README.md), and native CLI byte evidence is
-kept under [`cli-fixtures/`](cli-fixtures/README.md).
+| Document | Purpose |
+| --- | --- |
+| [Bounded context](bounded-context.md) | Ownership, dependency direction, and the extraction sequence |
+| [Public API](public-api.md) | Pinned OpenAPI profile, current implementation, and generation target |
+| [Conformance](conformance.md) | Claims that are supported now, their gates, and open gaps |
+| [Private interop](private-interop.md) | Fail-closed boundary for unpublished Hub-to-Agent behavior |
+| [Delivery contract](contracts/delivery.md) | Conduit-native Plans, rollout intent, and execution handoff |
+| [Governance contract](contracts/governance.md) | Authorization, review, and audit ownership |
+| [Reporting contract](contracts/reporting.md) | Desired-versus-observed fleet projection |
+| [Bundle contract](contracts/bundles.md) | Conduit-native disconnected transfer format and admission rules |
+| [Evidence index](evidence.md) | Pinned public inputs, sanitized observations, and immutable receipts |
 
-Implemented reconstructed contracts are progressively disclosed in focused
-notes: [`GOVERNANCE-CONTRACT.md`](GOVERNANCE-CONTRACT.md),
-[`BUNDLE-CONTRACT.md`](BUNDLE-CONTRACT.md), and
-[`FLEET-REPORTED-STATE.md`](FLEET-REPORTED-STATE.md).
+The source-derived topic notes under [reference](reference/README.md), the
+[OpenAPI snapshot](snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/README.md),
+the [CLI fixtures](cli-fixtures/README.md), and the immutable evidence records
+remain inputs. They are not product architecture documents.
 
-Refresh the inventory into a temporary file before reviewing upstream drift:
+## Local checks
+
+Run these from the repository root:
 
 ```bash
-node docs/apollo/snapshot-public-documentation.mjs \
-  /tmp/apollo-public-documentation-manifest.tsv
-
-diff -u docs/apollo/public-documentation-manifest.tsv \
-  /tmp/apollo-public-documentation-manifest.tsv
-```
-
-Validate the pinned contract:
-
-```bash
-ruby docs/apollo/validate-public-api.rb \
+ruby scripts/apollo-docs/validate-public-api.rb \
   docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
+scripts/verify-apollo-routes.sh
+ruby scripts/apollo-docs/verify-public-api-adapter.rb
+ruby scripts/apollo-docs/validate-cli-fixtures.rb
+ruby scripts/apollo-docs/validate-module-definitions.rb
 ```
 
-To review upstream drift, validate a fresh shallow checkout of `develop` and
-compare it with the pinned snapshot:
-
-```bash
-git clone --depth=1 --branch develop \
-  https://github.com/palantir/apollo-openapi.git /tmp/apollo-openapi
-
-ruby docs/apollo/validate-public-api.rb \
-  /tmp/apollo-openapi/openapi/api-definition.yml
-```
-
-The validator resolves every local `$ref` and asserts the Helm Product,
-dependency locator, and authentication schema names used by the deployment
-model. A failure means the upstream contract must be reviewed; it is not fixed
-by loosening validation blindly.
-
-The FedStart reference repository should likewise be inspected as a shallow,
-external checkout:
-
-```bash
-git clone --depth=1 https://github.com/palantir/fedstart-helm-charts \
-  /tmp/fedstart-helm-charts
-```
-
-FedStart informs release discipline: independently packaged charts, OCI
-publication, specific image tags, and release-specific mirrored repository
-overrides. Its charts are references, not vendored foundation dependencies.
+The documentation inventory and media audit tools also live under
+[`scripts/apollo-docs`](../../scripts/apollo-docs). They fetch public material
+and should be run deliberately; their output does not expand a compatibility
+claim without review and a matching executable gate.

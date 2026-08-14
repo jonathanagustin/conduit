@@ -13,7 +13,7 @@ YouTube, Vimeo, Wistia, MP4, WebM, MOV, and HLS references. It found one video:
 The inventory is reproducible with:
 
 ```text
-node docs/apollo/audit-public-documentation-media.mjs \
+node scripts/apollo-docs/audit-public-documentation-media.mjs \
   docs/apollo/public-documentation-manifest.tsv OUTPUT_JSON
 ```
 

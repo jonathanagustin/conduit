@@ -1,0 +1,20 @@
+{
+  "apiVersion": "zenith.agentdriver.dev/evaluator-trial/v1alpha1",
+  "kind": "EvaluatorTrial",
+  "id": "trial_<content-digest>",
+  "sourceRevision": "<verification-commit>",
+  "snapshot": {
+    "repository": "<owner/repository>",
+    "scope": "<evaluated-path>",
+    "commit": "<immutable-commit>",
+    "tree": "<git-tree>",
+    "archiveSha256": "<64-lowercase-hex>",
+    "id": "snap_<same-archive-sha256>",
+    "secretScanRevision": "sha256:<pattern-digest>",
+    "secretMatches": 0
+  },
+  "prompt": {"path": "prompt.txt", "sha256": "<64-lowercase-hex>"},
+  "arms": [],
+  "dispositions": [],
+  "resolutions": []
+}

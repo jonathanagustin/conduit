@@ -1,0 +1,14 @@
+{
+  "name": "zenith-protocol-marketplace",
+  "owner": { "name": "agentdriver" },
+  "metadata": {
+    "description": "Single-plugin marketplace hosting the zenith-protocol operating model. Add with `/plugin marketplace add <this-repo-or-path>` then `/plugin install zenith-protocol`."
+  },
+  "plugins": [
+    {
+      "name": "plugin-zenith-protocol",
+      "source": "./",
+      "description": "Portable evidence-driven operating model with durable ledgers, calibrated heterogeneous evaluators, MADRs, Pareto optimization, controlled experiments, ground-truth gates, and measured improvement."
+    }
+  ]
+}

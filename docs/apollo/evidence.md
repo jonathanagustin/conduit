@@ -1,0 +1,38 @@
+# Apollo evidence index
+
+Evidence in this directory is immutable input to a bounded claim. It does not
+become product architecture, private protocol documentation, or permission to
+infer missing behavior.
+
+## Pinned public contracts
+
+- [Apollo OpenAPI snapshot](snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/README.md)
+- [Public documentation coverage](PUBLIC-DOCUMENTATION-COVERAGE.md) and
+  [hashed manifest](public-documentation-manifest.tsv)
+- [Source-derived topic index](reference/README.md)
+- [OSDK Conjure generation record](OSDK-CONJURE-GO-GENERATION.md) and
+  [pinned OSDK evidence](osdk-client-unstable-2.43.0-conjure-evidence.json)
+- [CLI command contract](cli-command-contract.json) and
+  [CLI fixture protocol](cli-fixtures/README.md)
+
+## Sanitized or derived observations
+
+- [Apollo client DLL evidence](APOLLO-CLIENT-DLL-EVIDENCE.md),
+  [receipt](apollo-client-dll-receipt-2026-08-02.json), and
+  [Java object closure](apollo-java-object-closure-2026-08-02.json)
+- [Maven inventory evidence](APOLLO-MAVEN-INVENTORY-EVIDENCE.md)
+- [Java object alignment](JAVA-OBJECT-ALIGNMENT.md)
+- [Role/interface inventory](ROLE-INTERFACE-INVENTORY.md)
+- [Foundry audit.3 evidence](FOUNDRY-AUDIT3-EVIDENCE.md)
+- [Demo bundle evidence](DEMO-BUNDLE-EVIDENCE.md)
+
+## Public media review
+
+- [Media audit](MEDIA-AUDIT.md)
+- [Image-derived gaps](IMAGE-DERIVED-GAPS.md)
+- [Third-party evidence manifest](third-party/evidence-manifest.json)
+
+Use the source class recorded in each file. A public schema can authorize a
+public transport shape. A sanitized tenant receipt can authorize only its
+observed tenant, version, and behavior. Corroborating evidence can support a
+claim but cannot create one. Missing evidence leaves the behavior unknown.

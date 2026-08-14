@@ -1,4 +1,4 @@
-# Local multi-node platform Spoke
+# Local multi-node Conduit Spoke
 
 This directory creates a disposable, multi-node k3d Spoke for exercising the
 same bootstrap boundary used by the portable/Rubix charts. It is not a claim to

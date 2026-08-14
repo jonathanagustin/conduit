@@ -1,6 +1,6 @@
 # Zarf air-gap package
 
-This package carries the product-agnostic Platform Hub, Spoke Agent, and their
+This package carries the product-agnostic Conduit Hub, Spoke Agent, and their
 runtime manifest across an air gap. It deliberately does not contain Product
 catalogs, Product charts or images, Environment credentials, application
 namespaces, registry assignments, or installation configuration.
@@ -12,7 +12,7 @@ Pod image, which would improperly take over the Spoke's Product registry
 contract. The package labels only `platform-system` for Zarf mutation. If an
 existing cluster was initialized with the default `all` policy, change that
 policy or label every consumer-owned application namespace
-`zarf.dev/agent=ignore` before starting Platform.
+`zarf.dev/agent=ignore` before starting Conduit.
 
 The pinned Zarf v0.82.0 init archive already carries the required internal OCI
 registry (OCI Distribution `registry` 3.1.1) and Zarf Agent. It also carries
@@ -26,7 +26,7 @@ zarf init --components=k3s,git-server --agent-mutation-policy=labeled
 On an existing Kubernetes cluster, omit `k3s`; omit `git-server` when an
 Environment-owned Git service already exists. The internal registry can also
 be replaced by Zarf's supported external-registry flags. These are Zarf-owned
-bootstrap services, not resources duplicated by the Platform runtime package.
+bootstrap services, not resources duplicated by the Conduit runtime package.
 
 Create three Environment-owned Secrets in `platform-system`:
 
@@ -56,18 +56,18 @@ the destination if needed, then deploy:
 ```sh
 sha256sum --check zarf-package-platform-runtime-amd64-0.11.0.tar.zst.sha256
 zarf package verify zarf-package-platform-runtime-amd64-0.11.0.tar.zst \
-  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/images.yml@refs/tags/v0.11.0' \
+  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v0.11.0' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com
 zarf package deploy zarf-package-platform-runtime-amd64-0.11.0.tar.zst \
   --verify=always \
-  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/images.yml@refs/tags/v0.11.0' \
+  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v0.11.0' \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
   --set-variables ENVIRONMENT_ID=example \
   --set-variables AGENT_ID=spoke-example \
   --confirm
 ```
 
-Platform pins Zarf v0.82.0 for package validation and construction. Package
+Conduit pins Zarf v0.82.0 for package validation and construction. Package
 creation runs once for `amd64` and once for `arm64`; both bundled images
 are addressed by the exact platform-manifest digest selected from a pinned OCI
 index, and Zarf produces its normal image SBOM inventory. The release workflow

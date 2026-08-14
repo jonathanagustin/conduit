@@ -2,6 +2,6 @@ package controlplane
 
 import "github.com/jonathanagustin/conduit/internal/execution"
 
-// The lease and its rules now live in internal/execution. The alias keeps this
-// package's call sites spelled as they were.
+// PlanLease keeps legacy control-plane call sites stable while lease rules live
+// in internal/execution.
 type PlanLease = execution.Lease

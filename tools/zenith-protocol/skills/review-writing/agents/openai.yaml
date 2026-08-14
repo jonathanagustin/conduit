@@ -1,0 +1,4 @@
+interface:
+  display_name: "Review Writing"
+  short_description: "Find and revise clustered machine-writing patterns"
+  default_prompt: "Use $review-writing to audit this prose for clustered AI-writing tells, verify every finding in context, and revise it without making authorship claims."

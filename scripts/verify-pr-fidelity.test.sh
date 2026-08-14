@@ -3,6 +3,21 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 verifier="$root/scripts/verify-pr-fidelity.sh"
+workflow="$root/.github/workflows/platform-ci.yml"
+
+for required in \
+  '  statuses: write' \
+  '      - name: Publish pending Trunk status' \
+  "            -f state=pending" \
+  "            -f context='Trunk gate'" \
+  '      - name: Publish final Trunk status' \
+  '        if: ${{ always() }}' \
+  "          TRUNK_STATE: \${{ job.status == 'success' && 'success' || 'failure' }}"; do
+  grep -Fq -- "$required" "$workflow" || {
+    printf 'manual Trunk status bridge is incomplete: %s\n' "$required" >&2
+    exit 1
+  }
+done
 
 valid='## Outcome
 
