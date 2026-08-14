@@ -1,0 +1,148 @@
+{
+  "apiVersion": "apiextensions.k8s.io/v1",
+  "kind": "CustomResourceDefinition",
+  "metadata": {
+    "name": "nodegroups.compute.palantir.com"
+  },
+  "spec": {
+    "conversion": {
+      "strategy": "None"
+    },
+    "group": "compute.palantir.com",
+    "names": {
+      "categories": [
+        "all"
+      ],
+      "kind": "NodeGroup",
+      "listKind": "NodeGroupList",
+      "plural": "nodegroups",
+      "shortNames": [
+        "ng"
+      ],
+      "singular": "nodegroup"
+    },
+    "scope": "Namespaced",
+    "versions": [
+      {
+        "name": "v1alpha1",
+        "schema": {
+          "openAPIV3Schema": {
+            "properties": {
+              "spec": {
+                "properties": {
+                  "gpuType": {
+                    "nullable": true,
+                    "pattern": "^(T4|L4|V100|A10|A100|H100|H200)$",
+                    "type": "string"
+                  },
+                  "schedulingConstraints": {
+                    "properties": {
+                      "labels": {
+                        "nullable": true,
+                        "type": "object",
+                        "x-kubernetes-preserve-unknown-fields": true
+                      },
+                      "taints": {
+                        "items": {
+                          "properties": {
+                            "effect": {
+                              "enum": [
+                                "NoSchedule",
+                                "PreferNoSchedule",
+                                "NoExecute"
+                              ],
+                              "type": "string"
+                            },
+                            "key": {
+                              "type": "string"
+                            },
+                            "value": {
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "key",
+                            "effect"
+                          ],
+                          "type": "object"
+                        },
+                        "nullable": true,
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "required": [
+                  "schedulingConstraints"
+                ],
+                "type": "object"
+              },
+              "status": {
+                "properties": {
+                  "conditions": {
+                    "items": {
+                      "properties": {
+                        "lastUpdateTime": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "reason": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "status": {
+                          "minLength": 1,
+                          "pattern": "^(True|False)$",
+                          "type": "string"
+                        },
+                        "type": {
+                          "minLength": 1,
+                          "pattern": "^(NodeGroupSpecReconciled)$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "resourceConstraints": {
+                    "properties": {
+                      "gpuType": {
+                        "nullable": true,
+                        "pattern": "^(T4|L4|V100|A10|A100|H100|H200)$",
+                        "type": "string"
+                      },
+                      "maxCores": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxGPUs": {
+                        "minimum": 0,
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "spec"
+            ],
+            "type": "object"
+          }
+        },
+        "served": true,
+        "storage": true,
+        "subresources": {}
+      }
+    ]
+  }
+}

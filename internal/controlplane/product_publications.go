@@ -8,39 +8,17 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"time"
+
+	"github.com/jonathanagustin/conduit/internal/catalog"
 )
 
-// ProductPublication is the durable, immutable receipt for a public Product
-// publication. Release is present only when the publication can be projected
-// into Conduit's exact-digest executable model.
-type ProductPublication struct {
-	MavenCoordinate   string                   `json:"mavenCoordinate"`
-	Product           string                   `json:"product"`
-	Version           string                   `json:"version"`
-	Kind              string                   `json:"kind"`
-	PublicationDigest string                   `json:"publicationDigest"`
-	ReleaseChannels   []string                 `json:"releaseChannels,omitempty"`
-	UpgradeStrategy   string                   `json:"upgradeStrategy,omitempty"`
-	Dependencies      []Dependency             `json:"dependencies,omitempty"`
-	Release           *Release                 `json:"release,omitempty"`
-	DefaultConfig     *ProductPublicationAsset `json:"defaultConfig,omitempty"`
-	ConfigSchema      *ProductPublicationAsset `json:"configSchema,omitempty"`
-	CreatedAt         time.Time                `json:"createdAt"`
-}
-
-// ProductPublicationAsset binds exact content-addressed bytes to a publication
-// without including the storage timestamp in the immutable publication digest.
-type ProductPublicationAsset struct {
-	MediaType string `json:"mediaType"`
-	Digest    string `json:"digest"`
-	Size      int64  `json:"size"`
-}
-
-type ProductPublicationRepository interface {
-	CreateProductPublication(context.Context, ProductPublication) (ProductPublication, error)
-	ListProductPublications(context.Context, string) ([]ProductPublication, error)
-}
+// Compatibility aliases keep the persistence implementations stable while the
+// owning definitions live in Catalog. New code imports internal/catalog.
+type (
+	ProductPublication           = catalog.Publication
+	ProductPublicationAsset      = catalog.PublicationAsset
+	ProductPublicationRepository = catalog.PublicationRepository
+)
 
 func (repository *MemoryRepository) CreateProductPublication(_ context.Context, publication ProductPublication) (ProductPublication, error) {
 	repository.mu.Lock()

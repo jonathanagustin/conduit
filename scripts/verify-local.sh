@@ -171,18 +171,25 @@ zenith_protocol() {
 gate 'Check formatting' check_formatting
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
+gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate operator console' ./scripts/test-console.sh
-gate 'Scan for known vulnerabilities' go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
-gate 'Lint' go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 ./...
+# staticcheck and govulncheck are built against a specific Go release and
+# refuse a module newer than it. Pin the analysis toolchain here rather than
+# lowering `toolchain` in go.mod, which would also pull the digest-pinned
+# container builds off go1.26.6 and bypass their supply-chain pinning.
+gate 'Scan for known vulnerabilities' env GOTOOLCHAIN=go1.25.13 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+gate 'Lint' env GOTOOLCHAIN=go1.25.13 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
 gate 'Validate Renovate configuration' jq --exit-status . renovate.json
 gate 'Lint Containerfiles' env HADOLINT_BIN="${hadolint_bin}" ./scripts/verify-containerfiles.sh
 gate 'Validate OCI release manifest assembly' oci_manifest
 gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-source-descriptor.test.mjs
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs --gate
+gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate trusted supply-chain policy' supply_chain
 gate 'Validate optimizer candidate release policy' optimizer_candidate_release
+gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
 gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb

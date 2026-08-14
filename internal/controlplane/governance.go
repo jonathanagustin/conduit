@@ -615,7 +615,7 @@ func (service *GovernanceService) evaluateChangeRequest(
 func (service *GovernanceService) Approve(
 	ctx context.Context, changeRequestID string, principal Principal, rationale string,
 ) (ChangeRequest, PlanRecord, error) {
-	return service.approve(ctx, changeRequestID, principal, rationale, nil)
+	return service.approveTransactional(ctx, changeRequestID, principal, rationale, nil)
 }
 
 type optimizerApprovalPermit struct {
@@ -626,7 +626,41 @@ type optimizerApprovalPermit struct {
 	evaluatedAt    time.Time
 }
 
-func (service *GovernanceService) approve(
+func (service *GovernanceService) approveTransactional(
+	ctx context.Context, changeRequestID string, principal Principal, rationale string, permit *optimizerApprovalPermit,
+) (ChangeRequest, PlanRecord, error) {
+	transactional, ok := service.repository.(TransactionalRepository)
+	if !ok {
+		return service.approveOnce(ctx, changeRequestID, principal, rationale, permit)
+	}
+	var request ChangeRequest
+	var plan PlanRecord
+	var operationErr error
+	err := transactional.Transaction(ctx, func(transaction Repository) error {
+		transactionService := NewGovernanceService(transaction)
+		transactionService.now = service.now
+		request, plan, operationErr = transactionService.approveOnce(ctx, changeRequestID, principal, rationale, permit)
+		// An application adapter records a durable failed execution on the
+		// Change Request before returning its outward conflict. Preserve that
+		// evidence; all other errors roll the transaction back.
+		if operationErr != nil && request.Execution != nil && request.Execution.Status == ExecutionFailed {
+			return nil
+		}
+		return operationErr
+	})
+	if err != nil {
+		if auditErr := service.audit(ctx, principal.Username, "CHANGE_REQUEST_APPROVE", changeRequestID, "DENY", errorReason(err), nil); auditErr != nil {
+			return ChangeRequest{}, PlanRecord{}, errors.Join(err, fmt.Errorf("persist denied approval audit: %w", auditErr))
+		}
+		return ChangeRequest{}, PlanRecord{}, err
+	}
+	if operationErr != nil {
+		return request, plan, operationErr
+	}
+	return request, plan, nil
+}
+
+func (service *GovernanceService) approveOnce(
 	ctx context.Context, changeRequestID string, principal Principal, rationale string, permit *optimizerApprovalPermit,
 ) (ChangeRequest, PlanRecord, error) {
 	rationale = strings.TrimSpace(rationale)
@@ -720,9 +754,12 @@ func (service *GovernanceService) approve(
 	if err != nil {
 		decision = "DENY"
 	}
-	service.audit(ctx, principal.Username, "CHANGE_REQUEST_APPROVE", changeRequestID, decision, errorReason(err), nil)
+	auditErr := service.audit(ctx, principal.Username, "CHANGE_REQUEST_APPROVE", changeRequestID, decision, errorReason(err), nil)
 	if err != nil {
 		return ChangeRequest{}, PlanRecord{}, err
+	}
+	if auditErr != nil {
+		return ChangeRequest{}, PlanRecord{}, fmt.Errorf("persist approval audit: %w", auditErr)
 	}
 	plan, err := service.syncPlan(ctx, request)
 	if err == nil && request.TargetKind == EnvironmentProfileChangeTarget && request.Status == ChangeApproved {
@@ -1066,7 +1103,7 @@ func (service *GovernanceService) referencedResource(
 
 func (service *GovernanceService) audit(
 	ctx context.Context, subject, action, resource, decision, reason string, eventContext map[string]any,
-) {
+) error {
 	now := service.now().UTC()
 	identity := sha256.Sum256([]byte(subject + "\x00" + action + "\x00" + resource + "\x00" + decision + "\x00" + now.Format(time.RFC3339Nano)))
 	succeeded, failed := []string{}, []string{}
@@ -1109,9 +1146,11 @@ func (service *GovernanceService) audit(
 		}
 	}
 	event.Categories = normalizedAuditCategories(event.Categories)
-	if ValidateAuditCategoryEvent(event) == nil {
-		_, _ = service.repository.AppendAuthorizationAudit(ctx, event)
+	if err := ValidateAuditCategoryEvent(event); err != nil {
+		return err
 	}
+	_, err := service.repository.AppendAuthorizationAudit(ctx, event)
+	return err
 }
 
 func (service *GovernanceService) auditRequestCreated(ctx context.Context, request ChangeRequest) {

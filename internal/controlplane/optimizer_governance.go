@@ -67,7 +67,7 @@ func (service *GovernanceService) ApproveOptimizerProposal(
 		return ChangeRequest{}, PlanRecord{}, err
 	}
 	evaluatedAt, _ := time.Parse(time.RFC3339Nano, revalidation.EvaluatedAt)
-	return service.approve(ctx, changeRequestID, principal, rationale, &optimizerApprovalPermit{
+	return service.approveTransactional(ctx, changeRequestID, principal, rationale, &optimizerApprovalPermit{
 		planID: plan.ID, proposalID: proposal.ID, revalidationID: revalidation.ID, acquisitionID: acquisition.ID,
 		evaluatedAt: evaluatedAt,
 	})

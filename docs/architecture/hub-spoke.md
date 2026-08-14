@@ -56,9 +56,10 @@ Execution must remain attributable to this lease tuple. A Spoke may not reuse
 a receipt from a different Plan or attempt, and the Hub may not accept a state
 transition that cannot be tied to the active lease.
 
-The Hub's target continuous loop is specified in
-[Conduit reconciliation](reconciliation.md). The present code has deterministic
-Plan compilation and leased execution, but not yet the complete durable worker.
+The Hub's production continuous loop is specified in
+[Conduit reconciliation](reconciliation.md). PostgreSQL Hub replicas share its
+leased work, atomic decision/audit/outbox state, periodic repair, and Plan
+receipts; explicit file mode remains a single-replica compatibility profile.
 
 ## Tenant-specific inputs
 

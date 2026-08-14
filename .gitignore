@@ -19,3 +19,7 @@ tools/zenith-protocol/node_modules/
 /platform-operator
 /platform-spoke-agent
 /platform-optimizer
+
+# Local verification tool cache (scripts/verify-local.sh downloads pinned
+# binaries here; its comment already assumes this is ignored).
+.cache/

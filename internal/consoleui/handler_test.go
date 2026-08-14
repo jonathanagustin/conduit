@@ -1,12 +1,48 @@
 package consoleui
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
 	"strings"
 	"testing"
 )
+
+func TestHandlerServesValidatedBootstrapWithoutSecurityOverrides(t *testing.T) {
+	bootstrap := DefaultBootstrap()
+	bootstrap.Tenant.ID = "synthetic-alpha"
+	bootstrap.Tenant.DisplayName = "Synthetic Alpha"
+	bootstrap.Brand.Title = "Alpha Operations"
+	bootstrap.Provenance.ClaimClass = "tenant-observation"
+	bootstrap.Provenance.EvidenceRef = "evidence://synthetic/tenant-alpha"
+	handler := Handler(bootstrap)
+	response := request(t, handler, "/console/bootstrap.json")
+	if response.Code != http.StatusOK {
+		t.Fatalf("bootstrap = %d %q", response.Code, response.Body.String())
+	}
+	if got := response.Header().Get("Cache-Control"); got != "no-store" {
+		t.Fatalf("bootstrap cache control = %q", got)
+	}
+	if got := response.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
+		t.Fatalf("bootstrap content type = %q", got)
+	}
+	if !strings.Contains(response.Header().Get("Content-Security-Policy"), "connect-src 'self'") {
+		t.Fatalf("bootstrap CSP = %q", response.Header().Get("Content-Security-Policy"))
+	}
+	var served Bootstrap
+	if err := json.Unmarshal(response.Body.Bytes(), &served); err != nil {
+		t.Fatal(err)
+	}
+	if served != bootstrap {
+		t.Fatalf("served bootstrap = %#v, want %#v", served, bootstrap)
+	}
+	for _, forbidden := range []string{"capabilities", "apiBaseUrl", "script", "authMode", "csp"} {
+		if strings.Contains(response.Body.String(), forbidden) {
+			t.Fatalf("served bootstrap contains forbidden field %q", forbidden)
+		}
+	}
+}
 
 func TestHandlerServesShellRouteAndImmutableAsset(t *testing.T) {
 	handler := Handler()

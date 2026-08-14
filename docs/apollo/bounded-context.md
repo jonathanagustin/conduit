@@ -28,7 +28,7 @@ The intended path is one-way:
 
 ```text
 pinned OpenAPI
-  -> generated DTOs + strict server/client interfaces + router
+  -> generated DTOs + strict server interface + router
   -> Apollo adapter
   -> narrow Conduit application ports
   -> native bounded contexts
@@ -41,29 +41,28 @@ contract explicitly requires retaining foreign bytes.
 
 ## Current structure
 
-[`internal/apollo`](../../internal/apollo) contains the generated public route
-table and the generated role inventory. The public HTTP adapter and handwritten
-payload types remain in
-[`internal/controlplane/apollo_api.go`](../../internal/controlplane/apollo_api.go).
-The route generator in
-[`internal/tools/apolloroutegen`](../../internal/tools/apolloroutegen) reads the
-pinned snapshot but intentionally emits routes only.
+[`internal/apollo`](../../internal/apollo) contains the generated public DTOs,
+strict server interface, standard-library router, and role inventory. The
+production router calls that strict interface through
+[`internal/controlplane/apollo_openapi_adapter.go`](../../internal/controlplane/apollo_openapi_adapter.go).
+The adapter calls
+[`internal/apollo/application`](../../internal/apollo/application) directly.
+That package owns generated DTO validation, public projections, and translation
+through explicit Catalog and Environment ports. The control-plane package owns
+only HTTP identity/governance and the port implementations; there is no Apollo
+to control-plane import edge and no generated-request-to-legacy-HTTP bridge.
 
-This is a real boundary for vocabulary and evidence, but not yet the final
-structural adapter. The remaining extraction must avoid a dependency cycle with
-the legacy control-plane package.
+Catalog Publications and normalized Environment Reports are native domain
+types. Public generated DTOs stop inside the Apollo context. The separate `/v1`
+Helm bundle adapter may add exact Conduit assets, but those fields are neither
+accepted by nor advertised on the public Apollo operation.
 
 ## Migration sequence
 
-1. Generate the complete transport surface from the pinned snapshot and add a
-   stale-generation gate.
-2. Define the smallest application ports needed by each public operation.
-3. Move translation and the HTTP adapter behind the generated strict server
-   interface.
-4. Keep compatibility tests at the adapter boundary and native behavior tests
-   inside the owning contexts.
-5. Remove handwritten transport types only after every caller uses the
-   generated contract.
+The extraction sequence is complete for the pinned public API: narrow ports,
+direct generated-interface calls, compatibility tests, and removal of
+production handwritten DTO duplicates all landed together. A future contract
+change must preserve those same gates rather than reopening the facade.
 
 Each step should be independently releasable. Route and payload behavior must
 remain stable unless a new pinned contract and an explicit compatibility record

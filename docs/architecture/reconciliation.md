@@ -1,96 +1,117 @@
 # Conduit reconciliation
 
-Conduit will own the reconciliation of approved desired state into observed
-deployment state. Flux may bootstrap and upgrade the Conduit runtime, and Helm
-may apply a release, but neither tool owns Conduit's Product, Plan, approval,
-lease, rollback, or convergence semantics.
+Conduit owns continuous convergence of reviewed tenant intent. Flux may install
+and upgrade the Conduit runtime, and Helm may apply an approved Plan, but
+neither owns Conduit's Product, Plan, approval, lease, rollback, or convergence
+semantics.
 
 ## Current implementation
 
-The repository already has the main reconciliation primitives:
+Production PostgreSQL Hubs run a Conduit-owned reconciliation supervisor in
+every replica. The implementation is split by responsibility:
 
-- `BuildPlanWithObserved` resolves desired state against an Environment report
-  and emits ordered `reconcile` or `uninstall` steps;
-- Plan generations and persisted desired-state bytes are immutable;
-- governance controls when a proposed Plan becomes executable;
-- one Spoke leases a Plan, applies it through bounded adapters, observes the
-  result, and reports completion or failure; and
-- desired and reported state remain separate in the fleet projection.
+- `internal/delivery/reconciliation/domain` defines the stable
+  `Environment + installation` key, immutable desired and observed snapshots,
+  and deterministic `CONVERGED`, `PROPOSE_PLAN`, `BLOCKED`, and `WAIT`
+  decisions;
+- `application` owns leased processing, bounded retry, proposal dispatch,
+  startup priming, periodic resynchronization, and dropped-work repair;
+- `ports` defines storage, planning, clock, and synchronization capabilities;
+- `adapters/postgres` owns context tables for inputs, work, decisions, audit,
+  proposal outbox entries, and Plan receipts; and
+- `adapters/controlplane` is a temporary anti-corruption adapter that observes
+  committed Plans and reports and submits proposals through the ordinary Plan
+  lifecycle.
 
-These pieces support a reconciliation operation, but they are not yet a durable
-continuous reconciler. Plan creation is still driven through the legacy
-`internal/controlplane` service. There is no context-owned work queue, periodic
-resynchronization loop, or transactional decision-and-audit outbox.
+The worker does not approve or execute a Plan. Governance still authorizes it,
+Execution still leases it, and the Spoke still applies and reports it.
 
-## Target loop
+Explicit file-repository mode remains a one-replica development and migration
+profile. It does not claim durable continuous reconciliation.
 
-A native Hub reconciliation worker should process a stable key such as
-`Environment + installation`:
+## Durable loop
 
-1. Enqueue the key when desired state, reported state, catalog admission,
-   recall, policy, or a relevant timer changes.
-2. Lease the queue item with an attempt number and bounded expiry.
-3. Read one immutable input snapshot: desired generation, reported-state
-   digest and observation time, catalog coordinates, constraints, and current
-   policy references.
-4. Compute a deterministic result: `CONVERGED`, `PROPOSE_PLAN`, `BLOCKED`, or
-   `WAIT`.
-5. For `PROPOSE_PLAN`, derive an idempotency key from the input snapshot and
-   proposed intent, then atomically persist the proposal, decision event, and
-   future wake-up.
-6. Let Governance approve or reject the proposal. The reconciler cannot
-   approve its own work.
-7. Let Execution lease an approved Plan to the matching Spoke. The reconciler
-   cannot execute it.
-8. Enqueue the key again when execution or reported state changes. Continue
-   until exact convergence or an attributable blocked state is recorded.
-9. Periodically rescan bounded keys so a lost notification cannot leave state
-   permanently unreconciled.
+1. A committed Plan or exact Plan-bound report is translated into immutable
+   per-installation input.
+2. The PostgreSQL adapter records the input and increments a work revision in
+   the same transaction.
+3. One replica leases the key with `FOR UPDATE SKIP LOCKED`, an opaque token,
+   attempt number, expiry, and input revision.
+4. The domain computes a deterministic decision from the latest desired and
+   observed snapshots.
+5. The store atomically commits the decision, its audit event, and any proposal
+   outbox entry. An audit failure leaves all three invisible.
+6. A dispatcher submits the proposal through `Lifecycle.CreatePlan`; this
+   creates an ordinary Plan with the existing approval and execution rules.
+7. The Plan receipt and outbox acknowledgement commit together. A crash before
+   acknowledgement replays the content-addressed proposal safely.
+8. A later exact report enqueues the key again and produces `CONVERGED` only
+   when generation, target digest, freshness, and completion evidence match.
+9. Startup and periodic scans reconstruct inputs from committed Plans and
+   reports, then repair a missing work notification by comparing the current
+   input digest with the latest decision.
 
-Retries use bounded exponential backoff with jitter, but the durable key and
-input digest make repeated attempts idempotent. A new desired generation does
-not rewrite an old attempt; it creates a new reconciliation input.
+A work revision is a fencing value, not a desired-state generation. If input
+changes while a worker holds a lease, the old decision may remain as audit
+evidence, but it cannot publish an outbox proposal or acknowledge the newer
+work. The planner independently rechecks the current desired snapshot before
+and after ordinary Plan creation. A superseded proposal is terminally retired
+instead of retried as stale authority.
 
-## Ownership and package boundary
+## Fidelity boundary
 
-The target package is a Delivery application service, for example:
+The adapter derives a desired target digest only from the persisted Plan step.
+An observed digest uses the same closed projection: Product, version, Release
+digest, namespace, configuration digest, and expected lifecycle. Operational
+completion also requires the exact health, rollout, configuration, and
+lifecycle result accepted by the existing Plan result contract.
+
+A report without an exact local Plan ID is not assigned a plausible generation.
+Imported or relayed evidence that names an unknown Plan remains compatibility
+evidence; it cannot assert local convergence. The planner loads the latest
+committed full-environment desired state at dispatch time, so an unchanged
+installation cannot replay an old payload after another installation changes.
+
+## Package boundary
+
+Dependencies point inward:
 
 ```text
-internal/delivery/reconciliation/
-  domain/       decision, key, convergence and blocked reasons
-  application/  deterministic reconciler and worker
-  ports/        desired/report/catalog/policy readers, queue, outbox and clock
-  adapters/     repository-backed queue and composition bindings
+control-plane compatibility adapter  PostgreSQL adapter
+                 \                    /
+                  ports -> application -> domain
 ```
 
-The domain layer must not import HTTP, Helm, Kubernetes, Flux, a generated API,
-or `internal/controlplane`. Cross-context inputs arrive as immutable snapshots.
-The Hub composition root supplies adapters.
+The reconciliation domain, application, and ports do not import HTTP, Flux,
+Helm, Kubernetes, or `internal/controlplane`. Only the named compatibility
+adapter may import the temporary facade. `scripts/verify-domain-boundaries.mjs`
+and its planted-control regression test enforce that rule.
 
 ## Safety rules
 
 - Reconciliation proposes; Governance authorizes; Execution leases; the Spoke
-  applies. No layer silently gains the next layer's authority.
-- Missing, stale, conflicting, or incomplete reported state cannot be treated
-  as convergence.
-- An audit append failure prevents the proposal or state transition from
-  becoming visible.
-- Disk and artifact preflight evidence must be fresh and Plan-bound before an
-  approved Plan becomes leaseable.
-- Credentials and secret values never enter the queue, decision, Plan, or
-  reconciliation log.
-- A blocked result names the failed invariant and the evidence needed to wake
-  it; it is not an infinite retry loop.
+  applies.
+- Missing, stale, conflicting, or incomplete reported state is never
+  convergence.
+- An audit append failure prevents the decision and proposal from becoming
+  visible.
+- Credentials and secret values never enter reconciliation inputs, decisions,
+  outbox entries, or logs.
+- Retry is bounded and attributable. Superseded desired state receives a new
+  work revision rather than borrowing an old attempt's authority.
+- Disk and artifact preflight remain separate last-safe-point requirements
+  before an approved Plan becomes leaseable.
 
-## Acceptance gate
+## Executable evidence
 
-The first implementation slice should reconcile one installation end to end
-without importing `internal/controlplane` into the new domain or application
-packages. Tests must cover stable no-op convergence, idempotent duplicate
-events, desired-state supersession, stale observations, crash recovery between
-decision and persistence, audit failure, retry exhaustion, and periodic repair
-of a deliberately dropped event.
+`scripts/test-postgres-repository.sh` runs the race detector against a
+digest-pinned disposable PostgreSQL server. It proves multi-replica single
+winners, exact input round trips, stale-lease rejection, proposal crash
+recovery, decision/audit/outbox atomicity, supersession fencing, dropped-work
+repair, and production Hub composition through the ordinary Plan lifecycle.
 
-Only after that slice is production-consumed should Flux be described solely
-as Conduit runtime bootstrap and upgrade machinery rather than the continuous
-owner of tenant software delivery.
+The deterministic application tests additionally cover exact no-op convergence,
+duplicate events, stale observations, retry exhaustion, latest-generation
+selection, planner idempotency, and terminal retirement of stale proposals.
+Flux is therefore only the Gitless runtime bootstrap/upgrade reconciler; it is
+not the owner of tenant delivery convergence.

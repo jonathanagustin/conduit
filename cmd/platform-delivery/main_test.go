@@ -1,18 +1,95 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
+
+func TestPostgresConfigureReconciliationPrimesOrdinaryPlanLifecycle(t *testing.T) {
+	dsn := os.Getenv("CONDUIT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("CONDUIT_TEST_POSTGRES_DSN is required for the PostgreSQL integration gate")
+	}
+	ctx := t.Context()
+	database, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	base, err := controlplane.NewPostgresRepository(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer base.Close()
+	dsnFile := writeFile(t, "postgres-dsn", []byte(dsn+"\n"))
+	configuration := map[string]string{
+		"REPOSITORY_KIND": "postgres", "POSTGRES_DSN_FILE": dsnFile,
+	}
+	repository, closeReconciliation, supervisor, err := configureReconciliation(ctx,
+		func(name string) string { return configuration[name] }, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeReconciliation()
+	if supervisor == nil || repository == base {
+		t.Fatalf("production reconciliation composition = repository %T, supervisor %v", repository, supervisor)
+	}
+	if _, err := database.ExecContext(ctx, `
+TRUNCATE conduit_repository_blobs;
+UPDATE conduit_repository_state SET generation = 0, state = '{}'::jsonb WHERE singleton = TRUE;
+TRUNCATE conduit_reconciliation_desired, conduit_reconciliation_observations,
+    conduit_reconciliation_work, conduit_reconciliation_decisions,
+    conduit_reconciliation_audit, conduit_reconciliation_proposal_outbox,
+    conduit_reconciliation_plan_receipts`); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join("..", "..", "examples", "example-foundation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state controlplane.DesiredState
+	if err := json.Unmarshal(contents, &state); err != nil {
+		t.Fatal(err)
+	}
+	record, err := controlplane.NewLifecycle(repository).CreatePlan(ctx, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := supervisor.Prime(ctx); err != nil {
+		t.Fatal(err)
+	}
+	plans, err := repository.ListPlans(ctx, state.Environment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].ID != record.ID {
+		t.Fatalf("ordinary Plan lifecycle produced %#v, want one %s", plans, record.ID)
+	}
+	var receipts, outstanding int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM conduit_reconciliation_plan_receipts").Scan(&receipts); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM conduit_reconciliation_proposal_outbox WHERE exhausted = false").Scan(&outstanding); err != nil {
+		t.Fatal(err)
+	}
+	if receipts != len(record.Plan.Steps) || outstanding != 0 {
+		t.Fatalf("receipts=%d steps=%d outstanding=%d", receipts, len(record.Plan.Steps), outstanding)
+	}
+}
 
 func writeFile(t *testing.T, name string, contents []byte) string {
 	t.Helper()
@@ -185,6 +262,54 @@ func TestSplitCommaSeparated(t *testing.T) {
 				t.Errorf("%s: %q gave %#v, want %#v", name, test.given, got, test.want)
 				break
 			}
+		}
+	}
+}
+
+func TestRepositoryConfigurationFailsClosed(t *testing.T) {
+	t.Parallel()
+	getenv := func(values map[string]string) func(string) string {
+		return func(name string) string { return values[name] }
+	}
+	if _, closeRepository, err := openRepository(context.Background(), getenv(map[string]string{
+		"REPOSITORY_KIND": "unknown",
+	})); err == nil {
+		closeRepository()
+		t.Fatal("unknown repository kind was accepted")
+	}
+	if _, closeRepository, err := openRepository(context.Background(), getenv(map[string]string{
+		"REPOSITORY_KIND": "postgres",
+	})); err == nil {
+		closeRepository()
+		t.Fatal("PostgreSQL repository without a mounted DSN was accepted")
+	}
+	fileRoot := filepath.Join(t.TempDir(), "state")
+	repository, closeRepository, err := openRepository(context.Background(), getenv(map[string]string{
+		"REPOSITORY_KIND": "file", "DATA_DIRECTORY": fileRoot,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeRepository()
+	if _, ok := repository.(*controlplane.FileRepository); !ok {
+		t.Fatalf("file mode returned %T", repository)
+	}
+}
+
+func TestReadSingleLineSecretFile(t *testing.T) {
+	t.Parallel()
+	valid := writeFile(t, "dsn", []byte("postgres://conduit@example.test/conduit\n"))
+	if value, err := readSingleLineSecretFile(valid, "POSTGRES_DSN_FILE"); err != nil || value != "postgres://conduit@example.test/conduit" {
+		t.Fatalf("valid DSN = %q, %v", value, err)
+	}
+	for name, contents := range map[string][]byte{
+		"empty":     {},
+		"multiline": []byte("first\nsecond\n"),
+		"nul":       []byte("first\x00second"),
+		"oversized": bytes.Repeat([]byte("x"), 64*1024+1),
+	} {
+		if _, err := readSingleLineSecretFile(writeFile(t, name, contents), "POSTGRES_DSN_FILE"); err == nil {
+			t.Errorf("%s secret file was accepted", name)
 		}
 	}
 }

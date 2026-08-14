@@ -58,7 +58,16 @@ helm upgrade --install platform-spoke ./deploy/helm/platform-spoke \
 
 The Hub requires at least one bootstrap administrator, a server TLS Secret, an
 external client CA ConfigMap, an Ed25519 PKCS#8 bundle-signing Secret, and a
-storage class choice. Its single-writer PVC has Helm's `keep` policy.
+deployment-owned Secret containing one PostgreSQL DSN. The default profile runs
+two replicas against that transactional repository; the credential is mounted
+read-only and never enters chart values. Explicit `repository.kind=file` is a
+single-replica development/migration profile whose PVC retains Helm's `keep`
+policy.
+`consoleBootstrap` supplies only evidence-bound tenant identity and branding;
+the chart schema rejects unknown fields and the Hub validates the rendered
+read-only ConfigMap again before startup. It cannot configure authentication,
+capabilities, API origins, scripts, or security policy. See
+[`docs/ui/contracts/runtime-bootstrap.md`](../../docs/ui/contracts/runtime-bootstrap.md).
 
 The Spoke requires a stable Environment/Agent identity, an explicit HTTPS Hub
 URL, a client TLS Secret whose URI SAN matches Conduit's Agent identity
@@ -122,10 +131,11 @@ PID/IPC, host paths, privileged containers, namespace creation, cluster-admin,
 or mutable image tags.
 
 The public Rubix technical specifications also require disruption tolerance
-for software claiming strong availability. The current filesystem-backed Hub
-is deliberately one replica with `Recreate` and a retained single-writer PVC;
-it does **not** claim that profile. Multiple replicas require a transactional
-repository and a separate failover gate. The outbound Spoke is restart-safe,
+for software claiming strong availability. Conduit's production profile now
+uses two PostgreSQL-backed Hub replicas, a zero-unavailable rolling update, and
+a one-replica disruption budget. The integration gate proves transactional
+concurrency and rollback, but no node-loss or database failover exercise has
+established a Rubix availability claim. The outbound Spoke is restart-safe,
 but its chart likewise makes no private Rubix availability claim.
 
 Public pages currently state two different cycling bounds: a 48-hour maximum

@@ -371,12 +371,12 @@ func TestPromotionHTTPAPIProductFilterDoesNotLeakAnotherProduct(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, body = %s", response.Code, response.Body.String())
 	}
-	var records []PromotionRecord
-	if err := json.Unmarshal(response.Body.Bytes(), &records); err != nil {
+	var page PromotionPage
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
 		t.Fatal(err)
 	}
-	if len(records) != 1 || records[0].Product != payments.Release.Product {
-		t.Fatalf("filtered promotions = %#v", records)
+	if page.Total != 1 || len(page.Promotions) != 1 || page.Promotions[0].Product != payments.Release.Product {
+		t.Fatalf("filtered promotions = %#v", page)
 	}
 }
 

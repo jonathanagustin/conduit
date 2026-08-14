@@ -5,6 +5,7 @@ The living UI contract is intentionally small:
 - `contracts/pagination.md` defines the shared index behavior.
 - `contracts/overview.md` defines the Hub overview projection and its failure states.
 - `contracts/session-capabilities.md` defines capability-driven navigation.
+- `contracts/runtime-bootstrap.md` defines the closed tenant-branding runtime surface.
 
 The files under `evidence/` and the dated inventories in this directory are
 bounded evidence records. They can support only the observation and provenance
@@ -15,6 +16,7 @@ For Apollo-facing presentation, classify every claim under
 visible state that was captured. Unknown placement, wording, interaction, or
 API behavior stays unknown. Conduit-native behavior must be labeled as such.
 
-The frontend currently uses handwritten TypeScript API interfaces. The intended
-contract-first boundary is generated types from the pinned OpenAPI where a
-public Apollo contract exists, with Conduit-native types for local extensions.
+The Apollo public transport uses generated Go DTOs, router, and strict server
+interfaces from the pinned OpenAPI snapshot. The console's Conduit-native
+runtime bootstrap is a separate closed contract and cannot alter API or session
+capabilities.

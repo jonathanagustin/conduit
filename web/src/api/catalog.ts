@@ -5,8 +5,9 @@ import type { EnvironmentCatalogRecord, ReportedEntity } from "./resources.js";
 import type { CatalogQuery, PageMetadata } from "./types.js";
 
 /** Catalog and promotion transport. As elsewhere, envelopes were read off
- * http.go: /products wraps in "products", a Product's releases wrap in
- * "releases", and /promotions and an Environment's commands return bare arrays. */
+ * http.go: paged Products and Promotions use named arrays plus page metadata,
+ * a Product's Releases use a bounded named array, and Environment Commands are
+ * scoped records returned as a bare array. */
 
 export interface Artifact {
   repository: string;
@@ -66,6 +67,17 @@ export interface PromotionRecord {
   blockers?: PromotionBlocker[];
   reasons?: string[];
   evaluationStartedAt?: string;
+  evaluatedAt?: string;
+}
+
+export interface PromotionPage extends PageMetadata {
+  promotions: PromotionRecord[];
+  total: number;
+}
+
+export interface PromotionQuery extends CatalogQuery {
+  product?: string;
+  status?: string;
 }
 
 /** GET /v1/environments/{id}/commands returns PlanRecord values whose Command
@@ -131,13 +143,13 @@ export function useProductReleases(product: string) {
   });
 }
 
-export function usePromotions(product?: string) {
+export function usePromotions(query: PromotionQuery = {}) {
   return useQuery({
-    queryKey: ["promotions", product ?? null],
+    queryKey: ["promotions", query],
     queryFn: ({ signal }) =>
-      getJSON<PromotionRecord[]>("/promotions", {
+      getJSON<PromotionPage>("/promotions", {
         signal,
-        ...(product === undefined ? {} : { query: { product } }),
+        query: { ...query },
       }),
     refetchInterval: 30_000,
   });

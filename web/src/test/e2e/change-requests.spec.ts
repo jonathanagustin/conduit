@@ -1,4 +1,4 @@
-import { expect, test } from "./harness.js";
+import { expect, indexPage, test } from "./harness.js";
 
 /** Change Requests -- P0: "What exactly am I being asked to approve?"
  *
@@ -38,12 +38,10 @@ function changeRequest(overrides: Record<string, unknown> = {}) {
 
 test.describe("Change Requests", () => {
   test("puts requests awaiting approval before settled ones", async ({ page, hub }) => {
-    hub.get("/change-requests", {
-      changeRequests: [
+    hub.get("/change-requests", indexPage("changeRequests", [
         changeRequest({ id: "crq_done", status: "APPROVED", updatedAt: "2026-08-07T13:00:00Z" }),
         changeRequest({ id: "crq_waiting", status: "PENDING_APPROVALS" }),
-      ],
-    });
+      ]));
     await page.goto("change-requests");
 
     // The queue exists to surface what needs a person. Recency alone would bury
@@ -54,10 +52,63 @@ test.describe("Change Requests", () => {
   });
 
   test("counts the outstanding reviewer requirements", async ({ page, hub }) => {
-    hub.get("/change-requests", { changeRequests: [changeRequest()] });
+    hub.get("/change-requests", indexPage("changeRequests", [changeRequest()]));
     await page.goto("change-requests");
 
     await expect(page.getByRole("row", { name: /crq_upgrade/ })).toContainText("1");
+  });
+
+  test("keeps search and opaque traversal in the URL across reload and retry", async ({ page, hub }) => {
+    hub.get(
+      "/change-requests",
+      indexPage("changeRequests", [changeRequest({ id: "crq_first" })], {
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        nextCursor: "change-next",
+      }),
+    );
+    hub.get(
+      "/change-requests",
+      indexPage("changeRequests", [changeRequest({ id: "crq_second" })], {
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        hasPrevious: true,
+      }),
+      { cursor: "change-next" },
+    );
+
+    await page.goto("change-requests?search=upgrade");
+    await page.getByTestId("change-requests-pagination").getByRole("button", { name: "Next" }).click();
+    await expect(page).toHaveURL(/search=upgrade.*cursor=change-next|cursor=change-next.*search=upgrade/);
+    await expect(page.getByRole("row", { name: /crq_second/ })).toBeVisible();
+
+    const beforeReload = hub.requests().filter((request) => request.includes("cursor=change-next")).length;
+    await page.reload();
+    await expect(page.getByRole("row", { name: /crq_second/ })).toBeVisible();
+    expect(hub.requests().filter((request) => request.includes("cursor=change-next")).length).toBeGreaterThan(beforeReload);
+
+    hub.fails("/change-requests", 500, "change request store unavailable", { cursor: "change-next" });
+    await page.reload();
+    await expect(page.getByText(/Change Requests could not be read/i)).toBeVisible();
+    hub.get(
+      "/change-requests",
+      indexPage("changeRequests", [changeRequest({ id: "crq_second" })], {
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        hasPrevious: true,
+      }),
+      { cursor: "change-next" },
+    );
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByRole("row", { name: /crq_second/ })).toBeVisible();
+    await expect(page).toHaveURL(/cursor=change-next/);
+
+    await page.getByTestId("change-requests-pagination").getByRole("button", { name: "Previous" }).click();
+    await expect(page).not.toHaveURL(/cursor=/);
+    await expect(page).toHaveURL(/search=upgrade/);
   });
 
   test("shows who must review, what the policies said, and what changes", async ({ page, hub }) => {

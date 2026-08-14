@@ -122,6 +122,8 @@ jobs:
         env:
           PLATFORM_REQUIRE_HELM: "1"
         run: go test -race ./...
+      - name: Validate PostgreSQL repository
+        run: ./scripts/test-postgres-repository.sh
       - name: Vet
         run: go vet ./...
       - name: Validate operator console
@@ -131,13 +133,13 @@ jobs:
       # reports call-graph-reachable findings, so a toolchain or dependency
       # that drifts behind the release image fails here rather than shipping.
       - name: Scan for known vulnerabilities
-        run: go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+        run: GOTOOLCHAIN=go1.25.13 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
       # vet catches a narrow set. staticcheck is what found the dead store in
       # RunDueExportPipelines and the unused coordinate check that turned out to
       # be a real hole. staticcheck.conf records the one excluded category and
       # why, so the exclusion is reviewable rather than a flag buried here.
       - name: Lint
-        run: go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 ./...
+        run: GOTOOLCHAIN=go1.25.13 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
       - name: Validate Renovate configuration
         run: jq --exit-status . renovate.json >/dev/null
       - name: Install pinned Hadolint
@@ -163,6 +165,10 @@ jobs:
         run: ./scripts/verify-version-matches-tag.sh
       - name: Validate controlplane ceiling
         run: node scripts/report-migration-progress.mjs --gate
+      - name: Validate domain boundaries
+        run: |
+          node scripts/verify-domain-boundaries.mjs
+          node scripts/test-domain-boundaries.mjs
       - name: Validate trusted supply-chain policy
         run: |
           ruby scripts/verify-trusted-supply-chain.rb
@@ -172,6 +178,13 @@ jobs:
           ruby scripts/verify-optimizer-candidate-release-workflow.rb
           ./scripts/verify-optimizer-candidate-release-workflow.test.sh
           ./scripts/assemble-optimizer-candidate-gate.test.sh
+      # The Rubix Kubernetes substrate CRDs are ground truth recovered from
+      # com.palantir.rubixlib, not authored here. This checks each committed CRD
+      # against the manifest that records its provenance -- sha256, group, kind,
+      # served versions, and the spec fields the tenant recovery enumerated --
+      # so a re-authoring away from the recovered schema fails rather than ships.
+      - name: Validate Rubix substrate CRDs
+        run: ruby scripts/verify-rubix-crds.rb
       - name: Validate Flux runtime source
         run: ruby scripts/verify-flux-runtime.rb
       - name: Validate Helm runtime chart

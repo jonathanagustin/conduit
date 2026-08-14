@@ -1,4 +1,4 @@
-import { expect, test } from "./harness.js";
+import { expect, indexPage, test } from "./harness.js";
 import {
   EnvironmentDetailPom,
   EnvironmentIndexPom,
@@ -307,7 +307,7 @@ test.describe("Products", () => {
 
   test("shows each Release with its channels and immutable chart digest", async ({ page, hub }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
-    hub.get("/promotions", PRODUCT_PROMOTIONS);
+    hub.get("/promotions", indexPage("promotions", PRODUCT_PROMOTIONS));
     await page.goto("products/app.example%3Apayments");
     const product = new ProductDetailPom(page);
 
@@ -320,7 +320,7 @@ test.describe("Products", () => {
 
   test("does not present an unassessed Release as a clean one", async ({ page, hub }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
-    hub.get("/promotions", PRODUCT_PROMOTIONS);
+    hub.get("/promotions", indexPage("promotions", PRODUCT_PROMOTIONS));
     await page.goto("products/app.example%3Apayments");
     const product = new ProductDetailPom(page);
 
@@ -333,7 +333,7 @@ test.describe("Products", () => {
     hub,
   }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
-    hub.get("/promotions", PRODUCT_PROMOTIONS);
+    hub.get("/promotions", indexPage("promotions", PRODUCT_PROMOTIONS));
     await page.goto("products/app.example%3Apayments");
     const product = new ProductDetailPom(page);
 
@@ -346,7 +346,10 @@ test.describe("Products", () => {
       hub
         .requests()
         .some(
-          (request) => request === "GET /v1/promotions?product=app.example%3Apayments",
+          (request) =>
+            request.includes("GET /v1/promotions?") &&
+            request.includes("product=app.example%3Apayments") &&
+            request.includes("limit=200"),
         ),
     ).toBe(true);
   });
@@ -363,7 +366,7 @@ test.describe("Products", () => {
 
   test("calls an unevaluated Product pipeline unknown rather than clear", async ({ page, hub }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
-    hub.get("/promotions", []);
+    hub.get("/promotions", indexPage("promotions", []));
     await page.goto("products/app.example%3Apayments");
 
     await expect(page.getByText(/channel pipeline is unknown/i)).toBeVisible();
@@ -371,8 +374,70 @@ test.describe("Products", () => {
 });
 
 test.describe("Promotions", () => {
+  test("keeps opaque traversal in the URL across reload and retry", async ({ page, hub }) => {
+    const first = {
+      id: "prm_first",
+      product: "app.example:payments",
+      version: "2.4.1",
+      fromChannel: "RELEASE",
+      toChannel: "STAGING",
+      status: "BLOCKED",
+    };
+    const second = { ...first, id: "prm_second", version: "2.4.2" };
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [first], {
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        nextCursor: "promotion-next",
+      }),
+    );
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [second], {
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        hasPrevious: true,
+      }),
+      { cursor: "promotion-next" },
+    );
+
+    await page.goto("promotions?search=payments");
+    await page.getByTestId("promotions-pagination").getByRole("button", { name: "Next" }).click();
+    await expect(page).toHaveURL(/cursor=promotion-next/);
+    await expect(page.getByTestId("promotion-transition-prm_second")).toBeVisible();
+
+    const beforeReload = hub.requests().filter((request) => request.includes("cursor=promotion-next")).length;
+    await page.reload();
+    await expect(page.getByTestId("promotion-transition-prm_second")).toBeVisible();
+    expect(hub.requests().filter((request) => request.includes("cursor=promotion-next")).length).toBeGreaterThan(beforeReload);
+
+    hub.fails("/promotions", 500, "promotion store unavailable", { cursor: "promotion-next" });
+    await page.reload();
+    await expect(page.getByText(/promotions could not be read/i)).toBeVisible();
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [second], {
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        hasPrevious: true,
+      }),
+      { cursor: "promotion-next" },
+    );
+    await page.getByRole("button", { name: "Try again" }).click();
+    await expect(page.getByTestId("promotion-transition-prm_second")).toBeVisible();
+    await expect(page).toHaveURL(/cursor=promotion-next/);
+
+    await page.getByTestId("promotions-pagination").getByRole("button", { name: "Previous" }).click();
+    await expect(page).not.toHaveURL(/cursor=/);
+    await expect(page).toHaveURL(/search=payments/);
+  });
+
   test("says a promotion passed without listing constraints", async ({ page, hub }) => {
-    hub.get("/promotions", [
+    hub.get("/promotions", indexPage("promotions", [
       {
         id: "prm_1",
         product: "app.example:payments",
@@ -381,7 +446,7 @@ test.describe("Promotions", () => {
         toChannel: "STAGING",
         status: "PASSED",
       },
-    ]);
+    ]));
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_1").click();
@@ -392,7 +457,7 @@ test.describe("Promotions", () => {
   test("shows why a blocked promotion cannot advance", async ({ page, hub }) => {
     // "Why not" is the whole screen: a status alone leaves the operator with
     // nothing to act on.
-    hub.get("/promotions", [
+    hub.get("/promotions", indexPage("promotions", [
       {
         id: "prm_2",
         product: "app.example:payments",
@@ -408,7 +473,7 @@ test.describe("Promotions", () => {
           },
         ],
       },
-    ]);
+    ]));
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_2").click();
@@ -422,7 +487,7 @@ test.describe("Promotions", () => {
     page,
     hub,
   }) => {
-    hub.get("/promotions", [
+    hub.get("/promotions", indexPage("promotions", [
       {
         id: "prm_3",
         product: "app.example:payments",
@@ -432,7 +497,7 @@ test.describe("Promotions", () => {
         status: "BLOCKED",
         reasons: ["the soak period has not elapsed"],
       },
-    ]);
+    ]));
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_3").click();
@@ -443,7 +508,7 @@ test.describe("Promotions", () => {
   test("calls a blocked promotion with no reason a Hub defect", async ({ page, hub }) => {
     // Blocked with nothing to satisfy is not a constraint the operator can act
     // on, and saying so is more useful than an empty list.
-    hub.get("/promotions", [
+    hub.get("/promotions", indexPage("promotions", [
       {
         id: "prm_4",
         product: "app.example:payments",
@@ -452,7 +517,7 @@ test.describe("Promotions", () => {
         toChannel: "STAGING",
         status: "BLOCKED",
       },
-    ]);
+    ]));
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_4").click();
