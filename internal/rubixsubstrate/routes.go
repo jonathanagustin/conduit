@@ -66,6 +66,18 @@ var Routes = []Route{
 	{UserCredentialManagerValidation, "validateConfig", "POST", "/validate/{username}"},
 }
 
+// RouteFor returns the recovered route for a service and endpoint. The typed
+// client resolves every call through this, so it cannot address a path or verb
+// the gated table does not carry.
+func RouteFor(service Service, endpoint string) (Route, bool) {
+	for _, route := range Routes {
+		if route.Service == service && route.Endpoint == endpoint {
+			return route, true
+		}
+	}
+	return Route{}, false
+}
+
 var validMethods = map[string]bool{"GET": true, "PUT": true, "POST": true, "DELETE": true, "PATCH": true}
 
 // Validate proves the table's internal invariants: every route is well-formed,

@@ -33,6 +33,9 @@ as schema rather than re-inferred.
   manager provisioning/validation services) recovered from `network-api` and
   `user-credential-manager`. This is the request surface that drives the CRDs.
   Transcribed into the typed route table `internal/rubixsubstrate/routes.go`.
+  Each endpoint also records the request/response bean and path parameters read
+  from the `*Blocking` service interfaces, and a typed client method in
+  `internal/rubixsubstrate/client.go` calls it.
 
 - `wire-beans.json` — the request/response wire beans those endpoints carry:
   every Conjure object (with its fields), union (with its variants), alias, and
