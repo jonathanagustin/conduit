@@ -206,6 +206,8 @@ not_run_as_written=(
   'Install pinned console browser'
   'Install pinned Hadolint'
   'Install pinned Zarf'
+  'Publish pending Trunk status'
+  'Publish final Trunk status'
 )
 mapfile -t ci_steps < <(sed -n 's/^      - name: //p' "${workflow}")
 if ((${#ci_steps[@]} == 0)); then

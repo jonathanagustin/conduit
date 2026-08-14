@@ -20,7 +20,10 @@ gh workflow run platform-ci.yml \
 
 The workflow must resolve the open pull request and require its head SHA to
 equal `GITHUB_SHA` before it runs repository checks. A run against another SHA
-does not satisfy the candidate.
+does not satisfy the candidate. After that preflight, the workflow publishes a
+pending `Trunk gate` commit status and replaces it with success or failure from
+an `always()` finalizer. This status bridge is required because a
+`workflow_dispatch` check suite is not attached to the pull-request rollup.
 
 Watch a deliberately started run with `gh run watch <run-id> --exit-status`.
 Do not retry a failed or cancelled run until the failure is understood. A

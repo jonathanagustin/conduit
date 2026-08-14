@@ -11,7 +11,7 @@ that gate was run for the current commit.
 | H3 | Apollo as a bounded integration context | OPEN | `node scripts/verify-domain-boundaries.mjs` guards direction, while translation still crosses `internal/controlplane`. |
 | H4 | DDD extraction from the control-plane facade | OPEN | `node scripts/report-migration-progress.mjs --gate` enforces `controlplane-ceiling.json`. |
 | H5 | Tenant-specific frontend runtime bootstrap | OPEN | No schema or loader is present; verify with a repository `rg` probe and browser contract tests once introduced. |
-| H6 | Manual-only trunk verification | SOLVED | `.github/workflows/platform-ci.yml` requires `workflow_dispatch` and a pull-request input. |
+| H6 | Manual-only trunk verification | SOLVED | `.github/workflows/platform-ci.yml` requires `workflow_dispatch`, authenticates the pull-request head, and publishes the protected `Trunk gate` commit status; `scripts/verify-pr-fidelity.test.sh` guards the bridge. |
 | H7 | Local equivalent of repository CI gates | SOLVED | `./scripts/verify-local.sh` enumerates the checks and supports a name filter. |
 | H8 | Authorized overview, session capabilities, and bounded index pagination | SOLVED | `go test ./internal/controlplane` and `npm --prefix web test` cover the source contracts summarized under `docs/ui/contracts`. |
 | H9 | Private Apollo Hub-to-Agent protocol compatibility | BLOCKED | No public or sanitized tenant instrument establishes it; keep the boundary in `docs/apollo/conformance.md`. |

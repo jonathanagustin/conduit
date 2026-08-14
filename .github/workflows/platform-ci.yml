@@ -22,6 +22,7 @@ concurrency:
 permissions:
   contents: read
   pull-requests: read
+  statuses: write
 
 defaults:
   run:
@@ -61,6 +62,15 @@ jobs:
           ./scripts/verify-pr-fidelity.test.sh
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}" --jq .body |
             ./scripts/verify-pr-fidelity.sh
+      - name: Publish pending Trunk status
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state=pending \
+            -f context='Trunk gate' \
+            -f description='Manual Trunk verification is running' \
+            -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           # uses: inputs are not covered by defaults.run.working-directory,
@@ -214,3 +224,14 @@ jobs:
         run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
       - name: GitOps acceptance
         run: ./scripts/test-gitops.sh
+      - name: Publish final Trunk status
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TRUNK_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+        run: |
+          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            -f state="${TRUNK_STATE}" \
+            -f context='Trunk gate' \
+            -f description="Manual Trunk verification ${TRUNK_STATE}" \
+            -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
