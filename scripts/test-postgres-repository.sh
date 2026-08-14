@@ -30,4 +30,4 @@ port="$(docker port "${name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; 
 
 cd "${root}"
 CONDUIT_TEST_POSTGRES_DSN="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disable" \
-  go test -race ./internal/controlplane -run '^TestPostgres'
+  go test -race ./internal/controlplane ./internal/delivery/reconciliation/adapters/postgres -run '^TestPostgres'

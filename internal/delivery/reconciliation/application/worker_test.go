@@ -171,6 +171,7 @@ type fakeWork struct {
 	available time.Time
 	token     string
 	until     time.Time
+	revision  uint64
 	attempt   uint32
 }
 
@@ -230,9 +231,10 @@ func (store *fakeStore) enqueueLocked(key domain.Key, available time.Time) {
 		if available.Before(existing.available) {
 			existing.available = available
 		}
+		existing.revision++
 		return
 	}
-	store.queue[id] = &fakeWork{key: key, available: available}
+	store.queue[id] = &fakeWork{key: key, available: available, revision: 1}
 }
 
 func (store *fakeStore) LeaseWork(_ context.Context, now time.Time, duration time.Duration) (ports.WorkLease, bool, error) {
@@ -247,7 +249,7 @@ func (store *fakeStore) LeaseWork(_ context.Context, now time.Time, duration tim
 		item.attempt++
 		item.token = "work-token-" + id + "-" + time.Duration(item.attempt).String()
 		item.until = now.Add(duration)
-		return ports.WorkLease{Key: item.key, Token: item.token, Attempt: item.attempt, ExpiresAt: item.until}, true, nil
+		return ports.WorkLease{Key: item.key, Token: item.token, Revision: item.revision, Attempt: item.attempt, ExpiresAt: item.until}, true, nil
 	}
 	return ports.WorkLease{}, false, nil
 }
@@ -290,7 +292,12 @@ func (store *fakeStore) CommitDecision(_ context.Context, lease ports.WorkLease,
 			store.outbox[proposal.ID] = &fakeOutbox{proposal: *proposal, available: decision.DecidedAt}
 		}
 	}
-	delete(store.queue, lease.Key.String())
+	if item.revision == lease.Revision {
+		delete(store.queue, lease.Key.String())
+	} else {
+		item.token, item.until = "", time.Time{}
+		item.available = decision.DecidedAt
+	}
 	return nil
 }
 
