@@ -1,0 +1,22 @@
+{
+  "evidenceClass": "reproduction-attempt",
+  "subject": "B8 pinned-snapshot HiGHS candidate rebuild, attempted inside the sandbox container",
+  "capturedAt": "2026-08-14",
+  "hypothesis": "B8 — rebuild the unadmitted HiGHS candidate on the Go 1.26.6 pinned builder and reproduce its byte-identical, snapshot-anchored evidence.",
+  "priorFinding": "Earlier this cycle B8 was recorded as 'snapshot.ubuntu.com returns 200 from the host but 000 (connect failed) from inside a container even with --add-host host-gateway'. That measurement used the default container network.",
+  "refinedFinding": "With `docker build --network=host` the container is NOT connectivity-blocked. The apt step reaches snapshot.ubuntu.com and completes TCP+TLS negotiation to the real Canonical IPs (185.125.189.37:443, 185.125.189.69:443). The build fails one layer deeper, at TLS certificate verification.",
+  "observedError": "Certificate verification failed: The certificate is NOT trusted. The certificate issuer is unknown. Could not handshake. [IP: 185.125.189.37 443] — repeated for noble, noble-updates, noble-backports, noble-security InRelease. apt then: 'E: Unable to locate package g++-13' etc.",
+  "rootCause": "The sandbox's only egress path is the agent HTTPS proxy, which terminates TLS with its own CA (/root/.ccr/ca-bundle.crt). snapshot.ubuntu.com is not in NO_PROXY, so apt's fetch is intercepted. The Containerfile deliberately bootstraps CA trust from the digest-pinned cgr.dev/chainguard/static image (public DigiCert/Canonical roots only) and installs no private CA. It therefore correctly refuses the proxy's substituted certificate.",
+  "whyNotWorkaroundable": [
+    "Injecting the proxy CA into the builder would make apt trust a man-in-the-middle, defeating the exact provenance guarantee B8 exists to prove: that every apt byte resolves through one immutable, publicly-anchored Ubuntu snapshot.",
+    "Even with the CA injected, the bytes returned are the proxy's re-served copy, not the genuine immutable snapshot stream, so the byte-identical / snapshot-anchored reproducibility evidence the gate requires cannot be established from inside this sandbox.",
+    "This is a CI-only step by construction: platform-highs-candidate.yml runs on a GitHub-hosted runner with direct, un-intercepted egress to snapshot.ubuntu.com and public root trust. That is the only environment where the provenance chain the gate checks is real."
+  ],
+  "commandsRun": [
+    "curl -sS -o /dev/null -w '%{http_code}' https://snapshot.ubuntu.com/ubuntu/20260811T000000Z/dists/noble/Release  -> 200 (through agent proxy)",
+    "dockerd (started in sandbox) -> up",
+    "DOCKER_BUILDKIT=1 docker build --network=host --build-arg TARGETARCH=amd64 -f Containerfile.optimizer-highs .  -> exit 100 at the apt step, TLS cert verification failure (evidence above)"
+  ],
+  "conclusion": "B8 remains a CI-only dispatch, but for a now precisely-characterised reason: not a raw network block, but a deliberate, correct trust-anchor mismatch between the sandbox's MITM egress proxy and the candidate's public-root provenance requirement. No local workaround can produce the required evidence without violating the guarantee under test.",
+  "nextAction": "Dispatch .github/workflows/platform-highs-candidate.yml on a hosted runner; the local repo state and all non-network candidate gates remain green."
+}
