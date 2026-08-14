@@ -127,7 +127,7 @@ assert_fails_closed!(
 hub_documents = render!(helm, "platform-hub", charts.fetch(:hub), File.join(charts.fetch(:hub), "ci/test-values.yaml"))
 spoke_documents = render!(helm, "platform-spoke", charts.fetch(:spoke), File.join(charts.fetch(:spoke), "ci/test-values.yaml"))
 documents = hub_documents + spoke_documents
-expected_kinds = %w[ServiceAccount ConfigMap PersistentVolumeClaim Service Deployment ServiceAccount Deployment]
+expected_kinds = %w[PodDisruptionBudget ServiceAccount ConfigMap Service Deployment ServiceAccount Deployment]
 abort "unexpected chart resources: #{documents.map { |item| item['kind'] }}" unless documents.map { |item| item["kind"] } == expected_kinds
 abort "chart escaped the release namespace" unless documents.all? { |item| item.dig("metadata", "namespace") == "platform-system" }
 forbidden_kinds = %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding Role RoleBinding]
