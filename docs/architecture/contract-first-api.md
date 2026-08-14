@@ -61,21 +61,15 @@ decides which exact roles, if any, map to native permissions. See
 ## Current state and migration target
 
 Current code generates and serves the Apollo DTOs, strict server interface, and
-router, plus separate role metadata. The generated adapter still bridges into
-handwritten translation and service composition inside
-[`internal/controlplane`](../../internal/controlplane/), so the bounded-context
-extraction is not complete.
+router, plus separate role metadata. The strict adapter calls
+[`internal/apollo/application`](../../internal/apollo/application) directly;
+Catalog Publications and Environment Reports cross explicit native ports. The
+former request-capture bridge and production handwritten public DTO duplicates
+are gone.
 
-The migration target is a generated strict transport boundary calling narrow
-application ports. Work should proceed operation by operation:
-
-1. define a narrow native application port for one operation group;
-2. move its translation behind the generated adapter;
-3. run fixture, round-trip, and negative conformance tests; and
-4. remove the duplicate legacy projection code for that group.
-
-Do not regenerate a broad surface and declare completion while the generated
-interface is bypassed in production.
+The boundary gate rejects both an Apollo-to-control-plane import and restoration
+of the legacy HTTP bridge. Do not regenerate a broad surface and declare
+completion if either guard is bypassed.
 
 ## Change gate
 

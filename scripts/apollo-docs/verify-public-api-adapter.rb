@@ -7,7 +7,7 @@ require "yaml"
 root = Pathname.new(__dir__).join("../..").expand_path
 snapshot = root.join("docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml")
 adapter = root.join("internal/controlplane/apollo_openapi_adapter.go")
-legacy_adapter = root.join("internal/controlplane/apollo_api.go")
+application = root.join("internal/apollo/application/service.go")
 tests = root.join("internal/controlplane/apollo_api_test.go")
 
 document = YAML.unsafe_load_file(snapshot)
@@ -25,7 +25,7 @@ end.sort
 generated_file = root.join("internal/apollo/openapi.gen.go")
 generated_source = generated_file.read
 adapter_source = adapter.read
-legacy_adapter_source = legacy_adapter.read
+application_source = application.read
 
 expected.each do |method, path, operation|
   go_method = operation.sub(/\A./) { |character| character.upcase }
@@ -46,11 +46,17 @@ expected.each do |_method, _path, operation|
   abort "Apollo public operation #{operation} has no conformance declaration" unless test_source.include?(operation)
 end
 
-# Platform-native immutable configuration is deliberately carried by a /v1
-# route. Keep the pinned public publishHelmChart decoder free of that extension;
-# otherwise a passing Platform test could silently widen the public claim.
-public_helm_handler = legacy_adapter_source[/func \(api \*apolloPublicAPI\) publishHelmChart\(.*?^}/m].to_s
-abort "Apollo public publishHelmChart handler includes Platform-native platformBundle" if public_helm_handler.include?("PlatformBundle") || public_helm_handler.include?("platformBundle")
+# The generated adapter must enter the bounded application service directly. A
+# request-capture bridge can satisfy the interface while silently keeping the
+# legacy HTTP facade authoritative, so reject that architecture explicitly.
+abort "Apollo generated adapter re-enters the legacy HTTP facade" if adapter_source.include?("invokeApolloFacade")
+abort "Apollo application service is missing" unless application_source.include?("type Service struct")
+abort "Apollo application does not own generated DTO translation" unless application_source.include?("apollo.PublishHelmChartRequest")
+
+# Conduit-native immutable configuration is deliberately carried by a /v1
+# route. Keep the generated public request path free of that extension.
+public_helm_method = adapter_source[/func \(adapter \*apolloOpenAPIAdapter\) PublishHelmChart\(.*?^}/m].to_s
+abort "Apollo public publishHelmChart handler includes Conduit-native platform assets" if public_helm_method.include?("PlatformBundle") || public_helm_method.include?("platformBundle") || public_helm_method.include?("PublicationAssets")
 boundary_test = "TestApolloPublicAPIPublishHelmChartDoesNotAdmitPlatformNativeBundleFields"
 abort "Apollo public/native Helm publication boundary lacks #{boundary_test}" unless test_source.include?(boundary_test)
 

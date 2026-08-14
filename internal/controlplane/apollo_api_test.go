@@ -899,12 +899,8 @@ func TestApolloLeavesAnUnreportedEntityAlone(t *testing.T) {
 	}
 
 	// Deliberately empty: Apollo has told us nothing about this Environment.
-	api := &apolloPublicAPI{
-		repository:   repository,
-		entityInfo:   map[string][]apolloEntityInfo{},
-		entityHealth: map[string][]apolloEntityHealth{},
-	}
-	if err := api.persistReportedState(ctx, state.Environment.ID); err != nil {
+	api := newApolloPublicAPI(repository, NewGovernanceService(repository), HandlerOptions{})
+	if err := api.application.PutEntityInfo(ctx, state.Environment.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	report, err := repository.GetEnvironmentReport(ctx, state.Environment.ID)
@@ -953,17 +949,15 @@ func TestApolloPartialReportDoesNotInventNamespaceOrLifecycle(t *testing.T) {
 	step := plans[0].Plan.Steps[0]
 	group, name, _ := strings.Cut(step.Product, ":")
 
-	api := &apolloPublicAPI{
-		repository: repository,
-		// Info with NO nodes and NO namespace: Apollo has the Entity but not its placement.
-		entityInfo: map[string][]apolloEntityInfo{state.Environment.ID: {{
-			ID: step.Entity, ProductGroup: group, ProductName: name, Quorum: "ANY",
-		}}},
-		entityHealth: map[string][]apolloEntityHealth{state.Environment.ID: {{
-			ProductGroup: group, ProductName: name, ProductVersion: step.Version, NodeID: "n1",
-		}}},
+	api := newApolloPublicAPI(repository, NewGovernanceService(repository), HandlerOptions{})
+	info := generatedEntityInfo(apolloEntityInfo{EntityType: "SERVICE", ID: step.Entity, ProductGroup: group, ProductName: name, Quorum: "ANY"})
+	if err := api.application.PutEntityInfo(ctx, state.Environment.ID, []apollo.EntityInfo{info}); err != nil {
+		t.Fatal(err)
 	}
-	if err := api.persistReportedState(ctx, state.Environment.ID); err != nil {
+	health := generatedEntityHealth([]apolloEntityHealth{{
+		ProductGroup: group, ProductName: name, ProductVersion: step.Version, NodeID: "n1",
+	}})
+	if err := api.application.PutEntityHealth(ctx, state.Environment.ID, health); err != nil {
 		t.Fatal(err)
 	}
 	report, err := repository.GetEnvironmentReport(ctx, state.Environment.ID)
@@ -1023,12 +1017,8 @@ func TestApolloRefreshCarriesTheExistingReportForward(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	api := &apolloPublicAPI{
-		repository:   repository,
-		entityInfo:   map[string][]apolloEntityInfo{},
-		entityHealth: map[string][]apolloEntityHealth{},
-	}
-	if err := api.persistReportedState(ctx, state.Environment.ID); err != nil {
+	api := newApolloPublicAPI(repository, NewGovernanceService(repository), HandlerOptions{})
+	if err := api.application.PutEntityInfo(ctx, state.Environment.ID, nil); err != nil {
 		t.Fatal(err)
 	}
 	report, err := repository.GetEnvironmentReport(ctx, state.Environment.ID)

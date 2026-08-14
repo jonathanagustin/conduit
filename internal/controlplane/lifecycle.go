@@ -139,66 +139,6 @@ const (
 	CommandRestartResource         = "RESTART_RESOURCE"
 )
 
-type ReportedEntity struct {
-	InstallationID string               `json:"installationId"`
-	Product        string               `json:"product"`
-	Version        string               `json:"version"`
-	ReleaseDigest  string               `json:"releaseDigest"`
-	Namespace      string               `json:"namespace"`
-	ConfigDigest   string               `json:"configDigest"`
-	Health         string               `json:"health"`
-	RolloutStatus  string               `json:"rolloutStatus"`
-	ConfigStatus   string               `json:"configStatus"`
-	Lifecycle      string               `json:"lifecycle"`
-	ObservedAt     time.Time            `json:"observedAt"`
-	HealthDetails  *EntityHealthDetails `json:"healthDetails,omitempty"`
-}
-
-const (
-	HealthHealthy       = "HEALTHY"
-	HealthUnhealthy     = "UNHEALTHY"
-	HealthIndeterminate = "INDETERMINATE"
-	HealthUnknown       = "UNKNOWN"
-	HealthRepairing     = "REPAIRING"
-	HealthWarning       = "WARNING"
-	HealthError         = "ERROR"
-	HealthTerminal      = "TERMINAL"
-
-	RolloutUpToDate      = "UP_TO_DATE"
-	RolloutInGracePeriod = "IN_GRACE_PERIOD"
-	RolloutBlocked       = "BLOCKED"
-	RolloutRecalled      = "RECALLED"
-	RolloutOutOfDate     = "OUT_OF_DATE"
-
-	ConfigApplied       = "APPLIED"
-	ConfigDrifted       = "DRIFTED"
-	ConfigUnavailable   = "UNAVAILABLE"
-	ConfigIndeterminate = "INDETERMINATE"
-
-	LifecycleInstalled   = "INSTALLED"
-	LifecycleUninstalled = "UNINSTALLED"
-	LifecycleUnknown     = "UNKNOWN"
-)
-
-type EnvironmentReport struct {
-	Environment string           `json:"environment"`
-	AgentID     string           `json:"agentId"`
-	PlanID      string           `json:"planId,omitempty"`
-	ObservedAt  time.Time        `json:"observedAt"`
-	Entities    []ReportedEntity `json:"entities"`
-	Secrets     []ReportedSecret `json:"secrets,omitempty"`
-	Revision    uint64           `json:"revision"`
-}
-
-type ReportedSecret struct {
-	Assignment           string   `json:"assignment"`
-	Namespace            string   `json:"namespace"`
-	Revision             int      `json:"revision"`
-	ProviderRef          string   `json:"providerRef"`
-	KubernetesSecretName string   `json:"kubernetesSecretName"`
-	Keys                 []string `json:"keys"`
-}
-
 type Repository interface {
 	ModuleRepository
 	ArtifactRepository

@@ -18,20 +18,19 @@ try {
   mkdirSync(join(fixture, "scripts"), { recursive: true });
   cpSync(join(sourceRoot, "scripts/verify-domain-boundaries.mjs"), join(fixture, "scripts/verify-domain-boundaries.mjs"));
   write("internal/hub/composition/composition.go", 'package composition\nimport "example/internal/controlplane"\n');
+  write("internal/controlplane/apollo_openapi_adapter.go", "package controlplane\n");
+  write("internal/apollo/application/service.go", "package application\n");
   write("cmd/platform-delivery/main.go", 'package main\nfunc main(){ composition.NewHubHandler() }\n');
   if (!run().includes("PASS domain boundaries")) throw new Error("positive fixture did not pass");
 
   const controls = [
-    ["cmd/platform-delivery/main.go", 'package main\nfunc main(){ controlplane.NewHandler() }\n'],
-    ["internal/reporting/domain/model.go", 'package domain\nimport "net/http"\n'],
-    ["internal/hub/composition/composition.go", 'package composition\nimport "example/internal/agent"\n'],
+    ["cmd/platform-delivery/main.go", 'package main\nfunc main(){ controlplane.NewHandler() }\n', 'package main\nfunc main(){ composition.NewHubHandler() }\n'],
+    ["internal/reporting/domain/model.go", 'package domain\nimport "net/http"\n', null],
+    ["internal/hub/composition/composition.go", 'package composition\nimport "example/internal/agent"\n', 'package composition\nimport "example/internal/controlplane"\n'],
+    ["internal/apollo/application/service.go", 'package application\nimport "example/internal/controlplane"\n', "package application\n"],
+    ["internal/controlplane/apollo_openapi_adapter.go", "package controlplane\n// invokeApolloFacade\n", "package controlplane\n"],
   ];
-  for (const [path, contents] of controls) {
-    const original = path.includes("main.go")
-      ? 'package main\nfunc main(){ composition.NewHubHandler() }\n'
-      : path.includes("composition.go")
-        ? 'package composition\nimport "example/internal/controlplane"\n'
-        : null;
+  for (const [path, contents, original] of controls) {
     write(path, contents);
     let rejected = false;
     try { run(); } catch { rejected = true; }
@@ -39,7 +38,7 @@ try {
     if (original === null) rmSync(join(fixture, path));
     else write(path, original);
   }
-  console.log("PASS domain boundary regression: positive=1 planted=3 caught=3");
+  console.log("PASS domain boundary regression: positive=1 planted=5 caught=5");
 } finally {
   rmSync(fixture, { recursive: true, force: true });
 }
