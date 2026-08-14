@@ -19,10 +19,12 @@ func TestPostgresStoreMultiReplicaLeaseAndOutboxRecovery(t *testing.T) {
 	resetStore(t, ctx, left)
 	now := time.Date(2026, 8, 14, 18, 0, 0, 0, time.UTC)
 	key := domain.Key{Environment: "tenant-a", Installation: "catalog"}
-	if err := left.UpsertDesired(ctx, testDesired(key, "generation-1", "target-a", now)); err != nil {
+	desired := testDesired(key, "generation-1", "target-a", now)
+	observation := testObservation(key, "generation-1", "target-b", now)
+	if err := left.UpsertDesired(ctx, desired); err != nil {
 		t.Fatal(err)
 	}
-	if err := right.UpsertObservation(ctx, testObservation(key, "generation-1", "target-b", now)); err != nil {
+	if err := right.UpsertObservation(ctx, observation); err != nil {
 		t.Fatal(err)
 	}
 
@@ -66,6 +68,15 @@ func TestPostgresStoreMultiReplicaLeaseAndOutboxRecovery(t *testing.T) {
 	assertCount(t, ctx, left, "conduit_reconciliation_audit", 1)
 	assertCount(t, ctx, left, "conduit_reconciliation_proposal_outbox", 0)
 	assertCount(t, ctx, left, "conduit_reconciliation_plan_receipts", 1)
+	if err := left.UpsertDesired(ctx, desired); err != nil {
+		t.Fatal(err)
+	}
+	if err := right.UpsertObservation(ctx, observation); err != nil {
+		t.Fatal(err)
+	}
+	if _, found, err := left.LeaseWork(ctx, crashRecoveryAt, time.Minute); err != nil || found {
+		t.Fatalf("unchanged sync manufactured work: found=%v err=%v", found, err)
+	}
 }
 
 func TestPostgresStoreFencesSupersedingInputAndRepairsDroppedWork(t *testing.T) {
@@ -95,6 +106,7 @@ func TestPostgresStoreFencesSupersedingInputAndRepairsDroppedWork(t *testing.T) 
 	if err := store.CommitDecision(ctx, lease, oldDecision, oldProposal); err != nil {
 		t.Fatal(err)
 	}
+	assertCount(t, ctx, store, "conduit_reconciliation_proposal_outbox", 0)
 	next, found, err := other.LeaseWork(ctx, now.Add(2*time.Second), time.Minute)
 	if err != nil || !found {
 		t.Fatalf("superseding input was lost: found=%v err=%v", found, err)

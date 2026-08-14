@@ -29,5 +29,7 @@ port="$(docker port "${name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; 
 [[ "${port}" =~ ^[0-9]+$ ]] || { echo "could not resolve the disposable PostgreSQL port" >&2; exit 1; }
 
 cd "${root}"
-CONDUIT_TEST_POSTGRES_DSN="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disable" \
-  go test -race ./internal/controlplane ./internal/delivery/reconciliation/adapters/postgres -run '^TestPostgres'
+dsn="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disable"
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/controlplane -run '^TestPostgres'
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliation/adapters/postgres -run '^TestPostgres'
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./cmd/platform-delivery -run '^TestPostgres'
