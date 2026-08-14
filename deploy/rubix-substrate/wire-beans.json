@@ -1,0 +1,261 @@
+{
+  "schemaVersion": 1,
+  "subject": "Recovered Rubix networking and credential wire beans",
+  "provenance": {
+    "note": "Field shapes read via javap from the recovered jar bytecode. Not authored here; this is the exact Conjure object/union/alias/enum surface Palantir ships.",
+    "coordinates": [
+      "com.palantir.rubixlib:network-api:2.512.0",
+      "com.palantir.rubixlib:user-credential-manager:2.512.0"
+    ],
+    "jarBytes": {
+      "network-api-2.512.0.jar": 136653,
+      "user-credential-manager-2.512.0.jar": 113835
+    },
+    "tenantFetch": "PALANTIR_TOKEN artifacts API, ri.artifacts.repository.discovered.foundry-internal-tables-spark-module, 2026-08-14"
+  },
+  "aliases": {
+    "Cidr": "string",
+    "CountryIsoCode": "string",
+    "Domain": "string",
+    "Protocol": "string",
+    "Port": "integer",
+    "ClusterRoleName": "string",
+    "ConcreteNamespace": "string",
+    "Credential": "string",
+    "EnvironmentId": "string",
+    "NamespaceType": "string",
+    "Password": "string",
+    "Scope": "string",
+    "ServiceName": "string",
+    "Username": "string",
+    "EgressConfigurations": "set<EgressConfiguration>",
+    "GetEgressCidrsResponse": "set<Cidr>",
+    "IngressConfigurations": "map<Domain, IngressConfiguration>"
+  },
+  "enums": {
+    "ClusterMarkings": [
+      "INTERNAL_ROUTING_AVAILABLE",
+      "ENVIRONMENT_PROXY_CLIENT_REQUIRED",
+      "UNKNOWN"
+    ]
+  },
+  "unions": {
+    "EgressConfiguration": {
+      "tcpEgressConfiguration": "TcpEgressConfiguration",
+      "domainEgressConfiguration": "DomainEgressConfiguration"
+    },
+    "PortSpecifier": {
+      "port": "Port",
+      "portRange": "PortRange"
+    }
+  },
+  "objects": {
+    "ApplyNetworkEgressConfigurationRequest": [
+      {
+        "name": "egressConfigurations",
+        "type": "EgressConfigurations"
+      }
+    ],
+    "DomainEgressConfiguration": [
+      {
+        "name": "domain",
+        "type": "Domain"
+      },
+      {
+        "name": "protocol",
+        "type": "Protocol"
+      },
+      {
+        "name": "portSpecifier",
+        "type": "PortSpecifier"
+      }
+    ],
+    "GetFallbackConfigResponse": [
+      {
+        "name": "globalIngressConfiguration",
+        "type": "IngressConfiguration"
+      }
+    ],
+    "IngressConfiguration": [
+      {
+        "name": "countryCodes",
+        "type": "set<CountryIsoCode>"
+      },
+      {
+        "name": "cidrs",
+        "type": "set<Cidr>"
+      }
+    ],
+    "PortRange": [
+      {
+        "name": "portRangeStart",
+        "type": "Port"
+      },
+      {
+        "name": "portRangeEnd",
+        "type": "Port"
+      }
+    ],
+    "SetDomainIngressRequest": [
+      {
+        "name": "domain",
+        "type": "Domain"
+      },
+      {
+        "name": "ingressConfiguration",
+        "type": "IngressConfiguration"
+      }
+    ],
+    "TcpEgressConfiguration": [
+      {
+        "name": "name",
+        "type": "string"
+      },
+      {
+        "name": "cidr",
+        "type": "Cidr"
+      },
+      {
+        "name": "portSpecifier",
+        "type": "PortSpecifier"
+      },
+      {
+        "name": "disableTlsInspection",
+        "type": "boolean"
+      }
+    ],
+    "BindCredentialRequest": [
+      {
+        "name": "password",
+        "type": "Password"
+      },
+      {
+        "name": "environmentId",
+        "type": "EnvironmentId"
+      },
+      {
+        "name": "clusterRoles",
+        "type": "list<ClusterRoleName>"
+      },
+      {
+        "name": "serviceName",
+        "type": "optional<ServiceName>"
+      }
+    ],
+    "Cluster": [
+      {
+        "name": "apolloEnvironmentId",
+        "type": "string"
+      },
+      {
+        "name": "computeFrontdoorUris",
+        "type": "set<string>"
+      },
+      {
+        "name": "clusterMarkings",
+        "type": "set<ClusterMarkings>"
+      },
+      {
+        "name": "apiServerUris",
+        "type": "set<string>"
+      },
+      {
+        "name": "userCredentialManagerServerUris",
+        "type": "set<string>"
+      }
+    ],
+    "ClusterConfigurations": [
+      {
+        "name": "clusters",
+        "type": "list<Cluster>"
+      }
+    ],
+    "RetrieveClusterConfigurationsRequest": [
+      {
+        "name": "password",
+        "type": "Password"
+      },
+      {
+        "name": "environmentId",
+        "type": "EnvironmentId"
+      },
+      {
+        "name": "serviceName",
+        "type": "optional<ServiceName>"
+      }
+    ],
+    "RetrieveCredentialForInfraUserPayload": [
+      {
+        "name": "credential",
+        "type": "Credential"
+      }
+    ],
+    "RetrieveCredentialForInfraUserRequest": [
+      {
+        "name": "password",
+        "type": "Password"
+      }
+    ],
+    "RetrieveCredentialPayload": [
+      {
+        "name": "credential",
+        "type": "Credential"
+      },
+      {
+        "name": "mappedNamespaces",
+        "type": "map<NamespaceType, ConcreteNamespace>"
+      },
+      {
+        "name": "multipleMappedNamespaces",
+        "type": "map<NamespaceType, set<ConcreteNamespace>>"
+      }
+    ],
+    "RetrieveCredentialRequest": [
+      {
+        "name": "password",
+        "type": "Password"
+      },
+      {
+        "name": "environmentId",
+        "type": "EnvironmentId"
+      },
+      {
+        "name": "serviceName",
+        "type": "optional<ServiceName>"
+      }
+    ],
+    "RetrieveServiceAccountCredentialFromTokenPayload": [
+      {
+        "name": "credential",
+        "type": "Credential"
+      }
+    ],
+    "ValidateConfigRequest": [
+      {
+        "name": "password",
+        "type": "Password"
+      },
+      {
+        "name": "environmentId",
+        "type": "EnvironmentId"
+      },
+      {
+        "name": "serviceName",
+        "type": "optional<ServiceName>"
+      }
+    ],
+    "ValidationPayload": [
+      {
+        "name": "syntaxValid",
+        "type": "boolean"
+      },
+      {
+        "name": "semanticsValid",
+        "type": "boolean"
+      }
+    ],
+    "ApplyNetworkEgressConfigurationResponse": [],
+    "ApplyNetworkIngressRollbackResponse": [],
+    "SetDomainIngressResponse": []
+  }
+}

@@ -32,8 +32,13 @@ as schema rather than re-inferred.
   ingress allowlist services, metadata retrieval, and the user-credential
   manager provisioning/validation services) recovered from `network-api` and
   `user-credential-manager`. This is the request surface that drives the CRDs.
-  It is captured here as ground truth; it is not yet modeled in
-  `internal/computecontrol` (hypothesis B11).
+  Transcribed into the typed route table `internal/rubixsubstrate/routes.go`.
+
+- `wire-beans.json` — the request/response wire beans those endpoints carry:
+  every Conjure object (with its fields), union (with its variants), alias, and
+  enum recovered from the same two jars via `javap`. Modeled field-for-field in
+  `internal/rubixsubstrate/beans.go` and bound to this fixture by
+  `beans_test.go`, so the Go surface cannot drift from the recovered shape.
 
 ## Gate
 
