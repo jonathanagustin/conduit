@@ -143,12 +143,12 @@ build_commands() {
 }
 
 apollo_contract() {
-  ruby docs/apollo/validate-public-api.rb \
+  ruby scripts/apollo-docs/validate-public-api.rb \
     docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml &&
     ./scripts/verify-apollo-routes.sh &&
-    ruby docs/apollo/verify-public-api-adapter.rb &&
-    ruby docs/apollo/validate-cli-fixtures.rb &&
-    ruby docs/apollo/validate-module-definitions.rb &&
+    ruby scripts/apollo-docs/verify-public-api-adapter.rb &&
+    ruby scripts/apollo-docs/validate-cli-fixtures.rb &&
+    ruby scripts/apollo-docs/validate-module-definitions.rb &&
     ./scripts/verify-foundry-interop.sh &&
     node scripts/verify-conduit-cli-contract.mjs &&
     node scripts/verify-foundry-audit3-capture.mjs &&
@@ -178,6 +178,7 @@ gate 'Lint' go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 ./...
 gate 'Validate Renovate configuration' jq --exit-status . renovate.json
 gate 'Lint Containerfiles' env HADOLINT_BIN="${hadolint_bin}" ./scripts/verify-containerfiles.sh
 gate 'Validate OCI release manifest assembly' oci_manifest
+gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-source-descriptor.test.mjs
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs --gate
 gate 'Validate trusted supply-chain policy' supply_chain

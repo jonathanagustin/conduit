@@ -147,6 +147,8 @@ jobs:
             testdata/oci/hub.json testdata/oci/spoke-agent.json
           jq --exit-status '.apiVersion == "platform.delivery/oci-release/v2" and .version == "1.2.3" and (.images | length == 2) and all(.images[]; (.sboms | length == 2) and (.vulnerabilityReports | length == 2))' \
             /tmp/platform-oci-manifest.json >/dev/null
+      - name: Validate Gitless runtime source descriptor
+        run: node scripts/render-runtime-source-descriptor.test.mjs
       - name: Validate version and tag agreement
         run: ./scripts/verify-version-matches-tag.sh
       - name: Validate controlplane ceiling
@@ -185,12 +187,12 @@ jobs:
           go build -o /dev/null ./cmd/conduit
       - name: Validate Apollo public contract
         run: |
-          ruby docs/apollo/validate-public-api.rb \
+          ruby scripts/apollo-docs/validate-public-api.rb \
             docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
           ./scripts/verify-apollo-routes.sh
-          ruby docs/apollo/verify-public-api-adapter.rb
-          ruby docs/apollo/validate-cli-fixtures.rb
-          ruby docs/apollo/validate-module-definitions.rb
+          ruby scripts/apollo-docs/verify-public-api-adapter.rb
+          ruby scripts/apollo-docs/validate-cli-fixtures.rb
+          ruby scripts/apollo-docs/validate-module-definitions.rb
           ./scripts/verify-foundry-interop.sh
           node scripts/verify-conduit-cli-contract.mjs
           node scripts/verify-foundry-audit3-capture.mjs

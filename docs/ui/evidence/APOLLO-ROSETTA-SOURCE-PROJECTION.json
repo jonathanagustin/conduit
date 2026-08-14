@@ -1,0 +1,66 @@
+{
+  "schemaVersion": 1,
+  "sourceRepository": "jonathanagustin/palantir",
+  "sourceCommit": "945f7be95accde4053c77788cb90e687103ed640",
+  "sourcePath": "mcp/foundry/evidence/ui/rosetta-media-catalog.json",
+  "sourceGitBlobSha1": "b538d0322cf0dde37dfd6d2b1986c4fa59aa7b3c",
+  "sourceCatalogSha256": "f29e0db63b0157b08d02a2ffe197ae28b33dfa9a2b63c96325030f9c1a8c5459",
+  "scope": "Exact APOLLO row projection used by the Conduit inventory verifier; the media bytes are not copied into Conduit.",
+  "rows": [
+    {
+      "sha256": "9209f4b1573dc3b618c09d25cfa5ddf6eeb15fc6e844c0b2e42fb61d3748f5e4",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2025-11-04-150030-autopilot-image-pn.png",
+      "noteDate": "2025-11-06T00:00:00Z"
+    },
+    {
+      "sha256": "35e6694f1434ed2a1eb9d05a34e04699062e305e2723c05aa3b15fe23a4a18a0",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2025-11-04-150036-autopilot-image-pn.png",
+      "noteDate": "2025-11-06T00:00:00Z"
+    },
+    {
+      "sha256": "7ad27bdadf0820cc4eee40ff538d1d5ef15cad4d7207781286b28a3143a14400",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2025-12-01-160116-autopilot-ramped-rollouts-pn.png",
+      "noteDate": "2025-12-02T00:00:00Z"
+    },
+    {
+      "sha256": "3210028f275a13d20fecba05cc7262b7d36599b8596acc7a40ebd03e67009331",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2025-12-01-160124-autopilot-edit-product-settings-ramped-rollout-pn.png",
+      "noteDate": "2025-12-02T00:00:00Z"
+    },
+    {
+      "sha256": "d5f98b0f75a827672481f0438ec26175b5209476e9328c0f0f5661722a137fd2",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-08-131021-autopilot-terminal-interact-pn.png",
+      "noteDate": "2026-05-07T00:00:00Z"
+    },
+    {
+      "sha256": "c085d9f059f09e743422fdb6e7408baf017d07a8f57eeeedce095d6f58a9c24e",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-08-131026-autopilot-jit-request-pn.png",
+      "noteDate": "2026-05-07T00:00:00Z"
+    },
+    {
+      "sha256": "43657cd1400d0c753b64a3a86e898f69ffbf2602dd54385ec30d173997b32a30",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-08-131030-autopilot-jit-approval-pn.png",
+      "noteDate": "2026-05-07T00:00:00Z"
+    },
+    {
+      "sha256": "8d8a467a7d0ea835ae2cb8fb535bc9141a340a407fd6dc43721e7782dc06f649",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-21-141711-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z"
+    },
+    {
+      "sha256": "e9c37f0776d9634dc822c3645c53513a1d40a82eed791a65c02b442249904e80",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-21-141715-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z"
+    },
+    {
+      "sha256": "65fe60ea819f41f66cd93ce76a488fa9339658e20cbfaea2d1f035425f35fa22",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-21-141718-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z"
+    },
+    {
+      "sha256": "d91c43623bc40594fe4fa79c7df436ea7e2f1a00d2f6df4d0dceff0f0f72c2c6",
+      "path": "mcp/foundry/evidence/rosetta-media/APOLLO/2026-05-21-141723-apollo-deployment-state-image-pn.png",
+      "noteDate": "2026-05-21T00:00:00Z"
+    }
+  ]
+}

@@ -1,6 +1,6 @@
-# Platform Helm packaging
+# Conduit Helm packaging
 
-Platform ships two independently installable charts:
+Conduit ships two independently installable charts:
 
 - [`platform-hub`](platform-hub) installs the durable control-plane Hub and its
   ClusterIP service into an existing control-plane namespace.
@@ -25,7 +25,7 @@ matter of how this README happens to be worded:
 
 - It carries Product knowledge. The chart names Foundry's services — multipass, compass,
   foundry-metadata, ontology-metadata-service and the rest — and provisions their TLS secrets and
-  namespace. Platform is product-agnostic and independently versioned, and a chart that has to
+  namespace. Conduit is product-agnostic and independently versioned, and a chart that has to
   change when Foundry gains a service is not either of those things.
 - Its service roster DUPLICATED that repository's `deployment/mvf-products.json` exactly. A copy
   that is byte-identical stays correct until the day it does not, and the divergence would not
@@ -36,10 +36,10 @@ The Flux wiring stays here: `deploy/flux/foundry-tenant.example.yaml` and
 `foundry-tenant-rbac.yaml` reference the chart by OCI URL and reconciliation identity, which is the
 delivery plane's side of the contract and never depended on the chart source living in this repo.
 
-The charts are Platform-native and Apollo-aligned. They do not claim
+The charts are Conduit-native and Apollo-aligned. They do not claim
 compatibility with Palantir's private Apollo or Rubix protocols.
 The evidence grain and explicit non-claims behind that statement are recorded
-in [`docs/architecture/DEPLOYMENT-CLAIMS.md`](../../docs/architecture/DEPLOYMENT-CLAIMS.md).
+in [`docs/architecture/deployment-invariants.md`](../../docs/architecture/deployment-invariants.md).
 
 ## Installation
 
@@ -61,7 +61,7 @@ external client CA ConfigMap, an Ed25519 PKCS#8 bundle-signing Secret, and a
 storage class choice. Its single-writer PVC has Helm's `keep` policy.
 
 The Spoke requires a stable Environment/Agent identity, an explicit HTTPS Hub
-URL, a client TLS Secret whose URI SAN matches Platform's Agent identity
+URL, a client TLS Secret whose URI SAN matches Conduit's Agent identity
 contract, and the Hub CA ConfigMap. Its ServiceAccount is namespaced and needs
 only deployment-owned access to the exact application namespaces it manages.
 Both charts accept references to deployment-owned image-pull Secrets without
@@ -85,7 +85,7 @@ when a tenant already has Palantir identity infrastructure; `generic` supports
 standard issuers such as tenant-local Keycloak, and `cognito-access` is the
 low-cost AWS fallback. Values contain only public trust configuration, never a
 browser cookie, bearer token, client secret, or password. See
-`docs/architecture/OPERATOR-OIDC-IDENTITY.md`.
+`docs/architecture/identity-and-governance.md`.
 
 ## Bounded Rubix profile
 
@@ -110,10 +110,10 @@ consumer-supplied integration points:
 The Hub Pod-certificate Secret name remains explicit because public examples
 show the annotation/mount convention but not a portable issuance contract. The
 Spoke identity stays externally issued: available evidence does not establish
-that a Rubix Pod certificate carries Platform's Environment/Agent URI SAN.
+that a Rubix Pod certificate carries Conduit's Environment/Agent URI SAN.
 
 Affinity expresses placement intent only. It does not create capacity, reserve
-nodes, or guarantee an availability zone. Platform does not install the
+nodes, or guarantee an availability zone. Conduit does not install the
 archived Spark scheduler/library controllers, Demand or ResourceReservation
 CRDs, conversion webhooks, node mutation, or cluster-wide RBAC.
 
@@ -146,7 +146,7 @@ approved Plan. These gates verify the two
 release boundaries, exact image digests, required identity/signing inputs,
 HTTPS transport, retained state, restricted Pod security, Rubix annotations and
 affinity, and the absence of namespace/CRD/cluster-RBAC/host ownership.
-Semantic-tag publication packages both charts with the Platform version, pushes
+Semantic-tag publication packages both charts with the Conduit version, pushes
 each to GHCR, resolves and signs its registry-reported OCI digest, and attaches
 the chart archives, SHA-256 files, SPDX SBOMs, and immutable-reference manifest
 to the GitHub release.

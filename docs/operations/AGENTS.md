@@ -1,17 +1,24 @@
-# Platform operating ledgers
+# Operations documentation rules
 
-This subtree adapts Zenith Protocol to Platform's Hub/Spoke reconstruction and
-release workflow. Repository and domain-specific instructions remain in force.
+This directory records how Conduit work is evaluated and promoted. It does not
+grant authority to modify a tenant, publish an artifact, run paid CI, merge a
+pull request, or deploy a release.
 
-- Read the root operating model, capability map, backlog, assumptions, and
-  current process trials before starting a substantial slice. Domain facts
-  remain in their canonical architecture, Apollo evidence, or contract note;
-  these ledgers link rather than repeat them.
-- `SOLVED` requires an automated gate. `OPEN` or `BLOCKED` rows name the exact
-  file, command, API, or error that makes the next attempt cheaper.
-- Every `PH-#` intake row has an ACCEPT, REJECT, NOTE, or QUEUED verdict.
-- Process changes start as PROPOSED, may run as a measured TRIAL, and become
-  ADOPTED only after their exit criterion is met. Metrics are append-only; add
-  a superseding row instead of editing an earlier measurement.
-- Run `node scripts/verify-zenith-protocol.mjs` before committing ledger or
-  release changes.
+Read these files before a substantial change:
+
+1. `TENANT-FIDELITY.md` for Apollo and tenant claims.
+2. `ASSUMPTIONS-LEDGER.md` for facts that still need proof.
+3. `CAPABILITY-MAP.md` and `HYPOTHESIS-BACKLOG.md` for current coverage and open work.
+4. `PROCESS-IMPROVEMENTS.md`, `METRICS.md`, and `metrics-ledger.jsonl` for the
+   repository-local Zenith record.
+
+Use the vendored playbook at
+`tools/zenith-protocol/skills/zenith-protocol/SKILL.md`. Preserve one writer per
+file set, name the evidence and acceptance gate before implementation, and have
+the orchestrator rerun the gate. A green Zenith conformance result proves only
+that the ledgers are well formed.
+
+CI, release, and publication are manual. Follow `manual-ci.md`,
+`local-verification.md`, and `release-and-publication.md`. Never place a token,
+private key, tenant payload, or `.env` value in a document, log, fixture, or
+command transcript.

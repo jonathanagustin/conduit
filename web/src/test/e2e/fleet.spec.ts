@@ -2,7 +2,7 @@ import { installation } from "../fixtures.js";
 import { expect, test } from "./harness.js";
 import { FleetPom } from "./pages/FleetPom.js";
 
-/** Fleet overview -- P0 use case 1 of docs/ui/CONTROL-PLANE-UI-PLAN.md.
+/** Fleet overview -- P0 use case 1 of docs/ui/contracts/overview.md.
  *
  * "See what the fleet is doing, and what is wrong with it." Each test below is
  * one thing an operator has to be able to do on that screen. */

@@ -1,4 +1,4 @@
-# Platform repository
+# Conduit repository
 
 This repository owns the product-agnostic Hub/Spoke delivery control plane.
 The former `platform/` subtree in `jonathanagustin/palantir` and the archived

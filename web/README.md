@@ -1,13 +1,13 @@
-# Platform console
+# Conduit console
 
-The control-plane console described by `../docs/ui/CONTROL-PLANE-UI-PLAN.md`.
-Built as static assets and embedded in the Hub binary under `/console/`, served
-same-origin with the APIs.
+The console is built as static assets, embedded in the Hub binary, and served
+under `/console/` from the same origin as its APIs. The current UI contracts
+are indexed in `../docs/ui/README.md`.
 
 ## Decisions this scaffold makes
 
-**Blueprint 6.18.0.** The plan's V3 evidence grade cites `@blueprintjs/core`
-6.18.0, icons 6.13.0, select 6.3.4 and table 6.2.4, and those are the pins here.
+**Blueprint 6.18.0.** The package pins `@blueprintjs/core` 6.18.0, icons
+6.13.0, select 6.3.4, and table 6.2.4.
 
 **Ported, not shared, primitives.** `packages/foundry/packages/foundry-ui` has
 the component vocabulary this console wants -- `AppFrame`, `AppHeader`,
@@ -18,10 +18,8 @@ components are therefore ported into this package rather than depended on, and
 foundry-ui is left alone so its existing consumers keep building. Ported files
 must keep the provenance note they arrive with.
 
-That choice is also what makes this package's location work: nothing here
-resolves a workspace sibling, so `platform/` stays a self-contained repository
-that builds its own console, and the Hub embed stays a local file copy rather
-than a cross-repository build step.
+Nothing here resolves a workspace sibling. Conduit builds its own console and
+the Hub embed remains a repository-local build product.
 
 **No client-side store.** Server state lives in the query cache, route state in
 the URL, form state local. Add a store when a workflow proves it is needed.
@@ -42,8 +40,6 @@ polling. Server-sent events only if measurement shows polling is inadequate.
     pnpm build      # typecheck, then emit dist/
     pnpm typecheck
 
-## Not done yet
-
-`dist/` is not embedded in the Hub binary. That is a Go change -- an embed
-directive and a route mounting the assets under `/console/` -- and belongs with
-the composition root, not here.
+`internal/consoleui/handler.go` owns the embed and the Hub composition mounts
+the handler. A production build must regenerate `dist/` and run the console
+gate so the embedded assets match this source.

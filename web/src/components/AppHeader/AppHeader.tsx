@@ -11,7 +11,7 @@ import "./app-header.css";
  *   Foundry reconstruction, Blueprint 5.19.1 -> 6.18.0. The upstream Apollo
  *   header composition it is used for -- icon, primary name, resource kind,
  *   status tags, team context, Actions menu at the right -- is described in
- *   docs/ui/CONTROL-PLANE-UI-PLAN.md and evidenced by the hash-anchored captures
+ *   docs/ui/README.md and evidenced by the hash-anchored captures
  *   in docs/ui/upstream-screen-evidence.tsv. No private DOM or CSS claim. */
 export interface AppHeaderProps {
   variant?: "identity" | "compact";

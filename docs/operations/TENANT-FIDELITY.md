@@ -1,63 +1,50 @@
-# Tenant fidelity contract
+# Tenant fidelity
 
-Conduit reconstructs observable Apollo behavior while remaining an independently
-owned superset. Fidelity means matching a demonstrated contract within its
-demonstrated scope. It does not mean inferring private implementation details or
-making every Conduit extension look native to Apollo.
+Conduit may reproduce an Apollo behavior only when a named source establishes
+that behavior. Similar vocabulary or a plausible interface is not evidence.
 
 ## Claim classes
 
-| Class | Admissible source | What may be claimed |
+| Class | Required basis | Allowed statement |
 | --- | --- | --- |
-| Public contract | Pinned Palantir documentation, OpenAPI, Conjure, published source, or documented CLI output | Only the semantics and shape the source actually establishes |
-| Tenant observation | Authorized, time-bounded observation reduced to a sanitized receipt or fixture | Only the observed tenant, version, route, state, and field behavior |
-| Corroborating evidence | A separate source consistent with a claim but not authoritative for it | Support for an already bounded claim; never a protocol claim by itself |
-| Conduit extension | A reviewed local product decision | Conduit behavior, labeled as an extension or deliberate divergence |
-| Unknown | Missing, ambiguous, stale, or inaccessible evidence | A hypothesis, gap, or boundary; never implemented or documented as Apollo fact |
+| Public contract | Pinned Palantir OpenAPI, Conjure, public documentation, published source, or captured public CLI output | The shape and behavior established by that source |
+| Tenant observation | Authorized, sanitized receipt with tenant, version, time, route, and state | The behavior observed within that scope |
+| Corroboration | An independent source that agrees with a bounded claim | Support for the claim, never a new protocol fact |
+| Conduit extension | A reviewed local decision | Conduit behavior identified as an extension or divergence |
+| Unknown | Missing, ambiguous, inaccessible, or stale evidence | A backlog item or unavailable state |
 
-Evidence does not silently change class. A generated client proves the published
-type surface it was generated from, not an unpublished server implementation. A
-screen proves visible composition in that state, not a hidden API. A role name
-proves vocabulary, not authority, until an authorization graph establishes the
-relationship.
+Evidence keeps its class. A screen does not establish its backing API. A client
+type establishes the source document's type surface, not an unpublished server
+implementation. A tenant observation does not establish behavior for another
+tenant or version.
 
-## Required change record
+## Change record
 
-Every Apollo-facing pull request records:
+An Apollo-facing pull request must state:
 
-1. the exact behavior or shape being changed;
-2. its claim class and immutable source coordinate or sanitized receipt;
-3. the scope the evidence does not establish;
-4. the executable test, generator check, or fixture comparison that fails on
-   drift;
-5. every intentional Conduit extension or divergence.
+- the changed behavior or data shape;
+- the claim class and immutable source coordinate;
+- the scope the source does not establish;
+- the test, generated-output comparison, or sanitized fixture that detects drift;
+- each deliberate Conduit extension or divergence.
 
-If any item is unavailable, the change remains a documented `Unknown` in the
-hypothesis backlog. It does not cross into production as a guessed default.
+Missing evidence remains `Unknown`. Do not supply an Apollo-like default.
 
-## Contract-first boundary
+## Contract boundary
 
-Where Apollo publishes OpenAPI or Conjure, the pinned document is the transport
-authority. Generation produces the frontend interfaces and server adapter
-surface. Domain behavior remains behind a bounded Apollo adapter so Conduit can
-extend its own domain without changing what is represented as Apollo-compatible.
+Pinned OpenAPI or Conjure is the transport authority where it exists. Generated
+DTOs, client types, and strict server interfaces should meet a bounded Apollo
+adapter. Conduit domain policy stays behind that adapter. Generation must be
+deterministic from committed inputs and fail when committed output is stale.
 
-Generation must be deterministic, offline-verifiable from committed inputs, and
-checked for stale output. Unknown union variants and unknown fields follow the
-published compatibility rule; absent evidence, they fail closed rather than
-being assigned guessed meaning.
+The repository currently has a generated route surface, but generated DTOs and
+the strict server interface remain open work. Do not describe the current
+adapter as proof of compatibility with a private Hub-to-Agent protocol.
 
-## Tenant-specific runtime behavior
+## Tenant runtime data
 
-The frontend bundle remains tenant-neutral. Tenant-specific runtime bootstrap
-data is typed, versioned, server-resolved from trusted enrollment or routing
-context, and limited to an allowlist. It must not contain credentials or load
-tenant-supplied executable code. Provider safety policy cannot be overridden by
-a tenant. A visual or behavioral override is labeled as a Conduit extension
-unless tenant evidence establishes the corresponding Apollo behavior.
-
-## Review rule
-
-When implementation convenience conflicts with evidence, evidence wins. Keep
-the behavior unavailable, expose a truthful unsupported state, or implement it
-under a Conduit-native name. Do not invent a plausible Apollo default.
+A frontend bundle may receive tenant-specific runtime data only through a
+versioned, typed, server-resolved bootstrap document. The allowlist must exclude
+credentials and executable code. Tenant data cannot weaken platform security
+policy. Until that boundary and its tests exist, tenant-specific overrides are
+an open design target, not shipped behavior.

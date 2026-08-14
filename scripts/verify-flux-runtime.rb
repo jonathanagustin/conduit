@@ -50,7 +50,24 @@ end
 abort "Flux health checks require read-only ReplicaSet access" unless replica_set_rule&.fetch("verbs")&.sort == %w[get list watch]
 
 source_documents = YAML.load_stream(File.read(source))
+source_repository = source_documents.find { |document| document["kind"] == "OCIRepository" }
 kustomization = source_documents.find { |document| document["kind"] == "Kustomization" }
+abort "runtime source must be an OCIRepository" unless source_repository
+runtime_ref = source_repository.dig("spec", "ref") || {}
+abort "runtime source must be pinned by exact digest" unless
+  runtime_ref["digest"].to_s.match?(/\Asha256:[a-f0-9]{64}\z/)
+abort "runtime source must not use a mutable tag or semver range" if
+  runtime_ref.key?("tag") || runtime_ref.key?("semver")
+abort "private runtime source must name a read-only pull Secret" unless
+  source_repository.dig("spec", "secretRef", "name") == "conduit-runtime-pull"
+runtime_verify = source_repository.dig("spec", "verify") || {}
+runtime_identities = runtime_verify["matchOIDCIdentity"] || []
+abort "runtime source must require Cosign verification" unless runtime_verify["provider"] == "cosign"
+abort "runtime source must trust only the Conduit release workflow on semantic tags" unless
+  runtime_identities == [{
+    "issuer" => '^https://token\.actions\.githubusercontent\.com$',
+    "subject" => '^https://github\.com/jonathanagustin/conduit/\.github/workflows/platform-images\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
+  }]
 substitutions = kustomization.dig("spec", "postBuild", "substitute") || {}
 abort "example must define every runtime substitution" unless (required - substitutions.keys).empty?
 abort "example must define a literal quote substitution" unless substitutions["quote"] == '"'
@@ -92,6 +109,13 @@ abort "tenant example must define an OCIRepository and a HelmRelease" unless ten
 tenant_ref = tenant_repository.dig("spec", "ref") || {}
 abort "tenant chart must be pinned by exact digest" unless tenant_ref["digest"].to_s.match?(/\Asha256:[a-f0-9]{64}\z/)
 abort "tenant chart must not be selected by a mutable tag or semver range" if tenant_ref.key?("tag") || tenant_ref.key?("semver")
+abort "private tenant chart must name a pull Secret" if tenant_repository.dig("spec", "secretRef", "name").to_s.empty?
+tenant_verify = tenant_repository.dig("spec", "verify") || {}
+tenant_identities = tenant_verify["matchOIDCIdentity"] || []
+abort "tenant chart must require Cosign verification" unless tenant_verify["provider"] == "cosign"
+abort "tenant chart must name exactly one trusted publisher identity" unless
+  tenant_identities.length == 1 && tenant_identities.first["issuer"] == '^https://token\.actions\.githubusercontent\.com$' &&
+    tenant_identities.first["subject"].to_s.match?(/\A\^https:\/\/github\\\.com\/.+@refs\/tags\/v/)
 abort "tenant release must impersonate its bounded ServiceAccount" unless
   tenant_release.dig("spec", "serviceAccountName") == "foundry-tenant-reconciler"
 abort "tenant release must resolve its chart by reference, not a mutable chart spec" unless

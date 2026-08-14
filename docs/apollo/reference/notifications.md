@@ -1,15 +1,15 @@
 # Apollo notifications — reconstruction spec
 
-This is the first reconstruction artifact for the `apollo-notifications` gap the
-[reconstruction crosswalk](../RECONSTRUCTION-CROSSWALK.md) named UNRECONSTRUCTED.
+This is a retained evidence note for the `apollo-notifications` gap. The
+[evidence boundary](../evidence.md) records this private behavior as unestablished.
 Unlike the other gaps it has recovered evidence in two independent channels, so
 its shape can be reconstructed further than its authorization vocabulary alone.
 
 No public Palantir docs page was captured for this capability, so the evidence
 here is recovered from the tenant, not from documentation. Every claim is marked
 against the confidence vocabulary in
-[`../../DEPLOYMENT-EVIDENCE.md`](../../DEPLOYMENT-EVIDENCE.md): Primary, Derived,
-Corroborating (the circumstantial tier), Unknown, and Local choice.
+[`../../operations/TENANT-FIDELITY.md`](../../operations/TENANT-FIDELITY.md): Public contract, Tenant observation,
+Corroboration, Conduit extension, or Unknown.
 
 ## Recovered evidence
 

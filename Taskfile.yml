@@ -39,7 +39,7 @@ tasks:
     desc: Capture and inventory every public Apollo documentation image
     requires:
       vars: [OUTPUT_DIR]
-    cmd: node docs/apollo/audit-public-documentation-images.mjs docs/apollo/public-documentation-manifest.tsv {{.OUTPUT_DIR}}
+    cmd: node scripts/apollo-docs/audit-public-documentation-images.mjs docs/apollo/public-documentation-manifest.tsv {{.OUTPUT_DIR}}
 
   claude:
     desc: Launch Claude Code with permission prompts disabled (auto-installs if missing)

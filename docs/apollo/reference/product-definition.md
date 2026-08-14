@@ -265,7 +265,7 @@ point at which they are cheap to find:
   rolls its replicas once; that is inherent to applying a Pod-template label and
   is not repeated on later upgrades. The health-probe annotation's payload
   contract is covered by the
-  [fleet/reported-state contract](../FLEET-REPORTED-STATE.md).
+  [reporting contract](../contracts/reporting.md).
 - The Endpoints extension calls the status endpoint `sls-status-endpoint`, while
   the Health page calls the same thing `apollo-spec-status-endpoint`. This note
   and the model use `sls-status-endpoint`, which is the spelling that appears in

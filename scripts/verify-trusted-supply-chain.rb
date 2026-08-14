@@ -32,6 +32,12 @@ abort "keyless signing retry wrapper must be behaviorally tested" unless
 abort "immutable image digest is not signed" unless workflow.include?("#{retry_wrapper} cosign sign --yes") &&
   workflow.include?("platform-${{ matrix.component }}@${{ steps.build.outputs.digest }}")
 abort "immutable runtime digest is not signed" unless workflow.include?("#{retry_wrapper} cosign sign --yes \"${artifact_reference}\"")
+abort "runtime descriptor must bind the expected keyless signer" unless
+  workflow.include?('certificate_issuer="https://token.actions.githubusercontent.com"') &&
+    workflow.include?('certificate_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/platform-images.yml@${GITHUB_REF}"') &&
+    workflow.include?("node scripts/render-runtime-source-descriptor.mjs") &&
+    File.executable?(File.expand_path("render-runtime-source-descriptor.mjs", __dir__)) &&
+    File.executable?(File.expand_path("render-runtime-source-descriptor.test.mjs", __dir__))
 abort "Release BuildKit provenance must remain enabled without breaking PR --load" unless
   workflow.include?("provenance: ${{ github.event_name != 'pull_request' && 'mode=max' || 'false' }}")
 abort "Release BuildKit SBOM must remain enabled without breaking PR --load" unless
