@@ -8,6 +8,7 @@ import (
 	"crypto/sha256"
 	"embed"
 	"encoding/hex"
+	"encoding/json"
 	"io/fs"
 	"mime"
 	"net/http"
@@ -31,8 +32,29 @@ func mustAssets() fs.FS {
 
 // Handler returns the read-only console asset handler. The Hub mounts it below
 // /console/; API requests remain on the separately authorized /v1 routes.
-func Handler() http.Handler {
+func Handler(config ...Bootstrap) http.Handler {
+	if len(config) > 1 {
+		panic("console handler accepts at most one bootstrap")
+	}
+	bootstrap := DefaultBootstrap()
+	if len(config) == 1 {
+		bootstrap = config[0]
+	}
+	if err := bootstrap.Validate(); err != nil {
+		panic("invalid console bootstrap: " + err.Error())
+	}
+	bootstrapJSON, err := json.Marshal(bootstrap)
+	if err != nil {
+		panic("encode console bootstrap: " + err.Error())
+	}
+
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
+		if request.URL.Path == "/console/bootstrap.json" {
+			setConsoleHeaders(w, "bootstrap.json", bootstrapJSON)
+			w.Header().Set("Cache-Control", "no-store")
+			http.ServeContent(w, request, "bootstrap.json", time.Time{}, bytes.NewReader(bootstrapJSON))
+			return
+		}
 		name, ok := assetName(request.URL.Path)
 		if !ok {
 			http.NotFound(w, request)

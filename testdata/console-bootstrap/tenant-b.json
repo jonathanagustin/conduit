@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "conduit.console.bootstrap/v1",
+  "tenant": {
+    "id": "synthetic-bravo",
+    "displayName": "Synthetic Bravo"
+  },
+  "brand": {
+    "title": "Bravo Delivery",
+    "subtitle": "Synthetic test tenant",
+    "accent": "#7A3E9D",
+    "icon": "cloud"
+  },
+  "provenance": {
+    "claimClass": "tenant-observation",
+    "evidenceRef": "evidence://synthetic/tenant-bravo"
+  }
+}

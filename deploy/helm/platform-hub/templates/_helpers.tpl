@@ -2,6 +2,10 @@
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
+{{- define "platform-hub.consoleBootstrap" -}}
+{{- toJson .Values.consoleBootstrap -}}
+{{- end -}}
+
 {{- define "platform-hub.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}

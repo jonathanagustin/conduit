@@ -37,14 +37,16 @@ DTOs, client types, and strict server interfaces should meet a bounded Apollo
 adapter. Conduit domain policy stays behind that adapter. Generation must be
 deterministic from committed inputs and fail when committed output is stale.
 
-The repository currently has a generated route surface, but generated DTOs and
-the strict server interface remain open work. Do not describe the current
-adapter as proof of compatibility with a private Hub-to-Agent protocol.
+The pinned public OpenAPI now generates the complete 13-operation route set,
+transport DTOs, strict server interface, and router. That proves only the named
+public transport shape; it is not proof of compatibility with a private
+Hub-to-Agent protocol.
 
 ## Tenant runtime data
 
-A frontend bundle may receive tenant-specific runtime data only through a
-versioned, typed, server-resolved bootstrap document. The allowlist must exclude
-credentials and executable code. Tenant data cannot weaken platform security
-policy. Until that boundary and its tests exist, tenant-specific overrides are
-an open design target, not shipped behavior.
+The immutable frontend bundle receives tenant-specific branding only through
+the versioned, typed, server-resolved bootstrap described in
+[`../ui/contracts/runtime-bootstrap.md`](../ui/contracts/runtime-bootstrap.md).
+Both server and browser reject unknown keys, credentials, executable content,
+external API origins, capability fields, and security-policy weakening. An
+invalid configured document fails closed rather than inventing tenant state.
