@@ -12,7 +12,6 @@ import (
 	"fmt"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
@@ -155,6 +154,9 @@ func (repository *Repository) ingestReport(ctx context.Context, report controlpl
 	}
 	if err != nil {
 		return err
+	}
+	if report.Environment != record.Plan.Environment {
+		return errors.New("reported Environment differs from its exact Plan")
 	}
 	steps := make(map[string]controlplane.PlanStep, len(record.Plan.Steps))
 	for _, step := range record.Plan.Steps {
@@ -373,10 +375,3 @@ func reportedComplete(step controlplane.PlanStep, entity controlplane.ReportedEn
 	}
 	return entity.Health == controlplane.HealthHealthy && entity.RolloutStatus == controlplane.RolloutUpToDate
 }
-
-// systemClock is intentionally private to the production runner; decisions use
-// one injectable Clock port while compatibility Plan timestamps remain owned by
-// the existing lifecycle.
-type systemClock struct{}
-
-func (systemClock) Now() time.Time { return time.Now().UTC() }

@@ -7,7 +7,9 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"crypto/x509"
+	"database/sql"
 	"encoding/base64"
+	"encoding/json"
 	"encoding/pem"
 	"os"
 	"path/filepath"
@@ -16,6 +18,78 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
+
+func TestPostgresConfigureReconciliationPrimesOrdinaryPlanLifecycle(t *testing.T) {
+	dsn := os.Getenv("CONDUIT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("CONDUIT_TEST_POSTGRES_DSN is required for the PostgreSQL integration gate")
+	}
+	ctx := t.Context()
+	database, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	base, err := controlplane.NewPostgresRepository(ctx, dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer base.Close()
+	dsnFile := writeFile(t, "postgres-dsn", []byte(dsn+"\n"))
+	configuration := map[string]string{
+		"REPOSITORY_KIND": "postgres", "POSTGRES_DSN_FILE": dsnFile,
+	}
+	repository, closeReconciliation, supervisor, err := configureReconciliation(ctx,
+		func(name string) string { return configuration[name] }, base)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeReconciliation()
+	if supervisor == nil || repository == base {
+		t.Fatalf("production reconciliation composition = repository %T, supervisor %v", repository, supervisor)
+	}
+	if _, err := database.ExecContext(ctx, `
+TRUNCATE conduit_repository_blobs;
+UPDATE conduit_repository_state SET generation = 0, state = '{}'::jsonb WHERE singleton = TRUE;
+TRUNCATE conduit_reconciliation_desired, conduit_reconciliation_observations,
+    conduit_reconciliation_work, conduit_reconciliation_decisions,
+    conduit_reconciliation_audit, conduit_reconciliation_proposal_outbox,
+    conduit_reconciliation_plan_receipts`); err != nil {
+		t.Fatal(err)
+	}
+	contents, err := os.ReadFile(filepath.Join("..", "..", "examples", "example-foundation.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var state controlplane.DesiredState
+	if err := json.Unmarshal(contents, &state); err != nil {
+		t.Fatal(err)
+	}
+	record, err := controlplane.NewLifecycle(repository).CreatePlan(ctx, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := supervisor.Prime(ctx); err != nil {
+		t.Fatal(err)
+	}
+	plans, err := repository.ListPlans(ctx, state.Environment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || plans[0].ID != record.ID {
+		t.Fatalf("ordinary Plan lifecycle produced %#v, want one %s", plans, record.ID)
+	}
+	var receipts, outstanding int
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM conduit_reconciliation_plan_receipts").Scan(&receipts); err != nil {
+		t.Fatal(err)
+	}
+	if err := database.QueryRowContext(ctx, "SELECT count(*) FROM conduit_reconciliation_proposal_outbox WHERE exhausted = false").Scan(&outstanding); err != nil {
+		t.Fatal(err)
+	}
+	if receipts != len(record.Plan.Steps) || outstanding != 0 {
+		t.Fatalf("receipts=%d steps=%d outstanding=%d", receipts, len(record.Plan.Steps), outstanding)
+	}
+}
 
 func writeFile(t *testing.T, name string, contents []byte) string {
 	t.Helper()

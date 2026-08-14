@@ -22,6 +22,9 @@ import (
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
 	"github.com/jonathanagustin/conduit/internal/consoleui"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	controlplaneadapter "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/controlplane"
+	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
+	reconciliationapplication "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/application"
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -45,6 +48,19 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeRepository()
+	repository, closeReconciliation, reconciliationSupervisor, err := configureReconciliation(ctx, os.Getenv, repository)
+	if err != nil {
+		slog.Error("initialize durable reconciliation", "error", err)
+		os.Exit(1)
+	}
+	defer closeReconciliation()
+	if reconciliationSupervisor != nil {
+		if err := reconciliationSupervisor.Prime(ctx); err != nil {
+			slog.Error("prime durable reconciliation", "error", err)
+			os.Exit(1)
+		}
+		go reconciliationSupervisor.Run(ctx)
+	}
 	bundlePrivateKey, err := loadBundleSigningKey(os.Getenv("BUNDLE_SIGNING_KEY_FILE"))
 	if err != nil {
 		slog.Error("load Bundle signing key", "error", err)
@@ -169,6 +185,61 @@ func main() {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func configureReconciliation(
+	ctx context.Context, getenv func(string) string, repository controlplane.Repository,
+) (controlplane.Repository, func(), *reconciliationapplication.Supervisor, error) {
+	if getenv == nil || repository == nil {
+		return nil, func() {}, nil, errors.New("environment reader and repository are required")
+	}
+	kind := strings.TrimSpace(getenv("REPOSITORY_KIND"))
+	if kind == "" || kind == "file" {
+		// Explicit single-replica development mode keeps the compatibility
+		// repository and does not claim durable multi-replica reconciliation.
+		return repository, func() {}, nil, nil
+	}
+	if kind != "postgres" {
+		return nil, func() {}, nil, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
+	}
+	dataSourceName, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
+	if err != nil {
+		return nil, func() {}, nil, err
+	}
+	store, err := reconciliationpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		return nil, func() {}, nil, err
+	}
+	closeStore := func() { _ = store.Close() }
+	bridge, err := controlplaneadapter.NewRepository(repository, store)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, err
+	}
+	planner, err := controlplaneadapter.NewPlanner(bridge, store)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, err
+	}
+	worker, err := reconciliationapplication.NewWorker(store, planner, reconciliationapplication.SystemClock{},
+		reconciliationapplication.Config{
+			LeaseDuration: 30 * time.Second, MaximumObservationAge: 15 * time.Minute,
+			MaximumAttempts: 10, BaseRetryDelay: 2 * time.Second, RepairBatchSize: 200,
+		})
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, err
+	}
+	supervisor, err := reconciliationapplication.NewSupervisor(worker, bridge,
+		reconciliationapplication.SupervisorConfig{
+			PollInterval: time.Second, SyncInterval: 30 * time.Second,
+			OnError: func(err error) { slog.Error("durable reconciliation cycle", "error", err) },
+		})
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, err
+	}
+	return bridge, closeStore, supervisor, nil
 }
 
 func openRepository(

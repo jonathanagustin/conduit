@@ -199,13 +199,6 @@ WHERE environment = $1 AND installation = $2
 			return fmt.Errorf("retire superseded reconciliation proposals: %w", err)
 		}
 	}
-	if !changed {
-		// A duplicate event still repairs a notification lost after its input was
-		// committed, but does not reset an exhausted retry budget.
-		if err := enqueue(ctx, transaction, snapshot.Key, snapshot.RecordedAt.UTC(), false); err != nil {
-			return fmt.Errorf("coalesce desired notification: %w", err)
-		}
-	}
 	return commit(transaction, "desired snapshot")
 }
 
@@ -244,8 +237,10 @@ WHERE EXCLUDED.observed_at > conduit_reconciliation_observations.observed_at
 	if err != nil {
 		return err
 	}
-	if err := enqueue(ctx, transaction, observation.Key, observation.ObservedAt.UTC(), changed); err != nil {
-		return fmt.Errorf("enqueue observation: %w", err)
+	if changed {
+		if err := enqueue(ctx, transaction, observation.Key, observation.ObservedAt.UTC(), true); err != nil {
+			return fmt.Errorf("enqueue observation: %w", err)
+		}
 	}
 	return commit(transaction, "observation")
 }
@@ -372,7 +367,7 @@ ON CONFLICT (decision_id) DO NOTHING`, decision.ID, decision.Key.Environment, de
 		decision.DecidedAt.UTC(), decisionDocument); err != nil {
 		return fmt.Errorf("append reconciliation audit: %w", err)
 	}
-	if proposal != nil {
+	if proposal != nil && currentRevision == lease.Revision {
 		if _, err := transaction.ExecContext(ctx, `
 INSERT INTO conduit_reconciliation_proposal_outbox
     (proposal_id, idempotency_key, environment, installation, desired_generation, target_digest, available_at, document)
