@@ -67,7 +67,11 @@ func (worker *Worker) DispatchOne(ctx context.Context) (bool, error) {
 	}
 	receipt, err := worker.planner.Propose(ctx, lease.Proposal)
 	if err != nil {
-		exhausted := lease.Attempt >= worker.config.MaximumAttempts
+		superseded := errors.Is(err, ports.ErrProposalSuperseded)
+		exhausted := superseded || lease.Attempt >= worker.config.MaximumAttempts
+		if superseded {
+			return true, worker.store.FailProposal(ctx, lease, err.Error(), now, true)
+		}
 		return true, worker.store.FailProposal(ctx, lease, err.Error(), worker.retryAt(now, lease.Attempt), exhausted)
 	}
 	if receipt.ProposalID != lease.Proposal.ID || receipt.PlanID == "" || receipt.CreatedAt.IsZero() {

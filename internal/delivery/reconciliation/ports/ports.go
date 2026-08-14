@@ -4,10 +4,16 @@ package ports
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
 )
+
+// ErrProposalSuperseded means the durable desired snapshot changed after an
+// outbox entry was created. Retrying that proposal would be stale authority;
+// the worker terminally retires it and lets the newer work revision proceed.
+var ErrProposalSuperseded = errors.New("reconciliation proposal superseded")
 
 type WorkLease struct {
 	Key   domain.Key
