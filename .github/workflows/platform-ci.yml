@@ -122,6 +122,8 @@ jobs:
         env:
           PLATFORM_REQUIRE_HELM: "1"
         run: go test -race ./...
+      - name: Validate PostgreSQL repository
+        run: ./scripts/test-postgres-repository.sh
       - name: Vet
         run: go vet ./...
       - name: Validate operator console
