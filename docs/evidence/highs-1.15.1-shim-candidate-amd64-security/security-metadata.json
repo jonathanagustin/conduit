@@ -3,31 +3,31 @@
   "admission": "UNADMITTED",
   "architecture": "amd64",
   "platformRevision": "WORKTREE",
-  "imageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
-  "syftImageId": "sha256:81d40c350051b64e121f74ed1f92a1698784758cd202c8efcabaa47dd660f1df",
-  "manifestDigest": "sha256:35c78ef7b202a67cadfa17828bfd854df12747e50e968db56f7790603d9f863c",
-  "candidateMetadataSha256": "71725d72bf0242b1193804f29bb8dc924273d133ff7d2be221533390a0cdd0d8",
+  "imageId": "sha256:53f37c7915148505ac43ad72b3fd2e1154fb9bcd214bad9ccc8f60736214093a",
+  "syftImageId": "sha256:e3b0702c2fcc8c5f3e6b3a6a918a3bbce8b334699afc3a88e08d175edbcab543",
+  "manifestDigest": "sha256:ee13b94e348ebcdca3be5e4f11cb605939b64b91f65add88b0531caf21f63f18",
+  "candidateMetadataSha256": "4075dbe7db8dafdeeaf5cfef859fa076fc93ec96c957ddaeb541582da8ed35ca",
   "tools": {
     "syft": "1.50.0",
     "grype": "0.116.1"
   },
   "sbom": {
-    "nativeSha256": "3fb5dbb4a97a31eb793250f94d7ff8d5ca18eb6478e685caa48aaf2f982ad57e",
-    "spdxSha256": "8664d431de2c7b90eda4feac1e54b90980776915bfbc5223b1e628ebe9614fce",
+    "nativeSha256": "ca890e1f8422de41e156809750c8f59a8498060d0a223d231a014a869768506a",
+    "spdxSha256": "2a169168fdee98369ce99adffbf008451a60c3b7cfa4e79051f5f65a01cb7a0f",
     "syftDiscoveredPackages": 2,
     "staticClosureSha256": "8644e719c19bd7b2d03893b9f4adec22863a9daf24399afa9cf043dbe446b502",
     "staticClosureEntries": 15,
     "coverage": "standard SBOM plus compiler/linker-owned static closure"
   },
   "vulnerability": {
-    "reportSha256": "3d74fcc4bbc640b46c67aed1c83ef659754a8f2a2e717fae38427c63dfe01413",
+    "reportSha256": "16f2a9d581e0b50b60410ff4732fa56521df8ae2355448b2a3fccf0f48e7c2d0",
     "matches": 0,
     "failThreshold": "high",
     "grypeExitStatus": 0,
     "database": {
       "schema": "v6.1.9",
-      "built": "2026-08-11T06:26:49Z",
-      "source": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.9_2026-08-11T00:23:43Z_1786429609.tar.zst?checksum=sha256%3A5a05533116ce3db9d8ebf8b6f946c90bc56b1b0a477c11dd099f3c7f130af1f7",
+      "built": "2026-08-14T06:39:10Z",
+      "source": "https://grype.anchore.io/databases/v6/vulnerability-db_v6.1.9_2026-08-14T00:27:08Z_1786689550.tar.zst?checksum=sha256%3Af00de2384773ba0d26d6904076e1ed315a219e71da2d92b0fc7c2510498d877c",
       "valid": true
     }
   }

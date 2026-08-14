@@ -13,7 +13,7 @@ scanner="$script_dir/scan-highs-candidate.sh"
 containerfile="$platform_dir/Containerfile.optimizer-highs"
 evidence="$platform_dir/docs/evidence/highs-1.15.1-shim-candidate-amd64.json"
 security_evidence="$platform_dir/docs/evidence/highs-1.15.1-shim-candidate-amd64-security"
-workflow="$platform_dir/../.github/workflows/platform-highs-candidate.yml"
+workflow="$platform_dir/.github/workflows/platform-highs-candidate.yml"
 dockerignore="$platform_dir/.dockerignore"
 
 bash -n "$verifier"
