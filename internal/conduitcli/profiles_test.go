@@ -327,6 +327,15 @@ func TestProfileStoreReportsReadAndWriteFailures(t *testing.T) {
 		// The store is readable but its directory is not writable, so the read
 		// succeeds and only the write fails. Reporting success here would tell
 		// an operator a profile exists that was never persisted.
+		//
+		// The unwritable half is a directory mode, and CAP_DAC_OVERRIDE makes
+		// root ignore it: as root the write succeeds and this fails for a
+		// reason that has nothing to do with the code under test. CI runs
+		// unprivileged so the coverage is kept there; skipping is honest,
+		// whereas asserting something this process cannot make true is not.
+		if os.Geteuid() == 0 {
+			t.Skip("running as root: CAP_DAC_OVERRIDE defeats the unwritable-directory premise")
+		}
 		directory := t.TempDir()
 		configPath := filepath.Join(directory, "config.yaml")
 		if err := os.WriteFile(configPath, []byte("version: 1\n"), 0o600); err != nil {
