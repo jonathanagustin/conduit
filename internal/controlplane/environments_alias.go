@@ -27,9 +27,38 @@ type (
 	Organization               = environments.Organization
 	InstalledTarget            = environments.InstalledTarget
 	NamespaceTarget            = environments.NamespaceTarget
+	HealthCheck                = environments.HealthCheck
+	EntityContainerHealth      = environments.EntityContainerHealth
+	EntityNodeHealth           = environments.EntityNodeHealth
+	EntityHealthDetails        = environments.EntityHealthDetails
+	ReportedEntity             = environments.ReportedEntity
+	ReportedSecret             = environments.ReportedSecret
+	EnvironmentReport          = environments.Report
 )
 
-const EnvironmentProfileSourceOperatorAPI = environments.SourceOperatorAPI
+const (
+	EnvironmentProfileSourceOperatorAPI = environments.SourceOperatorAPI
+	HealthHealthy                       = environments.HealthHealthy
+	HealthUnhealthy                     = environments.HealthUnhealthy
+	HealthIndeterminate                 = environments.HealthIndeterminate
+	HealthUnknown                       = environments.HealthUnknown
+	HealthRepairing                     = environments.HealthRepairing
+	HealthWarning                       = environments.HealthWarning
+	HealthError                         = environments.HealthError
+	HealthTerminal                      = environments.HealthTerminal
+	RolloutUpToDate                     = environments.RolloutUpToDate
+	RolloutInGracePeriod                = environments.RolloutInGracePeriod
+	RolloutBlocked                      = environments.RolloutBlocked
+	RolloutRecalled                     = environments.RolloutRecalled
+	RolloutOutOfDate                    = environments.RolloutOutOfDate
+	ConfigApplied                       = environments.ConfigApplied
+	ConfigDrifted                       = environments.ConfigDrifted
+	ConfigUnavailable                   = environments.ConfigUnavailable
+	ConfigIndeterminate                 = environments.ConfigIndeterminate
+	LifecycleInstalled                  = environments.LifecycleInstalled
+	LifecycleUninstalled                = environments.LifecycleUninstalled
+	LifecycleUnknown                    = environments.LifecycleUnknown
+)
 
 func environmentProfilesEqual(left, right EnvironmentProfile) bool {
 	return environments.ProfilesEqual(left, right)
@@ -44,6 +73,8 @@ func environmentProfilePolicyResource(profile EnvironmentProfile) map[string]any
 }
 
 func sortedEnvironmentProfiles(profiles []EnvironmentProfile) { environments.SortProfiles(profiles) }
+
+func worseHealth(left, right string) string { return environments.WorseHealth(left, right) }
 
 // validateEnvironmentProfile restates Environments' ErrInvalid as this
 // package's ErrConflict, which is what writeLifecycleError turns into a 409.

@@ -21,7 +21,7 @@ function imports(path) {
   return [...singles, ...blocks.flatMap((block) => [...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]))];
 }
 for (const path of filesBelow(join(root, "internal"))) {
-  const local = relative(root, path);
+  const local = relative(root, path).replaceAll("\\", "/");
   const dependencies = imports(path);
   if (local.includes("/domain/")) {
     for (const dependency of dependencies) {
@@ -37,6 +37,17 @@ for (const path of filesBelow(join(root, "internal"))) {
       }
     }
   }
+  if (local.startsWith("internal/apollo/")) {
+    for (const dependency of dependencies) {
+      if (dependency.includes("/internal/controlplane")) {
+        failures.push(`${local}: Apollo bounded context imports legacy control plane ${dependency}`);
+      }
+    }
+  }
+}
+const apolloAdapter = readFileSync(join(root, "internal/controlplane/apollo_openapi_adapter.go"), "utf8");
+if (apolloAdapter.includes("invokeApolloFacade")) {
+  failures.push("Apollo generated adapter re-enters the legacy HTTP facade");
 }
 const delivery = readFileSync(join(root, "cmd/platform-delivery/main.go"), "utf8");
 if (!delivery.includes("composition.NewHubHandler(")) failures.push("platform-delivery bypasses the Hub composition root");
@@ -45,4 +56,4 @@ if (failures.length) {
   for (const failure of failures) console.error(`FAIL ${failure}`);
   process.exit(1);
 }
-console.log("PASS domain boundaries: Hub composition is mandatory and domain infrastructure imports are rejected");
+console.log("PASS domain boundaries: Hub composition is mandatory; Apollo has no control-plane backedge; domain infrastructure imports are rejected");
