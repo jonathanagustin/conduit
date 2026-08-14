@@ -10,8 +10,13 @@ import (
 )
 
 type WorkLease struct {
-	Key       domain.Key
-	Token     string
+	Key   domain.Key
+	Token string
+	// Revision fences a decision against input events that arrive while the
+	// worker holds the lease. A changed revision keeps the key queued after the
+	// old decision commits, so a concurrent desired/report update cannot be
+	// acknowledged accidentally.
+	Revision  uint64
 	Attempt   uint32
 	ExpiresAt time.Time
 }
