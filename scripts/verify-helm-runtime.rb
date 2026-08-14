@@ -97,6 +97,22 @@ assert_fails_closed!(
 )
 assert_fails_closed!(
   helm,
+  "platform-hub",
+  charts.fetch(:hub),
+  ["--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"), "--set-string", "consoleBootstrap.apiBaseURL=https://example.invalid"]
+)
+assert_fails_closed!(
+  helm,
+  "platform-hub",
+  charts.fetch(:hub),
+  [
+    "--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+    "--set-string", "consoleBootstrap.provenance.claimClass=tenant-observation",
+    "--set-string", "consoleBootstrap.provenance.evidenceRef=conduit://console/default"
+  ]
+)
+assert_fails_closed!(
+  helm,
   "platform-spoke",
   charts.fetch(:spoke),
   ["--values", File.join(charts.fetch(:spoke), "ci/test-values.yaml"), "--set-string", "controlPlaneURL=http://platform-hub.example.test"]
@@ -111,7 +127,7 @@ assert_fails_closed!(
 hub_documents = render!(helm, "platform-hub", charts.fetch(:hub), File.join(charts.fetch(:hub), "ci/test-values.yaml"))
 spoke_documents = render!(helm, "platform-spoke", charts.fetch(:spoke), File.join(charts.fetch(:spoke), "ci/test-values.yaml"))
 documents = hub_documents + spoke_documents
-expected_kinds = %w[ServiceAccount PersistentVolumeClaim Service Deployment ServiceAccount Deployment]
+expected_kinds = %w[ServiceAccount ConfigMap PersistentVolumeClaim Service Deployment ServiceAccount Deployment]
 abort "unexpected chart resources: #{documents.map { |item| item['kind'] }}" unless documents.map { |item| item["kind"] } == expected_kinds
 abort "chart escaped the release namespace" unless documents.all? { |item| item.dig("metadata", "namespace") == "platform-system" }
 forbidden_kinds = %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding Role RoleBinding]
@@ -178,9 +194,30 @@ hub_container = hub.dig("spec", "template", "spec", "containers", 0)
 abort "Hub must be single-writer with Recreate strategy" unless hub.dig("spec", "replicas") == 1 && hub.dig("spec", "strategy", "type") == "Recreate"
 abort "Hub probes must use HTTPS" unless %w[startupProbe readinessProbe livenessProbe].all? { |probe| hub_container.dig(probe, "httpGet", "scheme") == "HTTPS" }
 hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
-required_hub_env = %w[AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE BUNDLE_SIGNING_KEY_FILE PLATFORM_BOOTSTRAP_ADMINISTRATORS]
+required_hub_env = %w[AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE BUNDLE_SIGNING_KEY_FILE CONSOLE_BOOTSTRAP_FILE PLATFORM_BOOTSTRAP_ADMINISTRATORS]
 abort "Hub production identity/signing inputs are incomplete" unless (required_hub_env - hub_env.keys).empty?
 abort "chart enabled insecure identity" if hub_env.keys.any? { |name| name.start_with?("ALLOW_INSECURE_") }
+abort "Hub console bootstrap path drifted" unless hub_env["CONSOLE_BOOTSTRAP_FILE"] == "/etc/conduit/console/bootstrap.json"
+
+bootstrap_config = hub_documents.find { |item| item["kind"] == "ConfigMap" }
+abort "Hub console bootstrap ConfigMap is missing" unless bootstrap_config&.dig("metadata", "name") == "platform-hub-console-bootstrap"
+bootstrap_raw = bootstrap_config.dig("data", "bootstrap.json")
+bootstrap = JSON.parse(bootstrap_raw)
+expected_bootstrap = {
+  "schemaVersion" => "conduit.console.bootstrap/v1",
+  "tenant" => {"id" => "conduit", "displayName" => "Conduit"},
+  "brand" => {"title" => "Conduit", "subtitle" => "Control plane", "accent" => "#2d72d2", "icon" => "dashboard"},
+  "provenance" => {"claimClass" => "conduit-extension", "evidenceRef" => "conduit://console/default"}
+}
+abort "Hub console bootstrap default drifted" unless bootstrap == expected_bootstrap
+bootstrap_checksum = hub.dig("spec", "template", "metadata", "annotations", "checksum/console-bootstrap")
+abort "Hub console bootstrap checksum is not exact" unless bootstrap_checksum == Digest::SHA256.hexdigest(bootstrap_raw)
+bootstrap_mount = hub_container.fetch("volumeMounts").find { |item| item["name"] == "console-bootstrap" }
+abort "Hub console bootstrap is not mounted read-only" unless bootstrap_mount == {
+  "name" => "console-bootstrap", "mountPath" => "/etc/conduit/console", "readOnly" => true
+}
+bootstrap_volume = hub.dig("spec", "template", "spec", "volumes").find { |item| item["name"] == "console-bootstrap" }
+abort "Hub console bootstrap does not use its bounded ConfigMap" unless bootstrap_volume&.dig("configMap", "name") == "platform-hub-console-bootstrap"
 
 scanner_hub = render!(
   helm,
