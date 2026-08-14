@@ -5,8 +5,9 @@ import type { EnvironmentCatalogRecord, ReportedEntity } from "./resources.js";
 import type { CatalogQuery, PageMetadata } from "./types.js";
 
 /** Catalog and promotion transport. As elsewhere, envelopes were read off
- * http.go: /products wraps in "products", a Product's releases wrap in
- * "releases", and /promotions and an Environment's commands return bare arrays. */
+ * http.go: paged Products and Promotions use named arrays plus page metadata,
+ * a Product's Releases use a bounded named array, and Environment Commands are
+ * scoped records returned as a bare array. */
 
 export interface Artifact {
   repository: string;

@@ -15,7 +15,7 @@ import "./promotions.css";
  * Release's progress along it. Each group renders the channel run with a
  * selectable transition, and selecting one shows its constraints -- V1 314.
  *
- * The page itself is a Platform extension and says so below: a fleet-wide
+ * The page itself is a Conduit extension and says so below: a fleet-wide
  * promotions queue is useful for an operator asking "what is stuck anywhere",
  * but upstream has no such screen, and presenting it as the Apollo pipeline
  * would teach a model of the product that does not exist. */
@@ -45,7 +45,7 @@ export function PromotionsPage() {
         return (
           <div className="console-promotions" data-testid="promotions-page">
             <Callout icon="info-sign" compact className="console-promotions__scope">
-              This fleet-wide view is a Platform extension. Upstream reaches promotion through a
+              This fleet-wide view is a Conduit extension. Upstream reaches promotion through a
               Product, where the pipeline belongs.
             </Callout>
             <form className="console-index-controls" role="search" onSubmit={index.applySearch}>

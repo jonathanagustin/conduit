@@ -1,6 +1,6 @@
 # Index pagination contract
 
-The Product, Environment, Plan, and Fleet indexes use server-side opaque seek
+The Product, Environment, Plan, Fleet, Change Request, and Promotion indexes use server-side opaque seek
 cursors. The browser owns the current filter and cursor in the URL so reload,
 back, retry, and shared links address the same result window.
 
@@ -12,6 +12,8 @@ back, retry, and shared links address the same result window.
 | Environments | `GET /v1/environments` | `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20 |
 | Plans | `GET /v1/plans` | `environment`, `status`, `installationId`, `search` | `summary`: default 100, maximum 200; `full`: maximum 20; omitted view resolves to `full` |
 | Fleet | `GET /v1/fleet/installations` | `environment`, `product`, `health`, `rolloutStatus`, `configStatus`, `lifecycle`, `search`, `maxAgeSeconds` | default 100, maximum 200 |
+| Change Requests | `GET /v1/change-requests` | `environment`, `status`, `search` | default 100, maximum 200 |
+| Promotions | `GET /v1/promotions` | `product`, `status`, `search` | default 100, maximum 200 |
 
 Every page returns `pageSize`, `limit`, `hasPrevious`, and optional
 `nextCursor` and `previousCursor`. Index envelopes also return the authorized,
@@ -33,5 +35,7 @@ or an out-of-range limit returns `422`.
 - Do not infer totals or previous cursors from the rows in the current page.
 
 Source anchors: `internal/controlplane/pagination.go`,
-`internal/controlplane/catalog_projection.go`, `internal/controlplane/http.go`,
-and the index tests under `internal/controlplane` and `web/src/test/e2e`.
+`internal/controlplane/catalog_projection.go`,
+`internal/controlplane/operator_index_projection.go`,
+`internal/controlplane/http.go`, and the index tests under
+`internal/controlplane` and `web/src/test/e2e`.
