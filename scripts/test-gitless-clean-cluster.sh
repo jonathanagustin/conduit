@@ -9,6 +9,12 @@ cluster_name="conduit-gitless-${$}"
 registry_pid=""
 
 cleanup() {
+	local status=$?
+	if [[ "${status}" -ne 0 ]]; then
+		for log in "${test_root}/zot.stdout" "${test_root}/zot.log"; do
+			[[ -f "${log}" ]] && sed -n '1,160p' "${log}" >&2
+		done
+	fi
   if [[ -n "${registry_pid}" ]] && kill -0 "${registry_pid}" 2>/dev/null; then
     kill "${registry_pid}" 2>/dev/null || true
     wait "${registry_pid}" 2>/dev/null || true
@@ -111,6 +117,7 @@ cat >"${test_root}/zot.json" <<EOF
   "log": {"level": "info", "output": "${test_root}/zot.log"}
 }
 EOF
+zot verify "${test_root}/zot.json" >/dev/null
 zot serve "${test_root}/zot.json" >"${test_root}/zot.stdout" 2>&1 &
 registry_pid=$!
 for _ in $(seq 1 60); do
