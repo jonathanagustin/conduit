@@ -85,17 +85,20 @@ Disconnected environments mirror the same digest and verification material
 through the approved transfer path. A mirror changes the registry location,
 not the admitted content identity.
 
-## Implemented and still open
+## Implemented and verified
 
-The repository currently provides a manually dispatched publisher, keyless
+The repository provides a manually dispatched publisher, keyless
 runtime signing, a digest-bearing release descriptor, digest-pinned Flux
 sources, private pull-secret references, signer-policy examples, and structural
 gates for those properties. The descriptor renderer has one accepted fixture
 and rejection cases for a digest mismatch, wrong signer, and mutable version.
 
-A clean-cluster acceptance test is still required. It must install the selected
-Flux distribution without Git, pull the private runtime artifact with a
-read-only identity, reject an artifact from the wrong signer, reconcile the
-expected digest, and prove that no Git credential or `GitRepository` object is
-present. Until that test passes, Gitless GitOps is the selected and partially
-implemented production design, not a completed deployment guarantee.
+`scripts/test-gitless-clean-cluster.sh` closes the runtime proof with a
+disposable authenticated Zot registry and a clean k3d cluster. It installs only
+Flux's OCI source and Kustomize controllers, gives the cluster a synthetic
+pull-only credential and one trusted public key, reconciles the exact signed
+digest, rejects byte-identical content signed by an untrusted key, and proves
+that neither Git credentials nor `GitRepository` objects exist. Its toolchain
+is checksum-pinned, its credentials and signing keys are test-only, and its
+workflow is manually dispatched so the cluster cost is never incurred on a
+push or pull request.

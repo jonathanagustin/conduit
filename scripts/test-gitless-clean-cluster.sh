@@ -29,7 +29,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command in curl sha256sum tar jq openssl base64 docker kubectl python3; do
+for command in curl sha256sum tar jq base64 docker kubectl python3; do
   command -v "${command}" >/dev/null || { echo "${command} is required" >&2; exit 1; }
 done
 docker info >/dev/null
