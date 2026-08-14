@@ -5,6 +5,7 @@ export PATH="${HOME}/.local/bin:${PATH}"
 export MISE_CACHE_DIR="${PWD}/.direnv/mise-cache"
 mkdir -p "${MISE_CACHE_DIR}"
 ./scripts/repair-volatile-cache-links.sh
+./scripts/install-codespace-self-heal.sh
 
 mise_version="2026.8.3"
 if ! command -v mise >/dev/null 2>&1 || [ "$(mise --version | awk '{print $1}')" != "${mise_version}" ]; then
