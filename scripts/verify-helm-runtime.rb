@@ -158,7 +158,7 @@ spoke_service_account = spoke_documents.find { |item| item["kind"] == "ServiceAc
 abort "Spoke ServiceAccount must use its namespaced Kubernetes identity" unless spoke_service_account&.dig("metadata", "name") == "platform-spoke" && spoke_service_account["automountServiceAccountToken"] == true
 
 pvc = hub_documents.find { |item| item["kind"] == "PersistentVolumeClaim" }
-abort "Helm removal must retain durable Hub state" unless pvc&.dig("metadata", "annotations", "helm.sh/resource-policy") == "keep"
+abort "PostgreSQL Hub must not claim a local state volume" if pvc
 
 hub = hub_documents.find { |item| item["kind"] == "Deployment" }
 spoke = spoke_documents.find { |item| item["kind"] == "Deployment" }
@@ -191,13 +191,45 @@ local_spoke_env = k3d_spoke.dig("spec", "template", "spec", "containers", 0, "en
 abort "Spoke local-registry compatibility did not render exactly" unless local_spoke_env["HELM_PLAIN_HTTP"] == "true"
 
 hub_container = hub.dig("spec", "template", "spec", "containers", 0)
-abort "Hub must be single-writer with Recreate strategy" unless hub.dig("spec", "replicas") == 1 && hub.dig("spec", "strategy", "type") == "Recreate"
+abort "transactional Hub must render two replicas" unless hub.dig("spec", "replicas") == 2
+abort "transactional Hub must use a zero-unavailable rolling update" unless
+  hub.dig("spec", "strategy", "type") == "RollingUpdate" &&
+    hub.dig("spec", "strategy", "rollingUpdate") == {"maxUnavailable" => 0, "maxSurge" => 1}
+pdb = hub_documents.find { |item| item["kind"] == "PodDisruptionBudget" }
+abort "transactional Hub must protect one replica from voluntary disruption" unless
+  pdb&.dig("spec", "maxUnavailable") == 1 &&
+    pdb.dig("spec", "selector", "matchLabels", "app.kubernetes.io/component") == "hub"
 abort "Hub probes must use HTTPS" unless %w[startupProbe readinessProbe livenessProbe].all? { |probe| hub_container.dig(probe, "httpGet", "scheme") == "HTTPS" }
 hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]] }
-required_hub_env = %w[AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE BUNDLE_SIGNING_KEY_FILE CONSOLE_BOOTSTRAP_FILE PLATFORM_BOOTSTRAP_ADMINISTRATORS]
+required_hub_env = %w[REPOSITORY_KIND POSTGRES_DSN_FILE AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE BUNDLE_SIGNING_KEY_FILE CONSOLE_BOOTSTRAP_FILE PLATFORM_BOOTSTRAP_ADMINISTRATORS]
 abort "Hub production identity/signing inputs are incomplete" unless (required_hub_env - hub_env.keys).empty?
 abort "chart enabled insecure identity" if hub_env.keys.any? { |name| name.start_with?("ALLOW_INSECURE_") }
 abort "Hub console bootstrap path drifted" unless hub_env["CONSOLE_BOOTSTRAP_FILE"] == "/etc/conduit/console/bootstrap.json"
+abort "Hub PostgreSQL mode drifted" unless hub_env["REPOSITORY_KIND"] == "postgres" && hub_env["POSTGRES_DSN_FILE"] == "/run/conduit-database/dsn"
+database_mount = hub_container.fetch("volumeMounts").find { |item| item["name"] == "database" }
+database_volume = hub.dig("spec", "template", "spec", "volumes").find { |item| item["name"] == "database" }
+abort "PostgreSQL DSN must come from one read-only Secret mount" unless
+  database_mount == {"name" => "database", "mountPath" => "/run/conduit-database", "readOnly" => true} &&
+    database_volume&.dig("secret", "secretName") == "platform-postgres" &&
+    database_volume.dig("secret", "items") == [{"key" => "dsn", "path" => "dsn"}]
+
+file_hub_documents = render!(
+  helm,
+  "platform-hub",
+  charts.fetch(:hub),
+  File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  ["--set", "repository.kind=file", "--set", "replicaCount=1"]
+)
+file_hub = file_hub_documents.find { |item| item["kind"] == "Deployment" }
+file_pvc = file_hub_documents.find { |item| item["kind"] == "PersistentVolumeClaim" }
+file_env = file_hub.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "file repository must stay one replica with Recreate" unless
+  file_hub.dig("spec", "replicas") == 1 && file_hub.dig("spec", "strategy", "type") == "Recreate"
+abort "file repository must retain its durable PVC" unless
+  file_pvc&.dig("metadata", "annotations", "helm.sh/resource-policy") == "keep"
+abort "file repository path drifted" unless
+  file_env["REPOSITORY_KIND"] == "file" && file_env["DATA_DIRECTORY"] == "/var/lib/platform-delivery"
+abort "file repository must not render a disruption budget" if file_hub_documents.any? { |item| item["kind"] == "PodDisruptionBudget" }
 
 bootstrap_config = hub_documents.find { |item| item["kind"] == "ConfigMap" }
 abort "Hub console bootstrap ConfigMap is missing" unless bootstrap_config&.dig("metadata", "name") == "platform-hub-console-bootstrap"
