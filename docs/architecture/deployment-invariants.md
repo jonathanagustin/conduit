@@ -20,6 +20,22 @@ implementation choice. The invariants remain the same.
 | Recovery | Failure records completed work and attempts rollback without hiding rollback errors |
 | Audit | Governed mutation does not proceed unless its decision event is durably persisted |
 
+## Transactional Hub state
+
+The production Helm profile runs two independent Hub replicas against
+PostgreSQL. The DSN arrives through one read-only deployment-owned Secret file;
+it is never a chart value, environment value, log field, Plan, or audit field.
+Metadata writes take a database row lock and commit one generation, so approval,
+Plan synchronization, application evidence, and their authorization event can
+share one visibility boundary. Immutable blob bytes live in a separate table.
+
+The metadata snapshot is a cutover adapter, not the final storage shape. It
+serializes writes through one row and therefore prioritizes correctness over
+high write throughput. Each bounded context can later move to context-owned
+tables behind the same ports. Explicit file mode remains available for local
+development and migration only; its chart profile is limited to one replica
+with `Recreate` and a retained PVC.
+
 ## Manual CI and release
 
 CI is deliberately manual because hosted runner time has a direct cost. The
@@ -67,9 +83,11 @@ disk pressure end to end.
 
 The required production rule is also fail-closed for audit. The authorization
 decision event must be durably appended before a governed mutation or lease is
-made visible. The current service ignores append failures, even though the file
-repository can persist events. This gap must be closed before audit durability
-is treated as a deployment guarantee.
+made visible. PostgreSQL approval now commits the Change Request, synchronized
+Plan, application result, and authorization event together; an injected audit
+failure rolls the approval back. Other governed mutation paths and lease audit
+events have not yet moved into that transaction boundary. Audit durability is
+therefore proved for approval, not yet for every mutation or lease.
 
 ## Minimum deployment evidence
 
