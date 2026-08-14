@@ -3,11 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "description": "Platform control-plane console. Static assets embedded in the Hub binary under /console/.",
+  "description": "Conduit control-plane console embedded in the Hub under /console/.",
   "provenance": {
     "kind": "evidence-led-reconstruction",
-    "designBaseline": "docs/ui/CONTROL-PLANE-UI-PLAN.md",
-    "evidencePolicy": "Blueprint is Palantir's own Apache-2.0 toolkit and is depended on directly. Upstream Apollo screens inform layout only, via the graded evidence in the plan; no private DOM, CSS, or wire-format claim.",
+    "designBaseline": "docs/ui/README.md",
+    "evidencePolicy": "Blueprint is Palantir's Apache-2.0 toolkit and is depended on directly. Pinned public Apollo evidence may inform bounded presentation choices; no private DOM, CSS, or wire-format claim is made.",
     "portedFrom": "packages/foundry/packages/foundry-ui, ported from Blueprint 5.19.1 to 6.18.0"
   },
   "scripts": {

@@ -1,5 +1,8 @@
 name: Spoke E2E
 
+# Standalone Conduit acceptance workflow; dispatch it only when its cluster cost
+# is justified by the change under review.
+
 # Manual only: this boots an ephemeral cluster, which is the most expensive
 # thing in the repository to run and the least likely to change between commits.
 on:

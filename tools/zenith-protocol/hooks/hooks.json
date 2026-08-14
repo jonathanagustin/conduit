@@ -1,0 +1,25 @@
+{
+  "$comment": "Event-driven, real-time conformance enforcement — the CHEAP alternative to a live supervisor agent. A Stop/SubagentStop hook fires when the main agent (or a subagent) finishes and runs conform.mjs against the repo's ledgers, so non-conformance surfaces at the natural gate for the cost of one sub-second script run (no second agent, no polling loop, no websocket). ADVISORY by default (always exits 0, prints violations); flip to BLOCKING by removing the `|| true` so conform.mjs's non-zero exit blocks the stop and feeds the violations back to the agent to fix. This is the operating model's own holistic-cost rule applied to enforcement: hooks give real-time observation at script cost, where a supervisor agent would cost ~2x and only poll the same artifacts.",
+  "hooks": {
+    "SubagentStop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/conform.mjs\" || echo '[zenith-protocol] conformance violations above — fix before this result is trusted (advisory; remove the trailing `|| true` in hooks.json to make this blocking)' ; true"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node \"${CLAUDE_PLUGIN_ROOT}/scripts/conform.mjs\" || echo '[zenith-protocol] conformance violations above — fix before finalizing (advisory; remove the trailing `|| true` in hooks.json to make this blocking)' ; true"
+          }
+        ]
+      }
+    ]
+  }
+}

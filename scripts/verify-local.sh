@@ -143,18 +143,29 @@ build_commands() {
 }
 
 apollo_contract() {
-  ruby docs/apollo/validate-public-api.rb \
+  ruby scripts/apollo-docs/validate-public-api.rb \
     docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml &&
     ./scripts/verify-apollo-routes.sh &&
-    ruby docs/apollo/verify-public-api-adapter.rb &&
-    ruby docs/apollo/validate-cli-fixtures.rb &&
-    ruby docs/apollo/validate-module-definitions.rb &&
+    ruby scripts/apollo-docs/verify-public-api-adapter.rb &&
+    ruby scripts/apollo-docs/validate-cli-fixtures.rb &&
+    ruby scripts/apollo-docs/validate-module-definitions.rb &&
     ./scripts/verify-foundry-interop.sh &&
     node scripts/verify-conduit-cli-contract.mjs &&
     node scripts/verify-foundry-audit3-capture.mjs &&
     node scripts/verify-audit3-contract.mjs &&
     node scripts/verify-apollo-rosetta-inventory.mjs &&
     node scripts/verify-secondary-apollo-evidence.mjs
+}
+
+zenith_protocol() {
+  node scripts/verify-zenith-protocol.mjs &&
+    node tools/zenith-protocol/scripts/conform.test.mjs &&
+    node tools/zenith-protocol/scripts/verify-evaluator-trial.test.mjs &&
+    node tools/zenith-protocol/skills/review-writing/scripts/review-writing.test.mjs &&
+    node tools/zenith-protocol/scripts/conform.mjs \
+      --config .zenith-protocol.json \
+      --profile structural \
+      --enforcement standard
 }
 
 gate 'Check formatting' check_formatting
@@ -167,6 +178,7 @@ gate 'Lint' go run honnef.co/go/tools/cmd/staticcheck@2025.1.1 ./...
 gate 'Validate Renovate configuration' jq --exit-status . renovate.json
 gate 'Lint Containerfiles' env HADOLINT_BIN="${hadolint_bin}" ./scripts/verify-containerfiles.sh
 gate 'Validate OCI release manifest assembly' oci_manifest
+gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-source-descriptor.test.mjs
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs --gate
 gate 'Validate trusted supply-chain policy' supply_chain
@@ -176,7 +188,7 @@ gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
 gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb
 gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
-gate 'Validate Zenith protocol ledgers' node scripts/verify-zenith-protocol.mjs
+gate 'Validate Zenith protocol ledgers' zenith_protocol
 gate 'Validate Module publication' go run ./cmd/platform-module-publisher --directory examples/modules --dry-run
 gate 'GitOps acceptance' ./scripts/test-gitops.sh
 
@@ -194,6 +206,8 @@ not_run_as_written=(
   'Install pinned console browser'
   'Install pinned Hadolint'
   'Install pinned Zarf'
+  'Publish pending Trunk status'
+  'Publish final Trunk status'
 )
 mapfile -t ci_steps < <(sed -n 's/^      - name: //p' "${workflow}")
 if ((${#ci_steps[@]} == 0)); then

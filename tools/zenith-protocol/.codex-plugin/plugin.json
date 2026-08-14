@@ -1,0 +1,38 @@
+{
+  "name": "plugin-zenith-protocol",
+  "version": "0.4.0",
+  "description": "Evidence-driven agent orchestration, verification, decision records, metrics, and measured process improvement.",
+  "author": {
+    "name": "drengskapur",
+    "url": "https://github.com/drengskapur"
+  },
+  "repository": "https://github.com/drengskapur/plugin-zenith-protocol",
+  "keywords": [
+    "orchestration",
+    "verification",
+    "evaluators",
+    "optimization",
+    "madr",
+    "pdr",
+    "metrics"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "Zenith Protocol",
+    "shortDescription": "Evidence-driven orchestration and verification",
+    "longDescription": "A portable operating model for delegated agent work, independent verification, decision records, metrics, and measured process improvement.",
+    "developerName": "drengskapur",
+    "category": "Developer Tools",
+    "capabilities": [
+      "Orchestration",
+      "Verification",
+      "Decision records"
+    ],
+    "websiteURL": "https://github.com/drengskapur/plugin-zenith-protocol",
+    "defaultPrompt": [
+      "Run this task with Zenith verification.",
+      "Audit this plan using Zenith evidence gates.",
+      "Create a measured decision record."
+    ]
+  }
+}

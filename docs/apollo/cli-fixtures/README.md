@@ -55,7 +55,7 @@ allows conformance work to continue without pretending that reconstructed tar
 bytes came from Palantir. Run:
 
 ```bash
-ruby docs/apollo/validate-cli-fixtures.rb
+ruby scripts/apollo-docs/validate-cli-fixtures.rb
 ```
 
 The validator checks the documented manifest vocabulary, Apollo orderable

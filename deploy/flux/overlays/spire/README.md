@@ -25,4 +25,4 @@ The bootstrap repository must:
 The current reviewed component baseline is recorded in
 `docs/security/TRUSTED-TECHNOLOGY-BASELINE.md`. Environment repositories retain
 the exact chart/image digests and identity registrations because those are
-deployment authority, not reusable Platform source.
+deployment authority, not reusable Conduit source.

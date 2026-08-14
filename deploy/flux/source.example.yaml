@@ -6,8 +6,17 @@ metadata:
 spec:
   interval: 5m
   url: oci://ghcr.io/example/platform-runtime
+  secretRef:
+    # Create this out of band as a read-only kubernetes.io/dockerconfigjson
+    # Secret. Production clusters do not receive Git credentials.
+    name: conduit-runtime-pull
   ref:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: '^https://token\.actions\.githubusercontent\.com$'
+        subject: '^https://github\.com/jonathanagustin/conduit/\.github/workflows/platform-images\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
 ---
 apiVersion: kustomize.toolkit.fluxcd.io/v1
 kind: Kustomization

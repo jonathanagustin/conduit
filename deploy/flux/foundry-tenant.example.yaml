@@ -13,8 +13,17 @@ metadata:
 spec:
   interval: 5m
   url: oci://ghcr.io/example/charts/foundry-tenant
+  secretRef:
+    # Replace the Secret and identity below with the Product publisher's
+    # read-only registry credential and trusted release workflow.
+    name: foundry-tenant-pull
   ref:
     digest: sha256:0000000000000000000000000000000000000000000000000000000000000000
+  verify:
+    provider: cosign
+    matchOIDCIdentity:
+      - issuer: '^https://token\.actions\.githubusercontent\.com$'
+        subject: '^https://github\.com/example/foundry/\.github/workflows/publish\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$'
 ---
 apiVersion: helm.toolkit.fluxcd.io/v2
 kind: HelmRelease

@@ -19,7 +19,7 @@
 - [ ] OpenAPI/Conjure is the transport authority where a published contract exists.
 - [ ] Generated output and its pinned source changed together, or this change has no generated surface.
 - [ ] Unknown behavior remains blocked or explicitly Conduit-native; no Apollo behavior was inferred.
-- [ ] No raw tenant identifiers, URLs, payloads, credentials, cookies, tokens, binaries, or private source were committed.
+- [ ] No raw tenant identifiers, URLs, payloads, credentials, cookies, tokens, binaries, or unauthorized private source were committed.
 
 ## Verification
 

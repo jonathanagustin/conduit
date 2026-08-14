@@ -45,11 +45,8 @@ const (
 // each. A second copy of the role table would be a second answer to "what does
 // this role convey", and the two would drift without anything noticing.
 var (
-	canonicalRoleOperations   = governance.CanonicalRoleOperations
-	apolloRolePlatformAliases = governance.ApolloRolePlatformAliases
+	canonicalRoleOperations = governance.CanonicalRoleOperations
 )
-
-func resolveRole(role string) string { return governance.ResolveRole(role) }
 
 func rolesAllow(roles []string, operation string) bool {
 	return governance.RolesAllow(roles, operation)

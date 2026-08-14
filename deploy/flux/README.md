@@ -1,15 +1,42 @@
-# Flux runtime source
+# Gitless Flux runtime source
 
-This directory is the reusable Flux deployment boundary for the platform Hub
-and Spoke Agent. It belongs to the platform technology repository; a cluster
-deployment repository owns the Flux Source, immutable source revision, target
-Environment identity, registry mirror references, and credentials.
+This directory is the reusable Flux deployment boundary for the Conduit Hub
+and Spoke Agent. Production clusters consume it from a signed private OCI
+artifact. Git is the authoring and review system, but it is not a production
+cluster dependency and no Git credential belongs in the cluster.
 
-The `runtime/` directory is suitable as the root of a Flux OCI artifact or as a
-path within a Flux Git source. Its Kustomization deliberately owns only the
-Hub/Spoke runtime in an existing `platform-system` namespace. Flux installation,
-the namespace, the Spoke's application-namespace authorization, Secrets, and
-the bounded Flux reconciliation identity are bootstrap responsibilities.
+The `runtime/` directory is the reconciled path inside the OCI artifact. Its
+Kustomization owns only the Hub and Spoke runtime in an existing
+`platform-system` namespace. The legacy namespace and binary prefixes remain
+during migration; they do not change repository ownership.
+
+Flux installation, the namespace, the Spoke's application-namespace
+authorization, Secrets, private-registry identity, and the bounded Flux
+reconciliation identity are cluster-owner bootstrap responsibilities. Install
+Flux from an integrity-pinned distribution without adding a `GitRepository`.
+The example `source.example.yaml` then pulls the Conduit runtime by digest.
+
+## Source verification
+
+The release workflow is manually dispatched for an exact semantic tag. It
+publishes `deploy/flux` to private OCI storage, signs the registry-reported
+digest with GitHub OIDC, and records the expected issuer and certificate
+identity in `platform-runtime.json`.
+
+Before applying `source.example.yaml`, the cluster owner must:
+
+1. replace the example registry and digest with the published private
+   coordinate;
+2. create `conduit-runtime-pull` through the approved secret manager as a
+   read-only `kubernetes.io/dockerconfigjson` Secret;
+3. keep the Cosign identity restricted to this repository's publication
+   workflow and semantic release tags; and
+4. confirm that the resulting cluster contains no Git credential or
+   `GitRepository` object for Conduit.
+
+Flux rejects a digest that is unsigned or signed by another identity. A tag is
+discovery metadata and never replaces the digest in the source or deployment
+receipt. See [Gitless GitOps](../../docs/architecture/gitless-gitops.md).
 
 The deployment Kustomization must provide these `postBuild.substitute` values:
 
@@ -27,9 +54,9 @@ The deployment Kustomization must provide these `postBuild.substitute` values:
 Production overlays must leave both insecure flags `false`. The preferred
 SPIRE overlay projects the Workload API socket; a migration overlay may instead
 project the Hub CA and Agent client identity through environment-owned Secrets.
-The Hub's optional `GITOPS_REPOSITORY_URL` is intentionally absent: Flux is the
-source reconciler, while the platform retains Product, Plan, approval, lease,
-and reported-state authority.
+The Hub's optional `GITOPS_REPOSITORY_URL` is intentionally absent. Flux
+reconciles the runtime source, while Conduit retains Product, Plan, approval,
+lease, rollback, and reported-state authority.
 
 When the binary terminates operator mTLS directly, operator certificates use
 URI SAN `spiffe://platform.delivery/operator/<subject>`; organizational units
@@ -72,6 +99,16 @@ read-only and is required by Flux's Deployment health evaluator.
 chart per file, from an OCIRepository pinned by exact digest. Everything that
 distinguishes a tenant is a value, so every tenant reconciles the same chart
 digest and the copy-a-directory-and-rename failure mode has nowhere to hide.
+
+The example also requires a private pull Secret and the Product publisher's
+Cosign identity. Replace both example values with the Product repository's
+actual bounded authority. Conduit's release workflow is not automatically
+trusted to publish a Product chart.
+
+This direct Flux `HelmRelease` is a migration and bootstrap path. The target
+tenant-delivery path is Conduit desired state, Governance approval, a leased
+Plan, and Spoke execution. Flux must not become a second approval or Product
+intent store.
 
 This is a **separate boundary from the Hub/Spoke runtime above, with a separate
 identity**, and the distinction is deliberate. The runtime reconciler is
@@ -127,7 +164,8 @@ release-storage Secret access stays namespaced to `flux-system`. `scripts/verify
 values, strict schema, and that `secretStore.roleArn` is actually assumed rather
 than accepted and dropped.
 
-Tagged platform releases publish `deploy/flux` as
+Manually dispatched Conduit releases publish `deploy/flux` as the legacy OCI
+coordinate
 `ghcr.io/<owner>/platform-runtime:<version>` and attach
 `platform-runtime.json` to the GitHub Release. Consumers select `./runtime` for
 the static-certificate base or `./overlays/spire` for the preferred production

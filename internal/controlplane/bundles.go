@@ -94,8 +94,8 @@ const (
 	// state that says they were abandoned rather than one that says they wait.
 	//
 	// INFERRED identifier. The named, ordered, individually-statused task list is capture-grounded
-	// (docs/ui/API-GAPS-DERIVED.md quotes a failed import showing eight named tasks, two of them
-	// succeeding AFTER the failure), and the published docs confirm the concept without naming the
+	// (docs/ui/evidence/failed-bundle-import-observation.md records a failed import showing eight
+	// named tasks, two of them succeeding AFTER the failure), and the published docs confirm the concept without naming the
 	// values -- they speak of viewing "import progress" and the "import stage that failed"
 	// (https://www.palantir.com/docs/apollo/export-import/import-bundle/, reviewed 2026-08-07).
 	// SKIPPED itself is ours, and so is the situation it describes: upstream's run continues past a

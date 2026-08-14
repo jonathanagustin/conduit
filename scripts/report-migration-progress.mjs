@@ -18,7 +18,7 @@ import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const internal = join(root, "internal");
 
-// The contexts DOMAIN-BOUNDARIES.md names, in the order it sequences them.
+// The contexts bounded-contexts.md names, in the order it sequences them.
 const CONTEXTS = [
   "reporting", "identity", "artifacts", "catalog",
   "environments", "governance", "delivery", "execution",

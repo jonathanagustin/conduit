@@ -1,25 +1,21 @@
 #!/usr/bin/env node
 
 import { readFileSync } from "node:fs";
-import { createHash } from "node:crypto";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const platformRoot = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const repositoryRoot = resolve(platformRoot, "..");
 const inventoryPath = resolve(platformRoot, "docs/ui/evidence/APOLLO-ROSETTA-FEATURE-INVENTORY.json");
-const catalogPath = resolve(repositoryRoot, "mcp/foundry/evidence/ui/rosetta-media-catalog.json");
+const catalogPath = resolve(platformRoot, "docs/ui/evidence/APOLLO-ROSETTA-SOURCE-PROJECTION.json");
 const inventory = JSON.parse(readFileSync(inventoryPath, "utf8"));
-const catalogBytes = readFileSync(catalogPath);
-const catalog = JSON.parse(catalogBytes);
+const catalog = JSON.parse(readFileSync(catalogPath, "utf8"));
 
 if (inventory.schemaVersion !== 1) throw new Error("unsupported Apollo inventory schema");
-const catalogSha256 = createHash("sha256").update(catalogBytes).digest("hex");
-if (inventory.sourceCatalogSha256 !== catalogSha256) throw new Error("Apollo inventory source catalog digest drifted");
+if (catalog.schemaVersion !== 1) throw new Error("unsupported Apollo source projection schema");
+if (catalog.sourceCommit !== "945f7be95accde4053c77788cb90e687103ed640") throw new Error("Apollo source projection commit drifted");
+if (inventory.sourceCatalogSha256 !== catalog.sourceCatalogSha256) throw new Error("Apollo inventory source catalog coordinate drifted");
 const expected = new Map(
-  catalog.rows
-    .filter(row => row.product === "APOLLO")
-    .map(row => [row.sha256, row]),
+  catalog.rows.map(row => [row.sha256, row]),
 );
 const observed = new Map();
 for (const item of inventory.items) {
@@ -36,4 +32,4 @@ for (const item of inventory.items) {
 }
 const missing = [...expected.keys()].filter(digest => !observed.has(digest));
 if (missing.length !== 0) throw new Error(`missing ${missing.length} Apollo catalog digest(s): ${missing.join(", ")}`);
-console.log(`PASS Apollo Rosetta inventory: ${observed.size}/${expected.size} media rows enumerated`);
+console.log(`PASS Apollo Rosetta inventory: ${observed.size}/${expected.size} rows match the pinned source projection`);

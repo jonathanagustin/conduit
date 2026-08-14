@@ -6,7 +6,7 @@ go 1.26.0
 // digest-pinned release images already build with. Without it, the `go`
 // directive alone selects 1.26.0, which carries reachable crypto/tls,
 // crypto/x509, net/http, net/textproto, and html/template findings.
-toolchain go1.26.5
+toolchain go1.26.6
 
 require (
 	github.com/coreos/go-oidc/v3 v3.20.0

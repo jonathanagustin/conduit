@@ -1,4 +1,4 @@
-name: Platform CP-SAT candidate
+name: Conduit CP-SAT candidate
 
 on:
   workflow_dispatch:

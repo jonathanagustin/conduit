@@ -1,0 +1,22 @@
+{
+  "name": "@drengskapur/plugin-zenith-protocol",
+  "version": "0.4.0",
+  "private": true,
+  "description": "Evidence-driven agent orchestration and verification plugin for Codex and Claude.",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/drengskapur/plugin-zenith-protocol.git"
+  },
+  "type": "module",
+  "scripts": {
+    "test": "node scripts/conform.test.mjs && node scripts/verify-evaluator-trial.test.mjs && node skills/review-writing/scripts/review-writing.test.mjs",
+    "conform": "node scripts/conform.mjs --profile structural --enforcement standard",
+    "metrics:record": "node scripts/record-metric.mjs",
+    "metrics:summary": "node scripts/metrics-summary.mjs",
+    "meta-retro": "node scripts/meta-retro.mjs"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

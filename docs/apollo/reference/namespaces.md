@@ -43,6 +43,6 @@ than widening the Environment Spoke's authority.
   emptiness before removal.
 - `go test ./internal/controlplane -run 'TestNamespace|TestSameProduct'`
   exercises the boundary.
-- `docs/architecture/GITOPS-ARGO-FLUX-FLEET.md` and `deploy/flux/` define the
+- `docs/architecture/deployment-invariants.md` and `deploy/flux/` define the
   external reconciliation owner. Private namespace-agent wire compatibility is
   intentionally unclaimed.

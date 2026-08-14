@@ -13,7 +13,13 @@ repository root, and constrained to manual `workflow_dispatch` triggers.
 The Go module and internal import paths were migrated from
 `github.com/jonathanagustin/platform` to `github.com/jonathanagustin/conduit`.
 
-Until the cutover is explicitly completed, Palantir remains the source of
-truth for changes that landed after the source commit above. Do not run two
-writers against the same logical change; replay or rebase the active DDD
-refactor into this repository before declaring Conduit authoritative.
+Repository cutover completed when the private Conduit repository and protected
+trunk were created. Conduit is now authoritative for its architecture,
+contracts, implementation, documentation, and release workflow. The Palantir
+commit above is immutable migration provenance, not a live source tree.
+
+Changes that landed in Palantir after the extraction are candidates for an
+explicit, reviewed migration. They do not overwrite Conduit automatically and
+must not be implemented by two active writers. Compare such a candidate against
+the current Conduit contract, preserve its provenance, and land it through the
+Conduit trunk workflow if it still belongs here.
