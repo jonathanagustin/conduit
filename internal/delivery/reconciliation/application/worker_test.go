@@ -150,6 +150,27 @@ func TestWorkerExhaustsBoundedRetry(t *testing.T) {
 	}
 }
 
+func TestWorkerTerminallyRetiresSupersededProposal(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 8, 14, 17, 0, 0, 0, time.UTC)
+	clock := &fakeClock{now: now}
+	store := newFakeStore()
+	planner := newFakePlanner(clock)
+	planner.err = ports.ErrProposalSuperseded
+	worker := newTestWorker(t, store, planner, clock)
+	key := domain.Key{Environment: "dev", Installation: "catalog"}
+	store.upsertDesired(desiredSnapshot(key, 1, "target-a", now), true)
+	if _, err := worker.ProcessOne(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := worker.DispatchOne(ctx); err != nil || !processed {
+		t.Fatalf("superseded dispatch = (%v, %v)", processed, err)
+	}
+	if len(store.outbox) != 0 || store.exhaustedFailures != 1 {
+		t.Fatalf("outbox=%d exhausted=%d", len(store.outbox), store.exhaustedFailures)
+	}
+}
+
 func newTestWorker(t *testing.T, store ports.Store, planner ports.Planner, clock ports.Clock) *Worker {
 	t.Helper()
 	worker, err := NewWorker(store, planner, clock, Config{
@@ -415,6 +436,7 @@ type fakePlanner struct {
 	clock ports.Clock
 	calls int
 	plans map[string]domain.PlanReceipt
+	err   error
 }
 
 func newFakePlanner(clock ports.Clock) *fakePlanner {
@@ -425,6 +447,9 @@ func (planner *fakePlanner) Propose(_ context.Context, proposal domain.Proposal)
 	planner.mu.Lock()
 	defer planner.mu.Unlock()
 	planner.calls++
+	if planner.err != nil {
+		return domain.PlanReceipt{}, planner.err
+	}
 	if receipt, found := planner.plans[proposal.IdempotencyKey]; found {
 		return receipt, nil
 	}

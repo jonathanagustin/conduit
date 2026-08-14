@@ -77,6 +77,8 @@ CREATE TABLE IF NOT EXISTS conduit_reconciliation_proposal_outbox (
     idempotency_key text NOT NULL UNIQUE,
     environment text NOT NULL,
     installation text NOT NULL,
+    desired_generation text NOT NULL,
+    target_digest text NOT NULL,
     available_at timestamptz NOT NULL,
     lease_token text,
     lease_expires_at timestamptz,
@@ -85,6 +87,24 @@ CREATE TABLE IF NOT EXISTS conduit_reconciliation_proposal_outbox (
     last_error text NOT NULL DEFAULT '',
     document bytea NOT NULL
 );
+ALTER TABLE conduit_reconciliation_proposal_outbox
+    ADD COLUMN IF NOT EXISTS desired_generation text;
+ALTER TABLE conduit_reconciliation_proposal_outbox
+    ADD COLUMN IF NOT EXISTS target_digest text;
+UPDATE conduit_reconciliation_proposal_outbox
+SET desired_generation = COALESCE(
+        desired_generation,
+        convert_from(document, 'UTF8')::jsonb #>> '{desired,generation}'
+    ),
+    target_digest = COALESCE(
+        target_digest,
+        convert_from(document, 'UTF8')::jsonb #>> '{desired,targetDigest}'
+    )
+WHERE desired_generation IS NULL OR target_digest IS NULL;
+ALTER TABLE conduit_reconciliation_proposal_outbox
+    ALTER COLUMN desired_generation SET NOT NULL;
+ALTER TABLE conduit_reconciliation_proposal_outbox
+    ALTER COLUMN target_digest SET NOT NULL;
 CREATE INDEX IF NOT EXISTS conduit_reconciliation_outbox_available
     ON conduit_reconciliation_proposal_outbox (available_at, proposal_id)
     WHERE exhausted = false;
@@ -169,6 +189,14 @@ WHERE EXCLUDED.recorded_at > conduit_reconciliation_desired.recorded_at
 	if changed {
 		if err := enqueue(ctx, transaction, snapshot.Key, snapshot.RecordedAt.UTC(), true); err != nil {
 			return fmt.Errorf("enqueue desired snapshot: %w", err)
+		}
+		if _, err := transaction.ExecContext(ctx, `
+UPDATE conduit_reconciliation_proposal_outbox
+SET exhausted = true, last_error = 'desired snapshot superseded proposal'
+WHERE environment = $1 AND installation = $2
+  AND (desired_generation <> $3 OR target_digest <> $4)`,
+			snapshot.Key.Environment, snapshot.Key.Installation, snapshot.Generation, snapshot.TargetDigest); err != nil {
+			return fmt.Errorf("retire superseded reconciliation proposals: %w", err)
 		}
 	}
 	if !changed {
@@ -347,10 +375,11 @@ ON CONFLICT (decision_id) DO NOTHING`, decision.ID, decision.Key.Environment, de
 	if proposal != nil {
 		if _, err := transaction.ExecContext(ctx, `
 INSERT INTO conduit_reconciliation_proposal_outbox
-    (proposal_id, idempotency_key, environment, installation, available_at, document)
-VALUES ($1, $2, $3, $4, $5, $6)
+    (proposal_id, idempotency_key, environment, installation, desired_generation, target_digest, available_at, document)
+VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
 ON CONFLICT (proposal_id) DO NOTHING`, proposal.ID, proposal.IdempotencyKey,
-			proposal.Key.Environment, proposal.Key.Installation, decision.DecidedAt.UTC(), proposalDocument); err != nil {
+			proposal.Key.Environment, proposal.Key.Installation, proposal.Desired.Generation,
+			proposal.Desired.TargetDigest, decision.DecidedAt.UTC(), proposalDocument); err != nil {
 			return fmt.Errorf("persist reconciliation proposal outbox: %w", err)
 		}
 	}
@@ -376,6 +405,30 @@ WHERE environment = $1 AND installation = $2 AND lease_token = $3`,
 		}
 	}
 	return commit(transaction, "reconciliation decision")
+}
+
+// CurrentDesired returns the exact snapshot currently authorized for one
+// installation. Compatibility planners use it as a last-safe-point check.
+func (store *Store) CurrentDesired(ctx context.Context, key domain.Key) (domain.DesiredSnapshot, bool, error) {
+	if err := key.Validate(); err != nil {
+		return domain.DesiredSnapshot{}, false, err
+	}
+	snapshot := domain.DesiredSnapshot{Key: key}
+	err := store.database.QueryRowContext(ctx, `
+SELECT generation, target_digest, payload_digest, payload, recorded_at
+FROM conduit_reconciliation_desired WHERE environment = $1 AND installation = $2`,
+		key.Environment, key.Installation).Scan(&snapshot.Generation, &snapshot.TargetDigest,
+		&snapshot.PayloadDigest, &snapshot.Payload, &snapshot.RecordedAt)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.DesiredSnapshot{}, false, nil
+	}
+	if err != nil {
+		return domain.DesiredSnapshot{}, false, fmt.Errorf("load current desired snapshot: %w", err)
+	}
+	if _, err := (domain.Input{Desired: &snapshot}).Digest(); err != nil {
+		return domain.DesiredSnapshot{}, false, fmt.Errorf("validate current desired snapshot: %w", err)
+	}
+	return snapshot, true, nil
 }
 
 func (store *Store) FailWork(
