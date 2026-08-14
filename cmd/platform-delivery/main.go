@@ -37,6 +37,11 @@ func main() {
 	if dataDirectory == "" {
 		dataDirectory = ".platform-delivery"
 	}
+	consoleBootstrap, err := consoleui.LoadBootstrapFile(os.Getenv("CONSOLE_BOOTSTRAP_FILE"))
+	if err != nil {
+		slog.Error("load console bootstrap", "error", err)
+		os.Exit(1)
+	}
 	repository, err := controlplane.NewFileRepository(dataDirectory)
 	if err != nil {
 		slog.Error("initialize durable repository", "error", err)
@@ -101,7 +106,7 @@ func main() {
 	server := &http.Server{
 		Addr: address,
 		Handler: composition.NewHubHandler(repository, controlplane.HandlerOptions{
-			ConsoleHandler:                       consoleui.Handler(),
+			ConsoleHandler:                       consoleui.Handler(consoleBootstrap),
 			AllowInsecureAgentIdentityHeaders:    allowInsecureAgentIdentity,
 			AllowInsecureOperatorIdentityHeaders: allowInsecureOperatorIdentity,
 			OperatorIdentityResolver:             operatorIdentityResolver,

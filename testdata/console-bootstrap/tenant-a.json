@@ -1,0 +1,17 @@
+{
+  "schemaVersion": "conduit.console.bootstrap/v1",
+  "tenant": {
+    "id": "synthetic-alpha",
+    "displayName": "Synthetic Alpha"
+  },
+  "brand": {
+    "title": "Alpha Operations",
+    "subtitle": "Synthetic test tenant",
+    "accent": "#2457A7",
+    "icon": "dashboard"
+  },
+  "provenance": {
+    "claimClass": "tenant-observation",
+    "evidenceRef": "evidence://synthetic/tenant-alpha"
+  }
+}

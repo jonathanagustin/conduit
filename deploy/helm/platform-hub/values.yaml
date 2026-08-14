@@ -6,6 +6,23 @@ imagePullPolicy: IfNotPresent
 imagePullSecrets: []
 bootstrapAdministrators: []
 
+# The only tenant-controlled console runtime surface. The Hub validates this
+# exact document again at startup; session capabilities and security policy are
+# never accepted here.
+consoleBootstrap:
+  schemaVersion: conduit.console.bootstrap/v1
+  tenant:
+    id: conduit
+    displayName: Conduit
+  brand:
+    title: Conduit
+    subtitle: Control plane
+    accent: "#2d72d2"
+    icon: dashboard
+  provenance:
+    claimClass: conduit-extension
+    evidenceRef: conduit://console/default
+
 serviceAccount:
   create: true
   name: ""

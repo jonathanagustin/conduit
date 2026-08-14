@@ -59,6 +59,11 @@ helm upgrade --install platform-spoke ./deploy/helm/platform-spoke \
 The Hub requires at least one bootstrap administrator, a server TLS Secret, an
 external client CA ConfigMap, an Ed25519 PKCS#8 bundle-signing Secret, and a
 storage class choice. Its single-writer PVC has Helm's `keep` policy.
+`consoleBootstrap` supplies only evidence-bound tenant identity and branding;
+the chart schema rejects unknown fields and the Hub validates the rendered
+read-only ConfigMap again before startup. It cannot configure authentication,
+capabilities, API origins, scripts, or security policy. See
+[`docs/ui/contracts/runtime-bootstrap.md`](../../docs/ui/contracts/runtime-bootstrap.md).
 
 The Spoke requires a stable Environment/Agent identity, an explicit HTTPS Hub
 URL, a client TLS Secret whose URI SAN matches Conduit's Agent identity

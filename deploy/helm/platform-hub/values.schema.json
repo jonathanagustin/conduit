@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "bootstrapAdministrators", "serviceAccount", "service", "rubix", "tls", "bundleSigningSecretName", "operatorOIDC", "artifactScanner", "storage"],
+  "required": ["image", "bootstrapAdministrators", "consoleBootstrap", "serviceAccount", "service", "rubix", "tls", "bundleSigningSecretName", "operatorOIDC", "artifactScanner", "storage"],
   "properties": {
     "nameOverride": {"type": "string"},
     "fullnameOverride": {"type": "string"},
@@ -10,6 +10,47 @@
     "imagePullPolicy": {"type": "string", "enum": ["Always", "IfNotPresent", "Never"]},
     "imagePullSecrets": {"type": "array", "items": {"$ref": "#/definitions/localObjectReference"}},
     "bootstrapAdministrators": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+    "consoleBootstrap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["schemaVersion", "tenant", "brand", "provenance"],
+      "properties": {
+        "schemaVersion": {"const": "conduit.console.bootstrap/v1"},
+        "tenant": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["id", "displayName"],
+          "properties": {
+            "id": {"type": "string", "pattern": "^[a-z0-9](?:[a-z0-9._-]{0,61}[a-z0-9])?$"},
+            "displayName": {"$ref": "#/definitions/displayText80"}
+          }
+        },
+        "brand": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["title", "subtitle", "accent", "icon"],
+          "properties": {
+            "title": {"$ref": "#/definitions/displayText80"},
+            "subtitle": {"$ref": "#/definitions/displayText120"},
+            "accent": {"type": "string", "pattern": "^#[0-9A-Fa-f]{6}$"},
+            "icon": {"type": "string", "enum": ["application", "cloud", "dashboard"]}
+          }
+        },
+        "provenance": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["claimClass", "evidenceRef"],
+          "properties": {
+            "claimClass": {"type": "string", "enum": ["tenant-observation", "conduit-extension"]},
+            "evidenceRef": {"type": "string", "minLength": 1, "maxLength": 512, "pattern": "^(evidence|conduit)://[^?#]+$"}
+          },
+          "allOf": [
+            {"if": {"properties": {"claimClass": {"const": "tenant-observation"}}}, "then": {"properties": {"evidenceRef": {"pattern": "^evidence://[^?#]+$"}}}},
+            {"if": {"properties": {"claimClass": {"const": "conduit-extension"}}}, "then": {"properties": {"evidenceRef": {"pattern": "^conduit://[^?#]+$"}}}}
+          ]
+        }
+      }
+    },
     "serviceAccount": {"$ref": "#/definitions/serviceAccount"},
     "service": {
       "type": "object",
@@ -109,6 +150,8 @@
     "tolerations": {"type": "array", "items": {"type": "object"}}
   },
   "definitions": {
+    "displayText80": {"type": "string", "minLength": 1, "maxLength": 80, "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"},
+    "displayText120": {"type": "string", "minLength": 1, "maxLength": 120, "pattern": "^[^<>\\u0000-\\u001F\\u007F]+$"},
     "localObjectReference": {
       "type": "object",
       "additionalProperties": false,

@@ -22,8 +22,9 @@ spec:
     metadata:
       labels:
         {{- toYaml $podLabels | nindent 8 }}
-      {{- with .Values.podAnnotations }}
       annotations:
+        checksum/console-bootstrap: {{ include "platform-hub.consoleBootstrap" . | sha256sum | quote }}
+      {{- with .Values.podAnnotations }}
         {{- toYaml . | nindent 8 }}
       {{- end }}
     spec:
@@ -54,6 +55,7 @@ spec:
             - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
             - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
+            - { name: CONSOLE_BOOTSTRAP_FILE, value: /etc/conduit/console/bootstrap.json }
             - name: PLATFORM_BOOTSTRAP_ADMINISTRATORS
               value: {{ join "," .Values.bootstrapAdministrators | quote }}
             {{- if .Values.operatorOIDC.enabled }}
@@ -107,6 +109,7 @@ spec:
             - { name: server-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: external-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
+            - { name: console-bootstrap, mountPath: /etc/conduit/console, readOnly: true }
             {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
             - { name: artifact-scanner-tools, mountPath: {{ $.Values.artifactScanner.toolsMountPath | quote }}, readOnly: true }
             {{- end }}
@@ -133,6 +136,11 @@ spec:
           secret:
             secretName: {{ required "bundleSigningSecretName is required" .Values.bundleSigningSecretName }}
             optional: false
+        - name: console-bootstrap
+          configMap:
+            name: {{ include "platform-hub.fullname" . }}-console-bootstrap
+            items:
+              - { key: bootstrap.json, path: bootstrap.json }
         {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
         - name: artifact-scanner-tools
           persistentVolumeClaim:

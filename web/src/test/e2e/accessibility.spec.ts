@@ -50,6 +50,7 @@ test("keyboard users can skip the application chrome", async ({ page, hub }) => 
   await page.goto("overview");
   const shell = new ConsoleShell(page);
 
+  await expect(shell.skipLink).toBeAttached();
   await page.keyboard.press("Tab");
   await expect(shell.skipLink).toBeFocused();
   await shell.skipLink.press("Enter");

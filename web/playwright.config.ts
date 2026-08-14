@@ -3,7 +3,10 @@ import { defineConfig, devices } from "@playwright/test";
 // The console is served under /console/ in production, and the router carries a
 // matching basename, so the tests drive it at that path rather than at the root.
 // Testing it at "/" would pass against a build that cannot be embedded.
-const PORT = 4173;
+const PORT = Number.parseInt(process.env["CONSOLE_TEST_PORT"] ?? "4173", 10);
+if (!Number.isInteger(PORT) || PORT < 1 || PORT > 65_535) {
+  throw new Error("CONSOLE_TEST_PORT must be a valid TCP port");
+}
 
 export default defineConfig({
   testDir: "./src/test/e2e",

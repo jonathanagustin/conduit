@@ -1,3 +1,4 @@
+import { useEffect } from "react";
 import { Route, Routes } from "react-router-dom";
 import { Callout } from "@blueprintjs/core";
 
@@ -17,9 +18,17 @@ import { APPLICATION_DESTINATIONS, RAIL_DESTINATIONS } from "./navigation.js";
 import { NotFound } from "./NotFound.js";
 import { Placeholder } from "./Placeholder.js";
 import "./app.css";
+import type { ConsoleBootstrap } from "../runtime/bootstrap.js";
 
-export function App() {
-  const session = useSession();
+export interface AppProps {
+  bootstrap: ConsoleBootstrap;
+}
+
+export function App({ bootstrap }: AppProps) {
+	useEffect(() => {
+		document.title = `${bootstrap.brand.title} - ${bootstrap.tenant.displayName}`;
+	}, [bootstrap.brand.title, bootstrap.tenant.displayName]);
+	const session = useSession();
   const enabledApplications = new Set(
     (session.data?.applications ?? [])
       .filter((application) => application.enabled)
@@ -29,7 +38,12 @@ export function App() {
     enabledApplications.has(destination.id),
   );
   return (
-    <AppFrame icon="dashboard" accent="#2d72d2" title="Platform" subtitle="Control plane">
+		<AppFrame
+			icon={bootstrap.brand.icon}
+			accent={bootstrap.brand.accent}
+			title={bootstrap.brand.title}
+			subtitle={bootstrap.brand.subtitle}
+		>
       <div className="console-shell">
         <NavigationRail primary={RAIL_DESTINATIONS} applications={applications} />
         <div className="console-shell__canvas" data-testid="console-workspace-canvas">
