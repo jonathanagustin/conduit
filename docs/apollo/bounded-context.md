@@ -28,7 +28,7 @@ The intended path is one-way:
 
 ```text
 pinned OpenAPI
-  -> generated DTOs + strict server/client interfaces + router
+  -> generated DTOs + strict server interface + router
   -> Apollo adapter
   -> narrow Conduit application ports
   -> native bounded contexts
@@ -41,13 +41,13 @@ contract explicitly requires retaining foreign bytes.
 
 ## Current structure
 
-[`internal/apollo`](../../internal/apollo) contains the generated public route
-table and the generated role inventory. The public HTTP adapter and handwritten
-payload types remain in
+[`internal/apollo`](../../internal/apollo) contains the generated public DTOs,
+strict server interface, standard-library router, and role inventory. The
+production router calls that strict interface through
+[`internal/controlplane/apollo_openapi_adapter.go`](../../internal/controlplane/apollo_openapi_adapter.go).
+The adapter still bridges into the handwritten translation and application
+facade in
 [`internal/controlplane/apollo_api.go`](../../internal/controlplane/apollo_api.go).
-The route generator in
-[`internal/tools/apolloroutegen`](../../internal/tools/apolloroutegen) reads the
-pinned snapshot but intentionally emits routes only.
 
 This is a real boundary for vocabulary and evidence, but not yet the final
 structural adapter. The remaining extraction must avoid a dependency cycle with
@@ -55,14 +55,12 @@ the legacy control-plane package.
 
 ## Migration sequence
 
-1. Generate the complete transport surface from the pinned snapshot and add a
-   stale-generation gate.
-2. Define the smallest application ports needed by each public operation.
-3. Move translation and the HTTP adapter behind the generated strict server
-   interface.
-4. Keep compatibility tests at the adapter boundary and native behavior tests
+1. Define the smallest application ports needed by each public operation.
+2. Move translation out of the legacy control-plane facade while retaining the
+   generated strict server interface.
+3. Keep compatibility tests at the adapter boundary and native behavior tests
    inside the owning contexts.
-5. Remove handwritten transport types only after every caller uses the
+4. Remove handwritten translation types only after every caller uses the
    generated contract.
 
 Each step should be independently releasable. Route and payload behavior must

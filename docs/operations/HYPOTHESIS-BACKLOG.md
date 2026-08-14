@@ -5,7 +5,7 @@ bounded investigation; it does not pre-approve implementation.
 
 | ID | Hypothesis | Gate before closure | State |
 | --- | --- | --- | --- |
-| B1 | The pinned Apollo OpenAPI can generate all transport DTOs and a strict server interface without leaking generated types into Conduit domain packages. | Fresh generation is byte-stable; compile-time adapter tests cover every operation; the domain-boundary gate passes. | QUEUED |
+| B1 | The pinned Apollo OpenAPI can generate all transport DTOs and a strict server interface without leaking generated types into Conduit domain packages. | Fresh generation is byte-stable; compile-time adapter tests cover every operation; the domain-boundary gate passes. | DONE |
 | B2 | Apollo translation can leave `internal/controlplane` after Catalog and Environment types move behind neutral ports. | Import graph has no cycle; focused behavior tests pass before and after the move. | QUEUED |
 | B3 | One tenant-neutral frontend bundle can consume safe tenant runtime overrides. | Schema rejects unknown keys, executable content, and security-policy weakening; two tenant fixtures produce only the allowed differences. | QUEUED |
 | B4 | A transactional repository can support multiple Hub replicas without changing domain contracts. | Concurrent lease, approval, idempotency, and crash-recovery tests pass against the selected adapter. | QUEUED |
