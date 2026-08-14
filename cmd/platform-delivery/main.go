@@ -10,6 +10,7 @@ import (
 	"encoding/pem"
 	"errors"
 	"fmt"
+	"io"
 	"log/slog"
 	"net/http"
 	"os"
@@ -33,20 +34,17 @@ func main() {
 	if address == "" {
 		address = ":8081"
 	}
-	dataDirectory := os.Getenv("DATA_DIRECTORY")
-	if dataDirectory == "" {
-		dataDirectory = ".platform-delivery"
-	}
 	consoleBootstrap, err := consoleui.LoadBootstrapFile(os.Getenv("CONSOLE_BOOTSTRAP_FILE"))
 	if err != nil {
 		slog.Error("load console bootstrap", "error", err)
 		os.Exit(1)
 	}
-	repository, err := controlplane.NewFileRepository(dataDirectory)
+	repository, closeRepository, err := openRepository(ctx, os.Getenv)
 	if err != nil {
 		slog.Error("initialize durable repository", "error", err)
 		os.Exit(1)
 	}
+	defer closeRepository()
 	bundlePrivateKey, err := loadBundleSigningKey(os.Getenv("BUNDLE_SIGNING_KEY_FILE"))
 	if err != nil {
 		slog.Error("load Bundle signing key", "error", err)
@@ -171,6 +169,63 @@ func main() {
 		slog.Error("server failed", "error", err)
 		os.Exit(1)
 	}
+}
+
+func openRepository(
+	ctx context.Context, getenv func(string) string,
+) (controlplane.Repository, func(), error) {
+	if getenv == nil {
+		return nil, func() {}, errors.New("environment reader is required")
+	}
+	kind := strings.TrimSpace(getenv("REPOSITORY_KIND"))
+	if kind == "" {
+		kind = "file"
+	}
+	switch kind {
+	case "file":
+		dataDirectory := strings.TrimSpace(getenv("DATA_DIRECTORY"))
+		if dataDirectory == "" {
+			dataDirectory = ".platform-delivery"
+		}
+		repository, err := controlplane.NewFileRepository(dataDirectory)
+		return repository, func() {}, err
+	case "postgres":
+		dataSourceName, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
+		if err != nil {
+			return nil, func() {}, err
+		}
+		repository, err := controlplane.NewPostgresRepository(ctx, dataSourceName)
+		if err != nil {
+			return nil, func() {}, err
+		}
+		return repository, func() { _ = repository.Close() }, nil
+	default:
+		return nil, func() {}, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
+	}
+}
+
+func readSingleLineSecretFile(path, variable string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", fmt.Errorf("%s is required", variable)
+	}
+	file, err := os.Open(path)
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", variable, err)
+	}
+	defer file.Close()
+	contents, err := io.ReadAll(io.LimitReader(file, 64*1024+1))
+	if err != nil {
+		return "", fmt.Errorf("read %s: %w", variable, err)
+	}
+	if len(contents) > 64*1024 {
+		return "", fmt.Errorf("%s exceeds 64 KiB", variable)
+	}
+	value := strings.TrimSpace(string(contents))
+	if value == "" || strings.ContainsAny(value, "\r\n\x00") {
+		return "", fmt.Errorf("%s must contain exactly one non-empty line", variable)
+	}
+	return value, nil
 }
 
 func loadOIDCOperatorIdentityResolver(

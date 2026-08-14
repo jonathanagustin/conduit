@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/rand"
@@ -12,6 +13,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
 
 func writeFile(t *testing.T, name string, contents []byte) string {
@@ -185,6 +188,54 @@ func TestSplitCommaSeparated(t *testing.T) {
 				t.Errorf("%s: %q gave %#v, want %#v", name, test.given, got, test.want)
 				break
 			}
+		}
+	}
+}
+
+func TestRepositoryConfigurationFailsClosed(t *testing.T) {
+	t.Parallel()
+	getenv := func(values map[string]string) func(string) string {
+		return func(name string) string { return values[name] }
+	}
+	if _, closeRepository, err := openRepository(context.Background(), getenv(map[string]string{
+		"REPOSITORY_KIND": "unknown",
+	})); err == nil {
+		closeRepository()
+		t.Fatal("unknown repository kind was accepted")
+	}
+	if _, closeRepository, err := openRepository(context.Background(), getenv(map[string]string{
+		"REPOSITORY_KIND": "postgres",
+	})); err == nil {
+		closeRepository()
+		t.Fatal("PostgreSQL repository without a mounted DSN was accepted")
+	}
+	fileRoot := filepath.Join(t.TempDir(), "state")
+	repository, closeRepository, err := openRepository(context.Background(), getenv(map[string]string{
+		"REPOSITORY_KIND": "file", "DATA_DIRECTORY": fileRoot,
+	}))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeRepository()
+	if _, ok := repository.(*controlplane.FileRepository); !ok {
+		t.Fatalf("file mode returned %T", repository)
+	}
+}
+
+func TestReadSingleLineSecretFile(t *testing.T) {
+	t.Parallel()
+	valid := writeFile(t, "dsn", []byte("postgres://conduit@example.test/conduit\n"))
+	if value, err := readSingleLineSecretFile(valid, "POSTGRES_DSN_FILE"); err != nil || value != "postgres://conduit@example.test/conduit" {
+		t.Fatalf("valid DSN = %q, %v", value, err)
+	}
+	for name, contents := range map[string][]byte{
+		"empty":     {},
+		"multiline": []byte("first\nsecond\n"),
+		"nul":       []byte("first\x00second"),
+		"oversized": bytes.Repeat([]byte("x"), 64*1024+1),
+	} {
+		if _, err := readSingleLineSecretFile(writeFile(t, name, contents), "POSTGRES_DSN_FILE"); err == nil {
+			t.Errorf("%s secret file was accepted", name)
 		}
 	}
 }
