@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 1,
+  "subject": "Recovered Rubix networking and credential HTTP contract",
+  "provenance": {
+    "note": "Read out of the Conjure-generated Dialogue endpoint enums (path template, verb, service, endpoint name per constant) in the recovered jars. Not authored here.",
+    "coordinates": [
+      "com.palantir.rubixlib:network-api:2.512.0",
+      "com.palantir.rubixlib:user-credential-manager:2.512.0"
+    ],
+    "tenantFetch": "PALANTIR_TOKEN artifacts API, 2026-08-13; GET /artifacts/api/repositories/{rid}/contents/release/maven/{path}",
+    "note2": "This is the request surface that drives the CRDs under crds/. It backs hypothesis B11; it is captured here as ground truth, not yet modeled in internal/computecontrol."
+  },
+  "endpoints": [
+    { "service": "EgressAllowlistConfigurationService", "endpoint": "setEgressConfig", "method": "PUT", "path": "/egress-allowlist" },
+    { "service": "EgressAllowlistConfigurationService", "endpoint": "getEgressConfig", "method": "GET", "path": "/egress-allowlist" },
+    { "service": "EgressAllowlistConfigurationService", "endpoint": "checkEgressEnabled", "method": "GET", "path": "/egress-allowlist/enabled" },
+    { "service": "IngressAllowlistConfigurationService", "endpoint": "setDomainIngress", "method": "PUT", "path": "/ingress-allowlist" },
+    { "service": "IngressAllowlistConfigurationService", "endpoint": "listDomainIngresses", "method": "GET", "path": "/ingress-allowlist" },
+    { "service": "IngressAllowlistConfigurationService", "endpoint": "checkIngressEnabled", "method": "GET", "path": "/ingress-allowlist/enabled" },
+    { "service": "IngressAllowlistConfigurationService", "endpoint": "getFallbackConfig", "method": "GET", "path": "/ingress-allowlist/fallback" },
+    { "service": "IngressAllowlistConfigurationService", "endpoint": "revertIngressToFallbackConfig", "method": "POST", "path": "/ingress-allowlist/rollback/{domain}" },
+    { "service": "MetadataRetrievalService", "endpoint": "getEgressCidrs", "method": "GET", "path": "/metadata/egress" },
+    { "service": "UserCredentialManagerProvisioningService", "endpoint": "retrieveCredential", "method": "POST", "path": "/provision/{username}" },
+    { "service": "UserCredentialManagerProvisioningService", "endpoint": "getClusterConfigurations", "method": "POST", "path": "/provision/{username}/clusters" },
+    { "service": "UserCredentialManagerProvisioningService", "endpoint": "RetrieveCredentialForInfraUser", "method": "POST", "path": "/provision/{username}/infra-user" },
+    { "service": "UserCredentialManagerProvisioningService", "endpoint": "retrieveServiceAccountCredentialFromToken", "method": "GET", "path": "/provision/token" },
+    { "service": "UserCredentialManagerValidationService", "endpoint": "validateConfig", "method": "POST", "path": "/validate/{username}" }
+  ]
+}
