@@ -1,5 +1,5 @@
 import { installation } from "../fixtures.js";
-import { expect, test } from "./harness.js";
+import { expect, indexPage, test } from "./harness.js";
 
 /** Full-page captures of every console screen, for design review.
  *
@@ -192,7 +192,7 @@ function seed(hub: Parameters<Parameters<typeof test>[2]>[0]["hub"]) {
       items: [{ id: "prm_2", product: "app.example:ledger", version: "1.9.0", fromChannel: "RELEASE", toChannel: "STAGING" }],
     },
   });
-  hub.get("/change-requests", { changeRequests: [CHANGE_REQUEST] });
+  hub.get("/change-requests", indexPage("changeRequests", [CHANGE_REQUEST]));
   hub.get("/change-requests/crq_upgrade", CHANGE_REQUEST);
   hub.get("/plans", { plans: [{ id: PLAN.id, environment: PLAN.plan.environment, status: PLAN.status,
     stepCount: PLAN.plan.steps.length, approvalCount: PLAN.approvals.length,
@@ -211,7 +211,7 @@ function seed(hub: Parameters<Parameters<typeof test>[2]>[0]["hub"]) {
     total: 1, pageSize: 1, limit: 100, hasPrevious: false,
   });
   hub.get("/products/app.example:payments/releases", { releases: RELEASES });
-  hub.get("/promotions", PROMOTIONS);
+  hub.get("/promotions", indexPage("promotions", PROMOTIONS));
 }
 
 const SCREENS: Array<{ name: string; path: string; ready: string }> = [

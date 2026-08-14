@@ -17,7 +17,7 @@ export interface HubStub {
   /** Serve a body for any GET whose path ends with the given suffix. */
   get(pathSuffix: string, body: unknown, options?: { cursor?: string }): void;
   /** Fail any GET matching the suffix with a status and Hub-shaped error body. */
-  fails(pathSuffix: string, status: number, error: string): void;
+  fails(pathSuffix: string, status: number, error: string, options?: { cursor?: string }): void;
   /** Serve a body for a POST, and record that it happened. */
   post(pathSuffix: string, body: unknown): void;
   /** Convenience for the fleet endpoint, which needs its summary counted. */
@@ -86,8 +86,8 @@ function stub(page: Page): Promise<HubStub> {
     get(suffix, body, options = {}) {
       stubs.push({ suffix, method: "GET", status: 200, body, ...options });
     },
-    fails(suffix, status, error) {
-      stubs.push({ suffix, method: "GET", status, body: { error } });
+    fails(suffix, status, error, options = {}) {
+      stubs.push({ suffix, method: "GET", status, body: { error }, ...options });
     },
     post(suffix, body) {
       stubs.push({ suffix, method: "POST", status: 200, body });
@@ -139,3 +139,25 @@ export const test = base.extend<{ hub: HubStub }>({
 });
 
 export { expect } from "@playwright/test";
+
+export function indexPage<T>(
+  key: "changeRequests" | "promotions",
+  values: T[],
+  pagination: Partial<{
+    total: number;
+    pageSize: number;
+    limit: number;
+    hasPrevious: boolean;
+    nextCursor: string;
+    previousCursor: string;
+  }> = {},
+) {
+  return {
+    [key]: values,
+    total: values.length,
+    pageSize: values.length,
+    limit: 100,
+    hasPrevious: false,
+    ...pagination,
+  };
+}

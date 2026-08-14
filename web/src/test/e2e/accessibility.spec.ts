@@ -1,7 +1,7 @@
 import AxeBuilder from "@axe-core/playwright";
 import type { Page } from "@playwright/test";
 
-import { expect, test, type HubStub } from "./harness.js";
+import { expect, indexPage, test, type HubStub } from "./harness.js";
 import {
   ConsoleShell,
   EnvironmentDetailPom,
@@ -100,7 +100,7 @@ test("Product promotion pipeline remains accessible on mobile", async ({ page, h
       },
     ],
   });
-  hub.get("/promotions", [
+  hub.get("/promotions", indexPage("promotions", [
     {
       id: "prm_mobile",
       product: "app.example:payments",
@@ -110,7 +110,7 @@ test("Product promotion pipeline remains accessible on mobile", async ({ page, h
       status: "BLOCKED",
       blockers: [{ kind: "SOAK", message: "48 hour soak has not elapsed" }],
     },
-  ]);
+  ]));
   await page.goto("products/app.example%3Apayments");
   const product = new ProductDetailPom(page);
 
