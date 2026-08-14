@@ -1,0 +1,600 @@
+{
+  "apiVersion": "apiextensions.k8s.io/v1",
+  "kind": "CustomResourceDefinition",
+  "metadata": {
+    "name": "instancegroups.compute.palantir.com"
+  },
+  "spec": {
+    "conversion": {
+      "strategy": "None"
+    },
+    "group": "compute.palantir.com",
+    "names": {
+      "categories": [
+        "all"
+      ],
+      "kind": "InstanceGroup",
+      "listKind": "InstanceGroupList",
+      "plural": "instancegroups",
+      "shortNames": [
+        "ig"
+      ],
+      "singular": "instancegroup"
+    },
+    "scope": "Namespaced",
+    "versions": [
+      {
+        "additionalPrinterColumns": [
+          {
+            "description": "Min provisioned core count",
+            "jsonPath": ".status.currentConstraints.minCores",
+            "name": "min core count",
+            "type": "string"
+          },
+          {
+            "description": "Max provisioned core count",
+            "jsonPath": ".status.currentConstraints.maxCores",
+            "name": "max core count",
+            "type": "string"
+          },
+          {
+            "description": "Minimum per instance core count",
+            "jsonPath": ".status.currentConstraints.minimumPerInstanceCoreCount",
+            "name": "minimum per instance core count",
+            "type": "string"
+          },
+          {
+            "description": "Provisioned gigabytes per core",
+            "jsonPath": ".status.currentConstraints.gigabytesPerCore",
+            "name": "gigabytes per core ratio",
+            "type": "string"
+          },
+          {
+            "description": "Provisioned GPUs per instance",
+            "jsonPath": ".status.currentConstraints.gpuOptions.minGPUsPerInstance",
+            "name": "gpu per instance count",
+            "type": "string"
+          },
+          {
+            "description": "Provisioned core count",
+            "jsonPath": ".status.provisionedResources.cores",
+            "name": "core count",
+            "priority": 1,
+            "type": "string"
+          },
+          {
+            "description": "Provisioned core count",
+            "jsonPath": ".status.provisionedResources.memory",
+            "name": "memory",
+            "priority": 1,
+            "type": "string"
+          },
+          {
+            "description": "Provisioned instance count",
+            "jsonPath": ".status.provisionedResources.instances",
+            "name": "instance count",
+            "priority": 1,
+            "type": "string"
+          }
+        ],
+        "name": "v1alpha1",
+        "schema": {
+          "openAPIV3Schema": {
+            "properties": {
+              "spec": {
+                "properties": {
+                  "capacityReservationMode": {
+                    "nullable": true,
+                    "pattern": "^(no-capacity-reservations|full-capacity-reservations|igo-managed-capacity-reservations)$",
+                    "type": "string"
+                  },
+                  "desiredConstraints": {
+                    "properties": {
+                      "coresPerGPU": {
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "dataDiskGigabytes": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "gigabytesPerCore": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "gpuOptions": {
+                        "nullable": true,
+                        "properties": {
+                          "gpuTypes": {
+                            "items": {
+                              "pattern": "^(T4|L4|L40S|V100|A10|A16|A100|H100)$",
+                              "type": "string"
+                            },
+                            "nullable": true,
+                            "type": "array"
+                          },
+                          "maxGPUs": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minGPUs": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minGPUsPerInstance": {
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "instructionSetArchitecture": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "instructionSetArchitectures": {
+                        "items": {
+                          "pattern": "^(amd64|arm64)$",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "kvmConstraint": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxCores": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "maxInstances": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "minCores": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "minInstances": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "minimumPerInstanceCoreCount": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "nvmeConstraint": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "foundationInstanceTemplate": {
+                    "properties": {
+                      "name": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "name"
+                    ],
+                    "type": "object"
+                  },
+                  "gpuMode": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "inactiveCloudInstanceGroupsOverride": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "instanceTypes": {
+                    "items": {
+                      "minLength": 1,
+                      "type": "string"
+                    },
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "nodeLabels": {
+                    "nullable": true,
+                    "type": "object",
+                    "x-kubernetes-preserve-unknown-fields": true
+                  },
+                  "nodeTaints": {
+                    "items": {
+                      "properties": {
+                        "effect": {
+                          "enum": [
+                            "NoSchedule",
+                            "PreferNoSchedule",
+                            "NoExecute"
+                          ],
+                          "type": "string"
+                        },
+                        "key": {
+                          "type": "string"
+                        },
+                        "value": {
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "key",
+                        "effect"
+                      ],
+                      "type": "object"
+                    },
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "orchestrationMode": {
+                    "nullable": true,
+                    "pattern": "^(standard-orchestration|flexible-orchestration)$",
+                    "type": "string"
+                  },
+                  "spotMode": {
+                    "nullable": true,
+                    "pattern": "^(no-spot|partial-spot|all-spot)$",
+                    "type": "string"
+                  },
+                  "zoneMode": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "zones": {
+                    "items": {
+                      "minLength": 0,
+                      "type": "string"
+                    },
+                    "nullable": true,
+                    "type": "array"
+                  }
+                },
+                "type": "object"
+              },
+              "status": {
+                "properties": {
+                  "activeCloudInstanceGroups": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "capacityReservationGroupIdentifier": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "capacityReservationMode": {
+                    "nullable": true,
+                    "pattern": "^(no-capacity-reservations|full-capacity-reservations|igo-managed-capacity-reservations)$",
+                    "type": "string"
+                  },
+                  "cloudConstraints": {
+                    "properties": {
+                      "desiredInstances": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "maxInstances": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "minInstances": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "zones": {
+                        "items": {
+                          "minLength": 0,
+                          "type": "string"
+                        },
+                        "type": "array"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "cloudInstanceGroups": {
+                    "items": {
+                      "properties": {
+                        "active": {
+                          "type": "boolean"
+                        },
+                        "gpuType": {
+                          "nullable": true,
+                          "pattern": "^(T4|L4|L40S|V100|A10|A16|A100|H100)$",
+                          "type": "string"
+                        },
+                        "healthy": {
+                          "type": "boolean"
+                        },
+                        "instructionSetArchitecture": {
+                          "nullable": true,
+                          "pattern": "^(amd64|arm64|)$",
+                          "type": "string"
+                        },
+                        "name": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "profile": {
+                          "properties": {
+                            "cpu": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "gpu": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "memory": {
+                              "minLength": 1,
+                              "type": "string"
+                            }
+                          },
+                          "type": "object"
+                        },
+                        "spot": {
+                          "type": "boolean"
+                        },
+                        "weight": {
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "zones": {
+                          "items": {
+                            "minLength": 0,
+                            "type": "string"
+                          },
+                          "minItems": 1,
+                          "type": "array"
+                        }
+                      },
+                      "type": "object"
+                    },
+                    "nullable": true,
+                    "type": "array"
+                  },
+                  "conditions": {
+                    "items": {
+                      "properties": {
+                        "lastUpdateTime": {
+                          "format": "date-time",
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "reason": {
+                          "nullable": true,
+                          "type": "string"
+                        },
+                        "status": {
+                          "minLength": 1,
+                          "type": "string"
+                        },
+                        "type": {
+                          "minLength": 1,
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "currentConstraints": {
+                    "properties": {
+                      "coresPerGPU": {
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "dataDiskGigabytes": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "gigabytesPerCore": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "gpuOptions": {
+                        "nullable": true,
+                        "properties": {
+                          "gpuTypes": {
+                            "items": {
+                              "pattern": "^(T4|L4|L40S|V100|A10|A16|A100|H100)$",
+                              "type": "string"
+                            },
+                            "nullable": true,
+                            "type": "array"
+                          },
+                          "maxGPUs": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minGPUs": {
+                            "minimum": 0,
+                            "type": "integer"
+                          },
+                          "minGPUsPerInstance": {
+                            "minimum": 0,
+                            "type": "integer"
+                          }
+                        },
+                        "type": "object"
+                      },
+                      "instructionSetArchitecture": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "instructionSetArchitectures": {
+                        "items": {
+                          "pattern": "^(amd64|arm64)$",
+                          "type": "string"
+                        },
+                        "type": "array"
+                      },
+                      "kvmConstraint": {
+                        "nullable": true,
+                        "type": "string"
+                      },
+                      "maxCores": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "maxInstances": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "minCores": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "minInstances": {
+                        "minimum": 0,
+                        "nullable": true,
+                        "type": "integer"
+                      },
+                      "minimumPerInstanceCoreCount": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "nvmeConstraint": {
+                        "nullable": true,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "gpuMode": {
+                    "nullable": true,
+                    "type": "string"
+                  },
+                  "orchestrationMode": {
+                    "nullable": true,
+                    "pattern": "^(standard-orchestration|flexible-orchestration)$",
+                    "type": "string"
+                  },
+                  "podConstraints": {
+                    "properties": {
+                      "maxAllocatable": {
+                        "properties": {
+                          "instanceProfile": {
+                            "properties": {
+                              "cpu": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "gpu": {
+                                "minLength": 1,
+                                "type": "string"
+                              },
+                              "memory": {
+                                "minLength": 1,
+                                "type": "string"
+                              }
+                            },
+                            "type": "object"
+                          },
+                          "latestLaunch": {
+                            "format": "date-time",
+                            "type": "string"
+                          },
+                          "limit": {
+                            "additionalProperties": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "overhead": {
+                            "additionalProperties": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "overheadBuffer": {
+                            "additionalProperties": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": "object"
+                          },
+                          "recommended": {
+                            "additionalProperties": {
+                              "minLength": 1,
+                              "type": "string"
+                            },
+                            "type": "object"
+                          }
+                        },
+                        "type": "object"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "provisionedResources": {
+                    "properties": {
+                      "cores": {
+                        "minLength": 1,
+                        "type": "string"
+                      },
+                      "instances": {
+                        "minimum": 0,
+                        "type": "integer"
+                      },
+                      "memory": {
+                        "minLength": 1,
+                        "type": "string"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "spotMode": {
+                    "nullable": true,
+                    "pattern": "^(no-spot|partial-spot|all-spot)$",
+                    "type": "string"
+                  },
+                  "unhealthyZones": {
+                    "items": {
+                      "type": "string"
+                    },
+                    "type": "array"
+                  },
+                  "zoneMode": {
+                    "nullable": true,
+                    "type": "string"
+                  }
+                },
+                "type": "object"
+              }
+            },
+            "required": [
+              "spec"
+            ],
+            "type": "object"
+          }
+        },
+        "served": true,
+        "storage": true,
+        "subresources": {}
+      }
+    ]
+  }
+}

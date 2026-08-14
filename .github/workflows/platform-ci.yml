@@ -178,6 +178,13 @@ jobs:
           ruby scripts/verify-optimizer-candidate-release-workflow.rb
           ./scripts/verify-optimizer-candidate-release-workflow.test.sh
           ./scripts/assemble-optimizer-candidate-gate.test.sh
+      # The Rubix Kubernetes substrate CRDs are ground truth recovered from
+      # com.palantir.rubixlib, not authored here. This checks each committed CRD
+      # against the manifest that records its provenance -- sha256, group, kind,
+      # served versions, and the spec fields the tenant recovery enumerated --
+      # so a re-authoring away from the recovered schema fails rather than ships.
+      - name: Validate Rubix substrate CRDs
+        run: ruby scripts/verify-rubix-crds.rb
       - name: Validate Flux runtime source
         run: ruby scripts/verify-flux-runtime.rb
       - name: Validate Helm runtime chart

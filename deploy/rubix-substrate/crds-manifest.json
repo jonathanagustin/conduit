@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "subject": "Recovered Rubix Kubernetes substrate CRDs",
+  "provenance": {
+    "source": "factory/packages/foundry/system/evidence/rubix-crds",
+    "note": "Ground-truth CustomResourceDefinitions recovered from the Rubix compute substrate. Not authored here.",
+    "coordinates": [
+      "com.palantir.rubixlib:compute-attribution-api-objects:2.540.0",
+      "com.palantir.rubixlib:network-api:2.512.0",
+      "com.palantir.rubixlib:rubix-lib-api:2.513.0",
+      "com.palantir.rubixlib:rubix-lib-core:2.512.0",
+      "com.palantir.rubixlib:user-credential-manager:2.512.0"
+    ],
+    "crdCarrier": "com.palantir.rubixlib:rubix-lib-core:2.512.0",
+    "tenantFetch": "PALANTIR_TOKEN artifacts API, 2026-08-13; GET /artifacts/api/repositories/{rid}/contents/release/maven/{path}"
+  },
+  "serverSideValidation": {
+    "performed": "2026-08-14",
+    "apiServer": "k3s v1.36.3 (kubectl apply --dry-run=server, then real apply)",
+    "result": "all 8 accepted by apiextensions; api-resources registered with the recovered groups/versions/short-names; sample InstanceGroup and Demand custom resources accepted with schema enforcement (wrong field types rejected, valid objects created)."
+  },
+  "crds": [
+    {
+      "file": "allowlisted-connection-policy-crd.json",
+      "sha256": "711ea9ee37318f8154b60f44cd00d84d7f5a9b42c6b39bbfb4a6b21cf46356b1",
+      "name": "allowlistedconnectionpolicies.policy.rubix.palantir.com",
+      "group": "policy.rubix.palantir.com",
+      "kind": "AllowlistedConnectionPolicy",
+      "plural": "allowlistedconnectionpolicies",
+      "shortNames": [
+        "acp"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "connections"
+      ]
+    },
+    {
+      "file": "allowlisted-egress-policy-crd.json",
+      "sha256": "eac3427d14a914b71d2fa990bb81173d7822cb768d70b038dc3b51a6515c731a",
+      "name": "allowlistedegresspolicies.policy.rubix.palantir.com",
+      "group": "policy.rubix.palantir.com",
+      "kind": "AllowlistedEgressPolicy",
+      "plural": "allowlistedegresspolicies",
+      "shortNames": [
+        "aep"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "clusterEgressAllowed",
+        "connectProxy",
+        "egress",
+        "openContainerEgress"
+      ]
+    },
+    {
+      "file": "cross-namespace-discovery-target-crd.json",
+      "sha256": "454e1abe4d6cc188c1d7a034ff58177f4a91f5050490637b7f2b5c6811caa33d",
+      "name": "crossnamespacediscoverytargets.deploy.palantir.com",
+      "group": "deploy.palantir.com",
+      "kind": "CrossNamespaceDiscoveryTarget",
+      "plural": "crossnamespacediscoverytargets",
+      "shortNames": [
+        "cndt"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "labelSelector",
+        "produceBlock",
+        "stackName",
+        "tagging",
+        "targetNamespaces"
+      ]
+    },
+    {
+      "file": "demands-crd.json",
+      "sha256": "56921dccf90fd7a6f930ec785c1ed9cc74146e57177bae4fae374ed0d1d24502",
+      "name": "demands.scaler.palantir.com",
+      "group": "scaler.palantir.com",
+      "kind": "Demand",
+      "plural": "demands",
+      "shortNames": [
+        "dem"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha2"
+      ],
+      "specFields": [
+        "enforce-single-zone-scheduling",
+        "instance-group",
+        "instruction-set-architectures",
+        "is-long-lived",
+        "units",
+        "zone"
+      ]
+    },
+    {
+      "file": "domain-ingress-crd.json",
+      "sha256": "9ca40bf5d72eedf2414f5d198229b027037c01d59c2c727138b62e91be7f4820",
+      "name": "domainingresses.ingress.deployability.palantir.com",
+      "group": "ingress.deployability.palantir.com",
+      "kind": "DomainIngress",
+      "plural": "domainingresses",
+      "shortNames": [
+        "di"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "aliases",
+        "blocklistConfiguration",
+        "corsConfiguration",
+        "domain",
+        "frontdoorCertificate",
+        "ipAllowlist",
+        "mTLSConfiguration",
+        "orgEnrollment",
+        "playerOwnership",
+        "routePathModifications",
+        "vpcAllowlist"
+      ]
+    },
+    {
+      "file": "instance-group-crd.json",
+      "sha256": "2d8c261940fc248053d247df593f16f3bb3a9051ef3b50ebc5595c4bf0ec028e",
+      "name": "instancegroups.compute.palantir.com",
+      "group": "compute.palantir.com",
+      "kind": "InstanceGroup",
+      "plural": "instancegroups",
+      "shortNames": [
+        "ig"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "capacityReservationMode",
+        "desiredConstraints",
+        "foundationInstanceTemplate",
+        "gpuMode",
+        "inactiveCloudInstanceGroupsOverride",
+        "instanceTypes",
+        "nodeLabels",
+        "nodeTaints",
+        "orchestrationMode",
+        "spotMode",
+        "zoneMode",
+        "zones"
+      ]
+    },
+    {
+      "file": "node-group-crd.json",
+      "sha256": "0e9aad6fcf582323927d511c0a2a16eccf5c37bf8e0493b82cb5f7c37728c440",
+      "name": "nodegroups.compute.palantir.com",
+      "group": "compute.palantir.com",
+      "kind": "NodeGroup",
+      "plural": "nodegroups",
+      "shortNames": [
+        "ng"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "gpuType",
+        "schedulingConstraints"
+      ]
+    },
+    {
+      "file": "pod-group-crd.json",
+      "sha256": "21445c4e6d0e13fa4cc1d691c86bf09ec52bccf467159ec6c8023d9cb41a5873",
+      "name": "podgroups.scheduling.x-k8s.io",
+      "group": "scheduling.x-k8s.io",
+      "kind": "PodGroup",
+      "plural": "podgroups",
+      "shortNames": [
+        "pg",
+        "pgs"
+      ],
+      "scope": "Namespaced",
+      "versions": [
+        "v1alpha1"
+      ],
+      "specFields": [
+        "minMember",
+        "minResources",
+        "scheduleTimeoutSeconds"
+      ]
+    }
+  ]
+}

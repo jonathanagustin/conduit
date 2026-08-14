@@ -189,6 +189,7 @@ gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs 
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate trusted supply-chain policy' supply_chain
 gate 'Validate optimizer candidate release policy' optimizer_candidate_release
+gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
 gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb
