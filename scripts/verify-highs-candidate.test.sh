@@ -14,12 +14,20 @@ containerfile="$platform_dir/Containerfile.optimizer-highs"
 evidence="$platform_dir/docs/evidence/highs-1.15.1-shim-candidate-amd64.json"
 security_evidence="$platform_dir/docs/evidence/highs-1.15.1-shim-candidate-amd64-security"
 workflow="$platform_dir/../.github/workflows/platform-highs-candidate.yml"
+dockerignore="$platform_dir/.dockerignore"
 
 bash -n "$verifier"
 bash -n "$scanner"
 bash -n "${BASH_SOURCE[0]}"
 "$verifier" --containerfile "$containerfile" >/dev/null
 "$verifier" --self-audit "$verifier" >/dev/null
+for required_context_input in \
+  '!LICENSE' \
+  '!NOTICE' \
+  '!docs/evidence/highs-1.15.1-release.json'; do
+  grep -Fxq -- "$required_context_input" "$dockerignore" ||
+    fail "Docker context excludes required candidate input: $required_context_input"
+done
 jq -e \
   --arg containerfile "$(sha256sum "$containerfile" | cut -d' ' -f1)" \
   --arg verifier "$(sha256sum "$verifier" | cut -d' ' -f1)" \
