@@ -1,12 +1,12 @@
 {
   "evidenceClass": "b8-in-sandbox-build-and-reproducibility",
-  "subject": "B8 — the Go 1.26.6 HiGHS candidate builds reproducibly in-sandbox with zero high-severity vulnerabilities; only the un-intercepted public-root provenance attestation remains CI-only",
+  "subject": "B8 \u2014 the Go 1.26.6 HiGHS candidate builds reproducibly in-sandbox with zero high-severity vulnerabilities; only the un-intercepted public-root provenance attestation remains CI-only",
   "capturedAt": "2026-08-14",
-  "context": "Earlier this cycle B8 was recorded as entirely CI-blocked because apt's fetch from snapshot.ubuntu.com fails TLS verification against the sandbox MITM proxy, whose CA the pinned builder deliberately refuses. This record separates what that block actually prevents (a public-root trust attestation) from what it does NOT prevent (verifying the migration builds, is byte-reproducible, and is vuln-clean). The build here trusts the sandbox agent-proxy CA — the README-sanctioned way to reach external hosts — so the trust chain is the proxy, not public roots; the proxy relays snapshot.ubuntu.com content faithfully, so the resulting bytes match a public-root build.",
+  "context": "Earlier this cycle B8 was recorded as entirely CI-blocked because apt's fetch from snapshot.ubuntu.com fails TLS verification against the sandbox MITM proxy, whose CA the pinned builder deliberately refuses. This record separates what that block actually prevents (a public-root trust attestation) from what it does NOT prevent (verifying the migration builds, is byte-reproducible, and is vuln-clean). The build here trusts the sandbox agent-proxy CA \u2014 the README-sanctioned way to reach external hosts \u2014 so the trust chain is the proxy, not public roots; the proxy relays snapshot.ubuntu.com content faithfully, so the resulting bytes match a public-root build.",
   "method": "Built docs/../Containerfile.optimizer-highs unmodified except for one added step that appends /root/.ccr/ca-bundle.crt to the builder trust store (a sandbox-only variant, not committed), with docker build --network=host. Ran twice with --no-cache to test reproducibility. Generated an SBOM with syft 1.18.1 and scanned it with grype 0.87.0.",
   "results": {
     "amd64Build": {
-      "status": "SUCCESS — all 20 build stages completed",
+      "status": "SUCCESS \u2014 all 20 build stages completed",
       "pinnedInputsUsed": {
         "goToolchainDigest": "sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36 (golang:1.26.6-bookworm)",
         "ubuntuSnapshot": "20260811T000000Z",
@@ -15,7 +15,7 @@
         "zlibDev": "1:1.3.dfsg-3.1ubuntu2.1",
         "highsArchiveSha256": "5b05b157e512390b6bcc14517f2c68736b89aae286ab89fd0666c3c80a1569bc"
       },
-      "note": "The build-inputs.json emitted by the build confirms the exact pinned Go 1.26.6 toolchain and package versions were used — the migration compiles and links HiGHS."
+      "note": "The build-inputs.json emitted by the build confirms the exact pinned Go 1.26.6 toolchain and package versions were used \u2014 the migration compiles and links HiGHS."
     },
     "reproducibility": {
       "status": "BYTE-IDENTICAL",
@@ -26,13 +26,14 @@
       "sbomPackages": 3,
       "grypeMatches": 0,
       "highOrCriticalMatches": 0,
-      "note": "Zero vulnerability matches; zero high/critical. The image is a minimal static shim, so the SBOM surface is small — the same scan CI runs on the image."
+      "note": "Zero vulnerability matches; zero high/critical. The image is a minimal static shim, so the SBOM surface is small \u2014 the same scan CI runs on the image."
     },
     "arm64Build": {
-      "status": "BLOCKED in this sandbox — qemu-aarch64 emulation is not functional in the local docker (first arm64 RUN fails 'exec /bin/bash: exec format error'). The build wiring is correct (all COPY stages resolve); only cross-arch execution is unavailable here.",
-      "note": "Not a B8 design block — arm64 builds on a native or properly-emulated runner."
+      "status": "SUCCESS under qemu-aarch64 (registered via binfmt_misc mount + tonistiigi/binfmt)",
+      "rootfsLayerDigest": "sha256:70e2b180e95812d00bd99ca52a2d9ff07d10a21fcd293b3090ee6096c758eb97",
+      "note": "All candidate mutation gates in the build RUN passed for arm64: go1.26.6 assertion, ELF Machine=AArch64, statically linked, no NEEDED/INTERP, no active native network symbols. The earlier 'exec format error' was only unregistered emulation."
     }
   },
   "whatRemainsCiOnly": "Only the provenance attestation that the trust chain was un-intercepted public roots. That is unmeetable in this sandbox because ALL egress is the MITM proxy (confirmed at the proxy-config level: no un-intercepted route exists). The image bytes, reproducibility, and vuln posture ARE verified here; a hosted runner with public-root egress produces the same bytes with a clean provenance attestation.",
-  "conclusion": "B8's substantive gate — the Go 1.26.6 migration builds, is byte-reproducible, and is high-severity-clean — is now demonstrated in-sandbox for amd64. The residual is the public-root provenance attestation (CI-only by construction) and the arm64 run (needs working emulation). This de-risks the migration; it does not fabricate the CI provenance the admission gate ultimately requires."
+  "conclusion": "B8's substantive gate is demonstrated in-sandbox for BOTH architectures: amd64 and arm64 build from the pinned Go 1.26.6 builder with all candidate mutation gates passing; amd64 is byte-reproducible and high-severity-clean. The sole residual is the un-intercepted public-root provenance attestation, CI-only by construction, which does not affect the image bytes."
 }
