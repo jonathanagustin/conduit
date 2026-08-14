@@ -9,11 +9,12 @@
 //	com.palantir.rubixlib:user-credential-manager:2.512.0 (provisioning, validation)
 //
 // fetched from the tenant's artifacts API on 2026-08-13. This is Palantir's own
-// request surface, transcribed, not authored. Only the operation identity
-// (service, endpoint, method, path) was recovered; the request and response wire
-// beans were not, so -- exactly as internal/computecontrol does for the Flink
-// control plane -- this package defines no wire DTOs and no fabricated port
-// signatures. A future adapter that gains the recovered objects jar owns those.
+// request surface, transcribed, not authored. The operation identity (service,
+// endpoint, method, path) is recovered here; the request and response wire beans
+// were subsequently recovered field-for-field from the same jars (see beans.go)
+// and the typed client (client.go) and server handler (server.go) route every
+// call and dispatch strictly through this table. Nothing about the contract is
+// invented; only the mechanical Conjure transport is added.
 //
 // The canonical table here is the authoritative in-code copy of the recovered
 // contract. routes_test.go binds it to deploy/rubix-substrate/http-contract.json
