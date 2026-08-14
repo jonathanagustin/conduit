@@ -635,11 +635,17 @@ func (service *GovernanceService) approveTransactional(
 	}
 	var request ChangeRequest
 	var plan PlanRecord
+	var operationErr error
 	err := transactional.Transaction(ctx, func(transaction Repository) error {
 		transactionService := NewGovernanceService(transaction)
 		transactionService.now = service.now
-		var operationErr error
 		request, plan, operationErr = transactionService.approveOnce(ctx, changeRequestID, principal, rationale, permit)
+		// An application adapter records a durable failed execution on the
+		// Change Request before returning its outward conflict. Preserve that
+		// evidence; all other errors roll the transaction back.
+		if operationErr != nil && request.Execution != nil && request.Execution.Status == ExecutionFailed {
+			return nil
+		}
 		return operationErr
 	})
 	if err != nil {
@@ -647,6 +653,9 @@ func (service *GovernanceService) approveTransactional(
 			return ChangeRequest{}, PlanRecord{}, errors.Join(err, fmt.Errorf("persist denied approval audit: %w", auditErr))
 		}
 		return ChangeRequest{}, PlanRecord{}, err
+	}
+	if operationErr != nil {
+		return request, plan, operationErr
 	}
 	return request, plan, nil
 }
