@@ -19,6 +19,7 @@ that gate was run for the current commit.
 | H11 | Gitless runtime delivery from private OCI | OPEN | `node scripts/render-runtime-source-descriptor.test.mjs` and `ruby scripts/verify-flux-runtime.rb` cover the structural contract; close with B7's clean-cluster acceptance test. |
 | H12 | Secure, reproducible HiGHS candidate on the current Go patch release | OPEN | `./scripts/verify-highs-candidate.test.sh` binds the existing Go 1.26.5 image to committed evidence; close B8 by rebuilding both architectures on Go 1.26.6 and regenerating the evidence rather than editing hashes. |
 | H13 | Codespace cache repair after volatile-disk loss | SOLVED | `scripts/test-repair-volatile-cache-links.sh` and `scripts/test-codespace-self-heal.sh` prove six approved targets, refusal outside the volatile root, wipe recovery, retry semantics, and one idempotent shell hook. |
+| H14 | Transactional multi-replica Hub persistence | SOLVED | `scripts/test-postgres-repository.sh` runs two independent repository instances against a digest-pinned PostgreSQL service and proves one concurrent approval, one concurrent lease, idempotency, abort rollback, and approval rollback on audit failure; `ruby scripts/verify-helm-runtime.rb` proves the production chart consumes it with two replicas. |
 
 Update a row only after reviewing the cited source and running its gate. New
 capabilities enter `HYPOTHESIS-BACKLOG.md` before implementation.

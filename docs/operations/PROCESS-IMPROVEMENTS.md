@@ -19,6 +19,8 @@ system cost check. Votes are observations, not adoption evidence.
 
 | P9 | Test a paged index with hidden records whose fields match the active filter, not only with an empty unauthorized principal. | TRIAL | Three per-record-authorized indexes prove hidden matches cannot affect rows, totals, cursors, or page metadata. | The first application plants one visible and one hidden Change Request, then queries the hidden Environment and its unique search term at limit 1; all four observable page signals remain zero for the hidden record. | The adversarial fixture adds one HTTP test but detects authorization performed after filtering or counting, which a simple empty-result check cannot distinguish. | good×1; bad×0 |
 
+| P10 | Classify outward workflow errors as rollback or committed failure evidence when adding a transaction boundary. | TRIAL | Three multi-operation workflows plant both an error that must roll back and a failure record that must remain visible. | The first PostgreSQL conversion made one existing stale-profile test fail because the transaction rolled back its intended `ExecutionFailed` evidence; the corrected gate now preserves that evidence while an injected audit failure leaves zero approval mutations. | The extra classification branch is narrow and test-backed; it prevents atomicity from erasing operational evidence without weakening fail-closed audit behavior. | good×0; bad×0 |
+
 For a new PDR, name the method change, trial length, objective exit measure, and
 cost dimensions before applying it. Keep one aggregate `good×N` and `bad×N`
 tally in the vote cell. Record the underlying observations in the change or an
