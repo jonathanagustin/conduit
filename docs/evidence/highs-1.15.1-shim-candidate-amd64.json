@@ -2,37 +2,37 @@
   "schemaVersion": 1,
   "evidenceType": "platform.optimizer.highs-candidate",
   "admission": "UNADMITTED",
-  "capturedAt": "2026-08-12T01:35:00Z",
+  "capturedAt": "2026-08-14T18:32:00Z",
   "platformRevision": "WORKTREE",
   "architecture": "amd64",
   "source": {
     "containerfile": "Containerfile.optimizer-highs",
-    "containerfileSha256": "7e220424f2aa2fd47a56715a980c17d8dd7adaa3b3bf966743ec1c1547f4b997",
+    "containerfileSha256": "ccfafa816b3dca03a02468dee3490695a05062cf5c361c54cc003adfc36a924e",
     "verifier": "scripts/verify-highs-candidate.sh",
-    "verifierSha256": "930fb6e40c0229018a0ad53cae556369a1cb3830ba840a1897b055c166f9c480",
+    "verifierSha256": "ff96844d2d2c828f6c7def1b8f62236b4b2ebf01b74295bd59b70888529d16e9",
     "scanner": "scripts/scan-highs-candidate.sh",
-    "scannerSha256": "e3bbc7346391be0dc22b5918ba2ebf4e4319e7aadcd966dbaa5837b3cb5e6332",
+    "scannerSha256": "2f01653787b894573137efb4ea13553e70baa27b1f40bb96b276904d766af264",
     "upstreamEvidence": "docs/evidence/highs-1.15.1-release.json",
     "upstreamEvidenceSha256": "d8ea033afc2b95f7186e9b83c6892ba6cf6713df4d44660642a4f6699b98f95b"
   },
   "candidate": {
-    "localImageReference": "local/platform-highs:deterministic-f",
-    "imageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
-    "imageSizeBytes": 5839493,
-    "binarySizeBytes": 11545760,
-    "binarySha256": "1c13960de9660dce474315ad43df1b7aadaa03802ce277b13988d8fdcf9b9dfd",
+    "localImageReference": "local/platform-highs:worktree-amd64",
+    "imageId": "sha256:53f37c7915148505ac43ad72b3fd2e1154fb9bcd214bad9ccc8f60736214093a",
+    "imageSizeBytes": 5836891,
+    "binarySizeBytes": 11546016,
+    "binarySha256": "f15ccfbe52e06f9d3b2e009e995553477f3f603ef11aef8da4a0781354607722",
     "requestSha256": "92feb2af36b5993d969a214b57abaf75c51caeb2ab8776ba8a85ca0a526ac3c9",
     "semanticResponseSha256": "29a24d4cf3c79c375f5ac1f4af4fbda38c7f6a3f66354926370aa47ea7492cba",
     "semanticRuns": 20,
     "dormantNativeNetworkSymbols": 4,
-    "buildInputsSha256": "92682f51e9c6f1004f0391451eb0e2ea476b0b0297da5a3f35affe51affe4d3e",
+    "buildInputsSha256": "24220c63494727a27a80d1298d8945e8f7bf67f660a43df8d26adeecfdd430f7",
     "staticClosureSha256": "8644e719c19bd7b2d03893b9f4adec22863a9daf24399afa9cf043dbe446b502",
     "staticClosureEntries": 15,
-    "licenseHashesSha256": "812e1b57dbd3ef73b9466583cc421809fb4a3341bd3c0e2d610efb166bc5be91",
-    "linkerMapSha256": "1433088b7be47a88e60666f61d70e1545a0a18fac9a29dd19b0a583d0b3bd7b9"
+    "licenseHashesSha256": "0500eab893774aa3db31b3ea7e9717abbc634e5d42bfd8bf3bec207fe8e1bcb7",
+    "linkerMapSha256": "aca2a779768fb21429c35141ee1d78846c7a31dfc10768fb83af2ca2c4ca3e8d"
   },
   "reproducibility": {
-    "sourceInputManifestSha256": "966c15f2069f2686eef53f69dda714fa3999b9fd9cac4e52e3a1d911e1dc0b15",
+    "sourceInputManifestSha256": "a3174e71123bab0780e16ba852d9eba325bcb83b24e550e8eb8d2f41fd1df1d9",
     "sourceInputManifestFormat": "sha256sum lines for the named files followed by lexically sorted regular files under each named tree",
     "sourceInputScope": [
       "Containerfile.optimizer-highs",
@@ -47,18 +47,18 @@
       "internal/optimization/solverprotocol"
     ],
     "sourceInputsChangedDuringCleanBuild": false,
-    "cachedImageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
-    "cleanImageId": "sha256:d6a0bf4d301dff00afe6098733ecb1cca09fd4e1e9b48091a184fc92442981e4",
-    "cleanBuildElapsedMilliseconds": 56652,
+    "rootfsLayerDigest": "sha256:c945a1334126d0a7b237fd7486553075cc697060742047790577725bf0315a83",
+    "cachedImageId": "sha256:53f37c7915148505ac43ad72b3fd2e1154fb9bcd214bad9ccc8f60736214093a",
+    "cleanImageId": "sha256:53f37c7915148505ac43ad72b3fd2e1154fb9bcd214bad9ccc8f60736214093a",
     "sourceDateEpoch": 1786406400,
     "provenanceAttestationDisabledForComparison": true,
     "byteIdenticalImage": true
   },
   "security": {
-    "capturedAt": "2026-08-12T01:37:29Z",
+    "capturedAt": "2026-08-14T18:32:00Z",
     "directory": "docs/evidence/highs-1.15.1-shim-candidate-amd64-security",
-    "metadataSha256": "dcbc59fb2df7d0e9987f03517055e35fdd19689c9aa83197268eed3f4a4c1629",
-    "manifestDigest": "sha256:35c78ef7b202a67cadfa17828bfd854df12747e50e968db56f7790603d9f863c",
+    "metadataSha256": "3c0f77219c0ec97dffff7712f201112c8153d428db6809985f7fde70f5cea41e",
+    "manifestDigest": "sha256:ee13b94e348ebcdca3be5e4f11cb605939b64b91f65add88b0531caf21f63f18",
     "tools": {
       "syft": "1.50.0",
       "grype": "0.116.1"
@@ -68,7 +68,7 @@
     "vulnerabilityMatches": 0,
     "failThreshold": "high",
     "databaseSchema": "v6.1.9",
-    "databaseBuilt": "2026-08-11T06:26:49Z",
+    "databaseBuilt": "2026-08-14T06:39:10Z",
     "coverage": "standard SBOM plus compiler/linker-owned static closure"
   },
   "verifiedGates": [
