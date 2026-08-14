@@ -6,6 +6,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -145,17 +146,37 @@ func TestPostRenderChainAgainstRealHelm(t *testing.T) {
 // helmEnvLine matches one KEY="value" line of `helm env` output.
 var helmEnvLine = regexp.MustCompile(`^[A-Z0-9_]+="[^"]*"$`)
 
+// helmVersionLine matches the version token Helm prints, e.g. "v3.16.3+gcfd0749"
+// or "v4.1.1". It is anchored to a line so unrelated output cannot match.
+var helmVersionLine = regexp.MustCompile(`(?m)^v?(\d+)\.\d+`)
+
+// helmMajorVersion reports the installed Helm's major version.
+//
+// It reads stdout only and locates the version token by pattern rather than
+// trusting the first line: Helm writes advisory warnings (for example, a
+// group-readable kubeconfig) to stderr, and a previous implementation used
+// CombinedOutput and compared the major *lexically*, so a leading "WARNING:..."
+// parsed as a major of "WARNING: ..." which compares greater than "4". That made
+// a Helm 3 look like a Helm 4, sending the test down the plugin lane that only
+// Helm 4 supports. The comparison is numeric here for the same reason.
 func helmMajorVersion(t *testing.T, helm string) int {
 	t.Helper()
-	output, err := exec.Command(helm, "version", "--short").CombinedOutput()
+	command := exec.Command(helm, "version", "--short")
+	var stderr strings.Builder
+	command.Stderr = &stderr
+	stdout, err := command.Output()
 	if err != nil {
-		t.Fatalf("helm version: %v\n%s", err, output)
+		t.Fatalf("helm version: %v\nstdout: %s\nstderr: %s", err, stdout, stderr.String())
 	}
-	version := strings.TrimPrefix(strings.TrimSpace(string(output)), "v")
-	if version == "" {
-		t.Fatalf("unreadable helm version %q", output)
+	match := helmVersionLine.FindSubmatch(stdout)
+	if match == nil {
+		t.Fatalf("unreadable helm version %q (stderr: %s)", stdout, stderr.String())
 	}
-	if major, _, found := strings.Cut(version, "."); found && major >= "4" {
+	major, err := strconv.Atoi(string(match[1]))
+	if err != nil {
+		t.Fatalf("unreadable helm major version %q", match[1])
+	}
+	if major >= 4 {
 		return 4
 	}
 	return 3
@@ -191,13 +212,21 @@ func TestReleaseIsUpgradeChangesWhatAChartRenders(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// Read stdout only: the rendered manifests are parsed as YAML below, and Helm
+	// writes advisory warnings (for example, a group-readable kubeconfig) to
+	// stderr. Folding those in with CombinedOutput prepends non-YAML lines to the
+	// document and the parse fails with an error that names neither Helm nor the
+	// warning.
 	render := func(extra ...string) string {
 		arguments := append([]string{"template", "app", chart}, extra...)
-		output, err := exec.Command(helm, arguments...).CombinedOutput()
+		command := exec.Command(helm, arguments...)
+		var stderr strings.Builder
+		command.Stderr = &stderr
+		stdout, err := command.Output()
 		if err != nil {
-			t.Fatalf("helm %v: %v\n%s", arguments, err, output)
+			t.Fatalf("helm %v: %v\nstdout: %s\nstderr: %s", arguments, err, stdout, stderr.String())
 		}
-		return string(output)
+		return string(stdout)
 	}
 
 	install, upgrade := render(), render("--is-upgrade")
