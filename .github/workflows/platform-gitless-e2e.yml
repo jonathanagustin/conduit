@@ -1,0 +1,24 @@
+name: Gitless OCI acceptance
+
+# This test creates a disposable cluster and downloads pinned controller tools.
+# It is intentionally separate from the Trunk gate and runs only when a person
+# decides that the cluster cost is justified.
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  acceptance:
+    name: signed OCI without Git
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - name: Reconcile an exact signed digest with pull-only authority
+        run: ./scripts/test-gitless-clean-cluster.sh
