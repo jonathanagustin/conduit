@@ -3,7 +3,8 @@
 Repository-authored workflows must use `workflow_dispatch` only. Do not add
 `push`, `pull_request`, `schedule`, or an automatic workflow chain. Local
 verification runs first so paid Actions time is used only for a candidate that
-is ready to review.
+is ready to review. A pre-existing aggregate failure is still a failed candidate;
+repair it locally or explicitly remove the invalid gate before dispatching CI.
 
 ## Trunk gate
 

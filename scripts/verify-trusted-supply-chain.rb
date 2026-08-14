@@ -84,7 +84,7 @@ abort "Conduit archives must have verified keyless SLSA provenance bundles" unle
 abort "release must not depend on unavailable private-repository GitHub attestations" if
   workflow.include?("actions/attest@") || workflow.include?("attestations: write")
 abort "runtime builds must use the fixed Go toolchain by exact image digest" unless
-  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.26.5-bookworm@sha256:1ecb7edf62a0408027bd5729dfd6b1b8766e578e8df93995b225dfd0944eb651") }
+  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36") }
 abort "runtime roots must use the reviewed Chainguard static index by exact digest" unless
   [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("cgr.dev/chainguard/static:latest@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791") }
 abort "Helm must be rebuilt from integrity-pinned 4.2.3 source with fixed oras-go" unless

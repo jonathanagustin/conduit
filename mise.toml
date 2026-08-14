@@ -1,6 +1,6 @@
 [tools]
 direnv = "2.32.1"
-go = "1.26.5"
+go = "1.26.6"
 node = "24.14.0"
 
 [tasks.install-cursor]

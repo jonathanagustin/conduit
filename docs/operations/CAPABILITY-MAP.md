@@ -17,6 +17,7 @@ that gate was run for the current commit.
 | H9 | Private Apollo Hub-to-Agent protocol compatibility | BLOCKED | No public or sanitized tenant instrument establishes it; keep the boundary in `docs/apollo/conformance.md`. |
 | H10 | Conduit-owned continuous reconciliation | OPEN | `docs/architecture/reconciliation.md`; close the first slice with queue crash-recovery, idempotency, stale-observation, audit-failure, and dropped-event repair tests. |
 | H11 | Gitless runtime delivery from private OCI | OPEN | `node scripts/render-runtime-source-descriptor.test.mjs` and `ruby scripts/verify-flux-runtime.rb` cover the structural contract; close with B7's clean-cluster acceptance test. |
+| H12 | Secure, reproducible HiGHS candidate on the current Go patch release | OPEN | `./scripts/verify-highs-candidate.test.sh` binds the existing Go 1.26.5 image to committed evidence; close B8 by rebuilding both architectures on Go 1.26.6 and regenerating the evidence rather than editing hashes. |
 
 Update a row only after reviewing the cited source and running its gate. New
 capabilities enter `HYPOTHESIS-BACKLOG.md` before implementation.
