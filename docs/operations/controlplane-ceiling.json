@@ -1,6 +1,6 @@
 {
   "note": "Ceiling for internal/controlplane, in hand-written non-test Go lines. Build-ignored tools and generated DO-NOT-EDIT output are reported but not counted; see scripts/report-migration-progress.mjs. The bounded-context migration may only move this down. Raising it requires saying why in the same commit.",
-  "recordedAt": "2026-08-14",
-  "lines": 26077,
-  "reason": "Raised by 580 for the transactional PostgreSQL repository and the operator change/promotion index projection. Both are persistence for behaviour the monolith already owns, so there is no bounded context to put them in until that behaviour moves; extracting the adapter alone would put a port outside the domain it serves. Set to exactly the current count rather than a round number, so the next line of growth still has to justify itself. The previous 25497 was recorded before generated and build-ignored files were separated from hand-written source and is not comparable: on the old basis this same tree measures 26963, of which 886 is a go:build ignore generator and its DO-NOT-EDIT output."
+  "recordedAt": "2026-08-15",
+  "lines": 25552,
+  "reason": "Lowered by 525 when Governance took ownership of its own decisions rather than only its types: the approval-policy language and its published CEL predicates, the audit category contract, the scope-expanded grant lookup, and reviewer-requirement satisfaction all moved to internal/governance as a domain, one port and an application service. The facade keeps the Change Request lifecycle that asks those questions and now asks them through the service, so no rule has a second copy. Set to exactly the current count rather than a round number, so the next line of growth still has to justify itself. The previous 26077 was recorded on 2026-08-14 on the same counting basis and is directly comparable."
 }

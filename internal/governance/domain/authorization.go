@@ -1,11 +1,17 @@
-// Package governance owns who may do what: the principals asking, the roles
-// they hold, what each role is permitted, and how a resource identifier expands
-// into the scopes a grant may have been made against.
+// Package domain is Governance's model: who may do what, and what review a
+// change needs before it can happen.
 //
-// It answers those questions and no others. Whether a change needs approval,
-// who has reviewed it, and what happens when they do are the Change Request's
-// business, and stay with it. This package is the part that can be decided from
-// a principal, a role table, and a resource identifier alone.
+// It holds the principals asking, the roles they hold, what each role is
+// permitted, how a resource identifier expands into the scopes a grant may have
+// been made against, the approval-policy language a change is judged through,
+// and the audit contract a decision is recorded under. Everything here is
+// decidable from its arguments — a principal, a role table, a resource
+// identifier, a policy expression, the facts of a change. Nothing here reads a
+// repository, and nothing here knows how a request arrived.
+//
+// The one lookup a decision needs, which grants exist against a scope, is the
+// application layer's business through a port. That split is what lets these
+// rules be tested without a store and reused without a transport.
 //
 // Two of the tables here mean different things and must not be confused. The
 // role-to-operation table is Platform's own contract. The Apollo alias map is
@@ -14,8 +20,8 @@
 // captured graph in internal/apollo is the evidence both are checked against;
 // neither is derived from it.
 //
-// This package imports nothing.
-package governance
+// This package imports no other context.
+package domain
 
 import (
 	"fmt"

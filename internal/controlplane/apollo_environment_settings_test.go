@@ -7,6 +7,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+
+	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 )
 
 func TestApolloEnvironmentSettingsValidationHTTPAdapter(t *testing.T) {
@@ -196,11 +198,11 @@ func TestApolloSettingsDiffPathsUseTheDocumentVocabulary(t *testing.T) {
 		t.Fatalf("paths = %#v, want exactly %q", paths, want)
 	}
 	// The published allowlist pattern from the documentation must match it.
-	if !pathMatchesAnyPattern(paths[0], []string{SettingsFieldManagedHelmCharts + "/**"}) {
+	if !governance.PathMatchesAnyPattern(paths[0], []string{SettingsFieldManagedHelmCharts + "/**"}) {
 		t.Fatalf("path %q is not matched by the documented glob", paths[0])
 	}
 	// A narrower policy that only permits a different field must not match.
-	if pathMatchesAnyPattern(paths[0], []string{SettingsFieldManagedHelmCharts + "/*/" + SettingsFieldStack}) {
+	if governance.PathMatchesAnyPattern(paths[0], []string{SettingsFieldManagedHelmCharts + "/*/" + SettingsFieldStack}) {
 		t.Fatalf("path %q matched an unrelated field pattern", paths[0])
 	}
 

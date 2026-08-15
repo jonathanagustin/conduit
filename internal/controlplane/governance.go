@@ -4,18 +4,14 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"reflect"
-	"regexp"
 	"sort"
 	"strings"
 	"time"
 
-	"github.com/google/cel-go/cel"
-	"github.com/google/cel-go/common/types"
-	"github.com/google/cel-go/common/types/ref"
+	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 )
 
 const (
@@ -25,8 +21,6 @@ const (
 	ChangeCancelled        = "CANCELLED"
 	ChangeError            = "ERROR"
 )
-
-var policyVariablePattern = regexp.MustCompile(`\{\{\s*policyVariable\.([A-Za-z][A-Za-z0-9_]*)\s*\}\}`)
 
 type GovernanceRepository interface {
 	PutTeam(context.Context, Team) (Team, error)
@@ -43,19 +37,6 @@ type GovernanceRepository interface {
 	UpdateChangeRequest(context.Context, string, func(*ChangeRequest) error) (ChangeRequest, error)
 	AppendAuthorizationAudit(context.Context, AuthorizationAuditEvent) (AuthorizationAuditEvent, error)
 	ListAuthorizationAudit(context.Context, string) ([]AuthorizationAuditEvent, error)
-}
-
-type ChangeDiffEntry struct {
-	Before any `json:"before,omitempty"`
-	After  any `json:"after,omitempty"`
-}
-
-type ReferencedResource struct {
-	RID         string            `json:"rid"`
-	Name        string            `json:"name"`
-	Labels      map[string]string `json:"labels"`
-	AuthorRoles []string          `json:"authorRoles"`
-	Resource    map[string]any    `json:"resource,omitempty"`
 }
 
 type EntityChange struct {
@@ -177,30 +158,10 @@ func (service *GovernanceService) ResolvePrincipal(ctx context.Context, claims I
 	return principal, nil
 }
 
+// Authorize asks Governance, rather than answering for it. The rule about what
+// a grant conveys has one home, and it is not this package.
 func (service *GovernanceService) Authorize(ctx context.Context, principal Principal, resourceRID, operation string) bool {
-	teams := stringSet(principal.Teams)
-	grants, err := effectiveResourceGrants(ctx, service.repository, resourceRID)
-	if err != nil {
-		return false
-	}
-	for _, grant := range grants {
-		if _, member := teams[grant.Team]; member && (contains(grant.Operations, operation) || rolesAllow(grant.Roles, operation)) {
-			return true
-		}
-	}
-	return false
-}
-
-func effectiveResourceGrants(ctx context.Context, repository GovernanceRepository, resourceRID string) ([]ResourceGrant, error) {
-	result := []ResourceGrant{}
-	for _, scope := range authorizationScopes(resourceRID) {
-		grants, err := repository.ListResourceGrants(ctx, scope)
-		if err != nil {
-			return nil, err
-		}
-		result = append(result, grants...)
-	}
-	return result, nil
+	return governanceAuthorizer(service.repository).Allows(ctx, principal, resourceRID, operation)
 }
 
 func (service *GovernanceService) AuthorizeLabelApplication(
@@ -339,7 +300,7 @@ func (service *GovernanceService) PutPolicy(ctx context.Context, policy Approval
 	if !identifierPattern.MatchString(policy.ID) || strings.TrimSpace(policy.DisplayName) == "" || strings.TrimSpace(policy.Expression) == "" {
 		return ApprovalPolicy{}, ValidationErrors{{Path: "policy", Message: "id, displayName, and expression are required"}}
 	}
-	if _, err := compilePolicy(policy, service.trust); err != nil {
+	if _, err := governance.CompilePolicy(policy, service.trust); err != nil {
 		return ApprovalPolicy{}, ValidationErrors{{Path: "expression", Message: err.Error()}}
 	}
 	now := service.now().UTC()
@@ -1170,242 +1131,6 @@ func (service *GovernanceService) auditRequestCreated(ctx context.Context, reque
 	if ValidateAuditCategoryEvent(event) == nil {
 		_, _ = service.repository.AppendAuthorizationAudit(ctx, event)
 	}
-}
-
-type policyResult struct {
-	Kind, Reason, Team, ResourceRID, Role, Operation string
-	Alternatives                                     []policyResult
-}
-
-func (result policyResult) Requirement(changeID, policyID string) ReviewerRequirement {
-	requirement := ReviewerRequirement{
-		ChangeID: changeID, PolicyID: policyID, Kind: result.Kind, Team: result.Team,
-		ResourceRID: result.ResourceRID, Role: result.Role, Operation: result.Operation, Reason: result.Reason,
-	}
-	for _, alternative := range result.Alternatives {
-		requirement.Alternatives = append(requirement.Alternatives, alternative.Requirement(changeID, policyID))
-	}
-	payload, _ := json.Marshal(requirement)
-	digest := sha256.Sum256(payload)
-	requirement.ID = "req_" + hex.EncodeToString(digest[:16])
-	return requirement
-}
-
-func compilePolicy(policy ApprovalPolicy, trust PolicyTrust) (cel.Program, error) {
-	environment, err := policyEnvironment(trust)
-	if err != nil {
-		return nil, err
-	}
-	expression := policyVariablePattern.ReplaceAllString(policy.Expression, `policyVariable.$1`)
-	ast, issues := environment.Compile(expression)
-	if issues != nil && issues.Err() != nil {
-		return nil, issues.Err()
-	}
-	return environment.Program(ast)
-}
-
-func evaluatePolicy(policy ApprovalPolicy, input map[string]any, trust PolicyTrust) (policyResult, error) {
-	program, err := compilePolicy(policy, trust)
-	if err != nil {
-		return policyResult{}, err
-	}
-	variables := make(map[string]any, len(policy.Variables))
-	for name, variable := range policy.Variables {
-		switch variable.Type {
-		case PolicyString:
-			variables[name] = variable.String
-		case PolicyStringList:
-			variables[name] = append([]string(nil), variable.List...)
-		default:
-			return policyResult{}, fmt.Errorf("variable %s has unsupported type %s", name, variable.Type)
-		}
-	}
-	input["policyVariable"] = variables
-	value, _, err := program.Eval(input)
-	if err != nil {
-		return policyResult{}, err
-	}
-	native, err := value.ConvertToNative(reflect.TypeOf(""))
-	if err != nil {
-		return policyResult{}, fmt.Errorf("policy must return a result function: %w", err)
-	}
-	var normalized map[string]any
-	if err := json.Unmarshal([]byte(native.(string)), &normalized); err != nil {
-		return policyResult{}, fmt.Errorf("normalize policy result: %w", err)
-	}
-	return decodePolicyResult(normalized)
-}
-
-func policyEnvironment(trust PolicyTrust) (*cel.Env, error) {
-	result := func(kind string, args ...ref.Val) ref.Val {
-		value := map[string]any{"kind": kind}
-		if len(args) > 0 {
-			value["reason"] = fmt.Sprint(args[len(args)-1].Value())
-		}
-		switch kind {
-		case RequirementTeam:
-			value["team"] = fmt.Sprint(args[0].Value())
-		case RequirementRole:
-			value["resourceRid"], value["role"] = fmt.Sprint(args[0].Value()), fmt.Sprint(args[1].Value())
-		case RequirementOperation:
-			value["resourceRid"], value["operation"] = fmt.Sprint(args[0].Value()), fmt.Sprint(args[1].Value())
-		case RequirementAny:
-			alternatives, err := args[0].ConvertToNative(reflect.TypeOf([]any{}))
-			if err != nil {
-				return types.NewErr("invalid require_any alternatives: %v", err)
-			}
-			decoded := make([]map[string]any, 0, len(alternatives.([]any)))
-			for _, alternative := range alternatives.([]any) {
-				var candidate map[string]any
-				if err := json.Unmarshal([]byte(fmt.Sprint(alternative)), &candidate); err != nil {
-					return types.NewErr("invalid require_any alternative: %v", err)
-				}
-				decoded = append(decoded, candidate)
-			}
-			value["alternatives"] = decoded
-		}
-		encoded, err := json.Marshal(value)
-		if err != nil {
-			return types.NewErr("encode policy result: %v", err)
-		}
-		return types.String(encoded)
-	}
-	options := []cel.EnvOption{
-		cel.Variable("type", cel.StringType), cel.Variable("author", cel.DynType), cel.Variable("onBehalfOf", cel.DynType),
-		cel.Variable("editors", cel.ListType(cel.StringType)), cel.Variable("metadata", cel.MapType(cel.StringType, cel.DynType)),
-		cel.Variable("request", cel.DynType), cel.Variable("diff", cel.DynType), cel.Variable("referencedResources", cel.DynType),
-		cel.Variable("createdAt", cel.TimestampType), cel.Variable("now", cel.TimestampType), cel.Variable("policyVariable", cel.DynType),
-		cel.Function("approve", cel.Overload("approve_string", []*cel.Type{cel.StringType}, cel.DynType,
-			cel.UnaryBinding(func(arg ref.Val) ref.Val { return result("APPROVE", arg) }))),
-		cel.Function("reject", cel.Overload("reject_string", []*cel.Type{cel.StringType}, cel.DynType,
-			cel.UnaryBinding(func(arg ref.Val) ref.Val { return result("REJECT", arg) }))),
-		cel.Function("no_op", cel.Overload("no_op", []*cel.Type{}, cel.DynType,
-			cel.FunctionBinding(func(args ...ref.Val) ref.Val { return result("NO_OP", args...) }))),
-		cel.Function("require_team", cel.Overload("require_team_strings", []*cel.Type{cel.StringType, cel.StringType}, cel.DynType,
-			cel.BinaryBinding(func(left, right ref.Val) ref.Val { return result(RequirementTeam, left, right) }))),
-		cel.Function("require_role", cel.Overload("require_role_strings", []*cel.Type{cel.StringType, cel.StringType, cel.StringType}, cel.DynType,
-			cel.FunctionBinding(func(args ...ref.Val) ref.Val { return result(RequirementRole, args...) }))),
-		cel.Function("require_operation", cel.Overload("require_operation_strings", []*cel.Type{cel.StringType, cel.StringType, cel.StringType}, cel.DynType,
-			cel.FunctionBinding(func(args ...ref.Val) ref.Val { return result(RequirementOperation, args...) }))),
-		cel.Function("require_any", cel.Overload("require_any_list_string", []*cel.Type{cel.ListType(cel.DynType), cel.StringType}, cel.DynType,
-			cel.BinaryBinding(func(left, right ref.Val) ref.Val { return result(RequirementAny, left, right) }))),
-	}
-	return cel.NewEnv(append(options, policyPredicates(trust)...)...)
-}
-
-func decodePolicyResult(value map[string]any) (policyResult, error) {
-	result := policyResult{Kind: stringValue(value, "kind"), Reason: stringValue(value, "reason")}
-	result.Team, result.ResourceRID = stringValue(value, "team"), stringValue(value, "resourceRid")
-	result.Role, result.Operation = stringValue(value, "role"), stringValue(value, "operation")
-	if result.Kind == RequirementAny {
-		alternatives, ok := value["alternatives"].([]any)
-		if !ok {
-			return policyResult{}, errors.New("require_any alternatives are invalid")
-		}
-		for _, raw := range alternatives {
-			candidate, ok := raw.(map[string]any)
-			if !ok {
-				return policyResult{}, errors.New("require_any contains an invalid requirement")
-			}
-			decoded, err := decodePolicyResult(candidate)
-			if err != nil {
-				return policyResult{}, err
-			}
-			result.Alternatives = append(result.Alternatives, decoded)
-		}
-	}
-	if !contains([]string{"APPROVE", "REJECT", "NO_OP", RequirementTeam, RequirementRole, RequirementOperation, RequirementAny}, result.Kind) {
-		return policyResult{}, fmt.Errorf("unsupported policy result %q", result.Kind)
-	}
-	return result, nil
-}
-
-func stringValue(value map[string]any, key string) string {
-	if value[key] == nil {
-		return ""
-	}
-	return fmt.Sprint(value[key])
-}
-
-func policyInput(change EntityChange, author Principal, editors []string, now time.Time) map[string]any {
-	resources := make(map[string]any, len(change.ReferencedResources))
-	for name, resource := range change.ReferencedResources {
-		resources[name] = map[string]any{
-			"rid": resource.RID, "name": resource.Name, "labels": resource.Labels,
-			"authorRoles": resource.AuthorRoles, "resource": resource.Resource,
-		}
-	}
-	diff := make(map[string]any, len(change.Diff))
-	for path, entry := range change.Diff {
-		diff[path] = map[string]any{"before": entry.Before, "after": entry.After}
-	}
-	onBehalfOf := map[string]any{}
-	if author.OnBehalfOf != nil {
-		onBehalfOf = map[string]any{
-			"username": author.OnBehalfOf.Username, "teams": author.OnBehalfOf.Teams,
-			"serviceAccount": author.OnBehalfOf.ServiceAccount,
-		}
-	}
-	metadata := change.Metadata
-	if metadata == nil {
-		metadata = map[string]any{}
-	}
-	return map[string]any{
-		"type":       change.Type,
-		"author":     map[string]any{"username": author.Username, "teams": author.Teams, "serviceAccount": author.ServiceAccount},
-		"onBehalfOf": onBehalfOf, "editors": editors, "metadata": metadata, "request": change.Request,
-		"diff": diff, "referencedResources": resources, "createdAt": now, "now": now,
-	}
-}
-
-func requirementSatisfied(ctx context.Context, repository Repository, requirement ReviewerRequirement, principal Principal) bool {
-	switch requirement.Kind {
-	case RequirementTeam:
-		return contains(principal.Teams, requirement.Team)
-	case RequirementRole, RequirementOperation:
-		grants, err := effectiveResourceGrants(ctx, repository, requirement.ResourceRID)
-		if err != nil {
-			return false
-		}
-		teams := stringSet(principal.Teams)
-		for _, grant := range grants {
-			if _, member := teams[grant.Team]; !member {
-				continue
-			}
-			if requirement.Kind == RequirementRole && contains(grant.Roles, requirement.Role) {
-				return true
-			}
-			if requirement.Kind == RequirementOperation &&
-				(contains(grant.Operations, requirement.Operation) || rolesAllow(grant.Roles, requirement.Operation)) {
-				return true
-			}
-		}
-	case RequirementAny:
-		for _, candidate := range requirement.Alternatives {
-			if requirementSatisfied(ctx, repository, candidate, principal) {
-				return true
-			}
-		}
-	}
-	return false
-}
-
-func principalCanReview(ctx context.Context, repository Repository, requirements []ReviewerRequirement, principal Principal) bool {
-	for _, requirement := range requirements {
-		if requirementSatisfied(ctx, repository, requirement, principal) {
-			return true
-		}
-	}
-	return false
-}
-
-func allRequirementsSatisfied(requirements []ReviewerRequirement) bool {
-	for _, requirement := range requirements {
-		if len(requirement.SatisfiedBy) == 0 {
-			return false
-		}
-	}
-	return true
 }
 
 func addDiff(diff map[string]ChangeDiffEntry, path string, before, after any, existed bool) {
