@@ -57,7 +57,13 @@ contracts this repository already implements.
 One content change is a contract change and is recorded in the capability map:
 **Apollo now publishes five Environment connection settings, not four.**
 `managing-environments/environment-connection-settings` grew from 444 to 584
-words and gained a heading for **Intermittent agents**.
+words and gained a heading for **Intermittent agents**. The operational half of
+that setting is now implemented (issue #15): an intermittent Environment issues
+Plans, accepts agents, tracks health and promotes, exactly as the page
+publishes. The one published difference — that its expected gaps are not an
+outage — is carried as `Federation.ExpectsContinuousReporting` and consumed by
+the reporting fleet projection under issue #25, because that half is a
+behaviour change to promotion evidence rather than a constant.
 
 The other changes are informational: five `apollo-cli` parent pages gained
 subcommand links, `core/whats-new` is a changelog (mined below), and
