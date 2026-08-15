@@ -27,7 +27,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/catalog"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/environments"
 )
 

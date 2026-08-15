@@ -1,4 +1,4 @@
-package catalog
+package domain
 
 // Promotion is the part of a promotion record this package reads: who moved
 // which version, from which Channel to which, and whether it succeeded.

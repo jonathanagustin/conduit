@@ -1,6 +1,7 @@
-package controlplane
+package domain
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 	"time"
@@ -45,7 +46,7 @@ type PromotionEntityFilter struct {
 	Installations []string `json:"installations,omitempty"`
 }
 
-func (filter PromotionEntityFilter) matches(evidence PromotionHealthEvidence) bool {
+func (filter PromotionEntityFilter) Matches(evidence PromotionHealthEvidence) bool {
 	if len(filter.Environments) > 0 && !contains(filter.Environments, evidence.Environment) {
 		return false
 	}
@@ -70,18 +71,18 @@ type PromotionCondition struct {
 	MinimumEntityCount int `json:"minimumEntityCount,omitempty"`
 }
 
-// promotionTally is the health of one evidence set measured against one duration.
-type promotionTally struct {
+// PromotionTally is the health of one evidence set measured against one duration.
+type PromotionTally struct {
 	Total     int
 	Healthy   int
 	Unhealthy int
 }
 
-// validateEvidence separates usable health evidence from unusable, and is run
+// ValidateEvidence separates usable health evidence from unusable, and is run
 // once per stage rather than once per condition: a duplicate or stale report is a
 // data-integrity problem regardless of which condition is being checked, and
 // reporting it repeatedly would bury the decision.
-func validateEvidence(
+func ValidateEvidence(
 	evidence []PromotionHealthEvidence, policy PromotionPolicy, now time.Time,
 ) ([]PromotionHealthEvidence, []PromotionBlocker) {
 	valid := make([]PromotionHealthEvidence, 0, len(evidence))
@@ -125,18 +126,18 @@ func validateEvidence(
 	return valid, blockers
 }
 
-// countHeld tallies how much already-validated evidence held its health state for
+// CountHeld tallies how much already-validated evidence held its health state for
 // at least minimumDuration.
-func countHeld(
+func CountHeld(
 	evidence []PromotionHealthEvidence, policy PromotionPolicy, minimumDuration time.Duration,
-) promotionTally {
-	tally := promotionTally{Total: len(evidence)}
+) PromotionTally {
+	tally := PromotionTally{Total: len(evidence)}
 	for _, entry := range evidence {
 		switch entry.Health {
 		case HealthHealthy:
 			duration := entry.ObservedAt.Sub(entry.HealthySince)
 			if policy.ExcludeWeekends {
-				duration = weekdayDuration(entry.HealthySince, entry.ObservedAt)
+				duration = WeekdayDuration(entry.HealthySince, entry.ObservedAt)
 			}
 			if duration >= minimumDuration {
 				tally.Healthy++
@@ -148,16 +149,16 @@ func countHeld(
 	return tally
 }
 
-// canaryEvidence narrows evidence to the Entities a stage nominated. A stage with
+// CanaryEvidence narrows evidence to the Entities a stage nominated. A stage with
 // no filters treats every reporting Entity as a canary.
-func canaryEvidence(evidence []PromotionHealthEvidence, filters []PromotionEntityFilter) []PromotionHealthEvidence {
+func CanaryEvidence(evidence []PromotionHealthEvidence, filters []PromotionEntityFilter) []PromotionHealthEvidence {
 	if len(filters) == 0 {
 		return evidence
 	}
 	selected := make([]PromotionHealthEvidence, 0, len(evidence))
 	for _, entry := range evidence {
 		for _, filter := range filters {
-			if filter.matches(entry) {
+			if filter.Matches(entry) {
 				selected = append(selected, entry)
 				break
 			}
@@ -166,18 +167,18 @@ func canaryEvidence(evidence []PromotionHealthEvidence, filters []PromotionEntit
 	return selected
 }
 
-// evaluateCanaryStage decides a canary stage. Conditions are OR'd, so one
+// EvaluateCanaryStage decides a canary stage. Conditions are OR'd, so one
 // satisfied promote condition passes the stage, but a satisfied recall condition
 // blocks it regardless: evidence that the Release is harming canaries outranks
 // evidence that enough of them are healthy.
-func evaluateCanaryStage(request PromotionEvaluationRequest, now time.Time) []PromotionBlocker {
+func EvaluateCanaryStage(request PromotionEvaluationRequest, now time.Time) []PromotionBlocker {
 	if len(request.Policy.Conditions) == 0 {
 		return []PromotionBlocker{{
 			Kind: PromotionBlockerCanaryNoConditions, Message: "canary stage declares no conditions",
 		}}
 	}
-	selected := canaryEvidence(request.Evidence, request.Policy.EntityFilters)
-	valid, blocking := validateEvidence(selected, request.Policy, now)
+	selected := CanaryEvidence(request.Evidence, request.Policy.EntityFilters)
+	valid, blocking := ValidateEvidence(selected, request.Policy, now)
 
 	// A condition is identified by its position in the stage, which is how the
 	// messages have always named it and the only handle a policy gives one.
@@ -191,7 +192,7 @@ func evaluateCanaryStage(request PromotionEvaluationRequest, now time.Time) []Pr
 	promoted := false
 	unmet := make([]PromotionBlocker, 0, len(request.Policy.Conditions))
 	for index, policyCondition := range request.Policy.Conditions {
-		tally := countHeld(valid, request.Policy, time.Duration(policyCondition.DurationSeconds)*time.Second)
+		tally := CountHeld(valid, request.Policy, time.Duration(policyCondition.DurationSeconds)*time.Second)
 		if tally.Total == 0 {
 			unmet = append(unmet, condition(index, PromotionBlockerCanaryNoEvidence,
 				fmt.Sprintf("condition %d has no canary evidence", index+1)))
@@ -251,10 +252,10 @@ func percentage(part, total int) float64 {
 	return float64(part) * 100 / float64(total)
 }
 
-// evaluateLabelRequirements checks both label contracts: the single-valued map
+// EvaluateLabelRequirements checks both label contracts: the single-valued map
 // kept for existing policies, and the set-valued requirements a published stage
 // uses.
-func evaluateLabelRequirements(release Release, policy PromotionPolicy) []PromotionBlocker {
+func EvaluateLabelRequirements(release Release, policy PromotionPolicy) []PromotionBlocker {
 	blockers := make([]PromotionBlocker, 0)
 	// The Subject is the label name rather than the whole requirement: it is
 	// what the operator has to set on the Release to clear the blocker.
@@ -280,41 +281,46 @@ func evaluateLabelRequirements(release Release, policy PromotionPolicy) []Promot
 	return blockers
 }
 
-func validatePromotionStage(policy PromotionPolicy) error {
-	switch stageType(policy) {
+// ValidateStage refuses a policy that cannot be evaluated.
+//
+// It returns the reason and not a sentinel. Which error class an invalid stage
+// belongs to is the caller's vocabulary -- out here it has always been an
+// invalid transition -- and wrapping it here would either duplicate that
+// decision or change the message an operator reads.
+func ValidateStage(policy PromotionPolicy) error {
+	switch StageType(policy) {
 	case PromotionTimed:
 		if len(policy.Conditions) > 0 || len(policy.EntityFilters) > 0 {
-			return fmt.Errorf("%w: a timed stage cannot declare canary conditions or filters", ErrInvalidTransition)
+			return errors.New("a timed stage cannot declare canary conditions or filters")
 		}
 	case PromotionCanary:
 		if len(policy.Conditions) == 0 {
-			return fmt.Errorf("%w: a canary stage requires at least one condition", ErrInvalidTransition)
+			return errors.New("a canary stage requires at least one condition")
 		}
 		for index, condition := range policy.Conditions {
 			if condition.Action != PromoteWhenHealthy && condition.Action != RecallWhenUnhealthy {
-				return fmt.Errorf("%w: condition %d action must be %s or %s",
-					ErrInvalidTransition, index+1, PromoteWhenHealthy, RecallWhenUnhealthy)
+				return fmt.Errorf("condition %d action must be %s or %s",
+					index+1, PromoteWhenHealthy, RecallWhenUnhealthy)
 			}
 			if condition.ThresholdPercent < 0 || condition.ThresholdPercent > 100 {
-				return fmt.Errorf("%w: condition %d threshold must be a percentage", ErrInvalidTransition, index+1)
+				return fmt.Errorf("condition %d threshold must be a percentage", index+1)
 			}
 			if condition.DurationSeconds < 0 || condition.MinimumEntityCount < 0 {
-				return fmt.Errorf("%w: condition %d cannot declare negative bounds", ErrInvalidTransition, index+1)
+				return fmt.Errorf("condition %d cannot declare negative bounds", index+1)
 			}
 		}
 	default:
-		return fmt.Errorf("%w: promotion type must be %s or %s", ErrInvalidTransition, PromotionTimed, PromotionCanary)
+		return fmt.Errorf("promotion type must be %s or %s", PromotionTimed, PromotionCanary)
 	}
 	for index, requirement := range policy.LabelRequirements {
 		if strings.TrimSpace(requirement.Label) == "" || len(requirement.Values) == 0 {
-			return fmt.Errorf("%w: label requirement %d needs a label and at least one value",
-				ErrInvalidTransition, index+1)
+			return fmt.Errorf("label requirement %d needs a label and at least one value", index+1)
 		}
 	}
 	return nil
 }
 
-func stageType(policy PromotionPolicy) string {
+func StageType(policy PromotionPolicy) string {
 	if strings.TrimSpace(policy.Type) == "" {
 		return PromotionTimed
 	}

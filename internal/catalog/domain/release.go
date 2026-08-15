@@ -1,17 +1,24 @@
-// Package catalog owns what a Release is: the product and version it names, the
+// Package domain owns what a Release is: the product and version it names, the
 // artifacts it ships, what it depends on and conflicts with, and the security
 // and availability evidence gathered about it.
 //
-// It also owns the two questions that can be answered from that alone — whether
-// a Release has been recalled, and which Release Channels it has reached. Both
-// are properties of the catalogue, not of any environment that might install
-// from it, and neither needs to know that environments exist.
+// It also owns the questions that can be answered from that alone — whether a
+// Release has been recalled, which Release Channels it has reached, and whether
+// it may cross the boundary into the next one. All are properties of the
+// catalogue, not of any environment that might install from it, and none needs
+// to know that environments exist.
+//
+// A promotion is decided here in full: the label contracts, the health evidence
+// a stage will accept, how long a state must have held, and what a canary set
+// has to show. What is not here is anything that had to be read or written —
+// loading the policy, persisting the decision, and refusing a paused stage stay
+// with the caller that owns the store.
 //
 // Nothing here reaches outward. Where a caller's own vocabulary is needed —
 // a promotion record, say — this package defines the few fields it actually
 // reads and lets the caller convert. That is what keeps the dependency pointing
 // inward: the monolith knows about Catalog; Catalog knows about nobody.
-package catalog
+package domain
 
 import "time"
 
