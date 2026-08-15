@@ -1,0 +1,234 @@
+{
+  "schemaVersion": 1,
+  "hubFingerprint": "09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0",
+  "method": "validation-probe",
+  "candidatesSha256": "6a871d6e0e35d088a25bfdc078aa4c375cb6d2260b30e01f83e2b01e42436274",
+  "rootField": "apollo",
+  "rootType": "ApolloQuery",
+  "types": [
+    {
+      "name": "ApolloEnvironmentPage",
+      "fields": [
+        {
+          "name": "environments",
+          "shape": "composite",
+          "arguments": [],
+          "returns": null
+        },
+        {
+          "name": "nextPageToken",
+          "shape": "scalar",
+          "arguments": [],
+          "returns": null
+        }
+      ],
+      "absentCandidates": [
+        "bundles",
+        "data",
+        "entities",
+        "items",
+        "page",
+        "pageSize",
+        "plans",
+        "products",
+        "releases",
+        "results",
+        "teams",
+        "token",
+        "total"
+      ]
+    },
+    {
+      "name": "ApolloProductPage",
+      "fields": [
+        {
+          "name": "nextPageToken",
+          "shape": "scalar",
+          "arguments": [],
+          "returns": null
+        },
+        {
+          "name": "products",
+          "shape": "composite",
+          "arguments": [],
+          "returns": null
+        }
+      ],
+      "absentCandidates": [
+        "bundles",
+        "data",
+        "entities",
+        "environments",
+        "items",
+        "page",
+        "pageSize",
+        "plans",
+        "releases",
+        "results",
+        "teams",
+        "token",
+        "total"
+      ]
+    },
+    {
+      "name": "ApolloQuery",
+      "fields": [
+        {
+          "name": "bundle",
+          "shape": "composite",
+          "arguments": [
+            {
+              "name": "rid",
+              "type": "RID",
+              "required": true
+            }
+          ],
+          "returns": null
+        },
+        {
+          "name": "bundles",
+          "shape": "composite",
+          "arguments": [
+            {
+              "name": "rids",
+              "type": "RID",
+              "required": true
+            }
+          ],
+          "returns": null
+        },
+        {
+          "name": "entity",
+          "shape": "composite",
+          "arguments": [
+            {
+              "name": "rid",
+              "type": "RID",
+              "required": true
+            }
+          ],
+          "returns": null
+        },
+        {
+          "name": "environment",
+          "shape": "requires-arguments",
+          "arguments": [
+            {
+              "name": "rid",
+              "type": "RID",
+              "required": true
+            }
+          ],
+          "returns": null
+        },
+        {
+          "name": "environments",
+          "shape": "requires-arguments",
+          "arguments": [
+            {
+              "name": "pageSize",
+              "type": "Int",
+              "required": true
+            }
+          ],
+          "returns": "ApolloEnvironmentPage"
+        },
+        {
+          "name": "productRelease",
+          "shape": "requires-arguments",
+          "arguments": [
+            {
+              "name": "rid",
+              "type": "RID",
+              "required": true
+            }
+          ],
+          "returns": null
+        },
+        {
+          "name": "products",
+          "shape": "requires-arguments",
+          "arguments": [
+            {
+              "name": "pageSize",
+              "type": "Int",
+              "required": true
+            }
+          ],
+          "returns": "ApolloProductPage"
+        }
+      ],
+      "absentCandidates": [
+        "agent",
+        "agents",
+        "approvalPolicies",
+        "artifact",
+        "artifactRegistries",
+        "artifacts",
+        "changeRequest",
+        "changeRequests",
+        "channel",
+        "channels",
+        "entities",
+        "exportPipeline",
+        "exportPipelines",
+        "fleet",
+        "health",
+        "hub",
+        "hubs",
+        "installation",
+        "installations",
+        "label",
+        "labels",
+        "maintenanceWindows",
+        "me",
+        "module",
+        "modules",
+        "namespace",
+        "namespaces",
+        "overview",
+        "permissions",
+        "plan",
+        "plans",
+        "policies",
+        "product",
+        "productReleases",
+        "promotion",
+        "promotions",
+        "recall",
+        "recalls",
+        "release",
+        "releaseChannel",
+        "releaseChannels",
+        "releases",
+        "settings",
+        "spoke",
+        "spokes",
+        "status",
+        "suppressions",
+        "team",
+        "teams",
+        "user",
+        "users",
+        "version",
+        "versions"
+      ]
+    }
+  ],
+  "completeness": {
+    "typesRecovered": 3,
+    "fieldsRecovered": 11,
+    "argumentsRecovered": 7,
+    "requests": 28,
+    "unresolved": 7
+  },
+  "diagnostics": [
+    "return type not recovered: ApolloEnvironmentPage.environments",
+    "return type not recovered: ApolloProductPage.products",
+    "return type not recovered: ApolloQuery.bundle",
+    "return type not recovered: ApolloQuery.bundles",
+    "return type not recovered: ApolloQuery.entity",
+    "return type not recovered: ApolloQuery.environment",
+    "return type not recovered: ApolloQuery.productRelease"
+  ]
+}

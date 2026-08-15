@@ -1,0 +1,64 @@
+{
+  "schemaVersion": 1,
+  "hubFingerprint": "09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0",
+  "candidatesSha256": "6a871d6e0e35d088a25bfdc078aa4c375cb6d2260b30e01f83e2b01e42436274",
+  "observedSha256": "2bc6eb7f29b34082c2cf5996391ecfb19bb571728feaad99e9b6cab6567ba682",
+  "schemaSha256": "2ab5e375a1b1e15cbd5de33a82b0b3dd1f1b16731e5dc22472c6c05229522baa",
+  "typesRecovered": 3,
+  "fieldsRecovered": 11,
+  "fieldsEmitted": 5,
+  "fieldsOmitted": 7,
+  "requests": 28,
+  "omitted": [
+    {
+      "type": "ApolloEnvironmentPage",
+      "field": "environments",
+      "reason": "return type not recovered"
+    },
+    {
+      "type": "ApolloProductPage",
+      "field": "products",
+      "reason": "return type not recovered"
+    },
+    {
+      "type": "ApolloQuery",
+      "field": "bundle",
+      "reason": "return type not recovered"
+    },
+    {
+      "type": "ApolloQuery",
+      "field": "bundles",
+      "reason": "return type not recovered"
+    },
+    {
+      "type": "ApolloQuery",
+      "field": "entity",
+      "reason": "return type not recovered"
+    },
+    {
+      "type": "ApolloQuery",
+      "field": "environment",
+      "reason": "return type not recovered"
+    },
+    {
+      "type": "ApolloQuery",
+      "field": "productRelease",
+      "reason": "return type not recovered"
+    }
+  ],
+  "diagnostics": [
+    "return type not recovered: ApolloEnvironmentPage.environments",
+    "return type not recovered: ApolloProductPage.products",
+    "return type not recovered: ApolloQuery.bundle",
+    "return type not recovered: ApolloQuery.bundles",
+    "return type not recovered: ApolloQuery.entity",
+    "return type not recovered: ApolloQuery.environment",
+    "return type not recovered: ApolloQuery.productRelease"
+  ],
+  "limitations": [
+    "Observed from one authorized Hub on one date; it is not Apollo's published schema.",
+    "Only names in candidates.json were asked about. A field nobody asked about is absent from this record, not from the Hub.",
+    "Fields whose return or argument types were not established are omitted from the SDL and listed above.",
+    "This establishes no private Hub-to-Agent control wire and no mutation surface."
+  ]
+}

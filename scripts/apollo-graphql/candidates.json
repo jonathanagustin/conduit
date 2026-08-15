@@ -1,0 +1,28 @@
+{
+  "note": "Candidate vocabulary for the Apollo Hub GraphQL recovery probe. These are hypotheses, not recovered facts: the prober asks the Hub whether each name exists and records only the answer. Names come from the pinned public documentation corpus, the published CLI command contract, and the Apollo domain vocabulary Conduit already models. Adding a name here cannot invent a field -- an absent field is reported undefined and never reaches the observed schema.",
+  "rootField": "apollo",
+  "rootType": "ApolloQuery",
+  "fieldCandidates": [
+    "agent", "agents", "approvalPolicies", "artifact", "artifactRegistries", "artifacts",
+    "bundle", "bundles", "changeRequest", "changeRequests", "channel", "channels",
+    "entities", "entity", "environment", "environments", "exportPipeline", "exportPipelines",
+    "fleet", "health", "hub", "hubs", "installation", "installations", "label", "labels",
+    "maintenanceWindows", "me", "module", "modules", "namespace", "namespaces", "overview",
+    "permissions", "plan", "plans", "policies", "product", "productRelease", "productReleases",
+    "products", "promotion", "promotions", "recall", "recalls", "release", "releaseChannel",
+    "releaseChannels", "releases", "settings", "spoke", "spokes", "status", "suppressions",
+    "team", "teams", "user", "users", "version", "versions"
+  ],
+  "pageFieldCandidates": [
+    "data", "items", "nextPageToken", "page", "pageSize", "results", "token", "total",
+    "environments", "products", "entities", "bundles", "releases", "plans", "teams"
+  ],
+  "nodeFieldCandidates": [
+    "id", "rid", "name", "displayName", "description", "type", "status", "state", "version",
+    "createdAt", "updatedAt", "createdBy", "updatedBy", "labels", "owner", "product",
+    "environment", "channel", "namespace", "health", "coordinate", "digest"
+  ],
+  "argumentNameCandidates": [
+    "pageSize", "pageToken", "rid", "rids", "id", "ids", "name", "filter", "query", "first", "after"
+  ]
+}
