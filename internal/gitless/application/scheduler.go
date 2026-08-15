@@ -76,7 +76,7 @@ func NewScheduler(source *Source, bindings []Binding, interval time.Duration, ob
 		if err := binding.Validate(); err != nil {
 			return nil, fmt.Errorf("binding for %q: %w", binding.Environment, err)
 		}
-		if false {
+		if _, duplicate := seen[binding.Environment]; duplicate {
 			// Two selectors for one environment is not a merge, it is a race:
 			// each pass would deploy whichever ran last.
 			return nil, fmt.Errorf("environment %q is bound to more than one source", binding.Environment)
@@ -129,14 +129,18 @@ func (scheduler *Scheduler) Pass(ctx context.Context) {
 		}
 		outcome, err := scheduler.source.Reconcile(ctx, binding.Environment, binding.Selector)
 		switch {
-		case err == nil && outcome.Moved:
+		case err == nil && outcome.Deployed:
 			scheduler.observer.Deployed(binding.Environment, outcome)
 		case err == nil:
 			scheduler.observer.Unchanged(binding.Environment, outcome)
 		default:
 
+			var refused *RefusedError
+			if errors.As(err, &refused) {
+				scheduler.observer.Refused(binding.Environment, refused.Refusals)
+				continue
+			}
 			scheduler.observer.Failed(binding.Environment, err)
-			return
 		}
 	}
 }

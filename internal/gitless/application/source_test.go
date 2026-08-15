@@ -80,24 +80,39 @@ func (fake *fakeLog) Record(_ context.Context, resolution domain.Resolution) err
 	return nil
 }
 
+// fakeConverger tracks what each environment converged on, per environment.
+//
+// An earlier version kept one global digest, which made a multi-environment
+// test report a fresh environment as "unchanged" because a previous one had
+// deployed the same bytes. Real convergers are per environment; a double that
+// is not invents behaviour the product does not have.
 type fakeConverger struct {
-	deployed    string
+	deployed    map[string]string
 	deployedErr error
-	converged   []string
-	err         error
+	// failDeployedFor makes exactly one environment unreadable, so a test can
+	// show a partial failure rather than a total one.
+	failDeployedFor string
+	converged       []string
+	err             error
 }
 
-func (fake *fakeConverger) Converge(_ context.Context, _ string, admission domain.Admission) error {
+func (fake *fakeConverger) Converge(_ context.Context, environment string, admission domain.Admission) error {
 	if fake.err != nil {
 		return fake.err
 	}
+	if fake.deployed == nil {
+		fake.deployed = map[string]string{}
+	}
 	fake.converged = append(fake.converged, admission.Pin().Digest)
-	fake.deployed = admission.Pin().Digest
+	fake.deployed[environment] = admission.Pin().Digest
 	return nil
 }
 
-func (fake *fakeConverger) Deployed(context.Context, string) (string, error) {
-	return fake.deployed, fake.deployedErr
+func (fake *fakeConverger) Deployed(_ context.Context, environment string) (string, error) {
+	if fake.failDeployedFor != "" && fake.failDeployedFor == environment {
+		return "", errors.New("registry unreachable for " + environment)
+	}
+	return fake.deployed[environment], fake.deployedErr
 }
 
 type fixture struct {
