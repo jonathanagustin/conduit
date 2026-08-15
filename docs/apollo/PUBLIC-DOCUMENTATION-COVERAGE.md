@@ -7,24 +7,55 @@ documentation or claim private Apollo API compatibility.
 
 ## Snapshot
 
-The snapshot was captured from the official Palantir Apollo documentation on
-2026-08-01 UTC. The crawler discovered pages from the current Documentation,
-Getting started, Reference, and What's New navigation trees, then extracted the
-source Markdown embedded in each rendered page only for local analysis.
+Re-crawled from the official Palantir Apollo documentation on **2026-08-15
+UTC**, superseding the 2026-08-01 capture. The crawler discovers pages from the
+current Documentation, Getting started, Reference, and What's New navigation
+trees, then extracts the source Markdown embedded in each rendered page only for
+local analysis.
 
-| Measure | Result |
-| --- | ---: |
-| Distinct public pages | 241 |
-| Successful fetches | 241 |
-| Failed fetches | 0 |
-| Source Markdown words reviewed | 144,521 |
-| Headings reviewed | 1,562 |
-| Sections | 23 |
+| Measure | 2026-08-01 | 2026-08-15 |
+| --- | ---: | ---: |
+| Distinct public pages | 241 | **255** |
+| Successful fetches | 241 | 255 |
+| Failed fetches | 0 | 0 |
+| Source Markdown words reviewed | 144,521 | **150,332** |
+| Headings reviewed | 1,562 | **1,620** |
 
 [`public-documentation-manifest.tsv`](public-documentation-manifest.tsv)
 contains the URL, section, title, word count, heading count, and SHA-256 of the
 Markdown for every page. It is sorted by URL so future captures produce a
 reviewable drift diff. The source bodies are deliberately not committed.
+
+### What the re-crawl found
+
+Fourteen pages were added and none removed. Eight changed. The additions are all
+`apollo-cli`: `cve list`, `entity get`, `environment setting` (with `edit` and
+`get`), `target-hub` (with `get`, `list`, `pipeline`, `pipeline list`), and
+`terminal grant`/`policy` (with their `list` forms). All are Experimental, and
+all are client surfaces over contracts this repository already implements.
+
+One content change is a contract change and is recorded in the capability map:
+**Apollo now publishes five Environment connection settings, not four.**
+`managing-environments/environment-connection-settings` grew from 444 to 584
+words and gained a heading for **Intermittent agents**.
+
+The other changes are informational: five `apollo-cli` parent pages gained
+subcommand links, `core/whats-new` is a changelog, and
+`managing-modules/update-module-installation` lost a section (460 → 303 words),
+which narrows what Apollo publishes rather than what this repository must do.
+
+### Why the drift was invisible
+
+Nothing re-crawled. Several things *read* this manifest as evidence -- most
+sharply `scripts/apollo-graphql/verify-apollo-interface.mjs`, which resolves
+every `documentedBy` citation against it, so a citation counted as verified
+whenever its URL appeared in this file rather than when the page existed. A
+citation checked against a stale index is not checked.
+
+`scripts/verify-documentation-manifest.mjs` now re-crawls and fails on any
+added, removed, or content-changed page, with `--write` to refresh. It is not in
+the ordinary build: it reaches a third party's website, so it skips cleanly when
+that site is unreachable and belongs in a scheduled or dispatched job.
 
 The first snapshot covered text only. A corrected rendered-HTML pass found and
 visually reviewed all 391 distinct screenshots and diagrams referenced 399 times

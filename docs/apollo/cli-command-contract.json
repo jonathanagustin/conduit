@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "captured": "2026-08-03",
+  "captured": "2026-08-15",
   "sourceManifest": "docs/apollo/public-documentation-manifest.tsv",
-  "sourceCount": 91,
+  "sourceCount": 105,
   "commands": [
     {
       "command": "apollo-cli artifact-registry list",
@@ -332,6 +332,38 @@
       "sourceSha256": "3ba0075690e5938ffd4185eade4e4944198b7f6241a04ec80e1b6b6c329e34a1"
     },
     {
+      "command": "apollo-cli cve list",
+      "synopsis": "apollo-cli cve list [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-e",
+        "--environment",
+        "-h",
+        "--help",
+        "-f",
+        "--maven-coordinates-file",
+        "-p",
+        "--product-id",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_list/",
+      "sourceSha256": "0b080ab351844cdea26f4b7c3387b7650a3a3c0303584e18022ab9ec37b4803b"
+    },
+    {
       "command": "apollo-cli cve",
       "synopsis": "",
       "experimental": false,
@@ -357,7 +389,7 @@
         "--space-id"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve/",
-      "sourceSha256": "fbe6bebc6e1a4c63c5473741d2f4ae7119e556bec1f5bace88ee984e850c1c4c"
+      "sourceSha256": "0bae491d061df39af7b650b2a7d60c5211918374bf0cf81bac8aa1465d46bcd3"
     },
     {
       "command": "apollo-cli entity aggregate [Experimental]",
@@ -423,6 +455,34 @@
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_enforce/",
       "sourceSha256": "e67bd624f974807bccd7f9689f98c61a7a325d68a0a2c1308c086618171162ff"
+    },
+    {
+      "command": "apollo-cli entity get [Experimental]",
+      "synopsis": "apollo-cli entity get <aeid> [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_get/",
+      "sourceSha256": "1167c57b5b3aba7f4bc6add4b93dc3ff1ee1ec6628d2ac40a344c4bd2be4d837"
     },
     {
       "command": "apollo-cli entity install [Experimental]",
@@ -510,7 +570,7 @@
         "--space-id"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity/",
-      "sourceSha256": "6931011b11bbafe88afecdaf508b8a297ec092d8e9dfaf3d643911fb19dd5237"
+      "sourceSha256": "5ca1e4991dac6e214f11a17170e6845415d98aab071829c56bbb2077cdc1c744"
     },
     {
       "command": "apollo-cli environment artifact-registry assign",
@@ -945,6 +1005,93 @@
       "sourceSha256": "e2e85f0273fc90552a8cb28fba57e6850c52fa94f9fb9dff9586e4ed1d6d09d8"
     },
     {
+      "command": "apollo-cli environment setting edit [Experimental]",
+      "synopsis": "apollo-cli environment setting edit [environment-id] [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "--content",
+        "-f",
+        "--file",
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_edit/",
+      "sourceSha256": "31ecd14f31978dbb18bf55adc8e513d991e45ea369fa3f172b02ba631aaab597"
+    },
+    {
+      "command": "apollo-cli environment setting get [Experimental]",
+      "synopsis": "apollo-cli environment setting get [environment-id] [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_get/",
+      "sourceSha256": "262539fbc846a00dcef4cd959b3d043528738bc14c452e244fabe5cdf93cc3ca"
+    },
+    {
+      "command": "apollo-cli environment setting [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting/",
+      "sourceSha256": "f22d6e1f4f1cc540f24fcfcfdbc27a7f7c903e85b43033d46d3c4ce3b8543ab1"
+    },
+    {
       "command": "apollo-cli environment version compare",
       "synopsis": "apollo-cli environment version compare <environment-id> [flags]",
       "experimental": false,
@@ -1029,7 +1176,7 @@
         "--space-id"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment/",
-      "sourceSha256": "56fcf04dd4063457adb55992e072076e4684b8062fb7b84b2757766ed4eac7bc"
+      "sourceSha256": "aba1b313387e0da5a2dc854fd4ac3931fbe42cc13fce46a722b18949999b6a05"
     },
     {
       "command": "apollo-cli helm-chart validate [Experimental]",
@@ -2672,6 +2819,258 @@
       "sourceSha256": "d2416211530ca1a70b5cdc6c9d12a47fd908eb373082cfecd33b8b8a239b210d"
     },
     {
+      "command": "apollo-cli target-hub get [Experimental]",
+      "synopsis": "apollo-cli target-hub get <id> [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_get/",
+      "sourceSha256": "43374a903556c64032891f084b229bc2b293f975af8991d5aece5123e1823161"
+    },
+    {
+      "command": "apollo-cli target-hub list [Experimental]",
+      "synopsis": "apollo-cli target-hub list [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_list/",
+      "sourceSha256": "375b88d6d7536c90a8a323cc22b1d1ae90798c80a707fce135695516011514be"
+    },
+    {
+      "command": "apollo-cli target-hub pipeline list [Experimental]",
+      "synopsis": "apollo-cli target-hub pipeline list <target-hub-id> [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline_list/",
+      "sourceSha256": "fc48af3a323ba75825861dd79a66a32829b597fa30da7f9ecc6b81e1f5639144"
+    },
+    {
+      "command": "apollo-cli target-hub pipeline [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline/",
+      "sourceSha256": "d4e5bfeeade03f801db6542dc974f5d8e49c603f54d4aca5e88e5ed795151d2a"
+    },
+    {
+      "command": "apollo-cli target-hub [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub/",
+      "sourceSha256": "e2c47231b4939b9cd662834370a4480e104ac077167e360bc4dbb7ddec3c083b"
+    },
+    {
+      "command": "apollo-cli terminal grant list [Experimental]",
+      "synopsis": "apollo-cli terminal grant list [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant_list/",
+      "sourceSha256": "92790005c1d50694a5d656f76cc0797c837bbcc995823845b2568d79a736e286"
+    },
+    {
+      "command": "apollo-cli terminal grant [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant/",
+      "sourceSha256": "0fa7390133aad7687b8bb3d410879f2c40534748e5bfa33c291c416dcf73fe8f"
+    },
+    {
+      "command": "apollo-cli terminal policy list [Experimental]",
+      "synopsis": "apollo-cli terminal policy list [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy_list/",
+      "sourceSha256": "70d8b4751a1114505213bae680aa95fa5359ca7dcb4383caacf684f737f8ac0a"
+    },
+    {
+      "command": "apollo-cli terminal policy [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy/",
+      "sourceSha256": "ee130cf012da22a4a1152ded590965f3a4c3185de6b7b47075057dbb577de7ee"
+    },
+    {
       "command": "apollo-cli terminal [Experimental]",
       "synopsis": "apollo-cli terminal [flags]",
       "experimental": true,
@@ -2698,7 +3097,7 @@
         "--space-id"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal/",
-      "sourceSha256": "fe07a78be8b0c4c8adacbf85e74a5b0978a84be907da03e805ca346abc940ad6"
+      "sourceSha256": "0a02a86097aaa130dabc1637fa694e413ee7251d03ba1247df41718526f1162e"
     },
     {
       "command": "apollo-cli",
@@ -2726,7 +3125,7 @@
         "--space-id"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli/",
-      "sourceSha256": "34ea0bc64b090b8d1c01c3433da46d5472784be5560139a5b3e6933856eb6552"
+      "sourceSha256": "b8d2029eee7f9946e5da97b06acd65a49d8389a18746fff5683b3a9c4adda0d9"
     }
   ]
 }

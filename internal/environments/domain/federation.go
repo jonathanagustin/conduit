@@ -17,9 +17,27 @@ import (
 // whether this Hub may modify them and whether an incoming Bundle may overwrite
 // them.
 //
-// Provenance (reviewed 2026-08-02):
+// Provenance (reviewed 2026-08-02, re-crawled 2026-08-15):
 //   - https://www.palantir.com/docs/apollo/managing-environments/environment-connection-settings/
 //   - https://www.palantir.com/docs/apollo/managing-environments/environment-edit-source/
+//
+// KNOWN DIVERGENCE, found by the 2026-08-15 re-crawl. Apollo now publishes
+// FIVE connection settings; the four below were the whole published set on
+// 2026-08-02. The new one is "Intermittent agents": Agents connect directly and
+// Plans ARE issued, health is displayed as of the last connection, Bundle
+// import stays disallowed, and it supports Release Channel promotion. What
+// separates it from Connected agents is that gaps in reported state are
+// expected and are NOT an outage.
+//
+// It is deliberately not added as a bare constant, because the predicates below
+// are written as equality against ConnectionAgentsConnected. Adding the state
+// without revisiting each of them would produce an Environment that accepts no
+// Agents, issues no Plans and cannot promote -- the opposite of what Apollo
+// publishes. The staleness rule is the harder half: Conduit reads a stale
+// report as HealthUnknown, which is right for a continuously-connected
+// Environment and wrong for an intermittent one, where the same silence is
+// expected. Closing this is a behaviour change to promotion evidence and needs
+// deciding, not defaulting.
 const (
 	// ConnectionUnknown is the un-configured state. An Environment in it is not
 	// operational: no Agent may connect and no Plan is issued.
