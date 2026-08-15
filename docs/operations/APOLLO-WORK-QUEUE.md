@@ -15,8 +15,9 @@ this file.
 
 ## Ready to build
 
-_Nothing is ready to claim right now. Every remaining issue is either blocked
-on a decision below, or needs its body rewritten first._
+| Issue | Work |
+| --- | --- |
+| [#24](https://github.com/jonathanagustin/conduit/issues/24) | Conduit cannot represent an Environment with no contact team. `newEnvironmentDescriptor` rejects an empty one; Apollo permits it, which is why `apollo-cli` 0.463.0 made the flag optional on `environment get`. Surfaces as an import failure, not a missing feature. Decide first whether the requirement is policy or incidental — the easy fix removes a governance constraint that may be load-bearing. |
 
 ### Re-scoped
 
@@ -52,16 +53,28 @@ These are listed so the decision is visible, not so the work looks planned.
 
 | Issue | Work |
 | --- | --- |
-| [#22](https://github.com/jonathanagustin/conduit/issues/22) | Durable Gitless resolution log. Trigger is the first multi-replica deployment. |
+| [#22](https://github.com/jonathanagustin/conduit/issues/22) | Durable Gitless resolution log. Trigger is the first multi-replica deployment, which has not happened — every manifest under `deploy/` is `replicas: 1`, checked 2026-08-15. Correctly deferred, not forgotten. |
 
-## Found, needs an issue
+## A standing gap: label appearance
 
-The GitHub API is out of scope for the session that found these, so they are
-recorded here rather than filed. Whoever files them should move the row.
+Every label in [`.github/labels.yml`](../../.github/labels.yml) exists on the
+repository, because applying a label to an issue creates it — but implicitly
+created labels carry a name and nothing else. All of them are still the default
+grey (`ededed`) with no description.
 
-| Finding | Evidence |
-| --- | --- |
-| Conduit cannot represent an Environment with no contact team. `newEnvironmentDescriptor` rejects an empty one, and Apollo permits it — `apollo-cli` 0.463.0 made the flag optional on `environment get` precisely so such Environments could be read. This surfaces as a failure to import, not a missing feature. | `ROSETTA-RELEASE-NOTES.md`, the Rosetta-only CLI notes |
+Applying the file needs a label write, and the GitHub MCP server exposes only
+`get_label`. It is not a permission that can be widened from a session; it is a
+tool that is not there. Run it from anywhere with ordinary repository access:
+
+```sh
+gh label create status:ready --color 0e8a16 \
+  --description "No decision outstanding. An agent may claim this." --force
+```
+
+one line per entry, or point any label-sync action at the file. Nothing depends
+on the colours — the `status:` names are the protocol and they are correct — so
+this is cosmetic, and it is recorded here rather than filed as an issue because
+it is a fact about the tooling rather than work on the product.
 
 ## Where the evidence lives
 
