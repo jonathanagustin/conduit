@@ -1,0 +1,74 @@
+{
+  "note": "Conduit-native additions to the served Apollo-shaped GraphQL interface. Everything here is INVENTED: no Hub established it, and none of it may be described as Apollo compatibility. It exists so the served interface is usable before the observed surface is complete. Each entry is displaced automatically the moment a capture recovers the same coordinate -- verify-apollo-interface.mjs fails until it is removed and the recovered definition takes its place. Only add a field Conduit's own domain can actually answer; an invented field nothing can serve is worse than an absent one, and internal/apollographql/domain.Reconcile fails the build on one.",
+  "provenanceTier": "CONDUIT_NATIVE",
+  "cardinality": "A native field may set \"list\": true. Conduit establishes its own collections, so it states their shape. Observed fields never do: validation probing cannot see through a list type, so the recovery record never established one.",
+  "types": {
+    "ApolloQuery": {
+      "reason": "The observed root exposes reads for environments, products, entities, bundles and product releases. Conduit additionally owns plans, change requests and promotions, and an operator interface that cannot reach them is not usable for delivery work.",
+      "fields": [
+        { "name": "plans", "arguments": [{ "name": "pageSize", "type": "Int" }], "returns": "ApolloPlanPage", "servedBy": "reporting: OverviewSource.VisiblePlans" },
+        { "name": "plan", "arguments": [{ "name": "rid", "type": "RID" }], "returns": "ApolloPlan", "servedBy": "reporting: OverviewSource.VisiblePlans" },
+        { "name": "changeRequests", "arguments": [{ "name": "pageSize", "type": "Int" }], "returns": "ApolloChangeRequestPage", "servedBy": "reporting: OverviewSource.VisibleChangeRequests" },
+        { "name": "promotions", "arguments": [{ "name": "pageSize", "type": "Int" }], "returns": "ApolloPromotionPage", "servedBy": "reporting: OverviewSource.VisiblePromotions" }
+      ]
+    },
+    "ApolloEnvironment": {
+      "reason": "The observed environment carries identity and its entities. Conduit also owns what its installations report, which is what an operator opens an environment to see.",
+      "fields": [
+        { "name": "health", "returns": "String", "servedBy": "reporting: OverviewSource.VisibleInstallations, aggregated per environment" }
+      ]
+    },
+    "ApolloEntity": {
+      "reason": "The observed entity carries identity only. Conduit owns what the installation behind it reported, which is the whole point of looking at one.",
+      "fields": [
+        { "name": "health", "returns": "String", "servedBy": "reporting: OverviewSource.VisibleInstallations" },
+        { "name": "installedVersion", "returns": "String", "servedBy": "apollo: Installation.Version, as reported by the Apollo Agent" }
+      ]
+    },
+    "ApolloPlan": {
+      "reason": "Conduit-native throughout. Apollo's Plan is not in the observed surface at all.",
+      "fields": [
+        { "name": "rid", "returns": "String", "servedBy": "reporting: PlanSummary.ID" },
+        { "name": "environment", "returns": "String", "servedBy": "reporting: PlanSummary.Environment" },
+        { "name": "status", "returns": "String", "servedBy": "reporting: PlanSummary.Phase" }
+      ]
+    },
+    "ApolloPlanPage": {
+      "reason": "Paging shape mirroring the observed pages, so a client pages every collection the same way.",
+      "fields": [
+        { "name": "plans", "returns": "ApolloPlan", "list": true, "servedBy": "reporting: OverviewSource.VisiblePlans" },
+        { "name": "nextPageToken", "returns": "String", "servedBy": "pagination: absent while every visible record fits one page" }
+      ]
+    },
+    "ApolloChangeRequest": {
+      "reason": "Conduit-native throughout.",
+      "fields": [
+        { "name": "rid", "returns": "String", "servedBy": "reporting: ChangeRequestSummary.ID" },
+        { "name": "title", "returns": "String", "servedBy": "reporting: ChangeRequestSummary.Title" },
+        { "name": "status", "returns": "String", "servedBy": "reporting: ChangeRequestSummary.AwaitingApproval" }
+      ]
+    },
+    "ApolloChangeRequestPage": {
+      "reason": "Paging shape mirroring the observed pages.",
+      "fields": [
+        { "name": "changeRequests", "returns": "ApolloChangeRequest", "list": true, "servedBy": "reporting: OverviewSource.VisibleChangeRequests" },
+        { "name": "nextPageToken", "returns": "String", "servedBy": "pagination: absent while every visible record fits one page" }
+      ]
+    },
+    "ApolloPromotion": {
+      "reason": "Conduit-native throughout.",
+      "fields": [
+        { "name": "rid", "returns": "String", "servedBy": "reporting: PromotionSummary.ID" },
+        { "name": "product", "returns": "String", "servedBy": "reporting: PromotionSummary.Product" },
+        { "name": "status", "returns": "String", "servedBy": "reporting: PromotionSummary.Blocked" }
+      ]
+    },
+    "ApolloPromotionPage": {
+      "reason": "Paging shape mirroring the observed pages.",
+      "fields": [
+        { "name": "promotions", "returns": "ApolloPromotion", "list": true, "servedBy": "reporting: OverviewSource.VisiblePromotions" },
+        { "name": "nextPageToken", "returns": "String", "servedBy": "pagination: absent while every visible record fits one page" }
+      ]
+    }
+  }
+}

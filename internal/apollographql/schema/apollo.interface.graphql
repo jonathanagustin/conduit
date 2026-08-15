@@ -1,0 +1,139 @@
+# The Apollo-shaped GraphQL interface Conduit serves.
+#
+# Every field says who established it. OBSERVED was recovered from an
+# authorized Hub and is reproduced from the recovery record. CONDUIT_NATIVE
+# was invented here because no Hub established it, and it is NOT an Apollo
+# compatibility claim. When a capture recovers a CONDUIT_NATIVE coordinate,
+# scripts/apollo-graphql/verify-apollo-interface.mjs fails until the invented
+# definition is displaced by the recovered one.
+#
+# observedFrom: 09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0
+
+enum ProvenanceTier {
+  OBSERVED
+  CONDUIT_NATIVE
+}
+
+directive @provenance(tier: ProvenanceTier!) on FIELD_DEFINITION
+
+scalar RID
+
+type Query {
+  apollo: ApolloQuery @provenance(tier: OBSERVED)
+}
+
+type ApolloBundle {
+  rid: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED)
+}
+
+type ApolloChangeRequest {
+  rid: String @provenance(tier: CONDUIT_NATIVE)
+  status: String @provenance(tier: CONDUIT_NATIVE)
+  title: String @provenance(tier: CONDUIT_NATIVE)
+}
+
+type ApolloChangeRequestPage {
+  changeRequests: [ApolloChangeRequest] @provenance(tier: CONDUIT_NATIVE)
+  nextPageToken: String @provenance(tier: CONDUIT_NATIVE)
+}
+
+type ApolloEntity {
+  environment: ApolloEnvironment @provenance(tier: OBSERVED)
+  health: String @provenance(tier: CONDUIT_NATIVE)
+  id: String @provenance(tier: OBSERVED)
+  installedVersion: String @provenance(tier: CONDUIT_NATIVE)
+  packageRid: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED)
+}
+
+type ApolloEntityPage {
+  entities: ApolloEntity @provenance(tier: OBSERVED)
+  nextPageToken: String @provenance(tier: OBSERVED)
+}
+
+type ApolloEnvironment {
+  entities(pageSize: Int!): ApolloEntityPage @provenance(tier: OBSERVED)
+  health: String @provenance(tier: CONDUIT_NATIVE)
+  id: String @provenance(tier: OBSERVED)
+  name: String @provenance(tier: OBSERVED)
+  namespaceId: String @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED)
+}
+
+type ApolloEnvironmentPage {
+  environments: ApolloEnvironment @provenance(tier: OBSERVED)
+  nextPageToken: String @provenance(tier: OBSERVED)
+}
+
+type ApolloPlan {
+  environment: String @provenance(tier: CONDUIT_NATIVE)
+  rid: String @provenance(tier: CONDUIT_NATIVE)
+  status: String @provenance(tier: CONDUIT_NATIVE)
+}
+
+type ApolloPlanPage {
+  nextPageToken: String @provenance(tier: CONDUIT_NATIVE)
+  plans: [ApolloPlan] @provenance(tier: CONDUIT_NATIVE)
+}
+
+type ApolloProduct {
+  productId: String @provenance(tier: OBSERVED)
+  productReleases(pageSize: Int!): ApolloProductReleasePage @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED)
+}
+
+type ApolloProductDependency {
+  optional: String @provenance(tier: OBSERVED)
+  product: ApolloProduct @provenance(tier: OBSERVED)
+}
+
+type ApolloProductPage {
+  nextPageToken: String @provenance(tier: OBSERVED)
+  products: ApolloProduct @provenance(tier: OBSERVED)
+}
+
+type ApolloProductRelease {
+  manifest: ApolloProductReleaseManifest @provenance(tier: OBSERVED)
+  mavenCoordinate: String @provenance(tier: OBSERVED)
+  product: ApolloProduct @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED)
+}
+
+type ApolloProductReleaseManifest {
+  productDependencies: ApolloProductDependency @provenance(tier: OBSERVED)
+  upgradeStrategy: String @provenance(tier: OBSERVED)
+}
+
+type ApolloProductReleasePage {
+  nextPageToken: String @provenance(tier: OBSERVED)
+  productReleases: ApolloProductRelease @provenance(tier: OBSERVED)
+}
+
+type ApolloPromotion {
+  product: String @provenance(tier: CONDUIT_NATIVE)
+  rid: String @provenance(tier: CONDUIT_NATIVE)
+  status: String @provenance(tier: CONDUIT_NATIVE)
+}
+
+type ApolloPromotionPage {
+  nextPageToken: String @provenance(tier: CONDUIT_NATIVE)
+  promotions: [ApolloPromotion] @provenance(tier: CONDUIT_NATIVE)
+}
+
+type ApolloQuery {
+  bundle(rid: RID!): ApolloBundle @provenance(tier: OBSERVED)
+  bundles(rids: RID!): ApolloBundle @provenance(tier: OBSERVED)
+  changeRequests(pageSize: Int!): ApolloChangeRequestPage @provenance(tier: CONDUIT_NATIVE)
+  entity(rid: RID!): ApolloEntity @provenance(tier: OBSERVED)
+  environment(rid: RID!): ApolloEnvironment @provenance(tier: OBSERVED)
+  environments(pageSize: Int!): ApolloEnvironmentPage @provenance(tier: OBSERVED)
+  plan(rid: RID!): ApolloPlan @provenance(tier: CONDUIT_NATIVE)
+  plans(pageSize: Int!): ApolloPlanPage @provenance(tier: CONDUIT_NATIVE)
+  productRelease(rid: RID!): ApolloProductRelease @provenance(tier: OBSERVED)
+  products(pageSize: Int!): ApolloProductPage @provenance(tier: OBSERVED)
+  promotions(pageSize: Int!): ApolloPromotionPage @provenance(tier: CONDUIT_NATIVE)
+}

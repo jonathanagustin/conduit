@@ -154,7 +154,11 @@ apollo_contract() {
     node scripts/verify-foundry-audit3-capture.mjs &&
     node scripts/verify-audit3-contract.mjs &&
     node scripts/verify-apollo-rosetta-inventory.mjs &&
-    node scripts/verify-secondary-apollo-evidence.mjs
+    node scripts/verify-secondary-apollo-evidence.mjs &&
+    node scripts/apollo-graphql/verify-observed-schema.mjs &&
+    ./scripts/verify-apollo-graphql.test.sh &&
+    node scripts/apollo-graphql/verify-apollo-interface.mjs &&
+    ./scripts/verify-apollo-interface.test.sh
 }
 
 zenith_protocol() {

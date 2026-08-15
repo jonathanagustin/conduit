@@ -194,7 +194,11 @@ Two limits are unchanged and one is newly stated. No tenant-native Apollo CLI
 capture and no private Hub/Agent control protocol were available, so public Agent
 configuration and reconstructed CLI adapters stay distinguished from unverified
 wire and byte compatibility. Newly stated: Apollo's primary API is GraphQL, and
-Platform's 13-route public OpenAPI adapter must not be read as covering it.
+Platform's 13-route public OpenAPI adapter must not be read as covering it. As
+of 2026-08-15 a bounded subset of that GraphQL surface has been recovered from
+an authorized Hub and committed as observed evidence
+([`reference/graphql-api.md`](reference/graphql-api.md)); it is one Hub, one
+date and one candidate set, and it does not widen the OpenAPI claim.
 
 ## Primary source
 
