@@ -215,7 +215,10 @@ at the point of merge.
 | `status:deferred` | Real work, deliberately not now; the body states the trigger. |
 
 `apollo`, `governance`, `gitless`, `cli` and `evidence` are filter tags and
-carry no protocol meaning.
+carry no protocol meaning. All of them are defined in `.github/labels.yml`,
+which is where their colours and descriptions live — they were created
+implicitly by being applied to an issue, which gives a label a name and nothing
+else.
 
 An issue body must be workable without the conversation that produced it: the
 source, the exact contract text, what the repository does today, and what is
