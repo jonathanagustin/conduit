@@ -1,59 +1,34 @@
 {
   "schemaVersion": 1,
   "hubFingerprint": "09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0",
-  "candidatesSha256": "6a871d6e0e35d088a25bfdc078aa4c375cb6d2260b30e01f83e2b01e42436274",
-  "observedSha256": "2bc6eb7f29b34082c2cf5996391ecfb19bb571728feaad99e9b6cab6567ba682",
-  "schemaSha256": "2ab5e375a1b1e15cbd5de33a82b0b3dd1f1b16731e5dc22472c6c05229522baa",
-  "typesRecovered": 3,
-  "fieldsRecovered": 11,
-  "fieldsEmitted": 5,
-  "fieldsOmitted": 7,
-  "requests": 28,
+  "candidatesSha256": "4d6b3c3e30367d1a011bfbd545bcb6b97131be76f8eaa8497b0a99bbc867a680",
+  "observedSha256": "8b8bb56a945e02c2fb8dfbd2bc687eb6ae6d293cbf9601082600887729a91537",
+  "schemaSha256": "b38a2c735eb6123eff80bc880b71935ea39d381330089c67d96e7c79f0f83d75",
+  "typesRecovered": 13,
+  "fieldsRecovered": 43,
+  "fieldsEmitted": 41,
+  "fieldsOmitted": 3,
+  "requests": 119,
   "omitted": [
     {
-      "type": "ApolloEnvironmentPage",
-      "field": "environments",
+      "type": "ApolloEnvironment",
+      "field": "config",
       "reason": "return type not recovered"
     },
     {
-      "type": "ApolloProductPage",
-      "field": "products",
-      "reason": "return type not recovered"
+      "type": "ApolloProductDependency",
+      "field": "versionRange",
+      "reason": "return type ApolloProductDependencyVersionRange was named but not described"
     },
     {
-      "type": "ApolloQuery",
-      "field": "bundle",
-      "reason": "return type not recovered"
-    },
-    {
-      "type": "ApolloQuery",
-      "field": "bundles",
-      "reason": "return type not recovered"
-    },
-    {
-      "type": "ApolloQuery",
-      "field": "entity",
-      "reason": "return type not recovered"
-    },
-    {
-      "type": "ApolloQuery",
-      "field": "environment",
-      "reason": "return type not recovered"
-    },
-    {
-      "type": "ApolloQuery",
-      "field": "productRelease",
-      "reason": "return type not recovered"
+      "type": "ApolloProductRelease",
+      "field": "recallStatus",
+      "reason": "return type ApolloProductReleaseRecallStatus has no recovered fields"
     }
   ],
   "diagnostics": [
-    "return type not recovered: ApolloEnvironmentPage.environments",
-    "return type not recovered: ApolloProductPage.products",
-    "return type not recovered: ApolloQuery.bundle",
-    "return type not recovered: ApolloQuery.bundles",
-    "return type not recovered: ApolloQuery.entity",
-    "return type not recovered: ApolloQuery.environment",
-    "return type not recovered: ApolloQuery.productRelease"
+    "return type not recovered: ApolloEnvironment.config",
+    "type named but not described: ApolloProductDependencyVersionRange (returned by ApolloProductDependency.versionRange)"
   ],
   "limitations": [
     "Observed from one authorized Hub on one date; it is not Apollo's published schema.",

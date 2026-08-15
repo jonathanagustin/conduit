@@ -7,21 +7,86 @@
 #
 # method:          validation-probe
 # hubFingerprint:  09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0
-# candidatesSha256:6a871d6e0e35d088a25bfdc078aa4c375cb6d2260b30e01f83e2b01e42436274
+# candidatesSha256:4d6b3c3e30367d1a011bfbd545bcb6b97131be76f8eaa8497b0a99bbc867a680
+
+scalar RID
 
 type Query {
   apollo: ApolloQuery
 }
 
-type ApolloEnvironmentPage {
+type ApolloBundle {
+  rid: String
+  spaceId: String
+}
+
+type ApolloEntity {
+  environment: ApolloEnvironment
+  id: String
+  packageRid: String
+  spaceId: String
+}
+
+type ApolloEntityPage {
+  entities: ApolloEntity
   nextPageToken: String
+}
+
+type ApolloEnvironment {
+  entities(pageSize: Int!): ApolloEntityPage
+  id: String
+  name: String
+  namespaceId: String
+  rid: String
+  spaceId: String
+}
+
+type ApolloEnvironmentPage {
+  environments: ApolloEnvironment
+  nextPageToken: String
+}
+
+type ApolloProduct {
+  productId: String
+  productReleases(pageSize: Int!): ApolloProductReleasePage
+  rid: String
+  spaceId: String
+}
+
+type ApolloProductDependency {
+  optional: String
+  product: ApolloProduct
 }
 
 type ApolloProductPage {
   nextPageToken: String
+  products: ApolloProduct
+}
+
+type ApolloProductRelease {
+  manifest: ApolloProductReleaseManifest
+  mavenCoordinate: String
+  product: ApolloProduct
+  rid: String
+  spaceId: String
+}
+
+type ApolloProductReleaseManifest {
+  productDependencies: ApolloProductDependency
+  upgradeStrategy: String
+}
+
+type ApolloProductReleasePage {
+  nextPageToken: String
+  productReleases: ApolloProductRelease
 }
 
 type ApolloQuery {
+  bundle(rid: RID!): ApolloBundle
+  bundles(rids: RID!): ApolloBundle
+  entity(rid: RID!): ApolloEntity
+  environment(rid: RID!): ApolloEnvironment
   environments(pageSize: Int!): ApolloEnvironmentPage
+  productRelease(rid: RID!): ApolloProductRelease
   products(pageSize: Int!): ApolloProductPage
 }

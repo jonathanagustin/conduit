@@ -44,42 +44,83 @@ function parseArgs(argv) {
 const BUILT_IN = new Set(["Int", "Float", "String", "Boolean", "ID"]);
 
 export function buildObservedSchema(observed) {
-  const declared = new Set(observed.types.map((type) => type.name));
-  const scalars = new Set();
+  const byName = new Map(observed.types.map((type) => [type.name, type]));
   const omitted = [];
+  const note = (type, field, reason) => omitted.push({ type, field, reason });
 
-  const emitted = observed.types
-    .map((type) => {
-      const fields = [];
-      for (const field of type.fields) {
-        // A composite field whose type was never established cannot be typed.
-        if (field.shape !== "scalar" && !field.returns) {
-          omitted.push({ type: type.name, field: field.name, reason: "return type not recovered" });
+  // Which types can be emitted, computed to a fixpoint.
+  //
+  // GraphQL requires a type to declare at least one field, so a type the walk
+  // named but recovered nothing inside cannot be emitted -- and neither can a
+  // field that returns it, because the document would reference a type it never
+  // declares. Dropping that field can in turn empty its owner, so this iterates
+  // until nothing more changes rather than making one pass.
+  //
+  // Every alternative invents something. Emitting a placeholder field invents a
+  // field; declaring an empty type emits invalid SDL; leaving the reference
+  // dangling emits a schema that does not load. Omitting and recording is the
+  // only option that costs coverage instead of truth.
+  const emittable = new Set(byName.keys());
+  for (;;) {
+    let changed = false;
+    for (const type of observed.types) {
+      if (!emittable.has(type.name)) continue;
+      const usable = type.fields.filter((field) => {
+        if (field.arguments.some((argument) => !argument.type)) return false;
+        if (field.shape === "scalar") return true;
+        return Boolean(field.returns) && emittable.has(field.returns);
+      });
+      if (usable.length === 0) {
+        emittable.delete(type.name);
+        changed = true;
+      }
+    }
+    if (!changed) break;
+  }
+
+  const scalars = new Set();
+  const emitted = [];
+  for (const type of observed.types) {
+    if (!emittable.has(type.name)) {
+      for (const field of type.fields) note(type.name, field.name, "owning type has no emittable field");
+      continue;
+    }
+    const body = [];
+    for (const field of type.fields) {
+      const untypedArgument = field.arguments.find((argument) => !argument.type);
+      if (untypedArgument) {
+        note(type.name, field.name, `argument '${untypedArgument.name}' type not recovered`);
+        continue;
+      }
+      if (field.shape !== "scalar") {
+        if (!field.returns) {
+          note(type.name, field.name, "return type not recovered");
           continue;
         }
-        for (const argument of field.arguments) {
-          if (!argument.type) {
-            omitted.push({ type: type.name, field: field.name, reason: `argument '${argument.name}' type not recovered` });
-          } else if (!BUILT_IN.has(argument.type)) {
-            scalars.add(argument.type);
-          }
+        if (!emittable.has(field.returns)) {
+          note(
+            type.name,
+            field.name,
+            byName.has(field.returns)
+              ? `return type ${field.returns} has no recovered fields`
+              : `return type ${field.returns} was named but not described`,
+          );
+          continue;
         }
-        if (field.arguments.some((argument) => !argument.type)) continue;
-
-        const args = field.arguments.length
-          ? `(${field.arguments.map((argument) => `${argument.name}: ${argument.type}!`).join(", ")})`
-          : "";
-        // A scalar whose own type was never asked for is emitted as String
-        // only when the Hub itself returned no type name; otherwise the
-        // recovered name wins. Unknown scalars are recorded, not guessed.
-        const returns = field.returns ?? "String";
-        if (!declared.has(returns) && !BUILT_IN.has(returns)) scalars.add(returns);
-        fields.push(`  ${field.name}${args}: ${returns}`);
       }
-      return { name: type.name, body: fields };
-    })
-    .filter((type) => type.body.length > 0);
+      for (const argument of field.arguments) if (!BUILT_IN.has(argument.type)) scalars.add(argument.type);
+      const args = field.arguments.length
+        ? `(${field.arguments.map((argument) => `${argument.name}: ${argument.type}!`).join(", ")})`
+        : "";
+      // A scalar field's own type was never asked for; String is the neutral
+      // carrier and the report says so rather than the SDL implying more.
+      const returns = field.shape === "scalar" ? "String" : field.returns;
+      body.push(`  ${field.name}${args}: ${returns}`);
+    }
+    if (body.length) emitted.push({ name: type.name, body });
+  }
 
+  const declared = new Set(emitted.map((type) => type.name));
   const lines = [
     "# Observed Apollo Hub GraphQL schema.",
     "#",
@@ -97,16 +138,14 @@ export function buildObservedSchema(observed) {
       .sort()
       .map((scalar) => `scalar ${scalar}`),
     "",
-    `type Query {`,
+    "type Query {",
     `  ${observed.rootField}: ${observed.rootType}`,
-    `}`,
+    "}",
     "",
     ...emitted.flatMap((type) => [`type ${type.name} {`, ...type.body, "}", ""]),
   ];
   const sdl = `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
 
-  // Structural validation without a parser dependency: every type the document
-  // references must be declared by it.
   const referenced = [...sdl.matchAll(/:\s*([A-Za-z_][A-Za-z0-9_]*)!?$/gm)].map((match) => match[1]);
   const definedNames = new Set([
     ...[...sdl.matchAll(/^type ([A-Za-z_][A-Za-z0-9_]*) \{/gm)].map((match) => match[1]),
@@ -115,7 +154,14 @@ export function buildObservedSchema(observed) {
   ]);
   const dangling = [...new Set(referenced)].filter((name) => !definedNames.has(name)).sort();
 
-  return { sdl, omitted, dangling, declaredTypes: [...definedNames].sort() };
+  return {
+    sdl,
+    omitted: omitted.sort((left, right) =>
+      `${left.type}.${left.field}`.localeCompare(`${right.type}.${right.field}`),
+    ),
+    dangling,
+    declaredTypes: [...definedNames].sort(),
+  };
 }
 
 function main() {
