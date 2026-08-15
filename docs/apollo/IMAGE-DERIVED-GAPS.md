@@ -4,7 +4,7 @@
 
 The 2026-08-01 documentation sweep recorded in
 [`PUBLIC-DOCUMENTATION-COVERAGE.md`](PUBLIC-DOCUMENTATION-COVERAGE.md) captured
-241 pages and extracted **the source Markdown embedded in each rendered page**.
+241 pages (the corpus is now 255; see that file's re-crawl section) and extracted **the source Markdown embedded in each rendered page**.
 It counted 144,521 words and 1,562 headings, and it never looked at the images.
 
 The Apollo documentation carries **391 distinct screenshots and diagrams across
@@ -121,7 +121,9 @@ Evidence: `go test ./internal/controlplane -run 'DiffOnlyModifies|ServiceUserPre
 ### 3. Environment connection setting — absent
 
 Four states: `UNKNOWN`, `AGENTS_CONNECTED`, `NO_CONNECTION_EXPECTED`,
-`RELAYED_FROM_ANOTHER_HUB`. Each independently gates whether Agents may connect,
+`RELAYED_FROM_ANOTHER_HUB`. **Apollo published a fifth on or before 2026-08-15
+— `Intermittent agents` — which is open; see the divergence note in
+`internal/environments/domain/federation.go`.** Each independently gates whether Agents may connect,
 whether **Plans are issued**, whether health is tracked, whether reported state
 may be imported from a Bundle, and whether the Environment may contribute to a
 promotion decision.

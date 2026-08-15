@@ -143,6 +143,8 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(teamCommand(state))
 	root.AddCommand(grantCommand(state))
 	root.AddCommand(approvalPolicyCommand(state))
+	// Added last: it attaches subcommands to groups the calls above create.
+	addApolloParityCommands(root, state)
 	return root
 }
 
