@@ -282,7 +282,7 @@ rejected for that reason instead of its own and the harness passed while testing
 nothing.
 
 **Declared is not the same as answerable.** Conduit holds no bundles and no
-space identifiers, so 17 recovered coordinates are declared and unanswerable
+space identifiers, so 12 recovered coordinates are declared and unanswerable
 here. Those refuse rather than resolving to null: a null is a value, and
 answering `ApolloBundle.rid: null` would assert an absence Conduit has never
 observed. The refusal says so and sends the reader to a Hub.
@@ -301,7 +301,7 @@ chose to declare the field either way.
 | Coordinates served that no capture established | 22 (35% of the interface) |
 | — of which Apollo names or documents | 22 |
 | — of which are Conduit's own invention | **0 (0%)** |
-| Recovered coordinates declared but unanswerable | 17 |
+| Recovered coordinates declared but unanswerable | 12 |
 | Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
 | Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
 

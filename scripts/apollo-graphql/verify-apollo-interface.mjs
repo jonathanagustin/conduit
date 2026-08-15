@@ -37,6 +37,7 @@ const OPENAPI = resolve(
   "docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml",
 );
 const NATIVE = resolve(HERE, "conduit-native.json");
+const CARDINALITY = resolve(HERE, "documented-cardinality.json");
 const SCHEMA = resolve(ROOT, "api/graphql/apollo.interface.graphql");
 const REPORT = resolve(ROOT, "docs/apollo/observed/apollo-interface-provenance.json");
 
@@ -56,10 +57,12 @@ if (failures.length) {
 
 const observed = JSON.parse(readFileSync(OBSERVED, "utf8"));
 const native = JSON.parse(readFileSync(NATIVE, "utf8"));
+const cardinality = existsSync(CARDINALITY) ? JSON.parse(readFileSync(CARDINALITY, "utf8")) : {};
 const committedSchema = readFileSync(SCHEMA, "utf8");
 const report = JSON.parse(readFileSync(REPORT, "utf8"));
 
-const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved } = buildInterfaceSchema(observed, native);
+const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved, unknownCardinality } =
+  buildInterfaceSchema(observed, native, cardinality);
 
 // 1 & 3. The served interface is exactly what the record and the declarations
 // derive, so an OBSERVED field cannot drift from the Hub that established it.
@@ -149,13 +152,16 @@ if (existsSync(MANIFEST)) {
 //     6 spaces    properties:
 //     8 spaces      propertyName:
 const openapiProperties = new Map();
+const openapiArrays = new Set();
 if (existsSync(OPENAPI)) {
   let currentType = null;
+  let currentProperty = null;
   let inProperties = false;
   for (const line of readFileSync(OPENAPI, "utf8").split("\n")) {
     const type = line.match(/^ {4}([A-Za-z][A-Za-z0-9_]*):$/);
     if (type) {
       currentType = type[1];
+      currentProperty = null;
       inProperties = false;
       openapiProperties.set(currentType, new Set());
       continue;
@@ -165,10 +171,20 @@ if (existsSync(OPENAPI)) {
       // A sibling key of `properties:` (description, required, type) ends the
       // property block, so a `type:` or `required:` entry cannot be read as one.
       inProperties = /^ {6}properties:$/.test(line);
+      currentProperty = null;
       continue;
     }
     const property = inProperties && line.match(/^ {8}([a-zA-Z][a-zA-Z0-9_]*):$/);
-    if (property) openapiProperties.get(currentType).add(property[1]);
+    if (property) {
+      openapiProperties.get(currentType).add(property[1]);
+      currentProperty = `${currentType}.${property[1]}`;
+      continue;
+    }
+    // `type: array` sits inside the property block, two levels in. Recorded
+    // because a cardinality citation has to prove the property is a LIST, not
+    // merely that it exists -- otherwise any property would look like evidence
+    // for a collection.
+    if (currentProperty && /^ {10}type: array$/.test(line)) openapiArrays.add(currentProperty);
   }
 }
 // A pinned snapshot that parsed to nothing would make every citation below
@@ -297,6 +313,42 @@ for (const [typeName, declaration] of Object.entries(native.types ?? {})) {
         );
       }
     }
+  }
+}
+
+// Cardinality citations. A coordinate here is a claim about a field the RECORD
+// already contains -- only its list-ness comes from elsewhere -- so two things
+// are checked that the field-name citations do not need.
+for (const coordinate of unknownCardinality) {
+  fail(
+    `documented-cardinality.json names ${coordinate}, which the recovery record does not contain. ` +
+      "Cardinality is a claim about a recovered field; naming an unrecovered one would add a coordinate " +
+      "under the one tier that means a Hub answered for it.",
+  );
+}
+for (const [coordinate, citation] of Object.entries(cardinality.coordinates ?? {})) {
+  const cited = /apollo-openapi ([A-Za-z][A-Za-z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)/.exec(citation);
+  if (!cited) {
+    fail(`${coordinate} cites "${citation}", which is not an \`apollo-openapi Type.property\` citation`);
+    continue;
+  }
+  const [, citedType, citedProperty] = cited;
+  if (!openapiProperties.has(citedType)) {
+    fail(`${coordinate} cites schema "${citedType}", which the pinned OpenAPI snapshot does not declare`);
+    continue;
+  }
+  if (!openapiProperties.get(citedType).has(citedProperty)) {
+    fail(`${coordinate} cites ${citedType}.${citedProperty}, which that schema does not declare`);
+    continue;
+  }
+  // The one that matters. A property that exists but is not an array is
+  // evidence the FIELD exists, which the record already established, and no
+  // evidence at all for the thing being claimed.
+  if (!openapiArrays.has(`${citedType}.${citedProperty}`)) {
+    fail(
+      `${coordinate} cites ${citedType}.${citedProperty} as evidence of a list, but the pinned snapshot does ` +
+        "not declare that property `type: array`. Cite a property that is actually a collection.",
+    );
   }
 }
 

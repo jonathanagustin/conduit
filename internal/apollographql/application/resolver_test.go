@@ -169,9 +169,9 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 			unserved++
 		}
 	}
-	if unserved != 17 {
+	if unserved != 12 {
 		t.Errorf(
-			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 17. "+
+			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 12. "+
 				"If this moved on purpose, update the count and docs/apollo/reference/graphql-api.md",
 			unserved,
 		)
@@ -511,5 +511,70 @@ func TestEnvironmentIdAnswersWithTheIdentifierApollosStatusRoutesAccept(t *testi
 	// later change from quietly answering all three from the same field.
 	if environment["rid"] == environment["id"] {
 		t.Errorf("rid and id are the same value (%v); they are different identifiers", environment["rid"])
+	}
+}
+
+// Apollo's own published example, quoted at the top of
+// docs/apollo/reference/graphql-api.md as proof the shape is real. It refused
+// until now: validation probing cannot see through a list type, so no recovered
+// field declared one and every page collection was navigable only in principle.
+//
+// This is the end-to-end assertion for that fix -- the query Apollo publishes,
+// answered with data.
+func TestApollosPublishedExampleQueryAnswersWithData(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `query GetEnvironments {
+			apollo { environments(pageSize: 100) { environments { id } } }
+		}`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("the published example still refuses: %v", response.Errors)
+	}
+	environments := response.Data["apollo"].(map[string]any)["environments"].(map[string]any)["environments"].([]any)
+	if len(environments) != len(apolloSource.environments) {
+		t.Fatalf("returned %d environment(s), the source holds %d", len(environments), len(apolloSource.environments))
+	}
+	if got := environments[0].(map[string]any)["id"]; got != string(apolloSource.environments[0].Name) {
+		t.Errorf("id resolved to %v", got)
+	}
+}
+
+// The other four collections, and the distinction that makes them worth
+// asserting separately: an empty collection is a LIST, not a null. "This
+// Environment runs nothing" is an answer; a null would say the question went
+// unanswered, which is the same conflation the refusals exist to avoid.
+func TestEveryDocumentedCollectionAnswersAsAList(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo {
+			environments(pageSize: 10) { environments { id } }
+			products(pageSize: 10) { products { productId productReleases(pageSize: 10) {
+				productReleases { mavenCoordinate manifest { productDependencies { optional } } }
+			} } }
+			environment(rid: "ri.apollo.main.environment.a") { entities(pageSize: 10) { entities { id } } }
+		} }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", response.Errors)
+	}
+	root := response.Data["apollo"].(map[string]any)
+	products := root["products"].(map[string]any)["products"].([]any)
+	if len(products) == 0 {
+		t.Fatal("products answered empty")
+	}
+	releases := products[0].(map[string]any)["productReleases"].(map[string]any)["productReleases"].([]any)
+	if len(releases) == 0 {
+		t.Fatal("productReleases answered empty")
+	}
+	entities := root["environment"].(map[string]any)["entities"].(map[string]any)["entities"].([]any)
+	if len(entities) == 0 {
+		t.Fatal("entities answered empty")
+	}
+	// The fixture's release declares no dependencies. That must be [] rather
+	// than nil: the manifest states the Release depends on nothing.
+	dependencies := releases[0].(map[string]any)["manifest"].(map[string]any)["productDependencies"]
+	if dependencies == nil {
+		t.Error("productDependencies answered null; an empty collection is a list, not an absence")
 	}
 }
