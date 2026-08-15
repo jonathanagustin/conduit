@@ -17,11 +17,21 @@ this file.
 
 | Issue | Work |
 | --- | --- |
-| [#10](https://github.com/jonathanagustin/conduit/issues/10) | Serve cardinality for the five recovered collection fields. Makes Apollo's own published example query work. Needs a second directive argument so `OBSERVED` existence and `DOCUMENTED` cardinality can both be stated. |
-| [#11](https://github.com/jonathanagustin/conduit/issues/11) | Serve `ApolloEnvironment.id` from `projection.ID`. Five sources name it; Conduit already keys on it. |
 | [#12](https://github.com/jonathanagustin/conduit/issues/12) | Serve the bundle coordinates. The bundle documents disclaim the wire format, not the concept. |
-| [#13](https://github.com/jonathanagustin/conduit/issues/13) | Make `require_operation` fail loudly on an operation Conduit cannot satisfy, instead of producing a silently unapprovable change. |
 | [#14](https://github.com/jonathanagustin/conduit/issues/14) | `product-release create --values / --values-schema`. A missing entry point to a path that already works. |
+
+### Re-scoped
+
+| Issue | Work |
+| --- | --- |
+| [#13](https://github.com/jonathanagustin/conduit/issues/13) | **Its premise was wrong; the body needs rewriting before anyone starts.** "Reject an unknown operation at policy-authoring time" would delete a working feature — operator-defined approval tokens in `require_operation` are satisfied against `ResourceGrant.Operations`, which is open on purpose. The real defect is narrower: a requirement *no grant anywhere* can satisfy sits pending forever rather than being reported. That is a grant question at evaluation time, not a vocabulary question at authoring time. See PH-6. |
+
+### Shipped
+
+| Issue | Work |
+| --- | --- |
+| [#10](https://github.com/jonathanagustin/conduit/issues/10) | Cardinality for the five recovered collection fields, via a second directive argument so `OBSERVED` existence and `DOCUMENTED` cardinality are stated separately. Apollo's published example query now works. |
+| [#11](https://github.com/jonathanagustin/conduit/issues/11) | `ApolloEnvironment.id`, served from `projection.ID`. |
 
 ## Blocked on a decision
 
