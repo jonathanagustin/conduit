@@ -113,10 +113,16 @@ that cheap.
 - Bad: the Ruby gate and the Go domain now both express digest pinning and
   signer policy for the committed example. The duplication is bounded and the
   Go adapter's tests assert the same properties, but it is duplication.
-- Unknown: nothing is wired into the Hub's run loop yet. Every port now has a
-  working adapter and the whole loop is proven end to end, but no scheduler
-  calls Reconcile in production, so no runtime behaviour changes from this
-  decision.
+- Good: it runs. A scheduler restates desired state on an interval, the Hub
+  starts it when configured, and it is off unless somebody turned it on --
+  defaulting to a source would let an upgrade begin deploying things nobody
+  asked for.
+- Bad: the Conduit-owned convergence path is reachable in configuration but not
+  wired in the Hub binary. Its ports need an artifact fetcher and a
+  desired-state store that reach into Delivery, so `GITLESS_CONVERGENCE=conduit`
+  currently fails at startup rather than starting something that cannot work.
+- Unknown: whether Conduit's own release artifacts verify under this path. They
+  are private, so it can only be exercised where the credential is.
 
 ## Confirmation
 
