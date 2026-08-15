@@ -22,6 +22,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/configpolicy"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/cosignverify"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/fluxconverge"
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/ocipublish"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/ociresolve"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlog"
 	"github.com/jonathanagustin/conduit/internal/gitless/application"
@@ -66,9 +67,20 @@ type FluxConfig struct {
 	ServiceAccountName string
 	PullSecretName     string
 	Path               string
-	// ManifestStore publishes rendered manifests for a cluster's Flux to pull.
-	// It is supplied rather than constructed because publishing is a registry
-	// operation whose credentials belong to the caller.
+
+	// ManifestRepository is where rendered manifests are published for a
+	// cluster's Flux to pull, one tag per environment.
+	ManifestRepository string
+	// InsecureRegistry sends http rather than https. Explicit rather than
+	// inferred from the host, so it can never be switched on by a hostname
+	// somebody chose.
+	InsecureRegistry bool
+	// RegistryCredentials authenticates the push. Nil means anonymous.
+	RegistryCredentials ocipublish.Credentials
+
+	// ManifestStore overrides the publisher entirely. It exists for a
+	// deployment that publishes some other way, and for the acceptance harness,
+	// which applies straight to a cluster instead.
 	ManifestStore fluxconverge.ManifestStore
 }
 
@@ -137,10 +149,20 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 func converger(config Config, conduit ConduitConfig) (ports.Converger, error) {
 	switch strings.TrimSpace(config.Convergence) {
 	case "flux":
-		if config.Flux.ManifestStore == nil {
-			return nil, fmt.Errorf("Flux convergence needs somewhere to publish rendered manifests")
+		store := config.Flux.ManifestStore
+		if store == nil {
+			if strings.TrimSpace(config.Flux.ManifestRepository) == "" {
+				return nil, fmt.Errorf(
+					"Flux convergence needs a manifest repository to publish to, or an explicit store")
+			}
+			published, err := ocipublish.New(
+				config.Flux.ManifestRepository, nil, config.Flux.RegistryCredentials, config.Flux.InsecureRegistry)
+			if err != nil {
+				return nil, err
+			}
+			store = published
 		}
-		return fluxconverge.New(config.Flux.ManifestStore, fluxconverge.Options{
+		return fluxconverge.New(store, fluxconverge.Options{
 			Namespace:          config.Flux.Namespace,
 			ServiceAccountName: config.Flux.ServiceAccountName,
 			PullSecretName:     config.Flux.PullSecretName,

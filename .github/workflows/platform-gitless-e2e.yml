@@ -18,6 +18,14 @@ jobs:
     name: signed OCI without Git
     runs-on: ubuntu-24.04
     timeout-minutes: 20
+    services:
+      # ocipublish speaks the OCI distribution API. A hand-written fake would
+      # model the push flow exactly as it was imagined, which is the failure a
+      # real registry exists to prevent.
+      registry:
+        image: registry@sha256:1fc7de654f2ac1247f0b67e8a459e273b0993be7d2beda1f3f56fbf1001ed3e7
+        ports:
+          - 5000:5000
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Reconcile an exact signed digest with pull-only authority
@@ -34,3 +42,7 @@ jobs:
       # different publisher.
       - name: Reconcile a real signed source end to end
         run: ./scripts/test-gitless-acceptance.sh
+      - name: Publish and read back manifests against a real registry
+        env:
+          OCI_TEST_REGISTRY: localhost:5000
+        run: go test ./internal/gitless/adapters/ocipublish/ -count=1 -v
