@@ -13,47 +13,40 @@ the repository.
 Every issue below carries its own evidence inline, so it can be read without
 this file.
 
-## Ready to build
+## Everything open is a decision
 
-| Issue | Work |
+Nothing is claimable. Every open issue below needs a person to choose, and each
+row states the choice rather than the task — an issue that is really a decision
+wastes an agent's run when it is labelled ready.
+
+| Issue | The decision |
 | --- | --- |
-| [#24](https://github.com/jonathanagustin/conduit/issues/24) | Conduit cannot represent an Environment with no contact team. `newEnvironmentDescriptor` rejects an empty one; Apollo permits it, which is why `apollo-cli` 0.463.0 made the flag optional on `environment get`. Surfaces as an import failure, not a missing feature. Decide first whether the requirement is policy or incidental — the easy fix removes a governance constraint that may be load-bearing. |
-
-### Re-scoped
-
-| Issue | Work |
-| --- | --- |
-| [#13](https://github.com/jonathanagustin/conduit/issues/13) | **Its premise was wrong; the body needs rewriting before anyone starts.** "Reject an unknown operation at policy-authoring time" would delete a working feature — operator-defined approval tokens in `require_operation` are satisfied against `ResourceGrant.Operations`, which is open on purpose. The real defect is narrower: a requirement *no grant anywhere* can satisfy sits pending forever rather than being reported. That is a grant question at evaluation time, not a vocabulary question at authoring time. See PH-6. |
-
-### Shipped
-
-| Issue | Work |
-| --- | --- |
-| [#10](https://github.com/jonathanagustin/conduit/issues/10) | Cardinality for the five recovered collection fields, via a second directive argument so `OBSERVED` existence and `DOCUMENTED` cardinality are stated separately. Apollo's published example query now works. |
-| [#11](https://github.com/jonathanagustin/conduit/issues/11) | `ApolloEnvironment.id`, served from `projection.ID`. |
-| [#14](https://github.com/jonathanagustin/conduit/issues/14) | `product-release create --values / --values-schema`, as aliases onto the existing bundle. Also fixed the older defect it exposed: Helm configuration passed with a `terraform.v1` manifest was accepted and silently dropped. |
-| [#12](https://github.com/jonathanagustin/conduit/issues/12) | **Closed by decision, not by code.** Its premise was right — the bundle documents disclaim the wire format, not the concept — and the conclusion did not follow: `rid` is the identity, not the concept, and Conduit's is `bnd_<hex>`. See ADR 0005. |
-| [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-apollo-coordinates-that-stay-refused.md) records all twelve refused coordinates (not ten — the count had drifted), split by what would actually close each. Pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
-| [#18](https://github.com/jonathanagustin/conduit/issues/18) | Read the Rosetta-only release notes against the implementation. 55 today, not 58 — the public page moved. 49 are Apollo console notes with no contract for a control plane; 6 are CLI. Two are Space (widens the *cost* of #17, not its scope), two are deliberate architectural divergences, one is a real unrecorded gap (Conduit cannot represent an Environment with no contact team), one carries no contract. It does not widen #15. |
-
-## Blocked on a decision
-
-These are listed so the decision is visible, not so the work looks planned.
-
-| Issue | Decision |
-| --- | --- |
-| [#15](https://github.com/jonathanagustin/conduit/issues/15) | How does an *intermittent* Environment vouch for a Release? Apollo published a fifth connection setting; adding the constant alone would invert its behaviour. |
-| [#16](https://github.com/jonathanagustin/conduit/issues/16) | Scan-before-install: where does a Space setting live when there is no Space, and what makes a scan record fresh enough? |
-| [#17](https://github.com/jonathanagustin/conduit/issues/17) | Should Conduit have a Space / organization tenancy boundary at all? Gates #16 and five coordinates. |
-| [#20](https://github.com/jonathanagustin/conduit/issues/20) | A merge queue requires overturning A4, which is CONFIRMED. |
+| [#13](https://github.com/jonathanagustin/conduit/issues/13) | Where does a reviewer requirement that **no grant can satisfy** surface — push the change to `ChangeError`, or attach a non-fatal diagnostic? A grant created after the policy is legitimate ordering, so the loud option can fail a change that is merely early. |
+| [#15](https://github.com/jonathanagustin/conduit/issues/15) | How does an **intermittent** Environment vouch for a Release? Adding Apollo's fifth connection setting as a bare constant would invert its behaviour. |
+| [#16](https://github.com/jonathanagustin/conduit/issues/16) | Scan-before-install: where does a Space setting live when there is no Space, and what makes a scan record fresh enough? Gated on #17. |
+| [#17](https://github.com/jonathanagustin/conduit/issues/17) | Should Conduit have a **Space / organization tenancy boundary** at all? The largest of these: it gates #16 and six refused coordinates, and two independent `apollo-cli` notes make Space a first-class publishing argument. |
+| [#19](https://github.com/jonathanagustin/conduit/issues/19) | Is a third-party documentation crawl **the** exception to manual-only CI (A4)? The offline half is already done and needs no answer. |
+| [#20](https://github.com/jonathanagustin/conduit/issues/20) | Same shape as #19: a merge queue requires overturning A4, which is CONFIRMED. |
 | [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. |
-| [#19](https://github.com/jonathanagustin/conduit/issues/19) | **Re-filed from "evidence and hygiene", where it read as ready work.** "Run the drift gate on a schedule" requires overturning A4, exactly as #20 does — `manual-ci.md` names `schedule` in its prohibition. The decision is whether a third-party crawl is the exception to manual-only CI. The offline half needed no decision and is done: `verify-documentation-freshness.mjs` fails a gate that already runs once the corpus is older than 45 days. |
+| [#24](https://github.com/jonathanagustin/conduit/issues/24) | Is requiring a contact team on every Environment **policy or incidental**? Apollo permits Environments without one. Relaxing the validation is two lines and would quietly remove a governance constraint if the constraint is deliberate. |
 
-## Evidence and hygiene
+Two of these — #19 and #20 — are the same question about A4 wearing different
+clothes, and answering A4 once settles both.
 
-| Issue | Work |
+## Closed
+
+| Issue | Outcome |
 | --- | --- |
-| [#22](https://github.com/jonathanagustin/conduit/issues/22) | Durable Gitless resolution log. Trigger is the first multi-replica deployment, which has not happened — every manifest under `deploy/` is `replicas: 1`, checked 2026-08-15. Correctly deferred, not forgotten. |
+| [#10](https://github.com/jonathanagustin/conduit/issues/10) | Cardinality for the five collection fields, via a second directive argument so `OBSERVED` existence and `DOCUMENTED` cardinality are stated separately. Apollo's published example query now answers. |
+| [#11](https://github.com/jonathanagustin/conduit/issues/11) | `ApolloEnvironment.id`, served from `projection.ID`. |
+| [#12](https://github.com/jonathanagustin/conduit/issues/12) | **Won't do.** Its premise was right — the bundle documents disclaim the wire format, not the concept — and the conclusion did not follow: `rid` is the identity, not the concept, and Conduit's is `bnd_<hex>`. ADR 0005. |
+| [#14](https://github.com/jonathanagustin/conduit/issues/14) | `--values` / `--values-schema` as aliases onto the existing bundle, plus the older defect it exposed: Helm configuration passed with a `terraform.v1` manifest was accepted and silently dropped. |
+| [#18](https://github.com/jonathanagustin/conduit/issues/18) | The Rosetta-only notes read one by one. 55, not 58 — the public page moved. 49 are console notes with no contract here; of the 6 CLI notes, two are Space, two are deliberate divergences, one carries no contract, and one became #24. |
+| [#22](https://github.com/jonathanagustin/conduit/issues/22) | **Won't do yet.** Trigger is a multi-replica deployment; every manifest under `deploy/` is `replicas: 1`. The bound lives in the `resolutionlog` package comment, where a deployer will meet it — a better place than a board. |
+| [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-apollo-coordinates-that-stay-refused.md): all twelve refused coordinates, split by what would close each, pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
+
+The work for the closed issues is on `claude/apollo-documented-tier` and has not
+been merged to `main`. They are closed on the strength of their commits.
 
 ## A standing gap: label appearance
 
