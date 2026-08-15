@@ -22,6 +22,7 @@ unqualified superset of Apollo.
 | Published Apollo Agent configuration types | Pinned generated OSDK evidence; `go test ./internal/foundryinterop` | Structural compatibility with the named generated types, not a private service protocol |
 | CLI Product fixtures | `scripts/apollo-docs/validate-cli-fixtures.rb`; byte comparison fixture | Semantic validation of the reconstructed 0.814.0 shape; byte compatibility is not claimed without a native capture |
 | Module examples | `scripts/apollo-docs/validate-module-definitions.rb` | The committed examples satisfy the reviewed public Module constraints |
+| Apollo Hub GraphQL surface | `api/graphql/apollo.observed.graphql`; `node scripts/apollo-graphql/verify-observed-schema.mjs` | An observed subset of one authorized Hub's GraphQL contract, recovered by validation probing and bound to its own schema hash. Not Apollo's published schema and not a complete one |
 | Delivery, governance, reporting, and bundles | Go tests named in the [contract notes](contracts/delivery.md) | Conduit-native behavior that is Apollo-aligned only where a cited public contract covers it |
 
 ## Contract-first completion gate
@@ -53,6 +54,9 @@ context extraction still requires all of the following:
   is unpublished and unsupported.
 - Public examples and private observations do not authorize guessed defaults
   or a wider compatibility label.
+- The observed GraphQL schema covers only what its candidate set named. Its
+  seven recovered-but-untyped fields, and the absence of any mutation surface,
+  are recorded in the completeness report rather than filled in.
 
 The [evidence index](evidence.md) records the inputs. A green evidence check
 proves only the claim attached to that check.

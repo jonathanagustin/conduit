@@ -1,0 +1,27 @@
+# Observed Apollo Hub GraphQL schema.
+#
+# Recovered by validation probing from one authorized Hub. This is what that
+# Hub answered to the candidate set in scripts/apollo-graphql/candidates.json,
+# not Apollo's schema and not a complete one. Fields whose types were not
+# established are omitted here and listed in the completeness report.
+#
+# method:          validation-probe
+# hubFingerprint:  09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0
+# candidatesSha256:6a871d6e0e35d088a25bfdc078aa4c375cb6d2260b30e01f83e2b01e42436274
+
+type Query {
+  apollo: ApolloQuery
+}
+
+type ApolloEnvironmentPage {
+  nextPageToken: String
+}
+
+type ApolloProductPage {
+  nextPageToken: String
+}
+
+type ApolloQuery {
+  environments(pageSize: Int!): ApolloEnvironmentPage
+  products(pageSize: Int!): ApolloProductPage
+}

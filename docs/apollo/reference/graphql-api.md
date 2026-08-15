@@ -76,9 +76,49 @@ wire in H18. Generated Go clients, adapters, or resolvers must therefore be
 labelled against the observed schema version/hash rather than as general
 Palantir Apollo compatibility.
 
-## Exact next input
+## Recovery result (2026-08-15)
 
-H38 requires an authorized Apollo Hub URL and user or client credential with
-access to its API Explorer. With that input, the first probes should be the two
-published read-only queries above and standard introspection. Endpoint guessing
-or probing unrelated tenant routes is not an acceptable substitute.
+An authorized Hub was reached and the method above was run. The result is
+committed as `api/graphql/apollo.observed.graphql` with its recovery record and
+completeness report under `docs/apollo/observed/`.
+
+What the Hub established:
+
+| Observation | Result |
+| --- | --- |
+| `query { me { id } }` | resolves |
+| `query { apollo { environments(pageSize: 100) { environments { id } } } }` | resolves; the published shape is real |
+| `Query.apollo` type name | `ApolloQuery` |
+| Introspection | **thin by design** -- `__schema` returns 20 types and its `Query` advertises only `me`. It names no part of the Apollo surface. |
+| Recovered | 3 types, 11 fields, 7 argument types, in 28 requests |
+| Emitted to SDL | 5 fields. The other 7 are omitted because their return types were not established, and are listed in the completeness report. |
+
+Because introspection is thin, the surface was recovered by validation probing:
+a document carrying a guaranteed-invalid field fails validation as a whole, so
+the Hub executes none of it while still reporting `FieldUndefined`,
+`MissingFieldArgument`, `WrongType` and `SubSelectionRequired` for everything
+else in the document. Only the return-type probe executes, selecting
+`__typename` alone.
+
+The guard is also a canary, and that is what makes the method fail closed.
+"No error for this candidate" is evidence the candidate exists only if the Hub
+actually validated the document; a malformed document returns a parse error and
+no field errors, which reads exactly like "every candidate exists". The prober
+therefore requires the guard's own error in every discovery response and aborts
+otherwise. An earlier revision lacked that check, emitted an unbalanced
+document, and reported fifteen invented fields on two types before the guard
+was added.
+
+## Bounds on this result
+
+- It is one Hub on one date, answering one candidate set. A field nobody asked
+  about is absent from the record, not from the Hub.
+- Seven fields (`bundle`, `bundles`, `entity`, `environment`, `productRelease`,
+  and the two page item lists) resolved but could not be typed: they require a
+  real RID, or returned an empty list in this tenant, so no `__typename` was
+  observable. They are recorded as recovered-but-untyped rather than guessed.
+- No mutation type is reachable: `__schema.mutationType` is null.
+- This establishes nothing about the private Hub-to-Agent control wire, which
+  remains H9 and BLOCKED.
+- Generated clients or adapters must be labelled against `schemaSha256` in the
+  completeness report, not as general Palantir Apollo compatibility.
