@@ -48,7 +48,21 @@ resources and replication, from the CLI fixtures. What was missing was any
 citable source, which also meant a `documentedBy` citation naming one of these
 pages would have been rejected as an unknown URL. They are cited there now.
 
-The other fourteen are genuine additions.
+The other fourteen are genuine additions, all `apollo-cli`: `cve list`,
+`entity get`, `environment setting` (with `edit` and `get`), `target-hub` (with
+`get`, `list`, `pipeline`, `pipeline list`), and `terminal grant`/`policy` (with
+their `list` forms). All are Experimental, and all are client surfaces over
+contracts this repository already implements.
+
+One content change is a contract change and is recorded in the capability map:
+**Apollo now publishes five Environment connection settings, not four.**
+`managing-environments/environment-connection-settings` grew from 444 to 584
+words and gained a heading for **Intermittent agents**.
+
+The other changes are informational: five `apollo-cli` parent pages gained
+subcommand links, `core/whats-new` is a changelog (mined below), and
+`managing-modules/update-module-installation` lost a section (460 → 303 words),
+which narrows what Apollo publishes rather than what this repository must do.
 
 ### Maturity of the corpus
 
@@ -76,6 +90,45 @@ The other six Beta pages are the `hidden_*` specification extensions above,
 whose contracts Conduit implements. Their Beta status bounds that claim rather
 than voiding it.
 
+### Releases and announcements
+
+`core/whats-new` is the largest page in the corpus at 16,255 words, and it had
+been captured since 2026-08-01 without ever being read. It is a dated changelog
+of Apollo releases -- roughly one entry per CLI version -- and so it is the
+densest contract-bearing page there is. Mining it produced two open items:
+
+- **PH-7.** 2026-06-11 announces a constraint enforcing that a Release has
+  passed a security scan before it can be installed, controlled by a Space
+  setting. Conduit scans, scores risk, and gates the CVE-recall exception on
+  scan freshness, but nothing blocks an install because a scan has not happened.
+- **PH-8.** CLI 0.811.0 added `--values` and `--values-schema` to
+  `product-release create`. Conduit has those flags elsewhere but not there.
+
+Most other entries corroborate work already done. The 0.813.0/0.814.0 entries
+describe the Product Release TGZ carrying `deployment/values.yaml` and
+`deployment/values.schema.json`, and
+`docs/apollo/cli-fixtures/reconstructed/0.814.0/deployment/` holds exactly those
+files -- the fixture is pinned to the newest version the changelog names.
+
+**A bound the changelog exposed.** It names commands that have no reference
+page: `local bundle upload --delete-after-upload`, `terminal create-session
+--session-id`, `module migrate`, `module installation unlink`, `registry
+recover`, `vulnerability suppression modify`, `get-central-namespace`. The
+105-command contract is therefore bounded by what Apollo publishes as CLI
+reference pages, not by what the CLI has. `verify-conduit-cli-contract.mjs`
+checks Conduit against the published reference and that remains the right
+target; it just is not the whole CLI, and the "105/105" figure should be read
+that way.
+
+**A trap worth recording.** This site answers **HTTP 200 for paths that do not
+exist**, serving a "Page Not Found" shell. Probing those seven command names by
+status code reported all of them as live pages; they are not. The only reliable
+existence signal is whether the response carries `pageProps.markdown`.
+`verify-documentation-manifest.mjs` originally wrapped its whole crawl in one
+`try`, so a page that had been unpublished would have been reported as "could
+not reach the documentation site" and passed. It now separates the two: seed
+failures skip, and a linked page answering without content is reported as drift.
+
 ### Images
 
 The image audit was re-run against the enlarged corpus using the same rendered
@@ -96,21 +149,8 @@ The small decrease is consistent with
 So [`IMAGE-DERIVED-GAPS.md`](IMAGE-DERIVED-GAPS.md) remains accurate and no new
 visual review is owed. That is a checked result rather than an assumption: a
 broader extraction that also counts Markdown and JSON image references reports
-496 distinct files, and the difference is extraction method, not new pictures. The additions are all
-`apollo-cli`: `cve list`, `entity get`, `environment setting` (with `edit` and
-`get`), `target-hub` (with `get`, `list`, `pipeline`, `pipeline list`), and
-`terminal grant`/`policy` (with their `list` forms). All are Experimental, and
-all are client surfaces over contracts this repository already implements.
+496 distinct files, and the difference is extraction method, not new pictures.
 
-One content change is a contract change and is recorded in the capability map:
-**Apollo now publishes five Environment connection settings, not four.**
-`managing-environments/environment-connection-settings` grew from 444 to 584
-words and gained a heading for **Intermittent agents**.
-
-The other changes are informational: five `apollo-cli` parent pages gained
-subcommand links, `core/whats-new` is a changelog, and
-`managing-modules/update-module-installation` lost a section (460 → 303 words),
-which narrows what Apollo publishes rather than what this repository must do.
 
 ### Why the drift was invisible
 
