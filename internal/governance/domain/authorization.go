@@ -45,6 +45,49 @@ const (
 	OperationCreateRelease     = "product-release:create"
 )
 
+// OperationVocabulary is every operation Platform itself can act on: the ones
+// an authorization check asks for by name, and therefore the ones the session
+// capability projection can meaningfully answer for.
+//
+// It is NOT the set of strings a grant may carry, and the difference is load
+// bearing. ResourceGrant.Operations is deliberately open, because a policy may
+// use require_operation to demand an approval token that Platform never
+// performs — "environment:approve-change" is one such, and is exercised
+// end-to-end by TestCELRoleAndOperationRequirementsUseResourceGrants. Those
+// strings are satisfied by matching a grant, not by Platform doing anything, so
+// validating them against this list would delete a working feature.
+//
+// What this list is for is the other direction: enumerating what a principal
+// may do, where an operation nothing ever asks for would be noise. Adding a
+// constant above without adding it here is caught by
+// TestOperationVocabularyCoversEveryOperation rather than being discovered as a
+// capability that silently never appears in a session.
+// Ordered by the operation's own value rather than by constant name, so the
+// sortedness check has something to compare and a duplicate cannot hide.
+var OperationVocabulary = []string{
+	OperationCreateArtifact,    // artifact:create
+	OperationImportBundle,      // bundle:import
+	OperationProposeChange,     // change:propose
+	OperationBulkChange,        // fleet:bulk-change
+	OperationApplyLabel,        // label:apply
+	OperationManagePermissions, // permissions:manage
+	OperationActOnBehalf,       // platform:act-on-behalf
+	OperationCreateRelease,     // product-release:create
+	OperationCreateProduct,     // product:create
+	OperationOperate,           // resource:operate
+	OperationReadResource,      // resource:read
+}
+
+// OperationIsKnown reports whether this is an operation Platform performs.
+//
+// Read the comment on OperationVocabulary before using this to reject
+// anything: a false answer means "Platform never does this itself", not "this
+// string is invalid". A policy requirement naming an operator-defined approval
+// token is legitimate and answers false here.
+func OperationIsKnown(operation string) bool {
+	return contains(OperationVocabulary, operation)
+}
+
 // How a Team is related to a resource, independently of any role it holds.
 const (
 	RelationshipOwner   = "OWNER"

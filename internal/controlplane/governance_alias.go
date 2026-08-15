@@ -89,6 +89,7 @@ const (
 // this role convey", and the two would drift without anything noticing.
 var (
 	canonicalRoleOperations = governance.CanonicalRoleOperations
+	OperationVocabulary     = governance.OperationVocabulary
 )
 
 // ValidateAuditCategoryEvent enforces the public audit.3 field contract. It is
