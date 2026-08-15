@@ -20,11 +20,11 @@
 //
 // Three safety properties, enforced here rather than left to a caller.
 //
-// Nothing executes during discovery. Every discovery document carries a
-// guaranteed-invalid field, so the document fails validation as a whole and the
-// server runs none of it while still reporting what it validated. Only the
-// return-type probe executes, and it selects `__typename` alone on read-only
-// query fields -- the response can carry a type name and nothing else.
+// Nothing executes. Every document carries a guaranteed-invalid field, so it
+// fails validation as a whole and the server runs none of it while still
+// reporting what it validated. That includes naming types: selecting a field
+// that cannot exist makes the server say which type it looked in, which is how
+// a field's type is recovered without a real RID and without a non-empty list.
 //
 // The guard is also a canary, and this is what makes the method fail closed.
 // "No error for this candidate" is evidence the candidate exists ONLY if the
@@ -119,27 +119,47 @@ function assertValidated(messages, document) {
   );
 }
 
-async function discoverFields(client, path, ownerType, candidates) {
-  const document = renderDocument(path, candidates.join(" "), { guarded: true });
-  const messages = messagesOf(await client.query(document));
-  assertValidated(messages, document);
+// Candidates are asked in batches. One document carrying every candidate grows
+// past what the Hub will parse, and an unparsed document produces no field
+// errors -- which the canary catches, but only after the whole type is lost. A
+// batch that fails is skipped and recorded rather than silently treated as
+// "everything in it exists".
+const BATCH_SIZE = 40;
 
+async function discoverFields(client, path, ownerType, candidates, diagnostics) {
   const absent = new Set();
   const shapes = new Map();
-  for (const message of messages) {
-    const owner = message.match(/in type '([^']+)'/)?.[1];
-    const field = message.match(/Field '([^']+)' in type/)?.[1];
-    if (message.includes("FieldUndefined") && field && field !== GUARD) {
-      // Only believe an "undefined" that names the type being probed.
-      if (!owner || owner === ownerType) absent.add(field);
+  const asked = new Set();
+
+  for (let index = 0; index < candidates.length; index += BATCH_SIZE) {
+    const batch = candidates.slice(index, index + BATCH_SIZE);
+    const document = renderDocument(path, batch.join(" "), { guarded: true });
+    let messages;
+    try {
+      messages = messagesOf(await client.query(document));
+      assertValidated(messages, document);
+    } catch (error) {
+      diagnostics?.push(`batch not validated for ${ownerType} (${batch[0]}…): ${error.message.split("\n")[0]}`);
+      continue;
     }
-    const target = message.match(/@\[([^\]]+)\]/)?.[1]?.split("/").pop();
-    if (message.includes("MissingFieldArgument") && target) shapes.set(target, "requires-arguments");
-    if (/Sub[Ss]election[Rr]equired/.test(message) && target) shapes.set(target, "composite");
+    for (const candidate of batch) asked.add(candidate);
+    for (const message of messages) {
+      const owner = message.match(/in type '([^']+)'/)?.[1];
+      const field = message.match(/Field '([^']+)' in type/)?.[1];
+      if (message.includes("FieldUndefined") && field && field !== GUARD) {
+        if (!owner || owner === ownerType) absent.add(field);
+      }
+      const target = message.match(/@\[([^\]]+)\]/)?.[1]?.split("/").pop();
+      if (message.includes("MissingFieldArgument") && target) shapes.set(target, "requires-arguments");
+      if (/Sub[Ss]election[Rr]equired/.test(message) && target) shapes.set(target, "composite");
+    }
   }
+
+  // Only a candidate that was actually asked about, and drew no "undefined",
+  // counts as present. A candidate in a skipped batch is neither.
   const present = [];
   for (const candidate of candidates) {
-    if (absent.has(candidate)) continue;
+    if (!asked.has(candidate) || absent.has(candidate)) continue;
     present.push({ name: candidate, shape: shapes.get(candidate) ?? "scalar" });
   }
   return { present, absent: [...absent].sort() };
@@ -170,19 +190,26 @@ async function argumentType(client, path, field, argument) {
   return null;
 }
 
-// The one probe that runs. `__typename` alone: a type name and nothing else.
+// Naming a field's type, without executing anything.
+//
+// Selecting a field that cannot exist makes the server report which type it
+// looked in -- "Field '__zzzProbe' in type 'ApolloEnvironment' is undefined"
+// names ApolloEnvironment. That works where execution does not: an empty list
+// has no object to carry __typename, and a field keyed by RID has no real RID
+// to give it. An earlier revision executed `{ __typename }` instead and left
+// seven fields untyped for exactly those two reasons.
+const TYPE_PROBE = "__conduitTypeProbeFieldThatCannotExist";
+
 async function returnTypeName(client, path, call) {
-  const payload = await client.query(renderDocument(path, `${call} { __typename }`, { guarded: false }));
-  const walk = (value) => {
-    if (!value || typeof value !== "object") return null;
-    if (typeof value.__typename === "string") return value.__typename;
-    for (const nested of Object.values(value)) {
-      const found = walk(nested);
-      if (found) return found;
-    }
-    return null;
-  };
-  return walk(payload.data ?? null);
+  const document = renderDocument([...path, call], TYPE_PROBE, { guarded: true });
+  const messages = messagesOf(await client.query(document));
+  assertValidated(messages, document);
+  for (const message of messages) {
+    if (!message.includes(TYPE_PROBE)) continue;
+    const named = message.match(/in type '([^']+)' is undefined/)?.[1];
+    if (named) return named;
+  }
+  return null;
 }
 
 // A probe value for a required argument, chosen so the request stays
@@ -192,6 +219,9 @@ function probeLiteral(typeName) {
   if (/^\[/.test(typeName)) return "[]";
   if (/Int|Long|Float|Number|Size|Count/i.test(typeName)) return "1";
   if (/Bool/i.test(typeName)) return "false";
+  // A RID argument must parse before validation reaches the selection set, so
+  // the probe is RID-shaped. It names nothing: no such resource exists.
+  if (/RID/i.test(typeName)) return '"ri.apollo.main.probe.0000"';
   return '"conduit-probe"';
 }
 
@@ -210,7 +240,7 @@ async function recoverType(client, { path, typeName, candidates, types, diagnost
 
   let discovery;
   try {
-    discovery = await discoverFields(client, path, typeName, vocabulary);
+    discovery = await discoverFields(client, path, typeName, vocabulary, diagnostics);
   } catch (error) {
     diagnostics.push(`fields not recovered for ${typeName}: ${error.message.split("\n")[0]}`);
     return;
@@ -279,6 +309,18 @@ async function main() {
     diagnostics,
     depth: 0,
   });
+
+  // A type the walk named but never described is a completeness gap, not a
+  // silent one. The depth bound and an emptied batch both produce these, and a
+  // reader comparing the SDL to the record would otherwise find a field missing
+  // with nothing saying why.
+  for (const type of types.values()) {
+    for (const field of type.fields) {
+      if (field.returns && !types.has(field.returns)) {
+        diagnostics.push(`type named but not described: ${field.returns} (returned by ${type.name}.${field.name})`);
+      }
+    }
+  }
 
   const recovered = [...types.values()].sort((left, right) => left.name.localeCompare(right.name));
   const fieldsRecovered = recovered.reduce((total, type) => total + type.fields.length, 0);
