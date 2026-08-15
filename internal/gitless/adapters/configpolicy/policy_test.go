@@ -76,12 +76,31 @@ func TestAnUnanchoredPolicyFailsAtLoad(t *testing.T) {
 	}
 }
 
-// `certificateIdentiy` would otherwise leave the environment trusting an empty
-// pattern, which is exactly what this file exists to prevent.
-func TestATypoInAFieldNameIsRefused(t *testing.T) {
+// A misspelled required field leaves the environment trusting an empty pattern.
+// This is caught by the policy's own validation rather than by strict decoding,
+// which is worth knowing: it means the strict decoder is NOT what protects this
+// case, and a test asserting it here would pass for the wrong reason.
+func TestATypoInARequiredFieldIsRefused(t *testing.T) {
 	typo := strings.Replace(good, "certificateIdentity", "certificateIdentiy", 1)
 	if _, err := configpolicy.Load(write(t, typo)); err == nil {
 		t.Fatal("a misspelled policy field was accepted")
+	}
+}
+
+// This is what strict decoding is actually for, and the case that has teeth: a
+// field somebody believed was doing something. Every required field is present
+// and valid, so validation is satisfied; without DisallowUnknownFields the
+// setting below is read, ignored, and the author goes on believing the
+// environment trusts any signer -- or, worse, that it does not.
+func TestAFieldTheFormatDoesNotDefineIsRefused(t *testing.T) {
+	// The unknown key sits on an entry whose required fields are all present
+	// and valid, so nothing else can catch it. An earlier version of this test
+	// put it on an entry with no valid fields, where the policy's own
+	// validation refused it and the strict decoder was never exercised.
+	invented := strings.Replace(good, `"prod":{"certificateIssuer"`,
+		`"prod":{"trustAnySigner":true,"certificateIssuer"`, 1)
+	if _, err := configpolicy.Load(write(t, invented)); err == nil {
+		t.Fatal("a policy file carrying a setting the format does not define was accepted")
 	}
 }
 
