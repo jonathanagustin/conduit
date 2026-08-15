@@ -281,11 +281,21 @@ tree deliberately. Omitting them made every citation unresolvable, so every case
 rejected for that reason instead of its own and the harness passed while testing
 nothing.
 
-**Declared is not the same as answerable.** Conduit holds no bundles and no
-space identifiers, so 12 recovered coordinates are declared and unanswerable
-here. Those refuse rather than resolving to null: a null is a value, and
-answering `ApolloBundle.rid: null` would assert an absence Conduit has never
-observed. The refusal says so and sends the reader to a Hub.
+**Declared is not the same as answerable.** 12 recovered coordinates are
+declared and unanswerable here. Those refuse rather than resolving to null: a
+null is a value, and answering `ApolloBundle.rid: null` would assert an absence
+Conduit has never observed. The refusal says so and sends the reader to a Hub.
+
+The reason is not that Conduit holds none of these resources — it builds, signs
+and imports Bundles, and serves Products and Product Releases today. It is that
+Conduit holds no *Apollo* identifiers for them and has no Space. A Conduit
+bundle is `bnd_<hex>`, which is a different identifier for a different object,
+not an Apollo RID under another name.
+[`docs/decisions/0005-apollo-coordinates-that-stay-refused.md`](../../decisions/0005-apollo-coordinates-that-stay-refused.md)
+records all twelve, splits them by what would actually close each one, and is
+pinned against the resolver by
+`TestRefusedCoordinatesMatchTheDecisionRecord` — so serving one, or declaring a
+thirteenth, fails the build until the record is updated.
 `internal/apollographql/domain.Reconcile` publishes that count and fails the
 build on the two cases that are defects -- a field Conduit added that nothing
 backs, and a resolver claiming a coordinate the schema does not declare.
