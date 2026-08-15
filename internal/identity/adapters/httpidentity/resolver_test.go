@@ -1,4 +1,4 @@
-package controlplane
+package httpidentity_test
 
 import (
 	"context"
@@ -13,7 +13,25 @@ import (
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
+
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/httpidentity"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/oidcverifier"
+	"github.com/jonathanagustin/conduit/internal/identity/domain"
 )
+
+// These exercise the whole inbound path against real signed tokens: the HTTP
+// adapter finds the credential, the OIDC adapter checks the signature against a
+// local key set, and the domain policy decides. Nothing is mocked, because the
+// interesting failures -- a token signed by the wrong key, one that is not yet
+// valid, one carrying the audience of another client -- only exist when a real
+// verifier is doing the verifying.
+
+// resolver wires the three layers the way the Hub does.
+func resolver(policy domain.ClaimPolicy, publicKey *rsa.PublicKey, now time.Time) func(*http.Request) (domain.Claims, error) {
+	clock := func() time.Time { return now }
+	keySet := &oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{publicKey}}
+	return httpidentity.OperatorResolver(policy, oidcverifier.NewWithKeySet(policy, keySet, clock), clock)
+}
 
 func TestOIDCOperatorIdentityResolverVerifiesAndBoundsClaims(t *testing.T) {
 	now := time.Date(2026, 8, 9, 20, 0, 0, 0, time.UTC)
@@ -21,14 +39,14 @@ func TestOIDCOperatorIdentityResolverVerifiesAndBoundsClaims(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration := normalizedOIDCTestConfiguration(t, now)
-	resolver := testOIDCResolver(t, configuration, &privateKey.PublicKey)
-	token := signOIDCTestToken(t, privateKey, jose.RS256, oidcTestClaims(now, configuration), map[string]any{
+	policy := testPolicy(t)
+	resolve := resolver(policy, &privateKey.PublicKey, now)
+	token := signOIDCTestToken(t, privateKey, jose.RS256, oidcTestClaims(now, policy), map[string]any{
 		"email": " operator@example.test ", "groups": []string{"operators", "reviewers", "operators"},
 		"token_use": "id", "scope": "openid apollo-api:use-api",
 	})
 	request := newOIDCTestRequest(token)
-	claims, err := resolver(request)
+	claims, err := resolve(request)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -47,9 +65,9 @@ func TestOIDCOperatorIdentityResolverRejectsInvalidTokensAndClaims(t *testing.T)
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration := normalizedOIDCTestConfiguration(t, now)
-	resolver := testOIDCResolver(t, configuration, &privateKey.PublicKey)
-	baseClaims := oidcTestClaims(now, configuration)
+	policy := testPolicy(t)
+	resolve := resolver(policy, &privateKey.PublicKey, now)
+	baseClaims := oidcTestClaims(now, policy)
 	validExtra := map[string]any{"email": "operator@example.test", "groups": []string{"operators"},
 		"token_use": "id", "scope": "openid apollo-api:use-api"}
 
@@ -89,7 +107,7 @@ func TestOIDCOperatorIdentityResolverRejectsInvalidTokensAndClaims(t *testing.T)
 			if test.request != nil {
 				request = test.request(token)
 			}
-			if _, err := resolver(request); err == nil {
+			if _, err := resolve(request); err == nil {
 				t.Fatal("invalid OIDC identity accepted")
 			}
 		})
@@ -102,21 +120,27 @@ func TestOIDCOperatorIdentityResolverRejectsOversizedTokenAndGroupSet(t *testing
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration := normalizedOIDCTestConfiguration(t, now)
-	claims := oidcTestClaims(now, configuration)
 	for name, test := range map[string]struct {
-		configure func(*OIDCOperatorIdentityConfig)
-		extra     map[string]any
+		bound func(*domain.ClaimPolicy)
+		extra map[string]any
 	}{
-		"too many groups": {configure: func(configuration *OIDCOperatorIdentityConfig) { configuration.MaximumGroups = 1 }, extra: map[string]any{"email": "operator@example.test", "groups": []string{"one", "two"}, "token_use": "id", "scope": "apollo-api:use-api"}},
-		"oversized token": {configure: func(configuration *OIDCOperatorIdentityConfig) { configuration.MaximumTokenBytes = 512 }, extra: map[string]any{"email": "operator@example.test", "groups": []string{"one"}, "token_use": "id", "scope": "apollo-api:use-api", "padding": strings.Repeat("x", 1024)}},
+		"too many groups": {
+			bound: func(policy *domain.ClaimPolicy) { policy.MaximumGroups = 1 },
+			extra: map[string]any{"email": "operator@example.test", "groups": []string{"one", "two"},
+				"token_use": "id", "scope": "apollo-api:use-api"},
+		},
+		"oversized token": {
+			bound: func(policy *domain.ClaimPolicy) { policy.MaximumTokenBytes = 512 },
+			extra: map[string]any{"email": "operator@example.test", "groups": []string{"one"},
+				"token_use": "id", "scope": "apollo-api:use-api", "padding": strings.Repeat("x", 1024)},
+		},
 	} {
 		t.Run(name, func(t *testing.T) {
-			boundedConfiguration := configuration
-			test.configure(&boundedConfiguration)
-			resolver := testOIDCResolver(t, boundedConfiguration, &privateKey.PublicKey)
-			token := signOIDCTestToken(t, privateKey, jose.RS256, claims, test.extra)
-			if _, err := resolver(newOIDCTestRequest(token)); err == nil {
+			policy := testPolicy(t)
+			test.bound(&policy)
+			resolve := resolver(policy, &privateKey.PublicKey, now)
+			token := signOIDCTestToken(t, privateKey, jose.RS256, oidcTestClaims(now, policy), test.extra)
+			if _, err := resolve(newOIDCTestRequest(token)); err == nil {
 				t.Fatal("bounded OIDC identity contract accepted invalid input")
 			}
 		})
@@ -129,55 +153,49 @@ func TestOIDCOperatorIdentityResolverSupportsExplicitCognitoAccessTokenClaims(t 
 	if err != nil {
 		t.Fatal(err)
 	}
-	configuration := normalizedOIDCTestConfiguration(t, now)
-	configuration.AudienceClaim = "client_id"
-	configuration.UsernameClaim = "username"
-	configuration.GroupsClaim = "cognito:groups"
-	configuration.ExpectedTokenPurpose = "access"
-	verifier := oidc.NewVerifier(configuration.Issuer, &oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{&privateKey.PublicKey}}, &oidc.Config{
-		SkipClientIDCheck: true, SupportedSigningAlgs: configuration.AllowedSigningAlgs, Now: configuration.Now,
-	})
-	resolver := newOIDCOperatorIdentityResolver(configuration, verifier)
-	claims := oidcTestClaims(now, configuration)
+	// Cognito access tokens carry no aud claim, so the policy names the claim
+	// that stands in for it and checks it itself.
+	policy := testPolicy(t)
+	policy.AudienceClaim = "client_id"
+	policy.UsernameClaim = "username"
+	policy.GroupsClaim = "cognito:groups"
+	policy.ExpectedTokenPurpose = "access"
+	resolve := resolver(policy, &privateKey.PublicKey, now)
+
+	claims := oidcTestClaims(now, policy)
 	claims.Audience = nil
 	token := signOIDCTestToken(t, privateKey, jose.RS256, claims, map[string]any{
-		"client_id": configuration.ClientID, "username": "operator", "cognito:groups": []string{"operators"},
+		"client_id": policy.ClientID, "username": "operator", "cognito:groups": []string{"operators"},
 		"token_use": "access", "scope": "apollo-api:use-api",
 	})
-	if identity, err := resolver(newOIDCTestRequest(token)); err != nil || identity.Username != "operator" {
+	if identity, err := resolve(newOIDCTestRequest(token)); err != nil || identity.Username != "operator" {
 		t.Fatalf("Cognito-shaped access token was not accepted: identity=%#v error=%v", identity, err)
 	}
 	wrongAudienceToken := signOIDCTestToken(t, privateKey, jose.RS256, claims, map[string]any{
 		"client_id": "another-client", "username": "operator", "cognito:groups": []string{"operators"},
 		"token_use": "access", "scope": "apollo-api:use-api",
 	})
-	if _, err := resolver(newOIDCTestRequest(wrongAudienceToken)); err == nil {
+	if _, err := resolve(newOIDCTestRequest(wrongAudienceToken)); err == nil {
 		t.Fatal("Cognito-shaped access token for another client was accepted")
 	}
 }
 
-func normalizedOIDCTestConfiguration(t *testing.T, now time.Time) OIDCOperatorIdentityConfig {
+func testPolicy(t *testing.T) domain.ClaimPolicy {
 	t.Helper()
-	configuration, err := normalizeOIDCOperatorIdentityConfig(OIDCOperatorIdentityConfig{
-		Issuer: "https://multipass.example.test", ClientID: "conduit", UsernameClaim: "email", GroupsClaim: "groups",
-		TokenPurposeClaim: "token_use", ExpectedTokenPurpose: "id", RequiredScopes: []string{"apollo-api:use-api"}, Now: func() time.Time { return now },
+	policy, err := domain.NormalizeClaimPolicy(domain.ClaimPolicy{
+		Issuer: "https://multipass.example.test", ClientID: "conduit",
+		UsernameClaim: "email", GroupsClaim: "groups",
+		TokenPurposeClaim: "token_use", ExpectedTokenPurpose: "id",
+		RequiredScopes: []string{"apollo-api:use-api"},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return configuration
+	return policy
 }
 
-func testOIDCResolver(t *testing.T, configuration OIDCOperatorIdentityConfig, publicKey *rsa.PublicKey) OperatorIdentityResolver {
-	t.Helper()
-	verifier := oidc.NewVerifier(configuration.Issuer, &oidc.StaticKeySet{PublicKeys: []crypto.PublicKey{publicKey}}, &oidc.Config{
-		ClientID: configuration.ClientID, SupportedSigningAlgs: configuration.AllowedSigningAlgs, Now: configuration.Now,
-	})
-	return newOIDCOperatorIdentityResolver(configuration, verifier)
-}
-
-func oidcTestClaims(now time.Time, configuration OIDCOperatorIdentityConfig) jwt.Claims {
-	return jwt.Claims{Issuer: configuration.Issuer, Subject: "subject-1", Audience: jwt.Audience{configuration.ClientID},
+func oidcTestClaims(now time.Time, policy domain.ClaimPolicy) jwt.Claims {
+	return jwt.Claims{Issuer: policy.Issuer, Subject: "subject-1", Audience: jwt.Audience{policy.ClientID},
 		IssuedAt: jwt.NewNumericDate(now.Add(-time.Minute)), NotBefore: jwt.NewNumericDate(now.Add(-time.Minute)), Expiry: jwt.NewNumericDate(now.Add(time.Hour))}
 }
 

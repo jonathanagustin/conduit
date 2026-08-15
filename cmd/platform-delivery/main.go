@@ -27,6 +27,7 @@ import (
 	reconciliationapplication "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/application"
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
+	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
@@ -322,18 +323,20 @@ func loadOIDCOperatorIdentityResolver(
 		return nil, nil
 	}
 	configuration := controlplane.OIDCOperatorIdentityConfig{
-		Issuer:               issuer,
-		JWKSURL:              getenv("OPERATOR_OIDC_JWKS_URL"),
-		ClientID:             getenv("OPERATOR_OIDC_CLIENT_ID"),
-		AudienceClaim:        getenv("OPERATOR_OIDC_AUDIENCE_CLAIM"),
-		UsernameClaim:        getenv("OPERATOR_OIDC_USERNAME_CLAIM"),
-		GroupsClaim:          getenv("OPERATOR_OIDC_GROUPS_CLAIM"),
-		ServiceAccountClaim:  getenv("OPERATOR_OIDC_SERVICE_ACCOUNT_CLAIM"),
-		TokenPurposeClaim:    getenv("OPERATOR_OIDC_TOKEN_PURPOSE_CLAIM"),
-		ExpectedTokenPurpose: getenv("OPERATOR_OIDC_EXPECTED_TOKEN_PURPOSE"),
-		ScopeClaim:           getenv("OPERATOR_OIDC_SCOPE_CLAIM"),
-		RequiredScopes:       splitCommaSeparated(getenv("OPERATOR_OIDC_REQUIRED_SCOPES")),
-		AllowedSigningAlgs:   splitCommaSeparated(getenv("OPERATOR_OIDC_SIGNING_ALGORITHMS")),
+		ClaimPolicy: identity.ClaimPolicy{
+			Issuer:               issuer,
+			JWKSURL:              getenv("OPERATOR_OIDC_JWKS_URL"),
+			ClientID:             getenv("OPERATOR_OIDC_CLIENT_ID"),
+			AudienceClaim:        getenv("OPERATOR_OIDC_AUDIENCE_CLAIM"),
+			UsernameClaim:        getenv("OPERATOR_OIDC_USERNAME_CLAIM"),
+			GroupsClaim:          getenv("OPERATOR_OIDC_GROUPS_CLAIM"),
+			ServiceAccountClaim:  getenv("OPERATOR_OIDC_SERVICE_ACCOUNT_CLAIM"),
+			TokenPurposeClaim:    getenv("OPERATOR_OIDC_TOKEN_PURPOSE_CLAIM"),
+			ExpectedTokenPurpose: getenv("OPERATOR_OIDC_EXPECTED_TOKEN_PURPOSE"),
+			ScopeClaim:           getenv("OPERATOR_OIDC_SCOPE_CLAIM"),
+			RequiredScopes:       splitCommaSeparated(getenv("OPERATOR_OIDC_REQUIRED_SCOPES")),
+			AllowedSigningAlgs:   splitCommaSeparated(getenv("OPERATOR_OIDC_SIGNING_ALGORITHMS")),
+		},
 	}
 	switch profile {
 	case "", "generic":
