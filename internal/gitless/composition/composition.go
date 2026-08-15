@@ -13,6 +13,7 @@
 package composition
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -86,7 +87,9 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 	if err != nil {
 		return nil, err
 	}
-
+	if len(bindings) == 0 {
+		return nil, nil
+	}
 
 	if strings.TrimSpace(config.PolicyFile) == "" {
 		return nil, fmt.Errorf("Gitless GitOps needs a publisher policy file; there is no safe default for who may publish")
@@ -102,7 +105,11 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 	// Every bound environment must have a policy before anything starts. Left
 	// to the first pass, a missing one would be a Hub that ran cleanly and
 	// silently never deployed that environment.
-
+	for _, binding := range bindings {
+		if _, err := policies.PolicyFor(context.Background(), binding.Environment); err != nil {
+			return nil, err
+		}
+	}
 
 	log, err := resolutionlog.Open(config.ResolutionLogFile)
 	if err != nil {
@@ -142,8 +149,9 @@ func converger(config Config, conduit ConduitConfig) (ports.Converger, error) {
 	case "conduit":
 		return conduitconverge.New(conduit.Fetcher, conduit.DesiredState, 0)
 	case "":
-		return fluxconverge.New(config.Flux.ManifestStore, fluxconverge.Options{
-			ServiceAccountName: config.Flux.ServiceAccountName, PullSecretName: config.Flux.PullSecretName})
+		return nil, fmt.Errorf(
+			"Gitless GitOps needs a convergence choice of \"flux\" or \"conduit\"; which one is in use decides " +
+				"whether a source change passes through Conduit's approval semantics, so there is no default")
 	}
 	return nil, fmt.Errorf("unknown convergence %q; expected \"flux\" or \"conduit\"", config.Convergence)
 }

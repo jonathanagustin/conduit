@@ -104,14 +104,38 @@ func TestARefusalIsReportedSeparatelyFromAFailure(t *testing.T) {
 // One environment's registry being unreachable must not stop the others being
 // reconciled. A scheduler that gave up on the first error would let one broken
 // source freeze the fleet.
-func TestOneFailingEnvironmentDoesNotStopTheOthers(t *testing.T) {
+//
+// An earlier version of this test set the error to nil, so nothing failed and it
+// proved only that three successes get visited. Mutation testing caught it: a
+// planted `return` after the first failure survived, because the test never
+// produced a failure to return from.
+func TestAFailingEnvironmentDoesNotStopTheOthers(t *testing.T) {
 	parts := newFixture(t)
-	parts.converger.deployedErr = nil
+	parts.converger.deployedErr = errors.New("registry unreachable")
 	scheduler, log := newScheduler(t, parts,
 		binding("alpha", "latest-stable"), binding("beta", "latest-stable"), binding("gamma", "latest-stable"))
 	scheduler.Pass(t.Context())
-	if len(log.deployed)+len(log.unchanged) != 3 {
-		t.Fatalf("not every environment was reconciled: deployed=%v unchanged=%v", log.deployed, log.unchanged)
+	if len(log.failed) != 3 {
+		t.Fatalf("the pass stopped early: failed=%v deployed=%v unchanged=%v", log.failed, log.deployed, log.unchanged)
+	}
+	if strings.Join(log.failed, ",") != "alpha,beta,gamma" {
+		t.Errorf("environments were not all visited in order: %v", log.failed)
+	}
+}
+
+// And the same with only the first one failing, so a partial failure still
+// deploys the environments that are fine.
+func TestAPartialFailureStillDeploysTheHealthyEnvironments(t *testing.T) {
+	parts := newFixture(t)
+	parts.converger.failDeployedFor = "alpha"
+	scheduler, log := newScheduler(t, parts,
+		binding("alpha", "latest-stable"), binding("beta", "latest-stable"), binding("gamma", "latest-stable"))
+	scheduler.Pass(t.Context())
+	if len(log.failed) != 1 || log.failed[0] != "alpha" {
+		t.Fatalf("failed=%v", log.failed)
+	}
+	if len(log.deployed) != 2 {
+		t.Fatalf("the healthy environments were not deployed: deployed=%v", log.deployed)
 	}
 }
 

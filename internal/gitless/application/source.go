@@ -100,10 +100,20 @@ func (refused *RefusedError) Reasons() []domain.RefusalReason {
 // without comparing digests itself.
 type Outcome struct {
 	Admission domain.Admission
-	// Moved is true when this reconcile changed the digest the environment
-	// converges on. A channel that has not moved produces a false here and no
-	// second deployment, which is what makes continuous reconciliation cheap.
+
+	// Deployed is true when this reconcile actually converged. It is separate
+	// from Moved because a first deployment moves nothing and is emphatically
+	// not a no-op -- a caller with only Moved cannot tell "already there" from
+	// "just deployed for the first time", which is the difference between
+	// silence and a release notification.
+	Deployed bool
+
+	// Moved is true when this reconcile changed the digest the environment was
+	// already converging on. A channel that has not moved produces false here
+	// and no second deployment, which is what makes continuous reconciliation
+	// cheap enough to run on a short interval.
 	Moved bool
+
 	// Superseded is the digest that was previously deployed, empty the first
 	// time this environment converged on anything.
 	Superseded string
@@ -153,7 +163,7 @@ func (source *Source) Reconcile(ctx context.Context, environment string, selecto
 		// Already there. No record and no convergence: a resolution log that
 		// gained a line every reconcile interval would bury the moves that
 		// matter under the ones that did not happen.
-		return Outcome{Admission: admission, Moved: false, Superseded: deployed}, nil
+		return Outcome{Admission: admission, Deployed: false, Moved: false, Superseded: deployed}, nil
 	}
 
 	_, identity := admission.Publisher()
@@ -168,5 +178,5 @@ func (source *Source) Reconcile(ctx context.Context, environment string, selecto
 	if err := source.converger.Converge(ctx, environment, admission); err != nil {
 		return Outcome{}, fmt.Errorf("converge %s on %s: %w", environment, pin, err)
 	}
-	return Outcome{Admission: admission, Moved: deployed != "", Superseded: deployed}, nil
+	return Outcome{Admission: admission, Deployed: true, Moved: deployed != "", Superseded: deployed}, nil
 }
