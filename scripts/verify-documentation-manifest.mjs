@@ -187,6 +187,23 @@ const removed = [...committed.keys()].filter((url) => !fresh.has(url)).sort();
 const changed = [...fresh.keys()].filter((url) => committed.has(url) && committed.get(url).sha !== fresh.get(url).sha).sort();
 
 if (write) {
+  // Refuse to record a crawl that did not work. The page-count floor above is
+  // checked against DISCOVERED paths, not against pages that actually yielded
+  // source Markdown, so a site-wide failure -- every response serving the
+  // 200-status "Page Not Found" shell -- would sail past it and land here with
+  // an empty `crawled`. Writing then produces a header-only manifest, a
+  // pageCount of 0, and today's date stamped on the capture record: the exact
+  // state the freshness gate exists to detect, created by the tool meant to
+  // clear it. The FAIL lines for `contentless` are printed above; they must
+  // stop the write, not merely accompany it.
+  if (contentless.length > 0) {
+    console.error(`FAIL refusing to write: ${contentless.length} page(s) answered without source Markdown`);
+    process.exit(1);
+  }
+  if (crawled.length < expectedMinimumPages) {
+    console.error(`FAIL refusing to write: only ${crawled.length} page(s) yielded content; expected at least ${expectedMinimumPages}`);
+    process.exit(1);
+  }
   const header = "url\tsection\ttitle\twords\theadings\tcontent_sha256";
   const body = crawled.sort((left, right) => left[0].localeCompare(right[0])).map((row) => row.join("\t"));
   writeFileSync(MANIFEST, `${[header, ...body].join("\n")}\n`);

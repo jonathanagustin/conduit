@@ -97,6 +97,30 @@ func TestProductReleaseCreateRefusesBothSpellingsOfOneFlag(t *testing.T) {
 	}
 }
 
+// TestProductReleaseCreateReadsFlagPresenceNotEmptiness covers the gap between
+// "the flag was passed" and "the flag has a value". `--values=` is the first;
+// an emptiness test reads it as neither, so both guards below silently stopped
+// applying to it.
+func TestProductReleaseCreateReadsFlagPresenceNotEmptiness(t *testing.T) {
+	t.Parallel()
+	t.Run("an empty alias still collides with its other spelling", func(t *testing.T) {
+		t.Parallel()
+		manifestPath, values, _ := writeValuesFlagFixture(t, "helm-chart.v1")
+		_, err := runValuesFlagCreate(t, "--manifest", manifestPath, "--default-config", values, "--values", "")
+		if err == nil || !strings.Contains(err.Error(), "the same flag") {
+			t.Fatalf("accepted both spellings because one was empty: %v", err)
+		}
+	})
+	t.Run("an empty values flag still refuses a Terraform manifest", func(t *testing.T) {
+		t.Parallel()
+		manifestPath, _, _ := writeValuesFlagFixture(t, "terraform.v1")
+		_, err := runValuesFlagCreate(t, "--manifest", manifestPath, "--values", "")
+		if err == nil || !strings.Contains(err.Error(), "terraform.v1") {
+			t.Fatalf("published a Terraform Release despite a stated --values intent: %v", err)
+		}
+	})
+}
+
 // TestProductReleaseCreateRefusesHelmValuesOnTerraformProduct covers the
 // behaviour Apollo published alongside the flags, and a defect that predates
 // them: the Terraform path never builds the Helm bundle, so a values file

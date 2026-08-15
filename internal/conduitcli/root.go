@@ -611,12 +611,17 @@ func productReleaseCommand(state *commandState) *cobra.Command {
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
 			var err error
-			if defaultConfigPath, err = soleSpelling("--default-config", defaultConfigPath, "--values", valuesPath); err != nil {
+			if defaultConfigPath, err = soleSpelling(command, "default-config", defaultConfigPath, "values", valuesPath); err != nil {
 				return err
 			}
-			if configSchemaPath, err = soleSpelling("--config-schema", configSchemaPath, "--values-schema", valuesSchemaPath); err != nil {
+			if configSchemaPath, err = soleSpelling(command, "config-schema", configSchemaPath, "values-schema", valuesSchemaPath); err != nil {
 				return err
 			}
+			// Presence, not emptiness: `--values=` is a stated intent that this
+			// path cannot honour, and treating it as absence would publish a
+			// Terraform Release while ignoring a flag the operator passed.
+			helmConfigGiven := command.Flags().Changed("default-config") || command.Flags().Changed("values") ||
+				command.Flags().Changed("config-schema") || command.Flags().Changed("values-schema")
 			if productTGZPath != "" {
 				if manifestPath != "" || defaultConfigPath != "" || configSchemaPath != "" {
 					return errors.New("--product-tgz cannot be combined with --manifest, --default-config, or --config-schema")
@@ -649,7 +654,7 @@ func productReleaseCommand(state *commandState) *cobra.Command {
 				// an operator who passed a values file has stated an intent
 				// that is not going to happen, and publishing anyway makes the
 				// Release quietly different from what they asked for.
-				if defaultConfigPath != "" || configSchemaPath != "" {
+				if helmConfigGiven {
 					return errors.New("--values and --values-schema apply to helm-chart.v1 Products; this manifest is terraform.v1")
 				}
 				manifest, err := controlplane.DecodeTerraformProductManifest(bytes.NewReader(contents))
