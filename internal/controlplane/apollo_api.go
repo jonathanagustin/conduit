@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
-	"github.com/jonathanagustin/conduit/internal/catalog"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/environments"
 )
 

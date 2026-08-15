@@ -1,6 +1,6 @@
 package controlplane
 
-import "github.com/jonathanagustin/conduit/internal/catalog"
+import catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 
 // The catalogue — what a Release is, what it ships, whether it has been
 // recalled, and which Channels it has reached — now lives in internal/catalog.

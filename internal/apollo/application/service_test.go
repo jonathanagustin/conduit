@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
-	"github.com/jonathanagustin/conduit/internal/catalog"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/environments"
 )
 
