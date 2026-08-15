@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jonathanagustin/conduit/internal/execution"
+	execution "github.com/jonathanagustin/conduit/internal/execution/domain"
 	httpidentity "github.com/jonathanagustin/conduit/internal/identity/adapters/httpidentity"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	reporting "github.com/jonathanagustin/conduit/internal/reporting/domain"

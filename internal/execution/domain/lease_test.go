@@ -1,4 +1,4 @@
-package execution
+package domain
 
 import (
 	"testing"
