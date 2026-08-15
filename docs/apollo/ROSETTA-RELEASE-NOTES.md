@@ -48,9 +48,77 @@ area as **PH-5**, where the public page has since added a fifth connection
 setting Conduit does not have. That two independent records both point here is
 worth noting; it is the part of the contract moving fastest.
 
-Establishing which of those notes describe behaviour Conduit lacks needs the
-notes read against the implementation one by one, which has not been done. This
-document records the divergence and where it concentrates, not a gap list.
+## The Rosetta-only notes, read against the implementation
+
+Done 2026-08-15. The notes were re-fetched and read live; none of their prose is
+in this repository, and what follows is the conclusion rather than the text.
+
+**The count moved, which is itself the finding about method.** The capture
+recorded 58 Rosetta notes on dates the public page did not carry. Re-computing
+it the same day against a live fetch of `core/whats-new` gives **55**, because
+the public page now carries 229 distinct dates rather than the number it carried
+at capture time. The divergence is a property of two moving records, not a fixed
+quantity, so it should be recomputed when used and never quoted from memory.
+
+**49 of the 55 are UI-surface notes and carry no contract for Conduit.**
+
+| Surface | Notes | What they are |
+| --- | ---: | --- |
+| `autopilot` | 38 | The Apollo web console — tables, banners, filters, popovers |
+| `apollo-build-factory-app` | 4 | Console panels and Hub settings tabs |
+| `noc-inbox` | 3 | Notification inbox rendering |
+| `apollo-ui-docs`, `hyperion-downdraft-form` | 4 | Dialogs and in-console documentation |
+| **`apollo-cli`** | **6** | **The contract-bearing set** |
+
+Conduit is a control plane and a command line; it does not reimplement Apollo's
+console. A note that moves a histogram or collapses an overflow list states
+nothing Conduit could conform to. This is not a dismissal of 49 notes — it is
+the reason the tenant record's *size* advantage over the public page is smaller
+than it looks for our purposes, and it is worth knowing before anyone mines it
+again expecting 58 gaps.
+
+**The six CLI notes, each checked:**
+
+| Version | Note | Conduit |
+| --- | --- | --- |
+| `v0.463.0` | Contact team optional on `environment get` | **Divergence, recorded below** |
+| `v0.500.0` | Space ID in `configure`, preferred over inferred | Blocked on #17 |
+| `v0.518.0` | `--ignore-recalls` on module install/update | **Deliberate divergence, below** |
+| `v0.519.0` | `--ignore-secret-requirements` on install/update | **Deliberate divergence, below** |
+| `v0.524.0` | Improved help text on publish commands | No contract |
+| `v0.531.0` | Space ID across commands, for guest users | Blocked on #17 |
+
+**Contact teams.** Apollo made the flag optional so that `environment get` works
+for Environments that have no contact team — which means Apollo's model permits
+one. Conduit's `newEnvironmentDescriptor` rejects an empty contact team outright,
+so Conduit cannot represent such an Environment at all. This is not a missing
+flag; it is a narrower model, and it would surface as a failure to import rather
+than as a missing feature. Small, real, and previously unrecorded.
+
+**The two override flags are a genuine architectural divergence, not a gap.**
+`--ignore-recalls` and `--ignore-secret-requirements` let an operator push an
+installation past a blocking condition from the command line. Conduit's
+equivalent path does not install: `entity install` proposes a desired state for
+approval, so overriding a recall is a governance decision that belongs in the
+change request, not a flag that bypasses it. Adding either flag verbatim would
+put an unreviewed override on the command line of a system whose whole point is
+that the override is reviewed. Recorded here so the next reader does not file it
+as parity work.
+
+**Two of the six are Space, which widens #17 rather than adding to it.** Both
+CLI notes make Space a first-class argument to publishing commands, and one
+extends it to guest users outside the owning organization. That is independent
+corroboration that Space is load-bearing in Apollo's model, from a second record
+— and #17 already gates five declared GraphQL coordinates and issue #16. It does
+not change the decision; it raises its cost.
+
+**The federation cluster corroborates #15 and does not widen it.** The 2025-08
+and 2025-09 notes on declared-state source, edit-source transfer between Hubs,
+read-only mirrored Environments, and export/import source display describe the
+area `internal/environments/domain/federation.go` implements. One is directly
+adjacent to #15: connection settings became selectable *during Environment
+creation*. The open question there is still what an intermittent Environment
+does, and none of these notes answers it.
 
 ## What is committed, and what is not
 

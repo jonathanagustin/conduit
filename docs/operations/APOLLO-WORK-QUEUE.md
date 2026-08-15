@@ -15,9 +15,8 @@ this file.
 
 ## Ready to build
 
-| Issue | Work |
-| --- | --- |
-| [#12](https://github.com/jonathanagustin/conduit/issues/12) | Serve the bundle coordinates. The bundle documents disclaim the wire format, not the concept. |
+_Nothing is ready to claim right now. Every remaining issue is either blocked
+on a decision below, or needs its body rewritten first._
 
 ### Re-scoped
 
@@ -32,6 +31,9 @@ this file.
 | [#10](https://github.com/jonathanagustin/conduit/issues/10) | Cardinality for the five recovered collection fields, via a second directive argument so `OBSERVED` existence and `DOCUMENTED` cardinality are stated separately. Apollo's published example query now works. |
 | [#11](https://github.com/jonathanagustin/conduit/issues/11) | `ApolloEnvironment.id`, served from `projection.ID`. |
 | [#14](https://github.com/jonathanagustin/conduit/issues/14) | `product-release create --values / --values-schema`, as aliases onto the existing bundle. Also fixed the older defect it exposed: Helm configuration passed with a `terraform.v1` manifest was accepted and silently dropped. |
+| [#12](https://github.com/jonathanagustin/conduit/issues/12) | **Closed by decision, not by code.** Its premise was right — the bundle documents disclaim the wire format, not the concept — and the conclusion did not follow: `rid` is the identity, not the concept, and Conduit's is `bnd_<hex>`. See ADR 0005. |
+| [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-apollo-coordinates-that-stay-refused.md) records all twelve refused coordinates (not ten — the count had drifted), split by what would actually close each. Pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
+| [#18](https://github.com/jonathanagustin/conduit/issues/18) | Read the Rosetta-only release notes against the implementation. 55 today, not 58 — the public page moved. 49 are Apollo console notes with no contract for a control plane; 6 are CLI. Two are Space (widens the *cost* of #17, not its scope), two are deliberate architectural divergences, one is a real unrecorded gap (Conduit cannot represent an Environment with no contact team), one carries no contract. It does not widen #15. |
 
 ## Blocked on a decision
 
@@ -49,10 +51,17 @@ These are listed so the decision is visible, not so the work looks planned.
 
 | Issue | Work |
 | --- | --- |
-| [#18](https://github.com/jonathanagustin/conduit/issues/18) | Read the 58 Rosetta-only release notes against the implementation. Do this before #15 is scoped — it may widen it. |
 | [#19](https://github.com/jonathanagustin/conduit/issues/19) | Run the documentation drift gate on a schedule. Nothing runs it today, which is how the corpus aged two weeks and a contract change went unnoticed. |
 | [#22](https://github.com/jonathanagustin/conduit/issues/22) | Durable Gitless resolution log. Trigger is the first multi-replica deployment. |
-| [#23](https://github.com/jonathanagustin/conduit/issues/23) | ADR recording the ten coordinates that stay refused, and why. Several look closable and are not. |
+
+## Found, needs an issue
+
+The GitHub API is out of scope for the session that found these, so they are
+recorded here rather than filed. Whoever files them should move the row.
+
+| Finding | Evidence |
+| --- | --- |
+| Conduit cannot represent an Environment with no contact team. `newEnvironmentDescriptor` rejects an empty one, and Apollo permits it — `apollo-cli` 0.463.0 made the flag optional on `environment get` precisely so such Environments could be read. This surfaces as a failure to import, not a missing feature. | `ROSETTA-RELEASE-NOTES.md`, the Rosetta-only CLI notes |
 
 ## Where the evidence lives
 
