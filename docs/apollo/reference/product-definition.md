@@ -8,11 +8,35 @@ private format claim.
 ## Provenance
 
 This note was written from the Apollo Product Specification traits supplied to
-the reconstruction task. No new upstream page snapshot was captured for it, so
-it has **no `review-ledger.tsv` row**: a ledger entry asserts a reviewed URL and
-content hash, and inventing one would corrupt the drift index. Treat the
-paraphrases below as derived from the specification's vocabulary and validated
-against local tests, not as a hash-pinned page review.
+the reconstruction task, before any snapshot of the pages that publish them
+existed. It therefore had **no `review-ledger.tsv` row**: a ledger entry asserts
+a reviewed URL and content hash, and inventing one would corrupt the drift index.
+
+**Updated 2026-08-15.** Those pages are now captured. The specification
+extensions behind the contracts below are published on seven Beta pages that the
+documentation crawler could not previously see — it read the rendered sidebar,
+and these are excluded from it:
+
+| Page | What it publishes |
+| --- | --- |
+| [`hidden_apollo-product-spec-definition-full`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_apollo-product-spec-definition-full/) | the full manifest/configuration definition |
+| [`hidden_endpoints`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_endpoints/) | `endpoints`, `sls-status-endpoint`, `desired-port`, `path`, `external-port` |
+| [`hidden_liveness-and-readiness`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_liveness-and-readiness/) | `/status/liveness`, `/status/readiness`, the 200–399 band, the 5-second poll, `allow-traffic-when-not-ready` |
+| [`hidden_volumes`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_volumes/) | volume declaration and sizing |
+| [`hidden_resources`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_resources/) | CPU and memory requirements |
+| [`hidden_replication`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_replication/) | replica counts |
+| [`hidden_substitution-reference`](https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_substitution-reference/) | the substitution language |
+
+All seven now carry a URL and content hash in
+[`public-documentation-manifest.tsv`](../public-documentation-manifest.tsv) and
+are watched by `scripts/verify-documentation-manifest.mjs`, so a change to any of
+them fails a re-crawl rather than passing unnoticed.
+
+This closes a **provenance gap, not an implementation gap**: the contracts were
+already implemented and tested from the CLI fixtures. What was missing was any
+citable source for them — which also meant a `documentedBy` citation naming one
+of these pages would have been rejected as an unknown URL. They are Beta
+upstream, which bounds the claim rather than weakening it.
 
 ## manifest.yml
 

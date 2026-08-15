@@ -15,11 +15,11 @@ local analysis.
 
 | Measure | 2026-08-01 | 2026-08-15 |
 | --- | ---: | ---: |
-| Distinct public pages | 241 | **255** |
-| Successful fetches | 241 | 255 |
+| Distinct public pages | 241 | **262** |
+| Successful fetches | 241 | 262 |
 | Failed fetches | 0 | 0 |
-| Source Markdown words reviewed | 144,521 | **150,332** |
-| Headings reviewed | 1,562 | **1,620** |
+| Source Markdown words reviewed | 144,521 | **157,244** |
+| Headings reviewed | 1,562 | **1,710** |
 
 [`public-documentation-manifest.tsv`](public-documentation-manifest.tsv)
 contains the URL, section, title, word count, heading count, and SHA-256 of the
@@ -28,7 +28,27 @@ reviewable drift diff. The source bodies are deliberately not committed.
 
 ### What the re-crawl found
 
-Fourteen pages were added and none removed. Eight changed. The additions are all
+Twenty-one pages were added and none removed. Eight changed.
+
+Seven of the twenty-one were never a drift at all: they had been published all
+along and the crawler could not see them. It read `href` attributes from four
+seed pages, which is the rendered sidebar, so it saw exactly the pages the
+navigation chooses to show. The seven `hidden_`-prefixed Apollo Product
+Specification pages -- Endpoints, Liveness and Readiness, Replication,
+Resources, Volumes, the Substitution Reference, and the full spec definition --
+are excluded from that sidebar and reachable only through links in other pages'
+body text. The crawler now scans whole documents and follows what it finds to
+closure; both it and the drift gate were fixed together, because a gate built on
+the narrower discovery would have called the incomplete corpus complete.
+
+These seven turned out to be a **provenance gap rather than an implementation
+gap**: `internal/controlplane/apollo_product_definition.go` already implements
+endpoints, `sls-status-endpoint`, liveness and readiness paths, volumes,
+resources and replication, from the CLI fixtures. What was missing was any
+citable source, which also meant a `documentedBy` citation naming one of these
+pages would have been rejected as an unknown URL. They are cited there now.
+
+The other fourteen are genuine additions. The additions are all
 `apollo-cli`: `cve list`, `entity get`, `environment setting` (with `edit` and
 `get`), `target-hub` (with `get`, `list`, `pipeline`, `pipeline list`), and
 `terminal grant`/`policy` (with their `list` forms). All are Experimental, and
@@ -71,13 +91,13 @@ content-addressed evidence and disposition without committing copyrighted media.
 
 | Section | Pages | Words |
 | --- | ---: | ---: |
-| Apollo CLI | 91 | 39,885 |
-| Core concepts and workflows | 23 | 30,742 |
+| Apollo CLI | 105 | 45,777 |
+| Core concepts and workflows | 23 | 30,678 |
+| Product specification | 16 | 11,605 |
 | Export and import | 17 | 10,734 |
 | Getting started | 13 | 8,431 |
-| Managing Environments | 12 | 7,135 |
-| Product specification | 9 | 4,693 |
-| Managing Modules | 6 | 8,277 |
+| Managing Modules | 6 | 8,120 |
+| Managing Environments | 12 | 7,275 |
 | CEL policies | 4 | 6,004 |
 | Managing Products | 8 | 4,340 |
 | Managing Entities | 8 | 4,257 |
