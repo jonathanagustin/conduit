@@ -110,6 +110,19 @@ if (!existsSync(MANIFEST)) {
   process.exit(1);
 }
 
+// Reaching the site and a page still publishing content are different
+// questions, and the first version of this conflated them: the whole crawl sat
+// in one try/catch that reported any failure as "could not reach the site" and
+// exited 0. A page that had been unpublished would therefore be announced as a
+// network problem and pass.
+//
+// That is not hypothetical here. This documentation site answers HTTP 200 for
+// paths that do not exist, serving a "Page Not Found" shell, so the status code
+// cannot be used to detect removal at all. The only reliable signal is whether
+// the response carries `pageProps.markdown`. Seed failures still skip -- if the
+// four entry points are unreachable there is nothing to compare against -- but
+// a page that answers without content is drift and is reported as such.
+const contentless = [];
 let crawled;
 try {
   const seedBodies = await Promise.all(seeds.map((path) => fetchText(base + path)));
@@ -135,7 +148,17 @@ try {
             queue.push(discovered);
           }
         }
-        rows.push(summarize(url, sourceMarkdown(html, url)));
+        let markdown;
+        try {
+          markdown = sourceMarkdown(html, url);
+        } catch {
+          // Answered, but with no source Markdown: the 200-status "Page Not
+          // Found" shell. Recorded rather than thrown, so one unpublished page
+          // does not abort the crawl and hide every other difference.
+          contentless.push(url);
+          continue;
+        }
+        rows.push(summarize(url, markdown));
       }
     }),
   );
@@ -150,6 +173,13 @@ try {
 
 const committed = readManifest(MANIFEST);
 const fresh = new Map(crawled.map((row) => [row[0], { section: row[1], title: row[2], words: String(row[3]), headings: String(row[4]), sha: row[5] }]));
+
+for (const url of contentless) {
+  console.error(
+    `FAIL ${url} answers without source Markdown, which on this site is the 200-status "Page Not Found" ` +
+      "shell. The page is linked but no longer published.",
+  );
+}
 
 const added = [...fresh.keys()].filter((url) => !committed.has(url)).sort();
 const removed = [...committed.keys()].filter((url) => !fresh.has(url)).sort();
@@ -173,9 +203,10 @@ for (const url of changed) {
   );
 }
 
-if (added.length || removed.length || changed.length) {
+if (added.length || removed.length || changed.length || contentless.length) {
   console.error(
-    `\n${added.length} new, ${removed.length} removed, ${changed.length} changed. Re-run with --write to refresh the ` +
+    `\n${added.length} new, ${removed.length} removed, ${changed.length} changed, ${contentless.length} unpublished. ` +
+      "Re-run with --write to refresh the " +
       "manifest, then read each changed page: a contract this repository implements may have moved. Record what " +
       "changed rather than only bumping the hashes.",
   );
