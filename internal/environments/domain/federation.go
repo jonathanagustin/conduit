@@ -17,34 +17,43 @@ import (
 // whether this Hub may modify them and whether an incoming Bundle may overwrite
 // them.
 //
-// Provenance (reviewed 2026-08-02, re-crawled 2026-08-15):
+// Provenance (reviewed 2026-08-02, re-crawled 2026-08-15, connection settings
+// re-read in full 2026-08-15):
 //   - https://www.palantir.com/docs/apollo/managing-environments/environment-connection-settings/
 //   - https://www.palantir.com/docs/apollo/managing-environments/environment-edit-source/
 //
-// KNOWN DIVERGENCE, found by the 2026-08-15 re-crawl. Apollo now publishes
-// FIVE connection settings; the four below were the whole published set on
-// 2026-08-02. The new one is "Intermittent agents": Agents connect directly and
-// Plans ARE issued, health is displayed as of the last connection, Bundle
-// import stays disallowed, and it supports Release Channel promotion. What
-// separates it from Connected agents is that gaps in reported state are
-// expected and are NOT an outage.
+// The published page lists five connection settings and, for each, the exact
+// characteristics used by the predicates below. "Intermittent agents" is
+// identical to "Connected agents" in every published characteristic -- agents
+// connect directly, Plans are issued, Bundle import is disallowed, Release
+// Channel promotion is supported -- with a single difference: gaps in reported
+// state are EXPECTED and are not treated as an outage, and health is shown "as
+// of the last time agents connected."
 //
-// It is deliberately not added as a bare constant, because the predicates below
-// are written as equality against ConnectionAgentsConnected. Adding the state
-// without revisiting each of them would produce an Environment that accepts no
-// Agents, issues no Plans and cannot promote -- the opposite of what Apollo
-// publishes. The staleness rule is the harder half: Conduit reads a stale
-// report as HealthUnknown, which is right for a continuously-connected
-// Environment and wrong for an intermittent one, where the same silence is
-// expected. Closing this is a behaviour change to promotion evidence and needs
-// deciding, not defaulting.
+// That difference splits into two halves. The operational half -- accepting
+// agents, issuing Plans, tracking health, participating in promotion -- is
+// pure published conformance and is honoured below via ExpectsDirectAgents so a
+// bare-constant addition cannot silently produce an Environment that accepts no
+// agents and issues no Plans. The staleness half -- that an expected gap on an
+// intermittent Environment must not read as an outage or a stale promotion
+// evidence -- is a behaviour change to promotion evidence that threads the
+// connection setting into the reporting fleet projection, and is tracked
+// separately (issue #25). ExpectsContinuousReporting is the domain predicate
+// that half will consult; it is correct and unused until then.
 const (
 	// ConnectionUnknown is the un-configured state. An Environment in it is not
 	// operational: no Agent may connect and no Plan is issued.
 	ConnectionUnknown = "UNKNOWN"
 	// ConnectionAgentsConnected receives observed state from Agents that connect
-	// to this Hub.
+	// to this Hub, and expects them to report continuously -- a gap is an outage.
 	ConnectionAgentsConnected = "AGENTS_CONNECTED"
+	// ConnectionIntermittentAgents receives observed state from Agents that
+	// connect directly to this Hub, but expects them to connect only periodically.
+	// Operationally it is Connected agents: Plans are issued, promotion is
+	// supported, Bundle import is disallowed. It differs only in that a gap in
+	// reported state is expected rather than an outage, and health reflects the
+	// last connection.
+	ConnectionIntermittentAgents = "INTERMITTENT_AGENTS"
 	// ConnectionNoConnectionExpected intentionally holds no observed state. It
 	// models an Environment that is exported to another Hub and whose reported
 	// state cannot be relayed back.
@@ -88,29 +97,51 @@ type Federation struct {
 	Present bool `json:"present"`
 }
 
+// ExpectsDirectAgents reports whether Agents connect straight to this Hub. Both
+// Connected and Intermittent settings do; they differ only in whether a gap is
+// an outage, which is ExpectsContinuousReporting's question, not this one. The
+// operational predicates below are written against this rather than against a
+// single constant so that Intermittent is not accidentally excluded from any of
+// them.
+func (federation Federation) ExpectsDirectAgents() bool {
+	return federation.ConnectionSetting == ConnectionAgentsConnected ||
+		federation.ConnectionSetting == ConnectionIntermittentAgents
+}
+
+// ExpectsContinuousReporting reports whether a gap in reported state is an
+// outage. It is true for Connected agents and false for Intermittent, which is
+// the whole published difference between them: an intermittent Environment's
+// silence is expected, so a stale report there must not read as an outage. The
+// reporting fleet projection consults this to decide whether an aged report is
+// stale (issue #25); nothing else should treat the two settings differently.
+func (federation Federation) ExpectsContinuousReporting() bool {
+	return federation.ConnectionSetting == ConnectionAgentsConnected
+}
+
 // IssuesPlans reports whether this Hub may compute and hand out work. Only a
 // Hub that Agents connect to directly issues Plans; a relayed or
 // no-connection Environment is driven elsewhere, and issuing a Plan here would
 // create two writers for one Environment.
 func (federation Federation) IssuesPlans() bool {
-	return federation.ConnectionSetting == ConnectionAgentsConnected
+	return federation.ExpectsDirectAgents()
 }
 
 // AcceptsAgentConnections reports whether an Agent may lease work from this Hub.
 func (federation Federation) AcceptsAgentConnections() bool {
-	return federation.ConnectionSetting == ConnectionAgentsConnected
+	return federation.ExpectsDirectAgents()
 }
 
 // AcceptsRelayedState reports whether observed state may be imported from
 // another Hub. Importing relayed state into an Environment whose own Agents
-// report here would let a stale Bundle overwrite live observation.
+// report here would let a stale Bundle overwrite live observation. Intermittent
+// agents report directly, so like Connected it does not accept relayed state.
 func (federation Federation) AcceptsRelayedState() bool {
 	return federation.ConnectionSetting == ConnectionRelayedFromAnotherHub
 }
 
 // TracksHealth reports whether the Environment holds observed state at all.
 func (federation Federation) TracksHealth() bool {
-	return federation.ConnectionSetting == ConnectionAgentsConnected ||
+	return federation.ExpectsDirectAgents() ||
 		federation.ConnectionSetting == ConnectionRelayedFromAnotherHub
 }
 
@@ -145,7 +176,7 @@ func (federation Federation) AllowsBreakGlassEntityConfig() bool {
 // renders them into the message an operator reads.
 var (
 	ConnectionSettings = []string{
-		ConnectionUnknown, ConnectionAgentsConnected,
+		ConnectionUnknown, ConnectionAgentsConnected, ConnectionIntermittentAgents,
 		ConnectionNoConnectionExpected, ConnectionRelayedFromAnotherHub,
 	}
 	DeclaredStateSources = []string{
