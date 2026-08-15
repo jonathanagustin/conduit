@@ -1,5 +1,6 @@
-// Package execution owns the lease: the claim an Agent holds while it is
-// carrying out a Plan, and the rules deciding whether that claim is still good.
+// Package domain owns what an Agent's run of a Plan may claim and may report:
+// the lease it holds while the work is in flight, and the evidence timeline it
+// hands back afterwards.
 //
 // A lease answers a small number of questions — is it live, has it expired, does
 // this token hold it, does this Agent hold it, which attempt comes next — and
@@ -12,8 +13,19 @@
 // answer for that case: it is not live, nobody holds it, and the next attempt is
 // the first. Making callers nil-check first is what produced the variations.
 //
-// This package imports nothing.
-package execution
+// The evidence half is the same shape of rule. An Agent reports a sequence of
+// tasks, and this package decides whether that sequence is one this Plan could
+// have produced -- ordered, attributable, bounded, and agreeing with the
+// outcome it claims. It is given what the Plan permits rather than the Plan, so
+// none of it needs to know what a Plan is either.
+//
+// Agent-supplied text is redacted here, at the boundary it arrives on, rather
+// than wherever it is later displayed. Redacting on the way out would mean
+// every reader had to remember to; redacting on the way in means the durable
+// record never held the secret.
+//
+// This package imports no other context.
+package domain
 
 import "time"
 
