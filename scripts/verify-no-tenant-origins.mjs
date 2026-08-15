@@ -1,13 +1,16 @@
 #!/usr/bin/env node
 // Refuses a committed tenant origin.
 //
-// The rule this enforces is already written down in several places: commit
-// scrubbed metadata, source hashes and counts; never commit tenant origins,
-// tokens, cookies, authenticated documents or response bodies. It was still
-// broken. `docs/evidence/apollo-authorization-graph.json` carried
-// `source.host: "https://<tenant>.usw-23.palantirfoundry.com"` -- the live
-// tenant, verbatim -- from the commit that extracted this repository onto its
-// trunk until 2026-08-15.
+// The aim is not secrecy. It is that a tenant origin never becomes a literal
+// something downstream depends on -- a default in the console, a fallback in a
+// client, a fixture that quietly becomes the value shipped. An origin belongs in
+// configuration, and the moment one exists in the tree as a string it is
+// available to be copied into code that should have taken it as a parameter.
+//
+// It had already happened once in the evidence layer.
+// `docs/evidence/apollo-authorization-graph.json` carried `source.host` as the
+// live tenant, verbatim, from the commit that extracted this repository onto its
+// trunk until 2026-08-15. Nothing read it, so nothing caught it.
 //
 // It survived because nothing looked. Every other rule in this repository that
 // matters is enforced by a gate; this one was enforced by everyone remembering,
@@ -15,6 +18,10 @@
 // enough to break it. The repository already had the right idiom to hand -- a
 // salted digest of the origin, as `hubFingerprint` -- so the fix was to use it,
 // and this exists so the next capture script cannot skip it.
+//
+// The runtime was and is clean: origins reach it as parameters, and the only
+// `palantir.com` strings in Go are documentation citations in comments. This
+// keeps it that way.
 //
 // What is allowed: an origin whose host contains `example`, because the
 // documentation and the planted-violation harnesses need to show the shape of
