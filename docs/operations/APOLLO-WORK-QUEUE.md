@@ -15,23 +15,27 @@ this file.
 
 ## Everything open is a decision
 
-Nothing is claimable. Every open issue below needs a person to choose, and each
-row states the choice rather than the task — an issue that is really a decision
-wastes an agent's run when it is labelled ready.
+Nothing is claimable — the implementable backlog is empty. Every open issue
+needs a person to choose or is deliberately deferred, and each row states the
+choice rather than the task, because an issue that is really a decision wastes
+an agent's run when it is labelled ready. Where grounded evidence has already
+decided the *direction*, the row says so and names what is left to choose.
 
 | Issue | The decision |
 | --- | --- |
-| [#13](https://github.com/jonathanagustin/conduit/issues/13) | Where does a reviewer requirement that **no grant can satisfy** surface — push the change to `ChangeError`, or attach a non-fatal diagnostic? A grant created after the policy is legitimate ordering, so the loud option can fail a change that is merely early. |
-| [#15](https://github.com/jonathanagustin/conduit/issues/15) | How does an **intermittent** Environment vouch for a Release? Adding Apollo's fifth connection setting as a bare constant would invert its behaviour. |
-| [#16](https://github.com/jonathanagustin/conduit/issues/16) | Scan-before-install: where does a Space setting live when there is no Space, and what makes a scan record fresh enough? Gated on #17. |
-| [#17](https://github.com/jonathanagustin/conduit/issues/17) | Should Conduit have a **Space / organization tenancy boundary** at all? The largest of these: it gates #16 and six refused coordinates, and two independent `apollo-cli` notes make Space a first-class publishing argument. |
-| [#19](https://github.com/jonathanagustin/conduit/issues/19) | Is a third-party documentation crawl **the** exception to manual-only CI (A4)? The offline half is already done and needs no answer. |
-| [#20](https://github.com/jonathanagustin/conduit/issues/20) | Same shape as #19: a merge queue requires overturning A4, which is CONFIRMED. |
-| [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. |
-| [#24](https://github.com/jonathanagustin/conduit/issues/24) | Is requiring a contact team on every Environment **policy or incidental**? Apollo permits Environments without one. Relaxing the validation is two lines and would quietly remove a governance constraint if the constraint is deliberate. |
+| [#13](https://github.com/jonathanagustin/conduit/issues/13) | Where does a reviewer requirement that **no grant can satisfy** surface — `ChangeError`, or a non-fatal diagnostic? A grant created after the policy is legitimate ordering, so the loud option can fail a change that is merely early. Grounded slot is `ChangeError` (Apollo's change-request status machine has no "pending with a note" state); the fork is that vs. a diagnostic, plus the digest-identity handling a new field needs. |
+| [#16](https://github.com/jonathanagustin/conduit/issues/16) | Scan-before-install. **Direction grounded**: the predicate is *has-passed-a-scan* (no freshness window — do not reuse the CVE-recall clock), and the control is a Space-scoped default. Gated on #17's *adopt* outcome; closes with it if #17 is won't-do. |
+| [#17](https://github.com/jonathanagustin/conduit/issues/17) | Adopt a **Foundry Space grouping** (`spaceId`, 5 coords)? **Direction grounded** (opaque, optional, Maven-keyed, not a security boundary — the tenant RBAC has no space role family). The real choice: adopt the minimal single default Space, or accept the 5 refusals permanently if deployments are single-team. |
+| [#19](https://github.com/jonathanagustin/conduit/issues/19) | Is a third-party documentation crawl **the** exception to manual-only CI (A4)? The offline freshness half is already shipped and needs no answer. |
+| [#20](https://github.com/jonathanagustin/conduit/issues/20) | Same A4 question as #19 in different clothes: a merge queue requires overturning A4, which is CONFIRMED. Answering A4 once settles both. |
+| [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. Recommendation on the issue: a dedicated `change:propose`-only service account, not `OnBehalfOf`. |
+| [#25](https://github.com/jonathanagustin/conduit/issues/25) | Intermittent Environment gaps must not read as stale promotion evidence (the behavioural half of #15). Threads the connection setting into the reporting fleet projection — a port-contract change. Direction grounded; the sharp choice is whether an intermittent Environment can vouch on arbitrarily old health (Apollo publishes no bound). |
 
-Two of these — #19 and #20 — are the same question about A4 wearing different
-clothes, and answering A4 once settles both.
+### Deferred
+
+| Issue | Trigger to reopen |
+| --- | --- |
+| [#26](https://github.com/jonathanagustin/conduit/issues/26) | Adopt Apollo **Namespace** as a governed resource (`namespaceId`, 1 coord)? Recommend defer — one coordinate does not justify a new resource type and five-role family. Reopen on a concrete need to grant on Namespaces. Split from #17 once the tenant RBAC proved namespace and space are distinct. |
 
 ## Closed
 
@@ -41,12 +45,29 @@ clothes, and answering A4 once settles both.
 | [#11](https://github.com/jonathanagustin/conduit/issues/11) | `ApolloEnvironment.id`, served from `projection.ID`. |
 | [#12](https://github.com/jonathanagustin/conduit/issues/12) | **Won't do.** Its premise was right — the bundle documents disclaim the wire format, not the concept — and the conclusion did not follow: `rid` is the identity, not the concept, and Conduit's is `bnd_<hex>`. ADR 0005. |
 | [#14](https://github.com/jonathanagustin/conduit/issues/14) | `--values` / `--values-schema` as aliases onto the existing bundle, plus the older defect it exposed: Helm configuration passed with a `terraform.v1` manifest was accepted and silently dropped. |
+| [#15](https://github.com/jonathanagustin/conduit/issues/15) | **Intermittent agents recognised.** Re-reading the published page turned a decision back into conformance: it is operationally identical to Connected. Wired through a shared `ExpectsDirectAgents` so no path can omit it; the one difference is `ExpectsContinuousReporting`, consumed by #25. |
 | [#18](https://github.com/jonathanagustin/conduit/issues/18) | The Rosetta-only notes read one by one. 55, not 58 — the public page moved. 49 are console notes with no contract here; of the 6 CLI notes, two are Space, two are deliberate divergences, one carries no contract, and one became #24. |
 | [#22](https://github.com/jonathanagustin/conduit/issues/22) | **Won't do yet.** Trigger is a multi-replica deployment; every manifest under `deploy/` is `replicas: 1`. The bound lives in the `resolutionlog` package comment, where a deployer will meet it — a better place than a board. |
 | [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-apollo-coordinates-that-stay-refused.md): all twelve refused coordinates, split by what would close each, pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
+| [#24](https://github.com/jonathanagustin/conduit/issues/24) | **Contact team optional.** The decision answered itself in the code: the profile model already permits an ownerless Environment, so the requirement was incidental to the CLI, not policy. Removed an invented constraint rather than relaxing a real one. |
 
 The work for the closed issues is on `claude/apollo-documented-tier` and has not
 been merged to `main`. They are closed on the strength of their commits.
+
+## How the grounding was done
+
+Several of these were labelled decisions when a published contract had already
+decided them, or were conflated with a different question. The evidence used to
+tell the two apart, in descending force:
+
+1. **The captured tenant authorization graph** (`docs/evidence/apollo-authorization-graph.json`) — Apollo's live RBAC. It proved `namespace` and `space` are distinct concepts (Namespace has a full role family; space does not), which split #17 from #26.
+2. **The pinned Conjure interop IR and OpenAPI** (`api/conjure/`, `docs/apollo/snapshots/`) — the wire types and the `Namespace{id,owners,editors,viewers}` shape.
+3. **Foundry's own published docs** — the Space concept Apollo inherits but does not document.
+4. **The live Apollo documentation pages** — which fully specify Intermittent agents (#15) and the optional contact team (#24).
+
+The rule that held throughout: a published contract displaces an invented
+constraint (#15, #24), but never displaces an honest refusal into a false
+answer (#12, #17, #26).
 
 ## A standing gap: label appearance
 
