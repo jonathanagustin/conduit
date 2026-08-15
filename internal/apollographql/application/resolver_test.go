@@ -169,9 +169,9 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 			unserved++
 		}
 	}
-	if unserved != 18 {
+	if unserved != 17 {
 		t.Errorf(
-			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 18. "+
+			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 17. "+
 				"If this moved on purpose, update the count and docs/apollo/reference/graphql-api.md",
 			unserved,
 		)
@@ -484,5 +484,32 @@ func TestAnAbsentSourceRefusesRatherThanPanics(t *testing.T) {
 	response := resolver.Execute(t.Context(), ports.Sources{}, Request{Query: `{ apollo { plans(pageSize: 1) { nextPageToken } } }`})
 	if len(response.Errors) == 0 {
 		t.Fatal("a resolver with no sources answered as though it had them")
+	}
+}
+
+// ApolloEnvironment.id was declared and refused, which meant Apollo's own
+// published example -- `apollo { environments(pageSize: 100) { environments { id } } }`
+// -- could not be answered even in the part Conduit does hold. Conduit has one
+// human identifier for an Environment and Apollo's contract accepts that value
+// as `{environmentId}` on its status routes, so refusing `id` while holding the
+// value was the wrong answer.
+func TestEnvironmentIdAnswersWithTheIdentifierApollosStatusRoutesAccept(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { id name rid } } }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", response.Errors)
+	}
+	environment := response.Data["apollo"].(map[string]any)["environment"].(map[string]any)
+	want := string(apolloSource.environments[0].Name)
+	if environment["id"] != want {
+		t.Errorf("id resolved to %v, want %q", environment["id"], want)
+	}
+	// id and name coincide because Conduit holds one identifier, and rid is a
+	// different value derived from it. Asserting the rid differs is what stops a
+	// later change from quietly answering all three from the same field.
+	if environment["rid"] == environment["id"] {
+		t.Errorf("rid and id are the same value (%v); they are different identifiers", environment["rid"])
 	}
 }

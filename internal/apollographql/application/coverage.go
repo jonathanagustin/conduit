@@ -29,6 +29,7 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	at("ApolloQuery", "entity"):                           "apollo: Service.ListInstallations",
 	at("ApolloQuery", "products"):                         "apollo: Service.ListProducts",
 	at("ApolloEnvironment", "name"):                       "apollo: Environment.Name",
+	at("ApolloEnvironment", "id"):                         "apollo: Environment.Name, the value the status routes accept as {environmentId}",
 	at("ApolloEnvironment", "rid"):                        "apollo: Environment.Rid",
 	at("ApolloEnvironment", "entities"):                   "apollo: Service.ListInstallations",
 	at("ApolloEnvironmentPage", "nextPageToken"):          "pagination: absent while every visible record fits one page",
