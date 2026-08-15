@@ -29,6 +29,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
+const CAPTURE = resolve(ROOT, "docs/apollo/public-documentation-capture.json");
 
 const base = "https://www.palantir.com";
 const seeds = [
@@ -189,7 +190,16 @@ if (write) {
   const header = "url\tsection\ttitle\twords\theadings\tcontent_sha256";
   const body = crawled.sort((left, right) => left[0].localeCompare(right[0])).map((row) => row.join("\t"));
   writeFileSync(MANIFEST, `${[header, ...body].join("\n")}\n`);
+  // The capture record is refreshed here, in the same step, because it is a
+  // statement about this crawl. Leaving it to the operator would mean the one
+  // file whose whole job is to say "somebody checked recently" could be left
+  // saying it when nobody had.
+  const capture = JSON.parse(readFileSync(CAPTURE, "utf8"));
+  capture.capturedAt = new Date().toISOString().slice(0, 10);
+  capture.pageCount = crawled.length;
+  writeFileSync(CAPTURE, `${JSON.stringify(capture, null, 2)}\n`);
   console.log(`documentation manifest: refreshed to ${crawled.length} page(s) (+${added.length} -${removed.length} ~${changed.length})`);
+  console.log(`documentation capture: recorded ${capture.capturedAt}`);
   process.exit(0);
 }
 

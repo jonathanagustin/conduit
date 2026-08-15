@@ -160,7 +160,9 @@ apollo_contract() {
     node scripts/apollo-graphql/verify-observed-schema.mjs &&
     ./scripts/verify-apollo-graphql.test.sh &&
     node scripts/apollo-graphql/verify-apollo-interface.mjs &&
-    ./scripts/verify-apollo-interface.test.sh
+    ./scripts/verify-apollo-interface.test.sh &&
+    node scripts/verify-documentation-freshness.mjs &&
+    ./scripts/verify-documentation-freshness.test.sh
 }
 
 zenith_protocol() {

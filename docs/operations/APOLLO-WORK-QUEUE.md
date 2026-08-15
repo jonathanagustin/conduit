@@ -46,12 +46,12 @@ These are listed so the decision is visible, not so the work looks planned.
 | [#17](https://github.com/jonathanagustin/conduit/issues/17) | Should Conduit have a Space / organization tenancy boundary at all? Gates #16 and five coordinates. |
 | [#20](https://github.com/jonathanagustin/conduit/issues/20) | A merge queue requires overturning A4, which is CONFIRMED. |
 | [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. |
+| [#19](https://github.com/jonathanagustin/conduit/issues/19) | **Re-filed from "evidence and hygiene", where it read as ready work.** "Run the drift gate on a schedule" requires overturning A4, exactly as #20 does — `manual-ci.md` names `schedule` in its prohibition. The decision is whether a third-party crawl is the exception to manual-only CI. The offline half needed no decision and is done: `verify-documentation-freshness.mjs` fails a gate that already runs once the corpus is older than 45 days. |
 
 ## Evidence and hygiene
 
 | Issue | Work |
 | --- | --- |
-| [#19](https://github.com/jonathanagustin/conduit/issues/19) | Run the documentation drift gate on a schedule. Nothing runs it today, which is how the corpus aged two weeks and a contract change went unnoticed. |
 | [#22](https://github.com/jonathanagustin/conduit/issues/22) | Durable Gitless resolution log. Trigger is the first multi-replica deployment. |
 
 ## Found, needs an issue
