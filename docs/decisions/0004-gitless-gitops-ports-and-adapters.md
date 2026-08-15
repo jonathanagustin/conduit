@@ -159,6 +159,7 @@ than quietly dropped.
 - Supersedes: nothing. It gives ADR 0001's decision a home and ADR 0003's
   boundary an executable statement.
 - Superseded by: none
+- Operator guide: `docs/operations/gitless-gitops.md`
 - Relationship to Flux D2: Conduit adopts D2's core — Gitless GitOps, OCI
   artifacts, Cosign keyless identity, bounded reconciler impersonation — and
   exceeds it on artifact selection by refusing mutable tags. Conduit does not
