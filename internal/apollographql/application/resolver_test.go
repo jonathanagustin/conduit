@@ -389,11 +389,19 @@ func TestAFieldTheSchemaDoesNotDeclareIsRejectedBeforeResolution(t *testing.T) {
 	}
 }
 
-func TestMutationIsRefused(t *testing.T) {
+// The recovered surface established no mutation, and Conduit will not invent
+// one. Nothing in this package enforces that: the served SDL declares no
+// mutation root, so gqlparser refuses the operation during validation. The
+// check lives here to pin that the schema -- not a hand-written guard -- is
+// what makes the interface read-only.
+func TestMutationIsRefusedByTheSchemaItself(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{Query: `mutation { apollo { plans(pageSize: 1) { nextPageToken } } }`})
 	if len(response.Errors) == 0 {
 		t.Fatal("a mutation was accepted against an interface with no recovered mutation surface")
+	}
+	if resolver.Schema().Mutation != nil {
+		t.Fatal("the served interface declares a mutation root; the recovered surface established none")
 	}
 }
 
