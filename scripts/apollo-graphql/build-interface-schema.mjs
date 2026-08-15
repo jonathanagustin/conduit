@@ -65,8 +65,13 @@ function observedFields(observed) {
   return byType;
 }
 
-export function buildInterfaceSchema(observed, native) {
+export function buildInterfaceSchema(observed, native, cardinality = {}) {
   const fromHub = observedFields(observed);
+  // Coordinates whose cardinality the probe could not establish and the pinned
+  // OpenAPI publishes. They stay OBSERVED -- a Hub answered for them -- and
+  // carry the weaker source for the ONE thing the Hub did not establish.
+  const documentedList = new Map(Object.entries(cardinality.coordinates ?? {}));
+  const unknownCardinality = [];
   const types = new Map();
   const scalars = new Set();
   const displaceable = [];
@@ -80,7 +85,12 @@ export function buildInterfaceSchema(observed, native) {
     for (const field of fields) {
       const returns = field.shape === "scalar" ? "String" : field.returns;
       for (const argument of field.arguments) if (argument.type && !BUILT_IN.has(argument.type)) scalars.add(argument.type);
-      addField(typeName, { name: field.name, arguments: field.arguments, returns }, "OBSERVED");
+      const cited = documentedList.get(`${typeName}.${field.name}`);
+      addField(
+        typeName,
+        { name: field.name, arguments: field.arguments, returns, list: Boolean(cited), citedCardinality: cited },
+        "OBSERVED",
+      );
     }
   }
 
@@ -103,6 +113,16 @@ export function buildInterfaceSchema(observed, native) {
         { name: field.name, arguments: field.arguments ?? [], returns: field.returns, list: field.list === true },
         tier,
       );
+    }
+  }
+
+  for (const coordinate of documentedList.keys()) {
+    const [typeName, fieldName] = coordinate.split(".");
+    if (!fromHub.get(typeName)?.some((field) => field.name === fieldName)) {
+      // Cardinality is a claim ABOUT a recovered field. Naming a coordinate the
+      // record does not contain would be adding a field through the back door,
+      // under the one tier that means "a Hub answered for this".
+      unknownCardinality.push(coordinate);
     }
   }
 
@@ -132,7 +152,15 @@ export function buildInterfaceSchema(observed, native) {
       // and the resolver refuses the collection-shaped ones rather than
       // guessing. See the limitations in the completeness report.
       const returns = field.list ? `[${field.returns}]` : field.returns;
-      body.push(`  ${field.name}${args}: ${returns} @provenance(tier: ${field.tier})`);
+      // Two provenances on one field, because two different things are being
+      // claimed. `tier` says who established that the field EXISTS; `cardinality`
+      // says who established that it is a list. For the page collections those
+      // are different sources, and collapsing them would either overstate the
+      // Hub or understate the field.
+      const provenance = field.citedCardinality
+        ? `@provenance(tier: ${field.tier}, cardinality: DOCUMENTED)`
+        : `@provenance(tier: ${field.tier})`;
+      body.push(`  ${field.name}${args}: ${returns} ${provenance}`);
       if (field.tier === "OBSERVED") observedCount += 1;
       else if (field.tier === "DOCUMENTED") documentedCount += 1;
       else nativeCount += 1;
@@ -170,7 +198,10 @@ export function buildInterfaceSchema(observed, native) {
     "  CONDUIT_NATIVE",
     "}",
     "",
-    "directive @provenance(tier: ProvenanceTier!) on FIELD_DEFINITION",
+    "# cardinality is stated only where it was established by a source other than",
+    "# the one that established the field. Its absence means the field's own tier",
+    "# covers it: a scalar, or a list the record itself carried.",
+    "directive @provenance(tier: ProvenanceTier!, cardinality: ProvenanceTier) on FIELD_DEFINITION",
     "",
     ...[...scalars]
       .filter((scalar) => !declaredTypes.has(scalar))
@@ -187,7 +218,7 @@ export function buildInterfaceSchema(observed, native) {
     ...rendered.flatMap((type) => [`type ${type.name} {`, ...type.body, "}", ""]),
   ];
   const sdl = `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
-  return { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved };
+  return { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved, unknownCardinality };
 }
 
 function main() {
@@ -198,7 +229,12 @@ function main() {
   }
   const observed = JSON.parse(readFileSync(options.observed, "utf8"));
   const native = JSON.parse(readFileSync(options.native, "utf8"));
-  const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved } = buildInterfaceSchema(observed, native);
+  const cardinality = JSON.parse(readFileSync(resolve(HERE, "documented-cardinality.json"), "utf8"));
+  const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved } = buildInterfaceSchema(
+    observed,
+    native,
+    cardinality,
+  );
 
   const total = observedCount + documentedCount + nativeCount;
   const report = {

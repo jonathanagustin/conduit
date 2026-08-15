@@ -355,14 +355,16 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		return child{typeName: "ApolloEnvironmentPage", source: page{}}, nil
+		listed := resolver.sources.Apollo.ListEnvironments()
+		return child{typeName: "ApolloEnvironmentPage", source: page{records: anySlice(listed.Environments)}}, nil
 	case "entity":
 		return resolver.entityByID(stringArgument(arguments, "rid"))
 	case "products":
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		return child{typeName: "ApolloProductPage", source: page{}}, nil
+		listed := resolver.sources.Apollo.ListProducts()
+		return child{typeName: "ApolloProductPage", source: page{records: anySlice(listed.Products)}}, nil
 	case "plans":
 		plans, err := resolver.plans(ctx)
 		if err != nil {
@@ -447,8 +449,33 @@ func resolvePage(field string, source any) (any, error) {
 	return items, nil
 }
 
+// anySlice flattens the generated pointer-to-slice the Apollo transport returns.
+// A nil pointer and an empty slice both mean "no records", and both must produce
+// an empty list rather than a null: the collection was answered, and it was
+// empty.
+func anySlice[T any](values *[]T) []any {
+	if values == nil {
+		return []any{}
+	}
+	records := make([]any, 0, len(*values))
+	for _, value := range *values {
+		records = append(records, value)
+	}
+	return records
+}
+
 func recordTypeOf(record any) string {
 	switch record.(type) {
+	case apollo.Environment:
+		return "ApolloEnvironment"
+	case apollo.Product:
+		return "ApolloProduct"
+	case entitySource:
+		return "ApolloEntity"
+	case releaseSource:
+		return "ApolloProductRelease"
+	case apollo.ProductDependency:
+		return "ApolloProductDependency"
 	case reporting.PlanSummary:
 		return "ApolloPlan"
 	case reporting.ChangeRequestSummary:
@@ -527,7 +554,21 @@ func (resolver *bound) resolveEnvironment(
 	case "rid":
 		return string(environment.Rid), nil
 	case "entities":
-		return child{typeName: "ApolloEntityPage", source: page{}}, nil
+		if resolver.sources.Apollo == nil {
+			return nil, errNoSource
+		}
+		installations := resolver.sources.Apollo.ListInstallations(string(environment.Rid))
+		entities := []any{}
+		if installations.Installations != nil {
+			for _, installation := range *installations.Installations {
+				// The Environment travels with each Entity because an Entity
+				// resolves environment-scoped fields, and rediscovering the
+				// Environment from the installation would mean a second lookup
+				// that could disagree with this one.
+				entities = append(entities, entitySource{installation: installation, environment: environment})
+			}
+		}
+		return child{typeName: "ApolloEntityPage", source: page{records: entities}}, nil
 	case "health":
 		return resolver.environmentHealth(ctx, string(environment.Rid))
 	}
@@ -653,7 +694,17 @@ func (resolver *bound) resolveProduct(field string, source any) (any, error) {
 	case "productId":
 		return string(product.Id), nil
 	case "productReleases":
-		return child{typeName: "ApolloProductReleasePage", source: page{}}, nil
+		if resolver.sources.Apollo == nil {
+			return nil, errNoSource
+		}
+		listed := resolver.sources.Apollo.ListReleases(string(product.Id))
+		releases := []any{}
+		if listed.Releases != nil {
+			for _, release := range *listed.Releases {
+				releases = append(releases, releaseSource{product: product, release: release})
+			}
+		}
+		return child{typeName: "ApolloProductReleasePage", source: page{records: releases}}, nil
 	}
 	return nil, fmt.Errorf("ApolloProduct.%s is covered but this resolver has no case for it", field)
 }
@@ -686,11 +737,21 @@ func resolveManifest(field string, source any) (any, error) {
 	if !ok {
 		return nil, fmt.Errorf("ApolloProductReleaseManifest.%s resolved against %T", field, source)
 	}
-	if field == "upgradeStrategy" {
+	switch field {
+	case "upgradeStrategy":
 		if release.UpgradeStrategy == nil {
 			return nil, nil
 		}
 		return string(*release.UpgradeStrategy), nil
+	case "productDependencies":
+		// A Release with no declared dependencies answers with an empty list
+		// rather than a null. "This Release depends on nothing" is a fact the
+		// manifest states; a null would say the question was not answered.
+		items := make([]child, 0)
+		for _, dependency := range anySlice(release.ProductDependencies) {
+			items = append(items, child{typeName: "ApolloProductDependency", source: dependency})
+		}
+		return items, nil
 	}
 	return nil, fmt.Errorf("ApolloProductReleaseManifest.%s is covered but this resolver has no case for it", field)
 }

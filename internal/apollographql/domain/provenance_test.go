@@ -199,3 +199,53 @@ func TestARefusalForACoordinateConduitAddedBlamesConduit(t *testing.T) {
 		}
 	}
 }
+
+// Cardinality is a second, independent provenance claim on the same field: the
+// tier says who established that the field exists, cardinality says who
+// established that it is a list. They differ exactly where the probe could not
+// see through a list type and the pinned contract could.
+func TestCardinalityIsReadAsItsOwnProvenanceClaim(t *testing.T) {
+	t.Parallel()
+	declared, err := domain.ReadProvenance(`directive @provenance(tier: ProvenanceTier!, cardinality: ProvenanceTier) on FIELD_DEFINITION
+
+type ApolloEnvironmentPage {
+  environments: [ApolloEnvironment] @provenance(tier: OBSERVED, cardinality: DOCUMENTED)
+  nextPageToken: String @provenance(tier: OBSERVED)
+}
+`)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	collection := domain.Coordinate{Type: "ApolloEnvironmentPage", Field: "environments"}
+	// The field stays OBSERVED. Only its list-ness came from somewhere weaker,
+	// and reading the second claim must not downgrade the first.
+	if tier, _ := declared.TierOf(collection); tier != domain.Observed {
+		t.Errorf("the field's own tier read as %q; a cited cardinality must not downgrade it", tier)
+	}
+	stated, found := declared.CardinalityOf(collection)
+	if !found || stated != domain.Documented {
+		t.Errorf("cardinality read as %q (found=%v), want DOCUMENTED", stated, found)
+	}
+	// Absent means "the field's own tier covers it" -- a scalar, or a list the
+	// same source carried. That is a different statement from DOCUMENTED, so an
+	// absent claim must not read as a present one.
+	if _, found := declared.CardinalityOf(domain.Coordinate{
+		Type: "ApolloEnvironmentPage", Field: "nextPageToken",
+	}); found {
+		t.Error("a field stating no cardinality reported one")
+	}
+}
+
+func TestAnUnknownCardinalityProvenanceIsRefused(t *testing.T) {
+	t.Parallel()
+	_, err := domain.ReadProvenance(`type ApolloEnvironmentPage {
+  environments: [ApolloEnvironment] @provenance(tier: OBSERVED, cardinality: GUESSED)
+}
+`)
+	if err == nil {
+		t.Fatal("an unknown cardinality provenance was accepted")
+	}
+	if !strings.Contains(err.Error(), "cardinality") {
+		t.Errorf("the refusal does not name the claim it refused: %v", err)
+	}
+}
