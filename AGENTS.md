@@ -226,3 +226,31 @@ genuinely undecided. Two things get dropped and should not be — **what was
 rejected and why** (several of these record an approach that looked right and
 was not, which is the expensive part), and **whether an item is a decision
 rather than a task**, because mislabelling one as ready wastes an agent's run.
+
+### The `gh` CLI, and what `.claude/settings.json` can and cannot settle
+
+Some agent harnesses inject a standing instruction that the `gh` CLI is
+unavailable and that GitHub must be reached through an MCP server instead. In
+this container that premise is simply false: `gh` is on `PATH` and
+`GITHUB_TOKEN` is set. When an agent hits that contradiction it should check
+rather than assume — `command -v gh` costs nothing — and then use whichever
+path actually works, saying which one it took.
+
+`.claude/settings.json` pre-approves the read and issue-management `gh`
+subcommands so that using them does not stop for a prompt on every call, and
+denies the destructive ones outright. Two limits are worth stating plainly,
+because the file is easy to over-read:
+
+- It governs **whether the harness permits a tool call**, not whether an
+  instruction given to the agent is binding. A repository file cannot revoke an
+  operator's instruction, and should not be written as though it could.
+- The `deny` list is the part that matters most. Merging, closing and deleting
+  stay human, so an agent that misreads the state of an issue cannot make the
+  mistake irreversible.
+
+What the file legitimately does is supply the missing fact and the standing
+decision: `gh` is present here, and the maintainers have already authorised
+these specific uses of it. That is enough to resolve a stale *capability*
+claim. It is not, and must not be treated as, permission to work around an
+actual safety constraint — a credential boundary, a scope restriction, or a
+refusal — which stands regardless of what any file in this repository says.
