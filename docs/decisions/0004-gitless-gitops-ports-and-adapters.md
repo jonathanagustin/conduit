@@ -113,9 +113,10 @@ that cheap.
 - Bad: the Ruby gate and the Go domain now both express digest pinning and
   signer policy for the committed example. The duplication is bounded and the
   Go adapter's tests assert the same properties, but it is duplication.
-- Unknown: nothing is wired into the Hub yet. The resolver, verifier and
-  resolution log are ports with no production adapters, so no runtime behaviour
-  changes from this decision.
+- Unknown: nothing is wired into the Hub's run loop yet. Every port now has a
+  working adapter and the whole loop is proven end to end, but no scheduler
+  calls Reconcile in production, so no runtime behaviour changes from this
+  decision.
 
 ## Confirmation
 
@@ -129,10 +130,23 @@ different bytes.
 `scripts/verify-domain-boundaries.mjs` continues to reject infrastructure
 imports in domain packages.
 
-Not confirmed on a cluster: `kind`, `kubectl`, `flux` and `cosign` are absent
-from the development sandbox, so the rendered manifests are checked structurally
-rather than applied. `scripts/test-gitless-clean-cluster.sh` remains the
-executable cluster proof for ADR 0001 and is unchanged by this decision.
+`scripts/test-gitless-acceptance.sh` is the confirmation that no substitute
+could give. It resolves a real channel on a real OCI registry, verifies a real
+keyless signature with the real cosign binary, admits it through the real domain
+rule, records it with a real fsynced append, and server-side applies real Flux
+manifests to a real API server -- then repeats it under a policy naming a
+different publisher and requires nothing to reach the cluster. Confirmed against
+k3s v1.36.3 and Flux 2.7.5.
+
+`scripts/test-gitless-flux-manifests.sh` validates the rendered manifests
+against the Flux CRDs, and records the limit that check cannot cover: an API
+server accepts a manifest with Cosign verification and impersonation removed, so
+policy is guarded by the Go tests rather than by the cluster.
+
+An earlier revision of this decision said cluster confirmation was impossible
+here because kubectl, flux and cosign were absent. Absent, not impossible: they
+install, and the sandbox runs k3s. The claim was wrong and is corrected rather
+than quietly dropped.
 
 ## More information
 
@@ -144,7 +158,8 @@ executable cluster proof for ADR 0001 and is unchanged by this decision.
   exceeds it on artifact selection by refusing mutable tags. Conduit does not
   implement D2's `d2-apps` layer; Conduit *is* that layer, with Plans and
   approvals where D2 has HelmReleases.
-- Evidence snapshot/revision: branch commit `a1c0d10`
-- Pareto/value assessment: about 1,000 lines, no new dependency, no runtime
+- Evidence snapshot/revision: branch commit `c0da57d`
+- Pareto/value assessment: about 2,400 lines, no new dependency, no runtime
   behaviour change, in exchange for the admission rules having one executable
-  home and the two convergence paths being provably equivalent where it counts.
+  home, the two convergence paths being provably equivalent where it counts, and
+  the whole loop being proven against real infrastructure rather than doubles.
