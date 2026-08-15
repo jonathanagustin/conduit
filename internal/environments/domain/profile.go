@@ -1,15 +1,20 @@
-// Package environments owns how an Environment describes itself: the profile an
-// operator authors — who owns it, what accreditation it holds, which namespaces
-// are registered — and the desired configuration that governs what may be
-// installed into it.
+// Package domain owns how an Environment describes itself and what that
+// description permits: the profile an operator authors — who owns it, what
+// accreditation it holds, which namespaces are registered — the desired
+// configuration that governs what may be installed into it, the health a
+// reported Entity resolves to, and the topology that decides whether this Hub
+// may issue Plans for it at all.
 //
 // It owns the rules for those, not the workflow around them. Whether a profile
 // change needs an approval, who may make it, and how it reaches the Environment
-// are Governance and Delivery questions; whether the profile is well formed, and
-// what it looks like to a policy engine, are answered here.
+// are Governance and Delivery questions; whether the profile is well formed,
+// what it looks like to a policy engine, whether a node is healthy, and whether
+// an incoming Bundle may overwrite local settings, are answered here.
 //
-// This package imports nothing.
-package environments
+// This package imports no other context. Where another context's vocabulary is
+// needed it is restated or narrowed to the few fields a rule reads, so that
+// none of these answers depends on the monolith being present.
+package domain
 
 import (
 	"crypto/sha256"

@@ -1,9 +1,6 @@
-package environments
+package domain
 
-import (
-	"context"
-	"time"
-)
+import "time"
 
 const (
 	HealthHealthy       = "HEALTHY"
@@ -107,15 +104,6 @@ type PlanStepProjection struct {
 type PlanProjection struct {
 	ID    string
 	Steps []PlanStepProjection
-}
-
-// ReportingPort is the Environment-owned application boundary used by
-// compatibility contexts. Implementations decide how plans and reports are
-// stored; callers cannot reach the control-plane repository directly.
-type ReportingPort interface {
-	LatestPlan(context.Context, string) (PlanProjection, error)
-	GetReport(context.Context, string) (Report, error)
-	PutReport(context.Context, Report) (Report, error)
 }
 
 // CompatibilityProjection is the reviewed subset exposed to a foreign API.

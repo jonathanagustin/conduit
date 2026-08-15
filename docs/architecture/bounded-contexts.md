@@ -75,9 +75,8 @@ the rule. Moving a type without moving authority is not a completed boundary.
 
 `node scripts/report-migration-progress.mjs` reports how far this has actually
 got, and distinguishes a context that holds only extracted types from one that
-owns a domain. Apollo, Delivery, Governance, Reporting, Identity, Artifacts and
-Catalog own theirs. Environments and Execution still hold types whose decisions
-are made in the facade; B12 tracks moving each one.
+owns a domain. Every context but Execution owns theirs; Execution still holds
+types whose decisions are made in the facade, and B12 tracks moving it.
 
 A context that owns its decisions does not necessarily shrink the facade by the
 same amount. Where the moved rule needed a lookup, what replaces it is an
