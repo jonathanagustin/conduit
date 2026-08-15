@@ -32,9 +32,15 @@ var groupHeading = regexp.MustCompile(`^### Group \d+ .*\((\d+)\)\s*$`)
 // fails to meet -- so a whole-file scan read those counter-examples as members
 // of the refused set. The prose has to be free to mention a served coordinate
 // without that changing what the record claims.
-func recordedRefusals(t *testing.T, record string) (map[string]struct{}, int) {
+// Returned per group, not merged, because the record's value is that each
+// coordinate is filed under the reason that would actually close it. A single
+// flat set would let ApolloBundle.rid and ApolloBundle.spaceId swap groups --
+// "waiting on a capture" and "waiting on the Space decision" are different
+// answers to "when does this close?" -- with every count and every set
+// comparison unchanged, and the test green.
+func recordedRefusals(t *testing.T, record string) map[string]map[string]struct{} {
 	t.Helper()
-	recorded, declaredTotal := map[string]struct{}{}, 0
+	groups := map[string]map[string]struct{}{}
 	lines := strings.Split(record, "\n")
 	for index, line := range lines {
 		heading := groupHeading.FindStringSubmatch(line)
@@ -45,29 +51,35 @@ func recordedRefusals(t *testing.T, record string) (map[string]struct{}, int) {
 		if err != nil {
 			t.Fatalf("group heading %q does not state a count: %v", line, err)
 		}
-		declaredTotal += declared
+		title := strings.TrimSpace(line)
+		members := map[string]struct{}{}
 		found := 0
+		// The paragraph ends at a blank line and nowhere else. An earlier
+		// version also stopped on a line that did not end in "," or "`", which
+		// meant a coordinate on the line after one ending in "." was skipped
+		// silently -- so a served coordinate could be left recorded as refused
+		// without any count moving.
 		for cursor := index + 1; cursor < len(lines); cursor++ {
 			if strings.TrimSpace(lines[cursor]) == "" {
 				if found > 0 {
-					break // end of the enumeration paragraph
+					break
 				}
-				continue // blank line between the heading and it
+				continue // blank line between the heading and the paragraph
 			}
 			for _, match := range backtickedCoordinate.FindAllStringSubmatch(lines[cursor], -1) {
-				recorded[match[1]+"."+match[2]] = struct{}{}
+				members[match[1]+"."+match[2]] = struct{}{}
 				found++
-			}
-			if found > 0 && !strings.HasSuffix(strings.TrimSpace(lines[cursor]), ",") &&
-				!strings.HasSuffix(strings.TrimSpace(lines[cursor]), "`") {
-				break
 			}
 		}
 		if found != declared {
-			t.Errorf("%q claims %d coordinates but lists %d", strings.TrimSpace(line), declared, found)
+			t.Errorf("%q claims %d coordinates but lists %d", title, declared, found)
 		}
+		if len(members) != found {
+			t.Errorf("%q lists the same coordinate more than once", title)
+		}
+		groups[title] = members
 	}
-	return recorded, declaredTotal
+	return groups
 }
 
 // TestRefusedCoordinatesMatchTheDecisionRecord pins the ADR against the code.
@@ -101,9 +113,15 @@ func TestRefusedCoordinatesMatchTheDecisionRecord(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	recorded, declaredTotal := recordedRefusals(t, string(record))
-	if declaredTotal != len(refused) {
-		t.Errorf("the record's group headings sum to %d, but %d coordinates refuse", declaredTotal, len(refused))
+	groups := recordedRefusals(t, string(record))
+	recorded := map[string]string{}
+	for title, members := range groups {
+		for coordinate := range members {
+			if existing, duplicated := recorded[coordinate]; duplicated {
+				t.Errorf("%s is filed under both %q and %q; it has one reason, not two", coordinate, existing, title)
+			}
+			recorded[coordinate] = title
+		}
 	}
 
 	for coordinate := range refused {
@@ -118,8 +136,37 @@ func TestRefusedCoordinatesMatchTheDecisionRecord(t *testing.T) {
 	}
 	if len(refused) != len(recorded) {
 		t.Fatalf("refused %d coordinates, record accounts for %d: %s vs %s",
-			len(refused), len(recorded), sortedKeys(refused), sortedKeys(recorded))
+			len(refused), len(recorded), sortedKeys(refused), sortedNames(recorded))
 	}
+
+	// The groups are the reasons, so they are pinned by name. Moving a
+	// coordinate between them changes what the repository claims would close it
+	// -- a capture that may never come, versus a decision somebody could make
+	// this week -- and every count above survives that move unchanged.
+	for coordinate, title := range map[string]string{
+		"ApolloBundle.rid":              "### Group 1 — no Apollo resource identifiers (6)",
+		"ApolloQuery.bundle":            "### Group 1 — no Apollo resource identifiers (6)",
+		"ApolloProductRelease.rid":      "### Group 1 — no Apollo resource identifiers (6)",
+		"ApolloBundle.spaceId":          "### Group 2 — no Space tenancy boundary (5)",
+		"ApolloEnvironment.spaceId":     "### Group 2 — no Space tenancy boundary (5)",
+		"ApolloEnvironment.namespaceId": "### Group 3 — no namespace (1)",
+	} {
+		if got := recorded[coordinate]; got != title {
+			t.Errorf("%s is filed under %q, want %q", coordinate, got, title)
+		}
+	}
+}
+
+// sortedNames is the same rendering for the coordinate-to-group map, kept
+// separate rather than made generic because the two are read side by side in
+// one failure message and a shared signature would obscure which is which.
+func sortedNames(set map[string]string) string {
+	keys := make([]string, 0, len(set))
+	for key := range set {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return strings.Join(keys, ", ")
 }
 
 func sortedKeys(set map[string]struct{}) string {

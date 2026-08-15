@@ -315,12 +315,21 @@ func terminalBoundaryGroup(name, subject string) *cobra.Command {
 // end up bound to the Release, with nothing said. Refusing costs a re-run;
 // picking silently costs a Release that does not match the command that made
 // it.
-func soleSpelling(name, value, alias, aliasValue string) (string, error) {
-	if value != "" && aliasValue != "" {
-		return "", fmt.Errorf("%s and %s are the same flag; pass one", name, alias)
+// Presence is read from cobra's Changed rather than from the value being
+// non-empty. They differ for `--values=`: the operator passed the flag, the
+// value is "", and a non-empty test concludes the flag was absent. That let
+// `--default-config=x --values=` through the check below, and let `--values=`
+// slip past the Terraform guard entirely.
+func soleSpelling(command *cobra.Command, name, value, alias, aliasValue string) (string, error) {
+	given, aliasGiven := command.Flags().Changed(name), command.Flags().Changed(alias)
+	if given && aliasGiven {
+		return "", fmt.Errorf("--%s and --%s are the same flag; pass one", name, alias)
 	}
-	if aliasValue != "" {
+	if aliasGiven {
 		return aliasValue, nil
 	}
-	return value, nil
+	if given {
+		return value, nil
+	}
+	return "", nil
 }

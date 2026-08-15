@@ -1,6 +1,8 @@
 package domain
 
 import (
+	"os"
+	"regexp"
 	"sort"
 	"testing"
 )
@@ -31,6 +33,46 @@ func TestOperationVocabularyCoversEveryOperation(t *testing.T) {
 	}
 	if !sort.StringsAreSorted(OperationVocabulary) {
 		t.Error("OperationVocabulary is not sorted, which makes a duplicate easy to miss on review")
+	}
+	// Sortedness does NOT imply uniqueness -- ["a", "a"] is sorted -- and the
+	// comment above claimed it caught duplicates. It did not: a repeated entry
+	// passed, and the session capability projection reads this list directly, so
+	// it would have offered the same operation twice.
+	unique := map[string]struct{}{}
+	for _, operation := range OperationVocabulary {
+		if _, repeated := unique[operation]; repeated {
+			t.Errorf("OperationVocabulary lists %q more than once", operation)
+		}
+		unique[operation] = struct{}{}
+	}
+}
+
+// operationConstant matches the `OperationX = "family:verb"` declarations.
+var operationConstant = regexp.MustCompile(`\n\s*(Operation[A-Za-z]+)\s*=\s*"([^"]+)"`)
+
+// TestOperationVocabularyCoversEveryDeclaredConstant reads the constants out of
+// the source, because the test above cannot see the case it most needs to.
+//
+// That test walks the role table and the vocabulary. A constant declared and
+// then added to neither is in neither collection, so nothing iterates it and
+// nothing fails -- which is precisely the drift being guarded against, and the
+// gate's own comment claimed to catch it. Reading the declarations is the only
+// way to ask the question the comment was already promising an answer to.
+func TestOperationVocabularyCoversEveryDeclaredConstant(t *testing.T) {
+	t.Parallel()
+	source, err := os.ReadFile("authorization.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	matches := operationConstant.FindAllStringSubmatch(string(source), -1)
+	if len(matches) < len(OperationVocabulary) {
+		t.Fatalf("found only %d Operation constants in the source; the pattern has stopped matching", len(matches))
+	}
+	for _, match := range matches {
+		if !OperationIsKnown(match[2]) {
+			t.Errorf("%s = %q is declared but absent from OperationVocabulary, so nothing can ever offer it",
+				match[1], match[2])
+		}
 	}
 }
 
