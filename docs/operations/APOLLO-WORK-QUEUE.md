@@ -18,7 +18,6 @@ this file.
 | Issue | Work |
 | --- | --- |
 | [#12](https://github.com/jonathanagustin/conduit/issues/12) | Serve the bundle coordinates. The bundle documents disclaim the wire format, not the concept. |
-| [#14](https://github.com/jonathanagustin/conduit/issues/14) | `product-release create --values / --values-schema`. A missing entry point to a path that already works. |
 
 ### Re-scoped
 
@@ -32,6 +31,7 @@ this file.
 | --- | --- |
 | [#10](https://github.com/jonathanagustin/conduit/issues/10) | Cardinality for the five recovered collection fields, via a second directive argument so `OBSERVED` existence and `DOCUMENTED` cardinality are stated separately. Apollo's published example query now works. |
 | [#11](https://github.com/jonathanagustin/conduit/issues/11) | `ApolloEnvironment.id`, served from `projection.ID`. |
+| [#14](https://github.com/jonathanagustin/conduit/issues/14) | `product-release create --values / --values-schema`, as aliases onto the existing bundle. Also fixed the older defect it exposed: Helm configuration passed with a `terraform.v1` manifest was accepted and silently dropped. |
 
 ## Blocked on a decision
 
