@@ -9,8 +9,11 @@
   at the last safe point before execution; stale approval is not authority.
 - Persist lifecycle transitions before acknowledging them. A successful report
   must match Product, version, Release digest, namespace, and configuration.
-- Keep operator identity headers explicitly development-only until an
-  authenticated proxy supplies trustworthy identity.
+- Identity headers are a development-only escape hatch behind the explicit
+  `ALLOW_INSECURE_*_IDENTITY_HEADERS` opt-ins. Production identity is OIDC
+  (operators) and mTLS or SPIFFE (Agents); `cmd/platform-delivery` refuses to
+  combine the insecure headers with any secure mechanism, and the Helm gate
+  aborts if a chart sets any `ALLOW_INSECURE_` variable.
 - New Hub wiring belongs in `hub/composition`; executables must not construct
   the legacy `controlplane` HTTP facade directly.
 - New bounded contexts use inward dependencies: adapters → application →
