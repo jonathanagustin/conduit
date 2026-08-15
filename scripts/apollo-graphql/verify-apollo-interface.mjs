@@ -30,6 +30,11 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
 
 const OBSERVED = resolve(ROOT, "docs/apollo/observed/apollo-graphql-observed.json");
+const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
+const OPENAPI = resolve(
+  ROOT,
+  "docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml",
+);
 const NATIVE = resolve(HERE, "conduit-native.json");
 const SCHEMA = resolve(ROOT, "api/graphql/apollo.interface.graphql");
 const REPORT = resolve(ROOT, "docs/apollo/observed/apollo-interface-provenance.json");
@@ -50,7 +55,7 @@ const native = JSON.parse(readFileSync(NATIVE, "utf8"));
 const committedSchema = readFileSync(SCHEMA, "utf8");
 const report = JSON.parse(readFileSync(REPORT, "utf8"));
 
-const { sdl, observedCount, nativeCount, displaceable, unresolved } = buildInterfaceSchema(observed, native);
+const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved } = buildInterfaceSchema(observed, native);
 
 // 1 & 3. The served interface is exactly what the record and the declarations
 // derive, so an OBSERVED field cannot drift from the Hub that established it.
@@ -100,11 +105,102 @@ for (const match of committedSchema.matchAll(/^type ([A-Za-z_][A-Za-z0-9_]*) \{$
   }
 }
 
+// A tier is a claim about a source, so the source is checked rather than
+// trusted. A citation nobody verifies is the same decoration an unanchored
+// signer pattern is: it reads as evidence and constrains nothing.
+const manifestUrls = new Set(
+  existsSync(MANIFEST)
+    ? readFileSync(MANIFEST, "utf8")
+        .split("\n")
+        .slice(1)
+        .map((line) => line.split("\t")[0])
+        .filter(Boolean)
+    : [],
+);
+// Property names in the pinned OpenAPI, which is what `apollo-openapi X.y`
+// citations point at. Parsed by line rather than with a YAML dependency: the
+// snapshot is pinned, so its shape cannot drift under this check.
+const openapiProperties = new Set();
+if (existsSync(OPENAPI)) {
+  for (const line of readFileSync(OPENAPI, "utf8").split("\n")) {
+    const match = line.match(/^ {8}([a-zA-Z][a-zA-Z0-9_]*):$/);
+    if (match) openapiProperties.add(match[1]);
+  }
+}
+// An `apollo-graphql Type.field` citation points at the recovery record itself:
+// Apollo's own GraphQL name for the same thing, established by capture on a
+// sibling type. It is the strongest citation available here, so it is the one
+// most worth checking -- an unverified one would let a coordinate borrow the
+// record's authority without appearing in it.
+const recordedCoordinates = new Set(recorded);
+const checkGraphQLCitations = (where, citation, kind) => {
+  for (const cited of citation.matchAll(/apollo-graphql ([A-Za-z_][A-Za-z0-9_]*\.[a-zA-Z][a-zA-Z0-9_]*)/g)) {
+    if (!recordedCoordinates.has(cited[1])) {
+      fail(
+        `${where} cites ${cited[0]} as ${kind}, but the recovery record contains no such coordinate. ` +
+          "A citation of the record must appear in the record.",
+      );
+    }
+  }
+};
+
+for (const [typeName, declaration] of Object.entries(native.types ?? {})) {
+  for (const field of declaration.fields ?? []) {
+    const where = `${typeName}.${field.name}`;
+    if (field.documentedBy && !manifestUrls.has(field.documentedBy)) {
+      fail(
+        `${where} cites documentation at ${field.documentedBy}, which is not in ` +
+          "docs/apollo/public-documentation-manifest.tsv. A citation nobody can follow is not evidence.",
+      );
+    }
+    for (const cited of (field.publishedAs ?? "").matchAll(/apollo-openapi ([A-Za-z]+)\.([a-zA-Z][a-zA-Z0-9_]*)/g)) {
+      if (!openapiProperties.has(cited[2])) {
+        fail(
+          `${where} claims Apollo publishes the name "${cited[2]}" (as ${cited[0]}), but the pinned OpenAPI ` +
+            "snapshot declares no such property. Do not claim a published name the contract does not carry.",
+        );
+      }
+    }
+    checkGraphQLCitations(where, field.publishedAs ?? "", "a published name");
+    checkGraphQLCitations(where, field.patternedOn ?? "", "the pattern it follows");
+    if (field.publishedAs && !field.publishedAs.includes(field.name)) {
+      fail(
+        `${where} cites a published name that is not this field's name: ${field.publishedAs}. ` +
+          "Where Apollo publishes a name, the field must use it -- that is what displacement means.",
+      );
+    }
+    // patternedOn is a weaker claim than publishedAs and must stay weaker. It
+    // says Apollo established the SHAPE and Conduit supplied the noun, so a
+    // citation carrying this field's own name is really a published name and
+    // must be declared as one -- otherwise the two claims blur and the stronger
+    // evidence gets filed under the weaker word.
+    if (field.patternedOn) {
+      if (field.patternedOn.includes(field.name)) {
+        fail(
+          `${where} cites its own name under patternedOn: ${field.patternedOn}. If Apollo names this field, ` +
+            "say so with publishedAs; patternedOn claims only that Apollo established the shape.",
+        );
+      }
+      if (!field.documentedBy) {
+        fail(
+          `${where} claims to follow an Apollo pattern but cites nothing for its own name. A pattern ` +
+            "establishes the shape, not the noun; cite the noun with documentedBy or drop the claim.",
+        );
+      }
+    }
+  }
+}
+
 // The report must describe this interface, not an earlier one.
-if (report.observedFields !== observedCount || report.conduitNativeFields !== nativeCount) {
+if (
+  report.observedFields !== observedCount ||
+  report.documentedFields !== documentedCount ||
+  report.conduitNativeFields !== nativeCount
+) {
   fail(
-    `provenance report claims ${report.observedFields} observed / ${report.conduitNativeFields} native; ` +
-      `the interface derives ${observedCount} / ${nativeCount}`,
+    `provenance report claims ${report.observedFields} observed / ${report.documentedFields} documented / ` +
+      `${report.conduitNativeFields} native; the interface derives ` +
+      `${observedCount} / ${documentedCount} / ${nativeCount}`,
   );
 }
 if (report.hubFingerprint !== observed.hubFingerprint) {
@@ -118,6 +214,7 @@ if (failures.length) {
 
 const share = Math.round((report.conduitNativeShare ?? 0) * 100);
 console.log(
-  `PASS Apollo interface provenance: ${observedCount} observed + ${nativeCount} Conduit-native field(s); ` +
-    `${share}% of the served interface is invented and awaiting ground truth`,
+  `PASS Apollo interface provenance: ${observedCount} observed + ${documentedCount} documented + ` +
+    `${nativeCount} Conduit-native field(s); every citation resolves; ` +
+    `${share}% of the served interface has no Apollo source of any kind`,
 );

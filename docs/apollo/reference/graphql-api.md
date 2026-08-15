@@ -184,19 +184,67 @@ which is less than one capture suggests.
 
 The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the
 interface Conduit actually serves, and it is deliberately larger: 41 recovered
-coordinates plus 22 Conduit invented, because an operator interface that cannot
-reach plans, change requests or promotions is not usable for delivery work.
+coordinates plus 22 that no capture established, because an operator interface
+that cannot reach plans, change requests or promotions is not usable for
+delivery work.
 
 Mixing the two is the risk the design exists to manage. An interface that blends
 recovered truth with invention and does not say which is which cannot be
 audited, and the invention silently becomes the claim.
 
-**Every field carries its provenance.** The served SDL annotates each field with
-`@provenance(tier: OBSERVED)` or `@provenance(tier: CONDUIT_NATIVE)`, and
-`GET /v1/apollo/graphql/schema` publishes it. Every response carries an
-`extensions.provenance` block naming the invented coordinates it answered from.
-A client never has to take Conduit's Apollo shape as an Apollo compatibility
-claim, and never has to read this repository to find out.
+**Every field carries its provenance,** in one of three tiers:
+
+| Tier | What established it |
+| --- | --- |
+| `OBSERVED` | An authorized Hub answered for this coordinate. 41 fields. |
+| `DOCUMENTED` | Apollo names the field or documents the concept — in the pinned OpenAPI, in an `apollo-cli` flag, in published documentation, or on a sibling type in the recovery record. No Hub answered for *this* coordinate. 22 fields. |
+| `CONDUIT_NATIVE` | Conduit's own idea, no Apollo claim of any kind. **0 fields.** |
+
+`GET /v1/apollo/graphql/schema` publishes the annotated SDL, and every response
+carries an `extensions.provenance` block naming the `DOCUMENTED` and
+`CONDUIT_NATIVE` coordinates it answered from. A client never has to take
+Conduit's Apollo shape as an Apollo compatibility claim, and never has to read
+this repository to find out.
+
+**The bottom tier being empty is a finding, not a design.** The interface was
+built assuming 22 fields were Conduit's invention. Reading the documentation
+corpus already committed to this repository showed every one of them traces to
+an Apollo source — including three whose names were wrong and have been
+displaced (below). Nothing about what Conduit serves changed; what changed is
+that the repository stopped overstating its own invention by 35 percentage
+points. The tier stays in the enum because the next genuine invention needs
+somewhere honest to go, and `TestNoServedFieldIsWithoutAnApolloSource` pins the
+count so that adding an uncited field fails deliberately rather than drifting.
+
+**`DOCUMENTED` is not a weaker `OBSERVED`.** It says Apollo named the thing, and
+nothing whatever about whether Conduit holds data behind it or whether a Hub
+would answer for it. `Tier.Established()` is the single place that distinction
+is made, and only `OBSERVED` returns true from it.
+
+### Displacement by documentation
+
+Where Apollo publishes a name for something Conduit had named itself, the
+invented name is **deleted**, not deprecated beside it. Three did not survive
+contact with the pinned OpenAPI:
+
+| Conduit invented | Apollo publishes | Citation |
+| --- | --- | --- |
+| `ApolloEntity.installedVersion` | `version` | `apollo-openapi Installation.version` |
+| `ApolloPlan.environment` | `environmentRid` | `apollo-openapi Installation.environmentRid` |
+| `ApolloPromotion.product` | `productId` | `apollo-openapi Product.id`, `Installation.productId` |
+
+`TestTheDisplacedNamesAreNoLongerSelectable` proves both halves: the invented
+names are unselectable, and the published ones answer. Proving only the refusal
+would pass on an interface that had dropped the fields entirely.
+
+The strongest citations point at the recovery record itself. `nextPageToken` is
+`DOCUMENTED` rather than invented because the record carries that exact name on
+four sibling page types — Apollo's own GraphQL name, established by capture. The
+three collection fields (`plans`, `changeRequests`, `promotions`) cite the
+record for their *shape* (`patternedOn`) and documentation for their *noun*
+(`documentedBy`), because every recovered `XPage` names its collection after the
+plural entity it pages. A `patternedOn` citation carrying the field's own name
+is rejected: that would be a published name filed under the weaker word.
 
 **Displacement is mechanical, not remembered.** `node
 scripts/apollo-graphql/verify-apollo-interface.mjs` fails the build the moment a
@@ -204,10 +252,25 @@ capture recovers a coordinate still declared in
 `scripts/apollo-graphql/conduit-native.json`, and names it. Finding ground truth
 breaks the build until the invented definition is deleted so the recovered one
 takes its place. That is the intended cost; the alternative is a repository that
-quietly serves guesses it could have replaced.
-`scripts/verify-apollo-interface.test.sh` plants eight violations -- including
-declaring an already-recovered coordinate as native, on a leaf type and on the
-root -- and requires the gate to reject each by name.
+quietly serves guesses it could have replaced. Documentation displaces the same
+way a capture does: a field citing a published Apollo name while serving a
+different one fails the gate.
+
+Every citation is verified rather than trusted, because a citation nobody checks
+is decoration — it reads as evidence and constrains nothing, which is worse than
+an honest `CONDUIT_NATIVE`. `documentedBy` must resolve in
+`docs/apollo/public-documentation-manifest.tsv`; `apollo-openapi X.y` must name a
+property the pinned snapshot declares; `apollo-graphql Type.field` must appear in
+the recovery record. `scripts/verify-apollo-interface.test.sh` plants fifteen
+violations — including declaring an already-recovered coordinate as native on
+both a leaf type and the root, a URL the manifest does not carry, an OpenAPI
+property that does not exist, and a field citing Apollo's name while serving its
+own — and requires the gate to reject each by name.
+
+That harness stages the manifest and the OpenAPI snapshot into its temporary
+tree deliberately. Omitting them made every citation unresolvable, so every case
+rejected for that reason instead of its own and the harness passed while testing
+nothing.
 
 **Declared is not the same as answerable.** Conduit holds no bundles and no
 space identifiers, so 18 recovered coordinates are declared and unanswerable
@@ -215,16 +278,27 @@ here. Those refuse rather than resolving to null: a null is a value, and
 answering `ApolloBundle.rid: null` would assert an absence Conduit has never
 observed. The refusal says so and sends the reader to a Hub.
 `internal/apollographql/domain.Reconcile` publishes that count and fails the
-build on the two cases that are defects -- an invented field nothing backs, and
-a resolver claiming a coordinate the schema does not declare.
+build on the two cases that are defects -- a field Conduit added that nothing
+backs, and a resolver claiming a coordinate the schema does not declare.
+
+A cited name does not excuse a missing source. `DOCUMENTED` and
+`CONDUIT_NATIVE` reconcile identically: Apollo publishing the name is evidence
+about the *name*, never about whether Conduit holds data behind it, and Conduit
+chose to declare the field either way.
 
 | Property | Value |
 | --- | --- |
 | Recovered coordinates served | 41 |
-| Conduit-native coordinates served | 22 (35% of the interface) |
+| Coordinates served that no capture established | 22 (35% of the interface) |
+| — of which Apollo names or documents | 22 |
+| — of which are Conduit's own invention | **0 (0%)** |
 | Recovered coordinates declared but unanswerable | 18 |
 | Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
 | Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
 
-The invented share is the number to watch. It should fall as captures widen, and
-it is the fraction of the served interface that no Hub has ever confirmed.
+Two numbers, and they answer different questions. `unrecoveredShare` (35%) is
+the fraction no Hub has confirmed; it should fall as captures widen.
+`conduitNativeShare` (0%) is the fraction no Apollo source of any kind supports;
+it should stay honest rather than stay zero. Conflating them is how "documented"
+quietly becomes "verified", which is the failure this whole interface exists to
+prevent.
