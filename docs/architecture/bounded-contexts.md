@@ -14,7 +14,7 @@ into Conduit-owned concepts before it can affect delivery.
 | Governance | Principals, grants, roles, the approval-policy language and its predicates, approval requirements, the audit contract a decision is filed under, and authorization decisions | Authentication, execution, or the Change Request lifecycle that asks it for a decision |
 | Identity | Conversion of verified credentials into operator or Spoke identity, and the policy a token must satisfy to be one | Permission grants, or how a token's signature is checked and how a credential arrives |
 | Execution | Lease ownership, attempt numbering, expiry, and execution state | Approval policy or cluster mechanics |
-| Artifacts | Signed Bundle envelopes, content identity, chunks, and lineage | Product selection or rollout policy |
+| Artifacts | Signed Bundle envelopes, content identity, chunks, lineage, and staging a Bundle's layers into a blob store | Product selection, rollout policy, or where the bytes are actually kept |
 | Optimization | Read-only evidence, advisory proposals, solver admission, and outcome calibration | Approval, leasing, or mutation of delivery state |
 | Reporting | The fleet projection and the operator overview: what a panel shows, how much of it, how it is ordered, and what an unanswered store looks like | Authorization, or what makes a plan failed, a change awaiting approval, or a promotion blocked — those arrive already classified |
 | Hub composition | Wiring HTTP handlers, repositories, and domain services | New domain rules |
@@ -75,8 +75,8 @@ the rule. Moving a type without moving authority is not a completed boundary.
 
 `node scripts/report-migration-progress.mjs` reports how far this has actually
 got, and distinguishes a context that holds only extracted types from one that
-owns a domain. Apollo, Delivery, Governance, Reporting and Identity own theirs.
-Catalog, Environments, Artifacts and Execution still hold types whose decisions
+owns a domain. Apollo, Delivery, Governance, Reporting, Identity and Artifacts
+own theirs. Catalog, Environments and Execution still hold types whose decisions
 are made in the facade; B12 tracks moving each one.
 
 A context that owns its decisions does not necessarily shrink the facade by the
