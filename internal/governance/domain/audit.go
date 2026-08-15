@@ -1,4 +1,4 @@
-package controlplane
+package domain
 
 import (
 	"fmt"
@@ -80,7 +80,9 @@ func ValidateAuditCategoryEvent(event AuthorizationAuditEvent) error {
 	return nil
 }
 
-func normalizedAuditCategories(categories []string) []string {
+// NormalizedAuditCategories trims, dedupes and orders the categories an event
+// is filed under, so two events recording the same decision compare equal.
+func NormalizedAuditCategories(categories []string) []string {
 	result := normalizedStrings(categories)
 	sort.Strings(result)
 	return result

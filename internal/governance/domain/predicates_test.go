@@ -1,19 +1,28 @@
-package controlplane
+package domain
 
 import (
-	"context"
 	"testing"
 	"time"
 )
 
 var policyFixtureTime = time.Date(2026, 8, 1, 0, 0, 0, 0, time.UTC)
 
+// The Change Types below are spelled out rather than imported. A predicate
+// compares them as opaque strings and must keep working whatever the Change
+// Request context calls them; importing the constants would make this package
+// depend on that context to say so.
+const (
+	changeTypeUpdateEntity = "UPDATE_ENTITY"
+	changeTypeDeleteEntity = "DELETE_ENTITY"
+	changeTypeImportPrefix = "IMPORT_"
+)
+
 // evaluateExpression compiles one policy expression against the published
 // predicate set and returns the decision it reaches.
-func evaluateExpression(t *testing.T, trust PolicyTrust, expression string, change EntityChange, author Principal, editors []string) policyResult {
+func evaluateExpression(t *testing.T, trust PolicyTrust, expression string, change ChangeFacts, author Principal, editors []string) PolicyResult {
 	t.Helper()
 	policy := ApprovalPolicy{ID: "under-test", DisplayName: "Under test", Enabled: true, Expression: expression}
-	result, err := evaluatePolicy(policy, policyInput(change, author, editors, policyFixtureTime), trust)
+	result, err := EvaluatePolicy(policy, PolicyInput(change, author, editors, policyFixtureTime), trust)
 	if err != nil {
 		t.Fatalf("evaluate %q: %v", expression, err)
 	}
@@ -61,7 +70,7 @@ func TestDiffOnlyModifiesPathsGatesByGlob(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
-			change := EntityChange{Type: ChangeTypeUpdateEntity, Diff: map[string]ChangeDiffEntry{}}
+			change := ChangeFacts{Type: changeTypeUpdateEntity, Diff: map[string]ChangeDiffEntry{}}
 			for _, path := range testCase.paths {
 				change.Diff[path] = ChangeDiffEntry{Before: "before", After: "after"}
 			}
@@ -69,7 +78,7 @@ func TestDiffOnlyModifiesPathsGatesByGlob(t *testing.T) {
 				ID: "scoped", DisplayName: "Scoped", Enabled: true, Expression: expression,
 				Variables: map[string]PolicyVariable{"allowed": {Type: PolicyStringList, List: testCase.allowed}},
 			}
-			result, err := evaluatePolicy(policy, policyInput(change, Principal{Username: "svc"}, nil, policyFixtureTime), PolicyTrust{})
+			result, err := EvaluatePolicy(policy, PolicyInput(change, Principal{Username: "svc"}, nil, policyFixtureTime), PolicyTrust{})
 			if err != nil {
 				t.Fatal(err)
 			}
@@ -84,10 +93,10 @@ func TestServiceUserPredicatesRequireUneditedAutomation(t *testing.T) {
 	t.Parallel()
 	trust := PolicyTrust{
 		ServiceAccounts: []TrustedServiceAccount{
-			{Username: "svc-deploy", ChangeTypes: []string{ChangeTypeUpdateEntity}},
+			{Username: "svc-deploy", ChangeTypes: []string{changeTypeUpdateEntity}},
 		},
 	}
-	change := EntityChange{Type: ChangeTypeUpdateEntity}
+	change := ChangeFacts{Type: changeTypeUpdateEntity}
 	expression := `should_auto_approve_service_user(type, author, onBehalfOf, editors) ? approve("automation") : no_op()`
 
 	serviceAuthor := Principal{Username: "svc-deploy", ServiceAccount: true}
@@ -99,7 +108,7 @@ func TestServiceUserPredicatesRequireUneditedAutomation(t *testing.T) {
 		t.Fatalf("edited automation kind = %s", result.Kind)
 	}
 	// The same account is not trusted for a Change Type it was not granted.
-	other := EntityChange{Type: ChangeTypeDeleteEntity}
+	other := ChangeFacts{Type: changeTypeDeleteEntity}
 	if result := evaluateExpression(t, trust, expression, other, serviceAuthor, nil); result.Kind != "NO_OP" {
 		t.Fatalf("ungranted change type kind = %s", result.Kind)
 	}
@@ -129,7 +138,7 @@ func TestTrustedAutomationRequestsRequireOriginMetadata(t *testing.T) {
 	importExpression := `is_trusted_import_request(author, metadata, editors) ? approve("import") : no_op()`
 
 	moduleAuthor := Principal{Username: "svc-modules", ServiceAccount: true}
-	moduleChange := EntityChange{Type: ChangeTypeUpdateEntity, Metadata: map[string]any{
+	moduleChange := ChangeFacts{Type: changeTypeUpdateEntity, Metadata: map[string]any{
 		MetadataChangeSource: ChangeSourceModuleInstallation, MetadataModuleID: "mod_1",
 	}}
 	if result := evaluateExpression(t, trust, moduleExpression, moduleChange, moduleAuthor, nil); result.Kind != "APPROVE" {
@@ -140,14 +149,14 @@ func TestTrustedAutomationRequestsRequireOriginMetadata(t *testing.T) {
 		t.Fatalf("human using the trusted module username kind = %s", result.Kind)
 	}
 	// Module installation metadata is required, not just the identity.
-	bare := EntityChange{Type: ChangeTypeUpdateEntity, Metadata: map[string]any{
+	bare := ChangeFacts{Type: changeTypeUpdateEntity, Metadata: map[string]any{
 		MetadataChangeSource: ChangeSourceModuleInstallation,
 	}}
 	if result := evaluateExpression(t, trust, moduleExpression, bare, moduleAuthor, nil); result.Kind != "NO_OP" {
 		t.Fatalf("module request without module metadata kind = %s", result.Kind)
 	}
 	// An import-origin change is not a module change even from a trusted account.
-	importChange := EntityChange{Type: importChangeTypePrefix + "ENVIRONMENT", Metadata: map[string]any{
+	importChange := ChangeFacts{Type: changeTypeImportPrefix + "ENVIRONMENT", Metadata: map[string]any{
 		MetadataChangeSource: ChangeSourceEnvironmentImport, MetadataBundleID: "bnd_1",
 	}}
 	if result := evaluateExpression(t, trust, moduleExpression, importChange, moduleAuthor, nil); result.Kind != "NO_OP" {
@@ -167,35 +176,5 @@ func TestTrustedAutomationRequestsRequireOriginMetadata(t *testing.T) {
 	}
 	if result := evaluateExpression(t, PolicyTrust{}, importExpression, importChange, importAuthor, nil); result.Kind != "NO_OP" {
 		t.Fatalf("undeclared import service kind = %s", result.Kind)
-	}
-}
-
-// Bundle import changes must carry the origin metadata the published import
-// predicate reads, otherwise a policy written upstream can never recognize them.
-func TestBundleImportChangesCarryImportOriginMetadata(t *testing.T) {
-	t.Parallel()
-	ctx := context.Background()
-	repository := NewMemoryRepository()
-	service := NewGovernanceService(repository)
-	envelope := BundleEnvelope{Manifest: BundleManifest{
-		ID: "bnd_import_1",
-		Resources: []BundleResource{
-			{Type: "ENVIRONMENT", ID: "dev-use2", Digest: digest},
-		},
-	}}
-	author, err := service.ResolvePrincipal(ctx, IdentityClaims{Username: "svc-import", ServiceAccount: true})
-	if err != nil {
-		t.Fatal(err)
-	}
-	changes, err := service.bundleImportChanges(ctx, envelope, "dev-use2", author)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if len(changes) != 1 {
-		t.Fatalf("changes = %d, want 1", len(changes))
-	}
-	metadata := changes[0].Metadata
-	if metadata[MetadataChangeSource] != ChangeSourceEnvironmentImport || metadata[MetadataBundleID] != "bnd_import_1" {
-		t.Fatalf("metadata = %#v", metadata)
 	}
 }

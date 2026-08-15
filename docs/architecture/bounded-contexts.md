@@ -11,7 +11,7 @@ into Conduit-owned concepts before it can affect delivery.
 |---|---|---|
 | Apollo integration | Pinned Apollo vocabulary, generated route metadata, conformance evidence, and translation into narrow Conduit ports | Private Hub-to-Agent behavior, Conduit authorization policy, or persisted delivery state |
 | Delivery | Plans, rollout rules, maintenance decisions, desired-state compilation, and rollback intent | Cluster access or transport-specific request shapes |
-| Governance | Principals, grants, roles, approval requirements, and authorization decisions | Authentication or execution |
+| Governance | Principals, grants, roles, the approval-policy language and its predicates, approval requirements, the audit contract a decision is filed under, and authorization decisions | Authentication, execution, or the Change Request lifecycle that asks it for a decision |
 | Identity | Conversion of verified credentials into operator or Spoke identity | Permission grants |
 | Execution | Lease ownership, attempt numbering, expiry, and execution state | Approval policy or cluster mechanics |
 | Artifacts | Signed Bundle envelopes, content identity, chunks, and lineage | Product selection or rollout policy |
@@ -71,6 +71,12 @@ behavior in one step.
 New domain behavior belongs in its owning context. A migration is complete
 only when the facade calls a narrow port and no longer owns a second copy of
 the rule. Moving a type without moving authority is not a completed boundary.
+
+`node scripts/report-migration-progress.mjs` reports how far this has actually
+got, and distinguishes a context that holds only extracted types from one that
+owns a domain. Apollo, Delivery and Governance own theirs. Catalog,
+Environments, Artifacts, Identity, Reporting and Execution still hold types
+whose decisions are made in the facade; B12 tracks moving each one.
 
 ## Boundary test
 

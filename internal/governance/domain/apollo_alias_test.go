@@ -1,4 +1,4 @@
-package governance
+package domain
 
 import (
 	"github.com/jonathanagustin/conduit/internal/apollo"

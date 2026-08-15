@@ -1,4 +1,4 @@
-package controlplane
+package domain
 
 import (
 	"fmt"
@@ -126,7 +126,7 @@ func trustedRequestAuthor(author, onBehalfOf policyPrincipal) policyPrincipal {
 	return author
 }
 
-// pathMatchesAnyPattern reports whether a changed diff path is permitted by at
+// PathMatchesAnyPattern reports whether a changed diff path is permitted by at
 // least one glob pattern. Paths use "/" as a separator, "*" matches exactly one
 // key, and "**" matches one or more nested keys.
 //
@@ -134,7 +134,7 @@ func trustedRequestAuthor(author, onBehalfOf policyPrincipal) policyPrincipal {
 // gate, so permitting "foo/**" must not silently permit replacing "foo"
 // wholesale, which is a strictly broader change than editing something nested
 // under it.
-func pathMatchesAnyPattern(path string, patterns []string) bool {
+func PathMatchesAnyPattern(path string, patterns []string) bool {
 	segments := strings.Split(path, "/")
 	for _, pattern := range patterns {
 		if matchPathSegments(segments, strings.Split(pattern, "/")) {
@@ -235,7 +235,7 @@ func policyPredicates(trust PolicyTrust) []cel.EnvOption {
 						return types.Bool(len(diff) == 0)
 					}
 					for path := range diff {
-						if !pathMatchesAnyPattern(path, patterns) {
+						if !PathMatchesAnyPattern(path, patterns) {
 							return types.Bool(false)
 						}
 					}
