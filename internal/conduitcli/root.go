@@ -436,8 +436,8 @@ func environmentCommand(state *commandState) *cobra.Command {
 			return writeOutput(state.runtime.Stdout, state.output, descriptor)
 		},
 	}
-	create.Flags().StringVar(&contactTeam, "contact-team", "", "Team responsible for the Environment")
-	_ = create.MarkFlagRequired("contact-team")
+	create.Flags().StringVar(&contactTeam, "contact-team", "",
+		"Team responsible for the Environment. If omitted, the Environment is authored without an owning team.")
 	command.AddCommand(create)
 	command.AddCommand(&cobra.Command{
 		Use:   "list",
