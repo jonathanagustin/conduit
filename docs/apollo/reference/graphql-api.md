@@ -131,6 +131,55 @@ was added.
 - Generated clients or adapters must be labelled against `schemaSha256` in the
   completeness report, not as general Palantir Apollo compatibility.
 
+## Relationship to the captured Foundry gateway schema
+
+A prior capture in the migration corpus records a Foundry GraphQL gateway
+schema at `/graphql-gateway/api/graphql`: 26,140 lines, 1,884 types, 2,281
+interfaces, fully introspectable. That capture contains **no Apollo deployment
+domain**. Apollo appears in it four times and never as deployment:
+
+| Where Apollo appears in the captured gateway | What it is |
+| --- | --- |
+| `ApolloEventReceiverConfiguration`, `apolloEventReceiverConfigurations` | monitoring event receivers |
+| `MonitorAction_ApolloEventReceiverNotification` | a monitoring action |
+| `MarketplaceApolloPublishingStatus`, `apolloSpaceId` | Marketplace publishing status |
+| `ApolloEventReceiverMonitoringViewApplicationConfiguration` | a monitoring-view scalar |
+
+There is no `apollo` root field anywhere in it. This recovery found
+`Query.apollo: ApolloQuery` with 13 types and 43 fields of deployment domain.
+The two results are in direct conflict and the conflict is recorded here rather
+than resolved, because the evidence does not resolve it.
+
+**What the conflict is not.** It is not one schema seen through two levels of
+visibility. A filtered introspection can hide fields; it cannot invent them.
+Both surfaces expose `Query.me`, and only one exposes `Query.apollo`, so the
+surfaces genuinely differ rather than one being a redaction of the other. That
+the captured gateway is fully introspectable while this Hub's `__schema`
+returns 20 types is a second categorical difference in the same direction.
+
+**Three readings remain, and this evidence cannot separate them.**
+
+1. *Different endpoints.* The captured schema is explicitly from
+   `/graphql-gateway/api/graphql`. This recovery record does not state which
+   path was probed — see the bound below — so two different GraphQL surfaces on
+   one host is consistent with everything recorded.
+2. *Different enrollments.* The two may be separate Foundry deployments with
+   different federated subgraphs.
+3. *The schema changed* between the capture and 2026-08-15.
+
+**A bound this comparison exposed in the recovery record itself.**
+`hubFingerprint` is a salted digest of the endpoint's **origin only**. Two
+distinct GraphQL surfaces on the same host therefore produce the same
+fingerprint, so the committed record cannot establish which surface it
+describes. `probe-apollo-schema.mjs` now also records an `endpointFingerprint`
+over origin *and* path, but the committed record predates it and carries no
+answer. Resolving this needs a fresh capture, not more reasoning about the
+existing one.
+
+Nothing here changes what the recovery established about the Hub it reached.
+It changes what may be inferred about Apollo's GraphQL surface in general,
+which is less than one capture suggests.
+
 ## The interface Conduit serves (2026-08-15)
 
 The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the
