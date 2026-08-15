@@ -10,6 +10,7 @@ for required in \
   '      - name: Publish pending Trunk status' \
   "            -f state=pending" \
   "            -f context='Trunk gate'" \
+  '      - name: Publish gate summary' \
   '      - name: Publish final Trunk status' \
   '        if: ${{ always() }}' \
   "          TRUNK_STATE: \${{ job.status == 'success' && 'success' || 'failure' }}"; do

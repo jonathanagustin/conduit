@@ -20,6 +20,8 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
+  # actions: read lets the gate-summary step read this run's own step list.
+  actions: read
   contents: read
   pull-requests: read
   statuses: write
@@ -237,6 +239,31 @@ jobs:
         run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
       - name: GitOps acceptance
         run: ./scripts/test-gitops.sh
+      # Observability: a glanceable per-gate table on the run's Summary page,
+      # and a named ::error:: annotation for each failed gate, so a red run
+      # names its failing gate without anyone opening the log. Reads this
+      # run's own step list; setup/teardown steps are filtered out.
+      - name: Publish gate summary
+        if: ${{ always() }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs")"
+          {
+            echo "## Trunk gate results"
+            echo
+            echo "| Gate | Result | Duration |"
+            echo "| --- | --- | --- |"
+            jq -r '.jobs[].steps[]
+              | select(.conclusion != null)
+              | select(.name | test("^(Set up job|Complete job|Post |Run actions/|Install |Publish )") | not)
+              | "| \(.name) | \(if .conclusion == "success" then "✅ success" else "❌ \(.conclusion)" end) | \((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601))s |"' \
+              <<<"$run_jobs"
+          } >> "$GITHUB_STEP_SUMMARY"
+          jq -r '.jobs[].steps[] | select(.conclusion == "failure") | .name' <<<"$run_jobs" |
+            while IFS= read -r gate; do
+              printf '::error title=Trunk gate failed::%s\n' "$gate"
+            done
       - name: Publish final Trunk status
         if: ${{ always() }}
         env:
