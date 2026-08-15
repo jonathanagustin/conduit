@@ -90,8 +90,8 @@ What the Hub established:
 | `query { apollo { environments(pageSize: 100) { environments { id } } } }` | resolves; the published shape is real |
 | `Query.apollo` type name | `ApolloQuery` |
 | Introspection | **thin by design** -- `__schema` returns 20 types and its `Query` advertises only `me`. It names no part of the Apollo surface. |
-| Recovered | 3 types, 11 fields, 7 argument types, in 28 requests |
-| Emitted to SDL | 5 fields. The other 7 are omitted because their return types were not established, and are listed in the completeness report. |
+| Recovered | 13 types, 43 fields, 10 argument types, in 119 requests |
+| Emitted to SDL | 41 fields. The other 3 are omitted because their return types were not established, and are listed in the completeness report. |
 
 Because introspection is thin, the surface was recovered by validation probing:
 a document carrying a guaranteed-invalid field fails validation as a whole, so
@@ -113,12 +113,69 @@ was added.
 
 - It is one Hub on one date, answering one candidate set. A field nobody asked
   about is absent from the record, not from the Hub.
-- Seven fields (`bundle`, `bundles`, `entity`, `environment`, `productRelease`,
-  and the two page item lists) resolved but could not be typed: they require a
-  real RID, or returned an empty list in this tenant, so no `__typename` was
-  observable. They are recorded as recovered-but-untyped rather than guessed.
+- Three fields could not be emitted and are recorded rather than guessed:
+  `ApolloEnvironment.config` (return type not recovered),
+  `ApolloProductDependency.versionRange` (its type was named but never
+  described, which the depth bound and a skipped batch both produce), and
+  `ApolloProductRelease.recallStatus` (its type has no recovered fields).
+- **Cardinality was not established anywhere.** Validation probing cannot see
+  through a list type: `[T]` and `T` accept the same sub-selection, so nothing
+  in the responses distinguishes them. No recovered field therefore declares a
+  list, which means the recovered object graph is only navigable through its
+  singular fields -- `environment(rid:)` and `entity(rid:)` reach objects, while
+  the page types' collection fields do not. Establishing cardinality needs a
+  capture the current method cannot produce.
 - No mutation type is reachable: `__schema.mutationType` is null.
 - This establishes nothing about the private Hub-to-Agent control wire, which
   remains H9 and BLOCKED.
 - Generated clients or adapters must be labelled against `schemaSha256` in the
   completeness report, not as general Palantir Apollo compatibility.
+
+## The interface Conduit serves (2026-08-15)
+
+The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the
+interface Conduit actually serves, and it is deliberately larger: 41 recovered
+coordinates plus 22 Conduit invented, because an operator interface that cannot
+reach plans, change requests or promotions is not usable for delivery work.
+
+Mixing the two is the risk the design exists to manage. An interface that blends
+recovered truth with invention and does not say which is which cannot be
+audited, and the invention silently becomes the claim.
+
+**Every field carries its provenance.** The served SDL annotates each field with
+`@provenance(tier: OBSERVED)` or `@provenance(tier: CONDUIT_NATIVE)`, and
+`GET /v1/apollo/graphql/schema` publishes it. Every response carries an
+`extensions.provenance` block naming the invented coordinates it answered from.
+A client never has to take Conduit's Apollo shape as an Apollo compatibility
+claim, and never has to read this repository to find out.
+
+**Displacement is mechanical, not remembered.** `node
+scripts/apollo-graphql/verify-apollo-interface.mjs` fails the build the moment a
+capture recovers a coordinate still declared in
+`scripts/apollo-graphql/conduit-native.json`, and names it. Finding ground truth
+breaks the build until the invented definition is deleted so the recovered one
+takes its place. That is the intended cost; the alternative is a repository that
+quietly serves guesses it could have replaced.
+`scripts/verify-apollo-interface.test.sh` plants eight violations -- including
+declaring an already-recovered coordinate as native, on a leaf type and on the
+root -- and requires the gate to reject each by name.
+
+**Declared is not the same as answerable.** Conduit holds no bundles and no
+space identifiers, so 18 recovered coordinates are declared and unanswerable
+here. Those refuse rather than resolving to null: a null is a value, and
+answering `ApolloBundle.rid: null` would assert an absence Conduit has never
+observed. The refusal says so and sends the reader to a Hub.
+`internal/apollographql/domain.Reconcile` publishes that count and fails the
+build on the two cases that are defects -- an invented field nothing backs, and
+a resolver claiming a coordinate the schema does not declare.
+
+| Property | Value |
+| --- | --- |
+| Recovered coordinates served | 41 |
+| Conduit-native coordinates served | 22 (35% of the interface) |
+| Recovered coordinates declared but unanswerable | 18 |
+| Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
+| Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
+
+The invented share is the number to watch. It should fall as captures widen, and
+it is the fraction of the served interface that no Hub has ever confirmed.
