@@ -115,9 +115,3 @@ printed, copied into artifacts, committed, or returned in logs.
 See [tenant fidelity](docs/operations/TENANT-FIDELITY.md) and the
 [trusted technology baseline](docs/security/TRUSTED-TECHNOLOGY-BASELINE.md).
 
-## Licensing
-
-Conduit and the vendored Zenith Protocol are proprietary and confidential; see
-[LICENSE](LICENSE). Identified third-party contracts, fixtures, and components
-retain their own licenses and notices. Their terms do not relicense Conduit's
-original material.
