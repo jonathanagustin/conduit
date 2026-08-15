@@ -22,3 +22,9 @@ jobs:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
       - name: Reconcile an exact signed digest with pull-only authority
         run: ./scripts/test-gitless-clean-cluster.sh
+      # Runs after the cluster above exists, because it needs the Flux CRDs that
+      # test drops in. It validates the manifests internal/gitless renders --
+      # a structural Go test passes on a document Flux would reject, and only an
+      # API server can tell the difference.
+      - name: Validate rendered Gitless manifests against the Flux API
+        run: ./scripts/test-gitless-flux-manifests.sh

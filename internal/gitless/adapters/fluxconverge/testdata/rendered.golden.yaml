@@ -1,0 +1,34 @@
+apiVersion: source.toolkit.fluxcd.io/v1
+kind: OCIRepository
+metadata:
+  name: conduit-prod
+  namespace: flux-system
+spec:
+  interval: 5m
+  ref:
+    digest: sha256:aa11000000000000000000000000000000000000000000000000000000000000
+  secretRef:
+    name: conduit-runtime-pull
+  url: oci://ghcr.io/example/platform-runtime
+  verify:
+    matchOIDCIdentity:
+      - issuer: ^https://token\.actions\.githubusercontent\.com$
+        subject: ^https://github\.com/jonathanagustin/conduit/\.github/workflows/platform-images\.yml@refs/tags/v[0-9]+\.[0-9]+\.[0-9]+$
+    provider: cosign
+---
+apiVersion: kustomize.toolkit.fluxcd.io/v1
+kind: Kustomization
+metadata:
+  name: conduit-prod
+  namespace: flux-system
+spec:
+  interval: 5m
+  path: ./runtime
+  prune: true
+  retryInterval: 30s
+  serviceAccountName: platform-runtime-reconciler
+  sourceRef:
+    kind: OCIRepository
+    name: conduit-prod
+  timeout: 10m
+  wait: true

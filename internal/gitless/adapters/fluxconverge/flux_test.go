@@ -3,6 +3,8 @@ package fluxconverge_test
 import (
 	"context"
 	"errors"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -199,5 +201,44 @@ func TestAFailedPublicationIsReported(t *testing.T) {
 func TestBuildingRefusesWithoutAManifestStore(t *testing.T) {
 	if _, err := fluxconverge.New(nil, options()); err == nil {
 		t.Fatal("a Flux converger was built with nowhere to publish")
+	}
+}
+
+// --- the golden, and why it is committed ------------------------------------
+
+// The rendered manifests are checked into testdata and validated against a real
+// Flux API server by scripts/test-gitless-flux-manifests.sh.
+//
+// That split is deliberate. This test proves the renderer still produces what
+// was reviewed; the script proves what was reviewed is actually valid Flux API
+// rather than plausible-looking YAML. Neither alone is worth much: a structural
+// test passes on a document Flux would reject, and a server-side check with no
+// golden validates whatever the code happens to emit today.
+func TestRenderedManifestsMatchTheReviewedGolden(t *testing.T) {
+	rendered, err := fluxconverge.Render("prod", admission(t), options())
+	if err != nil {
+		t.Fatalf("render: %v", err)
+	}
+	path := filepath.Join("testdata", "rendered.golden.yaml")
+	if os.Getenv("UPDATE_GOLDEN") == "1" {
+		if err := os.MkdirAll("testdata", 0o755); err != nil {
+			t.Fatalf("create testdata: %v", err)
+		}
+		if err := os.WriteFile(path, rendered, 0o644); err != nil {
+			t.Fatalf("write golden: %v", err)
+		}
+		t.Log("golden updated; re-run scripts/test-gitless-flux-manifests.sh against a cluster")
+		return
+	}
+	golden, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read golden: %v", err)
+	}
+	if string(golden) != string(rendered) {
+		t.Fatalf(
+			"the renderer no longer produces the reviewed manifests. Regenerate with UPDATE_GOLDEN=1 and "+
+				"re-validate against a cluster:\n--- golden ---\n%s\n--- rendered ---\n%s",
+			golden, rendered,
+		)
 	}
 }
