@@ -103,6 +103,13 @@ densest contract-bearing page there is. Mining it produced two open items:
   scan freshness, but nothing blocks an install because a scan has not happened.
 - **PH-8.** CLI 0.811.0 added `--values` and `--values-schema` to
   `product-release create`. Conduit has those flags elsewhere but not there.
+  **Closed.** They are Apollo's spelling of `--default-config` and
+  `--config-schema`, so they now fill the same bundle rather than opening a
+  second path, and passing both spellings of one flag is refused instead of
+  silently dropping one of the two files. Implementing it surfaced a defect
+  older than the flags: Helm configuration passed with a `terraform.v1`
+  manifest was accepted and then discarded, because the Terraform branch never
+  builds the Helm bundle. That now errors, which is what Apollo published.
 
 Most other entries corroborate work already done. The 0.813.0/0.814.0 entries
 describe the Product Release TGZ carrying `deployment/values.yaml` and

@@ -306,3 +306,21 @@ func terminalBoundaryGroup(name, subject string) *cobra.Command {
 	})
 	return command
 }
+
+// soleSpelling resolves a flag that Conduit and Apollo name differently.
+//
+// Both spellings fill the same field, so accepting both at once would mean
+// choosing one and discarding the other. Discarding is the failure this
+// prevents: the operator stated two values files and exactly one of them would
+// end up bound to the Release, with nothing said. Refusing costs a re-run;
+// picking silently costs a Release that does not match the command that made
+// it.
+func soleSpelling(name, value, alias, aliasValue string) (string, error) {
+	if value != "" && aliasValue != "" {
+		return "", fmt.Errorf("%s and %s are the same flag; pass one", name, alias)
+	}
+	if aliasValue != "" {
+		return aliasValue, nil
+	}
+	return value, nil
+}
