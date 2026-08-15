@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "hubFingerprint": "09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0",
+  "interfaceSha256": "277951c5c4274f93c16f091a730466346e3bebed817b1b413c50089c4fcfb67f",
+  "nativeSha256": "b14a71b57e7f737dcb79293849c3966eaabdac3068ebbd0f5b98a6ead1369153",
+  "observedFields": 41,
+  "conduitNativeFields": 22,
+  "conduitNativeShare": 0.3492,
+  "displaceable": [],
+  "unresolved": [
+    {
+      "type": "ApolloProductDependency",
+      "field": "versionRange",
+      "returns": "ApolloProductDependencyVersionRange",
+      "tier": "OBSERVED"
+    },
+    {
+      "type": "ApolloProductRelease",
+      "field": "recallStatus",
+      "returns": "ApolloProductReleaseRecallStatus",
+      "tier": "OBSERVED"
+    }
+  ]
+}
