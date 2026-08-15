@@ -16,6 +16,19 @@
 # version restored the test file alongside the source, which wiped the test
 # being written and made the next run report SURVIVED against a suite that no
 # longer contained the assertion.
+#
+# The guard below covers tracked files with uncommitted changes. It did NOT
+# cover untracked ones, and that hole cost a commit: `git diff --quiet` ignores
+# untracked files, so the guard passed, and `git checkout --` cannot restore a
+# file it has never seen, so the mutant stayed. Seven planted mutants shipped
+# that way while every check reported a kill -- the mutated caller happened to
+# agree with a reverted callee, so it compiled and the suite was green. An
+# untracked file is now refused for the same reason a dirty one is: the rule is
+# commit before you plant, and a brand-new file is entirely uncommitted.
+#
+# The restore is verified rather than assumed. A restore that silently does
+# nothing is the failure mode that makes this whole tool report confidence it
+# has not earned, so the file's hash is compared before and after.
 set -euo pipefail
 
 file="${1:-}"
@@ -36,7 +49,19 @@ if [[ ! -f "${file}" ]]; then
   exit 2
 fi
 
-# The guard this script exists for.
+# The guard this script exists for, part one: a file git has never seen cannot
+# be restored by git.
+if ! git ls-files --error-unmatch "${file}" >/dev/null 2>&1; then
+  cat >&2 <<MESSAGE
+refusing to plant a mutant in ${file}: git does not track it.
+
+\`git checkout\` cannot restore a file it has never seen, so the mutant would
+stay in your tree while this script reported a kill. Commit the file first.
+MESSAGE
+  exit 1
+fi
+
+# Part two: an uncommitted edit is indistinguishable from the mutant.
 if ! git diff --quiet -- "${file}" || ! git diff --cached --quiet -- "${file}"; then
   cat >&2 <<MESSAGE
 refusing to plant a mutant in ${file}: it has uncommitted changes.
@@ -48,7 +73,28 @@ MESSAGE
 fi
 
 package="./$(dirname "${file}")/"
-restore() { git checkout -- "${file}"; }
+
+# Hashed before the mutant is planted, compared after the restore. Without this
+# a restore that fails silently leaves the mutant in the tree and the operator
+# reading a clean report.
+before="$(git hash-object "${file}")"
+restore() {
+  git checkout -- "${file}"
+  local after
+  after="$(git hash-object "${file}" 2>/dev/null || echo missing)"
+  if [[ "${after}" != "${before}" ]]; then
+    cat >&2 <<MESSAGE
+
+RESTORE FAILED for ${file}
+  expected content ${before}
+  found            ${after}
+
+The mutant is still in your working tree. Every result printed above is void.
+Restore the file before believing anything this run reported.
+MESSAGE
+    return 1
+  fi
+}
 trap restore EXIT
 
 python3 - "${file}" "${line}" "${from}" "${to}" <<'PYTHON'

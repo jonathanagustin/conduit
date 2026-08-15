@@ -175,6 +175,7 @@ zenith_protocol() {
 gate 'Check formatting' check_formatting
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
+gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate operator console' ./scripts/test-console.sh
