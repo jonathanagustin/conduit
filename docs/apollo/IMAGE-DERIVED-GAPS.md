@@ -4,7 +4,7 @@
 
 The 2026-08-01 documentation sweep recorded in
 [`PUBLIC-DOCUMENTATION-COVERAGE.md`](PUBLIC-DOCUMENTATION-COVERAGE.md) captured
-241 pages (the corpus is now 255; see that file's re-crawl section) and extracted **the source Markdown embedded in each rendered page**.
+241 pages (the corpus is now 262; see that file's re-crawl section) and extracted **the source Markdown embedded in each rendered page**.
 It counted 144,521 words and 1,562 headings, and it never looked at the images.
 
 The Apollo documentation carries **391 distinct screenshots and diagrams across

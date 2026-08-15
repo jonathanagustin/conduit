@@ -49,10 +49,17 @@ function normalizePath(path) {
   return withoutQuery.endsWith("/") ? withoutQuery : `${withoutQuery}/`;
 }
 
+// Scans the whole document, not only `href` attributes, and the crawl below
+// runs to closure. Both match snapshot-public-documentation.mjs, and for the
+// same reason: an attribute-only crawl of the seeds sees the rendered sidebar,
+// which omits the seven `hidden_` Apollo Product Specification pages. A drift
+// gate built on the narrower discovery would have reported a corpus missing
+// those pages as complete, which is the failure it exists to catch.
 function discoverApolloPaths(html) {
   const paths = new Set();
-  for (const match of html.matchAll(/href=["'](\/docs\/apollo\/[^"'?#]*?)["']/g)) {
-    const path = normalizePath(match[1]);
+  for (const match of html.matchAll(/\/docs\/apollo\/[A-Za-z0-9._~\-/]*/g)) {
+    if (match[0].includes("..")) continue;
+    const path = normalizePath(match[0]);
     if (path.split("/").filter(Boolean).length >= 4) paths.add(path);
   }
   return paths;
@@ -121,7 +128,14 @@ try {
       while (queue.length > 0) {
         const path = queue.shift();
         const url = base + path;
-        rows.push(summarize(url, sourceMarkdown(await fetchText(url), url)));
+        const html = await fetchText(url);
+        for (const discovered of discoverApolloPaths(html)) {
+          if (!paths.has(discovered)) {
+            paths.add(discovered);
+            queue.push(discovered);
+          }
+        }
+        rows.push(summarize(url, sourceMarkdown(html, url)));
       }
     }),
   );
