@@ -169,6 +169,21 @@ func BuildOverviewProjection(
 	configuration HandlerOptions,
 	now time.Time,
 ) OverviewProjection {
+	return reportingapp.BuildOverview(ctx, newOverviewSource(ctx, repository, governance, principal, configuration), now)
+}
+
+// newOverviewSource builds the snapshot one reader may see. It is a function
+// rather than a literal at the one call site because the Apollo GraphQL
+// interface reads the same panels: two constructions could authorize
+// differently, and a second reader-filtering path is exactly the drift
+// Reporting's port comment warns against.
+func newOverviewSource(
+	ctx context.Context,
+	repository Repository,
+	governance *GovernanceService,
+	principal Principal,
+	configuration HandlerOptions,
+) *overviewSource {
 	source := &overviewSource{
 		repository: repository, governance: governance,
 		principal: principal, configuration: configuration,
@@ -176,5 +191,5 @@ func BuildOverviewProjection(
 		effective:     effectivePrincipal(principal),
 	}
 	source.plans, source.plansErr = repository.ListPlans(ctx, "")
-	return reportingapp.BuildOverview(ctx, source, now)
+	return source
 }

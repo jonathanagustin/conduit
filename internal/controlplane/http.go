@@ -98,6 +98,13 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		})
 	}
 	releaseCompatibilityAPI.register(mux)
+	// The Apollo-shaped GraphQL interface. It fails to mount rather than mounts
+	// wrong: New refuses a schema whose Conduit-native fields nothing backs, and
+	// a control plane serving an interface it cannot honour is worse than one
+	// that will not start.
+	if err := registerApolloGraphQL(mux, releaseCompatibilityAPI, repository, governance, configuration); err != nil {
+		panic("configure the Apollo GraphQL interface: " + err.Error())
+	}
 	mux.HandleFunc("POST /v1/product-publications/helm-chart", releaseCompatibilityAPI.publishHelmBundle)
 	mux.HandleFunc("GET /health/live", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, map[string]string{"status": "ok"})
