@@ -88,9 +88,14 @@ bytes**, and the two answers have different governance:
 Falling back into either would be choosing a governance model on an operator's
 behalf, so neither is a default.
 
-**`conduit` is not yet wired in the Hub binary.** Its ports need an artifact
-fetcher and a desired-state store that reach into Delivery. Setting it fails at
-startup rather than starting something that cannot work.
+**`conduit` is not yet wired in the Hub binary, and the reason is a decision
+rather than missing code.** Proposing desired state requires a principal holding
+`change:propose` on the environment, and the scheduler is a background loop with
+no request and no identity. Somebody has to decide who a scheduled source change
+proposes as — a dedicated service principal, an operator-nominated one per
+binding, or something else — and each answer changes who effectively holds
+propose authority. Recorded as **PH-3**. Setting it fails at startup rather than
+starting something that cannot work.
 
 ## What a channel does and does not do
 

@@ -123,9 +123,13 @@ that cheap.
   deployment" was true of the design and false of the product, and every Flux
   configuration failed at startup until it existed.
 - Bad: the Conduit-owned convergence path is reachable in configuration but not
-  wired in the Hub binary. Its ports need an artifact fetcher and a
-  desired-state store that reach into Delivery, so `GITLESS_CONVERGENCE=conduit`
-  currently fails at startup rather than starting something that cannot work.
+  wired in the Hub binary, and what blocks it is a governance decision rather
+  than missing code. Proposing desired state requires a principal holding
+  `change:propose` on the environment; the scheduler is a background loop with
+  no request and no identity. Who a scheduled source change proposes as is
+  recorded as PH-3, and `GITLESS_CONVERGENCE=conduit` fails at startup until it
+  is answered. No adapter is built ahead of that answer: an unwired adapter is
+  the island this context was written to avoid.
 - Unknown: whether Conduit's own release artifacts verify under this path. They
   are private, so it can only be exercised where the credential is.
 
