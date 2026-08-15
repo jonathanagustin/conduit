@@ -23,6 +23,7 @@ unqualified superset of Apollo.
 | CLI Product fixtures | `scripts/apollo-docs/validate-cli-fixtures.rb`; byte comparison fixture | Semantic validation of the reconstructed 0.814.0 shape; byte compatibility is not claimed without a native capture |
 | Module examples | `scripts/apollo-docs/validate-module-definitions.rb` | The committed examples satisfy the reviewed public Module constraints |
 | Apollo Hub GraphQL surface | `api/graphql/apollo.observed.graphql`; `node scripts/apollo-graphql/verify-observed-schema.mjs` | An observed subset of one authorized Hub's GraphQL contract, recovered by validation probing and bound to its own schema hash. Not Apollo's published schema and not a complete one |
+| Apollo-shaped GraphQL interface Conduit serves | `api/graphql/apollo.interface.graphql`; `node scripts/apollo-graphql/verify-apollo-interface.mjs`; `./scripts/verify-apollo-interface.test.sh` | **35% of this interface is invented.** It is 41 recovered coordinates plus 22 Conduit-native ones, each annotated with its tier and served with that annotation. The Conduit-native part is not an Apollo compatibility claim of any kind, and the gate fails the build if a capture ever recovers one of them |
 | Delivery, governance, reporting, and bundles | Go tests named in the [contract notes](contracts/delivery.md) | Conduit-native behavior that is Apollo-aligned only where a cited public contract covers it |
 
 ## Contract-first completion gate
@@ -55,8 +56,13 @@ context extraction still requires all of the following:
 - Public examples and private observations do not authorize guessed defaults
   or a wider compatibility label.
 - The observed GraphQL schema covers only what its candidate set named. Its
-  seven recovered-but-untyped fields, and the absence of any mutation surface,
-  are recorded in the completeness report rather than filled in.
+  three unemittable fields, the absence of any mutation surface, and the fact
+  that no field's cardinality was established, are recorded in the completeness
+  report rather than filled in.
+- The interface Conduit serves is larger than the schema it recovered, and says
+  so per field. Declaring an Apollo-shaped coordinate is not a claim to answer
+  it: 18 recovered coordinates are declared and refused, because Conduit holds
+  no data behind them and a null would assert an absence it never observed.
 
 The [evidence index](evidence.md) records the inputs. A green evidence check
 proves only the claim attached to that check.
