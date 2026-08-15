@@ -172,6 +172,18 @@ added, removed, or content-changed page, with `--write` to refresh. It is not in
 the ordinary build: it reaches a third party's website, so it skips cleanly when
 that site is unreachable and belongs in a scheduled or dispatched job.
 
+
+That gate needs a network and a person to run it, because A4 keeps
+repository-authored workflows to manual dispatch and `manual-ci.md` names
+`schedule` in its prohibition. So it was never scheduled, and nothing else ran
+it either — the corpus aged with no signal at all.
+`scripts/verify-documentation-freshness.mjs` is the half that needs neither: it
+reads `public-documentation-capture.json`, reaches nothing, and fails once the
+corpus is more than 45 days old or the manifest and the capture record stop
+agreeing about its size. It cannot tell you the corpus has drifted. It can stop
+"no drift reported" from being mistaken for "checked", which is the actual
+failure that cost fourteen pages.
+
 The first snapshot covered text only. A corrected rendered-HTML pass found and
 visually reviewed all 391 distinct screenshots and diagrams referenced 399 times
 by 95 pages; the earlier Markdown-only image parser had silently missed 110 raw
