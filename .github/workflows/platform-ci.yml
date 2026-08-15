@@ -124,6 +124,12 @@ jobs:
         env:
           PLATFORM_REQUIRE_HELM: "1"
         run: go test -race ./...
+      # The mutation harness deliberately corrupts a source file and then
+      # reports that the tree is fine. A regression in its restore does not
+      # merely fail -- it reports kills it never achieved and leaves mutants
+      # behind, which is worse than having no harness. This is seconds long.
+      - name: Validate mutation harness
+        run: ./scripts/verify-mutant-killed.test.sh
       - name: Validate PostgreSQL repository
         run: ./scripts/test-postgres-repository.sh
       - name: Vet
