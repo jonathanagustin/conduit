@@ -102,16 +102,8 @@ func normalizedAuditCategories(categories []string) []string {
 	return governance.NormalizedAuditCategories(categories)
 }
 
-func rolesAllow(roles []string, operation string) bool {
-	return governance.RolesAllow(roles, operation)
-}
-
 func effectivePrincipal(principal Principal) Principal {
 	return governance.EffectivePrincipal(principal)
-}
-
-func authorizationScopes(resourceRID string) []string {
-	return governance.AuthorizationScopes(resourceRID)
 }
 
 func validateCanonicalRoleScope(role, resourceRID string) error {
