@@ -30,6 +30,7 @@ import (
 	"github.com/vektah/gqlparser/v2/ast"
 	"github.com/vektah/gqlparser/v2/gqlerror"
 	"github.com/vektah/gqlparser/v2/validator"
+	"github.com/vektah/gqlparser/v2/validator/rules"
 
 	apollo "github.com/jonathanagustin/conduit/internal/apollo"
 	"github.com/jonathanagustin/conduit/internal/apollographql/domain"
@@ -43,6 +44,11 @@ import (
 // rather than plumbed because a GraphQL reader asking about health wants the
 // same answer the console shows, and a second knob would let them diverge.
 const staleAfter = 15 * time.Minute
+
+// validationRules is the spec's own rule set, taken whole. Conduit adds nothing
+// and removes nothing: what this interface will answer is decided by the served
+// schema, and a locally-relaxed validator would make it decided here instead.
+var validationRules = rules.NewDefaultRules()
 
 // Resolver holds the loaded interface. It is built once and shared: the schema,
 // the provenance it declares and the coverage it reconciles against do not vary
@@ -115,7 +121,7 @@ type Response struct {
 // them: a client reading Conduit's plans is told, in the response, that no
 // Apollo Hub established the shape it just read.
 func (resolver *Resolver) Execute(ctx context.Context, sources ports.Sources, request Request) Response {
-	document, listErr := gqlparser.LoadQuery(resolver.schema, request.Query)
+	document, listErr := gqlparser.LoadQueryWithRules(resolver.schema, request.Query, validationRules)
 	if listErr != nil {
 		return Response{Errors: listErr}
 	}
