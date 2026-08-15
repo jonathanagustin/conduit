@@ -85,10 +85,18 @@ func TestAnEmptyQueryIsRejected(t *testing.T) {
 	}
 }
 
-// An unbounded read on an authenticated endpoint is a way to spend memory.
+// An unbounded read on an authenticated endpoint is a way to spend memory
+// rather than a way to ask a question.
+//
+// The padding sits in operationName rather than in the query, deliberately. A
+// giant document would also be refused, but by exhausting the parser rather
+// than by the limit -- and a check that passes because the server bogged down
+// proves nothing about the limit. This body is trivial to parse once truncated,
+// so a 400 can only come from the bound.
 func TestAnOversizedBodyIsRejectedRatherThanRead(t *testing.T) {
 	recorder := httptest.NewRecorder()
-	oversized := `{"query":"{ apollo { ` + strings.Repeat("environments(pageSize: 1) { nextPageToken } ", 20_000) + `} }"}`
+	oversized := `{"query":"{ apollo { environments(pageSize: 1) { nextPageToken } } }","operationName":"` +
+		strings.Repeat("a", 512<<10) + `"}`
 	newHandler(t).Query(recorder, httptest.NewRequest(http.MethodPost, "/v1/apollo/graphql", strings.NewReader(oversized)))
 	if recorder.Code != http.StatusBadRequest {
 		t.Fatalf("an oversized body was accepted with status %d", recorder.Code)

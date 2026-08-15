@@ -123,12 +123,6 @@ func (resolver *Resolver) Execute(ctx context.Context, sources ports.Sources, re
 	if operation == nil {
 		return Response{Errors: gqlerror.List{gqlerror.Errorf("no operation named %q in this document", request.OperationName)}}
 	}
-	if operation.Operation != ast.Query {
-		return Response{Errors: gqlerror.List{gqlerror.Errorf(
-			"this interface serves queries only; the recovered surface established no mutation and Conduit " +
-				"will not invent one",
-		)}}
-	}
 	variables, err := validator.VariableValues(resolver.schema, operation, request.Variables)
 	if err != nil {
 		return Response{Errors: gqlerror.List{gqlerror.WrapPath(nil, err)}}
