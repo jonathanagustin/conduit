@@ -27,8 +27,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/catalog"
-	"github.com/jonathanagustin/conduit/internal/environments"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // Secret mutation actions.

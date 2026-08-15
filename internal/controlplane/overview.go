@@ -2,61 +2,165 @@ package controlplane
 
 import (
 	"context"
-	"github.com/jonathanagustin/conduit/internal/reporting"
-	"sort"
+	"errors"
 	"time"
+
+	reportingapp "github.com/jonathanagustin/conduit/internal/reporting/application"
+	reporting "github.com/jonathanagustin/conduit/internal/reporting/domain"
 )
 
-const maximumOverviewItems = 5
-const overviewStaleAfter = 5 * time.Minute
+// The overview is Reporting's view. What is left here is the adapter that
+// decides what this reader may see, and the aliases that keep the HTTP layer
+// spelling the result as it did.
+//
+// The split is not cosmetic. Which installations are unhealthy, how many items
+// a panel shows, and what an unanswered store looks like are Reporting's rules
+// and are now testable without a repository. Who may see a plan is Governance's
+// rule and stays on this side, where the grants are — and it runs before the
+// projection counts anything, so a panel can never report a number the reader
+// is not allowed to account for.
+type (
+	OverviewPanel[T any]  = reporting.Panel[T]
+	OverviewChangeRequest = reporting.OverviewChangeRequest
+	OverviewPlan          = reporting.OverviewPlan
+	OverviewInstallation  = reporting.OverviewInstallation
+	OverviewPromotion     = reporting.OverviewPromotion
+	OverviewProjection    = reporting.OverviewProjection
+)
 
 const (
-	OverviewCurrent     = "CURRENT"
-	OverviewUnavailable = "UNAVAILABLE"
+	maximumOverviewItems = reporting.MaximumOverviewItems
+	overviewStaleAfter   = reporting.OverviewStaleAfter
+
+	OverviewCurrent     = reporting.OverviewCurrent
+	OverviewUnavailable = reporting.OverviewUnavailable
 )
 
-type OverviewPanel[T any] struct {
-	Status string `json:"status"`
-	Count  int    `json:"count"`
-	Items  []T    `json:"items"`
+// errOverviewPanelUnavailable is what the adapter returns when a reader may not
+// see a panel at all. Reporting draws no distinction between a store that
+// failed and authority the reader does not hold: both mean this panel cannot be
+// shown, and neither means there is nothing in it.
+var errOverviewPanelUnavailable = errors.New("overview panel unavailable to this reader")
+
+// overviewSource answers Reporting's port over the repository, filtering every
+// record by what this principal may read.
+type overviewSource struct {
+	repository    Repository
+	governance    *GovernanceService
+	principal     Principal
+	configuration HandlerOptions
+
+	administrator bool
+	effective     Principal
+
+	// The plans are read once, up front, because they are wanted twice — for
+	// the plan panels and as the fleet's desired state. A second read could
+	// return a different fleet, which would put two disagreeing numbers in one
+	// view.
+	plans    []PlanRecord
+	plansErr error
 }
 
-type OverviewChangeRequest struct {
-	ID          string `json:"id"`
-	Title       string `json:"title"`
-	Environment string `json:"environment"`
+func (source *overviewSource) VisiblePlans(ctx context.Context) ([]reporting.PlanSummary, error) {
+	if source.plansErr != nil {
+		return nil, source.plansErr
+	}
+	visible := make([]reporting.PlanSummary, 0, len(source.plans))
+	for _, plan := range source.plans {
+		if !canReadPlan(ctx, source.repository, source.governance, source.principal, source.configuration, plan) {
+			continue
+		}
+		visible = append(visible, reporting.PlanSummary{
+			ID: plan.ID, Environment: plan.Plan.Environment,
+			CreatedAt: plan.CreatedAt, Phase: overviewPlanPhase(plan.Status),
+		})
+	}
+	return visible, nil
 }
 
-type OverviewPlan struct {
-	ID          string `json:"id"`
-	Environment string `json:"environment"`
+// overviewPlanPhase is the one place a plan status becomes something Reporting
+// understands. Delivery owns what these statuses mean; translating here is what
+// keeps Reporting from carrying a second copy of that vocabulary.
+func overviewPlanPhase(status PlanStatus) reporting.PlanPhase {
+	switch status {
+	case PlanFailed:
+		return reporting.PlanPhaseFailed
+	case PlanRunning, PlanLeased:
+		return reporting.PlanPhaseRunning
+	default:
+		return reporting.PlanPhaseOther
+	}
 }
 
-type OverviewInstallation struct {
-	Environment    string `json:"environment"`
-	InstallationID string `json:"installationId"`
-	Health         string `json:"health"`
+func (source *overviewSource) VisibleInstallations(
+	ctx context.Context, staleAfter time.Duration, now time.Time,
+) ([]reporting.InstallationSummary, error) {
+	if source.plansErr != nil {
+		return nil, source.plansErr
+	}
+	reports, err := source.repository.ListEnvironmentReports(ctx)
+	if err != nil {
+		return nil, err
+	}
+	desired, observed := fleetInputs(source.plans, reports)
+	fleet := reporting.BuildFleet(desired, observed, FleetQuery{MaxAge: staleAfter}, now)
+	visible := make([]reporting.InstallationSummary, 0, len(fleet.Installations))
+	for _, item := range fleet.Installations {
+		if !source.administrator &&
+			!source.governance.Authorize(ctx, source.effective, environmentRID(item.Environment), OperationReadResource) {
+			continue
+		}
+		visible = append(visible, reporting.InstallationSummary{
+			Environment: item.Environment, InstallationID: item.InstallationID,
+			Health: item.Health, Stale: item.Stale,
+		})
+	}
+	return visible, nil
 }
 
-type OverviewPromotion struct {
-	ID          string `json:"id"`
-	Product     string `json:"product"`
-	Version     string `json:"version"`
-	FromChannel string `json:"fromChannel"`
-	ToChannel   string `json:"toChannel"`
+func (source *overviewSource) VisibleChangeRequests(ctx context.Context) ([]reporting.ChangeRequestSummary, error) {
+	requests, err := source.repository.ListChangeRequests(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]reporting.ChangeRequestSummary, 0, len(requests))
+	for _, request := range requests {
+		if !canReadChangeRequest(ctx, source.governance, source.principal, source.configuration, request) {
+			continue
+		}
+		visible = append(visible, reporting.ChangeRequestSummary{
+			ID: request.ID, Title: request.Title, Environment: request.Environment,
+			AwaitingApproval: request.Status == ChangePendingApprovals,
+		})
+	}
+	return visible, nil
 }
 
-type OverviewProjection struct {
-	GeneratedAt       time.Time                            `json:"generatedAt"`
-	StaleAfterSeconds int64                                `json:"staleAfterSeconds"`
-	AwaitingApprovals OverviewPanel[OverviewChangeRequest] `json:"awaitingApprovals"`
-	FailedPlans       OverviewPanel[OverviewPlan]          `json:"failedPlans"`
-	RunningPlans      OverviewPanel[OverviewPlan]          `json:"runningPlans"`
-	UnhealthyEntities OverviewPanel[OverviewInstallation]  `json:"unhealthyEntities"`
-	StaleReports      OverviewPanel[struct{}]              `json:"staleReports"`
-	BlockedPromotions OverviewPanel[OverviewPromotion]     `json:"blockedPromotions"`
+func (source *overviewSource) VisiblePromotions(ctx context.Context) ([]reporting.PromotionSummary, error) {
+	// Promotions are listed platform-wide rather than per environment, so there
+	// is no per-record authorization to fall back on: a reader without the
+	// platform-wide grant is refused the panel outright.
+	if !source.administrator &&
+		!source.governance.Authorize(ctx, source.effective, "platform/root", OperationReadResource) {
+		return nil, errOverviewPanelUnavailable
+	}
+	promotions, err := source.repository.ListPromotions(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	visible := make([]reporting.PromotionSummary, 0, len(promotions))
+	for _, promotion := range promotions {
+		visible = append(visible, reporting.PromotionSummary{
+			ID: promotion.ID, Product: promotion.Product, Version: promotion.Version,
+			FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
+			Blocked: promotion.Status != PromotionPassed,
+		})
+	}
+	return visible, nil
 }
 
+// BuildOverviewProjection reads what this operator may see and hands it to
+// Reporting.
 func BuildOverviewProjection(
 	ctx context.Context,
 	repository Repository,
@@ -65,114 +169,12 @@ func BuildOverviewProjection(
 	configuration HandlerOptions,
 	now time.Time,
 ) OverviewProjection {
-	if now.IsZero() {
-		now = time.Now()
+	source := &overviewSource{
+		repository: repository, governance: governance,
+		principal: principal, configuration: configuration,
+		administrator: isGovernanceAdministrator(ctx, governance, principal, configuration),
+		effective:     effectivePrincipal(principal),
 	}
-	projection := OverviewProjection{
-		GeneratedAt:       now.UTC(),
-		StaleAfterSeconds: int64(overviewStaleAfter / time.Second),
-		AwaitingApprovals: unavailableOverviewPanel[OverviewChangeRequest](),
-		FailedPlans:       unavailableOverviewPanel[OverviewPlan](),
-		RunningPlans:      unavailableOverviewPanel[OverviewPlan](),
-		UnhealthyEntities: unavailableOverviewPanel[OverviewInstallation](),
-		StaleReports:      unavailableOverviewPanel[struct{}](),
-		BlockedPromotions: unavailableOverviewPanel[OverviewPromotion](),
-	}
-	administrator := isGovernanceAdministrator(ctx, governance, principal, configuration)
-	effective := effectivePrincipal(principal)
-
-	plans, plansErr := repository.ListPlans(ctx, "")
-	if plansErr == nil {
-		visible := make([]PlanRecord, 0, len(plans))
-		for _, plan := range plans {
-			if canReadPlan(ctx, repository, governance, principal, configuration, plan) {
-				visible = append(visible, plan)
-			}
-		}
-		sort.Slice(visible, func(i, j int) bool {
-			if !visible[i].CreatedAt.Equal(visible[j].CreatedAt) {
-				return visible[i].CreatedAt.After(visible[j].CreatedAt)
-			}
-			return visible[i].ID < visible[j].ID
-		})
-		failed := make([]OverviewPlan, 0)
-		running := make([]OverviewPlan, 0)
-		for _, plan := range visible {
-			item := OverviewPlan{ID: plan.ID, Environment: plan.Plan.Environment}
-			switch plan.Status {
-			case PlanFailed:
-				failed = append(failed, item)
-			case PlanRunning, PlanLeased:
-				running = append(running, item)
-			}
-		}
-		projection.FailedPlans = currentOverviewPanel(failed)
-		projection.RunningPlans = currentOverviewPanel(running)
-
-		if reports, err := repository.ListEnvironmentReports(ctx); err == nil {
-			desired, observed := fleetInputs(plans, reports)
-			fleet := reporting.BuildFleet(desired, observed, FleetQuery{MaxAge: overviewStaleAfter}, now)
-			unhealthy := make([]OverviewInstallation, 0)
-			stale := 0
-			for _, item := range fleet.Installations {
-				if !administrator && !governance.Authorize(ctx, effective, environmentRID(item.Environment), OperationReadResource) {
-					continue
-				}
-				if item.Health != HealthHealthy && item.Health != HealthUnknown {
-					unhealthy = append(unhealthy, OverviewInstallation{
-						Environment: item.Environment, InstallationID: item.InstallationID, Health: item.Health,
-					})
-				}
-				if item.Stale {
-					stale++
-				}
-			}
-			projection.UnhealthyEntities = currentOverviewPanel(unhealthy)
-			projection.StaleReports = OverviewPanel[struct{}]{Status: OverviewCurrent, Count: stale, Items: []struct{}{}}
-		}
-	}
-
-	if requests, err := repository.ListChangeRequests(ctx, ""); err == nil {
-		awaiting := make([]OverviewChangeRequest, 0)
-		for _, request := range requests {
-			if request.Status == ChangePendingApprovals &&
-				canReadChangeRequest(ctx, governance, principal, configuration, request) {
-				awaiting = append(awaiting, OverviewChangeRequest{
-					ID: request.ID, Title: request.Title, Environment: request.Environment,
-				})
-			}
-		}
-		projection.AwaitingApprovals = currentOverviewPanel(awaiting)
-	}
-
-	if administrator || governance.Authorize(ctx, effective, "platform/root", OperationReadResource) {
-		if promotions, err := repository.ListPromotions(ctx, ""); err == nil {
-			blocked := make([]OverviewPromotion, 0)
-			for _, promotion := range promotions {
-				if promotion.Status != PromotionPassed {
-					blocked = append(blocked, OverviewPromotion{
-						ID: promotion.ID, Product: promotion.Product, Version: promotion.Version,
-						FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
-					})
-				}
-			}
-			projection.BlockedPromotions = currentOverviewPanel(blocked)
-		}
-	}
-	return projection
-}
-
-func currentOverviewPanel[T any](items []T) OverviewPanel[T] {
-	count := len(items)
-	if len(items) > maximumOverviewItems {
-		items = items[:maximumOverviewItems]
-	}
-	if items == nil {
-		items = []T{}
-	}
-	return OverviewPanel[T]{Status: OverviewCurrent, Count: count, Items: items}
-}
-
-func unavailableOverviewPanel[T any]() OverviewPanel[T] {
-	return OverviewPanel[T]{Status: OverviewUnavailable, Items: []T{}}
+	source.plans, source.plansErr = repository.ListPlans(ctx, "")
+	return reportingapp.BuildOverview(ctx, source, now)
 }

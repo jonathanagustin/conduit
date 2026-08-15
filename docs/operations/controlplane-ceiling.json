@@ -1,6 +1,6 @@
 {
   "note": "Ceiling for internal/controlplane, in hand-written non-test Go lines. Build-ignored tools and generated DO-NOT-EDIT output are reported but not counted; see scripts/report-migration-progress.mjs. The bounded-context migration may only move this down. Raising it requires saying why in the same commit.",
-  "recordedAt": "2026-08-14",
-  "lines": 26077,
-  "reason": "Raised by 580 for the transactional PostgreSQL repository and the operator change/promotion index projection. Both are persistence for behaviour the monolith already owns, so there is no bounded context to put them in until that behaviour moves; extracting the adapter alone would put a port outside the domain it serves. Set to exactly the current count rather than a round number, so the next line of growth still has to justify itself. The previous 25497 was recorded before generated and build-ignored files were separated from hand-written source and is not comparable: on the old basis this same tree measures 26963, of which 886 is a go:build ignore generator and its DO-NOT-EDIT output."
+  "recordedAt": "2026-08-15",
+  "lines": 24352,
+  "reason": "Lowered by 120 when Execution took the evidence timeline, completing the bounded-context migration: report-migration-progress now reads 8/8 contexts owning a domain. The lease rules were already this context's; what joined them is what an Agent may report -- ordered, attributable, bounded tasks that agree with the outcome they claim -- and the redaction that removes credential shapes from Agent-supplied text at the boundary it arrives on rather than wherever it is later displayed. NormalizeExecution is given what the Plan permits rather than the Plan, so Execution does not depend on Delivery to judge a report. The facade keeps the Plan-shaped narrowing and its own error vocabulary. The previous 24472 was recorded on 2026-08-15 for the Environments slice, on the same counting basis."
 }

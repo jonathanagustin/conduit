@@ -8,7 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jonathanagustin/conduit/internal/execution"
+	execution "github.com/jonathanagustin/conduit/internal/execution/domain"
 	"sort"
 	"strings"
 	"time"
@@ -71,54 +71,6 @@ type PlanRecord struct {
 	UpdatedAt          time.Time                `json:"updatedAt"`
 	Revision           uint64                   `json:"revision"`
 }
-
-// PlanExecution is the bounded, attributable task timeline reported by the
-// Agent. Provenance (reviewed 2026-08-02):
-// https://www.palantir.com/docs/apollo/core/plans-and-constraints/
-type PlanExecution struct {
-	Attempt    int                 `json:"attempt"`
-	AgentID    string              `json:"agentId"`
-	StartedAt  time.Time           `json:"startedAt"`
-	FinishedAt time.Time           `json:"finishedAt"`
-	Tasks      []PlanExecutionTask `json:"tasks"`
-}
-
-type PlanExecutionTask struct {
-	Sequence       int                  `json:"sequence"`
-	Phase          string               `json:"phase"`
-	Status         string               `json:"status"`
-	InstallationID string               `json:"installationId,omitempty"`
-	Namespace      string               `json:"namespace,omitempty"`
-	StartedAt      time.Time            `json:"startedAt"`
-	FinishedAt     time.Time            `json:"finishedAt"`
-	Failure        string               `json:"failure,omitempty"`
-	AgentOutput    string               `json:"agentOutput,omitempty"`
-	Resources      []ResourceDiagnostic `json:"resources,omitempty"`
-}
-
-type ResourceDiagnostic struct {
-	APIVersion string `json:"apiVersion,omitempty"`
-	Kind       string `json:"kind"`
-	Namespace  string `json:"namespace,omitempty"`
-	Name       string `json:"name"`
-	Reason     string `json:"reason,omitempty"`
-	Message    string `json:"message,omitempty"`
-}
-
-const (
-	ExecutionPhaseValidate       = "VALIDATE"
-	ExecutionPhaseLease          = "LEASE"
-	ExecutionPhaseLegacy         = "LEGACY"
-	ExecutionPhaseSecretMutation = "SECRET_MUTATION"
-	ExecutionPhaseApply          = "APPLY"
-	ExecutionPhaseObserve        = "OBSERVE"
-	ExecutionPhaseRollback       = "ROLLBACK"
-
-	ExecutionTaskSucceeded      = "SUCCEEDED"
-	ExecutionTaskFailed         = "FAILED"
-	ExecutionTaskRolledBack     = "ROLLED_BACK"
-	ExecutionTaskRollbackFailed = "ROLLBACK_FAILED"
-)
 
 type EntityCommand struct {
 	Type           string    `json:"type"`

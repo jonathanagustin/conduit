@@ -9,7 +9,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
-	"github.com/jonathanagustin/conduit/internal/environments"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 type apolloProduct struct {

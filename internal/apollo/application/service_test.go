@@ -7,8 +7,8 @@ import (
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
-	"github.com/jonathanagustin/conduit/internal/catalog"
-	"github.com/jonathanagustin/conduit/internal/environments"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 type catalogFixture struct{ publications []catalog.Publication }

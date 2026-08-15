@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -888,7 +889,7 @@ func TestCanaryStageBlamesNoSingleConditionWhenNonePromoted(t *testing.T) {
 			{Action: PromoteWhenHealthy, ThresholdPercent: 90, MinimumEntityCount: 1},
 		}},
 	}
-	blockers := evaluateCanaryStage(request, promotionFixtureTime())
+	blockers := catalog.EvaluateCanaryStage(request, promotionFixtureTime())
 	var found bool
 	for _, blocker := range blockers {
 		if blocker.Kind != PromotionBlockerCanaryNoConditionMet {
