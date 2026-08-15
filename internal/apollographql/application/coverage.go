@@ -47,18 +47,25 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	at("ApolloProductDependency", "optional"):             "apollo: ProductDependency.Optional",
 	at("ApolloProductDependency", "product"):              "apollo: ProductDependency product coordinate",
 
-	// --- Invented by Conduit, and answered from Reporting's already-authorized
-	// fleet snapshot. Every one of these is displaced the moment a capture
-	// recovers the same coordinate.
+	// --- Added to the interface by Conduit because no Hub established them in
+	// GraphQL, and answered from Reporting's already-authorized fleet snapshot.
+	// Every one of these is displaced the moment a capture recovers the same
+	// coordinate.
+	//
+	// Most of them carry Apollo's own published name rather than one Conduit
+	// chose (the SDL tiers them DOCUMENTED); the field names here are the names
+	// the pinned OpenAPI and the CLI publish, which is what displacement means.
+	// The coverage table does not restate the tier, because the SDL states it and
+	// a second copy would be a second thing to drift.
 	at("ApolloQuery", "plans"):                      "reporting: OverviewSource.VisiblePlans",
 	at("ApolloQuery", "plan"):                       "reporting: OverviewSource.VisiblePlans",
 	at("ApolloQuery", "changeRequests"):             "reporting: OverviewSource.VisibleChangeRequests",
 	at("ApolloQuery", "promotions"):                 "reporting: OverviewSource.VisiblePromotions",
 	at("ApolloEnvironment", "health"):               "reporting: OverviewSource.VisibleInstallations, aggregated per environment",
 	at("ApolloEntity", "health"):                    "reporting: OverviewSource.VisibleInstallations",
-	at("ApolloEntity", "installedVersion"):          "apollo: Installation.Version, as reported by the Apollo Agent",
+	at("ApolloEntity", "version"):                   "apollo: Installation.Version, as reported by the Apollo Agent",
 	at("ApolloPlan", "rid"):                         "reporting: PlanSummary.ID",
-	at("ApolloPlan", "environment"):                 "reporting: PlanSummary.Environment",
+	at("ApolloPlan", "environmentRid"):              "reporting: PlanSummary.Environment",
 	at("ApolloPlan", "status"):                      "reporting: PlanSummary.Phase",
 	at("ApolloPlanPage", "plans"):                   "reporting: OverviewSource.VisiblePlans",
 	at("ApolloPlanPage", "nextPageToken"):           "pagination: absent while every visible record fits one page",
@@ -68,7 +75,7 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	at("ApolloChangeRequestPage", "changeRequests"): "reporting: OverviewSource.VisibleChangeRequests",
 	at("ApolloChangeRequestPage", "nextPageToken"):  "pagination: absent while every visible record fits one page",
 	at("ApolloPromotion", "rid"):                    "reporting: PromotionSummary.ID",
-	at("ApolloPromotion", "product"):                "reporting: PromotionSummary.Product",
+	at("ApolloPromotion", "productId"):              "reporting: PromotionSummary.Product",
 	at("ApolloPromotion", "status"):                 "reporting: PromotionSummary.Blocked",
 	at("ApolloPromotionPage", "promotions"):         "reporting: OverviewSource.VisiblePromotions",
 	at("ApolloPromotionPage", "nextPageToken"):      "pagination: absent while every visible record fits one page",

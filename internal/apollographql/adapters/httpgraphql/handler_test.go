@@ -34,10 +34,18 @@ func TestTheServedSchemaCarriesItsProvenance(t *testing.T) {
 	if body != schema.SDL() {
 		t.Fatal("the served schema is not the embedded one")
 	}
-	for _, want := range []string{"@provenance(tier: OBSERVED)", "@provenance(tier: CONDUIT_NATIVE)"} {
+	for _, want := range []string{"@provenance(tier: OBSERVED)", "@provenance(tier: DOCUMENTED)"} {
 		if !strings.Contains(body, want) {
 			t.Errorf("the served schema does not carry %s", want)
 		}
+	}
+	// CONDUIT_NATIVE is checked as a declared tier rather than as an annotation
+	// in use: no served field currently carries it, because every one of them
+	// traced to an Apollo source. The tier must still reach a client, so that an
+	// interface which later does invent a coordinate can say so in a vocabulary
+	// the client already understands.
+	if !strings.Contains(body, "  CONDUIT_NATIVE\n") {
+		t.Error("the served schema does not declare the CONDUIT_NATIVE tier")
 	}
 }
 

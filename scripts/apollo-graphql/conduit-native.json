@@ -1,74 +1,228 @@
 {
-  "note": "Conduit-native additions to the served Apollo-shaped GraphQL interface. Everything here is INVENTED: no Hub established it, and none of it may be described as Apollo compatibility. It exists so the served interface is usable before the observed surface is complete. Each entry is displaced automatically the moment a capture recovers the same coordinate -- verify-apollo-interface.mjs fails until it is removed and the recovered definition takes its place. Only add a field Conduit's own domain can actually answer; an invented field nothing can serve is worse than an absent one, and internal/apollographql/domain.Reconcile fails the build on one.",
+  "note": "Conduit additions to the served Apollo-shaped GraphQL interface. No Hub answered for any of these GRAPHQL COORDINATES, and that is the only thing every entry here has in common. Beyond it they differ, and the citation says how. publishedAs means Apollo itself names this field: in the pinned OpenAPI, in an apollo-cli flag, or on a SIBLING TYPE IN THE RECOVERY RECORD -- `apollo-graphql ApolloEnvironmentPage.nextPageToken` is Apollo's own GraphQL name for the same thing, established by capture, and is the strongest citation here. patternedOn means the SHAPE is Apollo's, recovered from the record, while the noun is documented separately: every recovered XPage names its collection after the plural entity it pages, so ApolloPlanPage.plans follows Apollo's convention rather than one Conduit chose. documentedBy means Apollo's public documentation describes the concept. A field with none of the three would be Conduit's own idea carrying no Apollo claim at all; there are currently none, which is a finding rather than a design. Where Apollo names something Conduit had named itself, the invention is DISPLACED by Apollo's name -- evidence displaces invention whichever way it arrives. Every entry is still displaced automatically the moment a capture recovers the same coordinate.",
   "provenanceTier": "CONDUIT_NATIVE",
   "cardinality": "A native field may set \"list\": true. Conduit establishes its own collections, so it states their shape. Observed fields never do: validation probing cannot see through a list type, so the recovery record never established one.",
   "types": {
     "ApolloQuery": {
       "reason": "The observed root exposes reads for environments, products, entities, bundles and product releases. Conduit additionally owns plans, change requests and promotions, and an operator interface that cannot reach them is not usable for delivery work.",
       "fields": [
-        { "name": "plans", "arguments": [{ "name": "pageSize", "type": "Int" }], "returns": "ApolloPlanPage", "servedBy": "reporting: OverviewSource.VisiblePlans" },
-        { "name": "plan", "arguments": [{ "name": "rid", "type": "RID" }], "returns": "ApolloPlan", "servedBy": "reporting: OverviewSource.VisiblePlans" },
-        { "name": "changeRequests", "arguments": [{ "name": "pageSize", "type": "Int" }], "returns": "ApolloChangeRequestPage", "servedBy": "reporting: OverviewSource.VisibleChangeRequests" },
-        { "name": "promotions", "arguments": [{ "name": "pageSize", "type": "Int" }], "returns": "ApolloPromotionPage", "servedBy": "reporting: OverviewSource.VisiblePromotions" }
+        {
+          "name": "plans",
+          "arguments": [
+            {
+              "name": "pageSize",
+              "type": "Int"
+            }
+          ],
+          "returns": "ApolloPlanPage",
+          "servedBy": "reporting: OverviewSource.VisiblePlans",
+          "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
+        },
+        {
+          "name": "plan",
+          "arguments": [
+            {
+              "name": "rid",
+              "type": "RID"
+            }
+          ],
+          "returns": "ApolloPlan",
+          "servedBy": "reporting: OverviewSource.VisiblePlans",
+          "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
+        },
+        {
+          "name": "changeRequests",
+          "arguments": [
+            {
+              "name": "pageSize",
+              "type": "Int"
+            }
+          ],
+          "returns": "ApolloChangeRequestPage",
+          "servedBy": "reporting: OverviewSource.VisibleChangeRequests",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-changes/change-requests/"
+        },
+        {
+          "name": "promotions",
+          "arguments": [
+            {
+              "name": "pageSize",
+              "type": "Int"
+            }
+          ],
+          "returns": "ApolloPromotionPage",
+          "servedBy": "reporting: OverviewSource.VisiblePromotions",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/"
+        }
       ]
     },
     "ApolloEnvironment": {
       "reason": "The observed environment carries identity and its entities. Conduit also owns what its installations report, which is what an operator opens an environment to see.",
       "fields": [
-        { "name": "health", "returns": "String", "servedBy": "reporting: OverviewSource.VisibleInstallations, aggregated per environment" }
+        {
+          "name": "health",
+          "returns": "String",
+          "servedBy": "reporting: OverviewSource.VisibleInstallations, aggregated per environment",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-product-specification/health/"
+        }
       ]
     },
     "ApolloEntity": {
       "reason": "The observed entity carries identity only. Conduit owns what the installation behind it reported, which is the whole point of looking at one.",
       "fields": [
-        { "name": "health", "returns": "String", "servedBy": "reporting: OverviewSource.VisibleInstallations" },
-        { "name": "installedVersion", "returns": "String", "servedBy": "apollo: Installation.Version, as reported by the Apollo Agent" }
+        {
+          "name": "health",
+          "returns": "String",
+          "servedBy": "reporting: OverviewSource.VisibleInstallations",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-product-specification/health/"
+        },
+        {
+          "name": "version",
+          "returns": "String",
+          "servedBy": "apollo: Installation.Version, as reported by the Apollo Agent",
+          "publishedAs": "apollo-openapi Installation.version"
+        }
       ]
     },
     "ApolloPlan": {
       "reason": "Conduit-native throughout. Apollo's Plan is not in the observed surface at all.",
       "fields": [
-        { "name": "rid", "returns": "String", "servedBy": "reporting: PlanSummary.ID" },
-        { "name": "environment", "returns": "String", "servedBy": "reporting: PlanSummary.Environment" },
-        { "name": "status", "returns": "String", "servedBy": "reporting: PlanSummary.Phase" }
+        {
+          "name": "rid",
+          "returns": "String",
+          "servedBy": "reporting: PlanSummary.ID",
+          "publishedAs": "apollo-openapi rid convention (Installation.rid, Environment.rid)",
+          "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
+        },
+        {
+          "name": "environmentRid",
+          "returns": "String",
+          "servedBy": "reporting: PlanSummary.Environment",
+          "publishedAs": "apollo-openapi Installation.environmentRid",
+          "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
+        },
+        {
+          "name": "status",
+          "returns": "String",
+          "servedBy": "reporting: PlanSummary.Phase",
+          "publishedAs": "apollo-openapi status; apollo-cli changerequest list --status",
+          "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
+        }
       ]
     },
     "ApolloPlanPage": {
-      "reason": "Paging shape mirroring the observed pages, so a client pages every collection the same way.",
+      "reason": "Paging shape mirroring the observed pages, so a client pages every collection the same way. Nothing here is Conduit's vocabulary: the recovery record establishes both the field names and the convention, on four sibling page types.",
       "fields": [
-        { "name": "plans", "returns": "ApolloPlan", "list": true, "servedBy": "reporting: OverviewSource.VisiblePlans" },
-        { "name": "nextPageToken", "returns": "String", "servedBy": "pagination: absent while every visible record fits one page" }
+        {
+          "name": "plans",
+          "returns": "ApolloPlan",
+          "list": true,
+          "servedBy": "reporting: OverviewSource.VisiblePlans",
+          "patternedOn": "apollo-graphql ApolloEnvironmentPage.environments, ApolloEntityPage.entities, ApolloProductPage.products, ApolloProductReleasePage.productReleases",
+          "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
+        },
+        {
+          "name": "nextPageToken",
+          "returns": "String",
+          "servedBy": "pagination: absent while every visible record fits one page",
+          "publishedAs": "apollo-graphql ApolloEnvironmentPage.nextPageToken, ApolloEntityPage.nextPageToken, ApolloProductPage.nextPageToken, ApolloProductReleasePage.nextPageToken"
+        }
       ]
     },
     "ApolloChangeRequest": {
       "reason": "Conduit-native throughout.",
       "fields": [
-        { "name": "rid", "returns": "String", "servedBy": "reporting: ChangeRequestSummary.ID" },
-        { "name": "title", "returns": "String", "servedBy": "reporting: ChangeRequestSummary.Title" },
-        { "name": "status", "returns": "String", "servedBy": "reporting: ChangeRequestSummary.AwaitingApproval" }
+        {
+          "name": "rid",
+          "returns": "String",
+          "servedBy": "reporting: ChangeRequestSummary.ID",
+          "publishedAs": "apollo-openapi rid convention",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-changes/change-requests/"
+        },
+        {
+          "name": "title",
+          "returns": "String",
+          "servedBy": "reporting: ChangeRequestSummary.Title",
+          "publishedAs": "apollo-cli changerequest list --title",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-changes/change-requests/"
+        },
+        {
+          "name": "status",
+          "returns": "String",
+          "servedBy": "reporting: ChangeRequestSummary.AwaitingApproval",
+          "publishedAs": "apollo-cli changerequest list --status",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-changes/change-requests/"
+        }
       ]
     },
     "ApolloChangeRequestPage": {
-      "reason": "Paging shape mirroring the observed pages.",
+      "reason": "Paging shape mirroring the observed pages. The recovery record establishes the convention; apollo-cli establishes the noun.",
       "fields": [
-        { "name": "changeRequests", "returns": "ApolloChangeRequest", "list": true, "servedBy": "reporting: OverviewSource.VisibleChangeRequests" },
-        { "name": "nextPageToken", "returns": "String", "servedBy": "pagination: absent while every visible record fits one page" }
+        {
+          "name": "changeRequests",
+          "returns": "ApolloChangeRequest",
+          "list": true,
+          "servedBy": "reporting: OverviewSource.VisibleChangeRequests",
+          "patternedOn": "apollo-graphql ApolloEnvironmentPage.environments, ApolloEntityPage.entities, ApolloProductPage.products, ApolloProductReleasePage.productReleases",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_list/"
+        },
+        {
+          "name": "nextPageToken",
+          "returns": "String",
+          "servedBy": "pagination: absent while every visible record fits one page",
+          "publishedAs": "apollo-graphql ApolloEnvironmentPage.nextPageToken, ApolloEntityPage.nextPageToken, ApolloProductPage.nextPageToken, ApolloProductReleasePage.nextPageToken"
+        }
       ]
     },
     "ApolloPromotion": {
       "reason": "Conduit-native throughout.",
       "fields": [
-        { "name": "rid", "returns": "String", "servedBy": "reporting: PromotionSummary.ID" },
-        { "name": "product", "returns": "String", "servedBy": "reporting: PromotionSummary.Product" },
-        { "name": "status", "returns": "String", "servedBy": "reporting: PromotionSummary.Blocked" }
+        {
+          "name": "rid",
+          "returns": "String",
+          "servedBy": "reporting: PromotionSummary.ID",
+          "publishedAs": "apollo-openapi rid convention",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/"
+        },
+        {
+          "name": "productId",
+          "returns": "String",
+          "servedBy": "reporting: PromotionSummary.Product",
+          "publishedAs": "apollo-openapi Product.id, Installation.productId",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/"
+        },
+        {
+          "name": "status",
+          "returns": "String",
+          "servedBy": "reporting: PromotionSummary.Blocked",
+          "publishedAs": "apollo-openapi status",
+          "documentedBy": "https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/"
+        }
       ]
     },
     "ApolloPromotionPage": {
-      "reason": "Paging shape mirroring the observed pages.",
+      "reason": "Paging shape mirroring the observed pages. The recovery record establishes the convention; apollo-cli establishes the noun.",
       "fields": [
-        { "name": "promotions", "returns": "ApolloPromotion", "list": true, "servedBy": "reporting: OverviewSource.VisiblePromotions" },
-        { "name": "nextPageToken", "returns": "String", "servedBy": "pagination: absent while every visible record fits one page" }
+        {
+          "name": "promotions",
+          "returns": "ApolloPromotion",
+          "list": true,
+          "servedBy": "reporting: OverviewSource.VisiblePromotions",
+          "patternedOn": "apollo-graphql ApolloEnvironmentPage.environments, ApolloEntityPage.entities, ApolloProductPage.products, ApolloProductReleasePage.productReleases",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion/"
+        },
+        {
+          "name": "nextPageToken",
+          "returns": "String",
+          "servedBy": "pagination: absent while every visible record fits one page",
+          "publishedAs": "apollo-graphql ApolloEnvironmentPage.nextPageToken, ApolloEntityPage.nextPageToken, ApolloProductPage.nextPageToken, ApolloProductReleasePage.nextPageToken"
+        }
       ]
     }
-  }
+  },
+  "displacedByDocumentation": [
+    "ApolloEntity.installedVersion -> version (apollo-openapi Installation.version)",
+    "ApolloPlan.environment -> environmentRid (apollo-openapi Installation.environmentRid)",
+    "ApolloPromotion.product -> productId (apollo-openapi Product.id, Installation.productId)"
+  ]
 }

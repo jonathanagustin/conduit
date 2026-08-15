@@ -56,14 +56,14 @@ func TestApolloGraphQLPublishesItsAnnotatedSchema(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("schema = %d %s", response.Code, response.Body.String())
 	}
-	for _, want := range []string{"@provenance(tier: OBSERVED)", "@provenance(tier: CONDUIT_NATIVE)"} {
+	for _, want := range []string{"@provenance(tier: OBSERVED)", "@provenance(tier: DOCUMENTED)", "CONDUIT_NATIVE"} {
 		if !strings.Contains(response.Body.String(), want) {
 			t.Errorf("the published schema does not carry %s", want)
 		}
 	}
 }
 
-func TestApolloGraphQLAnswersAnOperatorAndDisclosesItsInventions(t *testing.T) {
+func TestApolloGraphQLAnswersAnOperatorAndDisclosesWhatNoHubEstablished(t *testing.T) {
 	t.Parallel()
 	handler := NewHandler(NewMemoryRepository(), HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
 	response := graphqlRequest(t, handler, "local-developer", `{ apollo { plans(pageSize: 10) { plans { rid } } } }`)
@@ -74,6 +74,7 @@ func TestApolloGraphQLAnswersAnOperatorAndDisclosesItsInventions(t *testing.T) {
 		Errors     []struct{ Message string } `json:"errors"`
 		Extensions struct {
 			Provenance struct {
+				DocumentedServed    []string `json:"documentedServed"`
 				ConduitNativeServed []string `json:"conduitNativeServed"`
 			} `json:"provenance"`
 		} `json:"extensions"`
@@ -84,12 +85,18 @@ func TestApolloGraphQLAnswersAnOperatorAndDisclosesItsInventions(t *testing.T) {
 	if len(decoded.Errors) != 0 {
 		t.Fatalf("the plans panel refused for an authorized operator: %v", decoded.Errors)
 	}
-	native := strings.Join(decoded.Extensions.Provenance.ConduitNativeServed, ",")
+	documented := strings.Join(decoded.Extensions.Provenance.DocumentedServed, ",")
 	// ApolloPlan.rid is absent because this repository has no plans, so nothing
 	// under the collection was ever answered. The disclosure describes the
 	// answer, not the document.
-	if native != "ApolloPlanPage.plans,ApolloQuery.plans" {
-		t.Fatalf("the response did not disclose the invented coordinates it served: %q", native)
+	if documented != "ApolloPlanPage.plans,ApolloQuery.plans" {
+		t.Fatalf("the response did not disclose the unrecovered coordinates it served: %q", documented)
+	}
+	if len(decoded.Extensions.Provenance.ConduitNativeServed) != 0 {
+		t.Fatalf(
+			"coordinates Apollo names were disclosed as Conduit's invention: %v",
+			decoded.Extensions.Provenance.ConduitNativeServed,
+		)
 	}
 }
 
