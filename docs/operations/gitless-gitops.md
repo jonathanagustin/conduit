@@ -22,6 +22,8 @@ source would mean an upgrade could begin deploying things nobody asked for.
 | `GITLESS_FLUX_SERVICE_ACCOUNT` | with `flux` | The bounded identity the Kustomization reconciles as. **No default.** |
 | `GITLESS_FLUX_PULL_SECRET` | with `flux` | The read-only registry pull Secret. **No default.** |
 | `GITLESS_FLUX_PATH` | with `flux` | Path inside the artifact. Defaults to `./runtime`. |
+| `GITLESS_FLUX_MANIFEST_REPOSITORY` | with `flux` | Registry repository the rendered manifests are published to, one tag per environment. **No default.** |
+| `GITLESS_FLUX_INSECURE_REGISTRY` | no | `true` sends http rather than https. Explicit rather than inferred from the host, so it cannot be switched on by a hostname somebody chose. |
 
 A misconfiguration is a **startup failure**, not a first-tick surprise. A Hub
 that started cleanly and then silently never deployed one of its environments is
@@ -53,6 +55,22 @@ somebody forgot — reliably the one that mattered.
 Unknown fields are rejected. `certificateIdentiy` would otherwise leave an
 environment trusting an empty pattern, and a setting somebody believed was doing
 something (`"trustAnySigner": true`) would be read and ignored.
+
+### Where the manifests go
+
+With `flux`, Conduit renders an `OCIRepository` and a `Kustomization` and
+publishes them to `GITLESS_FLUX_MANIFEST_REPOSITORY` as an OCI artifact tagged
+with the environment name. That artifact is what the cluster's Flux pulls —
+which is the whole point: the manifests live in a registry, not in Git, and the
+cluster needs no Git credential to reach them.
+
+Republishing identical bytes does not re-upload them, so a five-minute reconcile
+interval is not a five-minute upload loop.
+
+"Which digest is this environment converging on" is answered by reading
+`spec.ref.digest` out of the *published* manifests — not by the digest of the
+artifact carrying them. Confusing the two would make every republish look like a
+source change.
 
 ## Why convergence has no default
 

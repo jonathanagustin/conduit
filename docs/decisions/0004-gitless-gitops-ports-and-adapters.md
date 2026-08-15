@@ -117,6 +117,11 @@ that cheap.
   starts it when configured, and it is off unless somebody turned it on --
   defaulting to a source would let an upgrade begin deploying things nobody
   asked for.
+- Good: the Flux path starts. `ocipublish` publishes the rendered manifests as
+  an OCI artifact and reads the source digest back out of them, which is what
+  made the path reachable at all -- describing the store as "supplied by the
+  deployment" was true of the design and false of the product, and every Flux
+  configuration failed at startup until it existed.
 - Bad: the Conduit-owned convergence path is reachable in configuration but not
   wired in the Hub binary. Its ports need an artifact fetcher and a
   desired-state store that reach into Delivery, so `GITLESS_CONVERGENCE=conduit`

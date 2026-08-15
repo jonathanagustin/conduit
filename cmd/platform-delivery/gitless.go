@@ -78,7 +78,12 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 			ServiceAccountName: strings.TrimSpace(getenv("GITLESS_FLUX_SERVICE_ACCOUNT")),
 			PullSecretName:     strings.TrimSpace(getenv("GITLESS_FLUX_PULL_SECRET")),
 			Path:               strings.TrimSpace(getenv("GITLESS_FLUX_PATH")),
-			ManifestStore:      nil, // supplied by the deployment; see the error Configure returns.
+			// Published as an OCI artifact, one tag per environment, which is
+			// what a cluster's Flux pulls. Without this the Flux path could not
+			// start at all: the store was described as supplied by the
+			// deployment and no deployment supplied one.
+			ManifestRepository: strings.TrimSpace(getenv("GITLESS_FLUX_MANIFEST_REPOSITORY")),
+			InsecureRegistry:   getenv("GITLESS_FLUX_INSECURE_REGISTRY") == "true",
 		},
 	}, composition.ConduitConfig{}, gitlessObserver{})
 }
