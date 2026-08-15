@@ -1,19 +1,22 @@
-// Package identity translates a credential into the principal a request acts as.
+// Package domain translates a credential into the principal a request acts as.
 //
 // It answers one question — who is this — and deliberately not the next one,
 // which is what they may do. Authentication and authorization drifting into one
 // package is how a certificate's mere validity comes to imply a grant.
 //
-// It imports nothing beyond the standard library, so a context can identify a
-// caller without reaching through the control plane. The claims it mints travel
-// with it for the same reason: a package that produces an identity but cannot
-// name its own type is not a context.
-package identity
+// Everything here is decidable from a certificate, a policy and a token's
+// claims. How a token is verified against an issuer's keys, and how a
+// credential arrives over HTTP, are adapters' work: this package must not
+// import net/http, and the boundary gate enforces that.
+//
+// The claims it mints travel with it: a package that produces an identity but
+// cannot name its own type is not a context.
+package domain
 
 import (
 	"crypto/x509"
+	"errors"
 	"fmt"
-	"net/http"
 	"net/url"
 	"regexp"
 	"sort"
@@ -67,7 +70,7 @@ func AgentIdentityFromCertificate(certificate *x509.Certificate) (AgentIdentity,
 		}
 		environment := strings.TrimSpace(parts[1])
 		agentID := strings.TrimSpace(parts[3])
-		if !dnsLabelPattern.MatchString(environment) || !dnsLabelPattern.MatchString(agentID) {
+		if !DNSLabelPattern.MatchString(environment) || !DNSLabelPattern.MatchString(agentID) {
 			return AgentIdentity{}, fmt.Errorf("agent certificate URI SAN contains an invalid Environment or Agent ID")
 		}
 		return AgentIdentity{Environment: environment, AgentID: agentID}, nil
@@ -78,20 +81,10 @@ func AgentIdentityFromCertificate(certificate *x509.Certificate) (AgentIdentity,
 	)
 }
 
-func AgentIdentityFromRequest(request *http.Request, allowInsecureHeaders bool) (AgentIdentity, error) {
-	if request.TLS != nil && len(request.TLS.VerifiedChains) > 0 && len(request.TLS.PeerCertificates) > 0 {
-		return AgentIdentityFromCertificate(request.TLS.PeerCertificates[0])
-	}
-	if allowInsecureHeaders {
-		environment := strings.TrimSpace(request.Header.Get("X-Platform-Environment-ID"))
-		agentID := strings.TrimSpace(request.Header.Get("X-Platform-Agent-ID"))
-		if !dnsLabelPattern.MatchString(environment) || !dnsLabelPattern.MatchString(agentID) {
-			return AgentIdentity{}, fmt.Errorf("development identity headers require valid Environment and Agent IDs")
-		}
-		return AgentIdentity{Environment: environment, AgentID: agentID}, nil
-	}
-	return AgentIdentity{}, fmt.Errorf("a verified per-Environment client certificate is required")
-}
+// ErrUnauthorized is what a credential that does not establish an identity
+// produces. It lives here because "we do not know who this is" is Identity's
+// answer; "you may not" is Governance's and is a different error.
+var ErrUnauthorized = errors.New("unauthorized")
 
 type Claims struct {
 	Username       string   `json:"username"`
@@ -100,10 +93,10 @@ type Claims struct {
 	OnBehalfOf     string   `json:"onBehalfOf,omitempty"`
 }
 
-// A DNS label, restated rather than imported. The pattern is two lines and
+// DNSLabelPattern is a DNS label, restated rather than imported. The pattern is two lines and
 // importing the control plane for it would undo the point of this package;
 // internal/agent already keeps its own for the same reason.
-var dnsLabelPattern = regexp.MustCompile(`^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$`)
+var DNSLabelPattern = regexp.MustCompile(`^[a-z0-9](?:[-a-z0-9]*[a-z0-9])?$`)
 
 // normalizedStrings trims, de-duplicates and orders a claim's values so two
 // certificates carrying the same groups in a different order mint the same
