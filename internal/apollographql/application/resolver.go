@@ -510,7 +510,19 @@ func (resolver *bound) resolveEnvironment(
 		return nil, fmt.Errorf("ApolloEnvironment.%s resolved against %T", field, source)
 	}
 	switch field {
-	case "name":
+	case "name", "id":
+		// One value answers both, because Conduit holds one human identifier for
+		// an Environment and Apollo's own contract accepts that value under both
+		// spellings: `Environment.name` is documented as "a unique resource
+		// identifier of an Environment, entered at Environment creation time",
+		// and the two status routes take it as `{environmentId}` where every
+		// other route takes `{environmentRid}`. Conduit already keys on it --
+		// PutEntityHealth resolves reported state by exactly this string.
+		//
+		// This says the two coincide HERE. It is not a claim that Apollo's `id`
+		// and `name` are one field: Conduit has one identifier to give, and
+		// giving it under both names is more honest than refusing `id` while
+		// holding the value the contract calls by that name.
 		return string(environment.Name), nil
 	case "rid":
 		return string(environment.Rid), nil
