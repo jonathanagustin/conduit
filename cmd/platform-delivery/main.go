@@ -164,6 +164,25 @@ func main() {
 		}
 	}
 
+	// Gitless GitOps is off unless configured on. A misconfiguration is a
+	// startup failure rather than a first-tick surprise, because a Hub that
+	// started cleanly and silently never deployed an environment is worse than
+	// one that refused to start.
+	gitlessScheduler, err := configureGitless(os.Getenv)
+	if err != nil {
+		slog.Error("configure Gitless GitOps", "error", err)
+		os.Exit(1)
+	}
+	if gitlessScheduler != nil {
+		bindings := gitlessScheduler.Bindings()
+		environments := make([]string, 0, len(bindings))
+		for _, binding := range bindings {
+			environments = append(environments, binding.Environment+"="+binding.Selector.String())
+		}
+		slog.Info("Gitless GitOps enabled", "bindings", strings.Join(environments, " "))
+		go gitlessScheduler.Run(ctx)
+	}
+
 	go func() {
 		<-ctx.Done()
 		shutdownCtx, cancel := context.WithTimeout(context.Background(), 15*time.Second)
