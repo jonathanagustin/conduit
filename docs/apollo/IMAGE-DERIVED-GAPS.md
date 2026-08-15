@@ -74,7 +74,7 @@ unreviewed.
 | Managing Notifications | 6 | Boundary | Durable domain-event consumers and user/team delivery preferences remain external integrations. |
 | Managing Secrets | 7 | Implemented/boundary | Write-only assignment lifecycle and Plan mutations are implemented; value entry/storage stays with an external provider. |
 | Managing Artifact Registries | 5 | Implemented/boundary | Assignment, mirrors, digest resolution, and opaque credential preparation are implemented; registry administration is external. |
-| Apollo references | 3 | Partial | All three images show the GraphQL explorer. H38 remains blocked and the pinned 13-route OpenAPI adapter is not counted as GraphQL coverage. |
+| Apollo references | 3 | Implemented (2026-08-15) | All three images show the GraphQL explorer. When this table was written the surface was unrecovered and this row read "H38 remains blocked". It has since been recovered (H27) and served (H28); see [`reference/graphql-api.md`](reference/graphql-api.md). The pinned 13-route OpenAPI adapter is still not counted as GraphQL coverage — the two surfaces are gated separately. |
 
 ## What the first image pass established, and what was done
 
@@ -294,10 +294,15 @@ than a shortfall.
 
 ## Still unclaimed
 
-* **The primary Apollo API is GraphQL.** The API Explorer screenshot reads
-  "Explore the Apollo GraphQL schema". Platform's compatibility rests on a pinned
-  13-route public OpenAPI adapter; the GraphQL surface is neither implemented nor
-  claimed, and the 13/13 figure must not be read as broader coverage.
+* ~~**The primary Apollo API is GraphQL.**~~ **Closed 2026-08-15.** The API
+  Explorer screenshot reads "Explore the Apollo GraphQL schema", and when this
+  was written the GraphQL surface was neither implemented nor claimed. It has
+  since been recovered from an authorized Hub by validation probing (H27) and is
+  served as a provenance-annotated interface (H28). The 13/13 OpenAPI figure
+  still must not be read as GraphQL coverage: they are separate surfaces with
+  separate gates. What remains unclaimed is narrower and stated in
+  [`reference/graphql-api.md`](reference/graphql-api.md) — one Hub, one date, one
+  candidate set, and no cardinality established by the probe.
 * **Notifications, Entity Map, and Risk Management remain UI/boundary
   integrations**, per the existing contract matrix.
 * **No native CLI capture and no private Hub↔Agent wire evidence**, unchanged

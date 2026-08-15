@@ -17,6 +17,7 @@ schema="api/graphql/apollo.interface.graphql"
 report="docs/apollo/observed/apollo-interface-provenance.json"
 native="scripts/apollo-graphql/conduit-native.json"
 manifest="docs/apollo/public-documentation-manifest.tsv"
+cli="docs/apollo/cli-command-contract.json"
 # The pinned OpenAPI snapshot every `apollo-openapi X.y` citation resolves
 # against. Found rather than hard-coded, so pinning a newer capture does not
 # silently stage an empty file and turn every citation check into a no-op.
@@ -35,7 +36,7 @@ stage() {
   # citations against them. Omitting them would make every citation unresolvable
   # and every case below reject for that reason instead of its own -- the whole
   # harness would pass while testing nothing.
-  for file in "$observed" "$schema" "$report" "$manifest" "$openapi"; do
+  for file in "$observed" "$schema" "$report" "$manifest" "$openapi" "$cli"; do
     cp "$repo_root/$file" "$work/tree/$file"
   done
 }
@@ -140,6 +141,67 @@ d["types"]["ApolloEntity"]["fields"][1]["publishedAs"]="apollo-openapi Installat
 json.dump(d,open(sys.argv[1],"w"),indent=2)
 PY
 expect_reject "a published name the pinned OpenAPI does not declare" "versionThatApolloDoesNotPublish"
+
+# THE CASE THAT CAUGHT A REAL DEFECT. The first version of the OpenAPI check
+# collected every property name in the document into one flat set, so a citation
+# naming the wrong type passed: Environment declares only rid, name,
+# environmentType and status, yet `apollo-openapi Environment.productId` was
+# accepted because some OTHER schema declares productId. A citation check that
+# does not check the type only asserts that Apollo uses the word somewhere.
+stage && python3 - "$work/tree/$native" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for f in d["types"]["ApolloPromotion"]["fields"]:
+    if f["name"]=="productId":
+        f["publishedAs"]="apollo-openapi Environment.productId"
+json.dump(d,open(sys.argv[1],"w"),indent=2)
+PY
+expect_reject "a real property cited on the wrong type" "must belong to the type cited"
+
+stage && python3 - "$work/tree/$native" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for f in d["types"]["ApolloPromotion"]["fields"]:
+    if f["name"]=="productId":
+        f["publishedAs"]="apollo-openapi NoSuchSchema.productId"
+json.dump(d,open(sys.argv[1],"w"),indent=2)
+PY
+expect_reject "a citation of a schema the contract does not declare" "no schema named"
+
+# The CLI contract is checked the same way, down to the individual flag.
+stage && python3 - "$work/tree/$native" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for f in d["types"]["ApolloChangeRequest"]["fields"]:
+    if f["name"]=="title":
+        f["publishedAs"]="apollo-cli changerequest list --no-such-flag"
+json.dump(d,open(sys.argv[1],"w"),indent=2)
+PY
+expect_reject "a flag the captured CLI contract does not carry" "Do not claim a flag the CLI does not carry"
+
+stage && python3 - "$work/tree/$native" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for f in d["types"]["ApolloChangeRequest"]["fields"]:
+    if f["name"]=="title":
+        f["publishedAs"]="apollo-cli changerequest invent --title"
+json.dump(d,open(sys.argv[1],"w"),indent=2)
+PY
+expect_reject "a citation of an apollo-cli command that was never captured" "records no command"
+
+# Prose. Six citations sat in this file in forms nothing could resolve --
+# "rid convention", a bare "apollo-openapi status" -- reading as evidence and
+# constraining nothing. An unresolvable citation now fails rather than being
+# silently skipped, which is what let them survive.
+stage && python3 - "$work/tree/$native" <<'PY'
+import json,sys
+d=json.load(open(sys.argv[1]))
+for f in d["types"]["ApolloChangeRequest"]["fields"]:
+    if f["name"]=="title":
+        f["publishedAs"]="apollo publishes this name, obviously; title"
+json.dump(d,open(sys.argv[1],"w"),indent=2)
+PY
+expect_reject "a citation in no verifiable form" "in no verifiable form"
 
 stage && python3 - "$work/tree/$native" <<'PY'
 import json,sys
