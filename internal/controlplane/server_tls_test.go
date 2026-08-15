@@ -6,7 +6,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"crypto/x509/pkix"
-	"github.com/jonathanagustin/conduit/internal/identity"
+	httpidentity "github.com/jonathanagustin/conduit/internal/identity/adapters/httpidentity"
 	"math/big"
 	"net"
 	"net/http"
@@ -48,7 +48,7 @@ func TestSPIFFETransportAuthenticatesAndRotatesWorkloadIdentity(t *testing.T) {
 		t.Fatal(err)
 	}
 	server := &http.Server{Handler: http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		identity, identityErr := identity.AgentIdentityFromRequest(request, false)
+		identity, identityErr := httpidentity.AgentIdentityFromRequest(request, false)
 		if identityErr != nil || identity.Environment != "dev" || identity.AgentID != "spoke-dev" {
 			http.Error(w, "untrusted", http.StatusUnauthorized)
 			return

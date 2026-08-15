@@ -9,15 +9,19 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/jonathanagustin/conduit/internal/catalog"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
+	catalogports "github.com/jonathanagustin/conduit/internal/catalog/ports"
 )
 
 // Compatibility aliases keep the persistence implementations stable while the
-// owning definitions live in Catalog. New code imports internal/catalog.
+// owning definitions live in Catalog. New code imports the context directly.
+//
+// ProductPublicationRepository is Catalog's port, aliased so the repository
+// implementations below satisfy it without knowing it exists.
 type (
 	ProductPublication           = catalog.Publication
 	ProductPublicationAsset      = catalog.PublicationAsset
-	ProductPublicationRepository = catalog.PublicationRepository
+	ProductPublicationRepository = catalogports.PublicationRepository
 )
 
 func (repository *MemoryRepository) CreateProductPublication(_ context.Context, publication ProductPublication) (ProductPublication, error) {

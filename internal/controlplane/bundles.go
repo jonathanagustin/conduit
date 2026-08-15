@@ -1,7 +1,6 @@
 package controlplane
 
 import (
-	"bytes"
 	"context"
 	"crypto/ed25519"
 	"crypto/sha256"
@@ -15,7 +14,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/artifacts"
+	artifactapp "github.com/jonathanagustin/conduit/internal/artifacts/application"
+	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
 	"github.com/robfig/cron/v3"
 )
 
@@ -1508,7 +1508,7 @@ func (service *BundleService) PreviewForEnvironment(
 func (service *BundleService) Import(
 	ctx context.Context, envelope BundleEnvelope, requireSecurityPass bool,
 ) (BundleImport, error) {
-	environment := firstBundleEnvironment(envelope)
+	environment := artifacts.FirstEnvironment(envelope)
 	if environment == "" {
 		environment = "catalog"
 	}
@@ -1555,7 +1555,7 @@ func (service *BundleService) StageImport(
 	// A Bundle carrying the target Environment's own settings would overwrite
 	// them. Refuse unless the target has deliberately handed settings ownership
 	// to an upstream Hub.
-	if bundleCarriesEnvironmentSettings(envelope, environment) {
+	if artifacts.CarriesEnvironmentSettings(envelope, environment) {
 		federation, err := environmentFederation(ctx, service.repository, environment)
 		if err != nil {
 			return BundleImport{}, err
@@ -1840,48 +1840,15 @@ func validateRelayedEnvironmentReport(report EnvironmentReport, environment stri
 // bundleCarriesEnvironmentSettings reports whether the Bundle would replace the
 // named Environment's own settings, as opposed to only delivering catalog
 // resources such as Products, Releases, and Teams.
-func bundleCarriesEnvironmentSettings(envelope BundleEnvelope, environment string) bool {
-	for _, resource := range envelope.Manifest.Resources {
-		if resource.Type == BundleSelectEnvironment && resource.ID == environment && !resource.Deleted {
-			return true
-		}
-	}
-	return false
-}
-
-func firstBundleEnvironment(envelope BundleEnvelope) string {
-	for _, resource := range envelope.Manifest.Resources {
-		if resource.Type == "ENVIRONMENT" && dnsLabelPattern.MatchString(resource.ID) {
-			return resource.ID
-		}
-	}
-	return ""
-}
-
+// ensureBundleArtifacts hands the envelope to Artifacts, which makes every
+// layer it describes present in the store. The one translation left here is the
+// vocabulary: Artifacts calls an absent transferred layer ErrLayerMissing,
+// which is the right name inside a package that knows nothing about HTTP, and
+// out here that condition has always been ErrNotFound and a 404.
 func (service *BundleService) ensureBundleArtifacts(ctx context.Context, envelope BundleEnvelope) error {
-	chunks := make(map[string][]byte, len(envelope.Chunks))
-	for _, chunk := range envelope.Chunks {
-		chunks[chunk.Digest] = chunk.Data
+	err := artifactapp.NewStaging(service.repository).EnsureLayers(ctx, envelope)
+	if errors.Is(err, artifacts.ErrLayerMissing) {
+		return fmt.Errorf("%w: %w", ErrNotFound, err)
 	}
-	for _, layer := range envelope.Manifest.ArtifactLayers {
-		if layer.Transferred {
-			descriptor, reader, err := service.repository.OpenBlob(ctx, layer.Digest)
-			if err != nil {
-				return fmt.Errorf("%w: target lacks confirmed transferred layer %s", ErrNotFound, layer.Digest)
-			}
-			_ = reader.Close()
-			if descriptor.Size != layer.Size {
-				return fmt.Errorf("%w: transferred layer %s size differs", ErrDigestMismatch, layer.Digest)
-			}
-			continue
-		}
-		var contents bytes.Buffer
-		for _, digest := range layer.ChunkDigests {
-			contents.Write(chunks[digest])
-		}
-		if _, _, err := service.repository.PutBlob(ctx, layer.Digest, layer.MediaType, bytes.NewReader(contents.Bytes())); err != nil {
-			return fmt.Errorf("store Bundle artifact layer %s: %w", layer.Digest, err)
-		}
-	}
-	return nil
+	return err
 }

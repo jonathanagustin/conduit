@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/jonathanagustin/conduit/internal/artifacts"
+	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
 )
 
 // The Bundle envelope format now lives in internal/artifacts. These aliases

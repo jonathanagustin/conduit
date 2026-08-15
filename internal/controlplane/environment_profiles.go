@@ -6,18 +6,17 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-
-	"github.com/jonathanagustin/conduit/internal/environments"
 	"time"
+
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
+	environmentports "github.com/jonathanagustin/conduit/internal/environments/ports"
 )
 
 const EnvironmentProfileChangeTarget = "ENVIRONMENT_PROFILE"
 
-type EnvironmentProfileRepository interface {
-	PutEnvironmentProfile(context.Context, EnvironmentProfile) (EnvironmentProfile, error)
-	GetEnvironmentProfile(context.Context, string) (EnvironmentProfile, error)
-	ListEnvironmentProfileRevisions(context.Context, string) ([]EnvironmentProfile, error)
-}
+// EnvironmentProfileRepository is Environments' profile store port, aliased so
+// the repository implementations here satisfy it without knowing it exists.
+type EnvironmentProfileRepository = environmentports.ProfileRepository
 
 type EnvironmentProfileService struct {
 	repository Repository

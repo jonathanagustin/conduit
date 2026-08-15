@@ -6,7 +6,7 @@
 
 package controlplane
 
-import "github.com/jonathanagustin/conduit/internal/identity"
+import identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 
 type (
 	IdentityClaims = identity.Claims

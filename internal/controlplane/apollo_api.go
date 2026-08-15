@@ -7,8 +7,8 @@ import (
 	"strings"
 
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
-	"github.com/jonathanagustin/conduit/internal/catalog"
-	"github.com/jonathanagustin/conduit/internal/environments"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // apolloPublicAPI is the outer anti-corruption adapter. Identity and governance

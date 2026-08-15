@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/artifacts"
+	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
 )
 
 // A malformed envelope has always answered 409, and writeLifecycleError decides

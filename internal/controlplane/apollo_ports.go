@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/jonathanagustin/conduit/internal/catalog"
-	"github.com/jonathanagustin/conduit/internal/environments"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // apolloCatalogPort is an anti-corruption adapter. It is the only place the

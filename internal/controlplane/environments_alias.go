@@ -3,7 +3,7 @@ package controlplane
 import (
 	"fmt"
 
-	"github.com/jonathanagustin/conduit/internal/environments"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // How an Environment describes itself — its profile, and the desired

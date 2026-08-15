@@ -8,9 +8,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/jonathanagustin/conduit/internal/execution"
-	"github.com/jonathanagustin/conduit/internal/identity"
-	"github.com/jonathanagustin/conduit/internal/reporting"
+	execution "github.com/jonathanagustin/conduit/internal/execution/domain"
+	httpidentity "github.com/jonathanagustin/conduit/internal/identity/adapters/httpidentity"
+	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	reporting "github.com/jonathanagustin/conduit/internal/reporting/domain"
 	"io"
 	"net/http"
 	"sort"
@@ -2589,7 +2590,7 @@ func addFleetSummary(projection *FleetProjection, item FleetInstallation) {
 }
 
 func requireAgentIdentity(w http.ResponseWriter, request *http.Request, allowInsecureHeaders bool) (AgentIdentity, bool) {
-	identity, err := identity.AgentIdentityFromRequest(request, allowInsecureHeaders)
+	identity, err := httpidentity.AgentIdentityFromRequest(request, allowInsecureHeaders)
 	if err != nil {
 		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": err.Error()})
 		return AgentIdentity{}, false
