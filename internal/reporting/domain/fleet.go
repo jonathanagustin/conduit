@@ -1,17 +1,25 @@
-// Package reporting projects what the fleet desires and what it observes into
-// the views an operator reads.
+// Package domain projects what the fleet desires and what it observes, and
+// what an operator most needs to look at first, into the views the console
+// reads.
 //
 // It owns its own inputs. A projection that reached back for control-plane
 // records would make this package import the monolith, and the monolith calls
-// this package — that cycle is why reporting stayed inside it. Desired and
-// Observed are deliberately narrow: three fields of an environment report and
-// six of a plan step are all a fleet view needs, and naming exactly that is
-// what lets the conversion live on the legacy side where it belongs.
+// this package — that cycle is why reporting stayed inside it. Desired,
+// Observed and the overview summaries are deliberately narrow: three fields of
+// an environment report, six of a plan step, and a handful of each record an
+// overview panel names are all a view needs. Stating exactly that is what lets
+// the conversion live on the legacy side where it belongs.
+//
+// Where a rule belongs to another context — what makes a plan failed, a change
+// request awaiting approval, a promotion blocked — it is not restated here. The
+// snapshot arrives already classified, so this package cannot hold a second,
+// drifting copy of somebody else's vocabulary. Health is the exception, and a
+// deliberate one: reading a health value is what a fleet view is for.
 //
 // Nothing here reads a repository, a clock or a request. The caller supplies
 // the moment, so a projection is a function of its inputs and can be tested
 // without a fleet.
-package reporting
+package domain
 
 import (
 	"sort"

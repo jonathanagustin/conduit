@@ -3,7 +3,7 @@ package controlplane
 import (
 	"context"
 	"errors"
-	"github.com/jonathanagustin/conduit/internal/reporting"
+	reporting "github.com/jonathanagustin/conduit/internal/reporting/domain"
 	"strings"
 	"time"
 )

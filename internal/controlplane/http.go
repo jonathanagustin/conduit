@@ -10,7 +10,7 @@ import (
 	"fmt"
 	"github.com/jonathanagustin/conduit/internal/execution"
 	"github.com/jonathanagustin/conduit/internal/identity"
-	"github.com/jonathanagustin/conduit/internal/reporting"
+	reporting "github.com/jonathanagustin/conduit/internal/reporting/domain"
 	"io"
 	"net/http"
 	"sort"

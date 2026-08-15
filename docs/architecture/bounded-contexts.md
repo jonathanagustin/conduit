@@ -16,6 +16,7 @@ into Conduit-owned concepts before it can affect delivery.
 | Execution | Lease ownership, attempt numbering, expiry, and execution state | Approval policy or cluster mechanics |
 | Artifacts | Signed Bundle envelopes, content identity, chunks, and lineage | Product selection or rollout policy |
 | Optimization | Read-only evidence, advisory proposals, solver admission, and outcome calibration | Approval, leasing, or mutation of delivery state |
+| Reporting | The fleet projection and the operator overview: what a panel shows, how much of it, how it is ordered, and what an unanswered store looks like | Authorization, or what makes a plan failed, a change awaiting approval, or a promotion blocked — those arrive already classified |
 | Hub composition | Wiring HTTP handlers, repositories, and domain services | New domain rules |
 
 Delivery, governance, execution, identity, artifacts, catalog, environments,
@@ -74,9 +75,14 @@ the rule. Moving a type without moving authority is not a completed boundary.
 
 `node scripts/report-migration-progress.mjs` reports how far this has actually
 got, and distinguishes a context that holds only extracted types from one that
-owns a domain. Apollo, Delivery and Governance own theirs. Catalog,
-Environments, Artifacts, Identity, Reporting and Execution still hold types
-whose decisions are made in the facade; B12 tracks moving each one.
+owns a domain. Apollo, Delivery, Governance and Reporting own theirs. Catalog,
+Environments, Artifacts, Identity and Execution still hold types whose decisions
+are made in the facade; B12 tracks moving each one.
+
+A context that owns its decisions does not necessarily shrink the facade by the
+same amount. Where the moved rule needed a lookup, what replaces it is an
+adapter, and an adapter is longer than the straight-line code it replaces. The
+ceiling is a ratchet on direction, not a measure of how much moved.
 
 ## Boundary test
 
