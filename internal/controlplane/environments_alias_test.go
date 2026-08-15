@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/environments"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // An invalid profile has always answered 409, and writeLifecycleError decides

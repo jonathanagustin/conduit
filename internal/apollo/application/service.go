@@ -17,7 +17,8 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
-	"github.com/jonathanagustin/conduit/internal/environments"
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
+	environmentports "github.com/jonathanagustin/conduit/internal/environments/ports"
 )
 
 type ErrorKind string
@@ -91,11 +92,11 @@ type Service struct {
 	entityInfo    map[string][]apollo.EntityInfo
 	entityHealth  map[string][]apollo.EntityHealth
 	catalog       CatalogPort
-	reporting     environments.ReportingPort
+	reporting     environmentports.ReportingPort
 	now           func() time.Time
 }
 
-func New(ctx context.Context, catalogPort CatalogPort, reporting environments.ReportingPort) (*Service, error) {
+func New(ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort) (*Service, error) {
 	service := &Service{
 		products: make(map[string]apollo.Product), releases: make(map[string]map[string]releaseRecord),
 		environments: make(map[string]apollo.Environment), installations: make(map[string]map[string]apollo.Installation),
