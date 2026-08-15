@@ -59,6 +59,11 @@ context extraction still requires all of the following:
   three unemittable fields, the absence of any mutation surface, and the fact
   that no field's cardinality was established, are recorded in the completeness
   report rather than filled in.
+- One capture is not the surface. A prior capture of a Foundry GraphQL gateway
+  contains no Apollo deployment domain at all, while this recovery found one.
+  The conflict is recorded in `reference/graphql-api.md` with its three
+  unresolved readings; it bounds what may be inferred about Apollo's GraphQL
+  surface in general, not what this Hub answered.
 - The interface Conduit serves is larger than the schema it recovered, and says
   so per field. Declaring an Apollo-shaped coordinate is not a claim to answer
   it: 18 recovered coordinates are declared and refused, because Conduit holds

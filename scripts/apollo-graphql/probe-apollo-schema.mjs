@@ -329,6 +329,15 @@ async function main() {
     // The Hub is identified by a salted digest of its origin so two captures of
     // the same Hub are comparable without the origin being committed.
     hubFingerprint: createHash("sha256").update(`conduit-apollo-hub ${new URL(endpoint).origin}`).digest("hex"),
+    // And separately by origin AND path, because one host can serve more than
+    // one GraphQL surface. Comparing this recovery against the captured Foundry
+    // gateway schema showed why that matters: the two describe different
+    // surfaces, and an origin-only fingerprint cannot say whether they were
+    // even the same endpoint. Records written before this field exist carry no
+    // answer to that question; see docs/apollo/reference/graphql-api.md.
+    endpointFingerprint: createHash("sha256")
+      .update(`conduit-apollo-endpoint ${new URL(endpoint).origin}${new URL(endpoint).pathname}`)
+      .digest("hex"),
     method: "validation-probe",
     candidatesSha256: createHash("sha256").update(readFileSync(options.candidates)).digest("hex"),
     rootField: candidates.rootField,
