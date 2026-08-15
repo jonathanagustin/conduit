@@ -216,6 +216,15 @@ points. The tier stays in the enum because the next genuine invention needs
 somewhere honest to go, and `TestNoServedFieldIsWithoutAnApolloSource` pins the
 count so that adding an uncited field fails deliberately rather than drifting.
 
+**Two DOCUMENTED coordinates rest on Beta documentation.**
+`ApolloEnvironment.health` and `ApolloEntity.health` cite the Apollo Product
+Specification Health page, which upstream marks `[Beta]` and whose callout says
+the extension "may not be available on your Apollo Hub". The citation is real
+and verified; it is simply weaker than a GA one, and the tier alone does not say
+so. The gate reads maturity from the documentation manifest and names those
+coordinates on every run, and the harness asserts that it does -- a disclosure
+that vanishes looks exactly like one that had nothing to say.
+
 **`DOCUMENTED` is not a weaker `OBSERVED`.** It says Apollo named the thing, and
 nothing whatever about whether Conduit holds data behind it or whether a Hub
 would answer for it. `Tier.Established()` is the single place that distinction

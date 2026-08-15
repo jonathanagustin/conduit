@@ -60,8 +60,26 @@ expect_reject() {
 
 echo "verify-apollo-interface: the gate must accept the committed interface"
 stage
-run >/dev/null
+accepted="$(run)"
 echo "  accepted: the committed interface"
+
+# Beta citations are disclosed, not refused. Asserting the disclosure here is
+# what stops it from being quietly dropped: a NOTE that vanishes looks exactly
+# like a NOTE that had nothing to say, and the two mean opposite things.
+# ApolloEntity.health and ApolloEnvironment.health both cite the Apollo Product
+# Specification Health page, which upstream marks [Beta] -- "may not be
+# available on your Apollo Hub".
+if [[ "$accepted" != *"cite a page Apollo marks [Beta]"* ]]; then
+  echo "FAIL: the gate no longer discloses citations that rest on Beta documentation:" >&2
+  echo "$accepted" >&2
+  exit 1
+fi
+if [[ "$accepted" != *"ApolloEntity.health"* ]]; then
+  echo "FAIL: the Beta disclosure does not name the coordinates it covers:" >&2
+  echo "$accepted" >&2
+  exit 1
+fi
+echo "  disclosed: 2 documented coordinates rest on Beta documentation"
 
 echo "verify-apollo-interface: and refuse each of these"
 
