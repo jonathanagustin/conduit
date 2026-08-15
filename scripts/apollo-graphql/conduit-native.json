@@ -91,7 +91,7 @@
           "name": "rid",
           "returns": "String",
           "servedBy": "reporting: PlanSummary.ID",
-          "publishedAs": "apollo-openapi rid convention (Installation.rid, Environment.rid)",
+          "publishedAs": "apollo-openapi Installation.rid, Environment.rid",
           "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
         },
         {
@@ -105,7 +105,6 @@
           "name": "status",
           "returns": "String",
           "servedBy": "reporting: PlanSummary.Phase",
-          "publishedAs": "apollo-openapi status; apollo-cli changerequest list --status",
           "documentedBy": "https://www.palantir.com/docs/apollo/core/plans-and-constraints/"
         }
       ]
@@ -136,7 +135,7 @@
           "name": "rid",
           "returns": "String",
           "servedBy": "reporting: ChangeRequestSummary.ID",
-          "publishedAs": "apollo-openapi rid convention",
+          "publishedAs": "apollo-openapi Installation.rid, Environment.rid",
           "documentedBy": "https://www.palantir.com/docs/apollo/managing-changes/change-requests/"
         },
         {
@@ -181,7 +180,7 @@
           "name": "rid",
           "returns": "String",
           "servedBy": "reporting: PromotionSummary.ID",
-          "publishedAs": "apollo-openapi rid convention",
+          "publishedAs": "apollo-openapi Installation.rid, Environment.rid",
           "documentedBy": "https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/"
         },
         {
@@ -195,7 +194,6 @@
           "name": "status",
           "returns": "String",
           "servedBy": "reporting: PromotionSummary.Blocked",
-          "publishedAs": "apollo-openapi status",
           "documentedBy": "https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/"
         }
       ]

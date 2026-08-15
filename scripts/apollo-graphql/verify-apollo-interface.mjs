@@ -31,6 +31,7 @@ const ROOT = resolve(HERE, "../..");
 
 const OBSERVED = resolve(ROOT, "docs/apollo/observed/apollo-graphql-observed.json");
 const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
+const CLI = resolve(ROOT, "docs/apollo/cli-command-contract.json");
 const OPENAPI = resolve(
   ROOT,
   "docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml",
@@ -117,16 +118,69 @@ const manifestUrls = new Set(
         .filter(Boolean)
     : [],
 );
-// Property names in the pinned OpenAPI, which is what `apollo-openapi X.y`
-// citations point at. Parsed by line rather than with a YAML dependency: the
-// snapshot is pinned, so its shape cannot drift under this check.
-const openapiProperties = new Set();
+// Property names in the pinned OpenAPI, indexed BY THE TYPE THAT DECLARES THEM,
+// which is what `apollo-openapi X.y` citations point at.
+//
+// Indexing by type rather than collecting a flat set of names is the whole
+// point, and the first version of this got it wrong: it accepted any property
+// name that appeared anywhere in the document, so `apollo-openapi
+// Environment.productId` passed even though Environment declares only rid,
+// name, environmentType and status. A citation check that does not check the
+// type is not a citation check -- it only asserts that Apollo uses the word
+// somewhere, which is true of almost any word worth citing.
+//
+// Parsed by line rather than with a YAML dependency: the snapshot is pinned, so
+// its shape cannot drift under this check. The shape is
+//
+//     4 spaces  TypeName:
+//     6 spaces    properties:
+//     8 spaces      propertyName:
+const openapiProperties = new Map();
 if (existsSync(OPENAPI)) {
+  let currentType = null;
+  let inProperties = false;
   for (const line of readFileSync(OPENAPI, "utf8").split("\n")) {
-    const match = line.match(/^ {8}([a-zA-Z][a-zA-Z0-9_]*):$/);
-    if (match) openapiProperties.add(match[1]);
+    const type = line.match(/^ {4}([A-Za-z][A-Za-z0-9_]*):$/);
+    if (type) {
+      currentType = type[1];
+      inProperties = false;
+      openapiProperties.set(currentType, new Set());
+      continue;
+    }
+    if (!currentType) continue;
+    if (/^ {6}[a-zA-Z][a-zA-Z0-9_]*:/.test(line)) {
+      // A sibling key of `properties:` (description, required, type) ends the
+      // property block, so a `type:` or `required:` entry cannot be read as one.
+      inProperties = /^ {6}properties:$/.test(line);
+      continue;
+    }
+    const property = inProperties && line.match(/^ {8}([a-zA-Z][a-zA-Z0-9_]*):$/);
+    if (property) openapiProperties.get(currentType).add(property[1]);
   }
 }
+// A pinned snapshot that parsed to nothing would make every citation below
+// unresolvable, or -- worse, if the check were written the other way -- make
+// every citation pass. Fail loudly rather than gate on an empty index.
+if (existsSync(OPENAPI) && openapiProperties.size === 0) {
+  fail(`${relative(ROOT, OPENAPI)} parsed to zero types; the citation index is empty and would check nothing`);
+}
+// The flags each captured apollo-cli command carries, so an `apollo-cli
+// <command> --<flag>` citation resolves to a real flag on a real command rather
+// than to a plausible-looking invocation.
+const cliFlags = new Map();
+if (existsSync(CLI)) {
+  for (const command of JSON.parse(readFileSync(CLI, "utf8")).commands ?? []) {
+    // Captured names carry a trailing " [Experimental]" marker that is a status,
+    // not part of the command anyone types.
+    cliFlags.set(command.command.replace(/ \[[^\]]+\]$/, ""), new Set(command.flags ?? []));
+  }
+}
+
+// The three forms this gate can actually resolve. Anything else in publishedAs
+// is prose, and is refused below rather than skipped.
+const VERIFIABLE_CITATION =
+  /apollo-openapi [A-Za-z][A-Za-z0-9_]*\.[a-zA-Z]|apollo-graphql [A-Za-z_][A-Za-z0-9_]*\.[a-zA-Z]|apollo-cli [a-z0-9][a-z0-9 _-]* --[a-z]/;
+
 // An `apollo-graphql Type.field` citation points at the recovery record itself:
 // Apollo's own GraphQL name for the same thing, established by capture on a
 // sibling type. It is the strongest citation available here, so it is the one
@@ -153,16 +207,55 @@ for (const [typeName, declaration] of Object.entries(native.types ?? {})) {
           "docs/apollo/public-documentation-manifest.tsv. A citation nobody can follow is not evidence.",
       );
     }
-    for (const cited of (field.publishedAs ?? "").matchAll(/apollo-openapi ([A-Za-z]+)\.([a-zA-Z][a-zA-Z0-9_]*)/g)) {
-      if (!openapiProperties.has(cited[2])) {
+    for (const cited of (field.publishedAs ?? "").matchAll(/apollo-openapi ([A-Za-z][A-Za-z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)/g)) {
+      const [citation, citedType, citedProperty] = cited;
+      if (!openapiProperties.has(citedType)) {
         fail(
-          `${where} claims Apollo publishes the name "${cited[2]}" (as ${cited[0]}), but the pinned OpenAPI ` +
-            "snapshot declares no such property. Do not claim a published name the contract does not carry.",
+          `${where} cites ${citation}, but the pinned OpenAPI snapshot declares no schema named ` +
+            `"${citedType}". Cite a type the contract actually carries.`,
+        );
+        continue;
+      }
+      if (!openapiProperties.get(citedType).has(citedProperty)) {
+        fail(
+          `${where} claims Apollo publishes "${citedProperty}" on ${citedType} (as ${citation}), but ` +
+            `${citedType} declares only: ${[...openapiProperties.get(citedType)].sort().join(", ") || "(no properties)"}. ` +
+            "The property must belong to the type cited, not merely appear somewhere in the contract.",
+        );
+      }
+    }
+    for (const cited of (field.publishedAs ?? "").matchAll(/apollo-cli ([a-z0-9][a-z0-9 _-]*?) (--[a-z][a-z0-9-]*)/g)) {
+      const [citation, command, flag] = cited;
+      const flags = cliFlags.get(`apollo-cli ${command}`);
+      if (!flags) {
+        fail(
+          `${where} cites ${citation}, but docs/apollo/cli-command-contract.json records no command ` +
+            `"apollo-cli ${command}". Cite a command the captured CLI contract carries.`,
+        );
+        continue;
+      }
+      if (!flags.has(flag)) {
+        fail(
+          `${where} claims apollo-cli ${command} publishes the flag ${flag}, but the captured contract ` +
+            `records its flags as: ${[...flags].sort().join(" ")}. Do not claim a flag the CLI does not carry.`,
         );
       }
     }
     checkGraphQLCitations(where, field.publishedAs ?? "", "a published name");
     checkGraphQLCitations(where, field.patternedOn ?? "", "the pattern it follows");
+    // A citation nothing above can check is prose, and prose in a citation field
+    // is the decoration this gate exists to refuse. Three verifiable forms are
+    // accepted -- apollo-openapi Type.property, apollo-graphql Type.field, and
+    // apollo-cli <command> --<flag> -- because each resolves against a committed
+    // artifact. "rid convention" and a bare "apollo-openapi status" both sat here
+    // for a while reading as evidence and constraining nothing.
+    if (field.publishedAs && !VERIFIABLE_CITATION.test(field.publishedAs)) {
+      fail(
+        `${where} cites "${field.publishedAs}", which is in no verifiable form. Use ` +
+          "`apollo-openapi Type.property`, `apollo-graphql Type.field`, or `apollo-cli <command> --<flag>` " +
+          "so the claim resolves against a committed artifact.",
+      );
+    }
     if (field.publishedAs && !field.publishedAs.includes(field.name)) {
       fail(
         `${where} cites a published name that is not this field's name: ${field.publishedAs}. ` +
