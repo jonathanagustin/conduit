@@ -28,3 +28,9 @@ jobs:
       # API server can tell the difference.
       - name: Validate rendered Gitless manifests against the Flux API
         run: ./scripts/test-gitless-flux-manifests.sh
+      # The whole loop with nothing faked: a real registry, a real keyless
+      # signature, the real admission rule, and real Flux objects in a real
+      # cluster -- plus the same artifact refused under a policy naming a
+      # different publisher.
+      - name: Reconcile a real signed source end to end
+        run: ./scripts/test-gitless-acceptance.sh
