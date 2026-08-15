@@ -48,7 +48,55 @@ resources and replication, from the CLI fixtures. What was missing was any
 citable source, which also meant a `documentedBy` citation naming one of these
 pages would have been rejected as an unknown URL. They are cited there now.
 
-The other fourteen are genuine additions. The additions are all
+The other fourteen are genuine additions.
+
+### Maturity of the corpus
+
+Not every published page is a commitment. Scanning all 262 for upstream markers:
+
+| Marker | Pages | Where |
+| --- | ---: | --- |
+| `[Beta]` | 8 | every one in `apollo-product-specification` |
+| `[Experimental]` | 60 | 55 `apollo-cli` pages plus 5 others |
+| `[Deprecated]` | 62 | mostly `apollo-cli` command pages naming a deprecated form |
+
+The Beta set is the one that reaches a served claim. **Two DOCUMENTED
+coordinates in the Apollo-shaped GraphQL interface -- `ApolloEnvironment.health`
+and `ApolloEntity.health` -- cite `apollo-product-specification/health/`, whose
+own callout says the extension "may not be available on your Apollo Hub".** That
+does not make the citation wrong, but it is weaker than a GA citation in a
+stated way, and the DOCUMENTED tier alone does not express the difference.
+`scripts/apollo-graphql/verify-apollo-interface.mjs` now reads maturity from the
+manifest and discloses those citations by name on every run; it does not fail on
+them, because citing Beta documentation is honest and citing it silently is not.
+`scripts/verify-apollo-interface.test.sh` asserts the disclosure, so it cannot
+be dropped without a test failing.
+
+The other six Beta pages are the `hidden_*` specification extensions above,
+whose contracts Conduit implements. Their Beta status bounds that claim rather
+than voiding it.
+
+### Images
+
+The image audit was re-run against the enlarged corpus using the same rendered
+`<img>` extraction the 2026-08-02 pass used, so the numbers are comparable:
+
+| Measure | 2026-08-02 | 2026-08-15 |
+| --- | ---: | ---: |
+| Distinct image files | 391 | 389 |
+| Total references | 399 | 396 |
+| Pages carrying an image | 95 | 95 |
+
+The corpus grew by 21 pages and the image set did not grow with it. The seven
+`hidden_*` specification pages carry no images at all, and of the fourteen new
+`apollo-cli` pages none does either -- generated CLI reference pages are text.
+The small decrease is consistent with
+`managing-modules/update-module-installation` losing a section.
+
+So [`IMAGE-DERIVED-GAPS.md`](IMAGE-DERIVED-GAPS.md) remains accurate and no new
+visual review is owed. That is a checked result rather than an assumption: a
+broader extraction that also counts Markdown and JSON image references reports
+496 distinct files, and the difference is extraction method, not new pictures. The additions are all
 `apollo-cli`: `cve list`, `entity get`, `environment setting` (with `edit` and
 `get`), `target-hub` (with `get`, `list`, `pipeline`, `pipeline list`), and
 `terminal grant`/`policy` (with their `list` forms). All are Experimental, and

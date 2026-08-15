@@ -42,6 +42,9 @@ const REPORT = resolve(ROOT, "docs/apollo/observed/apollo-interface-provenance.j
 
 const failures = [];
 const fail = (message) => failures.push(message);
+// Coordinates whose documentation is Beta upstream. Reported rather than
+// refused: citing Beta documentation is honest, citing it silently is not.
+const betaCited = [];
 
 for (const path of [OBSERVED, NATIVE, SCHEMA, REPORT]) {
   if (!existsSync(path)) fail(`missing: ${relative(ROOT, path)}`);
@@ -109,15 +112,25 @@ for (const match of committedSchema.matchAll(/^type ([A-Za-z_][A-Za-z0-9_]*) \{$
 // A tier is a claim about a source, so the source is checked rather than
 // trusted. A citation nobody verifies is the same decoration an unanchored
 // signer pattern is: it reads as evidence and constrains nothing.
-const manifestUrls = new Set(
-  existsSync(MANIFEST)
-    ? readFileSync(MANIFEST, "utf8")
-        .split("\n")
-        .slice(1)
-        .map((line) => line.split("\t")[0])
-        .filter(Boolean)
-    : [],
-);
+// The manifest is read for two facts, not one: whether a cited page exists, and
+// how mature Apollo says it is.
+//
+// Maturity matters because DOCUMENTED is a claim about evidence, and Beta
+// evidence is weaker in a specific, stated way -- the Health page's own callout
+// says the extension "may not be available on your Apollo Hub". A field cited to
+// it is not wrong, but it rests on something Apollo has not committed to, and a
+// tier that reported it identically to a GA citation would flatten that away.
+// This does not fail: it counts, so the number cannot grow unnoticed.
+const manifestUrls = new Set();
+const betaUrls = new Set();
+if (existsSync(MANIFEST)) {
+  for (const line of readFileSync(MANIFEST, "utf8").split("\n").slice(1)) {
+    const [url, , title = ""] = line.split("\t");
+    if (!url) continue;
+    manifestUrls.add(url);
+    if (/\[Beta\]/.test(title)) betaUrls.add(url);
+  }
+}
 // Property names in the pinned OpenAPI, indexed BY THE TYPE THAT DECLARES THEM,
 // which is what `apollo-openapi X.y` citations point at.
 //
@@ -201,6 +214,9 @@ const checkGraphQLCitations = (where, citation, kind) => {
 for (const [typeName, declaration] of Object.entries(native.types ?? {})) {
   for (const field of declaration.fields ?? []) {
     const where = `${typeName}.${field.name}`;
+    if (field.documentedBy && betaUrls.has(field.documentedBy)) {
+      betaCited.push(`${where} -> ${field.documentedBy}`);
+    }
     if (field.documentedBy && !manifestUrls.has(field.documentedBy)) {
       fail(
         `${where} cites documentation at ${field.documentedBy}, which is not in ` +
@@ -306,6 +322,12 @@ if (failures.length) {
 }
 
 const share = Math.round((report.conduitNativeShare ?? 0) * 100);
+if (betaCited.length) {
+  console.log(
+    `NOTE ${betaCited.length} documented coordinate(s) cite a page Apollo marks [Beta], which it may not serve ` +
+      `on every Hub: ${betaCited.join(", ")}`,
+  );
+}
 console.log(
   `PASS Apollo interface provenance: ${observedCount} observed + ${documentedCount} documented + ` +
     `${nativeCount} Conduit-native field(s); every citation resolves; ` +
