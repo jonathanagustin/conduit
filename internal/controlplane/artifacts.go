@@ -4,46 +4,32 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io"
-	"strings"
-	"time"
+
+	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
+	artifactports "github.com/jonathanagustin/conduit/internal/artifacts/ports"
 )
 
-var (
-	ErrArtifactCorrupt = errors.New("artifact content is corrupt")
-)
+// Content identity — what a blob is called, how it is labelled, and what a
+// caller may claim about it — is Artifacts'. The store that keeps the bytes is
+// still implemented here, against Artifacts' port.
 
-// BlobDescriptor is the content identity used at every artifact boundary. It
-// intentionally mirrors the required portion of an OCI content descriptor.
-// Digest and size describe the raw bytes; MediaType is contextual metadata.
-type BlobDescriptor struct {
-	MediaType string    `json:"mediaType"`
-	Digest    string    `json:"digest"`
-	Size      int64     `json:"size"`
-	CreatedAt time.Time `json:"createdAt"`
-}
+// BlobDescriptor is Artifacts' content descriptor, aliased so the several
+// hundred call sites here are spelled as they were.
+type BlobDescriptor = artifacts.BlobDescriptor
 
-// ArtifactRepository stores immutable bytes by digest. expectedDigest may be
-// empty for server-computed uploads. Implementations must verify it before
-// making content visible and must treat a repeated upload as idempotent.
-type ArtifactRepository interface {
-	PutBlob(context.Context, string, string, io.Reader) (BlobDescriptor, bool, error)
-	OpenBlob(context.Context, string) (BlobDescriptor, io.ReadCloser, error)
-}
+// ArtifactRepository is the legacy spelling of Artifacts' BlobStore port. It is
+// an alias, so the repository implementations satisfy the port without knowing
+// it exists.
+type ArtifactRepository = artifactports.BlobStore
 
-func normalizeMediaType(value string) string {
-	value = strings.TrimSpace(value)
-	if value == "" {
-		return "application/octet-stream"
-	}
-	return value
-}
+var ErrArtifactCorrupt = artifacts.ErrCorrupt
 
-// releaseContentDigest commits a Plan to the immutable part of a Product
-// Release. Channel membership, scan results, and registry availability are
-// mutable control-plane evidence and are deliberately excluded.
+func normalizeMediaType(value string) string { return artifacts.NormalizeMediaType(value) }
+
+func validateExpectedDigest(digest string) error { return artifacts.ValidateExpectedDigest(digest) }
+
 func releaseContentDigest(release Release) (string, error) {
 	intrinsic := struct {
 		Product           string                   `json:"product"`
@@ -65,13 +51,6 @@ func releaseContentDigest(release Release) (string, error) {
 	}
 	sum := sha256.Sum256(contents)
 	return sha256Digest(sum), nil
-}
-
-func validateExpectedDigest(digest string) error {
-	if digest == "" || digestPattern.MatchString(digest) {
-		return nil
-	}
-	return fmt.Errorf("%w: expected digest must be lowercase sha256", ErrDigestMismatch)
 }
 
 type contextReader struct {

@@ -1,6 +1,6 @@
-// Package artifacts owns the Bundle envelope: the format a Hub signs, the
-// format another Hub verifies, and the rules that decide whether what arrived
-// is what was sent.
+// Package domain owns the Bundle envelope and the content identity everything
+// around it is addressed by: the format a Hub signs, the format another Hub
+// verifies, and the rules that decide whether what arrived is what was sent.
 //
 // It knows nothing about pipelines, plans, releases, or environments. A Bundle
 // carries resources of some type with some payload, and this package's whole
@@ -11,7 +11,11 @@
 // That is why Sign takes the few manifest fields it needs rather than the
 // pipeline they come from: the caller knows about pipelines, and keeping that
 // knowledge on the caller's side is what lets this package import nothing.
-package artifacts
+//
+// Storing the bytes is not here either. Where a layer's bytes actually live is
+// a BlobStore's business, behind the port next door; what this package settles
+// is which bytes they have to be.
+package domain
 
 import (
 	"bytes"
