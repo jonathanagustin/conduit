@@ -21,6 +21,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"sort"
 	"strings"
@@ -335,9 +336,25 @@ func (resolver *bound) resolve(
 	return nil, fmt.Errorf("%s is covered but this resolver has no case for it", coordinate)
 }
 
-func stringArgument(arguments map[string]any, name string) string {
-	value, _ := arguments[name].(string)
-	return value
+// stringArgument reads a declared String/RID argument, and refuses rather than
+// substituting "" when the value is not one.
+//
+// Discarding the type assertion was the bug: `environment(rid: 5)` -- as a
+// literal and as a variable -- passes gqlparser's custom-scalar validation,
+// coerced to "", and looked up an environment whose id is the empty string.
+// The client received `environment: null` with no error, so a malformed query
+// was indistinguishable from a missing environment. Two different unknowns,
+// one answer, which is exactly what this interface exists not to do.
+func stringArgument(arguments map[string]any, name string) (string, error) {
+	raw, present := arguments[name]
+	if !present {
+		return "", nil
+	}
+	value, ok := raw.(string)
+	if !ok {
+		return "", fmt.Errorf("argument %s must be a string, got %T", name, raw)
+	}
+	return value, nil
 }
 
 func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments map[string]any) (any, error) {
@@ -346,9 +363,21 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		environment, err := resolver.sources.Apollo.GetEnvironment(stringArgument(arguments, "rid"))
+		rid, argumentErr := stringArgument(arguments, "rid")
+		if argumentErr != nil {
+			return nil, argumentErr
+		}
+		environment, err := resolver.sources.Apollo.GetEnvironment(rid)
+		// Only the port's own not-found sentinel becomes a null. Any other
+		// error is a failure to answer and is propagated, the way `plans`
+		// below already does. Collapsing them made a store that is down
+		// indistinguishable from an environment that does not exist -- the
+		// client saw `"environment": null` and zero errors.
+		if errors.Is(err, ports.ErrRecordNotFound) {
+			return nil, nil
+		}
 		if err != nil {
-			return nil, nil //nolint:nilerr // an absent environment is a null, not a refusal to answer
+			return nil, err
 		}
 		return child{typeName: "ApolloEnvironment", source: environment}, nil
 	case "environments":
@@ -358,7 +387,11 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		listed := resolver.sources.Apollo.ListEnvironments()
 		return child{typeName: "ApolloEnvironmentPage", source: page{records: anySlice(listed.Environments)}}, nil
 	case "entity":
-		return resolver.entityByID(stringArgument(arguments, "rid"))
+		rid, argumentErr := stringArgument(arguments, "rid")
+		if argumentErr != nil {
+			return nil, argumentErr
+		}
+		return resolver.entityByID(rid)
 	case "products":
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
@@ -376,7 +409,10 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		if err != nil {
 			return nil, err
 		}
-		rid := stringArgument(arguments, "rid")
+		rid, argumentErr := stringArgument(arguments, "rid")
+		if argumentErr != nil {
+			return nil, argumentErr
+		}
 		for _, plan := range plans {
 			if plan.(reporting.PlanSummary).ID == rid {
 				return child{typeName: "ApolloPlan", source: plan}, nil
