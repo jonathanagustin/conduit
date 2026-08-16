@@ -36,6 +36,18 @@ type ArtifactSecurityPolicy struct {
 	// RequiredOutcome is PASS for channels that reject active vulnerabilities,
 	// or ANY when promotion only requires evidence that scanning completed.
 	RequiredOutcome string `json:"requiredOutcome"`
+	// MaximumScanAgeSeconds bounds how old a selected Release's vulnerability
+	// assessment may be when an upgrade is proposed. Zero leaves freshness
+	// unchecked, which is the prior behaviour: the policy already requires a
+	// complete, passing, digest-matched scan to exist, but not a recent one, so
+	// an Entity could move to a Release whose passing scan had aged out. A
+	// positive value makes a stale assessment trigger a fresh scan before the
+	// upgrade proceeds, so "a scan must occur before an upgrade" holds on
+	// recency and not only on a scan having happened once. Freshness is enforced
+	// where the version-move is decided and a clock is available -- proposal-time
+	// enrichment -- not in the clock-free desired-state validation, whose purity
+	// keeps a generation's meaning immutable.
+	MaximumScanAgeSeconds int `json:"maximumScanAgeSeconds,omitempty"`
 }
 
 // ArtifactAvailabilityPolicy is the same kind of gate for whether the artifacts

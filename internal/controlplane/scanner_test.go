@@ -58,7 +58,7 @@ func TestRequiredArtifactEvidenceIsEnrichedBeforePlanning(t *testing.T) {
 	state := foundation()
 	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS"}
 	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
-	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state); err != nil {
+	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, time.Now()); err != nil {
 		t.Fatal(err)
 	}
 	if len(scanner.releases) != len(state.Releases) {
@@ -77,8 +77,84 @@ func TestRequiredArtifactEvidenceIsEnrichedBeforePlanning(t *testing.T) {
 func TestRequiredArtifactEvidenceFailsClosedWithoutScanner(t *testing.T) {
 	state := foundation()
 	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS"}
-	if err := enrichRequiredArtifactAssessments(context.Background(), nil, &state); err == nil || !strings.Contains(err.Error(), "no scanner") {
+	if err := enrichRequiredArtifactAssessments(context.Background(), nil, &state, time.Now()); err == nil || !strings.Contains(err.Error(), "no scanner") {
 		t.Fatalf("missing scanner error = %v", err)
+	}
+}
+
+// assessAllReleasesAt gives every Release in the state a complete, passing
+// assessment stamped at the given time, so a freshness test isolates the one
+// Release it then mutates rather than counting scans of siblings that started
+// with no evidence at all.
+func assessAllReleasesAt(state *DesiredState, at time.Time) {
+	for index := range state.Releases {
+		result := passingScanResult(state.Releases[index])
+		result.VulnerabilityAssessment.AssessedAt = at
+		result.MalwareAssessment.AssessedAt = at
+		state.Releases[index].VulnerabilityAssessment = result.VulnerabilityAssessment
+		state.Releases[index].MalwareAssessment = result.MalwareAssessment
+	}
+}
+
+func TestStaleAssessmentIsRescannedBeforePlanning(t *testing.T) {
+	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+	state := foundation()
+	// The policy wants evidence no older than a day. Every Release is fresh
+	// except the first, which is a week old, complete and passing. Only it must
+	// be rescanned.
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS", MaximumScanAgeSeconds: 86400}
+	assessAllReleasesAt(&state, now.Add(-1*time.Hour))
+	state.Releases[0].VulnerabilityAssessment.AssessedAt = now.Add(-7 * 24 * time.Hour)
+
+	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
+	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, now); err != nil {
+		t.Fatal(err)
+	}
+	if len(scanner.releases) != 1 || scanner.releases[0].Product != state.Releases[0].Product {
+		t.Fatalf("stale assessment was not the one rescanned: scanned %d releases", len(scanner.releases))
+	}
+}
+
+func TestFreshAssessmentIsNotRescanned(t *testing.T) {
+	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+	state := foundation()
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS", MaximumScanAgeSeconds: 86400}
+	assessAllReleasesAt(&state, now.Add(-1*time.Hour))
+
+	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
+	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, now); err != nil {
+		t.Fatal(err)
+	}
+	if len(scanner.releases) != 0 {
+		t.Fatalf("a fresh assessment was rescanned: scanner calls = %d, want 0", len(scanner.releases))
+	}
+}
+
+func TestStaleAssessmentWithoutFreshnessBoundIsKept(t *testing.T) {
+	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+	state := foundation()
+	// No MaximumScanAgeSeconds: the prior behaviour, where an old passing scan is
+	// accepted and only a missing one is scanned.
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS"}
+	assessAllReleasesAt(&state, now.Add(-365*24*time.Hour))
+
+	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
+	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, now); err != nil {
+		t.Fatal(err)
+	}
+	if len(scanner.releases) != 0 {
+		t.Fatalf("an old assessment was rescanned without a freshness bound: scanner calls = %d, want 0", len(scanner.releases))
+	}
+}
+
+func TestStaleAssessmentFailsClosedWithoutScanner(t *testing.T) {
+	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+	state := foundation()
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS", MaximumScanAgeSeconds: 86400}
+	assessAllReleasesAt(&state, now.Add(-7*24*time.Hour))
+
+	if err := enrichRequiredArtifactAssessments(context.Background(), nil, &state, now); err == nil || !strings.Contains(err.Error(), "no scanner") {
+		t.Fatalf("stale evidence with no scanner should fail closed, got %v", err)
 	}
 }
 
