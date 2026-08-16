@@ -12,6 +12,7 @@ import {
 import { useParams } from "react-router-dom";
 
 import {
+  listOf,
   useChangeRequest,
   usePlan,
   useReviewChangeRequest,
@@ -94,7 +95,7 @@ export function ChangeRequestDetailPage() {
           ) : null}
 
           <H4>Who must review</H4>
-          {request.requirements.length === 0 ? (
+          {listOf(request.requirements).length === 0 ? (
             <p className="console-empty">No policy required a reviewer.</p>
           ) : (
             <HTMLTable className="console-change__table" striped>
@@ -107,7 +108,7 @@ export function ChangeRequestDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {request.requirements.map((requirement) => (
+                {listOf(request.requirements).map((requirement) => (
                   <tr key={requirement.id}>
                     <td>{requirement.id}</td>
                     <td>{requirement.team ?? requirement.role ?? requirement.operation ?? "—"}</td>
@@ -128,7 +129,7 @@ export function ChangeRequestDetailPage() {
           )}
 
           <H4>What the policies said</H4>
-          {request.evaluations.length === 0 ? (
+          {listOf(request.evaluations).length === 0 ? (
             <p className="console-empty">No policy produced an evaluation.</p>
           ) : (
             <HTMLTable className="console-change__table" striped>
@@ -141,7 +142,7 @@ export function ChangeRequestDetailPage() {
                 </tr>
               </thead>
               <tbody>
-                {request.evaluations.map((evaluation, index) => (
+                {listOf(request.evaluations).map((evaluation, index) => (
                   <tr key={`${evaluation.policyId} ${evaluation.changeId} ${index}`}>
                     <td>{evaluation.policyId}</td>
                     <td>{evaluation.changeId}</td>
@@ -154,7 +155,7 @@ export function ChangeRequestDetailPage() {
           )}
 
           <H4>What changes</H4>
-          {request.changes.map((change) => (
+          {listOf(request.changes).map((change) => (
             <Card key={change.id} className="console-change__diff">
               <div className="console-change__diff-head">
                 <Tag minimal round>
