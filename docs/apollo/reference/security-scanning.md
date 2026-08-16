@@ -92,16 +92,49 @@ virus scanning. Platform's normalized evidence boundary permits either through
 another adapter without changing policy semantics.
 
 The reviewed `palantir/terraform-provider-tenablesc` source at commit
-`7e6ae16ae1e6461dbae27db58ca6dee84c6dab5e` provisions Tenable.SC scans,
-repositories, policies, assets, credentials, scan zones, and accept/recast-risk
-rules. Its generated data sources do not export scan results and its resources
-do not bind a result to an immutable OCI digest. The accept-risk resource names
-a repository, plugin, host, port, protocol, expiration, and comments, but not
-the independent approver and Change Request evidence required here. It is
-therefore useful deployment-side scanner administration, not an implementation
-of the ArtifactScan result boundary. The related public `tenablesc-client`
-`AgentScan` API manages Nessus Agent host scan definitions and Agent Groups; it
-is not an Apollo Spoke Agent protocol.
+`7e6ae16ae1e6461dbae27db58ca6dee84c6dab5e` provisions Tenable.SC scans, scan
+policies, repositories, assets, scan zones, audit files, organizations, roles,
+agent scans, two association resources, and accept/recast-risk rules. It does
+**not** provision credentials — `credential` is a data source only, so the
+provider reads them and never creates them. Its data sources (`agent_groups`,
+`asset`, `assets`, `credential`, `plugin`, `repositories`, `repository`,
+`scan_policy_template`) do not export scan results, and no resource or data
+source anywhere in the provider mentions a digest, `sha256`, or an OCI
+coordinate. The accept-risk resource names `repository_id`, `plugin_id`, a typed
+host pair (`host_type`/`host_value`), `port`, `protocol`, `expiration`, and
+`comments` — but no approver and no Change Request, which are the independent
+evidence Platform's suppression contract requires. It is therefore useful
+deployment-side scanner administration, not an implementation of the
+ArtifactScan result boundary.
+
+The related public `tenablesc-client` is **more than its `AgentScan` API**, and
+an earlier revision of this note described only that file. At the same pinned
+commit `35e868a` — verified, so this is a gap in the original reading rather
+than drift since — `tenablesc/analysis.go` wraps the Tenable.sc Analysis API
+across 239 lines, and `VulnDetailsResult` carries genuine per-finding detail:
+`cve`, `cvssV3BaseScore`, `cvssV3TemporalScore`, `cvssV3Vector`, `pluginID`,
+`pluginName`, `severity`, and `stigSeverity`, with `scanresult.go` beside it.
+`AgentScan` is one file of twenty-eight.
+
+The conclusion is unchanged, and the fuller reading strengthens rather than
+weakens it: **every Analysis result type is keyed to a host, not an artifact.**
+`VulnSumIPResult` and `VulnSumDNSNameResult` key on `ip`, `dnsName`,
+`macAddress`, `netbiosName`, `osCPE` and a `repository`; `VulnHosts` and
+`VulnIPSummaryResult` sit on the same axis; the summary tools report
+`severityCritical`…`severityInfo` counts per host. Nothing binds a finding to an
+immutable OCI digest, which is the coordinate Platform's assessment is built on.
+So Tenable.sc is a different axis rather than a competing contract, and
+`AgentScan` remains unrelated to any Apollo Spoke Agent protocol.
+
+One consequence reaches the console and is recorded in
+`docs/ui/APOLLO-UI-ALIGNMENT-AUDIT-2026-08-16.md`: Tenable publishes a
+Critical/High/Medium/Low/Info severity vocabulary, but
+`VulnerabilityFinding.Severity` here is an unconstrained string with no Go const
+set, interpreted only by `findingScore` in `internal/controlplane/risk.go`, which
+prefers `CVSS` whenever it is above zero. A reader that ranks or colours findings
+by the severity string can therefore order them differently from how the Hub
+scores the same Release, and `scripts/verify-console-contract.mjs` could not
+gate such a map because it extracts vocabularies from named consts.
 
 Executable evidence:
 
