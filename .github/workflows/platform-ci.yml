@@ -147,6 +147,16 @@ jobs:
         run: go vet ./...
       - name: Validate operator console
         run: ./scripts/test-console.sh
+      # The console hand-writes small tables turning a Hub status into a colour.
+      # Nothing tied them to the Go constants they mirror, so they drifted onto
+      # invented values while omitting real ones -- and browser fixtures using
+      # the same invented values passed. This reads the Go source directly and
+      # fails when a console vocabulary and the Hub's disagree; its self-test
+      # proves it rejects both an invented and a dropped value.
+      - name: Validate console contract
+        run: |
+          ./scripts/verify-console-contract.test.sh
+          node scripts/verify-console-contract.mjs
       # Grype scans the built images, so it only ever sees the compiler the
       # Containerfiles pin. This scans what the module itself declares, and
       # reports call-graph-reachable findings, so a toolchain or dependency
