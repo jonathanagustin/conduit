@@ -81,7 +81,14 @@ func (adapter *HTTPControlPlane) PublishProductRelease(
 	}
 	manifest := bundle.Manifest
 	coordinate := manifest.ProductGroup + ":" + manifest.ProductName + ":" + manifest.ProductVersion
-	if len(bundle.DefaultConfig) > 0 || len(bundle.ConfigSchema) > 0 {
+	// The public route carries only what the pinned snapshot describes, so a
+	// manifest saying more than that goes to the Conduit-native one, which
+	// persists it. A dependency's optional flag and recommended version are
+	// exactly that case: ProductDependencyLocator has neither field, and the Hub
+	// decodes the public body with DisallowUnknownFields, so sending them earns
+	// a 400. Dropping them instead would be worse than the 400 -- an optional
+	// dependency silently becoming required changes what the Release means.
+	if len(bundle.DefaultConfig) > 0 || len(bundle.ConfigSchema) > 0 || manifestExceedsPublicContract(manifest) {
 		var ignored struct{}
 		err := adapter.request(ctx, http.MethodPost, "/v1/product-publications/helm-chart", bundle, &ignored)
 		return ProductReleasePublication{MavenCoordinate: coordinate, Created: err == nil}, err
@@ -90,10 +97,23 @@ func (adapter *HTTPControlPlane) PublishProductRelease(
 	for _, artifact := range manifest.Extensions.Artifacts {
 		artifacts = append(artifacts, map[string]string{"artifactUrl": artifact.URI})
 	}
+	// Projected field by field, exactly as artifacts above already is. Handing
+	// the native struct to the public route is what leaked recommendedVersion
+	// and optional into a body the contract does not describe; both are
+	// omitempty, so a manifest that happened not to set them hid the leak.
+	dependencies := make([]map[string]string, 0, len(manifest.Extensions.ProductDependencies))
+	for _, dependency := range manifest.Extensions.ProductDependencies {
+		dependencies = append(dependencies, map[string]string{
+			"productGroup":   dependency.ProductGroup,
+			"productName":    dependency.ProductName,
+			"minimumVersion": dependency.MinimumVersion,
+			"maximumVersion": dependency.MaximumVersion,
+		})
+	}
 	extensions := map[string]any{
 		"helmChart":           manifest.Extensions.HelmChart,
 		"artifacts":           artifacts,
-		"productDependencies": manifest.Extensions.ProductDependencies,
+		"productDependencies": dependencies,
 	}
 	body := map[string]any{"extensions": extensions}
 	var ignored struct{}
@@ -451,4 +471,19 @@ func (adapter *HTTPControlPlane) request(ctx context.Context, method, path strin
 		}
 	}
 	return nil
+}
+
+// manifestExceedsPublicContract reports whether the manifest says something the
+// pinned public publish contract has no field for. Today that is a dependency's
+// optional flag or recommended version: ProductDependencyLocator carries only
+// group, name and the version bounds. Such a Release is published through the
+// Conduit-native route, which persists the whole ApolloManifestDependency,
+// rather than through /api/v0 with the extra fields dropped.
+func manifestExceedsPublicContract(manifest controlplane.ApolloProductManifest) bool {
+	for _, dependency := range manifest.Extensions.ProductDependencies {
+		if dependency.Optional || dependency.RecommendedVersion != "" {
+			return true
+		}
+	}
+	return false
 }
