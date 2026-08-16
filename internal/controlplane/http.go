@@ -1360,7 +1360,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		) {
 			return
 		}
-		if err := enrichRequiredArtifactAssessments(request.Context(), configuration.ArtifactScanner, &state); err != nil {
+		if err := enrichRequiredArtifactAssessments(request.Context(), configuration.ArtifactScanner, &state, time.Now()); err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
@@ -1427,7 +1427,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			}
 			entity.Configuration, entity.Universal, entity.SecretRequirements = managed, universal, requirements
 		}
-		if err := enrichRequiredArtifactAssessments(request.Context(), configuration.ArtifactScanner, &body.DesiredState); err != nil {
+		if err := enrichRequiredArtifactAssessments(request.Context(), configuration.ArtifactScanner, &body.DesiredState, time.Now()); err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
@@ -1456,7 +1456,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			environmentRID(body.DesiredState.Environment.ID), OperationOperate) {
 			return
 		}
-		if err := enrichRequiredArtifactAssessments(request.Context(), configuration.ArtifactScanner, &body.DesiredState); err != nil {
+		if err := enrichRequiredArtifactAssessments(request.Context(), configuration.ArtifactScanner, &body.DesiredState, time.Now()); err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}

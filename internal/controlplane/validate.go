@@ -59,6 +59,9 @@ func Validate(state DesiredState) []ValidationError {
 		if policy.RequiredOutcome != "PASS" && policy.RequiredOutcome != "ANY" {
 			add("environment.artifactSecurityPolicy.requiredOutcome", "must be PASS or ANY")
 		}
+		if policy.MaximumScanAgeSeconds < 0 {
+			add("environment.artifactSecurityPolicy.maximumScanAgeSeconds", "must not be negative")
+		}
 	}
 	if policy := state.Environment.ArtifactAvailabilityPolicy; policy != nil && policy.RequiredOutcome != "AVAILABLE" {
 		add("environment.artifactAvailabilityPolicy.requiredOutcome", "must be AVAILABLE")
