@@ -42,6 +42,44 @@ transport DTOs, strict server interface, and router. That proves only the named
 public transport shape; it is not proof of compatibility with a private
 Hub-to-Agent protocol.
 
+## Declared divergences
+
+Behaviours where Conduit keeps Apollo's published vocabulary and does something
+different with it. Each is a `Conduit extension or divergence` under the claim
+classes above, recorded here because the Change record section requires it.
+
+### `RECALL_WHEN_UNHEALTHY` blocks the promotion; it does not recall the Release
+
+**Source class:** Public contract (the condition name and the canary stage
+shape). **Divergence:** the effect.
+
+A canary condition whose action is `RECALL_WHEN_UNHEALTHY` causes Conduit to
+append a promotion blocker. It does not create a `Recall`. Nothing in Conduit
+produces a `Recall` from a canary evaluation; the only automatic recall producer
+is security-scan derivation (`internal/controlplane/catalog.go`).
+
+The two are different in kind, which is why this is declared rather than treated
+as naming. A recall withdraws a Release from selection **everywhere**, including
+environments that already hold it and installs that have not happened yet. A
+blocker stops **this** promotion.
+
+**Why Conduit blocks.** `PromotionEvaluationRequest.Evidence` is caller-submitted
+and carries no attestation. Deriving a fleet-wide withdrawal from it would let
+any principal holding `resource:operate` remove any Release from every
+environment by asserting that enough canaries are unhealthy. Blocking one
+promotion on unverified evidence is recoverable; withdrawing a Release
+fleet-wide on it is not. This is the same class of exposure tracked in issue #54
+for scan evidence, and it is why the divergence is deliberate rather than
+pending.
+
+**What would close it.** Hub-witnessed or attested health evidence. Until then a
+real `Recall` here would be a denial-of-service primitive rather than
+conformance.
+
+**Detected by:** `TestCanaryRecallConditionBlocksRatherThanRecalling` in
+`internal/catalog/domain`, which asserts the blocker message describes blocking
+and that the evaluation produces no recall.
+
 ## Tenant runtime data
 
 The immutable frontend bundle receives tenant-specific branding only through
