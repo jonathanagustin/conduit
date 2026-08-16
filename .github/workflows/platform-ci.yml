@@ -267,6 +267,17 @@ jobs:
             --config .zenith-protocol.json \
             --profile structural \
             --enforcement standard
+      # The Apollo reference notes name review-ledger.tsv as their source of
+      # identity and nothing checked it -- the same unexecuted-validation shape
+      # as the step above. Confirming the recorded hashes needs the network and
+      # stays manual; this checks that each row can still be re-checked at all:
+      # well formed, resolving to a note that exists, and pinned to a full
+      # commit sha rather than a short one no fetch can resolve. The self-test
+      # plants one violation of each rule.
+      - name: Validate review ledger
+        run: |
+          node scripts/verify-review-ledger.mjs
+          ./scripts/verify-review-ledger.test.sh
       - name: Validate Module publication
         run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
       - name: GitOps acceptance
