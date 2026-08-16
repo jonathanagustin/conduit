@@ -1,0 +1,58 @@
+name: Documentation drift
+
+# Re-crawls Apollo's public documentation on a cadence and fails when the
+# committed manifest no longer describes it. This is the online half of the
+# drift problem that #19 named: the offline gate (verify-documentation-
+# freshness.mjs, in the Trunk gate) can only tell you nobody has checked
+# recently enough for "no drift" to mean anything; only a crawl can tell you the
+# corpus has actually moved -- which is how a fifth Environment connection
+# setting was added upstream while this repository implemented four.
+#
+# A4 forbade a scheduled crawl; ADR 0006 permits it under guardrails, all of
+# which this meets: it cancels superseded runs, caps its runtime, holds least
+# privilege, and NEVER publishes. It runs the crawl in report-only mode --
+# scripts/verify-documentation-manifest.mjs with no --write -- so a scheduled
+# run detects drift and fails, prompting a person to re-capture and review. The
+# --write refresh stays a human action, never an automated commit. The crawl
+# skips cleanly when the network is unavailable, so a transient outage does not
+# read as drift.
+#
+# Depends on scripts/verify-documentation-manifest.mjs, which lands with the
+# Apollo-documented-surface work (#29). Merge this after that, or a scheduled
+# run finds no script.
+on:
+  schedule:
+    # Mondays at 07:00 UTC -- weekly is the lowest useful frequency and is well
+    # inside the 45-day window the offline freshness gate hard-fails at, so
+    # drift surfaces here long before it can block a candidate. Offset an hour
+    # from the mutation sweep so the two do not start together.
+    - cron: "0 7 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  crawl:
+    name: Documentation drift
+    runs-on: ubuntu-24.04
+    # The crawl fetches a few hundred pages with a floor check; single-digit
+    # minutes in practice, capped so a hung fetch fails fast.
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.14.0
+      # Report-only: no --write, so the crawl detects drift and fails but never
+      # rewrites the committed corpus. Refreshing it is a reviewed human commit.
+      - name: Re-crawl and report documentation drift
+        run: node scripts/verify-documentation-manifest.mjs
