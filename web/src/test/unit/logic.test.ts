@@ -5,6 +5,7 @@ import { orderInbox, outstandingRequirements } from "../../features/changes/orde
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
 import { statusIntent } from "../../api/imports.js";
+import { orderFindingsByCvss } from "../../api/catalog.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
@@ -362,5 +363,47 @@ describe("status colour vocabularies match the Hub", () => {
     expect(keys(PLAN_INTENT)).toEqual(
       ["AWAITING_APPROVAL", "APPROVED", "LEASED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "RECORDED"].sort(),
     );
+  });
+});
+
+describe("orderFindingsByCvss", () => {
+  // The Hub's findingScore prefers CVSS whenever it is above zero and falls
+  // back to the severity string only when it is not, so the console must rank
+  // on CVSS or it can order findings differently from how the Hub scored the
+  // same Release.
+  it("orders worst-first by CVSS, not by the severity string", () => {
+    const ordered = orderFindingsByCvss([
+      { id: "CVE-2", cvss: 4.2, severity: "CRITICAL" },
+      { id: "CVE-1", cvss: 9.1, severity: "LOW" },
+    ]);
+    expect(ordered.map((finding) => finding.id)).toEqual(["CVE-1", "CVE-2"]);
+  });
+
+  // Absent is not harmless. Treating a missing CVSS as 0 would be defensible
+  // arithmetic and the wrong claim, so it sorts last instead.
+  it("sorts a finding with no CVSS last rather than as zero", () => {
+    // The comparison finding scores exactly 0, which is the only value that
+    // tells `?? -1` apart from `?? 0`. Ids are chosen so that if the absent
+    // score collapsed to 0 the tie-break would surface CVE-a first, making the
+    // wrong behaviour visible instead of coincidentally agreeing.
+    const ordered = orderFindingsByCvss([
+      { id: "CVE-a" },
+      { id: "CVE-b", cvss: 0 },
+    ]);
+    expect(ordered.map((finding) => finding.id)).toEqual(["CVE-b", "CVE-a"]);
+  });
+
+  it("breaks CVSS ties on CVE id so the list is stable", () => {
+    const ordered = orderFindingsByCvss([
+      { id: "CVE-b", cvss: 7 },
+      { id: "CVE-a", cvss: 7 },
+    ]);
+    expect(ordered.map((finding) => finding.id)).toEqual(["CVE-a", "CVE-b"]);
+  });
+
+  it("does not mutate its argument", () => {
+    const findings = [{ id: "CVE-2", cvss: 1 }, { id: "CVE-1", cvss: 9 }];
+    orderFindingsByCvss(findings);
+    expect(findings.map((finding) => finding.id)).toEqual(["CVE-2", "CVE-1"]);
   });
 });

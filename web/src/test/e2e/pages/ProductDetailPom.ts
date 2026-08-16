@@ -36,4 +36,28 @@ export class ProductDetailPom {
   promotionConstraintsById(id: string): Locator {
     return this.root.getByTestId(`promotion-constraints-${id}`);
   }
+
+  assessmentToggle(version: string): Locator {
+    return this.root.getByTestId(`release-assessment-${version}`);
+  }
+
+  get assessmentDetail(): Locator {
+    return this.root.getByTestId("release-assessment-detail");
+  }
+
+  get activeFindings(): Locator {
+    return this.assessmentDetail.getByTestId("release-active-findings");
+  }
+
+  get suppressedFindings(): Locator {
+    return this.assessmentDetail.getByTestId("release-suppressed-findings");
+  }
+
+  finding(cve: string): Locator {
+    return this.assessmentDetail.getByTestId(`finding-${cve}`);
+  }
+
+  suppressed(cve: string): Locator {
+    return this.assessmentDetail.getByTestId(`suppressed-${cve}`);
+  }
 }
