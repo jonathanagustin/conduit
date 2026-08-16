@@ -1,6 +1,7 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
 import { getJSON, postJSON } from "./client.js";
+import type { BundleImport } from "./imports.js";
 import type { CatalogQuery, PageMetadata } from "./types.js";
 
 /** Transport types and hooks for the resources beyond the fleet.
@@ -269,6 +270,19 @@ export function reviewBody(action: ReviewAction, rationale: string): Record<stri
   }
 }
 
+/** What the four review endpoints actually return. The Hub wraps the updated
+ * ChangeRequest in an envelope and adds the Plan it produced, and a
+ * BundleImport when an import was admitted -- it never returns a bare
+ * ChangeRequest (http.go /approve, /reject, /reopen, /cancel). The console
+ * discards this and refetches, so the shape was never read; typing it as a bare
+ * ChangeRequest was a latent lie that would have handed `undefined` to the
+ * first caller that consumed the result. */
+export interface ChangeReviewResult {
+  changeRequest: ChangeRequest;
+  plan?: PlanRecord;
+  bundleImport?: BundleImport;
+}
+
 /** Reviewing is the console's only write path so far, and it is deliberately
  * explicit: the caller names the action, and the affected queries are
  * invalidated rather than patched, so what the screen shows afterwards is what
@@ -282,7 +296,7 @@ export function useReviewChangeRequest(id: string) {
     // body and rejects any field at all. Read off http.go 1556, 1584, 1637 and
     // the requireEmptyBody at 1617.
     mutationFn: ({ action, rationale }: { action: ReviewAction; rationale: string }) =>
-      postJSON<ChangeRequest>(
+      postJSON<ChangeReviewResult>(
         `/change-requests/${encodeURIComponent(id)}/${action}`,
         reviewBody(action, rationale),
       ),

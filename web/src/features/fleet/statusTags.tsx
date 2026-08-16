@@ -4,7 +4,7 @@ import { Tag, type Intent } from "@blueprintjs/core";
  * decide this individually: the same status has to read the same everywhere,
  * and an unrecognised status must stay visible rather than silently render as
  * "normal". */
-const HEALTH_INTENT: Record<string, Intent> = {
+export const HEALTH_INTENT: Record<string, Intent> = {
   HEALTHY: "success",
   UNHEALTHY: "danger",
   INDETERMINATE: "warning",
@@ -15,25 +15,32 @@ const HEALTH_INTENT: Record<string, Intent> = {
   REPAIRING: "warning",
 };
 
-const ROLLOUT_INTENT: Record<string, Intent> = {
+// The vocabularies below are the Hub's, from internal/environments/domain/
+// reporting.go -- not a plausible guess. An earlier version invented values
+// (IN_PROGRESS/FAILED rollout, PENDING/UNKNOWN config, RELINQUISHED/PENDING
+// lifecycle) and, worse, omitted real ones, so a genuine BLOCKED or RECALLED
+// rollout or an UNAVAILABLE config fell through the map to an unstyled "none"
+// tag -- exactly the state an operator most needs coloured. types.ts already
+// corrected the filter dropdown to these values; this colour table lagged it.
+export const ROLLOUT_INTENT: Record<string, Intent> = {
   UP_TO_DATE: "success",
+  IN_GRACE_PERIOD: "warning",
   OUT_OF_DATE: "warning",
-  IN_PROGRESS: "primary",
-  FAILED: "danger",
+  BLOCKED: "danger",
+  RECALLED: "danger",
 };
 
-const CONFIG_INTENT: Record<string, Intent> = {
+export const CONFIG_INTENT: Record<string, Intent> = {
   APPLIED: "success",
   DRIFTED: "warning",
-  PENDING: "primary",
-  UNKNOWN: "none",
+  UNAVAILABLE: "warning",
+  INDETERMINATE: "warning",
 };
 
-const LIFECYCLE_INTENT: Record<string, Intent> = {
+export const LIFECYCLE_INTENT: Record<string, Intent> = {
   INSTALLED: "success",
   UNINSTALLED: "none",
-  RELINQUISHED: "warning",
-  PENDING: "primary",
+  UNKNOWN: "none",
 };
 
 /** States that need no attention. A table where every cell shouts is a table

@@ -6,6 +6,8 @@ import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
 import { statusIntent } from "../../api/imports.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
+import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
+import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
 import { installation } from "../fixtures.js";
 import type { ChangeRequest } from "../../api/resources.js";
 
@@ -329,5 +331,36 @@ describe("export pipeline status", () => {
 
   it("leaves an unknown status neutral rather than colouring it on a guess", () => {
     expect(pipelineStatusIntent("SOMETHING_NEW")).toBe("none");
+  });
+});
+
+describe("status colour vocabularies match the Hub", () => {
+  // The map keys must be exactly the values the Hub emits (from
+  // internal/environments/domain/reporting.go and internal/controlplane/
+  // lifecycle.go). A missing real value renders as an unstyled tag; an invented
+  // key is a dead branch. Both are the drift this pins -- and because these are
+  // the Go const sets, adding a value on either side without the other fails.
+  const keys = (map: Record<string, unknown>) => Object.keys(map).sort();
+
+  it("health covers every reporting.go Health value", () => {
+    expect(keys(HEALTH_INTENT)).toEqual(
+      ["ERROR", "HEALTHY", "INDETERMINATE", "REPAIRING", "TERMINAL", "UNHEALTHY", "UNKNOWN", "WARNING"].sort(),
+    );
+  });
+  it("rollout covers every RolloutStatus value and invents none", () => {
+    expect(keys(ROLLOUT_INTENT)).toEqual(
+      ["UP_TO_DATE", "IN_GRACE_PERIOD", "BLOCKED", "RECALLED", "OUT_OF_DATE"].sort(),
+    );
+  });
+  it("config covers every ConfigStatus value and invents none", () => {
+    expect(keys(CONFIG_INTENT)).toEqual(["APPLIED", "DRIFTED", "UNAVAILABLE", "INDETERMINATE"].sort());
+  });
+  it("lifecycle covers every Lifecycle value and invents none", () => {
+    expect(keys(LIFECYCLE_INTENT)).toEqual(["INSTALLED", "UNINSTALLED", "UNKNOWN"].sort());
+  });
+  it("plan covers every PlanStatus value and invents none", () => {
+    expect(keys(PLAN_INTENT)).toEqual(
+      ["AWAITING_APPROVAL", "APPROVED", "LEASED", "RUNNING", "SUCCEEDED", "FAILED", "CANCELLED", "RECORDED"].sort(),
+    );
   });
 });
