@@ -104,7 +104,12 @@ a distinct Apollo concept and may not be decided by #17 alone.
 ## Consequences
 
 - The interface's published counts stay meaningful: 41 recovered coordinates
-  served, 12 declared and unanswerable, 0 of Conduit's own invention.
+  declared, of which 29 are served and 12 are unanswerable, 0 of Conduit's own
+  invention. Declared and served are counted separately on purpose. This line
+  previously read "41 recovered coordinates served, 12 declared and
+  unanswerable", which counts the twelve twice and exceeds the 41 that exist —
+  the conflation this record was written to refuse, restated in its own
+  consequences.
 - `internal/apollographql/domain.Reconcile` keeps failing the build on the two
   cases that are defects — a field Conduit added that nothing backs, and a
   resolver claiming a coordinate the schema does not declare. Refusing a
