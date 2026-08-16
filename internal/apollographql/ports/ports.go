@@ -15,10 +15,25 @@ package ports
 
 import (
 	"context"
+	"errors"
 
 	apollo "github.com/jonathanagustin/conduit/internal/apollo"
 	reportingports "github.com/jonathanagustin/conduit/internal/reporting/ports"
 )
+
+// ErrRecordNotFound is the only error a projection may use to mean "the
+// contract declares this coordinate and Conduit holds no record for it".
+//
+// The distinction is the whole point of this interface. A null answers "there
+// is no such record"; anything else -- a store that is down, a timeout, a
+// permission failure -- is a failure to answer, and reporting it as null would
+// let a client record an absence Conduit never observed. That is the
+// unknown-reads-as-none conflation the provenance model exists to prevent.
+//
+// A projection that returns a bare error gets its error propagated, which is
+// the safe default: the interface refuses to answer rather than inventing an
+// absence. Only this sentinel buys a null.
+var ErrRecordNotFound = errors.New("apollo projection: no record")
 
 // ApolloProjection is Conduit's Apollo compatibility projection, narrowed to
 // the reads this interface makes. It is the same data the Apollo REST surface

@@ -21,6 +21,11 @@ type fakeApollo struct {
 	installations map[string][]apollo.Installation
 	products      []apollo.Product
 	releases      map[string][]apollo.Release
+	// environmentFailure stands in for anything that is not a missing record:
+	// a store that is down, a timeout, a permission failure. The port admits
+	// any error, so a test double that could only be "not found" could not
+	// exercise the distinction the port draws.
+	environmentFailure error
 }
 
 func (fake *fakeApollo) ListEnvironments() apollo.ListEnvironmentsResponse {
@@ -28,12 +33,19 @@ func (fake *fakeApollo) ListEnvironments() apollo.ListEnvironmentsResponse {
 }
 
 func (fake *fakeApollo) GetEnvironment(rid string) (apollo.Environment, error) {
+	if fake.environmentFailure != nil {
+		return apollo.Environment{}, fake.environmentFailure
+	}
 	for _, environment := range fake.environments {
 		if string(environment.Rid) == rid {
 			return environment, nil
 		}
 	}
-	return apollo.Environment{}, errors.New("not found")
+	// The port's sentinel, not a bare error. A projection that spells
+	// not-found any other way is asking to be propagated, which is the safe
+	// default -- and this double previously returned errors.New("not found"),
+	// which the resolver swallowed into a null along with everything else.
+	return apollo.Environment{}, ports.ErrRecordNotFound
 }
 
 func (fake *fakeApollo) ListInstallations(environmentRID string) apollo.ListInstallationsResponse {
@@ -248,8 +260,20 @@ func TestUnservedRecoveredCoordinateIsRefusedRatherThanNulled(t *testing.T) {
 	}
 }
 
-// The refusal has to survive the thing it is protecting against: a client that
-// reads only `data` must not see the refused field as a resolved null.
+// A refused coordinate is a null in `data` PLUS an entry in `errors`, and the
+// errors entry is the whole of the refusal.
+//
+// This test used to claim the opposite -- "a client that reads only `data` must
+// not see the refused field as a resolved null" -- and the wire shape does not
+// have that property. GraphQL requires a nullable field that failed to resolve
+// to be null in `data`, so a data-only client does see a null there. What
+// stops that null being read as an observed absence is the errors entry naming
+// the coordinate, which is why the assertions below are on it.
+//
+// The old assertion was also a tautology: `environment["spaceId"] != nil`
+// passes whether the key is absent or present-and-null, because a Go map
+// lookup of a missing key returns nil either way. It could not distinguish the
+// two cases it existed to distinguish. The comma-ok form below can.
 func TestARefusalIsNotReportedAsAResolvedValue(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{
@@ -260,8 +284,12 @@ func TestARefusalIsNotReportedAsAResolvedValue(t *testing.T) {
 	if environment["name"] != "prod" {
 		t.Fatalf("a served coordinate did not answer: %v", environment["name"])
 	}
-	if environment["spaceId"] != nil {
-		t.Fatalf("an unserved coordinate answered with %v", environment["spaceId"])
+	value, present := environment["spaceId"]
+	if !present {
+		t.Fatal("the refused coordinate was omitted from data; GraphQL requires it present and null")
+	}
+	if value != nil {
+		t.Fatalf("an unserved coordinate answered with %v", value)
 	}
 	if len(response.Errors) != 1 || !strings.Contains(response.Errors[0].Message, "ApolloEnvironment.spaceId") {
 		t.Fatalf("the unserved coordinate produced no refusal naming it: %v", response.Errors)
@@ -576,5 +604,71 @@ func TestEveryDocumentedCollectionAnswersAsAList(t *testing.T) {
 	dependencies := releases[0].(map[string]any)["manifest"].(map[string]any)["productDependencies"]
 	if dependencies == nil {
 		t.Error("productDependencies answered null; an empty collection is a list, not an absence")
+	}
+}
+
+// TestABackendFailureIsNotServedAsAnAbsence is the MAPPED-or-REFUSED rule at
+// its sharpest: the interface must not answer a coordinate it could not read.
+//
+// The resolver swallowed every error from GetEnvironment into a null, on the
+// assumption that the only error a projection can raise is not-found. The port
+// admits any error. So a backing store that was down was served as
+// {"environment": null} with zero errors -- an absence Conduit never observed,
+// recorded by any client that reads data.
+func TestABackendFailureIsNotServedAsAnAbsence(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	apolloSource.environmentFailure = errors.New("backing store unavailable")
+
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name } } }`,
+	})
+
+	if len(response.Errors) == 0 {
+		t.Fatalf("a failed read was served as an absence: %v", response.Data)
+	}
+	if !strings.Contains(response.Errors[0].Message, "backing store unavailable") {
+		t.Errorf("the failure is not reported: %v", response.Errors[0].Message)
+	}
+}
+
+// A genuinely missing record still nulls. The fix must not turn every absence
+// into an error, which would be the same conflation in the other direction.
+func TestAMissingEnvironmentIsStillANull(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.absent") { name } } }`,
+	})
+
+	if len(response.Errors) != 0 {
+		t.Fatalf("a missing environment was reported as a failure: %v", response.Errors)
+	}
+	if got := response.Data["apollo"].(map[string]any)["environment"]; got != nil {
+		t.Fatalf("a missing environment answered with %v", got)
+	}
+}
+
+// TestAMistypedArgumentIsRefusedRatherThanCoercedToEmpty covers the second
+// collapse. `rid: 5` passes gqlparser's custom-scalar validation, and the
+// discarded type assertion turned it into "", so a malformed query looked up
+// the environment whose id is the empty string and returned null -- identical
+// to a missing environment.
+func TestAMistypedArgumentIsRefusedRatherThanCoercedToEmpty(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+
+	for name, query := range map[string]string{
+		"literal":  `{ apollo { environment(rid: 5) { name } } }`,
+		"variable": `query($rid: RID!) { apollo { environment(rid: $rid) { name } } }`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			request := Request{Query: query}
+			if name == "variable" {
+				request.Variables = map[string]any{"rid": 5}
+			}
+			response := resolver.Execute(t.Context(), request)
+			if len(response.Errors) == 0 {
+				t.Fatalf("a mistyped argument was answered rather than refused: %v", response.Data)
+			}
+		})
 	}
 }
