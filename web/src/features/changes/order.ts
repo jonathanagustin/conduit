@@ -1,3 +1,4 @@
+import { listOf } from "../../api/resources.js";
 import type { ChangeRequest } from "../../api/resources.js";
 
 /** Inbox ordering.
@@ -16,7 +17,7 @@ export function orderInbox(requests: ChangeRequest[]): ChangeRequest[] {
 
 /** How many reviewer requirements nobody has satisfied yet. */
 export function outstandingRequirements(request: ChangeRequest): number {
-  return request.requirements.filter(
+  return listOf(request.requirements).filter(
     (requirement) => (requirement.satisfiedBy ?? []).length === 0,
   ).length;
 }

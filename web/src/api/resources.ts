@@ -4,6 +4,21 @@ import { getJSON, postJSON } from "./client.js";
 import type { BundleImport } from "./imports.js";
 import type { CatalogQuery, PageMetadata } from "./types.js";
 
+/** A Hub list field that is null when empty, read as the empty list.
+ *
+ * Go marshals a nil slice as `null`, and several control-plane structs tag
+ * their slices without `omitempty` -- so the key is always present and its
+ * value is sometimes null. This is not defensive coding against a hypothetical:
+ * a real Hub crashed the Change Requests screen with "Cannot read properties of
+ * null (reading 'filter')" the first time a Change Request carried no reviewer
+ * requirement, because every fixture in the test suite used `[]`.
+ *
+ * Deliberately narrow: it takes the Hub's own shape rather than `unknown`, so
+ * it cannot be used to paper over a field whose type is actually wrong. */
+export function listOf<T>(value: T[] | null | undefined): T[] {
+  return value ?? [];
+}
+
 /** Transport types and hooks for the resources beyond the fleet.
  *
  * Envelopes are not uniform and are not guessed: list endpoints wrap their
@@ -183,9 +198,17 @@ export interface ChangeRequest {
   author: { username: string };
   status: string;
   requirementsSatisfied: boolean;
-  changes: EntityChange[];
-  evaluations: PolicyEvaluation[];
-  requirements: ReviewerRequirement[];
+  /** Null, not absent, when the Hub has none.
+   *
+   * governance.go tags these three without `omitempty`, so a nil Go slice is
+   * serialized as `null` rather than omitted or emptied -- the key is always
+   * present and its value is sometimes null. Declaring them as plain arrays was
+   * a claim about the Hub that the Hub does not honour, and it crashed the
+   * Change Requests screen outright on the first request whose policy raised no
+   * requirement. Read them through `listOf`. */
+  changes: EntityChange[] | null;
+  evaluations: PolicyEvaluation[] | null;
+  requirements: ReviewerRequirement[] | null;
   reviews?: ChangeReview[];
   error?: string;
   createdAt: string;

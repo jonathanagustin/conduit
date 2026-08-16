@@ -39,8 +39,18 @@ func requireApolloIdentity(legacy *apolloPublicAPI) apollo.MiddlewareFunc {
 				if !legacy.requireAgent(w, request) {
 					return
 				}
-			} else if _, ok := legacy.resolveOperator(w, request); !ok {
-				return
+			} else {
+				// Captured rather than written straight through. This
+				// middleware refuses before the strict handler exists, so its
+				// 401 never reached the adapter's conversion funnel -- which is
+				// why every unauthenticated Apollo request served a body no
+				// generated client could read.
+				capture := newApolloResponseCapture()
+				if _, ok := legacy.resolveOperator(capture, request); !ok {
+					status, body := apolloAuthorizationRefusal(capture)
+					writeJSON(w, status, body)
+					return
+				}
 			}
 			next.ServeHTTP(w, request)
 		})
@@ -215,13 +225,22 @@ func (adapter *apolloOpenAPIAdapter) authorizePublication(ctx context.Context, c
 	return nil
 }
 
+// capturedApolloAuthorizationError converts a refusal written by the shared
+// authorization helpers into the one envelope the contract publishes for it.
+//
+// ApiUsageDenied is described as "You have not properly authenticated with
+// Apollo and will be unable to leverage the APIs", which covers the
+// unauthenticated case as well as the unauthorised one, so both statuses the
+// helpers produce map here. The HTTP status the helper chose is preserved
+// rather than forced to 403: the contract declares no status codes at all --
+// every path lists only "200" -- so it constrains the body, not the status, and
+// rewriting a 401 into a 403 would lose the distinction for no contract gain.
+//
+// The helper's own message is carried through rather than replaced. It is the
+// only description of what was actually refused, and the envelope has nowhere
+// else to put it.
 func capturedApolloAuthorizationError(capture *apolloResponseCapture) error {
-	if capture.status == 0 {
-		return apolloStatusError(http.StatusForbidden, "forbidden")
-	}
-	return &apolloHTTPResponseError{
-		status: capture.status, header: capture.header.Clone(), body: bytes.Clone(capture.body.Bytes()),
-	}
+	return apolloCapturedError(apolloAuthorizationRefusal(capture))
 }
 
 func validateApolloGeneratedBody[T any](ctx context.Context) error {
@@ -346,6 +365,16 @@ func (adapter *apolloOpenAPIAdapter) GetRelease(ctx context.Context, request apo
 		return nil, err
 	}
 	response, err := adapter.legacy.application.GetRelease(request.ProductId, request.ProductVersion)
+	if application.IsKind(err, application.NotFound) {
+		// The one miss the contract names. ReleaseNotFound is "The specified
+		// release could not be found within the Apollo Catalog", and its
+		// parameters require the mavenCoordinate -- which this call already
+		// holds as ProductId and ProductVersion, so the envelope can say which
+		// release was missing rather than only that one was.
+		return nil, apolloConjureError(http.StatusNotFound,
+			apollo.ErrorCodeNotFound, apollo.ErrorNameReleaseNotFound, err.Error(),
+			map[string]string{"mavenCoordinate": request.ProductId + ":" + request.ProductVersion})
+	}
 	return apollo.GetRelease200JSONResponse(response), apolloApplicationError(err)
 }
 
