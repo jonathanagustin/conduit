@@ -183,3 +183,90 @@ func TestRequireAnyIsDisjunctiveAndPrincipalCanReviewIsNotAllOrNothing(t *testin
 		t.Fatal("a change demanding nothing accepted a reviewer")
 	}
 }
+
+// TestRequirementSatisfiableAnswersCouldItBeMetAtAll pins the PH-6 defect: a
+// require_operation naming an operation no grant conveys is unapprovable by
+// everyone, and this is what surfaces it. It asks a different question from
+// RequirementSatisfied -- not "does this principal meet it" but "could any
+// grant meet it" -- so it takes no principal.
+func TestRequirementSatisfiableAnswersCouldItBeMetAtAll(t *testing.T) {
+	t.Parallel()
+	// A grant conveys resource:operate on the environment, and nothing conveys
+	// the Apollo-published entity:approve-config-update anywhere in scope.
+	grants := &recordingGrants{byScope: map[string][]domain.ResourceGrant{
+		"environment/prod": {{ID: "g1", Team: "ops", Operations: []string{domain.OperationOperate}}},
+	}}
+	authorizer := NewAuthorizer(grants)
+
+	satisfiable := domain.ReviewerRequirement{
+		Kind: domain.RequirementOperation, ResourceRID: "environment/prod", Operation: domain.OperationOperate,
+	}
+	if !authorizer.RequirementSatisfiable(context.Background(), satisfiable) {
+		t.Fatal("a requirement a grant conveys was reported unsatisfiable")
+	}
+
+	unsatisfiable := domain.ReviewerRequirement{
+		Kind: domain.RequirementOperation, ResourceRID: "environment/prod", Operation: "entity:approve-config-update",
+	}
+	if authorizer.RequirementSatisfiable(context.Background(), unsatisfiable) {
+		t.Fatal("a requirement no grant conveys was reported satisfiable")
+	}
+}
+
+// TestRequirementSatisfiableTracksTheGrantTableBothWays is the reason it is
+// computed at read time and never stored: adding the grant makes a previously
+// unsatisfiable requirement satisfiable, and removing it does the reverse. A
+// value frozen at submission would be wrong in both directions.
+func TestRequirementSatisfiableTracksTheGrantTableBothWays(t *testing.T) {
+	t.Parallel()
+	requirement := domain.ReviewerRequirement{
+		Kind: domain.RequirementRole, ResourceRID: "environment/prod", Role: "environment:operator",
+	}
+	grants := &recordingGrants{byScope: map[string][]domain.ResourceGrant{}}
+	authorizer := NewAuthorizer(grants)
+
+	if authorizer.RequirementSatisfiable(context.Background(), requirement) {
+		t.Fatal("satisfiable with no grant present")
+	}
+	grants.byScope["environment/prod"] = []domain.ResourceGrant{{ID: "g1", Team: "ops", Roles: []string{"environment:operator"}}}
+	if !authorizer.RequirementSatisfiable(context.Background(), requirement) {
+		t.Fatal("still unsatisfiable after the grant was added -- the answer was frozen")
+	}
+	grants.byScope["environment/prod"] = nil
+	if authorizer.RequirementSatisfiable(context.Background(), requirement) {
+		t.Fatal("still satisfiable after the grant was removed -- the answer was frozen")
+	}
+}
+
+// TestRequirementSatisfiableIsDisjunctiveOverAlternativesAndConservativeOnError
+// covers the two remaining shapes: a require_any is satisfiable if any branch
+// is, and a grant-lookup failure must not be reported as unsatisfiable -- a
+// diagnostic that says "never approvable" when the store hiccupped is worse
+// than silence.
+func TestRequirementSatisfiableIsDisjunctiveOverAlternativesAndConservativeOnError(t *testing.T) {
+	t.Parallel()
+	grants := &recordingGrants{byScope: map[string][]domain.ResourceGrant{
+		"environment/prod": {{ID: "g1", Team: "ops", Operations: []string{domain.OperationOperate}}},
+	}}
+	authorizer := NewAuthorizer(grants)
+
+	either := domain.ReviewerRequirement{Kind: domain.RequirementAny, Alternatives: []domain.ReviewerRequirement{
+		{Kind: domain.RequirementOperation, ResourceRID: "environment/prod", Operation: "nobody:conveys-this"},
+		{Kind: domain.RequirementOperation, ResourceRID: "environment/prod", Operation: domain.OperationOperate},
+	}}
+	if !authorizer.RequirementSatisfiable(context.Background(), either) {
+		t.Fatal("require_any with one satisfiable branch reported unsatisfiable")
+	}
+
+	// A team requirement is met by membership, which no grant constrains.
+	team := domain.ReviewerRequirement{Kind: domain.RequirementTeam, Team: "ops"}
+	if !authorizer.RequirementSatisfiable(context.Background(), team) {
+		t.Fatal("a team requirement was reported unsatisfiable")
+	}
+
+	failing := NewAuthorizer(&recordingGrants{err: errors.New("store down")})
+	unknowable := domain.ReviewerRequirement{Kind: domain.RequirementOperation, ResourceRID: "environment/prod", Operation: domain.OperationOperate}
+	if !failing.RequirementSatisfiable(context.Background(), unknowable) {
+		t.Fatal("a grant-lookup failure was reported as unsatisfiable rather than unknowable")
+	}
+}

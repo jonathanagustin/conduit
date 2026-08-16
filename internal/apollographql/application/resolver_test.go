@@ -169,9 +169,9 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 			unserved++
 		}
 	}
-	if unserved != 18 {
+	if unserved != 12 {
 		t.Errorf(
-			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 18. "+
+			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 12. "+
 				"If this moved on purpose, update the count and docs/apollo/reference/graphql-api.md",
 			unserved,
 		)
@@ -273,7 +273,7 @@ func TestARefusalIsNotReportedAsAResolvedValue(t *testing.T) {
 
 // --- provenance disclosure --------------------------------------------------
 
-func TestResponseNamesTheInventedCoordinatesItServed(t *testing.T) {
+func TestResponseNamesTheUnrecoveredCoordinatesItServed(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{
 		Query: `{ apollo { plans(pageSize: 10) { plans { rid status } } } }`,
@@ -282,16 +282,47 @@ func TestResponseNamesTheInventedCoordinatesItServed(t *testing.T) {
 		t.Fatalf("unexpected errors: %v", response.Errors)
 	}
 	provenance := response.Extensions["provenance"].(map[string]any)
-	native := provenance["conduitNativeServed"].([]string)
+	documented := provenance["documentedServed"].([]string)
 	want := []string{"ApolloPlan.rid", "ApolloPlan.status", "ApolloPlanPage.plans", "ApolloQuery.plans"}
-	if strings.Join(native, ",") != strings.Join(want, ",") {
-		t.Fatalf("the response did not disclose exactly the invented coordinates it served:\n got %v\nwant %v", native, want)
+	if strings.Join(documented, ",") != strings.Join(want, ",") {
+		t.Fatalf("the response did not disclose exactly the documented coordinates it served:\n got %v\nwant %v", documented, want)
+	}
+	// Every one of them carries an Apollo name or an Apollo pattern, so none is
+	// Conduit's own. Asserting the empty list rather than ignoring it keeps the
+	// two disclosures from silently collapsing into one.
+	if native := provenance["conduitNativeServed"].([]string); len(native) != 0 {
+		t.Fatalf("a fully-cited query disclosed invention: %v", native)
+	}
+}
+
+// The two lower tiers must stay distinguishable in the disclosure. A DOCUMENTED
+// coordinate is a name Apollo publishes; a CONDUIT_NATIVE one is Conduit's own
+// idea. Reporting them under one heading would overstate the invention in one
+// direction and hide it in the other, and the disclosure is only worth reading
+// if it does neither.
+func TestTheDisclosureSeparatesDocumentedFromInvented(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { plans(pageSize: 10) { nextPageToken } } }`,
+	})
+	provenance := response.Extensions["provenance"].(map[string]any)
+	documented := provenance["documentedServed"].([]string)
+	native := provenance["conduitNativeServed"].([]string)
+	// ApolloPlanPage.nextPageToken is DOCUMENTED because the recovery record
+	// carries that exact name on four sibling page types -- Apollo's own GraphQL
+	// name, established by capture. ApolloQuery.plans is DOCUMENTED from the
+	// published Plans documentation.
+	if strings.Join(documented, ",") != "ApolloPlanPage.nextPageToken,ApolloQuery.plans" {
+		t.Fatalf("documented disclosure is wrong: %v", documented)
+	}
+	if len(native) != 0 {
+		t.Fatalf("a coordinate Apollo names was disclosed as Conduit's invention: %v", native)
 	}
 }
 
 // A query touching only recovered coordinates must not be labelled as serving
-// invention. The disclosure is worthless if it cries wolf.
-func TestAPurelyRecoveredQueryDisclosesNoInvention(t *testing.T) {
+// anything unrecovered. The disclosure is worthless if it cries wolf.
+func TestAPurelyRecoveredQueryDisclosesNothingUnrecovered(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{
 		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name rid } } }`,
@@ -300,8 +331,11 @@ func TestAPurelyRecoveredQueryDisclosesNoInvention(t *testing.T) {
 	if native := provenance["conduitNativeServed"].([]string); len(native) != 0 {
 		t.Fatalf("a recovered-only query disclosed invention: %v", native)
 	}
+	if documented := provenance["documentedServed"].([]string); len(documented) != 0 {
+		t.Fatalf("a recovered-only query disclosed unrecovered coordinates: %v", documented)
+	}
 	if provenance["observedServed"].(int) != 4 {
-		t.Fatalf("observed selection count is wrong: %v", provenance["observedSelected"])
+		t.Fatalf("observed selection count is wrong: %v", provenance["observedServed"])
 	}
 }
 
@@ -311,9 +345,9 @@ func TestNativeRecordsAnswerFromReporting(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{
 		Query: `{ apollo {
-			plans(pageSize: 10) { plans { rid environment status } }
+			plans(pageSize: 10) { plans { rid environmentRid status } }
 			changeRequests(pageSize: 10) { changeRequests { rid title status } }
-			promotions(pageSize: 10) { promotions { rid product status } }
+			promotions(pageSize: 10) { promotions { rid productId status } }
 		} }`,
 	})
 	if len(response.Errors) != 0 {
@@ -321,7 +355,7 @@ func TestNativeRecordsAnswerFromReporting(t *testing.T) {
 	}
 	root := response.Data["apollo"].(map[string]any)
 	plan := root["plans"].(map[string]any)["plans"].([]any)[0].(map[string]any)
-	if plan["rid"] != "plan-1" || plan["environment"] != "prod" || plan["status"] != string(reporting.PlanPhaseRunning) {
+	if plan["rid"] != "plan-1" || plan["environmentRid"] != "prod" || plan["status"] != string(reporting.PlanPhaseRunning) {
 		t.Errorf("plan resolved to %v", plan)
 	}
 	change := root["changeRequests"].(map[string]any)["changeRequests"].([]any)[0].(map[string]any)
@@ -379,6 +413,43 @@ func TestAnUnavailableSourceRefusesRatherThanReportsEmpty(t *testing.T) {
 	}
 }
 
+// Displacement, executed rather than asserted in a comment. Apollo publishes
+// these three names -- Installation.version, Installation.environmentRid,
+// Product.id/Installation.productId -- and Conduit had invented different ones.
+// The invented names must be gone from the served interface, not merely
+// deprecated beside the real ones: a client that can still select
+// `installedVersion` is a client Conduit taught the wrong vocabulary.
+func TestTheDisplacedNamesAreNoLongerSelectable(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	for _, invented := range []string{
+		`{ apollo { entity(rid: "entity-1") { installedVersion } } }`,
+		`{ apollo { plans(pageSize: 1) { plans { environment } } } }`,
+		`{ apollo { promotions(pageSize: 1) { promotions { product } } } }`,
+	} {
+		response := resolver.Execute(t.Context(), Request{Query: invented})
+		if len(response.Errors) == 0 {
+			t.Errorf("the interface still answers an invented name Apollo displaced: %s", invented)
+		}
+		if response.Data != nil {
+			t.Errorf("an invented name resolved to data: %s", invented)
+		}
+	}
+
+	// And the published names do answer, so this is displacement rather than
+	// removal. Proving only the refusal would pass on an interface that dropped
+	// the field entirely.
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { entity(rid: "entity-1") { version } } }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("the published name does not answer: %v", response.Errors)
+	}
+	entity := response.Data["apollo"].(map[string]any)["entity"].(map[string]any)
+	if entity["version"] != "1.4.2" {
+		t.Errorf("ApolloEntity.version resolved to %v", entity["version"])
+	}
+}
+
 // --- the contract's edges ---------------------------------------------------
 
 func TestAFieldTheSchemaDoesNotDeclareIsRejectedBeforeResolution(t *testing.T) {
@@ -413,5 +484,97 @@ func TestAnAbsentSourceRefusesRatherThanPanics(t *testing.T) {
 	response := resolver.Execute(t.Context(), ports.Sources{}, Request{Query: `{ apollo { plans(pageSize: 1) { nextPageToken } } }`})
 	if len(response.Errors) == 0 {
 		t.Fatal("a resolver with no sources answered as though it had them")
+	}
+}
+
+// ApolloEnvironment.id was declared and refused, which meant Apollo's own
+// published example -- `apollo { environments(pageSize: 100) { environments { id } } }`
+// -- could not be answered even in the part Conduit does hold. Conduit has one
+// human identifier for an Environment and Apollo's contract accepts that value
+// as `{environmentId}` on its status routes, so refusing `id` while holding the
+// value was the wrong answer.
+func TestEnvironmentIdAnswersWithTheIdentifierApollosStatusRoutesAccept(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { id name rid } } }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", response.Errors)
+	}
+	environment := response.Data["apollo"].(map[string]any)["environment"].(map[string]any)
+	want := string(apolloSource.environments[0].Name)
+	if environment["id"] != want {
+		t.Errorf("id resolved to %v, want %q", environment["id"], want)
+	}
+	// id and name coincide because Conduit holds one identifier, and rid is a
+	// different value derived from it. Asserting the rid differs is what stops a
+	// later change from quietly answering all three from the same field.
+	if environment["rid"] == environment["id"] {
+		t.Errorf("rid and id are the same value (%v); they are different identifiers", environment["rid"])
+	}
+}
+
+// Apollo's own published example, quoted at the top of
+// docs/apollo/reference/graphql-api.md as proof the shape is real. It refused
+// until now: validation probing cannot see through a list type, so no recovered
+// field declared one and every page collection was navigable only in principle.
+//
+// This is the end-to-end assertion for that fix -- the query Apollo publishes,
+// answered with data.
+func TestApollosPublishedExampleQueryAnswersWithData(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `query GetEnvironments {
+			apollo { environments(pageSize: 100) { environments { id } } }
+		}`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("the published example still refuses: %v", response.Errors)
+	}
+	environments := response.Data["apollo"].(map[string]any)["environments"].(map[string]any)["environments"].([]any)
+	if len(environments) != len(apolloSource.environments) {
+		t.Fatalf("returned %d environment(s), the source holds %d", len(environments), len(apolloSource.environments))
+	}
+	if got := environments[0].(map[string]any)["id"]; got != string(apolloSource.environments[0].Name) {
+		t.Errorf("id resolved to %v", got)
+	}
+}
+
+// The other four collections, and the distinction that makes them worth
+// asserting separately: an empty collection is a LIST, not a null. "This
+// Environment runs nothing" is an answer; a null would say the question went
+// unanswered, which is the same conflation the refusals exist to avoid.
+func TestEveryDocumentedCollectionAnswersAsAList(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo {
+			environments(pageSize: 10) { environments { id } }
+			products(pageSize: 10) { products { productId productReleases(pageSize: 10) {
+				productReleases { mavenCoordinate manifest { productDependencies { optional } } }
+			} } }
+			environment(rid: "ri.apollo.main.environment.a") { entities(pageSize: 10) { entities { id } } }
+		} }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", response.Errors)
+	}
+	root := response.Data["apollo"].(map[string]any)
+	products := root["products"].(map[string]any)["products"].([]any)
+	if len(products) == 0 {
+		t.Fatal("products answered empty")
+	}
+	releases := products[0].(map[string]any)["productReleases"].(map[string]any)["productReleases"].([]any)
+	if len(releases) == 0 {
+		t.Fatal("productReleases answered empty")
+	}
+	entities := root["environment"].(map[string]any)["entities"].(map[string]any)["entities"].([]any)
+	if len(entities) == 0 {
+		t.Fatal("entities answered empty")
+	}
+	// The fixture's release declares no dependencies. That must be [] rather
+	// than nil: the manifest states the Release depends on nothing.
+	dependencies := releases[0].(map[string]any)["manifest"].(map[string]any)["productDependencies"]
+	if dependencies == nil {
+		t.Error("productDependencies answered null; an empty collection is a list, not an absence")
 	}
 }

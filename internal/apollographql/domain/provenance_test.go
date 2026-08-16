@@ -15,7 +15,7 @@ type Query {
 
 type ApolloPlan {
   rid: String @provenance(tier: CONDUIT_NATIVE)
-  environment: String @provenance(tier: CONDUIT_NATIVE)
+  environmentRid: String @provenance(tier: DOCUMENTED)
 }
 `
 
@@ -24,13 +24,32 @@ func TestReadProvenanceReadsEveryTier(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	observed, native := declared.Count()
-	if observed != 1 || native != 2 {
-		t.Fatalf("counted %d observed / %d native", observed, native)
+	observed, documented, native := declared.Count()
+	if observed != 1 || documented != 1 || native != 1 {
+		t.Fatalf("counted %d observed / %d documented / %d native", observed, documented, native)
 	}
 	tier, found := declared.TierOf(domain.Coordinate{Type: "ApolloPlan", Field: "rid"})
 	if !found || tier != domain.ConduitNative {
 		t.Fatalf("ApolloPlan.rid read as %q (found=%v)", tier, found)
+	}
+	tier, found = declared.TierOf(domain.Coordinate{Type: "ApolloPlan", Field: "environmentRid"})
+	if !found || tier != domain.Documented {
+		t.Fatalf("ApolloPlan.environmentRid read as %q (found=%v)", tier, found)
+	}
+}
+
+// The distinction the tiers exist to make. DOCUMENTED means Apollo named it, not
+// that an Apollo Hub answered for it -- so it must not read as an Apollo
+// compatibility claim, which is the one thing OBSERVED does mean. Collapsing
+// them would let published documentation pass as a capture.
+func TestOnlyARecoveredCoordinateCountsAsEstablishedByAHub(t *testing.T) {
+	if !domain.Observed.Established() {
+		t.Error("a recovered coordinate does not count as established by a Hub")
+	}
+	for _, tier := range []domain.Tier{domain.Documented, domain.ConduitNative} {
+		if tier.Established() {
+			t.Errorf("%s counts as established by a Hub; no Hub answered for it", tier)
+		}
 	}
 }
 
@@ -64,30 +83,45 @@ func TestSomethingThatIsNotTheServedInterfaceIsRefused(t *testing.T) {
 
 // --- reconciliation ---------------------------------------------------------
 
-func TestAnInventedCoordinateNothingServesIsADefect(t *testing.T) {
+// A coordinate Conduit added to the interface and cannot answer is a defect
+// whatever its tier. The two subtests are the two tiers, and the DOCUMENTED one
+// is the case worth being explicit about: Apollo publishing the name is evidence
+// about the NAME, never about whether Conduit holds data behind it. If
+// documentation excused a missing source, a well-cited field nothing serves
+// would ship, which is exactly the failure the citation was meant to prevent.
+func TestACoordinateConduitAddedAndCannotAnswerIsADefectAtEitherTier(t *testing.T) {
 	declared, err := domain.ReadProvenance(wellFormed)
 	if err != nil {
 		t.Fatalf("read: %v", err)
 	}
-	coverage := domain.NewCoverage(map[domain.Coordinate]string{
-		{Type: "Query", Field: "apollo"}:           "root",
-		{Type: "ApolloPlan", Field: "rid"}:         "reporting",
-		{Type: "ApolloPlan", Field: "environment"}: "reporting",
-	})
-	if defects := domain.Defects(domain.Reconcile(declared, coverage)); len(defects) != 0 {
+	full := map[domain.Coordinate]string{
+		{Type: "Query", Field: "apollo"}:              "root",
+		{Type: "ApolloPlan", Field: "rid"}:            "reporting",
+		{Type: "ApolloPlan", Field: "environmentRid"}: "reporting",
+	}
+	if defects := domain.Defects(domain.Reconcile(declared, domain.NewCoverage(full))); len(defects) != 0 {
 		t.Fatalf("a fully covered interface reported defects: %v", defects)
 	}
 
-	partial := domain.NewCoverage(map[domain.Coordinate]string{
-		{Type: "Query", Field: "apollo"}:   "root",
-		{Type: "ApolloPlan", Field: "rid"}: "reporting",
-	})
-	defects := domain.Defects(domain.Reconcile(declared, partial))
-	if len(defects) != 1 || defects[0].Kind != domain.UnservedNative {
-		t.Fatalf("an invented coordinate nothing serves was not a defect: %v", defects)
-	}
-	if defects[0].Coordinate.String() != "ApolloPlan.environment" {
-		t.Errorf("the defect names the wrong coordinate: %s", defects[0].Coordinate)
+	for _, dropped := range []domain.Coordinate{
+		{Type: "ApolloPlan", Field: "environmentRid"}, // DOCUMENTED
+		{Type: "ApolloPlan", Field: "rid"},            // CONDUIT_NATIVE
+	} {
+		t.Run(dropped.Field, func(t *testing.T) {
+			partial := map[domain.Coordinate]string{}
+			for coordinate, source := range full {
+				if coordinate != dropped {
+					partial[coordinate] = source
+				}
+			}
+			defects := domain.Defects(domain.Reconcile(declared, domain.NewCoverage(partial)))
+			if len(defects) != 1 || defects[0].Kind != domain.UnservedConduitDeclared {
+				t.Fatalf("a declared coordinate nothing serves was not a defect: %v", defects)
+			}
+			if defects[0].Coordinate != dropped {
+				t.Errorf("the defect names the wrong coordinate: %s", defects[0].Coordinate)
+			}
+		})
 	}
 }
 
@@ -101,8 +135,8 @@ func TestAnUnansweredRecoveredCoordinateIsReportedButNotADefect(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 	coverage := domain.NewCoverage(map[domain.Coordinate]string{
-		{Type: "ApolloPlan", Field: "rid"}:         "reporting",
-		{Type: "ApolloPlan", Field: "environment"}: "reporting",
+		{Type: "ApolloPlan", Field: "rid"}:            "reporting",
+		{Type: "ApolloPlan", Field: "environmentRid"}: "reporting",
 	})
 	issues := domain.Reconcile(declared, coverage)
 	if len(issues) != 1 || issues[0].Kind != domain.UnservedObserved {
@@ -119,10 +153,10 @@ func TestAResolverClaimingAnUndeclaredCoordinateIsADefect(t *testing.T) {
 		t.Fatalf("read: %v", err)
 	}
 	coverage := domain.NewCoverage(map[domain.Coordinate]string{
-		{Type: "Query", Field: "apollo"}:            "root",
-		{Type: "ApolloPlan", Field: "rid"}:          "reporting",
-		{Type: "ApolloPlan", Field: "environment"}:  "reporting",
-		{Type: "ApolloPlan", Field: "secretStatus"}: "somewhere",
+		{Type: "Query", Field: "apollo"}:              "root",
+		{Type: "ApolloPlan", Field: "rid"}:            "reporting",
+		{Type: "ApolloPlan", Field: "environmentRid"}: "reporting",
+		{Type: "ApolloPlan", Field: "secretStatus"}:   "somewhere",
 	})
 	defects := domain.Defects(domain.Reconcile(declared, coverage))
 	if len(defects) != 1 || defects[0].Kind != domain.Undeclared {
@@ -151,11 +185,67 @@ func TestARecoveredRefusalSendsTheReaderToAHubAndSaysWhyItIsNotNull(t *testing.T
 	}
 }
 
-// An invented coordinate nothing backs is Conduit's fault, and the refusal must
-// say so rather than implying the client asked for something unreasonable.
-func TestAnInventedRefusalBlamesConduit(t *testing.T) {
-	message := domain.RefuseUnserved(domain.Coordinate{Type: "ApolloPlan", Field: "rid"}, domain.ConduitNative)
-	if !strings.Contains(message, "defect in Conduit") {
-		t.Errorf("the refusal does not own the defect: %s", message)
+// A coordinate Conduit added and cannot back is Conduit's fault, and the refusal
+// must say so rather than implying the client asked for something unreasonable.
+// A cited name does not move the blame: Conduit chose to declare the field.
+func TestARefusalForACoordinateConduitAddedBlamesConduit(t *testing.T) {
+	for _, tier := range []domain.Tier{domain.Documented, domain.ConduitNative} {
+		message := domain.RefuseUnserved(domain.Coordinate{Type: "ApolloPlan", Field: "rid"}, tier)
+		if !strings.Contains(message, "defect in Conduit") {
+			t.Errorf("the %s refusal does not own the defect: %s", tier, message)
+		}
+		if strings.Contains(message, "Ask an Apollo Hub") {
+			t.Errorf("the %s refusal sends the reader to a Hub that never established it: %s", tier, message)
+		}
+	}
+}
+
+// Cardinality is a second, independent provenance claim on the same field: the
+// tier says who established that the field exists, cardinality says who
+// established that it is a list. They differ exactly where the probe could not
+// see through a list type and the pinned contract could.
+func TestCardinalityIsReadAsItsOwnProvenanceClaim(t *testing.T) {
+	t.Parallel()
+	declared, err := domain.ReadProvenance(`directive @provenance(tier: ProvenanceTier!, cardinality: ProvenanceTier) on FIELD_DEFINITION
+
+type ApolloEnvironmentPage {
+  environments: [ApolloEnvironment] @provenance(tier: OBSERVED, cardinality: DOCUMENTED)
+  nextPageToken: String @provenance(tier: OBSERVED)
+}
+`)
+	if err != nil {
+		t.Fatalf("read: %v", err)
+	}
+	collection := domain.Coordinate{Type: "ApolloEnvironmentPage", Field: "environments"}
+	// The field stays OBSERVED. Only its list-ness came from somewhere weaker,
+	// and reading the second claim must not downgrade the first.
+	if tier, _ := declared.TierOf(collection); tier != domain.Observed {
+		t.Errorf("the field's own tier read as %q; a cited cardinality must not downgrade it", tier)
+	}
+	stated, found := declared.CardinalityOf(collection)
+	if !found || stated != domain.Documented {
+		t.Errorf("cardinality read as %q (found=%v), want DOCUMENTED", stated, found)
+	}
+	// Absent means "the field's own tier covers it" -- a scalar, or a list the
+	// same source carried. That is a different statement from DOCUMENTED, so an
+	// absent claim must not read as a present one.
+	if _, found := declared.CardinalityOf(domain.Coordinate{
+		Type: "ApolloEnvironmentPage", Field: "nextPageToken",
+	}); found {
+		t.Error("a field stating no cardinality reported one")
+	}
+}
+
+func TestAnUnknownCardinalityProvenanceIsRefused(t *testing.T) {
+	t.Parallel()
+	_, err := domain.ReadProvenance(`type ApolloEnvironmentPage {
+  environments: [ApolloEnvironment] @provenance(tier: OBSERVED, cardinality: GUESSED)
+}
+`)
+	if err == nil {
+		t.Fatal("an unknown cardinality provenance was accepted")
+	}
+	if !strings.Contains(err.Error(), "cardinality") {
+		t.Errorf("the refusal does not name the claim it refused: %v", err)
 	}
 }

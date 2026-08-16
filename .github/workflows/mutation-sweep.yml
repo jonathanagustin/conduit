@@ -5,12 +5,19 @@ name: Mutation sweep
 # Trunk gate the way the offline ratchet (scripts/verify-mutation-scores.mjs)
 # does. It runs here on its own.
 #
-# Manual-only for now, per docs/operations/manual-ci.md: repository-authored
-# workflows use workflow_dispatch until assumption A4 is overturned in the
-# ledger. When it is, this is the first workflow that should carry a `schedule:`
-# trigger -- a weekly measurement is exactly the drift this catches -- and the
-# comment above the offline gate already names this file as its scheduled twin.
+# It runs weekly and on demand. ADR 0006 permits an automated `schedule:`
+# trigger for a maintenance workflow like this under guardrails, all of which
+# this file meets: it cancels superseded runs (concurrency below), caps its
+# runtime (timeout-minutes), holds least privilege (contents: read), and never
+# publishes -- a scheduled sweep measures and fails on regression; it does not
+# rewrite the baseline (that is the opt-in `write` input, only reachable by a
+# person on workflow_dispatch). Weekly is the lowest useful frequency for
+# catching mutation-score drift between the code changes that cause it.
 on:
+  schedule:
+    # Mondays at 06:00 UTC. A weekly cadence is well inside the 90-day staleness
+    # window the offline gate enforces, so the recorded baseline never rots.
+    - cron: "0 6 * * 1"
   workflow_dispatch:
     inputs:
       write:

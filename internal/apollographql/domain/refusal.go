@@ -12,10 +12,14 @@ import "fmt"
 // says the true thing instead -- that nothing here answers the question -- and
 // leaves the client to ask an Apollo Hub, which does.
 func RefuseUnserved(coordinate Coordinate, tier Tier) string {
-	if tier == ConduitNative {
+	if !tier.Established() {
 		// Reconcile makes this a build failure, so reaching it at request time
 		// means the resolver shipped a declaration nothing backs. Say so plainly
 		// rather than blaming the client's query.
+		//
+		// A DOCUMENTED coordinate reads the same as a CONDUIT_NATIVE one here.
+		// Apollo publishing the name does not put data behind it; Conduit added
+		// the field, so the missing source is Conduit's defect either way.
 		return fmt.Sprintf(
 			"%s is declared by Conduit and backed by nothing. This is a defect in Conduit, not in the query.",
 			coordinate,
