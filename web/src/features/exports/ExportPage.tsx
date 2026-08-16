@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@blueprintjs/core";
 
-import { pipelineGuarantees, useExportPipelines, type ExportPipeline } from "../../api/exports.js";
+import {
+  pipelineGuarantees,
+  pipelineStatus,
+  pipelineStatusIntent,
+  useExportPipelines,
+  type ExportPipeline,
+} from "../../api/exports.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { useIndexQuery } from "../useIndexQuery.js";
@@ -54,6 +60,7 @@ export function ExportPage() {
                     <thead>
                       <tr>
                         <th scope="col">Pipeline</th>
+                        <th scope="col">Status</th>
                         <th scope="col">Build strategy</th>
                         <th scope="col">Selections</th>
                         <th scope="col">Guarantees</th>
@@ -68,6 +75,11 @@ export function ExportPage() {
                           aria-selected={pipeline.id === selected}
                         >
                           <td>{pipeline.displayName === "" ? pipeline.id : pipeline.displayName}</td>
+                          <td>
+                            <Tag intent={pipelineStatusIntent(pipelineStatus(pipeline))} minimal round>
+                              {pipelineStatus(pipeline).toLowerCase()}
+                            </Tag>
+                          </td>
                           <td>
                             <Tag minimal round>
                               {pipeline.buildStrategy}
@@ -105,6 +117,7 @@ function pipelineMatches(pipeline: ExportPipeline, term: string): boolean {
     pipeline.id,
     pipeline.displayName,
     pipeline.buildStrategy,
+    pipelineStatus(pipeline),
     ...pipeline.selections.flatMap((selection) => [selection.type, ...selection.ids]),
     ...(pipeline.resourceTypes ?? []),
   ];

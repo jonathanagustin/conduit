@@ -44,20 +44,23 @@ export function useBundleImports() {
   });
 }
 
-/** The Blueprint intent for a Bundle import or task status. A failed import is
- * danger, a completed one success, and anything still moving is left neutral so
- * "in progress" does not read as either an error or a done deal. */
+/** The Blueprint intent for a Bundle import or task status. The vocabulary is
+ * the Hub's, read from controlplane.bundles.go, not guessed: an import is
+ * PENDING_APPROVAL, then ADMITTED or ERROR; a task is PENDING, SUCCEEDED,
+ * FAILED, or SKIPPED. ADMITTED and SUCCEEDED are the done-and-good states, ERROR
+ * and FAILED the bad ones, PENDING_APPROVAL is the one awaiting a person, and
+ * anything still moving or abandoned is left neutral so it reads as neither an
+ * error nor a done deal. An unknown status also falls through to neutral rather
+ * than being coloured on a guess. */
 export function statusIntent(status: string): "success" | "danger" | "warning" | "none" {
   switch (status.toUpperCase()) {
-    case "IMPORTED":
-    case "COMPLETED":
+    case "ADMITTED":
     case "SUCCEEDED":
       return "success";
-    case "FAILED":
     case "ERROR":
+    case "FAILED":
       return "danger";
-    case "BLOCKED":
-    case "AWAITING_APPROVAL":
+    case "PENDING_APPROVAL":
       return "warning";
     default:
       return "none";
