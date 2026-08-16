@@ -8,3 +8,4 @@ export { ProductIndexPom } from "./ProductIndexPom.js";
 export { PromotionsPom } from "./PromotionsPom.js";
 export { TeamIndexPom } from "./TeamIndexPom.js";
 export { TeamDetailPom } from "./TeamDetailPom.js";
+export { ImportPom } from "./ImportPom.js";
