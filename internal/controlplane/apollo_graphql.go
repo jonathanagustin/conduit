@@ -1,7 +1,11 @@
 package controlplane
 
 import (
+	"fmt"
 	"net/http"
+
+	apollo "github.com/jonathanagustin/conduit/internal/apollo"
+	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/httpgraphql"
 	graphqlapp "github.com/jonathanagustin/conduit/internal/apollographql/application"
@@ -57,5 +61,61 @@ func apolloProjectionOrNil(api *apolloPublicAPI) graphqlports.ApolloProjection {
 	if api == nil || api.application == nil {
 		return nil
 	}
-	return api.application
+	return apolloProjectionAdapter{service: api.application}
+}
+
+// apolloProjectionAdapter translates the Apollo application's error kinds into
+// the one distinction the GraphQL port draws: a record that is absent, versus a
+// failure to answer.
+//
+// It exists because the two contexts spell "not found" differently and neither
+// should learn the other's spelling. The port declares ErrRecordNotFound; the
+// Apollo application declares Error{Kind: NotFound}; this is the composition
+// point that already binds them, so it is where the translation belongs.
+//
+// Everything that is not a not-found passes through unchanged, so the resolver
+// propagates it. That is the direction that matters: before this, the resolver
+// turned every error into a null, and a store that was down was served as an
+// environment that does not exist.
+type apolloProjectionAdapter struct{ service *apolloapp.Service }
+
+func (adapter apolloProjectionAdapter) ListEnvironments() apollo.ListEnvironmentsResponse {
+	return adapter.service.ListEnvironments()
+}
+
+func (adapter apolloProjectionAdapter) ListInstallations(environmentRID string) apollo.ListInstallationsResponse {
+	return adapter.service.ListInstallations(environmentRID)
+}
+
+func (adapter apolloProjectionAdapter) ListProducts() apollo.ListProductsResponse {
+	return adapter.service.ListProducts()
+}
+
+func (adapter apolloProjectionAdapter) ListReleases(product string) apollo.ListReleasesResponse {
+	return adapter.service.ListReleases(product)
+}
+
+func (adapter apolloProjectionAdapter) GetEnvironment(rid string) (apollo.Environment, error) {
+	value, err := adapter.service.GetEnvironment(rid)
+	return value, apolloProjectionError(err)
+}
+
+func (adapter apolloProjectionAdapter) GetProduct(product string) (apollo.Product, error) {
+	value, err := adapter.service.GetProduct(product)
+	return value, apolloProjectionError(err)
+}
+
+func (adapter apolloProjectionAdapter) GetRelease(product, version string) (apollo.Release, error) {
+	value, err := adapter.service.GetRelease(product, version)
+	return value, apolloProjectionError(err)
+}
+
+func apolloProjectionError(err error) error {
+	if err == nil {
+		return nil
+	}
+	if apolloapp.IsKind(err, apolloapp.NotFound) {
+		return fmt.Errorf("%w: %s", graphqlports.ErrRecordNotFound, err.Error())
+	}
+	return err
 }
