@@ -15,21 +15,28 @@ this file.
 
 ## Ready to build
 
-Three items, all unblocked by checking the code rather than by a decision.
-
-| Issue | Work |
-| --- | --- |
-| [#13](https://github.com/jonathanagustin/conduit/issues/13) | Surface a reviewer requirement no *current* grant can satisfy, as a **query-time computed diagnostic**. Not `ChangeError`: satisfaction is evaluated live (`RequirementSatisfied` reads `EffectiveGrants` at call time), `ChangeError` is terminal, and grant-after-policy is ordinary sequencing — flagging at submission would strand changes that were merely early. A computed, unstored field also cannot perturb `ReviewerRequirement.ID`'s digest. |
-| [#25](https://github.com/jonathanagustin/conduit/issues/25) | Intermittent Environment silence must not read as stale. Two halves: **display** (the `FleetQuery`/`VisibleInstallations` change) and **behaviour** (a sibling of `nonParticipatingEvidenceEnvironments` in `internal/controlplane/federation.go`, *not* a new port contract). Must **not** exempt anything from `MaximumEvidenceAgeSeconds` — that bound is the operator's. |
-| [#28](https://github.com/jonathanagustin/conduit/issues/28) | Comprehensive mutation testing. Today CI validates the *harness*, not the suite, so the Go mutation score is unknown and the configured Stryker setup never runs. Wants a measured score with a **ratchet**, in a dispatched workflow (A4 forbids a timer). |
+Nothing. All three items that stood here shipped on 2026-08-16 and moved to
+Closed: #13 (reviewer-requirement satisfiability), #25 (intermittent Environment
+silence), and #28 (comprehensive mutation testing — now a *weekly* sweep, since
+ADR 0006 permits the `schedule:` trigger A4 once forbade). Everything still open
+is waiting on a person, not on effort.
 
 ## Blocked on a decision
 
 | Issue | The decision |
 | --- | --- |
-| [#17](https://github.com/jonathanagustin/conduit/issues/17) + [#16](https://github.com/jonathanagustin/conduit/issues/16) | **One decision, not a chain.** Adopt a minimal Foundry Space grouping (`spaceId`, 5 refused coordinates)? The evidence flows #16 → #17, not the reverse: Apollo publishes a scan-before-install constraint "controlled by a Space setting", which is unimplementable-as-published without a Space to attach it to. The Space's published job is to be the *settings attachment point*, which answers the "discriminator that discriminates nothing" objection. Scope it opaque, optional, not wired into grant scopes. |
-| [#19](https://github.com/jonathanagustin/conduit/issues/19) + [#20](https://github.com/jonathanagustin/conduit/issues/20) | **One decision in two costumes.** Both require overturning A4. Answering A4 once settles both. #19's offline half already shipped, so nothing is lost by keeping A4. |
+| [#17](https://github.com/jonathanagustin/conduit/issues/17) | Adopt a minimal Foundry Space grouping (`spaceId`, 5 refused coordinates)? Opaque, optional, Maven-group-keyed, an administrative grouping rather than a security boundary and not wired into grant scopes — or accept the five refusals permanently. **This is no longer a chain with #16.** The argument that made them one decision was that Apollo's scan-before-install constraint is "controlled by a Space setting" and so needs a Space to attach to; #35 shipped that constraint without one, so the settings-attachment-point premise is spent. Recommended **won't-do**: serving a synthesized `spaceId` behind an `OBSERVED` coordinate would make the provenance disclosure lie. |
+| [#20](https://github.com/jonathanagustin/conduit/issues/20) | **Answered, then blocked again on something else.** ADR 0006 overturned A4, and the queue shipped in #33 as `.github/workflows/merge-queue.yml`. It cannot run: GitHub offers merge queues on public repositories, and on private ones only under Team or Enterprise Cloud, so this private repository under a personal account has no "Require merge queue" control to enable — confirmed 2026-08-16 against `main`'s branch-protection form, where the option is absent between "Require linear history" and "Require deployments to succeed before merging". Rulesets do not route around it; the `merge_queue` rule type is gated the same way. What remains is a decision about repository ownership, not about CI. |
 | [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. A dedicated `change:propose`-only service account, not `OnBehalfOf` — attributing autonomous changes to whoever enabled the flag falsifies the audit trail. Three unresolved sub-parts make this the *last* to start, not the least important: the `Metadata["source"]` stamp policies need to branch on, the **deterministic `crq_` id collision** on re-proposal (`crq_` = SHA-256 of TargetKind+TargetID, content-independent — so re-proposing a target collides with a possibly-terminal prior request), and coalescing so propose-only does not flood review. |
+
+### Open only because closing is a human step
+
+The work is on `main`; the issue has not been closed.
+
+| Issue | State |
+| --- | --- |
+| [#13](https://github.com/jonathanagustin/conduit/issues/13) + [#25](https://github.com/jonathanagustin/conduit/issues/25) | Both shipped in #29 — `Authorizer.RequirementSatisfiable` and `AnnotateSatisfiability` in `internal/governance/application/authorizer.go`; `FleetQuery.SilenceExpected` in `internal/reporting/domain/fleet.go` with `expectedSilenceEnvironments` in `internal/controlplane/federation.go`. Both still carry `status:needs-review`. |
+| [#16](https://github.com/jonathanagustin/conduit/issues/16) | **Its premise was false.** `ArtifactSecurityPolicy` already refused to install an unscanned or non-PASS Release at every plan-producing path, and the Hub auto-scans missing evidence at proposal. The one real gap was *freshness*, shipped in #35 as `ArtifactSecurityPolicy.MaximumScanAgeSeconds` (`internal/environments/domain/configuration.go:50`), enforced by rescanning stale evidence at proposal time rather than in the clock-free `Validate`. No Space was required, which is what unpicked it from #17. |
 
 ### Deferred
 
@@ -51,9 +58,11 @@ Three items, all unblocked by checking the code rather than by a decision.
 | [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-apollo-coordinates-that-stay-refused.md): all twelve refused coordinates, split by what would close each, pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
 | [#27](https://github.com/jonathanagustin/conduit/issues/27) | **Won't do.** A per-binding portability matrix validates nothing until a workload class declares bindings, and the matrix actually needed belongs to the adopting project's runtime ADR. Re-file inside whichever future issue introduces a binding-declaring workload class. Its closure ends the Knative / `function.v1` / shared-runtime thread. |
 | [#24](https://github.com/jonathanagustin/conduit/issues/24) | **Contact team optional.** The decision answered itself in the code: the profile model already permits an ownerless Environment, so the requirement was incidental to the CLI, not policy. Removed an invented constraint rather than relaxing a real one. |
+| [#19](https://github.com/jonathanagustin/conduit/issues/19) | **A schedule is justified.** Answered by ADR 0006 along with #20, since both turned on A4. The crawl now runs weekly in `.github/workflows/documentation-drift.yml`; the offline 45-day freshness gate it complements is unchanged, so drift surfaces long before it can block a candidate. |
+| [#28](https://github.com/jonathanagustin/conduit/issues/28) | Real per-domain and per-file efficacy baselines in `docs/operations/mutation-scores.json`, measured by a **weekly** `mutation-sweep.yml` (a timer ADR 0006 permits and A4 had forbidden) that ratchets, and guarded on every candidate by the cheap offline `verify-mutation-scores.mjs`. Weakest domain at baseline: `internal/catalog/domain`. |
 
-The work for the closed issues is on `claude/apollo-documented-tier` and has not
-been merged to `main`. They are closed on the strength of their commits.
+The work behind the earliest closures landed on `claude/apollo-documented-tier`,
+which merged as #29; everything above is now on `main`.
 
 ## How the grounding was done
 
