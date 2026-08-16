@@ -1,10 +1,34 @@
 # Manual CI
 
-Repository-authored workflows must use `workflow_dispatch` only. Do not add
-`push`, `pull_request`, `schedule`, or an automatic workflow chain. Local
-verification runs first so paid Actions time is used only for a candidate that
-is ready to review. A pre-existing aggregate failure is still a failed candidate;
-repair it locally or explicitly remove the invalid gate before dispatching CI.
+Publication, release, signing, and deployment are manual and stay manual: no
+automated trigger may perform them (ADR 0001, A5). Local verification runs first
+so paid Actions time is used only for a candidate that is ready to review. A
+pre-existing aggregate failure is still a failed candidate; repair it locally or
+explicitly remove the invalid gate before dispatching CI.
+
+Automated triggers (`schedule`, `merge_group`, `push`, `pull_request`, and
+`workflow_run` chains) are permitted for verification and maintenance workflows
+under the guardrails in ADR 0006. Until 2026-08-16 they were prohibited outright
+(assumption A4); the prohibition came from a real incident — automatic triggers
+queued one verification per merge, each superseding the last — and the guardrails
+are what make that incident structurally impossible rather than merely discouraged.
+An automated workflow must:
+
+- **Cancel superseded runs.** `concurrency` with `cancel-in-progress: true`,
+  keyed so a newer run of the same scope cancels the older. This is the direct
+  remedy for the stacking incident that motivated A4.
+- **Cap its runtime** with `timeout-minutes`, so a hung run fails fast rather
+  than billing to the six-hour default.
+- **Run no more often than it must** — a `schedule` at the lowest useful
+  frequency, stated in a comment; an event rather than a poll where one exists.
+- **Stay least-privilege** with a minimal `permissions:` block.
+- **Never publish, release, sign, or deploy.**
+
+The release and acceptance workflows stay `workflow_dispatch` only, enforced by
+`scripts/verify-optimizer-candidate-release-workflow.rb` and
+`scripts/verify-flux-runtime.rb`. The Trunk gate below stays dispatch-based
+because it authenticates the exact pull-request head; a merge queue, when built,
+is a separate `merge_group` workflow, not a change to how the Trunk gate runs.
 
 ## Trunk gate
 
