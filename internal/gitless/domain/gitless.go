@@ -174,6 +174,13 @@ const (
 	ReasonUntrustedIdent RefusalReason = "UNTRUSTED_IDENTITY"
 	ReasonDigestMismatch RefusalReason = "VERIFIER_CHECKED_A_DIFFERENT_DIGEST"
 	ReasonMutableSource  RefusalReason = "MUTABLE_SOURCE_NOT_PERMITTED"
+	// ReasonUnusablePolicy is the operator's publisher policy failing to
+	// compile, which is a configuration fault rather than anything about the
+	// artifact. It used to be reported as UNSIGNED, so an operator alerting on
+	// UNSIGNED was paged about a broken policy file while the artifact may have
+	// been perfectly signed -- and the one refusal that is never the
+	// publisher's fault read as the one that always is.
+	ReasonUnusablePolicy RefusalReason = "UNUSABLE_PUBLISHER_POLICY"
 )
 
 // Refusal is a finding, not an exception. The caller decides what to do with
@@ -223,14 +230,28 @@ func (admission Admission) Selector() (SelectorKind, string) {
 // the first: an artifact signed by the wrong identity at the wrong digest has
 // two things wrong with it, and reporting one would invite fixing one.
 func Admit(selector Selector, pin Pin, attestation Attestation, policy PublisherPolicy) (Admission, []Refusal) {
+	// The three input checks accumulate like everything below, because the
+	// "every reason" contract does not have an exception and these used to be
+	// three separate short-circuits: a call with a mutable selector AND a
+	// malformed pin reported one of them, which is exactly the invite-to-fix-one
+	// the contract exists to prevent.
+	//
+	// They still stop the evaluation as a group. Past this point the body reads
+	// the selector, the pin and the policy, so running it on inputs that failed
+	// their own validation would report refusals derived from values already
+	// known to be meaningless.
+	var invalid []Refusal
 	if err := selector.Validate(); err != nil {
-		return Admission{}, []Refusal{{Reason: ReasonMutableSource, Detail: err.Error()}}
+		invalid = append(invalid, Refusal{Reason: ReasonMutableSource, Detail: err.Error()})
 	}
 	if err := pin.Validate(); err != nil {
-		return Admission{}, []Refusal{{Reason: ReasonDigestMismatch, Detail: err.Error()}}
+		invalid = append(invalid, Refusal{Reason: ReasonDigestMismatch, Detail: err.Error()})
 	}
 	if err := policy.Validate(); err != nil {
-		return Admission{}, []Refusal{{Reason: ReasonUnsigned, Detail: "unusable publisher policy: " + err.Error()}}
+		invalid = append(invalid, Refusal{Reason: ReasonUnusablePolicy, Detail: "unusable publisher policy: " + err.Error()})
+	}
+	if len(invalid) > 0 {
+		return Admission{}, invalid
 	}
 
 	var refusals []Refusal
@@ -302,6 +323,16 @@ type Resolution struct {
 	// time. It is what makes a channel move visible as a change rather than as
 	// another line.
 	Superseded string
+	// Failure is why the convergence that followed this resolution did not
+	// land. Empty means the resolution stands.
+	//
+	// The log is append-only, so a record that turned out to overstate what
+	// happened is corrected by a later record rather than by editing it. The
+	// application records before it converges -- that ordering is the
+	// guarantee that nothing deploys unattributably, and it must not be
+	// reversed -- which means a converge that then fails leaves a record
+	// claiming a move that never landed. This is how that claim is withdrawn.
+	Failure string
 }
 
 func (resolution Resolution) Validate() error {
@@ -327,5 +358,12 @@ func (resolution Resolution) Validate() error {
 // is the question a notification wants, and keeping it here stops two callers
 // answering it differently.
 func (resolution Resolution) Moved() bool {
+	// A resolution that failed to converge moved nothing, whatever it
+	// superseded. Reporting otherwise is the phantom this field exists to stop:
+	// a reader counting moves would count one per reconcile interval for a
+	// deployment that never happened.
+	if resolution.Failure != "" {
+		return false
+	}
 	return resolution.Superseded != "" && resolution.Superseded != resolution.Pin.Digest
 }

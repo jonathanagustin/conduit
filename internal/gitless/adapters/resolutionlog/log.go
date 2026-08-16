@@ -38,6 +38,10 @@ type record struct {
 	Superseded  string `json:"superseded,omitempty"`
 	Moved       bool   `json:"moved"`
 	Publisher   string `json:"publisher"`
+	// Failure withdraws the claim an earlier line made. A reader that ignores
+	// it reads the log as it always did; a reader that honours it can tell a
+	// move that landed from one that was recorded and then did not.
+	Failure string `json:"failure,omitempty"`
 }
 
 // Log appends resolutions to a file.
@@ -79,6 +83,7 @@ func (log *Log) Record(_ context.Context, resolution domain.Resolution) error {
 		// should not have to reimplement what counts as one.
 		Moved:     resolution.Moved(),
 		Publisher: resolution.Publisher,
+		Failure:   resolution.Failure,
 	})
 	if err != nil {
 		return fmt.Errorf("encode resolution: %w", err)

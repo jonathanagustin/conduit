@@ -346,3 +346,74 @@ func TestAMalformedSelectorIsRefusedBeforeAnythingIsAsked(t *testing.T) {
 		t.Error("the registry was consulted for a malformed selector")
 	}
 }
+
+// TestAFailedConvergeWithdrawsTheRecordItAlreadyWrote is the phantom record.
+//
+// The application records before it converges, which is the guarantee that
+// nothing deploys unattributably and must not be reversed. The cost is that a
+// converge failing afterwards leaves a record claiming a move that never
+// landed -- and because Deployed() only advances on success, the next tick
+// takes the same branch and writes the same phantom again, once per reconcile
+// interval, unbounded.
+//
+// fakeConverger.err existed for this and was never assigned by any test. The
+// ordering was covered only for a failing log, never a failing converge.
+func TestAFailedConvergeWithdrawsTheRecordItAlreadyWrote(t *testing.T) {
+	parts := newFixture(t)
+	// Deploy something first, so the failing reconcile below genuinely
+	// supersedes a digest. Without that, Superseded is empty and Moved() is
+	// false whatever the Failure field says -- the assertion would pass on a
+	// build that ignored Failure entirely, which is the shape of hollow test
+	// this file is otherwise careful about.
+	if _, err := parts.source.Reconcile(t.Context(), "prod", channel("latest-stable")); err != nil {
+		t.Fatalf("seed the environment with a deployed digest: %v", err)
+	}
+	parts.log.recorded = nil
+	parts.resolver.digest = digestB
+	parts.converger.err = errors.New("mirror served different bytes")
+
+	_, err := parts.source.Reconcile(t.Context(), "prod", channel("latest-stable"))
+	if err == nil {
+		t.Fatal("a failed convergence was reported as success")
+	}
+	if len(parts.log.recorded) != 2 {
+		t.Fatalf("want the resolution and its withdrawal, got %d record(s): %#v", len(parts.log.recorded), parts.log.recorded)
+	}
+	// Appended, not edited: the log is append-only, and that is what makes it
+	// evidence rather than a status field.
+	if parts.log.recorded[0].Failure != "" {
+		t.Error("the first record already claimed a failure it could not have known about")
+	}
+	withdrawal := parts.log.recorded[1]
+	if withdrawal.Failure == "" {
+		t.Fatal("nothing withdrew the claim the first record made")
+	}
+	if !strings.Contains(withdrawal.Failure, "mirror served different bytes") {
+		t.Errorf("the withdrawal does not say why it did not land: %q", withdrawal.Failure)
+	}
+	// A reader counting moves must not count this one. The withdrawal does
+	// supersede a real digest, so Moved() would answer true but for the
+	// Failure check -- which is what makes this assertion worth making.
+	if withdrawal.Superseded == "" {
+		t.Fatal("the fixture did not supersede anything, so this asserts nothing")
+	}
+	if withdrawal.Moved() {
+		t.Error("a resolution that failed to converge still reports itself as a move")
+	}
+}
+
+// The success path stays one record. A withdrawal on every reconcile would
+// bury the moves that matter under the ones that did not fail.
+func TestASuccessfulConvergeWritesOneRecord(t *testing.T) {
+	parts := newFixture(t)
+
+	if _, err := parts.source.Reconcile(t.Context(), "prod", channel("latest-stable")); err != nil {
+		t.Fatal(err)
+	}
+	if len(parts.log.recorded) != 1 {
+		t.Fatalf("want one record for one successful move, got %d", len(parts.log.recorded))
+	}
+	if parts.log.recorded[0].Failure != "" {
+		t.Errorf("a successful convergence recorded a failure: %q", parts.log.recorded[0].Failure)
+	}
+}

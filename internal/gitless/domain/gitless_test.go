@@ -287,3 +287,53 @@ func TestAResolutionNeedsAnEnvironmentAndAValidPin(t *testing.T) {
 		}
 	}
 }
+
+// TestEveryReasonIsReportedForInvalidInputsToo closes the exception the
+// contract did not have.
+//
+// Admit's doc says every refusal is returned, not just the first, "an artifact
+// signed by the wrong identity at the wrong digest has two things wrong with it,
+// and reporting one would invite fixing one". Three input guards each returned
+// a single reason and short-circuited, so a call with two invalid inputs
+// reported one -- the same invitation, in the part of the function that runs
+// first.
+func TestEveryReasonIsReportedForInvalidInputsToo(t *testing.T) {
+	t.Parallel()
+	_, refusals := domain.Admit(
+		domain.Selector{Kind: domain.ByChannel, Repository: "", Channel: ""}, // invalid selector
+		domain.Pin{Repository: "", Digest: "not-a-digest"},                   // invalid pin
+		domain.Attestation{Signed: true},
+		domain.PublisherPolicy{},
+	)
+	if len(refusals) < 2 {
+		t.Fatalf("two invalid inputs produced %d refusal(s): %#v", len(refusals), refusals)
+	}
+	for _, want := range []domain.RefusalReason{domain.ReasonMutableSource, domain.ReasonDigestMismatch} {
+		if !has(refusals, want) {
+			t.Errorf("refusals %#v do not include %s", refusals, want)
+		}
+	}
+}
+
+// TestAnUnusablePolicyIsNotReportedAsUnsigned covers the miscategorisation.
+//
+// A policy that fails to compile was reported as UNSIGNED, so an operator
+// alerting on UNSIGNED was paged about a broken policy file while the artifact
+// may have been perfectly signed. It is a configuration fault and the one
+// refusal that is never the publisher's fault.
+func TestAnUnusablePolicyIsNotReportedAsUnsigned(t *testing.T) {
+	t.Parallel()
+	valid := domain.Selector{Kind: domain.ByChannel, Repository: "registry.example/app", Channel: "latest"}
+	pin := domain.Pin{Repository: "registry.example/app", Digest: "sha256:" + strings.Repeat("a", 64)}
+
+	_, refusals := domain.Admit(valid, pin, domain.Attestation{Signed: true}, domain.PublisherPolicy{CertificateIssuer: "^($", CertificateIdentity: "^ok$"})
+	if len(refusals) == 0 {
+		t.Fatal("an unusable publisher policy was admitted")
+	}
+	if has(refusals, domain.ReasonUnsigned) {
+		t.Errorf("a policy fault is reported as UNSIGNED: %#v", refusals)
+	}
+	if !has(refusals, domain.ReasonUnusablePolicy) {
+		t.Errorf("refusals %#v do not name the policy as the problem", refusals)
+	}
+}
