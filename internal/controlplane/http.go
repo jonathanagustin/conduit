@@ -1654,7 +1654,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, ErrForbidden)
 			return
 		}
-		writeJSON(w, http.StatusOK, stored)
+		writeJSON(w, http.StatusOK, annotateSatisfiability(request.Context(), repository, stored))
 	})
 	mux.HandleFunc("POST /v1/change-requests/{changeRequestID}/approve", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
