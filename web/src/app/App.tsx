@@ -13,6 +13,7 @@ import { EnvironmentsPage } from "../features/environments/EnvironmentsPage.js";
 import { EnvironmentDetailPage } from "../features/environments/EnvironmentDetailPage.js";
 import { ProductsPage, ProductDetailPage } from "../features/products/ProductsPage.js";
 import { PromotionsPage } from "../features/promotions/PromotionsPage.js";
+import { RiskPage } from "../features/risk/RiskPage.js";
 import { TeamsPage, TeamDetailPage } from "../features/teams/TeamsPage.js";
 import { OverviewPage } from "../features/overview/OverviewPage.js";
 import { APPLICATION_DESTINATIONS, RAIL_DESTINATIONS } from "./navigation.js";
@@ -74,7 +75,7 @@ export function App({ bootstrap }: AppProps) {
             <Route path="/change-requests/:changeRequestId" element={<ChangeRequestDetailPage />} />
             <Route path="/export" element={<Placeholder title="Export" />} />
             <Route path="/import" element={<Placeholder title="Import" />} />
-            <Route path="/risk" element={<Placeholder title="Risk Management" />} />
+            <Route path="/risk" element={<RiskPage />} />
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/teams/:teamName" element={<TeamDetailPage />} />
             <Route path="*" element={<NotFound />} />
