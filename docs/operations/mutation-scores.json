@@ -1,0 +1,71 @@
+{
+  "note": "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep.",
+  "capturedAt": "2026-08-16",
+  "packages": {
+    "internal/environments/domain": {
+      "efficacy": 84.84848484848484,
+      "killed": 56,
+      "lived": 10,
+      "total": 66,
+      "coverage": 100
+    },
+    "internal/governance/domain": {
+      "efficacy": 96.22641509433963,
+      "killed": 51,
+      "lived": 2,
+      "total": 53,
+      "coverage": 91.37931034482759
+    },
+    "internal/catalog/domain": {
+      "efficacy": 77.87610619469027,
+      "killed": 88,
+      "lived": 25,
+      "total": 113,
+      "coverage": 71.0691823899371
+    },
+    "internal/apollographql/domain": {
+      "efficacy": 84.21052631578947,
+      "killed": 16,
+      "lived": 3,
+      "total": 19,
+      "coverage": 82.6086956521739
+    },
+    "internal/reporting/domain": {
+      "efficacy": 90.9090909090909,
+      "killed": 20,
+      "lived": 2,
+      "total": 22,
+      "coverage": 42.30769230769231
+    }
+  },
+  "web": {
+    "web/src/components/Timestamp.tsx": {
+      "efficacy": 100,
+      "killed": 43,
+      "lived": 0,
+      "total": 58,
+      "coverage": 74.13793103448276
+    },
+    "web/src/features/promotions/ReleaseChannelGraph.tsx": {
+      "efficacy": 91.83673469387755,
+      "killed": 45,
+      "lived": 4,
+      "total": 94,
+      "coverage": 52.12765957446808
+    },
+    "web/src/features/changes/order.ts": {
+      "efficacy": 100,
+      "killed": 21,
+      "lived": 0,
+      "total": 21,
+      "coverage": 100
+    },
+    "web/src/features/fleet/filter.ts": {
+      "efficacy": 85,
+      "killed": 17,
+      "lived": 3,
+      "total": 20,
+      "coverage": 100
+    }
+  }
+}

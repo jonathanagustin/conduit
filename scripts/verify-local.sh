@@ -176,6 +176,7 @@ gate 'Check formatting' check_formatting
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
+gate 'Validate mutation scores' bash -c './scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate operator console' ./scripts/test-console.sh
@@ -219,6 +220,7 @@ not_run_as_written=(
   'Install pinned Hadolint'
   'Install pinned Zarf'
   'Publish pending Trunk status'
+  'Publish gate summary'
   'Publish final Trunk status'
 )
 mapfile -t ci_steps < <(sed -n 's/^      - name: //p' "${workflow}")
