@@ -30,6 +30,7 @@ decided the *direction*, the row says so and names what is left to choose.
 | [#20](https://github.com/jonathanagustin/conduit/issues/20) | Same A4 question as #19 in different clothes: a merge queue requires overturning A4, which is CONFIRMED. Answering A4 once settles both. |
 | [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. Recommendation on the issue: a dedicated `change:propose`-only service account, not `OnBehalfOf`. |
 | [#25](https://github.com/jonathanagustin/conduit/issues/25) | Intermittent Environment gaps must not read as stale promotion evidence (the behavioural half of #15). Threads the connection setting into the reporting fleet projection — a port-contract change. Direction grounded; the sharp choice is whether an intermittent Environment can vouch on arbitrarily old health (Apollo publishes no bound). |
+| [#27](https://github.com/jonathanagustin/conduit/issues/27) | Should Conduit publish a **per-binding portability matrix** — MAPPED-or-REFUSED applied to a workload's bindings per target, so publication fails closed when a workload declares a binding its target refuses? Same discipline ADR 0005 applies to coordinates. All that survives of a much larger question; see below. |
 
 ### Deferred
 
@@ -68,6 +69,38 @@ tell the two apart, in descending force:
 The rule that held throughout: a published contract displaces an invented
 constraint (#15, #24), but never displaces an honest refusal into a false
 answer (#12, #17, #26).
+
+## A question that closed itself: invocation-shaped workloads
+
+Recorded because it consumed real effort and the conclusion is reusable, not
+because anything is outstanding.
+
+The ask was for Conduit to deploy "a thing that isn't a container that's always
+on" — a workload whose unit of execution is an invocation rather than a process.
+It looked like a large capability gap. It was not one. Conduit can already do it:
+
+| Trigger | Shape | Status |
+| --- | --- | --- |
+| Scheduled only | `CronJob` in the chart | works today |
+| Queue / event | KEDA `ScaledJob` | works today (needs KEDA) |
+| HTTP | the workload bundled into a digest-pinned image, installed as `helm-chart.v1` | works today |
+
+Three things were proposed along the way and all three were wrong. **A Knative
+interface** — rejected: something must always listen, so Knative's floor is paid
+first, and it reintroduces the cold starts the workloads are chosen to avoid
+(see [`docs/knative/README.md`](../knative/README.md)). **A portable
+`function.v1` contract** — unnecessary: the gap was a *host for invocations*,
+not a portable function format. **A shared runtime fed by objects naming
+artifacts to fetch** — rejected on a repository-specific ground worth
+remembering: Helm would succeed, Conduit would record the release deployed, and
+a later fetch failure would leave the record false with nothing to surface it. A
+silent lie in the system of record is worse, here, than an honest new verb.
+
+The pattern that works was found already built in a consuming project: a bundled
+workload running under a compatibility runtime in a container, published by
+digest, installed by Conduit as an ordinary immutable release, with the
+platform boundary drawn at **routes rather than at workloads**. Nothing in
+Conduit had to change. The only piece that belongs in this repository is #27.
 
 ## A standing gap: label appearance
 
