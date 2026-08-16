@@ -2360,8 +2360,21 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, redactLeaseToken(record))
 	})
+	// The Report names every installation, its release and config digests, the
+	// namespaces, and each secret's provider reference, Kubernetes secret name
+	// and key names. That is the fleet this Hub governs, so it belongs behind
+	// the same door as GET /v1/environments/{environmentID} above, which reads a
+	// superset of it. This route shipped with no principal and no resource
+	// check: not as a deliberate exemption -- the open routes are the stateless
+	// validators, which disclose only what the caller already sent -- but
+	// because nothing tested it.
 	mux.HandleFunc("GET /v1/environments/{environmentID}/reported-state", func(w http.ResponseWriter, request *http.Request) {
-		report, err := repository.GetEnvironmentReport(request.Context(), request.PathValue("environmentID"))
+		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
+		environment := request.PathValue("environmentID")
+		if !ok || !requireResourceOperation(w, request, governance, principal, configuration, environmentRID(environment), OperationReadResource) {
+			return
+		}
+		report, err := repository.GetEnvironmentReport(request.Context(), environment)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
