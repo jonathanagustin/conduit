@@ -1,0 +1,75 @@
+name: Merge queue
+
+# The merge queue's verification, built as a SEPARATE workflow from the Trunk
+# gate on purpose (ADR 0006): the Trunk gate stays dispatch-based and
+# authenticates a pull-request head, which a merge group has no equivalent of.
+# This runs on merge_group instead, with no human in the loop, which A4 forbade
+# until ADR 0006 overturned it under guardrails -- all of which this file meets:
+# it cancels superseded groups (concurrency), caps its runtime (timeout),
+# holds least privilege (contents: read), and never publishes.
+#
+# It reuses the Trunk gate's checks rather than restating them: scripts/verify-
+# local.sh runs exactly the gate set platform-ci.yml runs (it reads that file to
+# stay in sync), so the queue verifies the same tree the Trunk gate does without
+# a second, driftable copy of the gate list. The one thing it cannot reuse is
+# the PR-fidelity preflight, which needs a pull request; a merge group is the
+# right place for that to be absent, because the group is post-review by
+# construction.
+#
+# To take effect this needs one setting a workflow cannot make: enable the merge
+# queue for `main` in branch protection and mark this job's check required.
+# Until then the workflow is inert -- merge_group events only fire once the
+# queue is enabled.
+on:
+  merge_group:
+
+# A newer group supersedes an older one for the same base, so cancel the older
+# run rather than letting both bill -- the guardrail that answers the stacking
+# incident behind A4.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  verify:
+    name: Merge queue
+    runs-on: ubuntu-24.04
+    # The full local gate set is observed in the low tens of minutes; an
+    # uncapped job would run to GitHub's six-hour default on a hang.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.20.0
+      - name: Install pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install console dependencies
+        run: pnpm --dir web install --frozen-lockfile
+      # The browser's OS libraries need root, which verify-local.sh's own
+      # browser install (test-console.sh) does not take; install them here so
+      # the console gate inside the aggregate run finds a working Chromium.
+      - name: Install pinned console browser
+        run: pnpm --dir web exec playwright install --with-deps chromium
+      # One command runs every gate the Trunk gate runs. verify-local.sh fetches
+      # its own pinned helm, hadolint, and zarf and reconciles its coverage
+      # against platform-ci.yml, so "the merge queue passed" means the same tree
+      # the Trunk gate would pass.
+      - name: Verify against the Trunk gate set
+        run: ./scripts/verify-local.sh
