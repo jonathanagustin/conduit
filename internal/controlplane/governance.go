@@ -645,10 +645,38 @@ func (service *GovernanceService) approveOnce(
 			return ChangeRequest{}, PlanRecord{}, ErrInvalidTransition
 		}
 	}
+	// Separation of duties. A reviewer requirement asks for a second party, and
+	// nothing here checked that it got one: eligibility was decided purely by
+	// "is this principal in the required team, or holding the required role",
+	// and the author is usually in the team that owns the resource. The only
+	// identity guard was the duplicate-review check below, which stops the same
+	// subject approving twice and never stopped the author approving once.
+	//
+	// Refused rather than made configurable, because the configuration already
+	// exists a layer up at the time it can be stated honestly: a deployment
+	// wanting no independent review writes a policy that raises no requirement,
+	// and evaluateChangeRequest approves at proposal time with the evaluation
+	// recorded. A self-approval switch would instead let a reviewer requirement
+	// appear to exist while being void, which is worse than not raising one.
+	authorApproving := governance.SameHuman(principal, candidate.Author)
 	eligible := map[string]struct{}{}
 	for _, requirement := range candidate.Requirements {
+		// The optimizer's revalidation requirement is exempt, and it is the only
+		// one that can be. It is not policy-raised -- evaluatePlan appends it
+		// unconditionally and no policy can waive it -- and it asks for
+		// machine-verified evidence freshness rather than for a second party:
+		// "fresh optimizer evidence is required at approval". Reviewer
+		// independence for an optimizer change is carried by the other
+		// requirements, which this branch does not touch. Excluding the author
+		// here would leave an operator permanently unable to present the
+		// revalidation receipt for their own plan even where policy raised no
+		// reviewer at all -- wedged by a rule meant to require a reviewer that
+		// nothing had asked for.
 		if permit != nil && requirement.Kind == "OPTIMIZER_REVALIDATION" {
 			eligible[requirement.ID] = struct{}{}
+			continue
+		}
+		if authorApproving {
 			continue
 		}
 		if requirementSatisfied(ctx, service.repository, requirement, principal) {
@@ -656,8 +684,19 @@ func (service *GovernanceService) approveOnce(
 		}
 	}
 	if len(eligible) == 0 {
-		service.audit(ctx, principal.Username, "CHANGE_REQUEST_APPROVE", changeRequestID, "DENY", ErrForbidden.Error(), nil)
-		return ChangeRequest{}, PlanRecord{}, ErrForbidden
+		// Named rather than folded into the generic refusal: "forbidden" sends
+		// an author looking for a grant they will never be given, and this
+		// audit record is what an operator reads to find out which rule
+		// stopped them.
+		refusal := ErrForbidden
+		if authorApproving {
+			refusal = fmt.Errorf("%w: the author of a change request cannot approve it", ErrForbidden)
+		}
+		// Audited here rather than only by the caller, because the
+		// non-transactional branch of approveTransactional returns this error
+		// directly and never reaches the wrapper's DENY audit.
+		service.audit(ctx, principal.Username, "CHANGE_REQUEST_APPROVE", changeRequestID, "DENY", refusal.Error(), nil)
+		return ChangeRequest{}, PlanRecord{}, refusal
 	}
 	// Persist the non-authoritative revalidation link before the Change Request
 	// update. If the later review CAS loses a race, the Plan remains awaiting
@@ -684,6 +723,16 @@ func (service *GovernanceService) approveOnce(
 		}
 		if request.Status != ChangePendingApprovals {
 			return fmt.Errorf("%w: cannot approve change request in %s", ErrInvalidTransition, request.Status)
+		}
+		// The same rule again, against the serialized record rather than the
+		// copy read before the update, and stated as the invariant it is: the
+		// author reaches this write only through an optimizer revalidation
+		// permit. Author is immutable on every path that exists today -- Reopen
+		// carries it forward and nothing else writes it -- so this cannot fire
+		// now. It costs one comparison and it is what a future mutation path
+		// would have to get past.
+		if permit == nil && governance.SameHuman(principal, request.Author) {
+			return fmt.Errorf("%w: the author of a change request cannot approve it", ErrForbidden)
 		}
 		for _, review := range request.Reviews {
 			if review.Subject == principal.Username {

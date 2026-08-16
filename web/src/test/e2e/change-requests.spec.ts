@@ -37,6 +37,41 @@ function changeRequest(overrides: Record<string, unknown> = {}) {
 }
 
 test.describe("Change Requests", () => {
+  // The Hub sends null, not [], for a list it has none of: governance.go tags
+  // changes, evaluations and requirements without `omitempty`, so a nil Go
+  // slice serializes as null. Every fixture here used [], and against a real
+  // Hub the screen died on the first request whose policy raised no
+  // requirement -- "Cannot read properties of null (reading 'filter')", a blank
+  // page, and a green test suite.
+  //
+  // Serving the Hub's actual shape is the point. A fixture that is easier to
+  // write than the truth is how the suite stayed green through a crash.
+  test("survives the null lists a Hub sends for an empty policy evaluation", async ({ page, hub }) => {
+    hub.get(
+      "/change-requests",
+      indexPage("changeRequests", [
+        changeRequest({ id: "crq_bare", changes: null, evaluations: null, requirements: null }),
+      ]),
+    );
+    await page.goto("change-requests");
+
+    await expect(page.getByRole("row").nth(1)).toContainText("crq_bare");
+    // "none" outstanding, which is the screen's own wording for a computed
+    // zero. The distinction that matters is that it computed one at all: the
+    // crash happened inside outstandingRequirements, before anything rendered.
+    await expect(page.getByRole("row").nth(1)).toContainText("none");
+  });
+
+  test("opens a request whose lists are all null", async ({ page, hub }) => {
+    hub.get(
+      "/change-requests/crq_bare",
+      changeRequest({ id: "crq_bare", changes: null, evaluations: null, requirements: null }),
+    );
+    await page.goto("change-requests/crq_bare");
+
+    await expect(page.getByText("Upgrade payments to 2.4.1")).toBeVisible();
+  });
+
   test("puts requests awaiting approval before settled ones", async ({ page, hub }) => {
     hub.get("/change-requests", indexPage("changeRequests", [
         changeRequest({ id: "crq_done", status: "APPROVED", updatedAt: "2026-08-07T13:00:00Z" }),

@@ -11,8 +11,12 @@ import (
 // questions. A timed stage asks "has this Release sat on the source channel long
 // enough?" A canary stage asks "have the Entities I nominated as canaries stayed
 // healthy?" Collapsing both into one set of thresholds loses the distinction that
-// matters: a canary stage measures a *proportion* of a *named subset*, and it can
-// react by recalling rather than only by declining to promote.
+// matters: a canary stage measures a *proportion* of a *named subset*, and it
+// carries a condition that reacts to unhealth rather than only to health.
+//
+// What Apollo's canary stage does with that condition and what Conduit does are
+// not the same thing, and the difference is declared rather than smoothed over:
+// see RecallWhenUnhealthy below.
 const (
 	// PromotionTimed gates on elapsed time plus Release label requirements.
 	PromotionTimed = "TIMED"
@@ -21,7 +25,26 @@ const (
 
 	// PromoteWhenHealthy promotes once enough canaries have held healthy.
 	PromoteWhenHealthy = "PROMOTE_WHEN_HEALTHY"
-	// RecallWhenUnhealthy recalls the Release when enough canaries are unhealthy.
+	// RecallWhenUnhealthy is the published name of the condition; what Conduit
+	// does when it fires is BLOCK the promotion, not recall the Release.
+	//
+	// The two are different in kind. A recall withdraws a Release from selection
+	// everywhere -- including environments that already hold it and installs that
+	// have not happened yet. A block stops this promotion and nothing else.
+	//
+	// Conduit blocks deliberately, and the reason is evidence provenance rather
+	// than effort: PromotionEvaluationRequest.Evidence is caller-submitted and
+	// carries no attestation, so deriving a fleet-wide withdrawal from it would
+	// let any principal holding resource:operate remove any Release from every
+	// environment by asserting that enough canaries are unhealthy. Blocking one
+	// promotion on unverified evidence is recoverable; withdrawing a Release
+	// fleet-wide on it is not.
+	//
+	// The wire value keeps Apollo's spelling because that is the contract; only
+	// the effect diverges, and the divergence is recorded in
+	// docs/operations/TENANT-FIDELITY.md. Serving a real Recall here becomes
+	// available once submitted evidence is hub-witnessed rather than asserted
+	// (issue #54); until then it would be a denial-of-service primitive.
 	RecallWhenUnhealthy = "RECALL_WHEN_UNHEALTHY"
 )
 
@@ -219,7 +242,7 @@ func EvaluateCanaryStage(request PromotionEvaluationRequest, now time.Time) []Pr
 			share := percentage(tally.Unhealthy, tally.Total)
 			if share+percentageTolerance >= policyCondition.ThresholdPercent {
 				blocking = append(blocking, condition(index, PromotionBlockerCanaryRecallTriggered, fmt.Sprintf(
-					"condition %d recalls the Release: %.4g%% of canaries are unhealthy, at or above %.4g%%",
+					"condition %d blocks the promotion: %.4g%% of canaries are unhealthy, at or above %.4g%%",
 					index+1, share, policyCondition.ThresholdPercent)))
 			}
 		default:
