@@ -123,7 +123,55 @@ score.
 0–10 from the unsuppressed findings, so the scale a UI would render is the Hub's,
 not a new invention.
 
-### Syft, and why it opens nothing
+### What the public Tenable/Nessus client establishes, and the trap it exposes
+
+`VulnerabilityAssessment` names Tenable.sc as a normalizing provider alongside
+OCI and SBOM scanners, so the public `palantir/tenablesc-client` was read
+directly (HEAD `dc63ef0`; `security-scanning.md` pins its review at `35e868a`,
+so that note is a commit behind).
+
+That note describes the client as the `AgentScan` API for "Nessus Agent host
+scan definitions and Agent Groups". **It is substantially more than that.**
+`tenablesc/analysis.go` wraps the Tenable.sc Analysis API and `VulnDetailsResult`
+carries genuine per-finding detail — `cve`, `cvssV3BaseScore`,
+`cvssV3TemporalScore`, `cvssV3Vector`, `pluginID`, `pluginName`, `severity`,
+`stigSeverity` — with `scanresult.go` alongside it.
+
+The note's **conclusion still holds, and this strengthens it**: every result type
+is keyed to a *host*, not an artifact. `VulnSumIPResult` and
+`VulnSumDNSNameResult` key on `ip`, `dnsName`, `macAddress`, `netbiosName`,
+`osCPE` and a `repository`; `VulnHosts` and `VulnIPSummaryResult` are the same
+axis. Nothing binds a finding to an immutable OCI digest. Conduit's assessment is
+exact-artifact by construction (`ArtifactDigests`, digest-coverage validation),
+so this is a different axis rather than a competing contract — useful
+deployment-side scanner administration, not an ArtifactScan result boundary.
+
+**The trap is in the severity vocabulary, and it bears directly on the
+Vulnerabilities view recommended above.** Tenable publishes
+Critical / High / Medium / Low / Info, as `BaseInfo` in detail results and as
+`severityCritical`…`severityInfo` counts in summaries. Conduit's
+`VulnerabilityFinding.Severity` is an **unconstrained `string` with no Go const
+set anywhere**; its only interpretation is the switch in
+`internal/controlplane/risk.go:113`, which accepts `CRITICAL`, `HIGH`,
+`MEDIUM`/`MODERATE`, `LOW`, `NONE`/`INFORMATIONAL`/`INFO`, and falls through to
+an unknown tier. Two consequences for the UI:
+
+1. **A severity → colour map would be ungateable.**
+   `scripts/verify-console-contract.mjs` extracts the Hub set from *named Go
+   consts*, and there are none here. A hand-written severity map is exactly the
+   shape that drifted six times before the gate existed, and the gate could not
+   catch a seventh.
+2. **Colouring on severity would contradict the Hub's own ranking.**
+   `findingScore` uses `CVSS` whenever it is `> 0` and consults `Severity` only
+   as the fallback. A view ranked or coloured by the severity string can order
+   findings differently from how the Hub scores the very same Release.
+
+So the Vulnerabilities view should rank and colour on **CVSS**, which is numeric
+and bounded 0–10 by `RiskScoreMaximum`, and render `Severity` as the
+provider-supplied text it is. If it must bucket at all, it should mirror
+`findingScore`'s arms exactly — including the `MODERATE`, `INFORMATIONAL` and
+`INFO` aliases that exist because providers disagree — rather than adopt
+Tenable's five-value set, which is one provider's vocabulary and not Conduit's.
 
 Syft appears only in `.github/workflows/*` and `scripts/*` — the optimizer
 candidate build and release path, where it produces SBOMs committed as evidence
@@ -161,7 +209,10 @@ gap is scoping those to an Environment, not new data.
 1. **Vulnerability detail** (captures 367, 360). The cheapest by a wide margin:
    the per-CVE findings and their suppression provenance are already in the
    payload `ProductDetailPage` fetches, and the console discards all but a tag
-   and a count. No endpoint, no contract change.
+   and a count. No endpoint, no contract change. **Rank and colour on `CVSS`,
+   not on `Severity`** — see the Tenable section above; severity is an
+   unconstrained string the contract gate cannot guard, and the Hub itself
+   prefers CVSS whenever it is present.
 2. **Modules.** Three upstream screens, four live endpoints, no UI. The largest
    single gap, and the one least dependent on judgement.
 3. **The Environment Changes tab**, plus the citation fix. Both small; the data
