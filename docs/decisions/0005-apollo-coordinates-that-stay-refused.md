@@ -85,21 +85,40 @@ RID is formed for a resource Conduit holds. Not on effort.
 `ApolloBundle.spaceId`, `ApolloEntity.spaceId`, `ApolloEnvironment.spaceId`,
 `ApolloProduct.spaceId`, `ApolloProductRelease.spaceId`.
 
-Conduit has no Space. Whether it should is issue #17, which is open and is a
-decision rather than a task. Until that is decided there is no value to serve
-and no honest default: every resource belonging to one implicit Space is itself
-a tenancy claim.
+Conduit has no Space, and as of 2026-08-16 it will not have one: issue #17
+closed as won't-do, choosing the honest refusal over a single default Space.
+There is therefore no value to serve and no honest default -- every resource
+belonging to one implicit Space would itself be a tenancy claim.
 
-**Closes on:** issue #17. These five are the concrete cost of leaving it open,
-and #16 (scan-before-install, which is controlled by a Space setting) is gated
-on the same decision.
+**Closes on:** nothing currently foreseen. These five are the accepted,
+permanent cost of that decision rather than the cost of leaving it open. The
+cost was weighed rather than waved past: #17 recorded that Apollo's own CLI
+carries space-id arguments (v0.500.0, v0.531.0), which is real evidence that
+Apollo treats the Space as load-bearing, and the decision went the other way
+anyway. The reason is that the argument for adopting a Space was about
+*naming*, not about data -- Conduit would still have had nothing to put in the
+field but a synthesized constant, and serving one under an Apollo field name is
+the invented correspondence this record's third decision driver forbids. A
+single default Space is also a discriminator that discriminates nothing until a
+second exists.
+
+**Reopens on:** a real multi-tenant deployment, or a capture establishing what
+an Apollo Space id is for a resource Conduit holds. Either would displace this
+record rather than amend it.
+
+Note for readers of older revisions: #16 (scan-before-install) was recorded here
+as gated on the same decision. It was not. #16 shipped without a Space, and is
+closed.
 
 ### Group 3 — no namespace (1)
 
 `ApolloEnvironment.namespaceId`.
 
-The same shape as group 2 and the same blocker, listed separately because it is
-a distinct Apollo concept and may not be decided by #17 alone.
+The same shape as group 2, listed separately because it is a distinct Apollo
+concept that #17 did not decide. The namespace half was split out to #26, which
+recommends deferring; until that is taken up this coordinate is refused for the
+same reason as group 2 -- there is no value to serve -- but by an open question
+rather than by a settled one.
 
 ## Consequences
 
@@ -120,4 +139,7 @@ a distinct Apollo concept and may not be decided by #17 alone.
   provenance tiers, and its bounds.
 - `internal/apollographql/domain/refusal.go` — the refusal text and why a null
   would be worse.
-- Issue #17 — the Space tenancy decision that closes six of the twelve.
+- Issue #17 — the Space tenancy decision, closed 2026-08-16 as won't-do, which
+  makes group 2's five refusals permanent rather than pending.
+- Issue #26 — the namespace question split out of #17, still open, which is
+  what group 3's single refusal now waits on.
