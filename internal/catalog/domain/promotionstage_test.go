@@ -122,7 +122,10 @@ func TestRecallConditionOutranksPromoteCondition(t *testing.T) {
 		},
 	}
 	reasons := EvaluateCanaryStage(request, promotionFixtureTime())
-	if !blockedBy(reasons, PromotionBlockerCanaryRecallTriggered, "recalls the Release") {
+	// The message must describe blocking, not recalling. Conduit produces no
+	// Recall from a canary evaluation, and a blocker that says it does tells an
+	// operator the Release has been withdrawn fleet-wide when it has not.
+	if !blockedBy(reasons, PromotionBlockerCanaryRecallTriggered, "blocks the promotion") {
 		t.Fatalf("reasons = %#v, want the recall condition to block", reasons)
 	}
 }
@@ -346,5 +349,53 @@ func TestEvidenceValidationRejectsEachWayEvidenceCanBeUnusable(t *testing.T) {
 	valid, blockers := ValidateEvidence(good, policy, observed)
 	if len(valid) != 2 || len(blockers) != 0 {
 		t.Fatalf("valid = %#v blockers = %#v", valid, blockers)
+	}
+}
+
+// TestCanaryRecallConditionBlocksRatherThanRecalling pins the divergence
+// declared in docs/operations/TENANT-FIDELITY.md.
+//
+// RECALL_WHEN_UNHEALTHY keeps Apollo's published name and does not do what the
+// name says: Conduit blocks the promotion and creates no Recall. The reason is
+// evidence provenance -- PromotionEvaluationRequest.Evidence is caller-
+// submitted and unattested, so a fleet-wide withdrawal derived from it would be
+// a denial-of-service primitive.
+//
+// Both halves are asserted, because either alone would pass while the other
+// regressed: the message must describe blocking, and the stage's return type
+// must remain blockers only. If a future change makes this produce a real
+// recall, this test fails and sends the author to the declaration.
+func TestCanaryRecallConditionBlocksRatherThanRecalling(t *testing.T) {
+	t.Parallel()
+	request := PromotionEvaluationRequest{
+		Policy: PromotionPolicy{
+			Type: PromotionCanary,
+			Conditions: []PromotionCondition{
+				{Action: RecallWhenUnhealthy, ThresholdPercent: 25},
+			},
+		},
+		Evidence: []PromotionHealthEvidence{
+			unhealthy("env-a", "worker"), unhealthy("env-a", "cron"),
+		},
+	}
+	blockers := EvaluateCanaryStage(request, promotionFixtureTime())
+
+	triggered := false
+	for _, blocker := range blockers {
+		if blocker.Kind != PromotionBlockerCanaryRecallTriggered {
+			continue
+		}
+		triggered = true
+		// The message an operator reads. "recalls the Release" told them the
+		// Release had been withdrawn everywhere, which was never true.
+		if strings.Contains(blocker.Message, "recalls the Release") {
+			t.Errorf("blocker asserts a recall Conduit does not perform: %q", blocker.Message)
+		}
+		if !strings.Contains(blocker.Message, "blocks the promotion") {
+			t.Errorf("blocker does not say what it actually does: %q", blocker.Message)
+		}
+	}
+	if !triggered {
+		t.Fatalf("the recall condition did not fire at all: %#v", blockers)
 	}
 }
