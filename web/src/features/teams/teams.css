@@ -1,0 +1,33 @@
+.console-teams__coordinate {
+  color: var(--pt-text-color-muted, #5f6b7c);
+  font-family: var(--pt-font-family-monospace, monospace);
+  font-size: 0.85em;
+}
+
+.console-teams__description {
+  max-width: 60ch;
+}
+
+.console-teams__role,
+.console-teams__labels,
+.console-teams__meta {
+  margin-block-start: 1.5rem;
+}
+
+.console-teams__principals {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  padding: 0;
+  list-style: none;
+}
+
+.console-teams__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
+  gap: 1rem;
+}
+
+.console-teams__meta dt {
+  font-weight: 600;
+}

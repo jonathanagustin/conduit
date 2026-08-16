@@ -7,3 +7,5 @@ export { ProductDetailPom } from "./ProductDetailPom.js";
 export { ProductIndexPom } from "./ProductIndexPom.js";
 export { PromotionsPom } from "./PromotionsPom.js";
 export { RiskPom } from "./RiskPom.js";
+export { TeamIndexPom } from "./TeamIndexPom.js";
+export { TeamDetailPom } from "./TeamDetailPom.js";
