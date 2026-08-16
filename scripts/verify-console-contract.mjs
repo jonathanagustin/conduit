@@ -21,6 +21,27 @@
 // are inline string literals rather than named consts in the Go, so they are
 // not extracted here; they are pinned by unit tests instead
 // (web/src/test/unit/logic.test.ts). If those become named consts, add them.
+//
+// Const-backed is necessary but NOT sufficient, because this gate checks set
+// equality in both directions -- so the console side must be a TOTAL map. The
+// Bundle import task vocabularies are the counterexample worth naming, since
+// their Go consts do exist (BundleImportTask* in internal/controlplane/
+// bundles.go) and they therefore look like a quick addition. They are not:
+//
+//   - Task status (PENDING/SUCCEEDED/FAILED/SKIPPED) is consumed by
+//     statusIntent in web/src/api/imports.ts, which is partial by design:
+//     PENDING and SKIPPED fall through to `default: "none"` so a task still
+//     moving or abandoned reads as neither an error nor a done deal. Set
+//     equality would call that deliberate neutrality a drift, and the only way
+//     to make it pass would be to colour statuses the console means to leave
+//     alone. statusIntent also serves the import-level vocabulary, so its cases
+//     are the union of two vocabularies and match neither const set alone.
+//   - Task stage (VERIFY_BUNDLE/STAGE_ARTIFACTS/IMPORT_CATALOG/
+//     APPLY_ENVIRONMENT_CHANGES) is rendered as a raw string in ImportPage.tsx
+//     (`{task.stage}`), so there is no console-side set to compare at all.
+//
+// Both stay pinned by unit tests. Adding either needs a console change first,
+// which makes it a design decision rather than the chore it resembles.
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
