@@ -71,18 +71,47 @@ value, because a zero reads as a Knative default Conduit never chose.
   addressable handle, and a collision is possible in principle. Hardening it (a
   digest suffix) is tracked with the interface's issue.
 
-## The one decision that is not the mapping
+## What this is not for, which is the more useful thing to record
 
-Everything above is the *mapping*, and it is grounded. The **shape** is a
-separate, larger decision, tracked in the interface's GitHub issue:
+This mapping was built while answering a different question badly, and the
+correction is worth keeping because the reasoning generalizes.
 
-- **(a) A read-only projection** — serve these Knative-shaped objects as JSON
-  over an HTTP route, exactly as the Apollo interface serves GraphQL. Bounded,
-  and the natural sibling of what already exists.
-- **(b) A live Kubernetes API surface** — an aggregated API server or CRDs that
-  real Knative clients (`kubectl`, `kn`) talk to. Much larger, and it drags in
-  the K8s API machinery, watch semantics, and the read-only boundary above.
+The question was: how should Conduit deploy a workload whose execution is an
+**invocation** rather than a **process** — something that is not an always-on
+container? Knative looks like the answer, and it is not. Three findings, in
+ascending order of force:
 
-The mapping in this directory is shape-agnostic: both (a) and (b) need the same
-honest Conduit→Knative correspondence. This slice builds that correspondence and
-stops at the boundary where the shape decides the rest.
+1. **Scale-to-zero does not save what it appears to.** On owned or fixed
+   capacity you have already paid for the nodes, so a parked pod costs
+   approximately nothing; the chain only yields money if a node actually
+   empties, is consolidated, and stops being billed. Where that chain does hold,
+   Knative's own always-on floor -- activator on the request path, autoscaler,
+   networking layer, webhooks -- has to be paid first, and for a modest fleet of
+   small workloads it can exceed the idle cost it removes.
+2. **Something must always listen.** "Not always running" is unachievable for
+   HTTP at the platform level; the only real choice is *what* is always on and
+   how widely it amortizes. Knative's answer reintroduces cold starts measured
+   in seconds, which is precisely the property edge-style workloads are chosen
+   for.
+3. **The deployable shape that works needs nothing from Knative.** A workload
+   bundled into a digest-pinned image, installed as an ordinary `helm-chart.v1`
+   release, gives per-workload promotion, approval, health and recall with **no
+   new agent execution path**. Scheduled workloads are a `CronJob` in the same
+   chart; queue-driven ones a KEDA `ScaledJob`. Both work today.
+
+A design that shipped the bundle *outside* the image -- a small object naming an
+artifact for a shared runtime to fetch -- was considered and rejected for a
+reason specific to this repository: Helm would succeed, Conduit would record the
+release as deployed, and a later fetch failure would leave the record false with
+nothing to surface it. For a system whose contract is that the record matches
+reality, a silent lie in the system of record is worse than an honest new verb.
+
+So Knative stays what this directory says it is: a correct correspondence, and a
+possible adapter target for a substrate that already runs Knative. It is not the
+model, and it should not anchor the decision in
+[#27](https://github.com/jonathanagustin/conduit/issues/27), which is now scoped
+to the one part that does belong here -- whether Conduit should publish a
+per-binding portability matrix, applying the MAPPED-or-REFUSED discipline to
+workload bindings per target the way
+[`docs/decisions/0005`](../decisions/0005-apollo-coordinates-that-stay-refused.md)
+applies it to coordinates.
