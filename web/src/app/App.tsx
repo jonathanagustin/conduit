@@ -15,6 +15,7 @@ import { ProductsPage, ProductDetailPage } from "../features/products/ProductsPa
 import { PromotionsPage } from "../features/promotions/PromotionsPage.js";
 import { RiskPage } from "../features/risk/RiskPage.js";
 import { TeamsPage, TeamDetailPage } from "../features/teams/TeamsPage.js";
+import { ExportPage } from "../features/exports/ExportPage.js";
 import { OverviewPage } from "../features/overview/OverviewPage.js";
 import { APPLICATION_DESTINATIONS, RAIL_DESTINATIONS } from "./navigation.js";
 import { NotFound } from "./NotFound.js";
@@ -73,7 +74,7 @@ export function App({ bootstrap }: AppProps) {
             <Route path="/plans/:planId" element={<PlanDetailPage />} />
             <Route path="/change-requests" element={<ChangeRequestsPage />} />
             <Route path="/change-requests/:changeRequestId" element={<ChangeRequestDetailPage />} />
-            <Route path="/export" element={<Placeholder title="Export" />} />
+            <Route path="/export" element={<ExportPage />} />
             <Route path="/import" element={<Placeholder title="Import" />} />
             <Route path="/risk" element={<RiskPage />} />
             <Route path="/teams" element={<TeamsPage />} />
