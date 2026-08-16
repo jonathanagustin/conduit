@@ -103,6 +103,86 @@ func (authorizer *Authorizer) RequirementSatisfied(
 	return false
 }
 
+// RequirementSatisfiable reports whether any current grant could satisfy this
+// requirement, independent of who is asking.
+//
+// This answers a different question from RequirementSatisfied: not "does this
+// principal meet it" but "could it be met at all right now". A policy can raise
+// a requirement -- typically require_operation naming an operation no grant
+// conveys -- that no principal, however teamed, can ever satisfy; the change
+// then sits Pending Approvals forever, unapprovable, with nothing saying why.
+//
+// It is deliberately not stored. Satisfiability is a property of the grant
+// table at this instant: a grant added a moment later makes a currently
+// unsatisfiable requirement satisfiable, and a grant removed does the reverse.
+// Any answer frozen at submission would be wrong in both directions, which is
+// why this is computed at read time and surfaced as a diagnostic rather than
+// used to move the change into a state.
+//
+// It is conservative under uncertainty. A grant-lookup failure returns true --
+// "cannot prove unsatisfiable" -- because a diagnostic that tells an operator a
+// change can never be approved when the store merely hiccupped is worse than
+// staying silent.
+func (authorizer *Authorizer) RequirementSatisfiable(
+	ctx context.Context, requirement domain.ReviewerRequirement,
+) bool {
+	switch requirement.Kind {
+	case domain.RequirementTeam:
+		// Met by team membership, which no grant constrains -- a member can
+		// always be added. Whether the named team exists is a separate question
+		// this does not claim to answer, so it does not flag a team requirement.
+		return true
+	case domain.RequirementRole, domain.RequirementOperation:
+		grants, err := authorizer.EffectiveGrants(ctx, requirement.ResourceRID)
+		if err != nil {
+			return true
+		}
+		for _, grant := range grants {
+			if requirement.Kind == domain.RequirementRole && containsString(grant.Roles, requirement.Role) {
+				return true
+			}
+			if requirement.Kind == domain.RequirementOperation &&
+				(containsString(grant.Operations, requirement.Operation) || domain.RolesAllow(grant.Roles, requirement.Operation)) {
+				return true
+			}
+		}
+	case domain.RequirementAny:
+		for _, candidate := range requirement.Alternatives {
+			if authorizer.RequirementSatisfiable(ctx, candidate) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// AnnotateSatisfiability returns copies of the requirements, each carrying the
+// read-time diagnostic of whether any current grant could satisfy it. The
+// originals are left untouched. The verdict is never stored -- it is a property
+// of the grant table at this instant -- so this is called on the read path and
+// its result is serialized, not persisted. The reason text lives here rather
+// than at the transport because it is a statement about grants and policies.
+func (authorizer *Authorizer) AnnotateSatisfiability(
+	ctx context.Context, requirements []domain.ReviewerRequirement,
+) []domain.ReviewerRequirement {
+	if len(requirements) == 0 {
+		return requirements
+	}
+	annotated := make([]domain.ReviewerRequirement, len(requirements))
+	for index, requirement := range requirements {
+		satisfiable := authorizer.RequirementSatisfiable(ctx, requirement)
+		requirement.Satisfiable = &satisfiable
+		if satisfiable {
+			requirement.Unsatisfiable = ""
+		} else {
+			requirement.Unsatisfiable = "no current grant conveys what this requirement demands, so no reviewer can " +
+				"satisfy it; grant the operation or role it names, or amend the policy that raised it"
+		}
+		annotated[index] = requirement
+	}
+	return annotated
+}
+
 // PrincipalCanReview reports whether this principal can move any one of the
 // outstanding requirements. Reviewing is not all-or-nothing: a reviewer who
 // satisfies one requirement may review, and whether that leaves the change

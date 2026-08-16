@@ -149,6 +149,15 @@ func requirementSatisfied(
 	return governanceAuthorizer(repository).RequirementSatisfied(ctx, requirement, principal)
 }
 
+// annotateSatisfiability is the read-path hook: it decorates a change request's
+// requirements with the satisfiability diagnostic the governance layer computes.
+// The logic and the reason text live there; this only wires it to the request
+// shape the transport returns.
+func annotateSatisfiability(ctx context.Context, repository Repository, request ChangeRequest) ChangeRequest {
+	request.Requirements = governanceAuthorizer(repository).AnnotateSatisfiability(ctx, request.Requirements)
+	return request
+}
+
 func principalCanReview(
 	ctx context.Context, repository Repository, requirements []ReviewerRequirement, principal Principal,
 ) bool {

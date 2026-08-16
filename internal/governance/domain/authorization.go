@@ -180,6 +180,17 @@ type ReviewerRequirement struct {
 	Reason       string                `json:"reason"`
 	Alternatives []ReviewerRequirement `json:"alternatives,omitempty"`
 	SatisfiedBy  []string              `json:"satisfiedBy,omitempty"`
+	// Satisfiable is computed at read time and never stored: whether any current
+	// grant could satisfy this requirement at all, independent of who is asking.
+	// nil means not computed; a pointer to false means no grant conveys it, so
+	// the change is unapprovable by anyone until one does. It is a pointer with
+	// omitempty for the same reason SatisfiedBy is populated only after creation
+	// -- absent at creation, it stays out of the SHA-256 digest that fixes this
+	// requirement's identity (see PolicyResult.Requirement).
+	Satisfiable *bool `json:"satisfiable,omitempty"`
+	// Unsatisfiable explains a false Satisfiable in one line, for the operator
+	// looking at a change that will not move and nothing saying why.
+	Unsatisfiable string `json:"unsatisfiable,omitempty"`
 }
 
 // PolicyEvaluation is what one policy decided about one change.
