@@ -84,6 +84,16 @@ func projectSession(
 			{ID: "fleet", Enabled: globalRead},
 			{ID: "plans", Enabled: true},
 			{ID: "promotions", Enabled: globalRead},
+			// The console builds its Applications rail from this list, so a screen
+			// absent here is unreachable through the navigation UI however complete
+			// its route. Teams is readable by any operator (GET /v1/teams needs only
+			// an operator principal); Risk, Export, and Import read platform-scoped
+			// collections (catalog-retirements, export-pipelines, bundle-imports),
+			// so they follow the same global-read gate fleet and promotions use.
+			{ID: "teams", Enabled: true},
+			{ID: "risk", Enabled: globalRead},
+			{ID: "export", Enabled: globalRead},
+			{ID: "import", Enabled: globalRead},
 		},
 		GlobalOperations: globalOperations,
 		Resources:        make([]SessionResourceCapabilities, 0, len(resourceRIDs)),
