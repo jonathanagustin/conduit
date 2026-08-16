@@ -1,0 +1,27 @@
+.console-exports__table tbody tr {
+  cursor: pointer;
+}
+
+.console-exports__table tbody tr[aria-selected="true"] {
+  background: var(--pt-intent-primary-muted, rgba(45, 114, 210, 0.15));
+}
+
+.console-exports__detail {
+  padding: 1rem;
+  border-block-start: 1px solid var(--pt-divider-black, rgba(17, 20, 24, 0.15));
+}
+
+.console-exports__selections {
+  padding-inline-start: 1rem;
+}
+
+.console-exports__meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
+  gap: 1rem;
+  margin-block-start: 1rem;
+}
+
+.console-exports__meta dt {
+  font-weight: 600;
+}
