@@ -1,0 +1,87 @@
+name: Mutation sweep
+
+# The heavy half of the mutation gate. A full sweep recompiles a package and
+# reruns its suite once per mutant, so it is minutes long and cannot sit in the
+# Trunk gate the way the offline ratchet (scripts/verify-mutation-scores.mjs)
+# does. It runs here on its own.
+#
+# Manual-only for now, per docs/operations/manual-ci.md: repository-authored
+# workflows use workflow_dispatch until assumption A4 is overturned in the
+# ledger. When it is, this is the first workflow that should carry a `schedule:`
+# trigger -- a weekly measurement is exactly the drift this catches -- and the
+# comment above the offline gate already names this file as its scheduled twin.
+on:
+  workflow_dispatch:
+    inputs:
+      write:
+        description: Raise the committed baseline where a package improved (opens a diff to review, does not commit)
+        required: false
+        type: boolean
+        default: false
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  sweep:
+    name: Mutation sweep
+    runs-on: ubuntu-24.04
+    # A full sweep of the bounded-context domains is observed in single-digit
+    # minutes; an uncapped job would run to GitHub's six-hour default on a hang.
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      # The web half of the sweep runs Stryker over the console through vitest,
+      # so the same pinned pnpm/Node the Trunk gate uses are installed here. No
+      # browser is needed: Stryker's runner is vitest, not Playwright.
+      - name: Install pinned pnpm
+        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        with:
+          version: 11.20.0
+      - name: Install pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.14.0
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install console dependencies
+        run: pnpm --dir web install --frozen-lockfile
+      # Pinned to a version for the same supply-chain reason every other tool in
+      # this repository is version-pinned: a sweep that silently changed its
+      # mutation engine would change the score without changing the code.
+      - name: Install pinned gremlins
+        run: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+      # Measure and ratchet. Without --write the sweep exits non-zero when any
+      # package regressed below its recorded efficacy; with it, the baseline is
+      # rewritten where a package improved so the diff can be reviewed and
+      # committed by a person. gremlins can drop an unused-in-scope dependency
+      # from go.mod mid-run, which the script restores after each package.
+      - name: Sweep mutation efficacy
+        run: |
+          if [[ "${WRITE}" == "true" ]]; then
+            ./scripts/mutation-sweep.sh --write
+          else
+            ./scripts/mutation-sweep.sh
+          fi
+        env:
+          WRITE: ${{ inputs.write }}
+      # Surface the rewritten baseline as a downloadable artifact when --write
+      # was requested, so an improvement can be reviewed before it is committed.
+      - name: Upload updated baseline
+        if: ${{ inputs.write }}
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: mutation-scores
+          path: docs/operations/mutation-scores.json
