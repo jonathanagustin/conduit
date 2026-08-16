@@ -176,7 +176,29 @@ func (source *Source) Reconcile(ctx context.Context, environment string, selecto
 	}
 
 	if err := source.converger.Converge(ctx, environment, admission); err != nil {
-		return Outcome{}, fmt.Errorf("converge %s on %s: %w", environment, pin, err)
+		converged := fmt.Errorf("converge %s on %s: %w", environment, pin, err)
+		// Withdraw the claim just recorded. The record above says this
+		// environment moved to this digest, and it did not; leaving it standing
+		// attributes a deployment that never happened, and because Deployed()
+		// only advances on success the next tick takes the same branch and
+		// records the same phantom again, once per reconcile interval.
+		//
+		// Appended rather than edited, because the log is append-only and that
+		// is the property that makes it evidence. The ordering above is not
+		// reversed to avoid this: recording after converging would trade an
+		// overstated record for an unattributable deployment, which is the
+		// worse of the two.
+		withdrawal := resolution
+		withdrawal.Failure = err.Error()
+		if recordErr := source.log.Record(ctx, withdrawal); recordErr != nil {
+			// The log now overstates what happened and cannot be corrected.
+			// Both failures are reported: the converge is why nothing
+			// deployed, the record is why the log should not be trusted about
+			// it.
+			return Outcome{}, errors.Join(converged, fmt.Errorf(
+				"withdraw the resolution record for %s after the convergence failed: %w", selector, recordErr))
+		}
+		return Outcome{}, converged
 	}
 	return Outcome{Admission: admission, Deployed: true, Moved: deployed != "", Superseded: deployed}, nil
 }

@@ -14,10 +14,12 @@ package gitless_test
 // matters.
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -74,13 +76,31 @@ func (fake *recordingLog) Record(_ context.Context, resolution domain.Resolution
 	return nil
 }
 
+// publishedDigest finds the digest a rendered manifest pins. A real Flux store
+// answers CurrentDigest from what was published to it, so a double whose
+// CurrentDigest cannot see its own Put is not a store -- it is a store that has
+// never deployed anything, which is a different fixture and a much weaker one.
+var publishedDigest = regexp.MustCompile(`sha256:[0-9a-f]{64}`)
+
 type manifestStore struct {
 	published []byte
 	current   string
+	calls     int
 }
 
 func (fake *manifestStore) Put(_ context.Context, _ string, manifest []byte) error {
+	fake.calls++
 	fake.published = manifest
+	// Wired to CurrentDigest, which it was not. Put wrote `published` and
+	// CurrentDigest returned `current`, and nothing ever set `current` -- so
+	// Deployed() always answered "", the already-there short circuit never
+	// fired, and the Flux path re-recorded and re-converged on every tick
+	// inside the test asserting that it did not. That test passed because it
+	// asserted only Moved, which is false either way, and never counted
+	// convergences. It counts them now.
+	if found := publishedDigest.Find(manifest); found != nil {
+		fake.current = string(found)
+	}
 	return nil
 }
 
@@ -114,15 +134,18 @@ func (fake *desiredStateStore) CurrentGeneration(context.Context, string) (strin
 // approach is one realisation of Gitless GitOps, plus a way to ask whether it
 // actually deployed anything.
 type approach struct {
-	name  string
-	build func(t *testing.T, attestation domain.Attestation, digest string) (*application.Source, func() bool)
+	name string
+	// converged counts convergences rather than answering whether any
+	// happened. "Did it deploy" cannot express "and it did not deploy again",
+	// which is the property the unchanged-channel case exists to assert.
+	build func(t *testing.T, attestation domain.Attestation, digest string) (*application.Source, func() int)
 }
 
 func approaches() []approach {
 	return []approach{
 		{
 			name: "convergence delegated to Flux",
-			build: func(t *testing.T, attestation domain.Attestation, digest string) (*application.Source, func() bool) {
+			build: func(t *testing.T, attestation domain.Attestation, digest string) (*application.Source, func() int) {
 				t.Helper()
 				store := &manifestStore{}
 				converger, err := fluxconverge.New(store, fluxconverge.Options{
@@ -137,12 +160,12 @@ func approaches() []approach {
 				if err != nil {
 					t.Fatalf("build source: %v", err)
 				}
-				return source, func() bool { return len(store.published) > 0 }
+				return source, func() int { return store.calls }
 			},
 		},
 		{
 			name: "convergence owned by Conduit",
-			build: func(t *testing.T, attestation domain.Attestation, digest string) (*application.Source, func() bool) {
+			build: func(t *testing.T, attestation domain.Attestation, digest string) (*application.Source, func() int) {
 				t.Helper()
 				store := &desiredStateStore{}
 				converger, err := conduitconverge.New(artifactFetcher{payload: payload}, store, 0)
@@ -154,7 +177,7 @@ func approaches() []approach {
 				if err != nil {
 					t.Fatalf("build source: %v", err)
 				}
-				return source, func() bool { return store.calls > 0 }
+				return source, func() int { return store.calls }
 			},
 		},
 	}
@@ -221,14 +244,14 @@ func TestBothApproachesAdmitAndRefuseTheSameSources(t *testing.T) {
 	for _, testCase := range cases {
 		for _, realisation := range approaches() {
 			t.Run(testCase.name+", "+realisation.name, func(t *testing.T) {
-				source, deployed := realisation.build(t, testCase.attestation, testCase.digest)
+				source, converged := realisation.build(t, testCase.attestation, testCase.digest)
 				_, err := source.Reconcile(t.Context(), "prod", channel())
 
 				if testCase.admitted {
 					if err != nil {
 						t.Fatalf("refused a source both approaches must admit: %v", err)
 					}
-					if !deployed() {
+					if converged() == 0 {
 						t.Fatal("admitted the source but deployed nothing")
 					}
 					return
@@ -247,7 +270,7 @@ func TestBothApproachesAdmitAndRefuseTheSameSources(t *testing.T) {
 				if !found {
 					t.Errorf("expected reason %s, got %v", testCase.reason, refused.Reasons())
 				}
-				if deployed() {
+				if converged() > 0 {
 					t.Fatal("a refused source was deployed anyway")
 				}
 			})
@@ -262,7 +285,7 @@ func TestNeitherApproachRedeploysAnUnchangedChannel(t *testing.T) {
 	attestation := domain.Attestation{Signed: true, Issuer: trustedIssue, Identity: trustedIdent, Digest: good}
 	for _, realisation := range approaches() {
 		t.Run(realisation.name, func(t *testing.T) {
-			source, _ := realisation.build(t, attestation, good)
+			source, converged := realisation.build(t, attestation, good)
 			for attempt := range 3 {
 				outcome, err := source.Reconcile(t.Context(), "prod", channel())
 				if err != nil {
@@ -272,6 +295,84 @@ func TestNeitherApproachRedeploysAnUnchangedChannel(t *testing.T) {
 					t.Fatalf("reconcile %d reported a move for an unchanged channel", attempt)
 				}
 			}
+			// The assertion this case was named for. Moved is false whether the
+			// approach short-circuits or re-converges every tick, so asserting
+			// it alone let the Flux path re-deploy three times inside the test
+			// that says neither approach redeploys.
+			if got := converged(); got != 1 {
+				t.Fatalf("three reconciles of an unchanged channel converged %d times, want 1", got)
+			}
 		})
 	}
+}
+
+// TestTheApproachesDivergeOnAMirrorServingDifferentBytes is the case the six
+// above cannot reach, and it is the one where the two approaches genuinely
+// disagree.
+//
+// Every other case varies an admission input, and admission is computed once
+// before either converger is chosen -- so no admission input can make them
+// differ. This one lives past admission: a mirror serves bytes whose digest is
+// not the digest that was admitted.
+//
+// Conduit re-hashes what arrived and refuses, because admission established
+// that a trusted publisher signed a digest and only this establishes that the
+// registry then served it. Flux never fetches; it renders a manifest naming the
+// digest and reports success, deferring the integrity check to the cluster.
+//
+// So at the Hub the two report opposite outcomes for identical tampering. That
+// is deliberate and documented in ADR 0004, and it was asserted by nothing --
+// which meant the equivalence suite read as "these are interchangeable" without
+// stating the boundary of the claim. Pinned here so a change to either side has
+// to come past this test and restate the divergence on purpose.
+func TestTheApproachesDivergeOnAMirrorServingDifferentBytes(t *testing.T) {
+	admitted := digestOf(payload)
+	attestation := domain.Attestation{Signed: true, Issuer: trustedIssue, Identity: trustedIdent, Digest: admitted}
+	tampered := []byte("bytes the publisher never signed")
+
+	t.Run("Conduit refuses what the mirror substituted", func(t *testing.T) {
+		store := &desiredStateStore{}
+		converger, err := conduitconverge.New(artifactFetcher{payload: tampered}, store, 0)
+		if err != nil {
+			t.Fatalf("build Conduit converger: %v", err)
+		}
+		source, err := application.New(
+			resolver{digest: admitted}, verifier{attestation: attestation}, policies{}, &recordingLog{}, converger)
+		if err != nil {
+			t.Fatalf("build source: %v", err)
+		}
+		if _, err := source.Reconcile(t.Context(), "prod", channel()); err == nil {
+			t.Fatal("substituted bytes were converged on")
+		}
+		if store.calls != 0 {
+			t.Errorf("desired state was written for bytes that were never admitted: %d call(s)", store.calls)
+		}
+	})
+
+	t.Run("Flux publishes the manifest and defers the check to the cluster", func(t *testing.T) {
+		store := &manifestStore{}
+		converger, err := fluxconverge.New(store, fluxconverge.Options{
+			ServiceAccountName: "platform-runtime-reconciler",
+			PullSecretName:     "conduit-runtime-pull",
+		})
+		if err != nil {
+			t.Fatalf("build Flux converger: %v", err)
+		}
+		source, err := application.New(
+			resolver{digest: admitted}, verifier{attestation: attestation}, policies{}, &recordingLog{}, converger)
+		if err != nil {
+			t.Fatalf("build source: %v", err)
+		}
+		// It succeeds because it never looked. The manifest pins the admitted
+		// digest, so what the mirror served is the cluster's problem to catch.
+		if _, err := source.Reconcile(t.Context(), "prod", channel()); err != nil {
+			t.Fatalf("the Flux path fetched bytes it is documented not to fetch: %v", err)
+		}
+		if store.calls != 1 {
+			t.Errorf("want one manifest published, got %d", store.calls)
+		}
+		if !bytes.Contains(store.published, []byte(admitted)) {
+			t.Error("the published manifest does not pin the admitted digest")
+		}
+	})
 }
