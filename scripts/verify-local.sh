@@ -165,6 +165,11 @@ apollo_contract() {
     ./scripts/verify-documentation-freshness.test.sh
 }
 
+review_ledger() {
+  node scripts/verify-review-ledger.mjs &&
+    ./scripts/verify-review-ledger.test.sh
+}
+
 zenith_protocol() {
   node scripts/verify-zenith-protocol.mjs &&
     node tools/zenith-protocol/scripts/conform.test.mjs &&
@@ -207,6 +212,7 @@ gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" ruby scripts/ver
 gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
 gate 'Validate Zenith protocol ledgers' zenith_protocol
+gate 'Validate review ledger' review_ledger
 gate 'Validate Module publication' go run ./cmd/platform-module-publisher --directory examples/modules --dry-run
 gate 'GitOps acceptance' ./scripts/test-gitops.sh
 
