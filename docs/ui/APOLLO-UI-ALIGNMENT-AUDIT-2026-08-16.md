@@ -77,19 +77,62 @@ Apollo GraphQL interface already applies: MAPPED-or-REFUSED. Where the Hub holds
 no data, an absent screen is the honest outcome. Here the data exists and the
 console simply does not read it.
 
-### Correctly absent
+### Vulnerability detail: served, and the cheapest gap here
 
-Two captures have **no Hub backing**, so their absence is the rule working
-rather than a gap:
+An earlier revision of this audit called captures **367** and **368**
+"correctly absent — no endpoint serves them." **That was wrong in both cases**,
+and wrong in the direction this repository most guards against: it read a screen
+that was missing and concluded the data was missing, without grepping. Conduit
+runs Grype, and the findings are domain data.
 
-- **367** — the Vulnerabilities tab of the Risk Management application. The
-  console's `RiskPage` shows *recalls*; `SECURITY` appears there only as a
-  recall **source**, not as a vulnerability inventory. No endpoint serves one.
-- **368** — current and target Release risk scores as Plan metadata. Neither
-  `risk` nor `score` appears in `PlanDetailPage`, and nothing serves them.
+`internal/grypescanner` adapts Grype to the Hub's `ArtifactScanner` contract,
+`cmd/platform-grype-scanner` is its binary, and `POST /v1/artifact-scans`
+ingests the result. What lands on a Release
+(`internal/catalog/domain/release.go:55`) is not a summary:
 
-Building either would mean inventing the data behind a screen that looks
-authoritative, which is the failure the provenance model exists to prevent.
+| Field | Content |
+| --- | --- |
+| `ActiveFindings` | **Per-CVE** detail — `id`, `cvss`, `severity`. Its comment: "what makes a Release's risk score computable, so a scanner that reports only counts cannot authorize an upgrade" |
+| `SuppressedFindingDetails` | Per-finding suppression provenance — scope, category, rationale, `requestedBy`, `approvedBy`, `changeRequestId`, `validUntil` |
+| `GracePeriodFindings`, `Provider`, `RunID`, `AssessedAt` | Scan identity and the freshness input for `MaximumScanAgeSeconds` |
+
+All of it is served on `GET /v1/products/{product}/releases` — **an endpoint the
+console already fetches**. What the console renders from it is
+`AssessmentTag` (`ProductsPage.tsx:206`), whose props are exactly
+`{ outcome, activeVulnerabilities }`: one tag and one integer. Every per-CVE
+row, every suppression with its approval trail, and the scan's provenance are
+already in the browser's hands and thrown away.
+
+That makes **367** (a Vulnerabilities inventory) the cheapest real gap in this
+audit — no new endpoint, no new contract, a projection over a payload already
+fetched. **360** ("an active vulnerability is shown in the Security tab") is the
+same data at Release scope.
+
+**368** is also served, with a caveat worth stating precisely. The scores are
+`UpgradeRationale.CurrentRiskScore` / `TargetRiskScore`
+(`internal/delivery/plan/plan.go:92-93`), set at `internal/controlplane/risk.go:245`
+and carried on a **plan step**, not on the Plan. They are **conditional**:
+`UpgradeRationale`'s own comment says "its presence is the evidence that the
+narrower selection path ran", so they exist only for upgrades chosen through the
+vulnerability-recall exception. The console's `PlanStep` interface does not carry
+them. A Plan detail view can show them honestly — as evidence that appears when
+that path ran and is absent otherwise — but must not imply every Plan has a
+score.
+
+`ReleaseRiskScore` (`internal/controlplane/risk.go:89`) already grades a Release
+0–10 from the unsuppressed findings, so the scale a UI would render is the Hub's,
+not a new invention.
+
+### Syft, and why it opens nothing
+
+Syft appears only in `.github/workflows/*` and `scripts/*` — the optimizer
+candidate build and release path, where it produces SBOMs committed as evidence
+under `docs/evidence/`. There is **no SBOM domain type and no Hub endpoint**; the
+single mention under `internal/` is a comment on `VulnerabilityAssessment`
+noting that SBOM scanners are one *provider class* normalizing into that record.
+So syft is build-time supply-chain evidence, not a runtime contract, and it
+implies no console surface. Recorded so the next reader does not go looking for
+an SBOM screen and mistake its absence for a gap.
 
 ## Part 3 — a defect found while auditing
 
@@ -115,17 +158,25 @@ gap is scoping those to an Environment, not new data.
 
 ## Ranked recommendations
 
-1. **Modules.** Three upstream screens, four live endpoints, no UI. The largest
-   single gap and the one least dependent on judgement.
-2. **The Environment Changes tab**, plus the citation fix. Both small; the data
+1. **Vulnerability detail** (captures 367, 360). The cheapest by a wide margin:
+   the per-CVE findings and their suppression provenance are already in the
+   payload `ProductDetailPage` fetches, and the console discards all but a tag
+   and a count. No endpoint, no contract change.
+2. **Modules.** Three upstream screens, four live endpoints, no UI. The largest
+   single gap, and the one least dependent on judgement.
+3. **The Environment Changes tab**, plus the citation fix. Both small; the data
    is already read elsewhere.
-3. **A Release detail route** (`/products/:product/releases/:version`) for
-   capture 306, whose endpoint is live and unread.
-4. **Faceted filter counts.** Needs `/v1/fleet/installations` to return counts
+4. **A Release detail route** (`/products/:product/releases/:version`) for
+   capture 306, whose endpoint is live and unread. Natural home for the
+   Release-scoped Security tab in 360.
+5. **Plan risk scores** (capture 368) on `PlanStep`, rendered as conditional
+   evidence rather than a field every Plan has.
+6. **Faceted filter counts.** Needs `/v1/fleet/installations` to return counts
    before the UI can show them, so it is a contract change first.
-5. **Leave alone:** the dark-only palette, the 2020 navigation and labels, and
-   an event timeline. The first two are out of bounds by the rule this document
-   opens with; the third has no data behind it.
+7. **Leave alone:** the dark-only palette, the 2020 navigation and labels, an
+   event timeline, and any SBOM screen. The first two are out of bounds by the
+   rule this document opens with; the third has no data behind it; the fourth
+   has no contract, only CI artifacts.
 
 ## Method
 
@@ -133,5 +184,15 @@ Both `.webp` files were viewed directly rather than read through the existing
 prose summary. Console composition was read from `web/src/features/**` and
 `web/src/components/**`. The route surface was extracted from
 `internal/controlplane/http.go` and diffed against the endpoints reached from
-`web/src/api/*.ts`. Every "absent" above was checked against the Hub before
-being called a gap; the two that are correctly absent are listed as such.
+`web/src/api/*.ts`.
+
+One correction is recorded rather than quietly fixed, because the mistake is the
+instructive part. The first revision called captures 367 and 368 "correctly
+absent — no endpoint serves them", reasoning from the absence of a *screen* to
+the absence of *data*. Both were wrong: `grep -rn "VulnerabilityFinding"` and
+`grep -rn "RiskScore"` settle it in one command each. This is the same failure
+`APOLLO-WORK-QUEUE.md` records five times over — reasoning from plausibility
+instead of grepping — and it is worth noting that it recurs even in an audit
+whose whole purpose is to check claims against source. An absent screen is
+evidence about the UI and nothing else; only the Go source is evidence about
+what the Hub can answer.
