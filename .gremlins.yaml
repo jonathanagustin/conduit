@@ -1,0 +1,37 @@
+# Gremlins mutation-testing configuration for Conduit.
+#
+# Mutation testing asks the question the coverage number cannot: not "did a test
+# run this line" but "would a test have failed if this line were wrong". The
+# repository already proves individual gates reject via scripts/verify-mutant-
+# killed.sh, one hand-planted mutant at a time. This measures the suite as a
+# whole, over mutants nobody thought to plant.
+#
+# Why gremlins: it installs cleanly on this module, honours build tags, scopes
+# to a package, and exits non-zero below a configured efficacy threshold, which
+# is the ratchet lever scripts/verify-mutation-scores.mjs reads.
+#
+# A note on "timed out" in a gremlins run here: this repository's unit suites run
+# in milliseconds, and a mutation that flips a loop bound or negates a
+# termination check makes the mutated test run hang. Gremlins reports those as
+# TIMED OUT rather than KILLED, but they are detected all the same -- a hang is a
+# behaviour change the suite noticed. Efficacy (killed over killed-plus-lived)
+# is the honest score, and a survivor is a LIVED, never a TIMED OUT.
+unleash:
+  # Run the package's own tests per mutant rather than the whole suite. The
+  # bounded-context domains this sweep targets are self-contained, so their own
+  # tests are what should catch a mutant in them; integration mode would be far
+  # slower and would credit an unrelated test for a domain mutant.
+  integration: false
+  # The clean-run timeout is multiplied by this before a mutant is called timed
+  # out. The suites are fast, so a generous coefficient keeps a merely-slow
+  # mutant from being counted as a hang without changing the score (a real
+  # survivor still LIVES; this only moves the KILLED/TIMED-OUT line).
+  timeout-coefficient: 10
+  tags: ""
+
+# Quality gate. A run below this efficacy exits non-zero. It is set per invocation
+# by scripts/mutation-sweep.sh from the committed baseline so the gate ratchets
+# with the recorded scores rather than sitting at a fixed floor.
+threshold:
+  efficacy: 0
+  mcover: 0
