@@ -14,10 +14,12 @@ import "./environments.css";
 
 /** Environment detail -- P0: "What is happening in this Environment?"
  *
- * The tab set is the upstream one, evidenced by captures 070 (Overview), 069
- * (Changes) and 066 (Commands) in docs/ui/upstream-screen-evidence.tsv. Only
+ * The tab set is the upstream one, evidenced by captures 206 (Overview), 200
+ * (Changes) and 157 (Commands) in docs/ui/upstream-screen-evidence.tsv. Only
  * the tabs backed by an endpoint are present: an empty tab that exists because
- * upstream has one would be a claim this Hub cannot honour. */
+ * upstream has one would be a claim this Hub cannot honour. Plans is here in
+ * place of upstream's Changes tab and is separately evidenced by capture 058,
+ * an Environment-level Plans view. */
 export function EnvironmentDetailPage() {
   const { environmentId = "" } = useParams();
   const [tab, setTab] = useState<string>("overview");
