@@ -60,4 +60,11 @@ abort "Apollo public publishHelmChart handler includes Conduit-native platform a
 boundary_test = "TestApolloPublicAPIPublishHelmChartDoesNotAdmitPlatformNativeBundleFields"
 abort "Apollo public/native Helm publication boundary lacks #{boundary_test}" unless test_source.include?(boundary_test)
 
-puts "Apollo public API adapter covers #{expected.length}/#{expected.length} pinned operations"
+# Say what was checked, not what a reader would like it to mean. "13/13
+# operations" read as thirteen operations conforming to the snapshot; what this
+# script establishes is that thirteen operationIds have an adapter method and
+# appear in the test source, plus the architecture tripwires above. Response
+# shapes are checked by TestApolloResponsesMatchThePinnedSchemas, which drives
+# the operations and validates what they answer with.
+puts "Apollo public API adapter: #{expected.length}/#{expected.length} pinned operationIds have an adapter " \
+     "method and a named test; source-text checks only, response shapes are gated separately"

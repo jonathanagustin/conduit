@@ -143,8 +143,12 @@ build_commands() {
 }
 
 apollo_contract() {
-  ruby scripts/apollo-docs/validate-public-api.rb \
-    docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml &&
+  # The response-shape check leads, because the gates below it establish that
+  # the transport matches the snapshot and none of them reads a response body.
+  # It drives the read operations and validates what they answer with.
+  go test ./internal/controlplane -run TestApolloResponsesMatchThePinnedSchemas &&
+    ruby scripts/apollo-docs/validate-public-api.rb \
+      docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml &&
     ./scripts/verify-apollo-routes.sh &&
     ruby scripts/apollo-docs/verify-public-api-adapter.rb &&
     ruby scripts/apollo-docs/validate-cli-fixtures.rb &&
