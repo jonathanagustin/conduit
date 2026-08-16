@@ -21,6 +21,12 @@ export interface ExportPipeline {
   id: string;
   displayName: string;
   buildStrategy: string;
+  // status is ACTIVE, ARCHIVED, or DELETED (controlplane.bundles.go). It matters
+  // because GET /v1/export-pipelines returns every pipeline, archived and
+  // deleted included, so a screen that ignored it would show a retired pipeline
+  // as if it still exported. An empty status is treated as ACTIVE, matching the
+  // Hub's own `status == "" || status == ACTIVE` reading.
+  status?: string;
   checkpointFrequency?: number;
   selections: BundleSelectionRule[];
   resourceTypes?: string[];
@@ -29,6 +35,27 @@ export interface ExportPipeline {
   includeArtifacts?: boolean;
   requireMalwarePass?: boolean;
   buildDespiteMissingResources?: boolean;
+}
+
+/** The lifecycle state of a pipeline, normalized so an empty status reads as
+ * ACTIVE the way the Hub reads it, and a Blueprint intent for it: a live
+ * pipeline is success, an archived one is muted to warning, and a deleted one
+ * is danger -- none of which a reader should have to infer from its absence. */
+export function pipelineStatus(pipeline: ExportPipeline): string {
+  return pipeline.status === undefined || pipeline.status === "" ? "ACTIVE" : pipeline.status;
+}
+
+export function pipelineStatusIntent(status: string): "success" | "warning" | "danger" | "none" {
+  switch (status.toUpperCase()) {
+    case "ACTIVE":
+      return "success";
+    case "ARCHIVED":
+      return "warning";
+    case "DELETED":
+      return "danger";
+    default:
+      return "none";
+  }
 }
 
 export function useExportPipelines() {
