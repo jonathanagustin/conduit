@@ -40,6 +40,7 @@ func TestTheProvenanceReportCountsWhatTheServerReads(t *testing.T) {
 	}
 	var report struct {
 		ObservedFields      int `json:"observedFields"`
+		DocumentedFields    int `json:"documentedFields"`
 		ConduitNativeFields int `json:"conduitNativeFields"`
 	}
 	if err := json.Unmarshal(raw, &report); err != nil {
@@ -49,12 +50,36 @@ func TestTheProvenanceReportCountsWhatTheServerReads(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read provenance: %v", err)
 	}
-	observed, native := declared.Count()
-	if observed != report.ObservedFields || native != report.ConduitNativeFields {
+	observed, documented, native := declared.Count()
+	if observed != report.ObservedFields || documented != report.DocumentedFields || native != report.ConduitNativeFields {
 		t.Fatalf(
-			"the served interface carries %d observed / %d Conduit-native field(s); the provenance report "+
-				"claims %d / %d. Re-run scripts/apollo-graphql/build-interface-schema.mjs",
-			observed, native, report.ObservedFields, report.ConduitNativeFields,
+			"the served interface carries %d observed / %d documented / %d Conduit-native field(s); the "+
+				"provenance report claims %d / %d / %d. Re-run "+
+				"scripts/apollo-graphql/build-interface-schema.mjs",
+			observed, documented, native,
+			report.ObservedFields, report.DocumentedFields, report.ConduitNativeFields,
+		)
+	}
+}
+
+// Every served field now traces to some Apollo source, which is a stronger claim
+// than the interface started with and an easy one to lose quietly. It is pinned
+// so that adding a field with no citation fails here rather than passing as a
+// rounding change in a report nobody reads.
+//
+// This is not a demand that the number stay zero. If Conduit genuinely invents a
+// coordinate, the honest move is to declare it CONDUIT_NATIVE and update this
+// count deliberately -- which is exactly what failing here forces.
+func TestNoServedFieldIsWithoutAnApolloSource(t *testing.T) {
+	declared, err := domain.ReadProvenance(schema.SDL())
+	if err != nil {
+		t.Fatalf("read provenance: %v", err)
+	}
+	if _, _, native := declared.Count(); native != 0 {
+		t.Errorf(
+			"%d served field(s) carry no Apollo source of any kind; the pinned count is 0. If Conduit "+
+				"invented a coordinate on purpose, update this count and docs/apollo/conformance.md",
+			native,
 		)
 	}
 }

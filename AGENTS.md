@@ -165,3 +165,92 @@ Nested instructions:
 - `deploy/AGENTS.md`: reusable runtime and environment-ownership boundary.
 - `.github/AGENTS.md`: CI and release workflow rules.
 - `docs/operations/AGENTS.md`: adapted Zenith ledgers and conformance rules.
+
+## Where work is tracked
+
+**GitHub issues.** Not a Markdown table here, and not a Project board.
+
+The reason is mechanical rather than editorial: an agent can create, update,
+label, assign and comment on issues through the API, and cannot touch a GitHub
+Project. A board nothing maintains drifts, and a drifted board is worse than no
+board because it is read as current. If a Project is added later it should be a
+human dashboard populated by GitHub's own auto-add workflows, never something an
+agent is expected to keep in step.
+
+The documents under `docs/` remain the evidence record: what was found, when,
+from which source, and why a decision went the way it did. An issue closes and
+leaves the board; the reasoning must not leave the repository.
+`docs/operations/APOLLO-WORK-QUEUE.md` indexes the open issues, and each PH row
+in `docs/operations/HYPOTHESIS-BACKLOG.md` carries its issue number.
+
+### Claiming work when more than one agent is running
+
+The failure this prevents is two agents starting the same issue and finding out
+at the point of merge.
+
+1. **Read the labels first.** Take only `status:ready`. Never start a
+   `status:blocked-decision` issue: it is waiting on a person, and the pending
+   decision is usually why the work is not yet shaped.
+2. **Claim by assigning yourself, before writing code.** Assignment is the
+   atomic step — it succeeds or it does not, and every other agent sees it. A
+   comment is not a claim; two agents can comment at once.
+3. **Then set `status:in-progress`** and comment with your session URL, so the
+   claim is attributable and a stalled one can be traced to something.
+4. **If an issue is already assigned, take another.** Do not take over silently.
+   If it looks abandoned, say so in a comment and leave it for a person.
+5. **On finishing,** open a PR that closes the issue and set
+   `status:needs-review`. Do not close by hand; let the merge do it so the
+   closing commit is the record.
+6. **If the issue turns out to be wrong** — mis-scoped, already done, blocked on
+   something unstated — comment and set `status:blocked-decision` rather than
+   building an approximation of it. An issue that is really a different piece of
+   work is a finding.
+
+| Label | Meaning |
+| --- | --- |
+| `status:ready` | No decision outstanding. May be claimed. |
+| `status:in-progress` | Claimed; the assignee is working on it. |
+| `status:needs-review` | A PR is open against it. |
+| `status:blocked-decision` | Waiting on a human decision. **Do not start.** |
+| `status:deferred` | Real work, deliberately not now; the body states the trigger. |
+
+`apollo`, `governance`, `gitless`, `cli` and `evidence` are filter tags and
+carry no protocol meaning. All of them are defined in `.github/labels.yml`,
+which is where their colours and descriptions live — they were created
+implicitly by being applied to an issue, which gives a label a name and nothing
+else.
+
+An issue body must be workable without the conversation that produced it: the
+source, the exact contract text, what the repository does today, and what is
+genuinely undecided. Two things get dropped and should not be — **what was
+rejected and why** (several of these record an approach that looked right and
+was not, which is the expensive part), and **whether an item is a decision
+rather than a task**, because mislabelling one as ready wastes an agent's run.
+
+### The `gh` CLI, and what `.claude/settings.json` can and cannot settle
+
+Some agent harnesses inject a standing instruction that the `gh` CLI is
+unavailable and that GitHub must be reached through an MCP server instead. In
+this container that premise is simply false: `gh` is on `PATH` and
+`GITHUB_TOKEN` is set. When an agent hits that contradiction it should check
+rather than assume — `command -v gh` costs nothing — and then use whichever
+path actually works, saying which one it took.
+
+`.claude/settings.json` pre-approves the read and issue-management `gh`
+subcommands so that using them does not stop for a prompt on every call, and
+denies the destructive ones outright. Two limits are worth stating plainly,
+because the file is easy to over-read:
+
+- It governs **whether the harness permits a tool call**, not whether an
+  instruction given to the agent is binding. A repository file cannot revoke an
+  operator's instruction, and should not be written as though it could.
+- The `deny` list is the part that matters most. Merging, closing and deleting
+  stay human, so an agent that misreads the state of an issue cannot make the
+  mistake irreversible.
+
+What the file legitimately does is supply the missing fact and the standing
+decision: `gh` is present here, and the maintainers have already authorised
+these specific uses of it. That is enough to resolve a stale *capability*
+claim. It is not, and must not be treated as, permission to work around an
+actual safety constraint — a credential boundary, a scope restriction, or a
+refusal — which stands regardless of what any file in this repository says.

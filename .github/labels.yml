@@ -1,0 +1,53 @@
+# Issue labels.
+#
+# The `status:` set is the coordination protocol described in AGENTS.md, not
+# decoration: an agent reads it to decide what it may claim, and a wrong colour
+# is cosmetic where a wrong name is a collision. They were created implicitly by
+# being applied to issues, which gives them a name and nothing else, so this file
+# is where their meaning and appearance live.
+#
+# Apply with:
+#
+#   gh label create <name> --color <color> --description <desc> --force
+#
+# one line per entry below, or with any of the label-sync actions that read this
+# format. It is deliberately not wired into CI: labels change rarely, and a
+# workflow that rewrites them on every push would fight anyone editing one in the
+# web UI.
+
+# --- coordination -------------------------------------------------------------
+# Exactly one of these belongs on every open issue. The colours run cool-to-warm
+# by how much attention the issue needs from a person.
+- name: "status:ready"
+  color: "0e8a16"
+  description: "No decision outstanding. An agent may claim this."
+- name: "status:in-progress"
+  color: "1d76db"
+  description: "Claimed. The assignee is working on it."
+- name: "status:needs-review"
+  color: "5319e7"
+  description: "A pull request is open against this issue."
+- name: "status:blocked-decision"
+  color: "d93f0b"
+  description: "Waiting on a human decision. Do not start."
+- name: "status:deferred"
+  color: "fbca04"
+  description: "Real work, deliberately not now. The body states the trigger."
+
+# --- domain -------------------------------------------------------------------
+# Filters only. These carry no protocol meaning and an issue may have several.
+- name: "apollo"
+  color: "c5def5"
+  description: "Apollo contract, interface, or evidence."
+- name: "governance"
+  color: "c5def5"
+  description: "Change requests, CEL policies, authorization."
+- name: "gitless"
+  color: "c5def5"
+  description: "Gitless GitOps convergence and its adapters."
+- name: "cli"
+  color: "c5def5"
+  description: "The conduit command line."
+- name: "evidence"
+  color: "bfd4f2"
+  description: "Capture, corpus, and drift work rather than product behaviour."

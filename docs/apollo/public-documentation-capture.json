@@ -1,0 +1,8 @@
+{
+  "note": "When the public documentation corpus was last re-crawled, and how big it was. Separate from the manifest because the manifest is a table of pages and this is a statement about the act of capturing it. scripts/verify-documentation-freshness.mjs reads this offline; scripts/verify-documentation-manifest.mjs --write updates it after a real crawl.",
+  "capturedAt": "2026-08-15",
+  "pageCount": 262,
+  "maximumAgeDays": 45,
+  "refreshWith": "node scripts/verify-documentation-manifest.mjs --write",
+  "why": "The corpus aged two weeks with nothing saying so, and in that window Apollo added a fifth Environment connection setting to a contract this repository implements with four. Citations were still 'resolving' the whole time, because a citation is checked against this index and the index was not checked against anything. A4 forbids scheduled workflows, so staleness is made to fail a gate that already runs rather than be watched by one that cannot exist."
+}

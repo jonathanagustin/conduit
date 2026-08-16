@@ -1,0 +1,123 @@
+---
+status: accepted
+date: 2026-08-15
+decision-makers:
+  - repository owner
+consulted: []
+informed: []
+---
+
+# Refuse the twelve Apollo coordinates Conduit cannot answer truthfully
+
+## Context and problem statement
+
+Conduit's Apollo-shaped GraphQL interface declares every coordinate a capture
+recovered from an Apollo Hub, so the interface keeps Apollo's shape whether or
+not Conduit has data behind each field. Twelve of those coordinates are declared
+and unanswerable. They refuse at request time rather than resolving to null,
+because a GraphQL null is a value: `ApolloBundle.rid: null` asserts that this
+bundle has no resource identifier, which Conduit has never observed.
+
+Several of the twelve look closable. Two have been proposed as work — issue #12
+argued the bundle coordinates were servable because the bundle documents
+disclaim the wire format rather than the concept. That reading of the documents
+is correct and the conclusion still does not follow, which is the kind of thing
+worth writing down once rather than rediscovering.
+
+This record exists so that a later reader does not re-open them one at a time,
+and so the reasons are separable: two of the three groups below close on a
+decision that has not been made, and one closes only on evidence nobody has.
+
+## Decision drivers
+
+- A refusal states something true; a null states something false.
+- Declaring a coordinate is Apollo's shape. Answering it is Conduit's claim.
+- Displacement runs one way: ground truth displaces invention, never the
+  reverse. Serving Conduit's own identifier under an Apollo field name would
+  invent a correspondence and then present it as recovered.
+- The count must stay honest. It fell 18 → 17 → 12 as real coordinates were
+  served, and the remaining twelve should fall the same way or not at all.
+
+## Considered options
+
+- Resolve the unanswerable coordinates to null.
+- Serve Conduit's nearest equivalent under the Apollo field name.
+- Refuse, and record why each group is refused.
+
+## Decision outcome
+
+Chosen option: **refuse, and record why**. The twelve divide into three groups
+with genuinely different fates.
+
+### Group 1 — no Apollo resource identifiers (6)
+
+`ApolloBundle.rid`, `ApolloProduct.rid`, `ApolloProductRelease.rid`,
+`ApolloQuery.bundle`, `ApolloQuery.bundles`, `ApolloQuery.productRelease`.
+
+Conduit holds all three of these resources. It builds, signs, imports and
+transfers Bundles; it holds Products and Product Releases and serves
+`ApolloProduct.productId` and `ApolloProductRelease.mavenCoordinate` today. What
+it does not hold is an Apollo RID for any of them. A Conduit bundle is
+identified as `bnd_<hex>`, minted by `internal/artifacts/domain`, and that is
+not an Apollo RID under a different name — it is a different identifier for a
+different object in a different system.
+
+Issue #12's premise was right and its conclusion was not. `SourceFormatNote`
+does disclaim the wire format rather than the concept: "Platform-native format
+derived from public Apollo semantics; not a Palantir wire-format claim." Conduit
+therefore implements the Bundle *concept* freely. But `rid` is not the concept,
+it is the identity, and Conduit has never been told what an Apollo Bundle RID
+for one of its bundles would be. The two query entry points take an Apollo RID
+as their argument and have nothing to resolve it against for the same reason.
+
+The tempting move is the one `ApolloEnvironment.id` looked like. That coordinate
+was served from `Environment.Name` — but only because Apollo's own status routes
+accept the name as `{environmentId}`, which is documented evidence of a
+correspondence. No comparable statement exists for any RID here. Note also that
+`ri.apollo.main.bundle` appears in this repository only in Conduit's own GraphQL
+fixtures; it is our test data, not evidence, and citing it would be circular.
+
+**Closes on:** a capture, or a published statement, establishing how an Apollo
+RID is formed for a resource Conduit holds. Not on effort.
+
+### Group 2 — no Space tenancy boundary (5)
+
+`ApolloBundle.spaceId`, `ApolloEntity.spaceId`, `ApolloEnvironment.spaceId`,
+`ApolloProduct.spaceId`, `ApolloProductRelease.spaceId`.
+
+Conduit has no Space. Whether it should is issue #17, which is open and is a
+decision rather than a task. Until that is decided there is no value to serve
+and no honest default: every resource belonging to one implicit Space is itself
+a tenancy claim.
+
+**Closes on:** issue #17. These five are the concrete cost of leaving it open,
+and #16 (scan-before-install, which is controlled by a Space setting) is gated
+on the same decision.
+
+### Group 3 — no namespace (1)
+
+`ApolloEnvironment.namespaceId`.
+
+The same shape as group 2 and the same blocker, listed separately because it is
+a distinct Apollo concept and may not be decided by #17 alone.
+
+## Consequences
+
+- The interface's published counts stay meaningful: 41 recovered coordinates
+  served, 12 declared and unanswerable, 0 of Conduit's own invention.
+- `internal/apollographql/domain.Reconcile` keeps failing the build on the two
+  cases that are defects — a field Conduit added that nothing backs, and a
+  resolver claiming a coordinate the schema does not declare. Refusing a
+  recovered coordinate is neither of those and stays legal.
+- Serving any of the twelve later requires displacing this record, not
+  amending it quietly.
+- Issue #12 is closed by this decision rather than by code. Its premise about
+  the documents was accurate; the conclusion did not follow from it.
+
+## More information
+
+- `docs/apollo/reference/graphql-api.md` — the recovered interface, its
+  provenance tiers, and its bounds.
+- `internal/apollographql/domain/refusal.go` — the refusal text and why a null
+  would be worse.
+- Issue #17 — the Space tenancy decision that closes six of the twelve.

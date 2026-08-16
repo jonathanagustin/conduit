@@ -8,9 +8,15 @@ import "testing"
 func TestTopologyPredicatesSeparateWhatEachSettingDecides(t *testing.T) {
 	t.Parallel()
 	for setting, want := range map[string]struct {
-		issuesPlans, acceptsAgents, acceptsRelayed, tracksHealth bool
+		issuesPlans, acceptsAgents, acceptsRelayed, tracksHealth, silenceExpected bool
 	}{
 		ConnectionAgentsConnected: {issuesPlans: true, acceptsAgents: true, tracksHealth: true},
+		// Intermittent is operationally Connected -- it issues Plans, accepts
+		// agents, tracks health, and promotes -- and differs only in that its
+		// silence is expected. That is the single flag that separates it, and a
+		// bare-constant addition that missed it would be the regression the
+		// federation comment warns against.
+		ConnectionIntermittentAgents: {issuesPlans: true, acceptsAgents: true, tracksHealth: true, silenceExpected: true},
 		// Relayed state is visible and can gate a promotion, but the Plans are
 		// issued by the Hub the Agents actually connect to. Issuing here as well
 		// would make two writers for one Environment.
@@ -21,9 +27,12 @@ func TestTopologyPredicatesSeparateWhatEachSettingDecides(t *testing.T) {
 		t.Run(setting, func(t *testing.T) {
 			t.Parallel()
 			federation := Federation{ConnectionSetting: setting}
-			got := struct{ issuesPlans, acceptsAgents, acceptsRelayed, tracksHealth bool }{
+			got := struct {
+				issuesPlans, acceptsAgents, acceptsRelayed, tracksHealth, silenceExpected bool
+			}{
 				federation.IssuesPlans(), federation.AcceptsAgentConnections(),
 				federation.AcceptsRelayedState(), federation.TracksHealth(),
+				federation.SilenceIsExpected(),
 			}
 			if got != want {
 				t.Fatalf("%s = %+v, want %+v", setting, got, want)
@@ -32,6 +41,19 @@ func TestTopologyPredicatesSeparateWhatEachSettingDecides(t *testing.T) {
 			// with; counting it would let a canary pass on absent evidence.
 			if federation.ParticipatesInPromotion() != want.tracksHealth {
 				t.Fatalf("%s participates in promotion without tracking health", setting)
+			}
+			// ExpectsDirectAgents is what the operational predicates are built on,
+			// so it must agree with them: an Environment that issues Plans and
+			// accepts agents expects direct agents, and vice versa.
+			if federation.ExpectsDirectAgents() != (want.issuesPlans && want.acceptsAgents) {
+				t.Fatalf("%s ExpectsDirectAgents disagrees with its operational predicates", setting)
+			}
+			// Expected silence is a refinement of direct agents: an intermittent
+			// Environment is a direct-agent setting, so anything whose silence is
+			// expected also expects direct agents. Relayed silence is not expected --
+			// it means the import broke -- so relayed must not carry the flag.
+			if federation.SilenceIsExpected() && !federation.ExpectsDirectAgents() {
+				t.Fatalf("%s marks silence expected without expecting direct agents", setting)
 			}
 		})
 	}

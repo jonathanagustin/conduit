@@ -20,11 +20,34 @@ function normalizePath(path) {
   return withoutQuery.endsWith("/") ? withoutQuery : `${withoutQuery}/`;
 }
 
+// Discovery scans the whole document rather than only its `href` attributes,
+// and the crawl below follows what it finds transitively rather than stopping
+// after the seeds.
+//
+// Both changes are regressions from the same miss. The first version read only
+// `href` in the four seed pages, which is the rendered sidebar -- so it saw
+// exactly the pages the navigation chooses to show. Seven `hidden_`-prefixed
+// Apollo Product Specification pages are deliberately absent from that sidebar
+// and were missing from the corpus for two weeks: Endpoints, Liveness and
+// Readiness, Replication, Resources, Volumes, the Substitution Reference, and
+// the full spec definition. They are reachable only as links in other pages'
+// body text, which lives in the embedded `__NEXT_DATA__` JSON rather than in an
+// anchor the sidebar rendered.
+//
+// A corpus that mirrors a vendor's navigation is a corpus that inherits the
+// vendor's decisions about what to feature. This one has to mirror what is
+// published.
 function discoverApolloPaths(html) {
   const paths = new Set();
-  const pattern = /href=["'](\/docs\/apollo\/[^"'?#]*?)["']/g;
+  // Deliberately not anchored to href=: body links arrive as JSON-escaped
+  // Markdown inside __NEXT_DATA__, so an attribute-only pattern cannot see them.
+  const pattern = /\/docs\/apollo\/[A-Za-z0-9._~\-/]*/g;
   for (const match of html.matchAll(pattern)) {
-    const path = normalizePath(match[1]);
+    // A traversal segment resolves outside Apollo -- one page links
+    // /docs/apollo/../foundry/... -- and following it would pull unrelated
+    // product documentation into an Apollo corpus.
+    if (match[0].includes("..")) continue;
+    const path = normalizePath(match[0]);
     if (path.split("/").filter(Boolean).length >= 4) {
       paths.add(path);
     }
@@ -89,12 +112,21 @@ if (paths.size < expectedMinimumPages) {
 const concurrency = 12;
 const queue = [...paths].sort();
 const rows = [];
+// Each fetched page is also a source of links, so the crawl runs to closure
+// rather than to the seeds' horizon. `paths` doubles as the visited set, which
+// is what keeps a cycle -- and this documentation is full of them -- finite.
 async function worker() {
   while (queue.length > 0) {
     const path = queue.shift();
     const url = base + path;
-    const markdown = sourceMarkdown(await fetchText(url), url);
-    rows.push(summarize(url, markdown));
+    const html = await fetchText(url);
+    for (const discovered of discoverApolloPaths(html)) {
+      if (!paths.has(discovered)) {
+        paths.add(discovered);
+        queue.push(discovered);
+      }
+    }
+    rows.push(summarize(url, sourceMarkdown(html, url)));
   }
 }
 await Promise.all(Array.from({ length: concurrency }, worker));

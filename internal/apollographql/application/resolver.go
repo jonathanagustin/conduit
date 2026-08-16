@@ -137,7 +137,7 @@ func (resolver *Resolver) Execute(ctx context.Context, sources ports.Sources, re
 	walk := &walk{
 		bound:     bound{Resolver: resolver, sources: sources},
 		variables: variables,
-		selected:  map[domain.Coordinate]bool{},
+		selected:  map[domain.Coordinate]domain.Tier{},
 	}
 	data := walk.selectionSet(ctx, resolver.schema.Query.Name, rootSource{}, operation.SelectionSet, nil)
 	return Response{Data: data, Errors: walk.errors, Extensions: walk.provenanceExtension()}
@@ -159,7 +159,7 @@ type walk struct {
 	bound
 	variables map[string]any
 	errors    gqlerror.List
-	selected  map[domain.Coordinate]bool
+	selected  map[domain.Coordinate]domain.Tier
 }
 
 func (state *walk) selectionSet(
@@ -213,7 +213,7 @@ func (state *walk) field(
 		into[field.Alias] = nil
 		return
 	}
-	state.selected[coordinate] = tier == domain.ConduitNative
+	state.selected[coordinate] = tier
 
 	if _, served := coverage.SourceOf(coordinate); !served {
 		state.errors = append(state.errors, errorAt(here, domain.RefuseUnserved(coordinate, tier)))
@@ -250,34 +250,48 @@ func errorAt(path ast.Path, message string) *gqlerror.Error {
 }
 
 // provenanceExtension states, per response, which of the coordinates this
-// response was actually answered from were invented here. A client that reads
-// it learns the same thing the repository's gate enforces, without having to
-// read the repository.
+// response was actually answered from no Apollo Hub established. A client that
+// reads it learns the same thing the repository's gate enforces, without having
+// to read the repository.
+//
+// The two lower tiers are disclosed separately rather than lumped together,
+// because they are different admissions. A DOCUMENTED coordinate carries
+// Apollo's own published name and Conduit can say where it got it; a
+// CONDUIT_NATIVE one is Conduit's idea and nothing more. Collapsing them would
+// overstate the invention, which is the error this disclosure was built to
+// avoid in the other direction.
 //
 // It reports what was served rather than what was selected, and the note says
 // so. Reporting the selection would name coordinates under an empty collection
 // that no data ever came from, which would make the disclosure a statement
 // about the query rather than about the answer.
 func (state *walk) provenanceExtension() map[string]any {
-	var native []string
+	documented, native := []string{}, []string{}
 	observed := 0
-	for coordinate, isNative := range state.selected {
-		if isNative {
+	for coordinate, tier := range state.selected {
+		switch tier {
+		case domain.Observed:
+			observed++
+		case domain.Documented:
+			documented = append(documented, coordinate.String())
+		default:
 			native = append(native, coordinate.String())
-			continue
 		}
-		observed++
 	}
+	sort.Strings(documented)
 	sort.Strings(native)
 	return map[string]any{
 		"provenance": map[string]any{
-			"note": "OBSERVED coordinates were recovered from an authorized Apollo Hub. CONDUIT_NATIVE " +
-				"coordinates were invented by Conduit because no Hub established them, and are not an Apollo " +
-				"compatibility claim. Conduit refuses a declared coordinate it cannot answer rather than " +
-				"returning null, so a null here is a value and not an absence of one. These lists name the " +
-				"coordinates this response actually answered from, not every coordinate the document " +
-				"selected: a field under an empty collection was never reached and so contributed nothing.",
+			"note": "OBSERVED coordinates were recovered from an authorized Apollo Hub. DOCUMENTED " +
+				"coordinates carry a name Apollo publishes or a concept Apollo documents, but no Hub " +
+				"established them in GraphQL. CONDUIT_NATIVE coordinates were invented by Conduit and carry " +
+				"no Apollo claim at all. Neither lower tier is an Apollo compatibility claim. Conduit refuses " +
+				"a declared coordinate it cannot answer rather than returning null, so a null here is a value " +
+				"and not an absence of one. These lists name the coordinates this response actually answered " +
+				"from, not every coordinate the document selected: a field under an empty collection was " +
+				"never reached and so contributed nothing.",
 			"observedServed":      observed,
+			"documentedServed":    documented,
 			"conduitNativeServed": native,
 			"schema":              schema.Name,
 		},
@@ -341,14 +355,16 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		return child{typeName: "ApolloEnvironmentPage", source: page{}}, nil
+		listed := resolver.sources.Apollo.ListEnvironments()
+		return child{typeName: "ApolloEnvironmentPage", source: page{records: anySlice(listed.Environments)}}, nil
 	case "entity":
 		return resolver.entityByID(stringArgument(arguments, "rid"))
 	case "products":
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		return child{typeName: "ApolloProductPage", source: page{}}, nil
+		listed := resolver.sources.Apollo.ListProducts()
+		return child{typeName: "ApolloProductPage", source: page{records: anySlice(listed.Products)}}, nil
 	case "plans":
 		plans, err := resolver.plans(ctx)
 		if err != nil {
@@ -433,8 +449,33 @@ func resolvePage(field string, source any) (any, error) {
 	return items, nil
 }
 
+// anySlice flattens the generated pointer-to-slice the Apollo transport returns.
+// A nil pointer and an empty slice both mean "no records", and both must produce
+// an empty list rather than a null: the collection was answered, and it was
+// empty.
+func anySlice[T any](values *[]T) []any {
+	if values == nil {
+		return []any{}
+	}
+	records := make([]any, 0, len(*values))
+	for _, value := range *values {
+		records = append(records, value)
+	}
+	return records
+}
+
 func recordTypeOf(record any) string {
 	switch record.(type) {
+	case apollo.Environment:
+		return "ApolloEnvironment"
+	case apollo.Product:
+		return "ApolloProduct"
+	case entitySource:
+		return "ApolloEntity"
+	case releaseSource:
+		return "ApolloProductRelease"
+	case apollo.ProductDependency:
+		return "ApolloProductDependency"
 	case reporting.PlanSummary:
 		return "ApolloPlan"
 	case reporting.ChangeRequestSummary:
@@ -451,7 +492,7 @@ func resolveRecord(coordinate domain.Coordinate, source any) (any, error) {
 		switch coordinate.Field {
 		case "rid":
 			return record.ID, nil
-		case "environment":
+		case "environmentRid":
 			return record.Environment, nil
 		case "status":
 			return string(record.Phase), nil
@@ -464,8 +505,9 @@ func resolveRecord(coordinate domain.Coordinate, source any) (any, error) {
 			return record.Title, nil
 		case "status":
 			// Governance judged this, and Reporting carries the judgement as a
-			// boolean. The two strings are Conduit's own vocabulary, which is
-			// honest: this whole type is Conduit-native.
+			// boolean. Apollo publishes the field name -- `apollo-cli
+			// changerequest list --status` -- but not its vocabulary, so the two
+			// strings below are Conduit's own and are not claimed otherwise.
 			if record.AwaitingApproval {
 				return "AWAITING_APPROVAL", nil
 			}
@@ -475,7 +517,7 @@ func resolveRecord(coordinate domain.Coordinate, source any) (any, error) {
 		switch coordinate.Field {
 		case "rid":
 			return record.ID, nil
-		case "product":
+		case "productId":
 			return record.Product, nil
 		case "status":
 			if record.Blocked {
@@ -495,12 +537,38 @@ func (resolver *bound) resolveEnvironment(
 		return nil, fmt.Errorf("ApolloEnvironment.%s resolved against %T", field, source)
 	}
 	switch field {
-	case "name":
+	case "name", "id":
+		// One value answers both, because Conduit holds one human identifier for
+		// an Environment and Apollo's own contract accepts that value under both
+		// spellings: `Environment.name` is documented as "a unique resource
+		// identifier of an Environment, entered at Environment creation time",
+		// and the two status routes take it as `{environmentId}` where every
+		// other route takes `{environmentRid}`. Conduit already keys on it --
+		// PutEntityHealth resolves reported state by exactly this string.
+		//
+		// This says the two coincide HERE. It is not a claim that Apollo's `id`
+		// and `name` are one field: Conduit has one identifier to give, and
+		// giving it under both names is more honest than refusing `id` while
+		// holding the value the contract calls by that name.
 		return string(environment.Name), nil
 	case "rid":
 		return string(environment.Rid), nil
 	case "entities":
-		return child{typeName: "ApolloEntityPage", source: page{}}, nil
+		if resolver.sources.Apollo == nil {
+			return nil, errNoSource
+		}
+		installations := resolver.sources.Apollo.ListInstallations(string(environment.Rid))
+		entities := []any{}
+		if installations.Installations != nil {
+			for _, installation := range *installations.Installations {
+				// The Environment travels with each Entity because an Entity
+				// resolves environment-scoped fields, and rediscovering the
+				// Environment from the installation would mean a second lookup
+				// that could disagree with this one.
+				entities = append(entities, entitySource{installation: installation, environment: environment})
+			}
+		}
+		return child{typeName: "ApolloEntityPage", source: page{records: entities}}, nil
 	case "health":
 		return resolver.environmentHealth(ctx, string(environment.Rid))
 	}
@@ -588,7 +656,7 @@ func (resolver *bound) resolveEntity(ctx context.Context, field string, source a
 		return string(entity.installation.PackageRid), nil
 	case "environment":
 		return child{typeName: "ApolloEnvironment", source: entity.environment}, nil
-	case "installedVersion":
+	case "version":
 		if entity.installation.Version == nil {
 			// The Agent has not reported one. That is an absence Conduit has
 			// actually observed, so it is a null rather than a refusal.
@@ -626,7 +694,17 @@ func (resolver *bound) resolveProduct(field string, source any) (any, error) {
 	case "productId":
 		return string(product.Id), nil
 	case "productReleases":
-		return child{typeName: "ApolloProductReleasePage", source: page{}}, nil
+		if resolver.sources.Apollo == nil {
+			return nil, errNoSource
+		}
+		listed := resolver.sources.Apollo.ListReleases(string(product.Id))
+		releases := []any{}
+		if listed.Releases != nil {
+			for _, release := range *listed.Releases {
+				releases = append(releases, releaseSource{product: product, release: release})
+			}
+		}
+		return child{typeName: "ApolloProductReleasePage", source: page{records: releases}}, nil
 	}
 	return nil, fmt.Errorf("ApolloProduct.%s is covered but this resolver has no case for it", field)
 }
@@ -659,11 +737,21 @@ func resolveManifest(field string, source any) (any, error) {
 	if !ok {
 		return nil, fmt.Errorf("ApolloProductReleaseManifest.%s resolved against %T", field, source)
 	}
-	if field == "upgradeStrategy" {
+	switch field {
+	case "upgradeStrategy":
 		if release.UpgradeStrategy == nil {
 			return nil, nil
 		}
 		return string(*release.UpgradeStrategy), nil
+	case "productDependencies":
+		// A Release with no declared dependencies answers with an empty list
+		// rather than a null. "This Release depends on nothing" is a fact the
+		// manifest states; a null would say the question was not answered.
+		items := make([]child, 0)
+		for _, dependency := range anySlice(release.ProductDependencies) {
+			items = append(items, child{typeName: "ApolloProductDependency", source: dependency})
+		}
+		return items, nil
 	}
 	return nil, fmt.Errorf("ApolloProductReleaseManifest.%s is covered but this resolver has no case for it", field)
 }

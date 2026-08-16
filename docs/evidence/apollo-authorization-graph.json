@@ -2,7 +2,7 @@
   "apiVersion": "apollo.platform.example/authorization-graph/v1alpha1",
   "kind": "ApolloAuthorizationGraph",
   "source": {
-    "host": "https://droneconnection.usw-23.palantirfoundry.com",
+    "hostFingerprint": "09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0",
     "endpoint": "/multipass/api/roles/v2/config",
     "method": "GET",
     "status": 200,
