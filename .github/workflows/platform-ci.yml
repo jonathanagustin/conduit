@@ -239,6 +239,11 @@ jobs:
           node scripts/verify-conduit-cli-contract.mjs
           node scripts/verify-foundry-audit3-capture.mjs
           node scripts/verify-audit3-contract.mjs
+          # Offline. It cannot detect drift -- that needs a crawl, and A4 keeps
+          # crawls to a person -- but it fails once the corpus is old enough
+          # that "no drift reported" has stopped meaning anything.
+          node scripts/verify-documentation-freshness.mjs
+          ./scripts/verify-documentation-freshness.test.sh
       # Every other verify-* script is gated above; this one was not, so the
       # append-only property on the metrics ledger and the PDR/hypothesis
       # gatekeeping were unenforced. It passes today.

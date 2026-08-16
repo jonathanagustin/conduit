@@ -93,6 +93,14 @@ type FleetQuery struct {
 	Lifecycle   string
 	Search      string
 	MaxAge      time.Duration
+	// SilenceExpected names the environments whose gap in reporting is expected
+	// rather than an outage -- Apollo's Intermittent agents setting, where health
+	// is read "as of the last time agents connected". An aged report from one of
+	// these is shown with its age (ObservationAgeSeconds is still set) but is not
+	// counted stale, because for an intermittent environment silence is normal.
+	// It does not suppress the never-reported case: "as of last connection"
+	// needs a last connection.
+	SilenceExpected map[string]bool
 }
 
 type FleetInstallation struct {
@@ -166,7 +174,7 @@ func BuildFleet(
 					age = 0
 				}
 				item.ObservationAgeSeconds = int64(age / time.Second)
-				item.Stale = query.MaxAge > 0 && age > query.MaxAge
+				item.Stale = query.MaxAge > 0 && age > query.MaxAge && !query.SilenceExpected[item.Environment]
 			}
 			if item.DesiredVersion != "" && (item.DesiredVersion != item.ObservedVersion ||
 				item.DesiredReleaseDigest != item.ObservedReleaseDigest) && item.RolloutStatus == RolloutUpToDate {

@@ -31,9 +31,12 @@ func newEnvironmentDescriptor(name, contactTeam string) (environmentDescriptor, 
 	if !environmentIDPattern.MatchString(name) {
 		return environmentDescriptor{}, fmt.Errorf("Environment name must be a lowercase DNS-style ID no longer than 63 characters")
 	}
-	if contactTeam == "" {
-		return environmentDescriptor{}, fmt.Errorf("contact Team must not be empty")
-	}
+	// An empty contact team is a first-class state, not a missing field. Apollo
+	// publishes an Environment with no owning team (apollo-cli made --contact-team
+	// optional to align with the API), and Conduit's own profile model already
+	// permits it: ContactTeams returns the empty set and validateReferences
+	// accepts it. The requirement lived only on this authoring path, so an
+	// upstream ownerless Environment could not be expressed here. It can now.
 	return environmentDescriptor{
 		APIVersion: "delivery.platform/v1alpha1", Kind: "EnvironmentDescriptor", ContactTeam: contactTeam,
 		Environment: controlplane.Environment{ID: name, Generation: "1", DeclaredStateSource: controlplane.SourceEditOnThisHub},

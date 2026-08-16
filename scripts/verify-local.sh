@@ -154,11 +154,15 @@ apollo_contract() {
     node scripts/verify-foundry-audit3-capture.mjs &&
     node scripts/verify-audit3-contract.mjs &&
     node scripts/verify-apollo-rosetta-inventory.mjs &&
+    node scripts/verify-rosetta-release-notes.mjs &&
+    node scripts/verify-no-tenant-origins.mjs &&
     node scripts/verify-secondary-apollo-evidence.mjs &&
     node scripts/apollo-graphql/verify-observed-schema.mjs &&
     ./scripts/verify-apollo-graphql.test.sh &&
     node scripts/apollo-graphql/verify-apollo-interface.mjs &&
-    ./scripts/verify-apollo-interface.test.sh
+    ./scripts/verify-apollo-interface.test.sh &&
+    node scripts/verify-documentation-freshness.mjs &&
+    ./scripts/verify-documentation-freshness.test.sh
 }
 
 zenith_protocol() {

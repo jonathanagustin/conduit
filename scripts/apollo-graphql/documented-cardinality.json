@@ -1,0 +1,11 @@
+{
+  "note": "Cardinality for recovered coordinates the probe could not establish it for. Validation probing cannot see through a list type -- [T] and T accept the same sub-selection, so nothing in the responses distinguishes them -- and no recovered field therefore declares one. That left the page types' collection fields navigable only in principle: every one of them refused, including the field in Apollo's own published example query. The pinned OpenAPI publishes the cardinality the probe could not reach, so it is cited here rather than guessed. These coordinates stay OBSERVED, because a Hub did answer for them; only the cardinality is DOCUMENTED, which is why the served SDL states the two separately. This file is NOT for adding coordinates -- a coordinate named here must already be in the recovery record, and the gate refuses one that is not.",
+  "citationForm": "apollo-openapi Type.property, which must exist on that type in the pinned snapshot AND be declared type: array. A property that exists but is not an array is refused: it would be evidence for the field, not for its cardinality.",
+  "coordinates": {
+    "ApolloEnvironmentPage.environments": "apollo-openapi ListEnvironmentsResponse.environments",
+    "ApolloEntityPage.entities": "apollo-openapi ListInstallationsResponse.installations",
+    "ApolloProductPage.products": "apollo-openapi ListProductsResponse.products",
+    "ApolloProductReleasePage.productReleases": "apollo-openapi ListReleasesResponse.releases",
+    "ApolloProductReleaseManifest.productDependencies": "apollo-openapi Release.productDependencies"
+  }
+}

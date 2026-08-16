@@ -89,6 +89,7 @@ const (
 // this role convey", and the two would drift without anything noticing.
 var (
 	canonicalRoleOperations = governance.CanonicalRoleOperations
+	OperationVocabulary     = governance.OperationVocabulary
 )
 
 // ValidateAuditCategoryEvent enforces the public audit.3 field contract. It is
@@ -146,6 +147,15 @@ func requirementSatisfied(
 	ctx context.Context, repository Repository, requirement ReviewerRequirement, principal Principal,
 ) bool {
 	return governanceAuthorizer(repository).RequirementSatisfied(ctx, requirement, principal)
+}
+
+// annotateSatisfiability is the read-path hook: it decorates a change request's
+// requirements with the satisfiability diagnostic the governance layer computes.
+// The logic and the reason text live there; this only wires it to the request
+// shape the transport returns.
+func annotateSatisfiability(ctx context.Context, repository Repository, request ChangeRequest) ChangeRequest {
+	request.Requirements = governanceAuthorizer(repository).AnnotateSatisfiability(ctx, request.Requirements)
+	return request
 }
 
 func principalCanReview(

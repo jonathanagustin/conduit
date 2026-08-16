@@ -69,6 +69,17 @@ func TestEnvironmentDescriptorIsGitOwnedAndStable(t *testing.T) {
 	if _, err := newEnvironmentDescriptor("Dev/Use2", "release-team"); err == nil {
 		t.Fatal("invalid Environment ID was accepted")
 	}
+
+	// An Environment with no owning team is a state Apollo publishes and
+	// Conduit's profile model already accepts, so authoring one must succeed
+	// with an empty ContactTeam rather than being rejected here.
+	ownerless, err := newEnvironmentDescriptor("dev-use2", "")
+	if err != nil {
+		t.Fatalf("ownerless Environment was rejected: %v", err)
+	}
+	if ownerless.ContactTeam != "" || ownerless.Environment.ID != "dev-use2" {
+		t.Fatalf("descriptor=%#v", ownerless)
+	}
 }
 
 func TestGenerateSpokeManifestRequiresDigestAndExternalIdentity(t *testing.T) {
