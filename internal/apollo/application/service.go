@@ -91,9 +91,13 @@ type Service struct {
 	namespaces    map[string]apollo.Namespace
 	entityInfo    map[string][]apollo.EntityInfo
 	entityHealth  map[string][]apollo.EntityHealth
-	catalog       CatalogPort
-	reporting     environmentports.ReportingPort
-	now           func() time.Time
+	// recalls is keyed by Environment, because that is how Conduit declares a
+	// withdrawal. Apollo's recallStatus is a property of the Release rather
+	// than of an Environment, so the read below aggregates.
+	recalls   map[string][]environments.ProjectedRecall
+	catalog   CatalogPort
+	reporting environmentports.ReportingPort
+	now       func() time.Time
 }
 
 func New(ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort) (*Service, error) {
@@ -145,8 +149,10 @@ func (service *Service) GetProduct(product string) (apollo.Product, error) {
 func (service *Service) ListReleases(product string) apollo.ListReleasesResponse {
 	service.mu.RLock()
 	values := make([]apollo.Release, 0, len(service.releases[product]))
-	for _, value := range service.releases[product] {
-		values = append(values, clone(value.model))
+	for version, value := range service.releases[product] {
+		model := clone(value.model)
+		model.RecallStatus = service.recallStatusLocked(product, version)
+		values = append(values, model)
 	}
 	service.mu.RUnlock()
 	sort.Slice(values, func(i, j int) bool {
@@ -159,12 +165,58 @@ func (service *Service) ListReleases(product string) apollo.ListReleasesResponse
 
 func (service *Service) GetRelease(product, version string) (apollo.Release, error) {
 	service.mu.RLock()
+	defer service.mu.RUnlock()
 	value, exists := service.releases[product][version]
-	service.mu.RUnlock()
 	if !exists {
 		return apollo.Release{}, &Error{Kind: NotFound, Message: "Release not found"}
 	}
-	return clone(value.model), nil
+	model := clone(value.model)
+	model.RecallStatus = service.recallStatusLocked(product, version)
+	return model, nil
+}
+
+// recallStatusLocked answers Apollo's recallStatus from the recalls Conduit
+// actually holds. The caller holds at least a read lock.
+//
+// It is computed on read rather than stamped at publication, because a Release
+// is published once and recalled later; the stamped value was necessarily
+// false, and stayed false however many recalls arrived afterwards.
+//
+// Aggregated across Environments, because Apollo declares recallStatus on the
+// Release while Conduit declares a recall inside an Environment's desired
+// state. "Recalled somewhere" is the only statement the catalog level can
+// honestly make, and it is the safe direction: reporting a Release as not
+// recalled when some Environment has withdrawn it is the error a client cannot
+// recover from, since it installs on the strength of it.
+//
+// recalledBy and recalledAt stay absent. The contract permits it -- "if
+// recalled is false, other properties will not be filled out" -- and Conduit's
+// Recall carries neither an actor nor a timestamp, so filling them would be
+// the invention this surface exists to avoid.
+func (service *Service) recallStatusLocked(product, version string) apollo.RecallStatus {
+	for _, environmentRecalls := range service.recalls {
+		for _, recall := range environmentRecalls {
+			if recall.Reverted || recall.Product != product {
+				continue
+			}
+			if !catalog.RecallAppliesToVersion(catalog.Recall{
+				Product:                recall.Product,
+				StartingVersion:        recall.StartingVersion,
+				EndingVersionExclusive: recall.EndingVersionExclusive,
+				ExcludedVersions:       recall.ExcludedVersions,
+				SingleVersion:          recall.SingleVersion,
+			}, version) {
+				continue
+			}
+			reason := recall.Reason
+			status := apollo.RecallStatus{Recalled: true}
+			if strings.TrimSpace(reason) != "" {
+				status.Reason = &reason
+			}
+			return status
+		}
+	}
+	return apollo.RecallStatus{Recalled: false}
 }
 
 func (service *Service) PublishHelmChart(ctx context.Context, coordinate string, body apollo.PublishHelmChartRequest) error {
@@ -426,6 +478,13 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 		}
 	}
 	service.installations[rid] = installations
+	if service.recalls == nil {
+		service.recalls = make(map[string][]environments.ProjectedRecall)
+	}
+	// Replaced wholesale rather than merged: this projection is the whole of
+	// what the Environment currently declares, so a recall that has been
+	// removed from desired state must stop being reported.
+	service.recalls[rid] = append([]environments.ProjectedRecall(nil), projection.Recalls...)
 	for _, namespace := range projection.Namespaces {
 		id := namespace.Name
 		if id == "" {

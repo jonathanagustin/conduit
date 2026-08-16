@@ -112,6 +112,26 @@ type CompatibilityProjection struct {
 	ID         string
 	Entities   []ProjectedEntity
 	Namespaces []ProjectedNamespace
+	// Recalls is what this Environment has withdrawn. It is carried because the
+	// Apollo compatibility surface declares recallStatus on every Release and
+	// was answering it with a hardcoded false while Conduit held the real
+	// answer -- a recalled Release served as not recalled, which is the one
+	// direction of that error a client cannot recover from.
+	Recalls []ProjectedRecall
+}
+
+// ProjectedRecall is a withdrawal, narrowed to what a compatibility surface may
+// state about it. The version bounds rather than a resolved list, because which
+// versions a recall covers is the recall domain's rule and restating it here
+// would be a second copy of it.
+type ProjectedRecall struct {
+	Product                string
+	StartingVersion        string
+	EndingVersionExclusive string
+	ExcludedVersions       []string
+	SingleVersion          bool
+	Reason                 string
+	Reverted               bool
 }
 
 type ProjectedEntity struct {
