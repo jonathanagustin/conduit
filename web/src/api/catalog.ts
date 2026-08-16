@@ -15,13 +15,75 @@ export interface Artifact {
   digest: string;
 }
 
+/** One active CVE behind the assessment's count. Fields are
+ * catalog.VulnerabilityFinding's Go `json` tags.
+ *
+ * `cvss` is authoritative and `severity` is the fallback a scanner supplies
+ * when it published no numeric score -- the Hub's own `findingScore` prefers
+ * `cvss` whenever it is above zero. Ordering or colouring by `severity` would
+ * therefore rank findings differently from how the Hub scores the same Release,
+ * and `severity` is an unconstrained string with no Go const set behind it, so
+ * `verify-console-contract.mjs` could not guard a map keyed on it. Rank by
+ * `cvss`; render `severity` as the provider's own text. */
+export interface VulnerabilityFinding {
+  id: string;
+  cvss?: number;
+  severity?: string;
+}
+
+/** The provenance that makes a suppressed finding trustworthy. Fields are
+ * catalog.VulnerabilitySuppressionProvenance's Go `json` tags. A suppressed
+ * count on its own is not evidence: the Hub refuses to let a suppression turn a
+ * vulnerability outcome into PASS unless it carries an approver, a Change
+ * Request, and an unexpired window, so those are the fields worth showing. */
+export interface VulnerabilitySuppressionProvenance {
+  providerId?: string;
+  scope?: string;
+  scopeValue?: string;
+  category?: string;
+  rationale?: string;
+  requestedBy?: string;
+  approvedBy?: string;
+  changeRequestId?: string;
+  createdAt?: string;
+  approvedAt?: string;
+  validUntil?: string;
+}
+
+export interface SuppressedVulnerabilityFinding {
+  findingId: string;
+  vulnerabilityId: string;
+  artifactDigest: string;
+  suppression?: VulnerabilitySuppressionProvenance;
+}
+
 export interface VulnerabilityAssessment {
   provider?: string;
   runId?: string;
   status?: string;
   outcome?: string;
+  artifactDigests?: string[];
   activeVulnerabilities?: number;
   suppressedFindings?: number;
+  suppressedFindingDetails?: SuppressedVulnerabilityFinding[];
+  gracePeriodFindings?: number;
+  activeFindings?: VulnerabilityFinding[];
+  assessedAt?: string;
+}
+
+/** Findings worst-first by CVSS, which is the order the Hub's own risk score is
+ * built from. A finding with no CVSS sorts last rather than as zero: absent is
+ * not the same as harmless, and putting it at the end says so without inventing
+ * a score for it. Ties keep CVE id order so the list is stable between renders. */
+export function orderFindingsByCvss(findings: VulnerabilityFinding[]): VulnerabilityFinding[] {
+  return [...findings].sort((left, right) => {
+    const leftScore = left.cvss ?? -1;
+    const rightScore = right.cvss ?? -1;
+    if (leftScore !== rightScore) {
+      return rightScore - leftScore;
+    }
+    return left.id.localeCompare(right.id);
+  });
 }
 
 export interface Release {
