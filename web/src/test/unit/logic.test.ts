@@ -5,6 +5,7 @@ import { orderInbox, outstandingRequirements } from "../../features/changes/orde
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
 import { statusIntent } from "../../api/imports.js";
+import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { installation } from "../fixtures.js";
 import type { ChangeRequest } from "../../api/resources.js";
 
@@ -299,5 +300,34 @@ describe("bundle import status intent", () => {
   });
   it("is case-insensitive so a lower-case status is not silently uncoloured", () => {
     expect(statusIntent("admitted")).toBe("success");
+  });
+});
+
+describe("export pipeline status", () => {
+  // GET /v1/export-pipelines returns archived and deleted pipelines, and the
+  // Hub reads an empty status as ACTIVE. A screen that dropped either would
+  // show a retired pipeline as if it still exported.
+  const pipeline = (status?: string) => ({
+    id: "p",
+    displayName: "P",
+    buildStrategy: "SNAPSHOT",
+    selections: [],
+    ...(status === undefined ? {} : { status }),
+  });
+
+  it("reads an absent or empty status as ACTIVE, like the Hub does", () => {
+    expect(pipelineStatus(pipeline(undefined))).toBe("ACTIVE");
+    expect(pipelineStatus(pipeline(""))).toBe("ACTIVE");
+    expect(pipelineStatus(pipeline("ARCHIVED"))).toBe("ARCHIVED");
+  });
+
+  it("colours active success, archived warning, deleted danger", () => {
+    expect(pipelineStatusIntent("ACTIVE")).toBe("success");
+    expect(pipelineStatusIntent("ARCHIVED")).toBe("warning");
+    expect(pipelineStatusIntent("DELETED")).toBe("danger");
+  });
+
+  it("leaves an unknown status neutral rather than colouring it on a guess", () => {
+    expect(pipelineStatusIntent("SOMETHING_NEW")).toBe("none");
   });
 });

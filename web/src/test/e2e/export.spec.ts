@@ -7,10 +7,14 @@ import { ExportPom } from "./pages/index.js";
  * loaded. Fixtures follow the controlplane.ExportPipeline Go struct: strategy
  * is SNAPSHOT or INCREMENTAL, and the require* flags are the security gates. */
 
+// buildStrategy is SNAPSHOT or INCREMENTAL and status is ACTIVE/ARCHIVED/DELETED
+// -- the Hub's own vocabulary (controlplane.bundles.go). GET /v1/export-pipelines
+// returns archived and deleted pipelines too, so the status is load-bearing.
 const RELEASE_PIPELINE = {
   id: "exp_release",
   displayName: "Release channel export",
   buildStrategy: "INCREMENTAL",
+  status: "ACTIVE",
   checkpointFrequency: 10,
   selections: [
     { type: "PRODUCT", ids: ["app.example:payments"], releaseChannels: ["RELEASE"] },
@@ -26,6 +30,7 @@ const SNAPSHOT_PIPELINE = {
   id: "exp_snapshot",
   displayName: "Full snapshot",
   buildStrategy: "SNAPSHOT",
+  status: "ARCHIVED",
   selections: [{ type: "TEAM", ids: ["platform"] }],
 };
 
@@ -43,6 +48,24 @@ test.describe("Export", () => {
     await expect(release).toContainText("malware pass");
     // A pipeline enforcing no gates says so rather than implying trust.
     await expect(exports.pipeline("exp_snapshot")).toContainText("—");
+  });
+
+  test("distinguishes an active pipeline from an archived or deleted one", async ({ page, hub }) => {
+    // GET /v1/export-pipelines returns archived and deleted pipelines too, so a
+    // retired pipeline must not read as one that still exports.
+    hub.get("/export-pipelines", {
+      pipelines: [
+        RELEASE_PIPELINE,
+        SNAPSHOT_PIPELINE,
+        { id: "exp_gone", displayName: "Retired", buildStrategy: "SNAPSHOT", status: "DELETED", selections: [] },
+      ],
+    });
+    await page.goto("export");
+    const exports = new ExportPom(page);
+
+    await expect(exports.pipeline("exp_release")).toContainText("active");
+    await expect(exports.pipeline("exp_snapshot")).toContainText("archived");
+    await expect(exports.pipeline("exp_gone")).toContainText("deleted");
   });
 
   test("reveals a pipeline's selections and checkpointing from the loaded row", async ({ page, hub }) => {
