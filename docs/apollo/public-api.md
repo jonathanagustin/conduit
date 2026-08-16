@@ -60,6 +60,46 @@ the committed output. A route count alone is insufficient because it cannot
 detect drift in fields, requiredness, enums, unions, errors, or security
 requirements.
 
+## Error responses
+
+The snapshot publishes three error schemas, all Conjure envelopes of the shape
+`{errorCode, errorName, errorInstanceId, parameters}`, and Conduit serves each
+of them on the path it describes:
+
+| Schema | Served on | `errorCode` | `parameters` |
+| --- | --- | --- | --- |
+| `ReleaseNotFound` | a release lookup that misses | `NOT_FOUND` | `mavenCoordinate` |
+| `NotEnvironmentOwner` | an agent addressing an Environment it is not bound to | `PERMISSION_DENIED` | `environmentId` |
+| `ApiUsageDenied` | any unauthenticated or unauthorized request | `PERMISSION_DENIED` | — |
+
+Two bounded divergences, declared here rather than left to be discovered.
+
+**Statuses.** The snapshot declares `"200"` on every path and no error status
+anywhere, so it constrains the error *body* and not the code. Conduit returns
+400, 401, 403, 404, 409, 413, 422 and 500. Notably `ApiUsageDenied` is served
+with **401** when the caller did not authenticate and 403 when it did but lacks
+authority — the schema's own description covers the first case ("You have not
+properly authenticated with Apollo"), and collapsing both into one status would
+lose a distinction the contract never asked to be lost.
+
+**Errors outside the three.** Every other failure — a malformed body, a payload
+over the 1 MiB cap, a conflict, an internal error — has no published schema, and
+Conduit serves `{"error": "..."}` for it. These are Conduit's, not Apollo's. A
+client generated from the snapshot has typed handling for exactly the three
+above and should treat the rest as opaque.
+
+**One field is not established.** `errorName` is typed in the snapshot as an
+unconstrained string and no capture recovered a value, so Apollo's own spelling
+is unknown; Conjure convention would be `Namespace:Name` and the namespace is
+precisely the part no evidence supports. Conduit emits the schema name, which is
+the one value the pinned contract contains. It is a `DOCUMENTED`-tier choice and
+the first thing to correct if a capture ever recovers a real Apollo error.
+
+Conduit also carries a non-schema `error` key alongside the envelope. None of
+the three schemas sets `additionalProperties: false`, so the extra key is
+contract-legal, and the contract has nowhere else to put a human-readable
+message.
+
 ## Current verification
 
 ```bash
