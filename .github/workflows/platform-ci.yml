@@ -130,6 +130,17 @@ jobs:
       # behind, which is worse than having no harness. This is seconds long.
       - name: Validate mutation harness
         run: ./scripts/verify-mutant-killed.test.sh
+      # The offline half of the mutation gate. A full sweep compiles and runs
+      # the suite once per mutant, so it lives in scripts/mutation-sweep.sh and
+      # the scheduled mutation-sweep.yml, not here. This runs in milliseconds,
+      # reaches nothing, and refuses a committed baseline that has gone
+      # inconsistent, points at a package that moved, or has gone stale enough
+      # that "no regression" stopped meaning anything. The self-test proves it
+      # actually rejects each of those rather than only ever passing.
+      - name: Validate mutation scores
+        run: |
+          ./scripts/verify-mutation-scores.test.sh
+          node scripts/verify-mutation-scores.mjs
       - name: Validate PostgreSQL repository
         run: ./scripts/test-postgres-repository.sh
       - name: Vet
