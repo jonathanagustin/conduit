@@ -9,3 +9,4 @@ export { PromotionsPom } from "./PromotionsPom.js";
 export { RiskPom } from "./RiskPom.js";
 export { TeamIndexPom } from "./TeamIndexPom.js";
 export { TeamDetailPom } from "./TeamDetailPom.js";
+export { ExportPom } from "./ExportPom.js";
