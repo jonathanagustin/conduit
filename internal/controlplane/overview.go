@@ -103,7 +103,8 @@ func (source *overviewSource) VisibleInstallations(
 		return nil, err
 	}
 	desired, observed := fleetInputs(source.plans, reports)
-	fleet := reporting.BuildFleet(desired, observed, FleetQuery{MaxAge: staleAfter}, now)
+	query := FleetQuery{MaxAge: staleAfter, SilenceExpected: expectedSilenceEnvironments(source.plans)}
+	fleet := reporting.BuildFleet(desired, observed, query, now)
 	visible := make([]reporting.InstallationSummary, 0, len(fleet.Installations))
 	for _, item := range fleet.Installations {
 		if !source.administrator &&
