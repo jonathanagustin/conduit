@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/jonathanagustin/conduit/internal/apollo"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
@@ -139,8 +140,16 @@ func (api *apolloPublicAPI) requireAgent(w http.ResponseWriter, request *http.Re
 	if !ok {
 		return false
 	}
-	if identity.Environment != request.PathValue("environmentId") {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "client identity is not authorized for this Environment"})
+	if environment := request.PathValue("environmentId"); identity.Environment != environment {
+		// The published envelope for exactly this refusal. NotEnvironmentOwner
+		// is described in the snapshot as "You are not the environment owner of
+		// this Apollo environment and will be unable to leverage the APIs", and
+		// its parameters carry the environmentId a client needs in order to say
+		// which environment it was refused for.
+		writeApolloConjureError(w, http.StatusForbidden,
+			apollo.ErrorCodePermissionDenied, apollo.ErrorNameNotEnvironmentOwner,
+			"client identity is not authorized for this Environment",
+			map[string]string{"environmentId": environment})
 		return false
 	}
 	return true
