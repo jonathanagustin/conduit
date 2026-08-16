@@ -165,6 +165,17 @@ func (api *apolloPublicAPI) syncDesiredState(state DesiredState) {
 	for _, namespace := range state.Environment.Namespaces {
 		projection.Namespaces = append(projection.Namespaces, environments.ProjectedNamespace{RID: namespace.RID, Name: namespace.Name})
 	}
+	// Recalls travel with the projection so the Apollo surface can answer
+	// recallStatus from what Conduit actually withdrew, rather than from the
+	// hardcoded false it froze at publication time.
+	for _, recall := range state.Recalls {
+		projection.Recalls = append(projection.Recalls, environments.ProjectedRecall{
+			Product: recall.Product, StartingVersion: recall.StartingVersion,
+			EndingVersionExclusive: recall.EndingVersionExclusive,
+			ExcludedVersions:       append([]string(nil), recall.ExcludedVersions...),
+			SingleVersion:          recall.SingleVersion, Reason: recall.Reason, Reverted: recall.Reverted,
+		})
+	}
 	api.application.SyncEnvironment(projection)
 }
 
