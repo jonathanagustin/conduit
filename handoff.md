@@ -111,3 +111,67 @@ These are decisions or build-or-close calls, not agent work:
   or wiring the Gitless propose principal (#21) when a consumer appears.
 - Comprehensive mutation testing of `internal/controlplane` itself (deliberately
   excluded from the current sweep as the largest, least-changing target).
+
+## Bootstrapping a fresh session
+
+The whole tree is on `main` (PRs #30–#44 merged), so a new session does not
+re-apply any work — it re-orients and re-provisions. Live PR subscriptions and
+scheduled self-check-ins are session-local and do not carry over; re-`subscribe_pr_activity`
+for anything that needs watching.
+
+### First message to paste into the new session
+
+```
+Work on jonathanagustin/conduit. Attach it with add_repo if it isn't in scope,
+then clone and register it.
+
+Before doing anything, read these to load context -- do not skip:
+- handoff.md                                  (this file: state, open items, gotchas)
+- docs/operations/manual-ci.md                (CI is manual workflow_dispatch)
+- docs/operations/ASSUMPTIONS-LEDGER.md       (A1-A9; A4 overturned by ADR 0006)
+- docs/decisions/0006-automated-workflow-triggers.md
+- docs/operations/local-verification.md
+- docs/operations/controlplane-ceiling.json   (line ceiling; only moves down)
+- AGENTS.md and docs/operations/AGENTS.md
+
+Adopt these working rules for this repo:
+- New branch per issue/change; open a PR; never push to main. CI is manual -- I
+  dispatch the Trunk gate (platform-ci.yml) against the PR head per manual-ci.md.
+- Run ./scripts/verify-local.sh before handoff; it runs every gate CI runs.
+- Ground every Apollo/Hub-contract claim in the code (grep the Go json tags /
+  const values); never reason from plausibility. Console fixtures must be
+  corrected from the Go source, never from what makes a test pass.
+- MAPPED-or-REFUSED: the Apollo GraphQL interface serves a coordinate from real
+  Conduit data or refuses it; never null, never a synthesized constant behind an
+  OBSERVED coordinate.
+- internal/controlplane has a line ceiling that only moves down; raising it needs
+  a justification in the same commit. New behaviour belongs in a bounded context.
+- After any web/src change, run `pnpm --dir web build` and commit the regenerated
+  internal/consoleui/dist bundle (verify-console-assets.sh checks it byte-for-byte).
+- Put design decisions and premise-reversals through an adversarial review (a
+  fresh agent, ideally model: fable) before implementing -- it caught #17 and #16.
+
+Then tell me the current open issues and which decisions still need me (per this
+handoff: close #17 won't-do, #19/#20/#21/#26; enable the merge queue in branch
+protection), and wait for direction.
+```
+
+### Shell bootstrap (rebuild the toolchain)
+
+```bash
+# Repo (skip the clone if add_repo already placed it):
+cd /workspace/conduit || (git clone <clone-url-from-add_repo> /workspace/conduit && cd /workspace/conduit)
+git fetch origin && git checkout main && git pull
+
+# Toolchains verify-local.sh needs on PATH (it fetches pinned helm/hadolint/zarf itself):
+#   Go (go.mod toolchain go1.26.6), Node 24.x + pnpm 11.x, ruby, jq -- usually preinstalled.
+pnpm --dir web install --frozen-lockfile
+
+# Only for the mutation SWEEP (not the Trunk gate): pinned gremlins.
+GOTOOLCHAIN=go1.26.6 go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0
+
+# Prove the tree is where we left it:
+node scripts/verify-console-contract.mjs        # 7 vocabularies match the Hub
+node scripts/verify-mutation-scores.mjs         # mutation baseline intact
+./scripts/verify-local.sh                        # full gate set (downloads pinned tools, runs -race, console, etc.)
+```
