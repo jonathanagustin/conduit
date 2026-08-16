@@ -1,43 +1,42 @@
 #!/usr/bin/env node
-// Fails when docs/apollo/reference/review-ledger.tsv stops being re-checkable.
+// Keeps docs/apollo/reference/review-ledger.tsv well formed and its GitHub rows
+// pinned.
 //
-// The ledger is the source of identity for the Apollo reference notes: ten of
-// them open with some form of "Sources are indexed in `review-ledger.tsv`", and
-// each row records the exact URL, the review date, and the SHA-256 of the
-// content that was read. That is a strong record -- a spot check of
-// `tenablesc/agentscan.go` at its pinned commit reproduced the recorded hash
-// byte for byte -- and nothing verified any of it. A file that records
-// verifiable facts and is never verified is the "validation surface that never
-// executes" pattern this repository has now hit three times.
+// The ledger is the source of identity for the Apollo reference notes -- 19 of
+// them open with some form of "Sources are indexed in `review-ledger.tsv`" --
+// and it records, per row, a URL, a review date, the SHA-256 of the content
+// that was read, the note it supports, and what the review concluded. Nothing
+// checked any of it, and AGENTS.md instructs agents to append to it, so format
+// rot in a machine-appended TSV is the base case rather than a hypothetical.
 //
-// What this gate can and cannot do is decided by the network, exactly as it was
-// for documentation freshness. The recorded hashes are of THIRD-PARTY content,
-// so confirming them means fetching the sources, which needs a network and a
-// person. That check stays manual. What is checkable offline is whether each
-// row is still capable of being re-checked at all, and that is what runs here:
+// BE PRECISE ABOUT WHAT THIS DOES, because an earlier revision of this comment
+// was not. It does NOT establish that a row can be re-checked. Of the 81
+// committed rows, 5 are `github.com` blob/tree URLs carrying a full commit sha
+// -- genuinely re-fetchable coordinates -- and the other 76 are unversioned
+// `palantir.com` and `helm.sh` pages that serve current content. A hash
+// recorded against an unversioned URL stopped being reproducible the moment
+// upstream edited the page, and no offline gate can change that. Confirming any
+// recorded hash needs a network and a person, and stays manual.
 //
-//   - the header is the five columns the readers assume;
-//   - every row has five fields, an ISO review date, and a 64-hex lowercase
+// What this actually enforces:
+//
+//   - the header is the five columns the readers assume, and the file has at
+//     least one row, so the guarded evidence cannot be emptied silently;
+//   - every row has five fields, a real calendar date, and a 64-hex lowercase
 //     digest, so a malformed row cannot masquerade as evidence;
 //   - every `topic` resolves to a file that exists, so renaming or deleting a
-//     note cannot silently orphan the evidence that backs it;
-//   - every URL is absolute https;
-//   - no (url, topic) pair appears twice, since the same source reviewed twice
-//     for one note is a duplicate rather than two findings;
-//   - a GitHub blob/tree URL carries a FULL 40-character commit sha.
+//     note cannot silently orphan the rows that back it -- the rule with the
+//     most real consumers, given how many notes name this file;
+//   - every URL is absolute https and no (url, topic) pair repeats;
+//   - a github.com or raw.githubusercontent.com reference is pinned to a full
+//     40-character commit sha. A short sha is not a coordinate: `git fetch
+//     origin 35e868a` fails outright and only the full forty resolve, so a row
+//     pinned that way has already lost what it was written to preserve.
 //
-// The last rule is the one with a story. A short sha is not a re-checkable
-// coordinate: `git fetch origin 35e868a` fails outright, and only the full
-// forty characters resolve. A ledger row exists precisely so someone can go
-// back to the exact bytes later, so a row that cannot be fetched is a row that
-// has already lost the thing it was written to preserve. Every committed row
-// already satisfies this; the gate keeps it that way.
-//
-// Note that the ledger being intact says nothing about whether a note's PROSE
-// stays within what its row covers. That failure is real -- `security-scanning.md`
-// characterised a whole client from a row scoped to one file -- but it is
-// semantic, and no mechanical check catches it. Read the disposition before
-// trusting a summary.
+// What it cannot do: notice a fabricated digest, a backdated review, or a note
+// whose prose generalises past what its row covers. That last one is a real
+// failure -- security-scanning.md once characterised a whole client from a row
+// scoped to one file -- and it is a reading problem, not a checkable one.
 import { existsSync, readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -55,7 +54,6 @@ if (!existsSync(LEDGER_PATH)) {
   process.exit(1);
 }
 
-// A trailing newline is normal; anything else empty in the middle is not.
 const lines = readFileSync(LEDGER_PATH, "utf8").split("\n");
 while (lines.length > 0 && lines[lines.length - 1] === "") lines.pop();
 
@@ -70,8 +68,47 @@ if (header.length !== COLUMNS.length || header.some((name, index) => name !== CO
   process.exit(1);
 }
 
-// The topic is written relative to the ledger's own directory, so `../` reaches
-// out of reference/ the way row 64 does for IMAGE-DERIVED-GAPS.md.
+// A header with no rows is well formed and worthless. Without this the gate
+// reports "0 rows" over a ledger whose evidence has been deleted wholesale.
+if (lines.length === 1) {
+  console.error(`FAIL review ledger: ${LEDGER} has a header and no rows; the evidence it indexes is gone`);
+  process.exit(1);
+}
+
+/** True when the string is a calendar date that actually exists. The regex
+ * alone accepts 2026-99-99, which is not a day anything was reviewed on. */
+function isRealDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return !Number.isNaN(parsed.getTime()) && parsed.toISOString().slice(0, 10) === value;
+}
+
+/** The ref a GitHub-family URL is pinned to, or null when it names none.
+ * Parsed rather than pattern-matched so the host is anchored -- `evilgithub.com`
+ * and `github.com.example.org` are not GitHub -- and so the query and fragment
+ * are stripped before the ref is read, which a substring match got wrong: a
+ * legitimate `.../tree/<full-sha>#readme` had its fragment swallowed into the
+ * captured ref and was rejected as unpinned. */
+function gitHubRef(url) {
+  let parsed;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return null;
+  }
+  if (parsed.hostname === "github.com") {
+    const blob = /^\/[^/]+\/[^/]+\/(?:blob|tree)\/([^/]+)/.exec(parsed.pathname);
+    return blob === null ? null : blob[1];
+  }
+  // raw.githubusercontent.com/<owner>/<repo>/<ref>/<path> is the most likely
+  // way a future row cites GitHub content, and it was silently unchecked.
+  if (parsed.hostname === "raw.githubusercontent.com") {
+    const raw = /^\/[^/]+\/[^/]+\/([^/]+)/.exec(parsed.pathname);
+    return raw === null ? null : raw[1];
+  }
+  return null;
+}
+
 const ledgerDir = dirname(LEDGER_PATH);
 const seen = new Map();
 
@@ -92,8 +129,8 @@ for (let index = 1; index < lines.length; index += 1) {
   if (!/^https:\/\/\S+$/.test(url)) {
     fail(number, `url is not an absolute https URL: ${JSON.stringify(url)}`);
   }
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(reviewedAt)) {
-    fail(number, `reviewed_at_utc is not YYYY-MM-DD: ${JSON.stringify(reviewedAt)}`);
+  if (!isRealDate(reviewedAt)) {
+    fail(number, `reviewed_at_utc is not a real YYYY-MM-DD date: ${JSON.stringify(reviewedAt)}`);
   }
   if (!/^[0-9a-f]{64}$/.test(digest)) {
     fail(number, `snapshot_sha256 is not 64 lowercase hex characters: ${JSON.stringify(digest)}`);
@@ -107,13 +144,12 @@ for (let index = 1; index < lines.length; index += 1) {
     fail(number, "disposition is empty; a row must say what the review concluded");
   }
 
-  // A blob or tree reference is only re-fetchable at a full sha.
-  const gitHubRef = /github\.com\/[^/]+\/[^/]+\/(?:blob|tree)\/([^/]+)/.exec(url);
-  if (gitHubRef !== null && !/^[0-9a-f]{40}$/.test(gitHubRef[1])) {
+  const ref = gitHubRef(url);
+  if (ref !== null && !/^[0-9a-f]{40}$/.test(ref)) {
     fail(
       number,
-      `GitHub reference is pinned to ${JSON.stringify(gitHubRef[1])} rather than a full 40-character commit sha; ` +
-        "a short sha cannot be fetched, so the row cannot be re-checked",
+      `GitHub reference is pinned to ${JSON.stringify(ref)} rather than a full 40-character commit sha; ` +
+        "a short sha or a branch name cannot be fetched, so the row cannot be re-checked",
     );
   }
 
@@ -129,4 +165,7 @@ if (failures.length > 0) {
   for (const failure of failures) console.error(`FAIL review ledger: ${failure}`);
   process.exit(1);
 }
-console.log(`PASS review ledger: ${lines.length - 1} rows are well formed and re-checkable`);
+const pinned = lines.slice(1).filter((line) => gitHubRef(line.split("\t")[0]) !== null).length;
+console.log(
+  `PASS review ledger: ${lines.length - 1} rows well formed, ${pinned} pinned to a full commit sha`,
+);
