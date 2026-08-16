@@ -13,3 +13,19 @@
   font-size: 12px;
   white-space: nowrap;
 }
+/* The per-CVE detail revealed under the Release table. It sits inside the page
+   rather than in a dialog because it is evidence about a row above it, and
+   losing sight of that row while reading its findings is the wrong trade. */
+.console-products__assessment {
+  margin: 16px 0 0;
+  padding: 12px;
+  border: 1px solid var(--bp-border-color, #d3d8de);
+  background: var(--bp-background-color, #fff);
+}
+.console-products__assessment > h2 { margin: 0 0 4px; font-size: 16px; }
+.console-products__assessment > h3 { margin: 16px 0 8px; font-size: 14px; }
+.console-products__assessment-provenance {
+  margin: 0 0 12px;
+  color: var(--bp-text-color-muted, #5f6b7c);
+  font-size: 12px;
+}
