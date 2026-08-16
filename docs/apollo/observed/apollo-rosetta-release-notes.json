@@ -1,0 +1,1799 @@
+{
+  "schemaVersion": 1,
+  "scope": "Facts-only registry of the tenant Rosetta APOLLO release-note corpus. Identity, dates, versions and per-record digests only: titles, descriptions and long descriptions are deliberately not copied into this repository, and neither is the tenant origin.",
+  "originFingerprint": "a310cdff5ceee30e9b9ea0080afa91bd918189cf0a2b996b9461b2dc7414774e",
+  "noteCount": 178,
+  "byType": {
+    "ENHANCEMENT": 133,
+    "FEATURE": 38,
+    "FIX": 7
+  },
+  "byApplication": {
+    "core": 120
+  },
+  "distinctReleaseVersions": 134,
+  "earliest": "2024-12-10T00:00:00Z",
+  "latest": "2026-07-22T09:04:20Z",
+  "rows": [
+    {
+      "id": "120d6c4d25a2afd6aa333941fe29df81bdafa9f718c7a6180c6a2291c8101243",
+      "date": "2024-12-10T00:00:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.28.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9ddc54a6200dc2c20ae871fb431a24ec9c3554dc6974d396d2f16e48dea93ab6"
+    },
+    {
+      "id": "6b9a740fbd5bfe50f1c994132dccb5d4c5f1e31fdc3086326774ea6eca8fa9f0",
+      "date": "2025-03-04T16:10:01Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.71.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9554e982834ac4bd031e575f800adb09b72be3ae85947f38a2a403fdcceb6cda"
+    },
+    {
+      "id": "1e4c868538dacafc357d95dff055e7dac6e65c7256f8d4ac9c8da695c72d345c",
+      "date": "2025-03-14T00:37:13Z",
+      "type": "FEATURE",
+      "releaseVersion": "apollo-ui-docs@0.2.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9ddaff1918e2731b5700190d4adc1460531f5a94c27a99cdf548f5d6e4749e9b"
+    },
+    {
+      "id": "76f1ddee60cd7d0967b905df346bf1368be628fd8af6416d5d24159fab7e640c",
+      "date": "2025-03-14T00:37:13Z",
+      "type": "FIX",
+      "releaseVersion": "apollo-ui-docs@0.2.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "8da493e750252c6d279729273674b595b702c3f03e363515fde33f1f332aeecd"
+    },
+    {
+      "id": "9b5c1b5c652d2e02fe2f4a29d98ec33d0ea81e83feff22c2257e624f1d57d08d",
+      "date": "2025-03-21T09:00:06Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.22.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "a6289a56f9bcafe82741fcf80edefa614d8c5784cb4e8e9e5af46b6b62eb5f84"
+    },
+    {
+      "id": "534e5b81b61feeea1cdf797b8842db32b6a746755c4214c154892f4697d128bc",
+      "date": "2025-03-25T02:39:46Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.85.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b4bb6694f8d41e701dadb1da64aaf44be86d379b640aa411ccbb66a4c2d2b825"
+    },
+    {
+      "id": "c788501b5f4ae84ffaf043f940f8a48f7fe9640f94df6c3f0645a7b47386f290",
+      "date": "2025-03-25T02:39:46Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.85.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b40ff27e76673ada826a311a40da2c5a25a55997ef3d32421b5144bd04ef4989"
+    },
+    {
+      "id": "466ab7c291f1f12da8d91ed3c77aae083e691b4ac32ac6d551f9f0ad9b717723",
+      "date": "2025-03-26T22:56:04Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.87.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "6a921929468131463cfd73850c837c17eddb3eb8456b23363dc47333f93439c1"
+    },
+    {
+      "id": "b0766c0f5a803bd6f394426b926eed5251314d10ed9736e6a7fdd3c5e470c161",
+      "date": "2025-04-01T02:30:22Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.89.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f73bf065ba5e91958f99f3d18d4660bcc564d3123c1b6956dca2d0e9eb807f6b"
+    },
+    {
+      "id": "f390786e0aa1275b6e946bfb88e84b4317619f3c32d5ab907d2ec14d9ae4521a",
+      "date": "2025-04-01T02:30:22Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.89.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "080abbcba5dbf84527524bf0db10f22ba3b166300dcfbf6d48bf085baf8fad4b"
+    },
+    {
+      "id": "d21e95af7c36f2338587dda3af4a59a56a0c7a2e700194f11c4934cbea38c397",
+      "date": "2025-04-04T00:30:20Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.92.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "92b1c079d7cf5e1e4af69119dffad08e1ffaeea3689caef366df09c0246af992"
+    },
+    {
+      "id": "b1248c9931de8a46d167cffceb2330e5059939551b4541f5e7111c988cce7eb2",
+      "date": "2025-04-07T22:27:50Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.94.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1af084f7c8750acf21c065e358467ff0a687d1df677359043bf675beba1158d3"
+    },
+    {
+      "id": "c03240e15e651ef2ddc77b541f844d6046f56c78c536ca48c6a0cdcb483b02ef",
+      "date": "2025-04-07T22:27:50Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.94.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "7173d83e837641fca9f4c84a52dd7f267c7f126bcffe610b98f2fa241821e7a2"
+    },
+    {
+      "id": "e013df526f4697dbdb256a7fc9c102b52e615a342ebb910ea0ee16a78e12f5a1",
+      "date": "2025-04-07T22:27:50Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.94.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "69ea23ae84df2a046066b672d02412fb6ef74a446d6930a5b53cd361e3f67787"
+    },
+    {
+      "id": "028e268a6feb85e71c4eaf764cfb473575cd5752c2cc4977be360f71b46af94b",
+      "date": "2025-04-08T21:19:29Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.95.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "623bc15ff89d739e39abac7679a6a5bfdb7dd6661f89d62168a3670a282d5221"
+    },
+    {
+      "id": "2adcc560c1ed257da2b9fcfa0b08c2be0c55a73205801c7d8b431301206077c3",
+      "date": "2025-04-14T20:29:25Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.98.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "85d20791720349559c7db2072c34e811689923fbf27709f3bd668ade430b4c98"
+    },
+    {
+      "id": "64f00db44fe9d1932fc06b13e93bd82c440704d61e52d49fb1eb28bee07ab285",
+      "date": "2025-04-14T20:29:25Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.98.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "582d2aa5c2bcad870233a974b7378c8d03b90cb8f931a8c955d77d0ef2e8914e"
+    },
+    {
+      "id": "9cfa41e4abc771f9a3fb53adb190be386d7b040233bc9825c49f715c34b0754c",
+      "date": "2025-04-14T20:29:25Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.98.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f96fb8bd6bfc87b7110d1a4672f3da83697bee56446ec1456bf6fc2cddb62038"
+    },
+    {
+      "id": "c2006dad4a3c26a35a97f45ed16879ec1c1cd08c27ea50c46947b26efcbbec58",
+      "date": "2025-04-15T22:45:09Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.99.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "24682872b456377f4265c4482215976fe57ef870f8c8a9cb470d92293e0f25c5"
+    },
+    {
+      "id": "e5034b15aa6445176663a5d2045383b0a943be1629bcaa5189715de32f666640",
+      "date": "2025-04-18T02:20:33Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.101.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2b796db18fc954e168013db5346d38697b80aa8eed36665eb29abfb3ab1a127b"
+    },
+    {
+      "id": "61acf56fc0946a32982614a9154add34a07ac4a4eff6757ef73e6f8c2200a350",
+      "date": "2025-04-23T00:21:28Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.103.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "fe5eb24d51876e4c41e3baabc5db3f2785da2d4c7f4463a3569c9a5c2bf00c39"
+    },
+    {
+      "id": "03c6466899ff83b0baf185479171789f3b0e4721aafe49cf6bf928de65a2250c",
+      "date": "2025-04-23T23:23:16Z",
+      "type": "FEATURE",
+      "releaseVersion": "hyperion-downdraft-form@0.50.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2500324c078a9a533577d41e16628e71af1b85ed3601e6ca1521a40172bcd1c5"
+    },
+    {
+      "id": "473a049adaa44a27af3e8fb83e074eac1b75bbde9f9a357eb475d7940592c91c",
+      "date": "2025-04-25T00:27:28Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.105.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d5c0e9e72a1de6c03f42b083def20d8c962e84efa984aef97c3ee64dea22f257"
+    },
+    {
+      "id": "f7155b047f07ecce30fe15894e5902c114403fe5a5d1ff9a0b598e9a35fb3017",
+      "date": "2025-05-06T21:25:08Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.108.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5ed0685d0cdf703458589adea3d629435a1100c8b9fb00736161214675b94016"
+    },
+    {
+      "id": "fcb7fae5a639b221b8b18a3987175e1986e9c715e92d213823de32bcc161727c",
+      "date": "2025-05-07T13:51:54Z",
+      "type": "FEATURE",
+      "releaseVersion": "hyperion-downdraft-form@0.51.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1640002deafe55a46bdf1c885caed24be2dcc9764190ef151371a68639d27239"
+    },
+    {
+      "id": "3af467483feb4786f3ea14deb83c162a0e64c12a1c3bb2097c1cf5ca4dbe330c",
+      "date": "2025-05-08T01:36:05Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.109.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5b1979e93e09e488ec42fafc2fe81da0d68453faee487facee5bf0413c25b8a0"
+    },
+    {
+      "id": "0822dd54326c3afa4baf7322d8bff34dfac8bbe0b5263b0b25e376415420fec7",
+      "date": "2025-05-13T01:38:13Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.111.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "e458272beeb809674ce1792fca85f011d5ec239d9ed5368f4f1a8f8146ee108e"
+    },
+    {
+      "id": "df0d8109f4dd1622b9ae2d203f2921b0d54c98c3b97eee4f71c9faf3480754e3",
+      "date": "2025-05-14T02:04:33Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.112.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "51c6f836276a62bc8db7dd1ec8834e36daf7eee036df1255dfa7711e66f2f70f"
+    },
+    {
+      "id": "e6b74616254b083c90b5208cd4bb4731f2f449a17afcb056ea39316db2f68ae9",
+      "date": "2025-05-14T02:04:33Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.112.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f76d0ef6884089ef3b2fb512a552d69c5161f33eb759559ea2d49a175c398619"
+    },
+    {
+      "id": "88ae6246a1f934cd5281f40ca4b84135d6e31ca7f93a15dd9bfd9a7f6f24678f",
+      "date": "2025-05-28T00:25:07Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.119.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "c69731b8c05f837aaeb28ccd89344a075752e470c9ab6e5a99e28bc53dec4495"
+    },
+    {
+      "id": "28b553be4586f32ff03292506e487517f7f55187792cceda0cfa2ca45ae9e8ee",
+      "date": "2025-05-29T00:18:13Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.120.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1bf5a06c1b9a67377533b1a2f46a4e61b8e715b13c82d184c2d2629020021929"
+    },
+    {
+      "id": "797074937441b95934747c647495d13fe6b320b430f428091597295055d4871f",
+      "date": "2025-06-05T00:05:23Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.124.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "46f1d20f940a94e59052d7adfe83ce9b9c46c494c81890dc13f5e2594313846c"
+    },
+    {
+      "id": "d448c1d4ef3c452e24903fab9f9ebf3576d1ffe68fcdde8e723f8d94b77ba4a8",
+      "date": "2025-06-06T02:05:02Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.125.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "3c3ddc428f46f9211a367c07f55f16fd038b732c93de5c8c6864f6bc32d51c4c"
+    },
+    {
+      "id": "bb58b1e3d037c2f97e25d4372c614dea571f03be809ba244422fbbd4fe041d35",
+      "date": "2025-06-10T05:19:38Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.126.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2cfac6df9a738578eeb6241aebeefddcfe0e0713caadfc2c629d2bf7b45b0c2f"
+    },
+    {
+      "id": "7a059be3e941f58902033e4b62afe2a2d7294f76e03a03491632dcb7eeefe712",
+      "date": "2025-06-12T00:59:37Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.128.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ecdf1b9114c0a77e6cb10c591f5c8987b982e1300ba2a92a0013e749b5a4878c"
+    },
+    {
+      "id": "aa8f1f1da9651706afebc8460e1ca07d3164e98bdd5e3e4751b4a15426110b3f",
+      "date": "2025-06-23T20:49:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.133.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f3ca657e7445bfc6825eddef9e0a0d4f98f7cad856370578cb700066f31560bd"
+    },
+    {
+      "id": "066d6b302e193f4b5df1197c2530ed1eac4dd4b2fba532e979165db3b99c708c",
+      "date": "2025-06-25T22:50:22Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.135.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "09ec312f588cd00842d67bee62788e0f3a3e574d8b5ea70089acb8e2957ede0e"
+    },
+    {
+      "id": "d9a4adcb80b11fb47dcea0b3289b54e7833b5b8c6a489903d807dbf9011de4cd",
+      "date": "2025-07-01T04:26:02Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.137.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0696fb679471cb08b12618e4d73d3979c76870cdf5f4740e0c30a1565efcd714"
+    },
+    {
+      "id": "24c70f800185791d765f89dd8e1bb3097c4054b301d06c9e787236718a7e3af3",
+      "date": "2025-07-07T22:46:54Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.139.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "3ccc138b04bcb7c84af9a6eb6b3460dd33975af3dc01da6ed78947246cd67a78"
+    },
+    {
+      "id": "c48b16046806d15ebc229ad7bff570b87f756d4b7901d55ad7620f0b6bfe9583",
+      "date": "2025-07-07T22:46:54Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.139.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "3f1cfbfae837dc8581a21a1b201889ab6339733065278dc84e2b8d1dac892131"
+    },
+    {
+      "id": "ae866efed5c77f67bfa63962c3b78d68197ca366fda41f922e6304ddf81475d1",
+      "date": "2025-07-14T22:26:01Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.41.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "45d561a13b88cde9d9207e06629df0d56f78df07ffc287acd6329c719476fcb9"
+    },
+    {
+      "id": "34ff45ebd5ba2c9b7b1b5e4e1ee09697c5f1453974b7dd88c2188075fb505ddb",
+      "date": "2025-07-16T18:34:57Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.463.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "fa1da80d3c2e520a8ba54e545d7ba3f9a5c63edb1664425e431d0e133e9712e9"
+    },
+    {
+      "id": "71c1fd22329c5253d3a8b43df5260936f262611f10dd23273b1abbc4209b82ac",
+      "date": "2025-07-17T18:41:10Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.145.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "02db365e17dfb1da01077cbec5322cdf9e4795cb21212a0529c2179d9c6b4f6b"
+    },
+    {
+      "id": "3db565b82c62bc3ff4ab9ffb4dac9c30ba3769e41489354f8990624d39b69602",
+      "date": "2025-07-29T21:37:39Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.152.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1498a00e7ccaa9c0dce5d1fc747f17da4236c2eaaa9d47156a9b115ca666861d"
+    },
+    {
+      "id": "e2f0b8a014681fa2b4b50879c187f30672d23b9f2422c7055c9c5228457b808f",
+      "date": "2025-08-04T23:18:29Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.155.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "008798ece64c1483c2568b7d745770d0399df7b15576baf20ac9143b8d3d9388"
+    },
+    {
+      "id": "fb2adb9585972dd691dc98e6d309978fc805004319f10aa8096482405ec1e534",
+      "date": "2025-08-18T22:04:51Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.8.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9f11f6195768e64751dca4d6ed714fb3928401a7f06fd4d641f9564908da9182"
+    },
+    {
+      "id": "fa9f6cf2b6b874a8dc19ef756599a7e6dc6b244a3f8c5637c2de6c0529f3467c",
+      "date": "2025-08-18T23:39:56Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.161.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "7838fd1a0958dff165e6561b1ae0e7ed80ed799bce6832c9765e949e605bd6c9"
+    },
+    {
+      "id": "aeea2e1af3d27f560d9e494493c6174f81b8bbcce94a6b31ca7d1818600ae026",
+      "date": "2025-08-22T14:27:49Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.500.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "15595a87f7bc9192195867878b04451985c2dd49fd919282e990e64d19492eb7"
+    },
+    {
+      "id": "c6b4cfd9e49cf3ac18e8e240ea13cd12159958e543584b789c52dd9016e66116",
+      "date": "2025-08-28T21:40:35Z",
+      "type": "FEATURE",
+      "releaseVersion": "apollo-build-factory-app@0.10.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5b7b64c028c25c38c1d4ad0627df6e731b1c53c2b223bbe7eb03234ec9a515c2"
+    },
+    {
+      "id": "8d03ae90e2c125a000af35486e0055e3e42c09eebf90f4ff3e53bdab55e0b00d",
+      "date": "2025-08-29T09:00:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.52.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ea1295a6776b6392cfe705b1a3ef2a7b6c5b0cb0b2480bc49086cd470b68fe59"
+    },
+    {
+      "id": "3f5ae21adf63badcfc60eadc12a4684ca50f29df40c89bfa29fc14812fd5c847",
+      "date": "2025-09-02T21:37:31Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.168.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d0ffbf3266cf183832ff86f2c943d685299b6899055eba70d62f0140313f59a2"
+    },
+    {
+      "id": "6c07852168218dd81d7c81a72b4ee6f677dde61052b62c0dea89e202af383d1d",
+      "date": "2025-09-02T21:37:31Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.168.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "41e288a9ef90f6c982e504023206c37ce5014002a516a0764b2e75f95d0633c0"
+    },
+    {
+      "id": "6db71619e90a28b78058f1c4eb6542bf3a4123d3ca1ce5a14b7bd8ff0131415b",
+      "date": "2025-09-02T21:37:31Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.168.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ccf4f730386f1d3b3db93a9316881aa8d76f65930f2579e2ad29afc66c439da9"
+    },
+    {
+      "id": "64d5337e14923bda45b5e086a08d2c27ffd115b6fc84a00382ec1c11ae905e04",
+      "date": "2025-09-04T20:38:05Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.170.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5feecea18bbfd9404ea215ccdfa0e6837b7a03822363164e66aeab29fa4ec3e7"
+    },
+    {
+      "id": "a8deada863d44fed141c6bbcf2b2d0683022a0e0e7fccbbdad94c7b6e3be4f3f",
+      "date": "2025-09-08T13:46:17Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.518.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ec0bb25f3e952e9f3affca942354d81d668f1b8fd8b2f36a4a2dc77c97f2a564"
+    },
+    {
+      "id": "38f4e9cfa68d7f279ed3ba97a1f632ec45523737dc06c706cb101ce645d98fc0",
+      "date": "2025-09-08T15:19:22Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.519.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "866245e234cbe8923975f1db1a770db455ffcf8f78d50eca334b0380eed208e0"
+    },
+    {
+      "id": "3c745022d12653131453497e74b1734b312b2c3abf71108997429c136f88c6ac",
+      "date": "2025-09-09T22:45:09Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.172.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "a7c45081a650cddcf9ef0df87e199a85e3229c9b228e38db090443503625a161"
+    },
+    {
+      "id": "20dbc0b67189e22ea4d328a2956bf32ea171a4c0d90ee7d54b0405b819635391",
+      "date": "2025-09-12T20:12:19Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.524.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9bbb3f2e9bf510e67d32525d3c3a88f2d8086dc2c81753d7ece0b7b9dcb6e3c2"
+    },
+    {
+      "id": "158bf1ae641e3ab529e4807f0a64267adf2131f7b87c8cc6475b3a7f3a6d620b",
+      "date": "2025-09-16T04:57:21Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.175.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "cd25882d2d541b86df26c849c9509fcab17ce6b88c82287341dd00d45ffdcf0a"
+    },
+    {
+      "id": "5d5fa58c7fbdaac22e83802d33b00adb6f5018163d909b91ffbb15791a4d0b70",
+      "date": "2025-09-16T04:57:21Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.175.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5e290f5355c20b9ac32f7169b309f3b441d85e006adc6325259fcbb954ee6b42"
+    },
+    {
+      "id": "64d98c888fec0b22628399dcaffe559a0ad7993a400452ad842a8e506bdcf8a8",
+      "date": "2025-09-16T04:57:21Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.175.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "e8bbfdb5cd5060e0bf1a46c0efb96359291790fa6969d3d703abab68bee4444e"
+    },
+    {
+      "id": "00a01ff34528e91f280b1fd0b70e8bf8950de598eb08473060d77252997a3a1a",
+      "date": "2025-09-17T05:24:50Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.176.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b12b6145e3ccf90ee0d05c733ff2563274bc3d96225c14065efdd1f3d1e93e06"
+    },
+    {
+      "id": "28a4e9dce8421456bacf13965ee8909da7cb26c7411064390add29c6d9268ad3",
+      "date": "2025-09-22T19:05:06Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.13.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ccc20ceb661a3f411a9dd020e41ae4c5406503ac8fec0eaa5bbd0bcdb2d321bb"
+    },
+    {
+      "id": "2e5f11cedc08e627efa000bae16699efa0d3f004716cd8dfff2933ce7a6efa16",
+      "date": "2025-09-22T19:05:06Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.13.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "6e73fe8a238335b3f2f41d876e9f216899fa59f075b8cfdf8920f42160f69786"
+    },
+    {
+      "id": "177464f10594b89a5cc4e0d4169959d8c15e49f2fdd8fe517a936305461ed4f8",
+      "date": "2025-09-23T21:14:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.179.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0c68434cfd183f92343e7c5cd877d32af0ed630bc9fd8c5e0c77495713a0e31c"
+    },
+    {
+      "id": "73e07e243daa798171f3fed3a7ecfc6ed8ef7f4169fb790c8a85a68b4f21912d",
+      "date": "2025-09-23T21:14:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.179.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9aadaf53e057e0650743b69975116120d4eb1344bae3f14cb72e8f95d657401a"
+    },
+    {
+      "id": "a168edcf960968290dd29bca1c65332d3eceae691b21a502284c521e6e7c822a",
+      "date": "2025-09-23T21:39:05Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.180.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "89aa398f01ca2171cfa645ca09744351618f63a416049687bda5a07bfe87cf4d"
+    },
+    {
+      "id": "f0611c815d75614b3c7d9f1638384820ad191350602ef54ff8c7e56264150b5d",
+      "date": "2025-09-25T18:32:08Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.531.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "4eef00fb117fa0af87bad14a76f125591964941605713b5753708748435a496c"
+    },
+    {
+      "id": "82009a5b37a60a3513025a011e61858cd9e0eb2d9564b1ccddfda382e354fc73",
+      "date": "2025-10-06T21:39:53Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-ui-docs@0.23.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0c0a484712837b9b3cb4486e58ffb3d1d3eb6501c2d890e6f71827711225c0ed"
+    },
+    {
+      "id": "0ac3b38de2716186e47a6809b456a7b9d72ce6cb13e268e7317b9b7a13826106",
+      "date": "2025-10-10T05:44:41Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.190.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "12e5370d4d7342c2a065ecf139321219f655d9c05e883070d02c39478263d827"
+    },
+    {
+      "id": "5c60beca15e92751fb3dbb2740f0ac8a08abb1ab864ea1271e840ea873ceb0fb",
+      "date": "2025-10-10T05:44:41Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.190.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "85115ede3886e7de70898dc6416f85c303e4d45c1fc817719a233976f289203d"
+    },
+    {
+      "id": "93247f94e2f50183af34f5b2851d469684bdfba432fa8f1d999b62d33dae8a07",
+      "date": "2025-10-22T23:02:59Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.199.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ad2741b9d3ea1431ed9ea84cc8a59958a3b70281c42095022d8ec698871f58a2"
+    },
+    {
+      "id": "262f201895bf03a7b838153f09d65e0c81087c79da358f1497b9209511e13f24",
+      "date": "2025-10-23T17:21:50Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.550.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f1f7874a61734c1f0cca47e18ba550a3213a2247f4b2e2e7d8534afded2cb897"
+    },
+    {
+      "id": "f3a0802558436504a249dd93cc1cd114879331adefd3bd733a24bb98e586148f",
+      "date": "2025-10-28T21:07:52Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.202.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "3bee57ce1f7d328b152bbb172aa910081e948927fc19da2cb80ee531b8b08615"
+    },
+    {
+      "id": "945c5c9a1692e07b62d80280a65d23efbebe71953db8daed82c6347582c3f93c",
+      "date": "2025-10-30T15:04:03Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.203.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "260baf7f8fd5d413521c2fd28b611493321e6980cc70ce78e23916253f82a812"
+    },
+    {
+      "id": "d3cdf6c0f11ac1cc5ccc8cc6a45528157e322935d547e677f8a177ccaca4f063",
+      "date": "2025-11-03T20:08:35Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.21.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "18eea4298117dedda13e791abe00bf9d11b1f5129684bfce65ad5b4df11197a9"
+    },
+    {
+      "id": "df04c238b9716b728da18b940d9d2c725661c4a134b7795d6e1b2e23bea684fd",
+      "date": "2025-11-04T21:53:30Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.206.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "a711d52be94372a44101fb0013103e2f9ac75d2e9cabb309d79ba9ccab179e28"
+    },
+    {
+      "id": "c61096ef-70bb-4458-9f47-2b8591fc3de5",
+      "date": "2025-11-06T00:00:00Z",
+      "type": "FEATURE",
+      "releaseVersion": "",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 2,
+      "sha256": "c7fcecf7dcb33296a805f83996d57355801c55c438b37511becccc3fea361aa7"
+    },
+    {
+      "id": "d3dc7165224f4b306af62e8c56c4dcb2a68fda4d2941ef21228584e2ab2d79dd",
+      "date": "2025-11-14T00:52:58Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.211.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "a27bace8a8cb51673419d7191d1080d061383fcdea5efd45d2b72925cd287c5d"
+    },
+    {
+      "id": "a697dd645dce25c875cebb274aaa16b872e8323ac14e5b261b8806b37ea80958",
+      "date": "2025-11-14T20:57:24Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.564.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f64b6ae1f7d7eccf8f59f01897d9ef51c75133df071be2fd235d0b2a0ac4507d"
+    },
+    {
+      "id": "7f00073003abf68b11dc36830140405db99c88052fe9fed9b93423f32172bff4",
+      "date": "2025-11-17T15:28:34Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.568.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "68b6e35f973860256d6da8cdc919cdfe836eb8a5e0d0d86c0fd1378d2a0fa3df"
+    },
+    {
+      "id": "19544e9e2cbde8dd36709d2df9596e00f9ceeb0fd5441e420c2b2f2c4866e558",
+      "date": "2025-11-18T00:05:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-ui-docs@0.29.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "54472b2b90f66e23cc075c3dda68956a1d3e1ae1225d6886927c713dca0381a5"
+    },
+    {
+      "id": "9039a53751372f42489c5e5fb779ec160b3e47fd374fb8da5d8ca20c1591048d",
+      "date": "2025-11-18T00:05:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-ui-docs@0.29.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "360f164e3c45f6c8080cfcd41cb1e05fc8e2ead6b45eed259088d5008f855266"
+    },
+    {
+      "id": "df2a002b462153eb997076b546f26d06d9fbfd95e0745b6b4362940ea235e080",
+      "date": "2025-11-18T00:05:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-ui-docs@0.29.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "94214d3b6de1179caac9b6c6a84f3e4760db2c4d984b439d7808e51061d9b69c"
+    },
+    {
+      "id": "7ef97f22e57b743c863f366d29f3cb44912d8219595e4fd44eb3239e303bc9da",
+      "date": "2025-11-19T00:34:48Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.213.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "6ccc61bd3ee0b4bed4c44eaea18c1fd48cd3dbbd13c89dcd530937f7e052ed0a"
+    },
+    {
+      "id": "382baad3dd12c029e8a4e459750aa50ebce4a937dee23c5df4fe4bb567f429de",
+      "date": "2025-11-21T01:10:45Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.215.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "69880138a8941ce1823b7d3c5b3d1aa81ef0aa65d4d6e2608c5f91da51b8b214"
+    },
+    {
+      "id": "2a32f6c94853a911f0e191995f7d9ac2a904190660094269ad1b7c4afdfbb23a",
+      "date": "2025-11-21T17:24:14Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.571.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "75fb626fa8fdddc3694073b3bcc7c0426f0c89d1d95af51b9e628af2b262d140"
+    },
+    {
+      "id": "07473bb0bc7d5cbe335610e4b0350180b575793b4ac2325b3ee36fe6d5e54606",
+      "date": "2025-11-21T22:05:14Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "aries-app@0.34.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2128bd5013dc77fe5c10287ae650da293f713f04cbacbf7ff906e45439bdcf1b"
+    },
+    {
+      "id": "b74cef00ecff829d1b56a1d3952845fe26e41b2807d06288a2be05f3f836e76c",
+      "date": "2025-11-25T02:07:02Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.216.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "c8615554411d4927bd111530b7206be84d4bf8f105afd4e2fabc2b49b780f51e"
+    },
+    {
+      "id": "6bb55e5be212678fc4d7a09d5b8279d6c526b3c78ea034318cea5d3f4d9310b3",
+      "date": "2025-11-25T22:24:32Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.65.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "007beeee6f1d0640b40ceceaaf2636aac10d7ba0ec43dc24cb41b5be75e3477d"
+    },
+    {
+      "id": "708c62e00888be9ef9fffcc2f178da0f05e738e10923808b2a6b6337345509ab",
+      "date": "2025-11-25T22:24:32Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.65.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "59e8fe24a21cd95517b1226ec7b6f7bc25041de0ae3208d3396bbd68aca3bb88"
+    },
+    {
+      "id": "6c53abd58d46d0ba7f60551db9a90b5a77f45274d82a31ff6a495732021d3ce3",
+      "date": "2025-11-26T03:04:35Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.217.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "7ee4914524619dd457d35818e7c030c91e109ad77c59ce0897784ce21bb40464"
+    },
+    {
+      "id": "eb93d69aad489a10db88ce36033d9b37302f82d255dc71ec26987edef2a6fb71",
+      "date": "2025-11-26T20:32:44Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-mesh-manager-app@0.2.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1d2f7842c87cda8dab705d287ec038b6d3b4e4195d48ec5d0e2143bb7039ba05"
+    },
+    {
+      "id": "e89d5d7e-6b65-4f01-89ca-40aebce62736",
+      "date": "2025-12-02T00:00:00Z",
+      "type": "FEATURE",
+      "releaseVersion": "",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 2,
+      "sha256": "646af4c1126144b650550a5aa088e14e11cf270fa5aa52592cfaf2437a52228c"
+    },
+    {
+      "id": "84e14fc94fcfdfb45cb49b1977a53a7c574d2091c3f8459c2d4bbbc17dcdb48a",
+      "date": "2025-12-02T06:15:19Z",
+      "type": "FIX",
+      "releaseVersion": "autopilot@4.218.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "e6e0bf03443b6b0b49dd4cedcd2172cef5283b3eda66c20ff6b655e60ae0f600"
+    },
+    {
+      "id": "00bc302fe428b11f230b8c99c492138f8d5cd5402665eb30fe2863708665731f",
+      "date": "2025-12-05T05:58:54Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.221.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "47ad2be083ba8d957bcce2e809cce1418ec228c3248a372a829e457ab1ba0890"
+    },
+    {
+      "id": "38d0f6e7885bdc7f12b61fe3aed26fb2ae571edd8ec66da34899644d7c06c021",
+      "date": "2025-12-05T05:58:54Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.221.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "3e0e5fcbac2b28c500ee71b00e038f1e370ae0d61fc5a4797d4c7b3fbe2e9d4b"
+    },
+    {
+      "id": "877a15948789ef8b089f97f61a024d9f305156996486948493447d1e0aa24404",
+      "date": "2025-12-05T05:58:54Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.221.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d42bd3e9989741478a4cda7d4fe80ca8e30785c13157cb0b2553c14820fd91be"
+    },
+    {
+      "id": "cb619dacbb784fb2f609332fd1322b63e61e3450edf5237230f965fef1d3523c",
+      "date": "2025-12-05T05:58:54Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.221.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1d180c6b3b2f43286dd3e54e60fc9f9bbf48e097f671688207805578078e21e6"
+    },
+    {
+      "id": "6aad26080587237c60694420d16d7a5ee868168bae62e7df6233028da8a0406c",
+      "date": "2025-12-10T03:08:43Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.223.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "38cf5253d635e46461d4956a781afd7f2ca4ac0d1d2349c7c98ee3fd693da324"
+    },
+    {
+      "id": "77ce9e31e446592bfebcf649516897276de918c7fd0332df477f1e70c30f2ff4",
+      "date": "2025-12-10T03:08:43Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.223.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f167a4fc283682413a587d7fb2aaf9dbe3928c132efecb134a15238cc9687a64"
+    },
+    {
+      "id": "78481f434870af8927a9a0cbd0a92695cc32fd0bf7cf873127ecea84dc3a7537",
+      "date": "2025-12-10T03:08:43Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.223.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "00f364fefc5cac2efbf393046043566bc83b547f37b482382ad0f97bbee09a90"
+    },
+    {
+      "id": "e3864c148df74f2a18f3747b74fdd2f8b5d40e0386848837cf988b3b25068956",
+      "date": "2025-12-10T03:08:43Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.223.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "21b24d0719ff019ccf9c64ffad576ea08601146cdd9f79251337aa03255b8ee9"
+    },
+    {
+      "id": "0cb67ddb206b4505b5bb3d11a4f0c0a9ede38d1182c625be65e0265f05bc624e",
+      "date": "2025-12-11T22:02:17Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.225.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "c9d0f3b6801b332fc072a2345ca4ea1ce97a6354b6c99ea68bc5a7fd84206778"
+    },
+    {
+      "id": "5841be175756c4c7f1317980df5afb07a72922abc41a9ddc8407bb6f40db14a1",
+      "date": "2025-12-18T18:49:52Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.585.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "84ed93090d49f2045f17fd16246146df9327f058e504d95ece20288d09176efe"
+    },
+    {
+      "id": "846794434db7c9854385635b475ba01af5616cca68502822cc1fc92d4cbf25af",
+      "date": "2025-12-19T01:03:32Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.587.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "afd6cf9c8dc77e4c3423d19ac75341652ab37502fde3267f8d3ea8d00ec7a6a7"
+    },
+    {
+      "id": "c87b9f74c97b8a1c4b8368fad154a567b9b183ba81c34c6855c79aef5aa64c2f",
+      "date": "2026-01-05T08:00:15Z",
+      "type": "FIX",
+      "releaseVersion": "noc-inbox@0.71.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b69b512bb35520dd09c9611c563cc9e2198239d6a6c254ea63157fa87996e911"
+    },
+    {
+      "id": "fb10c03f25fdc89866868e2d8316eea8fbf335192999a3b6b9d6fc66e5441a17",
+      "date": "2026-01-06T17:26:27Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.596.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "fd05324176f52026076339c1311d62a9b8f5dc33f51bfa3e37a0b1162362eac9"
+    },
+    {
+      "id": "28fbb119f19f23c848f27d56f047a74f1e9718eeda28b96b01f577a12669878e",
+      "date": "2026-01-08T19:02:56Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.604.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "430688b623b72db11d59fcace8fb1cc83f56f47a1ebee789dd9e4a792714cb51"
+    },
+    {
+      "id": "027cbbaea4bf9dda838b83e818a8cecb2c3fab49cdc32319a8ab09aa49ed7346",
+      "date": "2026-01-09T09:00:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.72.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "c48c895e72e68cfaef5167eadd44de83f7632ade6594e9c78b3420fcf8dbc78e"
+    },
+    {
+      "id": "0b19fddc4be7c1d286420d37391854b6c2f12f1ebbce789482bf90f82aab75fa",
+      "date": "2026-01-09T09:00:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.72.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "36f8d7a03ae22673e24066e8f5ae062d0e3cfe899819e5b10e80327519d130c5"
+    },
+    {
+      "id": "971d900a4679492b607ed7baa0a54b2df3f4773c960164f7ab61d225595ec718",
+      "date": "2026-01-09T09:00:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.72.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "66529531f6068e0c5c218cb1530f59dee011fd5d055efc8a9ed5a6394e8c9810"
+    },
+    {
+      "id": "e505551c6b384061984ca9d46549bd138744a7dbff10b8f4f261419857523812",
+      "date": "2026-01-09T09:00:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "noc-inbox@0.72.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "06d622c83a2b9cc0a9ebeb16ba8a392c6580fe6d46eb23c53a9e1079dcbb3562"
+    },
+    {
+      "id": "065cfc75cad74c0275d6c2aedfd49d30f608e98b6bb437e6502c7ea71d416a16",
+      "date": "2026-01-13T03:30:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.230.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b7d043b509c4a3666f09355d660f7fe493dd82f3c4ab3d424cb10472cc227484"
+    },
+    {
+      "id": "7b3da6d12477a11d1166e11df47d1023e85348ea60cec387d4a6ab7ef287c1f0",
+      "date": "2026-01-13T03:30:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.230.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5b958c70a62cbbf39884ed37603958f62bf38ec0215f53f17118e7e2e3b9d2e9"
+    },
+    {
+      "id": "b80c0b0e4d59bee5d93b50f36cbc32ab94a58571cad94ad738f90dc21800595a",
+      "date": "2026-01-13T03:30:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.230.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2442659553cd7123f66e04ae48b6d5c24e346e462b7c10f98b3e1325c40ee731"
+    },
+    {
+      "id": "f040a7fe98bd4978afc764175cf043eb85cf1d188627cb778cdb82c827aed497",
+      "date": "2026-01-13T03:30:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.230.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "387d76807b6167bc2ba4be3aab27102d909391b9bd62bc0d3d440ee2e4837b44"
+    },
+    {
+      "id": "a9ad7015907f2c5a0b761cdf0b0daf4583518a0f5fc1a111651d7eda28d5800e",
+      "date": "2026-01-15T22:26:00Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.622.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "75a4626d7097e11253de1ae637cdcbca9639127c8cbd9f0300add6311b0a3854"
+    },
+    {
+      "id": "501c6f4e557b2426d71706dd316bc1a044a04982dee59399544e73eb3f45ed09",
+      "date": "2026-01-16T20:08:49Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.623.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "535de43374b803b691db8e599e8016f86a8bb19cd673d8134cad4936ed0fa9b7"
+    },
+    {
+      "id": "e051ad5dccc76139e4fab4c1ce6445f110f19607a5271a94bd1a6430ae9e209d",
+      "date": "2026-01-27T22:42:33Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.240.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2ff528f2d8a5805d83c4364b5f5b4b3509e2549786e24b940b62d5d42fa47d57"
+    },
+    {
+      "id": "f2d8b57fbb25fd18ae5bf36f75a7500af9c61e0d403f5e1d19da6cc57e66bcbd",
+      "date": "2026-01-27T22:42:33Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.240.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "cb4e57a5c25536e219c7de505769363d53d083a43e2acf0b5451f9058badec0b"
+    },
+    {
+      "id": "f2efac35c9c8a06edcc103f5f5d87b9d26e7e2eaaee701d03e2684d101207ad6",
+      "date": "2026-01-28T14:38:45Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.629.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "46adc29ba29d53f61151d1b9d9afbe691143d406698a77bdacb71ed73babf32f"
+    },
+    {
+      "id": "30aa49fc4ba845d217da349f018f2966d02aa23661e8909068c519cb29f09bb6",
+      "date": "2026-01-29T23:57:59Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "mission-manager-toolbox-app@0.1.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5a217df66df21994c06ea1e663002ac247909d71da50937cab4cf14bec83e159"
+    },
+    {
+      "id": "fadd7bc6eb88a3cc79a0662951374a21b861a8c916a7d7a5737d74a09da59171",
+      "date": "2026-01-29T23:57:59Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "mission-manager-toolbox-app@0.1.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "c947f1f19e54cdfee16018a0eb6263714954b9d035bb5ecc44c37a7c4bc1310c"
+    },
+    {
+      "id": "0c3253459b1ced0fad5cc85e2d67afe7ab3e6f268c8fe5987a842ff252c86ec6",
+      "date": "2026-02-02T15:18:27Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.631.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b7d97d496ceaa522db50e791e586b0e6a62d7b56036552629682bfcca06c9163"
+    },
+    {
+      "id": "ac61ba35ae7a98212bc7b187cd9dc1e9e905065150864001bfc833987d9e118f",
+      "date": "2026-02-04T23:23:47Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.637.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "26ee8ead38e1e029984af2a7f73ad4308013595c1890f36a408be22d3901e13e"
+    },
+    {
+      "id": "ade253e110717a96369972304cc99ee5bb1eaf80a07d809f33f71990bf4fe5f2",
+      "date": "2026-02-10T15:21:58Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.647.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0c06c16a11df4fcfc0deb969492542d6a99850ebea74df20bf3c831f512de20a"
+    },
+    {
+      "id": "1592af76b815d4f503e4197493bcb92c2d95b803158d139ed9bac15f0545f1f4",
+      "date": "2026-02-10T19:34:11Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.35.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "8d2aa544f0ba2d2dacca9cc9c2d41ea1dabc8300b9d2929ff129fbf6eed7c2e1"
+    },
+    {
+      "id": "eeff4a8234150393ca8b9b2f152624e44ea057a0401537938e56094a2eab71c9",
+      "date": "2026-02-10T19:34:11Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.35.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ffe9b3be733d37ccda312b5dc8dba71414991adfd59a886b104be6d863183e70"
+    },
+    {
+      "id": "1a0c562b4e67a1c12bf2e96acf467b9f7c3039152ff6a0d81c677bc340f4043e",
+      "date": "2026-02-11T16:49:39Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.652.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "49f413a13b346c434cbbf514a13c43e9f20169fc0f5ab13806075140bd19deb3"
+    },
+    {
+      "id": "629813773b8826d5fb766f0615596ea0ce7dd1f345de9d019ffb0a5ec18cdaad",
+      "date": "2026-02-11T17:45:38Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.654.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "9ec209a244747e6525c97dce52575440b58e1de6de856018a4f564e90ba69b98"
+    },
+    {
+      "id": "698aa65ab47bbee2d228f3bfbe1307178a4cc70d24b8d08eb0184e139cc1eddc",
+      "date": "2026-02-18T18:46:35Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.669.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2f906167a6cb3de1d91384f9fe1bd52fbe5ed7855d87a83673a2e2bc5ae5f42a"
+    },
+    {
+      "id": "1bac6dab3b8652c3d9715f13783a390e0302136d33fc981c929bb7d641dc8b58",
+      "date": "2026-02-19T15:12:37Z",
+      "type": "FIX",
+      "releaseVersion": "v0.673.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "7e9c6db2d7d20617ef1f987d607483e1bfae73f5feed4532abe47969d0c8f17b"
+    },
+    {
+      "id": "12b9497ebecfae28582410c5a4b2c14cb0412c8dd87aa3c394357cca29fb704c",
+      "date": "2026-02-26T00:28:43Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.256.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "288aa2162a0ff16b2287e268c836a58c7796444c3773052cc614eb37b148f94c"
+    },
+    {
+      "id": "8cacdf5bd38f6ac54ea9ecb77f6fb61d268f4fb8d7d9bbc68d9d52d218808e9c",
+      "date": "2026-02-26T00:28:43Z",
+      "type": "FEATURE",
+      "releaseVersion": "autopilot@4.256.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d47166110f2e5452bf67908872090a683a2824aaa7e4e82fd1143f82ff396512"
+    },
+    {
+      "id": "35f85072d3c407b3fdf7a46ea60bc82b5650e7341c09142ad88cbbdcfd624f66",
+      "date": "2026-03-05T04:19:17Z",
+      "type": "FIX",
+      "releaseVersion": "autopilot@4.260.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5786ab889a177519280a7b853a1e0d4b06c189c8980b2c695b455c86455d7d21"
+    },
+    {
+      "id": "1a0fade30910f8a6d209ea8e9a7c07c24e656cdec7fb2289e5e5e19e60eb1832",
+      "date": "2026-03-06T22:03:12Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "mission-manager-toolbox-app@0.16.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "59878f6a7a6c458a5ac4a271df19d4019f073fd3531974e983d3051eb80a2cc0"
+    },
+    {
+      "id": "22f0c5c72999b1c0b23dd72f498799d1ecfdaea3b27a90db4c16764c488c7fcb",
+      "date": "2026-03-12T20:00:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.47.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b9cdd370c8e66c36362f81646f4f6fad57fcdb15da9b36634ce1f46018180e55"
+    },
+    {
+      "id": "45e3c75bb69e24828ad3ed6c094ef070963e92fcc0954fef5d49c72de72af64e",
+      "date": "2026-03-12T23:59:38Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.265.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "6eb86916dc5e8f8a2955f7c5f360e8a154515629a56170195fcb10b1b8645853"
+    },
+    {
+      "id": "111c826f0348d2b1521c1c55389b4092628df3f98a384fc33fc73f9f8279fdd3",
+      "date": "2026-03-18T17:28:31Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "aries-app@0.39.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "04b93b982e30db80a890a0f758333f61f109abf40663c3f22726887a1a70ca0a"
+    },
+    {
+      "id": "3faa6b60358569f6a805071dca730e9d09449498310cd442d8714a8f1bc2ee5b",
+      "date": "2026-03-18T17:28:31Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "aries-app@0.39.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f88d301bf92a7a147b5d639ef9072b54f389b38e780083a7ed315835bce805c1"
+    },
+    {
+      "id": "3d3dadcb7a4609186bdab29267c98cfad3e4ebe009c600e3c45b66751ca85a15",
+      "date": "2026-03-19T15:56:27Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.708.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "1700345c3c7b858e004f0e8f701bd617de10e8a3f5b985effa109bd14d5d0134"
+    },
+    {
+      "id": "200b6d1d3dce55ab91607d424a7298c99e9aeb4a0cfe835024806930f2b404c3",
+      "date": "2026-03-23T13:03:30Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-ui-docs@0.45.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "92aef53996fe5062390c43d1217efc96d5a62c18f464779790f28e438197a1ce"
+    },
+    {
+      "id": "50e0aedd94064452c788909fe73b29343f4d34fbbc74fb4467807fea1f0c7305",
+      "date": "2026-03-24T03:10:14Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.271.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "6251953ff45915eabaf9fed3debcd2436e464511a2b637a3e613f3a6937ce0b5"
+    },
+    {
+      "id": "71e7eaa58e9f9befa00d1af3571e1c9f1dd9316b1d7c82198cc0e0c60b957872",
+      "date": "2026-03-24T03:10:14Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.271.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b19d6add9e589600bc9f092221ad997de2eb3553296f0f2d662c889fbae4b95e"
+    },
+    {
+      "id": "f458488f195eb9f32b9055a8721ee6c4c513bd3fc071b77afc1f2716b5964362",
+      "date": "2026-03-24T03:10:14Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.271.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0a08179ea522a8a7ad361c83cf01abd5d5343dd28e5fe820ed2b97fa3a7f42ab"
+    },
+    {
+      "id": "93870f5ecdfa04846e8b6355820602a1998b70c0c9bc97540ca6f86596214f82",
+      "date": "2026-03-24T21:42:55Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.272.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "300c73b7cb3d4f520b8b469d5a637f4a4f8d9cae61fc2baa9729e67747bd9d6b"
+    },
+    {
+      "id": "18c06b0e91991978f99efebcc7257a1b9a8d5e437e36e5616fd27daff866a7b5",
+      "date": "2026-03-26T15:00:58Z",
+      "type": "FEATURE",
+      "releaseVersion": "mission-manager-toolbox-app@0.28.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d8487b9504a33b75125fb61cd967a129f4a685237714e5a1a3e597043f8cfece"
+    },
+    {
+      "id": "4bf388b6bfba35994e920177b73b748af8331a1953c586bf4b7b4b79f2f650da",
+      "date": "2026-04-02T06:23:53Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "autopilot@4.277.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "5217d21a1dfe545fa39844b885990c3e93f9f7d0788ebe42f727803c89f65a63"
+    },
+    {
+      "id": "3ca97ad5b2bff2ce81c7c7d75dcd62d670a3e9a068fdae9e46682465940ab005",
+      "date": "2026-04-07T20:00:08Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.56.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "b72ae20aa035ad9a484596c741f494695f9bdbf364128e1711617ff2f5de1059"
+    },
+    {
+      "id": "d43318511314b7de21c91ff6927da10182ad9cde2118e304641062428a943341",
+      "date": "2026-04-07T20:00:08Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "apollo-build-factory-app@0.56.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "a77b24725e7f6283665b96e20c1e9e6c9912f6970b9c551d2d69b8f9d69b06ea"
+    },
+    {
+      "id": "42d27312fee04de00ca839e3a3d16e4efa200b525e4839828ed52bcda039b4f2",
+      "date": "2026-04-07T22:54:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "mission-manager-toolbox-app@0.36.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "8951849449ed0b320cb2f5735e96365b26a81e2f93c7d4fcdbc87cf1775d6859"
+    },
+    {
+      "id": "e8d9a4e1c2535f624f623a1a6fab63fcbbfb96c1397ef464e2cf673379ac011f",
+      "date": "2026-04-07T22:54:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "mission-manager-toolbox-app@0.36.0",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ff57f87720f21aaa975637ee385f29120b03cfc06bfbe0ebb28ed79660123bec"
+    },
+    {
+      "id": "c238c9621c2b064c4fe420e4a3144fb172d16793dc8236ed253742ff9ec161c0",
+      "date": "2026-04-14T14:41:20Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.735.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "208121f3bf87277a484f52b995fbf260a45de6f9b7d293f7d503a570fedb1f72"
+    },
+    {
+      "id": "82938605f1e8943619771ab2e1a4d3fbfd879bc8d05ca03b78924214e6fc004a",
+      "date": "2026-04-30T13:12:26Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.751.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "bcac122a941c6faf75aae3991437f19efe7ec665353fbd671dba53ef957fa6ec"
+    },
+    {
+      "id": "79810df98e359585d9e509d19c8a84676560ef0d6fc6f39d6997dc5da0035a1f",
+      "date": "2026-04-30T19:32:29Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.752.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0144ef5d7b5a4e7147aa567a46011ee632d837b3ccba0c3158e4fe20021690db"
+    },
+    {
+      "id": "6887d16a-9ea8-4562-af83-68607a85e1e7",
+      "date": "2026-05-07T00:00:00Z",
+      "type": "FEATURE",
+      "releaseVersion": "",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 3,
+      "sha256": "e28716849478ceaaeb2f0f46940a2f74ce16f4802acd0815e9fac4e70fb459fb"
+    },
+    {
+      "id": "b7b1a3efb6de2f45ba4945034018c77b036057b37187d463d5238f6489ea8423",
+      "date": "2026-05-07T14:19:35Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.753.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "c4ddfbd06aae97947292dc75ed116c52baeb0cc2b674a16fb39d98c21ea6f6d5"
+    },
+    {
+      "id": "7ed2fb4701168a33cc0e16aa1c2821b78d198e23e71d2fb854fcad1dee4f1fb8",
+      "date": "2026-05-18T16:28:02Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.756.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2843be1939f765f2c0fa8c7f7621cfb1fb8df4ba9da743ec4e161d1bd4914c44"
+    },
+    {
+      "id": "54e696e603eb04e78498f50bbabe47d9900c1b63d0f6be56029a29e21fbead74",
+      "date": "2026-05-19T20:53:57Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "4.4366.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "6db3fafa02b8e97771bd8d2cac653ddbfac72a536bb2d8f4acc36e76761202e2"
+    },
+    {
+      "id": "e5d4a57c2851617cbf5a2297d4c2be5097e03d14e48107ef2dd6d75013af28ae",
+      "date": "2026-05-20T14:46:10Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.762.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "0ae08eb11b0cc6e44bb49fee52a124aa7916f8ad94ae2ef96303410768a5a86d"
+    },
+    {
+      "id": "fdf047b24d86a30b32982c7cdb93908d2e804aacbfc606797507ae2421628c04",
+      "date": "2026-05-21T00:00:00Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "4.4320.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 4,
+      "sha256": "2f8c283da41f89faadb7f502e36fc7820d9a78e421d4c282ad1b86ffee2ac4c7"
+    },
+    {
+      "id": "f3608e949cd75c8495a1da7da94d59cfca3cc30520b928fd9b4a6021e3785236",
+      "date": "2026-06-02T15:37:08Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.775.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "62b49bb92a5d362959ec4a51b05a88a319d4c5d86cbc94dd62a75d4585008e8c"
+    },
+    {
+      "id": "a72699ddd901bf8d700434737fddf3c10d9e29be7f63c453213f74759596bc5a",
+      "date": "2026-06-03T16:12:07Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.776.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "07b5c690f2d7e7dbee42552379b20ec21d34e467c2a968df4e0a54162c17ff2e"
+    },
+    {
+      "id": "106987a3799866ab3d6423d39e116dbbf6c51a3eee3186801b1b178e13c74636",
+      "date": "2026-06-10T18:04:15Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.788.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "670f4e0079377e00fb66fe67b00fe4fdafde206f7820ca66f6a133bc3cd176b3"
+    },
+    {
+      "id": "1c86f4b4a5792c563b23e90a0a917ae5c0651378c5a68c531bd01f783bef1816",
+      "date": "2026-06-11T15:53:10Z",
+      "type": "FEATURE",
+      "releaseVersion": "4.4463.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "7ac97c170d71c9e336a79b45a23229e8e4c9d10941364ffebd4ca6c22f4bbd97"
+    },
+    {
+      "id": "cdcef1c4f6e9f770be75d75fc16f81e51b10809f632ee3360ac1f6e7fbc3c74f",
+      "date": "2026-06-12T17:00:28Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.792.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "54dce4a429a65166bb6022efe87da6ece6ab2154581614784916d5dee4d082d5"
+    },
+    {
+      "id": "60a95935262e13adc7e278d79345599a73f4b85bf513b25f62b2f556e29efb1e",
+      "date": "2026-06-16T12:56:36Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.795.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "57d7f15b51c5d41791f2df4ea4cfbdffa048be7d6a76f2b532c7e49c085b8a76"
+    },
+    {
+      "id": "8ddac5fe7319315d59fe5d704184a725559744292b29a78344d29fae59915734",
+      "date": "2026-06-16T21:23:16Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.796.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d83ee9a6e7e8ad7c5bb33c02bdb03c63c8bca8a35d11c92c0037f4179b64ed21"
+    },
+    {
+      "id": "544ed3a3-0ea7-4796-af5f-a39241d515d0",
+      "date": "2026-06-23T00:00:00Z",
+      "type": "FEATURE",
+      "releaseVersion": "",
+      "applicationId": "core",
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "52a136c49f64ebd090ee51b3cb0cc717bc53b20d3cfd7f0aecd85afef2071876"
+    },
+    {
+      "id": "aa362a378e546fd46c6689ba8391fcf8f64de0674b9554673fdb8368afe2fa4e",
+      "date": "2026-06-23T09:34:10Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.801.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "f386ceff887a6c7aeb84e3a8d63a78f0008bdd5736d04fe8c2457f37f1258035"
+    },
+    {
+      "id": "8808480c1c0e620f9f7af15c995fa95024f6edb75d1a96f1091e423a265aba38",
+      "date": "2026-07-01T14:14:05Z",
+      "type": "FIX",
+      "releaseVersion": "v0.804.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "eb355307a2f7ec510cc8772cbf9ddf6e3b320212e0909fa8954cd1d38a71bb16"
+    },
+    {
+      "id": "a0b62727b133bda37454c757301096375c5ad7006a85d965a175a3ae480cfec6",
+      "date": "2026-07-01T14:17:45Z",
+      "type": "FIX",
+      "releaseVersion": "v0.805.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "59b4599a1b1f19b7c625fcb41c7ca7e732f58e1f6e2a4542a013c92daa47b596"
+    },
+    {
+      "id": "8c4c3f1a833a85d930616fecbf0f212bb6255b48bb3dcba1dd1101d9fed49b27",
+      "date": "2026-07-14T00:33:15Z",
+      "type": "FEATURE",
+      "releaseVersion": "v0.808.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "8839a6d23075acdfc7d1dbf375123b2e8a3908d204f07e22527879dc89945007"
+    },
+    {
+      "id": "72533c58cedc9a79a4335cca3fa95358d08990a924d11ee491a874caf5bd16ab",
+      "date": "2026-07-14T19:24:09Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.809.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "2be02670f99db11eeb1656115c9a2f0b72df08af5dc3d59b37f85ceed5d1c2e9"
+    },
+    {
+      "id": "df9c95512e959c9cd690763d5df037cedfbebf0412f59a2ddaadffb78719978d",
+      "date": "2026-07-16T15:07:06Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.811.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "dce8b420cedcd846595c80c3e4921c59b9f97b9a8c177b0b8de4dd946414164f"
+    },
+    {
+      "id": "3890fbaa8c4a393f715b05197d1830081a8f9599c1309e0dba8c5e12293823f4",
+      "date": "2026-07-22T07:19:51Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.813.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "ecc07fd1205fc5c9f933f7d236f8bd63da5c0f2d3bc119a9dcd5fd1570438960"
+    },
+    {
+      "id": "7091a0fd41716983b7c1304cd6899cd8aee0afcf152d0bd944610711784b9286",
+      "date": "2026-07-22T09:04:20Z",
+      "type": "ENHANCEMENT",
+      "releaseVersion": "v0.814.0",
+      "applicationId": null,
+      "categoryId": null,
+      "mediaCount": 0,
+      "sha256": "d48a5e4fe87732f133df4c6f22e8460efb7418d98305975bf041c9d20d9309b4"
+    }
+  ]
+}

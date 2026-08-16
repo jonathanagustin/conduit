@@ -45,11 +45,15 @@ const (
 	// Apollo-shaped. The resolver refuses these at request time.
 	UnservedObserved IssueKind = "unserved_observed"
 
-	// UnservedNative is a defect. conduit-native.json exists to add coordinates
-	// Conduit's own domains answer; an invented field nothing can serve is
+	// UnservedConduitDeclared is a defect. conduit-native.json exists to add
+	// coordinates Conduit's own domains answer; a field nothing can serve is
 	// worse than an absent one, because it advertises a capability that does
 	// not exist and cannot be displaced by any capture.
-	UnservedNative IssueKind = "unserved_native"
+	//
+	// It covers DOCUMENTED as well as CONDUIT_NATIVE, because the tier says how
+	// much evidence stands behind the name and not who put the field in the
+	// interface. Both were added here, so both are Conduit's to back.
+	UnservedConduitDeclared IssueKind = "unserved_conduit_declared"
 
 	// Undeclared is a defect. Conduit claims a source for a coordinate the
 	// served interface does not declare, so either the schema was rebuilt
@@ -85,11 +89,11 @@ func Reconcile(declared Interface, coverage Coverage) []Issue {
 			continue
 		}
 		tier, _ := declared.TierOf(coordinate)
-		if tier == ConduitNative {
+		if !tier.Established() {
 			issues = append(issues, Issue{
-				Kind:       UnservedNative,
+				Kind:       UnservedConduitDeclared,
 				Coordinate: coordinate,
-				Detail: "invented by Conduit but backed by no source; remove it from " +
+				Detail: "added to the interface by Conduit but backed by no source; remove it from " +
 					"scripts/apollo-graphql/conduit-native.json or give the resolver a source for it",
 			})
 			continue

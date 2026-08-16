@@ -23,3 +23,8 @@ tools/zenith-protocol/node_modules/
 # Local verification tool cache (scripts/verify-local.sh downloads pinned
 # binaries here; its comment already assumes this is ignored).
 .cache/
+
+# Per-person overrides of `.claude/settings.json`. The committed file is the
+# team's agreement; this one is somebody's own machine and must not become a
+# silent, unreviewable amendment to it.
+.claude/settings.local.json

@@ -1,11 +1,13 @@
 {
   "schemaVersion": 1,
   "hubFingerprint": "09ead29dfb403890e0d5801f121352f16729901a0e82b1aeeb8b0185b4dbecf0",
-  "interfaceSha256": "277951c5c4274f93c16f091a730466346e3bebed817b1b413c50089c4fcfb67f",
-  "nativeSha256": "b14a71b57e7f737dcb79293849c3966eaabdac3068ebbd0f5b98a6ead1369153",
+  "interfaceSha256": "19d47bec28d79e6f5e61b2f0ab550047397b35cb52d1bffe59841e64c2c41a46",
+  "nativeSha256": "61fbc1f04d7617726bb7ee6b308c66e832823b4cab732a61579ddc59e7f9a059",
   "observedFields": 41,
-  "conduitNativeFields": 22,
-  "conduitNativeShare": 0.3492,
+  "documentedFields": 22,
+  "conduitNativeFields": 0,
+  "conduitNativeShare": 0,
+  "unrecoveredShare": 0.3492,
   "displaceable": [],
   "unresolved": [
     {

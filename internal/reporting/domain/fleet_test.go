@@ -1,6 +1,9 @@
 package domain
 
-import "testing"
+import (
+	"testing"
+	"time"
+)
 
 // Every axis a fleet query can filter on, asserted to filter on itself and to
 // leave the others alone. Only the rollout axis had a test, so an axis that
@@ -43,5 +46,46 @@ func TestFleetQueryFiltersEachAxisIndependently(t *testing.T) {
 	}
 	if fleetMatches(item, FleetQuery{Search: "absent"}) {
 		t.Error("an absent search term matched")
+	}
+}
+
+// TestExpectedSilenceSuppressesStalenessButNotAge is the #25 display half. An
+// aged report from an environment whose gaps are expected -- Apollo's
+// Intermittent agents -- is shown with its age but not counted stale, while the
+// same age on an ordinary environment is stale. The age itself is reported
+// either way, because "as of the last connection" still needs the age.
+func TestExpectedSilenceSuppressesStalenessButNotAge(t *testing.T) {
+	t.Parallel()
+	base := time.Unix(1_000_000, 0)
+	now := base
+	desired := []Desired{
+		{Environment: "prod", InstallationID: "api", Product: "app:api", Version: "1"},
+		{Environment: "edge", InstallationID: "api", Product: "app:api", Version: "1"},
+	}
+	// Both reported an hour ago; MaxAge is five minutes.
+	observed := []Observed{
+		{Environment: "prod", InstallationID: "api", Product: "app:api", Version: "1", Health: HealthHealthy, ObservedAt: base.Add(-time.Hour)},
+		{Environment: "edge", InstallationID: "api", Product: "app:api", Version: "1", Health: HealthHealthy, ObservedAt: base.Add(-time.Hour)},
+	}
+	query := FleetQuery{MaxAge: 5 * time.Minute, SilenceExpected: map[string]bool{"edge": true}}
+
+	fleet := BuildFleet(desired, observed, query, now)
+	byEnv := map[string]FleetInstallation{}
+	for _, item := range fleet.Installations {
+		byEnv[item.Environment] = item
+	}
+
+	if !byEnv["prod"].Stale {
+		t.Error("an aged report from a continuously-reporting environment was not stale")
+	}
+	if byEnv["edge"].Stale {
+		t.Error("an aged report from an intermittent environment was counted stale; its silence is expected")
+	}
+	// The age is still reported for the intermittent one -- it is shown, not hidden.
+	if byEnv["edge"].ObservationAgeSeconds != 3600 {
+		t.Errorf("intermittent age = %d, want the real 3600s so it is shown as of last connection", byEnv["edge"].ObservationAgeSeconds)
+	}
+	if fleet.Summary.Stale != 1 {
+		t.Errorf("stale summary = %d, want only the continuously-reporting environment counted", fleet.Summary.Stale)
 	}
 }

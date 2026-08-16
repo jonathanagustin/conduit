@@ -22,6 +22,7 @@ type EnvironmentFederation = environments.Federation
 const (
 	ConnectionUnknown               = environments.ConnectionUnknown
 	ConnectionAgentsConnected       = environments.ConnectionAgentsConnected
+	ConnectionIntermittentAgents    = environments.ConnectionIntermittentAgents
 	ConnectionNoConnectionExpected  = environments.ConnectionNoConnectionExpected
 	ConnectionRelayedFromAnotherHub = environments.ConnectionRelayedFromAnotherHub
 
@@ -90,6 +91,27 @@ func federationSettings(environment Environment) environments.FederationSettings
 		ConnectionSetting:   environment.ConnectionSetting,
 		DeclaredStateSource: environment.DeclaredStateSource,
 	}
+}
+
+// expectedSilenceEnvironments is the set of environments whose gap in reporting
+// is expected rather than an outage -- Apollo's Intermittent agents connection
+// setting. The reporting fleet projection reads it so an intermittent
+// environment's aged report is shown with its age but not counted stale.
+//
+// It resolves federation from the plans the overview has already loaded, not
+// from a fresh repository read per environment: the overview is a single
+// bounded snapshot, and a lookup per environment would break that. An
+// environment with no declared connection setting is absent from the set and so
+// keeps the stricter continuous-reporting reading, never falsely suppressing a
+// real outage.
+func expectedSilenceEnvironments(plans []PlanRecord) map[string]bool {
+	expected := map[string]bool{}
+	for environment := range latestDesiredStates(plans) {
+		if resolveFederationFromPlans(environment, plans).SilenceIsExpected() {
+			expected[environment] = true
+		}
+	}
+	return expected
 }
 
 // nonParticipatingEvidenceEnvironments reports health evidence submitted for

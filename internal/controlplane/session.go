@@ -15,19 +15,11 @@ const (
 
 var sessionResourceRIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:-]*(/[A-Za-z0-9][A-Za-z0-9._:-]*){0,3}$`)
 
-var sessionOperationVocabulary = []string{
-	OperationActOnBehalf,
-	OperationApplyLabel,
-	OperationBulkChange,
-	OperationCreateArtifact,
-	OperationCreateProduct,
-	OperationCreateRelease,
-	OperationImportBundle,
-	OperationManagePermissions,
-	OperationOperate,
-	OperationProposeChange,
-	OperationReadResource,
-}
+// sessionOperationVocabulary is Governance's list, not a second copy of it. The
+// projection must offer exactly the operations Platform can act on, and a local
+// copy would let the two drift into a session advertising a capability no
+// policy could demand.
+var sessionOperationVocabulary = OperationVocabulary
 
 type SessionIdentity struct {
 	Username       string   `json:"username"`

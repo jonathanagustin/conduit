@@ -2,7 +2,7 @@
 
 ## Capture result
 
-The 2026-08-02 rendered-page crawl inspected all 241 URLs in
+The 2026-08-02 rendered-page crawl inspected all 241 URLs then in
 [`public-documentation-manifest.tsv`](public-documentation-manifest.tsv) for
 YouTube, Vimeo, Wistia, MP4, WebM, MOV, and HLS references. It found one video:
 

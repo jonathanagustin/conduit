@@ -4,7 +4,7 @@
 
 The 2026-08-01 documentation sweep recorded in
 [`PUBLIC-DOCUMENTATION-COVERAGE.md`](PUBLIC-DOCUMENTATION-COVERAGE.md) captured
-241 pages and extracted **the source Markdown embedded in each rendered page**.
+241 pages (the corpus is now 262; see that file's re-crawl section) and extracted **the source Markdown embedded in each rendered page**.
 It counted 144,521 words and 1,562 headings, and it never looked at the images.
 
 The Apollo documentation carries **391 distinct screenshots and diagrams across
@@ -74,7 +74,7 @@ unreviewed.
 | Managing Notifications | 6 | Boundary | Durable domain-event consumers and user/team delivery preferences remain external integrations. |
 | Managing Secrets | 7 | Implemented/boundary | Write-only assignment lifecycle and Plan mutations are implemented; value entry/storage stays with an external provider. |
 | Managing Artifact Registries | 5 | Implemented/boundary | Assignment, mirrors, digest resolution, and opaque credential preparation are implemented; registry administration is external. |
-| Apollo references | 3 | Partial | All three images show the GraphQL explorer. H38 remains blocked and the pinned 13-route OpenAPI adapter is not counted as GraphQL coverage. |
+| Apollo references | 3 | Implemented (2026-08-15) | All three images show the GraphQL explorer. When this table was written the surface was unrecovered and this row read "H38 remains blocked". It has since been recovered (H27) and served (H28); see [`reference/graphql-api.md`](reference/graphql-api.md). The pinned 13-route OpenAPI adapter is still not counted as GraphQL coverage — the two surfaces are gated separately. |
 
 ## What the first image pass established, and what was done
 
@@ -121,7 +121,9 @@ Evidence: `go test ./internal/controlplane -run 'DiffOnlyModifies|ServiceUserPre
 ### 3. Environment connection setting — absent
 
 Four states: `UNKNOWN`, `AGENTS_CONNECTED`, `NO_CONNECTION_EXPECTED`,
-`RELAYED_FROM_ANOTHER_HUB`. Each independently gates whether Agents may connect,
+`RELAYED_FROM_ANOTHER_HUB`. **Apollo published a fifth on or before 2026-08-15
+— `Intermittent agents` — which is open; see the divergence note in
+`internal/environments/domain/federation.go`.** Each independently gates whether Agents may connect,
 whether **Plans are issued**, whether health is tracked, whether reported state
 may be imported from a Bundle, and whether the Environment may contribute to a
 promotion decision.
@@ -294,10 +296,15 @@ than a shortfall.
 
 ## Still unclaimed
 
-* **The primary Apollo API is GraphQL.** The API Explorer screenshot reads
-  "Explore the Apollo GraphQL schema". Platform's compatibility rests on a pinned
-  13-route public OpenAPI adapter; the GraphQL surface is neither implemented nor
-  claimed, and the 13/13 figure must not be read as broader coverage.
+* ~~**The primary Apollo API is GraphQL.**~~ **Closed 2026-08-15.** The API
+  Explorer screenshot reads "Explore the Apollo GraphQL schema", and when this
+  was written the GraphQL surface was neither implemented nor claimed. It has
+  since been recovered from an authorized Hub by validation probing (H27) and is
+  served as a provenance-annotated interface (H28). The 13/13 OpenAPI figure
+  still must not be read as GraphQL coverage: they are separate surfaces with
+  separate gates. What remains unclaimed is narrower and stated in
+  [`reference/graphql-api.md`](reference/graphql-api.md) — one Hub, one date, one
+  candidate set, and no cardinality established by the probe.
 * **Notifications, Entity Map, and Risk Management remain UI/boundary
   integrations**, per the existing contract matrix.
 * **No native CLI capture and no private Hub↔Agent wire evidence**, unchanged

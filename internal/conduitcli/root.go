@@ -143,6 +143,8 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(teamCommand(state))
 	root.AddCommand(grantCommand(state))
 	root.AddCommand(approvalPolicyCommand(state))
+	// Added last: it attaches subcommands to groups the calls above create.
+	addApolloParityCommands(root, state)
 	return root
 }
 
@@ -434,8 +436,8 @@ func environmentCommand(state *commandState) *cobra.Command {
 			return writeOutput(state.runtime.Stdout, state.output, descriptor)
 		},
 	}
-	create.Flags().StringVar(&contactTeam, "contact-team", "", "Team responsible for the Environment")
-	_ = create.MarkFlagRequired("contact-team")
+	create.Flags().StringVar(&contactTeam, "contact-team", "",
+		"Team responsible for the Environment. If omitted, the Environment is authored without an owning team.")
 	command.AddCommand(create)
 	command.AddCommand(&cobra.Command{
 		Use:   "list",
@@ -602,11 +604,24 @@ func productReleaseCommand(state *commandState) *cobra.Command {
 	helmChart.AddCommand(initCommand)
 	command.AddCommand(helmChart)
 	var manifestPath, productTGZPath, defaultConfigPath, configSchemaPath string
+	var valuesPath, valuesSchemaPath string
 	create := &cobra.Command{
 		Use:   "create",
 		Short: "Publish an immutable Product Release from a validated manifest",
 		Args:  cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
+			var err error
+			if defaultConfigPath, err = soleSpelling(command, "default-config", defaultConfigPath, "values", valuesPath); err != nil {
+				return err
+			}
+			if configSchemaPath, err = soleSpelling(command, "config-schema", configSchemaPath, "values-schema", valuesSchemaPath); err != nil {
+				return err
+			}
+			// Presence, not emptiness: `--values=` is a stated intent that this
+			// path cannot honour, and treating it as absence would publish a
+			// Terraform Release while ignoring a flag the operator passed.
+			helmConfigGiven := command.Flags().Changed("default-config") || command.Flags().Changed("values") ||
+				command.Flags().Changed("config-schema") || command.Flags().Changed("values-schema")
 			if productTGZPath != "" {
 				if manifestPath != "" || defaultConfigPath != "" || configSchemaPath != "" {
 					return errors.New("--product-tgz cannot be combined with --manifest, --default-config, or --config-schema")
@@ -633,6 +648,15 @@ func productReleaseCommand(state *commandState) *cobra.Command {
 				return err
 			}
 			if kind.ProductType == "terraform.v1" {
+				// Helm configuration against a Terraform Product was accepted
+				// and then silently dropped: the bundle these flags fill is
+				// never built on this path. Apollo errors, and so must this --
+				// an operator who passed a values file has stated an intent
+				// that is not going to happen, and publishing anyway makes the
+				// Release quietly different from what they asked for.
+				if helmConfigGiven {
+					return errors.New("--values and --values-schema apply to helm-chart.v1 Products; this manifest is terraform.v1")
+				}
 				manifest, err := controlplane.DecodeTerraformProductManifest(bytes.NewReader(contents))
 				if err != nil {
 					return err
@@ -670,6 +694,13 @@ func productReleaseCommand(state *commandState) *cobra.Command {
 	create.Flags().StringVar(&productTGZPath, "product-tgz", "", "canonical Helm Product TGZ")
 	create.Flags().StringVar(&defaultConfigPath, "default-config", "", "optional default values.yaml bound to the Release")
 	create.Flags().StringVar(&configSchemaPath, "config-schema", "", "optional values.schema.json bound to the Release")
+	// Apollo's published spellings for the same two inputs, added to
+	// product-release create in apollo-cli 0.811.0. They are the same flag, not
+	// a second path: an operator following Apollo's documentation reaches the
+	// bundle Conduit already builds, and helm-chart init already spells the
+	// first of them --values.
+	create.Flags().StringVar(&valuesPath, "values", "", "alias for --default-config, Apollo's published spelling")
+	create.Flags().StringVar(&valuesSchemaPath, "values-schema", "", "alias for --config-schema, Apollo's published spelling")
 	command.AddCommand(create)
 	var listProduct, listChannel string
 	var pageSize int

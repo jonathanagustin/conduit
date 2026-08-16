@@ -4,9 +4,11 @@
 // Two different questions get confused whenever an interface is part recovered
 // and part invented, and this package keeps them apart:
 //
-//   - Who established this coordinate? Either an authorized Apollo Hub answered
-//     for it (OBSERVED) or Conduit invented it because no Hub did
-//     (CONDUIT_NATIVE). The served SDL states this per field.
+//   - Who established this coordinate? An authorized Apollo Hub answered for it
+//     (OBSERVED), or Apollo publishes the name or documents the concept while no
+//     Hub established it in GraphQL (DOCUMENTED), or Conduit thought of it and
+//     Apollo makes no claim of any kind (CONDUIT_NATIVE). The served SDL states
+//     this per field.
 //   - Can Conduit answer it? Declaring a coordinate the Hub answers for is not
 //     the same as holding the data behind it. Conduit has no bundles and no
 //     space identifiers, so several OBSERVED coordinates are declared and
@@ -36,10 +38,21 @@ const (
 	// Observed was recovered from an authorized Apollo Hub and reproduced from
 	// the recovery record.
 	Observed Tier = "OBSERVED"
+	// Documented carries an Apollo name or an Apollo concept taken from published
+	// documentation, verified against the pinned OpenAPI snapshot and the
+	// committed documentation manifest. No Hub established it in GraphQL, so it
+	// is not an Apollo compatibility claim -- but Conduit did not name it.
+	Documented Tier = "DOCUMENTED"
 	// ConduitNative was invented here. It is not an Apollo compatibility claim
 	// and it is displaced the moment a capture recovers the same coordinate.
 	ConduitNative Tier = "CONDUIT_NATIVE"
 )
+
+// Established answers whether an Apollo Hub is behind a coordinate. It is the
+// distinction that matters for a compatibility claim: DOCUMENTED and
+// CONDUIT_NATIVE differ in how much evidence Conduit has, but neither is a Hub
+// saying so, and both were added to the interface by Conduit.
+func (tier Tier) Established() bool { return tier == Observed }
 
 // Coordinate is one field of one type: the unit everything here is stated in,
 // because "the interface" is too coarse to be audited and a type is too coarse
@@ -57,11 +70,17 @@ func (coordinate Coordinate) String() string {
 // itself rather than restated. A second list would be a second thing to drift.
 type Interface struct {
 	tiers map[Coordinate]Tier
+	// cardinality is recorded only where the SDL states it, which is only where
+	// a source OTHER than the one that established the field established that it
+	// is a list. Absent means the field's own tier covers it.
+	cardinality map[Coordinate]Tier
 }
 
 var (
 	typeHeader   = regexp.MustCompile(`^type ([A-Za-z_][A-Za-z0-9_]*) \{$`)
-	fieldWithARR = regexp.MustCompile(`^ {2}([a-zA-Z_][a-zA-Z0-9_]*)[^@]*@provenance\(tier: ([A-Z_]+)\)$`)
+	fieldWithARR = regexp.MustCompile(
+		`^ {2}([a-zA-Z_][a-zA-Z0-9_]*)[^@]*@provenance\(tier: ([A-Z_]+)(?:, cardinality: ([A-Z_]+))?\)$`,
+	)
 )
 
 // ReadProvenance reads every field's tier out of the served SDL.
@@ -73,6 +92,7 @@ var (
 // unannotated field is precisely the one whose provenance nobody can state.
 func ReadProvenance(sdl string) (Interface, error) {
 	tiers := make(map[Coordinate]Tier)
+	cardinality := make(map[Coordinate]Tier)
 	currentType := ""
 	for number, line := range strings.Split(sdl, "\n") {
 		switch {
@@ -90,16 +110,39 @@ func ReadProvenance(sdl string) (Interface, error) {
 				)
 			}
 			tier := Tier(match[2])
-			if tier != Observed && tier != ConduitNative {
+			if tier != Observed && tier != Documented && tier != ConduitNative {
 				return Interface{}, fmt.Errorf("%s.%s declares unknown provenance tier %q", currentType, match[1], tier)
 			}
-			tiers[Coordinate{Type: currentType, Field: match[1]}] = tier
+			coordinate := Coordinate{Type: currentType, Field: match[1]}
+			tiers[coordinate] = tier
+			// A cardinality that is present is checked the same way the tier is.
+			// It is a provenance claim, and an unreadable one must not pass as an
+			// absent one -- absent means "the field's tier covers it", which is a
+			// different and stronger statement.
+			if match[3] != "" {
+				stated := Tier(match[3])
+				if stated != Observed && stated != Documented && stated != ConduitNative {
+					return Interface{}, fmt.Errorf(
+						"%s.%s declares unknown cardinality provenance %q", currentType, match[1], stated,
+					)
+				}
+				cardinality[coordinate] = stated
+			}
 		}
 	}
 	if len(tiers) == 0 {
 		return Interface{}, fmt.Errorf("no annotated field found; this is not the served interface")
 	}
-	return Interface{tiers: tiers}, nil
+	return Interface{tiers: tiers, cardinality: cardinality}, nil
+}
+
+// CardinalityOf answers who established that a coordinate is a list, when that
+// is someone other than whoever established the field. The second result is
+// false when the SDL states nothing, which means the field's own tier covers it
+// -- a scalar, or a list the same source carried.
+func (declared Interface) CardinalityOf(coordinate Coordinate) (Tier, bool) {
+	tier, found := declared.cardinality[coordinate]
+	return tier, found
 }
 
 // TierOf answers who established a coordinate. The second result is false for a
@@ -124,16 +167,19 @@ func (declared Interface) Coordinates() []Coordinate {
 	return coordinates
 }
 
-// Count returns how many coordinates carry each tier. It is the number the
+// Count returns how many coordinates carry each tier. These are the numbers the
 // provenance report states, recomputed from the SDL the server actually serves
 // rather than trusted from the report.
-func (declared Interface) Count() (observed, native int) {
+func (declared Interface) Count() (observed, documented, native int) {
 	for _, tier := range declared.tiers {
-		if tier == Observed {
+		switch tier {
+		case Observed:
 			observed++
-			continue
+		case Documented:
+			documented++
+		default:
+			native++
 		}
-		native++
 	}
-	return observed, native
+	return observed, documented, native
 }

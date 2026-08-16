@@ -7,24 +7,188 @@ documentation or claim private Apollo API compatibility.
 
 ## Snapshot
 
-The snapshot was captured from the official Palantir Apollo documentation on
-2026-08-01 UTC. The crawler discovered pages from the current Documentation,
-Getting started, Reference, and What's New navigation trees, then extracted the
-source Markdown embedded in each rendered page only for local analysis.
+Re-crawled from the official Palantir Apollo documentation on **2026-08-15
+UTC**, superseding the 2026-08-01 capture. The crawler discovers pages from the
+current Documentation, Getting started, Reference, and What's New navigation
+trees, then extracts the source Markdown embedded in each rendered page only for
+local analysis.
 
-| Measure | Result |
-| --- | ---: |
-| Distinct public pages | 241 |
-| Successful fetches | 241 |
-| Failed fetches | 0 |
-| Source Markdown words reviewed | 144,521 |
-| Headings reviewed | 1,562 |
-| Sections | 23 |
+| Measure | 2026-08-01 | 2026-08-15 |
+| --- | ---: | ---: |
+| Distinct public pages | 241 | **262** |
+| Successful fetches | 241 | 262 |
+| Failed fetches | 0 | 0 |
+| Source Markdown words reviewed | 144,521 | **157,244** |
+| Headings reviewed | 1,562 | **1,710** |
 
 [`public-documentation-manifest.tsv`](public-documentation-manifest.tsv)
 contains the URL, section, title, word count, heading count, and SHA-256 of the
 Markdown for every page. It is sorted by URL so future captures produce a
 reviewable drift diff. The source bodies are deliberately not committed.
+
+### What the re-crawl found
+
+Twenty-one pages were added and none removed. Eight changed.
+
+Seven of the twenty-one were never a drift at all: they had been published all
+along and the crawler could not see them. It read `href` attributes from four
+seed pages, which is the rendered sidebar, so it saw exactly the pages the
+navigation chooses to show. The seven `hidden_`-prefixed Apollo Product
+Specification pages -- Endpoints, Liveness and Readiness, Replication,
+Resources, Volumes, the Substitution Reference, and the full spec definition --
+are excluded from that sidebar and reachable only through links in other pages'
+body text. The crawler now scans whole documents and follows what it finds to
+closure; both it and the drift gate were fixed together, because a gate built on
+the narrower discovery would have called the incomplete corpus complete.
+
+These seven turned out to be a **provenance gap rather than an implementation
+gap**: `internal/controlplane/apollo_product_definition.go` already implements
+endpoints, `sls-status-endpoint`, liveness and readiness paths, volumes,
+resources and replication, from the CLI fixtures. What was missing was any
+citable source, which also meant a `documentedBy` citation naming one of these
+pages would have been rejected as an unknown URL. They are cited there now.
+
+The other fourteen are genuine additions, all `apollo-cli`: `cve list`,
+`entity get`, `environment setting` (with `edit` and `get`), `target-hub` (with
+`get`, `list`, `pipeline`, `pipeline list`), and `terminal grant`/`policy` (with
+their `list` forms). All are Experimental, and all are client surfaces over
+contracts this repository already implements.
+
+One content change is a contract change and is recorded in the capability map:
+**Apollo now publishes five Environment connection settings, not four.**
+`managing-environments/environment-connection-settings` grew from 444 to 584
+words and gained a heading for **Intermittent agents**. The operational half of
+that setting is now implemented (issue #15): an intermittent Environment issues
+Plans, accepts agents, tracks health and promotes, exactly as the page
+publishes. The one published difference — that its expected gaps are not an
+outage — is carried as `Federation.ExpectsContinuousReporting` and consumed by
+the reporting fleet projection under issue #25, because that half is a
+behaviour change to promotion evidence rather than a constant.
+
+The other changes are informational: five `apollo-cli` parent pages gained
+subcommand links, `core/whats-new` is a changelog (mined below), and
+`managing-modules/update-module-installation` lost a section (460 → 303 words),
+which narrows what Apollo publishes rather than what this repository must do.
+
+### Maturity of the corpus
+
+Not every published page is a commitment. Scanning all 262 for upstream markers:
+
+| Marker | Pages | Where |
+| --- | ---: | --- |
+| `[Beta]` | 8 | every one in `apollo-product-specification` |
+| `[Experimental]` | 60 | 55 `apollo-cli` pages plus 5 others |
+| `[Deprecated]` | 62 | mostly `apollo-cli` command pages naming a deprecated form |
+
+The Beta set is the one that reaches a served claim. **Two DOCUMENTED
+coordinates in the Apollo-shaped GraphQL interface -- `ApolloEnvironment.health`
+and `ApolloEntity.health` -- cite `apollo-product-specification/health/`, whose
+own callout says the extension "may not be available on your Apollo Hub".** That
+does not make the citation wrong, but it is weaker than a GA citation in a
+stated way, and the DOCUMENTED tier alone does not express the difference.
+`scripts/apollo-graphql/verify-apollo-interface.mjs` now reads maturity from the
+manifest and discloses those citations by name on every run; it does not fail on
+them, because citing Beta documentation is honest and citing it silently is not.
+`scripts/verify-apollo-interface.test.sh` asserts the disclosure, so it cannot
+be dropped without a test failing.
+
+The other six Beta pages are the `hidden_*` specification extensions above,
+whose contracts Conduit implements. Their Beta status bounds that claim rather
+than voiding it.
+
+### Releases and announcements
+
+`core/whats-new` is the largest page in the corpus at 16,255 words, and it had
+been captured since 2026-08-01 without ever being read. It is a dated changelog
+of Apollo releases -- roughly one entry per CLI version -- and so it is the
+densest contract-bearing page there is. Mining it produced two open items:
+
+- **PH-7.** 2026-06-11 announces a constraint enforcing that a Release has
+  passed a security scan before it can be installed, controlled by a Space
+  setting. Conduit scans, scores risk, and gates the CVE-recall exception on
+  scan freshness, but nothing blocks an install because a scan has not happened.
+- **PH-8.** CLI 0.811.0 added `--values` and `--values-schema` to
+  `product-release create`. Conduit has those flags elsewhere but not there.
+  **Closed.** They are Apollo's spelling of `--default-config` and
+  `--config-schema`, so they now fill the same bundle rather than opening a
+  second path, and passing both spellings of one flag is refused instead of
+  silently dropping one of the two files. Implementing it surfaced a defect
+  older than the flags: Helm configuration passed with a `terraform.v1`
+  manifest was accepted and then discarded, because the Terraform branch never
+  builds the Helm bundle. That now errors, which is what Apollo published.
+
+Most other entries corroborate work already done. The 0.813.0/0.814.0 entries
+describe the Product Release TGZ carrying `deployment/values.yaml` and
+`deployment/values.schema.json`, and
+`docs/apollo/cli-fixtures/reconstructed/0.814.0/deployment/` holds exactly those
+files -- the fixture is pinned to the newest version the changelog names.
+
+**A bound the changelog exposed.** It names commands that have no reference
+page: `local bundle upload --delete-after-upload`, `terminal create-session
+--session-id`, `module migrate`, `module installation unlink`, `registry
+recover`, `vulnerability suppression modify`, `get-central-namespace`. The
+105-command contract is therefore bounded by what Apollo publishes as CLI
+reference pages, not by what the CLI has. `verify-conduit-cli-contract.mjs`
+checks Conduit against the published reference and that remains the right
+target; it just is not the whole CLI, and the "105/105" figure should be read
+that way.
+
+**A trap worth recording.** This site answers **HTTP 200 for paths that do not
+exist**, serving a "Page Not Found" shell. Probing those seven command names by
+status code reported all of them as live pages; they are not. The only reliable
+existence signal is whether the response carries `pageProps.markdown`.
+`verify-documentation-manifest.mjs` originally wrapped its whole crawl in one
+`try`, so a page that had been unpublished would have been reported as "could
+not reach the documentation site" and passed. It now separates the two: seed
+failures skip, and a linked page answering without content is reported as drift.
+
+### Images
+
+The image audit was re-run against the enlarged corpus using the same rendered
+`<img>` extraction the 2026-08-02 pass used, so the numbers are comparable:
+
+| Measure | 2026-08-02 | 2026-08-15 |
+| --- | ---: | ---: |
+| Distinct image files | 391 | 389 |
+| Total references | 399 | 396 |
+| Pages carrying an image | 95 | 95 |
+
+The corpus grew by 21 pages and the image set did not grow with it. The seven
+`hidden_*` specification pages carry no images at all, and of the fourteen new
+`apollo-cli` pages none does either -- generated CLI reference pages are text.
+The small decrease is consistent with
+`managing-modules/update-module-installation` losing a section.
+
+So [`IMAGE-DERIVED-GAPS.md`](IMAGE-DERIVED-GAPS.md) remains accurate and no new
+visual review is owed. That is a checked result rather than an assumption: a
+broader extraction that also counts Markdown and JSON image references reports
+496 distinct files, and the difference is extraction method, not new pictures.
+
+
+### Why the drift was invisible
+
+Nothing re-crawled. Several things *read* this manifest as evidence -- most
+sharply `scripts/apollo-graphql/verify-apollo-interface.mjs`, which resolves
+every `documentedBy` citation against it, so a citation counted as verified
+whenever its URL appeared in this file rather than when the page existed. A
+citation checked against a stale index is not checked.
+
+`scripts/verify-documentation-manifest.mjs` now re-crawls and fails on any
+added, removed, or content-changed page, with `--write` to refresh. It is not in
+the ordinary build: it reaches a third party's website, so it skips cleanly when
+that site is unreachable and belongs in a scheduled or dispatched job.
+
+
+That gate needs a network and a person to run it, because A4 keeps
+repository-authored workflows to manual dispatch and `manual-ci.md` names
+`schedule` in its prohibition. So it was never scheduled, and nothing else ran
+it either — the corpus aged with no signal at all.
+`scripts/verify-documentation-freshness.mjs` is the half that needs neither: it
+reads `public-documentation-capture.json`, reaches nothing, and fails once the
+corpus is more than 45 days old or the manifest and the capture record stop
+agreeing about its size. It cannot tell you the corpus has drifted. It can stop
+"no drift reported" from being mistaken for "checked", which is the actual
+failure that cost fourteen pages.
 
 The first snapshot covered text only. A corrected rendered-HTML pass found and
 visually reviewed all 391 distinct screenshots and diagrams referenced 399 times
@@ -40,13 +204,13 @@ content-addressed evidence and disposition without committing copyrighted media.
 
 | Section | Pages | Words |
 | --- | ---: | ---: |
-| Apollo CLI | 91 | 39,885 |
-| Core concepts and workflows | 23 | 30,742 |
+| Apollo CLI | 105 | 45,777 |
+| Core concepts and workflows | 23 | 30,678 |
+| Product specification | 16 | 11,605 |
 | Export and import | 17 | 10,734 |
 | Getting started | 13 | 8,431 |
-| Managing Environments | 12 | 7,135 |
-| Product specification | 9 | 4,693 |
-| Managing Modules | 6 | 8,277 |
+| Managing Modules | 6 | 8,120 |
+| Managing Environments | 12 | 7,275 |
 | CEL policies | 4 | 6,004 |
 | Managing Products | 8 | 4,340 |
 | Managing Entities | 8 | 4,257 |
