@@ -68,7 +68,7 @@ const RELEASE_CLEAN = {
 const releases = { releases: [RELEASE_WITH_FINDINGS, RELEASE_CLEAN] };
 
 test.describe("Release vulnerability findings", () => {
-  test("ranks findings by CVSS rather than by the reported severity", async ({ page, hub }) => {
+  test("ranks findings by the score the Hub gives them", async ({ page, hub }) => {
     hub.get("/products/app.example:payments/releases", releases);
     hub.get("/promotions", { promotions: [], total: 0 });
     await page.goto("products/app.example%3Apayments");
@@ -77,13 +77,14 @@ test.describe("Release vulnerability findings", () => {
     await product.assessmentToggle("2.4.0").click();
     await expect(product.assessmentDetail).toBeVisible();
 
-    // CVE-0001 is cvss 9.8 but severity LOW; CVE-0003 is cvss 4.2 but severity
-    // CRITICAL. Ranking by severity would invert these two.
+    // Hub scores: 0001 -> 9.8 (its own CVSS), 0002 -> 7.0 (HIGH, no CVSS
+    // reported), 0003 -> 4.2. Ordering on the raw CVSS column would drop 0002
+    // to the bottom because its cell is empty, which is what the first
+    // revision of this screen did and what findingScore contradicts.
     const rows = product.activeFindings.locator("tbody tr");
     await expect(rows.nth(0)).toContainText("CVE-2026-0001");
-    await expect(rows.nth(1)).toContainText("CVE-2026-0003");
-    // No CVSS sorts last -- absent is not harmless.
-    await expect(rows.nth(2)).toContainText("CVE-2026-0002");
+    await expect(rows.nth(1)).toContainText("CVE-2026-0002");
+    await expect(rows.nth(2)).toContainText("CVE-2026-0003");
   });
 
   test("shows an absent CVSS as absent rather than as zero", async ({ page, hub }) => {
@@ -122,7 +123,13 @@ test.describe("Release vulnerability findings", () => {
     });
     await product.assessmentToggle("2.4.0").click();
     await expect(product.assessmentDetail).toBeVisible();
-    expect(refetched).toBe(0);
+    // Poll rather than snapshot. A synchronous refetch is caught by an
+    // immediate assertion, but a deferred one -- a background or
+    // stale-while-revalidate refetch on reveal -- lands after it and passed a
+    // snapshot assertion three times out of three when tested deliberately.
+    await expect
+      .poll(() => refetched, { timeout: 1_000, intervals: [100, 200, 300, 400] })
+      .toBe(0);
   });
 
   test("shows the approval trail behind a suppressed finding", async ({ page, hub }) => {
