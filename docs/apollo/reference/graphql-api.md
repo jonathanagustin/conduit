@@ -307,16 +307,23 @@ chose to declare the field either way.
 
 | Property | Value |
 | --- | --- |
-| Recovered coordinates served | 41 |
-| Coordinates served that no capture established | 22 (35% of the interface) |
+| Recovered coordinates declared | 41 |
+| — of which served | 29 |
+| — of which declared but unanswerable | 12 |
+| Coordinates served that no capture established | 22 (35% of the 63 declared; 43% of the 51 served) |
 | — of which Apollo names or documents | 22 |
 | — of which are Conduit's own invention | **0 (0%)** |
-| Recovered coordinates declared but unanswerable | 12 |
+| Coordinates served, total | 51 (29 `OBSERVED` + 22 `DOCUMENTED`) |
 | Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
 | Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
 
 Two numbers, and they answer different questions. `unrecoveredShare` (35%) is
-the fraction no Hub has confirmed; it should fall as captures widen.
+the fraction no Hub has confirmed; it should fall as captures widen. Its
+denominator is what the SDL **declares** — 63 — not what the server answers:
+`build-interface-schema.mjs:260` divides by `observedFields + documentedFields +
+conduitNativeFields`. Measured against the 51 coordinates actually served it is
+43%. The declared figure is the published one because it is the property of the
+contract; the served figure is stated here so the two are never silently swapped.
 `conduitNativeShare` (0%) is the fraction no Apollo source of any kind supports;
 it should stay honest rather than stay zero. Conflating them is how "documented"
 quietly becomes "verified", which is the failure this whole interface exists to

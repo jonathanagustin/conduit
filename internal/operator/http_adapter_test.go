@@ -809,3 +809,106 @@ func TestNewHTTPControlPlaneSuppliesABoundedDefaultClient(t *testing.T) {
 		}
 	})
 }
+
+// The public publish body carries only the four fields ProductDependencyLocator
+// declares. The adapter used to hand the native ApolloManifestDependency to the
+// public route whole, and its recommendedVersion and optional tags are both
+// omitempty -- so a manifest that happened not to set them looked fine, which is
+// how TestHTTPControlPlaneKeepsManifestOnlyPublicationOnPinnedPublicRoute missed
+// it: that fixture declares no dependencies at all. This one declares a plain
+// dependency and asserts the projection field by field.
+//
+// On its own this case does not discriminate -- a dependency with neither extra
+// field set serializes identically whether or not it is projected, because both
+// tags are omitempty. It guards the projection as defence in depth, so that
+// removing the routing predicate below degrades to a dropped field rather than
+// to a 400. TestPublishRoutesRicherDependenciesToTheNativeRoute is the case that
+// actually kills the bug.
+func TestPublicPublishSendsOnlyContractDependencyFields(t *testing.T) {
+	t.Parallel()
+	server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		if request.URL.Path != "/api/v0/products/helmChart/com.example:application:1.2.3/publish" {
+			t.Fatalf("a plain dependency should stay on the public route, got %s", request.URL.Path)
+		}
+		var body map[string]any
+		if err := json.NewDecoder(request.Body).Decode(&body); err != nil {
+			t.Fatal(err)
+		}
+		extensions := body["extensions"].(map[string]any)
+		dependencies := extensions["productDependencies"].([]any)
+		if len(dependencies) != 1 {
+			t.Fatalf("dependencies = %#v", dependencies)
+		}
+		dependency := dependencies[0].(map[string]any)
+		// The Hub decodes this body with DisallowUnknownFields, so any key the
+		// contract does not declare is a 400 rather than a cosmetic extra.
+		for _, contractField := range []string{"productGroup", "productName", "minimumVersion", "maximumVersion"} {
+			if _, present := dependency[contractField]; !present {
+				t.Errorf("contract field %q missing: %#v", contractField, dependency)
+			}
+		}
+		if len(dependency) != 4 {
+			t.Errorf("public dependency carries fields the contract does not declare: %#v", dependency)
+		}
+		_ = json.NewEncoder(response).Encode(struct{}{})
+	}))
+	defer server.Close()
+	adapter, err := NewHTTPControlPlane(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := adapter.PublishProductRelease(context.Background(), publishBundleWithDependency(controlplane.ApolloManifestDependency{
+		ProductGroup: "com.example", ProductName: "library", MinimumVersion: "1.0.0", MaximumVersion: "2.0.0",
+	})); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// A dependency the public contract cannot express goes to the Conduit-native
+// route, which persists the whole thing. Dropping the flag to keep the public
+// route would silently turn an optional dependency into a required one, which
+// changes what the published Release means.
+func TestPublishRoutesRicherDependenciesToTheNativeRoute(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name       string
+		dependency controlplane.ApolloManifestDependency
+	}{
+		{"optional", controlplane.ApolloManifestDependency{
+			ProductGroup: "com.example", ProductName: "library", MinimumVersion: "1.0.0", MaximumVersion: "2.0.0", Optional: true,
+		}},
+		{"recommended version", controlplane.ApolloManifestDependency{
+			ProductGroup: "com.example", ProductName: "library", MinimumVersion: "1.0.0", MaximumVersion: "2.0.0", RecommendedVersion: "1.5.0",
+		}},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+			server := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+				if request.URL.Path != "/v1/product-publications/helm-chart" {
+					t.Errorf("%s should route natively, got %s", testCase.name, request.URL.Path)
+				}
+				_ = json.NewEncoder(response).Encode(struct{}{})
+			}))
+			defer server.Close()
+			adapter, err := NewHTTPControlPlane(server.URL, server.Client())
+			if err != nil {
+				t.Fatal(err)
+			}
+			if _, err := adapter.PublishProductRelease(context.Background(), publishBundleWithDependency(testCase.dependency)); err != nil {
+				t.Fatal(err)
+			}
+		})
+	}
+}
+
+func publishBundleWithDependency(dependency controlplane.ApolloManifestDependency) controlplane.HelmProductReleaseBundle {
+	digest := "sha256:" + strings.Repeat("a", 64)
+	return controlplane.HelmProductReleaseBundle{Manifest: controlplane.ApolloProductManifest{
+		ManifestVersion: "1.0", ProductGroup: "com.example", ProductName: "application", ProductVersion: "1.2.3", ProductType: "helm-chart.v1",
+		Extensions: controlplane.ApolloProductManifestExtensions{
+			HelmChart:           &controlplane.ApolloManifestHelmChart{Name: "application", Version: "1.2.3", RepositoryURL: "oci://registry.example/charts/application:1.2.3@" + digest},
+			Artifacts:           []controlplane.ApolloManifestArtifact{{Type: "oci", URI: "registry.example/application:1.2.3@" + digest}},
+			ProductDependencies: []controlplane.ApolloManifestDependency{dependency},
+		},
+	}}
+}

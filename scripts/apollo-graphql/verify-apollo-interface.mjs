@@ -380,8 +380,14 @@ if (betaCited.length) {
       `on every Hub: ${betaCited.join(", ")}`,
   );
 }
+// "declared", not "served". conduitNativeShare divides by the three tier counts
+// -- what the SDL declares -- and twelve declared coordinates are refused rather
+// than served. The old wording was true only because the numerator is zero, and
+// zero is zero under either denominator; the first genuine CONDUIT_NATIVE field
+// would have made this line report a declared share while calling it a served
+// one, which is the conflation the interface exists to prevent.
 console.log(
   `PASS Apollo interface provenance: ${observedCount} observed + ${documentedCount} documented + ` +
-    `${nativeCount} Conduit-native field(s); every citation resolves; ` +
-    `${share}% of the served interface has no Apollo source of any kind`,
+    `${nativeCount} Conduit-native field(s) declared; every citation resolves; ` +
+    `${share}% of the declared interface has no Apollo source of any kind`,
 );

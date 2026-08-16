@@ -5,7 +5,8 @@ import { orderInbox, outstandingRequirements } from "../../features/changes/orde
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
 import { statusIntent } from "../../api/imports.js";
-import { orderFindingsByCvss } from "../../api/catalog.js";
+import { findingScore, orderFindingsByHubScore } from "../../api/catalog.js";
+import type { VulnerabilityFinding } from "../../api/catalog.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
@@ -366,44 +367,82 @@ describe("status colour vocabularies match the Hub", () => {
   });
 });
 
-describe("orderFindingsByCvss", () => {
-  // The Hub's findingScore prefers CVSS whenever it is above zero and falls
-  // back to the severity string only when it is not, so the console must rank
-  // on CVSS or it can order findings differently from how the Hub scored the
-  // same Release.
-  it("orders worst-first by CVSS, not by the severity string", () => {
-    const ordered = orderFindingsByCvss([
-      { id: "CVE-2", cvss: 4.2, severity: "CRITICAL" },
-      { id: "CVE-1", cvss: 9.1, severity: "LOW" },
+describe("findingScore mirrors the Hub", () => {
+  // These five numbers are duplicated from findingScore in
+  // internal/controlplane/risk.go. Pinning each one here is what makes the
+  // duplication safe: a drift in either direction fails this test rather than
+  // silently ordering the console differently from the Hub.
+  it("prefers CVSS whenever it is above zero", () => {
+    expect(findingScore({ id: "a", cvss: 6.6, severity: "CRITICAL" })).toBe(6.6);
+  });
+  it("caps CVSS at the Hub's maximum", () => {
+    expect(findingScore({ id: "a", cvss: 99 })).toBe(10);
+  });
+  it("falls back to the severity tiers the Hub uses", () => {
+    expect(findingScore({ id: "a", severity: "CRITICAL" })).toBe(9);
+    expect(findingScore({ id: "a", severity: "HIGH" })).toBe(7);
+    expect(findingScore({ id: "a", severity: "MEDIUM" })).toBe(4);
+    expect(findingScore({ id: "a", severity: "MODERATE" })).toBe(4);
+    expect(findingScore({ id: "a", severity: "LOW" })).toBe(0.1);
+  });
+  it("treats the Hub's informational aliases as zero", () => {
+    for (const severity of ["NONE", "INFORMATIONAL", "INFO"]) {
+      expect(findingScore({ id: "a", severity })).toBe(0);
+    }
+  });
+  // risk.go: "a finding whose severity nobody could parse must not make a
+  // target look cleaner than it is."
+  it("scores an unparseable severity at the HIGH tier, not at zero", () => {
+    expect(findingScore({ id: "a", severity: "banana" })).toBe(7);
+    expect(findingScore({ id: "a" })).toBe(7);
+  });
+});
+
+describe("orderFindingsByHubScore", () => {
+  it("orders worst-first by the Hub's score, not by the raw CVSS column", () => {
+    // The case the first revision got wrong: HIGH with no CVSS scores 7.0 at
+    // the Hub and must outrank a reported 4.2, even though its CVSS cell is
+    // empty.
+    const ordered = orderFindingsByHubScore([
+      { id: "CVE-3", cvss: 4.2, severity: "CRITICAL" },
+      { id: "CVE-1", cvss: 9.8, severity: "LOW" },
+      { id: "CVE-2", severity: "HIGH" },
     ]);
-    expect(ordered.map((finding) => finding.id)).toEqual(["CVE-1", "CVE-2"]);
+    expect(ordered.map((finding: VulnerabilityFinding) => finding.id)).toEqual([
+      "CVE-1",
+      "CVE-2",
+      "CVE-3",
+    ]);
   });
 
-  // Absent is not harmless. Treating a missing CVSS as 0 would be defensible
-  // arithmetic and the wrong claim, so it sorts last instead.
-  it("sorts a finding with no CVSS last rather than as zero", () => {
-    // The comparison finding scores exactly 0, which is the only value that
-    // tells `?? -1` apart from `?? 0`. Ids are chosen so that if the absent
-    // score collapsed to 0 the tie-break would surface CVE-a first, making the
-    // wrong behaviour visible instead of coincidentally agreeing.
-    const ordered = orderFindingsByCvss([
-      { id: "CVE-a" },
-      { id: "CVE-b", cvss: 0 },
+  it("puts an informational finding below a scored one", () => {
+    const ordered = orderFindingsByHubScore([
+      { id: "CVE-info", severity: "INFO" },
+      { id: "CVE-low", cvss: 0.1 },
     ]);
-    expect(ordered.map((finding) => finding.id)).toEqual(["CVE-b", "CVE-a"]);
+    expect(ordered.map((finding: VulnerabilityFinding) => finding.id)).toEqual([
+      "CVE-low",
+      "CVE-info",
+    ]);
   });
 
-  it("breaks CVSS ties on CVE id so the list is stable", () => {
-    const ordered = orderFindingsByCvss([
+  it("breaks ties on CVE id so the list is stable", () => {
+    const ordered = orderFindingsByHubScore([
       { id: "CVE-b", cvss: 7 },
-      { id: "CVE-a", cvss: 7 },
+      { id: "CVE-a", severity: "HIGH" },
     ]);
-    expect(ordered.map((finding) => finding.id)).toEqual(["CVE-a", "CVE-b"]);
+    expect(ordered.map((finding: VulnerabilityFinding) => finding.id)).toEqual([
+      "CVE-a",
+      "CVE-b",
+    ]);
   });
 
   it("does not mutate its argument", () => {
-    const findings = [{ id: "CVE-2", cvss: 1 }, { id: "CVE-1", cvss: 9 }];
-    orderFindingsByCvss(findings);
-    expect(findings.map((finding) => finding.id)).toEqual(["CVE-2", "CVE-1"]);
+    const findings = [
+      { id: "CVE-2", cvss: 1 },
+      { id: "CVE-1", cvss: 9 },
+    ];
+    orderFindingsByHubScore(findings);
+    expect(findings.map((finding: VulnerabilityFinding) => finding.id)).toEqual(["CVE-2", "CVE-1"]);
   });
 });

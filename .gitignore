@@ -28,3 +28,8 @@ tools/zenith-protocol/node_modules/
 # team's agreement; this one is somebody's own machine and must not become a
 # silent, unreviewable amendment to it.
 .claude/settings.local.json
+
+# The review-ledger self-test writes throwaway ledger copies beside the real
+# one, because `topic` resolves relative to the ledger directory. The EXIT trap
+# removes them; this covers a SIGKILL.
+docs/apollo/reference/.review-ledger-selftest.*
