@@ -4,6 +4,7 @@ import { filterFleet, matchesSearch } from "../../features/fleet/filter.js";
 import { orderInbox, outstandingRequirements } from "../../features/changes/order.js";
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
+import { statusIntent } from "../../api/imports.js";
 import { installation } from "../fixtures.js";
 import type { ChangeRequest } from "../../api/resources.js";
 
@@ -272,5 +273,31 @@ describe("latest promotion per channel", () => {
     expect(
       latestForChannel([record("other", "STAGING", "2026-08-09T00:00:00Z")], "RELEASE"),
     ).toBeUndefined();
+  });
+});
+
+describe("bundle import status intent", () => {
+  // The vocabulary is the Hub's, from controlplane.bundles.go. An earlier
+  // version guessed "IMPORTED"/"BLOCKED" and coloured the real ADMITTED and
+  // PENDING_APPROVAL states neutral grey -- a passing e2e suite over invented
+  // fixtures never caught it, which is why this pins the real values.
+  it("colours the done-and-good states success", () => {
+    expect(statusIntent("ADMITTED")).toBe("success"); // import
+    expect(statusIntent("SUCCEEDED")).toBe("success"); // task
+  });
+  it("colours the failed states danger", () => {
+    expect(statusIntent("ERROR")).toBe("danger"); // import
+    expect(statusIntent("FAILED")).toBe("danger"); // task
+  });
+  it("colours the awaiting-a-person state warning", () => {
+    expect(statusIntent("PENDING_APPROVAL")).toBe("warning");
+  });
+  it("leaves an in-progress, abandoned, or unknown status neutral", () => {
+    expect(statusIntent("PENDING")).toBe("none");
+    expect(statusIntent("SKIPPED")).toBe("none");
+    expect(statusIntent("SOMETHING_NEW")).toBe("none");
+  });
+  it("is case-insensitive so a lower-case status is not silently uncoloured", () => {
+    expect(statusIntent("admitted")).toBe("success");
   });
 });
