@@ -61,14 +61,31 @@ were found and fixed:
 ## Still needs the repository owner
 
 These are decisions or build-or-close calls, not agent work:
+- **Close the issues whose work is already on `main`.** #13 (reviewer-requirement
+  satisfiability) and #25 (intermittent Environment silence) both shipped in
+  PR #29 and still carry `status:needs-review`. #16 (scan-before-install) shipped
+  its one real gap — freshness — in PR #35, its premise having proved false.
+  These need no decision; they need closing.
 - **Close the decided issues.** #17 (Foundry Space) → **won't-do** (serving a
   synthesized `spaceId` behind an `OBSERVED` coordinate would make the
-  provenance disclosure lie; recommend close). #19/#20 → decision recorded in
-  ADR 0006 and their implementations shipped. #21 (Gitless propose principal) →
-  recommended **option 3** (per-binding nominated principal), kept deferred
-  until a real consumer. #26 (Namespace) → **defer**. Verify these are closed.
-- **Enable the merge queue** in `main`'s branch-protection settings and mark the
-  `Merge queue` check required — the workflow (PR #33) is inert until then.
+  provenance disclosure lie; recommend close). #19 → already closed. #21 (Gitless
+  propose principal) → recommended **option 3** (per-binding nominated
+  principal), kept deferred until a real consumer. #26 (Namespace) → **defer**.
+- **Decide what to do about the merge queue (#20).** This was previously written
+  here as a setting to flip. It is not one. GitHub offers merge queues on public
+  repositories, and on private ones only under Team or Enterprise Cloud, so this
+  private repository under a personal account has no "Require merge queue"
+  control at all — confirmed 2026-08-16 against `main`'s branch-protection form,
+  where the option is absent between "Require linear history" and "Require
+  deployments to succeed before merging", with "Require a pull request before
+  merging" ticked and its sub-options rendering. Rulesets are gated identically.
+  So `merge-queue.yml` (PR #33) stays inert unless the repository moves to an
+  organization on GitHub Team, or becomes public — a decision about repository
+  ownership rather than about CI. If it ever does move, the required check must
+  become `Merge queue` and not `Trunk gate`: `platform-ci.yml` is
+  `workflow_dispatch` with a required pull-request input and cannot run on a
+  `merge_group`, so leaving it required would strand every merge group waiting
+  for a status nothing posts.
 - **Merge order for stacked workflow PRs:** the doc-drift crawl (PR #34) needs
   `verify-documentation-manifest.mjs`, which arrived with PR #29 — already on
   `main`, so nothing pending, but note the dependency if reverting.
