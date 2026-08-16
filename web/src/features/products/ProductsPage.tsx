@@ -3,7 +3,8 @@ import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@b
 import { Link, useParams } from "react-router-dom";
 
 import {
-  orderFindingsByCvss,
+  isZeroTime,
+  orderFindingsByHubScore,
   useProductReleases,
   useProducts,
   usePromotions,
@@ -201,12 +202,18 @@ export function ProductDetailPage() {
  * findings and the whole suppression approval trail on every page load and drew
  * one tag and one integer from them.
  *
- * Findings are ordered by CVSS rather than by severity, and severity is printed
- * rather than coloured. Both follow from the Hub: `findingScore` prefers CVSS
- * whenever it is above zero, and `severity` is an unconstrained string with no
- * Go const set, so a colour map keyed on it would be both unguardable by
- * `verify-console-contract.mjs` and capable of disagreeing with the Hub's own
- * ranking. */
+ * Findings are ordered by the score the Hub would give them -- `findingScore`
+ * mirrored in `orderFindingsByHubScore` -- so the panel's order is the order
+ * `ReleaseRiskScore` is built from. An earlier revision ordered on CVSS alone,
+ * which put every severity-only finding at the bottom and so inverted the Hub
+ * for the case that matters most: a CRITICAL finding reporting no CVSS scores
+ * 9.0 upstream and rendered below one scoring 0.5.
+ *
+ * Severity is printed rather than coloured, which is a separate decision and
+ * still stands: `severity` is an unconstrained string with no Go const set, so
+ * a colour map keyed on it could not be guarded by
+ * `verify-console-contract.mjs`. Ordering by a numeric mirror of the Hub's own
+ * function is not the same thing as inventing a status vocabulary. */
 function VulnerabilityDetail({
   version,
   assessment,
@@ -214,7 +221,7 @@ function VulnerabilityDetail({
   version: string;
   assessment: VulnerabilityAssessment;
 }) {
-  const active = orderFindingsByCvss(assessment.activeFindings ?? []);
+  const active = orderFindingsByHubScore(assessment.activeFindings ?? []);
   const suppressed = assessment.suppressedFindingDetails ?? [];
   return (
     <section
@@ -225,7 +232,7 @@ function VulnerabilityDetail({
       <h2 id="release-assessment-title">Vulnerability findings for {version}</h2>
       <p className="console-products__assessment-provenance">
         {assessment.provider === undefined ? "Scanner not named" : `Scanned by ${assessment.provider}`}
-        {assessment.assessedAt === undefined ? null : (
+        {isZeroTime(assessment.assessedAt) ? null : (
           <>
             {" "}
             &middot; <Timestamp value={assessment.assessedAt} />
@@ -242,7 +249,15 @@ function VulnerabilityDetail({
       {active.length === 0 ? (
         <p className="console-empty">No active findings.</p>
       ) : (
-        <HTMLTable className="console-products__table" striped data-testid="release-active-findings">
+        <>
+          {/* Without this the order looks wrong: a finding whose CVSS column
+              reads "—" can outrank one reading 4.2, because the Hub scores an
+              unreported CVSS from its severity instead. */}
+          <p className="console-products__assessment-provenance">
+            Worst first, by the score the Hub assigns: CVSS when it was reported,
+            otherwise the reported severity.
+          </p>
+          <HTMLTable className="console-products__table" striped data-testid="release-active-findings">
           <thead>
             <tr>
               <th scope="col">CVE</th>
@@ -260,8 +275,9 @@ function VulnerabilityDetail({
                 <td>{finding.severity ?? "—"}</td>
               </tr>
             ))}
-          </tbody>
-        </HTMLTable>
+            </tbody>
+          </HTMLTable>
+        </>
       )}
 
       {suppressed.length === 0 ? null : (
@@ -289,10 +305,10 @@ function VulnerabilityDetail({
                   <td>{finding.suppression?.approvedBy ?? "—"}</td>
                   <td>{finding.suppression?.changeRequestId ?? "—"}</td>
                   <td>
-                    {finding.suppression?.validUntil === undefined ? (
+                    {isZeroTime(finding.suppression?.validUntil) ? (
                       "—"
                     ) : (
-                      <Timestamp value={finding.suppression.validUntil} />
+                      <Timestamp value={finding.suppression?.validUntil} />
                     )}
                   </td>
                 </tr>

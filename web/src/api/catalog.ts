@@ -71,19 +71,76 @@ export interface VulnerabilityAssessment {
   assessedAt?: string;
 }
 
-/** Findings worst-first by CVSS, which is the order the Hub's own risk score is
- * built from. A finding with no CVSS sorts last rather than as zero: absent is
- * not the same as harmless, and putting it at the end says so without inventing
- * a score for it. Ties keep CVE id order so the list is stable between renders. */
-export function orderFindingsByCvss(findings: VulnerabilityFinding[]): VulnerabilityFinding[] {
+/** The Hub's own tiers for a finding that reported no CVSS, mirrored from
+ * `findingScore` in internal/controlplane/risk.go. The unknown tier is
+ * deliberately equal to HIGH there -- "a finding whose severity nobody could
+ * parse must not make a target look cleaner than it is" -- and that intent is
+ * lost if the console quietly treats unparsed as harmless. */
+const CVSS_MAXIMUM = 10;
+const CVSS_CRITICAL = 9;
+const CVSS_HIGH = 7;
+const CVSS_MEDIUM = 4;
+const CVSS_LOW = 0.1;
+const CVSS_UNKNOWN_TIER = CVSS_HIGH;
+
+/** What the Hub scores this finding at, mirroring `findingScore`
+ * (internal/controlplane/risk.go). CVSS wins whenever it is above zero;
+ * otherwise the severity string is mapped to a representative score, including
+ * the MODERATE / INFORMATIONAL / INFO aliases that exist because providers
+ * disagree.
+ *
+ * An earlier revision of this file ordered on CVSS alone and sent every
+ * severity-only finding to the bottom, which inverted the Hub for exactly the
+ * case that matters: a CRITICAL finding with no CVSS scores 9.0 at the Hub and
+ * rendered below a finding scoring 0.5. The comment claiming Hub-consistent
+ * order was true of half the function. Mirroring the whole of `findingScore` is
+ * the only way the claim holds.
+ *
+ * This duplicates five numbers across the language boundary, which is a real
+ * cost. It is accepted because the alternative -- ordering differently from the
+ * Hub while saying otherwise -- is worse, and because these are numeric tiers
+ * rather than a status vocabulary, so `verify-console-contract.mjs` (which
+ * extracts value SETS from named Go consts) is not the mechanism that would
+ * guard them. `logic.test.ts` pins each tier instead. */
+export function findingScore(finding: VulnerabilityFinding): number {
+  if (finding.cvss !== undefined && finding.cvss > 0) {
+    return Math.min(finding.cvss, CVSS_MAXIMUM);
+  }
+  switch ((finding.severity ?? "").trim().toUpperCase()) {
+    case "CRITICAL":
+      return CVSS_CRITICAL;
+    case "HIGH":
+      return CVSS_HIGH;
+    case "MEDIUM":
+    case "MODERATE":
+      return CVSS_MEDIUM;
+    case "LOW":
+      return CVSS_LOW;
+    case "NONE":
+    case "INFORMATIONAL":
+    case "INFO":
+      return 0;
+    default:
+      return CVSS_UNKNOWN_TIER;
+  }
+}
+
+/** Findings worst-first by the score the Hub would give them, so the panel's
+ * order is the order `ReleaseRiskScore` is built from. Ties keep CVE id order
+ * so the list is stable between renders. */
+export function orderFindingsByHubScore(findings: VulnerabilityFinding[]): VulnerabilityFinding[] {
   return [...findings].sort((left, right) => {
-    const leftScore = left.cvss ?? -1;
-    const rightScore = right.cvss ?? -1;
-    if (leftScore !== rightScore) {
-      return rightScore - leftScore;
-    }
-    return left.id.localeCompare(right.id);
+    const difference = findingScore(right) - findingScore(left);
+    return difference !== 0 ? difference : left.id.localeCompare(right.id);
   });
+}
+
+/** True when a timestamp is Go's zero `time.Time`. `omitempty` does not omit a
+ * struct, so an unset `assessedAt` or `validUntil` arrives as year 1 rather
+ * than as absent, and an undefined-check alone renders it as a date ~740,000
+ * days ago. */
+export function isZeroTime(value: string | undefined): boolean {
+  return value === undefined || value.startsWith("0001-01-01T00:00:00");
 }
 
 export interface Release {
