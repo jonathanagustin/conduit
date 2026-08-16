@@ -334,6 +334,42 @@ func EffectivePrincipal(principal Principal) Principal {
 	return principal
 }
 
+// SameHuman reports whether two principals are the same party for the purpose
+// of separation of duties.
+//
+// It compares identity SETS rather than usernames, because a service account
+// acting for a person is that person -- the doctrine EffectivePrincipal exists
+// to carry. Comparing Username alone would let the delegation through both
+// ways: a service account proposing on behalf of alice records the account as
+// the author, so alice approving it looks like a different party, and so does
+// the account approving on behalf of alice.
+//
+// Both sides contribute both names because delegation is recorded on only one
+// side of any given comparison. Matching on either name is the conservative
+// direction: it refuses a pairing that might be one party, which is the error
+// worth making when the alternative is admitting one that is.
+//
+// Exact string match, deliberately. TrimSpace in ResolvePrincipal is the only
+// normalization this system performs on a username, and every other identity
+// gate -- reopen, cancel, duplicate-review, team membership -- is an exact
+// match. If an identity provider mints "Alice" and "alice" they are already
+// distinct principals with distinct team resolution everywhere else, so folding
+// case here alone would be the one inconsistent comparison in the codebase, and
+// it could refuse a legitimately distinct principal.
+func SameHuman(left, right Principal) bool {
+	for _, leftName := range []string{left.Username, EffectivePrincipal(left).Username} {
+		if leftName == "" {
+			continue
+		}
+		for _, rightName := range []string{right.Username, EffectivePrincipal(right).Username} {
+			if leftName == rightName {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // AuthorizationScopes expands a resource identifier into every scope a grant
 // covering it could have been made against: the resource itself, the
 // environment containing it where there is one, and the global scope for its

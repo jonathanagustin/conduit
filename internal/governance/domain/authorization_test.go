@@ -130,6 +130,50 @@ func TestDelegationIsJudgedAsThePersonDelegatedTo(t *testing.T) {
 	}
 }
 
+// SameHuman is what separation of duties compares, and the cases that matter
+// are the ones a username comparison gets wrong: delegation records the account
+// on one side of a pairing and the person on the other, so the two look like
+// different parties while being one.
+func TestSameHumanSeesThroughDelegationInBothDirections(t *testing.T) {
+	t.Parallel()
+	human := Principal{Username: "operator"}
+	robot := Principal{Username: "ci", ServiceAccount: true, OnBehalfOf: &human}
+	other := Principal{Username: "reviewer"}
+	otherRobot := Principal{Username: "ci", ServiceAccount: true, OnBehalfOf: &other}
+
+	for _, test := range []struct {
+		name        string
+		left, right Principal
+		want        bool
+	}{
+		{name: "a principal is themselves", left: human, right: human, want: true},
+		{name: "the account carrying a delegation is the person", left: robot, right: human, want: true},
+		{name: "and in the other order", left: human, right: robot, want: true},
+		{name: "two delegations of the same person are one party", left: robot, right: robot, want: true},
+		// The carrying account's own name still counts. An account that
+		// proposes as itself and later approves while carrying a delegation is
+		// the same account twice, whatever name the second call presents.
+		{name: "the carrying account matches itself", left: Principal{Username: "ci"}, right: robot, want: true},
+		{name: "distinct people are distinct", left: human, right: other, want: false},
+		{name: "delegations to distinct people are distinct", left: human, right: otherRobot, want: false},
+		// Exact match: this system normalizes usernames with TrimSpace and
+		// nothing else, so case variants are already distinct principals
+		// everywhere else and must stay distinct here.
+		{name: "case is not folded", left: human, right: Principal{Username: "Operator"}, want: false},
+	} {
+		if got := SameHuman(test.left, test.right); got != test.want {
+			t.Errorf("%s: SameHuman(%q, %q) = %v, want %v",
+				test.name, test.left.Username, test.right.Username, got, test.want)
+		}
+	}
+
+	// An empty username is not an identity, and must not make every unnamed
+	// principal the same party as every other.
+	if SameHuman(Principal{}, Principal{}) {
+		t.Error("two principals with no username were judged the same party")
+	}
+}
+
 func TestCanonicalRoleScopeRejectsTheWrongResourceKind(t *testing.T) {
 	t.Parallel()
 	if err := ValidateCanonicalRoleScope("environment:viewer", "environment/dev-use2"); err != nil {
