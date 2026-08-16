@@ -230,12 +230,25 @@ func releaseArtifacts(release Release) []Artifact {
 	return append([]Artifact{release.Chart}, release.Images...)
 }
 
-func enrichRequiredArtifactAssessments(ctx context.Context, scanner ArtifactScanner, state *DesiredState) error {
-	if state.Environment.ArtifactSecurityPolicy == nil {
+func enrichRequiredArtifactAssessments(ctx context.Context, scanner ArtifactScanner, state *DesiredState, now time.Time) error {
+	policy := state.Environment.ArtifactSecurityPolicy
+	if policy == nil {
 		return nil
 	}
 	for index := range state.Releases {
-		if state.Releases[index].VulnerabilityAssessment != nil {
+		// A present assessment is left alone unless the policy sets a freshness
+		// bound and this one has aged past it. Rescanning here -- at proposal,
+		// before the plan is built -- is how freshness is enforced without a
+		// clock in the pure desired-state validation: the plan carries a fresh
+		// assessment, and the generation stays immutable.
+		//
+		// Bounded gap, recorded rather than hidden: freshness is checked when the
+		// upgrade is proposed, not again when a leased plan finally executes, so a
+		// plan approved just inside the window can execute later with older
+		// evidence. Closing that would mean re-validating at lease time, a larger
+		// change than this gate.
+		if assessment := state.Releases[index].VulnerabilityAssessment; assessment != nil &&
+			!artifactAssessmentStale(assessment, policy.MaximumScanAgeSeconds, now) {
 			continue
 		}
 		if scanner == nil {
@@ -254,4 +267,21 @@ func enrichRequiredArtifactAssessments(ctx context.Context, scanner ArtifactScan
 		}
 	}
 	return nil
+}
+
+// artifactAssessmentStale reports whether a present assessment is too old for a
+// policy's freshness bound. A zero bound leaves freshness unchecked. Under a
+// positive bound a missing or future-dated AssessedAt counts as stale: neither
+// can be trusted as recent, and because this triggers a rescan rather than a
+// hard refusal, a clock skew that back-dates or forward-dates a scan only costs
+// a fresh scan -- never a wrongly blocked upgrade.
+func artifactAssessmentStale(assessment *VulnerabilityAssessment, maxAgeSeconds int, now time.Time) bool {
+	if maxAgeSeconds <= 0 {
+		return false
+	}
+	if assessment.AssessedAt.IsZero() {
+		return true
+	}
+	age := now.Sub(assessment.AssessedAt)
+	return age < 0 || age > time.Duration(maxAgeSeconds)*time.Second
 }
