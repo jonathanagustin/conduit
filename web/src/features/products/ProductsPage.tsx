@@ -3,12 +3,15 @@ import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@b
 import { Link, useParams } from "react-router-dom";
 
 import {
+  orderFindingsByCvss,
   useProductReleases,
   useProducts,
   usePromotions,
 } from "../../api/catalog.js";
+import type { VulnerabilityAssessment } from "../../api/catalog.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
+import { Timestamp } from "../../components/Timestamp.js";
 import { ReleaseChannelGraph } from "../promotions/ReleaseChannelGraph.js";
 import { TransitionDetail } from "../promotions/PromotionsPage.js";
 import { IndexPagination } from "../../components/IndexPagination.js";
@@ -102,6 +105,11 @@ export function ProductsPage() {
 export function ProductDetailPage() {
   const { product = "" } = useParams();
   const { data, error, isPending, refetch } = useProductReleases(product);
+  // Which Release's findings are revealed. Held here rather than in the URL
+  // because it selects within data this page has already loaded, the same way
+  // the Import and Export screens reveal a row's detail.
+  const [selectedRelease, setSelectedRelease] = useState<string | undefined>(undefined);
+  const chosenRelease = (data ?? []).find((release) => release.version === selectedRelease);
   return (
     <QueryState
       isPending={isPending}
@@ -148,16 +156,152 @@ export function ProductDetailPage() {
                         immutable, so it is shown rather than the tag. */}
                     <td className="console-products__digest">{release.chart.digest}</td>
                     <td>
-                      <AssessmentTag release={release} />
+                      {(release.vulnerabilityAssessment?.activeFindings ?? []).length === 0 &&
+                      (release.vulnerabilityAssessment?.suppressedFindingDetails ?? []).length === 0 ? (
+                        <AssessmentTag release={release} />
+                      ) : (
+                        <Button
+                          minimal
+                          small
+                          aria-pressed={selectedRelease === release.version}
+                          data-testid={`release-assessment-${release.version}`}
+                          onClick={() =>
+                            setSelectedRelease(
+                              selectedRelease === release.version ? undefined : release.version,
+                            )
+                          }
+                        >
+                          <AssessmentTag release={release} />
+                        </Button>
+                      )}
                     </td>
                   </tr>
                 ))}
               </tbody>
             </HTMLTable>
           )}
+          {chosenRelease?.vulnerabilityAssessment === undefined ? null : (
+            <VulnerabilityDetail
+              version={chosenRelease.version}
+              assessment={chosenRelease.vulnerabilityAssessment}
+            />
+          )}
         </div>
       )}
     </QueryState>
+  );
+}
+
+/** The per-CVE detail behind a Release's assessment tag.
+ *
+ * Every field here is already in the payload the table above rendered -- the
+ * Hub serializes `catalog.Release` whole on `GET /v1/products/{product}/releases`
+ * -- so revealing it costs no second request, the same rule the Import, Export
+ * and Risk screens follow. Until this existed the console fetched the per-CVE
+ * findings and the whole suppression approval trail on every page load and drew
+ * one tag and one integer from them.
+ *
+ * Findings are ordered by CVSS rather than by severity, and severity is printed
+ * rather than coloured. Both follow from the Hub: `findingScore` prefers CVSS
+ * whenever it is above zero, and `severity` is an unconstrained string with no
+ * Go const set, so a colour map keyed on it would be both unguardable by
+ * `verify-console-contract.mjs` and capable of disagreeing with the Hub's own
+ * ranking. */
+function VulnerabilityDetail({
+  version,
+  assessment,
+}: {
+  version: string;
+  assessment: VulnerabilityAssessment;
+}) {
+  const active = orderFindingsByCvss(assessment.activeFindings ?? []);
+  const suppressed = assessment.suppressedFindingDetails ?? [];
+  return (
+    <section
+      className="console-products__assessment"
+      aria-labelledby="release-assessment-title"
+      data-testid="release-assessment-detail"
+    >
+      <h2 id="release-assessment-title">Vulnerability findings for {version}</h2>
+      <p className="console-products__assessment-provenance">
+        {assessment.provider === undefined ? "Scanner not named" : `Scanned by ${assessment.provider}`}
+        {assessment.assessedAt === undefined ? null : (
+          <>
+            {" "}
+            &middot; <Timestamp value={assessment.assessedAt} />
+          </>
+        )}
+        {assessment.gracePeriodFindings === undefined || assessment.gracePeriodFindings === 0 ? null : (
+          <>
+            {" "}
+            &middot; {assessment.gracePeriodFindings} within a grace period
+          </>
+        )}
+      </p>
+
+      {active.length === 0 ? (
+        <p className="console-empty">No active findings.</p>
+      ) : (
+        <HTMLTable className="console-products__table" striped data-testid="release-active-findings">
+          <thead>
+            <tr>
+              <th scope="col">CVE</th>
+              <th scope="col">CVSS</th>
+              <th scope="col">Severity (as reported)</th>
+            </tr>
+          </thead>
+          <tbody>
+            {active.map((finding) => (
+              <tr key={finding.id} data-testid={`finding-${finding.id}`}>
+                <td>{finding.id}</td>
+                {/* An absent CVSS is shown as absent. Rendering it as 0 would
+                    read as harmless, which is the opposite of unknown. */}
+                <td>{finding.cvss === undefined ? "—" : finding.cvss.toFixed(1)}</td>
+                <td>{finding.severity ?? "—"}</td>
+              </tr>
+            ))}
+          </tbody>
+        </HTMLTable>
+      )}
+
+      {suppressed.length === 0 ? null : (
+        <>
+          <h3>Suppressed</h3>
+          {/* A suppressed count is not evidence on its own: the Hub refuses a
+              suppression that cannot name an approver, a Change Request and an
+              unexpired window, so those are what make the exclusion auditable
+              and what is shown. */}
+          <HTMLTable className="console-products__table" striped data-testid="release-suppressed-findings">
+            <thead>
+              <tr>
+                <th scope="col">CVE</th>
+                <th scope="col">Category</th>
+                <th scope="col">Approved by</th>
+                <th scope="col">Change Request</th>
+                <th scope="col">Valid until</th>
+              </tr>
+            </thead>
+            <tbody>
+              {suppressed.map((finding) => (
+                <tr key={finding.findingId} data-testid={`suppressed-${finding.vulnerabilityId}`}>
+                  <td>{finding.vulnerabilityId}</td>
+                  <td>{finding.suppression?.category ?? "—"}</td>
+                  <td>{finding.suppression?.approvedBy ?? "—"}</td>
+                  <td>{finding.suppression?.changeRequestId ?? "—"}</td>
+                  <td>
+                    {finding.suppression?.validUntil === undefined ? (
+                      "—"
+                    ) : (
+                      <Timestamp value={finding.suppression.validUntil} />
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </HTMLTable>
+        </>
+      )}
+    </section>
   );
 }
 
