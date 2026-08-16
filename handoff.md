@@ -122,7 +122,12 @@ These are decisions or build-or-close calls, not agent work:
 
 ## Follow-ups worth considering (not started)
 - Extend the contract gate to import-level statuses if they are given named Go
-  consts (currently inline literals; unit-test-pinned).
+  consts (currently inline literals; unit-test-pinned). Checked 2026-08-16: the
+  Bundle import *task* vocabularies already have named consts and still cannot
+  be added, because the gate checks set equality both ways and the console side
+  is a deliberate partial map (`statusIntent`) plus a raw-string stage render.
+  Adding either needs a console change first, so it is a design decision, not
+  the chore it resembles. Full reasoning is in the gate's own header.
 - Build-or-close the optional features their decisions unblocked: a Conduit-native
   per-Environment scan-before-install *strictness* beyond freshness (#16 notes),
   or wiring the Gitless propose principal (#21) when a consumer appears.
