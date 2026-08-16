@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -50,10 +51,27 @@ func TestSessionProjectionIsBoundedAndOmitsIdentityClaims(t *testing.T) {
 		len(projection.Resources[1].Operations) != 0 {
 		t.Fatalf("resource capabilities = %#v", projection.Resources)
 	}
+	globalOnly := map[string]bool{"fleet": true, "promotions": true, "risk": true, "export": true, "import": true}
+	teamsAdvertised := false
 	for _, application := range projection.Applications {
-		if (application.ID == "fleet" || application.ID == "promotions") && application.Enabled {
+		if globalOnly[application.ID] && application.Enabled {
 			t.Fatalf("global-only application enabled without global read: %#v", projection.Applications)
 		}
+		if application.ID == "teams" {
+			teamsAdvertised = true
+			if !application.Enabled {
+				t.Fatalf("teams is readable by any operator and must stay enabled: %#v", projection.Applications)
+			}
+		}
+	}
+	// Every console screen must be advertised, or its rail entry can never appear.
+	for _, id := range []string{"change-requests", "fleet", "plans", "promotions", "teams", "risk", "export", "import"} {
+		if !slices.ContainsFunc(projection.Applications, func(a SessionApplication) bool { return a.ID == id }) {
+			t.Fatalf("session does not advertise the %q application; its rail entry is unreachable", id)
+		}
+	}
+	if !teamsAdvertised {
+		t.Fatal("teams application was not advertised")
 	}
 }
 
