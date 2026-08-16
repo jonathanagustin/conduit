@@ -173,9 +173,12 @@ Adopt these working rules for this repo:
 - Put design decisions and premise-reversals through an adversarial review (a
   fresh agent, ideally model: fable) before implementing -- it caught #17 and #16.
 
-Then tell me the current open issues and which decisions still need me (per this
-handoff: close #17 won't-do, #19/#20/#21/#26; enable the merge queue in branch
-protection), and wait for direction.
+Then tell me the current open issues and which decisions still need me, and wait
+for direction. Do not carry a to-do list in from this block: it previously said
+"close #17 won't-do, #19/#20/#21/#26; enable the merge queue in branch
+protection", which had gone stale in both directions -- #17 and #16 are closed,
+and the merge queue is not a setting to flip (see the body of this handoff).
+Read the issue list rather than this paragraph.
 ```
 
 ### Shell bootstrap (rebuild the toolchain)
