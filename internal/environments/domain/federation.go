@@ -108,14 +108,19 @@ func (federation Federation) ExpectsDirectAgents() bool {
 		federation.ConnectionSetting == ConnectionIntermittentAgents
 }
 
-// ExpectsContinuousReporting reports whether a gap in reported state is an
-// outage. It is true for Connected agents and false for Intermittent, which is
-// the whole published difference between them: an intermittent Environment's
-// silence is expected, so a stale report there must not read as an outage. The
-// reporting fleet projection consults this to decide whether an aged report is
-// stale (issue #25); nothing else should treat the two settings differently.
-func (federation Federation) ExpectsContinuousReporting() bool {
-	return federation.ConnectionSetting == ConnectionAgentsConnected
+// SilenceIsExpected reports whether a gap in reported state is normal rather
+// than a problem. It is true only for Intermittent agents, where agents connect
+// periodically by design, so the reporting fleet projection shows an aged
+// report with its age but does not count it stale (issue #25).
+//
+// It is deliberately narrower than "not continuously reporting". A Connected
+// agents gap is an outage. A Relayed-from-another-Hub gap is also a concern,
+// but a different one -- it means the bundle import that mirrors the upstream
+// state has stopped, so the mirror is diverging -- and an operator wants that
+// flagged, not suppressed. Only Intermittent has a gap that means nothing is
+// wrong, so only Intermittent is here.
+func (federation Federation) SilenceIsExpected() bool {
+	return federation.ConnectionSetting == ConnectionIntermittentAgents
 }
 
 // IssuesPlans reports whether this Hub may compute and hand out work. Only a
