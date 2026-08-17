@@ -24,8 +24,17 @@
       "statedEquivalentTo": "com.palantir.apollo.ApolloEntityId",
       "colloquialName": "aeid",
       "documentedExample": "aeid:mojito:foundry-product:namespace+truck-locator",
-      "derivedShape": "aeid:<space>:<product-type>:<locator>, four colon-separated segments, locator internally structured (here 'namespace+truck-locator')",
-      "conduitBearing": "Conduit mints aeid:<environment>:helm-chart:<entity> at internal/apollo/application/service.go. That is the same four-segment shape with a product type in the third position, so the form is attested-compatible rather than invented. What is NOT established: whether the first segment is a Space or an Environment (Apollo's example gives 'mojito' without saying which), nor whether 'helm-chart' is a product type Apollo would accept there."
+      "derivedShape": "aeid:<environment>:<product-type>:<entity>, four colon-separated segments. Earlier revisions of this record wrote <space> in the second position; see resolvedBy below.",
+      "conduitBearing": "Conduit mints aeid:<environment>:helm-chart:<entity> at internal/apollo/application/service.go. That is the published shape exactly -- same segment count, same product-type token, and the same meaning in the second segment. It is recovered rather than invented.",
+      "resolvedBy": {
+        "source": "The pinned public OpenAPI snapshot already in this repository, which carries apolloEntityId: aeid:apollo-environment-demo:helm-chart:wordpress twice, in the ListInstallations and GetInstallation response examples.",
+        "resolves": [
+          "The second segment is an ENVIRONMENT, not a Space. The example's value is named apollo-environment-demo and it sits beside environmentRid in the same object.",
+          "helm-chart IS a product type Apollo accepts in the third position; the example uses that exact token.",
+          "The fourth segment is the entity name (wordpress), not an internally structured locator. The OSDK example's namespace+truck-locator is one possible entity name rather than a different grammar."
+        ],
+        "note": "Both questions were listed as unestablished in this record's own conduitBearing, and both were answerable from a file this repository has held since the OpenAPI was pinned. Nobody had compared the two examples. The OSDK example gives 'mojito' without saying what it is; the OpenAPI example gives a value that says what it is in its own name."
+      }
     },
     "ApolloSpaceId": {
       "alias": "string",

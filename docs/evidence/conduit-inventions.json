@@ -29,13 +29,6 @@
       "riskIfWrong": "Low in shape, moderate in consequence. The identifiers are opaque and self-consistent, so nothing inside Conduit breaks; but a client that round-trips one into a real Apollo API will not match anything, which is exactly why the coordinates serving them disclose valueTier: CONDUIT_NATIVE."
     },
     {
-      "id": "apollo.EntityIDSpaceSegment",
-      "what": "The second segment of a Conduit-minted ApolloEntityId, which carries the Environment where Apollo's documented example carries a Space.",
-      "why": "The four-segment shape and the product type in third position follow the documented aeid:mojito:foundry-product:namespace+truck-locator. Conduit has no Space -- that is ADR 0007 group 2, the one group still refused -- and the segment cannot be empty, so the Environment goes there because it is the boundary Conduit actually has.",
-      "displacedBy": "A capture establishing what belongs in an ApolloEntityId's second segment for a resource Conduit holds, or Conduit gaining a Space.",
-      "riskIfWrong": "Moderate. A Conduit aeid and an Apollo aeid can be identical in form while meaning different things, so a collision is silent rather than loud. This one is worth displacing early."
-    },
-    {
       "id": "notifications.InboxEntry",
       "what": "A per-recipient inbox record carrying its own read state.",
       "why": "Read state is modelled per-recipient because two people notified about the same promotion failure read it independently, and storing readAt on the event would let one of them mark it read for both. Apollo has an inbox -- Hub Settings carries a 'My notifications' page and the tenant viewer role names it -- but no capture shows an entry or its read state.",
@@ -51,6 +44,14 @@
     }
   ],
   "displaced": [
+    {
+      "id": "apollo.EntityIDSpaceSegment",
+      "displacedOn": "2026-08-17",
+      "by": "docs/apollo/snapshots/apollo-openapi-.../api-definition.yml, via docs/evidence/apollo-identifier-grammar.json",
+      "whatTheInventionGotWrong": "Its premise. The entry said Conduit 'carries the Environment where Apollo's documented example carries a Space'. Apollo's documented example carries no Space: the pinned OpenAPI publishes aeid:apollo-environment-demo:helm-chart:wordpress twice, beside environmentRid, and that second segment is an environment name. Conduit's aeid:<environment>:helm-chart:<entity> matches the published example in segment count, in the helm-chart product-type token, and in the meaning of the second segment. Nothing was invented; the construction was recovered and then filed as a guess.",
+      "howThisWentWrong": "The grammar record's own conduitBearing already said the space-or-environment question was NOT established, and the invention entry -- written after reading it -- asserted it was a Space anyway. That is an inference hardening into a fact across two files in one day. The answer was in a snapshot this repository has held since the OpenAPI was pinned; nobody had compared the OSDK example against the OpenAPI example. The OSDK's 'mojito' says nothing about what it is, which is exactly why it should not have been read as saying 'Space'.",
+      "note": "ApolloEntity.id still discloses valueTier: CONDUIT_NATIVE, and that is unchanged and correct: no Apollo Hub answered with the string, Conduit composed it from its own environment and entity names. Serving a value built to a published shape is still serving a value Conduit built."
+    },
     {
       "id": "notifications.Severity",
       "displacedOn": "2026-08-17",
