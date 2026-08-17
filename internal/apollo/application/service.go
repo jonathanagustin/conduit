@@ -960,16 +960,20 @@ func environmentRID(id string) string {
 // docs/evidence/apollo-identifier-grammar.json. The third segment is a product
 // type, which helm-chart is.
 //
-// The second segment is where this diverges. Apollo's example carries a Space
-// there, and Conduit has no Space -- that is ADR 0007 group 2, the one group
-// that stays refused. An entity id still needs something in the position, and
-// the Environment is the boundary Conduit actually has, so it goes there. The
-// consequence is that a Conduit aeid and an Apollo aeid can collide in form
-// while meaning different things, which is why ApolloEntity.id discloses
-// valueTier: CONDUIT_NATIVE.
-// CONDUIT-INVENTED: apollo.EntityIDSpaceSegment
-// Displaced-by: a capture establishing what belongs in an ApolloEntityId's
-// second segment for a resource Conduit holds, or a Conduit Space
+// The second segment carries the Environment, and that is Apollo's shape rather
+// than Conduit's choice. The pinned OpenAPI publishes
+// aeid:apollo-environment-demo:helm-chart:wordpress twice, beside environmentRid
+// in the same object, so the second segment is an environment name and
+// helm-chart is a product type Apollo accepts in the third.
+//
+// This was briefly registered as an invention on the reading that Apollo's
+// example carried a Space there. It did not; that reading came from the OSDK
+// example's 'mojito', which says nothing about what it is. The entry is recorded
+// under "displaced" in docs/evidence/conduit-inventions.json.
+//
+// ApolloEntity.id still discloses valueTier: CONDUIT_NATIVE, because the string
+// is composed here from Conduit's own names rather than answered by a Hub.
+// Building a value to a published shape is still building it.
 func helmChartEntityID(environment, entity string) string {
 	if strings.TrimSpace(environment) == "" || strings.TrimSpace(entity) == "" ||
 		strings.Contains(environment, ":") || strings.Contains(entity, ":") {
