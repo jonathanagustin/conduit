@@ -22,8 +22,10 @@ require (
 	// validator are used; execution and field resolution stay in
 	// internal/apollographql/application, which is where Conduit's own rules are.
 	github.com/vektah/gqlparser/v2 v2.5.36
-	go.yaml.in/yaml/v3 v3.0.4
+	go.yaml.in/yaml/v3 v3.0.5
 )
+
+require github.com/jackc/pgx/v5 v5.10.0
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -37,7 +39,6 @@ require (
 	github.com/inconshreveable/mousetrap v1.1.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect
 	github.com/jackc/pgservicefile v0.0.0-20240606120523-5a60cdf6a761 // indirect
-	github.com/jackc/pgx/v5 v5.10.0 // indirect
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/oapi-codegen/oapi-codegen/v2 v2.8.0 // indirect
 	github.com/oasdiff/yaml v0.1.1 // indirect
@@ -46,7 +47,6 @@ require (
 	github.com/speakeasy-api/jsonpath v0.6.3 // indirect
 	github.com/speakeasy-api/openapi v1.24.0 // indirect
 	github.com/spf13/pflag v1.0.9 // indirect
-	github.com/vektah/gqlparser/v2 v2.5.36 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
 	golang.org/x/mod v0.38.0 // indirect
 	golang.org/x/net v0.57.0 // indirect
@@ -62,11 +62,11 @@ require (
 require (
 	cel.dev/expr v0.25.1 // indirect
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
-	github.com/google/cel-go v0.30.0
+	github.com/google/cel-go v0.31.0
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260414002931-afd174a4e478 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260414002931-afd174a4e478 // indirect
-	google.golang.org/protobuf v1.36.11
+	google.golang.org/protobuf v1.36.12
 )
 
 tool github.com/oapi-codegen/oapi-codegen/v2/cmd/oapi-codegen
