@@ -65,15 +65,29 @@
     "verificationMethod": "Each name was grepped in schema.observed.graphql and found; the distinct list is every identifier matching \\bApollo[A-Za-z_]* in that file. The other five are field, mutation or enum-member names rather than Apollo-prefixed types."
   },
   "finding_apolloIsAKnownWebhookSource": {
-    "claim": "Apollo emits outbound HTTPS webhooks that a receiving system recognises as Apollo's.",
+    "claim": "A known-system inbound webhook handler named Apollo exists in Foundry's gateway. WHICH Apollo it names is not established by the type name alone.",
     "evidence": "ApolloInboundMessageListenerHttpsTargetHandler is one member of InboundMessageListenerHttpsTargetKnownSystemHandlerType, a 32-member union in schema.enriched.graphql whose other members are Airtable, AzureCommunicationServicesEvent, AzureEventGrid, BasicAuthentication, Bitbucket, Dialpad, FedEx, Github, Gitlab, GoogleCloudPubSub, IonFactoryOs, JiraCloud, Jira, Jotform, Meraki, Meta, MicrosoftBotFramework, PagerDuty, PandaDoc, Project44, RevelocPlus, ShipStation, Shopify, Skydio, Slack, Sns, Stripe, Twilio, TwilioSendGrid, VonageEvent and Zendesk.",
-    "whyItMatters": "Apollo is filed beside GitHub, Stripe and Slack as a system Foundry accepts inbound webhooks FROM. That is a capability, not an integration detail: it means Apollo has an outbound webhook surface. Hub Settings in the 2022 Demo Day capture carries a Webhooks section that docs/apollo/reference/notifications.md recorded as entirely unknown; this establishes that the capability exists and that its traffic is identifiable as Apollo's by a third party.",
+    "whyItMatters": "If it is Palantir Apollo, it establishes that Apollo emits outbound HTTPS webhooks identifiable as its own -- which would move Webhooks in docs/apollo/reference/notifications.md from unknown to bounded, since the Demo Day capture shows a Webhooks section in Hub Settings with no contract behind it. That consequence is held pending the disambiguation above rather than claimed.",
     "notEstablished": [
+      "Which Apollo the handler names. See whichApollo.",
       "The payload shape. The union member resolves to a synthetic overlap in the observed schema and to a single _id: JSON field in the enriched one, so no field was recovered.",
       "The signing or authentication scheme, which is what would make a handler 'known-system' rather than generic. Sibling handlers exist for exactly that reason and none of their mechanics are recovered here.",
       "Whether Apollo webhooks carry notification events, deployment events, or something else. The name says Apollo, not what it sends.",
       "Any relationship to the notification event types in docs/evidence/apollo-notification-types.json. They are not merged."
-    ]
+    ],
+    "whichApollo": {
+      "theProblem": "Apollo is two products. Palantir Apollo is the deployment platform this repository is about; Apollo GraphQL (apollographql.com) is an unrelated GraphQL toolchain whose hosted service also emits webhooks. A type called ApolloInboundMessageListenerHttpsTargetHandler is compatible with either, and the handler resolves to no fields in either schema, so nothing internal to it decides.",
+      "whatFavoursPalantirApollo": [
+        "The other Apollo-prefixed types in the same schema are unambiguously Palantir's: ApolloEventReceiverConfiguration and its monitoring-view mutations, and apolloSpaceId, documented as recording which Apollo space manages an installation and obtained when an agent reports to Apollo. Agents, installations and spaces are the deployment product.",
+        "Neither schema contains any Apollo GraphQL vocabulary at all -- no GraphOS, no Studio, no supergraph, subgraph or federation identifier -- across 5283 declared types. An integration with Apollo GraphQL leaving no other trace would be surprising.",
+        "Foundry is itself deployed by Palantir Apollo, so an event flow from Apollo into Foundry has an established reason to exist, and the same schema already models Foundry subscribing to Apollo event receivers."
+      ],
+      "whatFavoursApolloGraphQL": [
+        "Every other member of the thirty-two is a third-party SaaS that sends webhooks -- Airtable, Bitbucket, GitHub, Stripe, Slack, Shopify, Twilio, Zendesk and so on. Palantir's own internal deployment platform is not obviously a member of that category, and Apollo GraphQL would be."
+      ],
+      "conclusion": "Palantir Apollo is the better-supported reading and is not established. The membership list is the one fact pulling the other way and it is not nothing. This is recorded as an open question rather than resolved, because the type name is exactly the kind of collision this repository has been caught by before -- Apollo 'labels' meaning PalSec accreditation in one place and Release labels in another.",
+      "wouldResolveIt": "Any recovered field on the handler, any operation naming it alongside a Palantir Apollo resource, or documentation of Foundry's inbound webhook configuration naming the source system."
+    }
   },
   "finding_noDeploymentDomain": {
     "claim": "The Foundry graphql-gateway exposes Apollo integration seams only. No Apollo deployment domain is present in this contract.",
