@@ -1,0 +1,86 @@
+{
+  "apiVersion": "evidence.conduit.dev/v1alpha1",
+  "kind": "ApolloControlPanelSeam",
+  "boundary": "Structural facts only: operation names, HTTP methods, paths, and field shapes for the three Apollo-related operations Foundry's Control Panel declares. No Palantir prose is copied -- the source projection carries zero docs: entries, so there is none to copy. No tenant identity, hostname, credential or environment name is recorded. This establishes the Foundry-to-Apollo administrative seam and nothing about Apollo's own Hub API.",
+  "source": {
+    "kind": "derived-contract-projection",
+    "upstreamArtifact": "com.palantir.controlpanel:control-panel-api-objects:1.1588.0",
+    "upstreamOriginRevision": "c8608291f03b6b2ac3fd11a0adee3d8943256b51",
+    "derivation": "bytecode-exact projection of the published Maven artifact, not hand-authored",
+    "projectionSha256": "90d9e9a67d05f1d5544186bf5923fd177c1fa2e2fe24221efd058254aebd0dc6",
+    "projectionBytes": 282616,
+    "capturedAt": "2026-08-17",
+    "note": "The Maven coordinate is product identity rather than tenant identity, which is why it is named. The artifact is the authority; the file path holding the projection has already moved once upstream and is deliberately not recorded here."
+  },
+  "fidelity": {
+    "operationNames": "Primary",
+    "httpShapes": "Primary",
+    "fieldNamesAndTypes": "Primary",
+    "cardinality": "Primary",
+    "apolloHubBehaviour": "Unknown",
+    "identifierFormats": "Unknown"
+  },
+  "operations": [
+    {
+      "name": "createApolloSpaceForOrganization",
+      "service": "EnrollmentManagementService",
+      "method": "POST",
+      "path": "/control-panel/api/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-apollo-space",
+      "pathParameters": ["enrollmentRid: EnrollmentRid", "organizationRid: OrganizationRid"],
+      "requestType": "CreateApolloSpaceRequest",
+      "responseType": "CreateApolloSpaceForOrganizationResponse",
+      "auditParams": "CreateApolloSpaceForOrganizationAuditParams{enrollmentRid, organizationRid}"
+    },
+    {
+      "name": "restoreApolloPermissions",
+      "service": "EnrollmentManagementService",
+      "method": "PUT",
+      "path": "/control-panel/api/admin/enrollment/{enrollmentRid}/restore-apollo-permissions",
+      "pathParameters": ["enrollmentRid: EnrollmentRid"],
+      "requestType": "RestoreApolloPermissionsRequest",
+      "responseType": "RestoreApolloPermissionsResponse",
+      "auditParams": "RestoreApolloPermissionsAuditParams{enrollmentRid, request}"
+    },
+    {
+      "name": "getAppliedApolloLabels",
+      "service": "EnvironmentService",
+      "method": "GET",
+      "path": "/control-panel/api/environment/applied-apollo-labels",
+      "pathParameters": [],
+      "requestType": null,
+      "responseType": "GetAppliedApolloLabelsResponse"
+    }
+  ],
+  "types": {
+    "CreateApolloSpaceRequest": { "kind": "object", "fields": { "admins": "set<PrincipalIdWithType>" } },
+    "CreateApolloSpaceForOrganizationResponse": { "kind": "object", "fields": { "spaceRid": "rid" } },
+    "RestoreApolloPermissionsRequest": { "kind": "object", "fields": { "organizationRid": "OrganizationRid", "principal": "PrincipalIdWithType" } },
+    "RestoreApolloPermissionsResponse": { "kind": "object", "fields": {} },
+    "GetAppliedApolloLabelsResponse": { "kind": "union", "variants": { "unavailable": "UnavailableApolloLabels", "availableButEmpty": "AvailableButEmptyApolloLabels", "available": "AppliedApolloLabels" } },
+    "AppliedApolloLabels": { "kind": "object", "fields": { "palSecSecurityAccreditation": "optional<PalSecSecurityAccreditation>", "palSecPersonhood": "optional<PalSecPersonhood>", "palSecOfferingType": "optional<PalSecOfferingType>" } },
+    "UnavailableApolloLabels": { "kind": "object", "fields": {} },
+    "AvailableButEmptyApolloLabels": { "kind": "object", "fields": {} },
+    "ApolloBootstrapConfiguration": { "kind": "object", "fields": {}, "note": "appears beside foundry: optional<FoundryBootstrapConfiguration> in the enrollment bootstrap type; carries no configuration" }
+  },
+  "vocabularyCollisions": [
+    {
+      "term": "Apollo labels",
+      "inThisSeam": "PalSec accreditation markings applied to a Foundry resource: security accreditation, personhood, offering type",
+      "inApollo": "operator-defined labels on Environments, Entities, Product Releases and Teams, with a governed definition catalogue",
+      "consequence": "The two are unrelated. A join on the spelling would produce a plausible wrong answer, which is the defect class this repository has already been burned by. Conduit's label model must never be fed from this seam."
+    },
+    {
+      "term": "spaceRid",
+      "inThisSeam": "a Foundry-side rid minted by Control Panel and returned to the caller",
+      "inApollo": "ApolloSpaceId, typed as an opaque string in the pinned interop IR and linked to Foundry by Maven group",
+      "consequence": "Nothing here establishes that the two are the same identifier, nor the format of either. Treating spaceRid as an ApolloSpaceId would be an invented correspondence."
+    }
+  ],
+  "whatThisDoesNotEstablish": [
+    "Any Apollo Hub contract. No Apollo Hub Conjure service exists in the corpus this was taken from.",
+    "Any ri.apollo.* RID grammar. The string ri.apollo does not occur anywhere in the corpus.",
+    "That a Space id ever attaches to a resource Conduit holds, which is the condition ADR 0005 records for reopening the Space refusal. That condition remains unmet.",
+    "Cardinality or idempotency of Space creation. The path is parameterized by enrollment and organization; the contract states neither.",
+    "Anything about notification delivery. The only adjacent trace is a monitoring route returning an untyped array, already recorded in ROLE-INTERFACE-INVENTORY.md."
+  ]
+}
