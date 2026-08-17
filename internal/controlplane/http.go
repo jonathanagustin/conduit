@@ -1561,7 +1561,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !requireResourceOperation(w, request, governance, principal, configuration, grant.ResourceRID, OperationManagePermissions) {
 			return
 		}
-		stored, err := governance.PutGrant(request.Context(), grant)
+		stored, err := governance.PutGrantAs(request.Context(), grant, principal.Username)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
