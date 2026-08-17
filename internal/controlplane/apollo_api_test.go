@@ -71,8 +71,22 @@ func TestApolloPublicAPIPublishAndReadCatalog(t *testing.T) {
 	response = requestJSON(t, handler, http.MethodGet, "/api/v0/products/com.example:fixture/releases/1.2.3", nil)
 	var release apolloRelease
 	decodeResponse(t, response, http.StatusOK, &release)
-	if release.RecallStatus.Recalled || release.UpgradeStrategy != "shutdown" {
+	if release.RecallStatus.Recalled {
 		t.Fatalf("release = %#v", release)
+	}
+	// Asserted on the raw body rather than on apolloRelease, whose
+	// UpgradeStrategy is a plain string and so reads an absent key and an empty
+	// one identically -- which is exactly the distinction that matters here. No
+	// publish request in the pinned contract carries an upgrade strategy, so
+	// nobody stated one and the honest answer is to say nothing. Serving "" for
+	// it would be worse than the constant this replaced: "" is not a member of
+	// the pinned enum at all.
+	var raw map[string]any
+	if err := json.Unmarshal(response.Body.Bytes(), &raw); err != nil {
+		t.Fatal(err)
+	}
+	if value, present := raw["upgradeStrategy"]; present {
+		t.Fatalf("a Release nobody declared a strategy for served upgradeStrategy=%#v", value)
 	}
 }
 
