@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
@@ -149,6 +150,20 @@ ALTER TABLE conduit_reconciliation_proposal_outbox
     ALTER COLUMN target_digest SET NOT NULL;`,
 	},
 }
+
+// Migrations is this store's schema as the runner sees it, and Component names
+// it in the ledger. Together they let a caller outside this package ask what a
+// start would apply without starting one -- see pgmigrate.Pending, and the
+// restore drill in cmd/platform-delivery that uses them to prove a restored
+// database needs no migration.
+//
+// The clone is deliberate. The slice is package state that Apply reads on every
+// start, so handing out the original would let a caller that appended to it
+// change what a later start runs, from another package, with nothing to see it.
+func Migrations() []pgmigrate.Migration { return slices.Clone(migrations) }
+
+// Component is the name this store's rows carry in the shared ledger.
+func Component() string { return component }
 
 // Store is a multi-replica reconciliation adapter. Leases use row locks with
 // SKIP LOCKED; all decision, audit, and outbox writes share one transaction.

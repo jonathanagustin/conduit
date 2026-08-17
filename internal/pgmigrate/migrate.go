@@ -56,6 +56,7 @@ import (
 	"errors"
 	"fmt"
 	"hash/fnv"
+	"slices"
 	"strings"
 )
 
@@ -176,11 +177,86 @@ func Apply(ctx context.Context, database *sql.DB, component string, migrations [
 	return nil
 }
 
+// Pending reports which migrations Apply would run against this database now,
+// in the order it would run them, and applies nothing.
+//
+// It creates nothing either, and that is the requirement that shapes it. The
+// question an operator asks before a first start -- "what would this apply?" --
+// is asked most often of a database that has never been migrated, which is
+// exactly the database with no ledger table. Creating the ledger in order to
+// read it would mean the act of asking changed the schema, so a dry run that
+// wrote would not be one. The table's absence is read with to_regclass and
+// answered for what it means: nothing has been recorded, so everything is
+// pending.
+//
+// The answer is a snapshot, not a promise. No lock is taken, so a concurrent
+// Apply on another replica can make it stale before the caller has finished
+// reading it. Locking instead would make a read-only question block a starting
+// replica, and the answer would still be stale by the time anyone acted on it;
+// reporting what is true now is the honest shape for this.
+//
+// The returned slice is the caller's own, in slice order.
+func Pending(
+	ctx context.Context, database *sql.DB, component string, migrations []Migration,
+) ([]Migration, error) {
+	if err := Validate(component, migrations); err != nil {
+		return nil, err
+	}
+	connection, err := database.Conn(ctx)
+	if err != nil {
+		return nil, fmt.Errorf("acquire migration connection: %w", err)
+	}
+	defer connection.Close()
+
+	present, err := ledgerExists(ctx, connection)
+	if err != nil {
+		return nil, err
+	}
+	if !present {
+		return slices.Clone(migrations), nil
+	}
+	applied, err := appliedNames(ctx, connection, component)
+	if err != nil {
+		return nil, err
+	}
+	pending := make([]Migration, 0, len(migrations))
+	for _, migration := range migrations {
+		if _, done := applied[migration.Name]; done {
+			continue
+		}
+		pending = append(pending, migration)
+	}
+	return pending, nil
+}
+
+// ledgerExists asks whether the ledger table is there, without creating it.
+//
+// to_regclass resolves a name against the session's search_path and answers
+// NULL rather than raising when it does not resolve. That is what makes it the
+// right question here: SELECT-ing from the table and treating the error as a
+// "no" would conflate an absent table with an unreadable one, and every other
+// way of asking either writes or requires catching a specific SQLSTATE.
+func ledgerExists(ctx context.Context, connection *sql.Conn) (bool, error) {
+	var resolved sql.NullString
+	if err := connection.QueryRowContext(ctx,
+		`SELECT to_regclass($1)::text`, ledgerTable).Scan(&resolved); err != nil {
+		return false, fmt.Errorf("look for the migration ledger: %w", err)
+	}
+	return resolved.Valid, nil
+}
+
+// ledgerTable is the ledger's name in the database. The DDL above spells it too
+// and the two must agree: Pending asks whether this name resolves, so a
+// disagreement would report every migration pending on a fully migrated
+// database. TestPendingIsEmptyOnceEverythingIsApplied is what holds them
+// together, because no compiler can.
+const ledgerTable = "conduit_schema_migrations"
+
 // ledgerLock is the name whose hash guards creating the ledger table. It is not
 // a component and never appears in the table's component column; it exists only
 // so that every caller, whatever it is migrating, contends for the same lock at
 // the one moment they would otherwise collide.
-const ledgerLock = "conduit_schema_migrations"
+const ledgerLock = ledgerTable
 
 func createLedger(ctx context.Context, connection *sql.Conn) error {
 	key := lockKey(ledgerLock)

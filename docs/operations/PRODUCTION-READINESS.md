@@ -6,7 +6,7 @@ without a passing check does not belong here. The residual items at the
 bottom are decisions or actions only a human operator can take; nothing in
 this repository can complete them.
 
-Status date: 2026-08-17, trunk `c53723e`.
+Status date: 2026-08-17, trunk `d8315ed`.
 
 **Scope.** Two different questions get asked of this document and they have
 different answers. *Can Conduit run as a delivery control plane in production?*
@@ -28,6 +28,7 @@ answer, and nothing here should be read as claiming it.
 | CI provenance | Publication, release, and deployment run only on explicit human dispatch; verification and maintenance workflows may be automated under ADR 0006's guardrails (cancel superseded runs, cap runtime, least-privilege, never publish). The Trunk gate stays dispatch-based, authenticates the exact pull-request head, and publishes a commit status; each run writes a per-gate summary with failure annotations. | A4 (ADR 0006); `docs/operations/manual-ci.md`; `.github/workflows/platform-ci.yml`; `scripts/verify-pr-fidelity.test.sh`. |
 | Observability | The Hub exports queue depth, lease occupancy, exhaustion and reconciliation lag on an opt-in listener, with no tenant identifier in any label — enforced on the publishing path rather than by convention. | `internal/observability`; `TestALabelNamingATenantResourceIsRefused`; `TestAWedgedHubIsDistinguishableFromABusyOne`. |
 | Frontend | The operator console ships one tenant-neutral bundle; tenant runtime overrides pass two independent closed validators that reject executable content and policy weakening; browser tests cover URL-owned pagination state. | A3; `Validate operator console` gate; `docs/ui/contracts/runtime-bootstrap.md`. |
+| Disaster recovery | A `pg_dump` taken while decisions are committing restores into an empty database with the migration ledger intact, state readable through the real repositories including artifact bytes, and no decision, audit record or queued proposal torn from the transaction that wrote all three. | `docs/operations/backup-and-restore.md`; `TestPostgresBackupAndRestoreDrill` (`scripts/test-postgres-repository.sh`). **Bounded by gap 4**: the schedule, retention, PITR and secrets backup belong to the deployment that owns the database. |
 | Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/apollo/conformance.md`. |
 
 ## Blocking gaps
@@ -36,6 +37,9 @@ Found by audit on 2026-08-17 and not covered by any row above. Each cites what
 was checked, because "we should probably have X" is not a finding.
 
 ### Tier 1 — blocks any production use
+
+Gap 4 no longer blocks this repository; what is left of it is an operator action,
+carried to the residual list as item 5.
 
 1. **Nothing delivers notifications.** `internal/notifications/domain` exists;
    there are no ports, no store, no HTTP surface, no emit sites and no console
@@ -74,19 +78,41 @@ was checked, because "we should probably have X" is not a finding.
    than textual position in one constant, and the idiom is written down in
    `docs/operations/schema-migrations.md`.
 
-   What remains: **no dry run**, so there is no way to ask what a start would
-   apply without applying it; **nothing verifies a database's schema against the
-   migrations that claim to have built it**, so a ledger row asserts a migration
-   ran and does not detect a column dropped by hand; **no down path**, which is
+   The dry run now exists. `pgmigrate.Pending` reports what a start would apply
+   without applying it, and — the part that makes it a dry run rather than a
+   report — without creating the ledger table it reads, since the database an
+   operator most wants to ask about before a first start is the one that has
+   never been migrated.
+
+   What remains: **nothing verifies a database's schema against the migrations
+   that claim to have built it**, so a ledger row asserts a migration ran and
+   does not detect a column dropped by hand; **no down path**, which is
    deliberate and is recorded as a decision rather than a gap; and **no upgrade
    rehearsal against a production-shaped dataset** — the tests upgrade a
    populated database, but with tens of rows, so a migration whose cost is
    proportional to table size is not measured anywhere before it runs.
 
-4. **No backup, restore or disaster-recovery procedure.** PostgreSQL holds
-   desired state, decisions, the audit trail and the proposal outbox. No
-   document in `docs/operations/` or `docs/architecture/` states a backup
-   method, a restore drill, or an RPO/RTO.
+4. **Backup and restore are stated and rehearsed; the schedule is the
+   deployment's.** `docs/operations/backup-and-restore.md` states the method,
+   what a restore needs beyond the database, and what bounds RPO and RTO.
+   `TestPostgresBackupAndRestoreDrill` in `cmd/platform-delivery` holds it down:
+   it seeds both schemas through their real constructors, takes a
+   `pg_dump --format=custom` **while decisions are being committed**, restores
+   into a fresh database, and asserts nothing is pending for either component,
+   that state reads back through the real repositories including the artifact
+   bytes, and that no decision, audit record or queued proposal was torn from
+   the transaction that wrote all three.
+
+   What remains, and it is a deployment's rather than this repository's: the
+   database is BYO — the chart consumes a DSN from a Secret it does not create
+   (`Chart.yaml` declares no dependencies and
+   `scripts/verify-helm-runtime.rb:130-131` pins the rendered kinds, so a
+   database StatefulSet cannot be added without failing that gate) — so **no
+   backup schedule, retention policy, WAL archiving or PITR configuration ships
+   here**, and none can. **No secrets backup or rotation procedure exists**
+   either; `BUNDLE_SIGNING_KEY_FILE` is the one input whose absence does not
+   stop the Hub, so a restore that forgets it comes up healthy and signs with an
+   ephemeral key (`cmd/platform-delivery/main.go:75-77`).
 
 ### Tier 2 — blocks Apollo-parity production
 
@@ -173,6 +199,12 @@ skew** is the one a delivery platform is least entitled to get wrong.
 4. **Tenant deployment authorization.** Deploying to any tenant requires
    its own explicit approval through the owning deployment repository;
    a successful build or upload never authorizes it.
+5. **Backup schedule, retention and secrets copies.** Follow
+   `docs/operations/backup-and-restore.md`: choose the dump interval (it *is*
+   the RPO unless the deployment's PostgreSQL runs PITR), decide retention, and
+   back up the Bundle signing key and Agent client CA alongside the database.
+   Nothing in this repository can do any of it — the chart does not create the
+   database or the Secret.
 
 Update this document in the same change as anything that invalidates a row,
 and treat a stale row exactly like a failing gate.
