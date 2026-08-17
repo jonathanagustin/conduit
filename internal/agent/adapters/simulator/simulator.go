@@ -89,22 +89,28 @@ func (executor Executor) Apply(
 	return agent.Receipt{Step: step, PreviousRevision: 0}, nil
 }
 
-// Observe echoes the step's own coordinates back. That is not laziness: the
-// fleet projection compares the reported version and digests against the
-// desired ones, so an observation that invented its own would render every
-// simulated installation as drifted and out of date, and the simulation would
+// Observe echoes the step's own coordinates back, and always reports healthy.
+//
+// Echoing is not laziness: the fleet projection compares the reported version
+// and digests against the desired ones, so an observation that invented its own
+// would render every simulated installation as drifted and the simulation would
 // be testing a permanent disagreement rather than a working system.
+//
+// Always-healthy is a rule of the Hub's, not a simplification. A plan that
+// succeeded may not report a degraded Entity: the Hub refuses the finish with
+// "invalid plan transition: successful plan reported ... health=WARNING" and
+// the Plan is left RUNNING forever. An earlier version of this file returned
+// WARNING here for the degraded marker and did exactly that. Degradation is
+// something an Entity falls into after it is installed, so it belongs on the
+// health-observation path -- see EndpointProber -- and not on the delivery
+// report, which says whether the apply worked.
 func (executor Executor) Observe(
 	_ context.Context, step controlplane.PlanStep,
 ) (controlplane.ReportedEntity, error) {
-	health := controlplane.HealthHealthy
-	if strings.Contains(step.Product, DegradedMarker) {
-		health = controlplane.HealthWarning
-	}
 	return controlplane.ReportedEntity{
 		InstallationID: step.InstallationID, Product: step.Product, Version: step.Version,
 		ReleaseDigest: step.ReleaseDigest, Namespace: step.Namespace, ConfigDigest: step.ConfigDigest,
-		Health: health, RolloutStatus: controlplane.RolloutUpToDate,
+		Health: controlplane.HealthHealthy, RolloutStatus: controlplane.RolloutUpToDate,
 		ConfigStatus: controlplane.ConfigApplied, Lifecycle: controlplane.LifecycleInstalled,
 	}, nil
 }
