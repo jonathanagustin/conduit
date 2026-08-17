@@ -7,6 +7,8 @@ import (
 	"sync"
 	"testing"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
 
 func TestPostgresRepositoryMultipleReplicaTransactions(t *testing.T) {
@@ -224,4 +226,77 @@ func nilErrors(values []error) int {
 		}
 	}
 	return count
+}
+
+// Adoption for this component, which nothing covered.
+//
+// The reconciliation store got an adoption test and two source-reading guards;
+// this schema got the same treatment in production and none in the suite, which
+// an adversarial review of the migration ledger pointed out. The asymmetry
+// mattered less than it looks -- this DDL ran on every start before the ledger
+// existed, so a first run against a populated database is what it always did --
+// but "it was always like this" is a reason to expect it to pass, not a reason
+// not to check.
+//
+// The statement worth checking is the seed: INSERT ... ON CONFLICT (singleton)
+// DO NOTHING, re-run against a live state row holding a real generation. If the
+// conflict clause were ever dropped or the row reseeded, every deployment would
+// lose its metadata on the next start.
+func TestPostgresRepositoryAdoptsTheLedgerOnAPopulatedDatabase(t *testing.T) {
+	dataSourceName := os.Getenv("CONDUIT_TEST_POSTGRES_DSN")
+	if dataSourceName == "" {
+		t.Skip("CONDUIT_TEST_POSTGRES_DSN is required for the PostgreSQL integration gate")
+	}
+	ctx := context.Background()
+	repository, err := NewPostgresRepository(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = repository.Close() })
+
+	if _, err := NewGovernanceService(repository).PutTeam(ctx, Team{
+		Name: "ledger-adoption", DisplayName: "Ledger adoption", AdminUsers: []string{"admin@example.test"},
+		MemberGroups: []string{"ledger-reviewers"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	var generationBefore int64
+	if err := repository.database.QueryRowContext(ctx,
+		`SELECT generation FROM conduit_repository_state WHERE singleton = TRUE`).Scan(&generationBefore); err != nil {
+		t.Fatal(err)
+	}
+	if generationBefore == 0 {
+		t.Fatal("the state row is still at generation 0; this test would not distinguish a reseed from a no-op")
+	}
+
+	// A database that predates the ledger: the objects are there, the rows
+	// recording them are not.
+	if _, err := repository.database.ExecContext(ctx,
+		`DELETE FROM conduit_schema_migrations WHERE component = 'controlplane'`); err != nil {
+		t.Fatal(err)
+	}
+	if err := pgmigrate.Apply(ctx, repository.database, "controlplane", postgresRepositoryMigrations); err != nil {
+		t.Fatalf("adoption failed against a populated database: %v", err)
+	}
+
+	var generationAfter int64
+	if err := repository.database.QueryRowContext(ctx,
+		`SELECT generation FROM conduit_repository_state WHERE singleton = TRUE`).Scan(&generationAfter); err != nil {
+		t.Fatal(err)
+	}
+	if generationAfter != generationBefore {
+		t.Errorf("adoption moved the state generation from %d to %d", generationBefore, generationAfter)
+	}
+	if _, err := repository.GetTeam(ctx, "ledger-adoption"); err != nil {
+		t.Errorf("adoption lost persisted state: %v", err)
+	}
+
+	var recorded int
+	if err := repository.database.QueryRowContext(ctx,
+		`SELECT count(*) FROM conduit_schema_migrations WHERE component = 'controlplane'`).Scan(&recorded); err != nil {
+		t.Fatal(err)
+	}
+	if recorded != len(postgresRepositoryMigrations) {
+		t.Errorf("adoption recorded %d migrations, want %d", recorded, len(postgresRepositoryMigrations))
+	}
 }

@@ -28,12 +28,17 @@
 // with the row that records it, so a migration and the claim that it ran commit
 // or roll back as one -- there is no state in which the ledger is wrong.
 //
-// A session advisory lock is taken before anything else, including creating the
-// ledger table itself. That ordering is deliberate: concurrent
-// `CREATE TABLE IF NOT EXISTS` is not actually safe in PostgreSQL, which can
-// raise a duplicate-key error on its catalogue rather than skipping, so the
-// lock has to be older than the table it protects. Advisory locks need no
-// table, which is what makes that possible.
+// Two session advisory locks, in this order. A fixed one shared by every
+// caller, held only long enough to create the ledger table; then the caller's
+// own, held for the migrations. That ordering is deliberate and the split is
+// the correction of a real defect: concurrent `CREATE TABLE IF NOT EXISTS` is
+// not actually safe in PostgreSQL -- it can raise a duplicate-key error on its
+// catalogue rather than skipping -- so the lock has to be older than the table
+// it protects, which advisory locks can be because they need no table. The
+// first version used only the per-component lock and claimed that was enough.
+// It was not: different components take different keys and exclude each other
+// not at all, so a fresh database raced by two owners failed exactly as
+// described. See createLedger.
 //
 // # Forward-only
 //
@@ -47,6 +52,7 @@ package pgmigrate
 import (
 	"context"
 	"database/sql"
+	"database/sql/driver"
 	"errors"
 	"fmt"
 	"hash/fnv"
@@ -113,10 +119,10 @@ func Validate(component string, migrations []Migration) error {
 
 // Apply runs every migration this database has not recorded, in slice order.
 //
-// It holds one connection for the whole run so the advisory lock stays in the
-// session that took it. Taking it from the pool would let database/sql hand the
-// unlock to a different connection, which silently does nothing and leaves the
-// lock held until the process exits.
+// It holds one connection for the whole run so the advisory locks stay in the
+// session that took them. Taking each statement from the pool would let
+// database/sql hand an unlock to a different connection, where it silently does
+// nothing and leaves the lock held.
 func Apply(ctx context.Context, database *sql.DB, component string, migrations []Migration) error {
 	if err := Validate(component, migrations); err != nil {
 		return err
@@ -127,6 +133,26 @@ func Apply(ctx context.Context, database *sql.DB, component string, migrations [
 	}
 	defer connection.Close()
 
+	// The ledger table is created under a lock every component shares, and it is
+	// taken before the per-component one.
+	//
+	// An earlier version created the table under the component's own lock and
+	// claimed that solved the concurrent-CREATE hazard. It did not, and an
+	// adversarial review proved it: two different components hash to two
+	// different keys, so they do not exclude each other at all. Four components
+	// racing a fresh database failed 36 times in 20 rounds with SQLSTATE 23505
+	// on pg_type_typname_nsp_index -- precisely the failure the comment said was
+	// prevented. The guarantee was per-component and the claim was general.
+	//
+	// No deadlock is possible from holding two: the ledger lock is always taken
+	// and released before the component lock is requested, so no session ever
+	// holds a component lock while waiting for the ledger one. A component whose
+	// name happened to hash to the ledger key would simply take the same lock
+	// twice, which PostgreSQL allows and which the paired unlocks balance.
+	if err := createLedger(ctx, connection); err != nil {
+		return err
+	}
+
 	key := lockKey(component)
 	// Blocks rather than failing fast. A replica that starts while another is
 	// migrating should wait for the schema it is about to depend on, not race
@@ -134,16 +160,7 @@ func Apply(ctx context.Context, database *sql.DB, component string, migrations [
 	if _, err := connection.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, key); err != nil {
 		return fmt.Errorf("take migration lock for %s: %w", component, err)
 	}
-	defer func() {
-		// Best effort: the lock is released by the session ending anyway, and
-		// there is nothing useful to do with a failure here that would not mask
-		// the real error being returned.
-		_, _ = connection.ExecContext(context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, key)
-	}()
-
-	if _, err := connection.ExecContext(ctx, ledger); err != nil {
-		return fmt.Errorf("create migration ledger: %w", err)
-	}
+	defer release(connection, ctx, key)
 	applied, err := appliedNames(ctx, connection, component)
 	if err != nil {
 		return err
@@ -157,6 +174,48 @@ func Apply(ctx context.Context, database *sql.DB, component string, migrations [
 		}
 	}
 	return nil
+}
+
+// ledgerLock is the name whose hash guards creating the ledger table. It is not
+// a component and never appears in the table's component column; it exists only
+// so that every caller, whatever it is migrating, contends for the same lock at
+// the one moment they would otherwise collide.
+const ledgerLock = "conduit_schema_migrations"
+
+func createLedger(ctx context.Context, connection *sql.Conn) error {
+	key := lockKey(ledgerLock)
+	if _, err := connection.ExecContext(ctx, `SELECT pg_advisory_lock($1)`, key); err != nil {
+		return fmt.Errorf("take migration ledger lock: %w", err)
+	}
+	defer release(connection, ctx, key)
+	if _, err := connection.ExecContext(ctx, ledger); err != nil {
+		return fmt.Errorf("create migration ledger: %w", err)
+	}
+	return nil
+}
+
+// release drops an advisory lock, and destroys the connection if it cannot.
+//
+// The obvious version swallows the error on the reasoning that the lock goes
+// when the session ends. That reasoning is wrong in a pooled world: closing a
+// *sql.Conn returns a healthy connection to the pool rather than ending the
+// PostgreSQL session, so an unlock that failed on an otherwise-healthy
+// connection would leave the lock held by an idle pooled session for up to
+// ConnMaxLifetime -- thirty minutes for both callers here -- and block every
+// other replica's Apply for that long, with nothing reporting it.
+//
+// Returning driver.ErrBadConn from Raw marks the connection bad, so the pool
+// destroys it and the session dies with the lock. The window is narrow, but the
+// alternative is a fleet-wide startup stall whose cause is an ignored error.
+//
+// The context is detached because unlocking has to happen even when the caller's
+// context is why we are unwinding.
+func release(connection *sql.Conn, ctx context.Context, key int64) {
+	if _, err := connection.ExecContext(
+		context.WithoutCancel(ctx), `SELECT pg_advisory_unlock($1)`, key,
+	); err != nil {
+		_ = connection.Raw(func(any) error { return driver.ErrBadConn })
+	}
 }
 
 func appliedNames(ctx context.Context, connection *sql.Conn, component string) (map[string]struct{}, error) {
