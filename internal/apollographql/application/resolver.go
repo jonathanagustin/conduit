@@ -278,9 +278,20 @@ func errorAt(path ast.Path, message string) *gqlerror.Error {
 // that no data ever came from, which would make the disclosure a statement
 // about the query rather than about the answer.
 func (state *walk) provenanceExtension() map[string]any {
-	documented, native := []string{}, []string{}
+	documented, native, minted := []string{}, []string{}, []string{}
 	observed := 0
 	for coordinate, tier := range state.selected {
+		// A recovered coordinate can still be answered from a value Conduit
+		// built. Until ADR 0007 this disclosure had no way to say that, so
+		// ApolloEnvironment.rid counted as OBSERVED under a note promising the
+		// value came from an Apollo Hub -- true of the coordinate, false of the
+		// string. It is still counted as observed, because the coordinate really
+		// was recovered and moving it would understate the recovery; it is listed
+		// here as well, and the note says the list is a subset rather than a
+		// fourth bucket.
+		if valueTier, stated := state.provenance.ValueTierOf(coordinate); stated && valueTier == domain.ConduitNative {
+			minted = append(minted, coordinate.String())
+		}
 		switch tier {
 		case domain.Observed:
 			observed++
@@ -292,9 +303,14 @@ func (state *walk) provenanceExtension() map[string]any {
 	}
 	sort.Strings(documented)
 	sort.Strings(native)
+	sort.Strings(minted)
 	return map[string]any{
 		"provenance": map[string]any{
-			"note": "OBSERVED coordinates were recovered from an authorized Apollo Hub. DOCUMENTED " +
+			"note": "OBSERVED coordinates were recovered from an authorized Apollo Hub, which is a claim " +
+				"about the coordinate and not about the value behind it: conduitMintedValues names the " +
+				"OBSERVED coordinates whose VALUE Conduit constructed, and is a subset of observedServed " +
+				"rather than a separate bucket. Do not round-trip one of those values into an Apollo API. " +
+				"DOCUMENTED " +
 				"coordinates carry a name Apollo publishes or a concept Apollo documents, but no Hub " +
 				"established them in GraphQL. CONDUIT_NATIVE coordinates were invented by Conduit and carry " +
 				"no Apollo claim at all. Neither lower tier is an Apollo compatibility claim. Conduit refuses " +
@@ -303,6 +319,7 @@ func (state *walk) provenanceExtension() map[string]any {
 				"from, not every coordinate the document selected: a field under an empty collection was " +
 				"never reached and so contributed nothing.",
 			"observedServed":      observed,
+			"conduitMintedValues": minted,
 			"documentedServed":    documented,
 			"conduitNativeServed": native,
 			"schema":              schema.Name,

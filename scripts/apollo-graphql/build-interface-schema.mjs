@@ -65,7 +65,7 @@ function observedFields(observed) {
   return byType;
 }
 
-export function buildInterfaceSchema(observed, native, cardinality = {}) {
+export function buildInterfaceSchema(observed, native, cardinality = {}, minted = {}) {
   const fromHub = observedFields(observed);
   // Coordinates whose cardinality the probe could not establish and the pinned
   // OpenAPI publishes. They stay OBSERVED -- a Hub answered for them -- and
@@ -133,6 +133,7 @@ export function buildInterfaceSchema(observed, native, cardinality = {}) {
   // type loop below. Counting it keeps this report and the Go reading of the
   // same SDL in agreement; a count that skipped it would make one of them wrong.
   let observedCount = 1;
+  let mintedCount = 0;
   let documentedCount = 0;
   let nativeCount = 0;
   const unresolved = [];
@@ -157,10 +158,20 @@ export function buildInterfaceSchema(observed, native, cardinality = {}) {
       // says who established that it is a list. For the page collections those
       // are different sources, and collapsing them would either overstate the
       // Hub or understate the field.
-      const provenance = field.citedCardinality
-        ? `@provenance(tier: ${field.tier}, cardinality: DOCUMENTED)`
-        : `@provenance(tier: ${field.tier})`;
+      //
+      // `valueTier` is a third claim on the same field, and the one most easily
+      // conflated with `tier`. tier says who established the coordinate; a
+      // coordinate an Apollo Hub answered for can still be served from a value
+      // Conduit constructed, and before ADR 0007 there was no way to say so --
+      // those values shipped under a bare OBSERVED annotation asserting a Hub
+      // had answered with them.
+      const mintedValue = Object.hasOwn(minted, `${typeName}.${field.name}`);
+      const claims = [`tier: ${field.tier}`];
+      if (mintedValue) claims.push("valueTier: CONDUIT_NATIVE");
+      if (field.citedCardinality) claims.push("cardinality: DOCUMENTED");
+      const provenance = `@provenance(${claims.join(", ")})`;
       body.push(`  ${field.name}${args}: ${returns} ${provenance}`);
+      if (mintedValue) mintedCount += 1;
       if (field.tier === "OBSERVED") observedCount += 1;
       else if (field.tier === "DOCUMENTED") documentedCount += 1;
       else nativeCount += 1;
@@ -227,7 +238,7 @@ export function buildInterfaceSchema(observed, native, cardinality = {}) {
     ...rendered.flatMap((type) => [`type ${type.name} {`, ...type.body, "}", ""]),
   ];
   const sdl = `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
-  return { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved, unknownCardinality };
+  return { sdl, observedCount, documentedCount, nativeCount, mintedCount, displaceable, unresolved, unknownCardinality };
 }
 
 function main() {
@@ -239,11 +250,9 @@ function main() {
   const observed = JSON.parse(readFileSync(options.observed, "utf8"));
   const native = JSON.parse(readFileSync(options.native, "utf8"));
   const cardinality = JSON.parse(readFileSync(resolve(HERE, "documented-cardinality.json"), "utf8"));
-  const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved } = buildInterfaceSchema(
-    observed,
-    native,
-    cardinality,
-  );
+  const minted = JSON.parse(readFileSync(resolve(HERE, "conduit-minted-values.json"), "utf8")).coordinates;
+  const { sdl, observedCount, documentedCount, nativeCount, mintedCount, displaceable, unresolved } =
+    buildInterfaceSchema(observed, native, cardinality, minted);
 
   const total = observedCount + documentedCount + nativeCount;
   const report = {

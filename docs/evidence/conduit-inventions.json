@@ -15,6 +15,20 @@
   ],
   "inventions": [
     {
+      "id": "apollo.RIDLocator",
+      "what": "The locator segment of every Apollo resource identifier Conduit mints: the first 12 bytes of a SHA-256 over a stable input, hex encoded.",
+      "why": "The grammar around it is published, not invented -- the pinned OpenAPI carries ri.apollo.main.environment.123, ri.apollo.main.installation.123 and ri.apollo.main.package.123, and ri.autopilot.main.team.123 shows the service segment naming the owning service. Only the locator is open, because Apollo's examples use the placeholder 123. A digest rather than a UUID because the value has to be stable across restarts and replicas without being stored; the one Apollo locator whose format is documented, a Plan's, is a UUID, so this is a known divergence rather than an unconstrained choice.",
+      "displacedBy": "A published statement of Apollo's RID locator format, for any resource type Conduit holds.",
+      "riskIfWrong": "Low in shape, moderate in consequence. The identifiers are opaque and self-consistent, so nothing inside Conduit breaks; but a client that round-trips one into a real Apollo API will not match anything, which is exactly why the coordinates serving them disclose valueTier: CONDUIT_NATIVE."
+    },
+    {
+      "id": "apollo.EntityIDSpaceSegment",
+      "what": "The second segment of a Conduit-minted ApolloEntityId, which carries the Environment where Apollo's documented example carries a Space.",
+      "why": "The four-segment shape and the product type in third position follow the documented aeid:mojito:foundry-product:namespace+truck-locator. Conduit has no Space -- that is ADR 0007 group 2, the one group still refused -- and the segment cannot be empty, so the Environment goes there because it is the boundary Conduit actually has.",
+      "displacedBy": "A capture establishing what belongs in an ApolloEntityId's second segment for a resource Conduit holds, or Conduit gaining a Space.",
+      "riskIfWrong": "Moderate. A Conduit aeid and an Apollo aeid can be identical in form while meaning different things, so a collision is silent rather than loud. This one is worth displacing early."
+    },
+    {
       "id": "notifications.InboxEntry",
       "what": "A per-recipient inbox record carrying its own read state.",
       "why": "Read state is modelled per-recipient because two people notified about the same promotion failure read it independently, and storing readAt on the event would let one of them mark it read for both. Apollo has an inbox -- Hub Settings carries a 'My notifications' page and the tenant viewer role names it -- but no capture shows an entry or its read state.",
