@@ -4,6 +4,18 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Conduit console</title>
+    <!--
+      The Hub replaces this marker with the tenant bootstrap as a meta tag
+      before serving. Everything above and below is tenant-agnostic and is
+      byte-identical in every deployment, which is what lets the bundle stay
+      content-addressed and immutable.
+
+      The marker is a comment so that a build output carrying it is still valid
+      HTML, and so an unrendered document -- served by anything that is not the
+      Hub -- produces a console that refuses to start rather than one that
+      renders with invented branding.
+    -->
+    <!--conduit-console-bootstrap-->
   </head>
   <body class="bp6-body">
     <div id="root"></div>
