@@ -176,6 +176,15 @@ func (api *apolloPublicAPI) syncDesiredState(state DesiredState) {
 			SingleVersion:          recall.SingleVersion, Reason: recall.Reason, Reverted: recall.Reverted,
 		})
 	}
+	// Promotions travel for the same reason recalls do: releaseChannels was
+	// stamped at publication and a Release reaches a channel afterwards.
+	for _, promotion := range state.Promotions {
+		projection.Promotions = append(projection.Promotions, environments.ProjectedPromotion{
+			Product: promotion.Product, Version: promotion.Version,
+			FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
+			Passed: promotion.Status == PromotionPassed,
+		})
+	}
 	api.application.SyncEnvironment(projection)
 }
 

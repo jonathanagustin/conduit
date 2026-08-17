@@ -244,3 +244,117 @@ func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
 			fromList.RecallStatus.Recalled, fromGet.RecallStatus.Recalled)
 	}
 }
+
+// TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn is the same defect as
+// the recall one above, one field across.
+//
+// releaseChannels was stamped at publication with the channels the version
+// implies, and a Release is published once and promoted later -- so a Release
+// that reached RELEASE was served as still being on CANDIDATE. Conduit held the
+// real answer the whole time, in the Environment's desired state, and
+// catalog.EffectiveChannels already knew how to compute it.
+//
+// The direction matters here too, in the opposite way to recalls: under-
+// reporting a channel hides a Release from a client selecting on it, so a
+// promotion that succeeded looks like one that never happened.
+func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A release candidate, because a stable version already publishes onto
+	// RELEASE and the promotion under test would have nowhere to go.
+	publishRelease(t, service, "app.example:api", "1.0.0-rc1")
+	publishRelease(t, service, "app.example:api", "1.1.0-rc1")
+
+	before, err := service.GetRelease("app.example:api", "1.0.0-rc1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// Stated rather than assumed: the fixture has to start somewhere other than
+	// where the promotion lands, or the assertion below proves nothing.
+	if before.ReleaseChannels == nil || containsChannel(*before.ReleaseChannels, "RELEASE") {
+		t.Fatalf("the fixture already publishes onto RELEASE: %#v", before.ReleaseChannels)
+	}
+
+	service.SyncEnvironment(environments.CompatibilityProjection{
+		ID: "dev-use2",
+		Promotions: []environments.ProjectedPromotion{{
+			Product: "app.example:api", Version: "1.0.0-rc1",
+			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
+		}},
+	})
+
+	promoted, err := service.GetRelease("app.example:api", "1.0.0-rc1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if promoted.ReleaseChannels == nil || !containsChannel(*promoted.ReleaseChannels, "RELEASE") {
+		t.Errorf("a promoted Release was served on the channel it started on: %#v", promoted.ReleaseChannels)
+	}
+	// The channel it came from is still true of it. Promotion adds a channel
+	// rather than moving between them.
+	if !containsChannel(*promoted.ReleaseChannels, "RELEASE_CANDIDATE") {
+		t.Errorf("promotion dropped the source channel: %#v", promoted.ReleaseChannels)
+	}
+
+	// Narrow, like the recall fix. A Release nobody promoted is unaffected, or
+	// the field would say nothing about any particular Release.
+	untouched, err := service.GetRelease("app.example:api", "1.1.0-rc1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if untouched.ReleaseChannels == nil || containsChannel(*untouched.ReleaseChannels, "RELEASE") {
+		t.Errorf("an unpromoted Release gained a channel: %#v", untouched.ReleaseChannels)
+	}
+
+	// A promotion that did NOT pass must not add its channel. This is the
+	// dangerous direction: serving a Release on a channel it was blocked from
+	// reaching tells a client selecting on that channel to install something
+	// the promotion gate refused.
+	service.SyncEnvironment(environments.CompatibilityProjection{
+		ID: "dev-use2",
+		Promotions: []environments.ProjectedPromotion{
+			{
+				Product: "app.example:api", Version: "1.0.0-rc1",
+				FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
+			},
+			{
+				Product: "app.example:api", Version: "1.1.0-rc1",
+				FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: false,
+			},
+		},
+	})
+	blocked, err := service.GetRelease("app.example:api", "1.1.0-rc1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if blocked.ReleaseChannels == nil || containsChannel(*blocked.ReleaseChannels, "RELEASE") {
+		t.Errorf("a blocked promotion put its Release on the target channel: %#v", blocked.ReleaseChannels)
+	}
+
+	// And the list route answers the same as the single-release route, since
+	// they are separate call sites and only one of them being fixed is the
+	// failure this whole class keeps producing.
+	listed := service.ListReleases("app.example:api")
+	if listed.Releases == nil {
+		t.Fatal("no releases listed")
+	}
+	for _, release := range *listed.Releases {
+		if release.MavenCoordinate != "app.example:api:1.0.0-rc1" {
+			continue
+		}
+		if release.ReleaseChannels == nil || !containsChannel(*release.ReleaseChannels, "RELEASE") {
+			t.Errorf("ListReleases disagreed with GetRelease: %#v", release.ReleaseChannels)
+		}
+	}
+}
+
+func containsChannel(channels []string, wanted string) bool {
+	for _, channel := range channels {
+		if channel == wanted {
+			return true
+		}
+	}
+	return false
+}

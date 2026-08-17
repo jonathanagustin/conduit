@@ -118,6 +118,24 @@ type CompatibilityProjection struct {
 	// answer -- a recalled Release served as not recalled, which is the one
 	// direction of that error a client cannot recover from.
 	Recalls []ProjectedRecall
+	// Promotions is what this Environment has passed. Carried for the same
+	// reason as Recalls and against the same defect: the Apollo compatibility
+	// surface declares releaseChannels on every Release and was answering with
+	// the channels frozen at publication, so a Release promoted afterwards was
+	// served on the channels it started on. A Release is published once and
+	// promoted later; a stamped value cannot be right.
+	Promotions []ProjectedPromotion
+}
+
+// ProjectedPromotion is one passed channel boundary, narrowed to what decides
+// which Channels a Release has reached. The narrowing matches catalogPromotions
+// in the control plane, which reads exactly these fields for the same purpose.
+type ProjectedPromotion struct {
+	Product     string
+	Version     string
+	FromChannel string
+	ToChannel   string
+	Passed      bool
 }
 
 // ProjectedRecall is a withdrawal, narrowed to what a compatibility surface may
