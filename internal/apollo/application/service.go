@@ -94,10 +94,14 @@ type Service struct {
 	// recalls is keyed by Environment, because that is how Conduit declares a
 	// withdrawal. Apollo's recallStatus is a property of the Release rather
 	// than of an Environment, so the read below aggregates.
-	recalls   map[string][]environments.ProjectedRecall
-	catalog   CatalogPort
-	reporting environmentports.ReportingPort
-	now       func() time.Time
+	recalls map[string][]environments.ProjectedRecall
+	// promotions is keyed by Environment for the same reason, and aggregated on
+	// read for the same reason: a Channel a Release has reached is a property of
+	// the Release, and Conduit records the crossing per Environment.
+	promotions map[string][]environments.ProjectedPromotion
+	catalog    CatalogPort
+	reporting  environmentports.ReportingPort
+	now        func() time.Time
 }
 
 func New(ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort) (*Service, error) {
@@ -152,6 +156,8 @@ func (service *Service) ListReleases(product string) apollo.ListReleasesResponse
 	for version, value := range service.releases[product] {
 		model := clone(value.model)
 		model.RecallStatus = service.recallStatusLocked(product, version)
+		channels := service.effectiveChannelsLocked(product, version, value.model.ReleaseChannels)
+		model.ReleaseChannels = &channels
 		values = append(values, model)
 	}
 	service.mu.RUnlock()
@@ -172,7 +178,41 @@ func (service *Service) GetRelease(product, version string) (apollo.Release, err
 	}
 	model := clone(value.model)
 	model.RecallStatus = service.recallStatusLocked(product, version)
+	channels := service.effectiveChannelsLocked(product, version, value.model.ReleaseChannels)
+	model.ReleaseChannels = &channels
 	return model, nil
+}
+
+// effectiveChannelsLocked answers Apollo's releaseChannels from the channels the
+// Release has actually reached. The caller holds at least a read lock.
+//
+// Computed on read rather than stamped at publication, for the reason
+// recallStatusLocked records below: a Release is published once and promoted
+// later, so the stamped value was the version's default channels and stayed
+// them however many promotions passed. A Release promoted to a channel was
+// served on the channel it started on.
+//
+// The rule is not restated here. catalog.EffectiveChannels owns which channels
+// a Release has reached, including the transitive walk over passed promotions,
+// and this only supplies it with what Conduit recorded.
+func (service *Service) effectiveChannelsLocked(product, version string, declared *[]string) []string {
+	passed := make([]catalog.Promotion, 0)
+	for _, environmentPromotions := range service.promotions {
+		for _, promotion := range environmentPromotions {
+			passed = append(passed, catalog.Promotion{
+				Product: promotion.Product, Version: promotion.Version,
+				FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
+				Passed: promotion.Passed,
+			})
+		}
+	}
+	channels := []string(nil)
+	if declared != nil {
+		channels = append(channels, *declared...)
+	}
+	return catalog.EffectiveChannels(catalog.Release{
+		Product: product, Version: version, Channels: channels,
+	}, passed)
 }
 
 // recallStatusLocked answers Apollo's recallStatus from the recalls Conduit
@@ -485,6 +525,10 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 	// what the Environment currently declares, so a recall that has been
 	// removed from desired state must stop being reported.
 	service.recalls[rid] = append([]environments.ProjectedRecall(nil), projection.Recalls...)
+	if service.promotions == nil {
+		service.promotions = make(map[string][]environments.ProjectedPromotion)
+	}
+	service.promotions[rid] = append([]environments.ProjectedPromotion(nil), projection.Promotions...)
 	for _, namespace := range projection.Namespaces {
 		id := namespace.Name
 		if id == "" {
