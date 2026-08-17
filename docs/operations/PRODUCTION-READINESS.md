@@ -26,6 +26,7 @@ answer, and nothing here should be read as claiming it.
 | Air gap | The Zarf package assembles and validates for disconnected installation. | `Validate Zarf air-gap package` gate. |
 | Supply chain | Every workflow action, container base, and tool is digest- or checksum-pinned; images carry SBOM and vulnerability evidence with zero high/critical matches; Hadolint and the trusted-technology policy gate the Containerfiles. | `Validate trusted supply-chain policy`, `Scan for known vulnerabilities`, `Lint Containerfiles` gates; `docs/evidence/highs-1.15.1-shim-candidate-amd64.json`. |
 | CI provenance | Publication, release, and deployment run only on explicit human dispatch; verification and maintenance workflows may be automated under ADR 0006's guardrails (cancel superseded runs, cap runtime, least-privilege, never publish). The Trunk gate stays dispatch-based, authenticates the exact pull-request head, and publishes a commit status; each run writes a per-gate summary with failure annotations. | A4 (ADR 0006); `docs/operations/manual-ci.md`; `.github/workflows/platform-ci.yml`; `scripts/verify-pr-fidelity.test.sh`. |
+| Observability | The Hub exports queue depth, lease occupancy, exhaustion and reconciliation lag on an opt-in listener, with no tenant identifier in any label — enforced on the publishing path rather than by convention. | `internal/observability`; `TestALabelNamingATenantResourceIsRefused`; `TestAWedgedHubIsDistinguishableFromABusyOne`. |
 | Frontend | The operator console ships one tenant-neutral bundle; tenant runtime overrides pass two independent closed validators that reject executable content and policy weakening; browser tests cover URL-owned pagination state. | A3; `Validate operator console` gate; `docs/ui/contracts/runtime-bootstrap.md`. |
 | Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/apollo/conformance.md`. |
 
@@ -43,14 +44,19 @@ was checked, because "we should probably have X" is not a finding.
    were already looking."* For a control plane that is an operability failure,
    not a missing feature.
 
-2. **No observability.** No metrics, traces or `/metrics` endpoint anywhere in
-   shipped code — the only Prometheus reference is
-   `internal/optimization/providerprometheus`, which *reads* Prometheus as an
-   optimizer input. Kubernetes startup, readiness and liveness probes exist in
-   the Hub chart, so a dead pod is noticed; nothing exposes queue depth, lease
-   contention, reconciliation lag, retry exhaustion or decision latency. Two
-   replicas over a leased store with no telemetry cannot be operated: there is
-   no way to tell working from wedged.
+2. **Observability is partial.** Metrics now exist and the wedge signal is
+   exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
+   `_oldest_pending_seconds`, each labelled by queue, plus `conduit_build_info`.
+   The lag gauge is the one that matters — depth alone cannot separate a busy Hub
+   from a stuck one, because both sit at some number; how long the oldest due
+   item has waited can.
+
+   What remains: **no tracing**, so a slow decision cannot be attributed to a
+   stage; metrics are available **only under `REPOSITORY_KIND=postgres`**, since
+   the file repository has none of the queues they describe; the endpoint is
+   **off unless `METRICS_ADDRESS` is set**, on its own listener, so an existing
+   deployment gains no reachable surface until an operator asks; and **no
+   alerting rules ship**, so the signal exists but nobody is woken by it.
 
 3. **The migration idiom is undocumented, unversioned and untested.** An
    earlier draft of this row said there was no migration path at all. That was
@@ -111,14 +117,14 @@ end-to-end and live suites, and mutation scores on both sides.
 | **The control loop decides something unsafe** | **Property / invariant** — generate fleets and assert no run ever produces a forbidden Plan | **Missing.** Example-based tests sample this thinly, and it is the core risk of a control plane. |
 | **A rolling upgrade meets its own past** | **Version skew** — old Agent against new Hub, old data against new code | **Missing.** Acute for a system whose job is upgrading other software; it has no test that it can upgrade itself. |
 | Two replicas race, or one dies mid-commit | **Concurrency and crash durability** | Present against real PostgreSQL: leases, fencing, atomic commit, crash-safe receipts. |
-| Applying the schema again destroys data | **Idempotent re-application** | Added by this change: a source-level guard on the DDL, and a populated-database re-apply test. |
+| Applying the schema again destroys data | **Idempotent re-application** | Present: a source-level guard on the DDL, and a populated-database re-apply test. |
 | A caller does what they are not entitled to | **Authorization, negative path** | Partial. Refusals are tested where someone thought to; nothing enumerates route × role, so a new route defaults to untested. |
 | Wrong bytes are admitted | **Adversarial supply chain** | Strong. Wrong-signer, tampered-digest and unsigned all refused, proven against a real registry and signature. |
 | It cannot be installed in the target topology | **Clean-room delivery** | Strong. Clean cluster, no Git source or credential, Zarf air-gap. |
 | The tests do not actually test | **Mutation** | Present on both Go and web, with committed scores. |
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
-| It is running and nobody can tell | **Observability assertion** | **Blocked** by gap 2 — nothing to assert against until metrics exist. |
+| It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
 | Nobody is told what happened | **Delivery end-to-end** | **Blocked** by gap 1 — no ports to drive. |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
