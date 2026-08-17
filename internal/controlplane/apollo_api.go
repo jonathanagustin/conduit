@@ -70,6 +70,7 @@ func (api *apolloPublicAPI) publishHelmBundle(w http.ResponseWriter, request *ht
 	publication := apolloapp.NativeHelmPublication{
 		ChartName: bundle.Manifest.Extensions.HelmChart.Name, ChartVersion: bundle.Manifest.Extensions.HelmChart.Version,
 		ChartRepository: bundle.Manifest.Extensions.HelmChart.RepositoryURL, Assets: assets,
+		UpgradeStrategy: bundle.Manifest.Extensions.UpgradeStrategy,
 	}
 	for _, artifact := range bundle.Manifest.Extensions.Artifacts {
 		publication.Artifacts = append(publication.Artifacts, artifact.URI)
