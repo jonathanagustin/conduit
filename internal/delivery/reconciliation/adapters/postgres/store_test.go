@@ -140,6 +140,34 @@ func TestPostgresStoreFencesSupersedingInputAndRepairsDroppedWork(t *testing.T) 
 	}
 }
 
+func TestPostgresStoreSupersededFailureDoesNotDelayNewRevision(t *testing.T) {
+	ctx := t.Context()
+	store, other := newStorePair(t, ctx)
+	resetStore(t, ctx, store)
+	now := time.Date(2026, 8, 14, 19, 30, 0, 0, time.UTC)
+	key := domain.Key{Environment: "tenant-a", Installation: "catalog"}
+	if err := store.UpsertDesired(ctx, testDesired(key, "generation-1", "target-a", now)); err != nil {
+		t.Fatal(err)
+	}
+	stale, found, err := store.LeaseWork(ctx, now, time.Minute)
+	if err != nil || !found {
+		t.Fatalf("initial lease: found=%v err=%v", found, err)
+	}
+	if err := other.UpsertDesired(ctx, testDesired(key, "generation-2", "target-b", now.Add(time.Second))); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.FailWork(ctx, stale, "generation-1 failed", now.Add(time.Hour), true); err != nil {
+		t.Fatal(err)
+	}
+	current, found, err := other.LeaseWork(ctx, now.Add(2*time.Second), time.Minute)
+	if err != nil || !found {
+		t.Fatalf("superseding input inherited the stale retry delay: found=%v err=%v", found, err)
+	}
+	if current.Revision != stale.Revision+1 || current.Attempt != 1 {
+		t.Fatalf("fresh revision lease=%#v after stale lease=%#v", current, stale)
+	}
+}
+
 func TestPostgresStoreRollsBackDecisionWhenAuditFails(t *testing.T) {
 	ctx := t.Context()
 	store, _ := newStorePair(t, ctx)
