@@ -63,6 +63,11 @@ type NativeHelmPublication struct {
 	ChartRepository string
 	Artifacts       []string
 	Dependencies    []NativeDependency
+	// UpgradeStrategy is the publisher's declaration from the Product manifest.
+	// Empty means they declared nothing, which is the only thing a publisher on
+	// the pinned Apollo REST routes can say: neither published request model
+	// carries the field, so those routes pass empty and always will.
+	UpgradeStrategy string
 	Assets          PublicationAssets
 }
 
@@ -279,7 +284,7 @@ func (service *Service) PublishHelmChart(ctx context.Context, coordinate string,
 	}
 	return service.publish(
 		ctx, coordinate, dependencies, "helm-chart", helmPublicationPayload(body),
-		executableRelease(coordinate, body), PublicationAssets{},
+		executableRelease(coordinate, body), PublicationAssets{}, "",
 	)
 }
 
@@ -292,7 +297,7 @@ func (service *Service) PublishService(ctx context.Context, coordinate string, b
 	if err != nil {
 		return err
 	}
-	return service.publish(ctx, coordinate, dependencies, "service", servicePublicationPayload(body), nil, PublicationAssets{})
+	return service.publish(ctx, coordinate, dependencies, "service", servicePublicationPayload(body), nil, PublicationAssets{}, "")
 }
 
 func (service *Service) PublishNativeHelmChart(ctx context.Context, coordinate string, publication NativeHelmPublication) error {
@@ -313,7 +318,8 @@ func (service *Service) PublishNativeHelmChart(ctx context.Context, coordinate s
 		})
 	}
 	release := executableNativeRelease(coordinate, publication, dependencies)
-	return service.publish(ctx, coordinate, dependencies, "helm-chart", nativePublicationPayload(publication), release, publication.Assets)
+	return service.publish(ctx, coordinate, dependencies, "helm-chart", nativePublicationPayload(publication),
+		release, publication.Assets, publication.UpgradeStrategy)
 }
 
 type publicationHelmChart struct {
@@ -340,7 +346,15 @@ type helmPayload struct {
 		HelmChart           publicationHelmChart    `json:"helmChart"`
 		Artifacts           []publicationArtifact   `json:"artifacts,omitempty"`
 		ProductDependencies []publicationDependency `json:"productDependencies,omitempty"`
-		PlatformBundle      *PublicationAssets      `json:"platformBundle,omitempty"`
+		// UpgradeStrategy is in the payload because the payload is what the
+		// publication digest covers. Left out, republishing one coordinate with
+		// a different declared strategy would be digest-identical, so the
+		// immutability check would read it as an idempotent retry and swallow
+		// the second declaration in silence. omitempty keeps a payload carrying
+		// no declaration byte-identical to one produced before this field
+		// existed, so retrying an older publication still succeeds.
+		UpgradeStrategy string             `json:"upgradeStrategy,omitempty"`
+		PlatformBundle  *PublicationAssets `json:"platformBundle,omitempty"`
 	} `json:"extensions"`
 }
 
@@ -381,6 +395,7 @@ func nativePublicationPayload(publication NativeHelmPublication) helmPayload {
 		result.Extensions.ProductDependencies = append(
 			result.Extensions.ProductDependencies, publicationDependency(dependency))
 	}
+	result.Extensions.UpgradeStrategy = publication.UpgradeStrategy
 	result.Extensions.PlatformBundle = &publication.Assets
 	return result
 }
@@ -412,7 +427,11 @@ func (service *Service) publish(
 	payload any,
 	release *catalog.Release,
 	assets PublicationAssets,
+	upgradeStrategy string,
 ) error {
+	if upgradeStrategy != "" && !apollo.UpgradeStrategy(upgradeStrategy).Valid() {
+		return &Error{Kind: Invalid, Message: "invalid upgrade strategy"}
+	}
 	group, name, version, valid := parseMavenCoordinate(coordinate)
 	if !valid {
 		return &Error{Kind: Invalid, Message: "invalid Maven coordinate"}
@@ -442,7 +461,7 @@ func (service *Service) publish(
 	publication := catalog.Publication{
 		MavenCoordinate: coordinate, Product: product, Version: version, Kind: kind,
 		PublicationDigest: "sha256:" + hex.EncodeToString(digest[:]),
-		ReleaseChannels:   catalog.DefaultChannelsForVersion(version), UpgradeStrategy: "shutdown",
+		ReleaseChannels:   catalog.DefaultChannelsForVersion(version), UpgradeStrategy: upgradeStrategy,
 		Dependencies: dependencies, Release: release, CreatedAt: service.now().UTC(),
 		DefaultConfig: assets.DefaultConfig, ConfigSchema: assets.ConfigSchema,
 	}
@@ -486,10 +505,20 @@ func (service *Service) restorePublication(publication catalog.Publication) {
 		})
 	}
 	channels := append([]string(nil), publication.ReleaseChannels...)
-	upgrade := apollo.UpgradeStrategy(publication.UpgradeStrategy)
 	model := apollo.Release{
 		MavenCoordinate: publication.MavenCoordinate, RecallStatus: apollo.RecallStatus{Recalled: false},
-		ProductDependencies: &dependencies, ReleaseChannels: &channels, UpgradeStrategy: &upgrade,
+		ProductDependencies: &dependencies, ReleaseChannels: &channels,
+	}
+	// Only a declaration is served. A pointer to the empty string is not an
+	// omission: omitempty tests the pointer, so it would put `"upgradeStrategy":
+	// ""` on the wire, and "" is not a member of the pinned enum. That is not
+	// hypothetical -- the Terraform publication route stores no strategy and was
+	// served exactly that way. An absent key says the manifest declared nothing,
+	// which is true and is what the pinned snapshot permits: Release requires
+	// only mavenCoordinate and recallStatus.
+	if publication.UpgradeStrategy != "" {
+		upgrade := apollo.UpgradeStrategy(publication.UpgradeStrategy)
+		model.UpgradeStrategy = &upgrade
 	}
 	service.mu.Lock()
 	defer service.mu.Unlock()
