@@ -154,8 +154,27 @@ func (federation Federation) TracksHealth() bool {
 // toward a Release promotion decision. An Environment that holds no observed
 // state cannot vouch for a Release, and silently counting it as healthy would
 // let a canary pass on absent evidence.
+//
+// Present is half of that, and it used to be missing. An Environment this Hub
+// has never reviewed resolves to the defaulted topology -- which is
+// AGENTS_CONNECTED, a deliberate divergence from Apollo's UNKNOWN -- so it
+// answered TracksHealth() true and vouched. The promotion evidence naming it is
+// caller-supplied, so an environment name this Hub had never seen was enough to
+// make health evidence count, which is the "absent evidence" case stated
+// directly above.
+//
+// The two halves are different questions and both must hold: Present asks
+// whether this Hub has ever reviewed a generation for the Environment, and
+// TracksHealth asks whether its declared topology observes health at all. An
+// Environment can be genuinely known and still not track health.
+//
+// Note the asymmetry with RefuseSettingsImport below, which admits a
+// not-Present Environment on purpose: a Hub that has never seen an Environment
+// has no settings worth protecting, so the first Bundle creates it. Absence is
+// permissive there and refusing here, because creating an Environment and
+// attesting to a Release's health are not the same act.
 func (federation Federation) ParticipatesInPromotion() bool {
-	return federation.TracksHealth()
+	return federation.Present && federation.TracksHealth()
 }
 
 // AllowsSettingsEdit reports whether Environment settings may be modified here.
