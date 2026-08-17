@@ -78,19 +78,40 @@ export function parseRuntimeBootstrap(input: unknown): ConsoleBootstrap {
   };
 }
 
-export async function loadRuntimeBootstrap(
-  fetcher: typeof fetch = globalThis.fetch,
-): Promise<ConsoleBootstrap> {
-  const response = await fetcher("/console/bootstrap.json", {
-    method: "GET",
-    headers: { Accept: "application/json" },
-    credentials: "same-origin",
-    cache: "no-store",
-  });
-  if (!response.ok) {
-    throw new Error(`console bootstrap request failed with ${response.status}`);
+/** The meta the Hub injects into the application shell. Kept in step with
+ * BootstrapMetaName in internal/consoleui/bootstrap.go. */
+export const BOOTSTRAP_META_NAME = "x-conduit-console-bootstrap";
+
+/** Read the tenant bootstrap the Hub rendered into this document.
+ *
+ * Synchronous, and it throws rather than degrading. The bundle is
+ * tenant-agnostic and content-addressed; everything tenant-specific arrives in
+ * the shell the Hub renders around it, so a document without the meta was not
+ * served by a Hub -- and a console that carried on regardless would render
+ * whatever branding it invented, on a screen whose whole claim is that its
+ * branding is evidence-bound.
+ *
+ * The parsed value goes through parseRuntimeBootstrap unchanged. That validator
+ * is a closed surface -- it refuses unknown and missing fields alike, which is
+ * what stops tenant data granting a capability -- and it is deliberately not
+ * relaxed to accommodate a new transport. */
+/** The one thing loadRuntimeBootstrap needs from the document. Narrower than
+ * ParentNode on purpose: it keeps the reader testable without a DOM, and it
+ * states that reading one meta is the entire coupling to the page. */
+export interface BootstrapShell {
+  querySelector(selectors: string): { getAttribute(name: string): string | null } | null;
+}
+
+export function loadRuntimeBootstrap(shell: BootstrapShell = document): ConsoleBootstrap {
+  const meta = shell.querySelector(`meta[name="${BOOTSTRAP_META_NAME}"]`);
+  if (meta === null) {
+    throw new Error("the console shell carries no tenant bootstrap");
   }
-  return parseRuntimeBootstrap(await response.json());
+  const content = meta.getAttribute("content");
+  if (content === null || content === "") {
+    throw new Error("the console bootstrap meta is empty");
+  }
+  return parseRuntimeBootstrap(JSON.parse(content));
 }
 
 function record(value: unknown, name: string): Record<string, unknown> {
