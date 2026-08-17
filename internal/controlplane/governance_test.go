@@ -354,9 +354,12 @@ func TestCELPolicyRequireAnyAndDoNotMerge(t *testing.T) {
 	if request.Status == ChangeError {
 		t.Fatalf("policy evaluation failed: %s (%#v)", request.Error, request.Evaluations)
 	}
-	request, _, err = service.SetLabels(ctx, request.ID, author, []string{"Do not merge"})
+	request, _, approvedByLabelling, err := service.SetLabels(ctx, request.ID, author, []string{"Do not merge"})
 	if err != nil {
 		t.Fatal(err)
+	}
+	if approvedByLabelling {
+		t.Fatal("labelling a pending request reported that it approved it")
 	}
 	reviewer, _ := service.ResolvePrincipal(ctx, IdentityClaims{Username: "operator@example.test", Groups: []string{"ops"}})
 	request, plan, err := service.Approve(ctx, request.ID, reviewer, "approved")
@@ -366,9 +369,16 @@ func TestCELPolicyRequireAnyAndDoNotMerge(t *testing.T) {
 	if !request.RequirementsSatisfied || request.Status != ChangePendingApprovals || plan.Status != PlanAwaitingApproval {
 		t.Fatalf("Do not merge was not honored: request=%#v plan=%#v", request, plan)
 	}
-	request, plan, err = service.SetLabels(ctx, request.ID, author, nil)
+	request, plan, approvedByLabelling, err = service.SetLabels(ctx, request.ID, author, nil)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Removing a do-not-merge label from a request whose requirements are
+	// already satisfied IS the approval, and has to be reported as one --
+	// otherwise the caller that applies approved changes would stop applying
+	// this one, which is the legitimate case the replay guard must not eat.
+	if !approvedByLabelling {
+		t.Fatal("removing do-not-merge approved the request but was not reported as approving it")
 	}
 	if request.Status != ChangeApproved || plan.Status != PlanApproved {
 		t.Fatalf("request=%#v plan=%#v", request, plan)
@@ -681,7 +691,7 @@ func TestChangeRequestTitleAuditTrailAndCancellableStatuses(t *testing.T) {
 	// A change request against something other than a Plan is created by a
 	// different entry point, with its own audit call. The Plan path above does not
 	// reach it, so the creation audit there proves nothing about this one.
-	direct, err := service.ProposeChanges(ctx, "EXPORT_PIPELINE_LIFECYCLE_ARCHIVE", "nightly-export", "dev-use2",
+	direct, _, err := service.ProposeChanges(ctx, "EXPORT_PIPELINE_LIFECYCLE_ARCHIVE", "nightly-export", "dev-use2",
 		[]EntityChange{{
 			ID: "chg-1", Type: ChangeTypeUpdateEntity, InstallationID: "example-api",
 			ReferencedResources: map[string]ReferencedResource{
