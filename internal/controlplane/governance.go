@@ -873,7 +873,24 @@ func (service *GovernanceService) Reopen(
 		service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "DENY", "only the author may reopen", nil)
 		return ChangeRequest{}, PlanRecord{}, ErrForbidden
 	}
-	if request.Status != ChangeRejected && request.Status != ChangeCancelled {
+	// ERROR is admitted alongside the two decisions because it is not one. A
+	// request reaches ERROR only from evaluateChangeRequest -- a policy that
+	// failed to evaluate, every policy returning no_op, or no enabled policies
+	// at all -- so nobody vetoed anything and there is no judgement to overrule.
+	// Reject refuses any status but PENDING_APPROVALS, so an errored record's
+	// Reviews are empty and reopening overwrites machine output only.
+	//
+	// Excluding it was the worse half of a wedge. A crq_ id is derived from its
+	// target, so the errored record occupies that target permanently and every
+	// later proposer receives it back; with Reopen closed, a deployment that
+	// proposed before its approval policies existed burnt every target it
+	// touched, one target at a time, with no recourse open to anyone at all --
+	// not even the author, who is the only principal Reopen admits.
+	//
+	// Reopening re-evaluates against the policies in force now, so if the
+	// configuration is still broken this errors again and costs nothing.
+	if request.Status != ChangeRejected && request.Status != ChangeCancelled &&
+		request.Status != ChangeError {
 		return ChangeRequest{}, PlanRecord{}, ErrInvalidTransition
 	}
 	reopened, err := service.evaluateChangeRequest(ctx, ChangeRequest{
