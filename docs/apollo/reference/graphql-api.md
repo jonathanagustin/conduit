@@ -316,7 +316,7 @@ tree deliberately. Omitting them made every citation unresolvable, so every case
 rejected for that reason instead of its own and the harness passed while testing
 nothing.
 
-**Declared is not the same as answerable.** 12 recovered coordinates are
+**Declared is not the same as answerable.** 9 recovered coordinates are
 declared and unanswerable here. Those refuse rather than resolving to null: a
 null is a value, and answering `ApolloBundle.rid: null` would assert an absence
 Conduit has never observed. The refusal says so and sends the reader to a Hub.
@@ -343,12 +343,12 @@ chose to declare the field either way.
 | Property | Value |
 | --- | --- |
 | Recovered coordinates declared | 41 |
-| — of which served | 29 |
-| — of which declared but unanswerable | 12 |
-| Coordinates served that no capture established | 22 (35% of the 63 declared; 43% of the 51 served) |
+| — of which served | 32 |
+| — of which declared but unanswerable | 9 |
+| Coordinates served that no capture established | 22 (35% of the 63 declared; 41% of the 54 served) |
 | — of which Apollo names or documents | 22 |
 | — of which are Conduit's own invention | **0 (0%)** |
-| Coordinates served, total | 51 (29 `OBSERVED` + 22 `DOCUMENTED`) |
+| Coordinates served, total | 54 (32 `OBSERVED` + 22 `DOCUMENTED`) |
 | Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
 | Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
 
@@ -356,8 +356,8 @@ Two numbers, and they answer different questions. `unrecoveredShare` (35%) is
 the fraction no Hub has confirmed; it should fall as captures widen. Its
 denominator is what the SDL **declares** — 63 — not what the server answers:
 `build-interface-schema.mjs:260` divides by `observedFields + documentedFields +
-conduitNativeFields`. Measured against the 51 coordinates actually served it is
-43%. The declared figure is the published one because it is the property of the
+conduitNativeFields`. Measured against the 54 coordinates actually served it is
+41%. The declared figure is the published one because it is the property of the
 contract; the served figure is stated here so the two are never silently swapped.
 `conduitNativeShare` (0%) is the fraction no Apollo source of any kind supports;
 it should stay honest rather than stay zero. Conflating them is how "documented"

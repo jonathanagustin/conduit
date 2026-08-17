@@ -116,7 +116,7 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 		says:    "the served total and its decomposition",
 	}, {
 		path:    "../../../docs/apollo/reference/graphql-api.md",
-		pattern: `(\d+) \(35% of the (\d+) declared; 43% of the (\d+) served\)`,
+		pattern: `(\d+) \(35% of the (\d+) declared; 41% of the (\d+) served\)`,
 		want:    []int{counts.documented, counts.declared, counts.served},
 		says:    "the uncaptured share and both of its denominators",
 	}, {
