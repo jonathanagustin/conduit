@@ -120,3 +120,62 @@ test("the Overview clears once nothing needs attention", async ({ page, visit })
   // once. It is the strongest single assertion that the whole loop closed.
   await expect(page.getByText("Nothing needs attention")).toBeVisible({ timeout: 60_000 });
 });
+
+// The six screens the live suite never reached. Until now they were exercised
+// only against stubs, which is the half of the suite that cannot fail on a
+// renamed field, a query parameter the Hub ignores, or a nil slice the Go
+// encoder writes as null where the fixture wrote [] -- the class that produced
+// the Apollo health defect.
+//
+// They run last, after the Agent has reported, so the two screens with seeded
+// data describe a Hub in its final state rather than a half-executed one.
+//
+// Four of the six are empty here, and that is the point rather than a weakness:
+// an empty state rendered from whatever a real Hub encodes for "nothing" is
+// precisely what a fixture cannot stand in for. The `visit` fixture fails the
+// test on any console error, so a screen that renders an empty table while
+// throwing is not silently green.
+
+test("the Environments screen counts what the Agent reported", async ({ page, visit }) => {
+  await visit("environments");
+  await expectRows(page);
+  const row = page.getByRole("row").filter({ hasText: "dev-use2" });
+  await expect(row).toBeVisible();
+  // Two Entities were seeded and both reported, so this screen and the Fleet
+  // screen have to agree about the same Hub -- a different projection over the
+  // same reports, which is where they have disagreed before.
+  await expect(row).toContainText("2");
+  await expect(row).not.toContainText("never reported");
+});
+
+test("the Software Catalog lists the Products the desired state named", async ({ page, visit }) => {
+  await visit("products");
+  await expectRows(page, 2);
+  for (const product of ["app.example:example-api", "app.example:example-workspace"]) {
+    await expect(page.getByRole("row").filter({ hasText: product })).toContainText("0.1.0");
+  }
+});
+
+test("the Promotions screen keeps its Conduit-extension disclosure", async ({ page, visit }) => {
+  await visit("promotions");
+  // Nothing has been promoted, so the assertion that matters is the disclosure
+  // rather than the rows: this fleet-wide view has no upstream counterpart, and
+  // a screen that quietly stopped saying so would be claiming parity it does
+  // not have.
+  await expect(page.getByText(/Conduit extension/)).toBeVisible();
+  await expect(page.getByText(/No promotions have been evaluated/)).toBeVisible();
+});
+
+test("the Export, Import and Risk screens render real empty states", async ({ page, visit }) => {
+  // Asserted together because the claim is the same for each and it is about
+  // the transport, not the screen: whatever the Hub encodes for an empty
+  // collection, the console renders an empty state and not an error.
+  for (const [screen, empty] of [
+    ["export", /No export pipelines are configured/],
+    ["import", /No Bundles have been imported/],
+    ["risk", /No Releases have been recalled/],
+  ] as const) {
+    await visit(screen);
+    await expect(page.getByText(empty)).toBeVisible();
+  }
+});
