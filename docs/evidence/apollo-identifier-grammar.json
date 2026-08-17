@@ -45,8 +45,16 @@
       "documentedForm": "a uuid, in practice always equal to the locator of the corresponding PlanRid",
       "conduitBearing": "The only direct statement anywhere in this repository's evidence about an Apollo RID's internal structure: the locator segment of an Apollo Plan RID is a UUID. It says nothing about the service or instance segments, so it does not close ADR 0005 group 1."
     },
-    "ApolloPlanRid": { "alias": "string", "line": 476, "documentedForm": "the rid of an Apollo plan; no grammar stated" },
-    "ApolloPlanTaskRid": { "alias": "string", "line": 480, "documentedForm": "the rid of an Apollo plan task; no grammar stated" },
+    "ApolloPlanRid": {
+      "alias": "string",
+      "line": 476,
+      "documentedForm": "the rid of an Apollo plan; no grammar stated"
+    },
+    "ApolloPlanTaskRid": {
+      "alias": "string",
+      "line": 480,
+      "documentedForm": "the rid of an Apollo plan task; no grammar stated"
+    },
     "ApolloFoundrySpaceIdentifier": {
       "alias": "string",
       "line": 443,
@@ -57,7 +65,8 @@
       "alias": "string",
       "line": 389,
       "statedEquivalentTo": "com.palantir.apollo.catalog.api.objects.ArtifactUri",
-      "documentedExample": "apollo.palantircloud.com/marketplace/foundryproducts/com.palantirfoundry.stack.namespace/project-123/manifests/1.1.0"
+      "documentedExample": "<host>/marketplace/foundryproducts/com.palantirfoundry.stack.namespace/project-123/manifests/1.1.0",
+      "note": "The host is redacted. Palantir documents a real one in the example; this repository does not commit origins, and the format fact is the path structure rather than the host."
     },
     "ApolloAgentSecretType": {
       "alias": "TOFU_SECRET | PRIVATE_KEY_PASSPHRASE",
