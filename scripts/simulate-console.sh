@@ -18,16 +18,30 @@
 # slower than the stubbed suite by the cost of a Hub build. Run it when the
 # transport between console and Hub is what is in question.
 #
-#   ./scripts/simulate-console.sh              # build, seed, run the live specs
-#   ./scripts/simulate-console.sh --keep        # leave the Hub running afterwards
+#   ./scripts/simulate-console.sh                      # the healthy story
+#   ./scripts/simulate-console.sh --scenario failure   # a Plan that fails to apply
+#   ./scripts/simulate-console.sh --scenario degraded  # an Entity reporting a warning
+#   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 keep=0
 simulate_agent=1
+# Which desired state to seed, and so which branch of the simulator the Agent
+# takes. Each scenario has its own spec file because their assertions contradict
+# one another by design: a Hub carrying a failed Plan cannot also satisfy
+# "nothing needs attention".
+scenario=healthy
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --keep) keep=1; shift ;;
+    --scenario)
+      scenario="${2:-}"
+      case "${scenario}" in
+        healthy|failure|degraded) ;;
+        *) echo "simulate: unknown scenario '${scenario}' (healthy, failure, degraded)" >&2; exit 2 ;;
+      esac
+      shift 2 ;;
     # Without an Agent the fleet never reports. Kept as an option because it is
     # the state the console was in before one existed, and a spec that asserts
     # on staleness needs it.
@@ -110,7 +124,8 @@ curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/bootstrap.json" ||
 # the approval the console exists to perform. Both are bootstrap administrators
 # so neither needs a grant seeded before it can act.
 echo "simulate: seeding through the Hub's own API"
-plan_id="$(CONDUIT_HUB_URL="${hub_url}" CONDUIT_SUBJECT=proposer go run "${repo_root}/scripts/simulate/seed.go")"
+plan_id="$(CONDUIT_HUB_URL="${hub_url}" CONDUIT_SUBJECT=proposer CONDUIT_SCENARIO="${scenario}" \
+  go run "${repo_root}/scripts/simulate/seed.go")"
 echo "simulate: seeded Plan ${plan_id}"
 
 # The Agent is what makes the fleet move. Without it nothing reports, every
@@ -134,5 +149,15 @@ if [ "${keep}" -eq 1 ]; then
   exit 0
 fi
 
+# Explicit rather than derived from the scenario name: the mapping is the thing
+# a reader needs, and a scenario whose specs silently did not exist would pass.
+case "${scenario}" in
+  healthy) specs=console.spec.ts ;;
+  failure) specs=failure.spec.ts ;;
+  degraded) specs=degraded.spec.ts ;;
+esac
+[ -f "${repo_root}/web/src/test/live/${specs}" ] ||
+  { echo "simulate: scenario '${scenario}' has no spec file ${specs}" >&2; exit 1; }
+
 CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" \
-  pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts "$@"
+  pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts "${specs}" "$@"
