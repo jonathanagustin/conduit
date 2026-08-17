@@ -61,7 +61,13 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 	if err != nil {
 		return PromotionRecord{}, err
 	}
-	blockers := append(nonParticipating, evaluatePromotion(request, now)...)
+	boundConflicts, err := intermittentEvidenceBoundConflicts(
+		ctx, lifecycle.repository, topologyEvidence, request.Policy, now)
+	if err != nil {
+		return PromotionRecord{}, err
+	}
+	blockers := append(nonParticipating, boundConflicts...)
+	blockers = append(blockers, evaluatePromotion(request, now)...)
 	sortBlockers(blockers)
 	status := PromotionPassed
 	if len(blockers) > 0 {
@@ -256,6 +262,12 @@ func validatePromotions(promotions []PromotionRecord, releases []Release, errs *
 		// still has to derive. This is only possible because the kind is on
 		// the record: matching the sentence would be guessing.
 		blockers = append(blockers, blockersOfKind(promotion.Blockers, PromotionBlockerEnvironmentCannotVouch)...)
+		// Trusted on the same terms and for the same reason: it is derived from
+		// the Environment's connection setting, which this validator cannot
+		// read, and it only ever adds a blocker. The EVIDENCE_STALE it
+		// accompanies is derivable and still has to derive, so a record cannot
+		// use this kind to claim anything it has not earned.
+		blockers = append(blockers, blockersOfKind(promotion.Blockers, PromotionBlockerEvidenceBoundConflict)...)
 		sortBlockers(blockers)
 		expectedStatus := PromotionPassed
 		if len(blockers) > 0 {
