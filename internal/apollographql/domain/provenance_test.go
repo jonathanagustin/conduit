@@ -249,3 +249,91 @@ func TestAnUnknownCardinalityProvenanceIsRefused(t *testing.T) {
 		t.Errorf("the refusal does not name the claim it refused: %v", err)
 	}
 }
+
+// tier says who established that the coordinate exists; valueTier says where the
+// value behind it came from. Keeping them apart is the whole of ADR 0007: a
+// coordinate Apollo declares, answered from something Conduit built, is legal
+// only because the interface can say so. Collapsing the two would put the
+// invention back behind an OBSERVED label, which is what ADR 0005 refused.
+func TestAValueTierIsReadWithoutDowngradingTheDeclarationTier(t *testing.T) {
+	t.Parallel()
+	declared, err := domain.ReadProvenance(`directive @provenance(tier: ProvenanceTier!, valueTier: ProvenanceTier, cardinality: ProvenanceTier) on FIELD_DEFINITION
+
+type ApolloBundle {
+  rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
+  status: String @provenance(tier: OBSERVED, valueTier: DOCUMENTED)
+  name: String @provenance(tier: OBSERVED)
+}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	invented := domain.Coordinate{Type: "ApolloBundle", Field: "rid"}
+	// The declaration is still Apollo's. An invented value does not make the
+	// coordinate Conduit's idea, and reporting it as CONDUIT_NATIVE here would
+	// understate how much of the interface was actually recovered.
+	if tier, _ := declared.TierOf(invented); tier != domain.Observed {
+		t.Errorf("the declaration tier read as %q; an invented value must not restate who declared the field", tier)
+	}
+	if stated, found := declared.ValueTierOf(invented); !found || stated != domain.ConduitNative {
+		t.Errorf("value tier read as %q (found=%v), want CONDUIT_NATIVE", stated, found)
+	}
+	// Absent means "the value came from wherever the declaration did". It must
+	// not read as CONDUIT_NATIVE by default, or every recovered value in the
+	// interface would report itself as invented.
+	recovered := domain.Coordinate{Type: "ApolloBundle", Field: "name"}
+	if stated, found := declared.ValueTierOf(recovered); found {
+		t.Errorf("an unstated value tier read as %q; absent means it equals the field's tier", stated)
+	}
+	// A stated value tier is not the same as an invented value. ApolloBundle.status
+	// below says the value came from Apollo's published documentation rather than
+	// from a Hub capture -- a real distinction, and not an invention. Listing it as
+	// one would overstate how much of the interface Conduit made up, which is the
+	// same class of error as understating it.
+	if stated, found := declared.ValueTierOf(domain.Coordinate{Type: "ApolloBundle", Field: "status"}); !found || stated != domain.Documented {
+		t.Errorf("a DOCUMENTED value tier read as %q (found=%v)", stated, found)
+	}
+	if listed := declared.InventedValues(); len(listed) != 1 || listed[0] != invented {
+		t.Errorf("InventedValues returned %v, want exactly ApolloBundle.rid", listed)
+	}
+}
+
+// An unreadable value tier must fail rather than pass as an absent one, because
+// absent is the stronger claim -- it says the value came from the same place the
+// declaration did. A typo silently promoting an invention to "recovered" is the
+// exact failure this annotation exists to prevent.
+func TestAnUnreadableValueTierIsRefusedRatherThanTreatedAsAbsent(t *testing.T) {
+	t.Parallel()
+	_, err := domain.ReadProvenance(`directive @provenance(tier: ProvenanceTier!, valueTier: ProvenanceTier, cardinality: ProvenanceTier) on FIELD_DEFINITION
+
+type ApolloBundle {
+  rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE_)
+}
+`)
+	if err == nil {
+		t.Fatal("an unknown value provenance was accepted")
+	}
+}
+
+// The two optional arguments are independent, and a field may state both. This
+// is the case a positional line-reader gets wrong by accepting only whichever
+// one it saw first.
+func TestValueTierAndCardinalityAreReadTogether(t *testing.T) {
+	t.Parallel()
+	declared, err := domain.ReadProvenance(`directive @provenance(tier: ProvenanceTier!, valueTier: ProvenanceTier, cardinality: ProvenanceTier) on FIELD_DEFINITION
+
+type ApolloQuery {
+  bundles: [ApolloBundle] @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE, cardinality: DOCUMENTED)
+}
+`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	coordinate := domain.Coordinate{Type: "ApolloQuery", Field: "bundles"}
+	if stated, found := declared.ValueTierOf(coordinate); !found || stated != domain.ConduitNative {
+		t.Errorf("value tier read as %q (found=%v), want CONDUIT_NATIVE", stated, found)
+	}
+	if stated, found := declared.CardinalityOf(coordinate); !found || stated != domain.Documented {
+		t.Errorf("cardinality read as %q (found=%v), want DOCUMENTED", stated, found)
+	}
+}
