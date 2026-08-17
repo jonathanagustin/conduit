@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"context"
 	"regexp"
 	"strings"
 	"testing"
@@ -100,37 +101,27 @@ func TestEveryCreateInTheSchemaIsConditional(t *testing.T) {
 // The end-to-end half of the same property, against a real server: data written
 // before the schema is applied again must still be there afterwards.
 //
-// This re-executes the schema on the connection the store already holds, rather
-// than opening a second Store to simulate a restart. The first version did open
-// one, and it hung CI: schema application includes ALTER TABLE ... SET NOT NULL,
-// which takes an ACCESS EXCLUSIVE lock, and taking that lock from a fresh pool
-// while the suite's existing pooled connections are alive is a wait with no
-// timeout. Nothing had applied the schema mid-suite before, so the hazard had
-// never been reachable.
-//
-// Re-executing on the existing connection tests the property that matters --
-// the DDL is safe to run against populated tables -- without introducing the
-// contention. A restart is a new process, not a second pool in the same one, so
-// the discarded version was not more faithful, only more dangerous.
-//
-// It passes trivially today, because the schema has not changed since. It is
-// kept because it can fail on the change it guards.
+// This is the rolling upgrade in miniature. It passes trivially today, because
+// the schema has not changed; it is here so that the first change which is not
+// backward compatible fails as a test rather than as an outage. That is worth
+// saying plainly -- a test that cannot fail today is only worth keeping if it
+// can fail on the change it is guarding, and this one can.
 func TestPostgresSchemaReappliedPreservesExistingRows(t *testing.T) {
 	ctx := t.Context()
-	store, _ := newStorePair(t, ctx)
-	resetStore(t, ctx, store)
+	first, _ := newStorePair(t, ctx)
+	resetStore(t, ctx, first)
 
 	key := domain.Key{Environment: "prod", Installation: "checkout"}
 	recordedAt := time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)
-	if err := store.UpsertDesired(ctx, testDesired(key, "gen-1", "target-1", recordedAt)); err != nil {
+	if err := first.UpsertDesired(ctx, testDesired(key, "gen-1", "target-1", recordedAt)); err != nil {
 		t.Fatal(err)
 	}
 
-	if _, err := store.database.ExecContext(ctx, schema); err != nil {
-		t.Fatalf("the schema could not be applied to a populated database: %v", err)
-	}
+	// A fresh Store re-runs the schema, exactly as a restarted Hub or a newly
+	// scheduled replica does.
+	second := reopenStore(t, ctx)
 
-	snapshot, found, err := store.CurrentDesired(ctx, key)
+	snapshot, found, err := second.CurrentDesired(ctx, key)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -144,14 +135,20 @@ func TestPostgresSchemaReappliedPreservesExistingRows(t *testing.T) {
 	// And the store still works afterwards, which is the half a row count would
 	// miss: a schema that preserved rows but broke writes is no better.
 	later := recordedAt.Add(time.Minute)
-	if err := store.UpsertDesired(ctx, testDesired(key, "gen-2", "target-2", later)); err != nil {
+	if err := second.UpsertDesired(ctx, testDesired(key, "gen-2", "target-2", later)); err != nil {
 		t.Fatalf("the store could not write after the schema was re-applied: %v", err)
 	}
-	snapshot, found, err = store.CurrentDesired(ctx, key)
+	snapshot, found, err = second.CurrentDesired(ctx, key)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if !found || snapshot.Generation != "gen-2" {
 		t.Errorf("post-reapply write did not take: found=%v generation=%q", found, snapshot.Generation)
 	}
+}
+
+func reopenStore(t *testing.T, ctx context.Context) *Store {
+	t.Helper()
+	_, reopened := newStorePair(t, ctx)
+	return reopened
 }
