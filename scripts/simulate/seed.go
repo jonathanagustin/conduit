@@ -35,6 +35,22 @@ import (
 // simulation that fed it nonsense would be refused rather than seeded.
 const digest = "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 
+// The generation is a property of the desired state, and the Hub refuses a
+// second, different state under a generation it has already seen. Each scenario
+// therefore names its own, so a scenario can be seeded into a Hub that has
+// already run another one without being refused for a conflict that is really
+// just "this is a different simulation".
+func generation() string {
+	switch scenario() {
+	case "failure":
+		return "0123456789abcdf0"
+	case "degraded":
+		return "0123456789abcdf1"
+	default:
+		return "0123456789abcdef"
+	}
+}
+
 func artifact(name string) controlplane.Artifact {
 	return controlplane.Artifact{
 		Repository: "registry.example/" + name, Tag: "0.1.0", Digest: digest,
@@ -52,11 +68,58 @@ func assessed() *controlplane.VulnerabilityAssessment {
 	}
 }
 
+// scenario names which extra Release the desired state carries, and so which
+// branch of the simulator the Agent will take. The marker is part of the
+// Product coordinate because that is what the simulator keys on -- the scenario
+// is stated in the desired state and nowhere else, so a test reading the seed
+// can see what it is going to get.
+func scenario() string {
+	switch name := os.Getenv("CONDUIT_SCENARIO"); name {
+	case "", "healthy":
+		return "healthy"
+	case "failure", "degraded":
+		return name
+	default:
+		fmt.Fprintf(os.Stderr, "seed: unknown scenario %q\n", name)
+		os.Exit(2)
+		return ""
+	}
+}
+
+// troubled is the extra Product a non-healthy scenario installs. Its coordinate
+// carries the marker the simulator matches, so "doomed" fails to apply and
+// "degraded" applies but reports a warning.
+func troubled(name string) (controlplane.Release, controlplane.Entity) {
+	product := "app.example:example-" + name
+	return controlplane.Release{
+			Product: product, Version: "0.1.0",
+			Chart: artifact("example-" + name), Images: []controlplane.Artifact{artifact("example-" + name)},
+			VulnerabilityAssessment: assessed(),
+		}, controlplane.Entity{
+			Name: "example-" + name, Product: product, Version: "0.1.0", Namespace: "example",
+		}
+}
+
 func desiredState() controlplane.DesiredState {
+	state := baseDesiredState()
+	switch scenario() {
+	case "failure":
+		release, entity := troubled("doomed")
+		state.Releases = append(state.Releases, release)
+		state.Entities = append(state.Entities, entity)
+	case "degraded":
+		release, entity := troubled("degraded")
+		state.Releases = append(state.Releases, release)
+		state.Entities = append(state.Entities, entity)
+	}
+	return state
+}
+
+func baseDesiredState() controlplane.DesiredState {
 	return controlplane.DesiredState{
 		APIVersion: "platform.delivery/v1alpha1", Kind: "EnvironmentDeployment",
 		Environment: controlplane.Environment{
-			ID: "dev-use2", Generation: "0123456789abcdef",
+			ID: "dev-use2", Generation: generation(),
 			ArtifactSecurityPolicy: &controlplane.ArtifactSecurityPolicy{RequiredOutcome: "PASS"},
 		},
 		Releases: []controlplane.Release{
@@ -130,9 +193,17 @@ func main() {
 	// which is what the first version of this simulation produced. The console
 	// then showed a Plan AWAITING_APPROVAL beside an Overview counting zero
 	// awaiting approval, and both were telling the truth.
+	// The reviewer is whoever the browser will act as, and it is deliberately
+	// not the subject seeding this: the Hub refuses the author of a Change
+	// Request approving it, so a simulation that proposed and approved as one
+	// person could never exercise an approval at all.
+	reviewer := os.Getenv("CONDUIT_REVIEWER")
+	if reviewer == "" {
+		reviewer = "operator"
+	}
 	send(base, subject, http.MethodPut, "/v1/teams/reviewers", controlplane.Team{
 		Name: "reviewers", DisplayName: "Reviewers",
-		AdminUsers: []string{"reviewer"}, MemberUsers: []string{"reviewer"},
+		AdminUsers: []string{reviewer}, MemberUsers: []string{reviewer},
 	})
 	// The requirement is what makes the governance path real rather than
 	// decorative: it puts the Change Request in PENDING_APPROVALS with a second
