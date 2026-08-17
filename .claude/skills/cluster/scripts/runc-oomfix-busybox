@@ -1,0 +1,20 @@
+#!/bin/sh
+# busybox-compatible runc wrapper: clamp negative oomScoreAdj to 0.
+# Negative oom_score_adj writes fail with EACCES: mainline CAP_SYS_RESOURCE gate, capability absent from the VM.
+REAL=/bin/runc.real
+bundle=""
+prev=""
+for a in "$@"; do
+  [ "$prev" = "--bundle" ] || [ "$prev" = "-b" ] && bundle="$a"
+  prev="$a"
+done
+if [ -n "$bundle" ] && [ -f "$bundle/config.json" ]; then
+  sed -i 's/"oomScoreAdj":-[0-9]*/"oomScoreAdj":0/g' "$bundle/config.json"
+fi
+# also handle "exec --process process.json"
+prev=""
+for a in "$@"; do
+  [ "$prev" = "--process" ] || [ "$prev" = "-p" ] && [ -f "$a" ] && sed -i 's/"oomScoreAdj":-[0-9]*/"oomScoreAdj":0/g' "$a"
+  prev="$a"
+done
+exec "$REAL" "$@"
