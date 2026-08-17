@@ -12,9 +12,14 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
 
-const postgresRepositorySchema = `
+// Applied through the shared ledger so this schema is versioned like the other
+// one rather than being the exception. See internal/pgmigrate.
+var postgresRepositoryMigrations = []pgmigrate.Migration{{
+	Name: "0001-repository-core",
+	Statements: `
 CREATE TABLE IF NOT EXISTS conduit_repository_state (
     singleton boolean PRIMARY KEY DEFAULT TRUE CHECK (singleton),
     generation bigint NOT NULL,
@@ -28,7 +33,8 @@ CREATE TABLE IF NOT EXISTS conduit_repository_blobs (
     descriptor jsonb NOT NULL,
     contents bytea NOT NULL,
     CHECK (octet_length(contents) >= 0)
-);`
+);`,
+}}
 
 // TransactionalRepository can commit several existing repository operations as
 // one visibility boundary. Application services use this narrow capability for
@@ -68,7 +74,7 @@ func NewPostgresRepository(ctx context.Context, dataSourceName string) (*Postgre
 		database.Close()
 		return nil, fmt.Errorf("connect PostgreSQL repository: %w", err)
 	}
-	if _, err := database.ExecContext(ctx, postgresRepositorySchema); err != nil {
+	if err := pgmigrate.Apply(ctx, database, "controlplane", postgresRepositoryMigrations); err != nil {
 		database.Close()
 		return nil, fmt.Errorf("initialize PostgreSQL repository: %w", err)
 	}
