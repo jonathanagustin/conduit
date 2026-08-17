@@ -191,5 +191,14 @@ Recorded, not resolved by naming one side correct:
   Registered likewise.
 - **Environment- and Release-Channel-scoped type lists.** Only a Product's was
   published.
-- **Webhooks**, a separate Hub Settings section that may or may not be a
-  notification delivery path.
+- **Webhooks**, a separate Hub Settings section. What is now established is that
+  the capability exists and is identifiable: Foundry's graphql-gateway declares
+  `ApolloInboundMessageListenerHttpsTargetHandler` as one of thirty-two
+  known-system inbound webhook handlers, beside GitHub, Stripe, Slack and
+  PagerDuty, so Apollo emits outbound HTTPS webhooks a receiver can recognise as
+  Apollo's. See
+  [`../../evidence/foundry-graphql-apollo-surface.json`](../../evidence/foundry-graphql-apollo-surface.json).
+  What is **not** established is the payload, the signing scheme, or whether the
+  traffic carries notification events at all — the handler type resolves to no
+  recovered fields. It is deliberately not merged with the notification event
+  types above.
