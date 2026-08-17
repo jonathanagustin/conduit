@@ -1,0 +1,25 @@
+{
+  "note": "Coordinates whose VALUE Conduit constructs, even though an Apollo Hub established the coordinate. These serve with @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE) per ADR 0007. Before that record there was no way to say this, so these values shipped under a bare OBSERVED annotation that told clients an Apollo Hub had answered with them. It had not. This file is the correction.",
+  "whyThisIsNotTheSameAsAnInvention": "The identifier GRAMMAR is published. The pinned OpenAPI snapshot carries ri.apollo.main.environment.123, ri.apollo.main.installation.123 and ri.apollo.main.package.123, plus ri.autopilot.main.team.123 showing the service segment varies by owning service. Conduit follows that grammar rather than inventing one. What Conduit supplies is the locator, and for entity ids the meaning of one segment. Those parts are registered in docs/evidence/conduit-inventions.json.",
+  "citationForm": "Each entry names the Go function that mints the value and the published example the grammar is taken from. A coordinate here must already exist in the recovery record: this file changes how a recovered coordinate's value is described, and can never add a coordinate.",
+  "coordinates": {
+    "ApolloEnvironment.rid": {
+      "mintedBy": "internal/apollo/application/service.go environmentRID",
+      "grammarPublishedAs": "apollo-openapi ri.apollo.main.environment.123",
+      "conduitSupplies": "the locator, as the first 12 bytes of a SHA-256 over the environment id, hex encoded. Apollo's example locator is the placeholder 123 and the one documented Apollo locator elsewhere is a UUID, so no format is established and this one is Conduit's choice.",
+      "invention": "apollo.RIDLocator"
+    },
+    "ApolloEntity.packageRid": {
+      "mintedBy": "internal/apollo/application/service.go, packageRID at the installation projection",
+      "grammarPublishedAs": "apollo-openapi ri.apollo.main.package.123",
+      "conduitSupplies": "the locator, as above, over the product coordinate.",
+      "invention": "apollo.RIDLocator"
+    },
+    "ApolloEntity.id": {
+      "mintedBy": "internal/apollo/application/service.go helmChartEntityID",
+      "grammarPublishedAs": "@osdk/client.unstable ApolloEntityId, documented example aeid:mojito:foundry-product:namespace+truck-locator, recorded in docs/evidence/apollo-identifier-grammar.json",
+      "conduitSupplies": "the second segment. Apollo's documented example puts a SPACE there; Conduit has no Space (ADR 0007 group 2) and puts the environment there instead. The four-segment shape and the product type in third position follow Apollo's documented form.",
+      "invention": "apollo.EntityIDSpaceSegment"
+    }
+  }
+}

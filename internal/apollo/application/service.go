@@ -929,6 +929,23 @@ func validRepositoryURL(value string) bool {
 	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "oci://")
 }
 
+// environmentRID builds the Apollo resource identifier for an Environment.
+//
+// The grammar is Apollo's: the pinned OpenAPI publishes
+// ri.apollo.main.environment.123, and ri.autopilot.main.team.123 alongside it
+// shows the service segment naming the owning service. What Apollo does not
+// publish is the locator -- its examples use the placeholder 123 -- so the
+// locator is Conduit's, and the coordinates serving these values disclose that
+// with valueTier: CONDUIT_NATIVE per ADR 0007.
+//
+// A truncated digest rather than a UUID because the identifier has to be stable:
+// the same Environment must produce the same RID across restarts and across
+// replicas, and a UUID would need storing to achieve that. The one Apollo
+// locator whose format is documented -- a Plan's -- is a UUID, so this is a
+// known divergence rather than an unconstrained choice.
+// CONDUIT-INVENTED: apollo.RIDLocator
+// Displaced-by: a published statement of Apollo's RID locator format, for any
+// resource type Conduit holds
 func environmentRID(id string) string {
 	if strings.HasPrefix(id, "ri.apollo.main.environment.") {
 		return id
@@ -936,6 +953,23 @@ func environmentRID(id string) string {
 	return "ri.apollo.main.environment." + stableSuffix(id)
 }
 
+// helmChartEntityID builds the Apollo entity id for an installed Helm chart.
+//
+// The four-segment shape is Apollo's, documented in @osdk/client.unstable as
+// aeid:mojito:foundry-product:namespace+truck-locator and captured in
+// docs/evidence/apollo-identifier-grammar.json. The third segment is a product
+// type, which helm-chart is.
+//
+// The second segment is where this diverges. Apollo's example carries a Space
+// there, and Conduit has no Space -- that is ADR 0007 group 2, the one group
+// that stays refused. An entity id still needs something in the position, and
+// the Environment is the boundary Conduit actually has, so it goes there. The
+// consequence is that a Conduit aeid and an Apollo aeid can collide in form
+// while meaning different things, which is why ApolloEntity.id discloses
+// valueTier: CONDUIT_NATIVE.
+// CONDUIT-INVENTED: apollo.EntityIDSpaceSegment
+// Displaced-by: a capture establishing what belongs in an ApolloEntityId's
+// second segment for a resource Conduit holds, or a Conduit Space
 func helmChartEntityID(environment, entity string) string {
 	if strings.TrimSpace(environment) == "" || strings.TrimSpace(entity) == "" ||
 		strings.Contains(environment, ":") || strings.Contains(entity, ":") {

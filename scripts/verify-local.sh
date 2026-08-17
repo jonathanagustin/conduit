@@ -163,6 +163,7 @@ apollo_contract() {
     node scripts/verify-apollo-identifier-grammar.mjs &&
     node scripts/verify-conduit-inventions.mjs &&
     node scripts/verify-notification-types.mjs &&
+    node scripts/verify-minted-values.mjs &&
     node scripts/verify-documentation-claims.mjs &&
     node scripts/verify-no-tenant-origins.mjs &&
     node scripts/verify-secondary-apollo-evidence.mjs &&
