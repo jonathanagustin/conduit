@@ -61,9 +61,19 @@ words and gained a heading for **Intermittent agents**. The operational half of
 that setting is now implemented (issue #15): an intermittent Environment issues
 Plans, accepts agents, tracks health and promotes, exactly as the page
 publishes. The one published difference — that its expected gaps are not an
-outage — is carried as `Federation.ExpectsContinuousReporting` and consumed by
-the reporting fleet projection under issue #25, because that half is a
-behaviour change to promotion evidence rather than a constant.
+outage — is carried as `Federation.SilenceIsExpected` and consumed by the
+reporting fleet projection on both the console overview and the fleet API.
+The promotion-evidence half is **not** implemented: `ValidateEvidence` rejects
+evidence older than `MaximumEvidenceAgeSeconds` with no connection-setting
+exemption, so an intermittent Environment's "as of last connection" health is
+still refused by any age-bounded policy. That remains open on issue #65, and it
+is a deliberate behavioural choice rather than plumbing -- the operator's stated
+bound must not be exempted outright; what the published rule changes is the
+default reading of silence.
+
+The predicate was named `Federation.ExpectsContinuousReporting` here and in the
+code comments. No such method exists; the real one is the inverted
+`SilenceIsExpected`, and it is used rather than unused.
 
 The other changes are informational: five `apollo-cli` parent pages gained
 subcommand links, `core/whats-new` is a changelog (mined below), and
