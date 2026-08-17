@@ -343,12 +343,22 @@ func (service *GovernanceService) proposePlan(
 	if err != nil {
 		return PlanRecord{}, ChangeRequest{}, err
 	}
+	// The verdict this call computed, read before CreateChangeRequest may hand
+	// back a record stored under an earlier policy. A pln_ id is a digest of the
+	// desired state, so re-proposing state that has already been proposed
+	// collides -- and supersedePendingPlans cancels approved Plans without
+	// touching their Change Requests, so "Plan CANCELLED, Change Request
+	// APPROVED" is a routine state rather than a partial failure. Synchronizing
+	// the stale APPROVED record onto it clears the cancellation and makes the
+	// Plan executable again, which is the same replay ProposeChanges refuses,
+	// aimed at deployments instead of pipelines.
+	verdict := request.Status
 	request, err = service.repository.CreateChangeRequest(ctx, request)
 	if err != nil {
 		return PlanRecord{}, ChangeRequest{}, err
 	}
 	service.auditRequestCreated(ctx, request)
-	record, err = service.syncPlan(ctx, request)
+	record, err = service.syncPlanAs(ctx, request, verdict)
 	return record, request, err
 }
 
@@ -476,33 +486,57 @@ func (service *GovernanceService) evaluatePlan(
 	return request, err
 }
 
+// ProposeChanges also reports whether the policy in force approves the proposal
+// it was just given, which is not answerable from the returned record.
+//
+// Every caller here passes a natural key as TargetID -- a pipeline id, an
+// import record id, a label target -- and a Change Request id is a digest of
+// the target alone, so a second proposal collides with the first and receives
+// that record back. The evaluation this call performed, carrying this author's
+// content and the verdict of the policy in force now, is discarded. An APPROVED
+// record is therefore a pre-approval token that outlives the policy that
+// approved it: a caller applying on the record's status alone performs actions
+// the current policy rejects.
+//
+// The second return is the current verdict, and it is deliberately not "did
+// this call create the record". Creation is the wrong question -- archiving a
+// pipeline, unarchiving it and archiving it again is an ordinary sequence whose
+// second archive collides, and gating on creation would refuse it under a
+// policy that has not changed at all, leaving no route that can perform it.
+//
+// It is not an error to receive the stored record: reading it is the whole
+// point of an idempotent re-proposal. What is refused is acting on a decision
+// nobody is taking now.
 func (service *GovernanceService) ProposeChanges(
 	ctx context.Context, targetKind, targetID, environment string, changes []EntityChange,
 	author Principal, title, description string,
-) (ChangeRequest, error) {
+) (ChangeRequest, bool, error) {
 	if strings.TrimSpace(targetKind) == "" || strings.TrimSpace(targetID) == "" ||
 		strings.TrimSpace(environment) == "" || len(changes) == 0 || strings.TrimSpace(author.Username) == "" {
-		return ChangeRequest{}, ValidationErrors{{Path: "changeRequest", Message: "target, Environment, changes, and author are required"}}
+		return ChangeRequest{}, false, ValidationErrors{{Path: "changeRequest", Message: "target, Environment, changes, and author are required"}}
 	}
 	taxonomyErrors := ValidationErrors{}
 	for index, change := range changes {
 		taxonomyErrors = append(taxonomyErrors, validateChangeType(index, change)...)
 	}
 	if len(taxonomyErrors) > 0 {
-		return ChangeRequest{}, taxonomyErrors
+		return ChangeRequest{}, false, taxonomyErrors
 	}
 	request, err := service.evaluateChangeRequest(ctx, ChangeRequest{
 		TargetKind: targetKind, TargetID: targetID, Environment: environment,
 		Title: title, Description: description, Author: author, Changes: cloneJSON(changes),
 	})
 	if err != nil {
-		return ChangeRequest{}, err
+		return ChangeRequest{}, false, err
 	}
+	// Read before the create call, which may replace the record with a stored
+	// one carrying a different verdict.
+	policyApproves := request.Status == ChangeApproved
 	request, err = service.repository.CreateChangeRequest(ctx, request)
 	if err == nil {
 		service.auditRequestCreated(ctx, request)
 	}
-	return request, err
+	return request, policyApproves, err
 }
 
 func (service *GovernanceService) evaluateChangeRequest(
@@ -896,38 +930,65 @@ func (service *GovernanceService) Cancel(
 	return request, err
 }
 
+// SetLabels reports whether this call is the one that moved the request into
+// APPROVED, which is not the same question as whether it now reads APPROVED.
+//
+// Labelling is the only review route that can be called on an already-approved
+// request and leave it approved: approveOnce refuses any status but
+// PENDING_APPROVALS, and Reject, Cancel and Reopen each leave a status that is
+// not APPROVED. Its caller applies approved changes, so without the
+// distinction, labelling an old approved record performs its action again --
+// under whatever policy is in force now rather than the one that approved it,
+// and with no decision taken by anyone.
+//
+// A genuine PENDING_APPROVALS to APPROVED transition here is a real approval:
+// it is what removing a do-not-merge label means, and it still applies.
 func (service *GovernanceService) SetLabels(
 	ctx context.Context, id string, principal Principal, labels []string,
-) (ChangeRequest, PlanRecord, error) {
+) (ChangeRequest, PlanRecord, bool, error) {
 	request, err := service.repository.GetChangeRequest(ctx, id)
 	if err != nil {
-		return ChangeRequest{}, PlanRecord{}, err
+		return ChangeRequest{}, PlanRecord{}, false, err
 	}
 	if request.Author.Username != principal.Username && !principalCanReview(ctx, service.repository, request.Requirements, principal) {
-		return ChangeRequest{}, PlanRecord{}, ErrForbidden
+		return ChangeRequest{}, PlanRecord{}, false, ErrForbidden
 	}
+	approvedByThisCall := false
 	request, err = service.repository.UpdateChangeRequest(ctx, id, func(request *ChangeRequest) error {
 		if request.Status == ChangeRejected || request.Status == ChangeCancelled || request.Status == ChangeError {
 			return ErrInvalidTransition
 		}
+		// Read from the serialized record rather than from the copy above, so
+		// that the answer describes the write that actually happened.
+		wasApproved := request.Status == ChangeApproved
 		request.Labels = normalizedStrings(labels)
 		if request.RequirementsSatisfied && !hasDoNotMerge(request.Labels) {
 			request.Status = ChangeApproved
 		} else {
 			request.Status = ChangePendingApprovals
 		}
+		approvedByThisCall = !wasApproved && request.Status == ChangeApproved
 		request.UpdatedAt = service.now().UTC()
 		return nil
 	})
 	if err != nil {
-		return ChangeRequest{}, PlanRecord{}, err
+		return ChangeRequest{}, PlanRecord{}, false, err
 	}
 	service.audit(ctx, principal.Username, "CHANGE_REQUEST_LABELS", id, "ALLOW", "labels updated", map[string]any{"labels": labels})
 	plan, err := service.syncPlan(ctx, request)
-	return request, plan, err
+	return request, plan, approvedByThisCall, err
 }
 
 func (service *GovernanceService) syncPlan(ctx context.Context, request ChangeRequest) (PlanRecord, error) {
+	return service.syncPlanAs(ctx, request, request.Status)
+}
+
+// syncPlanAs projects a Change Request onto its Plan under a stated verdict.
+// Every review route passes the record's own status, because there the status
+// is the outcome of the decision that route just took. Proposal is the one
+// caller that must pass something else: the record it holds may have been
+// decided under a policy that is no longer in force.
+func (service *GovernanceService) syncPlanAs(ctx context.Context, request ChangeRequest, verdict string) (PlanRecord, error) {
 	if request.PlanID == "" {
 		return PlanRecord{}, nil
 	}
@@ -940,7 +1001,7 @@ func (service *GovernanceService) syncPlan(ctx context.Context, request ChangeRe
 				plan.Approvals = append(plan.Approvals, Approval{Subject: review.Subject, Rationale: review.Rationale, CreatedAt: review.CreatedAt})
 			}
 		}
-		switch request.Status {
+		switch verdict {
 		case ChangeApproved:
 			if plan.Optimizer != nil && plan.Optimizer.ApprovalRevalidationID == "" {
 				plan.Status = PlanAwaitingApproval
@@ -951,9 +1012,9 @@ func (service *GovernanceService) syncPlan(ctx context.Context, request ChangeRe
 				plan.Cancellation = nil
 			}
 		case ChangePendingApprovals, ChangeRejected, ChangeCancelled, ChangeError:
-			if plan.Status == PlanAwaitingApproval || plan.Status == PlanApproved || (plan.Status == PlanCancelled && request.Status == ChangePendingApprovals) {
+			if plan.Status == PlanAwaitingApproval || plan.Status == PlanApproved || (plan.Status == PlanCancelled && verdict == ChangePendingApprovals) {
 				plan.Status = PlanAwaitingApproval
-				if request.Status == ChangePendingApprovals {
+				if verdict == ChangePendingApprovals {
 					plan.Cancellation = nil
 				}
 			}
