@@ -9,6 +9,8 @@ import (
 	"embed"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
+	"html"
 	"io/fs"
 	"mime"
 	"net/http"
@@ -47,14 +49,12 @@ func Handler(config ...Bootstrap) http.Handler {
 	if err != nil {
 		panic("encode console bootstrap: " + err.Error())
 	}
+	shell, err := hydratedShell(bootstrapJSON)
+	if err != nil {
+		panic("hydrate console shell: " + err.Error())
+	}
 
 	return http.HandlerFunc(func(w http.ResponseWriter, request *http.Request) {
-		if request.URL.Path == "/console/bootstrap.json" {
-			setConsoleHeaders(w, "bootstrap.json", bootstrapJSON)
-			w.Header().Set("Cache-Control", "no-store")
-			http.ServeContent(w, request, "bootstrap.json", time.Time{}, bytes.NewReader(bootstrapJSON))
-			return
-		}
 		name, ok := assetName(request.URL.Path)
 		if !ok {
 			http.NotFound(w, request)
@@ -65,6 +65,9 @@ func Handler(config ...Bootstrap) http.Handler {
 			name = "index.html"
 			contents, err = fs.ReadFile(assets, name)
 		}
+		if err == nil && name == "index.html" {
+			contents = shell
+		}
 		if err != nil {
 			http.NotFound(w, request)
 			return
@@ -73,6 +76,52 @@ func Handler(config ...Bootstrap) http.Handler {
 		setConsoleHeaders(w, name, contents)
 		http.ServeContent(w, request, name, time.Time{}, bytes.NewReader(contents))
 	})
+}
+
+// bootstrapMarker is the placeholder web/index.html carries. It is a comment so
+// that the built bundle is valid HTML on its own and so a document served by
+// anything other than the Hub arrives unhydrated -- which the console treats as
+// a refusal rather than rendering with invented branding.
+const bootstrapMarker = "<!--conduit-console-bootstrap-->"
+
+// hydratedShell renders the tenant bootstrap into the application shell, once,
+// at handler construction.
+//
+// Once, not per request, and that is a decision rather than an optimization.
+// The Hub serves one tenant, chosen from a file at startup by an operator whose
+// change rolls the deployment; nothing about a request selects it. Rendering
+// per request would invite a later change to key it on a header, and the
+// console is mounted with no authentication at all, so that header would be an
+// anonymous client choosing what identity the console asserts. Rendering once
+// also keeps the ETag stable and avoids needing a Vary the handler does not
+// emit.
+//
+// Escaped as an HTML attribute value rather than interpolated. The bootstrap
+// validator rejects "<" and ">" but not the double quote, so a displayName of
+// Alpha "Ops -- legal today -- would otherwise close the attribute early. This
+// is a bug class the previous fetch-a-JSON-document design structurally could
+// not have, and it is bought back here with escaping rather than with hope.
+func hydratedShell(bootstrapJSON []byte) ([]byte, error) {
+	shell, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		return nil, err
+	}
+	return hydrateShellDocument(shell, bootstrapJSON)
+}
+
+// hydrateShellDocument is separated from reading the embedded asset so the
+// refusal can be tested against a document that has no marker, without
+// disturbing the real shell that verify-console-assets.sh pins byte-for-byte.
+func hydrateShellDocument(shell, bootstrapJSON []byte) ([]byte, error) {
+	if !bytes.Contains(shell, []byte(bootstrapMarker)) {
+		// A build that dropped the marker would otherwise serve a shell the
+		// console refuses, which reads as a broken deployment rather than a
+		// broken build. Fail where the cause is.
+		return nil, errors.New("the built console shell carries no " + bootstrapMarker + " marker")
+	}
+	meta := `<meta name="` + BootstrapMetaName + `" content="` +
+		html.EscapeString(string(bootstrapJSON)) + `" />`
+	return bytes.Replace(shell, []byte(bootstrapMarker), []byte(meta), 1), nil
 }
 
 func assetName(requestPath string) (string, bool) {

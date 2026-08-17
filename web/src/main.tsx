@@ -15,7 +15,7 @@ const root = createRoot(container);
 
 async function start(): Promise<void> {
 	try {
-		const bootstrap = await loadRuntimeBootstrap();
+		const bootstrap = loadRuntimeBootstrap();
 		root.render(
 			<StrictMode>
 				<Providers>

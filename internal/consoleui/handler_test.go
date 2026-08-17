@@ -2,6 +2,7 @@ package consoleui
 
 import (
 	"encoding/json"
+	"html"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -17,30 +18,85 @@ func TestHandlerServesValidatedBootstrapWithoutSecurityOverrides(t *testing.T) {
 	bootstrap.Provenance.ClaimClass = "tenant-observation"
 	bootstrap.Provenance.EvidenceRef = "evidence://synthetic/tenant-alpha"
 	handler := Handler(bootstrap)
-	response := request(t, handler, "/console/bootstrap.json")
+	// The bootstrap arrives rendered into the shell, so the assertions are about
+	// the document the console actually receives rather than about a second
+	// request it no longer makes.
+	response := request(t, handler, "/console/")
 	if response.Code != http.StatusOK {
-		t.Fatalf("bootstrap = %d %q", response.Code, response.Body.String())
+		t.Fatalf("shell = %d %q", response.Code, response.Body.String())
 	}
-	if got := response.Header().Get("Cache-Control"); got != "no-store" {
-		t.Fatalf("bootstrap cache control = %q", got)
-	}
-	if got := response.Header().Get("Content-Type"); !strings.HasPrefix(got, "application/json") {
-		t.Fatalf("bootstrap content type = %q", got)
+	if strings.Contains(response.Body.String(), bootstrapMarker) {
+		t.Fatal("the shell was served with its bootstrap marker unrendered")
 	}
 	if !strings.Contains(response.Header().Get("Content-Security-Policy"), "connect-src 'self'") {
-		t.Fatalf("bootstrap CSP = %q", response.Header().Get("Content-Security-Policy"))
+		t.Fatalf("shell CSP = %q", response.Header().Get("Content-Security-Policy"))
 	}
-	var served Bootstrap
-	if err := json.Unmarshal(response.Body.Bytes(), &served); err != nil {
-		t.Fatal(err)
-	}
+	served := servedBootstrap(t, response.Body.String())
 	if served != bootstrap {
 		t.Fatalf("served bootstrap = %#v, want %#v", served, bootstrap)
 	}
+	// The shape stays closed across the change of transport: a field the type
+	// does not declare cannot reach the console, whatever the tenant file says.
+	//
+	// Scoped to the injected document rather than the whole page, which now
+	// carries the shell's own <script> tag. Checking the page would pass for the
+	// wrong reason on some of these names and fail for the wrong reason on
+	// others.
+	injected := servedBootstrapJSON(t, response.Body.String())
 	for _, forbidden := range []string{"capabilities", "apiBaseUrl", "script", "authMode", "csp"} {
-		if strings.Contains(response.Body.String(), forbidden) {
-			t.Fatalf("served bootstrap contains forbidden field %q", forbidden)
+		if strings.Contains(injected, forbidden) {
+			t.Fatalf("injected bootstrap contains forbidden field %q", forbidden)
 		}
+	}
+	// The route the console used to fetch is gone rather than left serving a
+	// second, drifting copy of the same document.
+	if gone := request(t, handler, "/console/bootstrap.json"); gone.Code != http.StatusNotFound {
+		t.Fatalf("the retired bootstrap route answered %d", gone.Code)
+	}
+}
+
+// servedBootstrap recovers the injected document the way a browser does:
+// unescape the attribute, then parse. Doing it by hand rather than with a
+// regexp over the raw HTML is what makes the escaping itself part of the test.
+func servedBootstrapJSON(t *testing.T, document string) string {
+	t.Helper()
+	opening := `<meta name="` + BootstrapMetaName + `" content="`
+	start := strings.Index(document, opening)
+	if start < 0 {
+		t.Fatalf("the shell carries no %s meta", BootstrapMetaName)
+	}
+	rest := document[start+len(opening):]
+	end := strings.Index(rest, `"`)
+	if end < 0 {
+		t.Fatal("the bootstrap meta is unterminated")
+	}
+	return html.UnescapeString(rest[:end])
+}
+
+func servedBootstrap(t *testing.T, document string) Bootstrap {
+	t.Helper()
+	var served Bootstrap
+	if err := json.Unmarshal([]byte(servedBootstrapJSON(t, document)), &served); err != nil {
+		t.Fatalf("the injected bootstrap did not parse: %v", err)
+	}
+	return served
+}
+
+// A tenant name may legally contain a double quote -- the validator bans "<"
+// and ">" and not the quote -- so an unescaped injection would close the
+// attribute early and hand the console a truncated document. This is the bug
+// class the previous fetch-a-JSON-document design could not have, so it is
+// asserted rather than assumed.
+func TestATenantNameContainingAQuoteSurvivesInjection(t *testing.T) {
+	bootstrap := DefaultBootstrap()
+	bootstrap.Tenant.DisplayName = `Alpha "Ops`
+	bootstrap.Brand.Title = `Alpha "Ops`
+	response := request(t, Handler(bootstrap), "/console/")
+	if response.Code != http.StatusOK {
+		t.Fatalf("shell = %d", response.Code)
+	}
+	if served := servedBootstrap(t, response.Body.String()); served != bootstrap {
+		t.Fatalf("a quoted tenant name did not survive injection: %#v", served)
 	}
 }
 
@@ -113,4 +169,27 @@ func request(t *testing.T, handler http.Handler, target string) *httptest.Respon
 	response := httptest.NewRecorder()
 	handler.ServeHTTP(response, request)
 	return response
+}
+
+// A build that dropped the marker would produce a shell the console refuses,
+// and the operator would meet "console configuration is unavailable" with a
+// perfectly healthy Hub. The Handler refuses to construct instead, so the
+// failure appears where its cause is.
+//
+// Asserted against a shell that has no marker rather than by deleting the real
+// one, because the real one is what verify-console-assets.sh pins.
+func TestHydrationRefusesAShellWithNoMarker(t *testing.T) {
+	if _, err := hydrateShellDocument([]byte(`<html><head></head></html>`), []byte(`{}`)); err == nil {
+		t.Fatal("a shell with no bootstrap marker was accepted")
+	}
+	hydrated, err := hydrateShellDocument([]byte("<head>"+bootstrapMarker+"</head>"), []byte(`{"a":1}`))
+	if err != nil {
+		t.Fatalf("a shell carrying the marker was refused: %v", err)
+	}
+	if strings.Contains(string(hydrated), bootstrapMarker) {
+		t.Fatal("the marker survived hydration")
+	}
+	if !strings.Contains(string(hydrated), BootstrapMetaName) {
+		t.Fatalf("hydration produced no bootstrap meta: %s", hydrated)
+	}
 }

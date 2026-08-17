@@ -1,8 +1,8 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it } from "vitest";
 
 import tenantA from "../../../../testdata/console-bootstrap/tenant-a.json";
 import tenantB from "../../../../testdata/console-bootstrap/tenant-b.json";
-import { loadRuntimeBootstrap, parseRuntimeBootstrap } from "../../runtime/bootstrap.js";
+import { BOOTSTRAP_META_NAME, type BootstrapShell, loadRuntimeBootstrap, parseRuntimeBootstrap } from "../../runtime/bootstrap.js";
 
 describe("tenant runtime bootstrap", () => {
   it("accepts two evidence-bound tenants through the same closed shape", () => {
@@ -30,17 +30,46 @@ describe("tenant runtime bootstrap", () => {
     expect(() => parseRuntimeBootstrap(document)).toThrow();
   });
 
-  it("fetches only the fixed same-origin bootstrap route", async () => {
-    const fetcher = vi.fn(async () => new Response(JSON.stringify(tenantA), {
-      status: 200,
-      headers: { "Content-Type": "application/json" },
-    }));
-    await expect(loadRuntimeBootstrap(fetcher)).resolves.toEqual(parseRuntimeBootstrap(tenantA));
-    expect(fetcher).toHaveBeenCalledWith("/console/bootstrap.json", {
-      method: "GET",
-      headers: { Accept: "application/json" },
-      credentials: "same-origin",
-      cache: "no-store",
-    });
+  // The bootstrap arrives in the document the Hub rendered, not from a request
+  // the console makes. These cover the transport; parseRuntimeBootstrap's own
+  // refusals are covered above and are deliberately unchanged by the move.
+  const shellWith = (content: string | null): BootstrapShell => ({
+    querySelector: (selectors: string) =>
+      selectors === `meta[name="${BOOTSTRAP_META_NAME}"]` && content !== null
+        ? { getAttribute: () => content }
+        : null,
+  });
+
+  it("reads the tenant bootstrap the Hub rendered into the shell", () => {
+    expect(loadRuntimeBootstrap(shellWith(JSON.stringify(tenantA))))
+      .toEqual(parseRuntimeBootstrap(tenantA));
+  });
+
+  // A document without the meta was not served by a Hub. Refusing is the whole
+  // point: carrying on would render invented branding on a screen whose claim
+  // is that its branding is evidence-bound.
+  it.each([
+    ["no meta at all", null],
+    ["an empty meta", ""],
+    ["a meta that is not JSON", "not json"],
+  ])("refuses %s", (_name, content) => {
+    expect(() => loadRuntimeBootstrap(shellWith(content))).toThrow();
+  });
+
+  // The closed surface has to survive the change of transport. This is the
+  // property that makes tenant data unable to grant a capability, and reading
+  // from a meta makes "ignore the extra" the easy mistake.
+  it("still refuses a document carrying an unknown field", () => {
+    const withCapability = JSON.stringify({ ...tenantA, capabilities: ["admin"] });
+    expect(() => loadRuntimeBootstrap(shellWith(withCapability))).toThrow();
+  });
+
+  // Escaping is the Hub's job, and a quote in a tenant name is legal today --
+  // the validator bans < and > but not ". If the attribute round-trips wrong
+  // the console must fail rather than render a half-parsed document.
+  it("round-trips a tenant name containing a double quote", () => {
+    const quoted = { ...tenantA, tenant: { ...tenantA.tenant, displayName: 'Alpha "Ops' } };
+    expect(loadRuntimeBootstrap(shellWith(JSON.stringify(quoted))).tenant.displayName)
+      .toBe('Alpha "Ops');
   });
 });
