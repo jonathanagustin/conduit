@@ -57,6 +57,7 @@ const (
 	PromotionBlockerEvidenceHealthUnknown       = catalog.PromotionBlockerEvidenceHealthUnknown
 
 	PromotionBlockerEnvironmentCannotVouch = catalog.PromotionBlockerEnvironmentCannotVouch
+	PromotionBlockerEvidenceBoundConflict  = catalog.PromotionBlockerEvidenceBoundConflict
 
 	PromotionBlockerEvaluationWindowInvalid = catalog.PromotionBlockerEvaluationWindowInvalid
 	PromotionBlockerEvaluationTimedOut      = catalog.PromotionBlockerEvaluationTimedOut

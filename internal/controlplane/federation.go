@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"time"
 
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
@@ -140,6 +142,55 @@ func nonParticipatingEvidenceEnvironments(
 				Subjects: []string{entry.Environment},
 			})
 		}
+	}
+	return blockers, nil
+}
+
+// intermittentEvidenceBoundConflicts names the case where two operator
+// statements disagree, rather than letting one of them read as a fault.
+//
+// An Environment declared INTERMITTENT_AGENTS reports when it next connects, so
+// its health is honestly "as of last connection". An evidence-age bound shorter
+// than that cadence can never be satisfied, and the promotion is refused -- but
+// the refusal it produced said "stale health evidence", which is what an outage
+// looks like, and sent operators to look at an Environment that is behaving
+// exactly as configured.
+//
+// It does not exempt the bound, and must not: MaximumEvidenceAgeSeconds is
+// something the operator stated deliberately, and quietly waiving it for some
+// Environments would let a canary pass on health nobody measured recently.
+// EVIDENCE_STALE is still derived and still blocks. This only adds the sentence
+// that says which two settings are fighting.
+//
+// Additive by construction, which is what makes it replay-safe. The promotion
+// replay validator has no repository, so it can never re-derive an
+// Environment-dependent blocker; it takes those on trust precisely because they
+// only ever make a promotion fail to pass. A blocker that relaxed anything
+// could not be trusted the same way.
+func intermittentEvidenceBoundConflicts(
+	ctx context.Context, repository Repository,
+	evidence []PromotionHealthEvidence, policy PromotionPolicy, now time.Time,
+) ([]PromotionBlocker, error) {
+	reported := map[string]bool{}
+	blockers := make([]PromotionBlocker, 0)
+	for _, entry := range evidence {
+		if reported[entry.Environment] || !catalog.EvidenceExceedsAgeBound(entry, policy, now) {
+			continue
+		}
+		federation, err := environmentFederation(ctx, repository, entry.Environment)
+		if err != nil {
+			return nil, err
+		}
+		if !federation.SilenceIsExpected() {
+			continue
+		}
+		reported[entry.Environment] = true
+		blockers = append(blockers, PromotionBlocker{
+			Kind: PromotionBlockerEvidenceBoundConflict,
+			Message: "environment " + entry.Environment + " reports intermittently with connection setting " +
+				federation.ConnectionSetting + ", so its health cannot satisfy this policy's evidence age bound",
+			Subjects: []string{entry.Environment},
+		})
 	}
 	return blockers, nil
 }

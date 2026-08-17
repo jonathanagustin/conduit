@@ -142,6 +142,15 @@ const (
 	PromotionBlockerEvidenceHealthUnknown       = "EVIDENCE_HEALTH_UNKNOWN"
 
 	PromotionBlockerEnvironmentCannotVouch = "ENVIRONMENT_CANNOT_VOUCH"
+	// PromotionBlockerEvidenceBoundConflict names the case where an operator's
+	// two statements disagree: an Environment declared to report intermittently
+	// cannot satisfy an evidence-age bound shorter than its connection cadence.
+	// It accompanies EVIDENCE_STALE rather than replacing it -- the promotion is
+	// blocked either way, and the generic blocker still has to derive for the
+	// record to reproduce -- so what this adds is a true sentence about which
+	// two settings are in conflict, in place of a staleness report that reads
+	// like an outage.
+	PromotionBlockerEvidenceBoundConflict = "ENVIRONMENT_EVIDENCE_BOUND_CONFLICT"
 
 	PromotionBlockerEvaluationWindowInvalid = "EVALUATION_WINDOW_INVALID"
 	PromotionBlockerEvaluationTimedOut      = "EVALUATION_TIMED_OUT"
