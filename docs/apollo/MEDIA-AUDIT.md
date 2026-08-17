@@ -10,6 +10,11 @@ YouTube, Vimeo, Wistia, MP4, WebM, MOV, and HLS references. It found one video:
 | --- | --- | --- |
 | [Welcome to Apollo](https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-welcome/) | [Palantir Apollo 2023 — Mission Control for Software Deployment](https://www.youtube.com/watch?v=XmLVuZKd2L0) | Rendered page embed; not present in the page's source Markdown |
 
+A second video, **Palantir Apollo Demo Day** (`3kSGlg8d5mI`), was supplied
+directly by the operator on 2026-08-17 and is **not** referenced from any page
+in the manifest, so no crawl would have found it. It is audited in its own
+section below.
+
 The inventory is reproducible with:
 
 ```text
@@ -164,3 +169,235 @@ something to settle from a marketing video.
 
 The local source, frames, audio, and transcript remain uncommitted audit
 artifacts; the digests above identify what was read.
+
+---
+
+# Palantir Apollo Demo Day (`3kSGlg8d5mI`)
+
+## Provenance
+
+Supplied by the operator on 2026-08-17 as a two-volume split archive. Neither
+volume is a zip Conduit produced, so both digests are recorded:
+
+| Volume | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `apollodemo.zip.001` | 29,360,128 | `644a92dbb134e81772df0dbf28f931b50fa395a6307df53f6bd0fc6579c823ff` |
+| `apollodemo.zip.002` | 28,565,354 | `d52d6a2be57f5929cd0cba36d0f6667289713193d2cc82b73002630d75d2a60c` |
+
+Concatenated, they yield one **stored** (uncompressed) entry,
+`Palantir Apollo Demo Day [3kSGlg8d5mI] (compressed).mp4`, 57,925,238 bytes,
+**CRC-32 `0x93838c22` verified against the archive's own header** — so the file
+below is the complete original, not a salvaged prefix.
+
+It is **17:40.94 of 1920×1080 AV1 with stereo Opus**, copyright 2022. It is not
+referenced from any page in
+[`public-documentation-manifest.tsv`](public-documentation-manifest.tsv), so the
+media crawl could not have found it.
+
+Reviewed as 10-second contact sheets across the full runtime, selected frames at
+native resolution, and a local `faster-whisper` (`base.en`) transcript of the
+whole audio track. Video, audio, frames, and transcript remain uncommitted audit
+artifacts.
+
+Three chapters:
+
+| Chapter | Title | Speaker |
+| --- | --- | --- |
+| CH.1 | Why We Built Apollo | S. Sankar, COO |
+| CH.2 | The Core Principles That Unlock Autonomous Software Deployment | G. DeArment, Chief Architect and Head of Apollo Platform |
+| CH.3 | Apollo in Action: Software Demo | S. Hacker, Forward Deployed Engineer |
+
+Chapters 1 and 2 are interviews with diagram inserts. **Chapter 3 is a narrated
+walkthrough of a live Hub UI** in a light theme not seen in any other capture,
+and is where most of what follows comes from.
+
+## Chapter 2 — architectural claims on the record
+
+Attributed spoken claims from a published corporate video: **Corroborating**
+under [`../../operations/TENANT-FIDELITY.md`](../../operations/TENANT-FIDELITY.md).
+Their value is explaining the *semantics* of fields recovered elsewhere as bare
+values.
+
+### Schema migration is a compile-time declaration in three parts (≈03:26)
+
+> "at compile time, storage systems are able to declare the set of schemas that
+> they are able to read from and write to, specific migration steps they
+> support, and a way for the current version of their schemas to be reported at
+> runtime […] This makes it possible for Apollo to safely upgrade storage
+> services through schema migrations and rollback when necessary with safety
+> rails that prevent data corruption."
+
+Names the three components of a surface Conduit does **not** model. The 2023
+video's Release view carries `SUPPORTED SCHEMA MIGRATIONS: Unspecified`; until
+now that was a label with no stated meaning. It also sharpens the 2022
+orchestration article's "validate schema-read compatibility before rollback":
+the rollback safety rail is a declared readable-schema set checked against a
+runtime-reported current version, not a general heuristic. Neither
+`reference/product-definition.md` nor the pinned OpenAPI snapshot carries any of
+the three.
+
+### Quorum is a developer-declared availability property (≈05:12)
+
+> "maybe I need a local persistent volume, or I need three replicas of my
+> service and quorum for my service is having any replica be available."
+
+Conduit already models this — `Quorum` is in the pinned public OpenAPI with
+members `UNKNOWN`, `ANY`, `ALL`, `ALL_BUT_ONE`, `SIMPLE_MAJORITY`,
+`NO_GUARANTEE`, and `AggregateHealth` folds entity health through it. The
+transcript adds *why*: quorum is declared by the developer alongside replica
+count and volumes and states which replicas must be available for the service to
+count as available. **Corroboration, no divergence.**
+
+### The SDK's declared properties (≈05:04–05:52)
+
+Local persistent volume, replica count, quorum, a generated certificate with
+public and private keys for TLS, and a produced API endpoint exposed over reverse
+proxy at a path — obtained "without needing to understand" the Kubernetes
+objects behind them and "without making a single line of code change".
+
+### The software catalog's contents (≈06:44–07:11)
+
+> "Apollo starts by modeling software you want to run across your environments
+> and enterprise into a single software catalog […] From what is declared by the
+> developers — things like cross-service dependencies, supported schema
+> versions, resource requests and so forth — to information that is augmented by
+> external systems like virus scanners […]"
+
+The declared/augmented split is the seam Conduit implements for scanner
+evidence. A catalog entry animation (≈06:56) shows a detail pane with exactly
+three groups — **API Dependencies**, **Upgrade Strategy**, **Promotion
+Criteria** — with values rendered as blank rules. The structural point stands:
+**Upgrade Strategy is a declared attribute of a catalog entry**, not a Plan-time
+choice, corroborating the correction landed in #116.
+
+## Chapter 3 — the software demo
+
+### Monitors, and the automatic recall they drive
+
+This is the load-bearing find, and Conduit has no counterpart for it.
+
+> "Monitors allow me to encode service level objectives from my product into
+> health checks that Apollo can action […] it looks like one of the **critical**
+> monitors that I encoded within my product has failed. A critical monitor
+> firing is typically a sign that something has gone seriously wrong with my
+> release and the release is not stable enough to be rolled out across the
+> fleet." (≈11:48)
+
+> "Apollo has automatically recalled my release, not only ensuring that
+> Timekeeper 1.23.0 won't be installed on any new environments, but also kicking
+> off an automated downgrade for those canary environments that had already
+> upgraded." (≈12:37)
+
+The Release page renders the outcome verbatim:
+
+> **This release has been recalled due to the Deletion Failures monitor**
+> Due to a firing Deletion Failures monitor the release has been automatically
+> recalled according to monitor SLOs.
+> **Strategy: Roll-off to any version newer than 1.23.0.**
+
+with an `Unrecall` action beside it. So a Monitor is a **product-declared,
+named, severity-carrying SLO** that Apollo evaluates and *acts on*, and the
+recall it produces carries a **stated roll-off strategy expressed as a version
+predicate**.
+
+Conduit has none of this. `monitor` appears in the codebase only as the
+permission strings `entity:mute-monitors` and `environment:mute-monitors` in the
+generated role table, and as `agent.HealthMonitor`, an internal prober. There is
+no declared monitor, no monitor severity, and no monitor-triggered recall.
+Conduit derives recalls from vulnerability evidence and from canary conditions,
+which covers part of the same ground by a different route.
+
+### Adjudication status — a vocabulary with no Conduit counterpart
+
+The Environments panel has `Colour by: Adjudication status` and
+`Group by: Version on current`, with a four-member legend:
+
+**Successful** · **Rolling off** · **Upgrading** · **Pending**
+
+`adjudicat` returns nothing in Conduit's Go source. The word is already known
+from two other captures — the 2020 Events `Category` facet includes
+`Adjudication`, and the 2023 constraint UI uses it — so this is the third
+independent sighting of an Apollo concept Conduit does not name.
+
+The Environment table beneath it reads
+`Environment name | Version | Upgrade status | Channel | Health | Rollout |
+Config`, with `Upgrade status: Rolling off` — so upgrade status and rollout are
+**separate columns**, not one axis.
+
+### Release channels here are four, and named differently again
+
+`Develop → Release candidate → Release → Stable`, under the caption "Release
+will be adjudicated through this set of release channels", with an
+`Add to Stable` action. The 2023 video showed `DEV → STAGING → PRODUCTION`.
+Both are tenant configuration rather than a fixed vocabulary, which is worth
+recording precisely because two captures disagree.
+
+Narration confirms the automatic promotion rule: a release is adjudicated
+against **declared Canary environments** and "set to automatically mark itself as
+stable once that rollout is complete and all installations remain healthy
+throughout the **declared soak period**" (≈11:09). That matches Conduit's canary
+and soak contracts.
+
+### The Activity feed is a domain-event vocabulary
+
+Verbatim entries, newest first:
+
+- Rolling installations off release
+- Automatically recalled due to monitor
+- Monitor fired
+- Adjudicating release on 3 environments
+- Release added to Release channel
+- Release registered with the catalog
+- Team on call has been updated
+
+This bears on notifications: it is a second, independent event vocabulary
+alongside the notification event types captured in
+[`../evidence/apollo-notification-types.json`](../evidence/apollo-notification-types.json),
+and the two do not overlap. Activity is per-resource history; notification types
+are what a subscriber opts into. Nothing captured says whether one is derived
+from the other, and they are **not** merged.
+
+### Libraries — a per-Release software bill of materials
+
+A `Libraries` tab on both Release and Product, with columns
+`Library | License | Version dependency | Direct dependency | Verified` and a
+`View source` link per row. Facets: `Type` (Open Source 55, Internal 28) and
+`License` (Apache-2.0 23, GNU GPL 22, Internal 15, MIT 5, BSD 5).
+
+> "Apollo provides me with an easy to use software bill of materials for my
+> release […] I'm able to quickly filter down and understand which versions of
+> Log 4J my release is leveraging." (≈15:42)
+
+Conduit publishes Syft/SPDX SBOMs for its own release images in CI. That is a
+different thing from an Apollo-side per-Release library inventory carrying
+license, direct-versus-transitive, and a verified flag. Not modelled.
+
+### Release page tabs
+
+`Overview | Environments | Libraries | Monitors (n) | Security | Activity`, on
+both a Release (`time-keeper 1.23.0`) and a Product (`time-keeper 1.23.1`), with
+an on-call team (`team-transactional-storage`) in the header.
+
+### Continuous rescanning drives recall too
+
+> "Apollo will continue scanning my release as time goes on, ensuring that we
+> catch any new vulnerabilities that are discovered in the future and can
+> automatically recall this release **or notify me** that a vulnerability needs
+> my attention." (≈16:28)
+
+Conduit implements vulnerability-derived recalls. The "or notify me" branch is
+the notification path, and is consistent with the two vulnerability notification
+types captured on the Product settings page.
+
+## Disposition
+
+**Corroborating where Conduit already builds; four gaps opened where it does
+not.** Nothing here exposes a private Hub↔Agent wire format. Quorum, canary
+adjudication, soak, declared upgrade strategy, vulnerability-driven recall, and
+the declared/augmented catalog split all align with shipped contracts.
+
+The gaps are Monitors as a declared actionable SLO with severity and a
+roll-off strategy; the adjudication status vocabulary; the per-Release Libraries
+inventory; and the three-part schema-migration declaration. Each is tracked
+separately. **None of it is implemented from this video** — it is one 2022
+corporate film, and a narrated demo is not a contract.
