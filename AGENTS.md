@@ -17,8 +17,14 @@ manual-only; a merge never authorizes release or deployment.
 For Apollo-facing work, read
 `docs/operations/TENANT-FIDELITY.md` before implementation. Classify claims as a
 public contract, authorized sanitized tenant observation, corroborating
-evidence, Conduit extension, or unknown. Unknown means do not invent: keep the
-gap explicit or use a clearly Conduit-native contract. When OpenAPI or Conjure
+evidence, Conduit extension, or unknown. Unknown means invent, disclose, and
+register: build the nearest honest thing, mark the value `CONDUIT_NATIVE` where
+the surface can carry a tier, and record it in
+`docs/evidence/conduit-inventions.json` with the evidence that would displace it
+([ADR 0007](docs/decisions/0007-registered-invention-over-refusal.md)). Exhaust
+the sources already in this repository first -- the documentation manifest and
+the images referenced from it included; a guess made without reading them is not
+an educated guess. When OpenAPI or Conjure
 exists, generate the transport interfaces and keep domain behavior behind the
 bounded adapter.
 
