@@ -106,7 +106,7 @@ type ApolloPlanPage {
 type ApolloProduct {
   productId: String @provenance(tier: OBSERVED)
   productReleases(pageSize: Int!): ApolloProductReleasePage @provenance(tier: OBSERVED)
-  rid: String @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   spaceId: String @provenance(tier: OBSERVED)
 }
 
@@ -124,7 +124,7 @@ type ApolloProductRelease {
   manifest: ApolloProductReleaseManifest @provenance(tier: OBSERVED)
   mavenCoordinate: String @provenance(tier: OBSERVED)
   product: ApolloProduct @provenance(tier: OBSERVED)
-  rid: String @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   spaceId: String @provenance(tier: OBSERVED)
 }
 

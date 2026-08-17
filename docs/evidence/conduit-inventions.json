@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "apollographql.ConduitNamespacedRID",
+      "what": "Apollo-shaped resource identifiers for resources Apollo has published no type token for, minted under ri.conduit.main.<type>.<locator> rather than ri.apollo.",
+      "why": "The grammar ri.<service>.main.<type>.<locator> is published, and the service segment names the service that owns the resource -- which is why Autopilot's teams are ri.autopilot and not ri.apollo. A Product that exists only in Conduit is owned by Conduit. Guessing a token inside ri.apollo instead would risk a silent collision: if Apollo's real token for something else matches the guess, two different objects share one identifier and nothing raises a hand. A Conduit-namespaced identifier can only be wrong in the direction of being obviously ours. ADR 0007 left this choice open and this is the answer.",
+      "displacedBy": "A published statement giving Apollo's own type tokens for Product, Product Release or Bundle resource identifiers.",
+      "riskIfWrong": "Low. The identifiers are opaque, self-consistent and unmistakably Conduit's, and every coordinate serving one discloses valueTier: CONDUIT_NATIVE. If Apollo's real tokens arrive, the values change but nothing was ever claimed to match them."
+    },
+    {
       "id": "apollo.RIDLocator",
       "what": "The locator segment of every Apollo resource identifier Conduit mints: the first 12 bytes of a SHA-256 over a stable input, hex encoded.",
       "why": "The grammar around it is published, not invented -- the pinned OpenAPI carries ri.apollo.main.environment.123, ri.apollo.main.installation.123 and ri.apollo.main.package.123, and ri.autopilot.main.team.123 shows the service segment naming the owning service. Only the locator is open, because Apollo's examples use the placeholder 123. A digest rather than a UUID because the value has to be stable across restarts and replicas without being stored; the one Apollo locator whose format is documented, a Plan's, is a UUID, so this is a known divergence rather than an unconstrained choice.",

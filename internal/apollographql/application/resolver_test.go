@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -26,6 +27,10 @@ type fakeApollo struct {
 	// any error, so a test double that could only be "not found" could not
 	// exercise the distinction the port draws.
 	environmentFailure error
+	// catalogueReads counts ListProducts calls, so a test can assert that a
+	// lookup refused an identifier outright rather than walking the catalogue to
+	// reach the same answer. The two are indistinguishable from the response.
+	catalogueReads int
 }
 
 func (fake *fakeApollo) ListEnvironments() apollo.ListEnvironmentsResponse {
@@ -54,6 +59,7 @@ func (fake *fakeApollo) ListInstallations(environmentRID string) apollo.ListInst
 }
 
 func (fake *fakeApollo) ListProducts() apollo.ListProductsResponse {
+	fake.catalogueReads++
 	return apollo.ListProductsResponse{Products: &fake.products}
 }
 
@@ -193,9 +199,9 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 			unserved++
 		}
 	}
-	if unserved != 12 {
+	if unserved != 9 {
 		t.Errorf(
-			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 12. "+
+			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 9. "+
 				"If this moved on purpose, update the count and docs/apollo/reference/graphql-api.md",
 			unserved,
 		)
@@ -231,6 +237,17 @@ func TestEveryCoveredCoordinateResolves(t *testing.T) {
 		"ApolloPromotionPage":          page{records: []any{reporting.PromotionSummary{ID: "promo-1"}}},
 	}
 	arguments := map[string]any{"rid": "ri.apollo.main.environment.a", "pageSize": 10}
+	// One rid does not fit every entry point. The Conduit-namespaced identifiers
+	// exist precisely so they cannot be mistaken for Apollo's, so a lookup keyed
+	// on one has to be given its own -- and being handed an Apollo rid is a case
+	// that must return no record rather than scanning for something that could
+	// not be there.
+	perCoordinate := map[domain.Coordinate]map[string]any{
+		at("ApolloQuery", "productRelease"): {
+			"rid":      productReleaseRID("com.example:checkout:1.4.2"),
+			"pageSize": 10,
+		},
+	}
 
 	provenance, err := domain.ReadProvenance(schema.SDL())
 	if err != nil {
@@ -245,7 +262,11 @@ func TestEveryCoveredCoordinateResolves(t *testing.T) {
 			t.Errorf("%s is covered but this test has no source for %s", coordinate, coordinate.Type)
 			continue
 		}
-		if _, err := resolver.resolve(t.Context(), coordinate, source, arguments); err != nil {
+		selected := arguments
+		if override, special := perCoordinate[coordinate]; special {
+			selected = override
+		}
+		if _, err := resolver.resolve(t.Context(), coordinate, source, selected); err != nil {
 			t.Errorf("%s is covered but did not resolve: %v", coordinate, err)
 		}
 	}
@@ -881,5 +902,123 @@ func TestAQueryTouchingNoMintedValueDisclosesNone(t *testing.T) {
 	provenance := response.Extensions["provenance"].(map[string]any)
 	if minted := provenance["conduitMintedValues"].([]string); len(minted) != 0 {
 		t.Fatalf("a query selecting no minted value disclosed one: %v", minted)
+	}
+}
+
+// --- Conduit-namespaced resource identifiers --------------------------------
+
+// The grammar is Apollo's and the namespace is not, which is the whole design.
+// A value that leaked into a log or a bug report has to be recognisable as ours
+// without anyone holding the schema, and it must never be mistakable for an
+// identifier that names something on a real Hub.
+func TestMintedIdentifiersFollowTheGrammarInConduitsOwnNamespace(t *testing.T) {
+	t.Parallel()
+	for name, minted := range map[string]string{
+		"product": productRID("checkout"),
+		"release": productReleaseRID("com.example:checkout:1.4.2"),
+	} {
+		if !strings.HasPrefix(minted, "ri.conduit.main.") {
+			t.Errorf("%s identifier %q is not in Conduit's namespace", name, minted)
+		}
+		if strings.HasPrefix(minted, "ri.apollo.") {
+			t.Errorf("%s identifier %q claims Apollo's namespace", name, minted)
+		}
+		// ri.<service>.<instance>.<type>.<locator>, which is the published shape.
+		if segments := strings.Split(minted, "."); len(segments) != 5 {
+			t.Errorf("%s identifier %q has %d segments, want the published five", name, minted, len(segments))
+		}
+	}
+}
+
+// Stable across calls, because the identifier is derived rather than stored: if
+// it moved between requests a client could not hold one, and the release lookup
+// -- which re-mints every candidate to compare -- would never match.
+func TestMintedIdentifiersAreStableAndDistinct(t *testing.T) {
+	t.Parallel()
+	// Through variables rather than inline, because staticcheck reads two
+	// identical call expressions as a mistake (SA4000) -- reasonably, since it
+	// cannot know the point is that the function is deterministic.
+	first, second := productRID("checkout"), productRID("checkout")
+	if first != second {
+		t.Errorf("the same Product minted two different identifiers: %q and %q", first, second)
+	}
+	if productRID("checkout") == productRID("billing") {
+		t.Error("two Products minted the same identifier")
+	}
+	// A Product and a Release of it must differ, or a lookup keyed on one would
+	// answer for the other.
+	if productRID("checkout") == productReleaseRID("checkout") {
+		t.Error("a Product and a Release with the same key minted the same identifier")
+	}
+	if productReleaseRID("com.example:checkout:1.4.2") == productReleaseRID("com.example:checkout:1.4.3") {
+		t.Error("two versions of one Product minted the same identifier")
+	}
+}
+
+func TestAProductAndItsReleaseServeTheirMintedIdentifiers(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { products(pageSize: 10) { products { rid productId productReleases(pageSize: 10) { productReleases { rid mavenCoordinate } } } } } }`,
+	})
+	if len(response.Errors) > 0 {
+		t.Fatalf("query failed: %v", response.Errors)
+	}
+	products := response.Data["apollo"].(map[string]any)["products"].(map[string]any)["products"].([]any)
+	product := products[0].(map[string]any)
+	if product["rid"] != productRID("checkout") {
+		t.Errorf("Product rid is %v, want the minted %v", product["rid"], productRID("checkout"))
+	}
+	releases := product["productReleases"].(map[string]any)["productReleases"].([]any)
+	release := releases[0].(map[string]any)
+	if release["rid"] != productReleaseRID("com.example:checkout:1.4.2") {
+		t.Errorf("Release rid is %v, want the minted one", release["rid"])
+	}
+	// The disclosure is the point. Serving these without it is the state this
+	// change exists to end.
+	minted := response.Extensions["provenance"].(map[string]any)["conduitMintedValues"].([]string)
+	for _, required := range []string{"ApolloProduct.rid", "ApolloProductRelease.rid"} {
+		if !slices.Contains(minted, required) {
+			t.Errorf("%s served a Conduit-built value without disclosing it: %v", required, minted)
+		}
+	}
+}
+
+func TestAReleaseIsReachableByItsMintedIdentifier(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	rid := productReleaseRID("com.example:checkout:1.4.2")
+	response := resolver.Execute(t.Context(), Request{
+		Query:     `query Release($rid: RID!) { apollo { productRelease(rid: $rid) { mavenCoordinate } } }`,
+		Variables: map[string]any{"rid": rid},
+	})
+	if len(response.Errors) > 0 {
+		t.Fatalf("query failed: %v", response.Errors)
+	}
+	release := response.Data["apollo"].(map[string]any)["productRelease"].(map[string]any)
+	if release["mavenCoordinate"] != "com.example:checkout:1.4.2" {
+		t.Errorf("the minted identifier resolved to %v", release["mavenCoordinate"])
+	}
+}
+
+// An Apollo-shaped identifier is refused rather than searched for. Scanning
+// would spend the catalogue to reach the same answer, and would then report "no
+// such release" about an identifier that may well name a real one on a real Hub
+// -- an absence Conduit is in no position to assert.
+func TestAnApolloShapedIdentifierIsNotSearchedForAmongConduitsReleases(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { productRelease(rid: "ri.apollo.main.product-release.123") { mavenCoordinate } } }`,
+	})
+	if len(response.Errors) > 0 {
+		t.Fatalf("query failed: %v", response.Errors)
+	}
+	if release := response.Data["apollo"].(map[string]any)["productRelease"]; release != nil {
+		t.Errorf("an Apollo identifier resolved against Conduit's catalogue: %v", release)
+	}
+	// The null alone proves nothing -- a full scan that found nothing returns the
+	// same null. What is being pinned is that the catalogue was never read, which
+	// is the only observable difference between refusing an identifier that
+	// cannot match and searching for it anyway.
+	if apolloSource.catalogueReads != 0 {
+		t.Errorf("the catalogue was read %d time(s) for an identifier Conduit never minted", apolloSource.catalogueReads)
 	}
 }
