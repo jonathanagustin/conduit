@@ -16,7 +16,7 @@ do not become grants without an explicit native mapping.
   audit events.
 - External identity and credentials remain outside policy persistence.
 
-[`internal/governance/authorization.go`](../../../internal/governance/authorization.go)
+[`internal/governance/domain/authorization.go`](../../../internal/governance/domain/authorization.go)
 contains the extracted authorization vocabulary and fail-closed Apollo role
 aliases. The policy evaluator, Change Request lifecycle, repositories, and HTTP
 composition still reside in
@@ -30,7 +30,7 @@ An unmapped role grants nothing.
 ## Verification
 
 ```bash
-go test ./internal/governance
+go test ./internal/governance/...
 go test ./internal/controlplane -run 'TestGovernance|TestCEL|TestRoleAuthorization|TestAuthorizationAudit'
 ```
 
