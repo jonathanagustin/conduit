@@ -191,14 +191,17 @@ Recorded, not resolved by naming one side correct:
   Registered likewise.
 - **Environment- and Release-Channel-scoped type lists.** Only a Product's was
   published.
-- **Webhooks**, a separate Hub Settings section. What is now established is that
-  the capability exists and is identifiable: Foundry's graphql-gateway declares
+- **Webhooks**, a separate Hub Settings section, still unknown — with one lead
+  that does not close it. Foundry's graphql-gateway declares
   `ApolloInboundMessageListenerHttpsTargetHandler` as one of thirty-two
   known-system inbound webhook handlers, beside GitHub, Stripe, Slack and
-  PagerDuty, so Apollo emits outbound HTTPS webhooks a receiver can recognise as
-  Apollo's. See
+  PagerDuty. If that names *this* Apollo it would establish that Apollo emits
+  outbound HTTPS webhooks a receiver can recognise as its own.
+
+  **Which Apollo it names is not established.** Apollo GraphQL is an unrelated
+  product whose hosted service also emits webhooks, the handler resolves to no
+  recovered fields, and every other member of that union is a third-party SaaS.
+  The surrounding schema favours Palantir Apollo — its other Apollo types are
+  unambiguously ours, and neither schema contains any Apollo GraphQL vocabulary
+  across 5,283 types — but favours is not establishes. See
   [`../../evidence/foundry-graphql-apollo-surface.json`](../../evidence/foundry-graphql-apollo-surface.json).
-  What is **not** established is the payload, the signing scheme, or whether the
-  traffic carries notification events at all — the handler type resolves to no
-  recovered fields. It is deliberately not merged with the notification event
-  types above.
