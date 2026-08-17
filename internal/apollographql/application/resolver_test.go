@@ -829,3 +829,57 @@ func TestACoordinateThatFailedToResolveIsNotCountedAmongThoseAnswered(t *testing
 		}
 	}
 }
+
+// The disclosure that was missing, and the reason ADR 0007 needed a mechanism
+// rather than a note in a document.
+//
+// ApolloEnvironment.rid is a recovered coordinate answered from a value Conduit
+// computes: the grammar ri.apollo.main.environment.<locator> is published, the
+// locator is a truncated digest Conduit chose. Before this, the response said
+// OBSERVED and the note said OBSERVED coordinates "were recovered from an
+// authorized Apollo Hub", so a client had no way to learn the string had never
+// been near one. That is not a documentation problem -- the client never reads
+// our documentation.
+func TestARecoveredCoordinateAnsweredFromAConduitBuiltValueSaysSo(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name rid } } }`,
+	})
+	provenance := response.Extensions["provenance"].(map[string]any)
+	minted := provenance["conduitMintedValues"].([]string)
+	if len(minted) != 1 || minted[0] != "ApolloEnvironment.rid" {
+		t.Fatalf("the minted-value disclosure is wrong: %v", minted)
+	}
+	// It stays counted as observed. The coordinate really was recovered, and
+	// moving it out would understate the recovery to fix an overstatement about
+	// the value -- two errors rather than none.
+	if provenance["observedServed"].(int) != 4 {
+		t.Fatalf("disclosing a minted value changed the observed count: %v", provenance["observedServed"])
+	}
+	// And it is not laundered into either lower tier, which would say Apollo
+	// makes no claim about the coordinate. Apollo declares it; only the value is
+	// ours.
+	if native := provenance["conduitNativeServed"].([]string); len(native) != 0 {
+		t.Fatalf("a recovered coordinate was disclosed as Conduit's invention: %v", native)
+	}
+	note := provenance["note"].(string)
+	for _, required := range []string{"conduitMintedValues", "subset of observedServed", "round-trip"} {
+		if !strings.Contains(note, required) {
+			t.Errorf("the note no longer explains %q, so the list has no stated meaning", required)
+		}
+	}
+}
+
+// The other half: a query that touches no minted value must say so. A
+// disclosure that always fires tells a client nothing, and this one names
+// exactly the fields whose values cannot be used against a real Apollo API.
+func TestAQueryTouchingNoMintedValueDisclosesNone(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name } } }`,
+	})
+	provenance := response.Extensions["provenance"].(map[string]any)
+	if minted := provenance["conduitMintedValues"].([]string); len(minted) != 0 {
+		t.Fatalf("a query selecting no minted value disclosed one: %v", minted)
+	}
+}
