@@ -187,7 +187,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				"environment": governance.referencedResource(request.Context(), environmentRID(environment), environment, principal),
 			},
 		}
-		changeRequest, err := governance.ProposeChanges(
+		changeRequest, policyApproves, err := governance.ProposeChanges(
 			request.Context(), EnvironmentProfileChangeTarget,
 			proposalID, environment, []EntityChange{change}, principal,
 			"Update Environment profile for "+environment, prepared.Rationale,
@@ -197,7 +197,8 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			return
 		}
 		result := map[string]any{"changeRequest": changeRequest}
-		if changeRequest.Status == ChangeApproved {
+		// The record may predate the policy in force; see ProposeChanges.
+		if policyApproves && changeRequest.Status == ChangeApproved {
 			stored, executedRequest, applyErr := profiles.ApplyApprovedChangeRequest(request.Context(), changeRequest)
 			if applyErr != nil {
 				writeLifecycleError(w, applyErr)
@@ -276,7 +277,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				Diff:                map[string]ChangeDiffEntry{"retired": {Before: false, After: true}},
 				ReferencedResources: resources,
 			}
-			changeRequest, err := governance.ProposeChanges(
+			changeRequest, policyApproves, err := governance.ProposeChanges(
 				request.Context(), CatalogRetirementChangeTarget, targetID, "catalog", []EntityChange{change}, principal,
 				"Retire "+targetID, prepared.Rationale,
 			)
@@ -285,7 +286,8 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				return
 			}
 			result := map[string]any{"changeRequest": changeRequest}
-			if changeRequest.Status == ChangeApproved {
+			// The record may predate the policy in force; see ProposeChanges.
+			if policyApproves && changeRequest.Status == ChangeApproved {
 				stored, executed, applyErr := retirements.ApplyApprovedChangeRequest(request.Context(), changeRequest)
 				if applyErr != nil {
 					writeLifecycleError(w, applyErr)
@@ -375,13 +377,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				Diff:                map[string]ChangeDiffEntry{"definition": {Before: before, After: prepared}},
 				ReferencedResources: map[string]ReferencedResource{"label": governance.referencedResource(request.Context(), "label/"+id, id, principal)},
 			}
-			changeRequest, err := governance.ProposeChanges(request.Context(), LabelDefinitionChangeTarget, targetID, "catalog", []EntityChange{change}, principal, "Govern label definition "+id, prepared.Rationale)
+			changeRequest, policyApproves, err := governance.ProposeChanges(request.Context(), LabelDefinitionChangeTarget, targetID, "catalog", []EntityChange{change}, principal, "Govern label definition "+id, prepared.Rationale)
 			if err != nil {
 				writeLifecycleError(w, err)
 				return
 			}
 			result := map[string]any{"changeRequest": changeRequest}
-			if changeRequest.Status == ChangeApproved {
+			// The record may predate the policy in force; see ProposeChanges.
+			if policyApproves && changeRequest.Status == ChangeApproved {
 				stored, executed, applyErr := labelDefinitions.ApplyApprovedChangeRequest(request.Context(), changeRequest)
 				if applyErr != nil {
 					writeLifecycleError(w, applyErr)
@@ -857,14 +860,15 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				Request: map[string]any{"pipelineRid": pipelineID}, Diff: map[string]ChangeDiffEntry{},
 				ReferencedResources: map[string]ReferencedResource{"bundlingpipeline": {RID: "export-pipeline/" + pipelineID, Name: pipelineID}},
 			}
-			changeRequest, err := governance.ProposeChanges(request.Context(), "EXPORT_PIPELINE_LIFECYCLE_"+changeType, pipelineID,
+			changeRequest, policyApproves, err := governance.ProposeChanges(request.Context(), "EXPORT_PIPELINE_LIFECYCLE_"+changeType, pipelineID,
 				"platform", []EntityChange{change}, principal, title+" "+pipelineID, "")
 			if err != nil {
 				writeLifecycleError(w, err)
 				return
 			}
 			result := map[string]any{"changeRequest": changeRequest}
-			if changeRequest.Status == ChangeApproved {
+			// The record may predate the policy in force; see ProposeChanges.
+			if policyApproves && changeRequest.Status == ChangeApproved {
 				pipeline, applyErr := apply(request.Context(), pipelineID)
 				if applyErr != nil {
 					writeLifecycleError(w, applyErr)
@@ -1056,7 +1060,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				writeLifecycleError(w, err)
 				return
 			}
-			changeRequest, err := governance.ProposeChanges(request.Context(), "BUNDLE_IMPORT", record.ID, environment, changes, principal, "Import Bundle "+body.Bundle.Manifest.ID+" into "+environment, "")
+			changeRequest, policyApproves, err := governance.ProposeChanges(request.Context(), "BUNDLE_IMPORT", record.ID, environment, changes, principal, "Import Bundle "+body.Bundle.Manifest.ID+" into "+environment, "")
 			if err != nil {
 				writeLifecycleError(w, err)
 				return
@@ -1066,7 +1070,8 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				writeLifecycleError(w, err)
 				return
 			}
-			if changeRequest.Status == ChangeApproved {
+			// The record may predate the policy in force; see ProposeChanges.
+			if policyApproves && changeRequest.Status == ChangeApproved {
 				record, err = bundles.AdmitImport(request.Context(), record.ID)
 				if err != nil {
 					writeLifecycleError(w, err)
@@ -1676,7 +1681,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if stored.PlanID != "" {
 			result["plan"] = redactLeaseToken(plan)
 		}
-		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored); err != nil {
+		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored, true); err != nil {
 			writeLifecycleError(w, err)
 			return
 		} else if imported != nil {
@@ -1704,7 +1709,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if stored.PlanID != "" {
 			result["plan"] = redactLeaseToken(plan)
 		}
-		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored); err != nil {
+		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored, false); err != nil {
 			writeLifecycleError(w, err)
 			return
 		} else if imported != nil {
@@ -1729,7 +1734,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if stored.PlanID != "" {
 			result["plan"] = redactLeaseToken(plan)
 		}
-		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored); err != nil {
+		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored, true); err != nil {
 			writeLifecycleError(w, err)
 			return
 		} else if imported != nil {
@@ -1778,7 +1783,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if stored.PlanID != "" {
 			result["plan"] = redactLeaseToken(plan)
 		}
-		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored); err != nil {
+		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored, false); err != nil {
 			writeLifecycleError(w, err)
 			return
 		} else if imported != nil {
@@ -1797,7 +1802,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		stored, plan, err := governance.SetLabels(request.Context(), request.PathValue("changeRequestID"), principal, body.Labels)
+		stored, plan, approvedByThisCall, err := governance.SetLabels(request.Context(), request.PathValue("changeRequestID"), principal, body.Labels)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
@@ -1806,7 +1811,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if stored.PlanID != "" {
 			result["plan"] = redactLeaseToken(plan)
 		}
-		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored); err != nil {
+		if imported, err := finalizeApprovedChangeRequest(request.Context(), bundles, stored, approvedByThisCall); err != nil {
 			writeLifecycleError(w, err)
 			return
 		} else if imported != nil {
@@ -2501,7 +2506,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				item := installations[reporting.Key(environment, target.InstallationID)]
 				changes = append(changes, fleetActionChange(request.Context(), governance, effectivePrincipal(principal), body, item))
 			}
-			changeRequest, err := governance.ProposeChanges(
+			changeRequest, policyApproves, err := governance.ProposeChanges(
 				request.Context(), "FLEET_ACTION", fleetActionTargetID(body, environment, targets), environment, changes,
 				principal, body.Action+" "+strconv.Itoa(len(targets))+" fleet installation(s)", body.Reason,
 			)
@@ -2509,7 +2514,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				writeLifecycleError(w, err)
 				return
 			}
-			changeRequest, err = executeApprovedFleetAction(request.Context(), repository, lifecycle, governance, changeRequest)
+			// Same rule as the sites above. The fleet action's own execution record
+			// only refuses a re-run once one has succeeded, so a stale approval
+			// whose execution failed is still executable -- and its resume path,
+			// which re-runs the items that failed, is preserved because this asks
+			// the current policy rather than whether the record is new.
+			if policyApproves {
+				changeRequest, err = executeApprovedFleetAction(request.Context(), repository, lifecycle, governance, changeRequest)
+			}
 			if err != nil {
 				writeLifecycleError(w, err)
 				return
@@ -2542,14 +2554,29 @@ func planContainsInstallation(plan Plan, installationID string) bool {
 	return false
 }
 
+// approvedByThisCall is whether the review that just ran is what approved the
+// request, rather than the request having already been approved when the route
+// was called. Only the export-pipeline branch needs it. The fleet branch is
+// already idempotent -- executeApprovedFleetAction returns early on an
+// execution that has succeeded -- and the Bundle import branch is a status
+// sync that every review route is meant to perform whatever the status is.
+//
+// Approve and Reopen pass true: approveOnce admits only PENDING_APPROVALS, and
+// Reopen re-evaluates the change against the policy in force, so an APPROVED
+// result from either is a decision taken by this call. Reject and Cancel pass
+// false and cannot produce APPROVED at all. Labelling is the one route that
+// has to compute it, and the one that was replaying actions.
 func finalizeApprovedChangeRequest(
-	ctx context.Context, bundles *BundleService, request ChangeRequest,
+	ctx context.Context, bundles *BundleService, request ChangeRequest, approvedByThisCall bool,
 ) (*BundleImport, error) {
 	if request.TargetKind == "FLEET_ACTION" {
 		_, err := executeApprovedFleetAction(ctx, bundles.repository, NewLifecycle(bundles.repository), NewGovernanceService(bundles.repository), request)
 		return nil, err
 	}
-	if request.Status == ChangeApproved && strings.HasPrefix(request.TargetKind, "EXPORT_PIPELINE_LIFECYCLE_") {
+	// Archiving, unarchiving and deleting a pipeline are unconditional writes
+	// with no record of having run, so a second call performs the action a
+	// second time. Reaching them requires an approval taken now.
+	if approvedByThisCall && request.Status == ChangeApproved && strings.HasPrefix(request.TargetKind, "EXPORT_PIPELINE_LIFECYCLE_") {
 		switch strings.TrimPrefix(request.TargetKind, "EXPORT_PIPELINE_LIFECYCLE_") {
 		case ChangeTypeArchivePipeline:
 			_, err := bundles.SetPipelineArchived(ctx, request.TargetID, true)
