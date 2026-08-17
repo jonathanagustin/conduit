@@ -57,7 +57,58 @@ var destructiveDDL = map[string]*regexp.Regexp{
 	"DELETE FROM":       regexp.MustCompile(`(?i)\bDELETE\s+FROM\b`),
 	"CREATE OR REPLACE": regexp.MustCompile(`(?i)\bCREATE\s+OR\s+REPLACE\b`),
 	"RENAME":            regexp.MustCompile(`(?i)\bRENAME\b`),
-	"column retype":     regexp.MustCompile(`(?i)\bALTER\s+COLUMN\s+\w+\s+TYPE\b`),
+	// Both spellings. PostgreSQL accepts ALTER COLUMN c TYPE and
+	// ALTER COLUMN c SET DATA TYPE for the same operation, and matching only the
+	// first left a destructive retype a keyword away from passing this gate.
+	"column retype": regexp.MustCompile(`(?i)\bALTER\s+COLUMN\s+\w+\s+(?:SET\s+DATA\s+)?TYPE\b`),
+}
+
+// The guard has to recognise the thing it forbids, and nothing checked that it
+// did. Every pattern above matches zero characters of the current DDL -- which
+// is the point, and also means a pattern that had stopped matching anything at
+// all would look identical. It happened: the retype pattern knew
+// `ALTER COLUMN c TYPE` and not PostgreSQL's equally valid
+// `ALTER COLUMN c SET DATA TYPE`, so a destructive retype was one keyword away
+// from passing, and changing the pattern back was a mutation nothing killed.
+func TestTheDestructiveDDLGuardRecognisesWhatItForbids(t *testing.T) {
+	t.Parallel()
+	forbidden := map[string][]string{
+		"DROP TABLE":        {"DROP TABLE conduit_reconciliation_work;", "drop table if exists t;"},
+		"DROP INDEX":        {"DROP INDEX conduit_reconciliation_work_available;"},
+		"DROP COLUMN":       {"ALTER TABLE t DROP COLUMN last_error;"},
+		"TRUNCATE":          {"TRUNCATE conduit_reconciliation_audit;"},
+		"DELETE FROM":       {"DELETE FROM conduit_reconciliation_work WHERE exhausted;"},
+		"CREATE OR REPLACE": {"CREATE OR REPLACE VIEW v AS SELECT 1;"},
+		"RENAME":            {"ALTER TABLE t RENAME TO u;", "ALTER TABLE t RENAME COLUMN a TO b;"},
+		// Both spellings PostgreSQL accepts for the same operation.
+		"column retype": {"ALTER TABLE t ALTER COLUMN c TYPE bigint;", "ALTER TABLE t ALTER COLUMN c SET DATA TYPE bigint;"},
+	}
+	if len(forbidden) != len(destructiveDDL) {
+		t.Fatalf("%d patterns are guarded and %d have an example; every one needs one or it is unchecked",
+			len(destructiveDDL), len(forbidden))
+	}
+	for name, examples := range forbidden {
+		pattern, guarded := destructiveDDL[name]
+		if !guarded {
+			t.Errorf("no pattern named %q; the guard and this test have drifted apart", name)
+			continue
+		}
+		for _, example := range examples {
+			if !pattern.MatchString(example) {
+				t.Errorf("the %s guard does not match %q", name, example)
+			}
+		}
+	}
+	// And it must not fire on the migrations that are meant to pass, which is
+	// the other way a guard goes wrong: one broad enough to match everything
+	// would pass this test and fail every future migration.
+	safe := "ALTER TABLE t ADD COLUMN IF NOT EXISTS c text;\nUPDATE t SET c = 'x' WHERE c IS NULL;\n" +
+		"ALTER TABLE t ALTER COLUMN c SET NOT NULL;\nCREATE INDEX IF NOT EXISTS i ON t (c);"
+	for name, pattern := range destructiveDDL {
+		if pattern.MatchString(safe) {
+			t.Errorf("the %s guard fires on the additive idiom this repository uses", name)
+		}
+	}
 }
 
 // adoptionSet returns the pre-ledger migrations, and fails if one has gone
@@ -230,6 +281,34 @@ func TestAdoptingTheLedgerOnAPopulatedDatabaseIsANoOp(t *testing.T) {
 	if err := store.UpsertDesired(ctx, testDesired(key, "gen-1", "target-1", recordedAt)); err != nil {
 		t.Fatal(err)
 	}
+	// The outbox has to have a row in it, and an earlier version of this test
+	// forgot: it populated only the desired table, so migration 0002 -- the
+	// backfill and the two SET NOT NULL, the only genuinely interesting
+	// statements in the adoption set -- ran against zero rows and would have
+	// passed however wrong it was.
+	if err := store.UpsertObservation(ctx, testObservation(key, "gen-0", "target-0", recordedAt)); err != nil {
+		t.Fatal(err)
+	}
+	lease, found, err := store.LeaseWork(ctx, recordedAt, time.Minute)
+	if err != nil || !found {
+		t.Fatalf("no work to lease: found=%v err=%v", found, err)
+	}
+	input, err := store.LoadInput(ctx, lease.Key)
+	if err != nil {
+		t.Fatal(err)
+	}
+	decision, proposal, err := domain.Decide(input, lease.Attempt, recordedAt, 10*time.Minute)
+	if err != nil || proposal == nil {
+		t.Fatalf("decision=%#v proposal=%#v err=%v", decision, proposal, err)
+	}
+	if err := store.CommitDecision(ctx, lease, decision, proposal); err != nil {
+		t.Fatal(err)
+	}
+	outboxBefore := outboxCoordinates(t, ctx, store)
+	if len(outboxBefore) == 0 {
+		t.Fatal("nothing reached the proposal outbox; migration 0002 would be exercised against no rows")
+	}
+
 	if _, err := store.database.ExecContext(ctx,
 		`DELETE FROM conduit_schema_migrations WHERE component = $1`, component); err != nil {
 		t.Fatal(err)
@@ -246,9 +325,44 @@ func TestAdoptingTheLedgerOnAPopulatedDatabaseIsANoOp(t *testing.T) {
 	if !found || snapshot.Generation != "gen-1" {
 		t.Errorf("adoption lost rows: found=%v generation=%q", found, snapshot.Generation)
 	}
+	// The backfill's guard is `WHERE desired_generation IS NULL`, so a re-run
+	// against populated NOT NULL columns must match nothing and change nothing.
+	// A backfill that rewrote what was already there would show up here.
+	outboxAfter := outboxCoordinates(t, ctx, store)
+	if len(outboxAfter) != len(outboxBefore) {
+		t.Fatalf("adoption changed the outbox row count: %d then %d", len(outboxBefore), len(outboxAfter))
+	}
+	for id, before := range outboxBefore {
+		if outboxAfter[id] != before {
+			t.Errorf("adoption rewrote outbox %s: %q then %q", id, before, outboxAfter[id])
+		}
+	}
 	if applied := appliedAt(t, ctx, store); len(applied) != len(migrations) {
 		t.Errorf("adoption recorded %d migrations, want %d", len(applied), len(migrations))
 	}
+}
+
+// outboxCoordinates reads the two columns migration 0002 adds and backfills.
+func outboxCoordinates(t *testing.T, ctx context.Context, store *Store) map[string]string {
+	t.Helper()
+	rows, err := store.database.QueryContext(ctx,
+		`SELECT proposal_id, desired_generation || '/' || target_digest FROM conduit_reconciliation_proposal_outbox`)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer rows.Close()
+	coordinates := map[string]string{}
+	for rows.Next() {
+		var id, value string
+		if err := rows.Scan(&id, &value); err != nil {
+			t.Fatal(err)
+		}
+		coordinates[id] = value
+	}
+	if err := rows.Err(); err != nil {
+		t.Fatal(err)
+	}
+	return coordinates
 }
 
 // The advisory lock is the claim the whole design rests on, and until this
@@ -287,35 +401,122 @@ func TestConcurrentStartsDoNotBothApplyTheSameMigration(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	const racers = 8
-	start := make(chan struct{})
-	failures := make(chan error, racers)
-	var group sync.WaitGroup
-	for range racers {
-		group.Add(1)
-		go func() {
-			defer group.Done()
-			<-start
-			if err := pgmigrate.Apply(ctx, store.database, racing, steps); err != nil {
-				failures <- err
-			}
-		}()
+	// Ten rounds, not one. A single round of eight racers let the no-lock
+	// mutation survive about one run in five, which for a regression that only
+	// has to slip through once is not a guard at all. Rounds compound: the
+	// locked version passes every round deterministically, and the unlocked one
+	// has to win ten coin flips in a row.
+	const racers, rounds = 8, 10
+	for round := range rounds {
+		if _, err := store.database.ExecContext(ctx,
+			`DELETE FROM conduit_schema_migrations WHERE component = $1`, racing); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := store.database.ExecContext(ctx, `DROP TABLE IF EXISTS conduit_pgmigrate_probe`); err != nil {
+			t.Fatal(err)
+		}
+
+		start := make(chan struct{})
+		failures := make(chan error, racers)
+		var group sync.WaitGroup
+		for range racers {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				<-start
+				if err := pgmigrate.Apply(ctx, store.database, racing, steps); err != nil {
+					failures <- err
+				}
+			}()
+		}
+		close(start)
+		group.Wait()
+		close(failures)
+		for err := range failures {
+			t.Errorf("round %d: a concurrent start failed to migrate: %v", round, err)
+		}
+
+		var recorded int
+		if err := store.database.QueryRowContext(ctx,
+			`SELECT count(*) FROM conduit_schema_migrations WHERE component = $1`, racing).
+			Scan(&recorded); err != nil {
+			t.Fatal(err)
+		}
+		if recorded != 1 {
+			t.Errorf("round %d: %d starts recorded %d ledger rows, want 1", round, racers, recorded)
+		}
+		if t.Failed() {
+			return
+		}
 	}
-	close(start)
-	group.Wait()
-	close(failures)
-	for err := range failures {
-		t.Errorf("a concurrent start failed to migrate: %v", err)
+}
+
+// Two different components racing a database with no ledger table at all.
+//
+// This is the case the design got wrong. The per-component lock made concurrent
+// starts of the same component safe and did nothing whatever for two different
+// ones: they hash to different keys and do not exclude each other, so both ran
+// CREATE TABLE IF NOT EXISTS on the ledger and PostgreSQL answered one of them
+// with a duplicate key on pg_type_typname_nsp_index. Four components over twenty
+// rounds failed thirty-six times.
+//
+// It is reachable in production -- the Hub opens the control-plane repository
+// and the reconciliation store, and a fresh database has neither ledger nor
+// tables -- and reachable in the test suite, where those two packages can run in
+// parallel against one server.
+func TestDifferentComponentsRacingAFreshDatabaseDoNotCollide(t *testing.T) {
+	ctx := t.Context()
+	store, _ := newStorePair(t, ctx)
+
+	components := []string{"pgmigrate-race-alpha", "pgmigrate-race-beta", "pgmigrate-race-gamma", "pgmigrate-race-delta"}
+	steps := []pgmigrate.Migration{{
+		Name:       "0001-probe",
+		Statements: `SELECT 1;`,
+	}}
+	t.Cleanup(func() {
+		for _, name := range components {
+			_, _ = store.database.ExecContext(context.WithoutCancel(ctx),
+				`DELETE FROM conduit_schema_migrations WHERE component = $1`, name)
+		}
+	})
+
+	// Dropping the ledger is what makes this the fresh-database case, and it is
+	// why this test cannot run beside the others: nothing else in the suite
+	// removes the table every component depends on. The reconciliation store's
+	// own rows go with it and are restored by the Apply below.
+	for round := range 10 {
+		if _, err := store.database.ExecContext(ctx, `DROP TABLE IF EXISTS conduit_schema_migrations`); err != nil {
+			t.Fatal(err)
+		}
+		failures := make(chan error, len(components))
+		var group sync.WaitGroup
+		start := make(chan struct{})
+		for _, name := range components {
+			group.Add(1)
+			go func() {
+				defer group.Done()
+				<-start
+				if err := pgmigrate.Apply(ctx, store.database, name, steps); err != nil {
+					failures <- err
+				}
+			}()
+		}
+		close(start)
+		group.Wait()
+		close(failures)
+		for err := range failures {
+			t.Errorf("round %d: a component racing another for the ledger failed: %v", round, err)
+		}
+		if t.Failed() {
+			break
+		}
 	}
 
-	var recorded int
-	if err := store.database.QueryRowContext(ctx,
-		`SELECT count(*) FROM conduit_schema_migrations WHERE component = $1`, racing).
-		Scan(&recorded); err != nil {
-		t.Fatal(err)
-	}
-	if recorded != 1 {
-		t.Errorf("%d starts recorded %d ledger rows, want 1", racers, recorded)
+	// Leave the database as this suite found it: the store's own ledger rows were
+	// dropped with the table, and a later test asserting nothing re-applies would
+	// otherwise see them missing.
+	if err := pgmigrate.Apply(ctx, store.database, component, migrations); err != nil {
+		t.Fatalf("restoring the store's own ledger rows failed: %v", err)
 	}
 }
 

@@ -50,7 +50,10 @@ The idiom for adding a non-null column to a populated table is three steps, and
 migration `0002-outbox-desired-coordinates` is the worked example:
 
 ```sql
--- 1. Add it nullable. Instant; no table rewrite, no lock held.
+-- 1. Add it nullable. Instant; no table rewrite. It still takes a brief
+--    ACCESS EXCLUSIVE lock, so it queues behind long-running queries and
+--    everything else queues behind it — set a lock_timeout on a table that
+--    sees long transactions.
 ALTER TABLE t ADD COLUMN IF NOT EXISTS c text;
 
 -- 2. Backfill, guarded, so re-running costs nothing.
