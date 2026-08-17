@@ -104,19 +104,39 @@ One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look
 is worth more during an incident than a separation nobody queries.
 
+## Asking what a start would apply
+
+`pgmigrate.Pending(ctx, database, component, migrations)` reports what `Apply`
+would run, in the order it would run it, and applies nothing.
+
+It also **creates** nothing, which is the requirement that shapes it. The
+question is asked most often of a database that has never been migrated — and
+that is exactly the database with no ledger table. An implementation that
+created the ledger in order to read it would answer correctly and leave the
+schema changed, so asking would not be free. The table's absence is read with
+`to_regclass` and answered for what it means: nothing has been recorded, so
+everything is pending.
+
+The answer is a snapshot rather than a promise: no lock is taken, so a
+concurrent `Apply` on another replica can make it stale. Locking instead would
+make a read-only question block a starting replica, and the answer would still
+be stale by the time anyone acted on it.
+
+The restore procedure uses it as its acceptance check — a correctly restored
+database has nothing pending for either component. See
+[`backup-and-restore.md`](backup-and-restore.md).
+
 ## What this still does not do
 
-- **No dry run.** There is no way to ask what a start would apply without
-  applying it.
 - **No timeout on the advisory lock beyond the context.** A replica starting
   while another is midway through a long migration waits for it, which is
   correct, but the wait is bounded only by the caller's context.
 - **Nothing verifies that a database's schema matches the migrations that
   claim to have built it.** A ledger row asserts a migration ran; it does not
   detect a column somebody dropped by hand.
-- **Restore is not covered here.** See
-  `docs/operations/PRODUCTION-READINESS.md`, which still records backup and
-  restore as a Tier 1 gap. A migration and the row recording it commit together,
-  so a consistent backup holds both or neither and a restore does not need
-  special handling — but nothing here rehearses a restore, and no procedure says
-  how to take one.
+- **Restore is not covered here** — it is covered in
+  [`backup-and-restore.md`](backup-and-restore.md), which now states the
+  procedure and is held down by a drill. The invariant this document has always
+  claimed is the reason that works: a migration and the row recording it commit
+  together, so a consistent backup holds both or neither and a restore needs no
+  special handling. What was missing was anyone having checked.

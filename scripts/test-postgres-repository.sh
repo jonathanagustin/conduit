@@ -2,11 +2,21 @@
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# PostgreSQL 18 on alpine 3.24, built 2026-08-13 (resolved from the registry:
+# org.opencontainers.image.source is docker-library/postgres#…:18/alpine3.24).
+#
+# The version is written down because nothing else records it. The pin carries a
+# digest and no tag, so `18` is not recoverable from this file, and Renovate does
+# not manage it either -- its dockerfile manager only matches Dockerfile and
+# Containerfile paths, and this is a shell script. Whoever changes the digest has
+# to update this line, and the restore drill will fail loudly if the client and
+# server majors stop matching.
 image="postgres@sha256:a1d02e4bd40c94d3bf2bdd3678c137388e76d9efcd23c285e9429d336a834b44"
 name="conduit-postgres-repository-${$}"
 
 command -v docker >/dev/null || { echo "docker is required for the PostgreSQL repository gate" >&2; exit 1; }
 docker info >/dev/null
+
 cleanup() {
   docker rm -f "${name}" >/dev/null 2>&1 || true
 }
@@ -47,6 +57,25 @@ port="$(docker port "${name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; 
 
 cd "${root}"
 dsn="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disable"
+
+# The restore drill takes a real pg_dump, and it uses the pinned image's own
+# client rather than the runner's.
+#
+# That is not a convenience. pg_dump refuses a server newer than itself, and
+# these two versions are chosen by different people: the server is the digest
+# above, which today is PostgreSQL 18, while the client is whatever the CI
+# runner image ships, which is 16. They already diverge, so a drill built on the
+# runner's client would fail on its first dispatch -- and the alternatives are
+# worse. Installing a matching client adds an unpinned apt source to a
+# repository that pins everything else by digest, and downgrading the server to
+# match the runner would test backups against a PostgreSQL nobody runs.
+#
+# The container's client matches its server by construction and is already
+# pinned. The archive moves over the drill's stdin and stdout because the client
+# does not share this filesystem, and the DSN below is the server's address from
+# inside the container rather than from here.
+export CONDUIT_TEST_PG_TOOL_PREFIX="docker exec -i ${name}"
+export CONDUIT_TEST_PG_TOOL_DSN="postgres://conduit:conduit_test@127.0.0.1:5432/conduit_test?sslmode=disable"
 # No -run filters, deliberately. The '^TestPostgres' filter these two lines
 # carried encodes a naming convention nobody wrote down, and it silently
 # excluded tests added with the migration ledger: a database-backed test whose
@@ -57,4 +86,8 @@ dsn="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disa
 # start listeners and are covered by the main Test gate.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/controlplane
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliation/adapters/postgres
+# internal/pgmigrate is here because its dry-run tests need a database. Without
+# this line they would skip locally for want of a DSN and be reached by nothing
+# in CI -- the same "runs nowhere" trap the -run filters above used to set.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/pgmigrate
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./cmd/platform-delivery -run '^TestPostgres'

@@ -9,11 +9,16 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"slices"
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
+
+// PostgresMigrationComponent is this schema's name in the shared ledger. It is
+// an identifier in a database, so it changes never.
+const PostgresMigrationComponent = "controlplane"
 
 // Applied through the shared ledger so this schema is versioned like the other
 // one rather than being the exception. See internal/pgmigrate.
@@ -35,6 +40,14 @@ CREATE TABLE IF NOT EXISTS conduit_repository_blobs (
     CHECK (octet_length(contents) >= 0)
 );`,
 }}
+
+// PostgresMigrations is this context's schema as the runner sees it, so a
+// caller outside the package can ask what a start would apply without starting
+// one -- see pgmigrate.Pending, and the restore drill in cmd/platform-delivery
+// that uses it to prove a restored database needs no migration. The clone is
+// deliberate: a caller that appended to the package's own slice would change
+// what every later Apply runs.
+func PostgresMigrations() []pgmigrate.Migration { return slices.Clone(postgresRepositoryMigrations) }
 
 // TransactionalRepository can commit several existing repository operations as
 // one visibility boundary. Application services use this narrow capability for
@@ -74,7 +87,7 @@ func NewPostgresRepository(ctx context.Context, dataSourceName string) (*Postgre
 		database.Close()
 		return nil, fmt.Errorf("connect PostgreSQL repository: %w", err)
 	}
-	if err := pgmigrate.Apply(ctx, database, "controlplane", postgresRepositoryMigrations); err != nil {
+	if err := pgmigrate.Apply(ctx, database, PostgresMigrationComponent, postgresRepositoryMigrations); err != nil {
 		database.Close()
 		return nil, fmt.Errorf("initialize PostgreSQL repository: %w", err)
 	}
