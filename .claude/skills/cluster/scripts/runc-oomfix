@@ -1,0 +1,79 @@
+#!/bin/bash
+# runc wrapper for sandboxes lacking CAP_SYS_RESOURCE (negative oom_score_adj writes fail with EACCES).
+#
+# This Firecracker guest kernel (6.18.5-fc-v20) refuses negative
+# write to /proc/*/oom_score_adj, even with CAP_SYS_RESOURCE. The kubelet and
+# the CRI hardcode oomScoreAdj=-998 on every pod sandbox, so runc's child dies
+# at setup ("can't get final child's PID from pipe: EOF") before any pod can
+# start, while ordinary containers -- which default to 0 -- run fine.
+#
+# The fix is at the only layer available to us: clamp negative oomScoreAdj to 0
+# in the OCI spec (and in exec process documents) before delegating to the real
+# runc. Inside a single-tenant microVM the OOM-protection intent of -998 is
+# moot: there is nothing else competing to be killed.
+# runc-oomfix — this exact token is bootstrap-k3s.sh's already-wrapped guard; keep it.
+set -euo pipefail
+
+REAL_RUNC="${RUNC_REAL:-/usr/bin/runc}"
+
+# Refuse to delegate to anything but the real runc ELF. Without this, a botched
+# double-wrap (this wrapper copied over runc.real) exec-loops at 100% CPU and
+# hangs containerd inside its `shim -info` startup probe — fail loudly instead.
+head -c 4 "$REAL_RUNC" 2>/dev/null | grep -q ELF ||
+  { printf 'runc-oomfix: %s is not the real runc ELF (double-wrap?)\n' "$REAL_RUNC" >&2; exit 1; }
+
+patch_json() {
+  # Clamp .process.oomScoreAdj (config.json) or .oomScoreAdj (process.json).
+  python3 - "$1" <<'PY' 2>/dev/null || true
+import json, sys
+path = sys.argv[1]
+try:
+    with open(path) as f:
+        doc = json.load(f)
+except Exception:
+    sys.exit(0)
+changed = False
+proc = doc.get("process")
+if isinstance(proc, dict) and isinstance(proc.get("oomScoreAdj"), int) and proc["oomScoreAdj"] < 0:
+    proc["oomScoreAdj"] = 0
+    changed = True
+if isinstance(doc.get("oomScoreAdj"), int) and doc["oomScoreAdj"] < 0:
+    doc["oomScoreAdj"] = 0
+    changed = True
+if changed:
+    with open(path, "w") as f:
+        json.dump(doc, f)
+PY
+}
+
+bundle=""
+process_file=""
+args=("$@")
+for ((i = 0; i < ${#args[@]}; i++)); do
+  case "${args[$i]}" in
+    --bundle|-b) bundle="${args[$((i + 1))]:-}" ;;
+    --bundle=*) bundle="${args[$i]#--bundle=}" ;;
+    --process|-p) process_file="${args[$((i + 1))]:-}" ;;
+    --process=*) process_file="${args[$i]#--process=}" ;;
+  esac
+done
+
+# `runc create/run` read <bundle>/config.json; bundle defaults to the cwd.
+for a in "$@"; do
+  case "$a" in
+    create|run)
+      [[ -f "${bundle:-.}/config.json" ]] && patch_json "${bundle:-.}/config.json"
+      break
+      ;;
+  esac
+done
+# `runc exec --process` reads a standalone Process document.
+[[ -n "$process_file" && -f "$process_file" ]] && patch_json "$process_file"
+
+# Opt-in proof that THIS wrapper is the runc the shim actually invokes, which is
+# what fix 5 exists to make checkable: a wrapper installed where nothing reads it
+# looks identical to a working one from the outside. Set K3S_RUNC_WRAPPER_LOG on
+# the server and count the lines.
+[ -n "${K3S_RUNC_WRAPPER_LOG:-}" ] && printf 'called\n' >> "$K3S_RUNC_WRAPPER_LOG"
+
+exec "$REAL_RUNC" "$@"
