@@ -1,0 +1,84 @@
+{
+  "apiVersion": "evidence.conduit.dev/v1alpha1",
+  "kind": "ApolloIdentifierGrammar",
+  "boundary": "Format facts for Apollo's own identifier types, derived from Palantir's authored type documentation in a public npm package. Records what each identifier IS, not the documentation verbatim: the alias kind, and the specific format-bearing statement, with a file:line citation so any reader can re-derive it. Establishes nothing about Apollo's Hub API, its behaviour, or any RID's full grammar.",
+  "source": {
+    "kind": "public-npm-package",
+    "npmPackage": "@osdk/client.unstable",
+    "npmVersion": "2.43.0",
+    "npmTarballSha256": "a892d51988c83c9008aedf0e74ccf1ead8d5c808cb53c615b54d290e2817c02e",
+    "file": "build/types/generated/marketplace/api/__components.d.ts",
+    "fileSha256": "92b713420949964b905753ca9bdc00d6a6a50815facfc9d6389e3d24d5b9c8c7",
+    "capturedAt": "2026-08-17",
+    "note": "This is the SAME package, version and tarball digest already pinned by docs/apollo/osdk-client-unstable-2.43.0-conjure-evidence.json, whose npmTarballSha256 matches byte for byte. That record captured the .ts sources by digest and never read their documentation, so these facts have been inside this repository's own evidence set since 2026-08-02 and went unread. Nothing new was fetched to establish them beyond re-reading a pin already held."
+  },
+  "fidelity": {
+    "identifierFormats": "Primary -- Palantir's authored documentation on Palantir's own generated types",
+    "aliasKinds": "Primary",
+    "completeness": "Bounded. Only identifiers this package's marketplace surface names are here; Apollo surfaces this package does not touch are absent from the record, not from Apollo."
+  },
+  "identifiers": {
+    "ApolloEntityId": {
+      "alias": "string",
+      "line": 422,
+      "statedEquivalentTo": "com.palantir.apollo.ApolloEntityId",
+      "colloquialName": "aeid",
+      "documentedExample": "aeid:mojito:foundry-product:namespace+truck-locator",
+      "derivedShape": "aeid:<space>:<product-type>:<locator>, four colon-separated segments, locator internally structured (here 'namespace+truck-locator')",
+      "conduitBearing": "Conduit mints aeid:<environment>:helm-chart:<entity> at internal/apollo/application/service.go. That is the same four-segment shape with a product type in the third position, so the form is attested-compatible rather than invented. What is NOT established: whether the first segment is a Space or an Environment (Apollo's example gives 'mojito' without saying which), nor whether 'helm-chart' is a product type Apollo would accept there."
+    },
+    "ApolloSpaceId": {
+      "alias": "string",
+      "line": 499,
+      "documentedOrigin": "external to Foundry; stored so Foundry knows which Apollo space manages an installation; obtained when an agent reports its information to Apollo",
+      "conduitBearing": "Corroborates ADR 0005 group 2 from Palantir's own words. The value originates outside and arrives by agent report, so a Hub that is not Apollo has nothing to put in the field. This is independent of the Foundry Control Panel seam recorded in apollo-control-panel-seam.json, and agrees with it."
+    },
+    "ApolloEnvironmentId": {
+      "alias": "string",
+      "line": 435,
+      "documentedOrigin": "the environment Apollo manages, from the perspective of the Apollo Space; external to Foundry",
+      "conduitBearing": "An Environment is addressed by a plain identifier, not a RID. Consistent with the observed route GET /hub/environment/{apolloEnvironmentId}/hub-token."
+    },
+    "ApolloPlanId": {
+      "alias": "string",
+      "line": 472,
+      "documentedForm": "a uuid, in practice always equal to the locator of the corresponding PlanRid",
+      "conduitBearing": "The only direct statement anywhere in this repository's evidence about an Apollo RID's internal structure: the locator segment of an Apollo Plan RID is a UUID. It says nothing about the service or instance segments, so it does not close ADR 0005 group 1."
+    },
+    "ApolloPlanRid": {
+      "alias": "string",
+      "line": 476,
+      "documentedForm": "the rid of an Apollo plan; no grammar stated"
+    },
+    "ApolloPlanTaskRid": {
+      "alias": "string",
+      "line": 480,
+      "documentedForm": "the rid of an Apollo plan task; no grammar stated"
+    },
+    "ApolloFoundrySpaceIdentifier": {
+      "alias": "string",
+      "line": 443,
+      "documentedForm": "an implicit union of a MavenGroup, a NamespaceRid, or the literal \"ARTIFACT\"",
+      "conduitBearing": "A namespace as Apollo sees it is Maven-keyed or RID-keyed. Relevant to #26 and to the Space discussion, and it is the reason the Foundry side of that seam is addressable by Maven group at all."
+    },
+    "ApolloArtifactUri": {
+      "alias": "string",
+      "line": 389,
+      "statedEquivalentTo": "com.palantir.apollo.catalog.api.objects.ArtifactUri",
+      "documentedExample": "<host>/marketplace/foundryproducts/com.palantirfoundry.stack.namespace/project-123/manifests/1.1.0",
+      "note": "The host is redacted. Palantir documents a real one in the example; this repository does not commit origins, and the format fact is the path structure rather than the host."
+    },
+    "ApolloAgentSecretType": {
+      "alias": "TOFU_SECRET | PRIVATE_KEY_PASSPHRASE",
+      "line": 383,
+      "conduitBearing": "Already recorded as a deliberate non-adopter in JAVA-OBJECT-ALIGNMENT.md; Conduit uses SPIFFE SVIDs. Listed here for completeness of the identifier set, not as a new question."
+    }
+  },
+  "whatThisDoesNotEstablish": [
+    "Any ri.apollo.* RID grammar. ApolloPlanRid and ApolloPlanTaskRid are documented as rids with no form given, so ADR 0005 group 1's close condition remains unmet.",
+    "That Conduit's aeid first segment is correct. Apollo's example gives one segment value without stating whether it names a Space or an Environment.",
+    "That helm-chart is a product type Apollo would accept in an aeid. Only foundry-product is attested.",
+    "Any Apollo Hub contract, behaviour, or wire protocol.",
+    "The real Apollo label vocabulary. These identifiers do not touch it, and it remains unestablished -- distinct from the PalSec accreditation labels recorded in apollo-control-panel-seam.json."
+  ]
+}
