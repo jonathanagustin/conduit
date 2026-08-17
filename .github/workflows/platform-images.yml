@@ -91,10 +91,18 @@ jobs:
       - id: build
         uses: docker/build-push-action@10e90e3645eae34f1e60eeb005ba3a3d33f178e8 # v6
         with:
-          # uses: inputs ignore defaults.run.working-directory. The context is
-          # the platform tree, not the repository root: the Containerfiles COPY
-          # relative to it, and .dockerignore is read from it.
-          context: platform
+          # uses: inputs ignore defaults.run.working-directory, so the context
+          # is stated explicitly. It is the repository root: the Containerfiles
+          # COPY go.mod, cmd and internal relative to it, and .dockerignore is
+          # read from it.
+          #
+          # This said `platform` until now, from the monorepo subdirectory this
+          # code was extracted out of, and no such directory exists here — so
+          # every dispatch of this workflow failed on a missing context and
+          # published nothing. Being dispatch-only, it had not been run since
+          # the extraction, so nothing reported it. Same staleness class as the
+          # `../.github` path fixed in scripts/verify-cpsat-candidate.test.sh.
+          context: .
           file: ${{ matrix.dockerfile }}
           platforms: ${{ github.event_name == 'pull_request' && 'linux/amd64' || 'linux/amd64,linux/arm64' }}
           load: ${{ github.event_name == 'pull_request' }}

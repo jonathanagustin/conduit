@@ -217,6 +217,37 @@ mod tests {
     use super::*;
     use serde_json::{json, Value};
 
+    // Known-answer vectors, because every other test in this file computes its
+    // expected digest with `digest` itself.
+    //
+    // That makes the suite self-consistent and blind in exactly one direction:
+    // a dependency that hashed differently would satisfy every assertion here
+    // while breaking the boundary that matters, since the Go caller computes
+    // the same digests independently and compares them. The gap was found by
+    // taking sha2 from 0.10 to 0.11 -- a major RustCrypto release that changed
+    // `digest`, `crypto-common` and `block-buffer` underneath this -- and
+    // noticing that nothing in the suite could have told the difference.
+    //
+    // The base64 vector is here for the same reason and is not padding: the
+    // encoder moved major version too, and STANDARD is padded and alphabet-
+    // specific, so an engine swapped for a URL-safe or unpadded one would round
+    // trip perfectly with itself and produce bytes the Go side rejects.
+    #[test]
+    fn digest_and_encoding_match_their_published_vectors() {
+        assert_eq!(
+            digest(b""),
+            "sha256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+        );
+        assert_eq!(
+            digest(b"abc"),
+            "sha256:ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+        );
+        // RFC 4648 section 10.
+        assert_eq!(STANDARD.encode(b"foobar"), "Zm9vYmFy");
+        assert_eq!(STANDARD.encode(b"fo"), "Zm8=");
+        assert_eq!(STANDARD.decode("Zm9vYmFy").unwrap(), b"foobar");
+    }
+
     fn request() -> Value {
         let model = b"model";
         let parameters = b"parameters";

@@ -12,7 +12,11 @@ verifier="$script_dir/verify-cpsat-candidate.sh"
 scanner="$script_dir/scan-cpsat-candidate.sh"
 containerfile="$platform_dir/Containerfile.optimizer-cpsat"
 evidence="$platform_dir/docs/evidence/or-tools-9.15-cpsat-candidate-amd64.json"
-workflow="$platform_dir/../.github/workflows/platform-cpsat-candidate.yml"
+# Repository root, not one above it. The `../.github` this carried is left over
+# from the monorepo subdirectory this code was extracted from; here it resolves
+# outside the checkout, so the hash below failed and took the candidate
+# workflow's contract job with it.
+workflow="$platform_dir/.github/workflows/platform-cpsat-candidate.yml"
 
 bash -n "$verifier"
 bash -n "$scanner"

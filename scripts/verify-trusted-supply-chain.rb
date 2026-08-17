@@ -11,7 +11,14 @@ workflow_dir = File.join(platform_root, ".github", "workflows") unless File.dire
 read_workflow = lambda do |name|
   path = File.join(workflow_dir, "platform-#{name}")
   path = File.join(workflow_dir, name) unless File.exist?(path)
-  File.read(path)
+  # UTF-8 explicitly, as the node-version scan below already does. Without it
+  # Ruby reads under the runner's default external encoding, which is US-ASCII
+  # in CI, and the first `scan` against a workflow containing any non-ASCII
+  # character dies with "invalid byte sequence in US-ASCII". That is not this
+  # gate refusing something: it is the gate crashing before it checks anything,
+  # and platform-ci.yml already contains such characters, so the next comment
+  # added to a workflow this reads would have been the one to trip it.
+  File.read(path, encoding: "UTF-8")
 end
 
 workflow = read_workflow.call("images.yml")
