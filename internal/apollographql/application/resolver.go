@@ -420,6 +420,26 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 			return nil, argumentErr
 		}
 		return resolver.entityByID(rid)
+	case "productRelease":
+		if resolver.sources.Apollo == nil {
+			return nil, errNoSource
+		}
+		rid, argumentErr := stringArgument(arguments, "rid")
+		if argumentErr != nil {
+			return nil, argumentErr
+		}
+		release, err := resolver.productReleaseByRID(rid)
+		// Same rule as `environment` above: only the not-found sentinel becomes
+		// a null. Here it also covers the identifier that was never Conduit's,
+		// which is a genuine "no such record HERE" rather than a failure -- and
+		// deliberately not an assertion that no such release exists anywhere.
+		if errors.Is(err, ports.ErrRecordNotFound) {
+			return nil, nil
+		}
+		if err != nil {
+			return nil, err
+		}
+		return release, nil
 	case "products":
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
@@ -767,6 +787,8 @@ func (resolver *bound) resolveProduct(field string, source any) (any, error) {
 		return nil, fmt.Errorf("ApolloProduct.%s resolved against %T", field, source)
 	}
 	switch field {
+	case "rid":
+		return productRID(string(product.Id)), nil
 	case "productId":
 		return string(product.Id), nil
 	case "productReleases":
@@ -798,6 +820,8 @@ func resolveProductRelease(field string, source any) (any, error) {
 		return nil, fmt.Errorf("ApolloProductRelease.%s resolved against %T", field, source)
 	}
 	switch field {
+	case "rid":
+		return productReleaseRID(string(held.release.MavenCoordinate)), nil
 	case "mavenCoordinate":
 		return string(held.release.MavenCoordinate), nil
 	case "product":
@@ -853,4 +877,37 @@ func resolveDependency(field string, source any) (any, error) {
 		return child{typeName: "ApolloProduct", source: apollo.Product{Id: *dependency.ProductId}}, nil
 	}
 	return nil, fmt.Errorf("ApolloProductDependency.%s is covered but this resolver has no case for it", field)
+}
+
+// productReleaseByRID finds the Release a Conduit-minted identifier names.
+//
+// A scan rather than an index, because the identifier is a digest and cannot be
+// reversed: the only way to answer is to mint each candidate and compare. The
+// catalogue is the same one ListProducts already walks for every products query,
+// so this costs what that costs.
+//
+// An identifier that is not Conduit's is refused before the scan rather than
+// after it. Scanning first would spend the catalogue to reach the same answer,
+// and would report "no record" for an Apollo identifier that may well name a
+// real Release on a real Hub -- an absence Conduit is in no position to assert.
+func (resolver *bound) productReleaseByRID(rid string) (any, error) {
+	if !isConduitRID(rid) {
+		return nil, ports.ErrRecordNotFound
+	}
+	listedProducts := resolver.sources.Apollo.ListProducts()
+	if listedProducts.Products == nil {
+		return nil, ports.ErrRecordNotFound
+	}
+	for _, product := range *listedProducts.Products {
+		listed := resolver.sources.Apollo.ListReleases(string(product.Id))
+		if listed.Releases == nil {
+			continue
+		}
+		for _, release := range *listed.Releases {
+			if productReleaseRID(string(release.MavenCoordinate)) == rid {
+				return child{typeName: "ApolloProductRelease", source: releaseSource{product: product, release: release}}, nil
+			}
+		}
+	}
+	return nil, ports.ErrRecordNotFound
 }

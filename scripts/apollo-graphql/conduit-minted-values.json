@@ -20,6 +20,18 @@
       "grammarPublishedAs": "@osdk/client.unstable ApolloEntityId, documented example aeid:mojito:foundry-product:namespace+truck-locator, recorded in docs/evidence/apollo-identifier-grammar.json",
       "conduitSupplies": "the second segment. Apollo's documented example puts a SPACE there; Conduit has no Space (ADR 0007 group 2) and puts the environment there instead. The four-segment shape and the product type in third position follow Apollo's documented form.",
       "invention": "apollo.EntityIDSpaceSegment"
+    },
+    "ApolloProduct.rid": {
+      "mintedBy": "internal/apollographql/application/identifiers.go productRID",
+      "grammarPublishedAs": "apollo-openapi ri.autopilot.main.team.123, which shows the service segment naming the service that owns the resource. Apollo publishes no type token for a Product, so the namespace is Conduit's own rather than a guess inside ri.apollo.",
+      "conduitSupplies": "the whole identifier. The service segment is conduit because a Product that exists only in Conduit is owned by Conduit; the type token and the locator are Conduit's.",
+      "invention": "apollographql.ConduitNamespacedRID"
+    },
+    "ApolloProductRelease.rid": {
+      "mintedBy": "internal/apollographql/application/identifiers.go productReleaseRID",
+      "grammarPublishedAs": "apollo-openapi ri.autopilot.main.team.123, as above.",
+      "conduitSupplies": "the whole identifier, keyed on the Maven coordinate Apollo already treats as the release's identity.",
+      "invention": "apollographql.ConduitNamespacedRID"
     }
   }
 }
