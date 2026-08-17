@@ -42,6 +42,16 @@ func BuildFleetProjection(
 		return FleetProjection{}, err
 	}
 
+	// Which Environments expect gaps is a property of the Plans just loaded,
+	// not a caller's choice, so it is derived here rather than accepted from
+	// the query. It was derived in the console overview and nowhere else, so
+	// the operator-facing fleet API answered a maxAgeSeconds question by
+	// marking every installation in an intermittent Environment stale and
+	// counting it in Summary.Stale -- the "a gap is an outage" reading the
+	// published behaviour says is wrong for that connection setting. Two
+	// surfaces, two answers about the same Environment.
+	query.SilenceExpected = expectedSilenceEnvironments(plans)
+
 	desired, observed := fleetInputs(plans, reports)
 	return reporting.BuildFleet(desired, observed, query, now), nil
 }
