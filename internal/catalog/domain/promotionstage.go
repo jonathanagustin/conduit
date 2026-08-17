@@ -101,6 +101,16 @@ type PromotionTally struct {
 	Unhealthy int
 }
 
+// EvidenceExceedsAgeBound reports whether one piece of evidence is older than
+// the policy's stated bound. Exported so the one caller that needs to say
+// something more specific about a stale entry -- the Hub, which can see the
+// Environment's connection setting and this package deliberately cannot -- asks
+// the same question rather than reimplementing it a second time and drifting.
+func EvidenceExceedsAgeBound(entry PromotionHealthEvidence, policy PromotionPolicy, now time.Time) bool {
+	return policy.MaximumEvidenceAgeSeconds > 0 &&
+		now.Sub(entry.ObservedAt) > time.Duration(policy.MaximumEvidenceAgeSeconds)*time.Second
+}
+
 // ValidateEvidence separates usable health evidence from unusable, and is run
 // once per stage rather than once per condition: a duplicate or stale report is a
 // data-integrity problem regardless of which condition is being checked, and
@@ -128,8 +138,7 @@ func ValidateEvidence(
 			reject(PromotionBlockerEvidenceInvalid, "invalid health evidence for ", key)
 			continue
 		}
-		if policy.MaximumEvidenceAgeSeconds > 0 &&
-			now.Sub(entry.ObservedAt) > time.Duration(policy.MaximumEvidenceAgeSeconds)*time.Second {
+		if EvidenceExceedsAgeBound(entry, policy, now) {
 			reject(PromotionBlockerEvidenceStale, "stale health evidence for ", key)
 			continue
 		}
