@@ -2,8 +2,8 @@ apiVersion: v2
 name: platform-hub
 description: Product-agnostic Platform delivery control plane Hub
 type: application
-version: 0.16.5
-appVersion: "0.16.5"
+version: 0.17.0
+appVersion: "0.17.0"
 home: https://github.com/jonathanagustin/conduit
 sources:
   - https://github.com/jonathanagustin/conduit
