@@ -74,12 +74,26 @@ type Interface struct {
 	// a source OTHER than the one that established the field established that it
 	// is a list. Absent means the field's own tier covers it.
 	cardinality map[Coordinate]Tier
+	// valueTier separates the provenance of a field's DECLARATION from the
+	// provenance of the VALUE served behind it.
+	//
+	// tier answers "why does this field exist in Conduit's schema" -- almost
+	// always because a capture recovered it from an Apollo Hub. It has never
+	// answered "where did this particular string come from", and while the two
+	// were always the same nobody needed it to. ADR 0007 makes them differ: a
+	// coordinate Apollo declares can now be served from a value Conduit invented,
+	// which is legal precisely because valueTier says so on the wire.
+	//
+	// Absent means it equals the field's tier, so every coordinate served before
+	// ADR 0007 keeps its meaning without being touched.
+	valueTier map[Coordinate]Tier
 }
 
 var (
 	typeHeader   = regexp.MustCompile(`^type ([A-Za-z_][A-Za-z0-9_]*) \{$`)
 	fieldWithARR = regexp.MustCompile(
-		`^ {2}([a-zA-Z_][a-zA-Z0-9_]*)[^@]*@provenance\(tier: ([A-Z_]+)(?:, cardinality: ([A-Z_]+))?\)$`,
+		`^ {2}([a-zA-Z_][a-zA-Z0-9_]*)[^@]*@provenance\(tier: ([A-Z_]+)` +
+			`(?:, valueTier: ([A-Z_]+))?(?:, cardinality: ([A-Z_]+))?\)$`,
 	)
 )
 
@@ -93,6 +107,7 @@ var (
 func ReadProvenance(sdl string) (Interface, error) {
 	tiers := make(map[Coordinate]Tier)
 	cardinality := make(map[Coordinate]Tier)
+	valueTier := make(map[Coordinate]Tier)
 	currentType := ""
 	for number, line := range strings.Split(sdl, "\n") {
 		switch {
@@ -123,6 +138,18 @@ func ReadProvenance(sdl string) (Interface, error) {
 				stated := Tier(match[3])
 				if stated != Observed && stated != Documented && stated != ConduitNative {
 					return Interface{}, fmt.Errorf(
+						"%s.%s declares unknown value provenance %q", currentType, match[1], stated,
+					)
+				}
+				valueTier[coordinate] = stated
+			}
+			// Checked the same way, for the same reason: an unreadable value tier
+			// must not pass as an absent one. Absent means "the value came from
+			// wherever the declaration did", which is the stronger claim.
+			if match[4] != "" {
+				stated := Tier(match[4])
+				if stated != Observed && stated != Documented && stated != ConduitNative {
+					return Interface{}, fmt.Errorf(
 						"%s.%s declares unknown cardinality provenance %q", currentType, match[1], stated,
 					)
 				}
@@ -133,7 +160,7 @@ func ReadProvenance(sdl string) (Interface, error) {
 	if len(tiers) == 0 {
 		return Interface{}, fmt.Errorf("no annotated field found; this is not the served interface")
 	}
-	return Interface{tiers: tiers, cardinality: cardinality}, nil
+	return Interface{tiers: tiers, cardinality: cardinality, valueTier: valueTier}, nil
 }
 
 // CardinalityOf answers who established that a coordinate is a list, when that
@@ -143,6 +170,34 @@ func ReadProvenance(sdl string) (Interface, error) {
 func (declared Interface) CardinalityOf(coordinate Coordinate) (Tier, bool) {
 	tier, found := declared.cardinality[coordinate]
 	return tier, found
+}
+
+// ValueTierOf answers where the VALUE behind a coordinate came from, when that
+// differs from where the declaration came from. The second result is false when
+// the SDL states nothing, which means the two are the same.
+//
+// A caller deciding whether a served value is Conduit's own must use this rather
+// than TierOf. TierOf will say OBSERVED for an invented value and be correct --
+// Apollo really did declare the field -- which is exactly the conflation ADR 0005
+// warned about and ADR 0007 resolves by separating the two questions.
+func (declared Interface) ValueTierOf(coordinate Coordinate) (Tier, bool) {
+	tier, found := declared.valueTier[coordinate]
+	return tier, found
+}
+
+// InventedValues is every coordinate serving a value Conduit constructed.
+//
+// Exposed so a gate can ask the interface directly rather than re-reading the
+// SDL with a second regex that could disagree with this one.
+func (declared Interface) InventedValues() []Coordinate {
+	invented := []Coordinate{}
+	for coordinate, tier := range declared.valueTier {
+		if tier == ConduitNative {
+			invented = append(invented, coordinate)
+		}
+	}
+	sort.Slice(invented, func(i, j int) bool { return invented[i].String() < invented[j].String() })
+	return invented
 }
 
 // TierOf answers who established a coordinate. The second result is false for a
