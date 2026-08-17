@@ -28,6 +28,55 @@ operator's stated bound must not be exempted outright.
 existed and were wired on one surface of two; verifying that a predicate exists
 is not verifying that every path consults it.
 
+Four more shipped on 2026-08-17, each the part of a blocked decision that did
+not depend on the decision. Recorded because in every case the code answered a
+question the issue had framed as open.
+
+**#56's ERROR wedge** (#102). `ERROR` is not a decision anybody took —
+`evaluateChangeRequest` writes it when no approval policy is enabled at all —
+yet `Reopen` refused it, so a deployment that proposed before configuring
+policies burnt every target it touched, with no recourse open to any principal
+including the author. Correct under either answer to the standing-veto question,
+so it did not wait on it. What was deliberately left out is #103: `Reopen`
+rebuilds the record without `Reviews`, destroying the only durable copy of a
+rejection's rationale, and the obvious fix interacts — `approveOnce` refuses a
+principal already in `Reviews`, so carrying a rejection forward would bar the
+rejecting reviewer from approving the revision.
+
+**#65's second gap** (#104). The refusal was correct and its sentence was not:
+an intermittent Environment cannot satisfy a bound shorter than its connection
+cadence, but "stale health evidence" reads as an outage.
+`ENVIRONMENT_EVIDENCE_BOUND_CONFLICT` names the pair instead. The bound is not
+exempted — and it turns out it could not be: `validatePromotions` has no
+repository, so it takes Environment-dependent blockers on trust *because they
+only ever make a promotion fail to pass*. A record that passed on excused
+evidence would fail replay on the next Hub that read it.
+
+**#57's health joins** (#105). `ApolloEnvironment.health` and
+`ApolloEntity.health` answered `UNKNOWN` for everything, however healthy the
+fleet was, because they compared minted rids against the plain names reporting
+records. Demonstrated against a running Hub, not traced. The contract defect is
+that the provenance extension listed both under `documentedServed` — the
+interface reported having answered them, from a constant no Conduit data
+produced. It survived because the test fixture had been aligned to the broken
+code; the fixture is corrected from the projection, and a test now asserts the
+two vocabularies are different strings so no fixture can hide the join again.
+
+**#54's naming** (#106). `VulnerabilitySuppressionProvenance.ChangeRequestID` is
+the one `ChangeRequestID` never resolved against `GetChangeRequest`, which reads
+like a forgotten check. It is not: Conduit does not create provider-side
+suppressions, so no local record could be named, and a relayed assessment
+carries a reference only the approving Hub can resolve. Documented rather than
+verified, because verifying it would be wrong.
+
+**Supply-chain pin shape** (#101). The cosign gate scanned for a literal version
+in one workflow and ignored a third occurrence in another, so the signing
+toolchain could already drift. The version is now tethered to the one cosign the
+repository pins by sha256 and actually executes, `actions/cache` is asserted as a
+property rather than a literal commit, and `mise.toml` must agree with the
+workflows about Node. cosign v3.1.3 had been in the repository, checksum-pinned,
+since `bf1d7b5` — the bump closed a drift rather than opening one.
+
 #13 (reviewer-requirement satisfiability) and #28 (comprehensive mutation
 testing — now a *weekly* sweep, since ADR 0006 permits the `schedule:` trigger
 A4 once forbade) did ship on 2026-08-16.
@@ -73,10 +122,10 @@ while both told the truth.
 | [#20](https://github.com/jonathanagustin/conduit/issues/20) | **Answered, then blocked again on something else.** ADR 0006 overturned A4, and the queue shipped in #33 as `.github/workflows/merge-queue.yml`. It cannot run: GitHub offers merge queues on public repositories, and on private ones only under Team or Enterprise Cloud, so this private repository under a personal account has no "Require merge queue" control to enable — confirmed 2026-08-16 against `main`'s branch-protection form, where the option is absent between "Require linear history" and "Require deployments to succeed before merging". Rulesets do not route around it; the `merge_queue` rule type is gated the same way. What remains is a decision about repository ownership, not about CI. |
 | [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. A dedicated `change:propose`-only service account, not `OnBehalfOf` — attributing autonomous changes to whoever enabled the flag falsifies the audit trail. Three unresolved sub-parts make this the *last* to start, not the least important: the `Metadata["source"]` stamp policies need to branch on, the **deterministic `crq_` id collision** on re-proposal — but on the `ProposeChanges` path only, and the distinction matters to whoever implements this. `crq_` is SHA-256 of TargetKind+TargetID (`governance.go:529-530`), so it collides exactly when `TargetID` is stable across re-proposals of the same target. That is true of every `ProposeChanges` caller, which pass a caller-supplied id — `EXPORT_PIPELINE_LIFECYCLE_*` with a pipeline id (`http.go:860`), `BUNDLE_IMPORT` with a record id (`http.go:1059`), the label definition target (`http.go:378`). It is **not** true of the plan pipeline: `evaluatePlan` sets `TargetID: record.ID`, and `pln_` is SHA-256 of the desired-state digest plus the plan JSON (`lifecycle.go:196-205`), so a re-proposal with different content gets a different `pln_` and therefore a different `crq_`. Designing Gitless around a collision the plan path does not have would be building for the wrong shape, and coalescing so propose-only does not flood review. **Updated 2026-08-17:** #89 closed the dangerous half of that collision — a stale `APPROVED` record can no longer be replayed into an apply, because auto-apply now asks the verdict of the evaluation the call performed. What remains for whoever implements this is the *wedge*: a terminal record still occupies its target's id. Design for that, not for replay. |
 
-| [#56](https://github.com/jonathanagustin/conduit/issues/56) | **Is a rejection a standing veto, or advisory per attempt?** The replay half shipped as #89; this is the remainder. A `crq_` id is derived from the target alone, so a terminal record occupies that target permanently and only its author can `Reopen` it — and `Reopen` excludes `ERROR`, so a request that errored because no policy was configured is unrecoverable even by its author. *Standing veto* → re-proposal after rejection stays privileged, and the fix is making that path reachable. *Advisory per attempt* → any authorized proposer may mint a successor, with the rejection preserved and linked rather than overwritten. Nothing in the code answers this; today's behaviour is a standing veto enforced by accident, via id collision. |
-| [#54](https://github.com/jonathanagustin/conduit/issues/54) | Is a suppression's `ChangeRequestID` an internal Conduit id or an external ITSM reference? And may an environment with a `RequiredOutcome` run with no scanner configured at all? Both my first two proposed fixes here were wrong — a freshness floor does not defend against forged `AssessedAt`, and "always scan" would delete the suppression feature outright, since grype hard-refuses suppressions. No code was written. |
-| [#57](https://github.com/jonathanagustin/conduit/issues/57) | The minted `ri.apollo.main.*` RIDs cut against ADR 0005's refusal of `ApolloProduct.rid`. Both cannot stand: either the ADR relaxes or the RIDs go. |
-| [#96](https://github.com/jonathanagustin/conduit/issues/96) | Should the console tenant become a per-request fact? **Recommended won't-do**, and #94 and #95 fall with it. The framing that prompted it — "hydrated via headers" — is not what Foundry does: it exposes tenants per *provisioned hostname* (`<enrollment>.<stack>.palantirfoundry.com`) with OAuth2 on every call, so the binding is DNS and TLS established at provisioning time plus authentication before the hydrated document is served. Conduit has none of those three: no `TenantID` anywhere in `internal/`, and `GET /console/` is mounted bare with no auth wrapper, so a header-selected tenant would let any anonymous client choose what identity the console asserts. The Hub is also single-tenant by construction everywhere else, so the capability would have no consumer. |
+| [#56](https://github.com/jonathanagustin/conduit/issues/56) | **Is a rejection a standing veto, or advisory per attempt?** The replay half shipped as #89; this is the remainder. A `crq_` id is derived from the target alone, so a terminal record occupies that target permanently and only its author can `Reopen` it — and `Reopen` excludes `ERROR`, so a request that errored because no policy was configured was unrecoverable even by its author — **that half shipped as #102**, since `ERROR` is machine output rather than a judgement and admitting it is correct under either answer. What is left is the semantics for a *rejection*. *Standing veto* → re-proposal after rejection stays privileged, and the fix is making that path reachable. *Advisory per attempt* → any authorized proposer may mint a successor, with the rejection preserved and linked rather than overwritten. Nothing in the code answers this; today's behaviour is a standing veto enforced by accident, via id collision. An adversarial review recommends **standing veto** on structural grounds: advisory-per-attempt requires abandoning the target-derived id, and the replay fix, the deliberate re-proposal idempotency, and `LinkImportChangeRequest`'s `PENDING_APPROVAL` equality check all rest on it. Whichever way it goes, #103 has to be fixed too. |
+| [#54](https://github.com/jonathanagustin/conduit/issues/54) | **Half answered.** The `ChangeRequestID` question resolved itself in the code and shipped as #106: it is an external reference and could not be anything else. What remains is whether an Environment with a `RequiredOutcome` may run with no scanner configured. Today it refuses honestly at proposal — "artifact security policy requires vulnerability evidence but no scanner is configured" — so the behaviour is defensible as it stands; what it cannot do is distinguish hub-scanned evidence from operator-asserted evidence in the record a reviewer approves. Both of my first two proposed fixes here were wrong and neither should be retried: a freshness floor does not defend against a forged `AssessedAt`, which is a plain client-supplied field, and "always scan" would delete the suppression feature outright, since grype hard-refuses a report carrying ignored findings. |
+| [#57](https://github.com/jonathanagustin/conduit/issues/57) | The minted `ri.apollo.main.*` RIDs cut against ADR 0005's refusal of `ApolloProduct.rid`. Both cannot stand: either the ADR relaxes or the RIDs go. The defect they were *entangled* with is fixed and out of the way (#105), so this is now purely the disclosure question. An adversarial review recommends **the RIDs go**, on the ADR's own grounds rather than its letter: it refuses "serving Conduit's own identifier under an Apollo field name" and records that `ri.apollo.main.bundle` appears in this repository only as our own test data, so minting the grammar is worse than serving `bnd_<hex>` would have been. Consequence to accept if so: `ApolloQuery.environment(rid:)` becomes unreachable in practice, since a client can no longer learn a rid to pass. |
+| ~~[#96](https://github.com/jonathanagustin/conduit/issues/96)~~ | **Closed won't-do on 2026-08-17, with #94 and #95.** Kept here because the reasoning is the record. Should the console tenant become a per-request fact? The framing that prompted it — "hydrated via headers" — is not what Foundry does: it exposes tenants per *provisioned hostname* (`<enrollment>.<stack>.palantirfoundry.com`) with OAuth2 on every call, so the binding is DNS and TLS established at provisioning time plus authentication before the hydrated document is served. Conduit has none of those three: no `TenantID` anywhere in `internal/`, and `GET /console/` is mounted bare with no auth wrapper, so a header-selected tenant would let any anonymous client choose what identity the console asserts. The Hub is also single-tenant by construction everywhere else, so the capability would have no consumer. |
 
 ### Open only because closing is a human step
 
