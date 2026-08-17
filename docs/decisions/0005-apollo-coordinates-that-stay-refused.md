@@ -106,6 +106,28 @@ second exists.
 an Apollo Space id is for a resource Conduit holds. Either would displace this
 record rather than amend it.
 
+**Corroborated 2026-08-17; the condition above is NOT met.** A bytecode-exact
+projection of `com.palantir.controlpanel:control-panel-api-objects:1.1588.0`
+yields Foundry's three Apollo control-panel operations in full, recorded in
+[`../evidence/apollo-control-panel-seam.json`](../evidence/apollo-control-panel-seam.json).
+`CreateApolloSpaceRequest` carries only an admin principal set, and the platform
+mints and returns the `spaceRid`; a caller never states an identifier.
+
+That cuts with this decision rather than against it, and it is worth saying why
+it does not reopen anything. The condition is a Space id **for a resource
+Conduit holds**. No Conduit resource gains one here. `spaceRid` is a
+Foundry-side identifier; `ApolloSpaceId` is an opaque string in the pinned
+interop IR, linked to Foundry by Maven group, and nothing establishes the two
+are the same. The capture does not even fix a format. Reading this as a met
+condition requires softening "what an Apollo Space id is for a resource Conduit
+holds" into "how a Space id is formed" -- a weaker condition the evidence does
+meet, which is exactly the substitution this note exists to refuse.
+
+The first driver is also unaffected: a seam artifact is not a Hub answering, so
+none of these facts could be served under an `OBSERVED` coordinate whatever they
+said. What changes is the footing. The refusal was held on the absence of
+evidence and is now held on evidence.
+
 Note for readers of older revisions: #16 (scan-before-install) was recorded here
 as gated on the same decision. It was not. #16 shipped without a Space, and is
 closed.
