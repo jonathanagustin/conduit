@@ -1,148 +1,286 @@
 # Handoff
 
-A snapshot of the work done in the session ending 2026-08-16, what is merged,
-what still needs a decision, and the mechanisms a next contributor should know
-about before touching this tree. Everything below is on `main` unless marked
-otherwise. Issue/PR states were current at handoff; verify against GitHub as
-the API was rate-limited when this was written.
+A snapshot of the work done in the session ending 2026-08-17, what is merged,
+what is still open, and the mechanisms a next contributor should know before
+touching this tree. Everything is on `main` unless marked otherwise.
+
+The previous handoff covered the session ending 2026-08-16 (PRs #30–#44). Its
+"Mechanisms" and "Bootstrapping" sections are carried forward below, corrected
+where this session proved them wrong.
 
 ## What shipped this session
 
-### Backlog driven to terminal states
-- **#28 — comprehensive mutation testing** (PR #30). Real efficacy baselines per
-  bounded-context domain (gremlins) and per console file (Stryker), recorded in
-  `docs/operations/mutation-scores.json`. A dispatched sweep
-  (`scripts/mutation-sweep.sh`, `.github/workflows/mutation-sweep.yml`, now
-  weekly) measures and ratchets; a cheap offline gate
-  (`scripts/verify-mutation-scores.mjs`, in the Trunk gate) refuses a baseline
-  that has rotted. Weakest domain at handoff: `internal/catalog/domain`.
-- **A4 overturned** (PR #31, ADR `docs/decisions/0006-automated-workflow-triggers.md`).
-  Automated triggers (`schedule`, `merge_group`, …) are now permitted for
-  verification/maintenance under cost guardrails; publication/release stay
-  manual. See `docs/operations/manual-ci.md`.
-- Follow-on automation unblocked by ADR 0006: **weekly mutation sweep** (PR #32),
-  **merge-queue workflow** (PR #33, `.github/workflows/merge-queue.yml`),
-  **scheduled Apollo-docs drift crawl** (PR #34,
-  `.github/workflows/documentation-drift.yml`).
-- **#16 — scan-before-install** (PR #35). The issue premise was **false**:
-  `ArtifactSecurityPolicy` already blocks install of an unscanned/non-PASS
-  Release at plan+apply, and the Hub auto-scans at proposal. The one real gap
-  was **freshness**; added `ArtifactSecurityPolicy.MaximumScanAgeSeconds`,
-  enforced by rescanning stale evidence at proposal time (not in the clock-free
-  `Validate`).
+### #145 — a GitHub outage no longer decides whether the code is good
 
-### New console screens (the four placeholder routes)
-- **Teams** (#36), **Risk Management** (#37), **Export** (#38), **Import** (#39).
-  Each reads a live Hub contract (`/v1/teams`, `/v1/catalog-retirements`,
-  `/v1/export-pipelines`, `/v1/bundle-imports`), follows the established page
-  conventions, and ships a Playwright POM + spec. The `Placeholder` component is
-  now unused.
+The Trunk gate posted its commit status with a bare `gh api` call under
+`bash -e`. Two consequences, both real rather than theoretical, and both hit
+during this session's multi-hour 503 on GitHub's commit-status API:
 
-### Accuracy audit and remediation
-An audit diffed **all 53 console readers (~230 fields) against the Go `json`
-tags and const values.** Field names were 100% accurate; six status/enum drifts
-were found and fixed:
-- **Import status vocabulary** (PR #40): the screen guessed
-  `IMPORTED`/`BLOCKED`; the Hub emits `ADMITTED`/`PENDING_APPROVAL`/`ERROR`.
-- **Export lifecycle** (PR #40): `ACTIVE`/`ARCHIVED`/`DELETED` were unshown, so a
-  deleted pipeline read as active.
-- **Session applications** (PR #41): the Hub never advertised
-  teams/risk/export/import, so those four screens were **unreachable via the
-  rail** (URL-only). Now advertised, gated by each endpoint's read capability.
-- **Four status→colour maps** (PR #42): `ROLLOUT`/`CONFIG`/`LIFECYCLE`/`PLAN`
-  keyed on invented values while omitting real ones, so a `BLOCKED` rollout or
-  `RECORDED` plan rendered neutral. Plus a latent `useReviewChangeRequest`
-  return-type lie.
-- **Contract gate** (PR #43, `scripts/verify-console-contract.mjs`): reads the
-  Go source live and fails CI when a console status vocabulary drifts from the
-  Hub's constants. Seven vocabularies covered; a planted-violation test proves
-  it rejects invented and dropped values.
+- The **opening** status post ran before the 30 verifications. A transient 503
+  there aborted the whole job, so an outage in a status API decided whether the
+  code was tested.
+- The **closing** post ran after them. A 503 there turned an all-green run red.
 
-## Still needs the repository owner
+Both calls now go through `scripts/retry-github-api.sh` (four attempts,
+exponential backoff) and **neither can fail the job**. Proven by
+`scripts/test-retry-github-api.sh`, which is itself a gate.
 
-These are decisions or build-or-close calls, not agent work:
-- **Close the issues whose work is already on `main`.** #13 (reviewer-requirement
-  satisfiability) and #25 (intermittent Environment silence) both shipped in
-  PR #29 and still carry `status:needs-review`. #16 (scan-before-install) shipped
-  its one real gap — freshness — in PR #35, its premise having proved false.
-  These need no decision; they need closing.
-- **Close the decided issues.** #17 (Foundry Space) → **won't-do** (serving a
-  synthesized `spaceId` behind an `OBSERVED` coordinate would make the
-  provenance disclosure lie; recommend close). #19 → already closed. #21 (Gitless
-  propose principal) → recommended **option 3** (per-binding nominated
-  principal), kept deferred until a real consumer. #26 (Namespace) → **defer**.
-- **Decide what to do about the merge queue (#20).** This was previously written
-  here as a setting to flip. It is not one. GitHub offers merge queues on public
-  repositories, and on private ones only under Team or Enterprise Cloud, so this
-  private repository under a personal account has no "Require merge queue"
-  control at all — confirmed 2026-08-16 against `main`'s branch-protection form,
-  where the option is absent between "Require linear history" and "Require
-  deployments to succeed before merging", with "Require a pull request before
-  merging" ticked and its sub-options rendering. Rulesets are gated identically.
-  So `merge-queue.yml` (PR #33) stays inert unless the repository moves to an
-  organization on GitHub Team, or becomes public — a decision about repository
-  ownership rather than about CI. If it ever does move, the required check must
-  become `Merge queue` and not `Trunk gate`: `platform-ci.yml` is
-  `workflow_dispatch` with a required pull-request input and cannot run on a
-  `merge_group`, so leaving it required would strand every merge group waiting
-  for a status nothing posts.
-- **Merge order for stacked workflow PRs:** the doc-drift crawl (PR #34) needs
-  `verify-documentation-manifest.mjs`, which arrived with PR #29 — already on
-  `main`, so nothing pending, but note the dependency if reverting.
+This is why runs in this period show `TRUNK_STATE: success` with a failing final
+step and a green job — that is the fix working, not a broken gate. It also means
+**a PR can be fully verified and show no status badge**; read the run, not the
+badge.
+
+### #144 — the signal that separates a wedged Hub from a busy one
+
+`conduit_reconciliation_pending`, `_leased`, `_exhausted` and
+`_oldest_pending_seconds` per queue, plus `conduit_build_info`. Depth alone
+cannot distinguish a stuck Hub from a busy one — both sit at some number — so
+the lag gauge is the one that matters.
+
+**A correction worth keeping, because it was mine.** I read a stale `pending`
+commit status as a hung test, invented `ACCESS EXCLUSIVE` lock contention to
+explain it, and weakened a test to avoid a hazard that had no evidence behind
+it. Run 47's log ends `TRUNK_STATE: success` — every gate passed, including
+PostgreSQL — and the only failure was a 503 on the final status POST. The commit
+was reverted and the record corrected in the branch and the PR body. **A missing
+status badge is not a failing test**; that mistake is now cheap to repeat and
+worth guarding against.
+
+### #146 — schema migrations applied once, and recorded
+
+`internal/pgmigrate` applies an ordered slice of named migrations once per
+database and records them in `conduit_schema_migrations`. Each migration commits
+**in one transaction with the row that claims it ran**, so there is no state in
+which the ledger is wrong. Both schemas (`reconciliation`, `controlplane`) are
+on it; the idiom is written down in `docs/operations/schema-migrations.md`.
+
+**An adversarial review found the design's central claim false, and it was.**
+The first version took one advisory lock keyed on the component and claimed that
+solved the concurrent `CREATE TABLE IF NOT EXISTS` hazard. Two different
+components hash to two different keys and exclude each other not at all: four
+components racing a fresh database failed **36 times in 20 rounds** with
+`SQLSTATE 23505` on `pg_type_typname_nsp_index`. Reachable in production — a Hub
+opens the control-plane repository *and* the reconciliation store. Fixed by
+creating the ledger under a fixed lock every caller shares, taken and released
+before the per-component one.
+
+Five further findings, all fixed: a best-effort unlock that could strand a lock
+on a pooled connection for `ConnMaxLifetime`; a concurrency test flaky in the
+*passing* direction; a retype guard that knew `ALTER COLUMN c TYPE` but not
+`ALTER COLUMN c SET DATA TYPE`; an adoption test running migration 0002's
+backfill against an empty outbox; and no adoption test at all for the control
+plane.
+
+Also removed: the `-run '^TestPostgres'` filter in
+`scripts/test-postgres-repository.sh` for two of its three packages. That filter
+encoded a naming convention nobody wrote down and silently excluded new
+database-backed tests, which then ran **nowhere** — skipped locally for want of a
+DSN and filtered out in CI. `cmd/platform-delivery` keeps its filter deliberately.
+
+### Sandbox skills (`.claude/skills/cluster`, `.claude/skills/containers`)
+
+The environment knowledge needed to run k3s, Docker, podman and a real
+PostgreSQL in a web session, as two skills with their scripts. On branch
+`claude/adversarial-review-run-52-kxnmvk`.
+
+**One substantive change from the upstream copy: fix 5 was ported in.** This
+repository's own `scripts/bootstrap-k3s.sh` resolves the runc to wrap by reading
+the data-bin directory from the running server's `PATH`
+(`/proc/<pid>/environ`); the skill's copy used `data/current`, which goes stale
+once more than one k3s version has run — the wrapper is then installed where
+nothing reads it while every pod keeps failing with the fix apparently applied.
+`bootstrap-k3s.test.sh` covers five cases; reverting the resolution kills three
+of them, including the one that reproduces the field failure.
+
+Still referenced and still absent: `containers/docs/USE-CASES.md` and the
+`ccw-sandbox:diagnose` skill.
+
+## Environment facts this session established (read before re-deriving them)
+
+- **Docker is installed and its daemon is not running.** `scripts/start-docker.sh`
+  starts it and works as shipped. An earlier note in this session that "Docker is
+  unavailable" was wrong.
+- **Docker Hub's blob CDN is blocked by network policy.** `docker pull` of the
+  pinned PostgreSQL image fails with `403 Forbidden` from
+  `production.cloudfront.docker.com`, so **`scripts/test-postgres-repository.sh`
+  cannot run in this sandbox at all** — the daemon is fine, the pull is refused.
+  Confirm with `curl -sS "$HTTPS_PROXY/__agentproxy/status"`, which lists the
+  rejection under `recentRelayFailures`.
+- **Run the PostgreSQL-backed tests against the installed server instead.**
+  PostgreSQL 16.13 is present. This is the exact path used to verify #146:
+
+  ```bash
+  export PATH=/usr/lib/postgresql/16/bin:$PATH
+  mkdir -p /tmp/pgdrill && chown postgres:postgres /tmp/pgdrill
+  su postgres -c "initdb -D /tmp/pgdrill/data -U conduit --auth=trust"
+  su postgres -c "pg_ctl -D /tmp/pgdrill/data -o '-p 5434 -k /tmp/pgdrill' -l /tmp/pgdrill/server.log start"
+  psql -h 127.0.0.1 -p 5434 -U conduit -d postgres -c 'CREATE DATABASE conduit_test'
+  export CONDUIT_TEST_POSTGRES_DSN="postgres://conduit@127.0.0.1:5434/conduit_test?sslmode=disable"
+  go test -race ./internal/controlplane \
+                 ./internal/delivery/reconciliation/adapters/postgres \
+                 ./internal/pgmigrate
+  ```
+
+- **Never judge a gate by a piped exit code.** `./scripts/test-postgres-repository.sh | tail -20`
+  reports `tail`'s status, which is always 0. A failing gate read as passing
+  here until the log was actually read.
+- **CI was unreliable for reasons outside this repository**: a multi-hour 503 on
+  the commit-status API, and a 429 on the `actions/setup-go` download that killed
+  run 52 during `Set up job` before any step ran. Re-dispatching is the correct
+  response to the latter and to nothing else. Run 54 is the green one for #146.
+
+## Open branches and PRs
+
+- **`claude/adversarial-review-run-52-kxnmvk`** — this session's skills work,
+  pushed. Two commits.
+- **`claude/schema-migration-ledger`** — merged as #146; the branch is stale and
+  can be deleted.
+- **#114 and #115 (Renovate, Rust crates).** `base64` `0.22.1 → 0.23.1` and
+  `sha2` `0.10.9 → 0.11.0`. **Do not merge these without building the crate.**
+  Both are breaking-version bumps: `base64` 0.23 raises the MSRV to 1.71 and adds
+  a default-on `simd-unsafe` feature, and `sha2` 0.11 is a major RustCrypto
+  release. Their base is also stale (`89d5534`). They need a `cargo build`/test
+  against `solver/`, which was not run this session.
+
+## Next work, already scoped
+
+The production-readiness record (`docs/operations/PRODUCTION-READINESS.md`)
+Tier 1 rows, in the order they are worth taking:
+
+1. **Backup, restore and disaster recovery (gap 4) — designed, not started.**
+   The only Tier 1 row with *nothing* behind it: no backup method, no restore
+   drill, no RPO/RTO, for the database holding desired state, decisions, the
+   audit trail and the outbox. The scoped design:
+   - `pgmigrate.Pending(ctx, db, component, migrations)` — a dry run reporting
+     what `Apply` would run without running it. Must **not** create the ledger
+     (check `to_regclass` first), or a dry run mutates the schema. This also
+     closes the first "what remains" bullet of gap 3.
+   - A restore drill: seed both components through their real constructors,
+     `pg_dump --format=custom` **while writes are in flight**, restore into a
+     fresh database, then assert (a) nothing pending for either component, so the
+     ledger survived intact, (b) state matches through the real repositories, and
+     (c) no torn `decision`/`audit`/`outbox` triple — `CommitDecision` writes all
+     three in one transaction, so a backup that tears them is worthless.
+   - `docs/operations/backup-and-restore.md`: the procedure, RPO/RTO, and what
+     is out of scope.
+   - Where it goes: `cmd/platform-delivery` already opens both the control-plane
+     repository and the reconciliation store against one DSN, and its
+     `^TestPostgres` filter means a test named `TestPostgres…` there will run.
+   - Watch the client/server version coupling: `pg_dump` must be at least as new
+     as the server. The runner's client is 16 and the pinned image is what it is;
+     if they ever diverge the drill should fail loudly rather than skip.
+
+   **Research already done for this document — do not re-derive it.** A scout
+   swept the deployment and persistence surface; the load-bearing findings:
+
+   - **The database is BYO and its provisioning is unspecified.** The chart
+     consumes only a DSN from a pre-existing deployment-owned Secret, mounted
+     read-only as a file; it never creates a StatefulSet, Service, operator CR or
+     subchart (`deploy/helm/platform-hub/values.yaml:13-17`,
+     `templates/deployment.yaml:145-151`, `Chart.yaml` has no `dependencies`).
+     `scripts/verify-helm-runtime.rb:130-131` pins the *complete* set of rendered
+     kinds, so a database StatefulSet cannot be added without failing the gate,
+     and `:160-161` forbids a Hub PVC in postgres mode. No operator or managed
+     service is named anywhere in the repo. The only place backup responsibility
+     is assigned is `docs/decisions/0002-transactional-hub-persistence.md:51-52`
+     — "PostgreSQL becomes a production dependency that the Environment owner
+     must operate and back up."
+   - **Artifact blobs are IN PostgreSQL**, not an OCI registry:
+     `conduit_repository_blobs (digest, descriptor, contents bytea)` at
+     `internal/controlplane/postgres_repository.go:31-36`. So one `pg_dump`
+     covers metadata *and* artifact bytes — and the dump is as large as the
+     artifacts. The OCI registry in the gitless path is a delivery source, not
+     Hub state.
+   - **A restore needs more than the database, and one gap is silent.** If
+     `BUNDLE_SIGNING_KEY_FILE` is absent the Hub logs a warning and generates an
+     **ephemeral** Ed25519 key (`cmd/platform-delivery/main.go:75-77`), so
+     previously issued Bundle signatures stop verifying against the running key.
+     Everything else fails closed and loudly (`main.go:96-121`, `:315`,
+     `:329-351`). The full required set is pinned at
+     `scripts/verify-helm-runtime.rb:204-205`. No secrets backup or rotation
+     procedure exists anywhere.
+   - **Two things already state the key invariant — cite them, do not contradict
+     them.** `docs/operations/schema-migrations.md:117-122` already says restore
+     is not covered and that a consistent backup holds both the migration and its
+     ledger row or neither; `internal/pgmigrate/migrate.go:255-262` carries the
+     same reasoning as the justification for a plain `INSERT`.
+   - **Confirmed absent everywhere** (searched docs, scripts, deploy, CI, code):
+     any RPO/RTO figure; any backup command (`pg_dump`, `pg_basebackup`,
+     pgBackRest, Barman, wal-g); any WAL archiving or PITR configuration
+     (`archive_mode`, `wal_level`, `restore_command`); any restore procedure,
+     drill or script; any DR runbook; any PostgreSQL HA/failover guidance; any
+     VolumeSnapshot policy. The gap statement is accurate as written.
+   - **Startup coordination is PostgreSQL advisory locks, not Kubernetes leases**
+     (`pgmigrate.Apply` from both components), and runtime work coordination is
+     DB-row leases with a 30 s lease duration
+     (`cmd/platform-delivery/main.go:260-264`). Two replicas are enforced by
+     `verify-helm-runtime.rb:194` with a PDB at `maxUnavailable: 1`. Restore
+     ordering has to account for both replicas racing `Apply` on first start.
+2. **Gap 3 remainder** — no schema verification against the ledger (a row asserts
+   a migration ran; it does not detect a column dropped by hand), and no upgrade
+   rehearsal against a production-shaped dataset.
+3. **Observability (gap 2)** — no tracing, metrics only under
+   `REPOSITORY_KIND=postgres`, endpoint off unless `METRICS_ADDRESS` is set, and
+   no alerting rules ship.
+4. **Notifications (gap 1)** — a whole subsystem: no ports, no store, no HTTP
+   surface, no emit sites, no console inbox.
+
+One further research subagent was still running when this session ended and its
+findings did not survive: classifying every table as authoritative or derivable,
+and deriving SQL predicates for the cross-table invariants a torn backup could
+violate (starting from `CommitDecision`'s decision/audit/outbox triple, and
+covering `UpsertDesired`, `UpsertObservation`, `LeaseWork`, `FailWork`,
+`RepairDroppedWork`, `LeaseProposal`, `CompleteProposal`, `FailProposal`). Worth
+re-running — those predicates are what the drill asserts.
 
 ## Mechanisms a next contributor must know
 
 - **Registered invention / provenance tiers.** The Apollo GraphQL interface
   serves a coordinate from real Conduit data, or from a value Conduit invented
-  that says so on the wire. It never nulls -- a null is a claim of absence. Under
+  that says so on the wire. It never nulls — a null is a claim of absence. Under
   [ADR 0007](docs/decisions/0007-registered-invention-over-refusal.md) an invented
-  value carries `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`: Apollo
-  declares the field, the value is ours. Serving a synthesized constant behind an
-  undisclosed `OBSERVED` coordinate is still a lie; disclosing it is what makes it
-  legal. ADR 0007 supersedes 0005 and reopens #17. See `internal/apollographql/`.
+  value carries `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`. ADR 0007
+  supersedes 0005 and reopens #17. See `internal/apollographql/`.
+- **Schema changes go through `internal/pgmigrate`.** Position is the order, the
+  name is identity and never changes once merged, and each migration commits with
+  the row recording it. Forward-only by decision, not omission. Read
+  `docs/operations/schema-migrations.md` before adding one; it has the
+  add-nullable / backfill / constrain idiom and the rules
+  (`CREATE INDEX CONCURRENTLY` cannot appear in a migration — every one runs in a
+  transaction).
 - **The controlplane line ceiling** (`docs/operations/controlplane-ceiling.json`)
-  only moves down; raising it requires a justification in the same commit. New
-  behaviour belongs in a bounded context, not `internal/controlplane`.
+  only moves down; raising it requires a justification in the same commit.
 - **Fixtures must be corrected from the Go source, never from what makes a test
   pass.** The console's browser tests mock the Hub, so a fixture using an
-  invented status passes while lying. This burned six times; the contract gate
-  (PR #43) and the unit tests in `web/src/test/unit/logic.test.ts` now guard the
-  status vocabularies, but the discipline still applies to any new reader field.
+  invented status passes while lying. The contract gate guards the status
+  vocabularies; the discipline still applies to any new reader field.
 - **The embedded console bundle** (`internal/consoleui/dist`) is committed and
-  checked byte-for-byte by `scripts/verify-console-assets.sh`. After any
-  `web/src` change, run `pnpm --dir web build` and commit the regenerated
-  bundle, or the console gate fails. Parallel console branches conflict on this
-  artifact; resolve by re-merging `main` and rebuilding.
+  checked byte-for-byte. After any `web/src` change run `pnpm --dir web build`
+  and commit the regenerated bundle.
 - **Local verification:** `./scripts/verify-local.sh` runs every gate the Trunk
   gate runs (it reads `.github/workflows/platform-ci.yml` so the two cannot
-  drift). CI is manual (`workflow_dispatch`); dispatch the Trunk gate against a
-  PR head per `docs/operations/manual-ci.md`. A green run is evidence, not
-  authorization to merge or release (assumption A5).
+  drift). CI is manual (`workflow_dispatch`); dispatch per
+  `docs/operations/manual-ci.md`. A green run is evidence, not authorization to
+  merge or release (assumption A5). In this sandbox the PostgreSQL gate cannot
+  run — see the environment section above for the substitute.
 - **Mutation testing:** one hand-planted mutant at a time via
-  `scripts/verify-mutant-killed.sh` to prove a specific gate rejects; the
-  dispatched `mutation-sweep.sh` measures the suite as a whole. gremlins jitters
-  killed/timed-out run-to-run, so the sweep carries a tolerance band.
-
-## Follow-ups worth considering (not started)
-- Extend the contract gate to import-level statuses if they are given named Go
-  consts (currently inline literals; unit-test-pinned). Checked 2026-08-16: the
-  Bundle import *task* vocabularies already have named consts and still cannot
-  be added, because the gate checks set equality both ways and the console side
-  is a deliberate partial map (`statusIntent`) plus a raw-string stage render.
-  Adding either needs a console change first, so it is a design decision, not
-  the chore it resembles. Full reasoning is in the gate's own header.
-- Build-or-close the optional features their decisions unblocked: a Conduit-native
-  per-Environment scan-before-install *strictness* beyond freshness (#16 notes),
-  or wiring the Gitless propose principal (#21) when a consumer appears.
-- Comprehensive mutation testing of `internal/controlplane` itself (deliberately
-  excluded from the current sweep as the largest, least-changing target).
+  `scripts/verify-mutant-killed.sh` to prove a specific gate rejects. Two traps
+  seen this session: a mutation applied with shell escaping that mangled the
+  anchors was **not applied at all**, so its "survival" was void; and a mutation
+  can be killed *for the wrong reason* (a driver type error rather than the
+  property under test), which is not a kill.
+- **The merge queue (#20) is not a setting to flip.** GitHub offers merge queues
+  on public repositories, and on private ones only under Team or Enterprise
+  Cloud, so this private repository under a personal account has no control at
+  all. `merge-queue.yml` stays inert unless the repository moves to an
+  organization or becomes public. If it ever does, the required check must become
+  `Merge queue`, not `Trunk gate`: `platform-ci.yml` is `workflow_dispatch` and
+  cannot run on a `merge_group`.
 
 ## Bootstrapping a fresh session
 
-The whole tree is on `main` (PRs #30–#44 merged), so a new session does not
-re-apply any work — it re-orients and re-provisions. Live PR subscriptions and
-scheduled self-check-ins are session-local and do not carry over; re-`subscribe_pr_activity`
-for anything that needs watching.
+Live PR subscriptions and scheduled self-check-ins are session-local and do not
+carry over; re-`subscribe_pr_activity` for anything that needs watching.
 
 ### First message to paste into the new session
 
@@ -152,44 +290,41 @@ then clone and register it.
 
 Before doing anything, read these to load context -- do not skip:
 - handoff.md                                  (this file: state, open items, gotchas)
+- docs/operations/PRODUCTION-READINESS.md     (the Tier 1 gaps and what remains)
 - docs/operations/manual-ci.md                (CI is manual workflow_dispatch)
+- docs/operations/schema-migrations.md        (how a schema change is made here)
 - docs/operations/ASSUMPTIONS-LEDGER.md       (A1-A9; A4 overturned by ADR 0006)
-- docs/decisions/0006-automated-workflow-triggers.md
 - docs/operations/local-verification.md
-- docs/operations/controlplane-ceiling.json   (line ceiling; only moves down)
 - AGENTS.md and docs/operations/AGENTS.md
 
 Adopt these working rules for this repo:
-- New branch per issue/change; open a PR; never push to main. CI is manual -- I
-  dispatch the Trunk gate (platform-ci.yml) against the PR head per manual-ci.md.
-- Run ./scripts/verify-local.sh before handoff; it runs every gate CI runs.
-- Ground every Apollo/Hub-contract claim in the code (grep the Go json tags /
-  const values); never reason from plausibility. Console fixtures must be
-  corrected from the Go source, never from what makes a test pass.
-- Registered invention (ADR 0007, superseding 0005): serve every coordinate,
-  from real data or from an invention that discloses itself as one via
-  `valueTier: CONDUIT_NATIVE` and is entered in the invention register. Never
-  null. Never an undisclosed synthesized constant behind an OBSERVED coordinate.
-  Exhaust this repository's own sources before inventing.
-- internal/controlplane has a line ceiling that only moves down; raising it needs
-  a justification in the same commit. New behaviour belongs in a bounded context.
-- After any web/src change, run `pnpm --dir web build` and commit the regenerated
-  internal/consoleui/dist bundle (verify-console-assets.sh checks it byte-for-byte).
-- Put design decisions and premise-reversals through an adversarial review (a
-  fresh agent, ideally model: fable) before implementing -- it caught #17 and #16.
+- New branch per change; open a PR; never push to main. CI is manual -- I
+  dispatch the Trunk gate (platform-ci.yml) against the PR head.
+- Run ./scripts/verify-local.sh before handoff. The PostgreSQL gate cannot run
+  in this sandbox (the image pull is blocked); use the local PostgreSQL 16
+  recipe in handoff.md instead, and say which path you used.
+- Verify by reading output, never by a piped exit code, and never by a status
+  badge -- an absent badge here often means GitHub's status API failed, not that
+  a gate did.
+- Ground every Apollo/Hub-contract claim in the code; never reason from
+  plausibility. Console fixtures come from the Go source, not from what makes a
+  test pass.
+- Registered invention (ADR 0007): serve every coordinate, from real data or
+  from an invention that discloses itself. Never null.
+- internal/controlplane has a line ceiling that only moves down.
+- After any web/src change, run `pnpm --dir web build` and commit the
+  regenerated internal/consoleui/dist bundle.
+- Put design decisions and premise-reversals through an adversarial review
+  before implementing. It has now overturned a central design claim twice --
+  most recently the migration ledger's locking, which was false as written.
 
-Then tell me the current open issues and which decisions still need me, and wait
-for direction. Do not carry a to-do list in from this block: it previously said
-"close #17 won't-do, #19/#20/#21/#26; enable the merge queue in branch
-protection", which had gone stale in both directions -- #17 and #16 are closed,
-and the merge queue is not a setting to flip (see the body of this handoff).
-Read the issue list rather than this paragraph.
+Then tell me the open issues and PRs and which decisions still need me, and wait
+for direction. Read the live issue list rather than any to-do list quoted here.
 ```
 
 ### Shell bootstrap (rebuild the toolchain)
 
 ```bash
-# Repo (skip the clone if add_repo already placed it):
 cd /workspace/conduit || (git clone <clone-url-from-add_repo> /workspace/conduit && cd /workspace/conduit)
 git fetch origin && git checkout main && git pull
 
@@ -203,5 +338,5 @@ GOTOOLCHAIN=go1.26.6 go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.
 # Prove the tree is where we left it:
 node scripts/verify-console-contract.mjs        # 7 vocabularies match the Hub
 node scripts/verify-mutation-scores.mjs         # mutation baseline intact
-./scripts/verify-local.sh                        # full gate set (downloads pinned tools, runs -race, console, etc.)
+./scripts/verify-local.sh                        # full gate set
 ```
