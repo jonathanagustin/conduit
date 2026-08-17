@@ -44,6 +44,33 @@ captures landed since say so in their own words:
 - [`apollo-control-panel-seam.json`](../evidence/apollo-control-panel-seam.json)
   records that *"the string `ri.apollo` does not occur anywhere in the corpus."*
 
+> **Correction, 2026-08-17, same day this record landed.** The second bullet is
+> quoted accurately and was used to support more than it says. "The corpus" there
+> is the Java control-panel artifact that capture projected — not every source
+> this repository holds. `ri.apollo` occurs **twelve times in the pinned public
+> OpenAPI snapshot**, which publishes three RID grammars outright:
+> `ri.apollo.main.environment.123`, `ri.apollo.main.installation.123`, and
+> `ri.apollo.main.package.123`. A fourth, `ri.autopilot.main.team.123`, shows the
+> service segment varying by owning service, so the shape
+> `ri.<service>.main.<type>.<locator>` is published rather than inferred.
+>
+> This does not change the decision, and it does not revive ADR 0005's condition
+> for the six coordinates in group 1 — `bundle`, `product` and `productRelease`
+> have no published RID grammar, which is exactly why those six were refused
+> while `ApolloEnvironment.rid` was served. ADR 0005 was internally consistent on
+> this point and the correction is to this record, not to that one.
+>
+> What it does change is group 1's minting guidance below, which is amended in
+> place, and one fact this record got backwards: Conduit is **already** minting
+> `ri.apollo.*` identifiers against the published grammar, and serving them under
+> `OBSERVED` coordinates with no disclosure. That is the first thing `valueTier`
+> is applied to.
+>
+> The error is the one this repository keeps making: a source-scoped absence read
+> as a general one. It is the same shape as the `notifications.md` claim that no
+> public documentation page existed, and it was made in the record that added a
+> gate against that exact class.
+
 For group 2 the evidence went further and cut **against** serving. The same
 identifier capture documents `ApolloSpaceId` as originating *external to
 Foundry*, stored so Foundry knows which Apollo space manages an installation, and
@@ -155,20 +182,35 @@ Chosen option: **serve, disclose, register**. Concretely:
 Conduit holds all three resources and lacks only Apollo's identifier for them.
 Under this record it mints one, in a form that cannot be mistaken for Apollo's.
 
-The invention is bounded by the one structural fact the evidence does give:
-`ApolloPlanId` is documented as *"a uuid, in practice always equal to the locator
-of the corresponding PlanRid"*, which establishes that an Apollo RID has a
-**locator** segment and that a locator can be a UUID. It establishes nothing
-about the segments before it, and `ri.apollo` appears nowhere in the corpus.
+*Amended by the correction above.* The grammar is **not** the invention here. The
+pinned OpenAPI publishes `ri.<service>.main.<type>.<locator>` and three Apollo
+instantiations of it, and `ApolloPlanId` adds that a locator can be a UUID
+(*"a uuid, in practice always equal to the locator of the corresponding
+PlanRid"*). Conduit already mints against that published grammar for the three
+published types.
 
-The minted identifier must therefore name Conduit in the position where Apollo
-would name its own service, so that a value leaking into a log or a bug report is
-self-evidently not an Apollo RID even with no access to `valueTier`. It is an
-invention twice over — the segment grammar as much as the values — and both parts
-get registered.
+Two things are invented, and only two:
 
-**Displaced by:** a capture or published statement giving an `ri.apollo.*`
-grammar. On arrival the minting is reimplemented against it, not bent toward it.
+1. **The type token** for `bundle`, `product` and `productRelease`, which Apollo
+   has not published. Minting `ri.apollo.main.bundle.<locator>` guesses a token
+   inside Apollo's own namespace, where a future real Apollo type of the same
+   name would collide with it silently.
+2. **The locator**, for every type including the published three. Apollo's
+   examples use the placeholder `123`, so no locator format is established;
+   Conduit uses a truncated SHA-256 of a stable input, where the one documented
+   Apollo locator is a UUID.
+
+Both are registered. Naming Conduit in the service segment is **not** the answer
+for the three published types — Conduit correctly follows Apollo's grammar there,
+and substituting `ri.conduit.*` would break compatibility to make a point that
+`valueTier` already makes. Whether the three unpublished types should follow the
+same namespace or take a distinguishable one is the live design question, and it
+turns on collision risk rather than on honesty, since `valueTier` carries the
+honesty either way.
+
+**Displaced by:** a published statement giving the `bundle`, `product` and
+`productRelease` type tokens, and separately by any statement of Apollo's locator
+format. On arrival the minting is reimplemented against it, not bent toward it.
 
 Note preserved from ADR 0005 because it remains a live trap: `ri.apollo.main.bundle`
 appears in this repository only in Conduit's own GraphQL fixtures. It is our test

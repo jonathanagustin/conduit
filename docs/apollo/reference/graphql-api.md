@@ -230,6 +230,41 @@ nothing whatever about whether Conduit holds data behind it or whether a Hub
 would answer for it. `Tier.Established()` is the single place that distinction
 is made, and only `OBSERVED` returns true from it.
 
+### Values Conduit builds behind coordinates Apollo declares
+
+`tier` says who established that a coordinate **exists**. It has never said where
+the **value** came from, and while the two were always the same nobody needed it
+to. Three coordinates make them differ, and until
+[ADR 0007](../../decisions/0007-registered-invention-over-refusal.md) the
+interface had no way to say so — they served under a bare `OBSERVED` annotation
+whose disclosure told clients an Apollo Hub had answered with them. It had not.
+
+| Coordinate | Grammar, published by Apollo | What Conduit supplies |
+| --- | --- | --- |
+| `ApolloEnvironment.rid` | `apollo-openapi ri.apollo.main.environment.123` | the locator |
+| `ApolloEntity.packageRid` | `apollo-openapi ri.apollo.main.package.123` | the locator |
+| `ApolloEntity.id` | `@osdk/client.unstable aeid:mojito:foundry-product:namespace+truck-locator` | the second segment, which carries an Environment where Apollo's example carries a Space |
+
+These now serve as `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`, and
+the response's provenance extension lists them under `conduitMintedValues` — a
+**subset of `observedServed`**, not a fourth bucket, because the coordinate
+really was recovered even though the string was not. The practical warning the
+disclosure carries is that one of these values will not match anything if a
+client round-trips it into a real Apollo API.
+
+Note what is *not* invented: the RID grammar. The pinned OpenAPI publishes three
+Apollo instantiations of `ri.<service>.main.<type>.<locator>`, and
+`ri.autopilot.main.team.123` alongside them shows the service segment naming the
+owning service. Only the locator is open — Apollo's examples use the placeholder
+`123` — and the one Apollo locator whose format is documented, a Plan's, is a
+UUID where Conduit uses a truncated digest for stability without storage.
+
+Both are registered in
+[`conduit-inventions.json`](../../evidence/conduit-inventions.json) with the
+evidence that would displace them, and
+`scripts/verify-minted-values.mjs` fails the build if the schema, the generator
+input and the register stop agreeing.
+
 ### Displacement by documentation
 
 Where Apollo publishes a name for something Conduit had named itself, the

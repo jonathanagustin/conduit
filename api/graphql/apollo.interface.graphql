@@ -66,8 +66,8 @@ type ApolloChangeRequestPage {
 type ApolloEntity {
   environment: ApolloEnvironment @provenance(tier: OBSERVED)
   health: String @provenance(tier: DOCUMENTED)
-  id: String @provenance(tier: OBSERVED)
-  packageRid: String @provenance(tier: OBSERVED)
+  id: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
+  packageRid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   spaceId: String @provenance(tier: OBSERVED)
   version: String @provenance(tier: DOCUMENTED)
 }
@@ -83,7 +83,7 @@ type ApolloEnvironment {
   id: String @provenance(tier: OBSERVED)
   name: String @provenance(tier: OBSERVED)
   namespaceId: String @provenance(tier: OBSERVED)
-  rid: String @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   spaceId: String @provenance(tier: OBSERVED)
 }
 

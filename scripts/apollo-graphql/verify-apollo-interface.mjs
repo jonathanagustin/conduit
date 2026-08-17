@@ -38,6 +38,11 @@ const OPENAPI = resolve(
 );
 const NATIVE = resolve(HERE, "conduit-native.json");
 const CARDINALITY = resolve(HERE, "documented-cardinality.json");
+// Minted values change the ANNOTATION on a recovered coordinate, not the set of
+// coordinates, so this file has to be an input here as well: rebuilding without
+// it derives a schema missing every valueTier and reports the committed one as
+// hand-edited.
+const MINTED = resolve(HERE, "conduit-minted-values.json");
 const SCHEMA = resolve(ROOT, "api/graphql/apollo.interface.graphql");
 const REPORT = resolve(ROOT, "docs/apollo/observed/apollo-interface-provenance.json");
 
@@ -58,11 +63,12 @@ if (failures.length) {
 const observed = JSON.parse(readFileSync(OBSERVED, "utf8"));
 const native = JSON.parse(readFileSync(NATIVE, "utf8"));
 const cardinality = existsSync(CARDINALITY) ? JSON.parse(readFileSync(CARDINALITY, "utf8")) : {};
+const minted = existsSync(MINTED) ? (JSON.parse(readFileSync(MINTED, "utf8")).coordinates ?? {}) : {};
 const committedSchema = readFileSync(SCHEMA, "utf8");
 const report = JSON.parse(readFileSync(REPORT, "utf8"));
 
 const { sdl, observedCount, documentedCount, nativeCount, displaceable, unresolved, unknownCardinality } =
-  buildInterfaceSchema(observed, native, cardinality);
+  buildInterfaceSchema(observed, native, cardinality, minted);
 
 // 1 & 3. The served interface is exactly what the record and the declarations
 // derive, so an OBSERVED field cannot drift from the Hub that established it.
