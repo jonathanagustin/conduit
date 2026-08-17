@@ -1,0 +1,63 @@
+{
+  "apiVersion": "evidence.conduit.dev/v1alpha1",
+  "kind": "ConduitInventionRegister",
+  "purpose": "Every shape Conduit invented where no ground truth existed, and the exact evidence that would displace it. This exists because the repository reversed a standing rule: it used to refuse a feature it could not ground, and now it builds one on an educated guess instead. That reversal is only safe if an invention stays distinguishable from a recovery for as long as it lives, and if the arrival of real evidence is an obligation to reimplement rather than an invitation to feel vindicated.",
+  "howThisIsEnforced": "scripts/verify-conduit-inventions.mjs checks both directions: every CONDUIT-INVENTED marker in the source is registered here, and every entry here still exists in the source. A marker without a Displaced-by line fails. An entry whose displacement evidence has landed fails, which is the point -- the gate turns 'we should revisit this' into a build failure.",
+  "markerConvention": {
+    "inSource": "// CONDUIT-INVENTED: <id>\\n// Displaced-by: <the capture or document that would settle it>",
+    "note": "The id is <context>.<Symbol>. It is not a package path, so moving a file does not silently unregister an invention -- renaming the symbol does, which is when someone should be looking at this anyway."
+  },
+  "displacementProcedure": [
+    "When the named evidence lands, record it under docs/evidence/ or docs/apollo/ as a normal capture first. An invention displaced by nothing citable is just a different guess.",
+    "Reimplement against the evidence. Do not adapt the invented shape to fit -- the invented shape was chosen without constraint and will bend into agreement, which is how a guess becomes an unfalsifiable claim.",
+    "Delete the CONDUIT-INVENTED marker and this entry in the same change as the reimplementation, so the register never describes code that no longer exists.",
+    "State in the change what the invention got wrong. That is the only feedback anyone gets about how good these guesses are, and without it the next invention is made no better informed than this one."
+  ],
+  "inventions": [
+    {
+      "id": "notifications.InboxEntry",
+      "what": "A per-recipient inbox record carrying its own read state.",
+      "why": "Read state is modelled per-recipient because two people notified about the same promotion failure read it independently, and storing readAt on the event would let one of them mark it read for both. Apollo has an inbox -- Hub Settings carries a 'My notifications' page and the tenant viewer role names it -- but no capture shows an entry or its read state.",
+      "displacedBy": "A capture of Apollo's notification inbox entry and its read state, in particular whether read state is per-recipient.",
+      "riskIfWrong": "Medium. Wrong here means the inbox behaves differently from Apollo's, which is visible to operators but not corrupting."
+    },
+    {
+      "id": "notifications.Fan",
+      "what": "Resolution of one event to its recipients, deduplicated per owner and channel.",
+      "why": "Deduplication is a judgement, not a recovery: being told the same thing twice in the same place teaches people to ignore it. The channel half of the key is grounded -- Apollo configures email and in-app independently, so reaching one person on both is intended -- but collapsing one owner reached by two preferences on one channel is Conduit's own choice, and Apollo may well fan out per preference instead.",
+      "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates a recipient reached by two preferences.",
+      "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
+    }
+  ],
+  "displaced": [
+    {
+      "id": "notifications.Severity",
+      "displacedOn": "2026-08-17",
+      "by": "docs/evidence/apollo-notification-types.json",
+      "whatTheInventionGotWrong": "It existed at all. Apollo's notification subscriptions carry no severity: filtering is by type and channel, and nothing on any notification page or screenshot has a severity, priority or urgency control. The invention also named a displacement condition -- 'a capture establishing Apollo's MonitoringSeverity enum members' -- that could never have displaced it, because this repository's own reference note already records MonitoringSeverity as a Foundry Data Health type rather than an Apollo one. An invention whose stated evidence cannot settle it is unfalsifiable, which is the failure the register exists to prevent and which the register itself shipped.",
+      "note": "Apollo does have a severity, on the Environment Events surface, where the 2020 capture shows the facet Success/Info/Warning/Error. That is a different surface and is not modelled here. Note also that the invented members -- INFO, WARNING, ACTION_REQUIRED, CRITICAL -- match neither that vocabulary nor its ordering."
+    },
+    {
+      "id": "notifications.EventKind",
+      "displacedOn": "2026-08-17",
+      "by": "docs/evidence/apollo-notification-types.json",
+      "whatTheInventionGotWrong": "Every name, and worse, the shape. All eight invented kinds are gone; nine observed types replace them, and not one invented name survived. The structural error was closing the set: Apollo's documentation says the supported types 'will grow over time', and the settings page carries a per-resource, per-channel toggle reading 'If enabled, you will opt into future notification types added for this resource'. Apollo solved openness with forward consent. The invention closed the vocabulary and justified it by analogy to the Change Type taxonomy -- reasoning from a neighbouring design instead of looking, which is exactly how a closed set becomes the thing that silently drops every type added later."
+    },
+    {
+      "id": "notifications.Subscription",
+      "displacedOn": "2026-08-17",
+      "by": "docs/evidence/apollo-notification-types.json",
+      "whatTheInventionGotWrong": "The grain and three whole dimensions. Apollo's unit is a preference per (resource, principal, channel), not one subscription filtered by kind and severity. Missing entirely: delivery channels, team contacts as a prerequisite for a team receiving anything, and the two opt-into-future toggles. Present and wrong: a severity floor Apollo does not have, and a Muted boolean where Apollo's mute vocabulary belongs to monitors. The one part that held was ownership by user or team, which was the one part grounded in recovered evidence rather than guessed."
+    }
+  ],
+  "howThisWentWrong": {
+    "note": "All three displacements landed the day after the register was written, from evidence that was already in reach. This is recorded because the register's value depends on its guesses being honest ones, and these were not -- they were made without looking.",
+    "whatWasAvailable": [
+      "Three public Palantir documentation pages under managing-notifications, already listed in docs/apollo/public-documentation-manifest.tsv with their content digests.",
+      "Five screenshots on those pages, already counted by docs/apollo/IMAGE-DERIVED-GAPS.md, which dispositioned the section 'Boundary' without opening them -- in a document whose own thesis is that screenshots are where a UI-first product states its enum values.",
+      "docs/ui/evidence/legacy-apollo-2020/environment-events.webp, committed in this repository, showing the Events severity and category facets."
+    ],
+    "whyItWasNotSeen": "docs/apollo/reference/notifications.md opened with 'No public Palantir docs page was captured for this capability'. That sentence was false against this repository's own manifest, had never been checked against it, and was taken at face value. The gate added in scripts/verify-documentation-claims.mjs now checks exactly this class of claim, because it is the cheapest possible check and nothing was doing it.",
+    "lesson": "The register asks whether an invention is marked and whether it names what would displace it. It does not ask whether the invention was necessary. A guess made without exhausting the sources already in the repository is not an educated guess, and marking it does not make it one."
+  }
+}
