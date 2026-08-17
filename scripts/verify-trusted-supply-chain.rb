@@ -23,9 +23,37 @@ docker_ignore = File.read(File.expand_path("../.dockerignore", __dir__))
 container_ignore = File.read(File.expand_path("../.containerignore", __dir__))
 
 cosign_action = "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
+# Declared once, like cosign_action above, rather than written into the
+# assertion. The old form scanned for a literal "cosign-release: v3.1.2", which
+# guarded the two occurrences in images.yml and silently ignored the third in
+# platform-optimizer-candidate-release.yml -- so the signing toolchain could
+# already drift between the workflows that sign images and the one that signs
+# optimizer candidates, and nothing would say so.
+#
+# The point of the pin is that an unattended bot cannot change the signing
+# toolchain on its own: Renovate rewrites workflows wholesale and cannot satisfy
+# a gate that names the old value, so the change becomes a red gate a person has
+# to resolve rather than a hunk in a grouped dependency PR. That property is
+# kept. What is added is that the version is now tethered to the one cosign this
+# repository pins by sha256 and actually executes -- the clean-cluster Gitless
+# acceptance download -- so a bump has to move the checksum too, and the tag
+# pin stops being the weakest link on its own.
+cosign_release = "v3.1.3"
+clean_cluster = File.read(File.expand_path("test-gitless-clean-cluster.sh", __dir__))
+optimizer_release_workflow = read_workflow.call("optimizer-candidate-release.yml")
 retry_wrapper = "./scripts/retry-keyless-signing.sh"
 abort "Cosign installer must be pinned for image and runtime signing" unless workflow.scan(cosign_action).length == 2
-abort "Cosign release must be pinned" unless workflow.scan("cosign-release: v3.1.2").length == 2
+abort "Cosign release must be pinned for image and runtime signing" unless
+  workflow.scan("cosign-release: #{cosign_release}").length == 2
+abort "Cosign release must be pinned for optimizer candidate signing" unless
+  optimizer_release_workflow.scan("cosign-release: #{cosign_release}").length == 1
+# The signing workflows and the acceptance suite have to run the same cosign, or
+# the version the suite proves out by checksum is not the version that signs
+# what ships.
+abort "Cosign release must match the checksum-pinned download in test-gitless-clean-cluster.sh" unless
+  clean_cluster.include?("/sigstore/cosign/releases/download/#{cosign_release}/")
+abort "no cosign-release may be left unpinned" unless
+  (workflow + optimizer_release_workflow).scan(/cosign-release: (\S+)/).flatten.uniq == [cosign_release]
 abort "image and runtime jobs require GitHub OIDC" unless workflow.scan("id-token: write").length == 2
 abort "keyless signing retry wrapper must be behaviorally tested" unless
   File.executable?(File.expand_path("test-retry-keyless-signing.sh", __dir__))
@@ -46,7 +74,29 @@ abort "Syft must be version and archive-digest pinned" unless workflow.include?(
   workflow.include?("bf7b29ff57f06da30918266a0e1c2885a8f99784798d1bdb1628886aa015d788")
 abort "Grype must be version and archive-digest pinned" unless workflow.include?("v0.116.1/grype_0.116.1_linux_amd64.tar.gz") &&
   workflow.include?("0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458")
-abort "Grype database cache action must be commit pinned" unless workflow.scan("actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae").length == 2
+# Asserted as a property rather than as a literal SHA: what matters is that both
+# occurrences are commit-pinned and identical, which a bot bumping the action can
+# satisfy honestly. Naming one commit made every routine bump a verifier edit,
+# and a control that cries wolf on safe changes is one people learn to retarget
+# without reading.
+# mise.toml is the single source of truth for tool versions, and the workflows
+# name their own. Nothing reconciled them, so a bot could move CI to one Node
+# while every local gate -- and verify-local.sh, which claims to run what CI runs
+# -- stayed on another. Same failure the VERSION/tag check exists for, and the
+# same fix: assert agreement rather than hope.
+mise = File.read(File.expand_path("../mise.toml", __dir__))
+declared_node = mise[/^node = "([^"]+)"/, 1]
+abort "mise.toml declares no node version" if declared_node.nil?
+workflow_nodes = Dir[File.join(workflow_dir, "*.yml")]
+  .flat_map { |path| File.read(path, encoding: "UTF-8").scan(/node-version: (\S+)/).flatten }
+  .uniq
+abort "workflow node-version #{workflow_nodes.reject { |v| v == declared_node }.join(", ")} " \
+      "disagrees with mise.toml #{declared_node}" unless
+  workflow_nodes.all? { |version| version == declared_node }
+
+cache_pins = workflow.scan(%r{actions/cache@([0-9a-f]{40})}).flatten
+abort "Grype database cache action must be commit pinned twice and identically" unless
+  cache_pins.length == 2 && cache_pins.uniq.length == 1
 abort "Grype database must be updated once, restored exactly, and not changed during image scans" unless
   workflow.include?("timeout 10m /tmp/grype db update") && workflow.include?("fail-on-cache-miss: true") &&
     workflow.include?('GRYPE_DB_AUTO_UPDATE: "false"')
