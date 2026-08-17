@@ -100,7 +100,7 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 	}
 
 	claims := []countedClaim{{
-		path:    "../../../docs/decisions/0005-apollo-coordinates-that-stay-refused.md",
+		path:    "../../../docs/decisions/0007-registered-invention-over-refusal.md",
 		pattern: `(\d+) recovered coordinates declared, of which (\d+) are served and (\d+) are unanswerable`,
 		want:    []int{counts.observed, counts.observedServed, counts.refused},
 		says:    "the ADR's consequences",

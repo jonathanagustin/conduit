@@ -92,11 +92,14 @@ These are decisions or build-or-close calls, not agent work:
 
 ## Mechanisms a next contributor must know
 
-- **MAPPED-or-REFUSED / provenance tiers.** The Apollo GraphQL interface either
-  serves a coordinate from real Conduit data or *refuses* it (never nulls, never
-  fabricates). `OBSERVED`-tier coordinates carry a disclosure that the value came
-  from an Apollo Hub, so serving a synthesized constant behind one is a lie. This
-  is why #17 is won't-do. See `internal/apollographql/`.
+- **Registered invention / provenance tiers.** The Apollo GraphQL interface
+  serves a coordinate from real Conduit data, or from a value Conduit invented
+  that says so on the wire. It never nulls -- a null is a claim of absence. Under
+  [ADR 0007](docs/decisions/0007-registered-invention-over-refusal.md) an invented
+  value carries `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`: Apollo
+  declares the field, the value is ours. Serving a synthesized constant behind an
+  undisclosed `OBSERVED` coordinate is still a lie; disclosing it is what makes it
+  legal. ADR 0007 supersedes 0005 and reopens #17. See `internal/apollographql/`.
 - **The controlplane line ceiling** (`docs/operations/controlplane-ceiling.json`)
   only moves down; raising it requires a justification in the same commit. New
   behaviour belongs in a bounded context, not `internal/controlplane`.
@@ -163,9 +166,11 @@ Adopt these working rules for this repo:
 - Ground every Apollo/Hub-contract claim in the code (grep the Go json tags /
   const values); never reason from plausibility. Console fixtures must be
   corrected from the Go source, never from what makes a test pass.
-- MAPPED-or-REFUSED: the Apollo GraphQL interface serves a coordinate from real
-  Conduit data or refuses it; never null, never a synthesized constant behind an
-  OBSERVED coordinate.
+- Registered invention (ADR 0007, superseding 0005): serve every coordinate,
+  from real data or from an invention that discloses itself as one via
+  `valueTier: CONDUIT_NATIVE` and is entered in the invention register. Never
+  null. Never an undisclosed synthesized constant behind an OBSERVED coordinate.
+  Exhaust this repository's own sources before inventing.
 - internal/controlplane has a line ceiling that only moves down; raising it needs
   a justification in the same commit. New behaviour belongs in a bounded context.
 - After any web/src change, run `pnpm --dir web build` and commit the regenerated

@@ -1,5 +1,6 @@
 ---
-status: accepted
+status: superseded
+superseded-by: 0007-registered-invention-over-refusal
 date: 2026-08-15
 decision-makers:
   - repository owner
@@ -8,6 +9,24 @@ informed: []
 ---
 
 # Refuse the twelve Apollo coordinates Conduit cannot answer truthfully
+
+> **Superseded on 2026-08-17 by [ADR 0007](0007-registered-invention-over-refusal.md).**
+>
+> The owner overruled the preference for refusal: Conduit now implements against
+> an educated guess where there is no ground truth, marks it, and reimplements
+> when evidence arrives.
+>
+> **This record's close conditions were never met, and were not met at the time
+> of superseding.** Two captures made since say so explicitly, and ADR 0007
+> quotes them rather than paraphrasing. Nothing about the supersession should be
+> read as this record having been answered — it was overruled.
+>
+> What holds, and is carried forward: a null is a claim, and serving an invented
+> value while presenting it as recovered is not allowed. ADR 0007 addresses the
+> second by adding `valueTier` to the provenance directive, so an invented value
+> discloses itself in band rather than being refused for want of a way to say so.
+>
+> The figures below are frozen at 2026-08-15. The live counts are in ADR 0007.
 
 ## Context and problem statement
 
@@ -144,13 +163,15 @@ rather than by a settled one.
 
 ## Consequences
 
-- The interface's published counts stay meaningful: 41 recovered coordinates
-  declared, of which 29 are served and 12 are unanswerable, 0 of Conduit's own
-  invention. Declared and served are counted separately on purpose. This line
-  previously read "41 recovered coordinates served, 12 declared and
-  unanswerable", which counts the twelve twice and exceeds the 41 that exist —
-  the conflation this record was written to refuse, restated in its own
-  consequences.
+- The interface's published counts stay meaningful. As of 2026-08-15 the
+  interface declared 41 recovered coordinates, serving 29 and refusing 12, none
+  of Conduit's own invention. Declared and served are counted separately on
+  purpose. This line previously read "41 recovered coordinates served, 12
+  declared and unanswerable", which counts the twelve twice and exceeds the 41
+  that exist — the conflation this record was written to refuse, restated in its
+  own consequences. *(Frozen figures; the live claim moved to ADR 0007 when this
+  record was superseded, so that a superseded document cannot drift into
+  disagreeing with the interface.)*
 - `internal/apollographql/domain.Reconcile` keeps failing the build on the two
   cases that are defects — a field Conduit added that nothing backs, and a
   resolver claiming a coordinate the schema does not declare. Refusing a

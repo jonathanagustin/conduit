@@ -11,6 +11,21 @@ import "fmt"
 // identifier, which Conduit has never observed and has no way to know. Refusing
 // says the true thing instead -- that nothing here answers the question -- and
 // leaves the client to ask an Apollo Hub, which does.
+//
+// What refusal is no longer is the default. ADR 0007 supersedes ADR 0005: a
+// coordinate with no ground truth behind it is now served from a value Conduit
+// invented, disclosed on the wire as valueTier: CONDUIT_NATIVE and entered in
+// docs/evidence/conduit-inventions.json. The reasoning above survives intact and
+// is exactly why disclosure was the fix rather than nulls -- what changed is that
+// the interface gained a way to say "this value is ours", so refusing for want of
+// a way to say it stopped being the only honest option.
+//
+// Two callers remain. The defect case below, which Reconcile fails the build on.
+// And ADR 0007 group 2 -- the five spaceId coordinates -- which stay refused for
+// a reason no mechanism fixes: Palantir's own documentation puts the Space id's
+// origin outside the Hub, arriving by agent report, so there is no Conduit value
+// to disclose and a constant would be a synthesized value wearing a tenancy
+// field.
 func RefuseUnserved(coordinate Coordinate, tier Tier) string {
 	if !tier.Established() {
 		// Reconcile makes this a build failure, so reaching it at request time

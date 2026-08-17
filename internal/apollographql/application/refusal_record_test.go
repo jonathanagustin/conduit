@@ -12,7 +12,13 @@ import (
 )
 
 // decisionRecord is the ADR enumerating every coordinate that stays refused.
-const decisionRecord = "../../../docs/decisions/0005-apollo-coordinates-that-stay-refused.md"
+//
+// This points at 0007 rather than the 0005 it supersedes, and the distinction
+// matters more than a path usually does. 0005 is now historical, so its group
+// listings are frozen at what was true on 2026-08-15; pinning the code to a
+// frozen list would make the test pass by agreeing with the past. The live
+// enumeration lives in the record that currently governs.
+const decisionRecord = "../../../docs/decisions/0007-registered-invention-over-refusal.md"
 
 // backtickedCoordinate matches the `ApolloType.field` spellings the record uses
 // in its group listings. The leading Apollo prefix is what keeps this from

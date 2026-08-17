@@ -28,7 +28,17 @@ An Apollo-facing pull request must state:
 - the test, generated-output comparison, or sanitized fixture that detects drift;
 - each deliberate Conduit extension or divergence.
 
-Missing evidence remains `Unknown`. Do not supply an Apollo-like default.
+Missing evidence is still classified `Unknown`, and `Unknown` no longer means
+stop. Per [ADR 0007](../decisions/0007-registered-invention-over-refusal.md),
+build against an educated guess, disclose it in band where the surface can carry
+a provenance tier, and register it in
+[`../evidence/conduit-inventions.json`](../evidence/conduit-inventions.json)
+with the capture that would displace it.
+
+Two obligations come with that. **Exhaust this repository's own sources before
+inventing** -- the documentation manifest and the images referenced from it
+included. **Displacement means reimplementing against the evidence**, not bending
+the guess until it agrees; a shape chosen without constraint will always bend.
 
 ## Contract boundary
 
