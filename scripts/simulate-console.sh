@@ -24,22 +24,39 @@ set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 keep=0
-[ "${1:-}" = "--keep" ] && keep=1
+simulate_agent=1
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --keep) keep=1; shift ;;
+    # Without an Agent the fleet never reports. Kept as an option because it is
+    # the state the console was in before one existed, and a spec that asserts
+    # on staleness needs it.
+    --no-agent) simulate_agent=0; shift ;;
+    *) break ;;
+  esac
+done
 
 port="${CONDUIT_SIMULATION_PORT:-8099}"
 hub_url="http://127.0.0.1:${port}"
 work="$(mktemp -d)"
 hub_pid=""
+agent_pid=""
 
 cleanup() {
   local status=$?
-  if [ -n "${hub_pid}" ] && [ "${keep}" -eq 0 ]; then
-    kill "${hub_pid}" 2>/dev/null || true
-    wait "${hub_pid}" 2>/dev/null || true
+  if [ "${keep}" -eq 0 ]; then
+    for pid in "${agent_pid}" "${hub_pid}"; do
+      [ -n "${pid}" ] || continue
+      kill "${pid}" 2>/dev/null || true
+      wait "${pid}" 2>/dev/null || true
+    done
   fi
-  if [ "${status}" -ne 0 ] && [ -s "${work}/hub.log" ]; then
-    echo "--- Hub log ---" >&2
-    tail -40 "${work}/hub.log" >&2
+  if [ "${status}" -ne 0 ]; then
+    for log in hub agent; do
+      [ -s "${work}/${log}.log" ] || continue
+      echo "--- ${log} log ---" >&2
+      tail -40 "${work}/${log}.log" >&2
+    done
   fi
   [ "${keep}" -eq 0 ] && rm -rf "${work}"
   return "${status}"
@@ -73,7 +90,7 @@ LISTEN_ADDRESS="127.0.0.1:${port}" \
   DATA_DIRECTORY="${work}/data" \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
-  PLATFORM_BOOTSTRAP_ADMINISTRATORS=operator \
+  PLATFORM_BOOTSTRAP_ADMINISTRATORS=proposer,operator \
   "${work}/hub" >"${work}/hub.log" 2>&1 &
 hub_pid=$!
 
@@ -87,13 +104,33 @@ done
 curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/bootstrap.json" ||
   { echo "simulate: the Hub never served the console" >&2; exit 1; }
 
+# Seeded as "proposer", while the browser acts as "operator". They have to be
+# different people: the Hub refuses the author of a Change Request approving it,
+# so a simulation that proposed and approved as one subject could never exercise
+# the approval the console exists to perform. Both are bootstrap administrators
+# so neither needs a grant seeded before it can act.
 echo "simulate: seeding through the Hub's own API"
-plan_id="$(CONDUIT_HUB_URL="${hub_url}" go run "${repo_root}/scripts/simulate/seed.go")"
+plan_id="$(CONDUIT_HUB_URL="${hub_url}" CONDUIT_SUBJECT=proposer go run "${repo_root}/scripts/simulate/seed.go")"
 echo "simulate: seeded Plan ${plan_id}"
+
+# The Agent is what makes the fleet move. Without it nothing reports, every
+# installation reads UNKNOWN and stale, and no Plan gets past AWAITING_APPROVAL
+# -- reported state reaches the Hub only through a lease token minted for an
+# approved Plan, so no amount of seeding substitutes for one.
+#
+# It is a separate binary from the shipped Agent on purpose; see its own doc
+# comment. Nothing here is a mode of cmd/platform-spoke-agent.
+if [ "${simulate_agent}" -eq 1 ]; then
+  echo "simulate: starting the simulated Agent"
+  go build -o "${work}/simulated-agent" "${repo_root}/cmd/platform-simulated-agent"
+  CONTROL_PLANE_URL="${hub_url}" ENVIRONMENT=dev-use2 \
+    "${work}/simulated-agent" >"${work}/agent.log" 2>&1 &
+  agent_pid=$!
+fi
 
 if [ "${keep}" -eq 1 ]; then
   echo "simulate: Hub left running at ${hub_url}/console/ (pid ${hub_pid}, data ${work})"
-  echo "simulate: stop it with: kill ${hub_pid}"
+  echo "simulate: stop it with: kill ${hub_pid} ${agent_pid}"
   exit 0
 fi
 
