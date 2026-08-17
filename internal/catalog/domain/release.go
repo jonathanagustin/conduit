@@ -108,18 +108,35 @@ type SuppressedVulnerabilityFinding struct {
 	Suppression     VulnerabilitySuppressionProvenance `json:"suppression"`
 }
 
+// VulnerabilitySuppressionProvenance is what the scanner's control plane
+// recorded about an approved suppression, preserved verbatim.
+//
+// Every field here is an external assertion, including ChangeRequestID. It is
+// NOT a Conduit crq_ and is never resolved against this Hub's Change Requests:
+// validation requires only that it is non-empty. That is deliberate rather than
+// unimplemented. Conduit does not create or remove provider-side suppressions --
+// they stay with the scanner/identity control plane -- so there is no local
+// record the field could name, and an assessment relayed from another Hub
+// carries the approving system's reference, which this Hub could not resolve
+// even in principle.
+//
+// The security boundary for a suppression is therefore governance approval of
+// the Plan that carries it, not any property of these fields. Anything stronger
+// needs Hub-witnessed assessments, which is a separate and much larger design.
 type VulnerabilitySuppressionProvenance struct {
-	ProviderID      string                           `json:"providerId"`
-	Scope           VulnerabilitySuppressionScope    `json:"scope"`
-	ScopeValue      string                           `json:"scopeValue,omitempty"`
-	Category        VulnerabilitySuppressionCategory `json:"category"`
-	Rationale       string                           `json:"rationale"`
-	RequestedBy     string                           `json:"requestedBy"`
-	ApprovedBy      string                           `json:"approvedBy"`
-	ChangeRequestID string                           `json:"changeRequestId"`
-	CreatedAt       time.Time                        `json:"createdAt"`
-	ApprovedAt      time.Time                        `json:"approvedAt"`
-	ValidUntil      time.Time                        `json:"validUntil"`
+	ProviderID  string                           `json:"providerId"`
+	Scope       VulnerabilitySuppressionScope    `json:"scope"`
+	ScopeValue  string                           `json:"scopeValue,omitempty"`
+	Category    VulnerabilitySuppressionCategory `json:"category"`
+	Rationale   string                           `json:"rationale"`
+	RequestedBy string                           `json:"requestedBy"`
+	ApprovedBy  string                           `json:"approvedBy"`
+	// ChangeRequestID references the approving system's change record. See the
+	// type comment: it is an external reference, not a Conduit Change Request.
+	ChangeRequestID string    `json:"changeRequestId"`
+	CreatedAt       time.Time `json:"createdAt"`
+	ApprovedAt      time.Time `json:"approvedAt"`
+	ValidUntil      time.Time `json:"validUntil"`
 }
 
 // MalwareAssessment is provider-neutral evidence that the exact immutable
