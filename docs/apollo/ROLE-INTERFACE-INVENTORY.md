@@ -23,14 +23,35 @@ There is no recovered Hub-to-Spoke control service in this interface corpus.
 The supplied `EnrollmentManagementService` copy has SHA-256
 `bb8f574daabaa8f1f64f91ae82e09130eacd7c7fcabe6a7326a3aef510dd53ed`
 and 34 operations. Only two are Apollo-specific:
-`createApolloSpaceForOrganization` and `restoreApolloPermissions`. They are
-marked `internal` with `openapi-structural` confidence; both accept an opaque
-`ConjureBean` and return `unknown`. This proves only that the reconstructed
-Foundry administration client names Apollo-space provisioning and permission
-repair. It does not reveal the Space record, identifier derivation, role grant,
-or Hub API. The Connected Hubs Space ID therefore remains an externally
-provisioned, case-sensitive connection input rather than a Platform-owned
-resource.
+`createApolloSpaceForOrganization` and `restoreApolloPermissions`.
+
+**Displaced 2026-08-17.** This paragraph read: "both accept an opaque
+`ConjureBean` and return `unknown`... It does not reveal the Space record,
+identifier derivation, role grant, or Hub API." The first half is no longer
+true. A bytecode-exact projection of
+`com.palantir.controlpanel:control-panel-api-objects:1.1588.0` carries both
+operations in full, and a third, with their request and response shapes. They
+are recorded in
+[`../evidence/apollo-control-panel-seam.json`](../evidence/apollo-control-panel-seam.json)
+and gated by `scripts/verify-apollo-control-panel-seam.mjs`.
+
+What the shapes add: `CreateApolloSpaceRequest` carries **only**
+`admins: set<PrincipalIdWithType>`, and `CreateApolloSpaceForOrganizationResponse`
+returns a `spaceRid` the platform mints. So a caller states who administers a
+Space and never states its identifier.
+
+The second half of the old sentence still holds, and is the part that matters.
+This reveals no Hub API, and it does not establish what an Apollo Space id is
+for a resource Conduit holds -- which is the condition ADR 0005 records for
+reopening the Space refusal, and it remains unmet. `spaceRid` is a Foundry-side
+identifier; `ApolloSpaceId` is an opaque string in the pinned interop IR, linked
+to Foundry by Maven group. Nothing here shows they are the same identifier, and
+treating them as one would be the invented correspondence that record forbids.
+
+The conclusion is therefore unchanged and better founded: the Connected Hubs
+Space ID remains an externally provisioned, case-sensitive connection input
+rather than a Platform-owned resource. It was previously held on the absence of
+evidence; it is now held on evidence.
 
 The supplied `MonitoringServiceV2` copy has SHA-256
 `31545add36d3251d0cb316fc17453f0c170680597e07e9cd96fce595f473209f`
