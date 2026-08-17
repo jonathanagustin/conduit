@@ -26,7 +26,11 @@ func TestTopologyPredicatesSeparateWhatEachSettingDecides(t *testing.T) {
 	} {
 		t.Run(setting, func(t *testing.T) {
 			t.Parallel()
-			federation := Federation{ConnectionSetting: setting}
+			// Present is held true so this case varies one dimension. It asks
+			// what each SETTING decides; whether the Hub has reviewed the
+			// Environment at all is the other half of
+			// ParticipatesInPromotion and has its own case below.
+			federation := Federation{ConnectionSetting: setting, Present: true}
 			got := struct {
 				issuesPlans, acceptsAgents, acceptsRelayed, tracksHealth, silenceExpected bool
 			}{
@@ -41,6 +45,13 @@ func TestTopologyPredicatesSeparateWhatEachSettingDecides(t *testing.T) {
 			// with; counting it would let a canary pass on absent evidence.
 			if federation.ParticipatesInPromotion() != want.tracksHealth {
 				t.Fatalf("%s participates in promotion without tracking health", setting)
+			}
+			// And the same setting on an Environment this Hub has never
+			// reviewed vouches for nothing, whatever its topology says it
+			// would track.
+			unreviewed := Federation{ConnectionSetting: setting}
+			if unreviewed.ParticipatesInPromotion() {
+				t.Fatalf("%s vouches for a Release on a Hub that has never reviewed the Environment", setting)
 			}
 			// ExpectsDirectAgents is what the operational predicates are built on,
 			// so it must agree with them: an Environment that issues Plans and
