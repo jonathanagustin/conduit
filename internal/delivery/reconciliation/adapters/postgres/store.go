@@ -17,9 +17,30 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/ports"
+	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
 
-const schema = `
+// component names this store's rows in the shared migration ledger. It is an
+// identifier in a database, so it changes never.
+const component = "reconciliation"
+
+// migrations are applied in this order, once per database, and recorded.
+//
+// The split below is not a rewrite of the DDL -- every statement is the one
+// that was already running. What changed is that the two groups are now named,
+// ordered by position rather than by where they happen to sit in one string,
+// and applied once instead of on every Hub start.
+//
+// Both must stay idempotent, and that requirement is narrower than it looks: it
+// is a one-time adoption property, not a rule for the future. Databases already
+// in service contain the effects of both and have no ledger, so the first start
+// after this change runs both against a populated database and must be a no-op.
+// A migration added after adoption runs against a database whose ledger is
+// accurate, so it may be as destructive as it needs to be.
+var migrations = []pgmigrate.Migration{
+	{
+		Name: "0001-reconciliation-core",
+		Statements: `
 CREATE TABLE IF NOT EXISTS conduit_reconciliation_desired (
     environment text NOT NULL,
     installation text NOT NULL,
@@ -87,6 +108,27 @@ CREATE TABLE IF NOT EXISTS conduit_reconciliation_proposal_outbox (
     last_error text NOT NULL DEFAULT '',
     document bytea NOT NULL
 );
+CREATE INDEX IF NOT EXISTS conduit_reconciliation_outbox_available
+    ON conduit_reconciliation_proposal_outbox (available_at, proposal_id)
+    WHERE exhausted = false;
+CREATE TABLE IF NOT EXISTS conduit_reconciliation_plan_receipts (
+    proposal_id text PRIMARY KEY,
+    plan_id text NOT NULL,
+    created_at timestamptz NOT NULL,
+    document bytea NOT NULL
+);`,
+	},
+	{
+		// The migration that already shipped, now named. It exists because the
+		// outbox originally carried only the serialised document, and reading a
+		// generation out of JSON on every dispatch is both slow and untyped.
+		//
+		// Its shape is the idiom this repository uses and the reason
+		// docs/operations/schema-migrations.md exists: add nullable, backfill
+		// guarded, then constrain. Each of the three is safe to interrupt, and
+		// no step requires the application to be stopped.
+		Name: "0002-outbox-desired-coordinates",
+		Statements: `
 ALTER TABLE conduit_reconciliation_proposal_outbox
     ADD COLUMN IF NOT EXISTS desired_generation text;
 ALTER TABLE conduit_reconciliation_proposal_outbox
@@ -104,16 +146,9 @@ WHERE desired_generation IS NULL OR target_digest IS NULL;
 ALTER TABLE conduit_reconciliation_proposal_outbox
     ALTER COLUMN desired_generation SET NOT NULL;
 ALTER TABLE conduit_reconciliation_proposal_outbox
-    ALTER COLUMN target_digest SET NOT NULL;
-CREATE INDEX IF NOT EXISTS conduit_reconciliation_outbox_available
-    ON conduit_reconciliation_proposal_outbox (available_at, proposal_id)
-    WHERE exhausted = false;
-CREATE TABLE IF NOT EXISTS conduit_reconciliation_plan_receipts (
-    proposal_id text PRIMARY KEY,
-    plan_id text NOT NULL,
-    created_at timestamptz NOT NULL,
-    document bytea NOT NULL
-);`
+    ALTER COLUMN target_digest SET NOT NULL;`,
+	},
+}
 
 // Store is a multi-replica reconciliation adapter. Leases use row locks with
 // SKIP LOCKED; all decision, audit, and outbox writes share one transaction.
@@ -138,7 +173,7 @@ func New(ctx context.Context, dataSourceName string) (*Store, error) {
 		database.Close()
 		return nil, fmt.Errorf("connect reconciliation store: %w", err)
 	}
-	if _, err := database.ExecContext(ctx, schema); err != nil {
+	if err := pgmigrate.Apply(ctx, database, component, migrations); err != nil {
 		database.Close()
 		return nil, fmt.Errorf("initialize reconciliation store: %w", err)
 	}

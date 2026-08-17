@@ -47,6 +47,14 @@ port="$(docker port "${name}" 5432/tcp | awk -F: '/127[.]0[.]0[.]1/ {print $NF; 
 
 cd "${root}"
 dsn="postgres://conduit:conduit_test@127.0.0.1:${port}/conduit_test?sslmode=disable"
-CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/controlplane -run '^TestPostgres'
-CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliation/adapters/postgres -run '^TestPostgres'
+# No -run filters, deliberately. The '^TestPostgres' filter these two lines
+# carried encodes a naming convention nobody wrote down, and it silently
+# excluded tests added with the migration ledger: a database-backed test whose
+# name does not begin with TestPostgres skips without a DSN locally AND is
+# filtered out here, so it runs nowhere at all. The database-free tests in these
+# packages are seconds at most, so running them again costs little and removes
+# the trap. cmd/platform-delivery keeps its filter: that package's other tests
+# start listeners and are covered by the main Test gate.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/controlplane
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliation/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./cmd/platform-delivery -run '^TestPostgres'
