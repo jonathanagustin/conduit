@@ -77,11 +77,75 @@ encoded a naming convention nobody wrote down and silently excluded new
 database-backed tests, which then ran **nowhere** — skipped locally for want of a
 DSN and filtered out in CI. `cmd/platform-delivery` keeps its filter deliberately.
 
+### Backup, restore and disaster recovery — Tier 1 gap 4, closed as far as this repository can close it
+
+Gap 4 was the only Tier 1 row with nothing behind it. It now has a procedure
+(`docs/operations/backup-and-restore.md`) and a drill that holds the procedure
+down rather than the other way round.
+
+**`pgmigrate.Pending`** reports what `Apply` would run, in order, applying
+nothing — and **creating** nothing, which is the requirement that shapes it. The
+database an operator most wants to ask about before a first start is the one that
+has never been migrated, and that is exactly the database with no ledger table;
+an implementation that created the ledger in order to read it would make asking
+the question change the schema. `to_regclass` answers the absence for what it
+means. This also closes the first "what remains" bullet of gap 3.
+
+**`TestPostgresBackupAndRestoreDrill`** (`cmd/platform-delivery`) seeds both
+schemas through their real constructors, takes `pg_dump --format=custom` **while
+decisions are being committed**, restores into a fresh database, and asserts:
+
+- nothing pending for either component — read on a plain connection **before**
+  either repository is constructed, because constructing one applies whatever the
+  restore lost and then reports a healthy database. Order is the test;
+- no torn decision/audit/outbox triple, with row counts asserted first so the
+  predicates cannot pass over empty tables (the failure #146's adoption test had);
+- state read back through `ListPlans`, `OpenBlob` with the bytes compared, and
+  `CurrentDesired`.
+
+It **fails rather than skips** when `pg_dump` is missing or older than the
+server. A skip on a gate that promises a restore drill is a green run for a
+backup nobody tested.
+
+**The client/server coupling was not hypothetical and it bit immediately.** The
+previous handoff said to watch for divergence; they had already diverged. The
+pinned image is PostgreSQL **18** and the CI runner's client is **16**, and
+`pg_dump` refuses a server newer than itself — so the first version of this
+drill, built on the runner's client, would have turned the Trunk gate red on its
+first dispatch. The fix is that the drill uses **the pinned image's own client**,
+handed to it by `scripts/test-postgres-repository.sh` as
+`CONDUIT_TEST_PG_TOOL_PREFIX="docker exec -i <container>"` plus the server's
+in-container address. That client matches its server by construction and is
+already digest-pinned; installing a matching one instead would add an unpinned
+apt source to a repository that pins everything else, and downgrading the server
+to match the runner would test backups against a PostgreSQL nobody runs. The
+archive moves over stdin and stdout because the client does not share the test's
+filesystem. Verified on both paths: `pg_dump 18 … (via docker exec)` under the
+real gate, and a local client with no prefix.
+
+Four mutants killed by hand: creating the ledger inside `Pending` (the first
+attempt did not compile, which is not a kill — the second one did); deleting a
+ledger row from the restored database; deleting an audit row to tear a committed
+triple. Also: `./internal/pgmigrate` is now in
+`scripts/test-postgres-repository.sh`. Without that line its new
+database-backed tests would skip locally for want of a DSN and be reached by
+nothing in CI — the "runs nowhere" trap #146 removed from that same script.
+
+The controlplane ceiling moved up 13 (25035 → 25048) with the reason recorded in
+the same commit: a dry run covering only the reconciliation store answers half
+the question, since a Hub start applies both schemas and this is the one holding
+the artifact bytes. `internal/pgtest` is new and is where the throwaway-database
+helper lives, so neither caller had to grow one.
+
+**What is deliberately not closed, and cannot be here**: the backup schedule,
+retention, WAL archiving/PITR and secrets copies. The chart consumes a DSN from a
+Secret it does not create, so those are the deployment's — carried to
+PRODUCTION-READINESS residual item 5 rather than left implied.
+
 ### Sandbox skills (`.claude/skills/cluster`, `.claude/skills/containers`)
 
 The environment knowledge needed to run k3s, Docker, podman and a real
-PostgreSQL in a web session, as two skills with their scripts. On branch
-`claude/adversarial-review-run-52-kxnmvk`.
+PostgreSQL in a web session, as two skills with their scripts. Merged as #147.
 
 **One substantive change from the upstream copy: fix 5 was ported in.** This
 repository's own `scripts/bootstrap-k3s.sh` resolves the runc to wrap by reading
@@ -100,26 +164,53 @@ Still referenced and still absent: `containers/docs/USE-CASES.md` and the
 - **Docker is installed and its daemon is not running.** `scripts/start-docker.sh`
   starts it and works as shipped. An earlier note in this session that "Docker is
   unavailable" was wrong.
-- **Docker Hub's blob CDN is blocked by network policy.** `docker pull` of the
-  pinned PostgreSQL image fails with `403 Forbidden` from
-  `production.cloudfront.docker.com`, so **`scripts/test-postgres-repository.sh`
-  cannot run in this sandbox at all** — the daemon is fine, the pull is refused.
-  Confirm with `curl -sS "$HTTPS_PROXY/__agentproxy/status"`, which lists the
-  rejection under `recentRelayFailures`.
-- **Run the PostgreSQL-backed tests against the installed server instead.**
-  PostgreSQL 16.13 is present. This is the exact path used to verify #146:
+- **Docker Hub's blob CDN is no longer blocked, and the PostgreSQL gate runs
+  here.** The previous session recorded a `403 Forbidden` from
+  `production.cloudfront.docker.com` on the pinned image and concluded
+  `scripts/test-postgres-repository.sh` "cannot run in this sandbox at all".
+  That is now false: `docker pull` of the same digest succeeds, and
+  `./scripts/test-postgres-repository.sh` exits 0 with all four packages green.
+  **Run the real gate first and only fall back if it fails** — a sandbox fact
+  with a shelf life is exactly the kind this repository has been burned by.
+  Start the daemon with `sudo bash scripts/start-docker.sh`.
+- **The pinned image is PostgreSQL 18** (alpine 3.24, built 2026-08-13),
+  resolved from the registry rather than guessed. It is pinned by digest with no
+  tag, and Renovate does not manage it (its dockerfile manager matches only
+  `Dockerfile`/`Containerfile` paths, and this is a shell script), so the version
+  is now written down in a comment beside the digest — that comment is the only
+  place it exists.
+- **The local PostgreSQL fallback is 16.13**, which is what Ubuntu 24.04 ships
+  and not a choice this repository made. It is two majors behind the gate, so a
+  green fallback run is weaker evidence than a green gate; say which one you
+  used. This is the exact path used to verify #146:
+
+  **Use absolute paths inside `su`.** `su postgres -c` starts a fresh shell that
+  discards the exported `PATH`, so the `initdb` line below fails with "command
+  not found" while the surrounding `export` looks like it worked — and with
+  `initdb` skipped, every later line fails with "connection refused", which
+  reads as a broken server rather than a lost `PATH`.
 
   ```bash
-  export PATH=/usr/lib/postgresql/16/bin:$PATH
+  bin=/usr/lib/postgresql/16/bin
+  export PATH="${bin}:$PATH"          # for psql/pg_dump in this shell
   mkdir -p /tmp/pgdrill && chown postgres:postgres /tmp/pgdrill
-  su postgres -c "initdb -D /tmp/pgdrill/data -U conduit --auth=trust"
-  su postgres -c "pg_ctl -D /tmp/pgdrill/data -o '-p 5434 -k /tmp/pgdrill' -l /tmp/pgdrill/server.log start"
+  su postgres -c "${bin}/initdb -D /tmp/pgdrill/data -U conduit --auth=trust"
+  su postgres -c "${bin}/pg_ctl -D /tmp/pgdrill/data -o '-p 5434 -k /tmp/pgdrill' -l /tmp/pgdrill/server.log start"
   psql -h 127.0.0.1 -p 5434 -U conduit -d postgres -c 'CREATE DATABASE conduit_test'
   export CONDUIT_TEST_POSTGRES_DSN="postgres://conduit@127.0.0.1:5434/conduit_test?sslmode=disable"
   go test -race ./internal/controlplane \
                  ./internal/delivery/reconciliation/adapters/postgres \
                  ./internal/pgmigrate
+  go test -race ./cmd/platform-delivery -run '^TestPostgres'   # includes the restore drill
   ```
+
+  The drill shells out to `pg_dump` and `pg_restore`; `/usr/bin` carries both at
+  16.13, so the `PATH` export above is enough. 16.13 is what Ubuntu 24.04 ships
+  and is not a choice this repository made — CI pins `postgres@sha256:a1d02e4b…`,
+  a bare digest whose major version is recorded nowhere, and `pg_dump` refuses a
+  server newer than itself. The drill reads `server_version_num` and fails loudly
+  if the client is older, which is the only thing that will catch that
+  divergence.
 
 - **Never judge a gate by a piped exit code.** `./scripts/test-postgres-repository.sh | tail -20`
   reports `tail`'s status, which is always 0. A failing gate read as passing
@@ -131,10 +222,11 @@ Still referenced and still absent: `containers/docs/USE-CASES.md` and the
 
 ## Open branches and PRs
 
-- **`claude/adversarial-review-run-52-kxnmvk`** — this session's skills work,
-  pushed. Two commits.
+- **`claude/adversarial-review-run-52-kxnmvk`** — merged as #147; the branch is
+  stale and can be deleted.
 - **`claude/schema-migration-ledger`** — merged as #146; the branch is stale and
   can be deleted.
+- **`claude/handoff-markdown-8lkz6v`** — the backup/restore work above.
 - **#114 and #115 (Renovate, Rust crates).** `base64` `0.22.1 → 0.23.1` and
   `sha2` `0.10.9 → 0.11.0`. **Do not merge these without building the crate.**
   Both are breaking-version bumps: `base64` 0.23 raises the MSRV to 1.71 and adds
@@ -145,93 +237,31 @@ Still referenced and still absent: `containers/docs/USE-CASES.md` and the
 ## Next work, already scoped
 
 The production-readiness record (`docs/operations/PRODUCTION-READINESS.md`)
-Tier 1 rows, in the order they are worth taking:
+Tier 1 rows, in the order they are worth taking. **Gap 4 (backup, restore and
+disaster recovery) came off this list this session** — see above; what is left
+of it is an operator action, carried to that document's residual item 5. The
+scouted research behind it has been spent and does not need re-running.
 
-1. **Backup, restore and disaster recovery (gap 4) — designed, not started.**
-   The only Tier 1 row with *nothing* behind it: no backup method, no restore
-   drill, no RPO/RTO, for the database holding desired state, decisions, the
-   audit trail and the outbox. The scoped design:
-   - `pgmigrate.Pending(ctx, db, component, migrations)` — a dry run reporting
-     what `Apply` would run without running it. Must **not** create the ledger
-     (check `to_regclass` first), or a dry run mutates the schema. This also
-     closes the first "what remains" bullet of gap 3.
-   - A restore drill: seed both components through their real constructors,
-     `pg_dump --format=custom` **while writes are in flight**, restore into a
-     fresh database, then assert (a) nothing pending for either component, so the
-     ledger survived intact, (b) state matches through the real repositories, and
-     (c) no torn `decision`/`audit`/`outbox` triple — `CommitDecision` writes all
-     three in one transaction, so a backup that tears them is worthless.
-   - `docs/operations/backup-and-restore.md`: the procedure, RPO/RTO, and what
-     is out of scope.
-   - Where it goes: `cmd/platform-delivery` already opens both the control-plane
-     repository and the reconciliation store against one DSN, and its
-     `^TestPostgres` filter means a test named `TestPostgres…` there will run.
-   - Watch the client/server version coupling: `pg_dump` must be at least as new
-     as the server. The runner's client is 16 and the pinned image is what it is;
-     if they ever diverge the drill should fail loudly rather than skip.
-
-   **Research already done for this document — do not re-derive it.** A scout
-   swept the deployment and persistence surface; the load-bearing findings:
-
-   - **The database is BYO and its provisioning is unspecified.** The chart
-     consumes only a DSN from a pre-existing deployment-owned Secret, mounted
-     read-only as a file; it never creates a StatefulSet, Service, operator CR or
-     subchart (`deploy/helm/platform-hub/values.yaml:13-17`,
-     `templates/deployment.yaml:145-151`, `Chart.yaml` has no `dependencies`).
-     `scripts/verify-helm-runtime.rb:130-131` pins the *complete* set of rendered
-     kinds, so a database StatefulSet cannot be added without failing the gate,
-     and `:160-161` forbids a Hub PVC in postgres mode. No operator or managed
-     service is named anywhere in the repo. The only place backup responsibility
-     is assigned is `docs/decisions/0002-transactional-hub-persistence.md:51-52`
-     — "PostgreSQL becomes a production dependency that the Environment owner
-     must operate and back up."
-   - **Artifact blobs are IN PostgreSQL**, not an OCI registry:
-     `conduit_repository_blobs (digest, descriptor, contents bytea)` at
-     `internal/controlplane/postgres_repository.go:31-36`. So one `pg_dump`
-     covers metadata *and* artifact bytes — and the dump is as large as the
-     artifacts. The OCI registry in the gitless path is a delivery source, not
-     Hub state.
-   - **A restore needs more than the database, and one gap is silent.** If
-     `BUNDLE_SIGNING_KEY_FILE` is absent the Hub logs a warning and generates an
-     **ephemeral** Ed25519 key (`cmd/platform-delivery/main.go:75-77`), so
-     previously issued Bundle signatures stop verifying against the running key.
-     Everything else fails closed and loudly (`main.go:96-121`, `:315`,
-     `:329-351`). The full required set is pinned at
-     `scripts/verify-helm-runtime.rb:204-205`. No secrets backup or rotation
-     procedure exists anywhere.
-   - **Two things already state the key invariant — cite them, do not contradict
-     them.** `docs/operations/schema-migrations.md:117-122` already says restore
-     is not covered and that a consistent backup holds both the migration and its
-     ledger row or neither; `internal/pgmigrate/migrate.go:255-262` carries the
-     same reasoning as the justification for a plain `INSERT`.
-   - **Confirmed absent everywhere** (searched docs, scripts, deploy, CI, code):
-     any RPO/RTO figure; any backup command (`pg_dump`, `pg_basebackup`,
-     pgBackRest, Barman, wal-g); any WAL archiving or PITR configuration
-     (`archive_mode`, `wal_level`, `restore_command`); any restore procedure,
-     drill or script; any DR runbook; any PostgreSQL HA/failover guidance; any
-     VolumeSnapshot policy. The gap statement is accurate as written.
-   - **Startup coordination is PostgreSQL advisory locks, not Kubernetes leases**
-     (`pgmigrate.Apply` from both components), and runtime work coordination is
-     DB-row leases with a 30 s lease duration
-     (`cmd/platform-delivery/main.go:260-264`). Two replicas are enforced by
-     `verify-helm-runtime.rb:194` with a PDB at `maxUnavailable: 1`. Restore
-     ordering has to account for both replicas racing `Apply` on first start.
-2. **Gap 3 remainder** — no schema verification against the ledger (a row asserts
+1. **Gap 3 remainder** — no schema verification against the ledger (a row asserts
    a migration ran; it does not detect a column dropped by hand), and no upgrade
    rehearsal against a production-shaped dataset.
-3. **Observability (gap 2)** — no tracing, metrics only under
+2. **Observability (gap 2)** — no tracing, metrics only under
    `REPOSITORY_KIND=postgres`, endpoint off unless `METRICS_ADDRESS` is set, and
    no alerting rules ship.
-4. **Notifications (gap 1)** — a whole subsystem: no ports, no store, no HTTP
+3. **Notifications (gap 1)** — a whole subsystem: no ports, no store, no HTTP
    surface, no emit sites, no console inbox.
 
-One further research subagent was still running when this session ended and its
-findings did not survive: classifying every table as authoritative or derivable,
-and deriving SQL predicates for the cross-table invariants a torn backup could
-violate (starting from `CommitDecision`'s decision/audit/outbox triple, and
-covering `UpsertDesired`, `UpsertObservation`, `LeaseWork`, `FailWork`,
-`RepairDroppedWork`, `LeaseProposal`, `CompleteProposal`, `FailProposal`). Worth
-re-running — those predicates are what the drill asserts.
+A research subagent whose findings did not survive the previous session was
+going to classify every table as authoritative or derivable and derive SQL
+predicates for every cross-table invariant a torn backup could violate. The
+drill now asserts three of them — the `CommitDecision` triple in both directions,
+and an outbox entry without its decision, joined on the input digest inside the
+serialised proposal because that is the only link between those two tables. The
+rest of that sweep is still unwritten: `UpsertDesired`, `UpsertObservation`,
+`LeaseWork`, `FailWork`, `RepairDroppedWork`, `LeaseProposal`,
+`CompleteProposal` and `FailProposal` each establish invariants nothing checks
+after a restore. Adding one is now a two-line change to
+`assertNoTornDecisionTriple`'s map, so this is cheap and worth finishing.
 
 ## Mechanisms a next contributor must know
 
@@ -261,8 +291,9 @@ re-running — those predicates are what the drill asserts.
   gate runs (it reads `.github/workflows/platform-ci.yml` so the two cannot
   drift). CI is manual (`workflow_dispatch`); dispatch per
   `docs/operations/manual-ci.md`. A green run is evidence, not authorization to
-  merge or release (assumption A5). In this sandbox the PostgreSQL gate cannot
-  run — see the environment section above for the substitute.
+  merge or release (assumption A5). The PostgreSQL gate runs in this sandbox
+  once the Docker daemon is started; the environment section above records the
+  correction and the fallback.
 - **Mutation testing:** one hand-planted mutant at a time via
   `scripts/verify-mutant-killed.sh` to prove a specific gate rejects. Two traps
   seen this session: a mutation applied with shell escaping that mangled the
@@ -300,9 +331,11 @@ Before doing anything, read these to load context -- do not skip:
 Adopt these working rules for this repo:
 - New branch per change; open a PR; never push to main. CI is manual -- I
   dispatch the Trunk gate (platform-ci.yml) against the PR head.
-- Run ./scripts/verify-local.sh before handoff. The PostgreSQL gate cannot run
-  in this sandbox (the image pull is blocked); use the local PostgreSQL 16
-  recipe in handoff.md instead, and say which path you used.
+- Run ./scripts/verify-local.sh before handoff. The PostgreSQL gate DOES run in
+  this sandbox -- start the daemon with `sudo bash scripts/start-docker.sh`
+  first. An earlier handoff said the image pull was blocked; it is not any more.
+  Fall back to the local PostgreSQL 16 recipe in handoff.md only if the real
+  gate fails, and say which path you used.
 - Verify by reading output, never by a piped exit code, and never by a status
   badge -- an absent badge here often means GitHub's status API failed, not that
   a gate did.
