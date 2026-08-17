@@ -214,8 +214,6 @@ func (state *walk) field(
 		into[field.Alias] = nil
 		return
 	}
-	state.selected[coordinate] = tier
-
 	if _, served := coverage.SourceOf(coordinate); !served {
 		state.errors = append(state.errors, errorAt(here, domain.RefuseUnserved(coordinate, tier)))
 		into[field.Alias] = nil
@@ -228,6 +226,19 @@ func (state *walk) field(
 		into[field.Alias] = nil
 		return
 	}
+	// Recorded here, after the refusal gate and after resolution, because the
+	// disclosure says these are "the coordinates this response actually answered
+	// from" and that has to be true of every path that reaches it. Recorded
+	// before the gate, a refused coordinate counted as one Conduit answered --
+	// so a query selecting a served field and a refused one reported both, and
+	// the extension overstated the compatibility claim it exists to bound. An
+	// errored coordinate was counted the same way.
+	//
+	// A field returning an empty collection is still counted: it was reached and
+	// it answered "nothing here", which is a fact Conduit produced. Its
+	// subfields are never visited and so are never counted, which is the case
+	// the note already describes.
+	state.selected[coordinate] = tier
 
 	switch resolved := value.(type) {
 	case child:

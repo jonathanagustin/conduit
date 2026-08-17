@@ -734,3 +734,98 @@ func TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers(t *testing.T) {
 			entities[0].(map[string]any)["health"])
 	}
 }
+
+// The disclosure names "the coordinates this response actually answered from".
+// A refused coordinate was counted among them: state.selected was recorded
+// before the refusal gate, so a query mixing a served field with a refused one
+// reported both, and the extension overstated the very compatibility claim it
+// exists to bound. Selecting the two together is the only way to see it -- the
+// refusal tests assert the error and the count test uses an all-served query,
+// so nothing crossed them and the defect sat in plain sight.
+func TestARefusedCoordinateIsNotCountedAmongThoseAnswered(t *testing.T) {
+	resolver, _, _ := newFixture(t)
+	served := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name } } }`,
+	})
+	withRefusal := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name spaceId } } }`,
+	})
+	if len(withRefusal.Errors) != 1 {
+		t.Fatalf("the refused coordinate did not refuse: %v", withRefusal.Errors)
+	}
+	before := served.Extensions["provenance"].(map[string]any)["observedServed"].(int)
+	after := withRefusal.Extensions["provenance"].(map[string]any)["observedServed"].(int)
+	if after != before {
+		t.Fatalf("selecting a refused coordinate raised observedServed from %d to %d; "+
+			"a coordinate Conduit refused was reported as one it answered from", before, after)
+	}
+}
+
+// The same line governs the two lists, and there the failure would be worse
+// than an inflated count: a refused coordinate would appear BY NAME among those
+// served. That path is unreachable today, and this test is what says so rather
+// than leaving a reader to assume it -- every refused coordinate is OBSERVED,
+// so refusals only ever reach the integer.
+//
+// It is written as an assertion about the coverage table rather than as a query
+// because there is no query that can exercise the naming path while this holds.
+// If someone refuses a DOCUMENTED or CONDUIT_NATIVE coordinate later, this
+// fails and tells them the list case now needs its own test.
+func TestEveryRefusedCoordinateIsObservedSoRefusalsNeverReachTheNamedLists(t *testing.T) {
+	declared, err := domain.ReadProvenance(schema.SDL())
+	if err != nil {
+		t.Fatal(err)
+	}
+	refused := 0
+	for _, coordinate := range declared.Coordinates() {
+		if _, served := coverage.SourceOf(coordinate); served {
+			continue
+		}
+		refused++
+		tier, _ := declared.TierOf(coordinate)
+		if tier != domain.Observed {
+			t.Errorf("%s is refused at tier %v; a refusal can now reach documentedServed or "+
+				"conduitNativeServed by name, which no test covers", coordinate, tier)
+		}
+	}
+	if refused == 0 {
+		t.Fatal("no coordinate is refused, so this test asserts nothing")
+	}
+}
+
+// An errored coordinate reaches the same recording line by a third path, and it
+// is a genuinely independent one: a fix that moved the record past the refusal
+// gate but stopped short of resolution would close the refusal case and leave
+// this open. That is not hypothetical -- it was a surviving mutation until this
+// test existed.
+//
+// The error has to come from INSIDE resolve. A mistyped argument is rejected
+// before the walk begins, so the coordinate is never reached and never counted
+// under any variant; an unavailable source is reached, asked, and fails, which
+// is the case that distinguishes them.
+func TestACoordinateThatFailedToResolveIsNotCountedAmongThoseAnswered(t *testing.T) {
+	working, _, _ := newFixture(t)
+	served := working.Execute(t.Context(), Request{
+		Query: `{ apollo { promotions(pageSize: 10) { promotions { rid } } } }`,
+	})
+	before := served.Extensions["provenance"].(map[string]any)["documentedServed"].([]string)
+	if len(before) == 0 {
+		t.Fatal("the working query named no DOCUMENTED coordinate, so this test asserts nothing")
+	}
+
+	resolver, _, overview := newFixture(t)
+	overview.promotionErr = errors.New("promotions unavailable to this reader")
+	failed := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { promotions(pageSize: 10) { promotions { rid } } } }`,
+	})
+	if len(failed.Errors) == 0 {
+		t.Fatal("the unavailable source answered rather than failing")
+	}
+	after := failed.Extensions["provenance"].(map[string]any)["documentedServed"].([]string)
+	for _, named := range after {
+		if named == "ApolloQuery.promotions" {
+			t.Fatalf("the coordinate whose source failed was named among those answered: %v "+
+				"(a working query names %v)", after, before)
+		}
+	}
+}
