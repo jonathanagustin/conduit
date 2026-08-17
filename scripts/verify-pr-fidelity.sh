@@ -19,8 +19,33 @@ require_section_content() {
 require_section_content '## Outcome'
 require_section_content '### Deliberate divergences'
 
-if grep -Eiq '\b(TBD|TODO|PLACEHOLDER|FILL[ -]?ME)\b' <<<"$body"; then
-  echo 'pull request body still contains a placeholder' >&2
+# An unfilled template marker means the body was started and not finished, and
+# merging one publishes a description nobody wrote.
+#
+# Two things this deliberately does NOT do, both learned by rejecting correct
+# work twice in a row on one pull request:
+#
+#   - It matches case-sensitively. These are markers, and a marker copied out of
+#     a template is upper case. Matching case-insensitively also caught the
+#     ordinary English words, so a body describing an API example -- "the
+#     stand-in value 123" -- was unpublishable, and the author had to discover by
+#     failing CI which words the gate had reserved.
+#   - It ignores code spans and fenced blocks. A body explaining a template, or
+#     quoting this list, has to be able to write the markers down. The cost is
+#     that a marker hidden in backticks passes; the benefit is that documenting
+#     the mechanism is possible at all, and an unfilled marker is not in
+#     backticks, because nobody formats the thing they forgot to replace.
+#
+# Only this check reads the stripped text. The section checks above read the
+# body as written, because a section whose only content is a code block is
+# content.
+prose="$(awk '
+  /^[[:space:]]*```/ { fenced = !fenced; next }
+  !fenced { print }
+' <<<"$body" | sed 's/`[^`]*`//g')"
+
+if grep -Eq '\b(TBD|TODO|PLACEHOLDER|FILL[ -]?ME)\b' <<<"$prose"; then
+  echo 'pull request body still contains an unfilled template marker (TBD, TODO, PLACEHOLDER or FILL ME, upper case, outside code)' >&2
   exit 1
 fi
 
