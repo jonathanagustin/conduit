@@ -1,7 +1,7 @@
 [tools]
 direnv = "2.37.1"
 go = "1.26.6"
-node = "24.14.0"
+node = "24.19.0"
 
 [tasks.install-cursor]
 description = "Install the pinned Cursor Agent used for independent evaluation"
