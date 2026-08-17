@@ -58,20 +58,30 @@ was checked, because "we should probably have X" is not a finding.
    deployment gains no reachable surface until an operator asks; and **no
    alerting rules ship**, so the signal exists but nobody is woken by it.
 
-3. **The migration idiom is undocumented, unversioned and untested.** An
+3. **Schema migrations are versioned; verification and rehearsal are not.** An
    earlier draft of this row said there was no migration path at all. That was
    wrong, and a test written to check it found the error: the schema already
-   carries one, for the proposal outbox — two `ADD COLUMN IF NOT EXISTS`, a
+   carried one, for the proposal outbox — two `ADD COLUMN IF NOT EXISTS`, a
    backfill `UPDATE` guarded on `IS NULL`, then `ALTER COLUMN … SET NOT NULL`.
-   Forward-only, idempotent, re-applied on every start. It is a real pattern and
-   it works.
 
-   What is missing is everything around it: no schema version, so nothing knows
-   which migrations a database has seen; no ordering guarantee beyond textual
-   position in one string constant; no down path; the backfill re-runs on every
-   start and is bounded only by its `IS NULL` predicate; and until this change
-   no test upgraded a populated database at all. The idiom is also written
-   nowhere, so the next contributor has to infer it from the DDL.
+   What was missing was everything around it, and most of it now exists.
+   `internal/pgmigrate` applies an ordered slice of named migrations **once per
+   database** and records them in `conduit_schema_migrations`; each commits in
+   one transaction with the row that claims it ran; a session advisory lock,
+   taken before the ledger table is created, keeps two replicas from racing the
+   DDL. Both schemas are on it — `reconciliation` and `controlplane` — so the
+   backfill no longer re-runs on every start, ordering is slice position rather
+   than textual position in one constant, and the idiom is written down in
+   `docs/operations/schema-migrations.md`.
+
+   What remains: **no dry run**, so there is no way to ask what a start would
+   apply without applying it; **nothing verifies a database's schema against the
+   migrations that claim to have built it**, so a ledger row asserts a migration
+   ran and does not detect a column dropped by hand; **no down path**, which is
+   deliberate and is recorded as a decision rather than a gap; and **no upgrade
+   rehearsal against a production-shaped dataset** — the tests upgrade a
+   populated database, but with tens of rows, so a migration whose cost is
+   proportional to table size is not measured anywhere before it runs.
 
 4. **No backup, restore or disaster-recovery procedure.** PostgreSQL holds
    desired state, decisions, the audit trail and the proposal outbox. No
