@@ -13,14 +13,37 @@ not the same size:
 | | Public `core/whats-new` | Tenant Rosetta APOLLO |
 | --- | ---: | ---: |
 | Dated entries / notes | 120 | **178** |
-| Apollo CLI versions named | 42 | **134** |
+| Release versions named | 42 (`apollo-cli`) | **134** (all surfaces) |
+| — of which CLI-shaped `vN.N.N` | 42 | **48** |
 | Distinct dates | 120 | 116 |
 
-**93 CLI versions appear in Rosetta and never on the public page.** One appears
-publicly and not in Rosetta. 58 Rosetta notes fall on dates the public page has
-no entry for at all, and 46 public dates carry no Rosetta note — so neither is a
-superset, but the tenant record is substantially the larger of the two for
-version coverage.
+**Corrected 2026-08-17.** The middle row used to read "Apollo CLI versions
+named: 42 / 134", and the headline under it used to say *"93 CLI versions appear
+in Rosetta and never on the public page."* That was a category error, and it
+overstated the divergence by roughly a factor of two.
+
+Recomputed from the committed registry: 134 is the count of **all** distinct
+`releaseVersion` strings, and only **48** of them are bare `vN.N.N`. The other
+86 are `surface@version` — `autopilot@`, `noc-inbox@`,
+`apollo-build-factory-app@` and five more. The 93 is exactly `134 − 42 + 1`:
+Rosetta's whole-platform version set differenced against the public page's
+`apollo-cli` versions. Like for like, the CLI-version divergence is bounded
+above by 48.
+
+`scripts/verify-rosetta-release-notes.mjs` now prints the CLI-shaped count on
+every run, so the two sets cannot be conflated again by someone reading only the
+summary block.
+
+Unchanged, and still believed: 58 Rosetta notes fall on dates the public page
+has no entry for at all, and 46 public dates carry no Rosetta note — so neither
+record is a superset. **Neither figure can be recomputed from this repository**,
+because the public page is committed only as a manifest row (URL, word count,
+one SHA-256). The instruction further down to recompute rather than quote from
+memory therefore cannot be followed offline by anyone; it needs a live fetch.
+
+The tenant record is still the larger by note count, and the shipping surfaces
+below are content the public page does not carry at all. That was never in
+doubt — only the version arithmetic was wrong.
 
 The newest note on both sides is dated 2026-07-22, and the top of each record
 agrees closely: the same CLI versions, the same subjects. They diverge going
@@ -33,9 +56,39 @@ The Rosetta-only notes are concentrated in two places the public page barely
 covers.
 
 **Application identities.** The public changelog speaks only of "Apollo" and
-`apollo-cli`. Rosetta attributes notes to the shipping surfaces —
-`autopilot@4.x`, `apollo-build-factory-app@0.x`, `noc-inbox@0.x` — which is how
-a UI change is distinguished from a control-plane one.
+`apollo-cli`. Rosetta attributes notes to the shipping surfaces, which is how a
+UI change is distinguished from a control-plane one. There are **eight**, not
+the three this paragraph used to name — counted from the committed registry on
+2026-08-17:
+
+| Surface | Notes | Distinct versions |
+| --- | ---: | ---: |
+| `autopilot@` | 87 | 60 |
+| bare `vN.N.N` (CLI-shaped) | 48 | 48 |
+| `noc-inbox@` | 10 | 6 |
+| `apollo-build-factory-app@` | 10 | 7 |
+| `apollo-ui-docs@` | 7 | 4 |
+| `mission-manager-toolbox-app@` | 6 | 4 |
+| `aries-app@` | 3 | 2 |
+| `hyperion-downdraft-form@` | 2 | 2 |
+| `apollo-mesh-manager-app@` | 1 | 1 |
+| no `releaseVersion` | 4 | — |
+
+Two of these — `mission-manager-toolbox-app` and `aries-app` — appear nowhere
+else in this repository: not in the RBAC capture, not in any prose, and this
+repository cannot say what they are. `apollo-build-factory-app` and
+`apollo-mesh-manager-app` are corroborated by role families in the tenant
+authorization capture (`internal/apollo/roles.gen.go`) and by nothing else.
+`noc-inbox` is a shipping notification inbox, a product the public Apollo
+documentation corpus does not document at all — see
+`docs/apollo/reference/notifications.md`, which records that no public page was
+captured for it.
+
+The `byApplication` summary field says `{core: 120}` while the file carries 178
+rows; the remaining 58 have no `applicationId`. That field was bound to nothing
+by the verifier until 2026-08-17 — it is the one summary value that names
+surfaces, and a reader could have taken it for the scope of the capture. It is
+now checked against the rows, and the unattributed count is disclosed.
 
 **The federation contract.** A cluster of Rosetta-only notes from 2025-08 and
 2025-09 concerns Environment declared-state source and connection settings:
@@ -88,12 +141,19 @@ again expecting 58 gaps.
 | `v0.524.0` | Improved help text on publish commands | No contract |
 | `v0.531.0` | Space ID across commands, for guest users | Blocked on #17 |
 
-**Contact teams.** Apollo made the flag optional so that `environment get` works
-for Environments that have no contact team — which means Apollo's model permits
-one. Conduit's `newEnvironmentDescriptor` rejects an empty contact team outright,
-so Conduit cannot represent such an Environment at all. This is not a missing
-flag; it is a narrower model, and it would surface as a failure to import rather
-than as a missing feature. Small, real, and previously unrecorded.
+**Contact teams. Closed 2026-08-17; the paragraph below was true when written
+and is now stale.** It read: *"Conduit's `newEnvironmentDescriptor` rejects an
+empty contact team outright, so Conduit cannot represent such an Environment at
+all."* It does not. `internal/conduitcli/workflow.go` now treats an empty
+contact team as a first-class state, with the reasoning in a comment there and
+coverage in `workflow_test.go` and `profile_test.go`. That shipped as #24.
+
+The original finding stands as a finding: Apollo made the flag optional so that
+`environment get` works for Environments with no contact team, which means
+Apollo's model permits one, and Conduit's authoring path was narrower than its
+own profile model — `ContactTeams` returned the empty set and
+`validateReferences` accepted it all along. It would have surfaced as a failure
+to import rather than as a missing feature.
 
 **The two override flags are a genuine architectural divergence, not a gap.**
 `--ignore-recalls` and `--ignore-secret-requirements` let an operator push an
