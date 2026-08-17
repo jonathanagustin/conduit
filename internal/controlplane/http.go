@@ -2098,6 +2098,21 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				writeLifecycleError(w, ErrForbidden)
 				return
 			}
+		} else {
+			// A Plan with no Change Request is cancelled by Lifecycle.CancelPlan,
+			// which performs no eligibility check: authentication alone therefore
+			// let any operator cancel such a Plan, in any Environment, including
+			// one they hold nothing on, and optionally plant a suppression.
+			//
+			// The check is the one the approval route for the same ungoverned
+			// branch already makes. It applies to this branch only: a governed
+			// Plan answers to its author, and requiring Operate here as well
+			// would refuse an author who may cancel their own Change Request
+			// without holding the Environment itself.
+			if !requireResourceOperation(w, request, governance, principal, configuration,
+				environmentRID(existing.Plan.Environment), OperationOperate) {
+				return
+			}
 		}
 		duration := body.SuppressionDurationSeconds
 		if body.CreateSuppression {

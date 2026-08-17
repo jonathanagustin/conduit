@@ -24,6 +24,7 @@ func TestCancellationEndpointCreatesSuppressionAndSignalsAgent(t *testing.T) {
 	if _, err := lifecycle.ApprovePlan(ctx, record.ID, "reviewer", "approved"); err != nil {
 		t.Fatal(err)
 	}
+	grantOperateOnEnvironment(t, repository, "operator", "dev-use2")
 	handler := NewHandler(repository, HandlerOptions{
 		AllowInsecureAgentIdentityHeaders:    true,
 		AllowInsecureOperatorIdentityHeaders: true,
