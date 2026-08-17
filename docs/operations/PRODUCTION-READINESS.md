@@ -52,11 +52,20 @@ was checked, because "we should probably have X" is not a finding.
    replicas over a leased store with no telemetry cannot be operated: there is
    no way to tell working from wedged.
 
-3. **No schema migration path.** `internal/delivery/reconciliation/adapters/postgres/store.go`
-   creates seven tables with `CREATE TABLE IF NOT EXISTS` and carries no
-   `ALTER`, no schema version and no migration runner. First install works. The
-   first release that changes a column has no defined upgrade, and no test
-   upgrades a populated database from release N to N+1.
+3. **The migration idiom is undocumented, unversioned and untested.** An
+   earlier draft of this row said there was no migration path at all. That was
+   wrong, and a test written to check it found the error: the schema already
+   carries one, for the proposal outbox — two `ADD COLUMN IF NOT EXISTS`, a
+   backfill `UPDATE` guarded on `IS NULL`, then `ALTER COLUMN … SET NOT NULL`.
+   Forward-only, idempotent, re-applied on every start. It is a real pattern and
+   it works.
+
+   What is missing is everything around it: no schema version, so nothing knows
+   which migrations a database has seen; no ordering guarantee beyond textual
+   position in one string constant; no down path; the backfill re-runs on every
+   start and is bounded only by its `IS NULL` predicate; and until this change
+   no test upgraded a populated database at all. The idiom is also written
+   nowhere, so the next contributor has to infer it from the DDL.
 
 4. **No backup, restore or disaster-recovery procedure.** PostgreSQL holds
    desired state, decisions, the audit trail and the proposal outbox. No
@@ -82,33 +91,44 @@ was checked, because "we should probably have X" is not a finding.
    Conduit has the word only as two mute permissions in the generated role table
    and an unrelated internal prober.
 
-## Test levels
+## Test types
 
-The point of listing these is to say what each gap needs, and to stop anyone
-rebuilding what exists. **The existing posture is strong**: 230 test files and
-1,355 test functions, thirteen `scripts/test-*.sh` integration and acceptance
-harnesses, Playwright end-to-end and live suites for the console, and mutation
-testing on both sides with committed scores.
+The levels below are organised by **what class of failure each one catches that
+no other type catches**. A ladder borrowed from elsewhere — unit, integration,
+end-to-end — describes where a test runs rather than what it is for, and this
+system's risks do not divide that way: its most dangerous failure is a control
+loop deciding something unsafe, which is not a level at all.
 
-| Level | Exists | Gap to close |
+**The existing posture is strong and should not be rebuilt**: 230 test files,
+1,355 test functions, thirteen `scripts/test-*.sh` harnesses, Playwright
+end-to-end and live suites, and mutation scores on both sides.
+
+| Risk it uniquely catches | Type | State |
 | --- | --- | --- |
-| Unit | 1,355 Go test functions; mutation-scored | — |
-| Domain boundary | `test-domain-boundaries.mjs`; `Reconcile` fails the build on interface/resolver disagreement | — |
-| Contract | Pinned OpenAPI adapter (13/13 routes), CLI fixtures, Module definitions, provenance gates | — |
-| Integration | `test-postgres-repository.sh` against real PostgreSQL: leases, fencing, atomic commits, crash recovery | — |
-| Acceptance | `test-gitless-clean-cluster.sh`, `test-gitops.sh`, `test-spoke-e2e.sh` | — |
-| Browser E2E | Playwright `e2e/` and `live/` suites | — |
-| **Upgrade** | none | Restore a database written by release N, run release N+1, assert no data loss and no manual step. Gap 3. |
-| **Restore drill** | none | Back up, destroy, restore, converge; assert the audit trail and outbox survive. Gap 4. |
-| **Delivery E2E** | none | Emit an event, assert it reaches a subscriber on each channel and appears in the inbox. Gap 1. Cannot be written until the ports exist. |
-| **Observability** | none | Assert the metrics an operator needs are exported and move under load. Gap 2. Nothing to assert against today. |
-| **Load and soak** | concurrency tests exist in `plan`, `postgres` and `maintenance` | Sustained multi-replica reconciliation: lease contention, queue depth under backlog, no starvation. |
-| **Failure injection** | wrong-signer and permission refusals are covered | PostgreSQL failover mid-transaction, agent disconnect mid-plan, partial network. |
-| **Bundle round-trip** | export/import covered | A recall issued after a Bundle is built, asserted to reach the target. Gap 5; blocked on the design decision in #126. |
+| The reconstruction is wrong about Apollo | **Evidence binding** — source compared against a committed capture, failing the build when they disagree | Strong. Ten `verify-*` gates, the invention register, and the provenance reconciler. |
+| A published contract is not honoured | **Contract conformance** — pinned OpenAPI, CLI corpus, GraphQL provenance | Strong. 13/13 routes with named tests. |
+| A unit computes the wrong answer | **Unit** | Strong, and mutation-scored. |
+| **The control loop decides something unsafe** | **Property / invariant** — generate fleets and assert no run ever produces a forbidden Plan | **Missing.** Example-based tests sample this thinly, and it is the core risk of a control plane. |
+| **A rolling upgrade meets its own past** | **Version skew** — old Agent against new Hub, old data against new code | **Missing.** Acute for a system whose job is upgrading other software; it has no test that it can upgrade itself. |
+| Two replicas race, or one dies mid-commit | **Concurrency and crash durability** | Present against real PostgreSQL: leases, fencing, atomic commit, crash-safe receipts. |
+| Applying the schema again destroys data | **Idempotent re-application** | Added by this change: a source-level guard on the DDL, and a populated-database re-apply test. |
+| A caller does what they are not entitled to | **Authorization, negative path** | Partial. Refusals are tested where someone thought to; nothing enumerates route × role, so a new route defaults to untested. |
+| Wrong bytes are admitted | **Adversarial supply chain** | Strong. Wrong-signer, tampered-digest and unsigned all refused, proven against a real registry and signature. |
+| It cannot be installed in the target topology | **Clean-room delivery** | Strong. Clean cluster, no Git source or credential, Zarf air-gap. |
+| The tests do not actually test | **Mutation** | Present on both Go and web, with committed scores. |
+| **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
+| **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
+| It is running and nobody can tell | **Observability assertion** | **Blocked** by gap 2 — nothing to assert against until metrics exist. |
+| Nobody is told what happened | **Delivery end-to-end** | **Blocked** by gap 1 — no ports to drive. |
+| A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
-Two of these cannot be written yet and saying so is the point: the delivery and
-observability suites have nothing to assert against until the code exists, and
-the recall round-trip is blocked on a decision rather than on effort.
+Three of these cannot be written today, and saying so is the point: listing them
+as available work would imply someone could pick them up this week.
+
+The two most valuable that *can* be written are the top two marked missing.
+**Property-based invariant testing** attacks the failure this system exists to
+prevent, and no amount of example-based coverage substitutes for it. **Version
+skew** is the one a delivery platform is least entitled to get wrong.
 
 ## Explicitly out of production scope
 
