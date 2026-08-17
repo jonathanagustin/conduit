@@ -86,7 +86,7 @@ export no_proxy="${NO_PROXY}"
 # satisfied by whatever Hub is already listening, the simulation seeds a stranger
 # and asserts against it, and the run reports on state this script never created.
 # That happened while this was being written and read as a seeding bug.
-if curl -sf --noproxy '*' -o /dev/null --max-time 2 "${hub_url}/console/bootstrap.json" 2>/dev/null; then
+if curl -sf --noproxy '*' -o /dev/null --max-time 2 "${hub_url}/console/" 2>/dev/null; then
   echo "simulate: something is already serving a console on ${hub_url}" >&2
   echo "simulate: stop it, or set CONDUIT_SIMULATION_PORT to a free port" >&2
   exit 1
@@ -109,13 +109,13 @@ LISTEN_ADDRESS="127.0.0.1:${port}" \
 hub_pid=$!
 
 for _ in $(seq 1 40); do
-  if curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/bootstrap.json"; then
+  if curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/"; then
     break
   fi
   kill -0 "${hub_pid}" 2>/dev/null || { echo "simulate: the Hub exited during startup" >&2; exit 1; }
   sleep 0.5
 done
-curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/bootstrap.json" ||
+curl -sf --noproxy '*' -o /dev/null "${hub_url}/console/" ||
   { echo "simulate: the Hub never served the console" >&2; exit 1; }
 
 # Seeded as "proposer", while the browser acts as "operator". They have to be

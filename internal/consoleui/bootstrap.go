@@ -15,7 +15,15 @@ import (
 
 const (
 	BootstrapSchemaVersion = "conduit.console.bootstrap/v1"
-	maxBootstrapBytes      = 64 << 10
+	// BootstrapMetaName is the meta the Hub injects into the application shell
+	// and the console reads before it starts. One meta carrying the whole
+	// document, rather than one per section: the console's validator is a closed
+	// surface over a single object -- it refuses unknown and missing fields
+	// alike, which is what makes tenant data unable to smuggle in a capability
+	// -- and splitting it across several metas would make an extra meta the
+	// silently-ignored case instead of the refused one.
+	BootstrapMetaName = "x-conduit-console-bootstrap"
+	maxBootstrapBytes = 64 << 10
 )
 
 var (

@@ -13,7 +13,39 @@ import type { FleetInstallation, FleetProjection } from "../../api/types.js";
  * renamed -- so a fixture must be corrected from the Go source, never from what
  * makes a test pass. */
 
+/** The Conduit-native default, transcribed from consoleui.DefaultBootstrap in
+ * internal/consoleui/bootstrap.go. The Hub renders this into the shell when no
+ * tenant file is configured, so it is what an unconfigured deployment serves --
+ * and correcting it belongs in the Go source, never here. */
+/** Kept in step with bootstrapMarker in internal/consoleui/handler.go. */
+const BOOTSTRAP_MARKER = "<!--conduit-console-bootstrap-->";
+const BOOTSTRAP_META_NAME = "x-conduit-console-bootstrap";
+
+/** The same escaping the Hub applies with html.EscapeString. Present so a
+ * tenant name containing a quote is exercised here the way it will be served,
+ * rather than only in Go. */
+function escapeAttribute(value: string): string {
+  return value
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&#34;")
+    .replaceAll("'", "&#39;");
+}
+
+export const DEFAULT_CONSOLE_BOOTSTRAP = {
+  schemaVersion: "conduit.console.bootstrap/v1",
+  tenant: { id: "conduit", displayName: "Conduit" },
+  brand: { title: "Conduit", subtitle: "Control plane", accent: "#2d72d2", icon: "dashboard" },
+  provenance: { claimClass: "conduit-extension", evidenceRef: "conduit://console/default" },
+} as const;
+
 export interface HubStub {
+  /** Render a tenant bootstrap into the application shell, the way the Hub
+   * does. `vite preview` serves the built shell with its marker unrendered, so
+   * without this the console refuses to start -- which is the correct
+   * behaviour, and why the stub has to do the Hub's job rather than skip it. */
+  tenant(document: unknown): void;
   /** Serve a body for any GET whose path ends with the given suffix. */
   get(pathSuffix: string, body: unknown, options?: { cursor?: string }): void;
   /** Fail any GET matching the suffix with a status and Hub-shaped error body. */
@@ -47,6 +79,24 @@ function stub(page: Page): Promise<HubStub> {
   const seen: string[] = [];
   const sent: unknown[] = [];
   const stubs: Stubbed[] = [];
+  let tenant: unknown = DEFAULT_CONSOLE_BOOTSTRAP;
+
+  // The Hub renders the tenant bootstrap into the shell before serving it.
+  // `vite preview` serves the built shell with its marker unrendered, so this
+  // does the Hub's job -- skipping it would leave every test running against a
+  // console that correctly refuses to start.
+  const hydrate = page.route("**/console/**", async (route: Route) => {
+    if (route.request().resourceType() !== "document") {
+      await route.fallback();
+      return;
+    }
+    const response = await route.fetch();
+    const meta = `<meta name="${BOOTSTRAP_META_NAME}" content="${escapeAttribute(JSON.stringify(tenant))}" />`;
+    await route.fulfill({
+      response,
+      body: (await response.text()).replace(BOOTSTRAP_MARKER, meta),
+    });
+  });
 
   const install = page.route("**/v1/**", async (route: Route) => {
     const requested = new URL(route.request().url());
@@ -83,6 +133,9 @@ function stub(page: Page): Promise<HubStub> {
   });
 
   const api: HubStub = {
+    tenant(document) {
+      tenant = document;
+    },
     get(suffix, body, options = {}) {
       stubs.push({ suffix, method: "GET", status: 200, body, ...options });
     },
@@ -129,7 +182,7 @@ function stub(page: Page): Promise<HubStub> {
     globalOperations: ["resource:read"],
     resources: [],
   });
-  return install.then(() => api);
+  return Promise.all([install, hydrate]).then(() => api);
 }
 
 export const test = base.extend<{ hub: HubStub }>({

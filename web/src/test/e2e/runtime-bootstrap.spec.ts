@@ -7,7 +7,7 @@ const tenantA = JSON.parse(
 import { expect, test } from "./harness.js";
 
 test("renders only validated evidence-bound tenant branding", async ({ page, hub }) => {
-  await page.route("**/console/bootstrap.json", (route) => route.fulfill({ json: tenantA }));
+  hub.tenant(tenantA);
   hub.get("/overview", {
     generatedAt: "2026-08-09T12:00:00Z",
     awaitingApprovals: { status: "CURRENT", count: 0, items: [] },
@@ -27,10 +27,8 @@ test("renders only validated evidence-bound tenant branding", async ({ page, hub
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
 });
 
-test("fails before rendering when tenant data tries to grant a capability", async ({ page }) => {
-  await page.route("**/console/bootstrap.json", (route) =>
-    route.fulfill({ json: { ...tenantA, capabilities: ["admin"] } }),
-  );
+test("fails before rendering when tenant data tries to grant a capability", async ({ page, hub }) => {
+  hub.tenant({ ...tenantA, capabilities: ["admin"] });
 
   await page.goto("overview");
 
