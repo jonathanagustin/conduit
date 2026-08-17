@@ -15,39 +15,49 @@
   ],
   "inventions": [
     {
-      "id": "notifications.Severity",
-      "what": "A four-level severity ordering: INFO, WARNING, ACTION_REQUIRED, CRITICAL.",
-      "why": "The recovered Foundry seam passes a MonitoringSeverity whose members were never captured. Borrowing the name and guessing its members would produce a vocabulary that looks recovered and is not, so these are named for what an operator does about them instead.",
-      "displacedBy": "A capture establishing Apollo's MonitoringSeverity enum members.",
-      "riskIfWrong": "Low. A severity ordering is a local filtering concern; a subscription floor expressed in the wrong vocabulary is a rename, not a redesign."
-    },
-    {
-      "id": "notifications.EventKind",
-      "what": "A closed set of eight event kinds Conduit emits.",
-      "why": "Apollo's own notification event vocabulary is unrecovered. The set is closed rather than open for the reason the Change Type taxonomy is closed: an open vocabulary lets a caller invent a kind no subscription can match, and the subscriber sees silence rather than an error.",
-      "displacedBy": "A capture of Apollo's own notification event vocabulary.",
-      "riskIfWrong": "Medium. These names reach operator-facing subscriptions, so displacing them is a migration for anyone who subscribed by kind."
-    },
-    {
-      "id": "notifications.Subscription",
-      "what": "A subscription owned by a user or team, scoped to a resource, filtered by kind and a minimum severity, with a mute flag.",
-      "why": "The recovered evidence shows subscription only from the consumer side -- Foundry's Data Health subscribing to an Apollo event receiver. Apollo's Hub-side subscription CRUD is unrecovered. Ownership by user or team is the one part with real support: the recovered role descriptions distinguish them explicitly.",
-      "displacedBy": "A capture of Apollo's Hub-side subscription CRUD.",
-      "riskIfWrong": "High. This is the operator-facing shape; getting it wrong means stored subscriptions need migrating, not just renaming."
-    },
-    {
       "id": "notifications.InboxEntry",
-      "what": "A per-owner inbox record carrying its own read state.",
-      "why": "Read state is modelled per-owner because two people subscribed to the same failure read it independently. Storing readAt on the event would let one of them mark it read for both. Apollo's inbox read model is unrecovered; noc-inbox is a shipping surface in the tenant record with no captured contract.",
-      "displacedBy": "A capture of Apollo's notification inbox read model, including whether read state is per-owner.",
+      "what": "A per-recipient inbox record carrying its own read state.",
+      "why": "Read state is modelled per-recipient because two people notified about the same promotion failure read it independently, and storing readAt on the event would let one of them mark it read for both. Apollo has an inbox -- Hub Settings carries a 'My notifications' page and the tenant viewer role names it -- but no capture shows an entry or its read state.",
+      "displacedBy": "A capture of Apollo's notification inbox entry and its read state, in particular whether read state is per-recipient.",
       "riskIfWrong": "Medium. Wrong here means the inbox behaves differently from Apollo's, which is visible to operators but not corrupting."
     },
     {
       "id": "notifications.Fan",
-      "what": "Resolution of one event to its recipients, deduplicated per owner across user and team subscriptions.",
-      "why": "Deduplication is a judgement, not a recovery: being told twice about one failure teaches people to ignore the inbox. Apollo may well fan out per subscription instead.",
-      "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates across user and team subscriptions.",
+      "what": "Resolution of one event to its recipients, deduplicated per owner and channel.",
+      "why": "Deduplication is a judgement, not a recovery: being told the same thing twice in the same place teaches people to ignore it. The channel half of the key is grounded -- Apollo configures email and in-app independently, so reaching one person on both is intended -- but collapsing one owner reached by two preferences on one channel is Conduit's own choice, and Apollo may well fan out per preference instead.",
+      "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates a recipient reached by two preferences.",
       "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
     }
-  ]
+  ],
+  "displaced": [
+    {
+      "id": "notifications.Severity",
+      "displacedOn": "2026-08-17",
+      "by": "docs/evidence/apollo-notification-types.json",
+      "whatTheInventionGotWrong": "It existed at all. Apollo's notification subscriptions carry no severity: filtering is by type and channel, and nothing on any notification page or screenshot has a severity, priority or urgency control. The invention also named a displacement condition -- 'a capture establishing Apollo's MonitoringSeverity enum members' -- that could never have displaced it, because this repository's own reference note already records MonitoringSeverity as a Foundry Data Health type rather than an Apollo one. An invention whose stated evidence cannot settle it is unfalsifiable, which is the failure the register exists to prevent and which the register itself shipped.",
+      "note": "Apollo does have a severity, on the Environment Events surface, where the 2020 capture shows the facet Success/Info/Warning/Error. That is a different surface and is not modelled here. Note also that the invented members -- INFO, WARNING, ACTION_REQUIRED, CRITICAL -- match neither that vocabulary nor its ordering."
+    },
+    {
+      "id": "notifications.EventKind",
+      "displacedOn": "2026-08-17",
+      "by": "docs/evidence/apollo-notification-types.json",
+      "whatTheInventionGotWrong": "Every name, and worse, the shape. All eight invented kinds are gone; nine observed types replace them, and not one invented name survived. The structural error was closing the set: Apollo's documentation says the supported types 'will grow over time', and the settings page carries a per-resource, per-channel toggle reading 'If enabled, you will opt into future notification types added for this resource'. Apollo solved openness with forward consent. The invention closed the vocabulary and justified it by analogy to the Change Type taxonomy -- reasoning from a neighbouring design instead of looking, which is exactly how a closed set becomes the thing that silently drops every type added later."
+    },
+    {
+      "id": "notifications.Subscription",
+      "displacedOn": "2026-08-17",
+      "by": "docs/evidence/apollo-notification-types.json",
+      "whatTheInventionGotWrong": "The grain and three whole dimensions. Apollo's unit is a preference per (resource, principal, channel), not one subscription filtered by kind and severity. Missing entirely: delivery channels, team contacts as a prerequisite for a team receiving anything, and the two opt-into-future toggles. Present and wrong: a severity floor Apollo does not have, and a Muted boolean where Apollo's mute vocabulary belongs to monitors. The one part that held was ownership by user or team, which was the one part grounded in recovered evidence rather than guessed."
+    }
+  ],
+  "howThisWentWrong": {
+    "note": "All three displacements landed the day after the register was written, from evidence that was already in reach. This is recorded because the register's value depends on its guesses being honest ones, and these were not -- they were made without looking.",
+    "whatWasAvailable": [
+      "Three public Palantir documentation pages under managing-notifications, already listed in docs/apollo/public-documentation-manifest.tsv with their content digests.",
+      "Five screenshots on those pages, already counted by docs/apollo/IMAGE-DERIVED-GAPS.md, which dispositioned the section 'Boundary' without opening them -- in a document whose own thesis is that screenshots are where a UI-first product states its enum values.",
+      "docs/ui/evidence/legacy-apollo-2020/environment-events.webp, committed in this repository, showing the Events severity and category facets."
+    ],
+    "whyItWasNotSeen": "docs/apollo/reference/notifications.md opened with 'No public Palantir docs page was captured for this capability'. That sentence was false against this repository's own manifest, had never been checked against it, and was taken at face value. The gate added in scripts/verify-documentation-claims.mjs now checks exactly this class of claim, because it is the cheapest possible check and nothing was doing it.",
+    "lesson": "The register asks whether an invention is marked and whether it names what would displace it. It does not ask whether the invention was necessary. A guess made without exhausting the sources already in the repository is not an educated guess, and marking it does not make it one."
+  }
 }
