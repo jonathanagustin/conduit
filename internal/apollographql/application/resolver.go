@@ -606,7 +606,14 @@ func (resolver *bound) resolveEnvironment(
 		}
 		return child{typeName: "ApolloEntityPage", source: page{records: entities}}, nil
 	case "health":
-		return resolver.environmentHealth(ctx, string(environment.Rid))
+		// Keyed on the name, not the rid. Reporting records an installation
+		// against the Environment's plain identifier -- the same string
+		// PutEntityHealth resolves reported state by, as the id/name case above
+		// says -- while Rid is a digest Conduit mints for the Apollo surface.
+		// Comparing the two never matched, so this field answered UNKNOWN for
+		// every Environment however healthy the fleet was, and said in the
+		// provenance extension that it had answered.
+		return resolver.environmentHealth(ctx, string(environment.Name))
 	}
 	return nil, fmt.Errorf("ApolloEnvironment.%s is covered but this resolver has no case for it", field)
 }
@@ -616,7 +623,7 @@ func (resolver *bound) resolveEnvironment(
 // it does, UNKNOWN if the fleet has nothing to say, and HEALTHY otherwise. A
 // stale report counts as unknown rather than healthy, because an old "healthy"
 // is not evidence of a current one.
-func (resolver *bound) environmentHealth(ctx context.Context, rid string) (any, error) {
+func (resolver *bound) environmentHealth(ctx context.Context, environment string) (any, error) {
 	if resolver.sources.Overview == nil {
 		return nil, errNoSource
 	}
@@ -626,7 +633,7 @@ func (resolver *bound) environmentHealth(ctx context.Context, rid string) (any, 
 	}
 	worst := ""
 	for _, installation := range installations {
-		if installation.Environment != rid {
+		if installation.Environment != environment {
 			continue
 		}
 		health := installation.Health
@@ -707,8 +714,13 @@ func (resolver *bound) resolveEntity(ctx context.Context, field string, source a
 		if err != nil {
 			return nil, err
 		}
+		// The same mismatch as ApolloEnvironment.health, one level down:
+		// reporting keys an installation by the Entity's plain name while
+		// installation.Rid is a minted digest, so this compared two vocabularies
+		// and answered UNKNOWN for everything.
+		name := apollo.HelmChartEntityName(string(entity.installation.ApolloEntityId))
 		for _, installation := range installations {
-			if installation.InstallationID != entity.installation.Rid {
+			if name == "" || installation.InstallationID != name {
 				continue
 			}
 			if installation.Stale {
