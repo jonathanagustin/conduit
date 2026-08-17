@@ -11,10 +11,15 @@ import (
 	"encoding/base64"
 	"encoding/json"
 	"encoding/pem"
+	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
+	"io"
+	"net"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
@@ -39,7 +44,7 @@ func TestPostgresConfigureReconciliationPrimesOrdinaryPlanLifecycle(t *testing.T
 	configuration := map[string]string{
 		"REPOSITORY_KIND": "postgres", "POSTGRES_DSN_FILE": dsnFile,
 	}
-	repository, closeReconciliation, supervisor, err := configureReconciliation(ctx,
+	repository, closeReconciliation, supervisor, _, err := configureReconciliation(ctx,
 		func(name string) string { return configuration[name] }, base)
 	if err != nil {
 		t.Fatal(err)
@@ -362,5 +367,77 @@ func TestLoadArtifactScannerRefusesATimeoutWithNoScanner(t *testing.T) {
 	}
 	if _, err := loadArtifactScanner("/bin/true", "not-a-duration"); err == nil {
 		t.Error("an unparseable timeout was accepted")
+	}
+}
+
+// Metrics must add no reachable surface until an operator asks for one. The
+// Hub's own port carries authenticated operator and Agent traffic; a scrape
+// endpoint is neither, so it gets its own listener or none.
+func TestMetricsListenerIsOffUnlessAnAddressIsSet(t *testing.T) {
+	reader := func(context.Context) (metricsapplication.ReconciliationStats, error) {
+		return metricsapplication.ReconciliationStats{}, nil
+	}
+	if stop := startMetricsListener(t.Context(), "", reader); stop != nil {
+		stop()
+		t.Error("an empty METRICS_ADDRESS started a listener")
+	}
+	if stop := startMetricsListener(t.Context(), "   ", reader); stop != nil {
+		stop()
+		t.Error("a blank METRICS_ADDRESS started a listener")
+	}
+}
+
+// The file repository has none of the queues these metrics describe. Exporting
+// zeroes for it would tell a scraper the fleet is idle, which is a worse answer
+// than no answer.
+func TestMetricsListenerDeclinesWithoutQueueStatistics(t *testing.T) {
+	if stop := startMetricsListener(t.Context(), "127.0.0.1:0", nil); stop != nil {
+		stop()
+		t.Error("a listener started with no stats reader; it would have exported nothing but zeroes")
+	}
+}
+
+// And when it is asked for, it serves, and it serves the lag signal the whole
+// endpoint exists for.
+func TestMetricsListenerServesWhenConfigured(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	address := listener.Addr().String()
+	// Freed immediately so the listener under test can take the port; the
+	// alternative is a hardcoded port that collides on a busy machine.
+	_ = listener.Close()
+
+	stop := startMetricsListener(t.Context(), address, func(context.Context) (metricsapplication.ReconciliationStats, error) {
+		return metricsapplication.ReconciliationStats{WorkPending: 4, OldestPendingAge: 42 * time.Second}, nil
+	})
+	if stop == nil {
+		t.Fatal("no listener started")
+	}
+	defer stop()
+
+	var body string
+	for attempt := 0; attempt < 50; attempt++ {
+		response, err := http.Get("http://" + address + "/metrics")
+		if err != nil {
+			time.Sleep(20 * time.Millisecond)
+			continue
+		}
+		payload, _ := io.ReadAll(response.Body)
+		_ = response.Body.Close()
+		body = string(payload)
+		break
+	}
+	if body == "" {
+		t.Fatal("the metrics listener never answered")
+	}
+	for _, required := range []string{
+		`conduit_reconciliation_pending{queue="reconciliation"} 4`,
+		`conduit_reconciliation_oldest_pending_seconds{queue="reconciliation"} 42`,
+	} {
+		if !strings.Contains(body, required) {
+			t.Errorf("missing %q in:\n%s", required, body)
+		}
 	}
 }
