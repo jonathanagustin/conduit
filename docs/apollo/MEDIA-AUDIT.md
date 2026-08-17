@@ -64,10 +64,103 @@ paraphrase:
 | 02:58–03:46 | Environment owners add release-channel and maintenance requirements. An upgrade is eligible only when the Product-owner and Environment-owner requirements intersect successfully. |
 | 03:46–04:22 | Constraints are evaluated continuously. Autonomous execution remains inspectable through an auditable Environment change history, balancing stability and velocity. |
 
+## Second pass, 2026-08-17 — the first pass under-read this video
+
+The operator re-supplied the same file; its SHA-256 is byte-identical to the
+one above, so this is not a second capture. It was re-examined anyway, because
+the failure recorded in
+[`../evidence/apollo-notification-types.json`](../evidence/apollo-notification-types.json)
+was precisely this shape: an image corpus counted, dispositioned, and never
+read. The first pass's disposition — "corroborating explanation, not a new
+protocol or domain state" — is true of the *architecture* and false of the
+*vocabulary*.
+
+Sampling was raised from 28 frames at ten-second intervals to a full 5-second
+contact sheet of all 271 seconds, with the densest screens pulled at native
+resolution. Two hard cuts exist; the rest is a continuous screen recording, so
+scene-change extraction alone would have found almost nothing.
+
+What the first pass missed is that roughly the last third of the video is a
+live Hub UI at legible resolution, carrying enumerable vocabularies:
+
+### Environment entity view (≈03:32)
+
+Filter facets with counts, which is the settings-dialog situation again — the
+facet list *is* the enum:
+
+| Facet | Observed values |
+| --- | --- |
+| Product Type | K8s app, Helm chart |
+| Hosting Type | Other |
+| Health Status | Healthy, Indeterminate |
+| Rollout Statuses | Up to date, Recalled |
+| Environment Lifecycle Status | Active |
+| Entity Lifecycle Status | Installed, Pending install |
+
+The entity rows carry values the facet list does not: health `Not fully live`
+and `Not reported`/`Unreported`; rollout `Current version` (with the secondary
+line "Ensure rolloff") and `Blocked`. The summary bar reads
+`Up to date 11  Blocked 4  Other 1` while the Rollout Statuses facet reads
+`Up to date 11  Recalled 4`, so **`Blocked` in the summary and `Recalled` in
+the facet count the same four entities** — a naming split worth knowing before
+either word is treated as the wire value.
+
+Also legible: `AGENT CONNECTIONS` listing `Helm chart operator` and
+`Palantir operator`; a named maintenance window pair `Regular` /
+`Downtime` with an `Open` badge and a named window `friday-night`.
+
+### Plans view (≈04:18)
+
+Filters are `status`, `entity`, `Select plan type`, and `Prior to <date>`.
+The summary reads "47 succeeded, 3 failed. Currently, 0 in progress", giving
+plan states `succeeded`, `failed`, `in progress`. The Type column renders as
+sentences rather than enum tokens:
+
+- `Change version to 1.15.1`
+- `Installing entity version 11.3.5`
+- `Modify config`
+- `Modify 1 secret`
+- `Modify config and modify 1 secret`
+
+The composite form is the interesting one: config and secret changes combine
+into a single Plan with a single duration, rather than being separate Plans.
+
+Each row also shows a Product and Entity coordinate pair — `com.helmcharts.coredns`
+against `com.helmcharts.coredns:coredns`, `com.palantir.deployability` against
+`com.palantir.deployability:palantir-operator` — so an Entity coordinate is the
+Product coordinate with `:name` appended. That is a different grammar from the
+`aeid:` form in
+[`../evidence/apollo-identifier-grammar.json`](../evidence/apollo-identifier-grammar.json)
+and neither displaces the other.
+
+### Release view (≈02:10)
+
+`Product type: helm-chart.v1`, `Quorum: Any`, `Supported schema migrations:
+Unspecified`, a `Security scan: Failed` panel, and a promotion-constraint table
+whose rows pair a constraint with a requirement and an outcome —
+`Product maintenance window` / "Releases can only be promoted during product
+maintenance windows." / `Within window`, and `Health status check` /
+"At least 90% of peak time" / `Passed`.
+
 ## Disposition
 
-The direct frame and voice review adds corroborating explanation, not a new
-protocol or domain state. Its architecture, outbound Agent
-reporting/execution, promotion evaluation, constraint intersection, and
-auditability are covered by executable tests. The local source, frames, audio,
-and transcript were used only as temporary audit evidence and are not committed.
+**Architecture: corroborating, unchanged.** Hub/Agent topology, outbound Agent
+reporting and execution, promotion evaluation, constraint intersection, and
+auditability are covered by executable tests. No private Hub↔Agent wire format
+is exposed.
+
+**Vocabulary: observed, and not yet reconciled.** The values above are a
+single 2023 tenant's UI, not a published contract, so they are Tenant
+observation under
+[`../../operations/TENANT-FIDELITY.md`](../../operations/TENANT-FIDELITY.md)
+and none of them is authority to rename anything. They are recorded because
+Conduit ships vocabularies covering the same ground — `internal/reporting`
+carries `UP_TO_DATE`/`OUT_OF_DATE`/`IN_GRACE_PERIOD` and
+`HEALTHY`/`UNHEALTHY`/`INDETERMINATE`/`UNKNOWN`/`REPAIRING`/`WARNING`/`ERROR`/`TERMINAL`
+— and nobody has ever compared the two. `Recalled`, `Blocked`, `Not fully
+live` and `Current version` have no obvious counterpart, and
+`In grace period` has no observed one. That comparison is follow-up work, not
+something to settle from a marketing video.
+
+The local source, frames, audio, and transcript remain uncommitted audit
+artifacts; the digests above identify what was read.
