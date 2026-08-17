@@ -18,7 +18,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Install pinned Grype
         run: |
           curl --fail --location --silent --show-error \
@@ -27,7 +27,7 @@ jobs:
           echo '0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458  /tmp/grype.tar.gz' | sha256sum --check
           tar -xzf /tmp/grype.tar.gz -C /tmp grype
           install -m 0644 /dev/null /tmp/grype-empty.yaml
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: /tmp/grype-db
           key: cpsat-grype-db-v0.116.1-${{ github.run_id }}
@@ -44,7 +44,7 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Install pinned Hadolint
         run: |
           curl --fail --silent --show-error --location \
@@ -72,7 +72,7 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
@@ -95,7 +95,7 @@ jobs:
           EXPECTED_PLATFORM_REVISION="${REVISION}" \
             ./scripts/verify-cpsat-candidate.sh "${image}" "dist/cpsat-${ARCHITECTURE}" | \
             tee "dist/cpsat-${ARCHITECTURE}.gate.txt"
-      - uses: actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae # v5.0.5
+      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
         with:
           path: /tmp/grype-db
           key: cpsat-grype-db-v0.116.1-${{ github.run_id }}
