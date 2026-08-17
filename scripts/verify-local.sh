@@ -193,6 +193,7 @@ zenith_protocol() {
 
 gate 'Check formatting' check_formatting
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
+gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate mutation scores' bash -c './scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'

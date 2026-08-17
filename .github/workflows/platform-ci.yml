@@ -64,11 +64,27 @@ jobs:
           ./scripts/verify-pr-fidelity.test.sh
           gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}" --jq .body |
             ./scripts/verify-pr-fidelity.sh
+      # Telemetry about the run, not a verdict on the code, and marked so.
+      #
+      # Run 49 died here: GitHub answered this POST with 503 and the step, under
+      # `bash -e`, exited 1 before a single gate had run. Thirty verifications
+      # were skipped because a status could not be written about them. The same
+      # call at the end of the job -- the two steps below -- would have turned an
+      # all-green run red for the same reason, which is the worse half: a gate
+      # that reports failure when nothing failed teaches everyone to ignore it.
+      #
+      # So all three status steps retry a transient GitHub failure, and none of
+      # them can fail the job. Retrying alone would not have been enough; that
+      # 503 outlasted two dispatches twenty minutes apart. The consequence is
+      # that a status may be missing, which is visible and fixed by
+      # re-dispatching, rather than wrong, which is neither.
       - name: Publish pending Trunk status
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+          ./scripts/retry-github-api.sh \
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -f state=pending \
             -f context='Trunk gate' \
             -f description='Manual Trunk verification is running' \
@@ -118,6 +134,15 @@ jobs:
             echo "${unformatted}"
             exit 1
           fi
+      # The three status steps are continue-on-error, so a permanent failure in
+      # them -- a revoked token, a permissions block -- would otherwise be
+      # swallowed silently. That is only acceptable because the retry wrapper
+      # tells a transient GitHub failure from a permanent one and reports the
+      # permanent one at once. This proves it still does, including that it does
+      # not exit 0 after exhausting its retries, which is what it did when first
+      # written and what its self-test caught.
+      - name: Validate GitHub API retry
+        run: ./scripts/test-retry-github-api.sh
       - name: Test
         # Turns the integration test's skip into a failure, so a missing helm is
         # reported rather than passed over.
@@ -288,10 +313,11 @@ jobs:
       # run's own step list; setup/teardown steps are filtered out.
       - name: Publish gate summary
         if: ${{ always() }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          run_jobs="$(gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs")"
+          run_jobs="$(./scripts/retry-github-api.sh gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs")"
           {
             echo "## Trunk gate results"
             echo
@@ -309,11 +335,13 @@ jobs:
             done
       - name: Publish final Trunk status
         if: ${{ always() }}
+        continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
           TRUNK_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
         run: |
-          gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+          ./scripts/retry-github-api.sh \
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -f state="${TRUNK_STATE}" \
             -f context='Trunk gate' \
             -f description="Manual Trunk verification ${TRUNK_STATE}" \
