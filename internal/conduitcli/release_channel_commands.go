@@ -20,6 +20,7 @@ func releaseChannelCommand(state *commandState) *cobra.Command {
 	command.AddCommand(releaseChannelListCommand(state))
 	command.AddCommand(releaseChannelGetCommand(state, "get"))
 	command.AddCommand(releaseChannelGetCommand(state, "export"))
+	command.AddCommand(releaseChannelImportCommand(state))
 	command.AddCommand(releaseChannelDiffCommand(state))
 	command.AddCommand(releaseChannelAddCommand(state))
 	return command
@@ -171,6 +172,63 @@ func releaseChannelGetCommand(state *commandState, action string) *cobra.Command
 		command.Flags().BoolP("latest", "l", false, "export the current Git-owned definition")
 	}
 	_ = command.MarkFlagRequired("state-file")
+	return command
+}
+
+// releaseChannelImportCommand is the inverse of export, and it exists because
+// export had none. A Release Channel definition could be lifted out of one
+// desired state and there was no supported way to put it into another, which
+// cuts against the air-gap story the rest of the export/import surface
+// supports: an operator moving a channel between Hubs had to hand-edit YAML.
+//
+// Deliberately NOT implemented alongside it: `release-channel populate`. Apollo
+// names it in a changelog entry and publishes no reference page for it, so what
+// it does is not established -- it might fill a channel with releases (which
+// `add` already does), or seed a channel from another, or something else. This
+// repository refuses a coordinate it cannot answer rather than guessing at one,
+// and a command is a coordinate. `import` is here because its meaning follows
+// from `export` and nothing has to be invented to know it.
+func releaseChannelImportCommand(state *commandState) *cobra.Command {
+	var stateFile, definitionFile string
+	var overwrite, dryRun bool
+	command := &cobra.Command{
+		Use: "import", Short: "Propose a Release Channel definition exported from another desired state",
+		Args: cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			desired, err := readDesiredState(stateFile)
+			if err != nil {
+				return err
+			}
+			var definition controlplane.ReleaseChannelDefinition
+			if err = decodeDocument(definitionFile, &definition); err != nil {
+				return err
+			}
+			if strings.TrimSpace(definition.Name) == "" {
+				return errors.New("the imported definition has no Release Channel name")
+			}
+			existing := findReleaseChannel(&desired, definition.Name)
+			// Refused rather than merged. An import that quietly replaced a
+			// channel would let a definition carried between Hubs drop label
+			// requirements the receiving Hub had added, and the operator would
+			// see a successful import either way.
+			if existing != nil && !overwrite {
+				return fmt.Errorf("Release Channel %q already exists; pass --overwrite to replace it", definition.Name)
+			}
+			if existing != nil {
+				*existing = definition
+			} else {
+				desired.ReleaseChannels = append(desired.ReleaseChannels, definition)
+			}
+			return proposeOrPrintDesired(command, state, desired, dryRun)
+		},
+	}
+	command.Flags().StringVar(&stateFile, "state-file", "", "next-generation desired-state YAML or JSON")
+	command.Flags().StringVar(&definitionFile, "definition-file", "", "exported Release Channel definition")
+	command.Flags().BoolVar(&overwrite, "overwrite", false, "replace an existing Release Channel of the same name")
+	command.Flags().BoolVar(&dryRun, "dry-run", false, "validate without proposing")
+	for _, flag := range []string{"state-file", "definition-file"} {
+		_ = command.MarkFlagRequired(flag)
+	}
 	return command
 }
 
