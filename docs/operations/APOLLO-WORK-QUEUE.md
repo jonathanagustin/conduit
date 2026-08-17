@@ -32,13 +32,51 @@ is not verifying that every path consults it.
 testing — now a *weekly* sweep, since ADR 0006 permits the `schedule:` trigger
 A4 once forbade) did ship on 2026-08-16.
 
+The **replay half of #56** shipped on 2026-08-17 as #89. An approved Change
+Request was a replayable pre-approval token: a `crq_` id is a digest of the
+target alone, so a re-proposal received the stored record and every handler that
+auto-applied on `Status == APPROVED` performed the action again under whatever
+policy applied now. Reproduced at three places rather than argued — the
+export-pipeline routes, `PUT /v1/change-requests/{id}/labels` (which takes no
+decision at all), and the deployment path, where `supersedePendingPlans` cancels
+an approved Plan without touching its Change Request, so re-proposing superseded
+desired state resurrected a `CANCELLED` Plan to `APPROVED` and cleared its
+cancellation. The guard is the verdict of the evaluation the call performed, not
+whether the call created the record: creation was the first design and it
+refused an unchanged-policy repeat, which is now a test so it cannot come back
+quietly. **The terminal-record wedge — the other half — is untouched.**
+
+The **console live-simulation stack** shipped the same day as #92 and #93. The
+stubbed console suite establishes that the console renders correctly *given* a
+response, never that the Hub produces it, and says so in its own harness. #92
+adds `scripts/simulate-console.sh`, which builds a Hub, seeds it through the
+Hub's own API and drives the browser against the console that Hub serves from
+its embedded bundle. #93 adds `internal/agent/adapters/simulator` behind the
+Agent's existing ports and `cmd/platform-simulated-agent` — deliberately a
+separate command rather than a mode of the shipped Agent, because a binary that
+can fabricate healthy reports would let the control plane lie about the state of
+the world; `scripts/assemble-oci-manifest.sh` already asserts the release
+manifest carries exactly `hub` and `spoke-agent`, so the exclusion is enforced.
+
+Two defects the simulation found in the course of being built, both recorded in
+the code where they bit: the Hub refuses a successful Plan that reports a
+degraded Entity (so degradation belongs on the health-observation path, not the
+delivery report), and a Change Request evaluated before any approval policy
+exists sits in `ERROR`, which made the Plans screen and the Overview disagree
+while both told the truth.
+
 ## Blocked on a decision
 
 | Issue | The decision |
 | --- | --- |
 | [#17](https://github.com/jonathanagustin/conduit/issues/17) | Adopt a minimal Foundry Space grouping (`spaceId`, 5 refused coordinates)? Opaque, optional, Maven-group-keyed, an administrative grouping rather than a security boundary and not wired into grant scopes — or accept the five refusals permanently. **This is no longer a chain with #16.** The argument that made them one decision was that Apollo's scan-before-install constraint is "controlled by a Space setting" and so needs a Space to attach to; #35 shipped that constraint without one, so the settings-attachment-point premise is spent. Recommended **won't-do**: serving a synthesized `spaceId` behind an `OBSERVED` coordinate would make the provenance disclosure lie. |
 | [#20](https://github.com/jonathanagustin/conduit/issues/20) | **Answered, then blocked again on something else.** ADR 0006 overturned A4, and the queue shipped in #33 as `.github/workflows/merge-queue.yml`. It cannot run: GitHub offers merge queues on public repositories, and on private ones only under Team or Enterprise Cloud, so this private repository under a personal account has no "Require merge queue" control to enable — confirmed 2026-08-16 against `main`'s branch-protection form, where the option is absent between "Require linear history" and "Require deployments to succeed before merging". Rulesets do not route around it; the `merge_queue` rule type is gated the same way. What remains is a decision about repository ownership, not about CI. |
-| [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. A dedicated `change:propose`-only service account, not `OnBehalfOf` — attributing autonomous changes to whoever enabled the flag falsifies the audit trail. Three unresolved sub-parts make this the *last* to start, not the least important: the `Metadata["source"]` stamp policies need to branch on, the **deterministic `crq_` id collision** on re-proposal — but on the `ProposeChanges` path only, and the distinction matters to whoever implements this. `crq_` is SHA-256 of TargetKind+TargetID (`governance.go:529-530`), so it collides exactly when `TargetID` is stable across re-proposals of the same target. That is true of every `ProposeChanges` caller, which pass a caller-supplied id — `EXPORT_PIPELINE_LIFECYCLE_*` with a pipeline id (`http.go:860`), `BUNDLE_IMPORT` with a record id (`http.go:1059`), the label definition target (`http.go:378`). It is **not** true of the plan pipeline: `evaluatePlan` sets `TargetID: record.ID`, and `pln_` is SHA-256 of the desired-state digest plus the plan JSON (`lifecycle.go:196-205`), so a re-proposal with different content gets a different `pln_` and therefore a different `crq_`. Designing Gitless around a collision the plan path does not have would be building for the wrong shape, and coalescing so propose-only does not flood review. |
+| [#21](https://github.com/jonathanagustin/conduit/issues/21) | Which principal proposes a Gitless convergence change. A dedicated `change:propose`-only service account, not `OnBehalfOf` — attributing autonomous changes to whoever enabled the flag falsifies the audit trail. Three unresolved sub-parts make this the *last* to start, not the least important: the `Metadata["source"]` stamp policies need to branch on, the **deterministic `crq_` id collision** on re-proposal — but on the `ProposeChanges` path only, and the distinction matters to whoever implements this. `crq_` is SHA-256 of TargetKind+TargetID (`governance.go:529-530`), so it collides exactly when `TargetID` is stable across re-proposals of the same target. That is true of every `ProposeChanges` caller, which pass a caller-supplied id — `EXPORT_PIPELINE_LIFECYCLE_*` with a pipeline id (`http.go:860`), `BUNDLE_IMPORT` with a record id (`http.go:1059`), the label definition target (`http.go:378`). It is **not** true of the plan pipeline: `evaluatePlan` sets `TargetID: record.ID`, and `pln_` is SHA-256 of the desired-state digest plus the plan JSON (`lifecycle.go:196-205`), so a re-proposal with different content gets a different `pln_` and therefore a different `crq_`. Designing Gitless around a collision the plan path does not have would be building for the wrong shape, and coalescing so propose-only does not flood review. **Updated 2026-08-17:** #89 closed the dangerous half of that collision — a stale `APPROVED` record can no longer be replayed into an apply, because auto-apply now asks the verdict of the evaluation the call performed. What remains for whoever implements this is the *wedge*: a terminal record still occupies its target's id. Design for that, not for replay. |
+
+| [#56](https://github.com/jonathanagustin/conduit/issues/56) | **Is a rejection a standing veto, or advisory per attempt?** The replay half shipped as #89; this is the remainder. A `crq_` id is derived from the target alone, so a terminal record occupies that target permanently and only its author can `Reopen` it — and `Reopen` excludes `ERROR`, so a request that errored because no policy was configured is unrecoverable even by its author. *Standing veto* → re-proposal after rejection stays privileged, and the fix is making that path reachable. *Advisory per attempt* → any authorized proposer may mint a successor, with the rejection preserved and linked rather than overwritten. Nothing in the code answers this; today's behaviour is a standing veto enforced by accident, via id collision. |
+| [#54](https://github.com/jonathanagustin/conduit/issues/54) | Is a suppression's `ChangeRequestID` an internal Conduit id or an external ITSM reference? And may an environment with a `RequiredOutcome` run with no scanner configured at all? Both my first two proposed fixes here were wrong — a freshness floor does not defend against forged `AssessedAt`, and "always scan" would delete the suppression feature outright, since grype hard-refuses suppressions. No code was written. |
+| [#57](https://github.com/jonathanagustin/conduit/issues/57) | The minted `ri.apollo.main.*` RIDs cut against ADR 0005's refusal of `ApolloProduct.rid`. Both cannot stand: either the ADR relaxes or the RIDs go. |
+| [#96](https://github.com/jonathanagustin/conduit/issues/96) | Should the console tenant become a per-request fact? **Recommended won't-do**, and #94 and #95 fall with it. The framing that prompted it — "hydrated via headers" — is not what Foundry does: it exposes tenants per *provisioned hostname* (`<enrollment>.<stack>.palantirfoundry.com`) with OAuth2 on every call, so the binding is DNS and TLS established at provisioning time plus authentication before the hydrated document is served. Conduit has none of those three: no `TenantID` anywhere in `internal/`, and `GET /console/` is mounted bare with no auth wrapper, so a header-selected tenant would let any anonymous client choose what identity the console asserts. The Hub is also single-tenant by construction everywhere else, so the capability would have no consumer. |
 
 ### Open only because closing is a human step
 
