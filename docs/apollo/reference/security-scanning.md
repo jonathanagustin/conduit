@@ -28,6 +28,13 @@ published `PLANNED_FIX` category.
 
 The external scanner adapter preserves the provider suppression ID, requester,
 approver, rationale, Change Request ID, creation/approval times, and expiry.
+Every one of those is an external assertion preserved verbatim. In particular
+the Change Request ID references the approving system's change record and is
+not a Conduit `crq_`: the Hub never resolves it, and could not, since Conduit
+does not create provider-side suppressions and an assessment relayed from
+another Hub carries a reference only that Hub's approver can resolve. The
+security boundary for a suppression is governance approval of the Plan that
+carries it, not any property of these fields.
 Validation requires one unique record per suppressed finding, an artifact from
 the exact assessed digest set, approval before the scan, and an expiry strictly
 after the scan. Missing, expired, unapproved, mis-scoped, or count-only
