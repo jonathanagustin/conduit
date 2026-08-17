@@ -646,3 +646,95 @@ func TestFleetHTTPRejectsInvalidPaginationInputs(t *testing.T) {
 		}
 	}
 }
+
+// TestTheFleetAPIAndTheOverviewAgreeAboutAnIntermittentEnvironment is the
+// defect: they did not.
+//
+// A gap in reported state from an INTERMITTENT_AGENTS Environment is expected
+// and is not an outage. The domain predicate said so and the projection
+// honoured it, but the map driving it was populated in the console overview and
+// nowhere else -- so a maxAgeSeconds query against the operator-facing fleet
+// API marked every installation there stale and counted it in Summary.Stale.
+// Two surfaces, two answers about the same Environment.
+func TestTheFleetAPIAndTheOverviewAgreeAboutAnIntermittentEnvironment(t *testing.T) {
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	state := assessedFoundation()
+	state.Environment.ConnectionSetting = ConnectionIntermittentAgents
+	record, err := NewLifecycle(repository).CreatePlan(ctx, state)
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+
+	// A report far older than the query's tolerance. On an Environment whose
+	// gaps are expected this is silence, not staleness.
+	entities := make([]ReportedEntity, 0, len(record.Plan.Steps))
+	for _, step := range record.Plan.Steps {
+		entities = append(entities, ReportedEntity{
+			InstallationID: step.InstallationID, Product: step.Product, Version: step.Version,
+			ReleaseDigest: step.ReleaseDigest, Namespace: step.Namespace, ConfigDigest: step.ConfigDigest,
+			Health: HealthHealthy, RolloutStatus: RolloutUpToDate,
+			ConfigStatus: ConfigApplied, Lifecycle: LifecycleInstalled, ObservedAt: now.Add(-6 * time.Hour),
+		})
+	}
+	if _, err := repository.PutEnvironmentReport(ctx, EnvironmentReport{
+		Environment: state.Environment.ID, AgentID: "agent-dev-use2",
+		ObservedAt: now.Add(-6 * time.Hour), Entities: entities,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	projection, err := BuildFleetProjection(ctx, repository, FleetQuery{MaxAge: time.Minute}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.Summary.Total == 0 {
+		t.Fatal("the fixture produced no installations, so this asserts nothing")
+	}
+	if projection.Summary.Stale != 0 {
+		t.Errorf("an expected gap was counted as staleness: %d of %d stale",
+			projection.Summary.Stale, projection.Summary.Total)
+	}
+	for _, installation := range projection.Installations {
+		if installation.Stale {
+			t.Errorf("%s in an intermittent Environment reads stale", installation.InstallationID)
+		}
+	}
+}
+
+// The exemption is the connection setting's, not every Environment's. An
+// Environment that expects continuous reporting still goes stale, or the fix
+// would have turned a real outage into silence everywhere.
+func TestAnOrdinaryEnvironmentStillGoesStale(t *testing.T) {
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	record, err := NewLifecycle(repository).CreatePlan(ctx, assessedFoundation())
+	if err != nil {
+		t.Fatal(err)
+	}
+	now := time.Date(2026, 8, 1, 12, 0, 0, 0, time.UTC)
+	entities := make([]ReportedEntity, 0, len(record.Plan.Steps))
+	for _, step := range record.Plan.Steps {
+		entities = append(entities, ReportedEntity{
+			InstallationID: step.InstallationID, Product: step.Product, Version: step.Version,
+			ReleaseDigest: step.ReleaseDigest, Namespace: step.Namespace, ConfigDigest: step.ConfigDigest,
+			Health: HealthHealthy, RolloutStatus: RolloutUpToDate,
+			ConfigStatus: ConfigApplied, Lifecycle: LifecycleInstalled, ObservedAt: now.Add(-6 * time.Hour),
+		})
+	}
+	if _, err := repository.PutEnvironmentReport(ctx, EnvironmentReport{
+		Environment: "dev-use2", AgentID: "agent-dev-use2",
+		ObservedAt: now.Add(-6 * time.Hour), Entities: entities,
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	projection, err := BuildFleetProjection(ctx, repository, FleetQuery{MaxAge: time.Minute}, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if projection.Summary.Stale != projection.Summary.Total || projection.Summary.Total == 0 {
+		t.Fatalf("an aged report on an ordinary Environment did not read stale: %#v", projection.Summary)
+	}
+}

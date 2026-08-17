@@ -38,8 +38,12 @@ import (
 // intermittent Environment must not read as an outage or a stale promotion
 // evidence -- is a behaviour change to promotion evidence that threads the
 // connection setting into the reporting fleet projection, and is tracked
-// separately (issue #25). ExpectsContinuousReporting is the domain predicate
-// that half will consult; it is correct and unused until then.
+// separately (issue #65, formerly #25). SilenceIsExpected is the domain
+// predicate both halves consult -- this comment named an
+// ExpectsContinuousReporting that does not exist and called it unused, while
+// the inverted SilenceIsExpected below is what the code actually calls. The
+// fleet projection consumes it on both the console overview and the fleet API;
+// the promotion-evidence half remains open on #65.
 const (
 	// ConnectionUnknown is the un-configured state. An Environment in it is not
 	// operational: no Agent may connect and no Plan is issued.
@@ -99,7 +103,7 @@ type Federation struct {
 
 // ExpectsDirectAgents reports whether Agents connect straight to this Hub. Both
 // Connected and Intermittent settings do; they differ only in whether a gap is
-// an outage, which is ExpectsContinuousReporting's question, not this one. The
+// an outage, which is SilenceIsExpected's question, not this one. The
 // operational predicates below are written against this rather than against a
 // single constant so that Intermittent is not accidentally excluded from any of
 // them.

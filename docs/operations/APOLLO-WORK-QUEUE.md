@@ -15,11 +15,22 @@ this file.
 
 ## Ready to build
 
-Nothing. All three items that stood here shipped on 2026-08-16 and moved to
-Closed: #13 (reviewer-requirement satisfiability), #25 (intermittent Environment
-silence), and #28 (comprehensive mutation testing — now a *weekly* sweep, since
-ADR 0006 permits the `schedule:` trigger A4 once forbade). Everything still open
-is waiting on a person, not on effort.
+#65 — intermittent Environment silence, the half of #25 that was not done.
+The fleet API now agrees with the console overview about an Environment whose
+gaps are expected, which was the plumbing. What remains is the half PH-5
+actually named: `ValidateEvidence` rejects evidence older than
+`MaximumEvidenceAgeSeconds` with no connection-setting exemption, so an
+intermittent Environment's "as of last connection" health is refused by any
+age-bounded policy. It is a behavioural choice rather than plumbing, and the
+operator's stated bound must not be exempted outright.
+
+#25 was recorded here as shipped on 2026-08-16 and it was not. The symbols
+existed and were wired on one surface of two; verifying that a predicate exists
+is not verifying that every path consults it.
+
+#13 (reviewer-requirement satisfiability) and #28 (comprehensive mutation
+testing — now a *weekly* sweep, since ADR 0006 permits the `schedule:` trigger
+A4 once forbade) did ship on 2026-08-16.
 
 ## Blocked on a decision
 
