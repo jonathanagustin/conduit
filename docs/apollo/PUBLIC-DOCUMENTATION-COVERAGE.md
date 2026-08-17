@@ -127,8 +127,51 @@ densest contract-bearing page there is. Mining it produced two open items:
   manifest was accepted and then discarded, because the Terraform branch never
   builds the Helm bundle. That now errors, which is what Apollo published.
 
-Most other entries corroborate work already done. The 0.813.0/0.814.0 entries
-describe the Product Release TGZ carrying `deployment/values.yaml` and
+This paragraph used to begin *"Most other entries corroborate work already
+done."* **That sentence was withdrawn on 2026-08-17. It was never checked, and
+when it was checked it was false.**
+
+The mining pass above was hypothesis-driven: it hunted for new contract-bearing
+announcements, found two, and generalized about the rest without itemizing them.
+An entry-by-entry pass over 165 announcements across 88 date headings classifies
+them:
+
+| | Count | Share |
+| --- | ---: | ---: |
+| Present | 50 | 30% |
+| Partial | 35 | 21% |
+| Deliberately refused | 18 | 11% |
+| **Absent, unrecorded** | **37** | **22%** |
+| Not applicable (cosmetics, deprecation notices, support-policy changes) | 25 | 15% |
+
+Thirty per cent is not "most". The most charitable reading -- Present plus
+deliberate refusals plus not-applicable, i.e. "nothing is owed" -- reaches 56%,
+and only by counting icon changes and removal notices for commands that never
+existed here as corroboration, which they are not. What the sentence concealed
+is **72 entries, 44% of the page**, carrying an unclosed or half-closed
+contract.
+
+The largest of them was never raised. **Apollo Notifications**, announced
+2025-06-16 with four dependent entries after it, has no implementation:
+`docs/apollo/reference/notifications.md` reconstructs the model and states its
+bounds, and the console rail records the omission as "external integration until
+implemented" -- a deferral, not a decision. Nothing delivers anything. A Plan
+fails, a recall opens, a grant changes, and nobody learns unless they were
+already looking.
+
+A caution on the denominator, recorded because it is the method finding rather
+than a detail. **The entry count of this page is not a stable fact.** The
+enumeration above reached 88 distinct date headings by summing four
+date-scoped extractions; asked for a total directly in the same session, the
+same tooling answered 130 once and 97 another time, neither consistent with its
+own enumeration. This document recorded 120 on 2026-08-15, and
+`ROSETTA-RELEASE-NOTES.md` states the page carries 229 distinct dates. Four
+figures, none reproducible from the others. Treat 165 as a lower bound, and
+anyone re-running this should capture the page's raw `pageProps.markdown` and
+count headings offline rather than asking a model to count.
+
+What does corroborate work already done: the 0.813.0/0.814.0 entries describe
+the Product Release TGZ carrying `deployment/values.yaml` and
 `deployment/values.schema.json`, and
 `docs/apollo/cli-fixtures/reconstructed/0.814.0/deployment/` holds exactly those
 files -- the fixture is pinned to the newest version the changelog names.
@@ -136,9 +179,12 @@ files -- the fixture is pinned to the newest version the changelog names.
 **A bound the changelog exposed.** It names commands that have no reference
 page: `local bundle upload --delete-after-upload`, `terminal create-session
 --session-id`, `module migrate`, `module installation unlink`, `registry
-recover`, `vulnerability suppression modify`, `get-central-namespace`. The
-105-command contract is therefore bounded by what Apollo publishes as CLI
-reference pages, not by what the CLI has. `verify-conduit-cli-contract.mjs`
+recover`, `vulnerability suppression modify`, `get-central-namespace` -- and,
+found by the 2026-08-17 entry-by-entry pass and missing from the list above,
+`product-release batch-get` (0.735.0), `release-channel import` and
+`release-channel populate` (0.631.0), and `entity compare` and `entity sync`
+(0.631.0). **Twelve, not seven.** The 105-command contract is therefore bounded
+by what Apollo publishes as CLI reference pages, not by what the CLI has. `verify-conduit-cli-contract.mjs`
 checks Conduit against the published reference and that remains the right
 target; it just is not the whole CLI, and the "105/105" figure should be read
 that way.

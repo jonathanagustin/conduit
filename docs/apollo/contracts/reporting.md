@@ -20,7 +20,7 @@ alone.
   installation identity.
 
 The pure fleet projection lives in
-[`internal/reporting/fleet.go`](../../../internal/reporting/fleet.go). The
+[`internal/reporting/domain/fleet.go`](../../../internal/reporting/domain/fleet.go). The
 legacy adapter in
 [`internal/controlplane/fleet.go`](../../../internal/controlplane/fleet.go)
 converts stored Plan and Environment report records into Reporting's narrow
@@ -30,7 +30,7 @@ not own the canonical report.
 ## Verification
 
 ```bash
-go test ./internal/reporting
+go test ./internal/reporting/...
 go test ./internal/controlplane -run 'TestFleet|TestApollo.*Status|TestEnvironmentReport'
 ```
 
