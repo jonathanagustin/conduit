@@ -9,10 +9,16 @@ command-format compatibility claim.
 - A command targets exactly one Entity, records its issuer and mandatory
   rationale, is immediately execution-eligible, and is prioritized over
   ordinary Plans that overlap that Entity.
-- Commands bypass maintenance windows, suppressions, rollout pacing, health,
-  and recall eligibility. They never execute concurrently with an already
-  leased or running overlapping Plan. Only one pending or executing command may
-  exist per Entity.
+- Commands bypass maintenance windows, suppressions, rollout pacing, and
+  health. They never execute concurrently with an already leased or running
+  overlapping Plan. Only one pending or executing command may exist per Entity.
+- **Recall eligibility is bypassed except for security recalls, which is a
+  Conduit divergence from the published behaviour.** A command that would
+  deploy a Release recalled with source `SECURITY` is refused; uninstall and
+  restart are not, so the break-glass paths that remove or restart a workload
+  stay open during an incident. This line previously said commands bypass
+  recall eligibility outright, which is what the corpus describes and not what
+  Conduit does. Recorded in `docs/operations/TENANT-FIDELITY.md`.
 - Normal Plan evaluation resumes after termination. Consequently, desired
   state can reverse an emergency version/config action unless the operator also
   changes eligibility, recall, or suppression state.

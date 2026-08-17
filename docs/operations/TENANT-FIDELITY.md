@@ -48,6 +48,33 @@ Behaviours where Conduit keeps Apollo's published vocabulary and does something
 different with it. Each is a `Conduit extension or divergence` under the claim
 classes above, recorded here because the Change record section requires it.
 
+### A security recall blocks an Entity command that would deploy the Release
+
+**Source class:** Public contract (commands bypass recall eligibility).
+**Divergence:** Conduit refuses one narrow case of it.
+
+`commands.go` refuses an INSTALL or ENFORCE_* command whose target Release is
+recalled with source `SECURITY`. The published behaviour, and this repository's
+own note in `reference/commands.md`, is that commands bypass recall eligibility.
+
+**Why Conduit diverges.** A command is the break-glass path, and the argument
+for bypassing recall is that an operator in an incident should not be blocked by
+policy. That argument does not reach deploying a Release withdrawn *for a
+security reason*: the recall says these bytes are the problem, and the command
+would install them. The break-glass paths that matter in an incident stay open
+-- uninstall and restart are not refused -- so the operator can always remove or
+restart the workload, just not roll forward onto a Release recalled for
+security.
+
+**Scope, stated because it is narrow.** Only `RecallSourceSecurity`. A manual
+recall does not block a command, which is the published behaviour.
+
+**What would close it.** A decision that break-glass outranks a security recall,
+or a published statement that Apollo blocks this too.
+
+**Detected by:** the command tests in `internal/controlplane`, which exercise a
+security-recalled target.
+
 ### `RECALL_WHEN_UNHEALTHY` blocks the promotion; it does not recall the Release
 
 **Source class:** Public contract (the condition name and the canary stage

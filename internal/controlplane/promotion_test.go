@@ -14,6 +14,30 @@ import (
 	"time"
 )
 
+// promotionRepository is a repository that has actually reviewed the
+// Environment the promotion evidence names.
+//
+// Every fixture here used a bare NewMemoryRepository() and then supplied health
+// evidence for dev-use2, an Environment the Hub had never seen. That worked
+// because an unreviewed Environment resolved to the defaulted topology --
+// AGENTS_CONNECTED -- and vouched. ParticipatesInPromotion now requires the Hub
+// to hold a reviewed generation, so the fixtures have to establish the
+// Environment they attest with, which is what a real Hub would hold anyway.
+func promotionRepository(t *testing.T) Repository {
+	t.Helper()
+	repository := NewMemoryRepository()
+	state := foundation()
+	if _, err := repository.CreatePlan(context.Background(), PlanRecord{
+		ID:           "pln_promotion_fixture",
+		Plan:         Plan{Environment: state.Environment.ID, Generation: state.Environment.Generation},
+		DesiredState: &state, Status: PlanAwaitingApproval,
+		CreatedAt: time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("seed the Environment the promotion evidence names: %v", err)
+	}
+	return repository
+}
+
 func promotionRequest(now time.Time) PromotionEvaluationRequest {
 	release := foundation().Releases[0]
 	release.Version = "0.2.0-1-gaaaaaaa"
@@ -38,7 +62,7 @@ func promotionRequest(now time.Time) PromotionEvaluationRequest {
 func TestPromotionEvaluationEnforcesReachabilityFreshnessAndOverallTimeout(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	repository := NewMemoryRepository()
+	repository := promotionRepository(t)
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	request := promotionRequest(now)
@@ -75,7 +99,7 @@ func TestPromotionEvaluationEnforcesReachabilityFreshnessAndOverallTimeout(t *te
 func TestPromotionFailureSuppressesCanaryAndRecoveryRemovesSuppression(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	repository := NewMemoryRepository()
+	repository := promotionRepository(t)
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	blocked := promotionRequest(now)
@@ -105,7 +129,7 @@ func TestPromotionFailureSuppressesCanaryAndRecoveryRemovesSuppression(t *testin
 func TestRampedRolloutConstraintAppliesOnlyToUpgrades(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	repository := NewMemoryRepository()
+	repository := promotionRepository(t)
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	request := promotionRequest(now)
@@ -153,7 +177,7 @@ func TestRampedRolloutConstraintAppliesOnlyToUpgrades(t *testing.T) {
 func TestPromotionEvaluationIsImmutableAndEnablesChannelSelection(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	repository := NewMemoryRepository()
+	repository := promotionRepository(t)
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	record, err := lifecycle.EvaluatePromotion(context.Background(), promotionRequest(now))
@@ -186,7 +210,7 @@ func TestPromotionEvaluationIsImmutableAndEnablesChannelSelection(t *testing.T) 
 func TestPromotionEvaluationPersistsBlockedReasons(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	repository := NewMemoryRepository()
+	repository := promotionRepository(t)
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	request := promotionRequest(now)
@@ -213,7 +237,7 @@ func TestApolloSecurityPromotionLabelsAreDerivedFromExactScannerEvidence(t *test
 		SecurityScannedLabel:     "true",
 		SecurityScanOutcomeLabel: "pass",
 	}
-	lifecycle := NewLifecycle(NewMemoryRepository())
+	lifecycle := NewLifecycle(promotionRepository(t))
 	lifecycle.now = func() time.Time { return now }
 	record, err := lifecycle.EvaluatePromotion(context.Background(), request)
 	if err != nil {
@@ -298,6 +322,17 @@ func TestFileRepositoryPersistsPromotion(t *testing.T) {
 	repository, err := NewFileRepository(root)
 	if err != nil {
 		t.Fatal(err)
+	}
+	// Same seeding as promotionRepository, against the file repository this
+	// case exists to exercise.
+	state := foundation()
+	if _, err := repository.CreatePlan(context.Background(), PlanRecord{
+		ID:           "pln_promotion_fixture",
+		Plan:         Plan{Environment: state.Environment.ID, Generation: state.Environment.Generation},
+		DesiredState: &state, Status: PlanAwaitingApproval,
+		CreatedAt: time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("seed the Environment the promotion evidence names: %v", err)
 	}
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
@@ -423,7 +458,7 @@ func TestPromotionStagePauseIsIdempotentAndExcludesEvaluation(t *testing.T) {
 	t.Parallel()
 	ctx := context.Background()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	repository := NewMemoryRepository()
+	repository := promotionRepository(t)
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	request := promotionRequest(now)
@@ -575,7 +610,7 @@ func TestPromotionBlockersCarryTheDecisionThatReasonsOnlyDescribes(t *testing.T)
 
 	evaluate := func(t *testing.T, mutate func(*PromotionEvaluationRequest)) PromotionRecord {
 		t.Helper()
-		lifecycle := NewLifecycle(NewMemoryRepository())
+		lifecycle := NewLifecycle(promotionRepository(t))
 		lifecycle.now = func() time.Time { return now }
 		request := promotionRequest(now)
 		mutate(&request)
@@ -705,7 +740,7 @@ func TestPromotionBlockersCarryTheDecisionThatReasonsOnlyDescribes(t *testing.T)
 func TestPromotionRecordsFromAPeerReproduceTheirBlockers(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
-	lifecycle := NewLifecycle(NewMemoryRepository())
+	lifecycle := NewLifecycle(promotionRepository(t))
 	lifecycle.now = func() time.Time { return now }
 	request := promotionRequest(now)
 	// Two blockers, from two producers, whose messages arrive in the opposite
@@ -851,7 +886,7 @@ func TestPromotionBlockerOrderIsStableAcrossEvaluations(t *testing.T) {
 
 	var first PromotionRecord
 	for attempt := 0; attempt < 25; attempt++ {
-		lifecycle := NewLifecycle(NewMemoryRepository())
+		lifecycle := NewLifecycle(promotionRepository(t))
 		lifecycle.now = func() time.Time { return now }
 		record, err := lifecycle.EvaluatePromotion(ctx, request)
 		if err != nil {

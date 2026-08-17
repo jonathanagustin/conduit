@@ -150,6 +150,20 @@ func TestCanaryTopologyChecksOnlyFilteredEnvironments(t *testing.T) {
 	}); err != nil {
 		t.Fatal(err)
 	}
+	// The canary Environment is seeded too, and it was not before. This case is
+	// about the FILTER -- that an excluded Environment which cannot vouch does
+	// not block -- and it used to make that point while the included one was an
+	// Environment this Hub had never reviewed, vouching only because an unknown
+	// Environment defaulted to AGENTS_CONNECTED. It proved the filter worked by
+	// relying on the hole beside it.
+	canary := foundation()
+	canary.Environment.ID = "canary-env"
+	if _, err := repository.CreatePlan(ctx, PlanRecord{
+		ID: "pln_canary", Plan: Plan{Environment: "canary-env", Generation: canary.Environment.Generation},
+		DesiredState: &canary, Status: PlanAwaitingApproval, CreatedAt: promotionFixtureTime(),
+	}); err != nil {
+		t.Fatal(err)
+	}
 	record, err := lifecycle.EvaluatePromotion(ctx, PromotionEvaluationRequest{
 		Release:     Release{Product: "app.example:example-api", Version: "0.1.0", Channels: []string{"RELEASE"}},
 		FromChannel: "RELEASE", ToChannel: "STABLE",
@@ -380,4 +394,76 @@ func TestPromotionBlockedByEnvironmentTopologySurvivesPlanValidation(t *testing.
 			t.Fatalf("an invented blocker of another kind was accepted: %v", paths)
 		}
 	})
+}
+
+// TestAnUnreviewedEnvironmentCannotVouchForARelease is the fail-open case.
+//
+// Promotion evidence is caller-supplied, so the Environment name in it is a
+// caller-controlled field. An Environment this Hub has never reviewed resolved
+// to the defaulted topology -- AGENTS_CONNECTED, itself a declared divergence
+// from Apollo's UNKNOWN -- which tracks health, so it vouched. Naming an
+// Environment that does not exist here was enough to make health evidence
+// count toward a promotion.
+//
+// federation.md states the rule this broke: "an Environment holding no observed
+// state cannot vouch for a Release".
+func TestAnUnreviewedEnvironmentCannotVouchForARelease(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	lifecycle := NewLifecycle(repository)
+
+	record, err := lifecycle.EvaluatePromotion(ctx, PromotionEvaluationRequest{
+		Release:     Release{Product: "app.example:example-api", Version: "0.1.0", Channels: []string{"RELEASE"}},
+		FromChannel: "RELEASE", ToChannel: "STABLE",
+		Policy: PromotionPolicy{
+			Type:       PromotionCanary,
+			Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+		},
+		// An Environment this Hub has never seen, named by the caller.
+		Evidence: []PromotionHealthEvidence{healthyFor("never-seen-here", "api", time.Hour)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if record.Status != PromotionBlocked {
+		t.Fatalf("an unreviewed Environment vouched for a Release: status = %s", record.Status)
+	}
+	if !blockedBy(record.Blockers, PromotionBlockerEnvironmentCannotVouch, "never-seen-here") {
+		t.Fatalf("the blocker does not name the Environment that could not vouch: %#v", record.Blockers)
+	}
+}
+
+// And an Environment the Hub has reviewed still vouches, so the rule refuses
+// absence rather than refusing promotion.
+func TestAReviewedEnvironmentStillVouches(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	state := foundation()
+	if _, err := repository.CreatePlan(ctx, PlanRecord{
+		ID: "pln_reviewed", Plan: Plan{Environment: state.Environment.ID, Generation: state.Environment.Generation},
+		DesiredState: &state, Status: PlanAwaitingApproval, CreatedAt: promotionFixtureTime(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	lifecycle := NewLifecycle(repository)
+
+	record, err := lifecycle.EvaluatePromotion(ctx, PromotionEvaluationRequest{
+		Release:     Release{Product: "app.example:example-api", Version: "0.1.0", Channels: []string{"RELEASE"}},
+		FromChannel: "RELEASE", ToChannel: "STABLE",
+		Policy: PromotionPolicy{
+			Type:       PromotionCanary,
+			Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+		},
+		Evidence: []PromotionHealthEvidence{healthyFor(state.Environment.ID, "example-api", time.Hour)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, blocker := range record.Blockers {
+		if blocker.Kind == PromotionBlockerEnvironmentCannotVouch {
+			t.Fatalf("a reviewed Environment was refused: %#v", blocker)
+		}
+	}
 }
