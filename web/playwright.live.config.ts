@@ -19,7 +19,16 @@ export default defineConfig({
   // Same reasoning as the stubbed suite: a retry would hide the races worth
   // seeing, and against a real Hub those are the interesting failures.
   retries: 0,
-  fullyParallel: true,
+  // One Hub, one story. The specs share seeded state and one of them approves a
+  // Change Request, which is exactly the kind of write that must not land
+  // underneath another spec's assertion about what has not been approved yet.
+  fullyParallel: false,
+  workers: 1,
+  // The stubbed suite answers instantly; this one waits on a real Agent that
+  // polls for work and a console that refetches every 30 seconds. Playwright's
+  // default 30s per-test timeout caps a longer expect timeout rather than
+  // deferring to it, so it is raised here instead of per assertion.
+  timeout: 120_000,
   reporter: "list",
   use: {
     baseURL,

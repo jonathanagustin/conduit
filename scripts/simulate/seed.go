@@ -130,9 +130,17 @@ func main() {
 	// which is what the first version of this simulation produced. The console
 	// then showed a Plan AWAITING_APPROVAL beside an Overview counting zero
 	// awaiting approval, and both were telling the truth.
+	// The reviewer is whoever the browser will act as, and it is deliberately
+	// not the subject seeding this: the Hub refuses the author of a Change
+	// Request approving it, so a simulation that proposed and approved as one
+	// person could never exercise an approval at all.
+	reviewer := os.Getenv("CONDUIT_REVIEWER")
+	if reviewer == "" {
+		reviewer = "operator"
+	}
 	send(base, subject, http.MethodPut, "/v1/teams/reviewers", controlplane.Team{
 		Name: "reviewers", DisplayName: "Reviewers",
-		AdminUsers: []string{"reviewer"}, MemberUsers: []string{"reviewer"},
+		AdminUsers: []string{reviewer}, MemberUsers: []string{reviewer},
 	})
 	// The requirement is what makes the governance path real rather than
 	// decorative: it puts the Change Request in PENDING_APPROVALS with a second
