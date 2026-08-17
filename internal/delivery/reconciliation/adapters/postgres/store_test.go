@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 	"crypto/sha256"
-	"encoding/json"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"sync"
 	"testing"
