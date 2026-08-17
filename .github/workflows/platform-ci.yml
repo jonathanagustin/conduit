@@ -38,7 +38,7 @@ jobs:
     # default, so a hang costs six hours of runner time instead of failing.
     timeout-minutes: 20
     steps:
-      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Validate tenant fidelity policy
         env:
           GH_TOKEN: ${{ github.token }}
@@ -80,13 +80,13 @@ jobs:
           go-version-file: go.mod
           cache: true
       - name: Install pinned pnpm
-        uses: pnpm/action-setup@0ebf47130e4866e96fce0953f49152a61190b271 # v6.0.9
+        uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
-          version: 11.20.0
+          version: 11.21.0
       - name: Install pinned Node
         uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
-          node-version: 24.14.0
+          node-version: 24.19.0
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Install console dependencies
