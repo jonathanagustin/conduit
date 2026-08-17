@@ -161,6 +161,7 @@ apollo_contract() {
     node scripts/verify-rosetta-release-notes.mjs &&
     node scripts/verify-apollo-control-panel-seam.mjs &&
     node scripts/verify-apollo-identifier-grammar.mjs &&
+    node scripts/verify-conduit-inventions.mjs &&
     node scripts/verify-no-tenant-origins.mjs &&
     node scripts/verify-secondary-apollo-evidence.mjs &&
     node scripts/apollo-graphql/verify-observed-schema.mjs &&
