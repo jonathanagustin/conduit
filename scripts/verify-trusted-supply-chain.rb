@@ -64,8 +64,19 @@ abort "no cosign-release may be left unpinned" unless
 abort "image and runtime jobs require GitHub OIDC" unless workflow.scan("id-token: write").length == 2
 abort "keyless signing retry wrapper must be behaviorally tested" unless
   File.executable?(File.expand_path("test-retry-keyless-signing.sh", __dir__))
-abort "immutable image digest is not signed" unless workflow.include?("#{retry_wrapper} cosign sign --yes") &&
-  workflow.include?("platform-${{ matrix.component }}@${{ steps.build.outputs.digest }}")
+# The guarantee is that signing binds the immutable DIGEST rather than a tag,
+# which is what makes the signature unforgeable by a later re-tag. It is not a
+# claim about what the package is called: matching `platform-<component>` here
+# pinned an unrelated naming choice, and broke the moment the images moved to a
+# repository-named package so GHCR would link them to this repository at all.
+#
+# Matched as ONE expression rather than two independent `include?`s. The pair
+# was satisfiable by a digest reference anywhere in the file -- the attest and
+# syft steps both carry one -- so re-pointing the sign call at `:latest` passed
+# the gate. It is the sign call that has to name the digest, so that is what is
+# asserted.
+abort "immutable image digest is not signed" unless
+  workflow.match?(/#{Regexp.escape(retry_wrapper)} cosign sign --yes\s+'[^']*@\$\{\{ steps\.build\.outputs\.digest \}\}'/)
 abort "immutable runtime digest is not signed" unless workflow.include?("#{retry_wrapper} cosign sign --yes \"${artifact_reference}\"")
 abort "runtime descriptor must bind the expected keyless signer" unless
   workflow.include?('certificate_issuer="https://token.actions.githubusercontent.com"') &&
