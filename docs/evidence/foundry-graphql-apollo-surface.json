@@ -1,0 +1,103 @@
+{
+  "apiVersion": "evidence.conduit.dev/v1alpha1",
+  "kind": "FoundryGraphQLApolloSurface",
+  "capturedAt": "2026-08-17",
+  "purpose": "What the Foundry graphql-gateway's observed contract says about Apollo, and -- just as load-bearing -- what its silence about Apollo does not say.",
+  "source": {
+    "repository": "jonathanagustin/factory",
+    "note": "The artifacts are not committed here. They were read in a sibling checkout and their digests verified byte for byte against the manifest that described them, so this record is a verified reading rather than a relayed claim.",
+    "artifacts": [
+      {
+        "path": "packages/foundry/schema.observed.graphql",
+        "sha256": "7ceeeb3fb34b6ff3d1dc9eb4155bd9d9e889e31340913e9485c6cd691400df26",
+        "bytes": 774880,
+        "declaredTypes": 5283,
+        "verified": true
+      },
+      {
+        "path": "packages/foundry/schema.enriched.graphql",
+        "sha256": "c381d59490f0b1f4f1f764630ba27b1a32ef7084421c8d2ebe5541e420219ea8",
+        "bytes": 660026,
+        "declaredTypes": 3855,
+        "verified": true
+      },
+      {
+        "path": "packages/foundry/evidence/graphql/document-closures.json",
+        "sha256": "48acc40dbe00dfa263ad5a07c46c7d5acff24db5d19b1d0862f24fbfe9c00e65",
+        "bytes": 13176281,
+        "verified": true
+      },
+      {
+        "path": "packages/foundry/evidence/graphql/observed-contract-completeness.json",
+        "sha256": "cb987520391fad3afb84e5a483adc94e43a6ce69ff8c78ee79c4b4ba00accb91",
+        "bytes": 46440,
+        "verified": true
+      }
+    ]
+  },
+  "fidelity": {
+    "class": "Corroborating",
+    "why": "This is Foundry's gateway, not Apollo's. It establishes how Foundry integrates with Apollo and nothing about how Apollo behaves internally."
+  },
+  "coverage": {
+    "validatedVariants": 1358,
+    "recoveredVariants": 3365,
+    "validatedOccurrences": 2091,
+    "recoveredOccurrences": 12299,
+    "note": "The observed schema validates the smaller set. The remainder is recovered but unvalidated against it -- not absent, and not proven consistent with it. Quoted from the source manifest because the distinction is one this repository keeps getting wrong in the other direction."
+  },
+  "apolloTypes": {
+    "verifiedPresent": [
+      "ApolloEventReceiverConfiguration",
+      "ApolloEventReceiverMonitoringViewApplicationConfiguration",
+      "ApolloInboundMessageListenerHttpsTargetHandler",
+      "MonitorAction_ApolloEventReceiverNotification",
+      "addApolloEventReceiverNotificationToMonitoringView",
+      "removeApolloEventReceiverNotificationFromMonitoringView",
+      "MarketplaceApolloPublishingStatus",
+      "apolloSpaceId"
+    ],
+    "distinctApolloPrefixedTypes": [
+      "ApolloEventReceiverConfiguration",
+      "ApolloEventReceiverMonitoringViewApplicationConfiguration",
+      "ApolloInboundMessageListenerHttpsTargetHandler"
+    ],
+    "verificationMethod": "Each name was grepped in schema.observed.graphql and found; the distinct list is every identifier matching \\bApollo[A-Za-z_]* in that file. The other five are field, mutation or enum-member names rather than Apollo-prefixed types."
+  },
+  "finding_apolloIsAKnownWebhookSource": {
+    "claim": "A known-system inbound webhook handler named Apollo exists in Foundry's gateway. WHICH Apollo it names is not established by the type name alone.",
+    "evidence": "ApolloInboundMessageListenerHttpsTargetHandler is one member of InboundMessageListenerHttpsTargetKnownSystemHandlerType, a 32-member union in schema.enriched.graphql whose other members are Airtable, AzureCommunicationServicesEvent, AzureEventGrid, BasicAuthentication, Bitbucket, Dialpad, FedEx, Github, Gitlab, GoogleCloudPubSub, IonFactoryOs, JiraCloud, Jira, Jotform, Meraki, Meta, MicrosoftBotFramework, PagerDuty, PandaDoc, Project44, RevelocPlus, ShipStation, Shopify, Skydio, Slack, Sns, Stripe, Twilio, TwilioSendGrid, VonageEvent and Zendesk.",
+    "whyItMatters": "If it is Palantir Apollo, it establishes that Apollo emits outbound HTTPS webhooks identifiable as its own -- which would move Webhooks in docs/apollo/reference/notifications.md from unknown to bounded, since the Demo Day capture shows a Webhooks section in Hub Settings with no contract behind it. That consequence is held pending the disambiguation above rather than claimed.",
+    "notEstablished": [
+      "Which Apollo the handler names. See whichApollo.",
+      "The payload shape. The union member resolves to a synthetic overlap in the observed schema and to a single _id: JSON field in the enriched one, so no field was recovered.",
+      "The signing or authentication scheme, which is what would make a handler 'known-system' rather than generic. Sibling handlers exist for exactly that reason and none of their mechanics are recovered here.",
+      "Whether Apollo webhooks carry notification events, deployment events, or something else. The name says Apollo, not what it sends.",
+      "Any relationship to the notification event types in docs/evidence/apollo-notification-types.json. They are not merged."
+    ],
+    "whichApollo": {
+      "theProblem": "Apollo is two products. Palantir Apollo is the deployment platform this repository is about; Apollo GraphQL (apollographql.com) is an unrelated GraphQL toolchain whose hosted service also emits webhooks. A type called ApolloInboundMessageListenerHttpsTargetHandler is compatible with either, and the handler resolves to no fields in either schema, so nothing internal to it decides.",
+      "whatFavoursPalantirApollo": [
+        "The other Apollo-prefixed types in the same schema are unambiguously Palantir's: ApolloEventReceiverConfiguration and its monitoring-view mutations, and apolloSpaceId, documented as recording which Apollo space manages an installation and obtained when an agent reports to Apollo. Agents, installations and spaces are the deployment product.",
+        "Neither schema contains any Apollo GraphQL vocabulary at all -- no GraphOS, no Studio, no supergraph, subgraph or federation identifier -- across 5283 declared types. An integration with Apollo GraphQL leaving no other trace would be surprising.",
+        "Foundry is itself deployed by Palantir Apollo, so an event flow from Apollo into Foundry has an established reason to exist, and the same schema already models Foundry subscribing to Apollo event receivers."
+      ],
+      "whatFavoursApolloGraphQL": [
+        "Every other member of the thirty-two is a third-party SaaS that sends webhooks -- Airtable, Bitbucket, GitHub, Stripe, Slack, Shopify, Twilio, Zendesk and so on. Palantir's own internal deployment platform is not obviously a member of that category, and Apollo GraphQL would be."
+      ],
+      "conclusion": "Palantir Apollo is the better-supported reading and is not established. The membership list is the one fact pulling the other way and it is not nothing. This is recorded as an open question rather than resolved, because the type name is exactly the kind of collision this repository has been caught by before -- Apollo 'labels' meaning PalSec accreditation in one place and Release labels in another.",
+      "wouldResolveIt": "Any recovered field on the handler, any operation naming it alongside a Palantir Apollo resource, or documentation of Foundry's inbound webhook configuration naming the source system."
+    }
+  },
+  "finding_noDeploymentDomain": {
+    "claim": "The Foundry graphql-gateway exposes Apollo integration seams only. No Apollo deployment domain is present in this contract.",
+    "verification": "Confirmed independently: the only Apollo-prefixed types in the observed schema are the three above, all integration seams.",
+    "whatThisIsNotEvidenceOf": "That Apollo lacks a deployment GraphQL API. The Apollo Hub serves its own GraphiQL from a different origin for which no session has been authorized. This bound is stated in the source manifest and is repeated here verbatim in intent, because reading a source-scoped absence as a general one is the error this repository has now made three times -- see the correction in ADR 0007 and the displacement of apollo.EntityIDSpaceSegment."
+  },
+  "corroboratingPaths": [
+    "REST: /data-health/api/monitoring/v2/monitoring-view/apollo-event-receivers -- already recorded in docs/apollo/reference/notifications.md",
+    "REST: /control-panel/api/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-apollo-space -- already recorded in docs/evidence/apollo-control-panel-seam.json",
+    "Authorization: marketplace:read-block-set-apollo-publishing-status",
+    "Authorization: secure-development-space-manager:view-enrollment-apollo-connection"
+  ]
+}
