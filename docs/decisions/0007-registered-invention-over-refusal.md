@@ -55,9 +55,9 @@ captures landed since say so in their own words:
 > `ri.<service>.main.<type>.<locator>` is published rather than inferred.
 >
 > This does not change the decision, and it does not revive ADR 0005's condition
-> for the six coordinates in group 1 — `bundle`, `product` and `productRelease`
-> have no published RID grammar, which is exactly why those six were refused
-> while `ApolloEnvironment.rid` was served. ADR 0005 was internally consistent on
+> for group 1 — `bundle`, `product` and `productRelease` have no published RID
+> grammar, which is exactly why those six were refused while
+> `ApolloEnvironment.rid` was served. ADR 0005 was internally consistent on
 > this point and the correction is to this record, not to that one.
 >
 > What it does change is group 1's minting guidance below, which is amended in
@@ -174,13 +174,31 @@ Chosen option: **serve, disclose, register**. Concretely:
    included. `scripts/verify-documentation-claims.mjs` enforces the cheapest part
    of this automatically.
 
-### Group 1 — no Apollo resource identifiers (6)
+### Group 1 — no Apollo resource identifiers (3)
 
-`ApolloBundle.rid`, `ApolloProduct.rid`, `ApolloProductRelease.rid`,
-`ApolloQuery.bundle`, `ApolloQuery.bundles`, `ApolloQuery.productRelease`.
+`ApolloBundle.rid`, `ApolloQuery.bundle`, `ApolloQuery.bundles`.
 
 Conduit holds all three resources and lacks only Apollo's identifier for them.
 Under this record it mints one, in a form that cannot be mistaken for Apollo's.
+
+**Three of the original six are served as of 2026-08-17.** `ApolloProduct.rid`,
+`ApolloProductRelease.rid` and `ApolloQuery.productRelease` now answer from
+Conduit-minted identifiers under `ri.conduit.main.<type>.<locator>`, disclosed as
+`valueTier: CONDUIT_NATIVE`. The open design question this record left — whether
+to guess a type token inside `ri.apollo` or take a namespace that cannot collide
+— was answered in favour of the second, because the failure modes are not
+symmetric: a guessed token that turns out to be Apollo's real token for
+something else is a silent collision, while a Conduit-namespaced identifier can
+only be wrong in the direction of being obviously ours. It is also the more
+literal reading of the grammar, whose service segment names the service that
+owns the resource.
+
+The three that remain are the Bundle coordinates, and they are not waiting on an
+identifier. Conduit builds, signs, imports and transfers Bundles, but none of
+that is reachable from this interface: `ports.ApolloProjection` has no bundle
+read, so there is nothing to mint an identifier *for* until one exists. That is
+a wiring gap rather than an evidence gap, and it is the reason these three did
+not move with the others.
 
 *Amended by the correction above.* The grammar is **not** the invention here. The
 pinned OpenAPI publishes `ri.<service>.main.<type>.<locator>` and three Apollo
@@ -270,9 +288,10 @@ whether it corresponds to a Kubernetes namespace.
 
 ## Consequences
 
-- Today the interface has 41 recovered coordinates declared, of which 29 are
-  served and 12 are unanswerable. **This record changes no code**, so that figure
-  is unmoved by it; it falls to five as groups 1 and 3 land. It is pinned by
+- Today the interface has 41 recovered coordinates declared, of which 32 are
+  served and 9 are unanswerable. Three of group 1 landed on 2026-08-17; the
+  figure falls to five once the Bundle coordinates and group 3 follow. It is
+  pinned by
   `TestPublishedCoordinateCountsMatchTheInterface`, which now reads this record
   rather than the superseded one, so the number cannot drift ahead of the
   interface or behind it.
