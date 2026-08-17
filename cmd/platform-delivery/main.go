@@ -28,6 +28,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	httpmetrics "github.com/jonathanagustin/conduit/internal/observability/adapters/httpmetrics"
+	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
@@ -49,7 +51,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeRepository()
-	repository, closeReconciliation, reconciliationSupervisor, err := configureReconciliation(ctx, os.Getenv, repository)
+	repository, closeReconciliation, reconciliationSupervisor, readStats, err := configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
 		slog.Error("initialize durable reconciliation", "error", err)
 		os.Exit(1)
@@ -192,6 +194,16 @@ func main() {
 		}
 	}()
 
+	// Metrics are a separate listener and are off unless an address is set.
+	// Bolting an unauthenticated scrape route onto the Hub's port -- which
+	// carries operator and Agent traffic behind OIDC, mTLS or SPIFFE -- would
+	// turn an authenticated surface into a partly public one. An empty
+	// METRICS_ADDRESS adds no reachable surface at all, which is what an
+	// existing deployment gets until somebody decides otherwise.
+	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats); stopMetrics != nil {
+		defer stopMetrics()
+	}
+
 	slog.Info("Platform delivery control plane listening", "address", address, "secureAgentIdentity", !allowInsecureAgentIdentity,
 		"version", buildinfo.Version, "commit", buildinfo.Commit)
 	if spiffeSource != nil {
@@ -209,37 +221,41 @@ func main() {
 
 func configureReconciliation(
 	ctx context.Context, getenv func(string) string, repository controlplane.Repository,
-) (controlplane.Repository, func(), *reconciliationapplication.Supervisor, error) {
+) (controlplane.Repository, func(), *reconciliationapplication.Supervisor, metricsapplication.ReadStats, error) {
 	if getenv == nil || repository == nil {
-		return nil, func() {}, nil, errors.New("environment reader and repository are required")
+		return nil, func() {}, nil, nil, errors.New("environment reader and repository are required")
 	}
 	kind := strings.TrimSpace(getenv("REPOSITORY_KIND"))
 	if kind == "" || kind == "file" {
 		// Explicit single-replica development mode keeps the compatibility
 		// repository and does not claim durable multi-replica reconciliation.
-		return repository, func() {}, nil, nil
+		// It reports no queue statistics either, because the queues it would
+		// describe belong to the PostgreSQL repository; exporting zeroes here
+		// would tell a scraper the fleet is idle rather than that this mode has
+		// nothing to say.
+		return repository, func() {}, nil, nil, nil
 	}
 	if kind != "postgres" {
-		return nil, func() {}, nil, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
+		return nil, func() {}, nil, nil, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
 	}
 	dataSourceName, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
 	if err != nil {
-		return nil, func() {}, nil, err
+		return nil, func() {}, nil, nil, err
 	}
 	store, err := reconciliationpostgres.New(ctx, dataSourceName)
 	if err != nil {
-		return nil, func() {}, nil, err
+		return nil, func() {}, nil, nil, err
 	}
 	closeStore := func() { _ = store.Close() }
 	bridge, err := controlplaneadapter.NewRepository(repository, store)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, err
+		return nil, func() {}, nil, nil, err
 	}
 	planner, err := controlplaneadapter.NewPlanner(bridge, store)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, err
+		return nil, func() {}, nil, nil, err
 	}
 	worker, err := reconciliationapplication.NewWorker(store, planner, reconciliationapplication.SystemClock{},
 		reconciliationapplication.Config{
@@ -248,7 +264,7 @@ func configureReconciliation(
 		})
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, err
+		return nil, func() {}, nil, nil, err
 	}
 	supervisor, err := reconciliationapplication.NewSupervisor(worker, bridge,
 		reconciliationapplication.SupervisorConfig{
@@ -257,9 +273,24 @@ func configureReconciliation(
 		})
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, err
+		return nil, func() {}, nil, nil, err
 	}
-	return bridge, closeStore, supervisor, nil
+	// The stats reader is the store itself, narrowed to the one call metrics
+	// needs. Narrowed rather than passed whole so the metrics path cannot reach
+	// anything that writes.
+	readStats := func(ctx context.Context) (metricsapplication.ReconciliationStats, error) {
+		stats, err := store.Stats(ctx, time.Now())
+		if err != nil {
+			return metricsapplication.ReconciliationStats{}, err
+		}
+		return metricsapplication.ReconciliationStats{
+			WorkPending: stats.WorkPending, WorkLeased: stats.WorkLeased,
+			WorkExhausted: stats.WorkExhausted, OldestPendingAge: stats.OldestPendingAge,
+			OutboxPending: stats.OutboxPending, OutboxLeased: stats.OutboxLeased,
+			OutboxExhausted: stats.OutboxExhausted, OldestOutboxAge: stats.OldestOutboxAge,
+		}, nil
+	}
+	return bridge, closeStore, supervisor, readStats, nil
 }
 
 func openRepository(
@@ -491,4 +522,50 @@ func loadTrustedBundleKeys(path string) (map[string]ed25519.PublicKey, error) {
 		keys[id] = ed25519.PublicKey(decoded)
 	}
 	return keys, nil
+}
+
+// startMetricsListener serves the metrics endpoint on its own address, and
+// returns nil when there is nothing to serve or nowhere to serve it.
+//
+// Two ways it declines, and they are different. No address means the operator
+// did not ask for metrics. No stats reader means the file repository is in use,
+// whose queues these metrics describe and which does not have them -- exporting
+// zeroes there would tell a scraper the fleet is idle rather than that this mode
+// has nothing to say. Both are logged, because a silently absent metrics
+// endpoint is exactly the kind of thing somebody debugs for an hour.
+func startMetricsListener(ctx context.Context, address string, readStats metricsapplication.ReadStats) func() {
+	address = strings.TrimSpace(address)
+	if address == "" {
+		return nil
+	}
+	if readStats == nil {
+		slog.Warn("METRICS_ADDRESS is set but the repository reports no queue statistics; " +
+			"metrics are available only with REPOSITORY_KIND=postgres")
+		return nil
+	}
+	server := &http.Server{
+		Addr:              address,
+		Handler:           httpmetrics.Handler(metricsapplication.Gather(buildinfo.Version, readStats), httpmetrics.Options{}),
+		ReadHeaderTimeout: 5 * time.Second,
+	}
+	go func() {
+		slog.Info("metrics listening", "address", address)
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			// A failed metrics listener must not take the Hub down. Delivery
+			// works without observability; it is worse to refuse to serve a
+			// fleet because a diagnostic port was already in use.
+			slog.Error("metrics listener failed", "error", err)
+		}
+	}()
+	go func() {
+		<-ctx.Done()
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}()
+	return func() {
+		shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		defer cancel()
+		_ = server.Shutdown(shutdownCtx)
+	}
 }
