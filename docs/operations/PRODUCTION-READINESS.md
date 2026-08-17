@@ -6,13 +6,19 @@ without a passing check does not belong here. The residual items at the
 bottom are decisions or actions only a human operator can take; nothing in
 this repository can complete them.
 
-Status date: 2026-08-15, trunk `7a4b487`.
+Status date: 2026-08-17, trunk `c53723e`.
+
+**Scope.** Two different questions get asked of this document and they have
+different answers. *Can Conduit run as a delivery control plane in production?*
+is what the rows below answer. *Can Conduit replace Apollo?* is a larger
+question the [blocking gaps](#blocking-gaps) and the Apollo parity backlog
+answer, and nothing here should be read as claiming it.
 
 ## Verified by gates
 
 | Area | Claim | Evidence |
 | --- | --- | --- |
-| Correctness | All 26 local gates pass at the trunk tip (tests, vet, lint, formatting, domain boundaries, controlplane ceiling, contract validation, GitOps acceptance). | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree (run 31866216577). |
+| Correctness | All 30 local gates pass at the trunk tip (tests, vet, lint, formatting, domain boundaries, controlplane ceiling, contract validation, GitOps acceptance). | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. |
 | Availability | The Hub runs two replicas over a transactional PostgreSQL repository, with a PodDisruptionBudget protecting one replica; concurrent lease, approval, idempotency, and crash-recovery are proven against real PostgreSQL. | A7; `scripts/test-postgres-repository.sh`; `ruby scripts/verify-helm-runtime.rb` (aborts unless replicas == 2 and the PDB exists). |
 | Identity | Production identity is OIDC for operators and mTLS or SPIFFE for Agents. Insecure identity headers exist only behind explicit `ALLOW_INSECURE_*` opt-ins; `cmd/platform-delivery` exits rather than combine them with any secure mechanism, and the chart gate aborts if any `ALLOW_INSECURE_` variable is set. | `cmd/platform-delivery/main.go` startup checks; `verify-helm-runtime.rb` ("chart enabled insecure identity"). |
 | Delivery | A clean production cluster reconciles the signed private runtime artifact from OCI with no Git source or credential: pull-only registry authority, trusted-signature success, wrong-signer rejection, exact-digest application. | A8; `scripts/test-gitless-clean-cluster.sh`; ADR 0001. |
@@ -22,6 +28,107 @@ Status date: 2026-08-15, trunk `7a4b487`.
 | CI provenance | Publication, release, and deployment run only on explicit human dispatch; verification and maintenance workflows may be automated under ADR 0006's guardrails (cancel superseded runs, cap runtime, least-privilege, never publish). The Trunk gate stays dispatch-based, authenticates the exact pull-request head, and publishes a commit status; each run writes a per-gate summary with failure annotations. | A4 (ADR 0006); `docs/operations/manual-ci.md`; `.github/workflows/platform-ci.yml`; `scripts/verify-pr-fidelity.test.sh`. |
 | Frontend | The operator console ships one tenant-neutral bundle; tenant runtime overrides pass two independent closed validators that reject executable content and policy weakening; browser tests cover URL-owned pagination state. | A3; `Validate operator console` gate; `docs/ui/contracts/runtime-bootstrap.md`. |
 | Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/apollo/conformance.md`. |
+
+## Blocking gaps
+
+Found by audit on 2026-08-17 and not covered by any row above. Each cites what
+was checked, because "we should probably have X" is not a finding.
+
+### Tier 1 — blocks any production use
+
+1. **Nothing delivers notifications.** `internal/notifications/domain` exists;
+   there are no ports, no store, no HTTP surface, no emit sites and no console
+   inbox. `PUBLIC-DOCUMENTATION-COVERAGE.md` states the consequence exactly: *"A
+   Plan fails, a recall opens, a grant changes, and nobody learns unless they
+   were already looking."* For a control plane that is an operability failure,
+   not a missing feature.
+
+2. **No observability.** No metrics, traces or `/metrics` endpoint anywhere in
+   shipped code — the only Prometheus reference is
+   `internal/optimization/providerprometheus`, which *reads* Prometheus as an
+   optimizer input. Kubernetes startup, readiness and liveness probes exist in
+   the Hub chart, so a dead pod is noticed; nothing exposes queue depth, lease
+   contention, reconciliation lag, retry exhaustion or decision latency. Two
+   replicas over a leased store with no telemetry cannot be operated: there is
+   no way to tell working from wedged.
+
+3. **The migration idiom is undocumented, unversioned and untested.** An
+   earlier draft of this row said there was no migration path at all. That was
+   wrong, and a test written to check it found the error: the schema already
+   carries one, for the proposal outbox — two `ADD COLUMN IF NOT EXISTS`, a
+   backfill `UPDATE` guarded on `IS NULL`, then `ALTER COLUMN … SET NOT NULL`.
+   Forward-only, idempotent, re-applied on every start. It is a real pattern and
+   it works.
+
+   What is missing is everything around it: no schema version, so nothing knows
+   which migrations a database has seen; no ordering guarantee beyond textual
+   position in one string constant; no down path; the backfill re-runs on every
+   start and is bounded only by its `IS NULL` predicate; and until this change
+   no test upgraded a populated database at all. The idiom is also written
+   nowhere, so the next contributor has to infer it from the DDL.
+
+4. **No backup, restore or disaster-recovery procedure.** PostgreSQL holds
+   desired state, decisions, the audit trail and the proposal outbox. No
+   document in `docs/operations/` or `docs/architecture/` states a backup
+   method, a restore drill, or an RPO/RTO.
+
+### Tier 2 — blocks Apollo-parity production
+
+5. **Recalls never reach Target Hubs** (#126). A recall is a source-side
+   selection filter; `Recalls` is a field of `DesiredState`, not `Environment`,
+   and none of the five `addBundleResource` call sites carries it. A Release
+   recalled on the source keeps running on a disconnected target with no
+   roll-off instruction, and `Source: SECURITY` provenance is lost.
+
+6. **Unsafe rollback of stateful services is not representable** (#134). Apollo
+   declares, at compile time, the schema set a service can read and write, the
+   migration steps it supports, and a runtime-reported current version. Conduit
+   models none of the three, so rolling a storage service back to a version that
+   cannot read its on-disk schema is not refused — it cannot be expressed.
+
+7. **Monitors are unmodelled** (#131). Apollo's product-declared, severity-
+   carrying SLO monitors drive automatic recall with a stated roll-off strategy.
+   Conduit has the word only as two mute permissions in the generated role table
+   and an unrelated internal prober.
+
+## Test types
+
+The levels below are organised by **what class of failure each one catches that
+no other type catches**. A ladder borrowed from elsewhere — unit, integration,
+end-to-end — describes where a test runs rather than what it is for, and this
+system's risks do not divide that way: its most dangerous failure is a control
+loop deciding something unsafe, which is not a level at all.
+
+**The existing posture is strong and should not be rebuilt**: 230 test files,
+1,355 test functions, thirteen `scripts/test-*.sh` harnesses, Playwright
+end-to-end and live suites, and mutation scores on both sides.
+
+| Risk it uniquely catches | Type | State |
+| --- | --- | --- |
+| The reconstruction is wrong about Apollo | **Evidence binding** — source compared against a committed capture, failing the build when they disagree | Strong. Ten `verify-*` gates, the invention register, and the provenance reconciler. |
+| A published contract is not honoured | **Contract conformance** — pinned OpenAPI, CLI corpus, GraphQL provenance | Strong. 13/13 routes with named tests. |
+| A unit computes the wrong answer | **Unit** | Strong, and mutation-scored. |
+| **The control loop decides something unsafe** | **Property / invariant** — generate fleets and assert no run ever produces a forbidden Plan | **Missing.** Example-based tests sample this thinly, and it is the core risk of a control plane. |
+| **A rolling upgrade meets its own past** | **Version skew** — old Agent against new Hub, old data against new code | **Missing.** Acute for a system whose job is upgrading other software; it has no test that it can upgrade itself. |
+| Two replicas race, or one dies mid-commit | **Concurrency and crash durability** | Present against real PostgreSQL: leases, fencing, atomic commit, crash-safe receipts. |
+| Applying the schema again destroys data | **Idempotent re-application** | Added by this change: a source-level guard on the DDL, and a populated-database re-apply test. |
+| A caller does what they are not entitled to | **Authorization, negative path** | Partial. Refusals are tested where someone thought to; nothing enumerates route × role, so a new route defaults to untested. |
+| Wrong bytes are admitted | **Adversarial supply chain** | Strong. Wrong-signer, tampered-digest and unsigned all refused, proven against a real registry and signature. |
+| It cannot be installed in the target topology | **Clean-room delivery** | Strong. Clean cluster, no Git source or credential, Zarf air-gap. |
+| The tests do not actually test | **Mutation** | Present on both Go and web, with committed scores. |
+| **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
+| **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
+| It is running and nobody can tell | **Observability assertion** | **Blocked** by gap 2 — nothing to assert against until metrics exist. |
+| Nobody is told what happened | **Delivery end-to-end** | **Blocked** by gap 1 — no ports to drive. |
+| A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
+
+Three of these cannot be written today, and saying so is the point: listing them
+as available work would imply someone could pick them up this week.
+
+The two most valuable that *can* be written are the top two marked missing.
+**Property-based invariant testing** attacks the failure this system exists to
+prevent, and no amount of example-based coverage substitutes for it. **Version
+skew** is the one a delivery platform is least entitled to get wrong.
 
 ## Explicitly out of production scope
 
