@@ -1,0 +1,53 @@
+{
+  "apiVersion": "evidence.conduit.dev/v1alpha1",
+  "kind": "ConduitInventionRegister",
+  "purpose": "Every shape Conduit invented where no ground truth existed, and the exact evidence that would displace it. This exists because the repository reversed a standing rule: it used to refuse a feature it could not ground, and now it builds one on an educated guess instead. That reversal is only safe if an invention stays distinguishable from a recovery for as long as it lives, and if the arrival of real evidence is an obligation to reimplement rather than an invitation to feel vindicated.",
+  "howThisIsEnforced": "scripts/verify-conduit-inventions.mjs checks both directions: every CONDUIT-INVENTED marker in the source is registered here, and every entry here still exists in the source. A marker without a Displaced-by line fails. An entry whose displacement evidence has landed fails, which is the point -- the gate turns 'we should revisit this' into a build failure.",
+  "markerConvention": {
+    "inSource": "// CONDUIT-INVENTED: <id>\\n// Displaced-by: <the capture or document that would settle it>",
+    "note": "The id is <context>.<Symbol>. It is not a package path, so moving a file does not silently unregister an invention -- renaming the symbol does, which is when someone should be looking at this anyway."
+  },
+  "displacementProcedure": [
+    "When the named evidence lands, record it under docs/evidence/ or docs/apollo/ as a normal capture first. An invention displaced by nothing citable is just a different guess.",
+    "Reimplement against the evidence. Do not adapt the invented shape to fit -- the invented shape was chosen without constraint and will bend into agreement, which is how a guess becomes an unfalsifiable claim.",
+    "Delete the CONDUIT-INVENTED marker and this entry in the same change as the reimplementation, so the register never describes code that no longer exists.",
+    "State in the change what the invention got wrong. That is the only feedback anyone gets about how good these guesses are, and without it the next invention is made no better informed than this one."
+  ],
+  "inventions": [
+    {
+      "id": "notifications.Severity",
+      "what": "A four-level severity ordering: INFO, WARNING, ACTION_REQUIRED, CRITICAL.",
+      "why": "The recovered Foundry seam passes a MonitoringSeverity whose members were never captured. Borrowing the name and guessing its members would produce a vocabulary that looks recovered and is not, so these are named for what an operator does about them instead.",
+      "displacedBy": "A capture establishing Apollo's MonitoringSeverity enum members.",
+      "riskIfWrong": "Low. A severity ordering is a local filtering concern; a subscription floor expressed in the wrong vocabulary is a rename, not a redesign."
+    },
+    {
+      "id": "notifications.EventKind",
+      "what": "A closed set of eight event kinds Conduit emits.",
+      "why": "Apollo's own notification event vocabulary is unrecovered. The set is closed rather than open for the reason the Change Type taxonomy is closed: an open vocabulary lets a caller invent a kind no subscription can match, and the subscriber sees silence rather than an error.",
+      "displacedBy": "A capture of Apollo's own notification event vocabulary.",
+      "riskIfWrong": "Medium. These names reach operator-facing subscriptions, so displacing them is a migration for anyone who subscribed by kind."
+    },
+    {
+      "id": "notifications.Subscription",
+      "what": "A subscription owned by a user or team, scoped to a resource, filtered by kind and a minimum severity, with a mute flag.",
+      "why": "The recovered evidence shows subscription only from the consumer side -- Foundry's Data Health subscribing to an Apollo event receiver. Apollo's Hub-side subscription CRUD is unrecovered. Ownership by user or team is the one part with real support: the recovered role descriptions distinguish them explicitly.",
+      "displacedBy": "A capture of Apollo's Hub-side subscription CRUD.",
+      "riskIfWrong": "High. This is the operator-facing shape; getting it wrong means stored subscriptions need migrating, not just renaming."
+    },
+    {
+      "id": "notifications.InboxEntry",
+      "what": "A per-owner inbox record carrying its own read state.",
+      "why": "Read state is modelled per-owner because two people subscribed to the same failure read it independently. Storing readAt on the event would let one of them mark it read for both. Apollo's inbox read model is unrecovered; noc-inbox is a shipping surface in the tenant record with no captured contract.",
+      "displacedBy": "A capture of Apollo's notification inbox read model, including whether read state is per-owner.",
+      "riskIfWrong": "Medium. Wrong here means the inbox behaves differently from Apollo's, which is visible to operators but not corrupting."
+    },
+    {
+      "id": "notifications.Fan",
+      "what": "Resolution of one event to its recipients, deduplicated per owner across user and team subscriptions.",
+      "why": "Deduplication is a judgement, not a recovery: being told twice about one failure teaches people to ignore the inbox. Apollo may well fan out per subscription instead.",
+      "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates across user and team subscriptions.",
+      "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
+    }
+  ]
+}
