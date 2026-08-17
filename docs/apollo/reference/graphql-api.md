@@ -243,7 +243,7 @@ whose disclosure told clients an Apollo Hub had answered with them. It had not.
 | --- | --- | --- |
 | `ApolloEnvironment.rid` | `apollo-openapi ri.apollo.main.environment.123` | the locator |
 | `ApolloEntity.packageRid` | `apollo-openapi ri.apollo.main.package.123` | the locator |
-| `ApolloEntity.id` | `@osdk/client.unstable aeid:mojito:foundry-product:namespace+truck-locator` | the second segment, which carries an Environment where Apollo's example carries a Space |
+| `ApolloEntity.id` | `apollo-openapi aeid:apollo-environment-demo:helm-chart:wordpress` | the value only; the shape is Apollo's |
 
 These now serve as `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`, and
 the response's provenance extension lists them under `conduitMintedValues` — a
@@ -251,6 +251,17 @@ the response's provenance extension lists them under `conduitMintedValues` — a
 really was recovered even though the string was not. The practical warning the
 disclosure carries is that one of these values will not match anything if a
 client round-trips it into a real Apollo API.
+
+`ApolloEntity.id` is the one that changed its story. It was briefly registered as
+an invention, on the reading that Apollo's example carried a Space in the second
+segment and Conduit substituted an Environment. Apollo's example carries no
+Space: the pinned OpenAPI publishes
+`aeid:apollo-environment-demo:helm-chart:wordpress` twice, beside `environmentRid`
+in the same object. Conduit's construction matches it in segment count, in the
+`helm-chart` product-type token, and in the meaning of the second segment. The
+disclosure stays — Conduit still composes the string from its own names rather
+than receiving it — but there is nothing invented left to register, which is why
+an entry in that file need not name an invention.
 
 Note what is *not* invented: the RID grammar. The pinned OpenAPI publishes three
 Apollo instantiations of `ri.<service>.main.<type>.<locator>`, and

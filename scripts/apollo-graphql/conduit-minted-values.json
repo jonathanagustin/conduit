@@ -17,9 +17,8 @@
     },
     "ApolloEntity.id": {
       "mintedBy": "internal/apollo/application/service.go helmChartEntityID",
-      "grammarPublishedAs": "@osdk/client.unstable ApolloEntityId, documented example aeid:mojito:foundry-product:namespace+truck-locator, recorded in docs/evidence/apollo-identifier-grammar.json",
-      "conduitSupplies": "the second segment. Apollo's documented example puts a SPACE there; Conduit has no Space (ADR 0007 group 2) and puts the environment there instead. The four-segment shape and the product type in third position follow Apollo's documented form.",
-      "invention": "apollo.EntityIDSpaceSegment"
+      "grammarPublishedAs": "apollo-openapi aeid:apollo-environment-demo:helm-chart:wordpress, in the ListInstallations and GetInstallation response examples",
+      "conduitSupplies": "the value only. The shape is Apollo's published one -- same segment count, same helm-chart product type, and an environment in the second segment -- but the string is composed from Conduit's own environment and entity names rather than answered by a Hub."
     },
     "ApolloProduct.rid": {
       "mintedBy": "internal/apollographql/application/identifiers.go productRID",
@@ -33,5 +32,6 @@
       "conduitSupplies": "the whole identifier, keyed on the Maven coordinate Apollo already treats as the release's identity.",
       "invention": "apollographql.ConduitNamespacedRID"
     }
-  }
+  },
+  "whyAnEntryNeedNotNameAnInvention": "Two different claims are being kept apart here. 'Conduit built this value' is what valueTier discloses, and it is true of every coordinate in this file. 'Conduit invented this shape' is a stronger claim, true of some of them, and it belongs in the invention register. ApolloEntity.id used to name an invention that turned out to be a misreading -- the shape was Apollo's all along -- and requiring an invention on every entry would have forced a replacement guess rather than allowing the honest answer, which is that there is nothing invented left to register."
 }

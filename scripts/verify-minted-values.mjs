@@ -105,11 +105,21 @@ for (const type of observed.types ?? []) {
   for (const field of type.fields ?? []) recovered.add(`${type.name}.${field.name}`);
 }
 for (const [coordinate, entry] of Object.entries(minted)) {
-  for (const field of ["mintedBy", "grammarPublishedAs", "conduitSupplies", "invention"]) {
+  for (const field of ["mintedBy", "grammarPublishedAs", "conduitSupplies"]) {
     if (!entry[field] || String(entry[field]).trim().length < 8) {
       fail(`${coordinate} has no meaningful ${field} in ${relative(ROOT, MINTED)}`);
     }
   }
+  // `invention` is optional, and that is a correction rather than a loosening.
+  // "Conduit built this value" and "Conduit invented this shape" are different
+  // claims: the first is true of everything in this file and is what valueTier
+  // discloses; the second is stronger and belongs in the register. Requiring
+  // both collapsed them, and when ApolloEntity.id's invention turned out to be a
+  // misreading -- the shape was Apollo's published one all along -- the rule
+  // would have demanded a replacement guess instead of allowing the honest
+  // answer, which was that nothing invented remained.
+  //
+  // What is still required is that a named invention is a real one.
   if (entry.invention && !registered.has(entry.invention)) {
     fail(
       `${coordinate} names invention ${entry.invention}, which ${relative(ROOT, REGISTER)} does not record. ` +
@@ -132,7 +142,8 @@ if (failures.length) {
   for (const failure of failures) console.error(`FAIL ${failure}`);
   process.exit(1);
 }
+const named = Object.values(minted).filter((entry) => entry.invention).length;
 console.log(
   `PASS minted values: ${disclosed.size} coordinate(s) disclose a Conduit-built value, ` +
-    `each naming what part is Conduit's and a registered invention that would displace it`,
+    `each saying what part is Conduit's; ${named} of them additionally name a registered invention`,
 );
