@@ -20,6 +20,41 @@ for required in \
   }
 done
 
+# The status bridge must not be able to fail the run it is reporting on.
+#
+# Run 49 is the case: `POST /statuses/{sha}` answered 503, the step exited 1
+# under `bash -e`, and the gate stopped before running any of the thirty
+# verifications it exists for. The same call in the two `always()` steps would
+# have turned an all-green run red. Both are checked structurally rather than
+# by grepping the file for `continue-on-error` anywhere in it, because that
+# would pass while the marker sat on some unrelated step.
+step_block() {
+  awk -v name="      - name: $1" '
+    $0 == name { inside = 1; next }
+    inside && /^      - (name|uses):/ { exit }
+    inside { print }
+  ' "$workflow"
+}
+
+for status_step in \
+  'Publish pending Trunk status' \
+  'Publish gate summary' \
+  'Publish final Trunk status'; do
+  block="$(step_block "$status_step")"
+  [[ -n "$block" ]] || {
+    printf 'the Trunk status bridge no longer has a step named %s\n' "$status_step" >&2
+    exit 1
+  }
+  grep -Fq 'continue-on-error: true' <<<"$block" || {
+    printf 'step %s can fail the run it only reports on; a GitHub outage would skip or invert the gate\n' "$status_step" >&2
+    exit 1
+  }
+  grep -Fq 'scripts/retry-github-api.sh' <<<"$block" || {
+    printf 'step %s calls the GitHub API without retrying a transient failure\n' "$status_step" >&2
+    exit 1
+  }
+done
+
 valid='## Outcome
 
 Generate the pinned public API transport interface.
