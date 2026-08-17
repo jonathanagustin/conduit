@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -263,7 +264,36 @@ func (service *GovernanceService) PutTeam(ctx context.Context, team Team) (Team,
 	return service.repository.PutTeam(ctx, team)
 }
 
+// PutGrant writes a grant without recording who wrote it. It exists for
+// fixtures, which is the only thing that calls it: every production path goes
+// through PutGrantAs, because a permission change nobody is named for is the
+// gap this pair was built to close.
 func (service *GovernanceService) PutGrant(ctx context.Context, grant ResourceGrant) (ResourceGrant, error) {
+	return service.PutGrantAs(ctx, grant, "")
+}
+
+// PutGrantAs writes a grant and records what it became.
+//
+// The authorization decision is already audited before this is reached:
+// requireResourceOperation emits an authorizationCheck for permissions:manage
+// on the resource, ALLOW or DENY. What that event cannot say is what the grant
+// changed to, and the record does not keep the answer either -- a grant is
+// overwritten in place with Revision+1 and no history retained. So "who granted
+// the approver role that let this change through" was unanswerable, which is a
+// hole exactly where someone would edit.
+//
+// configureInfra rather than a new category: the audit vocabulary is a bounded
+// subset of audit.3 and unknown categories fail closed, so inventing a name
+// Foundry does not publish would be the wrong move. Configuring who holds what
+// on a resource is what that category already means.
+//
+// Roles and operations are recorded before as well as after, and the before
+// half is the load-bearing one. An event saying only what a grant became cannot
+// answer whether an operation was added or removed, and removal is the
+// direction someone covering their tracks would use.
+func (service *GovernanceService) PutGrantAs(
+	ctx context.Context, grant ResourceGrant, subject string,
+) (ResourceGrant, error) {
 	if strings.TrimSpace(grant.ResourceRID) == "" || !identifierPattern.MatchString(grant.Team) ||
 		(len(grant.Roles)+len(grant.Operations) == 0 && grant.Relationship == "") {
 		return ResourceGrant{}, ValidationErrors{{Path: "grant", Message: "resourceRid, team, and a relationship, role, or operation are required"}}
@@ -293,7 +323,59 @@ func (service *GovernanceService) PutGrant(ctx context.Context, grant ResourceGr
 		grant.CreatedAt, grant.Revision = now, 1
 	}
 	grant.UpdatedAt = now
-	return service.repository.PutResourceGrant(ctx, grant)
+	stored, err := service.repository.PutResourceGrant(ctx, grant)
+	if err != nil || subject == "" {
+		return stored, err
+	}
+	// Emitted after the write, so the record cannot claim a change that did not
+	// land. A failure to audit is returned rather than swallowed: a permission
+	// change that succeeded while its record did not is the state this exists to
+	// prevent, and reporting success would restore the gap in a quieter form.
+	if auditErr := service.auditGrantConfigured(ctx, subject, existing, stored); auditErr != nil {
+		return ResourceGrant{}, auditErr
+	}
+	return stored, nil
+}
+
+// auditGrantConfigured records the content of a permission change. The subject
+// is the acting principal rather than the team the grant names -- the team is
+// who gained authority, and the question the audit trail could not answer was
+// who conferred it.
+func (service *GovernanceService) auditGrantConfigured(
+	ctx context.Context, subject string, before *ResourceGrant, after ResourceGrant,
+) error {
+	now := service.now().UTC()
+	identity := sha256.Sum256([]byte("configureInfra\x00" + after.ID + "\x00" +
+		strconv.FormatUint(after.Revision, 10) + "\x00" + now.Format(time.RFC3339Nano)))
+	previous := map[string]any{"roles": []string{}, "operations": []string{}, "relationship": "", "revision": uint64(0)}
+	if before != nil {
+		previous = map[string]any{
+			"roles": before.Roles, "operations": before.Operations,
+			"relationship": before.Relationship, "revision": before.Revision,
+		}
+	}
+	event := AuthorizationAuditEvent{
+		ID: "aud_" + hex.EncodeToString(identity[:16]), SchemaVersion: AuditSchemaV3,
+		Categories: []string{AuditCategoryConfigureInfra}, TraceID: after.ResourceRID,
+		Subject: subject, Action: "RESOURCE_GRANT_CONFIGURE", ResourceRID: after.ResourceRID,
+		Decision: "ALLOW", Reason: "resource grant written",
+		RequestFields: map[string]any{
+			"configureInfraTargets": []string{after.ResourceRID},
+			"grantTeam":             after.Team,
+			"grantBefore":           previous,
+			"grantAfter": map[string]any{
+				"roles": after.Roles, "operations": after.Operations,
+				"relationship": after.Relationship, "revision": after.Revision,
+			},
+		},
+		ResultFields: map[string]any{"configureInfraRequestId": after.ID},
+		CreatedAt:    now,
+	}
+	if err := ValidateAuditCategoryEvent(event); err != nil {
+		return err
+	}
+	_, err := service.repository.AppendAuthorizationAudit(ctx, event)
+	return err
 }
 
 func (service *GovernanceService) PutPolicy(ctx context.Context, policy ApprovalPolicy) (ApprovalPolicy, error) {
