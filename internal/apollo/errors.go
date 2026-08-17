@@ -3,6 +3,7 @@ package apollo
 import (
 	"crypto/rand"
 	"encoding/hex"
+	"strings"
 )
 
 // The three error envelopes the pinned snapshot publishes, and the only three
@@ -91,4 +92,28 @@ func ErrorEnvelope(code, name, message string, parameters map[string]string) map
 		"parameters":      rendered,
 		"error":           message,
 	}
+}
+
+// HelmChartEntityName recovers the Entity name from an Apollo Entity id.
+//
+// The id is Conduit's own construction -- "aeid:<environment>:helm-chart:<entity>"
+// -- and its builder refuses any environment or entity name containing a colon,
+// so the last segment is unambiguously the Entity. The inverse lives here, in
+// the package that owns Apollo vocabulary, because the alternative is a caller
+// re-deriving the shape from the string it happens to be looking at, and then
+// the two drift the first time the shape changes.
+//
+// Returns "" for anything that is not an id of that shape, so a caller gets a
+// value that matches nothing rather than a plausible-looking wrong one.
+func HelmChartEntityName(entityID string) string {
+	const prefix = "aeid:"
+	const marker = ":helm-chart:"
+	if !strings.HasPrefix(entityID, prefix) {
+		return ""
+	}
+	marked := strings.Index(entityID, marker)
+	if marked < 0 {
+		return ""
+	}
+	return entityID[marked+len(marker):]
 }

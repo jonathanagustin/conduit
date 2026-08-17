@@ -126,7 +126,12 @@ func newFixture(t *testing.T) (*fixture, *fakeApollo, *fakeOverview) {
 		environments: []apollo.Environment{{Name: "prod", Rid: "ri.apollo.main.environment.a"}},
 		installations: map[string][]apollo.Installation{
 			"ri.apollo.main.environment.a": {{
-				ApolloEntityId: "entity-1",
+				// The Entity id carries the shape the projection actually
+				// mints, aeid:<environment>:helm-chart:<entity>, because the
+				// health join recovers the Entity name from it. A placeholder
+				// here would make the join untestable and was why this fixture
+				// previously had to be hand-aligned to the rid.
+				ApolloEntityId: "aeid:prod:helm-chart:checkout-api",
 				EnvironmentRid: "ri.apollo.main.environment.a",
 				PackageRid:     "ri.apollo.main.package.b",
 				ProductId:      "checkout",
@@ -139,8 +144,15 @@ func newFixture(t *testing.T) (*fixture, *fakeApollo, *fakeOverview) {
 	}
 	overview := &fakeOverview{
 		plans: []reporting.PlanSummary{{ID: "plan-1", Environment: "prod", Phase: reporting.PlanPhaseRunning}},
+		// Reporting keys on plain identifiers -- the Environment's name and the
+		// Entity's name -- which is what a Hub records when an Agent reports.
+		// This fixture previously carried the minted rid here instead, which
+		// made a broken join look like a working one: the resolver compared
+		// rid to rid and passed, while a real Hub compared rid to "prod" and
+		// answered UNKNOWN for every Environment however healthy the fleet was.
+		// The plans entry beside it always used the plain name.
 		installations: []reporting.InstallationSummary{{
-			Environment: "ri.apollo.main.environment.a", InstallationID: "installation-1",
+			Environment: "prod", InstallationID: "checkout-api",
 			Health: reporting.HealthHealthy,
 		}},
 		changeRequests: []reporting.ChangeRequestSummary{{ID: "cr-1", Title: "Raise replicas", AwaitingApproval: true}},
@@ -415,7 +427,7 @@ func TestStaleHealthReadsUnknownRatherThanHealthy(t *testing.T) {
 func TestOneUnhealthyInstallationMakesTheEnvironmentUnhealthy(t *testing.T) {
 	resolver, _, overview := newFixture(t)
 	overview.installations = append(overview.installations, reporting.InstallationSummary{
-		Environment: "ri.apollo.main.environment.a", InstallationID: "installation-2",
+		Environment: "prod", InstallationID: "checkout-worker",
 		Health: reporting.HealthUnhealthy,
 	})
 	response := resolver.Execute(t.Context(), Request{
@@ -450,7 +462,7 @@ func TestAnUnavailableSourceRefusesRatherThanReportsEmpty(t *testing.T) {
 func TestTheDisplacedNamesAreNoLongerSelectable(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	for _, invented := range []string{
-		`{ apollo { entity(rid: "entity-1") { installedVersion } } }`,
+		`{ apollo { entity(rid: "aeid:prod:helm-chart:checkout-api") { installedVersion } } }`,
 		`{ apollo { plans(pageSize: 1) { plans { environment } } } }`,
 		`{ apollo { promotions(pageSize: 1) { promotions { product } } } }`,
 	} {
@@ -467,7 +479,7 @@ func TestTheDisplacedNamesAreNoLongerSelectable(t *testing.T) {
 	// removal. Proving only the refusal would pass on an interface that dropped
 	// the field entirely.
 	response := resolver.Execute(t.Context(), Request{
-		Query: `{ apollo { entity(rid: "entity-1") { version } } }`,
+		Query: `{ apollo { entity(rid: "aeid:prod:helm-chart:checkout-api") { version } } }`,
 	})
 	if len(response.Errors) != 0 {
 		t.Fatalf("the published name does not answer: %v", response.Errors)
@@ -670,5 +682,55 @@ func TestAMistypedArgumentIsRefusedRatherThanCoercedToEmpty(t *testing.T) {
 				t.Fatalf("a mistyped argument was answered rather than refused: %v", response.Data)
 			}
 		})
+	}
+}
+
+// The health fields join two vocabularies, and for a long time they joined the
+// wrong ones: Reporting keys an installation by the Environment's plain name
+// and the Entity's plain name, while the Apollo projection mints a rid for
+// each. Comparing rid to name never matched, so both fields answered UNKNOWN
+// for every Environment however healthy the fleet was -- and said in the
+// provenance extension that they had answered, which is the part that makes it
+// a contract defect rather than a display bug.
+//
+// It survived because this file's own fixture had been aligned to the broken
+// code: reporting's installation carried the rid as its Environment, so the
+// resolver compared rid to rid and passed. The fixture beside it always
+// described plans by the plain name.
+//
+// This test pins the vocabularies apart. It fails if either side is re-keyed
+// back onto a minted identifier, because then no fixture value can satisfy both
+// the projection and reporting at once.
+func TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers(t *testing.T) {
+	resolver, apolloSource, overview := newFixture(t)
+
+	// Stated rather than assumed: the projection's identifiers and reporting's
+	// are different strings, which is the whole reason the join can be wrong.
+	minted := string(apolloSource.environments[0].Rid)
+	if minted == overview.installations[0].Environment {
+		t.Fatal("the fixture no longer distinguishes the minted rid from the reported name")
+	}
+	if strings.HasPrefix(overview.installations[0].InstallationID, "ri.apollo.main.") {
+		t.Fatal("the fixture reports an installation under a minted identifier, which no Hub does")
+	}
+
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environments(pageSize: 10) { environments { health entities(pageSize: 10) { entities { health } } } } } }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("the health query was refused: %v", response.Errors)
+	}
+	environments := response.Data["apollo"].(map[string]any)["environments"].(map[string]any)["environments"].([]any)
+	environment := environments[0].(map[string]any)
+	if environment["health"] != reporting.HealthHealthy {
+		t.Errorf("ApolloEnvironment.health resolved to %v against a healthy fleet", environment["health"])
+	}
+	entities := environment["entities"].(map[string]any)["entities"].([]any)
+	if len(entities) == 0 {
+		t.Fatal("the environment reported no entities, so the entity join was never exercised")
+	}
+	if entities[0].(map[string]any)["health"] != reporting.HealthHealthy {
+		t.Errorf("ApolloEntity.health resolved to %v against a healthy fleet",
+			entities[0].(map[string]any)["health"])
 	}
 }
