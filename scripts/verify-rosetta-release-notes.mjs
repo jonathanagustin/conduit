@@ -67,6 +67,28 @@ const versions = new Set(rows.map((row) => row.releaseVersion).filter(Boolean));
 if (registry.distinctReleaseVersions !== versions.size) {
   fail(`distinctReleaseVersions is ${registry.distinctReleaseVersions}; the rows carry ${versions.size}`);
 }
+// byApplication was the one summary field bound to nothing, and it is the field
+// most likely to be read as a scope statement: `{core: 178}` and `{core: 120}`
+// look alike and mean different things. The totals are checked against the rows
+// like byType, and then the sum is checked against noteCount -- because the
+// interesting failure is not a wrong total, it is a summary that silently
+// describes 120 of 178 rows while sitting beside a noteCount of 178. Rows with
+// no applicationId are counted and disclosed rather than dropped.
+const byApplication = {};
+for (const row of rows) if (row.applicationId) byApplication[row.applicationId] = (byApplication[row.applicationId] ?? 0) + 1;
+for (const [application, total] of Object.entries(registry.byApplication ?? {})) {
+  if (byApplication[application] !== total) {
+    fail(`byApplication.${application} is ${total}; the rows carry ${byApplication[application] ?? 0}`);
+  }
+}
+const attributed = Object.values(registry.byApplication ?? {}).reduce((sum, total) => sum + total, 0);
+const unattributed = rows.filter((row) => !row.applicationId).length;
+if (attributed + unattributed !== rows.length) {
+  fail(
+    `byApplication accounts for ${attributed} row(s) and ${unattributed} carry no applicationId, ` +
+      `which does not reach the ${rows.length} row(s) in the file`,
+  );
+}
 
 // 4. Stable order, so a re-capture diffs as what changed rather than as a
 // reshuffle. Sorted by date then id, which is what the capture writes.
@@ -91,7 +113,13 @@ if (failures.length) {
   for (const failure of failures) console.error(`FAIL ${failure}`);
   process.exit(1);
 }
+// The CLI-shaped count is disclosed on every run because its absence is what
+// let a headline comparing all-surface versions against apollo-cli versions
+// stand for a fortnight. Most releaseVersion values are `surface@version`; only
+// a bare vN.N.N is a candidate for comparison against Apollo's published CLI
+// versions, and the two sets are not interchangeable.
+const cliShaped = new Set([...versions].filter((version) => /^v?\d+\.\d+\.\d+$/.test(version)));
 console.log(
-  `PASS Rosetta release notes: ${rows.length} APOLLO note(s), ${versions.size} distinct version(s), ` +
-    `no prose and no tenant origin`,
+  `PASS Rosetta release notes: ${rows.length} APOLLO note(s), ${versions.size} distinct version(s) ` +
+    `of which ${cliShaped.size} are CLI-shaped, ${unattributed} unattributed, no prose and no tenant origin`,
 );
