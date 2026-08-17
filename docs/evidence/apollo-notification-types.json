@@ -1,0 +1,103 @@
+{
+  "apiVersion": "evidence.conduit.dev/v1alpha1",
+  "kind": "ApolloNotificationCapture",
+  "capturedAt": "2026-08-17",
+  "purpose": "Apollo's notification vocabulary and subscription shape, read off the public documentation and the screenshots embedded in it. This capture exists because the capability was implemented as an invention while this evidence sat in reach: three public pages were already listed in docs/apollo/public-documentation-manifest.tsv, and their five screenshots were counted by the image audit and then never opened.",
+  "howThisWasMissed": "docs/apollo/reference/notifications.md opened with 'No public Palantir docs page was captured for this capability', which was false against this repository's own manifest and was never checked against it. docs/apollo/IMAGE-DERIVED-GAPS.md counted six image references under managing-notifications and dispositioned the section 'Boundary -- durable domain-event consumers and user/team delivery preferences remain external integrations', which decided the capability was out of scope without reading the images that describe it. That document's own thesis is that a UI-first product states its enum values in screenshots and not in prose, which is exactly what happened here.",
+  "sources": [
+    {
+      "url": "https://www.palantir.com/docs/apollo/managing-notifications/overview/",
+      "manifestSha256": "d6207e94f6ab19fb8272198e02f73134f10bd4b6c37c9dcccb6dfd3163192301"
+    },
+    {
+      "url": "https://www.palantir.com/docs/apollo/managing-notifications/team-notifications/",
+      "manifestSha256": "6b39e0bdb2e126f914324777e23ef19221f9447c3aeb359ef5880a5d0cd00f39"
+    },
+    {
+      "url": "https://www.palantir.com/docs/apollo/managing-notifications/user-notifications/",
+      "manifestSha256": "bb495d96d992adc2f64d7036bd75765a92727af0eff7ccd23286d138aa091a3b"
+    }
+  ],
+  "images": {
+    "note": "Downloaded from /docs/resources/apollo/managing-notifications/ and read directly. Bodies are not committed, consistent with the existing image-audit practice; the digests below identify what was read.",
+    "files": [
+      { "name": "customize-notifs-user.png", "sha256": "2b8adb6cf981297a48648e8bf417cabf3718e773b9f90d117fd2f2e745ecd34b", "shows": "A Product's Settings > Notifications page: For User / For Team tabs, and two independent per-channel preference lists (Email, In-app) over the same notification event types." },
+      { "name": "subscribe-all-notifs.png", "sha256": "e2edb0830e612bafd213fa119d3261dff289171d57b4ef913fabd4734d6d45d3", "shows": "The per-channel master toggle and its tooltip, which states the opt-into-future-types semantics verbatim." },
+      { "name": "setup-team-contact.png", "sha256": "dada734a33c03df307c9eb4ec05563cc74dc1d2d63f7850ac068a5beec401c68", "shows": "Hub Settings > Teams > New Team Contact: the three contact kinds with their descriptions, the opt-in-to-future-team-resources toggle, and an All Notification Types list with three legible types." },
+      { "name": "subscribe-team-contact.png", "sha256": "85626903079672f44a3ea6fd600092f349f76d0cc36b7ae7ee5b4ba5a8083364", "shows": "A resource's For Team tab: Team Contacts, Add Contact, and contact-team selection." },
+      { "name": "opt-in-product-notifs-after.png", "sha256": "06c6777a882f606a61bd736f12e6142b74e48850e832ecb5bf7e8861bd64774f", "shows": "The resource header popover: per-channel Email and In-app toggles reading 'You are receiving all notification types'." }
+    ]
+  },
+  "vocabulary": {
+    "apollosTerm": "notification event type",
+    "termProvenance": "setup-team-contact.png, All Notification Types section: 'Select the notification event types you'd like to receive across all resources.'",
+    "isOpen": true,
+    "opennessProvenance": [
+      "overview page: the listed examples are 'non-comprehensive and the supported types will grow over time'.",
+      "subscribe-all-notifs.png tooltip: 'If enabled, you will opt into future notification types added for this resource'."
+    ],
+    "howApolloHandlesOpenness": "A per-resource, per-channel master toggle that opts the subscriber into types added later. This is the mechanism Apollo uses instead of a closed set, and it is the load-bearing detail: the vocabulary grows, and a subscriber states in advance whether growth reaches them.",
+    "productScopedTypes": [
+      { "label": "Latest Product Release Vulnerability Update", "description": "New vulnerabilities discovered on the latest Product Release", "source": "customize-notifs-user.png" },
+      { "label": "Installed Product Release Vulnerability Update", "description": "", "source": "customize-notifs-user.png" },
+      { "label": "Product Release Promotion Failed", "description": "", "source": "customize-notifs-user.png" },
+      { "label": "Product In Open Ended Recall", "description": "Future releases of this Product will be recalled", "source": "customize-notifs-user.png" },
+      { "label": "Blue Green Upgrade Failed", "description": "", "source": "customize-notifs-user.png" },
+      { "label": "Role Change", "description": "", "source": "customize-notifs-user.png" }
+    ],
+    "crossResourceTypes": [
+      { "label": "Product recalls", "description": "Anytime a bug or critical issue has been discovered in my product", "source": "setup-team-contact.png" },
+      { "label": "RBAC Change", "description": "A team's roles were created or updated on this resource", "source": "setup-team-contact.png" },
+      { "label": "Change Request Pending Approval", "description": "A change request has been created and is pending approval from this team", "source": "setup-team-contact.png" }
+    ],
+    "redactedRows": 2,
+    "redactedRowsNote": "The All Notification Types list in setup-team-contact.png carries two further checked rows whose labels are blanked in the published image. The set is therefore known to be larger than what is legible here, which is a second reason not to model it as closed.",
+    "proseTypeNames": [
+      "Change requests", "Change request summary", "Product recalls",
+      "RBAC changes", "Promotion failures", "Plan failures"
+    ],
+    "proseVsUiNote": "The overview page's prose names are looser than the UI labels and the two sets do not correspond one-to-one. 'RBAC changes' is 'Role Change' on a Product and 'RBAC Change' on a team contact; 'Promotion failures' is 'Product Release Promotion Failed'. The prose omits both vulnerability types and 'Blue Green Upgrade Failed' entirely, and adds 'Change request summary' (a daily digest) and 'Plan failures', which no captured screenshot shows. Neither list is a superset of the other, so neither can be treated as the vocabulary."
+  },
+  "deliveryChannels": {
+    "perResourcePreference": ["Email", "In-app"],
+    "perResourceProvenance": "customize-notifs-user.png and opt-in-product-notifs-after.png both show exactly these two, as separate preference sets over the same types.",
+    "teamContactKinds": [
+      { "label": "Email", "description": "Notifications will be forwarded to users on the specified email" },
+      { "label": "Slack", "description": "Notifications will be delivered to the specified channel" },
+      { "label": "Pagerduty", "description": "Receive notifications set-up for a Jira team..." }
+    ],
+    "teamContactProvenance": "setup-team-contact.png",
+    "emailRequiresAllowlist": "team-notifications page: an email destination requires the domain to be added to the Control Panel email allowlist, or nothing is delivered."
+  },
+  "subscriptionModel": {
+    "principals": ["user", "team contact"],
+    "principalProvenance": "The For User / For Team tabs on a resource's Settings > Notifications page, corroborated by the tenant role descriptions in docs/evidence/apollo-authorization-graph.json.",
+    "scope": "Per resource. Preferences live on the resource's own settings page; Hub Settings carries a 'My notifications' page listing what the caller is subscribed to.",
+    "preferenceGranularity": "(resource, principal, channel) -> set of enabled types. Email and In-app are configured independently over the same type list, each with its own master toggle.",
+    "optIntoFutureTypes": "Per resource and channel. Tooltip: 'If enabled, you will opt into future notification types added for this resource'. While enabled the individual type checkboxes render checked and disabled.",
+    "optIntoFutureResources": "Per team contact. 'Opt-in to future team resources -- If you're the contact team on these 12 products, you'll auto-subscribe to all of these and future resources added to this team.'",
+    "automaticTeamSubscription": "A team set as the contact team on a Product or Environment is notified according to its configured preferences without subscribing manually; teams subscribe manually only to resources they do not own.",
+    "teamContactPrerequisite": "A team receives nothing until a team contact is configured for it. Contacts are created in Hub Settings > Teams, not on a resource; a resource can only select an existing one.",
+    "noSeverityDimension": "No severity, priority, or urgency filter appears anywhere in the notification pages or their screenshots. Filtering is by type and channel. A severity floor on a notification subscription is therefore not Apollo's model."
+  },
+  "eventSeverityIsADifferentSurface": {
+    "claim": "Severity in Apollo is an attribute of the Environment Events surface, not of notification subscriptions.",
+    "source": "docs/ui/evidence/legacy-apollo-2020/environment-events.webp, committed in this repository.",
+    "tier": "Historical tenant observation, 2020. The source article carries an editor note saying the product has since changed, so this is corroborating, not a current contract.",
+    "observedSeverityFacet": ["Success", "Info", "Warning", "Error"],
+    "observedCategoryFacet": ["Plan", "Monitor", "Adjudication"],
+    "note": "Facets are rendered with counts (Success 52, Info 28, Warning 18, Error 3; Plan 48, Monitor 46, Adjudication 7), so these are values present in one tenant's three-hour window and not necessarily the whole vocabulary. The same screenshot shows Monitor events in Triggered and Resolved states, which corroborates the disableResolutionNotifications flag on the recovered Foundry seam in docs/apollo/reference/notifications.md."
+  },
+  "upstreamAmbiguities": [
+    "The team-notifications page states 'While you can add a PagerDuty contact for a team, PagerDuty is not supported for notifications', while the New Team Contact dialog in setup-team-contact.png offers Pagerduty as one of three contact kinds with a description of what it does. A contact kind that can be created and will not deliver is recorded as observed, not reconciled.",
+    "The Pagerduty option's description reads 'Receive notifications set-up for a Jira team...' -- Jira, in a PagerDuty option. Reproduced verbatim because it is what the published image says.",
+    "The Product-scoped list and the cross-resource list may name the same underlying events differently: 'Product In Open Ended Recall' against 'Product recalls', and 'Role Change' against 'RBAC Change'. Nothing captured says whether these are one type rendered at two granularities or two types. They are carried as distinct observed types with the scope each was seen at, because merging them would be a guess dressed as a reading, and a merge is reversible while an invented identity is not."
+  ],
+  "stillUnrecovered": [
+    "The wire format and route of the Hub's notification and subscription APIs. Everything here is read off the UI, so it establishes the vocabulary and the shape of the settings, not the request bodies.",
+    "The inbox read model. Hub Settings shows a 'My notifications' page and the tenant viewer role mentions an inbox, but no capture shows an inbox entry, its read state, or whether read state is per-recipient.",
+    "The full type vocabulary. Six Product-scoped types and three cross-resource types are legible; two further rows are redacted, the prose names a digest type no screenshot shows, and the documentation says the set grows.",
+    "Environment-scoped and Release-Channel-scoped type lists. Only a Product's list was published.",
+    "Webhooks, which appear as a separate Hub Settings section and may or may not be a notification delivery channel."
+  ]
+}
