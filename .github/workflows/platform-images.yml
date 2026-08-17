@@ -294,15 +294,21 @@ jobs:
         run: |
           version="$(tr -d '\n' < VERSION)"
           test "${GITHUB_REF_NAME}" = "v${version}"
+          # The repository-named package, with the artifact kind in the tag, for
+          # the reason the images carry: GHCR links a package to a repository
+          # when it is named for that repository, and only a linked package is
+          # reachable by that repository's GITHUB_TOKEN. `platform-runtime` is
+          # not this repository's name, so the first push of it was refused --
+          # 403 on the blob HEAD, after every image had already published.
           artifact_json="$(/tmp/flux push artifact \
-            "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}/platform-runtime:${version}" \
+            "oci://ghcr.io/${GITHUB_REPOSITORY}:runtime-${version}" \
             --path=deploy/flux \
             --source="${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}" \
             --revision="${GITHUB_REF_NAME}@sha1:${GITHUB_SHA}" \
             --reproducible \
             --output=json)"
           artifact_digest="$(jq -er '.digest | select(test("^sha256:[a-f0-9]{64}$"))' <<<"${artifact_json}")"
-          artifact_reference="ghcr.io/${GITHUB_REPOSITORY_OWNER}/platform-runtime:${version}@${artifact_digest}"
+          artifact_reference="ghcr.io/${GITHUB_REPOSITORY}:runtime-${version}@${artifact_digest}"
           certificate_issuer="https://token.actions.githubusercontent.com"
           certificate_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/platform-images.yml@${GITHUB_REF}"
           ./scripts/retry-keyless-signing.sh cosign sign --yes "${artifact_reference}"
@@ -348,10 +354,15 @@ jobs:
             helm package "deploy/helm/${chart}" --destination helm-dist \
               --version "${version}" --app-version "${version}"
             package="helm-dist/${chart}-${version}.tgz"
-            push_output="$(helm push "${package}" "oci://ghcr.io/${GITHUB_REPOSITORY_OWNER}")"
+            # Under the repository path, so the chart packages sit beneath a name
+            # GHCR associates with this repository rather than beside it. helm
+            # derives the package name from the chart itself, so this path is
+            # the only lever; if a chart package still refuses the first push,
+            # it needs linking once in the repository's package settings.
+            push_output="$(helm push "${package}" "oci://ghcr.io/${GITHUB_REPOSITORY}")"
             digest="$(awk '/Digest:/ {print $2}' <<<"${push_output}" | tail -1)"
             [[ "${digest}" =~ ^sha256:[a-f0-9]{64}$ ]]
-            reference="ghcr.io/${GITHUB_REPOSITORY_OWNER}/${chart}:${version}@${digest}"
+            reference="ghcr.io/${GITHUB_REPOSITORY}/${chart}:${version}@${digest}"
             ./scripts/retry-keyless-signing.sh cosign sign --yes "${reference}"
             SOURCE_DATE_EPOCH="$(git show -s --format=%ct HEAD)" \
               ruby scripts/generate-helm-sbom.rb \
