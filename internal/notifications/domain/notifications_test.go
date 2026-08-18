@@ -283,23 +283,18 @@ func TestAContactThatCouldNotReceiveAnythingIsRefused(t *testing.T) {
 	}
 }
 
-// The known types are enumerable so a settings API can render Apollo's list,
-// and each carries the scope it was observed at. A caller who cannot see the
-// set will guess, and a guessed type reaches only the people who opted into
-// everything.
-func TestTheKnownTypesAreEnumerableSortedAndScoped(t *testing.T) {
+// The known types are enumerable so a settings API can render Apollo's list. A
+// caller who cannot see the set will guess, and a guessed type reaches only the
+// people who opted into everything.
+func TestTheKnownTypesAreEnumerableAndSorted(t *testing.T) {
 	t.Parallel()
 	types := EventTypes()
-	if len(types) != 9 {
-		t.Fatalf("expected the nine legible captured types, got %d: %v", len(types), types)
+	if len(types) != 10 {
+		t.Fatalf("expected the nine legible captured types plus the one Apollo's prose names, got %d: %v", len(types), types)
 	}
 	for _, eventType := range types {
 		if !eventType.Valid() {
 			t.Errorf("advertised type %q is not valid", eventType)
-		}
-		scope, known := eventType.ObservedScope()
-		if !known || (scope != ScopeProduct && scope != ScopeCrossResource) {
-			t.Errorf("advertised type %q has no observed scope", eventType)
 		}
 	}
 	for index := 1; index < len(types); index++ {
@@ -309,6 +304,38 @@ func TestTheKnownTypesAreEnumerableSortedAndScoped(t *testing.T) {
 	}
 	if EventType("PLAN_EXPLODED").Valid() {
 		t.Error("an unknown type validated")
+	}
+}
+
+// Nine types were read off screenshots of pages offering them, and each carries
+// the scope it was offered at. One is named only by the overview page's prose,
+// and carries no scope because no page was seen offering it.
+//
+// The distinction is load-bearing in one direction: a subscribable type with no
+// observed scope must never start reporting one, because a settings page would
+// then render it under a heading no capture supports. Enumerating it is a claim
+// that Conduit emits it; scoping it would be a claim about Apollo.
+func TestADocumentedTypeIsSubscribableAndCarriesNoObservedScope(t *testing.T) {
+	t.Parallel()
+	if !EventPlanFailures.Valid() {
+		t.Fatal("the type Conduit emits for an unminted Plan is not subscribable, so only AllFutureTypes preferences would ever see it")
+	}
+	if scope, observed := EventPlanFailures.ObservedScope(); observed {
+		t.Errorf("a type named only by prose reported the observed scope %q", scope)
+	}
+	// And a subscriber can name it, which is the point of registering it rather
+	// than emitting an unknown type and relying on the master toggle.
+	value := preference("pref-1", Owner{Kind: PrincipalUser, ID: "alice"}, func(value *Preference) {
+		value.Types = []EventType{EventPlanFailures}
+	})
+	if err := value.Validate(); err != nil {
+		t.Errorf("a preference naming the documented type was refused: %v", err)
+	}
+	// It is not the promotion-failure type. Apollo's own prose lists "Promotion
+	// failures" and "Plan failures" separately, so merging them here would assert
+	// an identity the documentation keeps apart.
+	if EventPlanFailures == EventPromotionFailed {
+		t.Error("a Plan failure and a promotion failure were merged into one type")
 	}
 }
 
