@@ -67,9 +67,19 @@ frees emit sites at once.
 
 ### Environment facts that cost time to rediscover
 
-- **No Docker daemon** in this sandbox, so `scripts/test-postgres-repository.sh`
-  and the `Validate PostgreSQL repository` gate cannot run. That one gate failing
-  in `verify-local.sh` is expected here and is not a signal.
+- **Docker is preinstalled and is NOT running by default. Start it.**
+  `sudo dockerd >/tmp/dockerd.log 2>&1 &` brings up server 29.3.1 in about ten
+  seconds. Until this was tried, every session in this environment recorded "no
+  Docker daemon" as a fact, excused the `Validate PostgreSQL repository` gate in
+  its PR bodies, and deferred database claims to CI. The daemon was there the
+  whole time and nobody had run the command. With it up, `verify-local.sh` passes
+  **completely** — including `test-postgres-repository.sh`, the notifications and
+  pgmigrate packages, and the restore drill. Excusing a gate you could have run
+  is weaker than running it. Credit where due: this came from the `containers`
+  skill in the `ccw-sandbox` plugin at
+  `/workspace/claude-code-on-the-web/plugins/ccw-sandbox`, which states it
+  plainly and is worth reading before concluding this sandbox cannot do
+  something.
 - **PostgreSQL 16 is installed locally** and is the way to test database code
   anyway: `export CONDUIT_TEST_POSTGRES_DSN="postgres://conduit@127.0.0.1:55432/conduit_test?sslmode=disable"`.
   Started with `/usr/lib/postgresql/16/bin/pg_ctl -D /tmp/pgdata -o "-p 55432 -k /tmp" start`.
