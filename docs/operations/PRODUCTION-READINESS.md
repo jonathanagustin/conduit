@@ -21,6 +21,7 @@ answer, and nothing here should be read as claiming it.
 | Correctness | All 30 local gates pass at the trunk tip (tests, vet, lint, formatting, domain boundaries, controlplane ceiling, contract validation, GitOps acceptance). | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. |
 | Availability | The Hub runs two replicas over a transactional PostgreSQL repository, with a PodDisruptionBudget protecting one replica; concurrent lease, approval, idempotency, and crash-recovery are proven against real PostgreSQL. | A7; `scripts/test-postgres-repository.sh`; `ruby scripts/verify-helm-runtime.rb` (aborts unless replicas == 2 and the PDB exists). |
 | Identity | Production identity is OIDC for operators and mTLS or SPIFFE for Agents. Insecure identity headers exist only behind explicit `ALLOW_INSECURE_*` opt-ins; `cmd/platform-delivery` exits rather than combine them with any secure mechanism, and the chart gate aborts if any `ALLOW_INSECURE_` variable is set. | `cmd/platform-delivery/main.go` startup checks; `verify-helm-runtime.rb` ("chart enabled insecure identity"). |
+| Bundle signing | A Hub refuses to start with no `BUNDLE_SIGNING_KEY_FILE`. The ephemeral development key survives only behind an explicit `ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true`, which is itself refused in combination with a mounted key or with production identity — the fail-closed shape the insecure identity headers already have — and which no chart profile can set. Which signer a Hub came up with is on its startup line as `bundleSigner`: the base64 Ed25519 **public** key, the same encoding `BUNDLE_TRUSTED_KEYS_FILE` uses, so a changed signer is readable rather than only detectable by a target refusing a Bundle. | `checkBundleSigningPosture` in `cmd/platform-delivery/main.go`; `TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey`, `TestBundleSigningKeyIdentifierPublishesThePublicKeyOnly`; `verify-helm-runtime.rb` ("Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start", "Hub enabled insecure opt-ins", and the render that fails closed on an empty `bundleSigningSecretName`). |
 | Delivery | A clean production cluster reconciles the signed private runtime artifact from OCI with no Git source or credential: pull-only registry authority, trusted-signature success, wrong-signer rejection, exact-digest application. | A8; `scripts/test-gitless-clean-cluster.sh`; ADR 0001. |
 | Reconciliation | Tenant intent converges through Conduit-owned durable work (leases fenced by input revision, atomic decision/audit/outbox, crash-safe receipts); Flux owns only runtime convergence. | A9; ADR 0003; `scripts/test-postgres-repository.sh`. |
 | Air gap | The Zarf package assembles and validates for disconnected installation. | `Validate Zarf air-gap package` gate. |
@@ -220,13 +221,24 @@ carried to the residual list as item 5.
    What remains, and it is a deployment's rather than this repository's: the
    database is BYO — the chart consumes a DSN from a Secret it does not create
    (`Chart.yaml` declares no dependencies and
-   `scripts/verify-helm-runtime.rb:130-131` pins the rendered kinds, so a
+   `scripts/verify-helm-runtime.rb:157-158` pins the rendered kinds, so a
    database StatefulSet cannot be added without failing that gate) — so **no
    backup schedule, retention policy, WAL archiving or PITR configuration ships
    here**, and none can. **No secrets backup or rotation procedure exists**
-   either; `BUNDLE_SIGNING_KEY_FILE` is the one input whose absence does not
-   stop the Hub, so a restore that forgets it comes up healthy and signs with an
-   ephemeral key (`cmd/platform-delivery/main.go:75-77`).
+   either, and providing and rotating the Bundle signing key stays an operator
+   action.
+
+   What no longer remains: a restore that forgot the signing Secret used to come
+   up **healthy** and sign with an ephemeral key, because
+   `BUNDLE_SIGNING_KEY_FILE` was the one input whose absence did not stop the
+   Hub. It now does. `checkBundleSigningPosture` in
+   `cmd/platform-delivery/main.go` refuses that start unless the Hub declared
+   itself a development Hub, so a forgotten Secret is a Hub that will not serve
+   rather than a Hub that quietly rejoins the fleet under a new signing
+   identity. That is a split-brain supply chain, and it is why the fix was a
+   startup refusal rather than a louder warning: a recovery path that silently
+   changes the signer turns a recoverable backup mistake into a fleet-wide
+   trust failure that presents as health.
 
 ### Tier 2 — blocks Apollo-parity production
 
@@ -306,7 +318,15 @@ skew** is the one a delivery platform is least entitled to get wrong.
    DSN, TLS certificate and key (or a SPIFFE workload endpoint), the Agent
    client CA, the Bundle signing key, OIDC issuer configuration, and the
    bootstrap administrator list. The chart refuses to render a production
-   Hub without them.
+   Hub without them, and the Hub itself refuses to start without them —
+   including the Bundle signing key, whose absence used to be tolerated. What
+   remains an operator action is narrower than it was and is stated exactly:
+   **producing the key material and mounting it**, and **rotating it**
+   (generating the successor, publishing its public half into every consumer's
+   `BUNDLE_TRUSTED_KEYS_FILE` before it signs, and retiring the predecessor).
+   Nothing here generates, distributes or rotates a signing key; what the
+   repository now guarantees is that a Hub missing one says so instead of
+   inventing one.
 3. **Renovate activation.** `renovate.json` is committed and gated; the
    Renovate GitHub App still needs an admin install on the repository
    before update PRs and the Dependency Dashboard appear.
@@ -318,7 +338,10 @@ skew** is the one a delivery platform is least entitled to get wrong.
    the RPO unless the deployment's PostgreSQL runs PITR), decide retention, and
    back up the Bundle signing key and Agent client CA alongside the database.
    Nothing in this repository can do any of it — the chart does not create the
-   database or the Secret.
+   database or the Secret. A restore that forgets the signing key is no longer
+   silent, which changes the cost of getting this wrong but not the ownership:
+   the Hub refuses to start, and someone still has to hold the copy that lets
+   it start again.
 
 Update this document in the same change as anything that invalidates a row,
 and treat a stale row exactly like a failing gate.
