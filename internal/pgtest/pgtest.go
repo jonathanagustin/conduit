@@ -11,12 +11,15 @@
 //   - whether a restore reconstructs a database, which needs somewhere empty to
 //     restore into.
 //
-// The shared database has a ledger and every table in the product, and the one
-// existing way to reach the fresh-database case -- dropping the ledger in place
-// -- is deliberately confined to the store that can put it back
-// (TestDifferentComponentsRacingAFreshDatabaseDoNotCollide). This package is
-// how the rest of the suite asks the same question without a suite-wide side
-// effect.
+// The shared database has a ledger and every table in the product, so a test
+// about absence cannot use it. There was one exception, and it was a hazard
+// rather than a precedent: a ledger race test dropped conduit_schema_migrations
+// in the shared database and put it back, confined to the store that could.
+// Confinement to a package is not confinement at all -- `go test` runs packages
+// in parallel, so another package reading the ledger inside that window failed
+// with `relation "conduit_schema_migrations" does not exist`, having done
+// nothing wrong. That test uses this package now. Nothing drops a shared object
+// any more, and nothing should.
 //
 // It takes no dependency on `testing`, so it is ordinary code that returns
 // ordinary errors and the caller decides whether a failure is fatal.
