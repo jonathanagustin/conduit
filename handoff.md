@@ -1,12 +1,126 @@
 # Handoff
 
-A snapshot of the work done in the session ending 2026-08-17, what is merged,
+A snapshot of the work done in the session ending 2026-08-18, what is merged,
 what is still open, and the mechanisms a next contributor should know before
 touching this tree. Everything is on `main` unless marked otherwise.
 
-The previous handoff covered the session ending 2026-08-16 (PRs #30–#44). Its
-"Mechanisms" and "Bootstrapping" sections are carried forward below, corrected
-where this session proved them wrong.
+Earlier handoffs covered the sessions ending 2026-08-16 (PRs #30–#44) and
+2026-08-17. Their "Mechanisms" and "Bootstrapping" sections are carried forward
+below, corrected where a later session proved them wrong.
+
+## Session ending 2026-08-18
+
+### What shipped
+
+Thirteen issues fixed and merged, found by assessments of the CLI, the console,
+and the Apollo What's New page, then implemented in parallel:
+
+| Issue | Fix |
+| --- | --- |
+| #151 | Apollo GraphQL required an authorization decision before binding sources |
+| #152 | Reconciliation stopped reporting a terminal Plan as a successful dispatch |
+| #172 | `asset publish` stopped reporting coordinate/image/label bindings it never made |
+| #173 | `module lock --verify` asserts the lock instead of echoing `true` |
+| #174 | `entity aggregate` orders versions numerically |
+| #175 | Review-context flags are absent rather than demanded and discarded |
+| #176 | `version compare -r` keeps universal Entities |
+| #177 | Six inert CLI flags implemented, removed, or refused with a reason |
+| #178 | Authored Environment descriptor carries the enforced API group |
+| #180 | Overview distinguishes request failure from panel unavailability |
+| #181 | Plan detail polls until the Hub is done with a Plan |
+| #182 | Console drift: dead fleet filter, stale fixtures, two wrong contract docs |
+| #194 | The publication workflow's manual-only trigger is now machine-enforced |
+
+### The adversarial review round, and what it overturned
+
+After merging, three reviewers of different model families (gpt-5.3-codex,
+grok-4.6, Fable) independently reviewed the seven core commits. **Five of seven
+carried real defects.** Every finding below was verified against source before
+being filed; several reviewer claims were rejected as false positives.
+
+Open, with evidence, and worth reading before touching the relevant code:
+
+- **#209 — the GraphQL guard leaks.** `AuthorizationScopes`
+  (`internal/governance/domain/authorization.go:378-394`) expands `product/X` to
+  `{product/X, global/product}` but expands `platform/root` to **itself only**.
+  So a platform-scoped principal gets 403 on REST products and **200 on GraphQL
+  with the full product projection**. #151 closed the "holds nothing" hole and
+  left a narrower one in the same class. A single platform/root bar cannot fix
+  this; per-coordinate authorization matching REST is required.
+- **#208 — `CompareVersions` is not a total order.** It falls back to
+  `strings.Compare` when *either* side is non-orderable
+  (`internal/catalog/domain/version.go:125-130`), giving the cycle
+  `1.10.0 > 1.9.0 > 1.5.0-hotfix > 1.10.0`. Under `sort.Slice` the original
+  1.9.0-over-1.10.0 bug reproduces whenever one non-orderable version shares a
+  channel. A tiebreak alone does not fix intransitivity.
+- **#205 — a SUCCEEDED-but-drifted Plan still reports success forever.** #152
+  guarded only FAILED and CANCELLED. The hard part is real: naively refusing
+  SUCCEEDED breaks the ordinary case where a report merely lags a completed
+  rollout, so this needs a distinguishing signal, not another status in the list.
+
+**A correction that cost real time, recorded so it is not repeated.** #207 was
+filed asserting that an exhausted proposal wedges a desired state *permanently*,
+on the strength of two verified facts: `LeaseProposal` has
+`WHERE exhausted = false`, and the outbox insert is `ON CONFLICT DO NOTHING`.
+The conclusion was wrong. Proposal IDs are **not** derived from desired state
+alone — `Input.Digest()` marshals the whole `Input`, which embeds
+`Observation.ObservedAt`, so every fresh report mints a new proposal ID with a
+new retry budget. The real defect is the opposite: exhaustion never accumulates,
+so it is not a durable escalation signal. **Verifying two of three premises is
+not verifying the claim.**
+
+### Measured: where the 16-minute gate actually goes
+
+From a green run (32101056711, total 16m20s). Four independent steps are
+**79%**: CLI release targets 5m51s (36%), Test 3m17s, operator console 2m15s,
+Lint 1m34s. The remaining 34 steps total about 10 seconds. Filed as #213 with
+the full table; the lever is splitting the single 45-step job into parallel
+lanes with one aggregating job owning the `Trunk gate` status.
+
+**Rejected after measuring, so nobody re-derives it:** parallelising the six
+cross-compiles inside `verify-cli-release-targets.sh` looks like a 2x win on a
+warm Go build cache (10–12s → 5s) and is **not** one cold. Two cold runs gave
+237s → 226s and 256s → 205s — 5% and 20%, disagreeing by 4x under sandbox load.
+A cold `go build` already saturates the cores. The step's real cost is a cold
+cross-compile cache, which `actions/setup-go`'s `cache: true` does not cover
+because each `GOOS/GOARCH` pair has its own entries.
+
+### Mechanisms learned the hard way this session
+
+- **The Trunk gate must be dispatched with `ref` set to the PR branch.** It
+  asserts `head_sha == GITHUB_SHA` and `refs/heads/<head_ref> == GITHUB_REF`;
+  dispatching from `main` fails in 11 seconds.
+- **A PR body that does not follow `.github/pull_request_template.md` fails gate
+  step 3.** `scripts/verify-pr-fidelity.sh` requires a non-empty `## Outcome`, a
+  non-empty `### Deliberate divergences`, and at least one complete
+  tenant-fidelity row whose class is one of the exact permitted strings.
+- **`internal/controlplane` sits exactly on its line ceiling.** Two separate
+  workstreams tried the better fix — a shared constant, a review-context field —
+  measured the ratchet, and correctly chose a weaker-looking design over raising
+  a ceiling that may only move down. Expect to do the same.
+- **`internal/consoleui/dist` serialises all console work** (#200). It is a
+  committed build artifact with content-hashed filenames, so any two console PRs
+  conflict by construction even when their sources do not. Resolution is never a
+  merge: delete the tree, `pnpm --dir web build`, re-verify. Observed twice.
+- **`.claude/worktrees/` is now gitignored** — agent worktrees are full second
+  copies of the tree and were making `git status` dirty.
+
+### Direction set this session
+
+- **Plugins over copies.** `.claude/settings.json` registers the
+  `jonathanagustin-private` marketplace and enables `ccw-sandbox` and
+  `crossreview` (`docs/operations/claude-plugins.md`). Note that project
+  settings register the marketplace but do **not** auto-install an external
+  plugin — one `claude plugin install` per machine is still required.
+  `scripts/bootstrap-k3s.sh` is deliberately **not** deleted yet: its header
+  claims a fifth sandbox fix the upstream plugin misses, and if that holds the
+  fix belongs upstream rather than in the bin.
+- **Release and upgrade path**, filed with evidence: #193 (Conduit does not
+  publish itself as a Conduit Product, so its own upgrade bypasses every
+  mechanism it provides), #197 (nothing delivers notifications), #195 (every PR
+  needs a hand-dispatched gate though ADR 0006 already permits automating
+  verification), #196 (a release is four hand-coordinated steps, and dispatching
+  publication from a non-tag ref publishes a fraction and reports success).
 
 ## What shipped this session
 
