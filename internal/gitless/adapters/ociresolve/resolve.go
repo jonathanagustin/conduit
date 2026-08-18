@@ -78,7 +78,11 @@ func New(client *http.Client, credentials Credentials, options ...Option) *Resol
 	if credentials == nil {
 		credentials = Anonymous{}
 	}
-	resolver := &Resolver{client: client, credentials: credentials}
+	// TokenEndpoint decides which host may be paid; this decides that a
+	// redirect cannot move the payment somewhere else afterwards. Applied to
+	// the caller's client here, once, so neither call site below has to
+	// remember it. See registrychallenge/redirect.go.
+	resolver := &Resolver{client: registrychallenge.WithRedirectPolicy(client), credentials: credentials}
 	for _, option := range options {
 		option(resolver)
 	}
