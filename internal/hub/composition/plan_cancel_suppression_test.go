@@ -21,6 +21,17 @@ import (
 // rather than the facade's handler, because the register in authorization.go
 // and the guard around it are part of what answers, and a test that skipped
 // them would not be measuring the surface a caller reaches.
+//
+// Measured against planted mutants rather than assumed: deleting the Operate
+// check, moving it into the ungoverned branch alone, applying it to every
+// cancellation, answering 404 instead of 403, and answering a bare "forbidden"
+// are each caught by one of the tests below. Moving it into the governed branch
+// alone is NOT caught, and that is a property of the code rather than a gap
+// here: the ungoverned branch already requires Operate on the same Environment
+// for every cancellation (#155), so a suppression-specific check there can
+// never be the thing that refuses. The mutant is equivalent, and
+// TestAnUngovernedCancellationKeepsItsOwnBar is what would notice if that
+// branch ever stopped charging its own bar.
 
 const (
 	cancelEnvironment = "cancel-bar-use2"
