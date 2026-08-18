@@ -53,6 +53,32 @@ export async function getJSON<T>(path: string, options: RequestOptions = {}): Pr
   return (await response.json()) as T;
 }
 
+/** PUT, for the one surface that has one.
+ *
+ * Kept separate from postJSON rather than folded into a `method` parameter,
+ * because the two differ in more than a verb: POST here has to be able to send
+ * no bytes at all -- requireEmptyBody (http.go) refuses even "{}" -- and a PUT
+ * that inherited that branch could send an empty request to a decoder that
+ * requires a document, which fails as a 400 nobody can read back to a cause. */
+export async function putJSON<T>(
+  path: string,
+  body: unknown,
+  options: RequestOptions = {},
+): Promise<T> {
+  const requested = url(path, options.query);
+  const response = await fetch(requested, {
+    method: "PUT",
+    credentials: "same-origin",
+    headers: { Accept: "application/json", "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+  if (!response.ok) {
+    throw await failure(response, requested);
+  }
+  return (await response.json()) as T;
+}
+
 export async function postJSON<T>(
   path: string,
   body: unknown,
