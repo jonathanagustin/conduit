@@ -512,6 +512,56 @@ func TestEnvironmentVersionCompareFiltersResolvedReleaseChannel(t *testing.T) {
 	}
 }
 
+// A universal Entity reports one installation per namespace under the
+// "<entity>@<namespaceRID>" identity the planner mints, never under its bare
+// name. The Release Channel filter used to look up Entity names, matched none of
+// those, and dropped them silently — the comparison an operator runs to find
+// drift answered as if there were none.
+func TestEnvironmentVersionCompareKeepsUniversalInstallationsOnTheChannel(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{
+		environment: controlplane.EnvironmentCatalogRecord{Environment: controlplane.Environment{
+			ID: "dev", DefaultReleaseChannel: "STABLE",
+			Namespaces: []controlplane.NamespaceTarget{
+				{RID: "ri.namespace.alpha", Name: "alpha", EnrollmentRID: "enrollment-a", OntologyCountValid: true},
+				{RID: "ri.namespace.beta", Name: "beta", EnrollmentRID: "enrollment-a", OntologyCountValid: true},
+			},
+		}},
+		entities: []controlplane.Entity{
+			{Name: "application"},
+			{Name: "workspace", Universal: &controlplane.UniversalInstallationConfiguration{}},
+			{Name: "canary", ReleaseChannel: "RELEASE", Universal: &controlplane.UniversalInstallationConfiguration{}},
+		},
+		versions: []controlplane.TargetHubEntityVersion{
+			{InstallationID: "application", Version: "1.2.3"},
+			{InstallationID: "workspace@ri.namespace.alpha", Version: "2.0.0"},
+			{InstallationID: "workspace@ri.namespace.beta", Version: "1.9.0"},
+			{InstallationID: "canary@ri.namespace.alpha", Version: "3.0.0"},
+		},
+	}
+	var output bytes.Buffer
+	root := NewRoot(testRuntime(&output, service))
+	root.SetArgs([]string{
+		"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+		"environment", "version", "compare", "dev", "--release-channel", "STABLE",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, wanted := range []string{
+		`"installationId": "application"`,
+		`"installationId": "workspace@ri.namespace.alpha"`,
+		`"installationId": "workspace@ri.namespace.beta"`,
+	} {
+		if !strings.Contains(output.String(), wanted) {
+			t.Fatalf("filtered versions are missing %s: %s", wanted, output.String())
+		}
+	}
+	if strings.Contains(output.String(), `"installationId": "canary@ri.namespace.alpha"`) {
+		t.Fatalf("an Entity on another Release Channel survived the filter: %s", output.String())
+	}
+}
+
 func TestProductReleaseCreatePublishesTypedTerraformManifest(t *testing.T) {
 	t.Parallel()
 	manifestPath := filepath.Join(t.TempDir(), "manifest.yml")
