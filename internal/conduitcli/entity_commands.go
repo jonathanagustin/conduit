@@ -2,6 +2,7 @@ package conduitcli
 
 import (
 	"errors"
+	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -11,6 +12,46 @@ import (
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
 )
+
+// partitionOrderableVersions splits candidates into the ones Apollo ordering can
+// rank and the ones it cannot, each sorted deterministically.
+//
+// The split exists because CompareVersions is only a partial order: it falls
+// back to strings.Compare when either side is non-orderable, so mixing the two
+// classes in one sort is intransitive and its result depends on input order.
+// Sorting them separately keeps each side's rule intact.
+func partitionOrderableVersions(candidates []string) (orderable, unorderable []string) {
+	for _, candidate := range candidates {
+		if catalog.IsApolloOrderableVersion(candidate) {
+			orderable = append(orderable, candidate)
+			continue
+		}
+		unorderable = append(unorderable, candidate)
+	}
+	// The tiebreak is not decoration. Apollo ordering deliberately ignores a
+	// snapshot's commit hash, so 2.0.0-5-gaaaaaaa and 2.0.0-5-gbbbbbbb compare
+	// equal; sort.Slice is not stable and the candidate list is built from map
+	// iteration, so without a total order the "latest" alternated between runs of
+	// a command whose help promises a deterministic aggregate.
+	sort.Slice(orderable, func(i, j int) bool {
+		if comparison := catalog.CompareVersions(orderable[i], orderable[j]); comparison != 0 {
+			return comparison < 0
+		}
+		return orderable[i] < orderable[j]
+	})
+	sort.Strings(unorderable)
+	return orderable, unorderable
+}
+
+// selectAggregateVersion picks the endpoint the caller asked for. Callers must
+// pass a non-empty orderable slice; an empty one has no latest version and that
+// is the caller's decision to report.
+func selectAggregateVersion(orderable []string, lowest bool) string {
+	if lowest {
+		return orderable[0]
+	}
+	return orderable[len(orderable)-1]
+}
 
 func addEntityParityCommands(command *cobra.Command, state *commandState) {
 	command.AddCommand(entityEnforceCommand(state))
@@ -75,18 +116,46 @@ func entityAggregateCommand(state *commandState) *cobra.Command {
 					// published 1.9.0 as the latest version of the Product. Use the
 					// same Apollo comparator the catalogue projection sorts Releases
 					// with so the aggregate and the Hub agree on which is newest.
-					sort.Slice(candidates, func(i, j int) bool {
-						return catalog.CompareVersions(candidates[i], candidates[j]) < 0
-					})
-					selected := candidates[len(candidates)-1]
-					if generateLowest {
-						selected = candidates[0]
-					}
+					//
+					// Only orderable versions may be ranked. A Product Release may
+					// declare a non-orderable version like 1.5.0-hotfix, and
+					// internal/catalog/domain says of that class: "nothing may order
+					// it against another version ... upgrade selection ... keep
+					// rejecting these". CompareVersions honours that by falling back
+					// to strings.Compare when either side is non-orderable, which
+					// makes it a partial order -- 1.10.0 > 1.9.0 numerically,
+					// 1.9.0 > 1.5.0-hotfix and 1.5.0-hotfix > 1.10.0 lexically. Feed
+					// that cycle to sort.Slice and the result depends on input order,
+					// so one hotfix sharing a channel brought the original defect
+					// straight back: 1.9.0 selected over 1.10.0.
+					//
+					// So the non-orderable ones are partitioned out rather than given
+					// an invented rank. They are reported, not dropped -- a Product
+					// whose only Release is non-orderable has no latest version, and
+					// saying so is the honest answer where silently omitting it would
+					// read as "no Releases".
+					orderable, unorderable := partitionOrderableVersions(candidates)
 					if generateVersions {
-						versions[product.Product] = map[string]any{"selected": selected, "available": candidates}
-					} else {
-						versions[product.Product] = selected
+						entry := map[string]any{"available": orderable}
+						if len(orderable) > 0 {
+							entry["selected"] = selectAggregateVersion(orderable, generateLowest)
+						}
+						if len(unorderable) > 0 {
+							entry["unorderable"] = unorderable
+						}
+						versions[product.Product] = entry
+						continue
 					}
+					if len(orderable) == 0 {
+						// Without --generate-versions there is nowhere to report the
+						// reason, and a version string is what the caller consumes.
+						// Refusing beats emitting a version nothing may rank.
+						return nil, fmt.Errorf(
+							"%s declares only non-orderable versions (%s), which cannot be ranked",
+							product.Product, strings.Join(unorderable, ", "),
+						)
+					}
+					versions[product.Product] = selectAggregateVersion(orderable, generateLowest)
 				}
 				result := map[string]any{"releaseChannel": releaseChannel, "products": versions}
 				if outputDir == "" {
