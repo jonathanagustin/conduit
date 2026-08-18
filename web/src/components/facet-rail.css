@@ -1,0 +1,105 @@
+.console-facet-rail {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  padding: 12px 16px;
+  gap: 16px;
+  border-right: 1px solid var(--bp-surface-border-color-default, rgba(17, 20, 24, 0.15));
+}
+
+.console-facet-rail__caption,
+.console-facet-rail__empty {
+  margin: 0;
+  color: var(--bp-typography-color-muted, #5f6b7c);
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.console-facet-rail__group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.console-facet-rail__heading {
+  margin: 0 0 4px;
+  color: var(--bp-typography-color-muted, #5f6b7c);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.console-facet-rail__values {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* A three-column row: the value, its count, and the bar. The count column is
+   fixed so the bars start at one edge and stay comparable down the group. */
+.console-facet-rail__value {
+  display: grid;
+  width: 100%;
+  padding: 3px 4px;
+  border: none;
+  border-radius: 2px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  align-items: center;
+  grid-template-columns: minmax(0, 1fr) auto 72px;
+  gap: 8px;
+  cursor: pointer;
+}
+
+.console-facet-rail__value:hover {
+  background: var(--bp-surface-background-color-default-hover, rgba(143, 153, 168, 0.15));
+}
+
+.console-facet-rail__value[aria-pressed="true"] {
+  background: var(--bp-surface-background-color-selected-rest, rgba(45, 114, 210, 0.15));
+  font-weight: 600;
+}
+
+.console-facet-rail__label {
+  overflow: hidden;
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.console-facet-rail__count {
+  color: var(--bp-typography-color-muted, #5f6b7c);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.console-facet-rail__bar {
+  display: block;
+  height: 8px;
+  border-radius: 2px;
+  background: var(--bp-surface-background-color-default-hover, rgba(143, 153, 168, 0.2));
+}
+
+.console-facet-rail__bar > span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: var(--bp-intent-primary, #2d72d2);
+}
+
+.console-facet-rail__more {
+  align-self: flex-start;
+  margin-top: 2px;
+}
+
+/* Below the split the rail sits above the table rather than beside it, so the
+   border that separated the two columns has to move with it. */
+@media (max-width: 900px) {
+  .console-facet-rail {
+    border-right: none;
+    border-bottom: 1px solid var(--bp-surface-border-color-default, rgba(17, 20, 24, 0.15));
+  }
+}

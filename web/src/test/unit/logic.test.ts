@@ -10,6 +10,14 @@ import {
 } from "../../features/changes/review.js";
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../components/ReleaseChannelGraph.js";
+import {
+  boundFacetValues,
+  facetBarWidth,
+  facetsAreEmpty,
+  largestFacetCount,
+  orderFacetValues,
+} from "../../components/facets.js";
+import { fleetFacetGroups } from "../../features/fleet/facets.js";
 import { statusIntent } from "../../api/imports.js";
 import { findingScore, orderFindingsByHubScore } from "../../api/catalog.js";
 import type { VulnerabilityFinding } from "../../api/catalog.js";
@@ -22,6 +30,7 @@ import {
   unknownTypes,
 } from "../../features/notifications/NotificationsPage.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../components/statusTags.js";
+import { HEALTH } from "../../api/types.js";
 import { PLAN_INTENT } from "../../components/PlanStatusTag.js";
 import {
   PLAN_TERMINAL_STATUSES,
@@ -643,5 +652,159 @@ describe("notification preference edits", () => {
     for (const type of NOTIFICATION_EVENT_TYPES) {
       expect(unknownTypes([type])).toEqual([]);
     }
+  });
+});
+
+/** The facet rail's arithmetic. The browser tests prove a rail renders and a
+ * click reaches the URL; these are the parts a rendering test cannot see --
+ * that the order is the one claimed, that a bound says what it left out, and
+ * that a bar is a proportion of the right number. */
+describe("facet rail arithmetic", () => {
+  it("orders a dimension by count, largest first", () => {
+    expect(
+      orderFacetValues({ UNHEALTHY: 3, HEALTHY: 52, UNKNOWN: 7 }, undefined).map(
+        (value) => value.value,
+      ),
+    ).toEqual(["HEALTHY", "UNKNOWN", "UNHEALTHY"]);
+  });
+
+  it("breaks equal counts on the declared vocabulary, then alphabetically", () => {
+    // HEALTHY precedes UNHEALTHY in HEALTH, so an equal count must not reorder
+    // them between renders. QUARANTINED is not in the vocabulary at all and
+    // sorts after the declared values rather than vanishing.
+    expect(
+      orderFacetValues({ UNHEALTHY: 4, QUARANTINED: 4, HEALTHY: 4 }, undefined, HEALTH).map(
+        (value) => value.value,
+      ),
+    ).toEqual(["HEALTHY", "UNHEALTHY", "QUARANTINED"]);
+  });
+
+  it("drops values the Hub counted at zero", () => {
+    expect(orderFacetValues({ HEALTHY: 2, TERMINAL: 0 }, undefined).map((v) => v.value)).toEqual([
+      "HEALTHY",
+    ]);
+  });
+
+  // The facets exclude their own dimension, so a selection that matches nothing
+  // still has to be visible: it is the only control that can undo itself.
+  it("keeps a selected value present even with no count", () => {
+    const values = orderFacetValues({ HEALTHY: 2 }, "TERMINAL", HEALTH);
+    expect(values.map((value) => value.value)).toEqual(["HEALTHY", "TERMINAL"]);
+    expect(values.find((value) => value.value === "TERMINAL")).toEqual({
+      value: "TERMINAL",
+      count: 0,
+      selected: true,
+    });
+    expect(values.find((value) => value.value === "HEALTHY")?.selected).toBe(false);
+  });
+
+  it("bounds a long dimension and says how many it left out", () => {
+    const values = orderFacetValues(
+      Object.fromEntries(Array.from({ length: 12 }, (_, index) => [`env-${index}`, 12 - index])),
+      undefined,
+    );
+    const bounded = boundFacetValues(values, 8);
+    expect(bounded.shown).toHaveLength(8);
+    expect(bounded.hidden).toBe(4);
+    // The bound keeps the largest, which is the half a reader wants first.
+    expect(bounded.shown[0]?.value).toBe("env-0");
+  });
+
+  it("leaves a dimension inside the bound alone and hides nothing", () => {
+    const values = orderFacetValues({ a: 3, b: 2 }, undefined);
+    expect(boundFacetValues(values, 8)).toEqual({ shown: values, hidden: 0 });
+  });
+
+  it("keeps a selected value visible even from below the bound", () => {
+    const counts = Object.fromEntries(
+      Array.from({ length: 12 }, (_, index) => [`env-${index}`, 12 - index]),
+    );
+    const bounded = boundFacetValues(orderFacetValues(counts, "env-11"), 8);
+    expect(bounded.shown.map((value) => value.value)).toContain("env-11");
+    // Eight from the head plus the selected one, and the hidden count follows
+    // the values actually withheld rather than the difference from the limit.
+    expect(bounded.shown).toHaveLength(9);
+    expect(bounded.hidden).toBe(3);
+  });
+
+  it("shows every value when the bound is lifted", () => {
+    const values = orderFacetValues({ a: 3, b: 2, c: 1 }, undefined);
+    expect(boundFacetValues(values, 0)).toEqual({ shown: values, hidden: 0 });
+  });
+
+  // The denominator is the group's largest count, not its total: the bars
+  // compare the values of one dimension against each other, and against a total
+  // a dimension with many values renders every bar as an identical sliver.
+  it("measures a bar against the largest count in its group", () => {
+    const values = orderFacetValues({ HEALTHY: 50, UNHEALTHY: 25, UNKNOWN: 5 }, undefined);
+    expect(largestFacetCount(values)).toBe(50);
+    expect(facetBarWidth(50, 50)).toBe(100);
+    expect(facetBarWidth(25, 50)).toBe(50);
+    // 25/80 is what a total-based denominator would give. Naming it here makes
+    // the wrong denominator a failing number rather than a plausible one.
+    expect(facetBarWidth(25, 50)).not.toBe((100 * 25) / 80);
+  });
+
+  it("draws nothing for a zero count and never divides by an empty group", () => {
+    expect(largestFacetCount([])).toBe(0);
+    expect(facetBarWidth(0, 10)).toBe(0);
+    expect(facetBarWidth(4, 0)).toBe(0);
+  });
+
+  it("calls a rail empty only when every dimension is", () => {
+    expect(facetsAreEmpty([{ key: "health", heading: "Health", values: [] }])).toBe(true);
+    expect(
+      facetsAreEmpty([
+        { key: "health", heading: "Health", values: [] },
+        { key: "product", heading: "Product", values: orderFacetValues({ a: 1 }, undefined) },
+      ]),
+    ).toBe(false);
+  });
+});
+
+/** The fleet's own mapping onto that rail. What has to be right is which query
+ * parameter each dimension writes: a browser test proving one facet click
+ * filters would not prove the other five write the parameter they claim. */
+describe("fleet facet groups", () => {
+  const facets = {
+    environment: { "prod-use1": 3, "dev-use2": 1 },
+    product: { "app.example:payments": 4 },
+    health: { HEALTHY: 3, UNHEALTHY: 1 },
+    rolloutStatus: { UP_TO_DATE: 4 },
+    configStatus: { APPLIED: 4 },
+    lifecycle: { INSTALLED: 4 },
+  };
+
+  it("writes each dimension under the query parameter that selects it", () => {
+    expect(fleetFacetGroups(facets, {}).map((group) => group.key)).toEqual([
+      "environment",
+      "product",
+      "health",
+      "rolloutStatus",
+      "configStatus",
+      "lifecycle",
+    ]);
+  });
+
+  it("counts each dimension from its own facet and no other", () => {
+    const groups = fleetFacetGroups(facets, {});
+    const values = (key: string) =>
+      groups.find((group) => group.key === key)?.values.map((v) => [v.value, v.count]);
+    expect(values("health")).toEqual([
+      ["HEALTHY", 3],
+      ["UNHEALTHY", 1],
+    ]);
+    expect(values("environment")).toEqual([
+      ["prod-use1", 3],
+      ["dev-use2", 1],
+    ]);
+  });
+
+  it("marks only the selected value of the dimension the URL selects", () => {
+    const groups = fleetFacetGroups(facets, { health: "UNHEALTHY" });
+    const selected = groups.flatMap((group) =>
+      group.values.filter((value) => value.selected).map((value) => `${group.key}=${value.value}`),
+    );
+    expect(selected).toEqual(["health=UNHEALTHY"]);
   });
 });
