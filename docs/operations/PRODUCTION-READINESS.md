@@ -88,11 +88,38 @@ carried to the residual list as item 5.
    `TestThroughTheHubOnePrincipalIsRefusedAnotherPrincipalsInboxAndPreference`
    holds it down against the assembled Hub.
 
-   **What still blocks the row below:** the only destination is one endpoint an
-   operator configures, because nothing in this repository stores a person's
-   email address or a team's Slack channel — `domain.Contact` models one and no
-   store persists one — so a notification is delivered *about* a recipient
-   rather than *to* them; there is no SMTP transport and no Slack transport, and
+   **A recipient now has an address of their own.** The sentence this row
+   carried for its whole life — nothing in this repository stores a person's
+   email address or a team's Slack channel — is no longer true. `ports.Contacts`
+   states the address book, `adapters/postgres` persists one destination per
+   (owner, kind) under migration `0003-notification-contacts`, and
+   `domain.Contact` is keyed on an `Owner` so a person holds one and not only a
+   team. `domain.ResolveDestination` picks the recipient's own destination at
+   delivery time and the dispatcher puts it on the message, so a notification is
+   delivered *to* a recipient rather than only *about* one.
+
+   **The recipient's contact wins; the operator-configured endpoint stays both
+   the transport and the fallback.** A recipient holding no deliverable contact
+   is delivered exactly as before, which is what leaves an existing deployment
+   unchanged by the upgrade, and a failed read of the address book retries
+   rather than falling back — a query that failed is not a person with no
+   address. A PagerDuty contact is storable and is never a destination, which is
+   Apollo's own contradiction carried rather than resolved. Authorization is the
+   inbox's: a principal manages their own contact or that of a team they belong
+   to, with **no administrator override**, held down by
+   `TestThroughTheHubOnePrincipalCannotWriteAnotherPrincipalsContact` and
+   `TestAnAdministratorCannotReadOrRedirectAnybodysContact`. The routes are
+   `GET`, `PUT` and `DELETE /v1/notifications/contacts`, registered as
+   `notifications.ContactAddressBook` and `notifications.DestinationResolution`
+   in `docs/evidence/conduit-inventions.json`. An address is treated as personal
+   data throughout: it is never logged, never put in an error, never a metric
+   label, and `DELETE` removes the row rather than tombstoning it.
+
+   **What still blocks the row below:** there is no SMTP transport and no Slack
+   transport, so a resolved address reaches a webhook receiver that must itself
+   know how to reach a mailbox or a channel; nothing verifies that an address is
+   reachable, so a typo is indistinguishable from a working destination until a
+   delivery fails; and there is
    no console inbox. Notification authorization decisions *are* audited as of
    #241: the resource half of the check is `ResourceDecision.Allow` in
    `internal/governance/application`, which both these routes and the

@@ -89,10 +89,62 @@ func (store *notificationStore) EventsForResource(
 	return found, nil
 }
 
+// contactBook is the address book without a database, keyed on the same
+// (owner, kind) tuple the PostgreSQL primary key uses.
+type contactBook struct {
+	rows map[string]domain.Contact
+}
+
+var _ ports.Contacts = (*contactBook)(nil)
+
+func contactKey(owner domain.Owner, kind domain.ContactKind) string {
+	return string(owner.Kind) + "\x00" + owner.ID + "\x00" + string(kind)
+}
+
+func (book *contactBook) SaveContact(_ context.Context, contact domain.Contact) error {
+	if err := contact.Validate(); err != nil {
+		return err
+	}
+	book.rows[contactKey(contact.Owner, contact.Kind)] = contact
+	return nil
+}
+
+func (book *contactBook) ContactsFor(
+	_ context.Context, owner domain.Owner,
+) ([]domain.Contact, error) {
+	held := []domain.Contact{}
+	for _, kind := range []domain.ContactKind{
+		domain.ContactEmail, domain.ContactPagerDuty, domain.ContactSlack,
+	} {
+		if contact, found := book.rows[contactKey(owner, kind)]; found {
+			held = append(held, contact)
+		}
+	}
+	return held, nil
+}
+
+func (book *contactBook) DeleteContact(
+	_ context.Context, owner domain.Owner, kind domain.ContactKind,
+) (bool, error) {
+	key := contactKey(owner, kind)
+	if _, found := book.rows[key]; !found {
+		return false, nil
+	}
+	delete(book.rows, key)
+	return true, nil
+}
+
 // hub assembles the real Hub -- the real repository, the real Governance
 // service, the real identity path -- over an in-memory notification store, so
 // what is under test is the wiring rather than a rehearsal of it.
 func hub(t *testing.T) (http.Handler, *notificationStore) {
+	handler, store, _ := hubWithContacts(t)
+	return handler, store
+}
+
+// hubWithContacts is the same Hub with its address book handed back, for the
+// tests that are about who may write an address.
+func hubWithContacts(t *testing.T) (http.Handler, *notificationStore, *contactBook) {
 	t.Helper()
 	repository := controlplane.NewMemoryRepository()
 	service := controlplane.NewGovernanceService(repository)
@@ -117,16 +169,17 @@ func hub(t *testing.T) (http.Handler, *notificationStore) {
 		}
 	}
 	store := newNotificationStore()
+	book := &contactBook{rows: map[string]domain.Contact{}}
 	handler, err := NewHub(repository, controlplane.HandlerOptions{
 		AllowInsecureOperatorIdentityHeaders: true,
 		// Named so that the "local-developer" administrator shortcut is off and
 		// every decision below comes from a grant.
 		BootstrapAdministrators: []string{"root"},
-	}, Options{NotificationStore: store})
+	}, Options{NotificationStore: store, NotificationContacts: book})
 	if err != nil {
 		t.Fatal(err)
 	}
-	return handler, store
+	return handler, store, book
 }
 
 func request(
@@ -605,3 +658,141 @@ func TestTheNotificationRoutesRecordTheAuthorizationTheyDecided(t *testing.T) {
 }
 
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }
+
+// The artifact this change exists to produce, driven through the assembled Hub
+// rather than through a harness. A contact is where somebody's notifications
+// are sent, so a write that reached the wrong owner would not leak bob's mail
+// to alice -- it would redirect alice's mail to bob.
+//
+// bob holds a grant on the Environment throughout, so the resource half of the
+// authorization passes and every refusal below is about whose address it is.
+// There is no administrator override, which the companion test pins.
+func TestThroughTheHubOnePrincipalCannotWriteAnotherPrincipalsContact(t *testing.T) {
+	t.Parallel()
+	handler, _, book := hubWithContacts(t)
+	alice := domain.Owner{Kind: domain.PrincipalUser, ID: "alice"}
+	if err := book.SaveContact(t.Context(), domain.Contact{
+		ID: "ncontact_seed", Owner: alice, Kind: domain.ContactEmail,
+		Address: "alice@example.test", CreatedAt: at(), UpdatedAt: at(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if response := request(t, handler, http.MethodGet,
+		"/v1/notifications/events?resourceRid="+environmentRID, "bob", ""); response.Code != http.StatusOK {
+		t.Fatalf("bob cannot read the resource at all, so the refusals below prove nothing: %d %s",
+			response.Code, response.Body.String())
+	}
+
+	for _, refusal := range []struct{ name, method, target, body string }{
+		{
+			"alice's contact, redirected", http.MethodPut, "/v1/notifications/contacts",
+			`{"owner":{"kind":"USER","id":"alice"},"kind":"EMAIL","address":"attacker@example.test"}`,
+		},
+		{
+			"alice's contact, read", http.MethodGet,
+			"/v1/notifications/contacts?ownerKind=USER&ownerId=alice", "",
+		},
+		{
+			"alice's contact, deleted", http.MethodDelete,
+			"/v1/notifications/contacts?ownerKind=USER&ownerId=alice&kind=EMAIL", "",
+		},
+		{
+			"a contact for a team bob is not on", http.MethodPut, "/v1/notifications/contacts",
+			`{"owner":{"kind":"TEAM","id":"platform"},"kind":"SLACK","address":"#attacker"}`,
+		},
+	} {
+		t.Run(refusal.name, func(t *testing.T) {
+			response := request(t, handler, refusal.method, refusal.target, "bob", refusal.body)
+			if response.Code != http.StatusForbidden {
+				t.Fatalf("answered %d, want %d: %s", response.Code, http.StatusForbidden, response.Body.String())
+			}
+			if strings.Contains(response.Body.String(), "alice@example.test") {
+				t.Fatalf("the refusal disclosed the address it refused: %s", response.Body.String())
+			}
+		})
+	}
+	// The state, which is what a refusal that answered 403 and wrote anyway
+	// would still have changed.
+	if len(book.rows) != 1 {
+		t.Fatalf("a refused write changed the address book: %#v", book.rows)
+	}
+	held := book.rows[contactKey(alice, domain.ContactEmail)]
+	if held.Address != "alice@example.test" {
+		t.Fatalf("alice is now reached at %q", held.Address)
+	}
+
+	// And the same requests as alice, to show the refusals are about identity
+	// rather than the routes being inert.
+	written := request(t, handler, http.MethodPut, "/v1/notifications/contacts", "alice",
+		`{"kind":"EMAIL","address":"alice@elsewhere.test"}`)
+	if written.Code != http.StatusOK {
+		t.Fatalf("alice was refused her own contact: %d %s", written.Code, written.Body.String())
+	}
+	if book.rows[contactKey(alice, domain.ContactEmail)].Address != "alice@elsewhere.test" {
+		t.Fatalf("alice's own write did not reach the store: %#v", book.rows)
+	}
+}
+
+// A Governance administrator holds every resource grant there is, and still
+// holds nothing over a person's address. Deliberate: a grant conveys authority
+// over a resource, and "an operator with enough grants can redirect your mail"
+// is a property somebody would have to discover by being surprised.
+func TestAnAdministratorCannotReadOrRedirectAnybodysContact(t *testing.T) {
+	t.Parallel()
+	handler, _, book := hubWithContacts(t)
+	alice := domain.Owner{Kind: domain.PrincipalUser, ID: "alice"}
+	if err := book.SaveContact(t.Context(), domain.Contact{
+		ID: "ncontact_seed", Owner: alice, Kind: domain.ContactEmail,
+		Address: "alice@example.test", CreatedAt: at(), UpdatedAt: at(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if response := request(t, handler, http.MethodGet,
+		"/v1/notifications/events?resourceRid="+environmentRID, "root", ""); response.Code != http.StatusOK {
+		t.Fatalf("the administrator was refused a resource read, so this proves nothing: %d", response.Code)
+	}
+	for name, refusal := range map[string]struct{ method, target, body string }{
+		"read": {
+			http.MethodGet, "/v1/notifications/contacts?ownerKind=USER&ownerId=alice", "",
+		},
+		"redirect": {
+			http.MethodPut, "/v1/notifications/contacts",
+			`{"owner":{"kind":"USER","id":"alice"},"kind":"EMAIL","address":"root@example.test"}`,
+		},
+	} {
+		response := request(t, handler, refusal.method, refusal.target, "root", refusal.body)
+		if response.Code != http.StatusForbidden {
+			t.Errorf("an administrator %s another principal's contact: %d %s",
+				name, response.Code, response.Body.String())
+		}
+		if strings.Contains(response.Body.String(), "alice@example.test") {
+			t.Errorf("the refusal disclosed the address: %s", response.Body.String())
+		}
+	}
+	if book.rows[contactKey(alice, domain.ContactEmail)].Address != "alice@example.test" {
+		t.Fatalf("an administrator redirected a person's mail: %#v", book.rows)
+	}
+}
+
+// A Hub assembled without an address book serves every route it did before and
+// no contact route, rather than one that answers 500 to the first person who
+// edits their own address.
+func TestAHubWithNoAddressBookServesNoContactRoutes(t *testing.T) {
+	t.Parallel()
+	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true,
+		BootstrapAdministrators:              []string{"root"},
+	}, Options{NotificationStore: newNotificationStore()})
+	if err != nil {
+		t.Fatal(err)
+	}
+	response := request(t, handler, http.MethodGet, "/v1/notifications/contacts", "alice", "")
+	if response.Code != http.StatusNotFound {
+		t.Fatalf("a Hub with no address book answered %d, want %d: %s",
+			response.Code, http.StatusNotFound, response.Body.String())
+	}
+	if own := request(t, handler, http.MethodGet,
+		"/v1/notifications/inbox?channel=EMAIL", "alice", ""); own.Code != http.StatusOK {
+		t.Fatalf("the inbox answered %d without an address book", own.Code)
+	}
+}

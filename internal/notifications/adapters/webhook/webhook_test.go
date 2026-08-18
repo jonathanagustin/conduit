@@ -225,3 +225,66 @@ func TestTheTransportNamesItselfForTheOperatorReadingTheQueue(t *testing.T) {
 		t.Errorf("Name = %q", name)
 	}
 }
+
+// The destination travels to the relay, because the relay is the component that
+// knows how to reach a mailbox or a Slack channel. It is the one field on this
+// wire carrying personal data and this is the one place it is allowed to be.
+func TestThePayloadCarriesTheRecipientsDestinationWhenThereIsOne(t *testing.T) {
+	t.Parallel()
+	stub := &stubTransport{}
+	addressed := message()
+	addressed.Destination = domain.Destination{
+		Kind: domain.ContactSlack, Address: "#platform-alerts",
+	}
+	if err := stubbed(t, stub).Deliver(t.Context(), addressed); err != nil {
+		t.Fatal(err)
+	}
+	var sent struct {
+		Destination *struct {
+			Kind    string `json:"kind"`
+			Address string `json:"address"`
+		} `json:"destination"`
+	}
+	if err := json.Unmarshal(stub.body, &sent); err != nil {
+		t.Fatal(err)
+	}
+	if sent.Destination == nil {
+		t.Fatalf("the payload named no destination: %s", stub.body)
+	}
+	if sent.Destination.Kind != string(domain.ContactSlack) ||
+		sent.Destination.Address != "#platform-alerts" {
+		t.Errorf("the payload named destination %+v", *sent.Destination)
+	}
+}
+
+// A message naming no destination is delivered exactly as it was before
+// contacts existed: no field at all, rather than an empty object a receiver has
+// to learn to read as "none". That is what keeps an existing relay working.
+func TestAnUnresolvedDestinationIsAbsentFromThePayload(t *testing.T) {
+	t.Parallel()
+	stub := &stubTransport{}
+	if err := stubbed(t, stub).Deliver(t.Context(), message()); err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(stub.body), "destination") {
+		t.Errorf("an unaddressed delivery carried a destination field: %s", stub.body)
+	}
+}
+
+// A failing endpoint's own words end up in the reason an operator reads. The
+// address must not, because that reason is stored and logged.
+func TestAFailureReasonNeverCarriesTheAddress(t *testing.T) {
+	t.Parallel()
+	stub := &stubTransport{status: http.StatusInternalServerError, response: "upstream unavailable"}
+	addressed := message()
+	addressed.Destination = domain.Destination{
+		Kind: domain.ContactEmail, Address: "alice@example.test",
+	}
+	err := stubbed(t, stub).Deliver(t.Context(), addressed)
+	if err == nil {
+		t.Fatal("a 500 was reported as delivered")
+	}
+	if strings.Contains(err.Error(), "alice@example.test") {
+		t.Fatalf("the failure quoted the address it was delivering to: %v", err)
+	}
+}
