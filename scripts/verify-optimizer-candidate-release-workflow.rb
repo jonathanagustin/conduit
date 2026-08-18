@@ -85,7 +85,7 @@ required_fragments = [
   "highs) source_date_epoch=1786406400",
   "cpsat) source_date_epoch=1768232310",
   '--build-arg "SOURCE_DATE_EPOCH=${source_date_epoch}"',
-  "byteIdenticalImage",
+  'test "${second_image_id}" = "${first_image_id}"',
   'cmp "${gate}" "${TMPDIR}/revalidated-candidate-gate.json"',
   'admission: "UNADMITTED"',
   "selectable: false",
