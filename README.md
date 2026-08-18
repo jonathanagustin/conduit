@@ -91,11 +91,13 @@ of each result.
 short-lived branch and a squash-merged pull request. The pull request records
 the source and unsupported scope of every material Apollo-facing claim.
 
-Repository-authored GitHub workflows are manual-only because hosted Actions
-minutes are deliberately controlled. Pushes and pull requests do not start
-paid CI. Once local verification is clean, manually dispatch the **Trunk gate**
-for the exact pull-request commit. A successful gate authorizes neither release
-publication nor tenant deployment.
+Hosted Actions minutes are deliberately controlled, so publication, release,
+signing, and deployment workflows start only when a person dispatches them.
+Verification is automatic: the **Trunk gate** runs on every pull request against
+`main` and verifies that pull request's exact head commit, cancelling the run a
+new push supersedes. Run local verification first anyway — a runner is a slow
+place to discover a formatting error. A successful gate authorizes neither
+merge, release publication, nor tenant deployment.
 
 The complete flow is in [CONTRIBUTING.md](CONTRIBUTING.md),
 [manual CI](docs/operations/manual-ci.md), and

@@ -69,11 +69,20 @@ What does **not** change:
   only, and `scripts/verify-optimizer-candidate-release-workflow.rb` and
   `scripts/verify-flux-runtime.rb` continue to enforce that shape on those named
   workflows.
-- **The Trunk gate stays dispatch-based** for the reason it always was: it
-  authenticates the exact pull-request head SHA before running and bridges a
-  commit status the PR rollup cannot otherwise see. A merge queue, when built,
-  is a *separate* `merge_group` workflow; it does not change how the Trunk gate
-  is invoked.
+- ~~**The Trunk gate stays dispatch-based**~~ — **amended 2026-08-18 (#195).**
+  This was stated as something the decision did not change, but it was a
+  description of the status quo rather than a constraint the decision implied:
+  the gate is a verification workflow, which the outcome above explicitly
+  permits to run on `pull_request`. The two reasons given were not reasons to
+  keep dispatching it. Authenticating the exact head is *easier* on the event
+  path, where GitHub supplies the head SHA and the pull request number instead
+  of a person naming a ref and a number that nothing relates
+  (`scripts/authenticate-pull-request-head.sh` now does both), and the commit
+  status bridge is kept for a reason that has nothing to do with the trigger:
+  the release path reads the head's *commit status*, which no check suite
+  supplies. The gate now runs on `pull_request` under the guardrails below and
+  stays dispatchable for a re-run on an unchanged tree. A merge queue, when
+  built, is still a *separate* `merge_group` workflow.
 - **A5 stands.** A green automated run is evidence, never authorization to
   merge, release, publish, or deploy.
 
@@ -102,8 +111,9 @@ Any repository-authored workflow that runs without a person dispatching it must:
   structurally impossible for the class of workflow that caused it.
 - Bad: automated runner time is now spent without a person in the loop, bounded
   but non-zero. The guardrails cap it; they do not eliminate it.
-- Neutral: existing manual workflows are unchanged. This permits new automation;
-  it does not convert anything.
+- Neutral: existing manual workflows were unchanged by this decision itself. It
+  permitted new automation; converting an existing workflow was left to be
+  argued on its own, which is what #195 then did for the Trunk gate.
 
 ### Confirmation
 
@@ -121,6 +131,12 @@ than merely documented:
 - `scripts/verify-flux-runtime.rb` — `platform-gitless-e2e.yml`, the acceptance
   workflow, by literal trigger match plus a rejection of `push`,
   `pull_request` and `schedule`.
+
+The verification half is executable too, since #195 put the Trunk gate on a
+`pull_request` trigger: `scripts/verify-pr-fidelity.test.sh` holds that workflow
+to both triggers, to a `concurrency` key that collapses per pull request (so a
+dispatched re-run supersedes the automatic run rather than billing beside it),
+and to publishing its verdict against the authenticated head commit.
 
 This list was wrong until #194: it claimed the first two workflows were covered
 by the latter two checks, while `platform-images.yml` — the load-bearing one

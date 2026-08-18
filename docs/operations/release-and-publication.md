@@ -15,7 +15,7 @@ Before a release:
 
 ## Cutting a release: one instruction
 
-Land the `VERSION` bump the ordinary way — pull request, dispatched Trunk gate,
+Land the `VERSION` bump the ordinary way — pull request, green Trunk gate,
 squash merge — and then give one instruction:
 
 ```bash

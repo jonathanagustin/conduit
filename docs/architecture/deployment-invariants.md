@@ -38,11 +38,13 @@ with `Recreate` and a retained PVC.
 
 ## Manual CI and release
 
-CI is deliberately manual because hosted runner time has a direct cost. The
-Trunk gate must be dispatched for the exact pull-request commit before merge.
-Other expensive checks and publication workflows are run only when their
-release or verification purpose is explicit. No push, pull-request, merge, or
-tag event may silently start a repository-authored workflow.
+Hosted runner time has a direct cost, so what may start a workflow is decided
+per workflow rather than by default. The Trunk gate verifies the exact
+pull-request head commit before merge, and starts itself on the `pull_request`
+event under ADR 0006's guardrails — superseded runs cancel, so a stack of runs
+for one branch cannot accumulate. Publication, release, signing, and deployment
+workflows start only on an explicit dispatch; no push, pull-request, merge, or
+tag event may start one.
 
 A green Trunk gate authorizes only the branch merge rule it satisfies. It does
 not authorize OCI publication, registry promotion, tenant reconciliation, or
