@@ -4,6 +4,28 @@ name: Trunk gate
 # scripts/verify-local.sh reads this file so the two cannot drift -- and the
 # automatic triggers were spending far more than they caught: a run of merges
 # queues one verification per merge, each superseding the last.
+#
+# The gates run in four parallel lanes behind one head-authentication job. As a
+# single job of forty-five sequential steps this took 16m20s, of which four
+# mutually independent steps -- the CLI cross-compile matrix, the Go suite, the
+# console suite, and the linter -- were 12m57s (#213). They were sequential only
+# because they shared a job. Lanes are balanced so no lane is much longer than
+# the cross-compile matrix, which is the floor nothing can go below, and each
+# lane installs only the toolchain its own gates use: copying every install into
+# every lane would trade the sequential time back for setup time.
+#
+# Two properties survive the split and are the reason it is shaped this way:
+#
+#   - Head authentication gates every lane. It is its own job and every lane
+#     `needs` it, so no lane can verify a tree nobody proposed -- a lane running
+#     before or without the preflight would be a hole in the gate, not a
+#     scheduling detail.
+#   - Exactly one job owns the `Trunk gate` commit status. The `trunk-status`
+#     job below runs under `always()`, needs every lane, and reports success
+#     only when every lane it needs ended in `success`. A lane that fails, is
+#     cancelled, or is skipped because the preflight failed all read as a failed
+#     gate, because a status that reports success while a lane failed is worse
+#     than no status at all.
 on:
   workflow_dispatch:
     inputs:
@@ -20,7 +42,7 @@ concurrency:
   cancel-in-progress: true
 
 permissions:
-  # actions: read lets the gate-summary step read this run's own step list.
+  # actions: read lets the gate-summary step read this run's own job list.
   actions: read
   contents: read
   pull-requests: read
@@ -31,12 +53,14 @@ defaults:
     working-directory: .
 
 jobs:
-  verify:
-    name: Trunk gate
+  # Nothing else in this workflow may start until the dispatched ref is proven
+  # to be the head of the named open pull request, so this is a job of its own
+  # that every lane needs rather than a step each lane would have to repeat.
+  preflight:
+    name: Head authentication
     runs-on: ubuntu-24.04
-    # Observed at about a minute. An uncapped job runs to GitHub's six-hour
-    # default, so a hang costs six hours of runner time instead of failing.
-    timeout-minutes: 20
+    # Two API calls and two shell verifiers; a minute is generous.
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Validate tenant fidelity policy
@@ -69,9 +93,10 @@ jobs:
       # Run 49 died here: GitHub answered this POST with 503 and the step, under
       # `bash -e`, exited 1 before a single gate had run. Thirty verifications
       # were skipped because a status could not be written about them. The same
-      # call at the end of the job -- the two steps below -- would have turned an
-      # all-green run red for the same reason, which is the worse half: a gate
-      # that reports failure when nothing failed teaches everyone to ignore it.
+      # call at the end of the run -- the two steps in `trunk-status` -- would
+      # have turned an all-green run red for the same reason, which is the worse
+      # half: a gate that reports failure when nothing failed teaches everyone to
+      # ignore it.
       #
       # So all three status steps retry a transient GitHub failure, and none of
       # them can fail the job. Retrying alone would not have been enough; that
@@ -89,12 +114,108 @@ jobs:
             -f context='Trunk gate' \
             -f description='Manual Trunk verification is running' \
             -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+
+  # The Go suite and the gates that need a compiler and a database. No Node and
+  # no browser here: nothing in this lane reads either.
+  go:
+    name: Go suite
+    needs: preflight
+    runs-on: ubuntu-24.04
+    # Observed at about four minutes. An uncapped job runs to GitHub's six-hour
+    # default, so a hang costs six hours of runner time instead of failing.
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           # uses: inputs are not covered by defaults.run.working-directory,
           # so this path is repository-root relative.
           go-version-file: go.mod
           cache: true
+      # Helm is installed before the tests because the post-render integration
+      # test skips when helm is absent on PATH. Installing it later -- or leaving
+      # it to another lane -- would let that test silently skip here and leave a
+      # Helm-version regression to be caught only by cluster acceptance, minutes
+      # into a run.
+      - name: Install pinned Helm
+        run: |
+          curl --fail --silent --show-error --location \
+            https://get.helm.sh/helm-v4.2.3-linux-amd64.tar.gz \
+            --output /tmp/helm.tar.gz
+          echo 'e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c  /tmp/helm.tar.gz' | sha256sum --check
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+      # Nothing here checked formatting until now: vet does not, and staticcheck
+      # does not. An unformatted file reached main in #21 and stayed there
+      # through eighteen merges because no gate looked. This runs first because
+      # it is the cheapest of them.
+      - name: Check formatting
+        run: |
+          unformatted="$(gofmt -l .)"
+          if [[ -n "${unformatted}" ]]; then
+            echo "::error::not gofmt-clean; run gofmt -w on:"
+            echo "${unformatted}"
+            exit 1
+          fi
+      - name: Test
+        # Turns the integration test's skip into a failure, so a missing helm is
+        # reported rather than passed over.
+        env:
+          PLATFORM_REQUIRE_HELM: "1"
+        run: go test -race ./...
+      # The mutation harness deliberately corrupts a source file and then
+      # reports that the tree is fine. A regression in its restore does not
+      # merely fail -- it reports kills it never achieved and leaves mutants
+      # behind, which is worse than having no harness. This is seconds long.
+      - name: Validate mutation harness
+        run: ./scripts/verify-mutant-killed.test.sh
+      - name: Validate PostgreSQL repository
+        run: ./scripts/test-postgres-repository.sh
+      - name: Vet
+        run: go vet ./...
+      - name: Build commands
+        run: |
+          go build -o /dev/null ./cmd/platform-delivery
+          go build -o /dev/null ./cmd/platform-operator
+          go build -o /dev/null ./cmd/platform-spoke-agent
+          go build -o /dev/null ./cmd/platform-module-publisher
+          go build -o /dev/null ./cmd/platform-grype-scanner
+          go build -o /dev/null ./cmd/conduit
+      - name: Validate Module publication
+        run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
+
+  # The six-target cross-compile, alone in its lane because it is the longest
+  # gate in the workflow (5m51s) and therefore the floor on the whole run. Every
+  # GOOS/GOARCH pair has its own build-cache entries and the host-platform cache
+  # does not cover them, so this lane is cold by construction; pairing it with
+  # anything would push the floor up by exactly that thing's duration.
+  cli-matrix:
+    name: CLI release targets
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Validate standalone CLI release targets
+        run: ./scripts/verify-cli-release-targets.sh
+
+  # The console lane owns the browser install, which is the one piece of setup
+  # expensive enough to be worth confining to the lane that needs it.
+  console:
+    name: Operator console
+    needs: preflight
+    runs-on: ubuntu-24.04
+    # Longer than the other lanes on purpose. The browser install below is three
+    # bounded five-minute attempts, so a lane capped at twenty minutes could
+    # spend its whole budget retrying a stalled download and be cancelled before
+    # the console suite it exists for ever ran.
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - name: Install pinned pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
@@ -120,6 +241,9 @@ jobs:
         # fails its attempt and retries instead of eating the budget the gates
         # need. The retry is for a hung or failed download only; it cannot mask
         # a browser that installs and then misbehaves, which is the test's job.
+        #
+        # Since #213 the blast radius is also smaller: a stall here cancels this
+        # lane, not the Go, CLI, and validator lanes, which have already run.
         run: |
           for attempt in 1 2 3; do
             if timeout 5m pnpm --dir web exec playwright install --with-deps chromium; then
@@ -130,11 +254,45 @@ jobs:
           done
           echo "console browser install did not succeed in three bounded attempts" >&2
           exit 1
-      # Helm is installed before the tests, not with the other tooling further
-      # down, because the post-render integration test skips when helm is absent
-      # on PATH. Installing it later would let that test silently skip here and
-      # leave a Helm-version regression to be caught only by cluster acceptance,
-      # minutes into a run.
+      - name: Validate operator console
+        run: ./scripts/test-console.sh
+      # The console hand-writes small tables turning a Hub status into a colour.
+      # Nothing tied them to the Go constants they mirror, so they drifted onto
+      # invented values while omitting real ones -- and browser fixtures using
+      # the same invented values passed. This reads the Go source directly and
+      # fails when a console vocabulary and the Hub's disagree; its self-test
+      # proves it rejects both an invented and a dropped value. It reads Go as
+      # text, so it needs no Go toolchain and stays with the console.
+      - name: Validate console contract
+        run: |
+          ./scripts/verify-console-contract.test.sh
+          node scripts/verify-console-contract.mjs
+
+  # The linter, the vulnerability scan, and every sub-second validator. Two
+  # minutes of the lane is staticcheck and govulncheck; the remaining two dozen
+  # gates are about half a minute together, so they ride along for free rather
+  # than each paying for a runner of their own.
+  checks:
+    name: Lint and validators
+    needs: preflight
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      # Node without pnpm or the console's dependency install: every validator in
+      # this lane is a plain script over node: builtins. The version is still the
+      # pinned one, because scripts/verify-trusted-supply-chain.rb requires every
+      # workflow's node-version to equal the one mise.toml declares.
+      - name: Install pinned Node
+        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24.19.0
+      # Helm is here for the runtime-chart gate below, which templates, lints,
+      # and packages both charts with it.
       - name: Install pinned Helm
         run: |
           curl --fail --silent --show-error --location \
@@ -143,18 +301,6 @@ jobs:
           echo 'e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c  /tmp/helm.tar.gz' | sha256sum --check
           tar -xzf /tmp/helm.tar.gz -C /tmp
           sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
-      # Nothing here checked formatting until now: vet does not, and staticcheck
-      # does not. An unformatted file reached main in #21 and stayed there
-      # through eighteen merges because no gate looked. This runs first because
-      # it is the cheapest of them.
-      - name: Check formatting
-        run: |
-          unformatted="$(gofmt -l .)"
-          if [[ -n "${unformatted}" ]]; then
-            echo "::error::not gofmt-clean; run gofmt -w on:"
-            echo "${unformatted}"
-            exit 1
-          fi
       # The three status steps are continue-on-error, so a permanent failure in
       # them -- a revoked token, a permissions block -- would otherwise be
       # swallowed silently. That is only acceptable because the retry wrapper
@@ -164,18 +310,6 @@ jobs:
       # written and what its self-test caught.
       - name: Validate GitHub API retry
         run: ./scripts/test-retry-github-api.sh
-      - name: Test
-        # Turns the integration test's skip into a failure, so a missing helm is
-        # reported rather than passed over.
-        env:
-          PLATFORM_REQUIRE_HELM: "1"
-        run: go test -race ./...
-      # The mutation harness deliberately corrupts a source file and then
-      # reports that the tree is fine. A regression in its restore does not
-      # merely fail -- it reports kills it never achieved and leaves mutants
-      # behind, which is worse than having no harness. This is seconds long.
-      - name: Validate mutation harness
-        run: ./scripts/verify-mutant-killed.test.sh
       # The offline half of the mutation gate. A full sweep compiles and runs
       # the suite once per mutant, so it lives in scripts/mutation-sweep.sh and
       # the scheduled mutation-sweep.yml, not here. This runs in milliseconds,
@@ -187,24 +321,6 @@ jobs:
         run: |
           ./scripts/verify-mutation-scores.test.sh
           node scripts/verify-mutation-scores.mjs
-      - name: Validate PostgreSQL repository
-        run: ./scripts/test-postgres-repository.sh
-      - name: Vet
-        run: go vet ./...
-      - name: Validate standalone CLI release targets
-        run: ./scripts/verify-cli-release-targets.sh
-      - name: Validate operator console
-        run: ./scripts/test-console.sh
-      # The console hand-writes small tables turning a Hub status into a colour.
-      # Nothing tied them to the Go constants they mirror, so they drifted onto
-      # invented values while omitting real ones -- and browser fixtures using
-      # the same invented values passed. This reads the Go source directly and
-      # fails when a console vocabulary and the Hub's disagree; its self-test
-      # proves it rejects both an invented and a dropped value.
-      - name: Validate console contract
-        run: |
-          ./scripts/verify-console-contract.test.sh
-          node scripts/verify-console-contract.mjs
       # Grype scans the built images, so it only ever sees the compiler the
       # Containerfiles pin. This scans what the module itself declares, and
       # reports call-graph-reachable findings, so a toolchain or dependency
@@ -277,14 +393,6 @@ jobs:
         env:
           ZARF_BIN: /tmp/zarf
         run: ruby scripts/verify-zarf-package.rb
-      - name: Build commands
-        run: |
-          go build -o /dev/null ./cmd/platform-delivery
-          go build -o /dev/null ./cmd/platform-operator
-          go build -o /dev/null ./cmd/platform-spoke-agent
-          go build -o /dev/null ./cmd/platform-module-publisher
-          go build -o /dev/null ./cmd/platform-grype-scanner
-          go build -o /dev/null ./cmd/conduit
       - name: Validate Apollo public contract
         run: |
           ruby scripts/apollo-docs/validate-public-api.rb \
@@ -326,43 +434,84 @@ jobs:
         run: |
           node scripts/verify-review-ledger.mjs
           ./scripts/verify-review-ledger.test.sh
-      - name: Validate Module publication
-        run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
       - name: GitOps acceptance
         run: ./scripts/test-gitops.sh
+
+  # The single owner of the `Trunk gate` commit status, which exists because a
+  # workflow_dispatch check suite is not attached to the pull-request rollup
+  # (docs/operations/manual-ci.md). It needs every lane, so GitHub will not start
+  # it until each has finished, and it runs under always() so a red lane still
+  # gets a verdict written about it.
+  trunk-status:
+    name: Trunk gate
+    needs: [preflight, go, cli-matrix, console, checks]
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       # Observability: a glanceable per-gate table on the run's Summary page,
       # and a named ::error:: annotation for each failed gate, so a red run
       # names its failing gate without anyone opening the log. Reads this
-      # run's own step list; setup/teardown steps are filtered out.
+      # run's own job list; setup/teardown steps are filtered out. The lane
+      # column is what tells you which runner a gate ran on now that they are
+      # no longer one job.
       - name: Publish gate summary
         if: ${{ always() }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
+          LANE_RESULTS: ${{ toJSON(needs) }}
         run: |
           run_jobs="$(./scripts/retry-github-api.sh gh api "repos/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}/jobs")"
           {
             echo "## Trunk gate results"
             echo
-            echo "| Gate | Result | Duration |"
-            echo "| --- | --- | --- |"
-            jq -r '.jobs[].steps[]
+            echo "| Lane | Gate | Result | Duration |"
+            echo "| --- | --- | --- | --- |"
+            jq -r '.jobs[] as $job
+              | $job.steps[]
               | select(.conclusion != null)
               | select(.name | test("^(Set up job|Complete job|Post |Run actions/|Install |Publish )") | not)
-              | "| \(.name) | \(if .conclusion == "success" then "✅ success" else "❌ \(.conclusion)" end) | \((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601))s |"' \
+              | "| \($job.name) | \(.name) | \(if .conclusion == "success" then "✅ success" else "❌ \(.conclusion)" end) | \((.completed_at | fromdateiso8601) - (.started_at | fromdateiso8601))s |"' \
               <<<"$run_jobs"
           } >> "$GITHUB_STEP_SUMMARY"
           jq -r '.jobs[].steps[] | select(.conclusion == "failure") | .name' <<<"$run_jobs" |
             while IFS= read -r gate; do
               printf '::error title=Trunk gate failed::%s\n' "$gate"
             done
+          # A lane that was cancelled or skipped has no failed step to annotate --
+          # its steps are cancelled or absent -- so the lane itself is named.
+          # Without this a timed-out lane would produce a red status and a
+          # summary that points at nothing.
+          jq -r 'to_entries[] | select(.value.result != "success") | "\(.key) (\(.value.result))"' <<<"${LANE_RESULTS}" |
+            while IFS= read -r lane; do
+              printf '::error title=Trunk gate lane not green::%s\n' "$lane"
+            done
       - name: Publish final Trunk status
         if: ${{ always() }}
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
-          TRUNK_STATE: ${{ job.status == 'success' && 'success' || 'failure' }}
+          LANE_RESULTS: ${{ toJSON(needs) }}
         run: |
+          # `job.status` cannot be used here: it is this job's own status, and
+          # this job only publishes a status, so it is green whatever the lanes
+          # did. The verdict is the lanes' results, and it is computed
+          # fail-closed -- failure unless every lane it needs is explicitly
+          # `success`. That way a result this shell has never heard of, a lane
+          # cancelled by its timeout, a lane skipped because head authentication
+          # failed, and an empty needs set left behind by some later
+          # restructuring all read as a failed gate. Reporting success while a
+          # lane failed is the one outcome that would make the gate worse than
+          # not having it.
+          TRUNK_STATE=failure
+          if jq --exit-status 'length > 0 and all(.[]; .result == "success")' \
+            <<<"${LANE_RESULTS}" >/dev/null; then
+            TRUNK_STATE=success
+          fi
+          echo "lane results: ${LANE_RESULTS}"
+          echo "Trunk gate verdict: ${TRUNK_STATE}"
           ./scripts/retry-github-api.sh \
             gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
             -f state="${TRUNK_STATE}" \
