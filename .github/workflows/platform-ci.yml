@@ -604,18 +604,28 @@ jobs:
           # `job.status` cannot be used here: it is this job's own status, and
           # this job only publishes a status, so it is green whatever the lanes
           # did. The verdict is the lanes' results, and it is computed
-          # fail-closed -- failure unless every lane it needs is explicitly
-          # `success`. That way a result this shell has never heard of, a lane
-          # cancelled by its timeout, a lane skipped because head authentication
-          # failed, and an empty needs set left behind by some later
-          # restructuring all read as a failed gate. Reporting success while a
-          # lane failed is the one outcome that would make the gate worse than
-          # not having it.
+          # fail-closed -- failure unless `needs` is an object with at least one
+          # lane in it and every lane is explicitly `success`. That way a result
+          # this shell has never heard of, a lane cancelled by its timeout, a
+          # lane skipped because head authentication failed, an answer that is
+          # not a lane set at all, and an empty needs set left behind by some
+          # later restructuring all read as a failed gate. Reporting success
+          # while a lane failed is the one outcome that would make the gate
+          # worse than not having it.
+          #
+          # This body is lifted out of the workflow and run against synthetic
+          # lane results by scripts/verify-pr-fidelity.test.sh, so every branch
+          # of it is exercised offline, on the workflow as written.
           TRUNK_STATE=failure
-          if jq --exit-status 'length > 0 and all(.[]; .result == "success")' \
+          if jq --exit-status \
+            'type == "object" and length > 0 and all(.[]; .result == "success")' \
             <<<"${LANE_RESULTS}" >/dev/null; then
             TRUNK_STATE=success
           fi
+          # Handed to the step below, which is the one that decides this job's
+          # own conclusion. Written before the API call so a publish that fails
+          # still leaves the verdict behind for it to act on.
+          echo "TRUNK_STATE=${TRUNK_STATE}" >>"${GITHUB_ENV}"
           echo "lane results: ${LANE_RESULTS}"
           echo "Trunk gate verdict: ${TRUNK_STATE}"
           ./scripts/retry-github-api.sh \
@@ -624,3 +634,26 @@ jobs:
             -f context='Trunk gate' \
             -f description="Trunk verification ${TRUNK_STATE}" \
             -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+      # Two different things in this repository are called `Trunk gate`: the
+      # commit status the step above publishes, which the release path reads,
+      # and this job, which appears in the pull request's check runs under its
+      # `name:`. They were allowed to disagree. Every step here is
+      # `continue-on-error` so that a publish failure cannot swallow the
+      # verdict, but that also meant the job concluded `success` no matter what
+      # it had just published -- and on pull request 245, which failed head
+      # authentication and skipped all four lanes, the checks list showed a
+      # green `Trunk gate` beside a red `Trunk gate`. Reading either surface is
+      # reasonable, so both must say the same thing.
+      #
+      # This step is deliberately not `continue-on-error`: it is the only one
+      # whose job is to fail. `TRUNK_STATE` unset is a failure too, because the
+      # only way to reach here without it is a step above that died before
+      # computing a verdict.
+      - name: Conclude the Trunk gate job with its own verdict
+        if: ${{ always() }}
+        run: |
+          if [[ "${TRUNK_STATE:-}" != success ]]; then
+            echo "Trunk gate verdict was '${TRUNK_STATE:-<never computed>}'; failing this job to match" >&2
+            exit 1
+          fi
+          echo 'Trunk gate verdict was success'
