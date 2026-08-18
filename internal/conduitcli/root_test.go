@@ -23,6 +23,7 @@ type fakeService struct {
 	team         controlplane.Team
 	environment  controlplane.EnvironmentCatalogRecord
 	entities     []controlplane.Entity
+	products     []controlplane.ProductCatalogRecord
 	versions     []controlplane.TargetHubEntityVersion
 	terraform    controlplane.TerraformProductManifest
 	helmBundle   controlplane.HelmProductReleaseBundle
@@ -162,7 +163,10 @@ func (service *fakeService) ListEntities(_ context.Context, _ string) ([]control
 	}
 	return []controlplane.Entity{{Name: "application", Product: "com.example:application", Version: "1.2.3"}}, nil
 }
-func (*fakeService) ListProducts(context.Context) ([]controlplane.ProductCatalogRecord, error) {
+func (service *fakeService) ListProducts(context.Context) ([]controlplane.ProductCatalogRecord, error) {
+	if service.products != nil {
+		return service.products, nil
+	}
 	return []controlplane.ProductCatalogRecord{{Product: "com.example:application"}}, nil
 }
 func (*fakeService) ListProductReleases(_ context.Context, product string) ([]controlplane.Release, error) {
@@ -512,6 +516,56 @@ func TestEnvironmentVersionCompareFiltersResolvedReleaseChannel(t *testing.T) {
 	}
 }
 
+// A universal Entity reports one installation per namespace under the
+// "<entity>@<namespaceRID>" identity the planner mints, never under its bare
+// name. The Release Channel filter used to look up Entity names, matched none of
+// those, and dropped them silently — the comparison an operator runs to find
+// drift answered as if there were none.
+func TestEnvironmentVersionCompareKeepsUniversalInstallationsOnTheChannel(t *testing.T) {
+	t.Parallel()
+	service := &fakeService{
+		environment: controlplane.EnvironmentCatalogRecord{Environment: controlplane.Environment{
+			ID: "dev", DefaultReleaseChannel: "STABLE",
+			Namespaces: []controlplane.NamespaceTarget{
+				{RID: "ri.namespace.alpha", Name: "alpha", EnrollmentRID: "enrollment-a", OntologyCountValid: true},
+				{RID: "ri.namespace.beta", Name: "beta", EnrollmentRID: "enrollment-a", OntologyCountValid: true},
+			},
+		}},
+		entities: []controlplane.Entity{
+			{Name: "application"},
+			{Name: "workspace", Universal: &controlplane.UniversalInstallationConfiguration{}},
+			{Name: "canary", ReleaseChannel: "RELEASE", Universal: &controlplane.UniversalInstallationConfiguration{}},
+		},
+		versions: []controlplane.TargetHubEntityVersion{
+			{InstallationID: "application", Version: "1.2.3"},
+			{InstallationID: "workspace@ri.namespace.alpha", Version: "2.0.0"},
+			{InstallationID: "workspace@ri.namespace.beta", Version: "1.9.0"},
+			{InstallationID: "canary@ri.namespace.alpha", Version: "3.0.0"},
+		},
+	}
+	var output bytes.Buffer
+	root := NewRoot(testRuntime(&output, service))
+	root.SetArgs([]string{
+		"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+		"environment", "version", "compare", "dev", "--release-channel", "STABLE",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	for _, wanted := range []string{
+		`"installationId": "application"`,
+		`"installationId": "workspace@ri.namespace.alpha"`,
+		`"installationId": "workspace@ri.namespace.beta"`,
+	} {
+		if !strings.Contains(output.String(), wanted) {
+			t.Fatalf("filtered versions are missing %s: %s", wanted, output.String())
+		}
+	}
+	if strings.Contains(output.String(), `"installationId": "canary@ri.namespace.alpha"`) {
+		t.Fatalf("an Entity on another Release Channel survived the filter: %s", output.String())
+	}
+}
+
 func TestProductReleaseCreatePublishesTypedTerraformManifest(t *testing.T) {
 	t.Parallel()
 	manifestPath := filepath.Join(t.TempDir(), "manifest.yml")
@@ -588,6 +642,61 @@ extensions:
 	}
 	if err := run("com.example:network:1.2.3"); err != nil {
 		t.Fatalf("matching coordinate rejected: %v", err)
+	}
+}
+
+// The Hub stores an anonymous content-addressed blob: UploadArtifact sends the
+// file body and nothing else. So the command must not report a coordinate, an
+// image list or a label as if the asset had been bound to them, and must not
+// accept flags nothing can carry. Echoing them made the output evidence of a
+// binding that does not exist, which is exactly what an operator following this
+// repo's "verify by output" rule would have believed.
+func TestProductReleaseAssetPublishReportsOnlyWhatItBound(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	assetPath := filepath.Join(directory, "asset.bin")
+	if err := os.WriteFile(assetPath, []byte("asset"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(arguments ...string) (string, error) {
+		var output bytes.Buffer
+		root := NewRoot(testRuntime(&output, &fakeService{}))
+		root.SetArgs(append([]string{
+			"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+			"product-release", "asset", "publish", "--asset-path", assetPath,
+		}, arguments...))
+		root.SetOut(&output)
+		root.SetErr(&output)
+		err := root.Execute()
+		return output.String(), err
+	}
+
+	printed, err := run()
+	if err != nil {
+		t.Fatalf("plain publish rejected: %v", err)
+	}
+	for _, absent := range []string{"mavenCoordinate", "manifestFile", "images", "label"} {
+		if strings.Contains(printed, absent) {
+			t.Fatalf("publish output reports %q, which nothing bound: %s", absent, printed)
+		}
+	}
+
+	// An unknown-flag error tells the operator the truth immediately, which is
+	// the whole reason these are absent rather than accepted and dropped.
+	for _, unbindable := range [][]string{
+		{"--images", "registry.example/app@sha256:" + strings.Repeat("0", 64)},
+		{"--label-name", "env", "--label-value", "prod"},
+	} {
+		if _, err := run(unbindable...); err == nil {
+			t.Fatalf("publish accepted %v, which it cannot record", unbindable)
+		}
+	}
+
+	// The coordinate is only ever read by the manifest cross-check, so alone it
+	// named an owner nothing verified.
+	if _, err := run("--maven-coordinate", "com.example:network:1.2.3"); err == nil {
+		t.Fatal("publish accepted a --maven-coordinate with no manifest to verify it against")
 	}
 }
 

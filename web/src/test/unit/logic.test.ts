@@ -11,7 +11,13 @@ import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
 import { installation } from "../fixtures.js";
-import { reviewBody, type ChangeRequest } from "../../api/resources.js";
+import {
+  PLAN_TERMINAL_STATUSES,
+  planPollInterval,
+  reviewBody,
+  reviewInvalidationKeys,
+  type ChangeRequest,
+} from "../../api/resources.js";
 
 /** Unit tests over the console's own logic -- the parts that are not the Hub's
  * behaviour and not Blueprint's. These exist to be mutated: the browser tests
@@ -461,5 +467,55 @@ describe("review bodies match the Hub's decoder", () => {
     expect(reviewBody("approve", "ok")).toEqual({ rationale: "ok" });
     expect(reviewBody("reject", "no")).toEqual({ rationale: "no" });
     expect(reviewBody("cancel", "superseded")).toEqual({ reason: "superseded" });
+  });
+
+  // The Plans index refreshed after an approval and the Plan detail page did
+  // not, so the two screens disagreed about the Plan just acted on. The key is
+  // a prefix because this hook holds the Change Request's id, not the Plan's.
+  it("makes the open Plan detail stale, not only the Plans index", () => {
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["plan"]);
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["plans"]);
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["change-request", "crq_1"]);
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["change-requests"]);
+  });
+});
+
+describe("plan detail polling", () => {
+  // The Agent drives APPROVED -> LEASED -> RUNNING -> SUCCEEDED/FAILED with no
+  // help from the console (internal/controlplane/lifecycle.go), and
+  // AWAITING_APPROVAL moves the moment another reviewer approves. Polling only
+  // RUNNING and LEASED therefore froze a Plan detail page opened at APPROVED
+  // for the entire rollout, while the Plans index beside it kept moving.
+  it("polls a Plan the Hub can still move, APPROVED included", () => {
+    expect(planPollInterval("APPROVED")).toBe(5_000);
+    expect(planPollInterval("AWAITING_APPROVAL")).toBe(5_000);
+    expect(planPollInterval("LEASED")).toBe(5_000);
+    expect(planPollInterval("RUNNING")).toBe(5_000);
+  });
+
+  it("stops at a status no transition leaves", () => {
+    expect(planPollInterval("SUCCEEDED")).toBe(false);
+    expect(planPollInterval("FAILED")).toBe(false);
+    expect(planPollInterval("CANCELLED")).toBe(false);
+    expect(planPollInterval("RECORDED")).toBe(false);
+  });
+
+  // A status the Hub never emits would be a terminal entry that silences
+  // nothing, and the mistake is invisible in the assertions above because they
+  // spell the same strings. PLAN_INTENT is held to the Go consts by
+  // scripts/verify-console-contract.mjs, so comparing against it borrows that
+  // gate's authority.
+  it("names only statuses the Hub actually emits, and not all of them", () => {
+    for (const status of PLAN_TERMINAL_STATUSES) {
+      expect(Object.keys(PLAN_INTENT)).toContain(status);
+    }
+    expect(PLAN_TERMINAL_STATUSES.size).toBeLessThan(Object.keys(PLAN_INTENT).length);
+  });
+
+  it("does not poll before a Plan has loaded", () => {
+    // React Query owns retrying the first fetch; polling here would re-ask for
+    // a Plan id the Hub refuses every five seconds for as long as the tab is
+    // open.
+    expect(planPollInterval(undefined)).toBe(false);
   });
 });
