@@ -5,6 +5,8 @@ import (
 	"crypto"
 	"crypto/rand"
 	"crypto/rsa"
+	"crypto/tls"
+	"crypto/x509"
 	"net/http"
 	"strings"
 	"testing"
@@ -241,4 +243,32 @@ func withOIDCNotBefore(claims jwt.Claims, notBefore time.Time) jwt.Claims {
 func withOIDCIssuedAt(claims jwt.Claims, issuedAt time.Time) jwt.Claims {
 	claims.IssuedAt = jwt.NewNumericDate(issuedAt)
 	return claims
+}
+
+func TestAgentIdentityFromRequestDoesNotFallbackToHeadersWhenCertificateVerificationFails(t *testing.T) {
+	request, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://hub.example.test/v1/agent/report", nil)
+	request.Header.Set("X-Platform-Environment-ID", "prod")
+	request.Header.Set("X-Platform-Agent-ID", "agent-1")
+	request.TLS = &tls.ConnectionState{
+		PeerCertificates: []*x509.Certificate{{}},
+	}
+
+	identity, err := httpidentity.AgentIdentityFromRequest(request, true)
+	if err == nil {
+		t.Fatalf("unverified certificate fell back to development headers: identity=%#v", identity)
+	}
+}
+
+func TestAgentIdentityFromRequestUsesHeadersOnlyWhenNoCertificateWasPresented(t *testing.T) {
+	request, _ := http.NewRequestWithContext(context.Background(), http.MethodPost, "https://hub.example.test/v1/agent/report", nil)
+	request.Header.Set("X-Platform-Environment-ID", "prod")
+	request.Header.Set("X-Platform-Agent-ID", "agent-1")
+
+	identity, err := httpidentity.AgentIdentityFromRequest(request, true)
+	if err != nil {
+		t.Fatalf("development headers were not accepted without a certificate: %v", err)
+	}
+	if identity.Environment != "prod" || identity.AgentID != "agent-1" {
+		t.Fatalf("unexpected identity from development headers: %#v", identity)
+	}
 }

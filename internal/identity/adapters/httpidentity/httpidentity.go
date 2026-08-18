@@ -25,7 +25,10 @@ import (
 // failed to verify, because that would make a rejected certificate as good as
 // none.
 func AgentIdentityFromRequest(request *http.Request, allowInsecureHeaders bool) (domain.AgentIdentity, error) {
-	if request.TLS != nil && len(request.TLS.VerifiedChains) > 0 && len(request.TLS.PeerCertificates) > 0 {
+	if request.TLS != nil && len(request.TLS.PeerCertificates) > 0 {
+		if len(request.TLS.VerifiedChains) == 0 {
+			return domain.AgentIdentity{}, errClientCertificateRequired
+		}
 		return domain.AgentIdentityFromCertificate(request.TLS.PeerCertificates[0])
 	}
 	if allowInsecureHeaders {
