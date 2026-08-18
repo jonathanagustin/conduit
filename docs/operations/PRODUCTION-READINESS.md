@@ -41,12 +41,31 @@ was checked, because "we should probably have X" is not a finding.
 Gap 4 no longer blocks this repository; what is left of it is an operator action,
 carried to the residual list as item 5.
 
-1. **Nothing delivers notifications.** `internal/notifications/domain` exists;
-   there are no ports, no store, no HTTP surface, no emit sites and no console
-   inbox. `PUBLIC-DOCUMENTATION-COVERAGE.md` states the consequence exactly: *"A
-   Plan fails, a recall opens, a grant changes, and nobody learns unless they
-   were already looking."* For a control plane that is an operability failure,
-   not a missing feature.
+1. **Nothing delivers notifications.** `PUBLIC-DOCUMENTATION-COVERAGE.md` states
+   the consequence exactly: *"A Plan fails, a recall opens, a grant changes, and
+   nobody learns unless they were already looking."* For a control plane that is
+   an operability failure, not a missing feature.
+
+   **Partly closed (#197).** `internal/notifications` is now a bounded context:
+   `ports` states the store and the emitter, `application` fans an event out to
+   the preferences that exist and records it either way, and
+   `adapters/postgres` persists events, preferences and per-recipient inbox
+   entries under the migration ledger as component `notifications`. One emit
+   site is live —
+   `internal/delivery/reconciliation/application.Worker.failProposal` escalates
+   a proposal whose retry budget is spent, through `ports.Escalations` and
+   `adapters/notifications`, which is the escalation #207 records as reaching
+   nobody. Reading is through `application.Reader`.
+
+   **What still blocks the row below:** no delivery channel — nothing sends an
+   email or posts to Slack, so an operator learns only by reading — and no
+   console inbox, no HTTP surface, and no way to edit a preference except
+   through the store. The other four events named above are still emitted by
+   nobody: a recall opening, a grant changing, a Plan failing and a Release
+   becoming available are all raised inside `internal/controlplane`, which is at
+   its line ceiling, so each needs its own extraction before it can emit.
+   Subscription grain is the Environment, because reconciliation and the Apollo
+   projection mint different identifiers for the same installation.
 
 2. **Observability is partial.** Metrics now exist and the wedge signal is
    exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
@@ -161,7 +180,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
 | It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
-| Nobody is told what happened | **Delivery end-to-end** | **Blocked** by gap 1 — no ports to drive. |
+| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres`. Still **missing** the end: no transport sends anything, so "told" currently means "could have read it". |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
 Three of these cannot be written today, and saying so is the point: listing them

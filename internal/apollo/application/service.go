@@ -530,7 +530,7 @@ func (service *Service) restorePublication(publication catalog.Publication) {
 }
 
 func (service *Service) SyncEnvironment(projection environments.CompatibilityProjection) {
-	rid := environmentRID(projection.ID)
+	rid := EnvironmentRID(projection.ID)
 	environmentType, status := apollo.EnvironmentType("production"), apollo.ManagementStatus("managed")
 	service.mu.Lock()
 	defer service.mu.Unlock()
@@ -937,7 +937,14 @@ func validRepositoryURL(value string) bool {
 	return strings.HasPrefix(value, "https://") || strings.HasPrefix(value, "oci://")
 }
 
-// environmentRID builds the Apollo resource identifier for an Environment.
+// EnvironmentRID builds the Apollo resource identifier for an Environment.
+//
+// Exported because a second caller needs the same value and there must be one
+// definition of it. Notifications are joined to subscriptions by resource
+// identifier, so an escalation raised elsewhere in the Hub has to name an
+// Environment exactly as this surface names it, or a preference set here would
+// match nothing raised there. A copy of the construction in the other package
+// would agree until one of them was edited.
 //
 // The grammar is Apollo's: the pinned OpenAPI publishes
 // ri.apollo.main.environment.123, and ri.autopilot.main.team.123 alongside it
@@ -954,7 +961,7 @@ func validRepositoryURL(value string) bool {
 // CONDUIT-INVENTED: apollo.RIDLocator
 // Displaced-by: a published statement of Apollo's RID locator format, for any
 // resource type Conduit holds
-func environmentRID(id string) string {
+func EnvironmentRID(id string) string {
 	if strings.HasPrefix(id, "ri.apollo.main.environment.") {
 		return id
 	}
