@@ -13,7 +13,7 @@ import { ApiError } from "../../api/errors.js";
 import { AccessibleNonIdealState, ObjectHeader } from "../../components/index.js";
 import { useFleet } from "../../api/fleet.js";
 import { CONFIG, HEALTH, LIFECYCLE, ROLLOUT, type FleetQuery } from "../../api/types.js";
-import { ConfigTag, HealthTag, LifecycleTag, RolloutTag } from "./statusTags.js";
+import { ConfigTag, HealthTag, LifecycleTag, RolloutTag } from "../../components/statusTags.js";
 import { SummaryBar } from "./SummaryBar.js";
 import "./fleet-page.css";
 

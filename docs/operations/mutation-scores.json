@@ -46,7 +46,7 @@
       "total": 58,
       "coverage": 74.13793103448276
     },
-    "web/src/features/promotions/ReleaseChannelGraph.tsx": {
+    "web/src/components/ReleaseChannelGraph.tsx": {
       "efficacy": 91.83673469387755,
       "killed": 45,
       "lived": 4,

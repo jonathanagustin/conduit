@@ -13,7 +13,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 gate="scripts/verify-console-contract.mjs"
-subject="web/src/features/fleet/statusTags.tsx"
+subject="web/src/components/statusTags.tsx"
 
 if ! git diff --quiet -- "${subject}" || ! git diff --cached --quiet -- "${subject}"; then
   echo "verify-console-contract self-test: SKIP (${subject} has uncommitted changes)" >&2
