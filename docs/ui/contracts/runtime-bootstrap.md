@@ -1,10 +1,20 @@
 # Console runtime bootstrap contract
 
-The Hub serves one immutable frontend bundle for every tenant. Before React is
-mounted, the bundle fetches `GET /console/bootstrap.json` from the same origin
-and validates the complete document against `conduit.console.bootstrap/v1`.
-An invalid, missing, oversized, or unknown field stops rendering and shows a
-generic configuration error; the browser never guesses tenant branding.
+The Hub serves one immutable frontend bundle for every tenant. The tenant
+document is not fetched: the Hub renders it once at handler construction into
+an `x-conduit-console-bootstrap` `<meta>` in the application shell, replacing
+the `<!--conduit-console-bootstrap-->` marker the built `index.html` carries
+(`hydrateShellDocument`). Before React is mounted, the bundle reads that meta
+and validates the complete document against `conduit.console.bootstrap/v1`
+(`loadRuntimeBootstrap`). An invalid, missing, oversized, or unknown field
+stops rendering and shows a generic configuration error; the browser never
+guesses tenant branding. A shell served by anything other than the Hub arrives
+unhydrated, and an unhydrated shell is a refusal rather than a render with
+invented branding.
+
+There is deliberately no `GET /console/bootstrap.json` route. An earlier design
+fetched one, and the route is now gone rather than left serving a second,
+drifting copy of the same document; `handler_test.go` asserts it answers 404.
 
 The closed runtime surface contains only:
 
