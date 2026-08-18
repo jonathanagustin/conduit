@@ -2460,14 +2460,42 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		visible := make([]FleetInstallation, 0, len(projection.Installations))
 		projection.Summary = FleetSummary{Health: map[string]int{}, Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{}}
+		projection.Facets = reporting.NewFleetFacets()
 		projection.MaxResultAgeSeconds = 0
 		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
+		// Memoised because the answer depends only on the Environment, and the
+		// facet walk below asks about the same handful of Environments the row
+		// walk has already asked about.
+		readable := map[string]bool{}
+		mayRead := func(environment string) bool {
+			if administrator {
+				return true
+			}
+			allowed, decided := readable[environment]
+			if !decided {
+				allowed = governance.Authorize(request.Context(), effectivePrincipal(principal),
+					environmentRID(environment), OperationReadResource)
+				readable[environment] = allowed
+			}
+			return allowed
+		}
 		for _, item := range projection.Installations {
-			if administrator || governance.Authorize(request.Context(), effectivePrincipal(principal), environmentRID(item.Environment), OperationReadResource) {
+			if mayRead(item.Environment) {
 				visible = append(visible, item)
 				addFleetSummary(&projection, item)
 			}
 		}
+		// A facet count is a disclosure like a row is. An operator who may not
+		// read an Environment must not learn how many installations it holds
+		// from the number beside a filter, so the near-miss contributions pass
+		// the same check the rows did and are then dropped -- they are
+		// scaffolding for this rebuild, not part of the response.
+		for _, contribution := range projection.FacetContributions {
+			if mayRead(contribution.Environment) {
+				projection.Facets.Add(contribution.Dimension, contribution.Value)
+			}
+		}
+		projection.FacetContributions = nil
 		projection.Installations = visible
 		projection, err = paginateFleetProjection(projection, fleetQuery, cursor, limit)
 		if err != nil {
@@ -2670,6 +2698,10 @@ func addFleetSummary(projection *FleetProjection, item FleetInstallation) {
 	projection.Summary.Rollout[item.RolloutStatus]++
 	projection.Summary.Config[item.ConfigStatus]++
 	projection.Summary.Lifecycle[item.Lifecycle]++
+	// An item in the result matches every selected dimension, so it counts
+	// toward every facet -- excluding a dimension from its own facet can only
+	// ever add near misses, never remove a match.
+	projection.Facets.AddInstallation(item)
 	if item.Stale {
 		projection.Summary.Stale++
 	}
