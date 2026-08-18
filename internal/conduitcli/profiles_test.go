@@ -38,6 +38,55 @@ func TestProfileSchemaIsVersionedAndExposedByCLI(t *testing.T) {
 	}
 }
 
+// A profile's output field names the formats the CLI renders, and the schema is
+// the durable copy of that list -- a profile outlives the session that wrote
+// it, so a value accepted here is one the CLI has to keep honouring. `pretty`
+// was in both lists and rendered YAML, so it left both together.
+func TestProfileOutputAcceptsOnlyTheFormatsConduitRenders(t *testing.T) {
+	t.Parallel()
+	for _, test := range []struct {
+		output    string
+		wantError bool
+	}{
+		{output: ""},
+		{output: "json"},
+		{output: "yaml"},
+		{output: "YAML"},
+		{output: "pretty", wantError: true},
+		{output: "table", wantError: true},
+	} {
+		profile := connectionProfile{
+			Name: "hub", Server: "https://hub.example.test", Output: test.output,
+			SPIFFEEndpoint: "unix:///run/spire/agent.sock", HubSPIFFEID: "spiffe://platform.delivery/hub",
+		}
+		err := profile.validate("hub")
+		if (err != nil) != test.wantError {
+			t.Errorf("output %q: err = %v, want error = %v", test.output, err, test.wantError)
+		}
+		if test.wantError && err != nil && !strings.Contains(err.Error(), "json or yaml") {
+			t.Errorf("output %q: err = %v, want the formats that do exist", test.output, err)
+		}
+	}
+
+	var schema struct {
+		Defs struct {
+			Profile struct {
+				Properties struct {
+					Output struct {
+						Enum []string `json:"enum"`
+					} `json:"output"`
+				} `json:"properties"`
+			} `json:"profile"`
+		} `json:"$defs"`
+	}
+	if err := json.Unmarshal(conduitProfileSchema, &schema); err != nil {
+		t.Fatal(err)
+	}
+	if enum := schema.Defs.Profile.Properties.Output.Enum; strings.Join(enum, ",") != "json,yaml" {
+		t.Errorf("schema output enum = %v, want the two formats writeOutput renders", enum)
+	}
+}
+
 func TestCompleteProfileDocumentLifecycle(t *testing.T) {
 	t.Parallel()
 	directory := t.TempDir()

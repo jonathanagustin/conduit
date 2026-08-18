@@ -810,10 +810,19 @@ releaseChannels:
 	})
 }
 
-// Two commands are built from a shared constructor parameterised by action,
-// and each registers a flag only its own action takes. Registering them on the
-// wrong action, or on both, is invisible until somebody runs --help: a flag
-// that exists but does nothing, and a documented one that is rejected.
+// Several commands are built from a shared constructor parameterised by
+// action, and each registers a flag only its own action takes. Registering
+// them on the wrong action, or on both, is invisible until somebody runs
+// --help: a flag that exists but does nothing, and a documented one that is
+// rejected.
+//
+// Presence alone is a weak assertion, and it is recorded here as exactly that.
+// `release-channel export --latest` sat in this table, green, while the flag
+// reached no decision at all; what makes it a real flag now is the refusal
+// asserted in TestReleaseChannelExportRefusesLatestRatherThanIgnoringIt. The
+// absence rows below are the stronger half: a flag this CLI cannot honour is
+// not registered, so it is refused as an unknown flag rather than accepted and
+// dropped.
 func TestActionSpecificFlagsAreRegisteredOnTheRightSubcommandOnly(t *testing.T) {
 	t.Parallel()
 	root := NewRoot(testRuntime(&bytes.Buffer{}, &fakeService{}))
@@ -836,10 +845,29 @@ func TestActionSpecificFlagsAreRegisteredOnTheRightSubcommandOnly(t *testing.T) 
 		// cancel refuses to run without it.
 		{path: []string{"changerequest", "cancel"}, flag: "reason", want: true},
 		{path: []string{"changerequest", "reopen"}, flag: "reason", want: false},
-		// --latest exports the current Git-owned definition; there is nothing
-		// for it to mean on the command that only reads one.
+		// --latest is published by apollo-cli on export and stays registered so
+		// it can state the boundary; there is nothing for it to mean on the
+		// command that only reads one.
 		{path: []string{"release-channel", "export"}, flag: "latest", want: true},
 		{path: []string{"release-channel", "get"}, flag: "latest", want: false},
+		// --override decides whose Enabled state survives a merge, so it
+		// belongs to the action that merges. `set` replaces the pipeline whole
+		// and used to accept the flag and drop it.
+		{path: []string{"product", "promotion", "append"}, flag: "override", want: true},
+		{path: []string{"product", "promotion", "set"}, flag: "override", want: false},
+		// Absent because Conduit cannot honour them: `version compare` already
+		// returns every reported Entity unless --release-channel narrows it,
+		// every `cve check` is a fresh provider invocation, and `verify`
+		// publishes nothing it could decline to publish.
+		{path: []string{"environment", "version", "compare"}, flag: "all", want: false},
+		{path: []string{"cve", "check"}, flag: "rescan", want: false},
+		{path: []string{"product-release", "verify"}, flag: "dry-run", want: false},
+		// The neighbouring flag on each of those commands is still registered,
+		// so an empty Lookup above means "removed", not "looked in the wrong
+		// place".
+		{path: []string{"environment", "version", "compare"}, flag: "release-channel", want: true},
+		{path: []string{"cve", "check"}, flag: "details", want: true},
+		{path: []string{"product-release", "verify"}, flag: "print-manifest", want: true},
 	} {
 		name := strings.Join(test.path, " ") + " --" + test.flag
 		command := find(t, test.path...)
@@ -899,5 +927,155 @@ func TestSuppliedRuntimeWritersAreNotReplacedByDefaults(t *testing.T) {
 	}
 	if bare.OutOrStdout() != io.Writer(os.Stdout) {
 		t.Errorf("an unset Stdout defaulted to %#v", bare.OutOrStdout())
+	}
+}
+
+// The channels the two tests below diff and export. BETA and STABLE share a
+// description and differ in exactly one other field, which is the case a
+// narrowed diff has to get right: report the difference, drop the agreement.
+const releaseChannelDiffFixture = `apiVersion: platform.delivery/v1alpha1
+kind: EnvironmentDeployment
+environment:
+  id: dev
+  generation: 0123456789abcdef
+releases: []
+entities: []
+releaseChannels:
+  - name: BETA
+    description: reviewed weekly
+    labelRequirements:
+      tier:
+        - gold
+  - name: STABLE
+    description: reviewed weekly
+`
+
+func writeReleaseChannelFixture(t *testing.T) string {
+	t.Helper()
+	document := filepath.Join(t.TempDir(), "desired.yaml")
+	if err := os.WriteFile(document, []byte(releaseChannelDiffFixture), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	return document
+}
+
+// `release-channel export` refuses --latest rather than accepting it silently.
+//
+// The flag asks for the Hub's current definition; the command reads the
+// document named by --state-file and Conduit serves no Release Channel
+// definition from the Hub, so an accepted --latest reported a file the operator
+// supplied as the Hub's live state. The registration test above cannot see
+// that -- it passed for as long as `--latest` and `--latest=false` produced
+// byte-identical output, which is the whole shape of the defect.
+func TestReleaseChannelExportRefusesLatestRatherThanIgnoringIt(t *testing.T) {
+	t.Parallel()
+	document := writeReleaseChannelFixture(t)
+
+	export := func(t *testing.T, flags ...string) (string, error) {
+		t.Helper()
+		var output bytes.Buffer
+		root := NewRoot(testRuntime(&output, &fakeService{}))
+		root.SetArgs(append([]string{"release-channel", "export", "BETA", "--state-file", document}, flags...))
+		err := root.Execute()
+		return output.String(), err
+	}
+
+	plain, err := export(t)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(plain, `"name": "BETA"`) {
+		t.Fatalf("export output=%s", plain)
+	}
+
+	// --latest=false asks for exactly what export does, so it is answered, and
+	// answered identically. Refusing it would leave the default unspellable.
+	explicit, err := export(t, "--latest=false")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if explicit != plain {
+		t.Errorf("--latest=false rendered %q, want the unflagged %q", explicit, plain)
+	}
+
+	for _, flag := range []string{"--latest", "-l", "--latest=true"} {
+		if _, err := export(t, flag); err == nil {
+			t.Errorf("%s was accepted", flag)
+		} else if !strings.Contains(err.Error(), "--latest is unavailable") || !strings.Contains(err.Error(), "--state-file") {
+			t.Errorf("%s error = %v, want the reason and the flag that does work", flag, err)
+		}
+	}
+}
+
+// `release-channel diff` reports what differs, and --all is what makes it
+// report everything. Both halves are asserted here because the flag used to
+// change nothing but its own echo: the command printed both definitions whole
+// either way, leaving the comparison to the operator's eye.
+func TestReleaseChannelDiffNarrowsToDifferingFieldsUnlessAll(t *testing.T) {
+	t.Parallel()
+	document := writeReleaseChannelFixture(t)
+
+	type diffResult struct {
+		Equal  bool           `json:"equal"`
+		All    bool           `json:"all"`
+		Source map[string]any `json:"source"`
+		Target map[string]any `json:"target"`
+	}
+	diff := func(t *testing.T, source, target string, flags ...string) diffResult {
+		t.Helper()
+		var output bytes.Buffer
+		root := NewRoot(testRuntime(&output, &fakeService{}))
+		root.SetArgs(append([]string{
+			"release-channel", "diff", "--state-file", document,
+			"--source-channel", source, "--target-channel", target,
+		}, flags...))
+		if err := root.Execute(); err != nil {
+			t.Fatalf("diff %s %s: %v", source, target, err)
+		}
+		var decoded diffResult
+		if err := json.Unmarshal(output.Bytes(), &decoded); err != nil {
+			t.Fatalf("decode %s: %v", output.String(), err)
+		}
+		return decoded
+	}
+
+	narrowed := diff(t, "BETA", "STABLE")
+	if narrowed.Equal || narrowed.All {
+		t.Errorf("equal=%v all=%v, want both false", narrowed.Equal, narrowed.All)
+	}
+	if _, present := narrowed.Source["description"]; present {
+		t.Errorf("source kept the shared description: %v", narrowed.Source)
+	}
+	if _, present := narrowed.Target["description"]; present {
+		t.Errorf("target kept the shared description: %v", narrowed.Target)
+	}
+	if narrowed.Source["name"] != "BETA" || narrowed.Target["name"] != "STABLE" {
+		t.Errorf("narrowed names = %v / %v", narrowed.Source["name"], narrowed.Target["name"])
+	}
+	// Present on one side only, which is a difference rather than a field that
+	// happens to equal the other side's zero value.
+	if _, present := narrowed.Source["labelRequirements"]; !present {
+		t.Errorf("source dropped the differing label requirements: %v", narrowed.Source)
+	}
+	if _, present := narrowed.Target["labelRequirements"]; present {
+		t.Errorf("target invented label requirements it does not have: %v", narrowed.Target)
+	}
+
+	full := diff(t, "BETA", "STABLE", "--all")
+	if !full.All {
+		t.Error("--all was not reported in the output it produced")
+	}
+	if full.Source["description"] != "reviewed weekly" || full.Target["description"] != "reviewed weekly" {
+		t.Errorf("--all dropped the unchanged description: %v / %v", full.Source, full.Target)
+	}
+
+	// A channel against itself has no differing fields at all, and says so
+	// rather than printing the definition twice.
+	identical := diff(t, "BETA", "BETA")
+	if !identical.Equal {
+		t.Error("a channel did not compare equal to itself")
+	}
+	if len(identical.Source) != 0 || len(identical.Target) != 0 {
+		t.Errorf("identical channels reported differences: %v / %v", identical.Source, identical.Target)
 	}
 }

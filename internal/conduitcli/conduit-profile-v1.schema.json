@@ -46,7 +46,7 @@
         },
         "output": {
           "type": "string",
-          "enum": ["json", "yaml", "pretty"]
+          "enum": ["json", "yaml"]
         },
         "caFile": {
           "type": "string",

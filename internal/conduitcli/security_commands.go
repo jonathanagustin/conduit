@@ -16,7 +16,7 @@ import (
 func cveCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "cve", Short: "Scan immutable Product Release artifacts"}
 	var file, productID, releaseChannel, environment string
-	var details, rescan bool
+	var details bool
 	check := &cobra.Command{
 		Use: "check", Short: "Run the configured vulnerability and malware scanner", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -40,9 +40,17 @@ func cveCommand(state *commandState) *cobra.Command {
 				if err != nil {
 					return nil, err
 				}
+				// freshProviderInvocation is unconditional because the scan is:
+				// ScanRelease posts the Release to the Hub's scanner on every
+				// invocation and there is no cached assessment it could return
+				// instead. apollo-cli publishes --rescan here and this command used
+				// to register one, echoing it back beside a result it could not
+				// influence -- an operator passing --rescan after a suppression
+				// change would read that echo as proof the scan was rerun, when
+				// what proves it is the field beside it.
 				output := map[string]any{
 					"product": release.Product, "version": release.Version, "releaseChannel": releaseChannel,
-					"environment": environment, "details": details, "freshProviderInvocation": true, "rescan": rescan,
+					"environment": environment, "details": details, "freshProviderInvocation": true,
 				}
 				if details {
 					output["result"] = result
@@ -69,7 +77,6 @@ func cveCommand(state *commandState) *cobra.Command {
 	}
 	check.Flags().StringVarP(&file, "maven-coordinates-file", "f", "", "typed Product Release YAML or JSON to scan")
 	check.Flags().BoolVar(&details, "details", false, "include full normalized assessment evidence")
-	check.Flags().BoolVar(&rescan, "rescan", false, "request a fresh provider scan")
 	check.Flags().StringVarP(&productID, "product-id", "p", "", "validate against the Product in the input Release")
 	check.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "require the input Release to be assigned to this channel")
 	check.Flags().StringVarP(&environment, "environment", "e", "", "require visibility of this Environment before scanning")

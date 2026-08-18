@@ -117,6 +117,44 @@ conformance.
 `internal/catalog/domain`, which asserts the blocker message describes blocking
 and that the evaluation produces no recall.
 
+### Six apollo-cli flags Conduit does not carry, and one it refuses out loud
+
+**Source class:** Public contract (the flags appear in the pinned apollo-cli
+command contract). **Divergence:** Conduit registers a published flag only
+where it reaches a decision.
+
+`docs/apollo/cli-command-contract.json` records the flags each published
+command accepts, and Conduit registered six it never read: `release-channel
+export --latest/-l`, `environment version compare --all`, `product promotion
+set --override`, `cve check --rescan`, `product-release verify --dry-run`, and
+`release-channel diff --all`. Each parsed, and each was either echoed back into
+the output document or discarded, so `--flag` and `--flag=false` produced
+identical results.
+
+**What Conduit does now.** `release-channel diff --all` was implemented -- the
+default narrows to the fields that differ, and `--all` restores the full
+definitions the flag always described. `product promotion set --override` is
+registered on `append` only, the action that has something to override.
+`environment version compare --all`, `cve check --rescan` and `product-release
+verify --dry-run` are gone, because each named the command's only mode: those
+commands already return every reported Entity absent a Release Channel filter,
+already scan freshly on every call, and already publish nothing. `release-channel
+export --latest` stays registered and refuses with its reason, because Conduit
+serves no Release Channel definition from the Hub and an operator carrying an
+apollo-cli script across should be told that rather than told "unknown flag".
+
+**Scope, stated because it is narrow.** Only the flags above. The pinned
+inventory of command *paths* is unchanged, and `contract_test.go` -- which pins
+paths, not flags -- still passes untouched.
+
+**What would close it.** A Hub endpoint serving a Release Channel definition
+would give `--latest` something to fetch; a cached scan result would give
+`--rescan` something to bypass.
+
+**Detected by:** `TestActionSpecificFlagsAreRegisteredOnTheRightSubcommandOnly`,
+`TestReleaseChannelExportRefusesLatestRatherThanIgnoringIt` and
+`TestReleaseChannelDiffNarrowsToDifferingFieldsUnlessAll` in
+`internal/conduitcli`.
 ### The review-context flags are absent, not accepted and discarded
 
 **Source class:** Public contract (`--compliance-ticket` on

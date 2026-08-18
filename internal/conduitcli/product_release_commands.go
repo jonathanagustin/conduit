@@ -169,9 +169,17 @@ func productReleaseInitCommand(state *commandState) *cobra.Command {
 	return command
 }
 
+// productReleaseVerifyCommand carries no --dry-run flag, though apollo-cli
+// publishes one.
+//
+// verify reads a manifest, validates it strictly and prints the verdict; it
+// publishes nothing, contacts no Hub and writes no file under any flag, so
+// "validate without publishing" is the only mode it has. The flag was
+// registered and reported back as `"dryRun": false`, which states that a
+// publishing run was possible and was declined -- the opposite of true.
 func productReleaseVerifyCommand(state *commandState) *cobra.Command {
 	var manifestPath string
-	var dryRun, printManifest bool
+	var printManifest bool
 	command := &cobra.Command{
 		Use: "verify", Short: "Strictly validate a Product Release manifest", Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
@@ -179,7 +187,7 @@ func productReleaseVerifyCommand(state *commandState) *cobra.Command {
 			if err != nil {
 				return err
 			}
-			result := map[string]any{"valid": true, "dryRun": dryRun}
+			result := map[string]any{"valid": true}
 			if printManifest {
 				result["manifest"] = manifest
 			}
@@ -187,7 +195,6 @@ func productReleaseVerifyCommand(state *commandState) *cobra.Command {
 		},
 	}
 	command.Flags().StringVar(&manifestPath, "manifest", "", "Product manifest")
-	command.Flags().BoolVar(&dryRun, "dry-run", false, "perform validation without publication")
 	command.Flags().BoolVar(&printManifest, "print-manifest", false, "include the normalized manifest")
 	_ = command.MarkFlagRequired("manifest")
 	return command
