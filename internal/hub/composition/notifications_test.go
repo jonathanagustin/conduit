@@ -455,4 +455,136 @@ func TestAPreferenceWrittenThroughTheHubIsKeyedOnTheTuple(t *testing.T) {
 	}
 }
 
+// delegationHub is the configuration #241 was reproduced under: alice is a
+// bootstrap administrator, robot is a service account holding act-on-behalf and
+// nothing else, and the Environment named below is one nobody has been granted
+// anything on. Both surfaces are asked about that same coordinate.
+func delegationHub(t *testing.T) (http.Handler, *controlplane.MemoryRepository, string) {
+	t.Helper()
+	repository := controlplane.NewMemoryRepository()
+	service := controlplane.NewGovernanceService(repository)
+	ctx := t.Context()
+	if _, err := service.PutTeam(ctx, controlplane.Team{
+		Name: "automation", DisplayName: "Automation", AdminUsers: []string{"robot"}, MemberUsers: []string{"robot"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.PutGrant(ctx, controlplane.ResourceGrant{
+		ResourceRID: "platform/root", Team: "automation",
+		Operations: []string{governance.OperationActOnBehalf},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	store := newNotificationStore()
+	secret := "environment/secret-env"
+	store.events = append(store.events, domain.Event{
+		ID: "nev-secret", Type: domain.EventPlanFailures, ResourceRID: secret,
+		Summary: "the confidential body a refusal must not serve", OccurredAt: at(),
+	})
+	handler, err := NewHub(repository, controlplane.HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"alice"},
+	}, Options{NotificationStore: store})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return handler, repository, secret
+}
+
+func as(
+	t *testing.T, handler http.Handler, target, subject, onBehalfOf string,
+) *httptest.ResponseRecorder {
+	t.Helper()
+	httpRequest := httptest.NewRequest(http.MethodGet, target, nil)
+	httpRequest.Header.Set("X-Platform-Subject", subject)
+	if onBehalfOf != "" {
+		httpRequest.Header.Set("X-Platform-Service-Account", "true")
+		httpRequest.Header.Set("X-Platform-On-Behalf-Of", onBehalfOf)
+	}
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httpRequest)
+	return response
+}
+
+// The notification routes and the controlplane's REST routes must reach the
+// same answer about the same coordinate, and a delegated credential is where
+// they stopped doing so.
+//
+// #241: the notification surface matched the bootstrap administrator list
+// against the *effective* principal, so `robot` -- holding act-on-behalf and no
+// grant at all -- became an administrator by naming alice, and read an
+// Environment's events. The same credential on the REST route for the same
+// Environment was refused. The assertion is that the two agree, not that either
+// answers a remembered status: if the administrator rule changes, both move
+// together or this fails.
+func TestBothSurfacesAgreeAboutADelegatedAdministrator(t *testing.T) {
+	t.Parallel()
+	handler, _, secret := delegationHub(t)
+	events := "/v1/notifications/events?resourceRid=" + secret
+	rest := "/v1/environments/secret-env"
+	for _, credential := range []struct {
+		name, subject, onBehalfOf string
+		refused                   bool
+	}{
+		{name: "the carrier alone", subject: "robot", refused: true},
+		{name: "the carrier acting for an administrator", subject: "robot", onBehalfOf: "alice", refused: true},
+		{name: "the administrator herself", subject: "alice", refused: false},
+	} {
+		t.Run(credential.name, func(t *testing.T) {
+			notifications := as(t, handler, events, credential.subject, credential.onBehalfOf)
+			controlplaneREST := as(t, handler, rest, credential.subject, credential.onBehalfOf)
+			// Refusal rather than the whole status: an authorized read of an
+			// Environment that was never created is a 404 on the REST route and an
+			// empty page on the notification route, and those two disagreeing about
+			// a body is not what this is about.
+			notificationsRefused := notifications.Code == http.StatusForbidden
+			restRefused := controlplaneREST.Code == http.StatusForbidden
+			if notificationsRefused != restRefused {
+				t.Fatalf("the notification routes answered %d and the REST routes answered %d for %s;"+
+					" the two surfaces disagree about one coordinate\n%s",
+					notifications.Code, controlplaneREST.Code, secret, notifications.Body.String())
+			}
+			if notificationsRefused != credential.refused {
+				t.Fatalf("both surfaces agreed on %d, but this credential should have been refused=%v",
+					notifications.Code, credential.refused)
+			}
+			if credential.refused && strings.Contains(notifications.Body.String(), "nev-secret") {
+				t.Fatalf("a refused read served the event body it refused: %s", notifications.Body.String())
+			}
+		})
+	}
+}
+
+// An authorization decision that is not recorded cannot be reviewed afterwards,
+// which is the half of #241 that had no symptom: the notification routes took
+// the decision the REST routes file for every ALLOW and every DENY, and filed
+// nothing. The record has to name the carrier as the subject and the delegation
+// as context, because "robot acting for alice" is the only form of this event
+// that answers who actually presented a credential.
+func TestTheNotificationRoutesRecordTheAuthorizationTheyDecided(t *testing.T) {
+	t.Parallel()
+	handler, repository, secret := delegationHub(t)
+	if response := as(t, handler, "/v1/notifications/events?resourceRid="+secret,
+		"robot", "alice"); response.Code != http.StatusForbidden {
+		t.Fatalf("the delegated read answered %d, want %d: %s",
+			response.Code, http.StatusForbidden, response.Body.String())
+	}
+	records, err := repository.ListAuthorizationAudit(t.Context(), secret)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, record := range records {
+		if record.Subject != "robot" || record.Decision != governance.DecisionDeny {
+			continue
+		}
+		if record.Action != governance.OperationReadResource {
+			t.Fatalf("the decision was filed as %q, not the operation it was taken on", record.Action)
+		}
+		if record.Context["onBehalfOf"] != "alice" {
+			t.Fatalf("the record does not say who the carrier acted for: %#v", record.Context)
+		}
+		return
+	}
+	t.Fatalf("the notification routes refused a read of %s and filed no record of it: %#v", secret, records)
+}
+
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }

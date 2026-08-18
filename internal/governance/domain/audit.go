@@ -1,12 +1,23 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 const AuditSchemaV3 = "audit.3"
+
+// DecisionAllow and DecisionDeny are the two verdicts an authorizationCheck
+// records. They are spelled once because the record is read by matching on
+// them, and a surface that filed "allow" would be invisible to every query.
+const (
+	DecisionAllow = "ALLOW"
+	DecisionDeny  = "DENY"
+)
 
 const (
 	AuditCategoryAPIGatewayRequest   = "apiGatewayRequest"
@@ -78,6 +89,47 @@ func ValidateAuditCategoryEvent(event AuthorizationAuditEvent) error {
 		}
 	}
 	return nil
+}
+
+// NewAuthorizationCheckEvent is the audit.3 record of one authorization
+// decision, and the only place its shape is decided.
+//
+// It lives beside the rules rather than beside a transport because more than
+// one surface now reaches the same decision, and #241 is what the second one
+// cost while it had no record at all: a resource read that the REST routes
+// would have refused and filed happened on the notification routes with no
+// trace of either the request or the verdict. One builder means a surface that
+// reaches the decision cannot reach a different record of it.
+//
+// The identifier is derived from the decision and the instant rather than
+// minted at random, so a store that dedupes on it collapses a retry of the same
+// decision instead of filing it twice.
+func NewAuthorizationCheckEvent(
+	now time.Time, subject, action, resource, decision, reason string, eventContext map[string]any,
+) AuthorizationAuditEvent {
+	identity := sha256.Sum256([]byte(
+		subject + "\x00" + action + "\x00" + resource + "\x00" + decision + "\x00" + now.Format(time.RFC3339Nano)))
+	succeeded, failed := []string{}, []string{}
+	if decision == DecisionAllow {
+		succeeded = []string{resource}
+	} else {
+		failed = []string{resource}
+	}
+	return AuthorizationAuditEvent{
+		ID: "aud_" + hex.EncodeToString(identity[:16]), SchemaVersion: AuditSchemaV3,
+		Categories: []string{AuditCategoryAuthorizationCheck}, TraceID: resource,
+		Subject: subject, Action: action, ResourceRID: resource, Decision: decision, Reason: reason,
+		RequestFields: map[string]any{
+			"authorizationCheckTargets":    []string{resource},
+			"authorizationCheckOperations": []string{action},
+		},
+		ResultFields: map[string]any{
+			"authorizationCheckSucceededTargets": succeeded,
+			"authorizationCheckFailedTargets":    failed,
+			"authorizationCheckResultMessage":    reason,
+		},
+		Context: eventContext, CreatedAt: now,
+	}
 }
 
 // NormalizedAuditCategories trims, dedupes and orders the categories an event
