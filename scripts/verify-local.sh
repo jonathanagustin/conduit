@@ -261,6 +261,7 @@ not_run_as_written=(
   'Publish pending Trunk status'
   'Publish gate summary'
   'Publish final Trunk status'
+  'Conclude the Trunk gate job with its own verdict'
 )
 mapfile -t ci_steps < <(sed -n 's/^      - name: //p' "${workflow}")
 if ((${#ci_steps[@]} == 0)); then
