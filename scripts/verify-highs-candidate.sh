@@ -86,8 +86,13 @@ verify_self_audit() {
   grep -Fxq "FORBIDDEN_GO_DEPS='^(net|net/|net/http|crypto/tls|os/exec|google\\.golang\\.org/grpc|golang\\.org/x/net)'" "$path" || fail 'verifier Go transport closure gate was removed or changed'
   require_text "$path" 'MAX_IMAGE_BYTES=536870912'
   require_text "$path" 'SEMANTIC_RUNS=20'
-  require_text "$path" "grep -q 'INTERP'"
-  require_text "$path" "grep -q 'NEEDED'"
+  # Matched as the readelf guard lines, not as bare grep fragments. The old
+  # form searched for "grep -q 'INTERP'", which the require_text lines here
+  # also carry -- so deleting the runtime checks still passed self-audit.
+  grep -Fxq 'if readelf -l "$binary" | grep -q '\''INTERP'\''; then' "$path" ||
+    fail 'verifier program-interpreter gate was removed or changed'
+  grep -Fxq 'if readelf -d "$binary" 2>&1 | grep -q '\''NEEDED'\''; then' "$path" ||
+    fail 'verifier dynamic-dependency gate was removed or changed'
   require_text "$path" 'license-hashes.sha256'
   require_text "$path" 'static-closure.tsv'
   require_text "$path" 'dormant-native-network-symbols.txt'

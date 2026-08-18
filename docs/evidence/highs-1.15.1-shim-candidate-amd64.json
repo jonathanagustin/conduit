@@ -9,7 +9,7 @@
     "containerfile": "Containerfile.optimizer-highs",
     "containerfileSha256": "ccfafa816b3dca03a02468dee3490695a05062cf5c361c54cc003adfc36a924e",
     "verifier": "scripts/verify-highs-candidate.sh",
-    "verifierSha256": "ff96844d2d2c828f6c7def1b8f62236b4b2ebf01b74295bd59b70888529d16e9",
+    "verifierSha256": "d3adf8c7f4cf9f8c728566f8f4d22b8aa72ad2c996fa4e0f2c1a09625197b25d",
     "scanner": "scripts/scan-highs-candidate.sh",
     "scannerSha256": "2f01653787b894573137efb4ea13553e70baa27b1f40bb96b276904d766af264",
     "upstreamEvidence": "docs/evidence/highs-1.15.1-release.json",
