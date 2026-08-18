@@ -77,7 +77,7 @@ const VOCABULARIES = [
     name: "fleet rollout status",
     go: { file: "internal/environments/domain/reporting.go", pattern: /\bRollout\w+\s*=\s*"([A-Z_]+)"/g },
     console: {
-      file: "web/src/features/fleet/statusTags.tsx",
+      file: "web/src/components/statusTags.tsx",
       start: /export const ROLLOUT_INTENT[^{]*\{/,
       end: /\n\};/,
       pattern: /^\s*([A-Z_]+):/gm,
@@ -87,7 +87,7 @@ const VOCABULARIES = [
     name: "fleet config status",
     go: { file: "internal/environments/domain/reporting.go", pattern: /\bConfig\w+\s*=\s*"([A-Z_]+)"/g },
     console: {
-      file: "web/src/features/fleet/statusTags.tsx",
+      file: "web/src/components/statusTags.tsx",
       start: /export const CONFIG_INTENT[^{]*\{/,
       end: /\n\};/,
       pattern: /^\s*([A-Z_]+):/gm,
@@ -97,7 +97,7 @@ const VOCABULARIES = [
     name: "fleet lifecycle",
     go: { file: "internal/environments/domain/reporting.go", pattern: /\bLifecycle\w+\s*=\s*"([A-Z_]+)"/g },
     console: {
-      file: "web/src/features/fleet/statusTags.tsx",
+      file: "web/src/components/statusTags.tsx",
       start: /export const LIFECYCLE_INTENT[^{]*\{/,
       end: /\n\};/,
       pattern: /^\s*([A-Z_]+):/gm,
@@ -107,7 +107,7 @@ const VOCABULARIES = [
     name: "fleet health",
     go: { file: "internal/environments/domain/reporting.go", pattern: /\bHealth\w+\s*=\s*"([A-Z_]+)"/g },
     console: {
-      file: "web/src/features/fleet/statusTags.tsx",
+      file: "web/src/components/statusTags.tsx",
       start: /export const HEALTH_INTENT[^{]*\{/,
       end: /\n\};/,
       pattern: /^\s*([A-Z_]+):/gm,
@@ -117,7 +117,7 @@ const VOCABULARIES = [
     name: "plan status",
     go: { file: "internal/controlplane/lifecycle.go", pattern: /\bPlan\w+\s+PlanStatus\s*=\s*"([A-Z_]+)"/g },
     console: {
-      file: "web/src/features/plans/PlansPage.tsx",
+      file: "web/src/components/PlanStatusTag.tsx",
       start: /export const PLAN_INTENT[^{]*\{/,
       end: /\n\};/,
       pattern: /^\s*([A-Z_]+):/gm,

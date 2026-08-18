@@ -415,17 +415,17 @@ fixture plus one planted violation per rule), `node scripts/verify-console-bound
 against the real tree, then the full `./scripts/verify-local.sh`, whose drift
 check fails if the new CI step is not covered locally.
 
-Note what stage 1 deliberately does **not** include: a rule forbidding
-cross-feature imports. Three exist today -- `web/src/features/products/ProductsPage.tsx`
-imports from `../promotions/`, and `web/src/features/environments/EnvironmentDetailPage.tsx`
-imports from `../fleet/` and `../plans/`. Adding that rule would require moving
+Note what stage 1 deliberately did **not** include: a rule forbidding
+cross-feature imports. Four existed at the time -- `web/src/features/products/ProductsPage.tsx`
+imported from `../promotions/` twice, and `web/src/features/environments/EnvironmentDetailPage.tsx`
+imported from `../fleet/` and `../plans/`. Adding that rule required moving
 shared tags and graphs into `web/src/components/`, which means editing `web/src`,
-which means regenerating and re-committing the embedded bundle. That is stage 2's
-job, not a gate's.
+which means regenerating and re-committing the embedded bundle. That was stage 2's
+job, not a gate's, and stage 2 has since done it.
 
 ---
 
-#### Stage 2 -- lift genuinely shared feature code into `components/`, then tighten the gate
+#### Stage 2 -- lift genuinely shared feature code into `components/`, then tighten the gate (implemented)
 
 **What changes.** Move the three cross-feature imports' targets --
 `statusTags.tsx` from `features/fleet`, `PlanStatusTag` from `features/plans`,
@@ -452,6 +452,49 @@ diff will be large and must be reviewed as a build artifact, not as source.
 `verify-console-assets.sh` and so proves the committed bundle matches a clean
 build), `node scripts/verify-console-contract.mjs`, and the extended
 boundaries gate.
+
+##### What was actually moved, and what it cost
+
+Four cross-feature imports, not three: `ProductsPage.tsx` reached into
+`features/promotions/` twice, once for `ReleaseChannelGraph` and once for
+`TransitionDetail`, which lived inside `PromotionsPage.tsx` rather than in a
+file of its own.
+
+| Moved | From | To |
+| --- | --- | --- |
+| `statusTags.tsx` (whole file: four intent tables, four tags) | `web/src/features/fleet/` | `web/src/components/statusTags.tsx` |
+| `PLAN_INTENT`, `PlanStatusTag` | `web/src/features/plans/PlansPage.tsx` | `web/src/components/PlanStatusTag.tsx` |
+| `ReleaseChannelGraph`, `latestForChannel`, `orderChannels` (whole file) | `web/src/features/promotions/` | `web/src/components/ReleaseChannelGraph.tsx` |
+| `TransitionDetail` | `web/src/features/promotions/PromotionsPage.tsx` | `web/src/components/TransitionDetail.tsx` |
+
+Three things had to move with them, and each would have been a silent failure:
+
+- **The stylesheet.** `ReleaseChannelGraph` and `TransitionDetail` imported
+  `features/promotions/promotions.css` and were the only users of the
+  `.console-graph*`, `.console-promotions__detail`, `__blockers` and
+  `__subjects` rules -- while `ProductsPage.tsx` rendered both components and
+  imported no promotions stylesheet at all, relying on the transitive import.
+  The rules moved into `web/src/components/release-channel-graph.css` and
+  `web/src/components/transition-detail.css`, and the three
+  `console-promotions__` class names on the shared panel became
+  `console-transition*`, because a shared component should not carry a feature's
+  namespace. Left behind, the components would have rendered unstyled with every
+  test still green.
+- **The contract gate's paths.** `scripts/verify-console-contract.mjs` reads
+  four vocabularies out of `statusTags.tsx` and one out of `PlansPage.tsx` by
+  literal path, and `scripts/verify-console-contract.test.sh` plants its drift
+  into `statusTags.tsx` by literal path. All six references were repointed in
+  the same commit; the self-test would otherwise have edited a file that no
+  longer exists and reported the gate as broken.
+- **The mutation baseline.** `docs/operations/mutation-scores.json` keys a web
+  entry on `web/src/features/promotions/ReleaseChannelGraph.tsx`, and
+  `scripts/verify-mutation-scores.mjs` fails when a baselined path is not on
+  disk. The key moved with the file.
+
+`web/src/features/useIndexQuery.ts` was deliberately not moved. It sits directly
+in `features/`, is imported by nine screens, and is feature-layer logic rather
+than presentation; rule 5 compares feature *directories*, so a file that is in
+no feature is reachable from all of them.
 
 ---
 
@@ -512,6 +555,92 @@ console typed against an API it does not call, which typechecks perfectly.
 **How it is verified.** A generated-file freshness gate in the idiom of
 `scripts/verify-console-assets.sh` -- regenerate into a temp directory, `diff`
 against the committed file -- plus the existing console suite.
+
+##### The overlap was established, and it is empty. Stage 4 does not apply.
+
+The stage's own precondition was carried out on 2026-08-18 before any generator
+was written, and it falsifies the stage. Both surfaces are real, both are served
+by the same Hub binary, and they share no operation and effectively no field.
+Recorded here rather than acted on, because the finding is the deliverable.
+
+**The two inventories.** The console's calls are every `getJSON`/`postJSON` call
+site under `web/src/api/`; `web/src/api/client.ts:7` sets `const BASE = "/v1"`,
+so every one of them is a `/v1` path and no console file mentions `/api/v0` at
+all. The contract's operations are the 13 paths in
+`docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`,
+which is what `api/apollo-public.codegen.yaml` generates
+`internal/apollo/openapi.gen.go` from.
+
+| Console operation | Call site | Apollo public operation covering it | Evidence |
+| --- | --- | --- | --- |
+| `GET /v1/overview` | `web/src/api/overview.ts:37` | none | no `overview` path in the snapshot |
+| `GET /v1/session` | `web/src/api/session.ts:34` | none | no `session` path in the snapshot |
+| `GET /v1/fleet/installations` | `web/src/api/fleet.ts:10` | none (nearest: `GET /api/v0/environments/{environmentRid}/installations`) | different path, and per-environment rather than fleet-wide; `FleetInstallation` (17 fields) and `Installation` (9 fields) share 0 field names |
+| `GET /v1/environments` | `web/src/api/resources.ts:228` | none (nearest: `GET /api/v0/environments`) | console `Environment` is `{id, generation, connectionSetting, config}`; Apollo `Environment` is `{rid, name, environmentType, status}` -- 0 shared field names |
+| `GET /v1/environments/{id}` | `web/src/api/catalog.ts:228` | none (nearest: `GET /api/v0/environments/{environmentRid}`) | returns `EnvironmentCatalogRecord` `{environment, reported}`; Apollo returns a bare `Environment` -- 0 shared |
+| `GET /v1/environments/{id}/commands` | `web/src/api/catalog.ts:238` | none | no `commands` path in the snapshot |
+| `GET /v1/products` | `web/src/api/catalog.ts:248` | none (nearest: `GET /api/v0/products`) | `ProductCatalogSummary` `{product, releaseCount, latestVersion}` vs `Product` `{id, group, maintenanceWindow, ownerTeamRid}` -- 0 shared; only the envelope key `products` coincides, and the console's envelope carries cursor pagination the Apollo one has no field for |
+| `GET /v1/products/{product}/releases` | `web/src/api/catalog.ts:259` | none (nearest: `GET /api/v0/products/{productId}/releases`) | both name the type `Release` and share **no** field: console `{product, version, chart, images, channels, labels, vulnerabilityAssessment, rolloutStrategy}` vs Apollo `{mavenCoordinate, releaseChannels, upgradeStrategy, recallStatus, productDependencies}` |
+| `GET /v1/promotions` | `web/src/api/catalog.ts:269` | none | no promotion path in the snapshot |
+| `GET /v1/plans` | `web/src/api/resources.ts:239` | none | no plan path in the snapshot |
+| `GET /v1/plans/{planId}` | `web/src/api/resources.ts:291` | none | as above |
+| `GET /v1/change-requests` | `web/src/api/resources.ts:302` | none | no change-request path in the snapshot |
+| `GET /v1/change-requests/{id}` | `web/src/api/resources.ts:311` | none | as above |
+| `POST /v1/change-requests/{id}/{approve,reject,cancel,reopen}` | `web/src/api/resources.ts:372` | none | as above |
+| `GET /v1/export-pipelines` | `web/src/api/exports.ts:65` | none | no export path in the snapshot |
+| `GET /v1/bundle-imports` | `web/src/api/imports.ts:42` | none | no bundle path in the snapshot |
+| `GET /v1/catalog-retirements` | `web/src/api/risk.ts:37` | none | Apollo has `RecallStatus` as a sub-object of `Release`, not an operation; console `Recall` (11 fields) shares only `reason` with it |
+| `GET /v1/teams` | `web/src/api/teams.ts:27` | none | no team operation; `TeamRid` exists only as a `Product.ownerTeamRid` string |
+| `GET /v1/teams/{teamName}` | `web/src/api/teams.ts:34` | none | as above |
+
+Read the other way, the Apollo public surface has seven operations with no
+console counterpart at all -- `getProduct`, `getRelease`, `getInstallation`,
+`listNamespaces`, `publishHelmChart`, `publishService`, and the two
+`putStatusEntities*` writes.
+
+**The intersection is the empty set.** 19 console operations, 13 contract
+operations, 0 shared paths. Under the more generous test -- same resource by
+name, ignoring the path -- the eight nearest type pairs share three field names
+between them across 71 console fields and 40 contract fields: `products` (an
+envelope key, not a field), `version`, and `reason`. Nothing there is a type
+worth generating.
+
+**Why the surfaces look alike and are not.** They are two views of the same
+domain with different jobs, and both exist in the same binary:
+`internal/controlplane/apollo_api.go:42` calls `registerApolloOpenAPI`, which
+mounts the generated `/api/v0` router onto the same `http.ServeMux` that serves
+`/v1`. So this is not an unimplemented contract the console could grow into. The
+Apollo surface answers "what does this tenant's catalog contain", in Apollo's
+own vocabulary of RIDs and Maven coordinates, because conformance to the pinned
+snapshot is the point of it. The console asks "what should an operator do next",
+in the control plane's vocabulary of desired versus observed state, health,
+drift, plans and approvals. `FleetInstallation` versus `Installation` is the
+clearest case: the same noun, one recording an inventory row, the other
+recording a reconciliation gap.
+
+**Why generating anyway would have been worse than doing nothing.** The
+`Release` row above is the trap the stage warned about, arrived at concretely: a
+generator pointed at the snapshot would emit a TypeScript `Release` that
+compiles, that autocompletes, that reviews cleanly, and that describes a
+response body `/v1/products/{product}/releases` never sends. The freshness gate
+would then hold that wrong file rigidly in place -- correctly, since it can only
+check the generated file against the generator, never against the Hub. A
+mechanised gate around a wrong premise is worse than the hand-written file,
+because it makes the wrongness look verified.
+
+**What would displace this finding.** Any one of: the console calling an
+`/api/v0` path; an Apollo public operation gaining a Conduit `/v1` equivalent
+with a shared response schema; or the snapshot being replaced by one that covers
+plans, change requests, promotions or fleet projections. Until one of those
+happens, the honest generator target for `web/src/api/types.ts` is
+`internal/controlplane`'s Go structs, which have no machine-readable schema --
+that is a different stage, and it would be a Go-struct-to-TypeScript emitter,
+not an OpenAPI one.
+
+**Verdict.** Not done, on evidence. `web/src/api/types.ts` stays hand-written and
+stays guarded by `scripts/verify-console-contract.mjs` for the value
+vocabularies and by `web/src/test/unit/logic.test.ts` for the rest. The stage is
+kept rather than deleted so the check is not repeated.
 
 ---
 

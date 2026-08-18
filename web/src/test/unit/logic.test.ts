@@ -9,7 +9,7 @@ import {
   carriesRationale,
 } from "../../features/changes/review.js";
 import { countOf, relative } from "../../components/Timestamp.js";
-import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
+import { latestForChannel, orderChannels } from "../../components/ReleaseChannelGraph.js";
 import { statusIntent } from "../../api/imports.js";
 import { findingScore, orderFindingsByHubScore } from "../../api/catalog.js";
 import type { VulnerabilityFinding } from "../../api/catalog.js";
@@ -21,8 +21,8 @@ import {
   toggleType,
   unknownTypes,
 } from "../../features/notifications/NotificationsPage.js";
-import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
-import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
+import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../components/statusTags.js";
+import { PLAN_INTENT } from "../../components/PlanStatusTag.js";
 import {
   PLAN_TERMINAL_STATUSES,
   planPollInterval,

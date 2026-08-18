@@ -2,7 +2,7 @@
 // Proves the console-boundaries gate rejects each thing it claims to reject.
 //
 // A gate that only ever passes is indistinguishable from no gate, and this one
-// is more exposed to that than most: four of its five rules are satisfied by a
+// is more exposed to that than most: six of its seven rules are satisfied by a
 // tree that has been correct since it was written, so a regex that matched
 // nothing at all would look identical to a regex that matched correctly.
 //
@@ -17,6 +17,14 @@
 // `queryClient.fetchQuery(...)` must NOT read as a direct network call, since
 // react-query puts both in every page of this console and a network rule that
 // flagged them would be turned off within a day.
+//
+// Rule 5 (a feature may not import another feature) needs two more controls,
+// because it is the rule most able to pass by having nothing to range over. The
+// fixture therefore carries TWO features rather than one -- with a single
+// feature, rule 5 holds no matter how the rule is written -- and a
+// `features/useIndexQuery.ts` sitting directly in `features/` that both import.
+// That import is same-layer and legal, and a rule 5 that flagged it would be
+// wrong about nine files in the real console.
 import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { dirname, join, resolve } from "node:path";
@@ -35,9 +43,10 @@ const write = (path, contents) => {
 const run = () =>
   execFileSync(process.execPath, [join(fixture, GATE)], { encoding: "utf8", stdio: "pipe" });
 
-// The smallest tree that exercises every rule: one file per layer, each
-// importing only downwards, plus the three places the /console/ prefix is
-// written and a test file that reaches outside web/src on purpose.
+// The smallest tree that exercises every rule: one file per layer -- two in
+// `features/`, so rule 5 has something to range over -- each importing only
+// downwards, plus the three places the /console/ prefix is written and a test
+// file that reaches outside web/src on purpose.
 const BASELINE = [
   [GATE, null], // copied, not written
   ["web/vite.config.ts", 'export default { base: "/console/" };\n'],
@@ -59,20 +68,39 @@ const BASELINE = [
     "web/src/components/QueryState.tsx",
     'import { ApiError } from "../api/errors.js";\nexport const QueryState = (error: ApiError) => error.message;\n',
   ],
+  ["web/src/components/plan-status-tag.css", ".console-plan-status { color: #111; }\n"],
+  [
+    "web/src/components/PlanStatusTag.tsx",
+    'import "./plan-status-tag.css";\nexport const PlanStatusTag = (value: string) => value;\n',
+  ],
+  [
+    "web/src/features/useIndexQuery.ts",
+    'export const useIndexQuery = () => ({ query: {} });\n',
+  ],
   [
     "web/src/features/plans/PlansPage.tsx",
     'import { QueryState } from "../../components/QueryState.js";\n' +
+      'import { PlanStatusTag } from "../../components/PlanStatusTag.js";\n' +
       'import { getJSON } from "../../api/client.js";\n' +
+      'import { useIndexQuery } from "../useIndexQuery.js";\n' +
       "export const PlansPage = ({ refetch, queryClient }) => {\n" +
       "  void refetch();\n" +
+      "  void useIndexQuery();\n" +
       '  void queryClient.fetchQuery({ queryKey: ["plans"], queryFn: () => getJSON("/plans") });\n' +
-      "  return QueryState;\n};\n",
+      "  return [QueryState, PlanStatusTag];\n};\n",
+  ],
+  [
+    "web/src/features/environments/EnvironmentsPage.tsx",
+    'import { PlanStatusTag } from "../../components/PlanStatusTag.js";\n' +
+      'import { useIndexQuery } from "../useIndexQuery.js";\n' +
+      "export const EnvironmentsPage = () => [PlanStatusTag, useIndexQuery];\n",
   ],
   [
     "web/src/app/App.tsx",
     'import { PlansPage } from "../features/plans/PlansPage.js";\n' +
+      'import { EnvironmentsPage } from "../features/environments/EnvironmentsPage.js";\n' +
       'import { bootstrap } from "../runtime/bootstrap.js";\n' +
-      "export const App = () => [PlansPage, bootstrap];\n",
+      "export const App = () => [PlansPage, EnvironmentsPage, bootstrap];\n",
   ],
   ["web/src/main.tsx", 'import { App } from "./app/App.js";\nexport default App;\n'],
   ["testdata/console-bootstrap/tenant.json", '{"tenant":"example"}\n'],
@@ -121,6 +149,39 @@ const PLANTED = [
     expect: "escaping import:",
   },
   {
+    rule: "a cross-feature import (environments reaching into plans)",
+    file: "web/src/features/environments/EnvironmentsPage.tsx",
+    contents:
+      'import { PlansPage } from "../plans/PlansPage.js";\nexport const EnvironmentsPage = () => PlansPage;\n',
+    expect: "cross-feature import:",
+  },
+  {
+    // The same reach spelled the long way round. A rule that only looked at the
+    // literal specifier would miss this one, and it is the spelling a refactor
+    // produces when someone "fixes" the relative path rather than the import.
+    rule: "a cross-feature import written as a longer relative path",
+    file: "web/src/features/environments/EnvironmentsPage.tsx",
+    contents:
+      'import { PlansPage } from "../../features/plans/PlansPage.js";\nexport const EnvironmentsPage = () => PlansPage;\n',
+    expect: "cross-feature import:",
+  },
+  {
+    // The mutation that found this rule: a stylesheet import deleted from the
+    // component that owns it. Everything still builds, and the bundle still
+    // matches a clean rebuild, because the rebuild is equally unstyled.
+    rule: "an orphaned stylesheet (its only import deleted)",
+    file: "web/src/components/PlanStatusTag.tsx",
+    contents: "export const PlanStatusTag = (value: string) => value;\n",
+    expect: "orphaned stylesheet:",
+  },
+  {
+    rule: "a stylesheet import naming a file that is not on disk",
+    file: "web/src/components/PlanStatusTag.tsx",
+    contents:
+      'import "./plan-status-tag.css";\nimport "./gone.css";\nexport const PlanStatusTag = (value: string) => value;\n',
+    expect: "unresolved stylesheet:",
+  },
+  {
     rule: "the Vite base disagreeing with the router and the Hub",
     file: "web/vite.config.ts",
     contents: 'export default { base: "/operator/" };\n',
@@ -156,7 +217,10 @@ try {
   // The negative controls live in the baseline feature file, so a pass here is
   // also proof that neither `refetch(` nor `queryClient.fetchQuery(` was read
   // as a direct network call.
-  console.log("  passes: a correct five-layer console, with refetch and fetchQuery present");
+  console.log(
+    "  passes: a correct five-layer console with two features, refetch, fetchQuery,\n" +
+      "           and a shared features/useIndexQuery.ts both features import",
+  );
 
   for (const { rule, file, contents, expect } of PLANTED) {
     write(file, contents);
