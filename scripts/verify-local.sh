@@ -208,6 +208,10 @@ gate 'Check formatting' check_formatting
 # that would fail if a refusal stopped refusing.
 gate 'Authenticate pull request head' ./scripts/authenticate-pull-request-head.test.sh
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
+# The other runnable half of that same CI step: the read that feeds the verifier.
+# Separate from the line above because they fail differently and only one of them
+# is about the pull request body.
+gate 'Read pull request body' ./scripts/read-pull-request-body.test.sh
 gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
