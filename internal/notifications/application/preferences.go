@@ -34,11 +34,12 @@ type Preferences struct {
 	clock ports.Clock
 }
 
-// The clock is ports.Clock rather than a bare func() time.Time because the port
-// already declares itself the only source of now in this context, and the
-// delivery dispatcher that landed alongside this reads it. Two spellings of the
-// same dependency in one package is how a later reader ends up wondering which
-// one a given component honours.
+// NewPreferences takes a ports.Clock rather than a bare func() time.Time
+// because the port already declares itself the only source of now in this
+// context, and the delivery dispatcher that landed alongside this reads it. Two
+// spellings of the same dependency in one package is how a later reader ends up
+// wondering which one a given component honours. A nil clock is the ordinary
+// case: only a test needs to fix the moment.
 func NewPreferences(store ports.Store, clock ports.Clock) (*Preferences, error) {
 	if store == nil {
 		return nil, errors.New("a notification store is required to read or edit preferences")
