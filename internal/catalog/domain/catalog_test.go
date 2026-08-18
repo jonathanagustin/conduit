@@ -189,3 +189,85 @@ func TestUncoveredArtifactsNameTheGapOnce(t *testing.T) {
 		t.Fatalf("want exactly [reg/b:1], got %v", got)
 	}
 }
+
+// A reverted recall withdraws nothing. It stays in the set because that is how
+// a withdrawal is recorded, so anything reporting what is recalled has to drop
+// it -- and a caller announcing recalls would otherwise tell an operator that
+// software they un-recalled is unavailable.
+func TestARevertedRecallIsNotInForce(t *testing.T) {
+	t.Parallel()
+	live := LiveRecalls([]Recall{
+		{ID: "a", Product: "p", StartingVersion: "1.0.0"},
+		{ID: "b", Product: "p", StartingVersion: "2.0.0", Reverted: true},
+		{ID: "c", Product: "p", StartingVersion: "3.0.0"},
+	})
+	if len(live) != 2 || live[0].ID != "a" || live[1].ID != "c" {
+		t.Fatalf("the recalls in force are not the ones submitted un-reverted: %#v", live)
+	}
+}
+
+// Open-endedness is a property of the range and of nothing else: it decides
+// whether Releases that do not exist yet are covered.
+func TestOnlyAnUnboundedRecallCoversFutureReleases(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name   string
+		recall Recall
+		open   bool
+	}{
+		{"no upper bound", Recall{StartingVersion: "2.0.0"}, true},
+		{"ending version", Recall{StartingVersion: "2.0.0", EndingVersionExclusive: "3.0.0"}, false},
+		{"single version", Recall{StartingVersion: "2.0.0", SingleVersion: true}, false},
+		// An exclusion punches a hole in the range without closing it: 2.1.3 is
+		// not recalled and 2.1.4 and everything after it still is.
+		{"exclusions only", Recall{StartingVersion: "2.0.0", ExcludedVersions: []string{"2.1.3"}}, true},
+	} {
+		if got := OpenEnded(testCase.recall); got != testCase.open {
+			t.Errorf("%s: open-ended is %v, want %v", testCase.name, got, testCase.open)
+		}
+	}
+}
+
+// The automatic security recall is the one recall that opens without a person
+// writing it, and its identity has to be a pure function of the assessment: a
+// second evaluation, on a second replica, must produce the same recall rather
+// than a second one.
+func TestAnAutomaticSecurityRecallIsDerivedFromTheAssessmentThatCausedIt(t *testing.T) {
+	t.Parallel()
+	failing := release("g:p", "2.0.0")
+	failing.VulnerabilityAssessment = &VulnerabilityAssessment{
+		RunID: "run-7", Status: "COMPLETE", Outcome: "FAIL", ActiveVulnerabilities: 3,
+	}
+	opened := WithAutomaticSecurityRecalls(nil, []Release{failing})
+	if len(opened) != 1 {
+		t.Fatalf("a failing assessment opened %d recalls", len(opened))
+	}
+	recall := opened[0]
+	if !recall.SingleVersion || recall.Product != "g:p" || recall.StartingVersion != "2.0.0" {
+		t.Errorf("the recall does not withdraw exactly the assessed Release: %#v", recall)
+	}
+	if recall.Source != RecallSourceSecurity || recall.AssessmentRunID != "run-7" {
+		t.Errorf("the recall does not say a scanner opened it: %#v", recall)
+	}
+	if again := WithAutomaticSecurityRecalls(nil, []Release{failing}); again[0].ID != recall.ID {
+		t.Errorf("the same assessment produced two identities: %q and %q", recall.ID, again[0].ID)
+	}
+	// Already withdrawn by a recall an operator wrote: a second recall over the
+	// same version withdraws it no further and would announce it twice.
+	manual := []Recall{{ID: "manual", Product: "g:p", StartingVersion: "1.0.0"}}
+	if covered := WithAutomaticSecurityRecalls(manual, []Release{failing}); len(covered) != 1 {
+		t.Errorf("a Release already recalled was recalled again: %#v", covered)
+	}
+	// An assessment that has not finished, or finished clean, recalls nothing.
+	for _, incomplete := range []VulnerabilityAssessment{
+		{RunID: "run-8", Status: "RUNNING", Outcome: "FAIL", ActiveVulnerabilities: 3},
+		{RunID: "run-9", Status: "COMPLETE", Outcome: "PASS", ActiveVulnerabilities: 3},
+		{RunID: "run-10", Status: "COMPLETE", Outcome: "FAIL", ActiveVulnerabilities: 0},
+	} {
+		candidate := release("g:p", "2.0.0")
+		candidate.VulnerabilityAssessment = &incomplete
+		if opened := WithAutomaticSecurityRecalls(nil, []Release{candidate}); len(opened) != 0 {
+			t.Errorf("assessment %#v opened a recall", incomplete)
+		}
+	}
+}
