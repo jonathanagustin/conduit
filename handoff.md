@@ -8,6 +8,43 @@ Earlier handoffs covered the sessions ending 2026-08-16 (PRs #30–#44) and
 2026-08-17. Their "Mechanisms" and "Bootstrapping" sections are carried forward
 below, corrected where a later session proved them wrong.
 
+## External audit, 2026-08-18
+
+Two reviewers from different labs audited `docs/operations/PRODUCTION-READINESS.md`.
+Neither had repository access and both said so. Archived verbatim under
+`docs/operations/EXTERNAL-AUDIT-2026-08-18.md`; raw text at
+`/workspace/audit-archive/` in the session that produced it.
+
+**Both independently ranked the same fix first, and it is real.**
+`cmd/platform-delivery/main.go:88-100` lets a Hub start and **sign with an
+ephemeral key** when `BUNDLE_SIGNING_KEY_FILE` is unset -- a warning, then it
+carries on. Verified against the code before acting. Their reasoning is the part
+worth keeping: a restore that "comes up healthy" with a new signing identity is a
+split-brain supply chain, and it presents as health. The repository already knows
+how to fail closed -- `ALLOW_INSECURE_*_IDENTITY_HEADERS` cannot combine with a
+secure mechanism and the chart aborts -- so identity fails closed while signing
+fails open.
+
+**The structural finding.** The Air-gap READY row and Tier 2 gap 5 (recalls never
+reach disconnected targets) contradict each other, and the tiering hides it by
+keeping them on different pages. You cannot claim readiness for disconnected
+installation while filing "a recall never arrives there" as a parity nice-to-have.
+
+**The charge worth re-reading before writing the next readiness row:** the
+document grades *components*, and production failures are *scenarios*. Walk the
+system's own reason for existing -- a CVE at 2am against 40 clusters, 12
+disconnected -- and every row reads "partially closed, honestly bounded" while
+the mission fails end to end. No row asks the assembled question.
+
+Also found: the residual list fails its own admission criterion ("nothing in this
+repository can complete them") for at least Renovate activation; nothing asserts
+cross-tenant isolation for core resources, only for the notification inbox; and
+the authorization test gap is filed under coverage when the unasked question is
+whether an unregistered route denies or allows.
+
+**Treat both audits as hypotheses.** They reasoned from one document. Where a
+finding is refuted by the code, the refutation belongs in the record.
+
 ## Orchestration run, 2026-08-18 (in flight)
 
 Durable state for a fresh agent. Everything below is either merged, open with a
