@@ -7,6 +7,7 @@ import (
 	apollo "github.com/jonathanagustin/conduit/internal/apollo"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 
+	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/authorizedprojection"
 	"github.com/jonathanagustin/conduit/internal/apollographql/adapters/httpgraphql"
 	graphqlapp "github.com/jonathanagustin/conduit/internal/apollographql/application"
 	graphqlports "github.com/jonathanagustin/conduit/internal/apollographql/ports"
@@ -44,37 +45,31 @@ func registerApolloGraphQL(
 		if !allowed {
 			return graphqlports.Sources{}, false
 		}
-		// The same bar the Apollo REST surface sets, because this serves the
-		// same data. Every Apollo OpenAPI read calls authorizeOperator with
-		// OperationReadResource against platform/root; without this, a
-		// principal holding nothing got the whole projection -- every
-		// Environment, installation, namespace and recall the Hub governs --
-		// by choosing GraphQL over REST. That is precisely what
-		// internal/apollographql/ports says cannot happen: "a client cannot
-		// get a different answer by choosing a protocol."
-		//
-		// Refusing the request rather than binding a nil or empty projection
-		// is deliberate. ListEnvironments and its siblings return a response
-		// with no error, so an unauthorized caller handed an empty projection
-		// would read "no environments" -- the unknown-reads-as-none
-		// conflation the same file says the provenance model exists to
-		// prevent. A refusal a client can see is the only honest answer this
-		// interface can give.
-		//
-		// It gates the Overview source with it as well, which is a widening
-		// this endpoint can afford: nothing in web/src calls
-		// /v1/apollo/graphql, so the console reaches overview data through its
-		// own authorized routes rather than through here.
-		if !requirePlatformOperation(
-			writer, request, governance, principal, configuration, OperationReadResource,
-		) {
+		// Authorization matches the Apollo REST surface read for read, which it
+		// did not before: this barred every query on platform/root while REST
+		// authorizes Environments there, the catalogue on global/product and one
+		// Product on product/<id>. Governance expands neither coordinate into
+		// the other, so the surfaces refused each other's readers in opposite
+		// directions -- the measured table is in
+		// internal/apollographql/domain/authorization.go. The rule now lives
+		// beside the port it guards, so this binder names no coordinate itself.
+		reads := func(resourceRID string) bool {
+			return requireResourceOperation(newApolloResponseCapture(), request, governance,
+				principal, configuration, resourceRID, OperationReadResource)
+		}
+		// One decision is still about the request rather than a field: a reader
+		// who may see nothing at all gets Governance's status, because a
+		// document of nothing but refusals is a worse answer than the refusal.
+		projection := apolloProjectionOrNil(api)
+		if !authorizedprojection.AnyReadable(projection, reads) {
+			writeLifecycleError(writer, ErrForbidden)
 			return graphqlports.Sources{}, false
 		}
 		return graphqlports.Sources{
 			// The Apollo projection is nil when its initialization failed. A nil
 			// source refuses its half of the interface rather than taking the
 			// process down, which is the same choice the REST surface makes.
-			Apollo:   apolloProjectionOrNil(api),
+			Apollo:   authorizedprojection.New(projection, reads),
 			Overview: newOverviewSource(request.Context(), repository, governance, principal, configuration),
 		}, true
 	})
@@ -105,20 +100,20 @@ func apolloProjectionOrNil(api *apolloPublicAPI) graphqlports.ApolloProjection {
 // environment that does not exist.
 type apolloProjectionAdapter struct{ service *apolloapp.Service }
 
-func (adapter apolloProjectionAdapter) ListEnvironments() apollo.ListEnvironmentsResponse {
-	return adapter.service.ListEnvironments()
+func (adapter apolloProjectionAdapter) ListEnvironments() (apollo.ListEnvironmentsResponse, error) {
+	return adapter.service.ListEnvironments(), nil
 }
 
-func (adapter apolloProjectionAdapter) ListInstallations(environmentRID string) apollo.ListInstallationsResponse {
-	return adapter.service.ListInstallations(environmentRID)
+func (adapter apolloProjectionAdapter) ListInstallations(rid string) (apollo.ListInstallationsResponse, error) {
+	return adapter.service.ListInstallations(rid), nil
 }
 
-func (adapter apolloProjectionAdapter) ListProducts() apollo.ListProductsResponse {
-	return adapter.service.ListProducts()
+func (adapter apolloProjectionAdapter) ListProducts() (apollo.ListProductsResponse, error) {
+	return adapter.service.ListProducts(), nil
 }
 
-func (adapter apolloProjectionAdapter) ListReleases(product string) apollo.ListReleasesResponse {
-	return adapter.service.ListReleases(product)
+func (adapter apolloProjectionAdapter) ListReleases(product string) (apollo.ListReleasesResponse, error) {
+	return adapter.service.ListReleases(product), nil
 }
 
 func (adapter apolloProjectionAdapter) GetEnvironment(rid string) (apollo.Environment, error) {
