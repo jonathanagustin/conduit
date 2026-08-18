@@ -55,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeRepository()
-	repository, closeReconciliation, reconciliationSupervisor, readStats, notificationStore, notificationDeliveries, err :=
+	repository, closeReconciliation, reconciliationSupervisor, readStats, notifications, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
 		slog.Error("initialize durable reconciliation", "error", err)
@@ -73,14 +73,14 @@ func main() {
 	// prime step: an undelivered inbox entry is not a readiness condition, and
 	// blocking a Hub's startup on a third-party endpoint would let a broken
 	// webhook stop deliveries of software.
-	if notificationDeliveries != nil {
+	if notifications.Deliveries != nil {
 		slog.Info("notification delivery enabled")
-		go notificationDeliveries.Run(ctx)
+		go notifications.Deliveries.Run(ctx)
 	}
 	// Nil unless there is a notification store to record into, which is the
 	// same condition the notification routes mount on. A Hub without one still
 	// accepts recalls; it just has nobody to tell.
-	recallOpenings, err := composition.NewRecallOpenings(notificationStore, slog.Default())
+	recallOpenings, err := composition.NewRecallOpenings(notifications.Store, slog.Default())
 	if err != nil {
 		slog.Error("configure recall announcements", "error", err)
 		os.Exit(1)
@@ -160,7 +160,10 @@ func main() {
 			ExportSchedulerErrorHandler: func(err error) {
 				slog.Error("run scheduled Export Pipeline", "error", err)
 			},
-		}, composition.Options{NotificationStore: notificationStore}),
+		}, composition.Options{
+			NotificationStore:    notifications.Store,
+			NotificationContacts: notifications.Contacts,
+		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -247,15 +250,32 @@ func main() {
 	}
 }
 
+// notificationComponent is the notification half of a durable Hub: what
+// persists events, what persists addresses, and what delivers.
+//
+// A struct rather than three more positional results. The two that were here
+// before -- the store and the dispatcher -- gained a third when contacts
+// landed, and at that width a reader has to count commas to find out which nil
+// is which. Every field is nil in file mode, which is the mode with no
+// PostgreSQL to hold any of them.
+//
+// Store and Contacts are the same object in this deployment and are still
+// declared apart, because the ports are apart: the composition root is handed
+// two capabilities rather than one thing it may use for both.
+type notificationComponent struct {
+	Store      notificationports.Store
+	Contacts   notificationports.Contacts
+	Deliveries *notificationsapplication.Dispatcher
+}
+
 func configureReconciliation(
 	ctx context.Context, getenv func(string) string, repository controlplane.Repository,
 ) (
 	controlplane.Repository, func(), *reconciliationapplication.Supervisor,
-	metricsapplication.ReadStats, notificationports.Store,
-	*notificationsapplication.Dispatcher, error,
+	metricsapplication.ReadStats, notificationComponent, error,
 ) {
 	if getenv == nil || repository == nil {
-		return nil, func() {}, nil, nil, nil, nil, errors.New("environment reader and repository are required")
+		return nil, func() {}, nil, nil, notificationComponent{}, errors.New("environment reader and repository are required")
 	}
 	kind := strings.TrimSpace(getenv("REPOSITORY_KIND"))
 	if kind == "" || kind == "file" {
@@ -265,30 +285,30 @@ func configureReconciliation(
 		// describe belong to the PostgreSQL repository; exporting zeroes here
 		// would tell a scraper the fleet is idle rather than that this mode has
 		// nothing to say.
-		return repository, func() {}, nil, nil, nil, nil, nil
+		return repository, func() {}, nil, nil, notificationComponent{}, nil
 	}
 	if kind != "postgres" {
-		return nil, func() {}, nil, nil, nil, nil, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
+		return nil, func() {}, nil, nil, notificationComponent{}, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
 	}
 	dataSourceName, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
 	if err != nil {
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	store, err := reconciliationpostgres.New(ctx, dataSourceName)
 	if err != nil {
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	closeReconciliationStore := func() { _ = store.Close() }
 	closeStore := closeReconciliationStore
 	bridge, err := controlplaneadapter.NewRepository(repository, store)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	planner, err := controlplaneadapter.NewPlanner(bridge, store)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	// The notification store shares the reconciliation DSN. One database, two
 	// components in one ledger, which is the arrangement
@@ -297,7 +317,7 @@ func configureReconciliation(
 	notificationStore, err := notificationspostgres.New(ctx, dataSourceName)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	// From here on both stores are open, so every failure path has to close
 	// both. The shadowed name is deliberate: the returned closer is this one,
@@ -310,12 +330,12 @@ func configureReconciliation(
 	emitter, err := notificationsapplication.NewEmitter(notificationStore)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	escalations, err := notificationsadapter.NewEscalations(emitter)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	worker, err := reconciliationapplication.NewWorker(store, planner, reconciliationapplication.SystemClock{},
 		escalations, reconciliationapplication.Config{
@@ -324,7 +344,7 @@ func configureReconciliation(
 		})
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	supervisor, err := reconciliationapplication.NewSupervisor(worker, bridge,
 		reconciliationapplication.SupervisorConfig{
@@ -333,7 +353,7 @@ func configureReconciliation(
 		})
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	// The stats reader is the store itself, narrowed to the one call metrics
 	// needs. Narrowed rather than passed whole so the metrics path cannot reach
@@ -360,17 +380,31 @@ func configureReconciliation(
 	transport, err := composition.NewNotificationTransport(getenv, slog.Default())
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	deliveryConfig := composition.DefaultDispatcherConfig()
 	deliveryConfig.OnError = func(err error) { slog.Error("notification delivery cycle", "error", err) }
+	// The address book, read at delivery time so a notification reaches the
+	// recipient's own destination rather than only the endpoint an operator
+	// configured. The endpoint is still how the message leaves the process and
+	// still the fallback for a recipient holding no contact, so a deployment
+	// that records no contacts delivers exactly where it did before.
+	contacts, err := notificationsapplication.NewContacts(
+		notificationStore, notificationsapplication.SystemClock{})
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	deliveryConfig.Destinations = contacts
 	deliveries, err := composition.NewNotificationDispatcher(
 		notificationStore, transport, notificationsapplication.SystemClock{}, deliveryConfig)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, nil, err
+		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
-	return bridge, closeStore, supervisor, readStats, notificationStore, deliveries, nil
+	return bridge, closeStore, supervisor, readStats, notificationComponent{
+		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
+	}, nil
 }
 
 func openRepository(

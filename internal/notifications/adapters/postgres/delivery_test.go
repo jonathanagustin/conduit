@@ -256,23 +256,34 @@ func TestUpgradingDoesNotQueueTheHistoryItFinds(t *testing.T) {
 func TestTheDeliveryMigrationIsAppendedRatherThanEdited(t *testing.T) {
 	t.Parallel()
 	applied := Migrations()
-	if len(applied) != 2 {
-		t.Fatalf("the notifications component has %d migrations, want 2", len(applied))
+	want := []string{"0001-notifications-core", "0002-notification-delivery", "0003-notification-contacts"}
+	if len(applied) != len(want) {
+		t.Fatalf("the notifications component has %d migrations, want %d", len(applied), len(want))
 	}
-	if applied[0].Name != "0001-notifications-core" {
-		t.Errorf("the first migration was renamed to %q; names are immutable once merged", applied[0].Name)
-	}
-	if applied[1].Name != "0002-notification-delivery" {
-		t.Errorf("the delivery migration is named %q", applied[1].Name)
+	for index, name := range want {
+		if applied[index].Name != name {
+			t.Errorf("migration %d is named %q, want %q; names are immutable once merged",
+				index, applied[index].Name, name)
+		}
 	}
 	// A migration runs inside one transaction, so this cannot ever appear.
-	if contains(applied[1].Statements, "CONCURRENTLY") {
-		t.Error("the delivery migration builds an index concurrently, which cannot run in a transaction")
+	for _, migration := range applied {
+		if contains(migration.Statements, "CONCURRENTLY") {
+			t.Errorf("%s builds an index concurrently, which cannot run in a transaction", migration.Name)
+		}
 	}
 	// The core migration must not have grown the delivery columns: every
 	// database in service has already recorded it as applied.
 	if contains(applied[0].Statements, "delivery_available_at") {
 		t.Error("delivery state was added to an already-merged migration, which no existing database would apply")
+	}
+	// Nor may either merged migration have grown the contacts table, against
+	// the same risk: appending is the only way to add one.
+	for _, merged := range applied[:2] {
+		if contains(merged.Statements, "conduit_notification_contacts") {
+			t.Errorf("the contacts table was added to %s, which every database in service has already applied",
+				merged.Name)
+		}
 	}
 }
 

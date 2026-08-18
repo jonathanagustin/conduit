@@ -57,6 +57,46 @@ type Emitter interface {
 	Emit(ctx context.Context, event domain.Event) error
 }
 
+// Contacts is the address book: one destination per (owner, kind).
+//
+// Declared apart from Store rather than folded into it, for the same reason
+// Transport is kept out of Store. An address is personal data with its own
+// lifetime -- created by the person it belongs to, changed when they move team,
+// deleted when they ask -- while an event is immutable and an inbox entry is
+// written by a fan-out. A component that only needs to read a contact should
+// not be able to record an event, and a narrow port is what makes that true
+// rather than promised.
+//
+// Keyed on (owner, kind) because that is what the New Team Contact dialog
+// creates: a contact of a kind, for an owner. A second contact of the same kind
+// for the same owner is an edit of the first rather than a second destination,
+// so SaveContact replaces.
+type Contacts interface {
+	// SaveContact stores or replaces one owner's destination of one kind.
+	SaveContact(ctx context.Context, contact domain.Contact) error
+	// ContactsFor returns every contact one owner holds, in a stable order, so
+	// resolving the same recipient twice chooses the same destination.
+	ContactsFor(ctx context.Context, owner domain.Owner) ([]domain.Contact, error)
+	// DeleteContact removes one, reporting whether there was one to remove.
+	//
+	// Deletion is declared here rather than left to a later change, because the
+	// value being stored is somebody's address. "Conduit may record it and you
+	// may not withdraw it" is not a defensible position for personal data, and a
+	// port that could only write would have taken it by omission.
+	DeleteContact(ctx context.Context, owner domain.Owner, kind domain.ContactKind) (bool, error)
+}
+
+// DestinationResolver answers where one recipient's own contacts point.
+//
+// The delivery path depends on this rather than on Contacts, because it has no
+// business reading a contact it is not delivering to and none at all writing
+// one. A false second return means "this recipient names no destination of
+// their own", which the dispatcher reads as "send where the transport was
+// configured to send" rather than as a failure.
+type DestinationResolver interface {
+	DestinationFor(ctx context.Context, recipient domain.Recipient) (domain.Destination, bool, error)
+}
+
 // Clock is the only source of now in this context, so a dispatcher's backoff
 // and lease arithmetic can be tested without sleeping.
 type Clock interface {
@@ -77,12 +117,17 @@ var ErrPermanentDelivery = errors.New("notification delivery cannot succeed by r
 // Transport hands a rendered message to the world and reports whether the
 // world took it.
 //
-// It carries no address. Nothing in this repository stores a person's email
-// address or a team's Slack channel, so a port that demanded one would demand a
-// value Conduit cannot produce; a transport is configured with where it sends
-// the way the metrics listener is configured with where it listens. Name is for
-// operator-facing logs, so "which of the configured transports refused this"
-// is answerable without reading the wiring.
+// The address, when there is one, arrives on the message rather than in this
+// signature. A transport is still configured with where it sends, the way the
+// metrics listener is configured with where it listens -- what changed when
+// contacts landed is that a message may now also name the recipient's own
+// destination, which a transport that can honour one should prefer and a
+// transport that cannot may ignore. Name is for operator-facing logs, so "which
+// of the configured transports refused this" is answerable without reading the
+// wiring.
+//
+// A transport is the one place an address is allowed to travel to. It must not
+// be logged, put in an error, or attached to a metric on the way.
 type Transport interface {
 	Name() string
 	Deliver(ctx context.Context, message domain.Message) error

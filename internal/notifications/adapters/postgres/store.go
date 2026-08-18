@@ -125,6 +125,45 @@ CREATE INDEX IF NOT EXISTS conduit_notification_inbox_deliverable
     ON conduit_notification_inbox (delivery_available_at, event_id)
     WHERE delivery_available_at IS NOT NULL AND delivered_at IS NULL AND delivery_exhausted = false;`,
 	},
+	{
+		// The address book: one destination per (owner, kind).
+		//
+		// A table of its own rather than columns on the preference table,
+		// because a contact outlives every preference that names it -- Apollo
+		// creates one in Hub Settings and a resource only selects it -- and
+		// because a preference is edited per (resource, channel) while a contact
+		// is not about a resource at all. Folding them together would make
+		// deleting one address a matter of finding every row that repeated it.
+		//
+		// Columns rather than the `document bytea` the three tables above use,
+		// which is a deliberate departure from them. The shape is small and
+		// fixed, but the reason is what the shape holds: a column can be updated
+		// in place, deleted by primary key, and read by an operator answering
+		// "what do you hold about me" without decoding a blob. Personal data
+		// inside a JSON document is personal data somebody eventually greps.
+		//
+		// The primary key is the editing grain, so saving the same dialog twice
+		// leaves one row. The identifier is derived from that same tuple by
+		// application.ContactID, so it is carried rather than generated and is
+		// unique without a second constraint restating the key.
+		//
+		// No CREATE INDEX CONCURRENTLY -- every migration here runs inside one
+		// transaction -- and no index beyond the primary key, because every read
+		// is by owner and the key's leading columns already answer that.
+		Name: "0003-notification-contacts",
+		Statements: `
+CREATE TABLE IF NOT EXISTS conduit_notification_contacts (
+    owner_kind text NOT NULL,
+    owner_id text NOT NULL,
+    kind text NOT NULL,
+    id text NOT NULL,
+    address text NOT NULL,
+    opt_into_future_resources boolean NOT NULL DEFAULT false,
+    created_at timestamptz NOT NULL,
+    updated_at timestamptz NOT NULL,
+    PRIMARY KEY (owner_kind, owner_id, kind)
+);`,
+	},
 }
 
 // Migrations is this store's schema as the runner sees it, and Component names
