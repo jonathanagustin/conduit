@@ -173,3 +173,48 @@ func TestEntityAggregateIsDeterministicWhenVersionsTie(t *testing.T) {
 		t.Fatalf("input order changed the selection: %v", selections)
 	}
 }
+
+// The refusal for a Product whose eligible Releases cannot be ranked first
+// aborted the whole command. That was the wrong blast radius: a hotfix-only
+// Product is a documented, ordinary state, so one of them denied every other
+// Product its perfectly rankable answer and the operator got nothing at all.
+// The reason must stay visible -- omitting the Product silently would read as
+// "it has no Releases" -- without discarding the rest of the aggregate.
+func TestEntityAggregateReportsAnUnrankableProductWithoutDiscardingTheRest(t *testing.T) {
+	t.Parallel()
+	fixture := []controlplane.ProductCatalogRecord{
+		{Product: "com.example:healthy", Releases: []controlplane.Release{
+			{Product: "com.example:healthy", Version: "1.10.0", Channels: []string{"RELEASE"}},
+			{Product: "com.example:healthy", Version: "1.9.0", Channels: []string{"RELEASE"}},
+		}},
+		{Product: "com.example:legacy", Releases: []controlplane.Release{
+			{Product: "com.example:legacy", Version: "1.5.0-hotfix", Channels: []string{"RELEASE"}},
+		}},
+	}
+	var output bytes.Buffer
+	root := NewRoot(testRuntime(&output, &fakeService{products: fixture}))
+	root.SetArgs([]string{
+		"entity", "aggregate",
+		"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("one unrankable Product aborted the whole aggregate: %v", err)
+	}
+	var aggregate struct {
+		Products   map[string]string   `json:"products"`
+		Unrankable map[string][]string `json:"unrankable"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &aggregate); err != nil {
+		t.Fatalf("decode %s: %v", output.String(), err)
+	}
+	if aggregate.Products["com.example:healthy"] != "1.10.0" {
+		t.Fatalf("the rankable Product lost its answer: %s", output.String())
+	}
+	// Named, not silently dropped.
+	if got := aggregate.Unrankable["com.example:legacy"]; len(got) != 1 || got[0] != "1.5.0-hotfix" {
+		t.Fatalf("unrankable=%v want [1.5.0-hotfix] (output=%s)", got, output.String())
+	}
+	if _, ranked := aggregate.Products["com.example:legacy"]; ranked {
+		t.Fatalf("an unrankable Product was given a version: %s", output.String())
+	}
+}

@@ -2,7 +2,6 @@ package conduitcli
 
 import (
 	"errors"
-	"fmt"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -101,6 +100,8 @@ func entityAggregateCommand(state *commandState) *cobra.Command {
 					return nil, err
 				}
 				versions := map[string]any{}
+				// Products whose eligible Releases cannot be ranked at all.
+				unrankable := map[string][]string{}
 				for _, product := range products {
 					candidates := make([]string, 0)
 					for _, release := range product.Releases {
@@ -147,17 +148,23 @@ func entityAggregateCommand(state *commandState) *cobra.Command {
 						continue
 					}
 					if len(orderable) == 0 {
-						// Without --generate-versions there is nowhere to report the
-						// reason, and a version string is what the caller consumes.
-						// Refusing beats emitting a version nothing may rank.
-						return nil, fmt.Errorf(
-							"%s declares only non-orderable versions (%s), which cannot be ranked",
-							product.Product, strings.Join(unorderable, ", "),
-						)
+						// Reported beside the aggregate rather than instead of it.
+						// This first refused the whole command, which was the wrong
+						// blast radius: a Product whose only Releases are
+						// non-orderable is a documented, ordinary state, so one
+						// hotfix-only Product denied every other Product its
+						// perfectly rankable answer. Naming it here keeps the
+						// reason visible -- silently omitting it would read as "this
+						// Product has no Releases" -- without discarding the rest.
+						unrankable[product.Product] = unorderable
+						continue
 					}
 					versions[product.Product] = selectAggregateVersion(orderable, generateLowest)
 				}
 				result := map[string]any{"releaseChannel": releaseChannel, "products": versions}
+				if len(unrankable) > 0 {
+					result["unrankable"] = unrankable
+				}
 				if outputDir == "" {
 					return result, nil
 				}
