@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"go.yaml.in/yaml/v3"
 )
 
@@ -79,6 +80,28 @@ func TestEnvironmentDescriptorIsGitOwnedAndStable(t *testing.T) {
 	}
 	if ownerless.ContactTeam != "" || ownerless.Environment.ID != "dev-use2" {
 		t.Fatalf("descriptor=%#v", ownerless)
+	}
+}
+
+// The descriptor this command authors has to carry the API group the control
+// plane enforces. It carried a transposed "delivery.platform/v1alpha1" instead:
+// nothing consumes EnvironmentDescriptor yet, so nothing failed, but the
+// command writes a document a human commits and edits, and Validate would
+// reject that document verbatim once anything read it. The guard runs the
+// authored apiVersion through Validate rather than comparing it to a second
+// copy of the string, because a second copy is exactly how the two came apart.
+func TestEnvironmentDescriptorCarriesTheEnforcedAPIGroup(t *testing.T) {
+	t.Parallel()
+	descriptor, err := newEnvironmentDescriptor("dev-use2", "release-team")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, failure := range controlplane.Validate(controlplane.DesiredState{
+		APIVersion: descriptor.APIVersion, Kind: "EnvironmentDeployment", Environment: descriptor.Environment,
+	}) {
+		if failure.Path == "apiVersion" {
+			t.Fatalf("the control plane rejects the authored apiVersion %q: %s", descriptor.APIVersion, failure.Message)
+		}
 	}
 }
 
