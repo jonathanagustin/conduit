@@ -2,8 +2,8 @@ apiVersion: v2
 name: platform-spoke
 description: Outbound-only Platform delivery control plane Spoke Agent
 type: application
-version: 0.17.1
-appVersion: "0.17.1"
+version: 0.17.2
+appVersion: "0.17.2"
 home: https://github.com/jonathanagustin/conduit
 sources:
   - https://github.com/jonathanagustin/conduit

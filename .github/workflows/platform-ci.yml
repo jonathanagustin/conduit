@@ -191,6 +191,8 @@ jobs:
         run: ./scripts/test-postgres-repository.sh
       - name: Vet
         run: go vet ./...
+      - name: Validate standalone CLI release targets
+        run: ./scripts/verify-cli-release-targets.sh
       - name: Validate operator console
         run: ./scripts/test-console.sh
       # The console hand-writes small tables turning a Hub status into a colour.
