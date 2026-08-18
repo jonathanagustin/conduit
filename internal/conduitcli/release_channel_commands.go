@@ -2,6 +2,7 @@ package conduitcli
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -153,9 +154,25 @@ func releaseChannelListCommand(state *commandState) *cobra.Command {
 
 func releaseChannelGetCommand(state *commandState, action string) *cobra.Command {
 	var stateFile string
+	var latest bool
 	command := &cobra.Command{
 		Use: action + " CHANNEL_NAME", Short: strings.ToUpper(action[:1]) + action[1:] + " a Release Channel definition", Args: cobra.ExactArgs(1),
 		RunE: func(_ *cobra.Command, args []string) error {
+			// Refused rather than ignored. --latest asks for the Hub's current
+			// definition; this command reads the document named by --state-file
+			// and nothing else, so accepting the flag reported a local file as
+			// the Hub's live state and said nothing about the substitution.
+			// `--latest` and `--latest=false` produced byte-identical output,
+			// which is the shape of a flag that never reaches a decision.
+			if latest {
+				return errors.New(
+					"--latest is unavailable: `release-channel export` projects the desired-state document " +
+						"named by --state-file, and Conduit serves no Release Channel definition from the Hub " +
+						"to export instead. Answering from the local document while the flag claimed otherwise " +
+						"would report a file the operator supplied as the Hub's current definition. Point " +
+						"--state-file at the Git-owned desired state you want exported and drop the flag",
+				)
+			}
 			desired, err := readDesiredState(stateFile)
 			if err != nil {
 				return err
@@ -169,7 +186,11 @@ func releaseChannelGetCommand(state *commandState, action string) *cobra.Command
 	}
 	command.Flags().StringVar(&stateFile, "state-file", "", "desired-state YAML or JSON")
 	if action == "export" {
-		command.Flags().BoolP("latest", "l", false, "export the current Git-owned definition")
+		// Kept registered, not deleted: apollo-cli publishes -l/--latest on this
+		// command, so an operator carrying a script across will pass it. Meeting
+		// it with a stated boundary tells them what Conduit exports; meeting it
+		// with "unknown flag" leaves them guessing whether they mistyped.
+		command.Flags().BoolVarP(&latest, "latest", "l", false, "unavailable: export reads the document named by --state-file")
 	}
 	_ = command.MarkFlagRequired("state-file")
 	return command
@@ -232,6 +253,14 @@ func releaseChannelImportCommand(state *commandState) *cobra.Command {
 	return command
 }
 
+// releaseChannelDiffCommand reports what differs between two Release Channel
+// definitions, and --all is what makes it report everything instead.
+//
+// The flag documented "include unchanged fields" while the command printed
+// both definitions whole either way, so the only thing --all changed was the
+// `"all"` value echoed back beside output that never varied. Two channels
+// differing in one label requirement rendered as two complete documents an
+// operator had to compare by eye -- the work the command exists to have done.
 func releaseChannelDiffCommand(state *commandState) *cobra.Command {
 	var stateFile, source, target string
 	var all bool
@@ -246,7 +275,15 @@ func releaseChannelDiffCommand(state *commandState) *cobra.Command {
 			if left == nil || right == nil {
 				return errors.New("source and target Release Channels must exist")
 			}
-			return writeOutput(state.runtime.Stdout, state.output, map[string]any{"equal": reflect.DeepEqual(left, right), "all": all, "source": left, "target": right})
+			equal := reflect.DeepEqual(left, right)
+			if all {
+				return writeOutput(state.runtime.Stdout, state.output, map[string]any{"equal": equal, "all": true, "source": left, "target": right})
+			}
+			narrowedSource, narrowedTarget, err := differingFields(left, right)
+			if err != nil {
+				return err
+			}
+			return writeOutput(state.runtime.Stdout, state.output, map[string]any{"equal": equal, "all": false, "source": narrowedSource, "target": narrowedTarget})
 		},
 	}
 	command.Flags().StringVar(&stateFile, "state-file", "", "desired-state YAML or JSON")
@@ -303,6 +340,60 @@ func releaseChannelAddCommand(state *commandState) *cobra.Command {
 		_ = command.MarkFlagRequired(flag)
 	}
 	return command
+}
+
+// differingFields narrows two definitions to the fields whose values differ,
+// which is what `release-channel diff` reports without --all.
+//
+// The comparison runs over the JSON projection rather than the Go struct for
+// two reasons: the keys it emits are then the keys the output already uses, so
+// an operator reading a narrowed diff can look the field up in the full
+// document unchanged; and a field carrying `omitempty` that is absent on one
+// side counts as a difference rather than quietly comparing equal to the other
+// side's zero value.
+func differingFields(left, right any) (map[string]any, map[string]any, error) {
+	leftFields, err := jsonFields(left)
+	if err != nil {
+		return nil, nil, err
+	}
+	rightFields, err := jsonFields(right)
+	if err != nil {
+		return nil, nil, err
+	}
+	union := map[string]struct{}{}
+	for key := range leftFields {
+		union[key] = struct{}{}
+	}
+	for key := range rightFields {
+		union[key] = struct{}{}
+	}
+	narrowedLeft, narrowedRight := map[string]any{}, map[string]any{}
+	for key := range union {
+		leftValue, leftPresent := leftFields[key]
+		rightValue, rightPresent := rightFields[key]
+		if leftPresent && rightPresent && reflect.DeepEqual(leftValue, rightValue) {
+			continue
+		}
+		if leftPresent {
+			narrowedLeft[key] = leftValue
+		}
+		if rightPresent {
+			narrowedRight[key] = rightValue
+		}
+	}
+	return narrowedLeft, narrowedRight, nil
+}
+
+func jsonFields(value any) (map[string]any, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, fmt.Errorf("encode Release Channel definition: %w", err)
+	}
+	fields := map[string]any{}
+	if err := json.Unmarshal(encoded, &fields); err != nil {
+		return nil, fmt.Errorf("normalize Release Channel definition: %w", err)
+	}
+	return fields, nil
 }
 
 func findReleaseChannel(desired *controlplane.DesiredState, name string) *controlplane.ReleaseChannelDefinition {

@@ -80,7 +80,16 @@ func productPromotionSetCommand(state *commandState, appendStages bool) *cobra.C
 	command.Flags().StringVar(&stateFile, "state-file", "", "next-generation desired-state YAML or JSON")
 	command.Flags().StringVarP(&pipelineFile, "file", "f", "", "typed Product promotion pipeline YAML or JSON")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "validate without proposing")
-	command.Flags().BoolVar(&override, "override", false, "allow the appended document to replace enabled state")
+	// --override belongs to `append` alone, because overriding needs something
+	// to override. `append` merges stages into a pipeline that already exists
+	// and has to decide whose Enabled state survives; `set` replaces the
+	// pipeline whole, so the document's Enabled state is the only one there is.
+	// Both actions share this constructor and the flag was registered on both
+	// while only the append branch read it, so `promotion set --override` was
+	// accepted and dropped.
+	if appendStages {
+		command.Flags().BoolVar(&override, "override", false, "allow the appended document to replace enabled state")
+	}
 	for _, flag := range []string{"state-file", "file"} {
 		_ = command.MarkFlagRequired(flag)
 	}

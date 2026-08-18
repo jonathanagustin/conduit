@@ -215,9 +215,16 @@ func environmentReleaseChannelCommand(state *commandState) *cobra.Command {
 	return command
 }
 
+// environmentVersionCommand carries no --all flag, though apollo-cli publishes
+// one on `version compare`.
+//
+// This command already returns every Entity the Environment reports unless
+// --release-channel narrows the set, so --all could only name the default or
+// contradict the filter; there is no third selection for it to make. It was
+// registered anyway and echoed straight back as `"all": false` beside a result
+// it never touched, which reads as a filter the operator can trust.
 func environmentVersionCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "version", Short: "Compare exact Entity versions"}
-	var all bool
 	var releaseChannel string
 	compare := &cobra.Command{
 		Use: "compare ENVIRONMENT_ID", Short: "Return exact versions reported by an Environment", Args: cobra.ExactArgs(1),
@@ -225,7 +232,7 @@ func environmentVersionCommand(state *commandState) *cobra.Command {
 			return state.execute(command, func(service Service) (any, error) {
 				versions, err := service.GetEnvironmentVersions(command.Context(), args[0])
 				if err != nil || releaseChannel == "" {
-					return map[string]any{"versions": versions, "all": all}, err
+					return map[string]any{"versions": versions}, err
 				}
 				entities, err := service.ListEntities(command.Context(), args[0])
 				if err != nil {
@@ -242,11 +249,10 @@ func environmentVersionCommand(state *commandState) *cobra.Command {
 						filtered = append(filtered, version)
 					}
 				}
-				return map[string]any{"versions": filtered, "releaseChannel": releaseChannel, "all": all}, nil
+				return map[string]any{"versions": filtered, "releaseChannel": releaseChannel}, nil
 			})
 		},
 	}
-	compare.Flags().BoolVar(&all, "all", false, "include every reported Entity when no Release Channel filter is set")
 	compare.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "include only Entities assigned to this Release Channel")
 	command.AddCommand(compare)
 	return command
