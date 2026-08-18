@@ -99,6 +99,87 @@ from GitHub's commit-status API on the final status POST, and the stale `pending
 status was misread as a hang. The test was restored in #144 and the gate was fixed
 in #145 so that a status post can no longer decide whether the code is good.
 
+## The security round (2026-08-18, later)
+
+Two live credential leaks were found and closed. **Both were found by reviewing
+code that had already merged and gone green.** Neither the Trunk gate nor the
+unit tests caught either. That is the durable lesson: this gate is good at
+regressions and blind to authorization and destination defects, so merged
+security-adjacent code needs an adversarial pass regardless of its verdict.
+
+| Defect | Mechanism | Closed by |
+| --- | --- | --- |
+| Token realm | The realm came from an UNAUTHENTICATED `WWW-Authenticate` 401, was interpolated into a URL with no scheme or host check, and the real host's credential was attached to it | #228 |
+| `Location` header | The same class through a different header: an absolute blob-upload `Location` was followed verbatim, so `Location: http://attacker.example/hijacked` + a 401 handed over the push credential in cleartext, bypassing the realm constraint entirely | #242 |
+
+`TokenEndpoint` (`internal/gitless/adapters/registrychallenge`) now requires an
+absolute https URL, rejects userinfo, and requires the realm host to be the
+registry's own or one declared in `GITLESS_REGISTRY_TOKEN_REALMS`. The credential
+destination is additionally checked in `ocipublish.do` at the point of
+attachment, so paths that do not exist yet are covered too.
+
+**Two traps worth not re-discovering:**
+
+- A same-host rule alone breaks Docker Hub, whose realm (`auth.docker.io`)
+  is deliberately a different host from its registry (`registry-1.docker.io`).
+  That is why the allowlist exists rather than a flat rule.
+- The destination must be captured BEFORE the first round trip. A `Transport`
+  may rewrite `request.URL` in place — this package's own `routed` test
+  transport does, and a proxy or mirror in production would. Guarding the
+  post-round-trip URL passes the attack test and breaks two legitimate realm
+  tests, which is how the first attempt failed.
+
+**Behaviour change needing a release note:** anonymous PUBLIC Docker Hub and
+GitLab pulls now fail until an operator sets
+`GITLESS_REGISTRY_TOKEN_REALMS=registry-1.docker.io=auth.docker.io`. Measured
+live. The refusal names the variable and the exact value, and it fires even when
+the credential source is `Anonymous` (deliberate, `resolve.go:217-220`). There is
+no CHANGELOG, so this is the only place an upgrading operator would find it.
+
+**Still open from the same review:** #244 (a redirect from a permitted realm
+still carries the credential to a subdomain, or downgrades it to http — note the
+cross-host case is safe only because of Go's stdlib, not our code) and #241 (the
+notification routes treat a delegated principal as an administrator where REST
+does not, and write no audit record).
+
+## What the environment can actually do
+
+Three capabilities were believed unavailable and are not. Re-test an inherited
+constraint before designing around it.
+
+- **Docker runs.** `sudo dockerd &`, or `scripts/start-docker.sh`. The
+  PostgreSQL gate and `test-postgres-repository.sh` pass here.
+- **A k3s cluster runs.** `kubectl` is NOT a separate binary — it is
+  `sudo k3s kubectl`. Checking for `kubectl` and concluding "no cluster" is a
+  false negative that cost time.
+- **The live console suite runs.** `scripts/simulate-console.sh` builds the Hub,
+  seeds through its own API, and drives a browser at the embedded bundle with no
+  stub in the loop: 12/12 passing, including a reviewer approving a Change
+  Request and the Agent executing the Plan to SUCCEEDED. The stubbed suite (70
+  unit, 122 e2e) cannot catch a renamed field, an unread query parameter, or a
+  Go nil slice encoded as `null`; this one can.
+
+The gitless clean-cluster acceptance still fails here, but NOT in the product:
+`registryauth`'s publication and verification acceptance tests pass against a
+real zot registry with real cosign. The failure is Flux's controllers never
+becoming ready in k3d, which is an environment gap.
+
+## The gate now runs itself
+
+`platform-ci.yml` triggers on `pull_request` as well as `workflow_dispatch`, with
+concurrency keyed per pull request so a second push cancels the first rather than
+stacking. Head authentication moved to
+`scripts/authenticate-pull-request-head.sh` and validates both paths; on a
+`pull_request` event `GITHUB_SHA` is a synthetic MERGE commit, not the head, so
+the naive port silently checks the wrong tree.
+
+**The `Trunk gate` commit status must keep being posted** even though a
+`pull_request` check suite is attached to the rollup, because
+`scripts/verify-release-preconditions.sh` reads
+`repos/{repo}/commits/{sha}/status` — the combined-status endpoint reports
+commit statuses, NOT check runs. Deleting the bridge would refuse every release
+for want of a gate that had run.
+
 ## Resource limit reached, and what it cost (2026-08-18 ~06:55 UTC)
 
 The orchestration run hit the agent API session limit (resets 08:40 UTC). Five
