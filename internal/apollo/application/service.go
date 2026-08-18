@@ -93,7 +93,7 @@ type Service struct {
 	releases      map[string]map[string]releaseRecord
 	environments  map[string]apollo.Environment
 	installations map[string]map[string]apollo.Installation
-	namespaces    map[string]apollo.Namespace
+	namespaces    map[string]map[string]apollo.Namespace
 	entityInfo    map[string][]apollo.EntityInfo
 	entityHealth  map[string][]apollo.EntityHealth
 	// recalls is keyed by Environment, because that is how Conduit declares a
@@ -113,7 +113,7 @@ func New(ctx context.Context, catalogPort CatalogPort, reporting environmentport
 	service := &Service{
 		products: make(map[string]apollo.Product), releases: make(map[string]map[string]releaseRecord),
 		environments: make(map[string]apollo.Environment), installations: make(map[string]map[string]apollo.Installation),
-		namespaces: make(map[string]apollo.Namespace), entityInfo: make(map[string][]apollo.EntityInfo),
+		namespaces: make(map[string]map[string]apollo.Namespace), entityInfo: make(map[string][]apollo.EntityInfo),
 		entityHealth: make(map[string][]apollo.EntityHealth), catalog: catalogPort, reporting: reporting,
 		now: time.Now,
 	}
@@ -558,14 +558,16 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 		service.promotions = make(map[string][]environments.ProjectedPromotion)
 	}
 	service.promotions[rid] = append([]environments.ProjectedPromotion(nil), projection.Promotions...)
+	namespaces := make(map[string]apollo.Namespace, len(projection.Namespaces))
 	for _, namespace := range projection.Namespaces {
 		id := namespace.Name
 		if id == "" {
 			id = namespace.RID
 		}
 		owners, editors, viewers := []string{}, []string{}, []string{}
-		service.namespaces[id] = apollo.Namespace{Id: id, Owners: &owners, Editors: &editors, Viewers: &viewers}
+		namespaces[id] = apollo.Namespace{Id: id, Owners: &owners, Editors: &editors, Viewers: &viewers}
 	}
+	service.namespaces[rid] = namespaces
 }
 
 func (service *Service) ListEnvironments() apollo.ListEnvironmentsResponse {
@@ -612,8 +614,14 @@ func (service *Service) GetInstallation(environmentRID, installationRID string) 
 
 func (service *Service) ListNamespaces() apollo.ListNamespacesResponse {
 	service.mu.RLock()
-	values := make([]apollo.Namespace, 0, len(service.namespaces))
-	for _, value := range service.namespaces {
+	unique := make(map[string]apollo.Namespace)
+	for _, environmentNamespaces := range service.namespaces {
+		for id, value := range environmentNamespaces {
+			unique[id] = value
+		}
+	}
+	values := make([]apollo.Namespace, 0, len(unique))
+	for _, value := range unique {
 		values = append(values, clone(value))
 	}
 	service.mu.RUnlock()
