@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-18 17:50 UTC
 **Lead or owner:** orchestrating session (see `ORCHESTRATOR.md`)
-**Status:** active
+**Status:** blocked
 
 This file carries the shape of [`HANDOFF.template.md`](HANDOFF.template.md) at
 the top — current state, decisions, next actions — and the dated historical
@@ -98,15 +98,49 @@ earlier session's claim is made where the claim is, and marked.
   the surviving-mutant proof that #242's guard was gone. Both overturned what a
   status report alone would have said.
 
+## Blocker
+
+- **Exact blocker:** GitHub Actions is not allocating runners for this
+  repository. Every job fails within about two seconds with `runner_id: 0`, no
+  runner name, no steps, and a 404 on its log. Verified across two independent
+  branches and three run attempts; the run-usage API reports
+  `duration_ms: 0` for **all six jobs** and `total_ms: 0` billable, so nothing
+  executed at all.
+- `[VERIFIED]` It is not caused by any change on either branch: PR #275 is
+  documentation-only and its first run failed identically, and the same
+  workflow succeeded on eight runs earlier today (most recent green:
+  `32154882696`, 15:30 UTC).
+- `[INFERRED]` Most likely an exhausted Actions minutes quota or a reached
+  spending limit — this repository is private, and that failure mode produces
+  exactly this signature. Confidence: moderate. Not verified, because no
+  billing endpoint is reachable from this session.
+- **Minimum external input or authorization required:** someone with billing
+  access checks Actions minutes and the spending limit for the account, at
+  GitHub → Settings → Billing. If that is not it, the run pages for
+  `32167586350` and `32168615490` will carry the reason in the web UI, which
+  the API does not expose.
+- **Useful work preserved at:** branches `claude/fix-redirect-strip-not-refuse`
+  (PR #274) and `claude/orchestrator-deployment` (PR #275), both pushed. Both
+  trees were verified locally; #274's five lanes all passed on GitHub at 17:55
+  UTC before the aggregator stopped being schedulable.
+- **Do not** keep re-running. Three attempts produced the identical signature
+  and consumed no runner time; a fourth is the repeated unchanged action the
+  doctrine forbids.
+
 ## Prioritized next actions
 
-1. Drive PR #274 to green and merge — clears a live regression on the reconcile
-   path — high confidence — low cost — reversible — no dependency.
-2. Decide the `mcp__github__merge_pull_request` gate (close it, or correct the
+1. Unblock Actions (see above) — nothing else in CI can proceed until then —
+   requires billing access, which this session does not have.
+2. Merge PR #274 once the gate can run — clears a live regression on the
+   reconcile path — high confidence — low cost — reversible. Its five
+   verification lanes already passed on the exact head `6c13975`; only the
+   status-publishing job never ran, so the commit status is stuck `pending`
+   rather than red.
+3. Decide the `mcp__github__merge_pull_request` gate (close it, or correct the
    policy to match reality) — this is the repository owner's call, not the
    agent's — see `HARNESS_REQUIREMENTS.md`.
-3. Re-dispatch the Apollo hydration research and the Multipass IAM port — both
-   are scoped and briefed; neither is blocked on information.
+4. Re-dispatch the Apollo hydration research and the Multipass IAM port — both
+   are scoped and briefed; neither is blocked on information or on CI.
 
 ## Resume recipe
 
