@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -111,6 +112,75 @@ func TestPlannerUsesOrdinaryLifecycleAndRejectsSupersededAuthority(t *testing.T)
 	inputs.mu.Unlock()
 	if _, err := planner.Propose(ctx, *proposal); !errors.Is(err, ports.ErrProposalSuperseded) {
 		t.Fatalf("superseded proposal error=%v", err)
+	}
+}
+
+// A Plan that has already failed or been cancelled must not be dispatched again
+// as a success. CreatePlan is a get-or-create and a Plan's ID is a pure hash of
+// its content, so an unconverged Environment rebuilds the same bytes every
+// cycle and gets the same dead record back. Before Propose read the status, the
+// step digests still matched and the loop returned receipts naming a failed
+// Plan forever, never reaching FailProposal.
+func TestPlannerRefusesToDispatchATerminalPlanAsSuccess(t *testing.T) {
+	for _, terminal := range []controlplane.PlanStatus{controlplane.PlanFailed, controlplane.PlanCancelled} {
+		t.Run(string(terminal), func(t *testing.T) {
+			ctx := t.Context()
+			state := loadExampleState(t)
+			inputs := newMemoryInputs()
+			repository, err := NewRepository(controlplane.NewMemoryRepository(), inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := controlplane.NewLifecycle(repository).CreatePlan(ctx, state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(record.Plan.Steps) == 0 {
+				t.Fatal("example desired state produced no ordinary Plan steps")
+			}
+			key := domain.Key{
+				Environment: record.Plan.Environment, Installation: record.Plan.Steps[0].InstallationID,
+			}
+			desired := inputs.desired[key.String()]
+			input := domain.Input{Desired: &desired}
+			decision, proposal, err := domain.Decide(input, 1, record.CreatedAt.Add(time.Second), 10*time.Minute)
+			if err != nil || proposal == nil || decision.Kind != domain.DecisionProposePlan {
+				t.Fatalf("decision=%#v proposal=%#v err=%v", decision, proposal, err)
+			}
+			planner, err := NewPlanner(repository, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			// The dispatch that precedes the failure succeeds, which is what makes
+			// the regression quiet: the same call answers differently only once the
+			// rollout has died.
+			if _, err := planner.Propose(ctx, *proposal); err != nil {
+				t.Fatalf("dispatch before the Plan reached %s: %v", terminal, err)
+			}
+			// Set the terminal status directly rather than driving approve, lease,
+			// run and finish. The status is what Propose reads; how the Plan got
+			// there is the lifecycle's business and is tested there.
+			if _, err := repository.UpdatePlan(ctx, record.ID, func(stored *controlplane.PlanRecord) error {
+				stored.Status = terminal
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			receipt, err := planner.Propose(ctx, *proposal)
+			if err == nil {
+				t.Fatalf("dispatched %s Plan %s as a success: receipt=%#v", terminal, record.ID, receipt)
+			}
+			// The worker turns any non-superseded error into FailProposal with a
+			// retry and eventual exhaustion. Reporting supersession instead would
+			// exhaust immediately on a snapshot that did not change -- one false
+			// report traded for another.
+			if errors.Is(err, ports.ErrProposalSuperseded) {
+				t.Fatalf("terminal Plan reported as a superseded snapshot: %v", err)
+			}
+			if !strings.Contains(err.Error(), string(terminal)) || !strings.Contains(err.Error(), record.ID) {
+				t.Fatalf("error names neither the status nor the Plan: %v", err)
+			}
+		})
 	}
 }
 

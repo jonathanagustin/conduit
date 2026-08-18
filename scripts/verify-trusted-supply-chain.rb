@@ -1,6 +1,8 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
+require "yaml"
+
 # The workflows live at the repository root, not beside this tree: platform is a
 # subtree of a larger repository and GitHub only reads .github/workflows from the
 # root, which is also why they carry a platform- prefix there.
@@ -49,6 +51,25 @@ cosign_release = "v3.1.3"
 clean_cluster = File.read(File.expand_path("test-gitless-clean-cluster.sh", __dir__))
 optimizer_release_workflow = read_workflow.call("optimizer-candidate-release.yml")
 retry_wrapper = "./scripts/retry-keyless-signing.sh"
+# Nothing asserted the trigger shape of this workflow, which is the one that
+# actually signs and publishes: images, the Flux runtime source, the Helm
+# charts, the Zarf packages and the CLI. ADR 0006 named the optimizer-release
+# and Gitless-acceptance checks as holding publication to `workflow_dispatch`,
+# but neither of those reads this file, so adding `on: push:` here passed every
+# gate in the repository while breaking ADR 0001's manual-publication rule and
+# assumption A5.
+#
+# Asserted as an exact key set, the stronger form already used by
+# verify-optimizer-candidate-release-workflow.rb, rather than as a scan for
+# known-bad trigger names: a name list only rejects the triggers whoever wrote
+# it thought of, while the exact set rejects any trigger that is ADDED.
+# Psych implements YAML 1.1 and decodes the unquoted GitHub `on` key as the
+# boolean true, so both parser representations are accepted before the keys are
+# compared.
+workflow_document = YAML.safe_load(workflow, aliases: true)
+publication_triggers = workflow_document.is_a?(Hash) ? (workflow_document["on"] || workflow_document[true]) : nil
+abort "publication workflow must have exactly one workflow_dispatch trigger (ADR 0001, A5)" unless
+  publication_triggers.is_a?(Hash) && publication_triggers.keys == ["workflow_dispatch"]
 abort "Cosign installer must be pinned for image and runtime signing" unless workflow.scan(cosign_action).length == 2
 abort "Cosign release must be pinned for image and runtime signing" unless
   workflow.scan("cosign-release: #{cosign_release}").length == 2

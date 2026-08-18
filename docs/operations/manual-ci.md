@@ -24,9 +24,12 @@ An automated workflow must:
 - **Stay least-privilege** with a minimal `permissions:` block.
 - **Never publish, release, sign, or deploy.**
 
-The release and acceptance workflows stay `workflow_dispatch` only, enforced by
-`scripts/verify-optimizer-candidate-release-workflow.rb` and
-`scripts/verify-flux-runtime.rb`. The Trunk gate below stays dispatch-based
+The publication, release, and acceptance workflows stay `workflow_dispatch`
+only, enforced by `scripts/verify-trusted-supply-chain.rb`
+(`platform-images.yml`),
+`scripts/verify-optimizer-candidate-release-workflow.rb`
+(`platform-optimizer-candidate-release.yml`), and
+`scripts/verify-flux-runtime.rb` (`platform-gitless-e2e.yml`). The Trunk gate below stays dispatch-based
 because it authenticates the exact pull-request head; a merge queue, when built,
 is a separate `merge_group` workflow, not a change to how the Trunk gate runs.
 
