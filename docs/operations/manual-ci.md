@@ -88,6 +88,13 @@ than on `github.ref`, because the two paths name the same pull request with
 different refs: a second push cancels the first run, and a dispatched re-run
 supersedes an automatic one instead of billing beside it.
 
+Measured on #239, the pull request that made the change: opening it started run
+32119952760 on the `pull_request` event with nobody dispatching anything, and
+that run's preflight resolved pull request 239 from the event, pinned every
+checkout to the head commit `fcd125c`, and published the pending `Trunk gate`
+status against that same commit rather than against the merge commit
+`GITHUB_SHA` named.
+
 The gates then run as four parallel lanes — `go`, `cli-matrix`, `console`, and
 `checks` — because as one sequential job the gate took 16m20s, of which four
 independent steps were 79% (#213). The wall clock is now roughly the longest
