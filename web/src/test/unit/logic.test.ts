@@ -11,7 +11,7 @@ import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
 import { installation } from "../fixtures.js";
-import type { ChangeRequest } from "../../api/resources.js";
+import { reviewBody, type ChangeRequest } from "../../api/resources.js";
 
 /** Unit tests over the console's own logic -- the parts that are not the Hub's
  * behaviour and not Blueprint's. These exist to be mutated: the browser tests
@@ -444,5 +444,22 @@ describe("orderFindingsByHubScore", () => {
     ];
     orderFindingsByHubScore(findings);
     expect(findings.map((finding: VulnerabilityFinding) => finding.id)).toEqual(["CVE-2", "CVE-1"]);
+  });
+});
+
+describe("review bodies match the Hub's decoder", () => {
+  // JSON.stringify is what postJSON puts on the wire. requireEmptyBody in
+  // http.go reads the first byte and 400s if any is present -- it does not
+  // parse JSON -- so "{}" from an empty object is a refusal, not an empty
+  // body. The browser stub JSON.parsed that document back to {} and the
+  // reopen test stayed green.
+  it("does not serialise reopen as a JSON document", () => {
+    expect(JSON.stringify(reviewBody("reopen", "reopening"))).toBeUndefined();
+  });
+
+  it("sends approve and reject a rationale, and cancel a reason", () => {
+    expect(reviewBody("approve", "ok")).toEqual({ rationale: "ok" });
+    expect(reviewBody("reject", "no")).toEqual({ rationale: "no" });
+    expect(reviewBody("cancel", "superseded")).toEqual({ reason: "superseded" });
   });
 });
