@@ -12,8 +12,7 @@ for required in \
   "            -f context='Trunk gate'" \
   '      - name: Publish gate summary' \
   '      - name: Publish final Trunk status' \
-  '        if: ${{ always() }}' \
-  "          TRUNK_STATE: \${{ job.status == 'success' && 'success' || 'failure' }}"; do
+  '        if: ${{ always() }}'; do
   grep -Fq -- "$required" "$workflow" || {
     printf 'manual Trunk status bridge is incomplete: %s\n' "$required" >&2
     exit 1
@@ -28,10 +27,16 @@ done
 # have turned an all-green run red. Both are checked structurally rather than
 # by grepping the file for `continue-on-error` anywhere in it, because that
 # would pass while the marker sat on some unrelated step.
+#
+# The block also ends at a job header, not only at the next step. The workflow
+# is several jobs since #213, so a status step that is the last step of its job
+# would otherwise absorb every line up to the next job's first step and pass on
+# a marker belonging to somebody else.
 step_block() {
   awk -v name="      - name: $1" '
     $0 == name { inside = 1; next }
     inside && /^      - (name|uses):/ { exit }
+    inside && /^  [^ ]/ { exit }
     inside { print }
   ' "$workflow"
 }
@@ -54,6 +59,124 @@ for status_step in \
     exit 1
   }
 done
+
+# The shape of the job graph, which is what the split into parallel lanes (#213)
+# made possible to get wrong. Three properties, none of which the greps above can
+# see, and each of which is a hole rather than a slowdown if it breaks:
+#
+#   - head authentication is one job and EVERY other lane needs it, so no lane
+#     can verify a tree nobody proposed. A lane added without that edge would run
+#     against any dispatched ref;
+#   - exactly one job publishes the `Trunk gate` commit status, and it needs
+#     every other job, so the status cannot be written while a lane is still
+#     running or be written twice with different verdicts;
+#   - that job derives its verdict from the lanes' results and not from
+#     `job.status`, which is its own status and is green no matter what the lanes
+#     did. Reading `job.status` there is the specific mistake that would publish
+#     success over a failed lane.
+ruby -ryaml -e '
+  workflow = YAML.safe_load(File.read(ARGV[0], encoding: "UTF-8"), aliases: true)
+  jobs = workflow.fetch("jobs")
+  fail_with = lambda { |message| warn message; exit 1 }
+
+  step_named = lambda do |job, name|
+    job.fetch("steps", []).find { |step| step["name"] == name }
+  end
+  jobs_with = lambda do |name|
+    jobs.select { |_id, job| step_named.call(job, name) }.keys
+  end
+
+  authenticating = jobs.select do |_id, job|
+    job.fetch("steps", []).any? { |step| step["run"].to_s.include?("verify-pr-fidelity.sh") }
+  end.keys
+  fail_with.call("exactly one job must authenticate the pull-request head, found: #{authenticating.inspect}") unless
+    authenticating.length == 1
+  preflight = authenticating.first
+
+  pending = jobs_with.call("Publish pending Trunk status")
+  fail_with.call("exactly one job may publish the pending Trunk status, found: #{pending.inspect}") unless
+    pending == [preflight]
+
+  finalizers = jobs_with.call("Publish final Trunk status")
+  fail_with.call("exactly one job may publish the final Trunk status, found: #{finalizers.inspect}") unless
+    finalizers.length == 1
+  finalizer = finalizers.first
+
+  needs_of = lambda do |id|
+    Array(jobs.fetch(id)["needs"])
+  end
+
+  lanes = jobs.keys - [preflight, finalizer]
+  fail_with.call("the gate has no verification lanes left") if lanes.empty?
+  lanes.each do |lane|
+    fail_with.call("lane #{lane} does not need #{preflight}, so it would run without head authentication") unless
+      needs_of.call(lane).include?(preflight)
+  end
+
+  fail_with.call("#{finalizer} must need every other job, missing: #{((jobs.keys - [finalizer]) - needs_of.call(finalizer)).inspect}") unless
+    needs_of.call(finalizer).sort == (jobs.keys - [finalizer]).sort
+  fail_with.call("#{finalizer} must run under always(), or a failed lane gets no verdict") unless
+    jobs.fetch(finalizer)["if"].to_s.include?("always()")
+
+  # Comments are stripped first: the step explains in prose why it cannot read
+  # `job.status`, and a check that failed on the explanation would push the
+  # explanation out of the file.
+  verdict = step_named.call(jobs.fetch(finalizer), "Publish final Trunk status")
+    .fetch("run").lines.reject { |line| line.strip.start_with?("#") }.join
+  fail_with.call("the Trunk verdict must not read job.status: in the aggregating job that is its own status, which is green whatever the lanes did") if
+    verdict.include?("job.status")
+  fail_with.call("the Trunk verdict must be computed from the lanes results (toJSON(needs))") unless
+    jobs.fetch(finalizer).fetch("steps").any? { |step| step.fetch("env", {}).values.any? { |value| value.to_s.include?("toJSON(needs)") } }
+' "$workflow"
+
+# The verdict logic itself, executed rather than read. This is the one piece of
+# the bridge whose failure mode is silent: a status that says success over a
+# failed lane looks exactly like a green run. So the step body is lifted out of
+# the workflow as written and run against synthetic lane results, with the
+# GitHub call stubbed. Every case that is not "every lane succeeded" must come
+# out `failure`, including results this shell has never heard of and an empty
+# set of lanes, because the mistakes that reach here are the ones nobody
+# enumerated.
+verdict_root="$(mktemp -d)"
+trap 'rm -rf "$verdict_root"' EXIT
+mkdir -p "$verdict_root/scripts"
+cat >"$verdict_root/scripts/retry-github-api.sh" <<'STUB'
+#!/usr/bin/env bash
+# Stands in for the real GitHub call so the verdict can be exercised offline.
+printf 'stubbed: %s\n' "$*"
+STUB
+chmod 0755 "$verdict_root/scripts/retry-github-api.sh"
+ruby -ryaml -e '
+  workflow = YAML.safe_load(File.read(ARGV[0], encoding: "UTF-8"), aliases: true)
+  step = workflow.fetch("jobs").values
+    .flat_map { |job| job.fetch("steps", []) }
+    .find { |candidate| candidate["name"] == "Publish final Trunk status" }
+  print step.fetch("run")
+' "$workflow" >"$verdict_root/verdict.sh"
+
+verdict_for() {
+  (
+    cd "$verdict_root"
+    LANE_RESULTS="$1" GH_TOKEN=stub GITHUB_REPOSITORY=owner/repo GITHUB_SHA=deadbeef \
+      GITHUB_RUN_ID=1 bash -euo pipefail verdict.sh
+  ) | sed -n 's/^Trunk gate verdict: //p'
+}
+
+expect_verdict() {
+  local name="$1" expected="$2" lanes="$3" actual
+  actual="$(verdict_for "$lanes")"
+  [[ "$actual" == "$expected" ]] || {
+    printf 'Trunk verdict for %s was %s, expected %s\n' "$name" "${actual:-<none>}" "$expected" >&2
+    exit 1
+  }
+}
+
+expect_verdict all_green success '{"go":{"result":"success"},"checks":{"result":"success"}}'
+expect_verdict one_failed failure '{"go":{"result":"failure"},"checks":{"result":"success"}}'
+expect_verdict one_cancelled failure '{"go":{"result":"cancelled"},"checks":{"result":"success"}}'
+expect_verdict one_skipped failure '{"go":{"result":"skipped"},"checks":{"result":"success"}}'
+expect_verdict unknown_result failure '{"go":{"result":"neutral"},"checks":{"result":"success"}}'
+expect_verdict no_lanes failure '{}'
 
 valid='## Outcome
 
