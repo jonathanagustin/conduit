@@ -74,12 +74,28 @@ carried to the residual list as item 5.
    no transport is built, no dispatcher is constructed, no loop runs and no
    request leaves the process. Upgrading an existing deployment changes nothing.
 
+   **Reading and editing now have an HTTP surface.** The Hub serves
+   `GET /v1/notifications/inbox`, `GET /v1/notifications/events`, and `GET` and
+   `PUT /v1/notifications/preferences`, mounted from `internal/hub/composition`
+   rather than from `internal/controlplane`, which is at its line ceiling. They
+   are a Conduit extension: the pinned Apollo OpenAPI publishes no notification
+   operation, so no shape here is claimed to be Apollo's, and it is registered
+   as `notifications.HTTPSurface` in `docs/evidence/conduit-inventions.json`.
+   Authorization is two independent checks — Governance decides `resource:read`
+   on the resource a route names, and the adapter decides that the owner named
+   is the caller or a team the caller is on. The second admits no administrator
+   override, and
+   `TestThroughTheHubOnePrincipalIsRefusedAnotherPrincipalsInboxAndPreference`
+   holds it down against the assembled Hub.
+
    **What still blocks the row below:** the only destination is one endpoint an
    operator configures, because nothing in this repository stores a person's
    email address or a team's Slack channel — `domain.Contact` models one and no
    store persists one — so a notification is delivered *about* a recipient
-   rather than *to* them; there is no SMTP transport, no console inbox, no HTTP
-   surface, and no way to edit a preference except through the store. The other four events named above are still emitted by
+   rather than *to* them; there is no SMTP transport and no Slack transport, no
+   console inbox, and no audit record of a notification authorization decision,
+   because `GovernanceService.audit` is unexported and the package holding it
+   cannot grow. The other four events named above are still emitted by
    nobody: a recall opening, a grant changing, a Plan failing and a Release
    becoming available are all raised inside `internal/controlplane`, which is at
    its line ceiling, so each needs its own extraction before it can emit.
@@ -199,7 +215,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
 | It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
-| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres`. Still **missing** the end: no transport sends anything, so "told" currently means "could have read it". |
+| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it. Still **missing** the end: the only destination is that one configured endpoint, so "told" means "sent somewhere an operator watches", not "sent to the recipient". |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
 Three of these cannot be written today, and saying so is the point: listing them

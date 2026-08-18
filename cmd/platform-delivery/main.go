@@ -31,6 +31,7 @@ import (
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
+	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
 	httpmetrics "github.com/jonathanagustin/conduit/internal/observability/adapters/httpmetrics"
 	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -54,7 +55,7 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeRepository()
-	repository, closeReconciliation, reconciliationSupervisor, readStats, notificationDeliveries, err :=
+	repository, closeReconciliation, reconciliationSupervisor, readStats, notificationStore, notificationDeliveries, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
 		slog.Error("initialize durable reconciliation", "error", err)
@@ -150,7 +151,7 @@ func main() {
 			ExportSchedulerErrorHandler: func(err error) {
 				slog.Error("run scheduled Export Pipeline", "error", err)
 			},
-		}),
+		}, composition.Options{NotificationStore: notificationStore}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
 		WriteTimeout:      30 * time.Second,
@@ -182,7 +183,13 @@ func main() {
 	// startup failure rather than a first-tick surprise, because a Hub that
 	// started cleanly and silently never deployed an environment is worse than
 	// one that refused to start.
-	gitlessScheduler, err := configureGitless(os.Getenv)
+	gitlessResolutionLog, closeGitlessResolutionLog, err := openGitlessResolutionLog(ctx, os.Getenv)
+	if err != nil {
+		slog.Error("open Gitless resolution log", "error", err)
+		os.Exit(1)
+	}
+	defer closeGitlessResolutionLog()
+	gitlessScheduler, err := configureGitlessWithResolutionLog(os.Getenv, gitlessResolutionLog)
 	if err != nil {
 		slog.Error("configure Gitless GitOps", "error", err)
 		os.Exit(1)
@@ -235,10 +242,11 @@ func configureReconciliation(
 	ctx context.Context, getenv func(string) string, repository controlplane.Repository,
 ) (
 	controlplane.Repository, func(), *reconciliationapplication.Supervisor,
-	metricsapplication.ReadStats, *notificationsapplication.Dispatcher, error,
+	metricsapplication.ReadStats, notificationports.Store,
+	*notificationsapplication.Dispatcher, error,
 ) {
 	if getenv == nil || repository == nil {
-		return nil, func() {}, nil, nil, nil, errors.New("environment reader and repository are required")
+		return nil, func() {}, nil, nil, nil, nil, errors.New("environment reader and repository are required")
 	}
 	kind := strings.TrimSpace(getenv("REPOSITORY_KIND"))
 	if kind == "" || kind == "file" {
@@ -248,30 +256,30 @@ func configureReconciliation(
 		// describe belong to the PostgreSQL repository; exporting zeroes here
 		// would tell a scraper the fleet is idle rather than that this mode has
 		// nothing to say.
-		return repository, func() {}, nil, nil, nil, nil
+		return repository, func() {}, nil, nil, nil, nil, nil
 	}
 	if kind != "postgres" {
-		return nil, func() {}, nil, nil, nil, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
+		return nil, func() {}, nil, nil, nil, nil, fmt.Errorf("REPOSITORY_KIND must be file or postgres, got %q", kind)
 	}
 	dataSourceName, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
 	if err != nil {
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	store, err := reconciliationpostgres.New(ctx, dataSourceName)
 	if err != nil {
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	closeReconciliationStore := func() { _ = store.Close() }
 	closeStore := closeReconciliationStore
 	bridge, err := controlplaneadapter.NewRepository(repository, store)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	planner, err := controlplaneadapter.NewPlanner(bridge, store)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	// The notification store shares the reconciliation DSN. One database, two
 	// components in one ledger, which is the arrangement
@@ -280,7 +288,7 @@ func configureReconciliation(
 	notificationStore, err := notificationspostgres.New(ctx, dataSourceName)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	// From here on both stores are open, so every failure path has to close
 	// both. The shadowed name is deliberate: the returned closer is this one,
@@ -293,12 +301,12 @@ func configureReconciliation(
 	emitter, err := notificationsapplication.NewEmitter(notificationStore)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	escalations, err := notificationsadapter.NewEscalations(emitter)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	worker, err := reconciliationapplication.NewWorker(store, planner, reconciliationapplication.SystemClock{},
 		escalations, reconciliationapplication.Config{
@@ -307,7 +315,7 @@ func configureReconciliation(
 		})
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	supervisor, err := reconciliationapplication.NewSupervisor(worker, bridge,
 		reconciliationapplication.SupervisorConfig{
@@ -316,7 +324,7 @@ func configureReconciliation(
 		})
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	// The stats reader is the store itself, narrowed to the one call metrics
 	// needs. Narrowed rather than passed whole so the metrics path cannot reach
@@ -343,7 +351,7 @@ func configureReconciliation(
 	transport, err := composition.NewNotificationTransport(getenv, slog.Default())
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
 	deliveryConfig := composition.DefaultDispatcherConfig()
 	deliveryConfig.OnError = func(err error) { slog.Error("notification delivery cycle", "error", err) }
@@ -351,9 +359,9 @@ func configureReconciliation(
 		notificationStore, transport, notificationsapplication.SystemClock{}, deliveryConfig)
 	if err != nil {
 		closeStore()
-		return nil, func() {}, nil, nil, nil, err
+		return nil, func() {}, nil, nil, nil, nil, err
 	}
-	return bridge, closeStore, supervisor, readStats, deliveries, nil
+	return bridge, closeStore, supervisor, readStats, notificationStore, deliveries, nil
 }
 
 func openRepository(

@@ -5,14 +5,15 @@ package main
 // A backup procedure nobody has restored from is a document, not a recovery
 // plan, and the document is written -- docs/operations/backup-and-restore.md --
 // against what this test proves rather than the other way round. It belongs in
-// this package because this is the only one that opens both schemas the Hub
-// opens: `cmd/platform-delivery` constructs the control-plane repository and the
-// reconciliation store against one DSN, which is exactly the coupling a restore
-// has to reproduce and neither package can test alone.
+// this package because this is the only one that opens all persistence
+// components the Hub opens: `cmd/platform-delivery` constructs the control-plane
+// repository, reconciliation store and Gitless resolution log against one DSN,
+// which is exactly the coupling a restore has to reproduce and no package can
+// test alone.
 //
 // What it asserts, and why each one:
 //
-//   - Nothing is pending for either component after the restore. A dump that
+//   - Nothing is pending for any component after the restore. A dump that
 //     carried a migration's DDL without the ledger row recording it, or the row
 //     without the DDL, produces a database that starts and then diverges; the
 //     ledger surviving intact is what makes a restored database a database the
@@ -49,6 +50,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
+	gitlessdomain "github.com/jonathanagustin/conduit/internal/gitless/domain"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 	"github.com/jonathanagustin/conduit/internal/pgtest"
 )
@@ -122,12 +125,14 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 // seededState is what the drill wrote before the dump and expects to read back
 // through the real repositories afterwards.
 type seededState struct {
-	environment  string
-	planID       string
-	blobDigest   string
-	blobContents []byte
-	key          domain.Key
-	generation   string
+	environment           string
+	planID                string
+	blobDigest            string
+	blobContents          []byte
+	key                   domain.Key
+	generation            string
+	resolutionEnvironment string
+	resolutionDigest      string
 }
 
 func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seededState {
@@ -173,9 +178,29 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 	if err := commitOneDecision(ctx, store, key, "gen-seeded", time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC)); err != nil {
 		t.Fatal(err)
 	}
+	resolutionLog, err := resolutionlogpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer resolutionLog.Close()
+	resolutionEnvironment := "restore-drill-gitless"
+	resolutionDigest := "sha256:" + strings.Repeat("a", 64)
+	if err := resolutionLog.Record(ctx, gitlessdomain.Resolution{
+		Environment: resolutionEnvironment,
+		Selector: gitlessdomain.Selector{
+			Kind: gitlessdomain.ByChannel, Repository: "registry.example/foundry/runtime", Channel: "stable",
+		},
+		Pin: gitlessdomain.Pin{
+			Repository: "registry.example/foundry/runtime", Digest: resolutionDigest,
+		},
+		Publisher: "https://github.com/example/foundry/.github/workflows/release.yml@refs/tags/v1.2.3",
+	}); err != nil {
+		t.Fatal(err)
+	}
 	return seededState{
 		environment: state.Environment.ID, planID: record.ID,
 		blobDigest: digest, blobContents: blob, key: key, generation: "gen-seeded",
+		resolutionEnvironment: resolutionEnvironment, resolutionDigest: resolutionDigest,
 	}
 }
 
@@ -284,6 +309,7 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 	for component, migrations := range map[string][]pgmigrate.Migration{
 		controlplane.PostgresMigrationComponent: controlplane.PostgresMigrations(),
 		reconciliationpostgres.Component():      reconciliationpostgres.Migrations(),
+		resolutionlogpostgres.Component():       resolutionlogpostgres.Migrations(),
 	} {
 		pending, err := pgmigrate.Pending(ctx, restored, component, migrations)
 		if err != nil {
@@ -408,6 +434,25 @@ func assertStateSurvived(t *testing.T, ctx context.Context, dataSourceName strin
 	if !found || snapshot.Generation != seeded.generation {
 		t.Errorf("desired state for %s restored as (found=%v, generation=%q), want %q",
 			seeded.key.Installation, found, snapshot.Generation, seeded.generation)
+	}
+	resolutionLog, err := resolutionlogpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatalf("opening the Gitless resolution log on the restored database: %v", err)
+	}
+	defer resolutionLog.Close()
+	database, err := sql.Open("pgx", dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer database.Close()
+	var resolutionDigest string
+	if err := database.QueryRowContext(ctx, `
+SELECT digest FROM conduit_gitless_resolutions WHERE environment = $1`,
+		seeded.resolutionEnvironment).Scan(&resolutionDigest); err != nil {
+		t.Fatalf("the Gitless resolution history did not survive the restore: %v", err)
+	}
+	if resolutionDigest != seeded.resolutionDigest {
+		t.Errorf("restored Gitless digest is %q, want %q", resolutionDigest, seeded.resolutionDigest)
 	}
 }
 

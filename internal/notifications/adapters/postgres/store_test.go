@@ -2,6 +2,7 @@ package postgres
 
 import (
 	"context"
+	"errors"
 	"os"
 	"testing"
 	"time"
@@ -14,6 +15,16 @@ import (
 const resource = "ri.apollo.main.environment.d41d8cd98f00"
 
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }
+
+// fixedAt is the ports.Clock the preference service now takes, pinned to at()
+// plus an offset a test can choose, so a saved preference's timestamps stay
+// assertable and a second save can be made to land later. The service reads a
+// ports.Clock rather than a func() time.Time because the delivery dispatcher in
+// this same context already does, and one spelling of "now" per bounded context
+// is the point of having declared the port.
+type fixedAt struct{ offset time.Duration }
+
+func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
 
 // The slice end to end against a real database: a preference is stored, an
 // event is emitted, and the person who asked can read it back.
@@ -172,7 +183,7 @@ func TestPostgresNotificationMigrationsAreRecordedOnce(t *testing.T) {
 	}
 	// Migrations returns a copy, so appending to what a caller received cannot
 	// change what the next start runs.
-	appended := append(Migrations(), pgmigrate.Migration{Name: "0002-not-real", Statements: "SELECT 1"})
+	appended := append(Migrations(), pgmigrate.Migration{Name: "9999-not-real", Statements: "SELECT 1"})
 	if len(Migrations()) == len(appended) {
 		t.Error("a caller's append reached this store's migration list")
 	}
@@ -213,5 +224,64 @@ func resetStore(t *testing.T, ctx context.Context, store *Store) {
 TRUNCATE conduit_notification_inbox, conduit_notification_events,
     conduit_notification_preferences`); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// The editing grain against the real UNIQUE constraint. The HTTP surface edits
+// one (resource, owner, channel) tuple, and the identifier it mints is derived
+// from that tuple rather than chosen -- so saving the same page twice has to
+// leave one row here, in the database that actually enforces it, and not two.
+func TestPostgresAPreferenceEditedTwiceLeavesOneRow(t *testing.T) {
+	ctx := t.Context()
+	store := newStore(t, ctx)
+	resetStore(t, ctx, store)
+	preferences, err := application.NewPreferences(store, fixedAt{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	alice := domain.Owner{Kind: domain.PrincipalUser, ID: "alice"}
+	if _, err := preferences.Get(ctx, resource, alice, domain.ChannelEmail); !errors.Is(err, application.ErrNoPreference) {
+		t.Fatalf("an unset preference read back as %v", err)
+	}
+	first, err := preferences.Save(ctx, domain.Preference{
+		Owner: alice, ResourceRID: resource, Channel: domain.ChannelEmail,
+		Types: []domain.EventType{domain.EventPlanFailures},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	second, err := preferences.Save(ctx, domain.Preference{
+		Owner: alice, ResourceRID: resource, Channel: domain.ChannelEmail, AllFutureTypes: true,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if second.ID != first.ID || second.Revision != first.Revision+1 || second.CreatedAt != first.CreatedAt {
+		t.Fatalf("a second edit of one tuple did not replace the first: %#v then %#v", first, second)
+	}
+	stored, err := store.PreferencesFor(ctx, resource)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(stored) != 1 || !stored[0].AllFutureTypes {
+		t.Fatalf("two edits of one tuple left %#v", stored)
+	}
+	// The other channel is a different tuple, so it is a second row rather than
+	// an overwrite -- the property the settings page depends on.
+	if _, err := preferences.Save(ctx, domain.Preference{
+		Owner: alice, ResourceRID: resource, Channel: domain.ChannelInApp, AllFutureTypes: true,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	inApp, err := preferences.Get(ctx, resource, alice, domain.ChannelInApp)
+	if err != nil {
+		t.Fatal(err)
+	}
+	email, err := preferences.Get(ctx, resource, alice, domain.ChannelEmail)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if inApp.ID == email.ID {
+		t.Fatalf("two channels share one row: %#v", inApp)
 	}
 }

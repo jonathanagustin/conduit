@@ -27,6 +27,7 @@ workflow = read_workflow.call("images.yml")
 ci_workflow = read_workflow.call("ci.yml")
 hub_containerfile = File.read(File.expand_path("../Containerfile", __dir__))
 agent_containerfile = File.read(File.expand_path("../Containerfile.agent", __dir__))
+cosign_build_mod = File.read(File.expand_path("../tools/cosign-build/go.mod", __dir__))
 e2e_workflow = read_workflow.call("e2e.yml")
 docker_ignore = File.read(File.expand_path("../.dockerignore", __dir__))
 container_ignore = File.read(File.expand_path("../.containerignore", __dir__))
@@ -80,11 +81,22 @@ abort "Cosign release must be pinned for optimizer candidate signing" unless
 # what ships.
 abort "Cosign release must match the checksum-pinned download in test-gitless-clean-cluster.sh" unless
   clean_cluster.include?("/sigstore/cosign/releases/download/#{cosign_release}/")
-abort "Hub runtime must carry the same checksum-pinned Cosign release the Gitless adapter invokes" unless
-  hub_containerfile.include?("ARG COSIGN_VERSION=#{cosign_release}") &&
-    hub_containerfile.include?("4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71") &&
-    hub_containerfile.include?("c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a") &&
+abort "Hub Cosign source build must pin the reviewed upstream release" unless
+  cosign_build_mod.include?("tool github.com/sigstore/cosign/v3/cmd/cosign") &&
+    cosign_build_mod.match?(/^\s*github\.com\/sigstore\/cosign\/v3 v3\.1\.3 \/\/ indirect$/)
+abort "Hub Cosign source build must pin the patched Go toolchain and dependency graph" unless
+  cosign_build_mod.match?(/^go 1\.26\.6$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.40\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.39\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.82\.1 \/\/ indirect$/)
+abort "Hub runtime must build and carry the locked Cosign command" unless
+  hub_containerfile.include?("COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./") &&
+    hub_containerfile.include?("go mod download") &&
+    hub_containerfile.include?("-o /out/cosign github.com/sigstore/cosign/v3/cmd/cosign") &&
     hub_containerfile.include?("COPY --from=build --chown=65532:65532 --chmod=0755 /out/cosign /usr/local/bin/cosign")
+abort "Hub runtime must not fall back to a vulnerable prebuilt Cosign binary" if
+  hub_containerfile.include?("sigstore/cosign/releases/download") ||
+    hub_containerfile.include?("ARG COSIGN_VERSION=")
 abort "no cosign-release may be left unpinned" unless
   (workflow + optimizer_release_workflow).scan(/cosign-release: (\S+)/).flatten.uniq == [cosign_release]
 abort "image and runtime jobs require GitHub OIDC" unless workflow.scan("id-token: write").length == 2
@@ -110,6 +122,53 @@ abort "runtime artifact must publish to a component tag in the linked Conduit pa
 abort "Helm charts must publish below the linked Conduit repository path" unless
   workflow.include?('helm push "${package}" "oci://ghcr.io/${GITHUB_REPOSITORY}"') &&
     workflow.include?('reference="ghcr.io/${GITHUB_REPOSITORY}/${chart}:${version}@${digest}"')
+# The two assertions above name the runtime artifact and the charts because
+# those are the two that broke (#185). This one is the property they are both
+# instances of, stated once so the NEXT artifact kind cannot reintroduce the
+# defect in a third place: EVERY GHCR coordinate this workflow publishes to or
+# reads back must live in the package named for this repository.
+#
+# That is not a style preference, it is the only thing that makes the push work.
+# GHCR links a package to a repository when the package is CREATED, and a
+# package named for the repository is linked on creation; anything else is
+# linked to whoever created it -- here, the monorepo this code was extracted
+# from. A repository's GITHUB_TOKEN holds `packages: write` only for packages
+# linked to that repository, so an unlinked name is refused. #154 hit that on
+# the images, and because the refusal is a 403 on a blob HEAD it arrives after
+# the multi-arch build, the SBOM and the signature have all succeeded, reading
+# like a token-scope problem rather than a naming one. #157 then hit exactly the
+# same wall in the two places #154 had not reached, at the cost of a tagged
+# release (v0.17.0) that published two images and no runtime artifact, no
+# charts, no Zarf packages, no CLI and an empty asset list.
+#
+# Asserted by exhaustion rather than by a list of known-bad names, for the
+# reason the trigger check above states: a name list only rejects the
+# coordinates whoever wrote it thought of, while requiring every coordinate to
+# be the linked one rejects any coordinate that is ADDED. Substituting the two
+# spellings of the repository first (`${{ github.repository }}` in Actions
+# expressions, `${GITHUB_REPOSITORY}` in shell) means `${{
+# github.repository_owner }}` and `${GITHUB_REPOSITORY_OWNER}` -- the two
+# spellings that actually caused #154 and #185 -- do not substitute and are
+# reported. The bare `helm registry login ghcr.io` names the registry rather
+# than a package and carries no slash, so it is not a coordinate and is not
+# matched.
+#
+# Scoped to the publication workflow deliberately.
+# platform-optimizer-candidate-release.yml still pushes to
+# `ghcr.io/${GITHUB_REPOSITORY_OWNER}/platform-optimizer-<backend>`, which is
+# the same unlinked shape and will meet the same 403 on its first dispatch. It
+# is left alone here because it has never published anything, so widening this
+# gate would paint main red over a hypothetical rather than over a regression,
+# and because relocating a protected-environment publication path is a release
+# decision rather than a drive-by.
+linked_package = "ghcr.io/CONDUIT-LINKED-PACKAGE"
+foreign_coordinates = workflow
+  .gsub("ghcr.io/${{ github.repository }}", linked_package)
+  .gsub("ghcr.io/${GITHUB_REPOSITORY}", linked_package)
+  .lines.each_with_index
+  .filter_map { |line, index| "line #{index + 1}: #{line.strip}" if line.gsub(linked_package, "").include?("ghcr.io/") }
+abort "publication must target only the repository-named GHCR package GHCR will link " \
+      "(#154, #185):\n  #{foreign_coordinates.join("\n  ")}" unless foreign_coordinates.empty?
 abort "runtime descriptor must bind the expected keyless signer" unless
   workflow.include?('certificate_issuer="https://token.actions.githubusercontent.com"') &&
     workflow.include?('certificate_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/platform-images.yml@${GITHUB_REF}"') &&

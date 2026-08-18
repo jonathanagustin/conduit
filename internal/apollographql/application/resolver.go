@@ -412,7 +412,10 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		listed := resolver.sources.Apollo.ListEnvironments()
+		listed, err := resolver.sources.Apollo.ListEnvironments()
+		if err != nil {
+			return nil, err
+		}
 		return child{typeName: "ApolloEnvironmentPage", source: page{records: anySlice(listed.Environments)}}, nil
 	case "entity":
 		rid, argumentErr := stringArgument(arguments, "rid")
@@ -444,7 +447,10 @@ func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		listed := resolver.sources.Apollo.ListProducts()
+		listed, err := resolver.sources.Apollo.ListProducts()
+		if err != nil {
+			return nil, err
+		}
 		return child{typeName: "ApolloProductPage", source: page{records: anySlice(listed.Products)}}, nil
 	case "plans":
 		plans, err := resolver.plans(ctx)
@@ -641,7 +647,10 @@ func (resolver *bound) resolveEnvironment(
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		installations := resolver.sources.Apollo.ListInstallations(string(environment.Rid))
+		installations, err := resolver.sources.Apollo.ListInstallations(string(environment.Rid))
+		if err != nil {
+			return nil, err
+		}
 		entities := []any{}
 		if installations.Installations != nil {
 			for _, installation := range *installations.Installations {
@@ -713,12 +722,18 @@ func (resolver *bound) entityByID(id string) (any, error) {
 	if resolver.sources.Apollo == nil {
 		return nil, errNoSource
 	}
-	listed := resolver.sources.Apollo.ListEnvironments()
+	listed, err := resolver.sources.Apollo.ListEnvironments()
+	if err != nil {
+		return nil, err
+	}
 	if listed.Environments == nil {
 		return nil, nil
 	}
 	for _, environment := range *listed.Environments {
-		installations := resolver.sources.Apollo.ListInstallations(string(environment.Rid))
+		installations, err := resolver.sources.Apollo.ListInstallations(string(environment.Rid))
+		if err != nil {
+			return nil, err
+		}
 		if installations.Installations == nil {
 			continue
 		}
@@ -795,7 +810,10 @@ func (resolver *bound) resolveProduct(field string, source any) (any, error) {
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
 		}
-		listed := resolver.sources.Apollo.ListReleases(string(product.Id))
+		listed, err := resolver.sources.Apollo.ListReleases(string(product.Id))
+		if err != nil {
+			return nil, err
+		}
 		releases := []any{}
 		if listed.Releases != nil {
 			for _, release := range *listed.Releases {
@@ -894,12 +912,18 @@ func (resolver *bound) productReleaseByRID(rid string) (any, error) {
 	if !isConduitRID(rid) {
 		return nil, ports.ErrRecordNotFound
 	}
-	listedProducts := resolver.sources.Apollo.ListProducts()
+	listedProducts, err := resolver.sources.Apollo.ListProducts()
+	if err != nil {
+		return nil, err
+	}
 	if listedProducts.Products == nil {
 		return nil, ports.ErrRecordNotFound
 	}
 	for _, product := range *listedProducts.Products {
-		listed := resolver.sources.Apollo.ListReleases(string(product.Id))
+		listed, err := resolver.sources.Apollo.ListReleases(string(product.Id))
+		if err != nil {
+			return nil, err
+		}
 		if listed.Releases == nil {
 			continue
 		}

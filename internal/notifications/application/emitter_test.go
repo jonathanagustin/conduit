@@ -11,6 +11,16 @@ import (
 
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }
 
+// fixedAt is the ports.Clock the preference service now takes, pinned to at()
+// plus an offset a test can choose, so a saved preference's timestamps stay
+// assertable and a second save can be made to land later. The service reads a
+// ports.Clock rather than a func() time.Time because the delivery dispatcher in
+// this same context already does, and one spelling of "now" per bounded context
+// is the point of having declared the port.
+type fixedAt struct{ offset time.Duration }
+
+func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
+
 func planFailed() domain.Event {
 	return domain.Event{
 		ID: "nev-1", Type: domain.EventPlanFailures,
@@ -119,7 +129,7 @@ func TestTheReadPathBoundsWhatItReturns(t *testing.T) {
 		if _, err := reader.Inbox(context.Background(), recipient, asked); err != nil {
 			t.Fatal(err)
 		}
-		if store.lastLimit != defaultLimit {
+		if store.lastLimit != MaximumLimit {
 			t.Errorf("a request for %d rows reached the store as %d", asked, store.lastLimit)
 		}
 	}
@@ -143,6 +153,8 @@ type fakeStore struct {
 	preferenceReads int
 	lastLimit       int
 	recordErr       error
+	preferencesErr  error
+	saved           []domain.Preference
 }
 
 func (store *fakeStore) RecordEvent(_ context.Context, event domain.Event, entries []domain.InboxEntry) error {
@@ -156,14 +168,28 @@ func (store *fakeStore) RecordEvent(_ context.Context, event domain.Event, entri
 
 func (store *fakeStore) PreferencesFor(_ context.Context, resourceRID string) ([]domain.Preference, error) {
 	store.preferenceReads++
+	if store.preferencesErr != nil {
+		return nil, store.preferencesErr
+	}
 	return store.preferences[resourceRID], nil
 }
 
+// SavePreference upserts on (owner, resource, channel), which is the tuple the
+// PostgreSQL store's UNIQUE constraint holds one row for. A fake that appended
+// would let a test pass because the fake forgot the grain.
 func (store *fakeStore) SavePreference(_ context.Context, preference domain.Preference) error {
 	if store.preferences == nil {
 		store.preferences = map[string][]domain.Preference{}
 	}
-	store.preferences[preference.ResourceRID] = append(store.preferences[preference.ResourceRID], preference)
+	store.saved = append(store.saved, preference)
+	existing := store.preferences[preference.ResourceRID]
+	for index, candidate := range existing {
+		if candidate.Owner == preference.Owner && candidate.Channel == preference.Channel {
+			existing[index] = preference
+			return nil
+		}
+	}
+	store.preferences[preference.ResourceRID] = append(existing, preference)
 	return nil
 }
 

@@ -46,7 +46,7 @@ func TestPostgresANotificationTransportIsOffUnlessConfigured(t *testing.T) {
 			for key, value := range test.extra {
 				configuration[key] = value
 			}
-			_, closeReconciliation, _, _, deliveries, err := configureReconciliation(ctx,
+			_, closeReconciliation, _, _, _, deliveries, err := configureReconciliation(ctx,
 				func(name string) string { return configuration[name] }, base)
 			if err != nil {
 				t.Fatal(err)
@@ -79,7 +79,7 @@ func TestPostgresAContradictoryTransportConfigurationStopsTheHub(t *testing.T) {
 		composition.NotificationWebhookURLVariable:  "https://hooks.example.com/conduit",
 		composition.NotificationDeliveryLogVariable: "true",
 	}
-	_, closeReconciliation, _, _, deliveries, err := configureReconciliation(ctx,
+	_, closeReconciliation, _, _, _, deliveries, err := configureReconciliation(ctx,
 		func(name string) string { return configuration[name] }, base)
 	defer closeReconciliation()
 	if err == nil {

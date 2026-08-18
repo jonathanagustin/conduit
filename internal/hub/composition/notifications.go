@@ -1,124 +1,174 @@
 package composition
 
 import (
+	"context"
 	"errors"
-	"fmt"
-	"log/slog"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/jonathanagustin/conduit/internal/notifications/adapters/logging"
-	"github.com/jonathanagustin/conduit/internal/notifications/adapters/webhook"
-	"github.com/jonathanagustin/conduit/internal/notifications/application"
-	"github.com/jonathanagustin/conduit/internal/notifications/ports"
+	"github.com/jonathanagustin/conduit/internal/controlplane"
+	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
+	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
+	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
+	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
 )
 
-// Notification delivery is off unless configured, exactly as METRICS_ADDRESS
-// leaves the metrics listener off. An existing deployment gains no outbound
-// behaviour by upgrading: with neither variable set, no transport is built, no
-// dispatcher is constructed, no loop runs and no request leaves the process.
-// Sending mail nobody asked for is worse than not sending it.
-const (
-	// NotificationWebhookURLVariable names the endpoint deliveries are POSTed
-	// to. Setting it is the whole opt-in.
-	NotificationWebhookURLVariable = "NOTIFICATION_WEBHOOK_URL"
-	// NotificationWebhookTimeoutVariable bounds one attempt. Optional.
-	NotificationWebhookTimeoutVariable = "NOTIFICATION_WEBHOOK_TIMEOUT"
-	// NotificationDeliveryLogVariable turns on the structured-log transport for
-	// a deployment whose logs somebody already watches.
-	NotificationDeliveryLogVariable = "NOTIFICATION_DELIVERY_LOG"
-)
-
-// DefaultDispatcherConfig is the retry budget a Hub runs with.
+// Options carries the Hub surfaces that are not the legacy facade's.
 //
-// The numbers are the reconciliation worker's, deliberately: ten attempts from
-// a two-second base doubling to an hour's ceiling. An operator watching both
-// queues during an incident should not have to hold two models of when the next
-// attempt lands.
-func DefaultDispatcherConfig() application.DispatcherConfig {
-	return application.DispatcherConfig{
-		LeaseDuration:   30 * time.Second,
-		MaximumAttempts: 10,
-		BaseRetryDelay:  2 * time.Second,
-		PollInterval:    time.Second,
-	}
+// A zero value mounts nothing extra, which is what every caller without a
+// notification store gets: a Hub with no durable notification component serves
+// no notification routes, rather than serving routes that answer 500.
+type Options struct {
+	// NotificationStore is the durable notification component. Nil means this
+	// deployment has none -- REPOSITORY_KIND=file has no PostgreSQL to hold one.
+	NotificationStore notificationports.Store
 }
 
-// NewNotificationTransport builds the transport an operator asked for, or
-// reports that none was asked for.
+// mountNotifications puts the notification routes in front of the legacy
+// facade, or returns the facade unchanged when there is no store to serve them
+// from.
 //
-// A nil transport with a nil error is the unconfigured case and is the normal
-// one. A misconfiguration is an error rather than a silent fallback, on the
-// same reasoning the Gitless scheduler uses in cmd/platform-delivery: a Hub
-// that started cleanly and silently never told anyone anything is worse than
-// one that refused to start.
-func NewNotificationTransport(
-	getenv func(string) string, logger *slog.Logger,
-) (ports.Transport, error) {
-	if getenv == nil {
-		return nil, errors.New("an environment reader is required to configure notification delivery")
+// In front rather than inside: internal/controlplane is on a ratcheted line
+// ceiling and new Hub wiring belongs here, which is what internal/AGENTS.md
+// says. The fall-through pattern is what keeps that true -- "/" reaches the
+// facade, so every route it already serves is unchanged, and the four patterns
+// registered here are more specific and win.
+func mountNotifications(
+	legacy http.Handler, repository controlplane.Repository,
+	options controlplane.HandlerOptions, hub Options,
+) (http.Handler, error) {
+	if hub.NotificationStore == nil {
+		return legacy, nil
 	}
-	endpoint := strings.TrimSpace(getenv(NotificationWebhookURLVariable))
-	timeoutValue := strings.TrimSpace(getenv(NotificationWebhookTimeoutVariable))
-	useLog := strings.TrimSpace(getenv(NotificationDeliveryLogVariable)) == "true"
-	if endpoint == "" && timeoutValue != "" {
-		return nil, fmt.Errorf("%s requires %s",
-			NotificationWebhookTimeoutVariable, NotificationWebhookURLVariable)
-	}
-	if endpoint != "" && useLog {
-		// Refused rather than resolved by precedence. Both are destinations, and
-		// a Hub that quietly picked one would deliver everything to the loser's
-		// operator exactly never, while its configuration says otherwise.
-		return nil, fmt.Errorf("%s and %s are both set; choose one notification transport",
-			NotificationWebhookURLVariable, NotificationDeliveryLogVariable)
-	}
-	switch {
-	case endpoint != "":
-		client, err := webhookClient(timeoutValue)
-		if err != nil {
-			return nil, err
-		}
-		return webhook.New(endpoint, client)
-	case useLog:
-		return logging.New(logger), nil
-	default:
-		return nil, nil
-	}
-}
-
-// NewNotificationDispatcher assembles the dispatcher, or reports that delivery
-// is off.
-//
-// Returns a nil dispatcher and a nil error when no transport is configured,
-// which the caller reads as "start no loop". It does not substitute a
-// do-nothing transport: a dispatcher that leased entries and marked them
-// delivered without sending them would record silence as success.
-func NewNotificationDispatcher(
-	queue ports.DeliveryQueue, transport ports.Transport,
-	clock ports.Clock, config application.DispatcherConfig,
-) (*application.Dispatcher, error) {
-	if transport == nil {
-		return nil, nil
-	}
-	if queue == nil {
-		return nil, errors.New("notification delivery is configured but no durable queue is available")
-	}
-	return application.NewDispatcher(queue, transport, clock, config)
-}
-
-// webhookClient returns nil when no timeout was configured, which the webhook
-// adapter reads as "use the default one" rather than as "use no timeout".
-func webhookClient(timeoutValue string) (*http.Client, error) {
-	if timeoutValue == "" {
-		return nil, nil
-	}
-	timeout, err := time.ParseDuration(timeoutValue)
+	reader, err := notifications.NewReader(hub.NotificationStore)
 	if err != nil {
-		return nil, fmt.Errorf("parse %s: %w", NotificationWebhookTimeoutVariable, err)
+		return nil, err
 	}
-	if timeout <= 0 {
-		return nil, fmt.Errorf("%s must be positive", NotificationWebhookTimeoutVariable)
+	preferences, err := notifications.NewPreferences(hub.NotificationStore, nil)
+	if err != nil {
+		return nil, err
 	}
-	return &http.Client{Timeout: timeout}, nil
+	service := controlplane.NewGovernanceService(repository)
+	mux := http.NewServeMux()
+	if err := notificationhttp.Register(mux, notificationhttp.Config{
+		Reader:      reader,
+		Preferences: preferences,
+		Resolve:     operatorPrincipal(service, options),
+		Authorize:   resourceOperation(service, options),
+	}); err != nil {
+		return nil, err
+	}
+	mux.Handle("/", legacy)
+	return mux, nil
+}
+
+// resourceOperation is the resource half of the authorization, and it is the
+// half that matches internal/controlplane's requireResourceOperation exactly: a
+// Governance administrator, or a grant to one of the principal's teams.
+//
+// The other half is not here and must not be. Whether this caller owns the
+// inbox or preference they named is the notification adapter's own check, and
+// it admits no administrator: a grant conveys authority over a resource, never
+// over a person's mail. Folding the two together in one predicate is how the
+// second one would quietly acquire the first one's escape hatch.
+func resourceOperation(
+	service *controlplane.GovernanceService, options controlplane.HandlerOptions,
+) notificationhttp.Authorize {
+	return func(
+		ctx context.Context, principal notificationhttp.Principal, resourceRID, operation string,
+	) bool {
+		asking := governance.Principal{Username: principal.Username, Teams: principal.Teams}
+		return governanceAdministrator(ctx, service, asking, options) ||
+			service.Authorize(ctx, asking, resourceRID, operation)
+	}
+}
+
+func governanceAdministrator(
+	ctx context.Context, service *controlplane.GovernanceService,
+	principal governance.Principal, options controlplane.HandlerOptions,
+) bool {
+	for _, administrator := range options.BootstrapAdministrators {
+		if strings.TrimSpace(administrator) == principal.Username {
+			return true
+		}
+	}
+	if options.AllowInsecureOperatorIdentityHeaders && len(options.BootstrapAdministrators) == 0 &&
+		principal.Username == "local-developer" {
+		return true
+	}
+	return service.Authorize(ctx, principal, "platform/root", governance.OperationManagePermissions)
+}
+
+// operatorPrincipal resolves an operator the way every other Hub route does:
+// the configured OIDC resolver if there is one, otherwise a verified client
+// certificate, otherwise the development headers behind their explicit opt-in,
+// and Governance turns the claims into a principal with its teams resolved.
+//
+// This restates internal/controlplane's requireOperatorPrincipal rather than
+// calling it, because that function is unexported and the package it lives in
+// is at a line ceiling no new export may cross. The restatement is held to the
+// original by TestNotificationRoutesAuthenticateLikeEveryOtherHubRoute, which
+// drives the same three credentials through both surfaces and asserts they
+// agree -- a comment promising the two match would not have noticed when they
+// stopped.
+//
+// The principal handed on is the effective one. A service account acting for a
+// person reads that person's inbox and nobody else's, which is the same
+// doctrine every authorization decision in this Hub already uses; resolving it
+// here means the notification adapter never sees a delegation and cannot get it
+// wrong.
+func operatorPrincipal(
+	service *controlplane.GovernanceService, options controlplane.HandlerOptions,
+) notificationhttp.ResolvePrincipal {
+	return func(request *http.Request) (notificationhttp.Principal, error) {
+		claims, err := operatorClaims(request, options)
+		if err != nil {
+			return notificationhttp.Principal{}, notificationhttp.StatusError{
+				Status: http.StatusUnauthorized, Message: err.Error(),
+			}
+		}
+		principal, err := service.ResolvePrincipal(request.Context(), claims)
+		if err != nil {
+			return notificationhttp.Principal{}, notificationhttp.StatusError{
+				Status: statusForIdentityError(err), Message: err.Error(),
+			}
+		}
+		effective := governance.EffectivePrincipal(principal)
+		return notificationhttp.Principal{Username: effective.Username, Teams: effective.Teams}, nil
+	}
+}
+
+func operatorClaims(
+	request *http.Request, options controlplane.HandlerOptions,
+) (controlplane.IdentityClaims, error) {
+	switch {
+	case options.OperatorIdentityResolver != nil:
+		return options.OperatorIdentityResolver(request)
+	case options.AllowInsecureOperatorIdentityHeaders:
+		claims := controlplane.IdentityClaims{
+			Username:       request.Header.Get("X-Platform-Subject"),
+			Groups:         strings.Split(request.Header.Get("X-Platform-Groups"), ","),
+			ServiceAccount: strings.EqualFold(request.Header.Get("X-Platform-Service-Account"), "true"),
+			OnBehalfOf:     request.Header.Get("X-Platform-On-Behalf-Of"),
+		}
+		if strings.TrimSpace(claims.Username) == "" {
+			claims.Username = "local-developer"
+		}
+		return claims, nil
+	case request.TLS != nil && len(request.TLS.VerifiedChains) > 0 && len(request.TLS.VerifiedChains[0]) > 0:
+		return identity.OperatorIdentityFromCertificate(request.TLS.VerifiedChains[0][0])
+	default:
+		return controlplane.IdentityClaims{}, controlplane.ErrUnauthorized
+	}
+}
+
+// statusForIdentityError keeps the two identity failures apart. A refused
+// delegation is a forbidden request by an authenticated caller, and reporting
+// it as 401 would tell a service account to go and authenticate again.
+func statusForIdentityError(err error) int {
+	if errors.Is(err, controlplane.ErrForbidden) {
+		return http.StatusForbidden
+	}
+	return http.StatusUnauthorized
 }
