@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	catalogports "github.com/jonathanagustin/conduit/internal/catalog/ports"
 	execution "github.com/jonathanagustin/conduit/internal/execution/domain"
 	httpidentity "github.com/jonathanagustin/conduit/internal/identity/adapters/httpidentity"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
@@ -61,6 +62,10 @@ type HandlerOptions struct {
 	ExportSchedulerContext               context.Context
 	ExportSchedulerErrorHandler          func(error)
 	EntityConfigurationAdapters          map[string]EntityConfigurationAdapter
+	// RecallOpenings is told which recalls an accepted DesiredState puts in
+	// force, so that a person learns one opened. Nil is a deployment with no
+	// notification store, which raises nothing rather than failing.
+	RecallOpenings catalogports.RecallOpenings
 }
 
 func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
@@ -1376,7 +1381,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		releaseCompatibilityAPI.syncDesiredState(state)
+		releaseCompatibilityAPI.syncDesiredState(request.Context(), state)
 		w.Header().Set("X-Change-Request-ID", changeRequest.ID)
 		writeJSON(w, http.StatusCreated, redactLeaseToken(record))
 	})
@@ -1444,7 +1449,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		releaseCompatibilityAPI.syncDesiredState(body.DesiredState)
+		releaseCompatibilityAPI.syncDesiredState(request.Context(), body.DesiredState)
 		w.Header().Set("X-Change-Request-ID", changeRequest.ID)
 		writeJSON(w, http.StatusCreated, redactLeaseToken(record))
 	})
@@ -1470,7 +1475,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		releaseCompatibilityAPI.syncDesiredState(body.DesiredState)
+		releaseCompatibilityAPI.syncDesiredState(request.Context(), body.DesiredState)
 		writeJSON(w, http.StatusCreated, redactLeaseToken(record))
 	})
 	mux.HandleFunc("GET /v1/environments/{environmentID}/commands", func(w http.ResponseWriter, request *http.Request) {

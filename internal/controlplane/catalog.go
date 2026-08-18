@@ -1,8 +1,6 @@
 package controlplane
 
 import (
-	"crypto/sha256"
-	"encoding/hex"
 	"fmt"
 	"sort"
 	"strings"
@@ -72,38 +70,6 @@ func describeIneligibility(reasons []ReleaseIneligibility) string {
 		rendered = append(rendered, strings.Join(versions[detail], ", ")+": "+messages[detail])
 	}
 	return "; " + strings.Join(rendered, "; ")
-}
-
-func withAutomaticSecurityRecalls(state DesiredState) DesiredState {
-	if !state.Environment.AutomaticSecurityRecall {
-		return state
-	}
-	state.Recalls = append([]Recall(nil), state.Recalls...)
-	for _, release := range state.Releases {
-		assessment := release.VulnerabilityAssessment
-		if assessment == nil || assessment.Status != "COMPLETE" || assessment.Outcome != "FAIL" || assessment.ActiveVulnerabilities <= 0 {
-			continue
-		}
-		identity := sha256.Sum256([]byte(release.Product + "\x00" + release.Version + "\x00" + assessment.RunID))
-		recall := Recall{
-			ID: "security-" + hex.EncodeToString(identity[:8]), Product: release.Product,
-			StartingVersion: release.Version, SingleVersion: true,
-			Strategy: RecallStrategy{Type: RecallRollForward, MinimumVersion: release.Version},
-			Reason:   "automatic security recall from assessment " + assessment.RunID,
-			Source:   RecallSourceSecurity, AssessmentRunID: assessment.RunID,
-		}
-		duplicate := false
-		for _, existing := range state.Recalls {
-			if existing.ID == recall.ID || (!existing.Reverted && recallAppliesToVersion(existing, release.Version)) {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			state.Recalls = append(state.Recalls, recall)
-		}
-	}
-	return state
 }
 
 func selectReleaseForObservedEntity(
