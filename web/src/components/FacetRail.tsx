@@ -1,11 +1,12 @@
-import { type ReactNode, useState } from "react";
-import { Button } from "@blueprintjs/core";
+import { type HTMLAttributes, type ReactNode, useState } from "react";
+import { Button, Classes, Collapse, ProgressBar, Section, SectionCard, Tag } from "@blueprintjs/core";
 
 import {
   DEFAULT_FACET_LIMIT,
   type FacetGroup,
+  type FacetValue,
   boundFacetValues,
-  facetBarWidth,
+  facetBarValue,
   facetsAreEmpty,
   largestFacetCount,
 } from "./facets.js";
@@ -29,8 +30,23 @@ export interface FacetRailProps {
   readonly onToggle: (key: string, value: string, select: boolean) => void;
 }
 
+/** `Section` renders an `H6` by default, which would jump five levels below the
+ * page's `H1`. The console already corrects this the same way in OverviewPage:
+ * the heading level is the document's, not the component's. */
+function SectionHeading(props: HTMLAttributes<HTMLElement>) {
+  return <h2 {...props} />;
+}
+
 /** A faceted filter rail: headed groups of selectable values, each with its
  * count and a bar proportional to the largest count in its group.
+ *
+ * Composed rather than drawn. A group is a Blueprint `Section`/`SectionCard`,
+ * which is the panel this console already uses eleven times over; a value is a
+ * `Button` whose selected state is Blueprint's own `active`; the count is a
+ * `Tag`; the bar is a static `ProgressBar`; and the bounded tail is a
+ * `Collapse`. What is left in facet-rail.css is the rail's place on the page and
+ * the one thing Blueprint does not compose -- a button whose content is a label
+ * that takes the slack with a count and a bar pinned after it.
  *
  * This component knows no vocabulary. It is given groups and reports clicks,
  * which is what lets it sit in `components/` -- a second index screen wanting
@@ -57,63 +73,100 @@ export function FacetRail({
 
   return (
     <nav className="console-facet-rail" aria-label={ariaLabel} data-testid="facet-rail">
-      <p className="console-facet-rail__caption">{caption}</p>
+      <p className={`console-facet-rail__note ${Classes.TEXT_MUTED} ${Classes.TEXT_SMALL}`}>
+        {caption}
+      </p>
       {facetsAreEmpty(groups) ? (
-        <p className="console-facet-rail__empty">{empty}</p>
+        <p className={`console-facet-rail__note ${Classes.TEXT_MUTED}`}>{empty}</p>
       ) : (
         groups
           .filter((group) => group.values.length > 0)
           .map((group) => {
             const open = expanded.has(group.key);
-            const { shown, hidden } = boundFacetValues(group.values, open ? 0 : limit);
+            const { shown, overflow } = boundFacetValues(group.values, limit);
             const largest = largestFacetCount(group.values);
+            const row = (value: FacetValue) => (
+              <FacetButton
+                key={value.value}
+                value={value}
+                largest={largest}
+                onClick={() => onToggle(group.key, value.value, !value.selected)}
+              />
+            );
             return (
-              <section
+              <Section
                 key={group.key}
+                compact
                 className="console-facet-rail__group"
-                aria-labelledby={`facet-${group.key}`}
+                titleRenderer={SectionHeading}
+                title={group.heading}
                 data-testid={`facet-${group.key}`}
               >
-                <h2 className="console-facet-rail__heading" id={`facet-${group.key}`}>
-                  {group.heading}
-                </h2>
-                <ul className="console-facet-rail__values">
-                  {shown.map((value) => (
-                    <li key={value.value}>
-                      <button
-                        type="button"
-                        className="console-facet-rail__value"
-                        aria-pressed={value.selected}
-                        onClick={() => onToggle(group.key, value.value, !value.selected)}
-                      >
-                        <span className="console-facet-rail__label">{value.value}</span>
-                        <span className="console-facet-rail__count">{value.count}</span>
-                        {/* The bar restates the count and is hidden from
-                          assistive technology, which already has the number. */}
-                        <span className="console-facet-rail__bar" aria-hidden="true">
-                          <span style={{ width: `${facetBarWidth(value.count, largest)}%` }} />
-                        </span>
-                      </button>
-                    </li>
-                  ))}
-                </ul>
-                {hidden > 0 || open ? (
-                  <Button
-                    variant="minimal"
-                    size="small"
-                    className="console-facet-rail__more"
-                    icon={open ? "chevron-up" : "chevron-down"}
-                    // The count is in the label because a bound that does not
-                    // say what it left out is indistinguishable from the end of
-                    // the list.
-                    text={open ? "Show fewer" : `${hidden} more`}
-                    onClick={() => toggleExpanded(group.key)}
-                  />
-                ) : null}
-              </section>
+                <SectionCard padded={false}>
+                  {shown.map(row)}
+                  {/* Collapsed, not discarded. The control below names how many
+                      are behind it, so a bound list never reads as the end of
+                      the list. */}
+                  <Collapse isOpen={open}>{overflow.map(row)}</Collapse>
+                  {overflow.length > 0 ? (
+                    <Button
+                      variant="minimal"
+                      size="small"
+                      fill
+                      alignText="start"
+                      icon={open ? "chevron-up" : "chevron-down"}
+                      text={open ? "Show fewer" : `${overflow.length} more`}
+                      onClick={() => toggleExpanded(group.key)}
+                    />
+                  ) : null}
+                </SectionCard>
+              </Section>
             );
           })
       )}
     </nav>
+  );
+}
+
+function FacetButton({
+  value,
+  largest,
+  onClick,
+}: {
+  value: FacetValue;
+  largest: number;
+  onClick: () => void;
+}) {
+  return (
+    <Button
+      className="console-facet-rail__value"
+      variant="minimal"
+      size="small"
+      fill
+      alignText="start"
+      active={value.selected}
+      aria-pressed={value.selected}
+      onClick={onClick}
+    >
+      {/* A Product coordinate is longer than any rail column, so the label
+          ellipsises and carries its full value as a title -- truncating a value
+          the reader cannot recover is the same defect as dropping one. */}
+      <span className="console-facet-rail__label" title={value.value}>
+        {value.value}
+      </span>
+      <Tag minimal round>
+        {value.count}
+      </Tag>
+      {/* The bar restates the count, so it is hidden from assistive technology,
+          which already has the number from the Tag. */}
+      <ProgressBar
+        className="console-facet-rail__bar"
+        value={facetBarValue(value.count, largest)}
+        stripes={false}
+        animate={false}
+        intent={value.selected ? "primary" : "none"}
+        aria-hidden
+      />
+    </Button>
   );
 }

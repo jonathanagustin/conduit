@@ -1,102 +1,60 @@
+/* Deliberately small. The groups are Blueprint `Section`/`SectionCard`, the
+   rows are `Button` with Blueprint's own `active` state, the counts are `Tag`
+   and the bars are `ProgressBar`, so nothing here restates a border, a heading
+   style, a hover fill, a selected fill or a bar. What is left is the rail's
+   place on the page, and the one composition Blueprint does not offer: a button
+   whose content is a label that takes the slack with a count and a bar after
+   it. `.bp6-button` centres its children, which for a list of rows would leave
+   every count in a different place. */
+
 .console-facet-rail {
   display: flex;
   flex-direction: column;
   min-width: 0;
   padding: 12px 16px;
-  gap: 16px;
+  gap: 12px;
   border-right: 1px solid var(--bp-surface-border-color-default, rgba(17, 20, 24, 0.15));
 }
 
-.console-facet-rail__caption,
-.console-facet-rail__empty {
+/* normalize.css gives a paragraph a block margin; the rail's own gap spaces it. */
+.console-facet-rail__note {
   margin: 0;
-  color: var(--bp-typography-color-muted, #5f6b7c);
-  font-size: 12px;
-  line-height: 1.4;
 }
 
-.console-facet-rail__group {
+/* Blueprint gathers a Button's children into a single block `.bp6-button-text`,
+   which drops a full-width ProgressBar onto its own line. Three rules put them
+   in a row: the label takes the slack, the count and the bar sit after it. */
+.console-facet-rail__value .bp6-button-text {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.console-facet-rail__heading {
-  margin: 0 0 4px;
-  color: var(--bp-typography-color-muted, #5f6b7c);
-  font-size: 11px;
-  font-weight: 600;
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-}
-
-.console-facet-rail__values {
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-/* A three-column row: the value, its count, and the bar. The count column is
-   fixed so the bars start at one edge and stay comparable down the group. */
-.console-facet-rail__value {
-  display: grid;
   width: 100%;
-  padding: 3px 4px;
-  border: none;
-  border-radius: 2px;
-  background: none;
-  color: inherit;
-  font: inherit;
-  text-align: left;
   align-items: center;
-  grid-template-columns: minmax(0, 1fr) auto 72px;
-  gap: 8px;
-  cursor: pointer;
-}
-
-.console-facet-rail__value:hover {
-  background: var(--bp-surface-background-color-default-hover, rgba(143, 153, 168, 0.15));
-}
-
-.console-facet-rail__value[aria-pressed="true"] {
-  background: var(--bp-surface-background-color-selected-rest, rgba(45, 114, 210, 0.15));
-  font-weight: 600;
+  min-width: 0;
+  gap: 6px;
 }
 
 .console-facet-rail__label {
   overflow: hidden;
-  font-size: 12px;
+  flex: 1 1 auto;
+  min-width: 0;
   text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.console-facet-rail__count {
-  color: var(--bp-typography-color-muted, #5f6b7c);
-  font-size: 12px;
-  font-variant-numeric: tabular-nums;
 }
 
 .console-facet-rail__bar {
-  display: block;
-  height: 8px;
-  border-radius: 2px;
-  background: var(--bp-surface-background-color-default-hover, rgba(143, 153, 168, 0.2));
+  flex: 0 0 56px;
 }
 
-.console-facet-rail__bar > span {
-  display: block;
-  height: 100%;
-  border-radius: 2px;
-  background: var(--bp-intent-primary, #2d72d2);
+/* Section styles its title as an H6 (`h6.bp6-heading` is 14px/16px) and this
+   rail substitutes an H2 so the document's heading order stays right -- the
+   same substitution OverviewPage makes. Only the element's own browser default
+   size has to be put back. */
+.console-facet-rail h2.bp6-section-header-title {
+  margin: 0;
+  font-size: 14px;
+  line-height: 16px;
 }
 
-.console-facet-rail__more {
-  align-self: flex-start;
-  margin-top: 2px;
-}
-
-/* Below the split the rail sits above the table rather than beside it, so the
-   border that separated the two columns has to move with it. */
+/* Narrow enough that a fixed rail column would leave the table unreadable: the
+   page stacks them, so the divider has to move with the rail. */
 @media (max-width: 900px) {
   .console-facet-rail {
     border-right: none;

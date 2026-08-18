@@ -93,14 +93,17 @@ removed.
 
 **A bounded list says what it withheld.** Environment and Product have open
 vocabularies, so a dimension can carry more values than a rail should show. The
-list is bounded at `DEFAULT_FACET_LIMIT` and the remainder sits behind a control
-labelled with its own count — "4 more", not "more". The same discipline the
-console applies to a bounded page: a truncation the reader cannot see is a
-truncation that will be read as the end of the list. A selected value below the
-bound is kept visible, which costs at most one extra row because a dimension
-carries at most one selection.
+list is bounded at `DEFAULT_FACET_LIMIT` and the remainder sits, collapsed but
+returned rather than discarded, behind a control labelled with its own count —
+"4 more", not "more". The same discipline the console applies to a bounded page:
+a truncation the reader cannot see is a truncation that will be read as the end
+of the list. A label too long for the column ellipsises and carries its full
+value as a `title`, for the same reason. A selected value below the bound is kept
+visible, which costs at most one extra row because a dimension carries at most
+one selection.
 
-**A bar is a proportion of its group's largest count.** Not of the group's total,
+**A bar is a proportion of its group's largest count.** `facetBarValue` returns
+the 0-1 fraction Blueprint's `ProgressBar` takes. Not of the group's total,
 and not of the fleet: the bars compare the values of one dimension against each
 other, which is the comparison the rail is for. Against a total, a dimension with
 many values renders every bar as an identical sliver and distinguishes nothing.
@@ -124,6 +127,43 @@ this screen: an invented value could never appear in a facet, and a real one
 omitted would sort behind every declared value for no reason. Environment and
 Product have no vocabulary because they have no closed one — they are whatever
 the deployment installs, which is what the bound above exists for.
+
+## How it is built
+
+Composed from Blueprint, not drawn. The console imports from `@blueprintjs/core`
+at every one of its import sites, and the rail adds no new dependency and no new
+visual language:
+
+| Part | Blueprint component |
+| --- | --- |
+| A dimension | `Section` + `SectionCard` — the panel this console already uses eleven times |
+| A value row | `Button`, `variant="minimal"`, `fill`, `alignText="start"` |
+| The selected state | Blueprint's own `active`, plus `aria-pressed` for the toggle semantics |
+| The count | `Tag`, `minimal round` |
+| The bar | `ProgressBar` with an explicit `value`, `stripes={false}` and `animate={false}` — a static filled track |
+| The bounded tail | `Collapse`, revealed by a `Button` |
+
+`OverflowList` was the other candidate for the tail and is the wrong tool: it
+collapses on available width, and this bound is a count of values, not a number
+of pixels.
+
+Four rules of bespoke CSS remain, and each is a composition Blueprint does not
+offer rather than a restatement of one it does:
+
+- the rail's own place on the page (a flex column, its divider, and where that
+  divider moves when the page stacks below 900px);
+- `p { margin: 0 }` for the caption, because `normalize.css` gives a paragraph a
+  block margin and the rail's `gap` already spaces it;
+- three rules turning `.bp6-button-text` into a row, because Blueprint gathers a
+  Button's children into one block and a full-width `ProgressBar` would
+  otherwise drop onto its own line;
+- putting the H6 size back on the H2 (see below).
+
+`Section` renders its title as an `H6`, which under the page's `H1` would skip
+five heading levels. The rail substitutes an `H2` through `titleRenderer`, which
+is the same substitution `OverviewPage` makes, and restores the size Blueprint
+gives `h6.bp6-heading` — the heading *level* is the document's, the heading
+*style* is Blueprint's.
 
 ## Where the code lives
 
