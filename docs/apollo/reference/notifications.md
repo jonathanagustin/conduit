@@ -161,6 +161,27 @@ because severity in Apollo lives **here**, on Events, and not on notification
 subscriptions — a distinction an earlier implementation got wrong in both
 directions at once.
 
+### Where Conduit stores a contact — Conduit extension
+
+Apollo establishes the team half of this and no more: a contact is created in
+Hub Settings, has one of three kinds, is what a resource selects, and a team
+holding none receives nothing. It establishes **no user contact**, and may have
+none — a tenant's account email would do the same job.
+
+Conduit stores one destination per **(owner, kind)**, where the owner is a user
+or a team, because its preference model already admits a `USER` owner on the
+`EMAIL` channel and without an address that subscription reaches nobody. At
+delivery the recipient's own contact is resolved and carried on the message; a
+recipient holding no deliverable contact falls back to the endpoint an operator
+configured, which is where every delivery went before contacts existed. A
+PagerDuty contact is stored, is listed to its owner, and is never a
+destination — the first ambiguity below, made operational.
+
+None of the persistence shape, the identifier, the routes, or the resolution
+order is Apollo's. All of it is registered in
+[`../../evidence/conduit-inventions.json`](../../evidence/conduit-inventions.json)
+as `notifications.ContactAddressBook` and `notifications.DestinationResolution`.
+
 ## Upstream ambiguities
 
 Recorded, not resolved by naming one side correct:

@@ -230,13 +230,31 @@ type Owner struct {
 	ID   string        `json:"id"`
 }
 
-// Contact is a team's destination, created in Hub Settings rather than on a
-// resource -- a resource can only select one that already exists, which is why
-// a team with no contact receives nothing however many resources name it.
+// Contact is a destination created in Hub Settings rather than on a resource --
+// a resource can only select one that already exists, which is why an owner
+// with no contact receives nothing however many resources name it.
+//
+// Apollo's is a *team* contact and nothing captured shows a per-user one; a
+// tenant's account email would do the same job there. Conduit keys one on an
+// Owner instead, so a person can hold one too, because the alternative is a
+// USER preference on the EMAIL channel that names no address anywhere and
+// therefore reaches nobody -- which is the readiness document's Tier 1 gap 1
+// stated exactly. One per (owner, kind): the dialog creates a contact of a
+// kind, and a second of the same kind for the same owner is an edit of the
+// first rather than a new destination.
+//
+// Address is deliberately the only field this package will not restate. It is
+// personal data -- an email address, or the Slack channel a team talks in -- so
+// it never appears in an error here, in a log line, or on a metric label, and
+// the only place it is allowed to travel is to the transport that delivers to
+// it. Validate's messages below are written to that rule; check any you add.
+// CONDUIT-INVENTED: notifications.ContactAddressBook
+// Displaced-by: a capture of Apollo's contact API -- what a contact is keyed
+// on, whether a user holds one at all, and what it is called
 type Contact struct {
-	ID   string      `json:"id"`
-	Team string      `json:"team"`
-	Kind ContactKind `json:"kind"`
+	ID    string      `json:"id"`
+	Owner Owner       `json:"owner"`
+	Kind  ContactKind `json:"kind"`
 	// Address is the email address or Slack channel. Opaque here: this package
 	// does not deliver, so it does not validate what a transport will accept.
 	Address string `json:"address"`
@@ -245,19 +263,26 @@ type Contact struct {
 	// auto-subscribe to all of these and future resources added to this team."
 	OptIntoFutureResources bool      `json:"optIntoFutureResources"`
 	CreatedAt              time.Time `json:"createdAt"`
+	UpdatedAt              time.Time `json:"updatedAt,omitzero"`
 }
 
 // Validate refuses a contact that could not receive anything.
+//
+// Note what the last case does not say. An absent address is reported as
+// absent; a present one is never quoted back, here or anywhere else, because an
+// error is the value most likely to reach a log an operator does not own.
 func (contact Contact) Validate() error {
 	switch {
 	case strings.TrimSpace(contact.ID) == "":
-		return fmt.Errorf("team contact requires an id")
-	case strings.TrimSpace(contact.Team) == "":
-		return fmt.Errorf("team contact requires the team that owns it")
+		return fmt.Errorf("notification contact requires an id")
+	case contact.Owner.Kind != PrincipalUser && contact.Owner.Kind != PrincipalTeam:
+		return fmt.Errorf("a notification contact belongs to a USER or a TEAM")
+	case strings.TrimSpace(contact.Owner.ID) == "":
+		return fmt.Errorf("notification contact requires the owner that holds it")
 	case !contact.Kind.Valid():
-		return fmt.Errorf("team contact kind %q is not one Apollo offers", contact.Kind)
+		return fmt.Errorf("notification contact kind %q is not one Apollo offers", contact.Kind)
 	case strings.TrimSpace(contact.Address) == "":
-		return fmt.Errorf("team contact requires a destination address")
+		return fmt.Errorf("notification contact requires a destination address")
 	}
 	return nil
 }

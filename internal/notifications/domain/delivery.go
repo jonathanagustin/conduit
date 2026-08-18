@@ -31,26 +31,36 @@ func NeedsTransport(entry InboxEntry) bool {
 // facts to reconcile during an incident. The transport chooses the envelope;
 // the wording is one decision made once.
 //
-// There is no destination field, and its absence is the honest part of this
-// design. Nothing in this repository stores a person's email address or a
-// team's Slack channel -- domain.Contact models one but no store persists one --
-// so a Message that carried an address would be carrying a value Conduit cannot
-// produce. The transport owns where it sends, the way METRICS_ADDRESS owns
-// where metrics are scraped from.
+// Destination is where this one goes, and it is the field that used to be
+// absent. The comment here said a Message could not carry an address because
+// nothing in this repository stored one, which was true and was the whole of
+// the readiness document's Tier 1 gap 1. A store holds one now, so a delivery
+// names the recipient's own destination whenever they have a contact for it.
+//
+// The zero value still means what the absence meant: this delivery names no
+// destination of its own, and the transport sends where it was configured to
+// send. That is the ordinary case for a deployment with an endpoint and no
+// contacts, so upgrading changes where nothing goes.
+//
+// Render does not fill it. Rendering is a pure function of one entry, and a
+// destination is a fact about the recipient's address book read at delivery
+// time; putting that read here would make the wording of a message depend on a
+// store.
 // CONDUIT-INVENTED: notifications.Message
 // Displaced-by: a capture of what Apollo puts in a notification email or Slack
 // post, in particular whether the subject names the event type or the resource
 type Message struct {
 	// EventID and Recipient together are the delivery's identity, so a
 	// transport that deduplicates has something stable to deduplicate on.
-	EventID     string    `json:"eventId"`
-	Recipient   Recipient `json:"recipient"`
-	Type        EventType `json:"type"`
-	ResourceRID string    `json:"resourceRid"`
-	Environment string    `json:"environment,omitempty"`
-	Subject     string    `json:"subject"`
-	Body        string    `json:"body"`
-	OccurredAt  time.Time `json:"occurredAt"`
+	EventID     string      `json:"eventId"`
+	Recipient   Recipient   `json:"recipient"`
+	Destination Destination `json:"destination,omitzero"`
+	Type        EventType   `json:"type"`
+	ResourceRID string      `json:"resourceRid"`
+	Environment string      `json:"environment,omitempty"`
+	Subject     string      `json:"subject"`
+	Body        string      `json:"body"`
+	OccurredAt  time.Time   `json:"occurredAt"`
 }
 
 // Render turns one inbox entry into the message a transport sends.

@@ -7,7 +7,9 @@
 // three, and this package would be the wrong place to restate any of them. What
 // it owns is the one thing a transport is uniquely able to get wrong: an inbox
 // is per-principal, and a request naming somebody else's inbox arrives looking
-// exactly like a request naming your own.
+// exactly like a request naming your own. That is truer of the contact routes
+// than of anything else here: a write that reached the wrong owner would not
+// leak somebody's mail, it would redirect it.
 //
 // The routes are a Conduit extension. The pinned Apollo OpenAPI under
 // docs/apollo/snapshots/ publishes no notification operation at all -- the word
@@ -77,9 +79,15 @@ type StatusError struct {
 func (err StatusError) Error() string { return err.Message }
 
 // Config is everything these routes need and nothing they do not.
+//
+// Contacts is the one optional member. A deployment whose notification
+// component has no address book serves no contact routes rather than serving
+// them against nothing and answering 500 -- the same rule the composition root
+// applies to this whole surface when there is no store behind it.
 type Config struct {
 	Reader      *application.Reader
 	Preferences *application.Preferences
+	Contacts    *application.Contacts
 	Resolve     ResolvePrincipal
 	Authorize   Authorize
 }
@@ -107,6 +115,11 @@ func Register(mux *http.ServeMux, config Config) error {
 	mux.HandleFunc("GET /v1/notifications/events", api.readEvents)
 	mux.HandleFunc("GET /v1/notifications/preferences", api.readPreference)
 	mux.HandleFunc("PUT /v1/notifications/preferences", api.writePreference)
+	if config.Contacts != nil {
+		mux.HandleFunc("GET /v1/notifications/contacts", api.readContacts)
+		mux.HandleFunc("PUT /v1/notifications/contacts", api.writeContact)
+		mux.HandleFunc("DELETE /v1/notifications/contacts", api.deleteContact)
+	}
 	// Everything else under the prefix answers here rather than falling through
 	// to whatever the mux has at "/". A Hub that composes these routes in front
 	// of a legacy facade would otherwise answer 404 to DELETE on a route it
@@ -118,15 +131,29 @@ func Register(mux *http.ServeMux, config Config) error {
 
 // served maps each route to the methods it answers, which is both the 405
 // decision and the Allow header the answer has to carry.
-var served = map[string]string{
-	"inbox":       http.MethodGet,
-	"events":      http.MethodGet,
-	"preferences": http.MethodGet + ", " + http.MethodPut,
+//
+// It is a method rather than a map because one route is conditional: a Hub with
+// no address book does not serve /v1/notifications/contacts, and answering 405
+// for it there would tell a caller the route exists and they used the wrong
+// verb. It does not, so the answer is 404.
+func (api *api) served(route string) (string, bool) {
+	switch route {
+	case "inbox", "events":
+		return http.MethodGet, true
+	case "preferences":
+		return http.MethodGet + ", " + http.MethodPut, true
+	case "contacts":
+		if api.config.Contacts == nil {
+			return "", false
+		}
+		return http.MethodGet + ", " + http.MethodPut + ", " + http.MethodDelete, true
+	}
+	return "", false
 }
 
 func (api *api) unsupported(writer http.ResponseWriter, request *http.Request) {
 	route := request.PathValue("path")
-	allowed, known := served[route]
+	allowed, known := api.served(route)
 	if !known {
 		writeError(writer, http.StatusNotFound,
 			fmt.Errorf("/v1/notifications/%s is not a notification route", route))
@@ -313,6 +340,146 @@ func (api *api) writePreference(writer http.ResponseWriter, request *http.Reques
 // maximumPreferenceBytes bounds a body whose largest legitimate form is a list
 // of event-type names.
 const maximumPreferenceBytes = 64 << 10
+
+// The contact routes are where a person's email address or a team's Slack
+// channel is written down, which makes them the routes with the most to lose.
+// Three properties hold across all three handlers and none of them is optional:
+//
+// The owner defaults to the caller and is checked by ownedBy, exactly as the
+// inbox is. There is no administrator override, for the reason ownedBy states:
+// a grant conveys authority over a resource and never over a person. An
+// operator who could rewrite somebody's address could redirect their mail.
+//
+// There is no resource authorization, and its absence is deliberate rather than
+// an omission. A contact is not about a resource -- Apollo creates one in Hub
+// Settings, and a resource only selects one that already exists -- so there is
+// no resourceRid to ask Governance about, and inventing one would mean choosing
+// which resource a person's address belongs to.
+//
+// An address is never written to a log, an error or a metric. It appears in
+// exactly two places: the body its owner sent it in, and the body its owner
+// reads it back from. Every refusal below names the owner and the kind, and
+// nothing else.
+
+// readContacts answers what destinations one owner holds.
+//
+// The address is in the answer, because the answer goes to the owner and to
+// nobody else -- that is what ownedBy has just established. A response that
+// withheld it would make the routes unusable for the one thing they exist for:
+// checking what Conduit is about to send your mail to.
+func (api *api) readContacts(writer http.ResponseWriter, request *http.Request) {
+	principal, ok := api.principal(writer, request)
+	if !ok {
+		return
+	}
+	owner, err := requestedOwner(request.URL.Query(), principal)
+	if err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if !ownedBy(principal, owner) {
+		refuseOwner(writer, owner)
+		return
+	}
+	contacts, err := api.config.Contacts.List(request.Context(), owner)
+	if err != nil {
+		writeError(writer, http.StatusInternalServerError, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"owner": owner, "contacts": contacts})
+}
+
+// contactRequest is what a caller may set. The identifier and the timestamps
+// are absent because the application layer mints them; a body that could carry
+// them would let a client backdate a destination it had only just added.
+type contactRequest struct {
+	Owner                  domain.Owner       `json:"owner"`
+	Kind                   domain.ContactKind `json:"kind"`
+	Address                string             `json:"address"`
+	OptIntoFutureResources bool               `json:"optIntoFutureResources"`
+}
+
+func (api *api) writeContact(writer http.ResponseWriter, request *http.Request) {
+	principal, ok := api.principal(writer, request)
+	if !ok {
+		return
+	}
+	var body contactRequest
+	decoder := json.NewDecoder(http.MaxBytesReader(writer, request.Body, maximumContactBytes))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&body); err != nil {
+		// The decoder's message can quote the offending token, so it is reported
+		// as a shape failure rather than passed through. A malformed body that
+		// nearly parsed could otherwise put an address in the response of a
+		// request that was refused, and from there into whatever logs it.
+		writeError(writer, http.StatusBadRequest,
+			errors.New("the notification contact body is not the object this route accepts: "+
+				"an owner, a kind, an address and optIntoFutureResources"))
+		return
+	}
+	owner, err := defaultedOwner(body.Owner, principal)
+	if err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	// The check this route exists to earn, and it happens before the address is
+	// looked at, let alone stored. bob naming alice is refused here.
+	if !ownedBy(principal, owner) {
+		refuseOwner(writer, owner)
+		return
+	}
+	stored, err := api.config.Contacts.Save(request.Context(), domain.Contact{
+		Owner: owner, Kind: body.Kind, Address: body.Address,
+		OptIntoFutureResources: body.OptIntoFutureResources,
+	})
+	if err != nil {
+		writeError(writer, http.StatusUnprocessableEntity, err)
+		return
+	}
+	writeJSON(writer, http.StatusOK, stored)
+}
+
+// deleteContact removes one destination, and answers 404 when there was none.
+//
+// The distinction is kept because the two mean different things to the person
+// asking: "it is gone now" and "it was never here" are answers to a question
+// about your own address book, which you are entitled to. There is no directory
+// risk in it, because ownedBy has already established this is the caller's own.
+func (api *api) deleteContact(writer http.ResponseWriter, request *http.Request) {
+	principal, ok := api.principal(writer, request)
+	if !ok {
+		return
+	}
+	query := request.URL.Query()
+	owner, err := requestedOwner(query, principal)
+	if err != nil {
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	}
+	if !ownedBy(principal, owner) {
+		refuseOwner(writer, owner)
+		return
+	}
+	kind := domain.ContactKind(strings.TrimSpace(query.Get("kind")))
+	deleted, err := api.config.Contacts.Delete(request.Context(), owner, kind)
+	switch {
+	case err != nil && !kind.Valid():
+		writeError(writer, http.StatusBadRequest, err)
+		return
+	case err != nil:
+		writeError(writer, http.StatusInternalServerError, err)
+		return
+	case !deleted:
+		writeError(writer, http.StatusNotFound, fmt.Errorf(
+			"%s %s holds no %s notification contact", owner.Kind, owner.ID, kind))
+		return
+	}
+	writeJSON(writer, http.StatusOK, map[string]any{"owner": owner, "kind": kind, "deleted": true})
+}
+
+// maximumContactBytes bounds a body whose largest legitimate form is one
+// address. Smaller than the preference ceiling because there is no list in it.
+const maximumContactBytes = 8 << 10
 
 // principal resolves the caller or writes the refusal and reports false.
 func (api *api) principal(writer http.ResponseWriter, request *http.Request) (Principal, bool) {

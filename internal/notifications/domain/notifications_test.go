@@ -1,6 +1,7 @@
 package domain
 
 import (
+	"strings"
 	"testing"
 	"time"
 )
@@ -251,7 +252,7 @@ func TestATeamPreferenceWithoutAContactIsRefused(t *testing.T) {
 func TestAPagerDutyContactIsCreatableAndDeliversNothing(t *testing.T) {
 	t.Parallel()
 	contact := Contact{
-		ID: "contact-1", Team: "platform", Kind: ContactPagerDuty,
+		ID: "contact-1", Owner: Owner{Kind: PrincipalTeam, ID: "platform"}, Kind: ContactPagerDuty,
 		Address: "platform-oncall", CreatedAt: at(),
 	}
 	if err := contact.Validate(); err != nil {
@@ -270,15 +271,47 @@ func TestAPagerDutyContactIsCreatableAndDeliversNothing(t *testing.T) {
 func TestAContactThatCouldNotReceiveAnythingIsRefused(t *testing.T) {
 	t.Parallel()
 	for name, mutate := range map[string]func(*Contact){
-		"no id":        func(value *Contact) { value.ID = "" },
-		"no team":      func(value *Contact) { value.Team = "" },
-		"unknown kind": func(value *Contact) { value.Kind = "CARRIER_PIGEON" },
-		"no address":   func(value *Contact) { value.Address = "" },
+		"no id":            func(value *Contact) { value.ID = "" },
+		"no owner id":      func(value *Contact) { value.Owner.ID = "" },
+		"no owner kind":    func(value *Contact) { value.Owner.Kind = "" },
+		"an owner neither": func(value *Contact) { value.Owner.Kind = "SERVICE" },
+		"unknown kind":     func(value *Contact) { value.Kind = "CARRIER_PIGEON" },
+		"no address":       func(value *Contact) { value.Address = "" },
 	} {
-		value := Contact{ID: "c-1", Team: "platform", Kind: ContactEmail, Address: "ops@example.test", CreatedAt: at()}
+		value := Contact{
+			ID: "c-1", Owner: Owner{Kind: PrincipalTeam, ID: "platform"},
+			Kind: ContactEmail, Address: "ops@example.test", CreatedAt: at(),
+		}
 		mutate(&value)
-		if err := value.Validate(); err == nil {
+		err := value.Validate()
+		if err == nil {
 			t.Errorf("%s: an unusable contact was accepted", name)
+			continue
+		}
+		// The refusal must not quote the address back. An error is the value
+		// most likely to end up in a log nobody scoped, so this is checked here
+		// rather than trusted to the wording surviving the next edit.
+		if strings.Contains(err.Error(), "ops@example.test") {
+			t.Errorf("%s: the refusal disclosed the address it refused: %v", name, err)
+		}
+	}
+}
+
+// A person holds a contact too, and that is the half Apollo's capture does not
+// show: without it a USER preference on the EMAIL channel names no address
+// anywhere and reaches nobody, which is the readiness gap this closes.
+func TestAPersonHoldsAContactAndNotOnlyATeam(t *testing.T) {
+	t.Parallel()
+	for _, owner := range []Owner{
+		{Kind: PrincipalUser, ID: "alice"},
+		{Kind: PrincipalTeam, ID: "platform"},
+	} {
+		contact := Contact{
+			ID: "c-1", Owner: owner, Kind: ContactEmail,
+			Address: "someone@example.test", CreatedAt: at(),
+		}
+		if err := contact.Validate(); err != nil {
+			t.Errorf("a %s contact was refused: %v", owner.Kind, err)
 		}
 	}
 }

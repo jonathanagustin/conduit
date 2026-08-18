@@ -3,14 +3,20 @@
 //
 // Why a webhook rather than SMTP. Both were candidates and the deciding
 // question was what Conduit can honestly promise. SMTP needs an envelope
-// sender, a TLS and authentication policy, and a recipient address -- and
-// nothing in this repository stores a recipient address: domain.Contact models
-// one, no store persists one, and inventing an address book would be inventing
-// Apollo behaviour rather than delivering a notification. A webhook needs one
-// URL, which an operator already has: a Slack incoming webhook is exactly this
-// shape, and so is every mail relay's HTTP submission API. It is also the
-// adapter that can be tested to the byte with no socket open, by substituting
-// an http.RoundTripper, which SMTP cannot be without a fake server.
+// sender, a TLS and authentication policy, and a delivery agent; a webhook
+// needs one URL, which an operator already has: a Slack incoming webhook is
+// exactly this shape, and so is every mail relay's HTTP submission API. It is
+// also the adapter that can be tested to the byte with no socket open, by
+// substituting an http.RoundTripper, which SMTP cannot be without a fake
+// server.
+//
+// The endpoint is where a delivery goes; who it is *for* now travels with it.
+// This package used to say no recipient address existed to send to, which was
+// true -- it was the readiness document's Tier 1 gap 1. The address book
+// closed that, so a message may carry the recipient's own destination and this
+// payload carries it through to the relay, which is the component that knows
+// how to reach a mailbox or a Slack channel. A message naming no destination
+// is delivered exactly as before, so an existing relay is unaffected.
 //
 // What is claimed and what is not: Apollo's own settings pages establish that a
 // team may own a Slack contact and that Slack contacts are deliverable. Nothing
@@ -97,7 +103,18 @@ type payload struct {
 	ResourceRID string           `json:"resourceRid"`
 	Environment string           `json:"environment,omitempty"`
 	Recipient   domain.Recipient `json:"recipient"`
-	Subject     string           `json:"subject"`
+	// Destination is the recipient's own contact, when they hold one this
+	// delivery resolved to. Absent means this delivery names none and the
+	// receiver should send wherever it was configured to -- which is what every
+	// delivery did before contacts existed, so a relay written against the older
+	// payload keeps working and can adopt this field when it is ready.
+	//
+	// It is the one field here carrying personal data, and this is the only
+	// place that data is allowed to travel: the request that delivers to it. It
+	// is not logged, not folded into a failure reason, and not read back out of
+	// the response.
+	Destination *destination `json:"destination,omitempty"`
+	Subject     string       `json:"subject"`
 	// Text is the field Slack's incoming webhooks read, so the same POST that
 	// feeds a generic receiver renders in a Slack channel without a translator
 	// in between. The body is repeated under its own name for receivers that do
@@ -105,6 +122,14 @@ type payload struct {
 	Text       string    `json:"text"`
 	Body       string    `json:"body"`
 	OccurredAt time.Time `json:"occurredAt"`
+}
+
+// destination is the wire form of where one delivery goes: the kind of
+// endpoint, then the address. Kind first because it is what tells the receiver
+// how to read the address -- a Slack channel and a mailbox are both strings.
+type destination struct {
+	Kind    domain.ContactKind `json:"kind"`
+	Address string             `json:"address"`
 }
 
 const payloadVersion = "conduit.notification/v1"
@@ -126,6 +151,7 @@ func (transport *Transport) Deliver(ctx context.Context, message domain.Message)
 		ResourceRID: message.ResourceRID,
 		Environment: message.Environment,
 		Recipient:   message.Recipient,
+		Destination: wireDestination(message.Destination),
 		Subject:     message.Subject,
 		Text:        message.Subject + "\n" + message.Body,
 		Body:        message.Body,
@@ -160,6 +186,16 @@ func (transport *Transport) Deliver(ctx context.Context, message domain.Message)
 	}
 	return fmt.Errorf("notification webhook answered %d: %s",
 		response.StatusCode, summarize(detail))
+}
+
+// wireDestination omits an unnamed destination rather than encoding an empty
+// one. A receiver reading `"destination":{"kind":"","address":""}` has to know
+// that means "none"; a receiver reading no field at all already does.
+func wireDestination(resolved domain.Destination) *destination {
+	if !resolved.Named() {
+		return nil
+	}
+	return &destination{Kind: resolved.Kind, Address: resolved.Address}
 }
 
 func permanentStatus(status int) bool {

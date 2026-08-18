@@ -24,6 +24,14 @@ type Options struct {
 	// NotificationStore is the durable notification component. Nil means this
 	// deployment has none -- REPOSITORY_KIND=file has no PostgreSQL to hold one.
 	NotificationStore notificationports.Store
+	// NotificationContacts is the address book behind the contact routes.
+	//
+	// A field of its own rather than a type assertion on the store, because the
+	// port is separate for a reason and reading one off the other here would
+	// undo that in the one place it is visible. Nil mounts no contact routes,
+	// rather than routes that answer 500 to the first person who edits their
+	// own address.
+	NotificationContacts notificationports.Contacts
 }
 
 // mountNotifications puts the notification routes in front of the legacy
@@ -50,11 +58,21 @@ func mountNotifications(
 	if err != nil {
 		return nil, err
 	}
+	// Nil stays nil rather than becoming a service over nothing: the adapter
+	// reads a nil Contacts as "do not mount those routes", and a non-nil
+	// pointer to a service with no store would be a route that answers 500.
+	var contacts *notifications.Contacts
+	if hub.NotificationContacts != nil {
+		if contacts, err = notifications.NewContacts(hub.NotificationContacts, nil); err != nil {
+			return nil, err
+		}
+	}
 	service := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
 	if err := notificationhttp.Register(mux, notificationhttp.Config{
 		Reader:      reader,
 		Preferences: preferences,
+		Contacts:    contacts,
 		Resolve:     operatorPrincipal(),
 		Authorize:   resourceOperation(service, options),
 	}); err != nil {

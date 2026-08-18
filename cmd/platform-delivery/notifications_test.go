@@ -46,14 +46,14 @@ func TestPostgresANotificationTransportIsOffUnlessConfigured(t *testing.T) {
 			for key, value := range test.extra {
 				configuration[key] = value
 			}
-			_, closeReconciliation, _, _, _, deliveries, err := configureReconciliation(ctx,
+			_, closeReconciliation, _, _, notifications, err := configureReconciliation(ctx,
 				func(name string) string { return configuration[name] }, base)
 			if err != nil {
 				t.Fatal(err)
 			}
 			defer closeReconciliation()
-			if (deliveries != nil) != test.expected {
-				t.Fatalf("%s produced a dispatcher = %v, want %v", name, deliveries != nil, test.expected)
+			if (notifications.Deliveries != nil) != test.expected {
+				t.Fatalf("%s produced a dispatcher = %v, want %v", name, notifications.Deliveries != nil, test.expected)
 			}
 		})
 	}
@@ -79,13 +79,13 @@ func TestPostgresAContradictoryTransportConfigurationStopsTheHub(t *testing.T) {
 		composition.NotificationWebhookURLVariable:  "https://hooks.example.com/conduit",
 		composition.NotificationDeliveryLogVariable: "true",
 	}
-	_, closeReconciliation, _, _, _, deliveries, err := configureReconciliation(ctx,
+	_, closeReconciliation, _, _, notifications, err := configureReconciliation(ctx,
 		func(name string) string { return configuration[name] }, base)
 	defer closeReconciliation()
 	if err == nil {
 		t.Fatal("two notification destinations at once were accepted")
 	}
-	if deliveries != nil {
+	if notifications.Deliveries != nil {
 		t.Error("a refused configuration still produced a dispatcher")
 	}
 }
