@@ -20,7 +20,26 @@ defaults:
     working-directory: .
 
 jobs:
+  # Every other job needs this one, so a dispatch from anything that is not a
+  # vX.Y.Z release tag fails in seconds instead of publishing part of a release.
+  #
+  # Dispatching from a branch used to succeed: the image push is gated on
+  # `github.event_name != 'pull_request'`, always true on a workflow with no
+  # pull_request trigger, while the runtime source, charts, air-gap packages,
+  # CLI and release below are each gated on the ref being a tag. The run pushed
+  # `<component>-sha-<commit>` images, skipped everything else, and went green
+  # having published a fraction of a release (#196).
+  verify-publication-ref:
+    name: Verify publication ref
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Refuse to publish from a non-release ref
+        run: ./scripts/verify-publication-ref.sh
+
   prepare-security-db:
+    needs: verify-publication-ref
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
