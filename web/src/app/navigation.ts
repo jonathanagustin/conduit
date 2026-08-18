@@ -21,9 +21,15 @@ import type { RailDestination } from "../components/index.js";
  *     server search contract exists" rather than silently downloading every
  *     resource. A rail button opening an empty omnibar would promise a
  *     capability the Hub does not have.
- *   - Notifications and Settings are absent for the same reason: the plan marks
- *     Notifications as "external integration until implemented", and there is no
- *     settings surface yet.
+ *   - Settings is absent for the same reason: there is no settings surface yet.
+ *
+ * Notifications was absent on that same reasoning and no longer is. The Hub
+ * serves GET /v1/notifications/inbox, GET /v1/notifications/events, and GET and
+ * PUT /v1/notifications/preferences, so the rail entry now leads somewhere. It
+ * sits on the rail rather than under Applications because it is not one: an
+ * inbox is per-principal and needs no grant on any resource to read, so it is
+ * not in the session projection's application vocabulary and must not be gated
+ * on one -- an operator with no platform-scoped grant still has an inbox.
  *
  * Plans and Promotions sit under Applications rather than being dropped. They
  * are reachable from Environment and Product detail, which is where the evidence
@@ -33,6 +39,7 @@ export const RAIL_DESTINATIONS: RailDestination[] = [
   { id: "overview", label: "Home", icon: "home", to: "/overview" },
   { id: "environments", label: "Environments", icon: "cloud", to: "/environments" },
   { id: "products", label: "Software Catalog", icon: "cube", to: "/products" },
+  { id: "notifications", label: "Notifications", icon: "notifications", to: "/notifications" },
 ];
 
 export const APPLICATION_DESTINATIONS: RailDestination[] = [

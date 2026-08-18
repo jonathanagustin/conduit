@@ -14,6 +14,13 @@ import { statusIntent } from "../../api/imports.js";
 import { findingScore, orderFindingsByHubScore } from "../../api/catalog.js";
 import type { VulnerabilityFinding } from "../../api/catalog.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
+import { NOTIFICATION_CHANNELS, NOTIFICATION_EVENT_TYPES, inboxPage } from "../../api/notifications.js";
+import {
+  deliversSomething,
+  readChannel,
+  toggleType,
+  unknownTypes,
+} from "../../features/notifications/NotificationsPage.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
 import {
@@ -533,5 +540,108 @@ describe("plan detail polling", () => {
     // a Plan id the Hub refuses every five seconds for as long as the tab is
     // open.
     expect(planPollInterval(undefined)).toBe(false);
+  });
+});
+
+describe("notification inbox paging", () => {
+  const page = (entries: unknown[] | null, limit: number) => ({
+    owner: { kind: "USER", id: "operator" },
+    channel: "IN_APP",
+    limit,
+    entries: entries as never,
+  });
+
+  // Go encodes an empty slice as null, so the state every new operator meets
+  // first arrives as {"entries":null}. Reading it as an array is the difference
+  // between an empty inbox and a screen that threw.
+  it("reads the null Go sends for an empty inbox as no entries", () => {
+    expect(inboxPage(page(null, 100)).entries).toEqual([]);
+    expect(inboxPage(page(null, 100)).bounded).toBe(false);
+  });
+
+  // The Hub reports the limit it APPLIED, not the one asked for, precisely so a
+  // caller can tell a truncated page from the end of the inbox. Losing that
+  // distinction is how a console silently stops showing an operator half of
+  // what happened to them.
+  it("distinguishes a page that filled the limit from the end of the inbox", () => {
+    expect(inboxPage(page([1, 2], 2)).bounded).toBe(true);
+    expect(inboxPage(page([1], 2)).bounded).toBe(false);
+  });
+
+  // A limit of zero is not a bound the Hub applies -- application.Bound turns
+  // every non-positive request into MaximumLimit -- so treating one as "this
+  // page is full" would put a truncation notice on an empty inbox.
+  it("does not call an empty inbox bounded when the Hub reports no limit", () => {
+    expect(inboxPage(page([], 0)).bounded).toBe(false);
+  });
+});
+
+describe("notification channel selection", () => {
+  it("defaults to the channel whose delivery is the inbox row itself", () => {
+    // domain.NeedsTransport: an IN_APP entry is delivered by being in the
+    // inbox, so it is the one channel with content in a deployment that has
+    // configured no transport at all.
+    expect(readChannel(null)).toBe("IN_APP");
+    expect(readChannel("")).toBe("IN_APP");
+  });
+
+  it("carries a channel the route accepts", () => {
+    expect(readChannel("EMAIL")).toBe("EMAIL");
+    expect(readChannel("IN_APP")).toBe("IN_APP");
+  });
+
+  // requestedChannel refuses a channel it does not know with a 400 rather than
+  // defaulting, so forwarding one would turn a hand-edited link into what reads
+  // as a broken console.
+  it("falls back rather than forwarding a channel the Hub would refuse", () => {
+    expect(readChannel("SLACK")).toBe("IN_APP");
+    expect(readChannel("in_app")).toBe("IN_APP");
+  });
+
+  it("offers only channels the Hub has", () => {
+    expect([...NOTIFICATION_CHANNELS]).toEqual(["EMAIL", "IN_APP"]);
+  });
+});
+
+describe("notification preference edits", () => {
+  it("keeps the enabled types sorted so one edit produces one document", () => {
+    expect(toggleType(["PLAN_FAILURES"], "BLUE_GREEN_UPGRADE_FAILED", true)).toEqual([
+      "BLUE_GREEN_UPGRADE_FAILED",
+      "PLAN_FAILURES",
+    ]);
+    expect(toggleType(["PLAN_FAILURES"], "PLAN_FAILURES", true)).toEqual(["PLAN_FAILURES"]);
+    expect(toggleType(["PLAN_FAILURES", "ROLE_CHANGE"], "PLAN_FAILURES", false)).toEqual([
+      "ROLE_CHANGE",
+    ]);
+  });
+
+  // domain.Preference.Validate refuses a preference that enables no types and
+  // has not opted into future ones, because it could never deliver anything.
+  // The screen refuses it first rather than offering a button whose only
+  // outcome is a 422.
+  it("refuses an edit the Hub would refuse", () => {
+    expect(deliversSomething([], false)).toBe(false);
+    expect(deliversSomething([], true)).toBe(true);
+    expect(deliversSomething(["PLAN_FAILURES"], false)).toBe(true);
+  });
+
+  // The vocabulary is open and the Hub's is wider than any one bundle's, so a
+  // stored preference may name a type this console has no checkbox for. It is
+  // carried through a save, and reported, because silently dropping it would
+  // unsubscribe an operator as a side effect of opening a settings page.
+  it("names the enabled types this build has no checkbox for", () => {
+    expect(unknownTypes(["PLAN_FAILURES"])).toEqual([]);
+    expect(unknownTypes(["SOMETHING_ADDED_LATER", "PLAN_FAILURES"])).toEqual([
+      "SOMETHING_ADDED_LATER",
+    ]);
+  });
+
+  // Held to the Go consts by scripts/verify-console-contract.mjs; this asserts
+  // the console's own use of that list is total, so a type added there cannot
+  // arrive without a checkbox.
+  it("has a checkbox for every type it claims to know", () => {
+    for (const type of NOTIFICATION_EVENT_TYPES) {
+      expect(unknownTypes([type])).toEqual([]);
+    }
   });
 });

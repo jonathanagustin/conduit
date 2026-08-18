@@ -6,6 +6,8 @@ The living UI contract is intentionally small:
 - `contracts/overview.md` defines the Hub overview projection and its failure states.
 - `contracts/session-capabilities.md` defines capability-driven navigation.
 - `contracts/runtime-bootstrap.md` defines the closed tenant-branding runtime surface.
+- `contracts/notification-inbox.md` defines the per-principal inbox screen and the
+  preference it edits, both Conduit extensions with no Apollo shape to be faithful to.
 
 The files under `evidence/` and the dated inventories in this directory are
 bounded evidence records. They can support only the observation and provenance

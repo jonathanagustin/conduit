@@ -17,6 +17,7 @@ import { RiskPage } from "../features/risk/RiskPage.js";
 import { TeamsPage, TeamDetailPage } from "../features/teams/TeamsPage.js";
 import { ImportPage } from "../features/imports/ImportPage.js";
 import { ExportPage } from "../features/exports/ExportPage.js";
+import { NotificationsPage } from "../features/notifications/NotificationsPage.js";
 import { OverviewPage } from "../features/overview/OverviewPage.js";
 import { APPLICATION_DESTINATIONS, RAIL_DESTINATIONS } from "./navigation.js";
 import { NotFound } from "./NotFound.js";
@@ -77,6 +78,7 @@ export function App({ bootstrap }: AppProps) {
             <Route path="/export" element={<ExportPage />} />
             <Route path="/import" element={<ImportPage />} />
             <Route path="/risk" element={<RiskPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
             <Route path="/teams" element={<TeamsPage />} />
             <Route path="/teams/:teamName" element={<TeamDetailPage />} />
             <Route path="*" element={<NotFound />} />

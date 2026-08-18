@@ -57,9 +57,11 @@ Four agents, each in its own git worktree so they cannot collide:
 
 `internal/controlplane` sits **exactly on its ratcheted ceiling**
 (`docs/operations/controlplane-ceiling.json`; `node scripts/report-migration-progress.mjs --gate`).
-That is what blocks the four remaining notification emit sites — a recall opening,
-a grant changing, a Plan failing, a Release becoming available are all raised
-inside the monolith, so each needs an extraction first. Every workstream above is
+That is what blocks the remaining notification emit sites — a grant changing, a
+Plan failing, a Release becoming available are all raised inside the monolith, so
+each needs an extraction first. A recall opening was the first of the four to be
+freed this way (#253): moving the automatic-security-recall rule into
+`internal/catalog/domain` paid for the wiring and left the monolith smaller. Every workstream above is
 therefore routed through `internal/hub/composition` or a bounded context, and no
 agent is permitted to grow controlplane. **Extracting a context from controlplane
 is the highest-leverage unblocking work available**: it lowers the ceiling and

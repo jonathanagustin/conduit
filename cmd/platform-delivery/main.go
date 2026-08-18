@@ -77,6 +77,14 @@ func main() {
 		slog.Info("notification delivery enabled")
 		go notifications.Deliveries.Run(ctx)
 	}
+	// Nil unless there is a notification store to record into, which is the
+	// same condition the notification routes mount on. A Hub without one still
+	// accepts recalls; it just has nobody to tell.
+	recallOpenings, err := composition.NewRecallOpenings(notifications.Store, slog.Default())
+	if err != nil {
+		slog.Error("configure recall announcements", "error", err)
+		os.Exit(1)
+	}
 	bundlePrivateKey, err := loadBundleSigningKey(os.Getenv("BUNDLE_SIGNING_KEY_FILE"))
 	if err != nil {
 		slog.Error("load Bundle signing key", "error", err)
@@ -144,6 +152,7 @@ func main() {
 			BundlePrivateKey:                     bundlePrivateKey,
 			TrustedBundleKeys:                    trustedBundleKeys,
 			ArtifactScanner:                      artifactScanner,
+			RecallOpenings:                       recallOpenings,
 			EntityConfigurationAdapters: map[string]controlplane.EntityConfigurationAdapter{
 				foundryinterop.AdapterID: foundryinterop.AdaptEntityConfiguration,
 			},
