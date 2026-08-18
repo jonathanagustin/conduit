@@ -228,7 +228,7 @@ func TestWorkerEvaluatesObservationFreshnessAtDecisionTime(t *testing.T) {
 			clock.Advance(10 * time.Second)
 		},
 	}
-	worker, err := application.NewWorker(workerStore, noopPlanner{}, clock, application.Config{
+	worker, err := application.NewWorker(workerStore, noopPlanner{}, clock, discardEscalations{}, application.Config{
 		LeaseDuration:         time.Minute,
 		MaximumObservationAge: 10 * time.Second,
 		MaximumAttempts:       3,
@@ -445,4 +445,16 @@ type noopPlanner struct{}
 
 func (noopPlanner) Propose(context.Context, domain.Proposal) (domain.PlanReceipt, error) {
 	return domain.PlanReceipt{}, nil
+}
+
+// discardEscalations satisfies the worker's escalation port for the tests in
+// this package, which are about the store's leasing and durability rather than
+// about who is told. The escalation path itself is covered where the decision
+// is made, in the application package.
+type discardEscalations struct{}
+
+func (discardEscalations) ProposalExhausted(
+	_ context.Context, _ domain.Proposal, _ string, _ uint32, _ time.Time,
+) error {
+	return nil
 }

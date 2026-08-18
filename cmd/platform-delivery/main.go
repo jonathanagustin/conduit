@@ -23,11 +23,14 @@ import (
 	"github.com/jonathanagustin/conduit/internal/consoleui"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	controlplaneadapter "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/controlplane"
+	notificationsadapter "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/notifications"
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	reconciliationapplication "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/application"
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
+	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
 	httpmetrics "github.com/jonathanagustin/conduit/internal/observability/adapters/httpmetrics"
 	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
@@ -246,7 +249,8 @@ func configureReconciliation(
 	if err != nil {
 		return nil, func() {}, nil, nil, err
 	}
-	closeStore := func() { _ = store.Close() }
+	closeReconciliationStore := func() { _ = store.Close() }
+	closeStore := closeReconciliationStore
 	bridge, err := controlplaneadapter.NewRepository(repository, store)
 	if err != nil {
 		closeStore()
@@ -257,8 +261,35 @@ func configureReconciliation(
 		closeStore()
 		return nil, func() {}, nil, nil, err
 	}
+	// The notification store shares the reconciliation DSN. One database, two
+	// components in one ledger, which is the arrangement
+	// docs/operations/schema-migrations.md already describes: a single place to
+	// look during an incident is worth more than a separation nobody queries.
+	notificationStore, err := notificationspostgres.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, err
+	}
+	// From here on both stores are open, so every failure path has to close
+	// both. The shadowed name is deliberate: the returned closer is this one,
+	// and a later edit that forgets a store leaks a connection pool for the
+	// lifetime of the process.
+	closeStore = func() {
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	emitter, err := notificationsapplication.NewEmitter(notificationStore)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, err
+	}
+	escalations, err := notificationsadapter.NewEscalations(emitter)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, err
+	}
 	worker, err := reconciliationapplication.NewWorker(store, planner, reconciliationapplication.SystemClock{},
-		reconciliationapplication.Config{
+		escalations, reconciliationapplication.Config{
 			LeaseDuration: 30 * time.Second, MaximumObservationAge: 15 * time.Minute,
 			MaximumAttempts: 10, BaseRetryDelay: 2 * time.Second, RepairBatchSize: 200,
 		})

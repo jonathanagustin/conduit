@@ -86,6 +86,7 @@ export CONDUIT_TEST_PG_TOOL_DSN="postgres://conduit:conduit_test@127.0.0.1:5432/
 # start listeners and are covered by the main Test gate.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/controlplane
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliation/adapters/postgres
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/notifications/adapters/postgres
 # internal/pgmigrate is here because its dry-run tests need a database. Without
 # this line they would skip locally for want of a DSN and be reached by nothing
 # in CI -- the same "runs nowhere" trap the -run filters above used to set.

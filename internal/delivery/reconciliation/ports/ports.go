@@ -49,6 +49,30 @@ type Planner interface {
 	Propose(context.Context, domain.Proposal) (domain.PlanReceipt, error)
 }
 
+// Escalations is told when reconciliation has stopped trying, so that something
+// outside this context can tell a person.
+//
+// It is a port rather than a direct call into notifications because the worker
+// must not know what a notification is: what it knows is that a proposal will
+// not be retried and nobody has been told. Whether that becomes an inbox entry,
+// an email or a metric is the adapter's problem.
+//
+// Only one caller reaches here, and the reason is the distinction the durable
+// state cannot make. A proposal row is marked exhausted for two unrelated
+// reasons -- its retry budget ran out, and a newer desired snapshot superseded
+// it -- and only the first is an operator's problem. The second is the system
+// working: newer work is already queued. The worker knows which it is at the
+// moment it decides; the boolean it writes does not carry it, so anything
+// reading the table afterwards cannot separate them. That is why this is called
+// from the decision and not from a scan of exhausted rows.
+type Escalations interface {
+	// ProposalExhausted reports a proposal whose retry budget is spent. attempt
+	// is the attempt that failed, and reason is the planner's own error text.
+	ProposalExhausted(
+		ctx context.Context, proposal domain.Proposal, reason string, attempt uint32, at time.Time,
+	) error
+}
+
 type Clock interface {
 	Now() time.Time
 }

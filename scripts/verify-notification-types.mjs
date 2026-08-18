@@ -38,10 +38,15 @@ const identifier = (label) =>
   label.trim().toUpperCase().replace(/[^A-Z0-9]+/g, "_").replace(/^_|_$/g, "");
 
 // Constant values declared for a given Go type, read from the const blocks.
+//
+// The optional `const` handles a single-constant declaration outside a block.
+// Without it a constant written that way is invisible here, and a gate that
+// silently skips the one identifier somebody wrote differently is worse than no
+// gate: it reports the count it did check as though it were the whole set.
 const declared = (goType) => {
   const found = new Set();
   for (const match of source.matchAll(
-    new RegExp(`^\\s*\\w+\\s+${goType}\\s*=\\s*"([^"]+)"`, "gm"),
+    new RegExp(`^\\s*(?:const\\s+)?\\w+\\s+${goType}\\s*=\\s*"([^"]+)"`, "gm"),
   )) {
     found.add(match[1]);
   }
@@ -75,7 +80,40 @@ for (const entry of capture.vocabulary?.crossResourceTypes ?? []) {
   expectedTypes.set(identifier(entry.label), "ScopeCrossResource");
 }
 if (expectedTypes.size === 0) fail("the capture records no notification event types at all");
-compare("event types", new Set(expectedTypes.keys()), declared("EventType"));
+
+// The overview page's prose names further types that no screenshot shows. They
+// are a weaker source and are treated as one: declaring a prose-named type is
+// permitted, because Conduit emits one and a type nobody can subscribe to would
+// reach only the AllFutureTypes preferences -- but nothing here requires the
+// prose list to be declared, and a prose-named type may not claim a scope. Both
+// halves matter. Requiring them would make the looser list a contract; letting
+// one carry a scope would put it on a settings page under a heading no capture
+// supports, which is the observed list quietly absorbing the documented one.
+const documentedNames = new Set((capture.vocabulary?.proseTypeNames ?? []).map(identifier));
+const declaredTypes = declared("EventType");
+for (const value of expectedTypes.keys()) {
+  if (!declaredTypes.has(value)) {
+    fail(`event types: the capture records ${value}, which ${relative(ROOT, SOURCE)} does not declare`);
+  }
+}
+for (const value of declaredTypes) {
+  if (expectedTypes.has(value)) continue;
+  if (!documentedNames.has(value)) {
+    fail(
+      `event types: ${relative(ROOT, SOURCE)} declares ${value}, which the capture records neither as an ` +
+        `observed type nor among the names Apollo's prose uses. ` +
+        `Add the evidence before the constant, or the vocabulary is invention again`,
+    );
+    continue;
+  }
+  const constantName = source.match(new RegExp(`(\\w+)\\s+EventType\\s*=\\s*"${value}"`))?.[1];
+  if (constantName && new RegExp(`${constantName}:\\s*Scope\\w+`).test(source)) {
+    fail(
+      `event type ${value} is named only by Apollo's prose, and the source files it under an observed scope. ` +
+        `No captured page shows it being offered anywhere`,
+    );
+  }
+}
 
 for (const [value, scope] of expectedTypes) {
   const entry = source.match(new RegExp(`Event\\w+:\\s*${scope},[^\\n]*`, "g"));
@@ -132,6 +170,7 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(
-  `PASS notification vocabulary: ${expectedTypes.size} event types, ` +
+  `PASS notification vocabulary: ${expectedTypes.size} observed event types, ` +
+    `${declaredTypes.size - expectedTypes.size} named only by Apollo's prose and carrying no scope, ` +
     `${declared("Channel").size} channels and ${declared("ContactKind").size} contact kinds match the capture`,
 );
