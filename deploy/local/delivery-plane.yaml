@@ -61,6 +61,12 @@ spec:
             # signed for spiffe://platform.delivery/environment/local/agent/...
             - { name: ALLOW_INSECURE_AGENT_IDENTITY_HEADERS, value: "true" }
             - { name: ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS, value: "true" }
+            # The same kind of local-only declaration for signing. There is no
+            # signing Secret in this profile, so Bundles are signed by a key
+            # this Pod generates and only this Pod holds; a Hub that has not
+            # declared that refuses to start. The Helm chart mounts a real key
+            # and never sets this.
+            - { name: ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY, value: "true" }
             - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "local-developer" }
           ports:
             - { name: http, containerPort: 8081 }

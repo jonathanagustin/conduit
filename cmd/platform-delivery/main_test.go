@@ -9,6 +9,7 @@ import (
 	"crypto/x509"
 	"database/sql"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"encoding/pem"
 	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
@@ -125,6 +126,9 @@ func TestLoadBundleSigningKey(t *testing.T) {
 	}
 	valid := pemPKCS8(t, private)
 
+	// An unset path is not an error here, and it is not permission to sign with
+	// something else either. checkBundleSigningPosture makes that decision, and
+	// TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey holds it down.
 	t.Run("no path leaves signing unconfigured rather than failing", func(t *testing.T) {
 		t.Parallel()
 		for _, path := range []string{"", "   "} {
@@ -173,6 +177,123 @@ func TestLoadBundleSigningKey(t *testing.T) {
 			t.Error("a missing key file was accepted")
 		}
 	})
+}
+
+// A Hub that starts with no signing key signs with one it made up, and does it
+// while reporting healthy. That is the failure this refuses: a restore that
+// brought the database back and forgot the signing Secret rejoins the fleet
+// under a new signing identity, and nothing about the running Hub says so.
+//
+// The table is exhaustive over the three inputs because every cell is a
+// deployment somebody can produce, and the interesting ones are the two that
+// look accidental: a production Hub that simply never mounted the key, and a
+// Hub carrying both the opt-in and a real key, where which signer is in use
+// would otherwise depend on reading this file.
+func TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey(t *testing.T) {
+	t.Parallel()
+	for name, test := range map[string]struct {
+		hasSigningKey, allowEphemeral, insecureIdentity bool
+		refusalNames                                    string
+	}{
+		"production Hub with a mounted key": {hasSigningKey: true},
+		"production Hub with a mounted key and insecure identity": {
+			hasSigningKey: true, insecureIdentity: true,
+		},
+		"development Hub that declared the ephemeral key": {
+			allowEphemeral: true, insecureIdentity: true,
+		},
+		"production Hub with no key at all": {
+			refusalNames: "BUNDLE_SIGNING_KEY_FILE",
+		},
+		"development Hub that did not declare the ephemeral key": {
+			insecureIdentity: true, refusalNames: "BUNDLE_SIGNING_KEY_FILE",
+		},
+		"ephemeral signing declared alongside a mounted key": {
+			hasSigningKey: true, allowEphemeral: true, insecureIdentity: true,
+			refusalNames: "cannot be combined with BUNDLE_SIGNING_KEY_FILE",
+		},
+		"ephemeral signing declared on a production-identity Hub": {
+			allowEphemeral: true, refusalNames: "cannot be combined with production identity",
+		},
+		"ephemeral signing declared with a key on a production-identity Hub": {
+			hasSigningKey: true, allowEphemeral: true,
+			refusalNames: "cannot be combined with BUNDLE_SIGNING_KEY_FILE",
+		},
+	} {
+		err := checkBundleSigningPosture(test.hasSigningKey, test.allowEphemeral, test.insecureIdentity)
+		if test.refusalNames == "" {
+			if err != nil {
+				t.Errorf("%s was refused: %v", name, err)
+			}
+			continue
+		}
+		if err == nil {
+			t.Errorf("%s started; it would have signed Bundles as a signer nobody trusts", name)
+			continue
+		}
+		// An operator reading this in a crash loop has to learn what to set.
+		if !strings.Contains(err.Error(), test.refusalNames) {
+			t.Errorf("%s: refusal %q does not say %q", name, err, test.refusalNames)
+		}
+		if !strings.Contains(err.Error(), "ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY") {
+			t.Errorf("%s: refusal %q names neither the opt-in nor the way out", name, err)
+		}
+	}
+}
+
+// The identifier exists so an operator can tell which signer a Hub came up
+// with, which means it has to be the public half and nothing but: a log line
+// or an error carrying seed bytes would hand out the fleet's signing identity
+// to anybody who can read a log.
+func TestBundleSigningKeyIdentifierPublishesThePublicKeyOnly(t *testing.T) {
+	t.Parallel()
+	public, private, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	identifier := bundleSigningKeyIdentifier(private)
+	if identifier != base64.RawStdEncoding.EncodeToString(public) {
+		t.Fatalf("identifier %q is not the base64 public key BUNDLE_TRUSTED_KEYS_FILE would carry", identifier)
+	}
+	decoded, err := base64.RawStdEncoding.DecodeString(identifier)
+	if err != nil || len(decoded) != ed25519.PublicKeySize {
+		t.Fatalf("identifier %q did not decode to one Ed25519 public key: %v", identifier, err)
+	}
+	// The seed is the first half of an Ed25519 private key. Any encoding of it
+	// appearing in the identifier means the private key leaked into a log.
+	seed := private.Seed()
+	for encoding, value := range map[string]string{
+		"raw base64": base64.RawStdEncoding.EncodeToString(seed),
+		"base64":     base64.StdEncoding.EncodeToString(seed),
+		"hex":        hex.EncodeToString(seed),
+	} {
+		if strings.Contains(identifier, value) {
+			t.Errorf("identifier carries the private seed as %s", encoding)
+		}
+	}
+
+	// Two Hubs signing differently must read differently; this is the whole
+	// point of printing it.
+	_, other, err := ed25519.GenerateKey(rand.Reader)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bundleSigningKeyIdentifier(other) == identifier {
+		t.Error("two different signers produced the same identifier")
+	}
+
+	// Nothing that is not a whole Ed25519 private key gets an identifier, so a
+	// truncated read cannot be reported as a signer.
+	for name, key := range map[string]ed25519.PrivateKey{
+		"nil":       nil,
+		"empty":     {},
+		"truncated": private[:16],
+		"seed only": ed25519.PrivateKey(seed),
+	} {
+		if got := bundleSigningKeyIdentifier(key); got != "" {
+			t.Errorf("%s key was named %q", name, got)
+		}
+	}
 }
 
 // These are the keys whose signatures the Hub will trust. A key that decodes
