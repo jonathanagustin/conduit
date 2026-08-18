@@ -31,10 +31,14 @@ type fakeApollo struct {
 	// lookup refused an identifier outright rather than walking the catalogue to
 	// reach the same answer. The two are indistinguishable from the response.
 	catalogueReads int
+	// listingFailure is the same latitude environmentFailure gives the
+	// by-identifier reads, extended to the listings now that the port lets them
+	// report one. Authorization refusal arrives this way.
+	listingFailure error
 }
 
-func (fake *fakeApollo) ListEnvironments() apollo.ListEnvironmentsResponse {
-	return apollo.ListEnvironmentsResponse{Environments: &fake.environments}
+func (fake *fakeApollo) ListEnvironments() (apollo.ListEnvironmentsResponse, error) {
+	return apollo.ListEnvironmentsResponse{Environments: &fake.environments}, fake.listingFailure
 }
 
 func (fake *fakeApollo) GetEnvironment(rid string) (apollo.Environment, error) {
@@ -53,14 +57,14 @@ func (fake *fakeApollo) GetEnvironment(rid string) (apollo.Environment, error) {
 	return apollo.Environment{}, ports.ErrRecordNotFound
 }
 
-func (fake *fakeApollo) ListInstallations(environmentRID string) apollo.ListInstallationsResponse {
+func (fake *fakeApollo) ListInstallations(environmentRID string) (apollo.ListInstallationsResponse, error) {
 	installations := fake.installations[environmentRID]
-	return apollo.ListInstallationsResponse{Installations: &installations}
+	return apollo.ListInstallationsResponse{Installations: &installations}, fake.listingFailure
 }
 
-func (fake *fakeApollo) ListProducts() apollo.ListProductsResponse {
+func (fake *fakeApollo) ListProducts() (apollo.ListProductsResponse, error) {
 	fake.catalogueReads++
-	return apollo.ListProductsResponse{Products: &fake.products}
+	return apollo.ListProductsResponse{Products: &fake.products}, fake.listingFailure
 }
 
 func (fake *fakeApollo) GetProduct(product string) (apollo.Product, error) {
@@ -72,9 +76,9 @@ func (fake *fakeApollo) GetProduct(product string) (apollo.Product, error) {
 	return apollo.Product{}, errors.New("not found")
 }
 
-func (fake *fakeApollo) ListReleases(product string) apollo.ListReleasesResponse {
+func (fake *fakeApollo) ListReleases(product string) (apollo.ListReleasesResponse, error) {
 	releases := fake.releases[product]
-	return apollo.ListReleasesResponse{Releases: &releases}
+	return apollo.ListReleasesResponse{Releases: &releases}, fake.listingFailure
 }
 
 func (fake *fakeApollo) GetRelease(product, _ string) (apollo.Release, error) {
