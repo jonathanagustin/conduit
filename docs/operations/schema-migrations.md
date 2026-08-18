@@ -143,6 +143,64 @@ The restore procedure uses it as its acceptance check — a correctly restored
 database has nothing pending for any component. See
 [`backup-and-restore.md`](backup-and-restore.md).
 
+## Asking whether the schema the ledger claims is still there
+
+A ledger row says a migration ran. It cannot say the result survived, because
+nothing about a `DROP COLUMN` typed at a `psql` prompt touches the ledger.
+
+`pgmigrate.Verify(ctx, database, sets...)` answers the other half. It rebuilds
+the expected catalogue by replaying the migrations the ledger records —
+**recorded, not every migration the binary carries**, so a database that is one
+migration behind is a `Pending` answer rather than drift — into this session's
+temporary schema, inside a transaction that is always rolled back, and then
+diffs the live schema against it object by object.
+
+The operator command is `platform-delivery verify-schema`, which reads
+`POSTGRES_DSN_FILE` exactly as a start does and passes every component that
+shares that DSN. It writes a report either way and exits non-zero on a fault:
+
+```text
+fault: column conduit_reconciliation_proposal_outbox.attempt (reconciliation) is missing:
+    the migrations build "integer NOT NULL DEFAULT 0" and the database has nothing
+```
+
+**A shadow schema rather than a fingerprint.** The cheaper design records a hash
+of the schema when `Apply` commits and compares it later. It fails three ways: it
+can only detect drift that happened after the fingerprint was taken; it is
+computed by the same code that ran the DDL, so it agrees with a mistake in that
+DDL; and a hash cannot say *what* differs, which is the whole operational value.
+Replaying the migrations derives the expected schema from the DDL rather than
+from a previous observation of the database, and produces two catalogues that
+compare object by object.
+
+**Faults and advisories are different findings.** A fault is the live schema
+lacking or contradicting something the recorded migrations built: a missing
+table; a column that is missing, retyped, or no longer `NOT NULL`; a missing or
+redefined index; a missing or redefined constraint; a column on an owned table
+that no migration adds. Nothing benign produces one. An advisory is the live
+schema having something no recorded migration builds — an extra index, or an
+extra table — and it is never a fault, because two legitimate causes are
+indistinguishable from drift there: an operator's own index for their query load,
+and a component sharing the database that the caller did not enumerate. Nothing
+in the PostgreSQL catalogue records which component created which table, so
+ownership here is an observation of what appeared while a set's DDL ran, not a
+rule about names.
+
+**Operator-invoked, not a start-time check.** Nothing calls `Verify` on a Hub
+start, deliberately. A start that refused on drift would convert a schema anomaly
+into a fleet-wide outage at the moment an operator most needs a Hub to look at,
+and the check is not free — it executes every recorded migration's DDL on every
+invocation, per replica. `Pending` already answers the start-time question, which
+is whether the schema is up to date. Whether it is *intact* has a human in the
+loop, because half the answer needs one.
+
+**What it does not compare**: column ordinal position, storage and compression
+settings, ownership and privileges, triggers, views, functions, sequences beyond
+the ones an identity column implies, and row contents. Every migration here is
+unqualified DDL, so `Verify` reads `current_schema()` on a connection opened from
+the same DSN by the same role; a database whose objects were migrated under a
+different `search_path` is outside what this checks.
+
 ## What the crash test proves
 
 The atomicity claim above was, for its whole life, checked only by runs that
@@ -198,9 +256,10 @@ need a disposable PostgreSQL of their own:
 - **No timeout on the advisory lock beyond the context.** A replica starting
   while another is midway through a long migration waits for it, which is
   correct, but the wait is bounded only by the caller's context.
-- **Nothing verifies that a database's schema matches the migrations that
-  claim to have built it.** A ledger row asserts a migration ran; it does not
-  detect a column somebody dropped by hand.
+- **Nothing runs the drift check on a schedule.** `verify-schema` is a command
+  an operator invokes; no alert fires when a database stops matching the
+  migrations recorded against it, so the check finds drift when somebody thinks
+  to look for it.
 - **Restore is not covered here** — it is covered in
   [`backup-and-restore.md`](backup-and-restore.md), which now states the
   procedure and is held down by a drill. The invariant this document has always

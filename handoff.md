@@ -609,9 +609,9 @@ disaster recovery) came off this list this session** — see above; what is left
 of it is an operator action, carried to that document's residual item 5. The
 scouted research behind it has been spent and does not need re-running.
 
-1. **Gap 3 remainder** — no schema verification against the ledger (a row asserts
-   a migration ran; it does not detect a column dropped by hand), and no upgrade
-   rehearsal against a production-shaped dataset.
+1. **Gap 3 remainder** — schema verification against the ledger now exists
+   (`pgmigrate.Verify`, `platform-delivery verify-schema`) but is invoked rather
+   than scheduled; no upgrade rehearsal against a production-shaped dataset.
 2. **Observability (gap 2)** — no tracing, metrics only under
    `REPOSITORY_KIND=postgres`, endpoint off unless `METRICS_ADDRESS` is set, and
    no alerting rules ship.
