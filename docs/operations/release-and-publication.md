@@ -8,10 +8,13 @@ Before a release:
 
 1. identify the exact commit and semantic tag;
 2. run local verification and a deliberately dispatched release gate;
-3. confirm the target registry, repository visibility, and retention policy;
-4. publish immutable digests with the available SBOM, provenance, signature,
+3. when a production Containerfile or runtime-base pin changed, build every
+   published architecture before cutting the version tag; an amd64-only local
+   build does not prove the publication matrix;
+4. confirm the target registry, repository visibility, and retention policy;
+5. publish immutable digests with the available SBOM, provenance, signature,
    and attestation artifacts;
-5. verify the published objects by digest from a clean client.
+6. verify the published objects by digest from a clean client.
 
 ## Cutting a release: one instruction
 
