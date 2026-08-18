@@ -44,7 +44,7 @@ func TestPostgresConfigureReconciliationPrimesOrdinaryPlanLifecycle(t *testing.T
 	configuration := map[string]string{
 		"REPOSITORY_KIND": "postgres", "POSTGRES_DSN_FILE": dsnFile,
 	}
-	repository, closeReconciliation, supervisor, _, err := configureReconciliation(ctx,
+	repository, closeReconciliation, supervisor, _, _, err := configureReconciliation(ctx,
 		func(name string) string { return configuration[name] }, base)
 	if err != nil {
 		t.Fatal(err)

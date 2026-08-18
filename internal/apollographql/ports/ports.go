@@ -35,16 +35,34 @@ import (
 // absence. Only this sentinel buys a null.
 var ErrRecordNotFound = errors.New("apollo projection: no record")
 
+// ErrNotAuthorized is what a projection returns when the reader may not see a
+// coordinate. It is separate from ErrRecordNotFound on purpose, and it is
+// deliberately not a null.
+//
+// The Apollo REST surface answers this case with a 403. A projection that
+// answered it with an empty page instead would tell the reader "there are no
+// Products" when the truth is "you may not see the Products there are" -- the
+// unknown-reads-as-none conflation ErrRecordNotFound's comment above exists to
+// prevent, arrived at from the authorization side rather than the store side.
+var ErrNotAuthorized = errors.New("apollo projection: reader is not authorized for this coordinate")
+
 // ApolloProjection is Conduit's Apollo compatibility projection, narrowed to
 // the reads this interface makes. It is the same data the Apollo REST surface
 // serves, so a client cannot get a different answer by choosing a protocol.
+//
+// Every read returns an error, the listings included. They did not, and that
+// was how the interface lost the sentence above: a listing that can only return
+// a response has no way to say "refused" or "unavailable", so whatever wrapped
+// it had to choose between serving records the REST surface would have refused
+// and serving an empty page the reader would read as an absence. Both are
+// wrong, and the signature is what made them the only options.
 type ApolloProjection interface {
-	ListEnvironments() apollo.ListEnvironmentsResponse
+	ListEnvironments() (apollo.ListEnvironmentsResponse, error)
 	GetEnvironment(rid string) (apollo.Environment, error)
-	ListInstallations(environmentRID string) apollo.ListInstallationsResponse
-	ListProducts() apollo.ListProductsResponse
+	ListInstallations(environmentRID string) (apollo.ListInstallationsResponse, error)
+	ListProducts() (apollo.ListProductsResponse, error)
 	GetProduct(product string) (apollo.Product, error)
-	ListReleases(product string) apollo.ListReleasesResponse
+	ListReleases(product string) (apollo.ListReleasesResponse, error)
 	GetRelease(product, version string) (apollo.Release, error)
 }
 
