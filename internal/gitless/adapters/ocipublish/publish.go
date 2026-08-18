@@ -27,6 +27,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -109,6 +110,20 @@ func New(repository string, client *http.Client, credentials Credentials, insecu
 		option(publisher)
 	}
 	return publisher, nil
+}
+
+// ownHost reports whether a URL addresses the registry this Publisher was built
+// for, at the scheme it was built for.
+//
+// Scheme is part of the test, not decoration: an https publisher downgraded to
+// http on its own host still puts the credential on the wire in cleartext, and
+// a passive observer is a real reader.
+func (publisher *Publisher) ownHost(target *url.URL) bool {
+	if target == nil {
+		return false
+	}
+	return strings.EqualFold(target.Host, publisher.host) &&
+		strings.EqualFold(target.Scheme, publisher.scheme())
 }
 
 func (publisher *Publisher) scheme() string {
@@ -313,6 +328,12 @@ func (publisher *Publisher) request(ctx context.Context, method, url string, bod
 // the body again for the retry, because a challenged request has already
 // consumed it.
 func (publisher *Publisher) do(ctx context.Context, request *http.Request, rewind func() io.Reader) (*http.Response, error) {
+	// Captured before the first round trip, because a Transport may rewrite
+	// request.URL in place -- the test harness's routed transport does exactly
+	// that, and a proxy or mirror in production may too. Reading it afterwards
+	// would test where the request was SENT rather than where this code chose to
+	// send it, which is the decision that matters here.
+	intended := *request.URL
 	response, err := publisher.client.Do(request)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", request.Method, request.URL.Redacted(), err)
@@ -323,6 +344,23 @@ func (publisher *Publisher) do(ctx context.Context, request *http.Request, rewin
 	challenge := response.Header.Get("WWW-Authenticate")
 	response.Body.Close()
 
+	// The credential belongs to publisher.host and goes nowhere else. This is the
+	// last gate before it is attached, deliberately: every request that could
+	// carry it passes through here, so one check covers paths that do not exist
+	// yet as well as the one that did.
+	//
+	// It exists because the token realm was not the only place a registry could
+	// name a destination. A blob upload answers with a Location header, and an
+	// absolute Location was used verbatim -- so a registry could reply
+	// `Location: http://attacker.example/hijacked`, answer the PUT with a 401,
+	// and be handed the push robot's password in cleartext. Constraining the
+	// realm alone left that open; constraining the credential itself does not.
+	if !publisher.ownHost(&intended) {
+		return nil, fmt.Errorf(
+			"refusing to send %s credentials to %s: a registry may not direct them to another host",
+			publisher.host, intended.Redacted(),
+		)
+	}
 	basic := strings.HasPrefix(strings.ToLower(strings.TrimSpace(challenge)), "basic")
 	var username, password, token string
 	if basic {
