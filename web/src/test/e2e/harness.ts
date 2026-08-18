@@ -173,11 +173,21 @@ function stub(page: Page): Promise<HubStub> {
       serviceAccount: false,
     },
     delegated: false,
+    // All eight applications the Hub's session projection serves
+    // (internal/controlplane/session.go), enabled as they are for a principal
+    // with resource:read at platform/root. The stub used to carry the first
+    // four, which is the vocabulary an older projection had: the menu under
+    // test was then a strict subset of the menu production renders, so Export,
+    // Import, Risk Management and Teams appeared in no browser test at all.
     applications: [
       { id: "change-requests", enabled: true },
       { id: "fleet", enabled: true },
       { id: "plans", enabled: true },
       { id: "promotions", enabled: true },
+      { id: "teams", enabled: true },
+      { id: "risk", enabled: true },
+      { id: "export", enabled: true },
+      { id: "import", enabled: true },
     ],
     globalOperations: ["resource:read"],
     resources: [],

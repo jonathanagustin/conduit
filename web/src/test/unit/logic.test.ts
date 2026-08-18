@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { filterFleet, matchesSearch } from "../../features/fleet/filter.js";
 import { orderInbox, outstandingRequirements } from "../../features/changes/order.js";
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
@@ -10,68 +9,21 @@ import type { VulnerabilityFinding } from "../../api/catalog.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
-import { installation } from "../fixtures.js";
 import { reviewBody, type ChangeRequest } from "../../api/resources.js";
 
 /** Unit tests over the console's own logic -- the parts that are not the Hub's
  * behaviour and not Blueprint's. These exist to be mutated: the browser tests
  * prove the screens work, but they are far too slow to run once per mutant. */
 
-describe("fleet search", () => {
-  // The three searchable fields deliberately share no substring. The first
-  // version of these fixtures used installationId "payments" with product
-  // "app.example:payments", so a mutation that searched the wrong field still
-  // matched through the other one and survived. Overlapping fixtures cannot
-  // tell you which field a match came from.
-  const payments = installation({
-    installationId: "alpha",
-    environment: "prod-use1",
-    product: "app.example:billing",
-  });
-  const ledger = installation({
-    installationId: "bravo",
-    environment: "prod-euw1",
-    product: "app.example:ledger",
-  });
-
-  it("matches on the installation identifier", () => {
-    expect(matchesSearch(payments, "alpha")).toBe(true);
-    expect(matchesSearch(ledger, "alpha")).toBe(false);
-  });
-
-  it("matches on the Environment", () => {
-    expect(matchesSearch(ledger, "euw1")).toBe(true);
-    expect(matchesSearch(payments, "euw1")).toBe(false);
-  });
-
-  it("matches on the Product", () => {
-    expect(matchesSearch(ledger, "ledger")).toBe(true);
-    expect(matchesSearch(payments, "ledger")).toBe(false);
-  });
-
-  it("ignores case on each field independently", () => {
-    // One assertion per field, or an uppercased comparison on one field is
-    // masked by another field still matching.
-    expect(matchesSearch(payments, "ALPHA")).toBe(true);
-    expect(matchesSearch(payments, "PROD-USE1")).toBe(true);
-    expect(matchesSearch(payments, "APP.EXAMPLE:BILLING")).toBe(true);
-    expect(matchesSearch(installation({ installationId: "ALPHA", environment: "e", product: "p" }), "alpha")).toBe(true);
-  });
-
-  it("treats an empty or whitespace-only search as no filter", () => {
-    expect(matchesSearch(payments, "")).toBe(true);
-    expect(matchesSearch(payments, "   ")).toBe(true);
-    expect(filterFleet([payments, ledger], "  ")).toHaveLength(2);
-  });
-
-  it("matches a substring rather than requiring the whole field", () => {
-    expect(matchesSearch(payments, "lph")).toBe(true);
-  });
-
-  it("returns nothing when nothing matches", () => {
-    expect(filterFleet([payments, ledger], "absent")).toHaveLength(0);
-  });
-});
+// Fleet search is deliberately absent from this file. It used to live here as
+// unit tests over a local matchesSearch/filterFleet, written when the Hub was
+// believed to have no free-text parameter. It has one: FleetPage puts `search`
+// in the query string, the Hub reads it in http.go and matches installation,
+// Environment and Product in reporting/domain/fleet.go, and the console never
+// filtered a row itself. Filtering locally would narrow the page the Hub
+// returned rather than the fleet, so the right console-side behaviour is to
+// send the parameter and render what comes back -- which the browser tests
+// cover, because it is a request, not a computation.
 
 function request(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
   return {

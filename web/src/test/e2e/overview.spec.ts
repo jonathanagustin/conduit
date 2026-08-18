@@ -138,6 +138,31 @@ test.describe("navigation rail", () => {
     await expect(page).toHaveURL(/\/console\/fleet$/);
   });
 
+  test("offers every application the Hub's session projection serves", async ({ page, hub }) => {
+    // Eight, from internal/controlplane/session.go. The harness stub carried
+    // four for a while, so Export, Import, Risk Management and Teams were in
+    // APPLICATION_DESTINATIONS and reachable by URL but appeared in no browser
+    // test: the menu under test was a strict subset of the menu operators see,
+    // and a destination dropped from the rail would have changed nothing here.
+    quiet(hub);
+    await page.goto("overview");
+    const shell = new ConsoleShell(page);
+
+    await shell.applicationsButton.click();
+    for (const [name, href] of [
+      ["Change Requests", "/console/change-requests"],
+      ["Fleet", "/console/fleet"],
+      ["Plans", "/console/plans"],
+      ["Promotions", "/console/promotions"],
+      ["Export", "/console/export"],
+      ["Import", "/console/import"],
+      ["Risk Management", "/console/risk"],
+      ["Teams", "/console/teams"],
+    ] as const) {
+      await expect(shell.application(name)).toHaveAttribute("href", href);
+    }
+  });
+
   test("returns keyboard focus to Applications when its menu closes", async ({ page, hub }) => {
     quiet(hub);
     await page.goto("overview");
