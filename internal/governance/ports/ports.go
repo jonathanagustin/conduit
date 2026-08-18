@@ -1,12 +1,12 @@
 // Package ports declares what Governance needs from the rest of the system in
 // order to decide who may do what, and nothing more.
 //
-// There is one port, and it is deliberately narrow. Governance does not want a
+// There are two, and both are deliberately narrow. Governance does not want a
 // repository, a transaction, or a change request — it wants the grants recorded
-// against one scope. Naming exactly that keeps the store replaceable, keeps the
-// scope expansion (which is a rule, not a query) inside the domain, and means a
-// caller cannot reach a second answer to "what may this principal do" by going
-// round the side.
+// against one scope, and somewhere to file what it decided. Naming exactly that
+// keeps the store replaceable, keeps the scope expansion (which is a rule, not
+// a query) inside the domain, and means a caller cannot reach a second answer
+// to "what may this principal do" by going round the side.
 package ports
 
 import (
@@ -24,4 +24,23 @@ import (
 // silently widens every authorization decision above it.
 type GrantSource interface {
 	ResourceGrantsInScope(ctx context.Context, scope string) ([]domain.ResourceGrant, error)
+}
+
+// AuditSink files an authorization decision where it can be read back.
+//
+// It is a port for the same reason GrantSource is, and it is required rather
+// than optional on purpose: a *resource* decision and its record are taken
+// together, so a surface cannot reach the first without supplying the second.
+// #241 was what the alternative looked like — a second surface that reached the
+// decision, reached a wider answer than the REST routes, and filed nothing,
+// leaving the widening with no symptom anybody could have queried for.
+//
+// The pairing binds ResourceDecision.Allow and nothing else. The administrator
+// predicate beside it is shared between both surfaces but writes no record, so
+// a route gated on administrator status alone still leaves none — read that
+// function's comment before assuming otherwise.
+type AuditSink interface {
+	AppendAuthorizationAudit(
+		ctx context.Context, event domain.AuthorizationAuditEvent,
+	) (domain.AuthorizationAuditEvent, error)
 }

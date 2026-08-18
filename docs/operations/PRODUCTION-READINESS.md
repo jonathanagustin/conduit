@@ -92,10 +92,15 @@ carried to the residual list as item 5.
    operator configures, because nothing in this repository stores a person's
    email address or a team's Slack channel — `domain.Contact` models one and no
    store persists one — so a notification is delivered *about* a recipient
-   rather than *to* them; there is no SMTP transport and no Slack transport, no
-   console inbox, and no audit record of a notification authorization decision,
-   because `GovernanceService.audit` is unexported and the package holding it
-   cannot grow. The other four events named above are still emitted by
+   rather than *to* them; there is no SMTP transport and no Slack transport, and
+   no console inbox. Notification authorization decisions *are* audited as of
+   #241: the resource half of the check is `ResourceDecision.Allow` in
+   `internal/governance/application`, which both these routes and the
+   controlplane REST routes call, and which files the `audit.3`
+   `authorizationCheck` record for ALLOW and DENY alike. That did not need
+   `internal/controlplane` to grow — moving the decision out left it two lines
+   smaller. The owner half is still unrecorded, and so is the administrator
+   predicate on its own. The other four events named above are still emitted by
    nobody: a recall opening, a grant changing, a Plan failing and a Release
    becoming available are all raised inside `internal/controlplane`, which is at
    its line ceiling, so each needs its own extraction before it can emit.
