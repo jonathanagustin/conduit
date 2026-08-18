@@ -245,7 +245,7 @@ abort "release must not depend on unavailable private-repository GitHub attestat
 abort "runtime builds must use the fixed Go toolchain by exact image digest" unless
   [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36") }
 abort "runtime roots must use the reviewed Chainguard static index by exact digest" unless
-  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("cgr.dev/chainguard/static:latest@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791") }
+  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("cgr.dev/chainguard/static:latest@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0") }
 abort "Helm must be rebuilt from integrity-pinned 4.2.3 source with fixed oras-go" unless
   agent_containerfile.include?("sha256:9ca555fa3777082fd646c95abf4ee17fc31e25ba97bad76da9de1df2332be168") &&
     agent_containerfile.include?("oras.land/oras-go/v2@v2.6.2")
