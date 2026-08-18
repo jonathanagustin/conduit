@@ -238,8 +238,12 @@ verdict_for() {
     # GATE_SHA, not GITHUB_SHA: the step publishes against the authenticated
     # head, and under `set -u` an unset one would fail the lifted body for a
     # reason that has nothing to do with the verdict being measured.
+    #
+    # GITHUB_ENV is a real file rather than /dev/null because the verdict does
+    # not stop at the status any more: it is handed to the step that concludes
+    # this job, and that handoff is checked below.
     LANE_RESULTS="$1" GH_TOKEN=stub GITHUB_REPOSITORY=owner/repo GATE_SHA=deadbeef \
-      GITHUB_RUN_ID=1 bash -euo pipefail verdict.sh
+      GITHUB_RUN_ID=1 GITHUB_ENV="$verdict_root/github-env" bash -euo pipefail verdict.sh
   ) | sed -n 's/^Trunk gate verdict: //p'
 }
 
@@ -258,6 +262,52 @@ expect_verdict one_cancelled failure '{"go":{"result":"cancelled"},"checks":{"re
 expect_verdict one_skipped failure '{"go":{"result":"skipped"},"checks":{"result":"success"}}'
 expect_verdict unknown_result failure '{"go":{"result":"neutral"},"checks":{"result":"success"}}'
 expect_verdict no_lanes failure '{}'
+# A lane entry carrying no `result` at all: `.result` is null, which is not the
+# string `success`, and a rule written as "no lane said failure" would pass it.
+expect_verdict lane_without_a_result failure '{"go":{"outputs":{}},"checks":{"result":"success"}}'
+# `needs` is an object keyed by job id. An array satisfies a bare
+# `all(.[]; ...)` just as well, so the shape is checked rather than assumed.
+expect_verdict a_lane_array failure '[{"result":"success"}]'
+
+# The verdict does not stop at the status. It is written to GITHUB_ENV for the
+# step that concludes this job, and a handoff that silently stopped happening
+# would leave that step reading an unset variable -- which it treats as failure,
+# so the gate would jam red rather than go wrongly green, but for a reason no
+# log would explain. Both directions are checked, since only one of them is the
+# one that must survive.
+expect_handoff() {
+  local name="$1" expected="$2" lanes="$3" recorded
+  : >"$verdict_root/github-env"
+  verdict_for "$lanes" >/dev/null
+  recorded="$(sed -n 's/^TRUNK_STATE=//p' "$verdict_root/github-env")"
+  [[ "$recorded" == "$expected" ]] || {
+    printf 'the verdict step handed on TRUNK_STATE=%s for %s, expected %s\n' \
+      "${recorded:-<nothing>}" "$name" "$expected" >&2
+    exit 1
+  }
+}
+expect_handoff all_green success '{"go":{"result":"success"},"checks":{"result":"success"}}'
+expect_handoff one_skipped failure '{"go":{"result":"skipped"},"checks":{"result":"success"}}'
+
+# The verdict only binds if the job concludes by it. Every other step in
+# `trunk-status` is `continue-on-error` -- correctly, so a failed status publish
+# cannot swallow the verdict -- and that is exactly how the job came to conclude
+# `success` while publishing `failure` on pull request 245: the check run and
+# the commit status, both called `Trunk gate`, disagreed. So the one step that
+# exists in order to fail is held to still being able to. Without this, adding
+# `continue-on-error` back would restore the split surface with every verdict
+# case above still green.
+ruby -ryaml -e '
+  workflow = YAML.safe_load(File.read(ARGV[0], encoding: "UTF-8"), aliases: true)
+  name = "Conclude the Trunk gate job with its own verdict"
+  step = workflow.fetch("jobs").values
+    .flat_map { |job| job.fetch("steps", []) }
+    .find { |candidate| candidate["name"] == name }
+  abort "the Trunk gate job has no #{name.inspect} step, so nothing makes its conclusion match the status it publishes" if step.nil?
+  abort "#{name.inspect} is continue-on-error, so the job cannot fail with its verdict" if step["continue-on-error"]
+  abort "#{name.inspect} never exits non-zero, so it cannot fail the job" unless step.fetch("run").include?("exit 1")
+  abort "#{name.inspect} must run under always(), or a failed lane skips the step that reports it" unless step["if"].to_s.include?("always()")
+' "$workflow"
 
 valid='## Outcome
 
