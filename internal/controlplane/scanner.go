@@ -171,7 +171,7 @@ func validateArtifactScanResult(release Release, result ArtifactScanResult) erro
 		var errs []ValidationError
 		validateVulnerabilityAssessment("release", Release{
 			Chart: release.Chart, Images: release.Images, VulnerabilityAssessment: assessment,
-		}, nil, &errs)
+		}, &errs)
 		if len(errs) > 0 {
 			return fmt.Errorf("invalid vulnerability assessment: %s: %s", errs[0].Path, errs[0].Message)
 		}
