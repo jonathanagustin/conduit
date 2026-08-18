@@ -29,11 +29,11 @@ OCI registry on the gitless delivery path is a source Conduit reads, not Hub
 state; restoring it is not part of this procedure.
 
 **Not in it, and a restore is incomplete without them.** The chart pins the
-complete set at `scripts/verify-helm-runtime.rb:204-205`:
+complete set at `scripts/verify-helm-runtime.rb:231-232` (`required_hub_env`):
 
 | Secret | If it is missing on restore |
 | --- | --- |
-| `BUNDLE_SIGNING_KEY_FILE` | **Fails open, quietly.** The Hub logs a warning and generates an ephemeral Ed25519 key (`cmd/platform-delivery/main.go:75-77`), so every Bundle signature issued before the restore stops verifying against the running key — while the Hub reports healthy. This is the one input whose absence does not stop the Hub, and it is therefore the one to check first. |
+| `BUNDLE_SIGNING_KEY_FILE` | **Fails closed at startup.** `checkBundleSigningPosture` in `cmd/platform-delivery/main.go` refuses to start a Hub that has not declared itself a development Hub, naming the variable and what to set it to. It used to fail *open*: the Hub warned, generated an ephemeral Ed25519 key and reported healthy while every Bundle it signed stopped verifying against the signer the fleet trusts. That is why it is still the first thing to check — a restore that forgets it now stalls visibly rather than rejoining the fleet under a new signing identity. Which signer a Hub did come up with is on its startup line as `bundleSigner`, the base64 public key `BUNDLE_TRUSTED_KEYS_FILE` would carry. |
 | `POSTGRES_DSN_FILE` | Fails closed at startup. |
 | `TLS_CERT_FILE`, `TLS_KEY_FILE` | Fails closed at startup. |
 | `AGENT_CLIENT_CA_FILE` | Fails closed; no Agent can bind. |

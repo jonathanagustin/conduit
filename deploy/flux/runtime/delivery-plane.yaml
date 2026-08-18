@@ -45,6 +45,13 @@ spec:
               value: ${quote}${PLATFORM_ALLOW_INSECURE_AGENT_IDENTITY_HEADERS}${quote}
             - name: ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS
               value: ${quote}${PLATFORM_ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS}${quote}
+            # This base mounts no signing Secret. A local cluster declares that
+            # and signs with a key the Pod generates; a production overlay
+            # leaves it false and mounts BUNDLE_SIGNING_KEY_FILE -- the SPIRE
+            # overlay does exactly that -- because a Hub with production
+            # identity and no signing key now refuses to start.
+            - name: ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY
+              value: ${quote}${PLATFORM_ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY}${quote}
             - name: PLATFORM_BOOTSTRAP_ADMINISTRATORS
               value: ${quote}${PLATFORM_BOOTSTRAP_ADMINISTRATORS}${quote}
           ports:

@@ -141,8 +141,17 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           ./scripts/verify-pr-fidelity.test.sh
-          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}" --jq .body |
-            ./scripts/verify-pr-fidelity.sh
+          # The read has a test of its own for the same reason the verifier
+          # does: its failure mode was a *refusal* rather than an error. A
+          # transient GitHub answer reached the verifier as empty stdin and came
+          # back as "section ## Outcome is missing or empty" about a body that
+          # had one, which is a gate blaming the author for GitHub.
+          ./scripts/read-pull-request-body.test.sh
+          # Captured, not piped. Under `bash -e` without `pipefail` a pipeline's
+          # status is its last command's, so the unretried `gh` this replaces
+          # could fail invisibly and contribute nothing but an empty stdin.
+          body="$(./scripts/read-pull-request-body.sh)"
+          ./scripts/verify-pr-fidelity.sh <<<"${body}"
       # Telemetry about the run, not a verdict on the code, and marked so.
       #
       # Run 49 died here: GitHub answered this POST with 503 and the step, under
@@ -464,6 +473,17 @@ jobs:
         run: |
           node scripts/verify-domain-boundaries.mjs
           node scripts/test-domain-boundaries.mjs
+      # Every Hub route, against the authorization decision it makes. A route
+      # mounted with no registered decision used to be served to a caller
+      # holding no credential at all; internal/hub/composition now refuses to
+      # route one, and this is what makes the register keep describing the
+      # routes the Hub actually mounts. Self-test first, same as the boundary
+      # and contract gates: the failure mode is a regex that stopped matching,
+      # which is indistinguishable from agreement.
+      - name: Validate route authorization
+        run: |
+          node scripts/verify-route-authorization.test.mjs
+          node scripts/verify-route-authorization.mjs
       - name: Validate trusted supply-chain policy
         run: |
           ruby scripts/verify-trusted-supply-chain.rb
