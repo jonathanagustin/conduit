@@ -284,8 +284,9 @@ func (publisher *Publisher) request(ctx context.Context, method, url string, bod
 	return http.NewRequestWithContext(ctx, method, url, body)
 }
 
-// do sends a request, following one bearer challenge. rewind supplies the body
-// again for the retry, because a challenged request has already consumed it.
+// do sends a request, following one Basic or Bearer challenge. rewind supplies
+// the body again for the retry, because a challenged request has already
+// consumed it.
 func (publisher *Publisher) do(ctx context.Context, request *http.Request, rewind func() io.Reader) (*http.Response, error) {
 	response, err := publisher.client.Do(request)
 	if err != nil {
@@ -297,9 +298,21 @@ func (publisher *Publisher) do(ctx context.Context, request *http.Request, rewin
 	challenge := response.Header.Get("WWW-Authenticate")
 	response.Body.Close()
 
-	token, err := publisher.token(ctx, challenge)
-	if err != nil {
-		return nil, err
+	basic := strings.HasPrefix(strings.ToLower(strings.TrimSpace(challenge)), "basic")
+	var username, password, token string
+	if basic {
+		username, password, err = publisher.credentials.Basic(ctx, publisher.host)
+		if err != nil {
+			return nil, fmt.Errorf("credentials for %s: %w", publisher.host, err)
+		}
+		if username == "" && password == "" {
+			return nil, fmt.Errorf("registry requires Basic authentication but no credentials are configured for %s", publisher.host)
+		}
+	} else {
+		token, err = publisher.token(ctx, challenge)
+		if err != nil {
+			return nil, err
+		}
 	}
 	var retryBody io.Reader
 	if rewind != nil {
@@ -310,7 +323,11 @@ func (publisher *Publisher) do(ctx context.Context, request *http.Request, rewin
 		return nil, err
 	}
 	retry.Header = request.Header.Clone()
-	retry.Header.Set("Authorization", "Bearer "+token)
+	if basic {
+		retry.SetBasicAuth(username, password)
+	} else {
+		retry.Header.Set("Authorization", "Bearer "+token)
+	}
 	sent, err := publisher.client.Do(retry)
 	if err != nil {
 		return nil, fmt.Errorf("%s %s: %w", retry.Method, retry.URL.Redacted(), err)
