@@ -108,11 +108,24 @@ Any repository-authored workflow that runs without a person dispatching it must:
 ### Confirmation
 
 `docs/operations/manual-ci.md` carries the guardrails as the operative rule.
-The per-workflow shape checks that already exist —
-`scripts/verify-optimizer-candidate-release-workflow.rb` and
-`scripts/verify-flux-runtime.rb` — continue to hold the *publication* and
-*acceptance* workflows to `workflow_dispatch`, so the "publication stays manual"
-half of this decision remains executable, not merely documented.
+Three per-workflow shape checks hold the named workflows to `workflow_dispatch`,
+so the "publication stays manual" half of this decision is executable rather
+than merely documented:
+
+- `scripts/verify-trusted-supply-chain.rb` — `platform-images.yml`, the
+  workflow that signs and publishes images, the Flux runtime source, the Helm
+  charts, the Zarf packages and the CLI. Asserted as an exact trigger key set,
+  so any *added* trigger fails, not only the ones named in the check.
+- `scripts/verify-optimizer-candidate-release-workflow.rb` —
+  `platform-optimizer-candidate-release.yml`, same exact-key-set form.
+- `scripts/verify-flux-runtime.rb` — `platform-gitless-e2e.yml`, the acceptance
+  workflow, by literal trigger match plus a rejection of `push`,
+  `pull_request` and `schedule`.
+
+This list was wrong until #194: it claimed the first two workflows were covered
+by the latter two checks, while `platform-images.yml` — the load-bearing one
+for ADR 0001 and A5 — was guarded by nothing, and `on: push:` on it would have
+passed every gate in the repository.
 
 ## More information
 
