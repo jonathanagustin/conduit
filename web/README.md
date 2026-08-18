@@ -33,6 +33,14 @@ polling. Server-sent events only if measurement shows polling is inadequate.
 `basename`. Both are required: with the default base the app works under
 `vite dev` and 404s on every asset once embedded in the Hub.
 
+There is a third statement of it -- `internal/consoleui/handler.go` refuses a
+request path that does not carry the prefix -- and
+`node scripts/verify-console-boundaries.mjs` fails when the three disagree. The
+same gate pins the console's layering, so `web/src/api` stays the only place a
+request is made and `web/src/components` cannot reach up into `web/src/features`.
+`docs/ui/foundry-frontend-architecture.md` records why those are the boundaries
+worth having here, and which parts of Foundry's much larger frontend are not.
+
 ## Commands
 
     pnpm install

@@ -20,3 +20,10 @@ The Apollo public transport uses generated Go DTOs, router, and strict server
 interfaces from the pinned OpenAPI snapshot. The console's Conduit-native
 runtime bootstrap is a separate closed contract and cannot alter API or session
 capabilities.
+
+`foundry-frontend-architecture.md` is not a contract. It maps how the Foundry
+reconstruction organises its frontend, says which of that transfers to a product
+with one console embedded in a Go binary, and stages the parts that do. Its
+claims about Foundry are read off a reconstruction, are corroborating at best,
+and it marks its own limits. The boundaries it argues for are enforced by
+`scripts/verify-console-boundaries.mjs`.

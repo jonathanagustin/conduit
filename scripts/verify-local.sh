@@ -217,6 +217,7 @@ gate 'Vet' go vet ./...
 gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh
 gate 'Validate operator console' ./scripts/test-console.sh
 gate 'Validate console contract' bash -c './scripts/verify-console-contract.test.sh && node scripts/verify-console-contract.mjs'
+gate 'Validate console boundaries' bash -c 'node scripts/verify-console-boundaries.test.mjs && node scripts/verify-console-boundaries.mjs'
 # staticcheck and govulncheck are built against a specific Go release and
 # refuse a module newer than it. Pin the analysis toolchain here rather than
 # lowering `toolchain` in go.mod, which would also pull the digest-pinned
