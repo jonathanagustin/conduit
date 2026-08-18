@@ -60,7 +60,7 @@ func releaseChannelCreateCommand(state *commandState) *cobra.Command {
 }
 
 func releaseChannelUpdateCommand(state *commandState) *cobra.Command {
-	var stateFile, description, archiveRationale string
+	var stateFile, description string
 	var requirements, values []string
 	var archive, unarchive, clear, dryRun bool
 	command := &cobra.Command{
@@ -68,9 +68,6 @@ func releaseChannelUpdateCommand(state *commandState) *cobra.Command {
 		RunE: func(command *cobra.Command, args []string) error {
 			if archive && unarchive {
 				return errors.New("--archive and --unarchive are mutually exclusive")
-			}
-			if archive && strings.TrimSpace(archiveRationale) == "" {
-				return errors.New("--archive-rationale is required with --archive")
 			}
 			desired, err := readDesiredState(stateFile)
 			if err != nil {
@@ -108,7 +105,12 @@ func releaseChannelUpdateCommand(state *commandState) *cobra.Command {
 	command.Flags().StringArrayVar(&values, "label-requirement-value", nil, "accepted value paired by position")
 	command.Flags().BoolVar(&clear, "clear-label-requirements", false, "remove all requirements")
 	command.Flags().BoolVar(&archive, "archive", false, "archive the channel")
-	command.Flags().StringVar(&archiveRationale, "archive-rationale", "", "archive rationale retained in review")
+	// No --archive-rationale flag: archiving edits the desired-state document
+	// and proposes it, and a Plan proposal carries the DesiredState alone, so
+	// the rationale was required alongside --archive and then dropped while the
+	// help promised it was "retained in review" (#175). Same reasoning as the
+	// Environment commands; the divergence from apollo-cli's published flag list
+	// is declared in docs/operations/TENANT-FIDELITY.md.
 	command.Flags().BoolVar(&unarchive, "unarchive", false, "unarchive the channel")
 	command.Flags().BoolVar(&dryRun, "dry-run", false, "validate without proposing")
 	_ = command.MarkFlagRequired("state-file")

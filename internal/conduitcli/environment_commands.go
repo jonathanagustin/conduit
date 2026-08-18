@@ -20,13 +20,10 @@ func addEnvironmentParityCommands(command *cobra.Command, state *commandState) {
 }
 
 func environmentDeleteCommand(state *commandState) *cobra.Command {
-	var file, rationale string
+	var file string
 	command := &cobra.Command{
 		Use: "delete ENVIRONMENT_ID", Short: "Propose uninstalling all Entities from an Environment", Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
-			if strings.TrimSpace(rationale) == "" {
-				return errors.New("--rationale is required")
-			}
 			desired, err := readDesiredState(file)
 			if err != nil {
 				return err
@@ -41,7 +38,15 @@ func environmentDeleteCommand(state *commandState) *cobra.Command {
 		},
 	}
 	command.Flags().StringVarP(&file, "file", "f", "", "next-generation desired-state document")
-	command.Flags().StringVar(&rationale, "rationale", "", "uninstallation rationale retained in review context")
+	// No --rationale flag, for the same reason environment setting edit has no
+	// --reason: the only downstream call is ProposePlan, which takes a
+	// DesiredState and nothing else, so a rationale has nowhere to travel. It
+	// used to be *required* here and advertised as "retained in review context"
+	// (#175), which is worse than an ignored optional flag -- the requirement
+	// manufactures confidence in an audit record nobody ever wrote. Carrying it
+	// instead would mean a new field on the Plan proposal in
+	// internal/controlplane, which is exactly on its recorded line ceiling and
+	// may only move down.
 	_ = command.MarkFlagRequired("file")
 	return command
 }
@@ -77,15 +82,12 @@ func environmentArtifactRegistryMutationCommand(state *commandState, assign bool
 	if assign {
 		action = "assign"
 	}
-	var file, ticket string
+	var file string
 	command := &cobra.Command{
 		Use:   action + " ENVIRONMENT_ID ARTIFACT_REGISTRY_ID [ARTIFACT_REGISTRY_ID...]",
 		Short: strings.ToUpper(action[:1]) + action[1:] + " Artifact Registries through a reviewed desired-state Plan",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(command *cobra.Command, args []string) error {
-			if strings.TrimSpace(ticket) == "" {
-				return errors.New("--compliance-ticket is required")
-			}
 			desired, err := readDesiredState(file)
 			if err != nil {
 				return err
@@ -134,7 +136,11 @@ func environmentArtifactRegistryMutationCommand(state *commandState, assign bool
 		},
 	}
 	command.Flags().StringVarP(&file, "file", "f", "", "next-generation desired-state document")
-	command.Flags().StringVar(&ticket, "compliance-ticket", "", "external compliance ticket recorded in review context")
+	// No --compliance-ticket flag, for the reason recorded on environment
+	// delete: apollo-cli publishes one here, but ProposePlan carries the
+	// DesiredState alone, so the ticket was demanded and then discarded (#175).
+	// The divergence from the published flag list is declared in
+	// docs/operations/TENANT-FIDELITY.md.
 	_ = command.MarkFlagRequired("file")
 	return command
 }
@@ -185,13 +191,10 @@ func environmentConfigCommand(state *commandState) *cobra.Command {
 
 func environmentReleaseChannelCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "release-channel", Short: "Set an Environment default Release Channel"}
-	var releaseChannel, file, ticket string
+	var releaseChannel, file string
 	set := &cobra.Command{
 		Use: "set ENVIRONMENT_ID", Short: "Propose a default Release Channel in desired state", Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
-			if ticket == "" {
-				return errors.New("--compliance-ticket is required")
-			}
 			desired, err := readDesiredState(file)
 			if err != nil {
 				return err
@@ -207,7 +210,8 @@ func environmentReleaseChannelCommand(state *commandState) *cobra.Command {
 	}
 	set.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "default Release Channel")
 	set.Flags().StringVarP(&file, "file", "f", "", "next-generation desired-state document")
-	set.Flags().StringVar(&ticket, "compliance-ticket", "", "external compliance ticket")
+	// No --compliance-ticket flag here either; see the note on the Artifact
+	// Registry mutation above (#175).
 	for _, flag := range []string{"release-channel", "file"} {
 		_ = set.MarkFlagRequired(flag)
 	}
