@@ -100,6 +100,7 @@ accurate and does not have to be idempotent.
 | `reconciliation` | `internal/delivery/reconciliation/adapters/postgres` | desired state, observations, leased work, decisions, audit, proposal outbox, plan receipts |
 | `controlplane` | `internal/controlplane` | the versioned metadata snapshot and the artifact blob store |
 | `notifications` | `internal/notifications/adapters/postgres` | notification events, subscription preferences, per-recipient inbox entries |
+| `gitless-resolution-log` | `internal/gitless/adapters/resolutionlogpostgres` | append-only source selector, digest, publisher, and failed-convergence history |
 
 One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look
@@ -124,7 +125,7 @@ make a read-only question block a starting replica, and the answer would still
 be stale by the time anyone acted on it.
 
 The restore procedure uses it as its acceptance check — a correctly restored
-database has nothing pending for either component. See
+database has nothing pending for any component. See
 [`backup-and-restore.md`](backup-and-restore.md).
 
 ## What this still does not do
