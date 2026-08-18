@@ -23,6 +23,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registrychallenge"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
 )
 
@@ -54,16 +55,34 @@ func (Anonymous) Basic(context.Context, string) (string, string, error) { return
 type Resolver struct {
 	client      *http.Client
 	credentials Credentials
+	// realms are the cross-host token realms an operator declared. Nil means a
+	// registry may only direct credentials at itself, which is the shape most
+	// registries have and the right thing to default to.
+	realms registrychallenge.Allowlist
 }
 
-func New(client *http.Client, credentials Credentials) *Resolver {
+// Option configures a Resolver.
+type Option func(*Resolver)
+
+// WithTokenRealms declares which token realm hosts each registry may direct
+// credentials to, beyond its own host. See the registrychallenge package for
+// why this is a declaration and not something read out of the challenge.
+func WithTokenRealms(realms registrychallenge.Allowlist) Option {
+	return func(resolver *Resolver) { resolver.realms = realms }
+}
+
+func New(client *http.Client, credentials Credentials, options ...Option) *Resolver {
 	if client == nil {
 		client = &http.Client{Timeout: 30 * time.Second}
 	}
 	if credentials == nil {
 		credentials = Anonymous{}
 	}
-	return &Resolver{client: client, credentials: credentials}
+	resolver := &Resolver{client: client, credentials: credentials}
+	for _, option := range options {
+		option(resolver)
+	}
+	return resolver
 }
 
 func (resolver *Resolver) Resolve(ctx context.Context, selector domain.Selector) (domain.Pin, error) {
@@ -195,11 +214,16 @@ func parseChallenge(header string) *authChallenge {
 }
 
 func (resolver *Resolver) token(ctx context.Context, host, name string, challenge *authChallenge) (string, error) {
-	url := fmt.Sprintf("%s?scope=repository:%s:pull", challenge.realm, name)
-	if challenge.service != "" {
-		url += "&service=" + challenge.service
+	// Constrained BEFORE the credential is read, let alone attached. The realm
+	// came out of an unauthenticated 401; an undeclared one is refused rather
+	// than tried anonymously, because "the attacker's host answered" is not a
+	// fact worth spending a request to learn.
+	endpoint, err := resolver.realms.TokenEndpoint(challenge.realm, host)
+	if err != nil {
+		return "", err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		registrychallenge.WithScope(endpoint, "repository:"+name+":pull", challenge.service), nil)
 	if err != nil {
 		return "", err
 	}

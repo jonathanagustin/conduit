@@ -15,8 +15,46 @@ import (
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 )
+
+// dockerConfigName is the file name cosign -- and every other client that reads
+// DOCKER_CONFIG -- joins onto that directory.
+const dockerConfigName = "config.json"
+
+// DockerConfigDirectory returns the directory to hand cosign as DOCKER_CONFIG
+// for a credential file, or explains why that file cannot be one.
+//
+// It is a check and not a conversion, and the reason it has to exist is a
+// failure mode with no symptom. cosign reads DOCKER_CONFIG as a DIRECTORY and
+// looks for config.json inside it; pointed at a directory with no config.json
+// it does not complain, it authenticates anonymously. So a Hub mounting its
+// credential as, say, `.dockerconfigjson` -- the key a Kubernetes
+// dockerconfigjson Secret projects by default -- would start cleanly, resolve
+// and publish with credentials through the native adapters, and verify
+// anonymously, which fails against a private registry with a 401 that names
+// neither the cause nor the fix.
+//
+// Refusing at configuration time instead makes that a startup error naming both.
+func DockerConfigDirectory(path string) (string, error) {
+	path = strings.TrimSpace(path)
+	if path == "" {
+		return "", errors.New("registry credential file path is empty")
+	}
+	if base := filepath.Base(path); base != dockerConfigName {
+		return "", fmt.Errorf(
+			"registry credential file must be named %s, not %s: Cosign reads the DIRECTORY named by "+
+				"DOCKER_CONFIG and looks for %s inside it, so any other name would leave signature "+
+				"verification authenticating anonymously while resolution and publication did not",
+			dockerConfigName, base, dockerConfigName)
+	}
+	directory, err := filepath.Abs(filepath.Dir(path))
+	if err != nil {
+		return "", fmt.Errorf("resolve the registry credential directory: %w", err)
+	}
+	return directory, nil
+}
 
 // DockerConfig supplies Basic credentials for registry clients. It satisfies
 // both ociresolve.Credentials and ocipublish.Credentials without either adapter
