@@ -235,6 +235,7 @@ gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-so
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs --gate
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
+gate 'Validate route authorization' bash -c 'node scripts/verify-route-authorization.test.mjs && node scripts/verify-route-authorization.mjs'
 gate 'Validate trusted supply-chain policy' supply_chain
 gate 'Validate optimizer candidate release policy' optimizer_candidate_release
 gate 'Validate release path' release_path

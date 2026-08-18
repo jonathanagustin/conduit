@@ -48,12 +48,17 @@ The deployment Kustomization must provide these `postBuild.substitute` values:
 | `PLATFORM_AGENT_ID` | unique Agent ID within the Environment |
 | `PLATFORM_ALLOW_INSECURE_AGENT_IDENTITY_HEADERS` | `true` only for an explicitly local cluster |
 | `PLATFORM_ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS` | `true` only for an explicitly local cluster; production uses a trusted resolver or verified client certificate |
+| `PLATFORM_ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY` | `true` only for an explicitly local cluster; it makes the Hub sign Bundles with a key the Pod generates and no other replica or restart holds. Production mounts a Bundle signing key instead, and a Hub with production identity and neither refuses to start |
 | `PLATFORM_BOOTSTRAP_ADMINISTRATORS` | Comma-separated authenticated subjects allowed to create initial Teams, grants, and CEL policies |
 | `PLATFORM_HELM_PLAIN_HTTP` | `true` only for an explicitly local registry |
 
-Production overlays must leave both insecure flags `false`. The preferred
-SPIRE overlay projects the Workload API socket; a migration overlay may instead
-project the Hub CA and Agent client identity through environment-owned Secrets.
+Production overlays must leave all three insecure flags `false`, and must mount
+a Bundle signing key: a Hub that has not declared itself a development Hub
+refuses to start without `BUNDLE_SIGNING_KEY_FILE` rather than signing Bundles
+with a key it generated for itself. The preferred
+SPIRE overlay projects the Workload API socket and that key; a migration overlay
+may instead project the Hub CA and Agent client identity through
+environment-owned Secrets.
 The Hub's optional `GITOPS_REPOSITORY_URL` is intentionally absent. Flux
 reconciles the runtime source, while Conduit retains Product, Plan, approval,
 lease, rollback, and reported-state authority.
