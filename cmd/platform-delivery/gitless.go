@@ -5,6 +5,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registryauth"
 	"github.com/jonathanagustin/conduit/internal/gitless/application"
 	"github.com/jonathanagustin/conduit/internal/gitless/composition"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
@@ -58,6 +59,7 @@ func (gitlessObserver) Failed(environment string, err error) {
 // would be advertising a capability that does not exist -- exactly what
 // domain.Reconcile refuses to let the GraphQL interface do.
 func configureGitless(getenv func(string) string) (*application.Scheduler, error) {
+	bindings := splitCommaSeparated(getenv("GITLESS_BINDINGS"))
 	interval := 5 * time.Minute
 	if raw := strings.TrimSpace(getenv("GITLESS_INTERVAL")); raw != "" {
 		parsed, err := time.ParseDuration(raw)
@@ -66,13 +68,30 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 		}
 		interval = parsed
 	}
+	var credentials *registryauth.DockerConfig
+	var cosignArguments []string
+	credentialFile := strings.TrimSpace(getenv("GITLESS_REGISTRY_CONFIG"))
+	// Gitless is genuinely off when it has no bindings. A stale optional mount
+	// must not make an otherwise unconfigured Hub fail to start.
+	if len(bindings) > 0 && credentialFile != "" {
+		var err error
+		credentials, err = registryauth.Load(credentialFile)
+		if err != nil {
+			return nil, err
+		}
+		// Cosign reads the same mounted Docker configuration as the two native
+		// registry adapters. Only its path reaches argv; credential bytes do not.
+		cosignArguments = []string{"--registry-config", credentialFile}
+	}
 	return composition.Configure(composition.Config{
-		Bindings:          splitCommaSeparated(getenv("GITLESS_BINDINGS")),
-		PolicyFile:        strings.TrimSpace(getenv("GITLESS_PUBLISHER_POLICY_FILE")),
-		ResolutionLogFile: strings.TrimSpace(getenv("GITLESS_RESOLUTION_LOG_FILE")),
-		Interval:          interval,
-		CosignBinary:      strings.TrimSpace(getenv("GITLESS_COSIGN_BINARY")),
-		Convergence:       strings.TrimSpace(getenv("GITLESS_CONVERGENCE")),
+		Bindings:            bindings,
+		PolicyFile:          strings.TrimSpace(getenv("GITLESS_PUBLISHER_POLICY_FILE")),
+		ResolutionLogFile:   strings.TrimSpace(getenv("GITLESS_RESOLUTION_LOG_FILE")),
+		Interval:            interval,
+		CosignBinary:        strings.TrimSpace(getenv("GITLESS_COSIGN_BINARY")),
+		CosignArguments:     cosignArguments,
+		RegistryCredentials: credentials,
+		Convergence:         strings.TrimSpace(getenv("GITLESS_CONVERGENCE")),
 		Flux: composition.FluxConfig{
 			Namespace:          strings.TrimSpace(getenv("GITLESS_FLUX_NAMESPACE")),
 			ServiceAccountName: strings.TrimSpace(getenv("GITLESS_FLUX_SERVICE_ACCOUNT")),
@@ -82,8 +101,9 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 			// what a cluster's Flux pulls. Without this the Flux path could not
 			// start at all: the store was described as supplied by the
 			// deployment and no deployment supplied one.
-			ManifestRepository: strings.TrimSpace(getenv("GITLESS_FLUX_MANIFEST_REPOSITORY")),
-			InsecureRegistry:   getenv("GITLESS_FLUX_INSECURE_REGISTRY") == "true",
+			ManifestRepository:  strings.TrimSpace(getenv("GITLESS_FLUX_MANIFEST_REPOSITORY")),
+			InsecureRegistry:    getenv("GITLESS_FLUX_INSECURE_REGISTRY") == "true",
+			RegistryCredentials: credentials,
 		},
 	}, composition.ConduitConfig{}, gitlessObserver{})
 }

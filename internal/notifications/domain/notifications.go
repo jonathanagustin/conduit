@@ -62,6 +62,38 @@ const (
 	EventChangeRequestPendingApproval EventType = "CHANGE_REQUEST_PENDING_APPROVAL"
 )
 
+// EventPlanFailures is named by Apollo's prose and by no screenshot, which is
+// why it is declared apart from the nine above rather than among them.
+//
+// The overview page lists "Plan failures" among the types it describes, and
+// docs/evidence/apollo-notification-types.json records it under proseTypeNames
+// beside the reason the prose list cannot simply be folded into the observed
+// one: the two do not correspond entry for entry, and "neither list is a
+// superset of the other, so neither can be treated as the vocabulary."
+//
+// It is declared anyway, because this is the type Conduit has an event for. A
+// reconciliation proposal that exhausts its retry budget is a Plan that will
+// never be minted, and there is nothing else it is. The alternative was to emit
+// PRODUCT_RELEASE_PROMOTION_FAILED, which the same capture ties to the prose
+// name "Promotion failures" -- a different entry in the same list. Reusing it to
+// avoid declaring a type would assert an identity Apollo's own documentation
+// keeps apart, which is the mistake the Product-recall pair above exists to
+// avoid.
+//
+// The value is the published name under the same mechanical rule every constant
+// above follows -- uppercase, non-alphanumeric runs to underscores -- so it is
+// the plural "Plan failures" rather than a tidier singular. Choosing the tidier
+// one would make this the only identifier in the file that is not derived from
+// what Apollo wrote, and scripts/verify-notification-types.mjs would have
+// nothing to bind it to.
+//
+// What is not claimed: that Apollo offers this type on any settings page, or
+// that its wire value is this string. ObservedScope answers false for it, which
+// is what that method's second return value is for.
+const (
+	EventPlanFailures EventType = "PLAN_FAILURES"
+)
+
 // Scope records where a type was observed being offered. It is provenance, not
 // a rule: nothing captured says a Product-scoped type cannot appear elsewhere,
 // so this is never used to reject an event.
@@ -84,11 +116,31 @@ var eventTypes = map[EventType]Scope{
 	EventChangeRequestPendingApproval:  ScopeCrossResource,
 }
 
-// Valid reports whether this build knows the type.
-func (eventType EventType) Valid() bool { _, known := eventTypes[eventType]; return known }
+// documentedTypes are named by Apollo's documentation and by no capture of a
+// page offering them. They are subscribable, because a settings API that could
+// not offer one would leave it reaching only the AllFutureTypes subscribers --
+// and they carry no scope, because nothing was observed to have a scope.
+var documentedTypes = map[EventType]struct{}{
+	EventPlanFailures: {},
+}
 
-// ObservedScope reports where this type was seen offered, and whether it is
-// known at all.
+// Valid reports whether this build knows the type.
+func (eventType EventType) Valid() bool {
+	if _, observed := eventTypes[eventType]; observed {
+		return true
+	}
+	_, documented := documentedTypes[eventType]
+	return documented
+}
+
+// ObservedScope reports where this type was seen offered, and whether it was
+// seen offered at all.
+//
+// False is two different answers and the caller cannot tell them apart from
+// here: a type this build has never heard of, and a type it knows from prose
+// with no page behind it. That is deliberate -- both mean "no capture puts this
+// on a settings page at a scope", which is the only question this answers. Valid
+// is where the two separate.
 func (eventType EventType) ObservedScope() (Scope, bool) {
 	scope, known := eventTypes[eventType]
 	return scope, known
@@ -102,8 +154,11 @@ func (eventType EventType) ObservedScope() (Scope, bool) {
 // grows, so a name promising completeness would be a claim the capture does
 // not support.
 func EventTypes() []EventType {
-	types := make([]EventType, 0, len(eventTypes))
+	types := make([]EventType, 0, len(eventTypes)+len(documentedTypes))
 	for eventType := range eventTypes {
+		types = append(types, eventType)
+	}
+	for eventType := range documentedTypes {
 		types = append(types, eventType)
 	}
 	sort.Slice(types, func(i, j int) bool { return types[i] < types[j] })
