@@ -25,8 +25,14 @@ An automated workflow must:
 - **Never publish, release, sign, or deploy.**
 
 The release and acceptance workflows stay `workflow_dispatch` only, enforced by
-`scripts/verify-optimizer-candidate-release-workflow.rb` and
-`scripts/verify-flux-runtime.rb`. The Trunk gate below stays dispatch-based
+`scripts/verify-optimizer-candidate-release-workflow.rb`,
+`scripts/verify-flux-runtime.rb`, and — for the release path itself, meaning
+`platform-release.yml` and the `platform-images.yml` publication it dispatches —
+`scripts/verify-release-workflow.rb`. Cutting a release is one dispatched
+instruction, described in
+[`release-and-publication.md`](release-and-publication.md); it is one because
+the workflow chains the tag and the publication, not because any trigger fires
+on its own. The Trunk gate below stays dispatch-based
 because it authenticates the exact pull-request head; a merge queue, when built,
 is a separate `merge_group` workflow, not a change to how the Trunk gate runs.
 

@@ -255,6 +255,17 @@ jobs:
           ruby scripts/verify-optimizer-candidate-release-workflow.rb
           ./scripts/verify-optimizer-candidate-release-workflow.test.sh
           ./scripts/assemble-optimizer-candidate-gate.test.sh
+      # Releasing is one dispatched instruction, and the two guards that make it
+      # safe -- the preconditions checked before a tag exists, and publication's
+      # refusal to run from a non-tag ref -- can only be exercised by cutting a
+      # real release. So the self-test runs them directly against a version that
+      # disagrees with VERSION, a commit with no green Trunk gate, and a branch
+      # dispatch, and the verifier holds both workflows to the shape those
+      # guards assume.
+      - name: Validate release path
+        run: |
+          ruby scripts/verify-release-workflow.rb
+          ./scripts/verify-release-workflow.test.sh
       # The Rubix Kubernetes substrate CRDs are ground truth recovered from
       # com.palantir.rubixlib, not authored here. This checks each committed CRD
       # against the manifest that records its provenance -- sha256, group, kind,
