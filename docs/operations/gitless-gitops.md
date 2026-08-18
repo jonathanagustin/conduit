@@ -18,6 +18,7 @@ source would mean an upgrade could begin deploying things nobody asked for.
 | `GITLESS_CONVERGENCE` | yes | `flux` or `conduit`. **No default** — see below. |
 | `GITLESS_INTERVAL` | no | How often desired state is restated. Defaults to `5m`. |
 | `GITLESS_COSIGN_BINARY` | no | The verifier. Empty resolves `cosign` on `PATH`. |
+| `GITLESS_REGISTRY_CONFIG` | for private registries | Mounted Docker `config.json` used by source resolution, Cosign verification, and Flux-manifest publication. The configured file must contain a usable entry for every registry host reached; there is no anonymous fallback for a missing host. |
 | `GITLESS_FLUX_NAMESPACE` | with `flux` | Namespace the rendered manifests declare. Defaults to `flux-system`. |
 | `GITLESS_FLUX_SERVICE_ACCOUNT` | with `flux` | The bounded identity the Kustomization reconciles as. **No default.** |
 | `GITLESS_FLUX_PULL_SECRET` | with `flux` | The read-only registry pull Secret. **No default.** |
@@ -55,6 +56,22 @@ somebody forgot — reliably the one that mattered.
 Unknown fields are rejected. `certificateIdentiy` would otherwise leave an
 environment trusting an empty pattern, and a setting somebody believed was doing
 something (`"trustAnySigner": true`) would be read and ignored.
+
+### Private registry credentials
+
+Mount one read-only Docker `config.json` and set `GITLESS_REGISTRY_CONFIG` to
+its path. A single file may contain separate entries for the Foundry source
+registry and the manifest repository. The Hub passes the path—not credential
+contents—to Cosign and uses the decoded credentials through the resolver and
+publisher ports. Both OCI clients answer Basic and Bearer registry challenges;
+they do not send credentials to a host before it challenges. Errors name the
+registry host but never the username, password, or encoded `auth` value.
+
+Once this variable is set, a registry absent from the file is a configuration
+error instead of an anonymous retry. Leave it unset only when both registries
+are intentionally public. The Hub image carries the same checksum-pinned Cosign
+release used by the signing workflows and Gitless acceptance suite, so no
+runtime download or mutable tools volume is required.
 
 ### Where the manifests go
 

@@ -15,6 +15,7 @@ package ociresolve
 
 import (
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -83,11 +84,24 @@ func (resolver *Resolver) Resolve(ctx context.Context, selector domain.Selector)
 	digest, err := resolver.head(ctx, url, "")
 	var challenge *authChallenge
 	if asChallenge(err, &challenge) {
-		token, tokenErr := resolver.token(ctx, host, name, challenge)
-		if tokenErr != nil {
-			return domain.Pin{}, tokenErr
+		if challenge.basic {
+			username, password, credentialErr := resolver.credentials.Basic(ctx, host)
+			if credentialErr != nil {
+				return domain.Pin{}, fmt.Errorf("credentials for %s: %w", host, credentialErr)
+			}
+			if username == "" && password == "" {
+				return domain.Pin{}, fmt.Errorf(
+					"registry requires Basic authentication but no credentials are configured for %s", host)
+			}
+			authorization := "Basic " + base64.StdEncoding.EncodeToString([]byte(username+":"+password))
+			digest, err = resolver.head(ctx, url, authorization)
+		} else {
+			token, tokenErr := resolver.token(ctx, host, name, challenge)
+			if tokenErr != nil {
+				return domain.Pin{}, tokenErr
+			}
+			digest, err = resolver.head(ctx, url, "Bearer "+token)
 		}
-		digest, err = resolver.head(ctx, url, token)
 	}
 	if err != nil {
 		return domain.Pin{}, err
@@ -99,13 +113,18 @@ func (resolver *Resolver) Resolve(ctx context.Context, selector domain.Selector)
 	return domain.Pin{Repository: selector.Repository, Digest: digest}, nil
 }
 
-// authChallenge is a registry's 401 telling us where to get a token.
+// authChallenge is a registry's 401 telling us to offer Basic credentials or
+// where to exchange them for a Bearer token.
 type authChallenge struct {
 	realm   string
 	service string
+	basic   bool
 }
 
 func (challenge *authChallenge) Error() string {
+	if challenge.basic {
+		return "registry requires Basic authentication"
+	}
 	return "registry requires a token from " + challenge.realm
 }
 
@@ -120,14 +139,14 @@ func asChallenge(err error, target **authChallenge) bool {
 	return ok
 }
 
-func (resolver *Resolver) head(ctx context.Context, url, token string) (string, error) {
+func (resolver *Resolver) head(ctx context.Context, url, authorization string) (string, error) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodHead, url, nil)
 	if err != nil {
 		return "", err
 	}
 	request.Header.Set("Accept", acceptable)
-	if token != "" {
-		request.Header.Set("Authorization", "Bearer "+token)
+	if authorization != "" {
+		request.Header.Set("Authorization", authorization)
 	}
 	response, err := resolver.client.Do(request)
 	if err != nil {
@@ -136,7 +155,7 @@ func (resolver *Resolver) head(ctx context.Context, url, token string) (string, 
 	defer response.Body.Close()
 
 	if response.StatusCode == http.StatusUnauthorized {
-		if challenge := parseChallenge(response.Header.Get("WWW-Authenticate")); challenge != nil && token == "" {
+		if challenge := parseChallenge(response.Header.Get("WWW-Authenticate")); challenge != nil && authorization == "" {
 			return "", challenge
 		}
 		return "", fmt.Errorf("%s refused the credentials offered for this registry", url)
@@ -148,6 +167,10 @@ func (resolver *Resolver) head(ctx context.Context, url, token string) (string, 
 }
 
 func parseChallenge(header string) *authChallenge {
+	header = strings.TrimSpace(header)
+	if strings.HasPrefix(strings.ToLower(header), "basic") {
+		return &authChallenge{basic: true}
+	}
 	if !strings.HasPrefix(strings.ToLower(header), "bearer ") {
 		return nil
 	}

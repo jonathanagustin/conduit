@@ -75,6 +75,31 @@ func TestASignedArtifactIsReportedWithItsCertificateIdentity(t *testing.T) {
 	}
 }
 
+func TestRegistryConfigurationIsPassedAsAPathNotCredentialContent(t *testing.T) {
+	directory := t.TempDir()
+	binary := filepath.Join(directory, "cosign")
+	arguments := filepath.Join(directory, "arguments")
+	script := "#!/bin/sh\n" +
+		"printf '%s\\n' \"$@\" > '" + arguments + "'\n" +
+		"cat <<'JSON'\n" + realShape + "\nJSON\n"
+	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	configPath := filepath.Join(directory, "registry.json")
+	verifier := cosignverify.New(binary, "--registry-config", configPath)
+	if _, err := verifier.Verify(t.Context(), pin()); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	passed, err := os.ReadFile(arguments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := "--registry-config\n" + configPath + "\n" + pin().String() + "\n"
+	if !strings.HasSuffix(string(passed), want) {
+		t.Fatalf("cosign arguments do not end with the mounted config and immutable pin:\n%s", passed)
+	}
+}
+
 // The adapter must report what cosign says it checked, not what was asked for.
 // Reporting the requested digest would defeat the domain's cross-check, which
 // exists precisely to catch a verifier that looked at something else.

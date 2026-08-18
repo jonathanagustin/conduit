@@ -178,6 +178,16 @@ mkdir -p "${test_root}/docker"
 export DOCKER_CONFIG="${test_root}/docker"
 printf '%s' "${publisher_password}" | cosign login "${host_registry}" \
   --username "${publisher_user}" --password-stdin >/dev/null
+# Exercise the production mounted-file credential adapter against this real,
+# authenticated registry. The ordinary ocipublish acceptance uses an anonymous
+# local registry; this is the case that proves the Hub's private write path.
+(
+  cd "${repo_root}"
+  GITLESS_REGISTRY_ACCEPTANCE_REPOSITORY="${host_registry}/conduit/hub-manifests" \
+  GITLESS_REGISTRY_CONFIG="${DOCKER_CONFIG}/config.json" \
+    go test ./internal/gitless/adapters/registryauth \
+      -run TestPrivateRegistryPublicationAcceptance -count=1 -v
+)
 export COSIGN_PASSWORD="conduit-test-key-password"
 cosign generate-key-pair --output-key-prefix "${test_root}/trusted" >/dev/null
 cosign generate-key-pair --output-key-prefix "${test_root}/wrong" >/dev/null
