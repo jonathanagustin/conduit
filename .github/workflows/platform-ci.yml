@@ -464,6 +464,17 @@ jobs:
         run: |
           node scripts/verify-domain-boundaries.mjs
           node scripts/test-domain-boundaries.mjs
+      # Every Hub route, against the authorization decision it makes. A route
+      # mounted with no registered decision used to be served to a caller
+      # holding no credential at all; internal/hub/composition now refuses to
+      # route one, and this is what makes the register keep describing the
+      # routes the Hub actually mounts. Self-test first, same as the boundary
+      # and contract gates: the failure mode is a regex that stopped matching,
+      # which is indistinguishable from agreement.
+      - name: Validate route authorization
+        run: |
+          node scripts/verify-route-authorization.test.mjs
+          node scripts/verify-route-authorization.mjs
       - name: Validate trusted supply-chain policy
         run: |
           ruby scripts/verify-trusted-supply-chain.rb
