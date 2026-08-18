@@ -27,6 +27,7 @@ workflow = read_workflow.call("images.yml")
 ci_workflow = read_workflow.call("ci.yml")
 hub_containerfile = File.read(File.expand_path("../Containerfile", __dir__))
 agent_containerfile = File.read(File.expand_path("../Containerfile.agent", __dir__))
+cosign_build_mod = File.read(File.expand_path("../tools/cosign-build/go.mod", __dir__))
 e2e_workflow = read_workflow.call("e2e.yml")
 docker_ignore = File.read(File.expand_path("../.dockerignore", __dir__))
 container_ignore = File.read(File.expand_path("../.containerignore", __dir__))
@@ -80,11 +81,22 @@ abort "Cosign release must be pinned for optimizer candidate signing" unless
 # what ships.
 abort "Cosign release must match the checksum-pinned download in test-gitless-clean-cluster.sh" unless
   clean_cluster.include?("/sigstore/cosign/releases/download/#{cosign_release}/")
-abort "Hub runtime must carry the same checksum-pinned Cosign release the Gitless adapter invokes" unless
-  hub_containerfile.include?("ARG COSIGN_VERSION=#{cosign_release}") &&
-    hub_containerfile.include?("4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71") &&
-    hub_containerfile.include?("c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a") &&
+abort "Hub Cosign source build must pin the reviewed upstream release" unless
+  cosign_build_mod.include?("tool github.com/sigstore/cosign/v3/cmd/cosign") &&
+    cosign_build_mod.match?(/^\s*github\.com\/sigstore\/cosign\/v3 v3\.1\.3 \/\/ indirect$/)
+abort "Hub Cosign source build must pin the patched Go toolchain and dependency graph" unless
+  cosign_build_mod.match?(/^go 1\.26\.6$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.40\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.39\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.82\.1 \/\/ indirect$/)
+abort "Hub runtime must build and carry the locked Cosign command" unless
+  hub_containerfile.include?("COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./") &&
+    hub_containerfile.include?("go mod download") &&
+    hub_containerfile.include?("-o /out/cosign github.com/sigstore/cosign/v3/cmd/cosign") &&
     hub_containerfile.include?("COPY --from=build --chown=65532:65532 --chmod=0755 /out/cosign /usr/local/bin/cosign")
+abort "Hub runtime must not fall back to a vulnerable prebuilt Cosign binary" if
+  hub_containerfile.include?("sigstore/cosign/releases/download") ||
+    hub_containerfile.include?("ARG COSIGN_VERSION=")
 abort "no cosign-release may be left unpinned" unless
   (workflow + optimizer_release_workflow).scan(/cosign-release: (\S+)/).flatten.uniq == [cosign_release]
 abort "image and runtime jobs require GitHub OIDC" unless workflow.scan("id-token: write").length == 2
