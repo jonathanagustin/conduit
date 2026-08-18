@@ -124,7 +124,7 @@ const LAYERS = new Map([
 const ENTRY_LAYER = 5;
 const SOURCE = /\.(?:ts|tsx)$/;
 
-function walk(directory) {
+function walk(directory, matches) {
   const found = [];
   let entries;
   try {
@@ -134,13 +134,13 @@ function walk(directory) {
   }
   for (const entry of entries.sort((a, b) => a.name.localeCompare(b.name))) {
     const path = join(directory, entry.name);
-    if (entry.isDirectory()) found.push(...walk(path));
-    else if (SOURCE.test(entry.name)) found.push(path);
+    if (entry.isDirectory()) found.push(...walk(path, matches));
+    else if (matches.test(entry.name)) found.push(path);
   }
   return found;
 }
 
-const files = walk(SRC);
+const files = walk(SRC, SOURCE);
 if (files.length === 0) {
   console.error("FAIL console boundaries: no TypeScript sources under web/src");
   process.exit(1);
@@ -181,6 +181,32 @@ function featureOf(path) {
 // The console writes `.js` specifiers for `.tsx` sources, so a resolver that
 // only tried the literal path would call every one of them broken.
 const IMPORT = /(?:\bfrom\s*|\bimport\s*\(|\brequire\s*\()\s*["'](\.{1,2}\/[^"']+)["']/gu;
+
+// --- rule 6: no orphaned stylesheet -----------------------------------------
+// A stylesheet reaches the bundle through exactly one line -- a side-effect
+// `import "./thing.css"` in the component that needs it -- and nothing else in
+// this repository can tell whether that line is there. Deleting it leaves a
+// tree that typechecks, a build that succeeds, a bundle that matches a clean
+// rebuild (because the rebuild is equally unstyled), and 122 browser tests that
+// pass, because they assert on `data-testid` and text rather than on computed
+// style. The screen simply loses its styling.
+//
+// This was found by planting it: `web/src/components/transition-detail.css` was
+// orphaned deliberately, the bundle rebuilt, and every other gate stayed green.
+// The exposure predates stage 2 -- it applies to all 22 stylesheets under
+// `web/src` -- but stage 2 widened it, by splitting one feature stylesheet into
+// two component ones whose only tether is a single import line each.
+//
+// The rule is deliberately weak: it proves a stylesheet is referenced, not that
+// its rules are used. That is the part a static check can honestly make, and it
+// covers the whole of the failure above.
+//
+// Side-effect imports need their own pattern: `import "./x.css";` has no
+// `from`, so the rule 3 regex above does not see it. They are checked for
+// existence and for orphaning, and deliberately NOT fed into the layering rule
+// -- `main.tsx` imports `./styles/index.css`, and `styles` is not a layer.
+const SIDE_EFFECT_IMPORT = /\bimport\s+["'](\.{1,2}\/[^"']+)["']/gu;
+const STYLESHEET = /\.css$/;
 
 function candidates(target) {
   const extension = extname(target);
@@ -224,9 +250,25 @@ const NETWORK = [
 
 let layeredFiles = 0;
 let checkedImports = 0;
+const importedStylesheets = new Set();
 
 for (const file of files) {
   const text = read(file);
+
+  // Rule 6, first half: record every stylesheet some source imports, and fail
+  // on one that names a file not on disk.
+  for (const match of text.matchAll(SIDE_EFFECT_IMPORT)) {
+    const specifier = match[1];
+    if (!STYLESHEET.test(specifier)) continue;
+    const target = resolve(dirname(file), specifier);
+    if (!exists(target)) {
+      failures.push(
+        `unresolved stylesheet: ${show(file)} imports "${specifier}", which is not on disk`,
+      );
+      continue;
+    }
+    importedStylesheets.add(target);
+  }
   const layer = layerOf(file);
   const layered = layer !== null;
   if (layered) layeredFiles += 1;
@@ -293,6 +335,16 @@ for (const file of files) {
   }
 }
 
+// Rule 6, second half: a stylesheet nothing imports is not in the bundle.
+const stylesheets = walk(SRC, STYLESHEET);
+for (const stylesheet of stylesheets) {
+  if (importedStylesheets.has(stylesheet)) continue;
+  failures.push(
+    `orphaned stylesheet: nothing under web/src imports ${show(stylesheet)}; ` +
+      "it is not in the bundle, and the screen it styles renders unstyled",
+  );
+}
+
 if (failures.length) {
   for (const failure of failures) console.error(`FAIL console boundaries: ${failure}`);
   process.exit(1);
@@ -305,5 +357,6 @@ const features = new Set(files.map(featureOf).filter((name) => name !== null));
 console.log(
   `PASS console boundaries: ${layeredFiles} layered sources, ${checkedImports} relative imports, ` +
     `${features.size} features with no cross-feature import, ` +
+    `${stylesheets.length} stylesheets all imported, ` +
     `console prefix "${prefixes[0]?.value}" agrees in ${prefixes.length} places`,
 );

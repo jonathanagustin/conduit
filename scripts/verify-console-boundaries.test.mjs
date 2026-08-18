@@ -2,7 +2,7 @@
 // Proves the console-boundaries gate rejects each thing it claims to reject.
 //
 // A gate that only ever passes is indistinguishable from no gate, and this one
-// is more exposed to that than most: five of its six rules are satisfied by a
+// is more exposed to that than most: six of its seven rules are satisfied by a
 // tree that has been correct since it was written, so a regex that matched
 // nothing at all would look identical to a regex that matched correctly.
 //
@@ -68,9 +68,10 @@ const BASELINE = [
     "web/src/components/QueryState.tsx",
     'import { ApiError } from "../api/errors.js";\nexport const QueryState = (error: ApiError) => error.message;\n',
   ],
+  ["web/src/components/plan-status-tag.css", ".console-plan-status { color: #111; }\n"],
   [
     "web/src/components/PlanStatusTag.tsx",
-    "export const PlanStatusTag = (value: string) => value;\n",
+    'import "./plan-status-tag.css";\nexport const PlanStatusTag = (value: string) => value;\n',
   ],
   [
     "web/src/features/useIndexQuery.ts",
@@ -163,6 +164,22 @@ const PLANTED = [
     contents:
       'import { PlansPage } from "../../features/plans/PlansPage.js";\nexport const EnvironmentsPage = () => PlansPage;\n',
     expect: "cross-feature import:",
+  },
+  {
+    // The mutation that found this rule: a stylesheet import deleted from the
+    // component that owns it. Everything still builds, and the bundle still
+    // matches a clean rebuild, because the rebuild is equally unstyled.
+    rule: "an orphaned stylesheet (its only import deleted)",
+    file: "web/src/components/PlanStatusTag.tsx",
+    contents: "export const PlanStatusTag = (value: string) => value;\n",
+    expect: "orphaned stylesheet:",
+  },
+  {
+    rule: "a stylesheet import naming a file that is not on disk",
+    file: "web/src/components/PlanStatusTag.tsx",
+    contents:
+      'import "./plan-status-tag.css";\nimport "./gone.css";\nexport const PlanStatusTag = (value: string) => value;\n',
+    expect: "unresolved stylesheet:",
   },
   {
     rule: "the Vite base disagreeing with the router and the Hub",
