@@ -6,7 +6,6 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
-	"time"
 
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 	"github.com/jonathanagustin/conduit/internal/notifications/ports"
@@ -32,17 +31,23 @@ var ErrNoPreference = errors.New("no notification preference is stored for that 
 // set it does not own.
 type Preferences struct {
 	store ports.Store
-	now   func() time.Time
+	clock ports.Clock
 }
 
-func NewPreferences(store ports.Store, now func() time.Time) (*Preferences, error) {
+// NewPreferences takes a ports.Clock rather than a bare func() time.Time
+// because the port already declares itself the only source of now in this
+// context, and the delivery dispatcher that landed alongside this reads it. Two
+// spellings of the same dependency in one package is how a later reader ends up
+// wondering which one a given component honours. A nil clock is the ordinary
+// case: only a test needs to fix the moment.
+func NewPreferences(store ports.Store, clock ports.Clock) (*Preferences, error) {
 	if store == nil {
 		return nil, errors.New("a notification store is required to read or edit preferences")
 	}
-	if now == nil {
-		now = time.Now
+	if clock == nil {
+		clock = SystemClock{}
 	}
-	return &Preferences{store: store, now: now}, nil
+	return &Preferences{store: store, clock: clock}, nil
 }
 
 // Get returns one owner's settings for one resource on one channel, or
@@ -80,7 +85,7 @@ func (preferences *Preferences) Save(
 	if err := validateGrain(proposed.ResourceRID, proposed.Owner, proposed.Channel); err != nil {
 		return domain.Preference{}, err
 	}
-	now := preferences.now().UTC()
+	now := preferences.clock.Now().UTC()
 	stored := domain.Preference{
 		ID:             PreferenceID(proposed.ResourceRID, proposed.Owner, proposed.Channel),
 		Owner:          proposed.Owner,

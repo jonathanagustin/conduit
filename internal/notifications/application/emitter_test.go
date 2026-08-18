@@ -11,6 +11,16 @@ import (
 
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }
 
+// fixedAt is the ports.Clock the preference service now takes, pinned to at()
+// plus an offset a test can choose, so a saved preference's timestamps stay
+// assertable and a second save can be made to land later. The service reads a
+// ports.Clock rather than a func() time.Time because the delivery dispatcher in
+// this same context already does, and one spelling of "now" per bounded context
+// is the point of having declared the port.
+type fixedAt struct{ offset time.Duration }
+
+func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
+
 func planFailed() domain.Event {
 	return domain.Event{
 		ID: "nev-1", Type: domain.EventPlanFailures,

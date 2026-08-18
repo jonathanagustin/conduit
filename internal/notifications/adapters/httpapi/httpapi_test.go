@@ -20,6 +20,16 @@ const resource = "ri.apollo.main.environment.d41d8cd98f00"
 
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }
 
+// fixedAt is the ports.Clock the preference service now takes, pinned to at()
+// plus an offset a test can choose, so a saved preference's timestamps stay
+// assertable and a second save can be made to land later. The service reads a
+// ports.Clock rather than a func() time.Time because the delivery dispatcher in
+// this same context already does, and one spelling of "now" per bounded context
+// is the point of having declared the port.
+type fixedAt struct{ offset time.Duration }
+
+func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
+
 // memoryStore is the notification store with the database taken out. It keys
 // preferences on the same tuple the PostgreSQL store's UNIQUE constraint does,
 // so a test that passes here is not passing because the fake forgot the grain.
@@ -122,7 +132,7 @@ func newHarness(t *testing.T, caller Principal) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	preferences, err := application.NewPreferences(store, at)
+	preferences, err := application.NewPreferences(store, fixedAt{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -551,7 +561,7 @@ func TestRegisterRefusesAPartialSurface(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	preferences, err := application.NewPreferences(store, at)
+	preferences, err := application.NewPreferences(store, fixedAt{})
 	if err != nil {
 		t.Fatal(err)
 	}
