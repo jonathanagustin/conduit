@@ -99,6 +99,46 @@ from GitHub's commit-status API on the final status POST, and the stale `pending
 status was misread as a hang. The test was restored in #144 and the gate was fixed
 in #145 so that a status post can no longer decide whether the code is good.
 
+## Resource limit reached, and what it cost (2026-08-18 ~06:55 UTC)
+
+The orchestration run hit the agent API session limit (resets 08:40 UTC). Five
+delegated workstreams died mid-flight with `You've hit your session limit`. Two
+had already pushed their work and it survived; the rest left nothing and must be
+re-dispatched from scratch:
+
+| Workstream | State when it died |
+| --- | --- |
+| #209 GraphQL per-coordinate authorization | **Survived** — branch `claude/fix-209-authorization-scopes` with an open PR |
+| #197 notification ports | **Survived** — merged as #219; `internal/notifications/` now has domain, ports, application, adapters |
+| #205 SUCCEEDED-but-unconverged Plan | **Lost** — no branch |
+| #208 version comparator intransitivity | **Lost** — no branch |
+| CLI review residuals (empty coordinate echo, removed-namespace drop) | **Lost** — no branch |
+| #195 automatic gate trigger | **Lost** — died on its first tool call |
+| dev-cluster via ccw-sandbox | **Lost** — no branch |
+
+**The orchestration lesson, stated plainly:** fan-out was too aggressive. Around
+thirteen concurrent agents each dispatching gates exhausted both the agent budget
+and the runner pool — with the gate now split into five jobs per run, six
+concurrent pull requests is thirty queued jobs, so the runner pool became the
+binding constraint and lane-split runs took longer than the 16-minute
+single-job baseline they replaced. Fan out to the constraint, not past it.
+
+## A review methodology error that produced confident, wrong findings
+
+An external cursor-agent review was run with the correct commit SHAs named in
+its prompt, while the checkout sat on an unrelated feature branch. **It read
+working-tree files, not the commits.** It reported two confident "still broken"
+defects against code already fixed on `main` — `release-channel export --latest`
+(which does refuse with a reason at `internal/conduitcli/release_channel_commands.go:195`)
+and the two console contract docs (both already corrected) — and four CLEAN
+verdicts that are equally worthless, because they describe a tree nobody has.
+
+Before any external review of merged work: `git checkout main && git pull
+--ff-only`, then state the resolved HEAD sha in the prompt. **An external
+reviewer reads the files it can see, whatever SHAs you name.** Batch two
+(#173, #175, #177, #180, #182, #194) therefore still has no valid independent
+review and needs one.
+
 ## Session ending 2026-08-18
 
 ### What shipped
