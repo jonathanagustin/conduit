@@ -1,6 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import { orderInbox, outstandingRequirements } from "../../features/changes/order.js";
+import {
+  CANCELLABLE_STATUSES,
+  REOPENABLE_STATUSES,
+  canCancel,
+  canReopen,
+  carriesRationale,
+} from "../../features/changes/review.js";
 import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../features/promotions/ReleaseChannelGraph.js";
 import { statusIntent } from "../../api/imports.js";
@@ -421,6 +428,16 @@ describe("review bodies match the Hub's decoder", () => {
     expect(reviewBody("cancel", "superseded")).toEqual({ reason: "superseded" });
   });
 
+  // The screen asked for a rationale before every action and promised it was
+  // recorded. Reopen has nowhere to put one, so for that action the promise was
+  // false and the text went nowhere.
+  it("knows reopen carries no rationale and the other three do", () => {
+    expect(carriesRationale("reopen")).toBe(false);
+    expect(carriesRationale("approve")).toBe(true);
+    expect(carriesRationale("reject")).toBe(true);
+    expect(carriesRationale("cancel")).toBe(true);
+  });
+
   // The Plans index refreshed after an approval and the Plan detail page did
   // not, so the two screens disagreed about the Plan just acted on. The key is
   // a prefix because this hook holds the Change Request's id, not the Plan's.
@@ -429,6 +446,53 @@ describe("review bodies match the Hub's decoder", () => {
     expect(reviewInvalidationKeys("crq_1")).toContainEqual(["plans"]);
     expect(reviewInvalidationKeys("crq_1")).toContainEqual(["change-request", "crq_1"]);
     expect(reviewInvalidationKeys("crq_1")).toContainEqual(["change-requests"]);
+  });
+});
+
+describe("author-only review actions match the Hub's gates", () => {
+  // The Hub admits Cancel and Reopen from the author alone, and only from the
+  // statuses each transition can leave. Rendering them to every viewer made two
+  // permanently non-functional controls -- which first demanded a rationale.
+  it("offers neither action to a viewer who is not the author", () => {
+    for (const status of ["PENDING_APPROVALS", "APPROVED", "REJECTED", "CANCELLED", "ERROR"]) {
+      const settled = request({ status });
+      expect(canCancel(settled, "reviewer")).toBe(false);
+      expect(canReopen(settled, "reviewer")).toBe(false);
+    }
+  });
+
+  it("offers neither action while the viewer is unknown", () => {
+    // The session is a second fetch, so "" is what the page holds before it
+    // lands. An empty username matching an empty author would offer both
+    // actions to whoever the Hub is about to refuse.
+    expect(canCancel(request({ status: "PENDING_APPROVALS" }), "")).toBe(false);
+    expect(canReopen(request({ status: "CANCELLED", author: { username: "" } }), "")).toBe(false);
+  });
+
+  it("lets the author cancel only what the cancel route admits", () => {
+    // http.go POST /v1/change-requests/{id}/cancel: PENDING_APPROVALS, APPROVED.
+    expect(canCancel(request({ status: "PENDING_APPROVALS" }), "author")).toBe(true);
+    expect(canCancel(request({ status: "APPROVED" }), "author")).toBe(true);
+    expect(canCancel(request({ status: "REJECTED" }), "author")).toBe(false);
+    expect(canCancel(request({ status: "CANCELLED" }), "author")).toBe(false);
+    expect(canCancel(request({ status: "ERROR" }), "author")).toBe(false);
+  });
+
+  it("lets the author reopen only what Reopen admits", () => {
+    // governance.go Reopen: REJECTED, CANCELLED, ERROR. ERROR is in that set
+    // deliberately -- nobody vetoed an errored request, and the id is derived
+    // from the target, so refusing it would burn that target permanently.
+    expect(canReopen(request({ status: "REJECTED" }), "author")).toBe(true);
+    expect(canReopen(request({ status: "CANCELLED" }), "author")).toBe(true);
+    expect(canReopen(request({ status: "ERROR" }), "author")).toBe(true);
+    expect(canReopen(request({ status: "PENDING_APPROVALS" }), "author")).toBe(false);
+    expect(canReopen(request({ status: "APPROVED" }), "author")).toBe(false);
+  });
+
+  it("holds the two status sets apart", () => {
+    // Sharing one set is the plausible simplification, and it would offer the
+    // author Cancel on a cancelled request and Reopen on a pending one.
+    expect(CANCELLABLE_STATUSES.some((status) => REOPENABLE_STATUSES.includes(status))).toBe(false);
   });
 });
 
