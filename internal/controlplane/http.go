@@ -2803,33 +2803,18 @@ func requireGovernanceAdministrator(
 func isGovernanceAdministrator(
 	ctx context.Context, governance *GovernanceService, principal Principal, configuration HandlerOptions,
 ) bool {
-	return contains(normalizedStrings(configuration.BootstrapAdministrators), principal.Username) ||
-		(configuration.AllowInsecureOperatorIdentityHeaders && len(configuration.BootstrapAdministrators) == 0 && principal.Username == "local-developer") ||
-		governance.Authorize(ctx, effectivePrincipal(principal), "platform/root", OperationManagePermissions)
+	return governance.resourceDecision(configuration).Administrator(ctx, principal)
 }
 
 func requireResourceOperation(
 	w http.ResponseWriter, request *http.Request, governance *GovernanceService, principal Principal,
 	configuration HandlerOptions, resourceRID, operation string,
 ) bool {
-	authorized := isGovernanceAdministrator(request.Context(), governance, principal, configuration) ||
-		governance.Authorize(request.Context(), effectivePrincipal(principal), resourceRID, operation)
-	decision, reason := "ALLOW", "resource operation authorized"
-	if !authorized {
-		decision, reason = "DENY", "missing operation "+operation
+	if governance.AuthorizeResourceOperation(request.Context(), principal, configuration, resourceRID, operation) {
+		return true
 	}
-	governance.audit(request.Context(), principal.Username, operation, resourceRID, decision, reason, map[string]any{
-		"onBehalfOf": func() string {
-			if principal.OnBehalfOf != nil {
-				return principal.OnBehalfOf.Username
-			}
-			return ""
-		}(),
-	})
-	if !authorized {
-		writeLifecycleError(w, ErrForbidden)
-	}
-	return authorized
+	writeLifecycleError(w, ErrForbidden)
+	return false
 }
 
 func requirePlatformOperation(

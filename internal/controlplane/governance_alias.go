@@ -107,6 +107,37 @@ func effectivePrincipal(principal Principal) Principal {
 	return governance.EffectivePrincipal(principal)
 }
 
+// resourceDecision binds Governance's resource-authorization decision to this
+// package's store and this deployment's options. It is a binding, not a
+// decision: the administrator test and the audit record it writes are both in
+// internal/governance, because #241 was what a second copy of them cost.
+func (service *GovernanceService) resourceDecision(
+	configuration HandlerOptions,
+) governanceapp.ResourceDecision {
+	return governanceapp.ResourceDecision{
+		Authorizer: governanceAuthorizer(service.repository),
+		Audit:      service.repository,
+		Now:        service.now,
+		Policy: governanceapp.AdministratorPolicy{
+			BootstrapAdministrators:     configuration.BootstrapAdministrators,
+			AllowLocalDeveloperFallback: configuration.AllowInsecureOperatorIdentityHeaders,
+		},
+	}
+}
+
+// AuthorizeResourceOperation is the Hub's resource-authorization decision and
+// the record of it, in the one form another surface can reach.
+//
+// It is exported for the Hub composition root, which mounts surfaces that
+// cannot be added here and would otherwise have to restate this. #241 is what
+// happened when one did: the notification routes reached a wider answer than
+// these routes for the same coordinate, and filed nothing either way.
+func (service *GovernanceService) AuthorizeResourceOperation(
+	ctx context.Context, principal Principal, configuration HandlerOptions, resourceRID, operation string,
+) bool {
+	return service.resourceDecision(configuration).Allow(ctx, principal, resourceRID, operation)
+}
+
 func validateCanonicalRoleScope(role, resourceRID string) error {
 	return governance.ValidateCanonicalRoleScope(role, resourceRID)
 }

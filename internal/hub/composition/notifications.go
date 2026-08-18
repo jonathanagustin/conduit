@@ -5,6 +5,7 @@ import (
 	"errors"
 	"net/http"
 	"strings"
+	"sync"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
@@ -54,50 +55,106 @@ func mountNotifications(
 	if err := notificationhttp.Register(mux, notificationhttp.Config{
 		Reader:      reader,
 		Preferences: preferences,
-		Resolve:     operatorPrincipal(service, options),
+		Resolve:     operatorPrincipal(),
 		Authorize:   resourceOperation(service, options),
 	}); err != nil {
 		return nil, err
 	}
 	mux.Handle("/", legacy)
-	return mux, nil
+	return withOperatorCarrier(service, options, mux), nil
 }
 
-// resourceOperation is the resource half of the authorization, and it is the
-// half that matches internal/controlplane's requireResourceOperation exactly: a
-// Governance administrator, or a grant to one of the principal's teams.
+// resourceOperation is the resource half of the authorization, and it does not
+// answer it: internal/controlplane does, through the one entry point both
+// surfaces reach. Restating "a Governance administrator, or a grant to one of
+// the principal's teams" here is exactly what #241 was -- the restatement
+// judged the bootstrap administrator list against the effective principal
+// rather than the carrier, so a service account holding nothing but
+// act-on-behalf read, through these routes, a resource the REST routes refused
+// it. Asking rather than restating also means the decision is filed: the same
+// call writes the audit record every REST authorization writes.
 //
 // The other half is not here and must not be. Whether this caller owns the
 // inbox or preference they named is the notification adapter's own check, and
 // it admits no administrator: a grant conveys authority over a resource, never
 // over a person's mail. Folding the two together in one predicate is how the
 // second one would quietly acquire the first one's escape hatch.
+//
+// The principal the adapter passes back is the effective one and cannot express
+// a delegation, which is why the decision is taken against the carrier resolved
+// for this request instead. The two are checked against each other rather than
+// assumed equal, so a future adapter that resolved its own caller would be
+// refused here rather than authorized as somebody else.
 func resourceOperation(
 	service *controlplane.GovernanceService, options controlplane.HandlerOptions,
 ) notificationhttp.Authorize {
 	return func(
 		ctx context.Context, principal notificationhttp.Principal, resourceRID, operation string,
 	) bool {
-		asking := governance.Principal{Username: principal.Username, Teams: principal.Teams}
-		return governanceAdministrator(ctx, service, asking, options) ||
-			service.Authorize(ctx, asking, resourceRID, operation)
+		carrier, err := operatorFrom(ctx)
+		if err != nil || governance.EffectivePrincipal(carrier).Username != principal.Username {
+			return false
+		}
+		return service.AuthorizeResourceOperation(ctx, carrier, options, resourceRID, operation)
 	}
 }
 
-func governanceAdministrator(
-	ctx context.Context, service *controlplane.GovernanceService,
-	principal governance.Principal, options controlplane.HandlerOptions,
-) bool {
-	for _, administrator := range options.BootstrapAdministrators {
-		if strings.TrimSpace(administrator) == principal.Username {
-			return true
+// operatorCarrierKey addresses the request-scoped identity below.
+type operatorCarrierKey struct{}
+
+// withOperatorCarrier resolves the operator behind a request at most once and
+// hands the same answer to everything that asks for it.
+//
+// It exists because the two notification callbacks need different halves of one
+// identity. Resolve needs the *effective* principal, because an inbox is read
+// as whoever the caller is acting for, and the adapter is deliberately given
+// nothing else -- its own comment says handing it the whole Governance
+// principal would let a later edit there reinvent delegation. Authorize needs
+// the whole principal, carrier included, because that is what the administrator
+// test is judged against. Resolving once here and letting each callback take
+// the half it needs is what makes both true at the same time; #241 is the
+// defect that existed while only the effective half was reachable.
+//
+// It is lazy, and it wraps the composed mux rather than the notification routes
+// alone, so that the facade's own routes are unaffected: nothing resolves an
+// identity unless a notification route asks, and mounting stays a matter of
+// which patterns the adapter registered rather than a prefix restated here.
+func withOperatorCarrier(
+	service *controlplane.GovernanceService, options controlplane.HandlerOptions, next http.Handler,
+) http.Handler {
+	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		resolve := sync.OnceValues(func() (governance.Principal, error) {
+			claims, err := operatorClaims(request, options)
+			if err != nil {
+				return governance.Principal{}, notificationhttp.StatusError{
+					Status: http.StatusUnauthorized, Message: err.Error(),
+				}
+			}
+			principal, err := service.ResolvePrincipal(request.Context(), claims)
+			if err != nil {
+				return governance.Principal{}, notificationhttp.StatusError{
+					Status: statusForIdentityError(err), Message: err.Error(),
+				}
+			}
+			return principal, nil
+		})
+		next.ServeHTTP(writer, request.WithContext(
+			context.WithValue(request.Context(), operatorCarrierKey{}, resolve)))
+	})
+}
+
+// operatorFrom reads the resolved operator, or fails closed. A context with no
+// carrier means these routes were mounted without withOperatorCarrier, and a
+// route that cannot say who is asking must refuse rather than assume.
+func operatorFrom(ctx context.Context) (governance.Principal, error) {
+	resolve, mounted := ctx.Value(operatorCarrierKey{}).(func() (governance.Principal, error))
+	if !mounted {
+		return governance.Principal{}, notificationhttp.StatusError{
+			Status:  http.StatusUnauthorized,
+			Message: "the notification routes were mounted without operator resolution",
 		}
 	}
-	if options.AllowInsecureOperatorIdentityHeaders && len(options.BootstrapAdministrators) == 0 &&
-		principal.Username == "local-developer" {
-		return true
-	}
-	return service.Authorize(ctx, principal, "platform/root", governance.OperationManagePermissions)
+	return resolve()
 }
 
 // operatorPrincipal resolves an operator the way every other Hub route does:
@@ -118,21 +175,15 @@ func governanceAdministrator(
 // doctrine every authorization decision in this Hub already uses; resolving it
 // here means the notification adapter never sees a delegation and cannot get it
 // wrong.
-func operatorPrincipal(
-	service *controlplane.GovernanceService, options controlplane.HandlerOptions,
-) notificationhttp.ResolvePrincipal {
+//
+// The carrier it was resolved from is not discarded, only withheld from the
+// adapter: withOperatorCarrier keeps it on the request for the authorization
+// decision, which is judged against a different half of the same identity.
+func operatorPrincipal() notificationhttp.ResolvePrincipal {
 	return func(request *http.Request) (notificationhttp.Principal, error) {
-		claims, err := operatorClaims(request, options)
+		principal, err := operatorFrom(request.Context())
 		if err != nil {
-			return notificationhttp.Principal{}, notificationhttp.StatusError{
-				Status: http.StatusUnauthorized, Message: err.Error(),
-			}
-		}
-		principal, err := service.ResolvePrincipal(request.Context(), claims)
-		if err != nil {
-			return notificationhttp.Principal{}, notificationhttp.StatusError{
-				Status: statusForIdentityError(err), Message: err.Error(),
-			}
+			return notificationhttp.Principal{}, err
 		}
 		effective := governance.EffectivePrincipal(principal)
 		return notificationhttp.Principal{Username: effective.Username, Teams: effective.Teams}, nil
