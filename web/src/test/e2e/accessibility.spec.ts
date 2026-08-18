@@ -277,3 +277,51 @@ test("populated Environment Plans and Commands remain accessible on mobile", asy
     .toBe(true);
   await expectNoAccessibilityViolations(page);
 });
+
+test("the notification inbox and its preference form satisfy the accessibility contract", async ({
+  page,
+  hub,
+}) => {
+  // The one console screen that is a form rather than a report: a grouped set of
+  // checkboxes, a switch that disables them, and a select that owns a URL
+  // parameter. Every one of those is a way to lose a label.
+  hub.get("/notifications/inbox", {
+    owner: { kind: "USER", id: "browser-operator" },
+    channel: "IN_APP",
+    limit: 100,
+    entries: [
+      {
+        recipient: { owner: { kind: "USER", id: "browser-operator" }, channel: "IN_APP" },
+        event: {
+          id: "nev-a11y",
+          type: "PLAN_FAILURES",
+          resourceRid: "ri.apollo.main.environment.d41d8cd98f00",
+          environment: "prod-use1",
+          summary: "Reconciliation of installation payments in Environment prod-use1 gave up",
+          occurredAt: "2026-08-18T09:00:00Z",
+        },
+        preferenceId: "npf-a11y",
+      },
+    ],
+  });
+  hub.get("/notifications/preferences", {
+    id: "npf-a11y",
+    owner: { kind: "USER", id: "browser-operator" },
+    resourceRid: "ri.apollo.main.environment.d41d8cd98f00",
+    channel: "IN_APP",
+    types: ["PLAN_FAILURES"],
+    createdAt: "2026-08-10T08:00:00Z",
+    updatedAt: "2026-08-17T08:00:00Z",
+    revision: 3,
+  });
+  await page.goto("notifications?resourceRid=ri.apollo.main.environment.d41d8cd98f00");
+  await expect(page.getByRole("heading", { name: "Notifications" })).toBeVisible();
+  await expect(page.getByTestId("preference-editor")).toBeVisible();
+  // A resource coordinate has no spaces to break on and a summary is a whole
+  // sentence, so an automatic table layout widens the page past the viewport
+  // and clips the last column rather than wrapping either of them.
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth))
+    .toBe(true);
+  await expectNoAccessibilityViolations(page);
+});

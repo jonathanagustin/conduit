@@ -139,12 +139,17 @@ test.describe("navigation rail", () => {
     quiet(hub);
     await page.goto("overview");
 
-    // Home, Environments, Software Catalog. Fleet is an Application, matching
-    // the plan's IA where it takes the upstream Entity Map role.
+    // Home, Environments, Software Catalog, Notifications. Fleet is an
+    // Application, matching the plan's IA where it takes the upstream Entity Map
+    // role. Notifications is a rail peer rather than an Application because an
+    // inbox is per-principal: it is not in the session projection's application
+    // vocabulary, and gating it on one would hide an operator's own inbox behind
+    // a platform-scoped grant they may not hold.
     const rail = page.getByRole("navigation", { name: "Global navigation" });
     await expect(rail.getByRole("link", { name: "Home" })).toBeVisible();
     await expect(rail.getByRole("link", { name: "Environments" })).toBeVisible();
     await expect(rail.getByRole("link", { name: "Software Catalog" })).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Notifications" })).toBeVisible();
     await expect(rail.getByRole("link", { name: "Fleet" })).toHaveCount(0);
   });
 

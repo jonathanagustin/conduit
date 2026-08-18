@@ -88,12 +88,28 @@ carried to the residual list as item 5.
    `TestThroughTheHubOnePrincipalIsRefusedAnotherPrincipalsInboxAndPreference`
    holds it down against the assembled Hub.
 
+   **Reading and editing now have a console screen.** `/console/notifications`
+   serves the calling principal's inbox on a chosen channel and edits the
+   preference for one resource, so an operator no longer needs `curl` to find out
+   what they were told. It states the four states a real inbox has — empty (which
+   arrives as `{"entries":null}`, because Go encodes an empty slice as null),
+   loading, a failed request that reads as a failed request rather than as an
+   empty inbox, and a bounded page that says it filled the applied limit rather
+   than implying it is the end. The console names no owner on any request, so it
+   cannot ask for somebody else's inbox; the type checkboxes are held to the
+   `domain.EventType` consts in both directions by
+   `scripts/verify-console-contract.mjs`; and a type this build has no checkbox
+   for is carried through a save unchanged. The contract is
+   `docs/ui/contracts/notification-inbox.md`.
+
    **What still blocks the row below:** the only destination is one endpoint an
    operator configures, because nothing in this repository stores a person's
    email address or a team's Slack channel — `domain.Contact` models one and no
    store persists one — so a notification is delivered *about* a recipient
-   rather than *to* them; there is no SMTP transport and no Slack transport, and
-   no console inbox. Notification authorization decisions *are* audited as of
+   rather than *to* them; there is no SMTP transport and no Slack transport. The
+   console reads the caller's own inbox only: a team inbox needs a contact no
+   store persists, and there is no unread state, because `InboxEntry.ReadAt`
+   exists and no route writes it. Notification authorization decisions *are* audited as of
    #241: the resource half of the check is `ResourceDecision.Allow` in
    `internal/governance/application`, which both these routes and the
    controlplane REST routes call, and which files the `audit.3`
@@ -220,7 +236,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
 | It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
-| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it. Still **missing** the end: the only destination is that one configured endpoint, so "told" means "sent somewhere an operator watches", not "sent to the recipient". |
+| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it; the recipient can now read their own inbox in the console rather than by hand. Still **missing** the end: the only *outbound* destination is that one configured endpoint, so "told" means "recorded where the recipient can look, and sent somewhere an operator watches", not "sent to the recipient". |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
 Three of these cannot be written today, and saying so is the point: listing them
