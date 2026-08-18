@@ -48,6 +48,14 @@ worth having here, and which parts of Foundry's much larger frontend are not.
     pnpm build      # typecheck, then emit dist/
     pnpm typecheck
 
+The Playwright suite's preview port is derived from this checkout's path rather
+than fixed, so two worktrees verifying two branches on one machine do not land
+on the same one; `CONSOLE_TEST_PORT` still overrides it. Reusing an
+already-running preview server is allowed and checked rather than assumed: the
+suite refuses to start against a server serving any build but this checkout's,
+because a run that borrows another worktree's server reports that tree's
+results as this one's. `src/test/e2e/global-setup.ts` is that check.
+
 `internal/consoleui/handler.go` owns the embed and the Hub composition mounts
 the handler. A production build must regenerate `dist/` and run the console
 gate so the embedded assets match this source.
