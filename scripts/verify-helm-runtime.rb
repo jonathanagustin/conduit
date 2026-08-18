@@ -78,6 +78,61 @@ def assert_signs_as_a_trusted_signer!(deployment, profile)
     environment["BUNDLE_SIGNING_KEY_FILE"].to_s.strip.empty?
 end
 
+# The Spoke Agent's Kubernetes privilege, asserted rather than merely present.
+#
+# The Agent's token is the largest blast radius in the system and nothing in the
+# repository used to say what it was bound to (#264). A rendered RBAC file that
+# nobody checks is worse than none, because it reads as a bound that is not
+# enforced -- so this asserts the two properties a reader would otherwise assume:
+# the binding names the identity the Pod actually runs as, and no rule is a
+# wildcard nobody argued for.
+#
+# `documents` is one rendered Spoke release; `expected_namespaces` is what
+# `rbac.managedNamespaces` was set to for that render.
+def assert_spoke_rbac_floor!(root, documents, expected_namespaces, profile)
+  deployment = documents.find { |item| item["kind"] == "Deployment" }
+  identity = deployment.dig("spec", "template", "spec", "serviceAccountName")
+  release_namespace = deployment.dig("metadata", "namespace")
+  roles = documents.select { |item| item["kind"] == "Role" }
+  bindings = documents.select { |item| item["kind"] == "RoleBinding" }
+  abort "#{profile} Spoke did not render one Role per managed namespace" unless
+    roles.map { |item| item.dig("metadata", "namespace") }.sort == expected_namespaces.sort
+  abort "#{profile} Spoke did not render one RoleBinding per managed namespace" unless
+    bindings.map { |item| item.dig("metadata", "namespace") }.sort == expected_namespaces.sort
+
+  bindings.each do |binding|
+    namespace = binding.dig("metadata", "namespace")
+    # The failure this exists for: a binding naming a ServiceAccount the
+    # Deployment does not use grants nothing, and looks exactly like a grant.
+    abort "#{profile} Spoke RoleBinding in #{namespace} does not name the Pod's ServiceAccount" unless
+      binding.fetch("subjects") == [{"kind" => "ServiceAccount", "name" => identity, "namespace" => release_namespace}]
+    reference = binding.fetch("roleRef")
+    abort "#{profile} Spoke RoleBinding in #{namespace} does not reference a namespaced Role" unless
+      reference["apiGroup"] == "rbac.authorization.k8s.io" && reference["kind"] == "Role"
+    abort "#{profile} Spoke RoleBinding in #{namespace} references an unrendered Role" unless
+      roles.any? { |role| role.dig("metadata", "namespace") == namespace && role.dig("metadata", "name") == reference["name"] }
+  end
+
+  # A wildcard is allowed only where the chart argued for that exact rule. The
+  # justification lives in the template rather than here, so the argument and the
+  # rule cannot be edited apart; with none written, every wildcard fails.
+  justifications = File.read(File.join(root, "deploy/helm/platform-spoke/templates/rbac.yaml"))
+    .scan(/# wildcard-justified: (\S+)/).flatten
+  roles.each do |role|
+    role.fetch("rules").each do |rule|
+      abort "#{profile} Spoke Role grants non-resource URLs" if rule.key?("nonResourceURLs")
+      escalating = rule.fetch("verbs") & %w[escalate bind impersonate]
+      abort "#{profile} Spoke Role grants privilege-escalation verbs: #{escalating.join(', ')}" unless escalating.empty?
+      %w[apiGroups resources verbs].each do |field|
+        next unless rule.fetch(field, []).include?("*")
+
+        token = "#{field}:#{rule.fetch('apiGroups', []).join(',')}/#{rule.fetch('resources', []).join(',')}"
+        abort "#{profile} Spoke Role grants an unjustified wildcard #{field} (#{token})" unless justifications.include?(token)
+      end
+    end
+  end
+end
+
 charts.each_value do |chart|
   metadata = YAML.safe_load(File.read(File.join(chart, "Chart.yaml")))
   abort "chart version drifted from VERSION" unless metadata["version"] == version && metadata["appVersion"] == version
@@ -154,11 +209,57 @@ assert_fails_closed!(
 hub_documents = render!(helm, "platform-hub", charts.fetch(:hub), File.join(charts.fetch(:hub), "ci/test-values.yaml"))
 spoke_documents = render!(helm, "platform-spoke", charts.fetch(:spoke), File.join(charts.fetch(:spoke), "ci/test-values.yaml"))
 documents = hub_documents + spoke_documents
-expected_kinds = %w[PodDisruptionBudget ServiceAccount ConfigMap Service Deployment ServiceAccount Deployment]
+expected_kinds = %w[PodDisruptionBudget ServiceAccount ConfigMap Service Deployment ServiceAccount Role RoleBinding Deployment]
 abort "unexpected chart resources: #{documents.map { |item| item['kind'] }}" unless documents.map { |item| item["kind"] } == expected_kinds
-abort "chart escaped the release namespace" unless documents.all? { |item| item.dig("metadata", "namespace") == "platform-system" }
-forbidden_kinds = %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding Role RoleBinding]
-abort "charts create cluster/bootstrap authorization" unless (documents.map { |item| item["kind"] } & forbidden_kinds).empty?
+# The Spoke's Role and RoleBinding are the one thing that leaves the release
+# namespace, and only into the namespaces `rbac.managedNamespaces` names. An
+# Agent installs into namespaces it does not live in, so a Role confined to the
+# release namespace would grant nothing where it is needed.
+spoke_rbac_namespaces = %w[example-product]
+documents.each do |item|
+  expected = if %w[Role RoleBinding].include?(item["kind"])
+    spoke_rbac_namespaces
+  else
+    ["platform-system"]
+  end
+  abort "chart escaped the release namespace: #{item['kind']}" unless expected.include?(item.dig("metadata", "namespace"))
+end
+# The Hub holds no Kubernetes credential at all, so any RBAC it renders is a
+# regression; the Spoke may render namespaced RBAC and nothing cluster-scoped.
+abort "Hub chart creates authorization it has no use for" unless
+  (hub_documents.map { |item| item["kind"] } & %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding Role RoleBinding]).empty?
+abort "Spoke chart creates cluster/bootstrap authorization" unless
+  (spoke_documents.map { |item| item["kind"] } & %w[Namespace CustomResourceDefinition ClusterRole ClusterRoleBinding]).empty?
+assert_spoke_rbac_floor!(root, spoke_documents, spoke_rbac_namespaces, "default")
+
+# Fails closed rather than defaulting to the release namespace: the Agent's own
+# namespace is not the namespace it installs into, so a default would be
+# silently wrong in the normal topology.
+assert_fails_closed!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  ["--values", File.join(charts.fetch(:spoke), "ci/test-values.yaml"), "--set", "rbac.managedNamespaces=null"]
+)
+# Both spellings of "no namespaces": absent, which the schema refuses, and
+# present-but-empty, which only the template can refuse.
+assert_fails_closed!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  ["--values", File.join(charts.fetch(:spoke), "ci/test-values.yaml"), "--set-json", '{"rbac":{"create":true,"managedNamespaces":[]}}']
+)
+# The escape hatch for a tenant that binds the Agent itself has to actually
+# render nothing, or it is not an escape hatch.
+unbound_spoke = render!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  File.join(charts.fetch(:spoke), "ci/test-values.yaml"),
+  ["--set", "rbac.create=false"]
+)
+abort "rbac.create=false still rendered authorization" unless
+  unbound_spoke.none? { |item| %w[Role RoleBinding ClusterRole ClusterRoleBinding].include?(item["kind"]) }
 
 external_hub = render!(
   helm,
@@ -178,6 +279,19 @@ abort "external Hub identity still created a ServiceAccount" if external_hub.any
 abort "external Spoke identity still created a ServiceAccount" if external_spoke.any? { |item| item["kind"] == "ServiceAccount" }
 abort "external Hub identity was not selected" unless external_hub.find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "serviceAccountName") == "external-hub"
 abort "external Spoke identity was not selected" unless external_spoke.find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "serviceAccountName") == "external-spoke"
+# An externally owned ServiceAccount is where a binding most easily ends up
+# naming the wrong identity, because the name is no longer the chart's own.
+assert_spoke_rbac_floor!(root, external_spoke, %w[example-product], "external-identity")
+# More than one managed namespace is the production shape: one Agent, several
+# application namespaces, and a separate Role in each rather than one ClusterRole.
+multi_namespace_spoke = render!(
+  helm,
+  "platform-spoke",
+  charts.fetch(:spoke),
+  File.join(charts.fetch(:spoke), "ci/test-values.yaml"),
+  ["--set", "rbac.managedNamespaces={example-product,example-second}"]
+)
+assert_spoke_rbac_floor!(root, multi_namespace_spoke, %w[example-product example-second], "multi-namespace")
 
 hub_service_account = hub_documents.find { |item| item["kind"] == "ServiceAccount" }
 abort "Hub ServiceAccount must not mount a token" unless hub_service_account&.dig("metadata", "name") == "platform-hub" && hub_service_account["automountServiceAccountToken"] == false

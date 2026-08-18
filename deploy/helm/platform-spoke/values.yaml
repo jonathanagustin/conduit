@@ -13,6 +13,23 @@ serviceAccount:
   name: ""
   annotations: {}
 
+rbac:
+  # One namespaced Role and RoleBinding per managed namespace, derived from the
+  # calls internal/agent makes. It is a floor, not a ceiling: `helm upgrade
+  # --install` applies whatever the tenant's chart rendered, so a chart carrying
+  # Services, ServiceAccounts, PersistentVolumeClaims, PodDisruptionBudgets,
+  # NetworkPolicies, CRDs or any cluster-scoped object needs grants this chart
+  # cannot derive and does not create. Set create=false when the tenant's
+  # cluster admin owns the binding outright. Either way, read
+  # deploy/helm/README.md, "The Agent's RBAC floor", before treating what this
+  # renders as the limit of what the Agent can do.
+  create: true
+  # Every namespace this Agent's Plans target -- `step.Namespace`, which is not
+  # normally the Agent's own release namespace. Required when create is true,
+  # because there is no honest default: the Agent usually runs in one namespace
+  # and installs into others.
+  managedNamespaces: []
+
 podAnnotations: {}
 podLabels: {}
 # See the Hub chart. Keep empty unless the container runtime requires an
