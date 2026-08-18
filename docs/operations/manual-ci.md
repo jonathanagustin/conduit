@@ -28,8 +28,15 @@ The publication, release, and acceptance workflows stay `workflow_dispatch`
 only, enforced by `scripts/verify-trusted-supply-chain.rb`
 (`platform-images.yml`),
 `scripts/verify-optimizer-candidate-release-workflow.rb`
-(`platform-optimizer-candidate-release.yml`), and
-`scripts/verify-flux-runtime.rb` (`platform-gitless-e2e.yml`). The Trunk gate below stays dispatch-based
+(`platform-optimizer-candidate-release.yml`),
+`scripts/verify-flux-runtime.rb` (`platform-gitless-e2e.yml`), and -- for the
+release path itself, meaning `platform-release.yml` and the
+`platform-images.yml` publication it dispatches --
+`scripts/verify-release-workflow.rb`. Cutting a release is one dispatched
+instruction, described in
+[`release-and-publication.md`](release-and-publication.md); it is one because
+the workflow chains the tag and the publication, not because any trigger fires
+on its own. The Trunk gate below stays dispatch-based
 because it authenticates the exact pull-request head; a merge queue, when built,
 is a separate `merge_group` workflow, not a change to how the Trunk gate runs.
 
