@@ -5,7 +5,7 @@ metadata:
   namespace: flux-system
 spec:
   interval: 5m
-  url: oci://ghcr.io/example/platform-runtime
+  url: oci://ghcr.io/example/conduit
   secretRef:
     # Create this out of band as a read-only kubernetes.io/dockerconfigjson
     # Secret. Production clusters do not receive Git credentials.

@@ -294,12 +294,11 @@ jobs:
         run: |
           version="$(tr -d '\n' < VERSION)"
           test "${GITHUB_REF_NAME}" = "v${version}"
-          # The repository-named package, with the artifact kind in the tag, for
-          # the reason the images carry: GHCR links a package to a repository
-          # when it is named for that repository, and only a linked package is
-          # reachable by that repository's GITHUB_TOKEN. `platform-runtime` is
-          # not this repository's name, so the first push of it was refused --
-          # 403 on the blob HEAD, after every image had already published.
+          # Images already establish the repository-named package using this
+          # workflow's GITHUB_TOKEN. Publish the different OCI artifact kind
+          # under a component-prefixed tag in that linked package. The retired
+          # platform-runtime package predates this repository and refuses this
+          # token before upload with a 403 on the blob HEAD.
           artifact_json="$(/tmp/flux push artifact \
             "oci://ghcr.io/${GITHUB_REPOSITORY}:runtime-${version}" \
             --path=deploy/flux \
@@ -354,11 +353,10 @@ jobs:
             helm package "deploy/helm/${chart}" --destination helm-dist \
               --version "${version}" --app-version "${version}"
             package="helm-dist/${chart}-${version}.tgz"
-            # Under the repository path, so the chart packages sit beneath a name
-            # GHCR associates with this repository rather than beside it. helm
-            # derives the package name from the chart itself, so this path is
-            # the only lever; if a chart package still refuses the first push,
-            # it needs linking once in the repository's package settings.
+            # Helm appends the chart name to this path. Publishing the new
+            # repository-scoped coordinates with GITHUB_TOKEN lets GHCR link
+            # each package to this repository on its first push, without
+            # reusing the retired packages created by the former monorepo.
             push_output="$(helm push "${package}" "oci://ghcr.io/${GITHUB_REPOSITORY}")"
             digest="$(awk '/Digest:/ {print $2}' <<<"${push_output}" | tail -1)"
             [[ "${digest}" =~ ^sha256:[a-f0-9]{64}$ ]]

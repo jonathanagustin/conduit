@@ -46,7 +46,7 @@ if (!/^[a-z0-9](?:[a-z0-9-]*[a-z0-9])?\/[a-z0-9._-]+$/.test(sourceRepository)) {
   throw new Error("source repository must be an owner/name coordinate");
 }
 
-const expectedReference = `ghcr.io/${sourceRepository.split("/")[0]}/platform-runtime:${version}@${digest}`;
+const expectedReference = `ghcr.io/${sourceRepository}:runtime-${version}@${digest}`;
 if (reference !== expectedReference) {
   throw new Error(`reference must equal ${expectedReference}`);
 }
