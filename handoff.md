@@ -101,31 +101,38 @@ earlier session's claim is made where the claim is, and marked.
 ## Blocker
 
 - **Exact blocker:** GitHub Actions is not allocating runners for this
-  repository. Every job fails within about two seconds with `runner_id: 0`, no
-  runner name, no steps, and a 404 on its log. Verified across two independent
-  branches and three run attempts; the run-usage API reports
-  `duration_ms: 0` for **all six jobs** and `total_ms: 0` billable, so nothing
-  executed at all.
+  repository. Every job fails within about two to three seconds with
+  `runner_id: 0`, no runner name, no `steps` array at all, and a 404 on its
+  log. Verified across two independent branches and four run attempts.
+- `[VERIFIED]` The whole run finishes in 8 seconds
+  (`run_duration_ms: 8000`) against 399 seconds for the last green run
+  (`32154882696`). That is the reliable quantitative discriminator.
 - `[VERIFIED]` It is not caused by any change on either branch: PR #275 is
   documentation-only and its first run failed identically, and the same
   workflow succeeded on eight runs earlier today (most recent green:
   `32154882696`, 15:30 UTC).
-- `[INFERRED]` Most likely an exhausted Actions minutes quota or a reached
-  spending limit — this repository is private, and that failure mode produces
-  exactly this signature. Confidence: moderate. Not verified, because no
-  billing endpoint is reachable from this session.
+- `[INFERRED]` Possibly an exhausted Actions minutes quota or a reached
+  spending limit — this repository is private. Confidence: **low**. There is no
+  billing evidence behind this; it rests only on the shape of the failure.
+- **A measurement error to not repeat.** This blocker was first recorded citing
+  `get_workflow_run_usage` reporting `total_ms: 0` and `duration_ms: 0` for
+  every job, as proof that nothing executed. That evidence is worthless: the
+  same endpoint reports `total_ms: 0` and `duration_ms: 0` for run
+  `32154882696`, which was **fully green** and whose Go suite ran for 4m41s
+  with complete logs. This endpoint reports zero for this repository whether or
+  not a job ran, so it cannot distinguish the two. Use `run_duration_ms`, the
+  absence of a `steps` array, and `runner_id: 0` instead.
 - **Minimum external input or authorization required:** someone with billing
-  access checks Actions minutes and the spending limit for the account, at
-  GitHub → Settings → Billing. If that is not it, the run pages for
-  `32167586350` and `32168615490` will carry the reason in the web UI, which
-  the API does not expose.
+  access checks Actions minutes and the spending limit for the account. If that
+  is not it, the run pages for `32167586350` and `32168615490` will carry the
+  reason in the web UI, which the API does not expose.
 - **Useful work preserved at:** branches `claude/fix-redirect-strip-not-refuse`
   (PR #274) and `claude/orchestrator-deployment` (PR #275), both pushed. Both
   trees were verified locally; #274's five lanes all passed on GitHub at 17:55
   UTC before the aggregator stopped being schedulable.
-- **Do not** keep re-running. Three attempts produced the identical signature
-  and consumed no runner time; a fourth is the repeated unchanged action the
-  doctrine forbids.
+- **Do not** keep re-running. Four attempts produced the identical signature; a
+  fifth without new evidence is the repeated unchanged action the doctrine
+  forbids. Elapsed time counts as new evidence at most once an hour.
 
 ## Prioritized next actions
 
