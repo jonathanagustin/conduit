@@ -2,7 +2,6 @@ package composition
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"regexp"
@@ -271,7 +270,7 @@ func TestRouteAuthorizationMatrix(t *testing.T) {
 		DecisionPublic, DecisionOperatorSelf, DecisionOperatorAny, DecisionOperatorFiltered,
 		DecisionOperatorGrant, DecisionAgent, DecisionBundleSignature,
 	} {
-		t.Log(fmt.Sprintf("%-18s %d routes", decision, counts[decision]))
+		t.Logf("%-18s %d routes", decision, counts[decision])
 	}
 }
 
