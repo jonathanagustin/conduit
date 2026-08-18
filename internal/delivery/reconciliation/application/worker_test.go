@@ -7,6 +7,7 @@ import (
 	"errors"
 	"sort"
 	"strconv"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -171,9 +172,125 @@ func TestWorkerTerminallyRetiresSupersededProposal(t *testing.T) {
 	}
 }
 
+// The signal this whole escalation path exists for. A proposal that has spent
+// its retry budget is never leased again -- the store filters exhausted rows out
+// of the lease query -- so if nothing is told at this moment, the Environment
+// stays unconverged and the only evidence is a row nobody queries.
+func TestWorkerEscalatesAProposalItHasStoppedRetrying(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 8, 18, 10, 0, 0, 0, time.UTC)
+	clock := &fakeClock{now: now}
+	store := newFakeStore()
+	planner := newFakePlanner(clock)
+	escalations := &fakeEscalations{}
+	worker := newEscalatingWorker(t, store, planner, clock, escalations)
+	key := domain.Key{Environment: "dev", Installation: "catalog"}
+	store.upsertDesired(desiredSnapshot(key, 1, "target-a", now), true)
+	if _, err := worker.ProcessOne(ctx); err != nil {
+		t.Fatal(err)
+	}
+	planner.err = errors.New("registry unavailable")
+	for attempt := 1; attempt <= 3; attempt++ {
+		if processed, err := worker.DispatchOne(ctx); err != nil || !processed {
+			t.Fatalf("attempt %d: processed=%v err=%v", attempt, processed, err)
+		}
+		if attempt < 3 && len(escalations.proposals) != 0 {
+			t.Fatalf("attempt %d escalated while retries remained: %#v", attempt, escalations.proposals)
+		}
+		clock.now = clock.now.Add(time.Hour)
+	}
+	if len(escalations.proposals) != 1 {
+		t.Fatalf("an exhausted proposal escalated %d times", len(escalations.proposals))
+	}
+	if escalations.proposals[0].Key != key {
+		t.Errorf("the escalation names the wrong installation: %#v", escalations.proposals[0].Key)
+	}
+	// The planner's own words, not a generic failure. An operator reading
+	// "registry unavailable" acts differently from one reading "gave up".
+	if escalations.reasons[0] != "registry unavailable" {
+		t.Errorf("the escalation lost the reason: %q", escalations.reasons[0])
+	}
+	if escalations.attempts[0] != 3 || !escalations.moments[0].Equal(now.Add(2*time.Hour)) {
+		t.Errorf("the escalation misreports when it gave up: attempt=%d at=%s", escalations.attempts[0], escalations.moments[0])
+	}
+	if store.exhaustedFailures != 1 {
+		t.Errorf("the proposal was not marked exhausted after escalating: %d", store.exhaustedFailures)
+	}
+}
+
+// The distinction the durable row cannot make. A superseded proposal is marked
+// exhausted with the same boolean, and it is not an operator's problem: newer
+// work is already queued. Escalating it would page somebody for the system
+// working, which is how a notification channel gets muted.
+func TestWorkerEscalatesNothingWhenAProposalIsMerelySuperseded(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 8, 18, 11, 0, 0, 0, time.UTC)
+	clock := &fakeClock{now: now}
+	store := newFakeStore()
+	planner := newFakePlanner(clock)
+	planner.err = ports.ErrProposalSuperseded
+	escalations := &fakeEscalations{}
+	worker := newEscalatingWorker(t, store, planner, clock, escalations)
+	key := domain.Key{Environment: "dev", Installation: "catalog"}
+	store.upsertDesired(desiredSnapshot(key, 1, "target-a", now), true)
+	if _, err := worker.ProcessOne(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if processed, err := worker.DispatchOne(ctx); err != nil || !processed {
+		t.Fatalf("superseded dispatch = (%v, %v)", processed, err)
+	}
+	if store.exhaustedFailures != 1 {
+		t.Fatalf("a superseded proposal was not retired: %d", store.exhaustedFailures)
+	}
+	if len(escalations.proposals) != 0 {
+		t.Errorf("a superseded proposal escalated to a person: %#v", escalations.proposals)
+	}
+}
+
+// Escalation happens before the row is marked, so a failure to escalate must
+// leave the proposal retriable. Marking it first and then failing to tell
+// anybody is the exact state that cannot be recovered from: the lease query
+// never returns an exhausted row again.
+func TestAFailedEscalationLeavesTheProposalRetriable(t *testing.T) {
+	ctx := context.Background()
+	now := time.Date(2026, 8, 18, 12, 0, 0, 0, time.UTC)
+	clock := &fakeClock{now: now}
+	store := newFakeStore()
+	planner := newFakePlanner(clock)
+	escalations := &fakeEscalations{err: errors.New("notification store unreachable")}
+	worker := newEscalatingWorker(t, store, planner, clock, escalations)
+	key := domain.Key{Environment: "dev", Installation: "catalog"}
+	store.upsertDesired(desiredSnapshot(key, 1, "target-a", now), true)
+	if _, err := worker.ProcessOne(ctx); err != nil {
+		t.Fatal(err)
+	}
+	planner.err = errors.New("registry unavailable")
+	var err error
+	for attempt := 1; attempt <= 3; attempt++ {
+		if _, err = worker.DispatchOne(ctx); attempt < 3 && err != nil {
+			t.Fatalf("attempt %d: %v", attempt, err)
+		}
+		clock.now = clock.now.Add(time.Hour)
+	}
+	if err == nil || !strings.Contains(err.Error(), "notification store unreachable") {
+		t.Fatalf("a failed escalation was swallowed: %v", err)
+	}
+	if store.exhaustedFailures != 0 || len(store.outbox) != 1 {
+		t.Errorf("the proposal was retired without anybody being told: exhausted=%d outbox=%d",
+			store.exhaustedFailures, len(store.outbox))
+	}
+}
+
 func newTestWorker(t *testing.T, store ports.Store, planner ports.Planner, clock ports.Clock) *Worker {
 	t.Helper()
-	worker, err := NewWorker(store, planner, clock, Config{
+	return newEscalatingWorker(t, store, planner, clock, &fakeEscalations{})
+}
+
+func newEscalatingWorker(
+	t *testing.T, store ports.Store, planner ports.Planner, clock ports.Clock, escalations ports.Escalations,
+) *Worker {
+	t.Helper()
+	worker, err := NewWorker(store, planner, clock, escalations, Config{
 		LeaseDuration: time.Minute, MaximumObservationAge: 10 * time.Minute,
 		MaximumAttempts: 3, BaseRetryDelay: time.Second, RepairBatchSize: 100,
 	})
@@ -181,6 +298,28 @@ func newTestWorker(t *testing.T, store ports.Store, planner ports.Planner, clock
 		t.Fatal(err)
 	}
 	return worker
+}
+
+// fakeEscalations records what the worker said had stopped being retried.
+type fakeEscalations struct {
+	proposals []domain.Proposal
+	reasons   []string
+	attempts  []uint32
+	moments   []time.Time
+	err       error
+}
+
+func (escalations *fakeEscalations) ProposalExhausted(
+	_ context.Context, proposal domain.Proposal, reason string, attempt uint32, at time.Time,
+) error {
+	if escalations.err != nil {
+		return escalations.err
+	}
+	escalations.proposals = append(escalations.proposals, proposal)
+	escalations.reasons = append(escalations.reasons, reason)
+	escalations.attempts = append(escalations.attempts, attempt)
+	escalations.moments = append(escalations.moments, at)
+	return nil
 }
 
 type fakeClock struct{ now time.Time }

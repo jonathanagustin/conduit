@@ -23,20 +23,29 @@ type Config struct {
 }
 
 type Worker struct {
-	store   ports.Store
-	planner ports.Planner
-	clock   ports.Clock
-	config  Config
+	store       ports.Store
+	planner     ports.Planner
+	clock       ports.Clock
+	escalations ports.Escalations
+	config      Config
 }
 
-func NewWorker(store ports.Store, planner ports.Planner, clock ports.Clock, config Config) (*Worker, error) {
-	if store == nil || planner == nil || clock == nil {
-		return nil, errors.New("reconciliation Store, Planner, and Clock are required")
+// NewWorker requires an Escalations, and it is required rather than optional on
+// purpose. A worker that can exhaust a proposal and tell nobody is precisely
+// the gap recorded as Tier 1 gap 1 in docs/operations/PRODUCTION-READINESS.md;
+// making the dependency optional would let a deployment reintroduce it by
+// omission, silently, and the symptom would be silence.
+func NewWorker(
+	store ports.Store, planner ports.Planner, clock ports.Clock,
+	escalations ports.Escalations, config Config,
+) (*Worker, error) {
+	if store == nil || planner == nil || clock == nil || escalations == nil {
+		return nil, errors.New("reconciliation Store, Planner, Clock, and Escalations are required")
 	}
 	if config.LeaseDuration <= 0 || config.MaximumAttempts == 0 || config.BaseRetryDelay <= 0 || config.RepairBatchSize <= 0 {
 		return nil, errors.New("reconciliation lease, attempts, retry delay, and repair batch must be positive")
 	}
-	return &Worker{store: store, planner: planner, clock: clock, config: config}, nil
+	return &Worker{store: store, planner: planner, clock: clock, escalations: escalations, config: config}, nil
 }
 
 func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
@@ -68,15 +77,17 @@ func (worker *Worker) DispatchOne(ctx context.Context) (bool, error) {
 	}
 	receipt, err := worker.planner.Propose(ctx, lease.Proposal)
 	if err != nil {
-		superseded := errors.Is(err, ports.ErrProposalSuperseded)
-		exhausted := superseded || lease.Attempt >= worker.config.MaximumAttempts
-		if superseded {
+		if errors.Is(err, ports.ErrProposalSuperseded) {
+			// Retired, not exhausted. The row carries the same boolean either
+			// way, but the meanings are opposite: a newer work revision is
+			// already queued, so nothing is stuck and nobody needs telling.
+			// Escalating here would page an operator for the system working.
 			return true, worker.store.FailProposal(ctx, lease, err.Error(), now, true)
 		}
-		return true, worker.store.FailProposal(ctx, lease, err.Error(), worker.retryAt(now, lease.Attempt), exhausted)
+		return true, worker.failProposal(ctx, lease, err.Error(), now)
 	}
 	if receipt.ProposalID != lease.Proposal.ID || receipt.PlanID == "" || receipt.CreatedAt.IsZero() {
-		return true, worker.store.FailProposal(ctx, lease, "planner returned an invalid receipt", worker.retryAt(now, lease.Attempt), lease.Attempt >= worker.config.MaximumAttempts)
+		return true, worker.failProposal(ctx, lease, "planner returned an invalid receipt", now)
 	}
 	if err := worker.store.CompleteProposal(ctx, lease, receipt); err != nil {
 		return true, err
@@ -109,6 +120,41 @@ func (worker *Worker) Drain(ctx context.Context) error {
 	}
 }
 
+// failProposal records a dispatch failure, and escalates first when it is the
+// last one.
+//
+// Escalation happens before the store write, and the order is the whole point.
+// An exhausted proposal is never leased again -- the lease query filters on
+// exhausted = false -- so a crash after marking it and before telling anyone
+// loses the escalation permanently, with no queue entry left to retry from.
+// Escalating first inverts the failure: a crash in the same window costs a
+// duplicate notification instead, which the store deduplicates on the event's
+// identity. Duplicate over lost is the right trade for the one signal that says
+// convergence has stopped.
+//
+// An escalation that fails is returned rather than swallowed, so the proposal
+// keeps its lease, expires, and is dispatched again. That leaves a proposal
+// retrying past its budget while the notification store is down, which is a
+// visibly stuck queue -- and a stuck queue an operator can see beats a terminal
+// failure nobody hears about, which is the state this whole path exists to end.
+func (worker *Worker) failProposal(
+	ctx context.Context, lease ports.ProposalLease, reason string, now time.Time,
+) error {
+	exhausted := lease.Attempt >= worker.config.MaximumAttempts
+	if exhausted {
+		if err := worker.escalations.ProposalExhausted(
+			ctx, lease.Proposal, reason, lease.Attempt, now,
+		); err != nil {
+			return fmt.Errorf("escalate exhausted reconciliation proposal %s: %w", lease.Proposal.ID, err)
+		}
+	}
+	return worker.store.FailProposal(ctx, lease, reason, worker.retryAt(now, lease.Attempt), exhausted)
+}
+
+// failWork records a decision failure. It does not escalate yet, and the
+// asymmetry with failProposal is scope rather than judgement: exhausted work is
+// the second thing an operator needs telling about and it belongs to its own
+// change, alongside the events raised outside this context.
 func (worker *Worker) failWork(ctx context.Context, lease ports.WorkLease, reason string) error {
 	exhausted := lease.Attempt >= worker.config.MaximumAttempts
 	if err := worker.store.FailWork(ctx, lease, reason, worker.retryAt(worker.clock.Now().UTC(), lease.Attempt), exhausted); err != nil {
