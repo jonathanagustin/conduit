@@ -171,8 +171,18 @@ func TestTheGuardRefusesAnUnregisteredMethodAndPath(t *testing.T) {
 		if response.Code != probed.want {
 			t.Errorf("%s %s answered %d, want %d", probed.method, probed.path, response.Code, probed.want)
 		}
-		if response.Header().Get("X-Content-Type-Options") != "nosniff" {
-			t.Errorf("%s %s lost the security response headers", probed.method, probed.path)
+		// Both headers, because only one of them is this code's doing:
+		// net/http's own http.Error sets nosniff on every 404 and 405, so a
+		// guard that set no headers at all would still pass a nosniff check.
+		// The content-security-policy is the one that disappears.
+		for header, want := range map[string]string{
+			"X-Content-Type-Options":  "nosniff",
+			"Content-Security-Policy": "default-src 'none'; frame-ancestors 'none'; sandbox",
+		} {
+			if response.Header().Get(header) != want {
+				t.Errorf("%s %s answered without %s: %q",
+					probed.method, probed.path, header, response.Header().Get(header))
+			}
 		}
 	}
 }
@@ -201,6 +211,16 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 		handler.ServeHTTP(response, httptest.NewRequest(method, path, strings.NewReader(bodyFor(route.Pattern))))
 		if route.Decision == DecisionPublic {
 			public++
+			// A public row is not skipped, it is asserted. Skipping is what let
+			// a granted route be silenced by downgrading its row: reclassifying
+			// GET /v1/authorization-audit as public stopped this test driving
+			// it and nothing else noticed. A route the register calls public
+			// must be reachable without a credential, so a row that is wrong in
+			// that direction fails here.
+			if response.Code == http.StatusUnauthorized || response.Code == http.StatusForbidden {
+				t.Errorf("%s is registered public but refuses an anonymous caller with %d (%s)",
+					route.Pattern, response.Code, route.Detail)
+			}
 			continue
 		}
 		if response.Code >= 200 && response.Code < 300 {
