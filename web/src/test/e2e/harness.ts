@@ -59,6 +59,17 @@ export interface HubStub {
    * a refusal it was never given. An authorization failure is a status and an
    * error document, not the record handed back unchanged. */
   postFails(pathSuffix: string, status: number, error: string): void;
+  /** Serve a body for a PUT, and record that it happened.
+   *
+   * PUT is a separate verb here rather than an option on `post` for the same
+   * reason it is a separate function in the client: the notification preference
+   * route answers GET and PUT on one path and 405s everything else, so a stub
+   * that matched on the path alone could not tell a correct write from a wrong
+   * verb the Hub would refuse. */
+  put(pathSuffix: string, body: unknown): void;
+  /** Refuse a PUT the way the Hub refuses one -- 422 for a preference that could
+   * never deliver anything, 403 for one that names somebody else's. */
+  putFails(pathSuffix: string, status: number, error: string): void;
   /** Serve the session projection for a named operator.
    *
    * The default operator authors nothing, so any screen that gates on
@@ -75,8 +86,8 @@ export interface HubStub {
   ): void;
   /** Every request the console made to /v1, in order, as "METHOD path?query". */
   requests(): string[];
-  /** The parsed JSON body of each POST, in order. Recording only method and
-   * path is how a wrong request body survives a passing test. */
+  /** The parsed JSON body of each POST and PUT, in order. Recording only method
+   * and path is how a wrong request body survives a passing test. */
   bodies(): unknown[];
 }
 
@@ -115,9 +126,11 @@ function sessionProjection(username: string) {
   };
 }
 
+type StubbedMethod = "GET" | "POST" | "PUT";
+
 interface Stubbed {
   suffix: string;
-  method: "GET" | "POST";
+  method: StubbedMethod;
   status: number;
   body: unknown;
   cursor?: string;
@@ -148,13 +161,13 @@ function stub(page: Page): Promise<HubStub> {
 
   const install = page.route("**/v1/**", async (route: Route) => {
     const requested = new URL(route.request().url());
-    const method = route.request().method() as "GET" | "POST";
+    const method = route.request().method() as StubbedMethod;
     // Path segments are percent-encoded by the client -- a Product coordinate
     // carries a colon -- so match on the decoded path. Stubs are written the way
     // the endpoint reads in http.go, not the way the URL is escaped.
     const path = decodeURIComponent(requested.pathname);
     seen.push(`${method} ${path}${requested.search}`);
-    if (method === "POST") {
+    if (method === "POST" || method === "PUT") {
       const raw = route.request().postData();
       sent.push(raw === null ? null : JSON.parse(raw));
     }
@@ -195,6 +208,12 @@ function stub(page: Page): Promise<HubStub> {
     },
     postFails(suffix, status, error) {
       stubs.push({ suffix, method: "POST", status, body: { error } });
+    },
+    put(suffix, body) {
+      stubs.push({ suffix, method: "PUT", status: 200, body });
+    },
+    putFails(suffix, status, error) {
+      stubs.push({ suffix, method: "PUT", status, body: { error } });
     },
     session(username) {
       api.get("/session", sessionProjection(username));
