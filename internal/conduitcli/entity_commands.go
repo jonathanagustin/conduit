@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strings"
 
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/spf13/cobra"
 	"go.yaml.in/yaml/v3"
@@ -69,7 +70,14 @@ func entityAggregateCommand(state *commandState) *cobra.Command {
 					if len(candidates) == 0 {
 						continue
 					}
-					sort.Strings(candidates)
+					// Version ordering is numeric per component, not lexicographic:
+					// sort.Strings put "1.9.0" after "1.10.0" and this command then
+					// published 1.9.0 as the latest version of the Product. Use the
+					// same Apollo comparator the catalogue projection sorts Releases
+					// with so the aggregate and the Hub agree on which is newest.
+					sort.Slice(candidates, func(i, j int) bool {
+						return catalog.CompareVersions(candidates[i], candidates[j]) < 0
+					})
 					selected := candidates[len(candidates)-1]
 					if generateLowest {
 						selected = candidates[0]

@@ -23,6 +23,7 @@ type fakeService struct {
 	team         controlplane.Team
 	environment  controlplane.EnvironmentCatalogRecord
 	entities     []controlplane.Entity
+	products     []controlplane.ProductCatalogRecord
 	versions     []controlplane.TargetHubEntityVersion
 	terraform    controlplane.TerraformProductManifest
 	helmBundle   controlplane.HelmProductReleaseBundle
@@ -162,7 +163,10 @@ func (service *fakeService) ListEntities(_ context.Context, _ string) ([]control
 	}
 	return []controlplane.Entity{{Name: "application", Product: "com.example:application", Version: "1.2.3"}}, nil
 }
-func (*fakeService) ListProducts(context.Context) ([]controlplane.ProductCatalogRecord, error) {
+func (service *fakeService) ListProducts(context.Context) ([]controlplane.ProductCatalogRecord, error) {
+	if service.products != nil {
+		return service.products, nil
+	}
 	return []controlplane.ProductCatalogRecord{{Product: "com.example:application"}}, nil
 }
 func (*fakeService) ListProductReleases(_ context.Context, product string) ([]controlplane.Release, error) {
