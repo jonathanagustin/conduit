@@ -185,9 +185,25 @@ The register would be a description if nothing drove it, so four tests in
 | Test | What it asserts |
 | --- | --- |
 | `TestARouteWithNoRegisteredDecisionIsNotServed` | the measurement above, guarded and unguarded |
-| `TestEveryRegisteredRouteRefusesAnAnonymousCaller` | every non-public row refuses a caller with no credential, with 401 or 403 |
-| `TestEveryGrantedRouteRefusesAPrincipalHoldingNothing` | every `operator-grant` and `agent` row refuses an authenticated principal holding no team, grant or administrator standing |
+| `TestEveryRegisteredRouteRefusesAnAnonymousCaller` | every non-public row answers **exactly 401** to a caller with no credential, and every public row is reachable |
+| `TestEveryGrantedRouteRefusesAPrincipalHoldingNothing` | every `operator-grant` and `agent` row refuses an authenticated principal holding no team, grant or administrator standing, and the refusal is **earned** — 401 or 403, not an incidental 404 |
 | `TestTheGuardRefusesAnUnregisteredMethodAndPath` | 405 stays 405 and 404 stays 404, with the security response headers intact |
+
+Three of those assertions are narrower than they first look, and each was
+narrowed by a mutation that survived the looser version:
+
+- **Exactly 401, not "some 4xx".** Deleting `requireAgentIdentity` from
+  `POST /v1/environments/{environmentID}/leases` leaves Lifecycle refusing a
+  request with no agent id — a 403, which a "refused somehow" assertion accepts.
+- **Earned, not incidental.** Deleting `requireResourceOperation` from
+  `GET /v1/environments/{environmentID}/reported-state` leaves it answering 404
+  because the record is absent, which is also not a 2xx. The fixture therefore
+  creates the Environment, Product, Release and Plan the probe names, and the 23
+  routes it still cannot reach are listed with the exact status they answer, so
+  a route sliding from an earned 403 into an incidental 404 fails.
+- **Public rows are driven, not skipped.** Reclassifying a granted route as
+  `public` used to silence the test for it. A public row must now actually be
+  reachable without a credential.
 
 ## Cross-tenant isolation
 
