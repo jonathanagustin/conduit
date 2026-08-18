@@ -1274,29 +1274,11 @@ func (service *GovernanceService) referencedResource(
 func (service *GovernanceService) audit(
 	ctx context.Context, subject, action, resource, decision, reason string, eventContext map[string]any,
 ) error {
-	now := service.now().UTC()
-	identity := sha256.Sum256([]byte(subject + "\x00" + action + "\x00" + resource + "\x00" + decision + "\x00" + now.Format(time.RFC3339Nano)))
-	succeeded, failed := []string{}, []string{}
-	if decision == "ALLOW" {
-		succeeded = []string{resource}
-	} else {
-		failed = []string{resource}
-	}
-	event := AuthorizationAuditEvent{
-		ID: "aud_" + hex.EncodeToString(identity[:16]), SchemaVersion: AuditSchemaV3,
-		Categories: []string{AuditCategoryAuthorizationCheck}, TraceID: resource,
-		Subject: subject, Action: action, ResourceRID: resource, Decision: decision, Reason: reason,
-		RequestFields: map[string]any{
-			"authorizationCheckTargets":    []string{resource},
-			"authorizationCheckOperations": []string{action},
-		},
-		ResultFields: map[string]any{
-			"authorizationCheckSucceededTargets": succeeded,
-			"authorizationCheckFailedTargets":    failed,
-			"authorizationCheckResultMessage":    reason,
-		},
-		Context: eventContext, CreatedAt: now,
-	}
+	// The base record is Governance's, so every surface that files one files the
+	// same shape; what is added below is this package's Change Request
+	// vocabulary, which no other surface emits.
+	event := governance.NewAuthorizationCheckEvent(
+		service.now().UTC(), subject, action, resource, decision, reason, eventContext)
 	if decision == "ALLOW" {
 		switch action {
 		case "CHANGE_REQUEST_APPROVE":
