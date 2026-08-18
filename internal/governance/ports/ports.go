@@ -29,11 +29,16 @@ type GrantSource interface {
 // AuditSink files an authorization decision where it can be read back.
 //
 // It is a port for the same reason GrantSource is, and it is required rather
-// than optional on purpose: the decision and its record are taken together, so
-// a surface cannot acquire the first without the second. #241 was what the
-// alternative looked like — a second surface that reached the decision, reached
-// a wider answer than the REST routes, and filed nothing, leaving the widening
-// with no symptom anybody could have queried for.
+// than optional on purpose: a *resource* decision and its record are taken
+// together, so a surface cannot reach the first without supplying the second.
+// #241 was what the alternative looked like — a second surface that reached the
+// decision, reached a wider answer than the REST routes, and filed nothing,
+// leaving the widening with no symptom anybody could have queried for.
+//
+// The pairing binds ResourceDecision.Allow and nothing else. The administrator
+// predicate beside it is shared between both surfaces but writes no record, so
+// a route gated on administrator status alone still leaves none — read that
+// function's comment before assuming otherwise.
 type AuditSink interface {
 	AppendAuthorizationAudit(
 		ctx context.Context, event domain.AuthorizationAuditEvent,

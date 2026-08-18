@@ -464,8 +464,12 @@ func delegationHub(t *testing.T) (http.Handler, *controlplane.MemoryRepository, 
 	repository := controlplane.NewMemoryRepository()
 	service := controlplane.NewGovernanceService(repository)
 	ctx := t.Context()
+	// alice is on the delegating team as well as robot, so the credential that
+	// widens can be exercised alongside the one that narrows: alice is the
+	// administrator *and* a service account able to act for somebody who is not.
 	if _, err := service.PutTeam(ctx, controlplane.Team{
-		Name: "automation", DisplayName: "Automation", AdminUsers: []string{"robot"}, MemberUsers: []string{"robot"},
+		Name: "automation", DisplayName: "Automation",
+		AdminUsers: []string{"robot"}, MemberUsers: []string{"robot", "alice"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -516,6 +520,15 @@ func as(
 // Environment was refused. The assertion is that the two agree, not that either
 // answers a remembered status: if the administrator rule changes, both move
 // together or this fails.
+//
+// Moving the test from the effective principal to the carrier is symmetric, and
+// the last row is here because the widening direction deserves a test rather
+// than to be discovered. An administrator's own delegated credential -- alice,
+// named in BootstrapAdministrators, acting for bob who is named nowhere -- was
+// refused by these routes before and is served now. That is not a regression
+// being tolerated; it is the REST behaviour, which has always matched the
+// carrier, and a surface that kept refusing it would be the same disagreement
+// pointing the other way. Both rows fail if either surface moves alone.
 func TestBothSurfacesAgreeAboutADelegatedAdministrator(t *testing.T) {
 	t.Parallel()
 	handler, _, secret := delegationHub(t)
@@ -528,6 +541,10 @@ func TestBothSurfacesAgreeAboutADelegatedAdministrator(t *testing.T) {
 		{name: "the carrier alone", subject: "robot", refused: true},
 		{name: "the carrier acting for an administrator", subject: "robot", onBehalfOf: "alice", refused: true},
 		{name: "the administrator herself", subject: "alice", refused: false},
+		{
+			name:    "the administrator's own delegated credential",
+			subject: "alice", onBehalfOf: "bob", refused: false,
+		},
 	} {
 		t.Run(credential.name, func(t *testing.T) {
 			notifications := as(t, handler, events, credential.subject, credential.onBehalfOf)
