@@ -121,6 +121,15 @@ Anything else is refused *before the credential is read*, so a registry cannot
 direct a robot's password to a host of its choosing, and a refusal costs no
 credential access at all.
 
+The same rule survives a **redirect**. A permitted realm that answers `302` may
+send the credentialed request to another path on its own host over https, and
+nowhere else: not to a subdomain of itself, and not to itself over http. Go's
+`http.Client` on its own would have followed both — it keeps the `Authorization`
+header across a redirect to a subdomain and never compares the scheme — so
+without this the https promise above held for the realm and not for where the
+realm pointed. Requests carrying no credential are still redirected normally,
+because a registry redirecting an anonymous blob fetch to a CDN is ordinary.
+
 `GITLESS_FLUX_INSECURE_REGISTRY=true` does **not** reach this. It says the
 manifest registry is contacted over http — an air-gapped mirror terminating TLS
 elsewhere. It is not a statement that a push credential may be posted in the

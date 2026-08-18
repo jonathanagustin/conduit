@@ -104,7 +104,12 @@ func New(repository string, client *http.Client, credentials Credentials, insecu
 		credentials = Anonymous{}
 	}
 	publisher := &Publisher{
-		client: client, credentials: credentials, host: host, name: name, insecure: insecure,
+		// The redirect policy travels with the client rather than with each
+		// credentialed request: a push offers the credential in do() and in
+		// token(), and a rule remembered in two places is a rule that will be
+		// remembered in one. See registrychallenge/redirect.go.
+		client: registrychallenge.WithRedirectPolicy(client), credentials: credentials,
+		host: host, name: name, insecure: insecure,
 	}
 	for _, option := range options {
 		option(publisher)
