@@ -77,6 +77,18 @@ func recallAppliesToVersion(recall Recall, version string) bool {
 	return catalog.RecallAppliesToVersion(recall, version)
 }
 
+// withAutomaticSecurityRecalls opens the recalls a failing vulnerability
+// assessment implies, when this Environment asked for them. The rule for what
+// gets recalled is Catalog's; the only decision left here is whose Environment
+// opted in.
+func withAutomaticSecurityRecalls(state DesiredState) DesiredState {
+	if !state.Environment.AutomaticSecurityRecall {
+		return state
+	}
+	state.Recalls = catalog.WithAutomaticSecurityRecalls(state.Recalls, state.Releases)
+	return state
+}
+
 func releaseRecalled(release Release, recalls []Recall, environment string) bool {
 	return catalog.ReleaseRecalled(release, recalls, environment)
 }

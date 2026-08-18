@@ -34,9 +34,20 @@ func newNotificationStore() *notificationStore {
 	return &notificationStore{preferences: map[string]domain.Preference{}}
 }
 
+// RecordEvent is idempotent on the event's id, which is what ports.Store
+// requires of an implementation and what the PostgreSQL store gets from
+// ON CONFLICT (id) DO NOTHING. The fake carried it as a plain append until a
+// second emit site needed it: an emitter that restates the same event -- after
+// a crash, or because the fact it describes is resubmitted with every
+// DesiredState -- must not produce a second inbox row.
 func (store *notificationStore) RecordEvent(
 	_ context.Context, event domain.Event, entries []domain.InboxEntry,
 ) error {
+	for _, recorded := range store.events {
+		if recorded.ID == event.ID {
+			return nil
+		}
+	}
 	store.events = append(store.events, event)
 	store.entries = append(store.entries, entries...)
 	return nil
