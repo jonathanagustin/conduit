@@ -54,9 +54,9 @@ func (profile connectionProfile) validate(name string) error {
 	}
 	if profile.Output != "" {
 		switch strings.ToLower(strings.TrimSpace(profile.Output)) {
-		case "json", "yaml", "pretty":
+		case "json", "yaml":
 		default:
-			return fmt.Errorf("profile %q output must be json, yaml, or pretty", name)
+			return fmt.Errorf("profile %q output must be json or yaml", name)
 		}
 	}
 	configuration := ConnectionConfig{

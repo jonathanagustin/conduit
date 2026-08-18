@@ -53,13 +53,22 @@ func decodeDocument(path string, output any) error {
 	return nil
 }
 
+// writeOutput renders in the two formats Conduit has.
+//
+// It used to accept a third name, `pretty`, in the same branch as `yaml`, and
+// --help advertised "json, yaml, or pretty". The two names produced
+// byte-identical bytes, so an operator who chose `pretty` for a human-oriented
+// rendering got the machine format and nothing said the choice had been
+// ignored. Naming two formats and meaning them beats advertising a third that
+// does not exist; `pretty` is now refused by the same branch that refuses any
+// other unknown format, which says so.
 func writeOutput(writer io.Writer, format string, value any) error {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
 		encoder := json.NewEncoder(writer)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(value)
-	case "yaml", "pretty":
+	case "yaml":
 		jsonValue, err := json.Marshal(value)
 		if err != nil {
 			return fmt.Errorf("encode output: %w", err)
@@ -73,6 +82,6 @@ func writeOutput(writer io.Writer, format string, value any) error {
 		defer encoder.Close()
 		return encoder.Encode(generic)
 	default:
-		return fmt.Errorf("unsupported output format %q; use json, yaml, or pretty", format)
+		return fmt.Errorf("unsupported output format %q; use json or yaml", format)
 	}
 }

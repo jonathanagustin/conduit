@@ -52,6 +52,33 @@ func TestWriteOutputSupportsStableAutomationFormats(t *testing.T) {
 	}
 }
 
+// `pretty` was advertised in --help as a third format and implemented as a
+// second name for `yaml`, so an operator who asked for a human-oriented
+// rendering got the machine one and nothing said so. There are two formats; a
+// third name is now refused by the branch that refuses any other unknown one,
+// and the refusal names the two that exist so the operator can pick.
+func TestWriteOutputRefusesAFormatConduitDoesNotHave(t *testing.T) {
+	t.Parallel()
+	value := map[string]any{"status": "PENDING"}
+	for _, format := range []string{"pretty", "PRETTY", "table", ""} {
+		var output bytes.Buffer
+		err := writeOutput(&output, format, value)
+		if err == nil {
+			t.Errorf("format %q was accepted and rendered %q", format, output.String())
+			continue
+		}
+		if !strings.Contains(err.Error(), "use json or yaml") {
+			t.Errorf("format %q error = %v, want the formats that do exist", format, err)
+		}
+		// Nothing partial reaches the caller's writer: a rejected format that
+		// had already written half a document would leave a pipeline parsing
+		// it.
+		if output.Len() != 0 {
+			t.Errorf("format %q was refused after writing %q", format, output.String())
+		}
+	}
+}
+
 // decodeDocument bounds what it will read before it parses. The reader is
 // given maxDocumentBytes+1 so the check can tell "exactly the limit" from
 // "past it"; if the reader took the limit exactly, an oversized document would
