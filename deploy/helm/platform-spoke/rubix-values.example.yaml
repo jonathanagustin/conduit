@@ -18,3 +18,8 @@ affinity:
             - key: com.palantir.rubix/instance-group
               operator: In
               values: [replace-me-instance-group]
+rbac:
+  # Replace with the exact application namespaces this Agent's Plans target.
+  # The chart refuses to render without them rather than guessing the release
+  # namespace, which is not the namespace an Agent normally installs into.
+  managedNamespaces: [replace-me-namespace]

@@ -1,0 +1,130 @@
+{{- /*
+The Agent's Kubernetes privilege, derived from the calls `internal/agent` makes
+rather than from what a delivery agent conventionally gets. Every rule below
+names the call site that needs it; a rule with no call site is not here, which
+is why this set is narrower than the hand-written superset in
+`deploy/local/prerequisites.yaml` that the E2E cluster uses.
+
+Namespaced by construction, not by preference. Every Kubernetes call the Agent
+makes carries an explicit namespace: `helm.go` passes `--namespace` to each of
+its `helm` and `kubectl` invocations, `health.go` and `ingress.go` pass it to
+theirs. Nothing in `internal/agent` reaches a cluster-scoped object, so nothing
+here is a ClusterRole. One Role per managed namespace rather than one
+ClusterRole is also the narrower shape: a ClusterRole would grant these same
+rules in every namespace, including the ones no Plan will ever name.
+
+This is a floor. It is not a bound on the Agent's effective privilege, because
+`helm upgrade --install` applies whatever the tenant's chart rendered and this
+repository does not constrain those kinds. Read
+`deploy/helm/README.md`, "The Agent's RBAC floor", before assuming otherwise.
+*/ -}}
+{{- if .Values.rbac.create }}
+{{- $namespaces := .Values.rbac.managedNamespaces }}
+{{- if not $namespaces }}
+  {{- /*
+  Fail closed rather than default to the release namespace. The Agent's release
+  namespace is not the namespace it manages: `step.Namespace` arrives in the
+  Plan, and `scripts/test-spoke-e2e.sh` installs the Agent into
+  `platform-system` while its Plan targets `example-product`. A default would
+  have been silently wrong in exactly that, the normal, topology.
+  */ -}}
+  {{- fail "rbac.managedNamespaces must list every namespace this Agent's Plans target; set rbac.create=false if the tenant binds the Agent itself" }}
+{{- end }}
+{{- $root := . }}
+{{- $name := include "platform-spoke.fullname" . }}
+{{- range $namespace := $namespaces }}
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "platform-spoke.labels" $root | nindent 4 }}
+rules:
+  # Helm's release ledger. `lookupRelease`, `Apply`, `Rollback` and `Observe` in
+  # internal/agent/helm.go run `helm list`, `helm upgrade --install`,
+  # `helm uninstall --keep-history`, `helm rollback` and `helm status`, all of
+  # which read and write that ledger. Nothing in this repository sets
+  # HELM_DRIVER -- Containerfile.agent sets only HELM_CACHE_HOME,
+  # HELM_CONFIG_HOME and HELM_DATA_HOME -- so Helm's default `secret` driver
+  # keeps it as Secrets in the target namespace.
+  #
+  # The same rule carries the Secret half of internal/agent/material.go: a
+  # SecretMutation names a `kubernetesSecretName` in `step.Namespace`, and the
+  # operator-supplied EXTERNAL_MATERIAL_PREPARER executable runs inside the
+  # Agent's Pod, with this token.
+  #
+  # The same rule, for the same reason, already exists in this repository for
+  # the Flux tenant reconciler: `foundry-tenant-reconciler-release-storage` in
+  # deploy/flux/foundry-tenant-rbac.yaml is byte-identical and namespaced.
+  #
+  # It cannot be narrowed. Kubernetes RBAC scopes `get`/`update`/`delete` by
+  # resourceName but never `list` or `create`, and a Helm release Secret's name
+  # carries a revision number that does not exist when this Role is written. So
+  # an Agent that may manage one release in a namespace may read every Secret in
+  # it. That is the blast radius, and deploy/helm/README.md states it as one.
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # Workload kinds the Agent's own post-renderer expects to meet in a rendered
+  # chart: `apolloPodTemplatePaths` in internal/controlplane/apollo_annotations.go
+  # enumerates Deployment, StatefulSet, DaemonSet, ReplicaSet,
+  # ReplicationController, Job and CronJob, and the bare-Pod branch below it
+  # handles Pod. Helm creates and deletes them; `helm rollback` and the
+  # `--atomic`/`--rollback-on-failure` paths in helm.go delete them again.
+  #
+  # `patch` on deployments and statefulsets is additionally what
+  # `kubectl rollout restart` issues in helm.go, and `internal/controlplane/commands.go`
+  # admits no other kind for a restart command. `get`/`list`/`watch` is what
+  # `kubectl rollout status` and Helm's `--wait` readiness polling read.
+  - apiGroups: [""]
+    resources: ["pods", "replicationcontrollers"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["apps"]
+    resources: ["deployments", "statefulsets", "daemonsets", "replicasets"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  - apiGroups: ["batch"]
+    resources: ["jobs", "cronjobs"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # `ingressReferences` in internal/agent/ingress.go admits only
+  # networking.k8s.io/v1 Ingress objects out of a deployed manifest, and
+  # `observeIngressReferences` reads each one back to wait for a load-balancer
+  # address. Read verbs observe; the write verbs are Helm applying the Ingress
+  # the chart carried in the first place.
+  - apiGroups: ["networking.k8s.io"]
+    resources: ["ingresses"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+  # `ingressDiagnostic` in internal/agent/ingress.go attaches controller Events
+  # to an unrealized Ingress. Read-only: the Agent never writes an Event.
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["get", "list", "watch"]
+  # The only chart this repository installs end to end -- testdata/e2e-chart,
+  # applied by scripts/test-spoke-e2e.sh -- renders a ConfigMap, so the apply
+  # path demonstrably needs it.
+  - apiGroups: [""]
+    resources: ["configmaps"]
+    verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: {{ $name }}
+  namespace: {{ $namespace }}
+  labels:
+    {{- include "platform-spoke.labels" $root | nindent 4 }}
+subjects:
+  # The identity the Deployment actually runs as, whether this chart created it
+  # or `serviceAccount.create=false` named an external one. Rendering the two
+  # from the same helper is what keeps a binding from naming a ServiceAccount
+  # the Agent does not use; verify-helm-runtime.rb asserts they agree anyway.
+  - kind: ServiceAccount
+    name: {{ include "platform-spoke.serviceAccountName" $root }}
+    namespace: {{ $root.Release.Namespace }}
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: {{ $name }}
+{{- end }}
+{{- end }}

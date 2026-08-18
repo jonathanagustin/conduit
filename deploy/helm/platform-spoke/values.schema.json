@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft-07/schema#",
   "type": "object",
   "additionalProperties": false,
-  "required": ["image", "environmentId", "agentId", "controlPlaneURL", "serviceAccount", "tls"],
+  "required": ["image", "environmentId", "agentId", "controlPlaneURL", "serviceAccount", "rbac", "tls"],
   "properties": {
     "nameOverride": {"type": "string"},
     "fullnameOverride": {"type": "string"},
@@ -13,6 +13,7 @@
     "agentId": {"$ref": "#/definitions/dnsName"},
     "controlPlaneURL": {"type": "string", "pattern": "^https://[^[:space:]]+$"},
     "serviceAccount": {"$ref": "#/definitions/serviceAccount"},
+    "rbac": {"$ref": "#/definitions/rbac"},
     "podAnnotations": {"type": "object", "additionalProperties": {"type": "string"}},
     "podLabels": {"type": "object", "additionalProperties": {"type": "string"}},
     "runtimeSupplementalGroups": {"type": "array", "uniqueItems": true, "items": {"type": "integer", "minimum": 0, "maximum": 2147483647}},
@@ -46,6 +47,15 @@
       "properties": {"name": {"$ref": "#/definitions/dnsName"}}
     },
     "dnsName": {"type": "string", "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$", "maxLength": 253},
+    "rbac": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["create", "managedNamespaces"],
+      "properties": {
+        "create": {"type": "boolean"},
+        "managedNamespaces": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/dnsName"}}
+      }
+    },
     "serviceAccount": {
       "type": "object",
       "additionalProperties": false,

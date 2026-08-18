@@ -16,8 +16,10 @@ outbound Spoke contract.
 Both charts package the same binaries and security contract as the Flux and
 Zarf runtime sources. They do not install Products, Product charts, application
 namespaces, credentials, cluster operators, CRDs, schedulers, scalers, or
-cluster-scoped RBAC. Application namespace Roles and RoleBindings for a Spoke
-remain deployment-owned.
+cluster-scoped RBAC. The Spoke chart does render a namespaced Role and
+RoleBinding per managed application namespace — a floor, not the whole grant.
+Read [The Agent's RBAC floor](#the-agents-rbac-floor) before treating it as a
+bound on what the Agent can do.
 
 The `foundry-tenant` chart previously lived here and now lives in the product repository
 (`jonathanagustin/palantir`, `deployment/helm/foundry-tenant`). Two reasons, neither of which is a
@@ -71,10 +73,11 @@ capabilities, API origins, scripts, or security policy. See
 
 The Spoke requires a stable Environment/Agent identity, an explicit HTTPS Hub
 URL, a client TLS Secret whose URI SAN matches Conduit's Agent identity
-contract, and the Hub CA ConfigMap. Its ServiceAccount is namespaced and needs
-only deployment-owned access to the exact application namespaces it manages.
-Both charts accept references to deployment-owned image-pull Secrets without
-creating or receiving registry credentials.
+contract, the Hub CA ConfigMap, and `rbac.managedNamespaces` — the exact
+application namespaces its Plans target. The chart refuses to render without
+that list rather than defaulting to the release namespace, which is not where an
+Agent installs. Both charts accept references to deployment-owned image-pull
+Secrets without creating or receiving registry credentials.
 
 Production leaves `runtimeSupplementalGroups` empty. A container runtime that
 materializes image roots without world-execute permission can require an
@@ -88,6 +91,84 @@ It is not a supported production registry configuration.
 
 Setting `serviceAccount.create=false` requires an explicit pre-existing
 ServiceAccount name. Neither chart silently invents an external identity.
+
+## The Agent's RBAC floor
+
+The Spoke Agent mounts a ServiceAccount token and mutates a tenant's cluster
+with it. Until #264 nothing in this repository said what that token was bound
+to; the answer was whatever binding the tenant happened to create. The chart now
+renders one namespaced `Role` and `RoleBinding` per entry in
+`rbac.managedNamespaces`, bound to the ServiceAccount the Deployment actually
+runs as.
+
+**Every rule is derived from a call site, and the derivation is in the template
+next to the rule** (`platform-spoke/templates/rbac.yaml`). In summary:
+
+| Rule | Why the Agent needs it |
+| --- | --- |
+| `""` secrets, full verbs | Helm's release ledger. `internal/agent/helm.go` runs `helm list`, `upgrade --install`, `uninstall --keep-history`, `rollback` and `status`; nothing sets `HELM_DRIVER`, so the default `secret` driver keeps that ledger as Secrets in the target namespace. Also the `kubernetesSecretName` half of `internal/agent/material.go`. |
+| `""` pods, replicationcontrollers; `apps` deployments, statefulsets, daemonsets, replicasets; `batch` jobs, cronjobs — full verbs | The workload kinds Conduit's own post-renderer expects in a rendered chart (`apolloPodTemplatePaths` and the bare-Pod branch in `internal/controlplane/apollo_annotations.go`). `patch` on deployments and statefulsets is what `kubectl rollout restart` issues, and `internal/controlplane/commands.go` admits no other kind for a restart. |
+| `networking.k8s.io` ingresses, full verbs | `ingressReferences` in `internal/agent/ingress.go` admits `networking.k8s.io/v1` Ingress out of a deployed manifest; `observeIngressReferences` reads each back for a load-balancer address. |
+| `""` events, read-only | `ingressDiagnostic` attaches controller Events to an unrealized Ingress. The Agent never writes one. |
+| `""` configmaps, full verbs | The one chart this repository installs end to end — `testdata/e2e-chart`, applied by `scripts/test-spoke-e2e.sh` — renders a ConfigMap. |
+
+**Namespaced, with no cluster-scoped exception.** Every Kubernetes call in
+`internal/agent` carries an explicit namespace: `helm.go` passes `--namespace`
+to each `helm` and `kubectl` invocation, and so do `health.go` and `ingress.go`.
+Two things would have forced cluster scope and neither applies:
+
+- **Cilium.** `CiliumPolicyStore.HasNamespacedPolicyCRD` in
+  `internal/agent/cilium.go` would need a cluster-scoped read of
+  `apiextensions.k8s.io` CustomResourceDefinitions. `cmd/platform-spoke-agent/main.go`
+  constructs no `CiliumBackend` — the port has no production adapter — and the
+  interface's own contract says an implementation "must reject
+  `CiliumClusterwideNetworkPolicy` and must not use cluster-admin credentials".
+  So the chart grants none of it. A deployment that wires a Cilium backend owns
+  that grant, and it is the one place where namespaced is not enough.
+- **Charts that carry cluster-scoped objects.** See below. That is a property of
+  the tenant's chart, not of the Agent.
+
+One Role per namespace rather than one ClusterRole is also the narrower shape: a
+ClusterRole would grant the same rules in every namespace, including ones no
+Plan will ever name.
+
+### What this chart does not bound
+
+**It is a floor. It is not a ceiling, and it is not the whole grant.**
+
+`helm upgrade --install` applies whatever the tenant's chart rendered.
+`internal/agent/helm.go` validates the rendered images against the Plan's
+declared artifacts and validates nothing about the *kinds* — and
+`apollo_annotations.go` says so in as many words: "Kinds outside this table
+still receive object annotations." A product chart carrying `Service`,
+`ServiceAccount`, `PersistentVolumeClaim`, `PodDisruptionBudget`,
+`NetworkPolicy`, a CRD, or any cluster-scoped object will fail to install under
+this Role alone, and **the tenant's cluster admin must grant the difference**.
+This repository cannot derive it, because the chart is a Plan input rather than
+a fact about Conduit. `deploy/local/prerequisites.yaml` is one such extended
+grant — hand-written, wider than this floor, and what the E2E cluster uses.
+
+**The blast radius, stated rather than implied.** Within each managed namespace
+the Agent can read every Secret. Kubernetes RBAC scopes `get`, `update` and
+`delete` by `resourceName` but never `list` or `create`, and a Helm release
+Secret's name carries a revision number that does not exist when the Role is
+written, so the rule cannot be confined to Helm's own objects. An Agent
+permitted to manage one release in a namespace can read every credential in it.
+Set `rbac.create=false` and bind a narrower Role yourself if that is
+unacceptable; nothing else in this chart makes it smaller.
+
+**What is out of scope of this section entirely.** Whether one tenant's
+compromised Agent can pull another tenant's Bundles is a Hub-side authorization
+question, not an RBAC one, and it is not answered here — see gap 8 in
+[`docs/operations/PRODUCTION-READINESS.md`](../../docs/operations/PRODUCTION-READINESS.md).
+
+The gate is `ruby scripts/verify-helm-runtime.rb`: it fails unless the
+RoleBinding names the ServiceAccount the Deployment uses, the `roleRef` is a
+namespaced `Role` that the same render produced, no rule carries a wildcard
+apiGroup, resource or verb without a `# wildcard-justified:` line in the
+template naming that exact rule, no rule grants `escalate`, `bind` or
+`impersonate`, and the chart fails closed when `rbac.managedNamespaces` is
+absent or empty.
 
 Human and service-user Hub access can use `operatorOIDC`. Prefer `multipass`
 when a tenant already has Palantir identity infrastructure; `generic` supports
@@ -155,7 +236,8 @@ both actual charts with generated TLS/mTLS identities before exercising the
 approved Plan. These gates verify the two
 release boundaries, exact image digests, required identity/signing inputs,
 HTTPS transport, retained state, restricted Pod security, Rubix annotations and
-affinity, and the absence of namespace/CRD/cluster-RBAC/host ownership.
+affinity, the Spoke's namespaced RBAC floor, and the absence of
+namespace/CRD/cluster-RBAC/host ownership.
 Semantic-tag publication packages both charts with the Conduit version, pushes
 each to GHCR, resolves and signs its registry-reported OCI digest, and attaches
 the chart archives, SHA-256 files, SPDX SBOMs, and immutable-reference manifest
