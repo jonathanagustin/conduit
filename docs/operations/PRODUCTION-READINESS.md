@@ -176,7 +176,8 @@ carried to the residual list as item 5.
    deployment gains no reachable surface until an operator asks; and **no
    alerting rules ship**, so the signal exists but nobody is woken by it.
 
-3. **Schema migrations are versioned; verification and rehearsal are not.** An
+3. **Schema migrations are versioned and verifiable on request; rehearsal is
+   not.** An
    earlier draft of this row said there was no migration path at all. That was
    wrong, and a test written to check it found the error: the schema already
    carried one, for the proposal outbox — two `ADD COLUMN IF NOT EXISTS`, a
@@ -198,13 +199,37 @@ carried to the residual list as item 5.
    operator most wants to ask about before a first start is the one that has
    never been migrated.
 
-   What remains: **nothing verifies a database's schema against the migrations
-   that claim to have built it**, so a ledger row asserts a migration ran and
-   does not detect a column dropped by hand; **no down path**, which is
-   deliberate and is recorded as a decision rather than a gap; and **no upgrade
-   rehearsal against a production-shaped dataset** — the tests upgrade a
-   populated database, but with tens of rows, so a migration whose cost is
-   proportional to table size is not measured anywhere before it runs.
+   Verification now exists too. `pgmigrate.Verify` rebuilds the expected
+   catalogue by replaying the migrations **the ledger records** into this
+   session's temporary schema, inside a transaction that is always rolled back,
+   and diffs the live schema against it object by object — so it reports that
+   `conduit_reconciliation_proposal_outbox.attempt` is missing rather than that
+   something does not match. It is derived from the DDL rather than from a
+   fingerprint taken by the code that ran the DDL, which is what lets it describe
+   a difference instead of only detecting one. `platform-delivery verify-schema`
+   is the operator command, reading the same `POSTGRES_DSN_FILE` a start reads
+   and passing every component that shares it. Nine planted alterations are held
+   down in `internal/pgmigrate/verify_postgres_test.go` and
+   `cmd/platform-delivery/schema_verification_test.go` — a dropped column, a
+   column nothing built, a retyped column, a dropped `NOT NULL`, a dropped index,
+   a redefined index, a dropped `CHECK`, a dropped primary key, and drift in the
+   ledger table itself — beside the control that an untouched database reports
+   nothing at all.
+
+   What remains: **it is invoked, not scheduled and not a start-time check**, so
+   drift is found when somebody thinks to look. A Hub refusing to start on a
+   schema difference would convert an anomaly into an outage, and half the
+   differences a diff finds cannot be judged without a human — an operator's own
+   index and a component the caller did not enumerate are indistinguishable from
+   drift — so an object only the database has is reported as an advisory rather
+   than a fault. **The diff is bounded**: tables, columns with type, nullability,
+   default and identity, constraints and indexes, and not ordinal position,
+   storage settings, privileges, triggers, views, functions or row contents.
+   **No down path**, which is deliberate and is recorded as a decision rather
+   than a gap; and **no upgrade rehearsal against a production-shaped dataset** —
+   the tests upgrade a populated database, but with tens of rows, so a migration
+   whose cost is proportional to table size is not measured anywhere before it
+   runs.
 
 4. **Backup and restore are stated and rehearsed; the schedule is the
    deployment's.** `docs/operations/backup-and-restore.md` states the method,
