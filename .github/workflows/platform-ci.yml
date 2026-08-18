@@ -108,7 +108,28 @@ jobs:
       - name: Install console dependencies
         run: pnpm --dir web install --frozen-lockfile
       - name: Install pinned console browser
-        run: pnpm --dir web exec playwright install --with-deps chromium
+        # Bounded and retried, because an unbounded download here can consume
+        # the whole job. Twice on 2026-08-18 this step hung for 19.6 minutes and
+        # was cancelled by the job's 20-minute timeout, taking every gate after
+        # it down as `skipped` and publishing a Trunk failure for a tree whose
+        # gates all passed locally. A cancelled run reads like a red build, so
+        # the cost is not only the wasted twenty minutes -- it is the wrong
+        # verdict on a good commit.
+        #
+        # Three bounded attempts total at most fifteen minutes, so a stall now
+        # fails its attempt and retries instead of eating the budget the gates
+        # need. The retry is for a hung or failed download only; it cannot mask
+        # a browser that installs and then misbehaves, which is the test's job.
+        run: |
+          for attempt in 1 2 3; do
+            if timeout 5m pnpm --dir web exec playwright install --with-deps chromium; then
+              exit 0
+            fi
+            echo "console browser install attempt ${attempt} failed or timed out" >&2
+            sleep $((attempt * 10))
+          done
+          echo "console browser install did not succeed in three bounded attempts" >&2
+          exit 1
       # Helm is installed before the tests, not with the other tooling further
       # down, because the post-render integration test skips when helm is absent
       # on PATH. Installing it later would let that test silently skip here and
