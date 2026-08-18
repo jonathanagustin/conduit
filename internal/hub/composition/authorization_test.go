@@ -26,8 +26,44 @@ func pathFor(pattern string) (string, string) {
 		// The notification catch-all is registered without a method.
 		method, path = http.MethodGet, pattern
 	}
-	return method, wildcard.ReplaceAllString(path, "probe")
+	return method, wildcard.ReplaceAllStringFunc(path, func(name string) string {
+		if value, known := realIdentifiers[strings.Trim(name, "{}")]; known {
+			return value
+		}
+		return "probe"
+	})
 }
+
+// realIdentifiers are the path values that name something the fixture actually
+// created.
+//
+// They exist because "probe" is not good enough for the second row of the
+// matrix. A route whose resource check was deleted still answers 404 when the
+// Environment in its path does not exist, so a probe built entirely from
+// nonsense would report a refusal it did not earn -- and that is not
+// hypothetical: deleting requireResourceOperation from the reported-state route
+// leaves it answering 404 to a principal holding nothing, and this test passed
+// on that mutant until these values were supplied.
+//
+// Anything not named here stays "probe" and is still asserted, on the weaker
+// but still true statement that a principal holding nothing gets no 2xx.
+var realIdentifiers = map[string]string{
+	"environmentID":  fixtureEnvironment,
+	"environmentId":  fixtureEnvironment,
+	"environmentRid": fixtureEnvironment,
+	"product":        fixtureProduct,
+	"productId":      fixtureProduct,
+	"version":        fixtureVersion,
+	"productVersion": fixtureVersion,
+	"teamName":       fixtureTeam,
+}
+
+const (
+	fixtureEnvironment = "tenant-a-use2"
+	fixtureProduct     = "a.example:ledger"
+	fixtureVersion     = "0.1.0"
+	fixtureTeam        = "tenant-a"
+)
 
 // bodyFor is a request body the route will accept far enough to reach its
 // authorization decision.
@@ -201,8 +237,9 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 // which is TestOperatorSelfRoutesDiscloseNoOtherPrincipal.
 func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 	t.Parallel()
+	repository := controlplane.NewMemoryRepository()
 	store := newNotificationStore()
-	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{
+	handler, err := NewHub(repository, controlplane.HandlerOptions{
 		AllowInsecureOperatorIdentityHeaders: true,
 		// Named, so the "local-developer" bootstrap shortcut is off and every
 		// decision below has to come from a grant this principal does not hold.
@@ -211,6 +248,11 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// A real Environment, Product, Release and Plan, and a team the probing
+	// principal is not in. Without them the Environment- and Product-scoped
+	// routes answer 404 before they ever consult a grant, and the assertion
+	// below would be about the fixture rather than about authorization.
+	seedFixture(t, handler, repository)
 	checked := 0
 	for _, route := range HubRouteAuthorization() {
 		if route.Decision != DecisionOperatorGrant && route.Decision != DecisionAgent {
@@ -474,5 +516,25 @@ func desiredState(environment, product string) controlplane.DesiredState {
 		Entities: []controlplane.Entity{
 			{Name: "thing", Product: product, Version: "0.1.0", Namespace: "example"},
 		},
+	}
+}
+
+// seed creates the records realIdentifiers names, as an administrator, through
+// the Hub's own routes.
+func seedFixture(t *testing.T, handler http.Handler, repository controlplane.Repository) {
+	t.Helper()
+	service := controlplane.NewGovernanceService(repository)
+	if _, err := service.PutTeam(t.Context(), controlplane.Team{
+		Name: fixtureTeam, DisplayName: fixtureTeam,
+		AdminUsers: []string{"alice"}, MemberUsers: []string{"alice"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	body, err := json.Marshal(desiredState(fixtureEnvironment, fixtureProduct))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response := driveAs(t, handler, http.MethodPost, "/v1/plans", "root", string(body)); response.Code != http.StatusCreated {
+		t.Fatalf("seeding the fixture: %d %s", response.Code, response.Body.String())
 	}
 }
