@@ -78,6 +78,12 @@ abort "keyless signing retry wrapper must be behaviorally tested" unless
 abort "immutable image digest is not signed" unless
   workflow.match?(/#{Regexp.escape(retry_wrapper)} cosign sign --yes\s+'[^']*@\$\{\{ steps\.build\.outputs\.digest \}\}'/)
 abort "immutable runtime digest is not signed" unless workflow.include?("#{retry_wrapper} cosign sign --yes \"${artifact_reference}\"")
+abort "runtime artifact must publish to a component tag in the linked Conduit package" unless
+  workflow.include?('"oci://ghcr.io/${GITHUB_REPOSITORY}:runtime-${version}"') &&
+    workflow.include?('artifact_reference="ghcr.io/${GITHUB_REPOSITORY}:runtime-${version}@${artifact_digest}"')
+abort "Helm charts must publish below the linked Conduit repository path" unless
+  workflow.include?('helm push "${package}" "oci://ghcr.io/${GITHUB_REPOSITORY}"') &&
+    workflow.include?('reference="ghcr.io/${GITHUB_REPOSITORY}/${chart}:${version}@${digest}"')
 abort "runtime descriptor must bind the expected keyless signer" unless
   workflow.include?('certificate_issuer="https://token.actions.githubusercontent.com"') &&
     workflow.include?('certificate_identity="https://github.com/${GITHUB_REPOSITORY}/.github/workflows/platform-images.yml@${GITHUB_REF}"') &&

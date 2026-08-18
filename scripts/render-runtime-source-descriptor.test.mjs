@@ -7,7 +7,7 @@ import { fileURLToPath } from "node:url";
 const script = fileURLToPath(new URL("./render-runtime-source-descriptor.mjs", import.meta.url));
 const digest = `sha256:${"a".repeat(64)}`;
 const common = [
-  "--reference", `ghcr.io/jonathanagustin/platform-runtime:1.2.3@${digest}`,
+  "--reference", `ghcr.io/jonathanagustin/conduit:runtime-1.2.3@${digest}`,
   "--digest", digest,
   "--version", "1.2.3",
   "--commit", "b".repeat(40),
@@ -31,7 +31,7 @@ assert.deepEqual(JSON.parse(valid.stdout), {
   version: "1.2.3",
   source: { repository: "jonathanagustin/conduit", commit: "b".repeat(40) },
   artifact: {
-    reference: `ghcr.io/jonathanagustin/platform-runtime:1.2.3@${digest}`,
+    reference: `ghcr.io/jonathanagustin/conduit:runtime-1.2.3@${digest}`,
     digest,
   },
   signaturePolicy: {
@@ -45,10 +45,11 @@ for (const [name, arguments_, message] of [
   ["digest mismatch", replace(common, "--digest", `sha256:${"c".repeat(64)}`), "reference must equal"],
   ["wrong signer", replace(common, "--certificate-identity", "https://github.com/other/repo/.github/workflows/publish.yml@refs/tags/v1.2.3"), "certificate identity must equal"],
   ["mutable version", replace(common, "--version", "latest"), "stable semantic version"],
+  ["retired package", replace(common, "--reference", `ghcr.io/jonathanagustin/platform-runtime:1.2.3@${digest}`), "reference must equal"],
 ]) {
   const result = run(arguments_);
   assert.notEqual(result.status, 0, `${name} unexpectedly passed`);
   assert.match(result.stderr, new RegExp(message), `${name}: ${result.stderr}`);
 }
 
-console.log("Gitless runtime source descriptor contract verified: 1 valid and 3 rejected cases");
+console.log("Gitless runtime source descriptor contract verified: 1 valid and 4 rejected cases");

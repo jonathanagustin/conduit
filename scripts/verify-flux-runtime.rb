@@ -53,6 +53,8 @@ source_documents = YAML.load_stream(File.read(source))
 source_repository = source_documents.find { |document| document["kind"] == "OCIRepository" }
 kustomization = source_documents.find { |document| document["kind"] == "Kustomization" }
 abort "runtime source must be an OCIRepository" unless source_repository
+abort "runtime example must use the repository-linked Conduit OCI package" unless
+  source_repository.dig("spec", "url") == "oci://ghcr.io/example/conduit"
 runtime_ref = source_repository.dig("spec", "ref") || {}
 abort "runtime source must be pinned by exact digest" unless
   runtime_ref["digest"].to_s.match?(/\Asha256:[a-f0-9]{64}\z/)
