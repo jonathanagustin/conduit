@@ -70,3 +70,106 @@ func TestEntityAggregateOrdersVersionsNumericallyNotLexicographically(t *testing
 		})
 	}
 }
+
+// A Product Release may declare a non-orderable version, and internal/catalog
+// says of that class that "nothing may order it against another version".
+// CompareVersions honours it by falling back to strings.Compare when either side
+// is non-orderable, which makes the comparator a PARTIAL order:
+//
+//	1.10.0 > 1.9.0          (numeric)
+//	1.9.0  > 1.5.0-hotfix   (lexical fallback)
+//	1.5.0-hotfix > 1.10.0   (lexical fallback)
+//
+// Fed to sort.Slice that cycle produces an input-order-dependent result, and one
+// hotfix sharing a channel brought the original defect straight back: 1.9.0
+// published as the latest version of a Product that has 1.10.0. The fixture is
+// ordered to trip exactly that.
+func TestEntityAggregateRefusesToRankNonOrderableVersions(t *testing.T) {
+	t.Parallel()
+	fixture := []controlplane.ProductCatalogRecord{{
+		Product: "com.example:application",
+		Releases: []controlplane.Release{
+			{Product: "com.example:application", Version: "1.5.0-hotfix", Channels: []string{"RELEASE"}},
+			{Product: "com.example:application", Version: "1.10.0", Channels: []string{"RELEASE"}},
+			{Product: "com.example:application", Version: "1.9.0", Channels: []string{"RELEASE"}},
+		},
+	}}
+	var output bytes.Buffer
+	root := NewRoot(testRuntime(&output, &fakeService{products: fixture}))
+	root.SetArgs([]string{
+		"entity", "aggregate", "--generate-versions",
+		"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	var aggregate struct {
+		Products map[string]struct {
+			Selected    string   `json:"selected"`
+			Available   []string `json:"available"`
+			Unorderable []string `json:"unorderable"`
+		} `json:"products"`
+	}
+	if err := json.Unmarshal(output.Bytes(), &aggregate); err != nil {
+		t.Fatalf("decode %s: %v", output.String(), err)
+	}
+	product := aggregate.Products["com.example:application"]
+	if product.Selected != "1.10.0" {
+		t.Fatalf("selected=%q want 1.10.0 (output=%s)", product.Selected, output.String())
+	}
+	// Reported, not dropped: an operator who cannot see the hotfix cannot tell a
+	// Product that has none from one whose hotfix was silently discarded.
+	if len(product.Unorderable) != 1 || product.Unorderable[0] != "1.5.0-hotfix" {
+		t.Fatalf("unorderable=%v want [1.5.0-hotfix] (output=%s)", product.Unorderable, output.String())
+	}
+	for _, ranked := range product.Available {
+		if ranked == "1.5.0-hotfix" {
+			t.Fatalf("a non-orderable version was ranked among %v", product.Available)
+		}
+	}
+}
+
+// Apollo ordering deliberately ignores a snapshot's commit hash, so two
+// snapshots sharing a counter compare EQUAL. sort.Slice is not stable and the
+// candidate list is built from map iteration, so without a total order the
+// selection alternated between runs of a command whose help promises a
+// deterministic aggregate. Shuffling the input must not move the answer.
+func TestEntityAggregateIsDeterministicWhenVersionsTie(t *testing.T) {
+	t.Parallel()
+	orderings := [][]string{
+		{"2.0.0-5-gaaaaaaa", "2.0.0-5-gbbbbbbb"},
+		{"2.0.0-5-gbbbbbbb", "2.0.0-5-gaaaaaaa"},
+	}
+	selections := make(map[string]struct{})
+	for _, ordering := range orderings {
+		releases := make([]controlplane.Release, 0, len(ordering))
+		for _, version := range ordering {
+			releases = append(releases, controlplane.Release{
+				Product: "com.example:application", Version: version, Channels: []string{"RELEASE"},
+			})
+		}
+		var output bytes.Buffer
+		root := NewRoot(testRuntime(&output, &fakeService{products: []controlplane.ProductCatalogRecord{{
+			Product: "com.example:application", Releases: releases,
+		}}}))
+		root.SetArgs([]string{
+			"entity", "aggregate", "--generate-versions",
+			"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+		})
+		if err := root.Execute(); err != nil {
+			t.Fatal(err)
+		}
+		var aggregate struct {
+			Products map[string]struct {
+				Selected string `json:"selected"`
+			} `json:"products"`
+		}
+		if err := json.Unmarshal(output.Bytes(), &aggregate); err != nil {
+			t.Fatalf("decode %s: %v", output.String(), err)
+		}
+		selections[aggregate.Products["com.example:application"].Selected] = struct{}{}
+	}
+	if len(selections) != 1 {
+		t.Fatalf("input order changed the selection: %v", selections)
+	}
+}
