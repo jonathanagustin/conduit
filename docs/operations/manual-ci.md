@@ -47,10 +47,28 @@ gh workflow run platform-ci.yml \
 
 The workflow must resolve the open pull request and require its head SHA to
 equal `GITHUB_SHA` before it runs repository checks. A run against another SHA
-does not satisfy the candidate. After that preflight, the workflow publishes a
-pending `Trunk gate` commit status and replaces it with success or failure from
-an `always()` finalizer. This status bridge is required because a
-`workflow_dispatch` check suite is not attached to the pull-request rollup.
+does not satisfy the candidate. That preflight is a job of its own
+(`preflight`), and every verification lane `needs` it, so no lane can run
+against a tree nobody proposed.
+
+The gates then run as four parallel lanes — `go`, `cli-matrix`, `console`, and
+`checks` — because as one sequential job the gate took 16m20s, of which four
+independent steps were 79% (#213). The wall clock is now roughly the longest
+lane. Nothing about *which* gates run changed; `scripts/verify-local.sh` still
+reconciles its coverage against every step name in the file, so a gate that
+moves between lanes is still a gate that has to run somewhere.
+
+The preflight publishes a pending `Trunk gate` commit status, and one
+aggregating job (`trunk-status`) replaces it with success or failure. That job
+`needs` every lane, runs under `always()`, and computes its verdict from the
+lanes' results rather than from `job.status` — which, in a job that only
+publishes a status, is green no matter what the lanes did. It reports success
+only when every lane it needs ended in `success`, so a lane that failed, was
+cancelled by its timeout, or was skipped because head authentication failed all
+read as a failed gate. This status bridge is required because a
+`workflow_dispatch` check suite is not attached to the pull-request rollup, and
+its shape — including the verdict logic, executed against synthetic lane
+results — is guarded by `scripts/verify-pr-fidelity.test.sh`.
 
 Watch a deliberately started run with `gh run watch <run-id> --exit-status`.
 Do not retry a failed or cancelled run until the failure is understood. A

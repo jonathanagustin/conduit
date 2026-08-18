@@ -12,6 +12,12 @@
 #   - the list of step names, checked against what this script covers, so a new
 #     CI step fails here until it is either run or explicitly excused
 #
+# Both readings are deliberately job-agnostic: the workflow runs its gates in
+# four parallel lanes (#213), and which lane a gate sits in is a scheduling
+# decision, while whether it runs at all is the thing this script exists to
+# reconcile. A gate moved between lanes therefore changes nothing here; a gate
+# deleted from the workflow still fails the reconciliation below.
+#
 # The workflow and the code now share the Conduit repository root. Keep their
 # paths coupled so extraction into a standalone repository cannot make local
 # verification measure a different tree than the GitHub workflow.
