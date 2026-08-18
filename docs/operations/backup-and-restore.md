@@ -175,7 +175,10 @@ the disaster copy rather than the primary mechanism.
   ([`schema-migrations.md`](schema-migrations.md)); recovering from a bad
   migration means restoring a backup and rolling forward, which is what makes
   this document load-bearing rather than optional.
-- **Verifying a restored schema against the migrations that claim to have built
-  it.** A ledger row asserts a migration ran; it does not detect a column
-  somebody dropped by hand. That is gap 3's remainder, not this one — a restore
-  reproduces whatever the backup held, including hand damage.
+- **Verifying a restored schema as part of the drill.** The drill's acceptance
+  check is that nothing is pending for any component, which reads the ledger
+  rather than the schema. `platform-delivery verify-schema` now diffs a database
+  against the migrations recorded in it
+  ([`schema-migrations.md`](schema-migrations.md)), and running it after a
+  restore is worth doing, but the drill does not run it — a restore reproduces
+  whatever the backup held, including hand damage.
