@@ -79,6 +79,18 @@ without the guard rewrites every row on a retry.
   matter, add a `NOT VALID` check constraint, `VALIDATE` it, and constrain after.
 - **Do not put `CREATE INDEX CONCURRENTLY` in a migration.** It cannot run
   inside a transaction, and every migration here runs in one.
+- **A nullable column is the right answer when NULL is a fact.** The three-step
+  idiom above exists for a column every row must eventually have. It is the
+  wrong shape when the absence means something: `0002-notification-delivery`
+  leaves `delivery_available_at` nullable because NULL records "this entry was
+  never queued for a transport", and backfilling it would make the first start
+  after an upgrade try to deliver every notification the Hub had ever recorded.
+  A migration that gives an existing deployment new outbound behaviour is a
+  migration that did too much.
+- **`ADD COLUMN … NOT NULL DEFAULT <constant>` does not rewrite the table** on
+  PostgreSQL 11 and later; the default is recorded in the catalogue. That is why
+  the delivery migration constrains its counters in one step rather than three.
+  A non-constant default still rewrites, so this is not a general licence.
 
 ## Adoption
 
@@ -99,7 +111,7 @@ accurate and does not have to be idempotent.
 | --- | --- | --- |
 | `reconciliation` | `internal/delivery/reconciliation/adapters/postgres` | desired state, observations, leased work, decisions, audit, proposal outbox, plan receipts |
 | `controlplane` | `internal/controlplane` | the versioned metadata snapshot and the artifact blob store |
-| `notifications` | `internal/notifications/adapters/postgres` | notification events, subscription preferences, per-recipient inbox entries |
+| `notifications` | `internal/notifications/adapters/postgres` | notification events, subscription preferences, per-recipient inbox entries and their delivery state |
 
 One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look

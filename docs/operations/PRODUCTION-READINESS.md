@@ -57,10 +57,29 @@ carried to the residual list as item 5.
    `adapters/notifications`, which is the escalation #207 records as reaching
    nobody. Reading is through `application.Reader`.
 
-   **What still blocks the row below:** no delivery channel — nothing sends an
-   email or posts to Slack, so an operator learns only by reading — and no
-   console inbox, no HTTP surface, and no way to edit a preference except
-   through the store. The other four events named above are still emitted by
+   **Partly closed again (delivery channel).** A notification now leaves the
+   process. `ports.Transport` and `ports.DeliveryQueue` state the two halves;
+   `adapters/webhook` POSTs a rendered message to one operator-configured
+   endpoint with an injectable `http.Client`, and `adapters/logging` writes it
+   to the structured log; `application.Dispatcher` drains undelivered inbox
+   entries, retries with the same exponential curve and budget the
+   reconciliation worker uses, and marks a delivery terminal when the endpoint
+   answers with something a retry cannot change. The queue is the reconciliation
+   proposal outbox's shape transposed onto the inbox — lease with an expiry,
+   attempt counter, `SKIP LOCKED`, and a durable `delivery_exhausted` — added by
+   migration `0002-notification-delivery`.
+
+   It is **off unless configured**, on the same reasoning as `METRICS_ADDRESS`:
+   with neither `NOTIFICATION_WEBHOOK_URL` nor `NOTIFICATION_DELIVERY_LOG` set,
+   no transport is built, no dispatcher is constructed, no loop runs and no
+   request leaves the process. Upgrading an existing deployment changes nothing.
+
+   **What still blocks the row below:** the only destination is one endpoint an
+   operator configures, because nothing in this repository stores a person's
+   email address or a team's Slack channel — `domain.Contact` models one and no
+   store persists one — so a notification is delivered *about* a recipient
+   rather than *to* them; there is no SMTP transport, no console inbox, no HTTP
+   surface, and no way to edit a preference except through the store. The other four events named above are still emitted by
    nobody: a recall opening, a grant changing, a Plan failing and a Release
    becoming available are all raised inside `internal/controlplane`, which is at
    its line ceiling, so each needs its own extraction before it can emit.

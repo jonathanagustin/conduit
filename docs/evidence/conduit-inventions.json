@@ -41,6 +41,20 @@
       "why": "Deduplication is a judgement, not a recovery: being told the same thing twice in the same place teaches people to ignore it. The channel half of the key is grounded -- Apollo configures email and in-app independently, so reaching one person on both is intended -- but collapsing one owner reached by two preferences on one channel is Conduit's own choice, and Apollo may well fan out per preference instead.",
       "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates a recipient reached by two preferences.",
       "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
+    },
+    {
+      "id": "notifications.Message",
+      "what": "The rendered form of one inbox entry that a delivery transport sends: a subject line built from the event type and environment, and a body of the emitter's summary followed by the event id, type, resource, environment, actor and time.",
+      "why": "Something has to decide the wording, and deciding it once in the domain is better than deciding it per adapter, where two transports would phrase the same failure differently and give an operator two facts to reconcile during an incident. Apollo's settings pages establish that email and Slack contacts receive notifications; no capture shows what the message looks like when it arrives, so every choice here -- that the subject leads with the type a subscriber filtered on, that the body repeats the identifiers needed to act without opening a console -- is Conduit's.",
+      "displacedBy": "a capture of what Apollo puts in a notification email or Slack post, in particular whether the subject names the event type or the resource",
+      "riskIfWrong": "Low and cosmetic in the near term: a wrong subject line is annoying rather than dangerous. It becomes expensive if anyone parses the body, because a downstream receiver built against this shape has to change when the real one arrives. That is why the webhook payload is versioned and structured rather than only textual."
+    },
+    {
+      "id": "notifications.WebhookPayload",
+      "what": "The JSON body Conduit POSTs when delivering a notification to a configured webhook endpoint: a version discriminator, the event and recipient identity the delivery is keyed on, the rendered subject and body, and a Slack-compatible text field.",
+      "why": "A transport had to exist for the readiness document's Tier 1 gap 1 to close, and a webhook is the one transport Conduit can honestly offer: SMTP needs a recipient address and no store in this repository holds one. Apollo establishes that a team may own a Slack contact and that Slack contacts are deliverable; nothing establishes the request Apollo makes, so the field names, the version discriminator and the decision to duplicate the body into a Slack-shaped text field are Conduit's own.",
+      "displacedBy": "a capture of the request Apollo makes when it delivers to a Slack or email team contact, including its field names and headers",
+      "riskIfWrong": "Moderate, because this one is on the wire. A receiver written against these field names has to change when the observed request arrives, and a deployment that has pointed a mail relay at this endpoint would keep delivering under the old shape until it did. The version discriminator exists so that change is detectable rather than silent."
     }
   ],
   "displaced": [

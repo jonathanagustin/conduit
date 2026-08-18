@@ -76,6 +76,55 @@ CREATE TABLE IF NOT EXISTS conduit_notification_inbox (
 CREATE INDEX IF NOT EXISTS conduit_notification_inbox_recipient
     ON conduit_notification_inbox (owner_kind, owner_id, channel, occurred_at DESC, event_id DESC);`,
 	},
+	{
+		// Delivery state, added to the inbox rather than to a table beside it.
+		//
+		// The columns are the reconciliation proposal outbox's, meaning for
+		// meaning: when it is due, who holds it, how many attempts it has cost,
+		// whether there is any point trying again, and why it last failed. That
+		// outbox already solved at-least-once delivery against real PostgreSQL,
+		// and a second table with a second lease protocol would be a second set
+		// of bugs to find.
+		//
+		// One row rather than two, because an inbox entry is already the unit of
+		// delivery: it is exactly "this event, to this recipient, on this
+		// channel", which is what a transport sends. A parallel table would
+		// carry the same primary key and have to be kept in step with it.
+		//
+		// delivery_available_at stays nullable, which is the one deliberate
+		// departure from the three-step non-null idiom in
+		// docs/operations/schema-migrations.md. NULL is a fact here rather than
+		// a missing value: this entry was never queued for a transport, either
+		// because it is an IN_APP entry the inbox itself delivers, or because it
+		// was recorded before this migration existed. Backfilling history to a
+		// due time would make the first start after an upgrade attempt to
+		// deliver every notification the Hub ever recorded, which is exactly the
+		// outbound behaviour an existing deployment must not gain by upgrading.
+		//
+		// The three NOT NULL columns carry constant defaults, so PostgreSQL 11+
+		// records the default in the catalogue and rewrites no rows; the brief
+		// ACCESS EXCLUSIVE lock is the whole cost. No CREATE INDEX CONCURRENTLY,
+		// because every migration here runs inside one transaction.
+		Name: "0002-notification-delivery",
+		Statements: `
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivery_available_at timestamptz;
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivered_at timestamptz;
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivery_lease_token text;
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivery_lease_expires_at timestamptz;
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivery_attempt integer NOT NULL DEFAULT 0 CHECK (delivery_attempt >= 0);
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivery_exhausted boolean NOT NULL DEFAULT false;
+ALTER TABLE conduit_notification_inbox
+    ADD COLUMN IF NOT EXISTS delivery_error text NOT NULL DEFAULT '';
+CREATE INDEX IF NOT EXISTS conduit_notification_inbox_deliverable
+    ON conduit_notification_inbox (delivery_available_at, event_id)
+    WHERE delivery_available_at IS NOT NULL AND delivered_at IS NULL AND delivery_exhausted = false;`,
+	},
 }
 
 // Migrations is this store's schema as the runner sees it, and Component names
@@ -164,13 +213,27 @@ ON CONFLICT (id) DO NOTHING`,
 		if entry.Event.ID != event.ID {
 			return fmt.Errorf("inbox entry names event %q while recording %q", entry.Event.ID, event.ID)
 		}
+		// Queued for a transport in the same transaction that creates the entry,
+		// and only when the channel needs one. Same transaction because an entry
+		// that exists without its due time is one nothing will ever deliver and
+		// nothing will ever report as undelivered; only when needed because an
+		// IN_APP entry is delivered by being here, and handing it to a webhook
+		// would send it somewhere its owner never chose.
+		//
+		// Queuing happens whether or not a transport is configured. Nothing
+		// leaves the process until one is -- the dispatcher is not constructed
+		// otherwise -- but the record of what was owed survives the decision, so
+		// enabling delivery later is a configuration change rather than a
+		// migration.
+		dueAt := sql.NullTime{Time: event.OccurredAt.UTC(), Valid: domain.NeedsTransport(entry)}
 		if _, err := transaction.ExecContext(ctx, `
 INSERT INTO conduit_notification_inbox
-    (event_id, owner_kind, owner_id, channel, preference_id, occurred_at)
-VALUES ($1, $2, $3, $4, $5, $6)
+    (event_id, owner_kind, owner_id, channel, preference_id, occurred_at, delivery_available_at)
+VALUES ($1, $2, $3, $4, $5, $6, $7)
 ON CONFLICT (event_id, owner_kind, owner_id, channel) DO NOTHING`,
 			event.ID, string(entry.Recipient.Owner.Kind), entry.Recipient.Owner.ID,
-			string(entry.Recipient.Channel), entry.PreferenceID, event.OccurredAt.UTC()); err != nil {
+			string(entry.Recipient.Channel), entry.PreferenceID, event.OccurredAt.UTC(),
+			dueAt); err != nil {
 			return fmt.Errorf("record inbox entry for %s: %w", entry.Recipient.Owner.ID, err)
 		}
 	}
