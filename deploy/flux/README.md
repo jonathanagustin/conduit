@@ -165,8 +165,8 @@ values, strict schema, and that `secretStore.roleArn` is actually assumed rather
 than accepted and dropped.
 
 Manually dispatched Conduit releases publish `deploy/flux` as the legacy OCI
-coordinate
-`ghcr.io/<owner>/platform-runtime:<version>` and attach
+artifact tag
+`ghcr.io/<owner>/conduit:runtime-<version>` and attach
 `platform-runtime.json` to the GitHub Release. Consumers select `./runtime` for
 the static-certificate base or `./overlays/spire` for the preferred production
 profile. Deployment repositories must pin the digest from that descriptor;
