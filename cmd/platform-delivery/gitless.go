@@ -1,15 +1,19 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registryauth"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registrychallenge"
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
 	"github.com/jonathanagustin/conduit/internal/gitless/application"
 	"github.com/jonathanagustin/conduit/internal/gitless/composition"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
+	"github.com/jonathanagustin/conduit/internal/gitless/ports"
 )
 
 // gitlessObserver reports what each reconcile pass did.
@@ -60,6 +64,12 @@ func (gitlessObserver) Failed(environment string, err error) {
 // would be advertising a capability that does not exist -- exactly what
 // domain.Reconcile refuses to let the GraphQL interface do.
 func configureGitless(getenv func(string) string) (*application.Scheduler, error) {
+	return configureGitlessWithResolutionLog(getenv, nil)
+}
+
+func configureGitlessWithResolutionLog(
+	getenv func(string) string, resolutionLog ports.ResolutionLog,
+) (*application.Scheduler, error) {
 	bindings := splitCommaSeparated(getenv("GITLESS_BINDINGS"))
 	interval := 5 * time.Minute
 	if raw := strings.TrimSpace(getenv("GITLESS_INTERVAL")); raw != "" {
@@ -105,6 +115,7 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 		TokenRealms:                   realms,
 		PolicyFile:                    strings.TrimSpace(getenv("GITLESS_PUBLISHER_POLICY_FILE")),
 		ResolutionLogFile:             strings.TrimSpace(getenv("GITLESS_RESOLUTION_LOG_FILE")),
+		ResolutionLog:                 resolutionLog,
 		Interval:                      interval,
 		CosignBinary:                  strings.TrimSpace(getenv("GITLESS_COSIGN_BINARY")),
 		CosignRegistryConfigDirectory: cosignRegistryConfigDirectory,
@@ -124,4 +135,36 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 			RegistryCredentials: credentials,
 		},
 	}, composition.ConduitConfig{}, gitlessObserver{})
+}
+
+// openGitlessResolutionLog chooses the deployment-owned durability profile.
+// File remains the compatibility default for existing single-replica users;
+// PostgreSQL must be named explicitly and shares the Hub repository DSN.
+func openGitlessResolutionLog(
+	ctx context.Context, getenv func(string) string,
+) (ports.ResolutionLog, func(), error) {
+	if len(splitCommaSeparated(getenv("GITLESS_BINDINGS"))) == 0 {
+		return nil, func() {}, nil
+	}
+	switch kind := strings.TrimSpace(getenv("GITLESS_RESOLUTION_LOG_KIND")); kind {
+	case "", "file":
+		return nil, func() {}, nil
+	case "postgres":
+		if strings.TrimSpace(getenv("REPOSITORY_KIND")) != "postgres" {
+			return nil, func() {}, fmt.Errorf(
+				"GITLESS_RESOLUTION_LOG_KIND=postgres requires REPOSITORY_KIND=postgres")
+		}
+		dataSourceName, err := readSingleLineSecretFile(getenv("POSTGRES_DSN_FILE"), "POSTGRES_DSN_FILE")
+		if err != nil {
+			return nil, func() {}, err
+		}
+		log, err := resolutionlogpostgres.New(ctx, dataSourceName)
+		if err != nil {
+			return nil, func() {}, err
+		}
+		return log, func() { _ = log.Close() }, nil
+	default:
+		return nil, func() {}, fmt.Errorf(
+			"unknown GITLESS_RESOLUTION_LOG_KIND %q; expected file or postgres", kind)
+	}
 }

@@ -19,7 +19,8 @@ an RPO it cannot enforce is worse than one that says who has to choose it.
 | --- | --- |
 | `controlplane` | `conduit_repository_state` (the versioned metadata snapshot: environments, plans, change requests, grants), `conduit_repository_blobs` |
 | `reconciliation` | `conduit_reconciliation_desired`, `_observations`, `_work`, `_decisions`, `_audit`, `_proposal_outbox`, `_plan_receipts` |
-| both | `conduit_schema_migrations` — the migration ledger |
+| `gitless-resolution-log` | `conduit_gitless_resolutions` (the append-only source selector, resolved digest, publisher, movement, and failure history shared by Hub replicas) |
+| all components | `conduit_schema_migrations` — the migration ledger |
 
 **Artifact bytes are in the database.** `conduit_repository_blobs` holds
 `contents bytea` (`internal/controlplane/postgres_repository.go`), so one dump
@@ -119,7 +120,7 @@ end.
 3. **Ask what a start would apply, before starting anything.**
    `pgmigrate.Pending` reports what `Apply` would run without running it and
    without creating the ledger table it reads. On a correctly restored database
-   the answer is empty for both components; anything else means the backup did
+   the answer is empty for every component; anything else means the backup did
    not carry the ledger intact, and the Hub would migrate a database that is
    already migrated.
 4. **Restore the secrets**, above — the signing key first, because it is the one
@@ -127,8 +128,9 @@ end.
 5. **Start the Hub and verify through it, not through the tables.** Row counts
    prove the bytes arrived; only the real repositories prove they still decode.
    The drill reads a Plan back through `ListPlans`, an artifact back through
-   `OpenBlob` and compares the bytes, and desired state back through
-   `CurrentDesired`.
+   `OpenBlob` and compares the bytes, desired state back through
+   `CurrentDesired`, and an exact Gitless resolution digest back through the
+   shared history table after opening its real adapter.
 
 ### Two replicas on first start
 

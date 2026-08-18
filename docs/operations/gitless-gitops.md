@@ -14,7 +14,8 @@ source would mean an upgrade could begin deploying things nobody asked for.
 | --- | --- | --- |
 | `GITLESS_BINDINGS` | to enable | Comma-separated `environment=repository:channel` or `environment=repository@sha256:…`. Empty means off. |
 | `GITLESS_PUBLISHER_POLICY_FILE` | yes | Which publisher each environment trusts. No default. |
-| `GITLESS_RESOLUTION_LOG_FILE` | yes | Where resolutions are appended before deployment. No default. |
+| `GITLESS_RESOLUTION_LOG_KIND` | no | `file` (the compatibility default) or `postgres`. Multi-replica Hubs must use `postgres`. |
+| `GITLESS_RESOLUTION_LOG_FILE` | with `file` | Where resolutions are appended before deployment. No default path. |
 | `GITLESS_CONVERGENCE` | yes | `flux` or `conduit`. **No default** — see below. |
 | `GITLESS_INTERVAL` | no | How often desired state is restated. Defaults to `5m`. |
 | `GITLESS_COSIGN_BINARY` | no | The verifier. Empty resolves `cosign` on `PATH`. |
@@ -70,9 +71,10 @@ never the username, password, or encoded `auth` value.
 
 Once this variable is set, a registry absent from the file is a configuration
 error instead of an anonymous retry. Leave it unset only when both registries
-are intentionally public. The Hub image carries the same checksum-pinned Cosign
-release used by the signing workflows and Gitless acceptance suite, so no
-runtime download or mutable tools volume is required.
+are intentionally public. The Hub image carries the same Cosign v3.1.3 command
+used by the signing workflows and Gitless acceptance suite, rebuilt from its
+locked module graph under the pinned Go toolchain, so no runtime download or
+mutable tools volume is required.
 
 #### The file must be named `config.json`
 
@@ -231,8 +233,16 @@ at `error` buries the case that needs attention in the case that is working.
 
 ## The resolution log
 
-One JSON object per line, appended with `O_APPEND` and fsynced before the write
-is reported successful:
+Set `GITLESS_RESOLUTION_LOG_KIND=postgres` on a multi-replica Hub. It reuses
+`POSTGRES_DSN_FILE`, applies the `gitless-resolution-log` component's
+forward-only migration, and appends every replica's records to one ordered
+table. Startup fails if the Hub repository is not also PostgreSQL-backed; a
+split durability profile would make the audit history look shared when it is
+not.
+
+The `file` profile remains for a deliberately single-replica deployment. It
+stores one JSON object per line, appended with `O_APPEND` and fsynced before the
+write is reported successful:
 
 ```json
 {"recordedAt":"…","environment":"prod","selector":"ghcr.io/…:latest-stable",
@@ -240,10 +250,9 @@ is reported successful:
  "superseded":"sha256:…","moved":true,"publisher":"https://github.com/…"}
 ```
 
-**Its bound:** one file on one filesystem. A Hub running several replicas needs a
-shared durable store, and this adapter is then the wrong one — not
-misconfigured, wrong. Nothing detects that at runtime; it is a deployment-time
-decision.
+**The file profile's bound:** one file on one filesystem. It is the wrong
+adapter for several replicas; the PostgreSQL profile is the shared durable
+store for that topology.
 
 ## Verifying it
 

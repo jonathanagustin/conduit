@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"os"
 	"path/filepath"
@@ -120,6 +121,48 @@ func TestAnUnconfiguredHubDoesNotReadAnUnusedRegistryFile(t *testing.T) {
 	}
 	if scheduler != nil {
 		t.Fatal("an unused credential mount enabled Gitless GitOps")
+	}
+}
+
+func TestAnUnconfiguredHubDoesNotOpenAnUnusedResolutionLog(t *testing.T) {
+	log, closeLog, err := openGitlessResolutionLog(t.Context(), env(map[string]string{
+		"GITLESS_RESOLUTION_LOG_KIND": "unknown",
+		"POSTGRES_DSN_FILE":           filepath.Join(t.TempDir(), "missing"),
+	}))
+	defer closeLog()
+	if err != nil || log != nil {
+		t.Fatalf("unused resolution log changed the off state: log=%v err=%v", log, err)
+	}
+}
+
+func TestPostgresResolutionLogRequiresThePostgresHubRepository(t *testing.T) {
+	values := fluxEnvironment(t, "registry.example/team/manifests")
+	values["GITLESS_RESOLUTION_LOG_KIND"] = "postgres"
+	values["REPOSITORY_KIND"] = "file"
+	if _, closeLog, err := openGitlessResolutionLog(t.Context(), env(values)); err == nil {
+		closeLog()
+		t.Fatal("a PostgreSQL resolution log was accepted without the PostgreSQL Hub repository")
+	}
+}
+
+func TestPostgresGitlessResolutionLogStartsWithTheSharedDSN(t *testing.T) {
+	dsn := os.Getenv("CONDUIT_TEST_POSTGRES_DSN")
+	if dsn == "" {
+		t.Skip("CONDUIT_TEST_POSTGRES_DSN is not set")
+	}
+	values := fluxEnvironment(t, "registry.example/team/manifests")
+	delete(values, "GITLESS_RESOLUTION_LOG_FILE")
+	values["GITLESS_RESOLUTION_LOG_KIND"] = "postgres"
+	values["REPOSITORY_KIND"] = "postgres"
+	values["POSTGRES_DSN_FILE"] = writeFile(t, "gitless-dsn", []byte(dsn+"\n"))
+	log, closeLog, err := openGitlessResolutionLog(context.Background(), env(values))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer closeLog()
+	scheduler, err := configureGitlessWithResolutionLog(env(values), log)
+	if err != nil || scheduler == nil {
+		t.Fatalf("PostgreSQL Gitless Hub did not start: scheduler=%v err=%v", scheduler, err)
 	}
 }
 
