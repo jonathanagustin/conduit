@@ -195,8 +195,8 @@ func productReleaseVerifyCommand(state *commandState) *cobra.Command {
 
 func productReleaseAssetCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "asset", Short: "Publish immutable Product Release assets"}
-	var assetPath, coordinate, manifestFile, labelName, labelValue string
-	var images []string
+	var assetPath, coordinate, manifestFile string
+
 	publish := &cobra.Command{
 		Use: "publish", Short: "Upload an immutable content-addressed asset", Args: cobra.NoArgs,
 		RunE: func(command *cobra.Command, _ []string) error {
@@ -204,6 +204,14 @@ func productReleaseAssetCommand(state *commandState) *cobra.Command {
 			// belongs to, so it has to actually name that Product Release. Echoing
 			// an unread path let an asset be published against one coordinate while
 			// citing another Product's manifest.
+			// --maven-coordinate is only ever read by the cross-check below, so on
+			// its own it named an owner nothing recorded. Requiring the manifest
+			// keeps the flag in the one role it actually has.
+			if coordinate != "" && manifestFile == "" {
+				return errors.New(
+					"--maven-coordinate is verified against --manifest-file; supply the manifest or drop the coordinate",
+				)
+			}
 			if manifestFile != "" {
 				manifest, err := readProductManifest(manifestFile)
 				if err != nil {
@@ -224,19 +232,34 @@ func productReleaseAssetCommand(state *commandState) *cobra.Command {
 			}
 			return state.execute(command, func(service Service) (any, error) {
 				descriptor, err := service.UploadArtifact(command.Context(), mediaType, file)
-				return map[string]any{
-					"descriptor": descriptor, "mavenCoordinate": coordinate, "manifestFile": manifestFile,
-					"images": images, "label": map[string]string{labelName: labelValue},
-				}, err
+				if err != nil {
+					return nil, err
+				}
+				// Report the upload and the manifest cross-check, because those are
+				// the two things that happened. The previous version also echoed the
+				// coordinate, the images and the label as if the asset had been bound
+				// to them; the Hub stores an anonymous content-addressed blob, so an
+				// operator reading the output as evidence -- which is what this repo
+				// asks them to do -- was reading a binding that does not exist.
+				result := map[string]any{"descriptor": descriptor}
+				if manifestFile != "" {
+					result["manifestFile"] = manifestFile
+					result["mavenCoordinate"] = coordinate
+				}
+				return result, nil
 			})
 		},
 	}
 	publish.Flags().StringVar(&assetPath, "asset-path", "", "asset file to upload")
 	publish.Flags().StringVar(&coordinate, "maven-coordinate", "", "owning Product Release coordinate")
 	publish.Flags().StringVar(&manifestFile, "manifest-file", "", "optional manifest associated with the asset")
-	publish.Flags().StringSliceVar(&images, "images", nil, "related exact image references")
-	publish.Flags().StringVar(&labelName, "label-name", "", "optional label ID")
-	publish.Flags().StringVar(&labelValue, "label-value", "", "optional label value")
+	// No --images, --label-name or --label-value. UploadArtifact sends the file
+	// body and nothing else, and POST /v1/artifacts/blobs stores an anonymous
+	// content-addressed blob, so there is no field for any of them to travel in.
+	// Apollo documents --images as declaring artifacts it checks for
+	// availability; Conduit checks nothing. Accepting them and echoing them back
+	// reported a binding that was never made, which is worse than an absent flag
+	// -- an unknown-flag error tells the operator the truth immediately.
 	_ = publish.MarkFlagRequired("asset-path")
 	command.AddCommand(publish)
 	return command

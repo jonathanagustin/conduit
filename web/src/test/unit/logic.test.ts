@@ -1,6 +1,5 @@
 import { describe, expect, it } from "vitest";
 
-import { filterFleet, matchesSearch } from "../../features/fleet/filter.js";
 import { orderInbox, outstandingRequirements } from "../../features/changes/order.js";
 import {
   CANCELLABLE_STATUSES,
@@ -17,68 +16,27 @@ import type { VulnerabilityFinding } from "../../api/catalog.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import { HEALTH_INTENT, ROLLOUT_INTENT, CONFIG_INTENT, LIFECYCLE_INTENT } from "../../features/fleet/statusTags.js";
 import { PLAN_INTENT } from "../../features/plans/PlansPage.js";
-import { installation } from "../fixtures.js";
-import { reviewBody, type ChangeRequest } from "../../api/resources.js";
+import {
+  PLAN_TERMINAL_STATUSES,
+  planPollInterval,
+  reviewBody,
+  reviewInvalidationKeys,
+  type ChangeRequest,
+} from "../../api/resources.js";
 
 /** Unit tests over the console's own logic -- the parts that are not the Hub's
  * behaviour and not Blueprint's. These exist to be mutated: the browser tests
  * prove the screens work, but they are far too slow to run once per mutant. */
 
-describe("fleet search", () => {
-  // The three searchable fields deliberately share no substring. The first
-  // version of these fixtures used installationId "payments" with product
-  // "app.example:payments", so a mutation that searched the wrong field still
-  // matched through the other one and survived. Overlapping fixtures cannot
-  // tell you which field a match came from.
-  const payments = installation({
-    installationId: "alpha",
-    environment: "prod-use1",
-    product: "app.example:billing",
-  });
-  const ledger = installation({
-    installationId: "bravo",
-    environment: "prod-euw1",
-    product: "app.example:ledger",
-  });
-
-  it("matches on the installation identifier", () => {
-    expect(matchesSearch(payments, "alpha")).toBe(true);
-    expect(matchesSearch(ledger, "alpha")).toBe(false);
-  });
-
-  it("matches on the Environment", () => {
-    expect(matchesSearch(ledger, "euw1")).toBe(true);
-    expect(matchesSearch(payments, "euw1")).toBe(false);
-  });
-
-  it("matches on the Product", () => {
-    expect(matchesSearch(ledger, "ledger")).toBe(true);
-    expect(matchesSearch(payments, "ledger")).toBe(false);
-  });
-
-  it("ignores case on each field independently", () => {
-    // One assertion per field, or an uppercased comparison on one field is
-    // masked by another field still matching.
-    expect(matchesSearch(payments, "ALPHA")).toBe(true);
-    expect(matchesSearch(payments, "PROD-USE1")).toBe(true);
-    expect(matchesSearch(payments, "APP.EXAMPLE:BILLING")).toBe(true);
-    expect(matchesSearch(installation({ installationId: "ALPHA", environment: "e", product: "p" }), "alpha")).toBe(true);
-  });
-
-  it("treats an empty or whitespace-only search as no filter", () => {
-    expect(matchesSearch(payments, "")).toBe(true);
-    expect(matchesSearch(payments, "   ")).toBe(true);
-    expect(filterFleet([payments, ledger], "  ")).toHaveLength(2);
-  });
-
-  it("matches a substring rather than requiring the whole field", () => {
-    expect(matchesSearch(payments, "lph")).toBe(true);
-  });
-
-  it("returns nothing when nothing matches", () => {
-    expect(filterFleet([payments, ledger], "absent")).toHaveLength(0);
-  });
-});
+// Fleet search is deliberately absent from this file. It used to live here as
+// unit tests over a local matchesSearch/filterFleet, written when the Hub was
+// believed to have no free-text parameter. It has one: FleetPage puts `search`
+// in the query string, the Hub reads it in http.go and matches installation,
+// Environment and Product in reporting/domain/fleet.go, and the console never
+// filtered a row itself. Filtering locally would narrow the page the Hub
+// returned rather than the fleet, so the right console-side behaviour is to
+// send the parameter and render what comes back -- which the browser tests
+// cover, because it is a request, not a computation.
 
 function request(overrides: Partial<ChangeRequest> = {}): ChangeRequest {
   return {
@@ -479,6 +437,16 @@ describe("review bodies match the Hub's decoder", () => {
     expect(carriesRationale("reject")).toBe(true);
     expect(carriesRationale("cancel")).toBe(true);
   });
+
+  // The Plans index refreshed after an approval and the Plan detail page did
+  // not, so the two screens disagreed about the Plan just acted on. The key is
+  // a prefix because this hook holds the Change Request's id, not the Plan's.
+  it("makes the open Plan detail stale, not only the Plans index", () => {
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["plan"]);
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["plans"]);
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["change-request", "crq_1"]);
+    expect(reviewInvalidationKeys("crq_1")).toContainEqual(["change-requests"]);
+  });
 });
 
 describe("author-only review actions match the Hub's gates", () => {
@@ -525,5 +493,45 @@ describe("author-only review actions match the Hub's gates", () => {
     // Sharing one set is the plausible simplification, and it would offer the
     // author Cancel on a cancelled request and Reopen on a pending one.
     expect(CANCELLABLE_STATUSES.some((status) => REOPENABLE_STATUSES.includes(status))).toBe(false);
+  });
+});
+
+describe("plan detail polling", () => {
+  // The Agent drives APPROVED -> LEASED -> RUNNING -> SUCCEEDED/FAILED with no
+  // help from the console (internal/controlplane/lifecycle.go), and
+  // AWAITING_APPROVAL moves the moment another reviewer approves. Polling only
+  // RUNNING and LEASED therefore froze a Plan detail page opened at APPROVED
+  // for the entire rollout, while the Plans index beside it kept moving.
+  it("polls a Plan the Hub can still move, APPROVED included", () => {
+    expect(planPollInterval("APPROVED")).toBe(5_000);
+    expect(planPollInterval("AWAITING_APPROVAL")).toBe(5_000);
+    expect(planPollInterval("LEASED")).toBe(5_000);
+    expect(planPollInterval("RUNNING")).toBe(5_000);
+  });
+
+  it("stops at a status no transition leaves", () => {
+    expect(planPollInterval("SUCCEEDED")).toBe(false);
+    expect(planPollInterval("FAILED")).toBe(false);
+    expect(planPollInterval("CANCELLED")).toBe(false);
+    expect(planPollInterval("RECORDED")).toBe(false);
+  });
+
+  // A status the Hub never emits would be a terminal entry that silences
+  // nothing, and the mistake is invisible in the assertions above because they
+  // spell the same strings. PLAN_INTENT is held to the Go consts by
+  // scripts/verify-console-contract.mjs, so comparing against it borrows that
+  // gate's authority.
+  it("names only statuses the Hub actually emits, and not all of them", () => {
+    for (const status of PLAN_TERMINAL_STATUSES) {
+      expect(Object.keys(PLAN_INTENT)).toContain(status);
+    }
+    expect(PLAN_TERMINAL_STATUSES.size).toBeLessThan(Object.keys(PLAN_INTENT).length);
+  });
+
+  it("does not poll before a Plan has loaded", () => {
+    // React Query owns retrying the first fetch; polling here would re-ask for
+    // a Plan id the Hub refuses every five seconds for as long as the tab is
+    // open.
+    expect(planPollInterval(undefined)).toBe(false);
   });
 });

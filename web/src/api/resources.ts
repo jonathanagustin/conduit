@@ -244,6 +244,43 @@ export function usePlans(query: CatalogQuery = {}, environment?: string) {
   });
 }
 
+/** The Plan statuses nothing moves a Plan out of, read off the Hub's lifecycle.
+ *
+ * Every transition in internal/controlplane/lifecycle.go -- ApprovePlan,
+ * LeaseNextPlan, StartPlan, FinishPlan, CancelPlan, supersedePendingPlans,
+ * recordNonExecutingState -- guards on a status in {AWAITING_APPROVAL,
+ * APPROVED, LEASED, RUNNING}, so a Plan that has reached SUCCEEDED, FAILED or
+ * CANCELLED stays there. RECORDED belongs here too: it is a reviewed generation
+ * for an Environment this Hub does not drive, and lifecycle.go says outright
+ * that it "cannot be approved or leased".
+ *
+ * Stated as the terminal set rather than as the active one deliberately. The
+ * first version of the poll below named the two statuses to keep polling
+ * (RUNNING, LEASED), which left a Plan detail page opened at APPROVED frozen
+ * for the whole rollout -- the Agent drives APPROVED -> LEASED -> RUNNING ->
+ * SUCCEEDED/FAILED with no help from the console, and AWAITING_APPROVAL moves
+ * on its own as soon as another reviewer approves. Naming the states that stop
+ * the polling instead means every intermediate state the Hub grows in future is
+ * polled by construction, and going quiet is a decision someone has to make
+ * here rather than an omission. */
+export const PLAN_TERMINAL_STATUSES: ReadonlySet<string> = new Set([
+  "SUCCEEDED",
+  "FAILED",
+  "CANCELLED",
+  "RECORDED",
+]);
+
+/** How often to refetch a Plan in `status`, or false to stop polling.
+ *
+ * `undefined` is the case where no record has loaded -- the first fetch, or one
+ * that failed. React Query already retries that on its own schedule, and a Plan
+ * id the Hub refuses outright would otherwise re-ask every five seconds
+ * forever, so an absent status stops the poll rather than starting it. */
+export function planPollInterval(status: string | undefined): number | false {
+  if (status === undefined) return false;
+  return PLAN_TERMINAL_STATUSES.has(status) ? false : 5_000;
+}
+
 export function usePlan(planId: string) {
   return useQuery({
     // A Change Request can govern no Plan, and asking for /plans/ with an empty
@@ -252,12 +289,9 @@ export function usePlan(planId: string) {
     enabled: planId !== "",
     queryKey: ["plan", planId],
     queryFn: ({ signal }) => getJSON<PlanRecord>(`/plans/${encodeURIComponent(planId)}`, { signal }),
-    // A running Plan changes on its own; a finished one does not. Polling is
-    // stopped once the Plan reaches a state the Agent will not move it out of.
-    refetchInterval: (query) => {
-      const status = query.state.data?.status;
-      return status === "RUNNING" || status === "LEASED" ? 5_000 : false;
-    },
+    // A Plan the Agent can still move changes on its own; a terminal one does
+    // not. See planPollInterval for why the rule is stated that way round.
+    refetchInterval: (query) => planPollInterval(query.state.data?.status),
   });
 }
 
@@ -310,6 +344,19 @@ export interface ChangeReviewResult {
   bundleImport?: BundleImport;
 }
 
+/** The query keys a review makes stale, given the reviewed Change Request's id.
+ *
+ * `["plan"]` is a prefix rather than `["plan", planId]` on purpose: this hook
+ * knows the Change Request's id, and that is not the Plan's. A review both
+ * moves the governed Plan (approve leaves it APPROVED, cancel leaves it
+ * CANCELLED) and can produce a new one, and the ids of neither are in hand
+ * here, so the prefix invalidates whichever Plan detail the operator is looking
+ * at. Without it the Plans index refreshed and the Plan detail page did not,
+ * and the two screens disagreed about the Plan just acted on. */
+export function reviewInvalidationKeys(id: string): string[][] {
+  return [["change-request", id], ["change-requests"], ["plans"], ["plan"]];
+}
+
 /** Reviewing is the console's only write path so far, and it is deliberately
  * explicit: the caller names the action, and the affected queries are
  * invalidated rather than patched, so what the screen shows afterwards is what
@@ -327,11 +374,9 @@ export function useReviewChangeRequest(id: string) {
         reviewBody(action, rationale),
       ),
     onSuccess: async () => {
-      await Promise.all([
-        queries.invalidateQueries({ queryKey: ["change-request", id] }),
-        queries.invalidateQueries({ queryKey: ["change-requests"] }),
-        queries.invalidateQueries({ queryKey: ["plans"] }),
-      ]);
+      await Promise.all(
+        reviewInvalidationKeys(id).map((queryKey) => queries.invalidateQueries({ queryKey })),
+      );
     },
   });
 }
