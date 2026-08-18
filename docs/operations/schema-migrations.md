@@ -99,6 +99,7 @@ accurate and does not have to be idempotent.
 | --- | --- | --- |
 | `reconciliation` | `internal/delivery/reconciliation/adapters/postgres` | desired state, observations, leased work, decisions, audit, proposal outbox, plan receipts |
 | `controlplane` | `internal/controlplane` | the versioned metadata snapshot and the artifact blob store |
+| `notifications` | `internal/notifications/adapters/postgres` | notification events, subscription preferences, per-recipient inbox entries |
 
 One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look

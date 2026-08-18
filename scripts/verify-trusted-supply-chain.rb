@@ -80,6 +80,11 @@ abort "Cosign release must be pinned for optimizer candidate signing" unless
 # what ships.
 abort "Cosign release must match the checksum-pinned download in test-gitless-clean-cluster.sh" unless
   clean_cluster.include?("/sigstore/cosign/releases/download/#{cosign_release}/")
+abort "Hub runtime must carry the same checksum-pinned Cosign release the Gitless adapter invokes" unless
+  hub_containerfile.include?("ARG COSIGN_VERSION=#{cosign_release}") &&
+    hub_containerfile.include?("4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71") &&
+    hub_containerfile.include?("c5d324e091826b0d7a78eb16fef316450b4eb9aaec045611c08ba06f5e73220a") &&
+    hub_containerfile.include?("COPY --from=build --chown=65532:65532 --chmod=0755 /out/cosign /usr/local/bin/cosign")
 abort "no cosign-release may be left unpinned" unless
   (workflow + optimizer_release_workflow).scan(/cosign-release: (\S+)/).flatten.uniq == [cosign_release]
 abort "image and runtime jobs require GitHub OIDC" unless workflow.scan("id-token: write").length == 2

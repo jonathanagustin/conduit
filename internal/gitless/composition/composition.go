@@ -52,6 +52,14 @@ type Config struct {
 
 	// CosignBinary is the verifier. Empty resolves "cosign" on PATH.
 	CosignBinary string
+	// CosignArguments are appended before the immutable artifact reference.
+	// Deployments use this for a mounted registry configuration; callers must
+	// never put credential contents themselves in arguments.
+	CosignArguments []string
+
+	// RegistryCredentials authenticate source resolution. Nil means anonymous,
+	// which remains the right profile for a public source registry.
+	RegistryCredentials ociresolve.Credentials
 
 	// Convergence is "flux" or "conduit". There is no default: which one is in
 	// use changes who owns approval, which is not a thing to fall back into.
@@ -134,8 +142,8 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 	}
 
 	source, err := application.New(
-		ociresolve.New(nil, ociresolve.Anonymous{}),
-		cosignverify.New(config.CosignBinary),
+		ociresolve.New(nil, config.RegistryCredentials),
+		cosignverify.New(config.CosignBinary, config.CosignArguments...),
 		policies,
 		log,
 		converger,
