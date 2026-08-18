@@ -178,15 +178,27 @@ mkdir -p "${test_root}/docker"
 export DOCKER_CONFIG="${test_root}/docker"
 printf '%s' "${publisher_password}" | cosign login "${host_registry}" \
   --username "${publisher_user}" --password-stdin >/dev/null
-# Exercise the production mounted-file credential adapter against this real,
+# Exercise the production mounted-file credential adapters against this real,
 # authenticated registry. The ordinary ocipublish acceptance uses an anonymous
 # local registry; this is the case that proves the Hub's private write path.
+#
+# The verification case runs the real cosign binary through Conduit's verifier,
+# with argv and environment decided entirely by the adapter. This suite used to
+# invoke cosign only directly, which is how an adapter passing a flag cosign does
+# not have shipped in #220: the acceptance ran a correct command line while the
+# product ran an impossible one. The artifact is not signed yet at this point in
+# the script, and that is deliberate -- an unsigned artifact must come back as an
+# observation rather than as a verifier error, and an invented flag destroys
+# exactly that distinction.
 (
   cd "${repo_root}"
   GITLESS_REGISTRY_ACCEPTANCE_REPOSITORY="${host_registry}/conduit/hub-manifests" \
   GITLESS_REGISTRY_CONFIG="${DOCKER_CONFIG}/config.json" \
+  GITLESS_COSIGN_ACCEPTANCE_PIN="${right_repository}@${right_digest}" \
+  GITLESS_COSIGN_ACCEPTANCE_PLAINTEXT=true \
     go test ./internal/gitless/adapters/registryauth \
-      -run TestPrivateRegistryPublicationAcceptance -count=1 -v
+      -run 'TestPrivateRegistryPublicationAcceptance|TestPrivateRegistryVerificationAcceptance' \
+      -count=1 -v
 )
 export COSIGN_PASSWORD="conduit-test-key-password"
 cosign generate-key-pair --output-key-prefix "${test_root}/trusted" >/dev/null
