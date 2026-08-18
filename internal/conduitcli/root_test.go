@@ -591,6 +591,61 @@ extensions:
 	}
 }
 
+// The Hub stores an anonymous content-addressed blob: UploadArtifact sends the
+// file body and nothing else. So the command must not report a coordinate, an
+// image list or a label as if the asset had been bound to them, and must not
+// accept flags nothing can carry. Echoing them made the output evidence of a
+// binding that does not exist, which is exactly what an operator following this
+// repo's "verify by output" rule would have believed.
+func TestProductReleaseAssetPublishReportsOnlyWhatItBound(t *testing.T) {
+	t.Parallel()
+	directory := t.TempDir()
+	assetPath := filepath.Join(directory, "asset.bin")
+	if err := os.WriteFile(assetPath, []byte("asset"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+
+	run := func(arguments ...string) (string, error) {
+		var output bytes.Buffer
+		root := NewRoot(testRuntime(&output, &fakeService{}))
+		root.SetArgs(append([]string{
+			"--server", "http://127.0.0.1:8081", "--development-subject", "developer",
+			"product-release", "asset", "publish", "--asset-path", assetPath,
+		}, arguments...))
+		root.SetOut(&output)
+		root.SetErr(&output)
+		err := root.Execute()
+		return output.String(), err
+	}
+
+	printed, err := run()
+	if err != nil {
+		t.Fatalf("plain publish rejected: %v", err)
+	}
+	for _, absent := range []string{"mavenCoordinate", "manifestFile", "images", "label"} {
+		if strings.Contains(printed, absent) {
+			t.Fatalf("publish output reports %q, which nothing bound: %s", absent, printed)
+		}
+	}
+
+	// An unknown-flag error tells the operator the truth immediately, which is
+	// the whole reason these are absent rather than accepted and dropped.
+	for _, unbindable := range [][]string{
+		{"--images", "registry.example/app@sha256:" + strings.Repeat("0", 64)},
+		{"--label-name", "env", "--label-value", "prod"},
+	} {
+		if _, err := run(unbindable...); err == nil {
+			t.Fatalf("publish accepted %v, which it cannot record", unbindable)
+		}
+	}
+
+	// The coordinate is only ever read by the manifest cross-check, so alone it
+	// named an owner nothing verified.
+	if _, err := run("--maven-coordinate", "com.example:network:1.2.3"); err == nil {
+		t.Fatal("publish accepted a --maven-coordinate with no manifest to verify it against")
+	}
+}
+
 func testRuntime(output *bytes.Buffer, service Service) Runtime {
 	return Runtime{
 		Stdout: output,
