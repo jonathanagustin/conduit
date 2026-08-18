@@ -13,7 +13,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sort"
-	"syscall"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/optimization/solverprotocol"
@@ -96,17 +95,7 @@ func (backend ExternalProcessSolverBackend) Solve(ctx context.Context, request S
 	command.Stdin = bytes.NewReader(input)
 	command.Stdout = stdout
 	command.Stderr = stderr
-	command.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	command.Cancel = func() error {
-		if command.Process == nil {
-			return os.ErrProcessDone
-		}
-		err := syscall.Kill(-command.Process.Pid, syscall.SIGKILL)
-		if errors.Is(err, syscall.ESRCH) {
-			return os.ErrProcessDone
-		}
-		return err
-	}
+	configureExternalProcessCancellation(command)
 	command.WaitDelay = 250 * time.Millisecond
 	runErr := command.Run()
 	if ctx.Err() != nil {
