@@ -155,6 +155,47 @@ would give `--latest` something to fetch; a cached scan result would give
 `TestReleaseChannelExportRefusesLatestRatherThanIgnoringIt` and
 `TestReleaseChannelDiffNarrowsToDifferingFieldsUnlessAll` in
 `internal/conduitcli`.
+### The review-context flags are absent, not accepted and discarded
+
+**Source class:** Public contract (`--compliance-ticket` on
+`environment artifact-registry assign|unassign` and
+`environment release-channel set`, `--archive-rationale` on
+`release-channel update`, all recorded in
+[`../apollo/cli-command-contract.json`](../apollo/cli-command-contract.json)).
+**Divergence:** Conduit does not offer them at all.
+
+Every one of those commands ends in a Plan proposal, and `POST /v1/plans`
+carries a `DesiredState` and nothing else. Conduit accepted the flags anyway --
+required them, in fact, and `environment delete` required a Conduit-invented
+`--rationale` on top -- and printed that the value was "retained in review
+context". Nothing transmitted it (#175). The requirement was worse than an
+ignored optional flag: it forced an operator to produce audit metadata under a
+printed promise, and manufactured confidence in a record that was never
+written. An auditor asking which ticket authorized an Environment deletion got
+nothing, with no trace that the answer had been collected and dropped.
+
+**Why Conduit drops them rather than carrying them.** Carrying the value means a
+review-context field on the Plan proposal, which lives in `internal/controlplane`
+-- the monolith that is exactly on its recorded line ceiling
+(`docs/operations/controlplane-ceiling.json`), a ratchet that may only move
+down. Raising a migration ceiling to hold a CLI convenience field inverts what
+the ratchet is for. The repository's own doctrine already settled the other half
+of the choice, at `internal/conduitcli/apollo_parity_commands.go`: *"a rationale
+would be accepted and dropped. A flag that silently does nothing is worse than
+an absent one."* An honest absent flag beats a false promise.
+
+**Scope, stated because it is narrow.** Only the flags whose value had no
+transport. `plan approve --rationale` and `changerequest approve|reject
+--rationale` keep theirs, because those calls do carry the rationale to the Hub.
+
+**What would close it.** A review context on the Plan proposal, in a bounded
+context of its own rather than in `internal/controlplane`, at which point these
+flags can return and mean what they say.
+
+**Detected by:** `TestReviewContextFlagsAreAbsentRatherThanDemandedAndDiscarded`
+and `TestNoFlagPromisesRetentionInReviewContext` in `internal/conduitcli`, which
+run each command without the flag, reject it as unknown when passed, and fail if
+any flag in the command tree advertises retention in review context again.
 
 ## Tenant runtime data
 

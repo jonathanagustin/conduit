@@ -30,6 +30,10 @@ type fakeService struct {
 	// uploadedMediaType records what the CLI decided to declare for an
 	// uploaded asset; the Hub stores it and cannot infer it from the bytes.
 	uploadedMediaType string
+	// proposed is the exact DesiredState the CLI handed to ProposePlan. It is
+	// the whole payload of a Plan proposal, so a review-context test can read it
+	// to see everything the command was able to transmit.
+	proposed controlplane.DesiredState
 }
 
 func (*fakeService) ListArtifactRegistries(_ context.Context) ([]controlplane.ArtifactRegistryRecord, error) {
@@ -250,7 +254,8 @@ func (*fakeService) PutApprovalPolicy(_ context.Context, id string, value contro
 	value.ID = id
 	return value, nil
 }
-func (*fakeService) ProposePlan(_ context.Context, _ controlplane.DesiredState) (controlplane.PlanRecord, error) {
+func (service *fakeService) ProposePlan(_ context.Context, state controlplane.DesiredState) (controlplane.PlanRecord, error) {
+	service.proposed = state
 	return controlplane.PlanRecord{ID: "pln_proposed", Status: controlplane.PlanAwaitingApproval}, nil
 }
 func (service *fakeService) ApprovePlan(_ context.Context, id, rationale string) (controlplane.PlanRecord, error) {
