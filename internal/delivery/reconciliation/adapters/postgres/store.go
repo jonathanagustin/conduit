@@ -496,7 +496,14 @@ FOR UPDATE`, lease.Key.Environment, lease.Key.Installation, lease.Token).Scan(&r
 	// A newer input owns a fresh retry budget and must remain runnable even if
 	// the superseded attempt exhausted its own budget.
 	if revision != lease.Revision {
-		exhausted = false
+		if _, err := transaction.ExecContext(ctx, `
+UPDATE conduit_reconciliation_work
+SET lease_token = NULL, lease_expires_at = NULL
+WHERE environment = $1 AND installation = $2 AND lease_token = $3`,
+			lease.Key.Environment, lease.Key.Installation, lease.Token); err != nil {
+			return fmt.Errorf("release superseded failed reconciliation work: %w", err)
+		}
+		return commit(transaction, "superseded reconciliation work failure")
 	}
 	if _, err := transaction.ExecContext(ctx, `
 UPDATE conduit_reconciliation_work
