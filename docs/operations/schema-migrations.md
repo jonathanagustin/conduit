@@ -29,7 +29,10 @@ have, so names do not change once merged.
 **A migration and the record of it commit together.** Each runs in its own
 transaction alongside the `INSERT` into the ledger. PostgreSQL has transactional
 DDL, which is the whole reason this works — there is no window in which the
-schema moved and the ledger did not, or vice versa.
+schema moved and the ledger did not, or vice versa. This is the claim the
+restore procedure leans on, and until recently nothing had interrupted a
+migration to check it; `internal/pgmigrate/crash_postgres_test.go` now does, and
+[what a crash test proves](#what-the-crash-test-proves) says how far that goes.
 
 **One advisory lock, taken before anything else.** Two replicas starting
 together would otherwise both run the DDL. The lock is taken before the ledger
@@ -139,6 +142,56 @@ be stale by the time anyone acted on it.
 The restore procedure uses it as its acceptance check — a correctly restored
 database has nothing pending for any component. See
 [`backup-and-restore.md`](backup-and-restore.md).
+
+## What the crash test proves
+
+The atomicity claim above was, for its whole life, checked only by runs that
+finished. Every test called `Apply` and let it return before looking at
+anything, so a claim about what happens when the process *does not* return was
+being carried by the fact that nobody had interrupted one.
+
+`internal/pgmigrate/crash_postgres_test.go` interrupts one. It re-executes the
+test binary as the migrating process and `SIGKILL`s it — no deferred
+`Rollback`, no `Close`, the kernel closes the socket and PostgreSQL discovers
+the client is gone — then asserts that the schema and the ledger agree about
+every migration, and that re-running the migrations afterwards completes. The
+kills land at four named points inside `applyOne` (after the DDL, either side
+of the ledger `INSERT`, and immediately before `COMMIT`) and at uniformly
+random instants across the whole of `Apply`. Measured on one run at sixty
+trials apiece: 240 kills at the named points, and 43 of the 60 randomised
+trials landing inside `Apply` rather than outrunning it — **283 crashes, no
+disagreement**. CI runs the same thing at five and forty trials, about thirteen
+seconds under `-race`.
+
+**A pass bounds the risk; it does not prove atomicity for all interleavings.**
+The named points are the windows a reader of `applyOne` would think of, which
+is exactly their weakness, and the randomised trials sample the rest rather
+than covering it. What the test does establish is that the structure carrying
+the claim cannot be removed silently: with the ledger `INSERT` moved into a
+second transaction — a mutant that compiles and passes every other test in the
+package — ten of the twenty deterministic trials fail and six of forty
+randomised ones do, each reporting a table in the schema with no row recording
+it. Two of the named points survive that mutant, because they straddle its
+split rather than landing in it; the randomised trials are what catch it there.
+
+Two harder interruptions were run by hand rather than committed, because both
+need a disposable PostgreSQL of their own:
+
+- **`SIGKILL` of the server** (every process in the container's cgroup, which
+  is an unclean stop and *not* a power cut — the writes that reached the host
+  page cache survive it). Twenty kills during a migration and twelve
+  immediately after one committed: no disagreement, and every migration the
+  client had seen commit came back whole from WAL recovery, before any
+  checkpoint had run.
+- **A true power cut**, with the server inside a UML guest whose `PGDATA` is an
+  ext4 image on a virtual block device, killed from outside so the guest's page
+  cache dies with it. Eight cuts, no disagreement; `e2fsck` reported and
+  repaired filesystem damage on every one and PostgreSQL recovered each time.
+  Worth recording honestly: **that arm has almost no power against this
+  particular defect**. Six cuts against the mutant above detected it zero
+  times, because a cut lands uniformly across a migration cycle in which the
+  vulnerable window is under one percent. It bounds WAL durability and
+  recovery; the client-side campaign is what bounds this claim.
 
 ## What this still does not do
 

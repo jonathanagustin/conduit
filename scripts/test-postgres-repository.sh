@@ -94,5 +94,13 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/gitless/adapters/res
 # internal/pgmigrate is here because its dry-run tests need a database. Without
 # this line they would skip locally for want of a DSN and be reached by nothing
 # in CI -- the same "runs nowhere" trap the -run filters above used to set.
+#
+# This package is also the slowest line here, at about thirteen seconds, and the
+# reason is worth knowing before anyone trims it: its crash trials re-execute
+# this test binary as a child process and SIGKILL it sixty times, to check that
+# a migration interrupted between its DDL and its ledger row leaves the two
+# agreeing. Each of those is a process start against this server. Turn the count
+# up with CONDUIT_PGMIGRATE_CRASH_TRIALS when investigating; the default is what
+# runs here.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/pgmigrate
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./cmd/platform-delivery -run '^TestPostgres'
