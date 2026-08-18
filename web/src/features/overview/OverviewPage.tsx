@@ -1,10 +1,10 @@
-import { Callout, Section, SectionCard, Spinner, Tag } from "@blueprintjs/core";
+import { Callout, Section, SectionCard, Tag } from "@blueprintjs/core";
 import { Link } from "react-router-dom";
 import type { HTMLAttributes } from "react";
 
-import { useOverview, type OverviewPanel } from "../../api/overview.js";
+import { useOverview, type OverviewPanel, type OverviewProjection } from "../../api/overview.js";
 import { countOf } from "../../components/Timestamp.js";
-import { AccessibleNonIdealState, ObjectHeader } from "../../components/index.js";
+import { AccessibleNonIdealState, ObjectHeader, QueryState } from "../../components/index.js";
 import "./overview.css";
 
 /** Overview -- P0: "What needs attention now?"
@@ -15,25 +15,38 @@ import "./overview.css";
  * The Hub supplies one bounded, authorization-filtered snapshot. Each source
  * carries independent availability so a partial read can never look clear. */
 export function OverviewPage() {
-  const overview = useOverview();
+  const { data, error, isPending, refetch } = useOverview();
 
-  if (overview.isPending) {
-    return (
-      <AccessibleNonIdealState
-        headingLevel={1}
-        icon={<Spinner />}
-        title="Reading the control plane"
-      />
-    );
-  }
+  // The whole page hangs off a single projection, so a failed request is a
+  // failed page and has to say so in the words every other screen uses: 401 is
+  // "sign in", anything else is "this could not be read, here is the message
+  // and a retry". Reading only `data` sent a failed read through
+  // panelOrUnavailable and rendered six UNAVAILABLE panels under the
+  // partial-projection callout, which told a signed-out operator the platform
+  // was degraded and gave them nothing to click. The callout below is for what
+  // it was written for: a projection the Hub did answer, in part.
+  return (
+    <QueryState
+      isPending={isPending}
+      error={error}
+      data={data}
+      subject="the control plane"
+      onRetry={() => void refetch()}
+    >
+      {(projection) => <OverviewPanels projection={projection} />}
+    </QueryState>
+  );
+}
 
-  const projection = overview.data;
-  const awaiting = panelOrUnavailable(projection?.awaitingApprovals);
-  const failedPlans = panelOrUnavailable(projection?.failedPlans);
-  const runningPlans = panelOrUnavailable(projection?.runningPlans);
-  const unhealthy = panelOrUnavailable(projection?.unhealthyEntities);
-  const stale = panelOrUnavailable(projection?.staleReports);
-  const blocked = panelOrUnavailable(projection?.blockedPromotions);
+function OverviewPanels({ projection }: { projection: OverviewProjection }) {
+  // A panel the Hub omitted altogether is as unreadable as one it marked
+  // UNAVAILABLE, and neither may be rendered as zero.
+  const awaiting = panelOrUnavailable(projection.awaitingApprovals);
+  const failedPlans = panelOrUnavailable(projection.failedPlans);
+  const runningPlans = panelOrUnavailable(projection.runningPlans);
+  const unhealthy = panelOrUnavailable(projection.unhealthyEntities);
+  const stale = panelOrUnavailable(projection.staleReports);
+  const blocked = panelOrUnavailable(projection.blockedPromotions);
   const unreadable = [
     awaiting.status === "UNAVAILABLE" ? "Change Requests" : null,
     failedPlans.status === "UNAVAILABLE" || runningPlans.status === "UNAVAILABLE" ? "Plans" : null,
