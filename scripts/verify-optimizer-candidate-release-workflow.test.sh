@@ -51,6 +51,9 @@ add_native_write_permission() {
 remove_source_date_epoch() {
   sed -i '/--build-arg "SOURCE_DATE_EPOCH=${source_date_epoch}"/d' "$1"
 }
+remove_byte_identical_rebuild_test() {
+  sed -i '/test "\${second_image_id}" = "\${first_image_id}"/d' "$1"
+}
 
 expect_failure automatic_trigger add_push_trigger
 expect_failure foreign_environment remove_environment_gate
@@ -60,5 +63,8 @@ expect_failure enabled_relabel relabel_candidate
 expect_failure missing_revision_join remove_revision_binding
 expect_failure native_write_permission add_native_write_permission
 expect_failure missing_source_date_epoch remove_source_date_epoch
+# The jq receipt still carries byteIdenticalImage when this test is gone; a
+# substring match on that field is decoration, not enforcement.
+expect_failure missing_byte_identical_rebuild_test remove_byte_identical_rebuild_test
 
 printf 'optimizer candidate release workflow fixtures: pass\n'
