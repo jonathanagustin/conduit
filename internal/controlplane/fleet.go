@@ -17,6 +17,7 @@ type (
 	FleetQuery        = reporting.FleetQuery
 	FleetInstallation = reporting.FleetInstallation
 	FleetSummary      = reporting.FleetSummary
+	FleetFacets       = reporting.FleetFacets
 	FleetProjection   = reporting.FleetProjection
 )
 
