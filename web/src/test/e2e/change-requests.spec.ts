@@ -189,7 +189,15 @@ test.describe("Change Requests", () => {
 
   test("sends an approval and shows the Hub's resulting state", async ({ page, hub }) => {
     hub.get("/change-requests/crq_upgrade", changeRequest());
-    hub.post("/change-requests/crq_upgrade/approve", changeRequest({ status: "APPROVED" }));
+    // The review endpoints answer with an envelope -- {"changeRequest": ...}
+    // plus a "plan" when the request carries one and a "bundleImport" when an
+    // import was admitted -- never a bare ChangeRequest (http.go /approve,
+    // /reject, /reopen, /cancel; ChangeReviewResult in api/resources.ts). The
+    // console discards the body and refetches, so a bare fixture stayed green
+    // while describing a Hub that does not exist.
+    hub.post("/change-requests/crq_upgrade/approve", {
+      changeRequest: changeRequest({ status: "APPROVED" }),
+    });
     await page.goto("change-requests/crq_upgrade");
 
     await page.getByLabel("Rationale").fill("checked the rollout plan");
@@ -210,7 +218,7 @@ test.describe("Change Requests", () => {
     hub,
   }) => {
     hub.get("/change-requests/crq_upgrade", changeRequest({ status: "CANCELLED" }));
-    hub.post("/change-requests/crq_upgrade/reopen", changeRequest());
+    hub.post("/change-requests/crq_upgrade/reopen", { changeRequest: changeRequest() });
     await page.goto("change-requests/crq_upgrade");
     await page.getByLabel("Rationale").fill("reopening");
     await page.getByRole("button", { name: "Reopen" }).click();
@@ -225,7 +233,9 @@ test.describe("Change Requests", () => {
 
   test("sends cancel a reason rather than a rationale", async ({ page, hub }) => {
     hub.get("/change-requests/crq_upgrade", changeRequest());
-    hub.post("/change-requests/crq_upgrade/cancel", changeRequest({ status: "CANCELLED" }));
+    hub.post("/change-requests/crq_upgrade/cancel", {
+      changeRequest: changeRequest({ status: "CANCELLED" }),
+    });
     await page.goto("change-requests/crq_upgrade");
     await page.getByLabel("Rationale").fill("superseded");
     await page.getByRole("button", { name: "Cancel request" }).click();

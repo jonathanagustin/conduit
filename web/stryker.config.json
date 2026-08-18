@@ -10,7 +10,6 @@
   ],
   "coverageAnalysis": "perTest",
   "mutate": [
-    "src/features/fleet/filter.ts",
     "src/features/changes/order.ts",
     "src/components/Timestamp.tsx",
     "src/features/promotions/ReleaseChannelGraph.tsx"

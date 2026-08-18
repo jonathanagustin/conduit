@@ -29,6 +29,12 @@ tools/zenith-protocol/node_modules/
 # silent, unreviewable amendment to it.
 .claude/settings.local.json
 
+# Scratch checkouts an agent tool creates to work on several branches at once.
+# These are `git worktree` directories, so each holds a full second copy of the
+# tree; committing one would commit the repository into itself. They are
+# machine-local and disappear when the work does.
+.claude/worktrees/
+
 # The review-ledger self-test writes throwaway ledger copies beside the real
 # one, because `topic` resolves relative to the ledger directory. The EXIT trap
 # removes them; this covers a SIGKILL.

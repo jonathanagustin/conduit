@@ -94,13 +94,35 @@ test.describe("Overview", () => {
     page,
     hub,
   }) => {
+    // A failed request is not six unavailable panels. Rendering it as one hid
+    // the Hub's message and left the operator without a retry, under a callout
+    // that describes a partial answer this page never received.
     hub.fails("/overview", 500, "overview projection unavailable");
     await page.goto("overview");
 
-    await expect(page.getByText("This page is incomplete")).toBeVisible();
+    await expect(page.getByText("the control plane could not be read")).toBeVisible();
+    await expect(page.getByText("overview projection unavailable")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
     await expect(page.getByText("Nothing needs attention")).toHaveCount(0);
-    await expect(page.getByText("Unknown", { exact: true })).toHaveCount(6);
-    await expect(page.getByText("Could not be read", { exact: true })).toHaveCount(6);
+    await expect(page.getByText("This page is incomplete")).toHaveCount(0);
+    await expect(page.getByText("Could not be read", { exact: true })).toHaveCount(0);
+  });
+
+  test("distinguishes not being signed in from the control plane being unreadable", async ({
+    page,
+    hub,
+  }) => {
+    // /console/overview is the default landing route, so this is the first
+    // screen a signed-out operator sees. Telling them six sources are
+    // unreadable describes a degraded platform and offers nothing to act on;
+    // the 30-second poll cannot recover a 401 either.
+    hub.fails("/overview", 401, "unauthorized");
+    await page.goto("overview");
+
+    await expect(page.getByText("Not signed in")).toBeVisible();
+    await expect(page.getByText("This page is incomplete")).toHaveCount(0);
+    await expect(page.getByText("Unknown", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Nothing needs attention")).toHaveCount(0);
   });
 
   test("links each panel to the screen that can act on it", async ({ page, hub }) => {
@@ -136,6 +158,31 @@ test.describe("navigation rail", () => {
     await shell.application("Fleet").click();
 
     await expect(page).toHaveURL(/\/console\/fleet$/);
+  });
+
+  test("offers every application the Hub's session projection serves", async ({ page, hub }) => {
+    // Eight, from internal/controlplane/session.go. The harness stub carried
+    // four for a while, so Export, Import, Risk Management and Teams were in
+    // APPLICATION_DESTINATIONS and reachable by URL but appeared in no browser
+    // test: the menu under test was a strict subset of the menu operators see,
+    // and a destination dropped from the rail would have changed nothing here.
+    quiet(hub);
+    await page.goto("overview");
+    const shell = new ConsoleShell(page);
+
+    await shell.applicationsButton.click();
+    for (const [name, href] of [
+      ["Change Requests", "/console/change-requests"],
+      ["Fleet", "/console/fleet"],
+      ["Plans", "/console/plans"],
+      ["Promotions", "/console/promotions"],
+      ["Export", "/console/export"],
+      ["Import", "/console/import"],
+      ["Risk Management", "/console/risk"],
+      ["Teams", "/console/teams"],
+    ] as const) {
+      await expect(shell.application(name)).toHaveAttribute("href", href);
+    }
   });
 
   test("returns keyboard focus to Applications when its menu closes", async ({ page, hub }) => {

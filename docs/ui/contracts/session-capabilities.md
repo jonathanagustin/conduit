@@ -25,9 +25,13 @@ capabilities are unavailable and leaves application navigation incomplete.
 Route handlers still enforce authorization. Hiding a navigation entry is not an
 authorization control.
 
-The current application vocabulary is `change-requests`, `fleet`, `plans`, and
-`promotions`. This list is a Conduit projection and is not evidence of a private
-Apollo capability protocol.
+The current application vocabulary is `change-requests`, `fleet`, `plans`,
+`promotions`, `teams`, `risk`, `export`, and `import`. `change-requests`,
+`plans`, and `teams` are enabled for any operator principal; `fleet`,
+`promotions`, `risk`, `export`, and `import` read platform-scoped collections
+and are enabled only when the principal holds `resource:read` at
+`platform/root`. This list is a Conduit projection and is not evidence of a
+private Apollo capability protocol.
 
 Source anchors: `internal/controlplane/session.go`,
 `internal/controlplane/session_test.go`, `web/src/api/session.ts`, and
