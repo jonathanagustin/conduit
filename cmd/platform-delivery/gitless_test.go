@@ -82,6 +82,47 @@ func TestAFullyConfiguredFluxHubStartsItsScheduler(t *testing.T) {
 	}
 }
 
+func TestAConfiguredRegistryFileMustBeReadableAndUsable(t *testing.T) {
+	missing := fluxEnvironment(t, "registry.example/team/manifests")
+	missing["GITLESS_REGISTRY_CONFIG"] = filepath.Join(t.TempDir(), "missing.json")
+	if _, err := configureGitless(env(missing)); err == nil {
+		t.Fatal("a configured missing registry credential file was accepted")
+	}
+
+	empty := fluxEnvironment(t, "registry.example/team/manifests")
+	emptyPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(emptyPath, []byte(`{"auths":{}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	empty["GITLESS_REGISTRY_CONFIG"] = emptyPath
+	if _, err := configureGitless(env(empty)); err == nil {
+		t.Fatal("a configured registry file with no credentials was accepted")
+	}
+
+	configured := fluxEnvironment(t, "registry.example/team/manifests")
+	configuredPath := filepath.Join(t.TempDir(), "config.json")
+	if err := os.WriteFile(configuredPath,
+		[]byte(`{"auths":{"registry.example":{"username":"writer","password":"token"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	configured["GITLESS_REGISTRY_CONFIG"] = configuredPath
+	if scheduler, err := configureGitless(env(configured)); err != nil || scheduler == nil {
+		t.Fatalf("a configured private-registry Hub did not start: scheduler=%v err=%v", scheduler, err)
+	}
+}
+
+func TestAnUnconfiguredHubDoesNotReadAnUnusedRegistryFile(t *testing.T) {
+	scheduler, err := configureGitless(env(map[string]string{
+		"GITLESS_REGISTRY_CONFIG": filepath.Join(t.TempDir(), "missing.json"),
+	}))
+	if err != nil {
+		t.Fatalf("an unused credential mount changed the off state: %v", err)
+	}
+	if scheduler != nil {
+		t.Fatal("an unused credential mount enabled Gitless GitOps")
+	}
+}
+
 // The Conduit-owned path is still not wired in this binary. It must refuse
 // rather than start something that cannot work.
 func TestConduitConvergenceIsRefusedUntilItIsWired(t *testing.T) {
