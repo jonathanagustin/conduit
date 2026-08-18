@@ -253,7 +253,7 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 	// routes answer 404 before they ever consult a grant, and the assertion
 	// below would be about the fixture rather than about authorization.
 	seedFixture(t, handler, repository)
-	checked := 0
+	checked, witnessed := 0, 0
 	for _, route := range HubRouteAuthorization() {
 		if route.Decision != DecisionOperatorGrant && route.Decision != DecisionAgent {
 			continue
@@ -268,9 +268,32 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 			t.Errorf("%s answers %d to a principal holding nothing; its decision is %s (%s)",
 				route.Pattern, response.Code, route.Decision, route.Detail)
 		}
+		// Refusing is not enough. "Refused" and "the record in the path does
+		// not exist" are both non-2xx and only one of them is an authorization
+		// decision, so a route that slid from an earned 403 to an incidental
+		// 404 -- which is exactly what deleting its requireResourceOperation
+		// does -- would pass as a refusal it never made. Every route this
+		// fixture reaches must therefore answer 401 or 403, and the ones it
+		// does not reach are named below with the status they do answer.
+		if want, listed := refusedBeforeTheDecision[route.Pattern]; listed {
+			if response.Code != want {
+				t.Errorf("%s is listed as answering %d before its decision but answered %d; "+
+					"if it now reaches the decision, delete its line", route.Pattern, want, response.Code)
+			}
+			continue
+		}
+		if response.Code != http.StatusUnauthorized && response.Code != http.StatusForbidden {
+			t.Errorf("%s answers %d to a principal holding nothing, not an authorization refusal (%s)",
+				route.Pattern, response.Code, route.Detail)
+		}
+		witnessed++
 	}
 	if checked < 100 {
 		t.Fatalf("only %d granted routes were driven; the register has stopped enumerating the surface", checked)
+	}
+	if witnessed < 75 {
+		t.Fatalf("only %d of %d granted routes were witnessed refusing; the exception list is growing",
+			witnessed, checked)
 	}
 }
 
@@ -537,4 +560,49 @@ func seedFixture(t *testing.T, handler http.Handler, repository controlplane.Rep
 	if response := driveAs(t, handler, http.MethodPost, "/v1/plans", "root", string(body)); response.Code != http.StatusCreated {
 		t.Fatalf("seeding the fixture: %d %s", response.Code, response.Body.String())
 	}
+}
+
+// refusedBeforeTheDecision are the granted routes this fixture cannot witness
+// refusing, with the status each answers instead.
+//
+// Two reasons, both honest and both worth being able to see at a glance. Most
+// name a record the fixture does not create -- an installation, a change
+// request, a Plan other than the seeded one -- and answer 404 before reaching a
+// decision. The rest validate the request body or a required query parameter
+// first and answer 400, 409 or 422 to the placeholder body this test sends;
+// that ordering discloses nothing, but it does mean the decision is downstream
+// of a check this probe cannot satisfy.
+//
+// It is a list with exact statuses rather than a rule, because a rule would be
+// "whatever it answered this time", which is the thing being guarded against.
+// Shortening it is an improvement: seed the record or send a body the route
+// accepts, then delete the line. Lengthening it needs a reason, because every
+// entry is a route whose refusal this test does not witness -- and the floor
+// above fails if the list grows past a quarter of the surface.
+var refusedBeforeTheDecision = map[string]int{
+	// The record in the path does not exist.
+	"GET /v1/module-installations/{installationID}/update":            http.StatusNotFound,
+	"GET /v1/plans/{planID}":                                          http.StatusNotFound,
+	"POST /v1/adapted-plans/{adapter}":                                http.StatusNotFound,
+	"POST /v1/change-requests/{changeRequestID}/cancel":               http.StatusNotFound,
+	"POST /v1/module-installations/{installationID}/pause":            http.StatusNotFound,
+	"POST /v1/module-installations/{installationID}/resume":           http.StatusNotFound,
+	"POST /v1/module-installations/{installationID}/unlink":           http.StatusNotFound,
+	"POST /v1/module-installations/{installationID}/update":           http.StatusNotFound,
+	"POST /v1/module-installations/{installationID}/update/automatic": http.StatusNotFound,
+	"POST /v1/plans/{planID}/approvals":                               http.StatusNotFound,
+	"POST /v1/plans/{planID}/cancel":                                  http.StatusNotFound,
+	"POST /v1/plans/{planID}/undo-unmanage":                           http.StatusNotFound,
+	"PUT /v1/change-requests/{changeRequestID}/labels":                http.StatusNotFound,
+	// The request is judged before the caller is.
+	"DELETE /v1/suppressions/{suppressionID}":                   http.StatusBadRequest,
+	"GET /v1/notifications/events":                              http.StatusBadRequest,
+	"POST /v1/change-requests/{changeRequestID}/reopen":         http.StatusBadRequest,
+	"POST /v1/change-requests/{changeRequestID}/approve":        http.StatusConflict,
+	"POST /v1/change-requests/{changeRequestID}/reject":         http.StatusConflict,
+	"POST /api/v0/products/helmChart/{mavenCoordinate}/publish": http.StatusUnprocessableEntity,
+	"POST /api/v0/products/service/{mavenCoordinate}/publish":   http.StatusUnprocessableEntity,
+	"POST /v1/bundles/import":                                   http.StatusUnprocessableEntity,
+	"POST /v1/fleet/actions":                                    http.StatusUnprocessableEntity,
+	"POST /v1/product-publications/helm-chart":                  http.StatusUnprocessableEntity,
 }
