@@ -134,6 +134,10 @@ optimizer_candidate_release() {
     ./scripts/assemble-optimizer-candidate-gate.test.sh
 }
 
+release_path() {
+  ruby scripts/verify-release-workflow.rb && ./scripts/verify-release-workflow.test.sh
+}
+
 build_commands() {
   local command
   for command in platform-delivery platform-operator platform-spoke-agent \
@@ -217,6 +221,7 @@ gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs 
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate trusted supply-chain policy' supply_chain
 gate 'Validate optimizer candidate release policy' optimizer_candidate_release
+gate 'Validate release path' release_path
 gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb

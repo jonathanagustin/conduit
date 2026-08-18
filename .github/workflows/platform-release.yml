@@ -1,0 +1,105 @@
+name: Release
+
+# The one instruction that cuts a release.
+#
+# It used to be four, ordered, and three of them were a person typing the same
+# version string in a different place: bump VERSION, merge, create the vX.Y.Z
+# tag by hand, dispatch publication against that tag. Nothing in the repository
+# created the tag and nothing compared the spellings, so the failure mode was
+# never a broken release -- it was a partial one that reported success (#196).
+#
+# One instruction, not zero. Publication remains a deliberate human act, which
+# is ADR 0001's driver ("publication must remain manual because hosted Actions
+# time is controlled") and A5's rule (passing CI never authorizes release). This
+# workflow has exactly one trigger and it is a person dispatching it;
+# scripts/verify-release-workflow.rb holds it to that shape, and to the same
+# shape for the publication workflow it calls.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Version to release, without the leading v, exactly as VERSION spells it at the commit being released
+        required: true
+        type: string
+
+# A release is never superseded. Cancelling one mid-flight can leave a pushed
+# tag with nothing published against it -- a release that exists as an identity
+# and not as artifacts -- which is precisely the half-finished state this
+# workflow exists to remove.
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    working-directory: .
+
+jobs:
+  release:
+    name: Release
+    runs-on: ubuntu-24.04
+    # Three API reads, a tag, and a dispatch. Minutes at the outside; the cap is
+    # here so a hung call fails fast rather than billing to the six-hour default.
+    timeout-minutes: 10
+    permissions:
+      # actions: write dispatches publication against the tag. contents: write
+      # creates the tag. statuses: read reads the Trunk gate's verdict for the
+      # commit. Nothing in this job publishes: it hands a tag to
+      # platform-images.yml, which is where the registry and signing authority
+      # lives, and holds none of it itself.
+      actions: write
+      contents: write
+      statuses: read
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      # Refuses a version that disagrees with VERSION, a commit that is not on
+      # main, a commit whose Trunk gate is not green, and a tag that already
+      # exists. All four are cheap to refuse here and expensive to discover
+      # after a signed artifact carries the wrong label.
+      - name: Verify release preconditions
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: ./scripts/verify-release-preconditions.sh
+      - name: Create the release tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          tag="v${RELEASE_VERSION}"
+          ./scripts/retry-github-api.sh gh api --method POST \
+            "repos/${GITHUB_REPOSITORY}/git/refs" \
+            -f "ref=refs/tags/${tag}" \
+            -f "sha=${GITHUB_SHA}" >/dev/null
+          # Verify by output rather than by status: read the tag back and
+          # require it to name the commit whose preconditions were just checked.
+          # A tag that exists is not evidence of a tag that points anywhere in
+          # particular, and everything downstream trusts this one by name.
+          created="$(./scripts/retry-github-api.sh gh api \
+            "repos/${GITHUB_REPOSITORY}/git/ref/tags/${tag}" --jq '.object.sha')"
+          test "${created}" = "${GITHUB_SHA}"
+          printf 'Tagged `%s` at `%s`\n' "${tag}" "${created}" >> "$GITHUB_STEP_SUMMARY"
+      - name: Dispatch publication against the tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: |
+          tag="v${RELEASE_VERSION}"
+          # workflow_dispatch is one of the two events GitHub exempts from the
+          # rule that an action taken with GITHUB_TOKEN does not start another
+          # workflow run, so this dispatch does start publication. If that ever
+          # narrows, the symptom is a tag with no publication run against it --
+          # visible, and repaired by dispatching platform-images.yml at the tag,
+          # which is the step this workflow replaced.
+          ./scripts/retry-github-api.sh gh workflow run platform-images.yml \
+            --repo "${GITHUB_REPOSITORY}" --ref "${tag}"
+          # Deliberately not waited on. Publication runs for tens of minutes and
+          # a job that sits watching it bills a second runner for the whole of
+          # them, against the cost driver that keeps publication manual in the
+          # first place. The link is the handoff; the run's own gates are the
+          # verdict.
+          printf 'Publication dispatched against `%s`: %s/%s/actions/workflows/platform-images.yml\n' \
+            "${tag}" "${GITHUB_SERVER_URL}" "${GITHUB_REPOSITORY}" >> "$GITHUB_STEP_SUMMARY"
