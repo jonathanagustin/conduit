@@ -212,7 +212,52 @@ function seed(hub: Parameters<Parameters<typeof test>[2]>[0]["hub"]) {
   });
   hub.get("/products/app.example:payments/releases", { releases: RELEASES });
   hub.get("/promotions", indexPage("promotions", PROMOTIONS));
+  hub.get("/notifications/inbox", {
+    owner: { kind: "USER", id: "a.okonkwo" },
+    channel: "IN_APP",
+    limit: 100,
+    entries: NOTIFICATIONS,
+  });
+  hub.get("/notifications/preferences", PREFERENCE);
 }
+
+const NOTIFICATIONS = [
+  {
+    recipient: { owner: { kind: "USER", id: "a.okonkwo" }, channel: "IN_APP" },
+    event: {
+      id: "nev-1",
+      type: "PLAN_FAILURES",
+      resourceRid: "ri.apollo.main.environment.d41d8cd98f00",
+      environment: "prod-use1",
+      summary: "Reconciliation of installation payments in Environment prod-use1 gave up",
+      actor: "a.okonkwo",
+      occurredAt: "2026-08-09T11:42:00Z",
+    },
+    preferenceId: "npf-1",
+  },
+  {
+    recipient: { owner: { kind: "USER", id: "a.okonkwo" }, channel: "IN_APP" },
+    event: {
+      id: "nev-2",
+      type: "PRODUCT_RELEASE_PROMOTION_FAILED",
+      resourceRid: "ri.apollo.main.product.7c9a2be40155",
+      summary: "app.example:ledger 1.9.0 could not be promoted to STAGING",
+      occurredAt: "2026-08-09T09:15:00Z",
+    },
+    preferenceId: "npf-2",
+  },
+];
+
+const PREFERENCE = {
+  id: "npf-1",
+  owner: { kind: "USER", id: "a.okonkwo" },
+  resourceRid: "ri.apollo.main.environment.d41d8cd98f00",
+  channel: "IN_APP",
+  types: ["PLAN_FAILURES"],
+  createdAt: "2026-08-01T08:00:00Z",
+  updatedAt: "2026-08-08T08:00:00Z",
+  revision: 2,
+};
 
 const SCREENS: Array<{ name: string; path: string; ready: string }> = [
   { name: "01-overview", path: "overview", ready: "overview-page" },
@@ -226,6 +271,11 @@ const SCREENS: Array<{ name: string; path: string; ready: string }> = [
   { name: "09-products", path: "products", ready: "products-page" },
   { name: "10-product-detail", path: "products/app.example%3Apayments", ready: "product-detail" },
   { name: "11-promotions", path: "promotions", ready: "promotions-page" },
+  {
+    name: "12-notifications",
+    path: "notifications?resourceRid=ri.apollo.main.environment.d41d8cd98f00",
+    ready: "notifications-page",
+  },
 ];
 
 for (const screen of SCREENS) {

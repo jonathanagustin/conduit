@@ -88,24 +88,52 @@ carried to the residual list as item 5.
    `TestThroughTheHubOnePrincipalIsRefusedAnotherPrincipalsInboxAndPreference`
    holds it down against the assembled Hub.
 
+   **Reading and editing now have a console screen.** `/console/notifications`
+   serves the calling principal's inbox on a chosen channel and edits the
+   preference for one resource, so an operator no longer needs `curl` to find out
+   what they were told. It states the four states a real inbox has — empty (which
+   arrives as `{"entries":null}`, because Go encodes an empty slice as null),
+   loading, a failed request that reads as a failed request rather than as an
+   empty inbox, and a bounded page that says it filled the applied limit rather
+   than implying it is the end. The console names no owner on any request, so it
+   cannot ask for somebody else's inbox; the type checkboxes are held to the
+   `domain.EventType` consts in both directions by
+   `scripts/verify-console-contract.mjs`; and a type this build has no checkbox
+   for is carried through a save unchanged. The contract is
+   `docs/ui/contracts/notification-inbox.md`.
+
    **What still blocks the row below:** the only destination is one endpoint an
    operator configures, because nothing in this repository stores a person's
    email address or a team's Slack channel — `domain.Contact` models one and no
    store persists one — so a notification is delivered *about* a recipient
-   rather than *to* them; there is no SMTP transport and no Slack transport, and
-   no console inbox. Notification authorization decisions *are* audited as of
+   rather than *to* them; there is no SMTP transport and no Slack transport. The
+   console reads the caller's own inbox only: a team inbox needs a contact no
+   store persists, and there is no unread state, because `InboxEntry.ReadAt`
+   exists and no route writes it. Notification authorization decisions *are* audited as of
    #241: the resource half of the check is `ResourceDecision.Allow` in
    `internal/governance/application`, which both these routes and the
    controlplane REST routes call, and which files the `audit.3`
    `authorizationCheck` record for ALLOW and DENY alike. That did not need
    `internal/controlplane` to grow — moving the decision out left it two lines
    smaller. The owner half is still unrecorded, and so is the administrator
-   predicate on its own. The other four events named above are still emitted by
-   nobody: a recall opening, a grant changing, a Plan failing and a Release
-   becoming available are all raised inside `internal/controlplane`, which is at
-   its line ceiling, so each needs its own extraction before it can emit.
-   Subscription grain is the Environment, because reconciliation and the Apollo
-   projection mint different identifiers for the same installation.
+   predicate on its own. **A recall opening now emits (#253).** A recall in an
+   accepted `DesiredState` is announced through `catalog/ports.RecallOpenings`
+   and `catalog/adapters/notifications`, the shape reconciliation's escalation
+   established: the control plane hands over the recalls in force and learns
+   nothing about notifications. It is typed with the two recall event types the
+   capture observes — `PRODUCT_IN_OPEN_ENDED_RECALL` for a recall with no upper
+   bound, `PRODUCT_RECALLS` otherwise — and the split between them is registered
+   as `catalog.RecallEventTypeSelection`. That did not need
+   `internal/controlplane` to grow either: the rule for what an automatic
+   security recall withdraws moved to `internal/catalog/domain`, leaving the
+   package nine lines smaller. The other three events named above are still
+   emitted by nobody: a grant changing, a Plan failing and a Release becoming
+   available are all raised inside `internal/controlplane`, which is at its line
+   ceiling, so each needs its own extraction before it can emit. Subscription
+   grain is the Environment, for recalls as for reconciliation: a preference is
+   joined by resource identifier, and the Environment is the identifier Conduit
+   publishes for the thing a recall is submitted against — #126 records that
+   `Recalls` is a field of `DesiredState` rather than of a Product.
 
 2. **Observability is partial.** Metrics now exist and the wedge signal is
    exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and
@@ -220,7 +248,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. |
 | It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
-| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it. Still **missing** the end: the only destination is that one configured endpoint, so "told" means "sent somewhere an operator watches", not "sent to the recipient". |
+| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it; the recipient can now read their own inbox in the console rather than by hand. Still **missing** the end: the only *outbound* destination is that one configured endpoint, so "told" means "recorded where the recipient can look, and sent somewhere an operator watches", not "sent to the recipient". |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
 Three of these cannot be written today, and saying so is the point: listing them

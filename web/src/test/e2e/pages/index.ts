@@ -6,6 +6,7 @@ export { PlanIndexPom } from "./PlanIndexPom.js";
 export { ProductDetailPom } from "./ProductDetailPom.js";
 export { ProductIndexPom } from "./ProductIndexPom.js";
 export { PromotionsPom } from "./PromotionsPom.js";
+export { NotificationsPom } from "./NotificationsPom.js";
 export { RiskPom } from "./RiskPom.js";
 export { TeamIndexPom } from "./TeamIndexPom.js";
 export { TeamDetailPom } from "./TeamDetailPom.js";

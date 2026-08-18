@@ -134,6 +134,48 @@ const VOCABULARIES = [
     },
   },
   {
+    // The console's checkbox list for a notification preference. Apollo's type
+    // vocabulary is open -- the documentation says the supported types "will
+    // grow over time" -- so this is NOT a claim that the world has ten types.
+    // It is the claim that the set this build offers as checkboxes is the set
+    // this Hub accepts, which is what domain.EventType.Valid() decides and what
+    // Preference.Validate() refuses a preference for naming outside of. Growth
+    // beyond it is what Preference.AllFutureTypes is for, and an inbox entry
+    // whose type is unknown here still renders, because a row shows the string
+    // the Hub sent. Drift is expensive in both directions: an invented checkbox
+    // writes a preference the Hub refuses with a 422, and a dropped real type
+    // vanishes from a form whose next save would unsubscribe the operator from
+    // something they had chosen.
+    name: "notification event type",
+    go: {
+      file: "internal/notifications/domain/notifications.go",
+      pattern: /\bEvent\w+\s+EventType\s*=\s*"([A-Z_]+)"/g,
+    },
+    console: {
+      file: "web/src/api/notifications.ts",
+      start: /export const NOTIFICATION_EVENT_TYPES[^[]*\[/,
+      end: /\n\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
+  {
+    // The channel selector on the inbox. The route refuses a channel it does not
+    // know rather than defaulting to one, so a console offering a channel the
+    // Hub never had turns its own selector into a 400 -- and a console missing
+    // one is an inbox with no way to read half of what was recorded.
+    name: "notification channel",
+    go: {
+      file: "internal/notifications/domain/notifications.go",
+      pattern: /\bChannel\w+\s+Channel\s*=\s*"([A-Z_]+)"/g,
+    },
+    console: {
+      file: "web/src/api/notifications.ts",
+      start: /export const NOTIFICATION_CHANNELS[^[]*\[/,
+      end: /\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
+  {
     name: "session application ids",
     go: {
       file: "internal/controlplane/session.go",
