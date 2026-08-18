@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -70,14 +71,94 @@ func moduleLockCommand(state *commandState) *cobra.Command {
 				if err != nil {
 					return nil, err
 				}
+				if verify {
+					if errs := verifyModuleLock(lock); len(errs) > 0 {
+						return nil, controlplane.ValidationErrors(errs)
+					}
+				}
+				// "verified" reports that the checks above ran and passed, not
+				// that the flag was passed; without --verify nothing was
+				// checked, so false is the honest answer.
 				return map[string]any{"verified": verify, "lock": lock}, nil
 			})
 		},
 	}
 	command.Flags().StringVarP(&file, "module-definition-file", "f", "", "Module definition YAML or JSON")
 	command.Flags().StringVar(&directory, "module-directory", "", "directory containing one root Module definition")
-	command.Flags().BoolVar(&verify, "verify", false, "report that the resolved lock passed validation")
+	command.Flags().BoolVar(&verify, "verify", false, "fail unless the resolved lock is complete and exactly pinned")
 	return command
+}
+
+// lockContentDigestPattern is the digest the Hub computes over the resolved
+// lock: SHA-256 of the lock document with its own digest field cleared,
+// rendered as lowercase hex. Matching the shape, not merely non-emptiness,
+// is what separates a resolved lock from a zero value that happened to carry
+// a placeholder string.
+var lockContentDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
+// moduleCoordinatePattern is the group:name Product coordinate a locked Entity
+// must carry; it mirrors the coordinate grammar the Hub enforces when it
+// validates a Module definition.
+var moduleCoordinatePattern = regexp.MustCompile(`^[a-zA-Z0-9_.-]+:[a-zA-Z0-9_.-]+$`)
+
+// verifyModuleLock asserts the properties a lock only has once the Hub has
+// actually resolved it. `--verify` used to echo its own flag back into
+// {"verified": true} without reading the lock at all, so a Hub that returned
+// an empty document still exited 0 and a CI pipeline asserting `.verified ==
+// true` passed on nothing (issue #173). The invariants come from the lock
+// type: an identified root Module, a content digest over the resolved
+// document, at least one Entity — a definition that validates has an Entity or
+// a submodule, and submodule flattening bottoms out in Entities — each
+// flattened Entity attributed to the Module it came from and pinned to an
+// exact Product coordinate, and every submodule resolved to a concrete
+// published version rather than the "local" placeholder the definition may
+// have written.
+func verifyModuleLock(lock controlplane.ModuleLock) []controlplane.ValidationError {
+	errs := make([]controlplane.ValidationError, 0)
+	add := func(path, message string) {
+		errs = append(errs, controlplane.ValidationError{Path: path, Message: message})
+	}
+	if lock.Module == "" {
+		add("lock.module", "must name the root Module the lock resolves")
+	}
+	if !lockContentDigestPattern.MatchString(lock.ContentDigest) {
+		add("lock.contentDigest", "must be sha256:<64 lowercase hex characters> over the resolved lock")
+	}
+	if len(lock.Entities) == 0 {
+		add("lock.entities", "must resolve at least one Entity")
+	}
+	for index, entity := range lock.Entities {
+		path := fmt.Sprintf("lock.entities[%d]", index)
+		if entity.SourceModule == "" {
+			add(path+".sourceModule", "must name the Module the Entity was flattened from")
+		}
+		if entity.Type == "" {
+			add(path+".type", "must name the Entity type")
+		}
+		if !moduleCoordinatePattern.MatchString(entity.ProductID) {
+			add(path+".productId", "must be a group:name coordinate")
+		}
+		if entity.EntityName == "" {
+			add(path+".entityName", "must name the Entity")
+		}
+	}
+	for index, submodule := range lock.Submodules {
+		path := fmt.Sprintf("lock.submodules[%d]", index)
+		if submodule.Name == "" {
+			add(path+".name", "must name the submodule")
+		}
+		switch submodule.Version {
+		case "":
+			add(path+".version", "must be pinned to an exact published version")
+		case "local":
+			// A definition may reference a co-located sibling as
+			// "version: local"; resolution replaces that with the version the
+			// sibling was published as. A lock that still says "local" is not
+			// a lock anyone can reinstall from.
+			add(path+".version", "must be resolved from \"local\" to the published version")
+		}
+	}
+	return errs
 }
 
 func moduleFlattenCommand(state *commandState) *cobra.Command {

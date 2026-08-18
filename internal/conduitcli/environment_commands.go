@@ -20,13 +20,10 @@ func addEnvironmentParityCommands(command *cobra.Command, state *commandState) {
 }
 
 func environmentDeleteCommand(state *commandState) *cobra.Command {
-	var file, rationale string
+	var file string
 	command := &cobra.Command{
 		Use: "delete ENVIRONMENT_ID", Short: "Propose uninstalling all Entities from an Environment", Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
-			if strings.TrimSpace(rationale) == "" {
-				return errors.New("--rationale is required")
-			}
 			desired, err := readDesiredState(file)
 			if err != nil {
 				return err
@@ -41,7 +38,15 @@ func environmentDeleteCommand(state *commandState) *cobra.Command {
 		},
 	}
 	command.Flags().StringVarP(&file, "file", "f", "", "next-generation desired-state document")
-	command.Flags().StringVar(&rationale, "rationale", "", "uninstallation rationale retained in review context")
+	// No --rationale flag, for the same reason environment setting edit has no
+	// --reason: the only downstream call is ProposePlan, which takes a
+	// DesiredState and nothing else, so a rationale has nowhere to travel. It
+	// used to be *required* here and advertised as "retained in review context"
+	// (#175), which is worse than an ignored optional flag -- the requirement
+	// manufactures confidence in an audit record nobody ever wrote. Carrying it
+	// instead would mean a new field on the Plan proposal in
+	// internal/controlplane, which is exactly on its recorded line ceiling and
+	// may only move down.
 	_ = command.MarkFlagRequired("file")
 	return command
 }
@@ -77,15 +82,12 @@ func environmentArtifactRegistryMutationCommand(state *commandState, assign bool
 	if assign {
 		action = "assign"
 	}
-	var file, ticket string
+	var file string
 	command := &cobra.Command{
 		Use:   action + " ENVIRONMENT_ID ARTIFACT_REGISTRY_ID [ARTIFACT_REGISTRY_ID...]",
 		Short: strings.ToUpper(action[:1]) + action[1:] + " Artifact Registries through a reviewed desired-state Plan",
 		Args:  cobra.MinimumNArgs(2),
 		RunE: func(command *cobra.Command, args []string) error {
-			if strings.TrimSpace(ticket) == "" {
-				return errors.New("--compliance-ticket is required")
-			}
 			desired, err := readDesiredState(file)
 			if err != nil {
 				return err
@@ -134,7 +136,11 @@ func environmentArtifactRegistryMutationCommand(state *commandState, assign bool
 		},
 	}
 	command.Flags().StringVarP(&file, "file", "f", "", "next-generation desired-state document")
-	command.Flags().StringVar(&ticket, "compliance-ticket", "", "external compliance ticket recorded in review context")
+	// No --compliance-ticket flag, for the reason recorded on environment
+	// delete: apollo-cli publishes one here, but ProposePlan carries the
+	// DesiredState alone, so the ticket was demanded and then discarded (#175).
+	// The divergence from the published flag list is declared in
+	// docs/operations/TENANT-FIDELITY.md.
 	_ = command.MarkFlagRequired("file")
 	return command
 }
@@ -185,13 +191,10 @@ func environmentConfigCommand(state *commandState) *cobra.Command {
 
 func environmentReleaseChannelCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "release-channel", Short: "Set an Environment default Release Channel"}
-	var releaseChannel, file, ticket string
+	var releaseChannel, file string
 	set := &cobra.Command{
 		Use: "set ENVIRONMENT_ID", Short: "Propose a default Release Channel in desired state", Args: cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
-			if ticket == "" {
-				return errors.New("--compliance-ticket is required")
-			}
 			desired, err := readDesiredState(file)
 			if err != nil {
 				return err
@@ -207,7 +210,8 @@ func environmentReleaseChannelCommand(state *commandState) *cobra.Command {
 	}
 	set.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "default Release Channel")
 	set.Flags().StringVarP(&file, "file", "f", "", "next-generation desired-state document")
-	set.Flags().StringVar(&ticket, "compliance-ticket", "", "external compliance ticket")
+	// No --compliance-ticket flag here either; see the note on the Artifact
+	// Registry mutation above (#175).
 	for _, flag := range []string{"release-channel", "file"} {
 		_ = set.MarkFlagRequired(flag)
 	}
@@ -235,16 +239,7 @@ func environmentVersionCommand(state *commandState) *cobra.Command {
 				if err != nil {
 					return nil, err
 				}
-				selected := map[string]struct{}{}
-				for _, entity := range entities {
-					channel := entity.ReleaseChannel
-					if channel == "" {
-						channel = environment.Environment.DefaultReleaseChannel
-					}
-					if channel == releaseChannel {
-						selected[entity.Name] = struct{}{}
-					}
-				}
+				selected := selectedInstallationIDs(entities, environment.Environment, releaseChannel)
 				filtered := make([]controlplane.TargetHubEntityVersion, 0, len(versions))
 				for _, version := range versions {
 					if _, included := selected[version.InstallationID]; included {
@@ -259,6 +254,45 @@ func environmentVersionCommand(state *commandState) *cobra.Command {
 	compare.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "include only Entities assigned to this Release Channel")
 	command.AddCommand(compare)
 	return command
+}
+
+// selectedInstallationIDs returns the installations whose Entity resolves to the
+// requested Release Channel, keyed the way a Plan mints installation identities.
+//
+// The identity of an installation is not always the Entity name. Plan expansion
+// in internal/controlplane mints "<entity>@<namespaceRID>" for a universal
+// Entity, one per eligible namespace, and the Agent reports that string back
+// unchanged as the installation ID. Keying this set by Entity name alone
+// therefore matched nothing a universal Entity ever reports, so the Release
+// Channel filter dropped every universal installation with no error and no
+// diagnostic: an operator comparing versions to find drift read the short result
+// as "no drift" rather than "not compared".
+//
+// Every declared namespace is enumerated rather than only the eligible ones. A
+// namespace the Entity is not eligible for has no installation to report, so the
+// surplus key cannot match anything, and reproducing the eligibility rules here
+// would only give them a second place to drift from the planner's.
+func selectedInstallationIDs(
+	entities []controlplane.Entity, environment controlplane.Environment, releaseChannel string,
+) map[string]struct{} {
+	selected := map[string]struct{}{}
+	for _, entity := range entities {
+		channel := entity.ReleaseChannel
+		if channel == "" {
+			channel = environment.DefaultReleaseChannel
+		}
+		if channel != releaseChannel {
+			continue
+		}
+		if entity.Universal == nil {
+			selected[entity.Name] = struct{}{}
+			continue
+		}
+		for _, namespace := range environment.Namespaces {
+			selected[entity.Name+"@"+namespace.RID] = struct{}{}
+		}
+	}
+	return selected
 }
 
 func readDesiredState(path string) (controlplane.DesiredState, error) {

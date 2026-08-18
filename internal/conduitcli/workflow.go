@@ -38,7 +38,7 @@ func newEnvironmentDescriptor(name, contactTeam string) (environmentDescriptor, 
 	// accepts it. The requirement lived only on this authoring path, so an
 	// upstream ownerless Environment could not be expressed here. It can now.
 	return environmentDescriptor{
-		APIVersion: "delivery.platform/v1alpha1", Kind: "EnvironmentDescriptor", ContactTeam: contactTeam,
+		APIVersion: "platform.delivery/v1alpha1", Kind: "EnvironmentDescriptor", ContactTeam: contactTeam,
 		Environment: controlplane.Environment{ID: name, Generation: "1", DeclaredStateSource: controlplane.SourceEditOnThisHub},
 	}, nil
 }

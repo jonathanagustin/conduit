@@ -59,13 +59,6 @@
       "lived": 0,
       "total": 21,
       "coverage": 100
-    },
-    "web/src/features/fleet/filter.ts": {
-      "efficacy": 85,
-      "killed": 17,
-      "lived": 3,
-      "total": 20,
-      "coverage": 100
     }
   }
 }

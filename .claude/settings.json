@@ -1,5 +1,17 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-settings.json",
+  "extraKnownMarketplaces": {
+    "jonathanagustin-private": {
+      "source": {
+        "source": "github",
+        "repo": "jonathanagustin/claude-code-on-the-web"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "ccw-sandbox@jonathanagustin-private": true,
+    "crossreview@jonathanagustin-private": true
+  },
   "permissions": {
     "allow": [
       "Bash(gh issue list:*)",

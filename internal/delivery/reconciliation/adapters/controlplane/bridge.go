@@ -228,6 +228,34 @@ func (planner *Planner) Propose(ctx context.Context, proposal domain.Proposal) (
 	if err != nil {
 		return domain.PlanReceipt{}, fmt.Errorf("create ordinary reconciliation plan: %w", err)
 	}
+	// CreatePlan is a get-or-create, and a Plan's ID is a pure hash of its
+	// desired-state digest and its content. So when a rollout has already failed
+	// or been cancelled, the next cycle builds the same bytes, resolves to the
+	// same ID, and gets the dead record back -- with its terminal status intact.
+	//
+	// Reading that status is the whole point. Without this, the step digests
+	// still match, so a receipt pointing at the failed Plan was returned as a
+	// successful dispatch, CompleteProposal recorded it, and the loop repeated
+	// forever: an endless stream of successes naming a Plan that failed. Nothing
+	// escalated, because dispatch never reported an error and FailProposal was
+	// never reached.
+	//
+	// This returns an ordinary error rather than ErrProposalSuperseded, which
+	// would exhaust the proposal immediately. Two reasons. The snapshot has not
+	// been superseded, and saying so would trade one false report for another.
+	// And the retry path is the honest one here: it escalates by exhaustion
+	// after MaximumAttempts, on the backoff the worker already applies, which is
+	// what the loop is supposed to do when it cannot converge.
+	//
+	// Minting a fresh Plan instead is deliberately not done here. The ID is
+	// content-derived, so a new record would need that derivation changed, and
+	// the determinism it provides is relied on elsewhere. Reporting the failure
+	// is the fix; choosing a re-plan policy is a separate decision.
+	if record.Status == controlplane.PlanFailed || record.Status == controlplane.PlanCancelled {
+		return domain.PlanReceipt{}, fmt.Errorf(
+			"ordinary Plan %s for this desired state is %s", record.ID, record.Status,
+		)
+	}
 	matched := false
 	for _, step := range record.Plan.Steps {
 		if step.InstallationID != proposal.Key.Installation {

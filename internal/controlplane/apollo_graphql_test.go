@@ -114,3 +114,48 @@ func TestApolloGraphQLRefusesACoordinateConduitCannotAnswer(t *testing.T) {
 		t.Fatalf("the unanswerable coordinate did not refuse: %s", response.Body.String())
 	}
 }
+
+// The defect: authentication alone bound the whole Apollo projection, while
+// every Apollo REST read requires OperationReadResource on platform/root. A
+// principal holding nothing got every Environment, installation, namespace and
+// recall the Hub governs by choosing GraphQL over REST -- which is the one
+// thing internal/apollographql/ports says cannot happen, that a client cannot
+// get a different answer by choosing a protocol.
+//
+// Refused rather than answered-empty on purpose. ListEnvironments and its
+// siblings return a response with no error, so an unauthorized caller handed an
+// empty projection would read "no environments" and could not tell that from a
+// fleet with none -- the unknown-reads-as-none conflation that file exists to
+// prevent.
+func TestApolloGraphQLRefusesAnOperatorWhoHoldsNothing(t *testing.T) {
+	t.Parallel()
+	handler := NewHandler(NewMemoryRepository(), HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"admin"},
+	})
+
+	response := graphqlRequest(t, handler, "someone", `{ apollo { environments(pageSize: 50) { environments { rid } } } }`)
+
+	if response.Code != http.StatusForbidden {
+		t.Fatalf("an operator with no grant read the Apollo projection: %d %s",
+			response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), "\"environments\"") {
+		t.Errorf("the refusal still carried projection data: %s", response.Body.String())
+	}
+}
+
+// And the administrator, who does hold platform read, still gets served -- so
+// the check refuses the ungranted rather than everyone.
+func TestApolloGraphQLStillAnswersAPrincipalHoldingPlatformRead(t *testing.T) {
+	t.Parallel()
+	handler := NewHandler(NewMemoryRepository(), HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"admin"},
+	})
+
+	response := graphqlRequest(t, handler, "admin", `{ apollo { environments(pageSize: 50) { environments { rid } } } }`)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("an administrator was refused the Apollo projection: %d %s",
+			response.Code, response.Body.String())
+	}
+}
