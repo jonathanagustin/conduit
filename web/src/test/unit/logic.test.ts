@@ -12,7 +12,7 @@ import { countOf, relative } from "../../components/Timestamp.js";
 import { latestForChannel, orderChannels } from "../../components/ReleaseChannelGraph.js";
 import {
   boundFacetValues,
-  facetBarWidth,
+  facetBarValue,
   facetsAreEmpty,
   largestFacetCount,
   orderFacetValues,
@@ -698,21 +698,28 @@ describe("facet rail arithmetic", () => {
     expect(values.find((value) => value.value === "HEALTHY")?.selected).toBe(false);
   });
 
-  it("bounds a long dimension and says how many it left out", () => {
+  it("bounds a long dimension and hands back what it withheld", () => {
     const values = orderFacetValues(
       Object.fromEntries(Array.from({ length: 12 }, (_, index) => [`env-${index}`, 12 - index])),
       undefined,
     );
     const bounded = boundFacetValues(values, 8);
     expect(bounded.shown).toHaveLength(8);
-    expect(bounded.hidden).toBe(4);
+    // Returned, not discarded: the control that reveals them is labelled with
+    // this list's length, so a silent truncation has nowhere to hide.
+    expect(bounded.overflow.map((value) => value.value)).toEqual([
+      "env-8",
+      "env-9",
+      "env-10",
+      "env-11",
+    ]);
     // The bound keeps the largest, which is the half a reader wants first.
     expect(bounded.shown[0]?.value).toBe("env-0");
   });
 
-  it("leaves a dimension inside the bound alone and hides nothing", () => {
+  it("leaves a dimension inside the bound alone and withholds nothing", () => {
     const values = orderFacetValues({ a: 3, b: 2 }, undefined);
-    expect(boundFacetValues(values, 8)).toEqual({ shown: values, hidden: 0 });
+    expect(boundFacetValues(values, 8)).toEqual({ shown: values, overflow: [] });
   });
 
   it("keeps a selected value visible even from below the bound", () => {
@@ -721,15 +728,15 @@ describe("facet rail arithmetic", () => {
     );
     const bounded = boundFacetValues(orderFacetValues(counts, "env-11"), 8);
     expect(bounded.shown.map((value) => value.value)).toContain("env-11");
-    // Eight from the head plus the selected one, and the hidden count follows
-    // the values actually withheld rather than the difference from the limit.
+    // Eight from the head plus the selected one, and the withheld list is the
+    // values actually withheld rather than the difference from the limit.
     expect(bounded.shown).toHaveLength(9);
-    expect(bounded.hidden).toBe(3);
+    expect(bounded.overflow.map((value) => value.value)).toEqual(["env-8", "env-9", "env-10"]);
   });
 
   it("shows every value when the bound is lifted", () => {
     const values = orderFacetValues({ a: 3, b: 2, c: 1 }, undefined);
-    expect(boundFacetValues(values, 0)).toEqual({ shown: values, hidden: 0 });
+    expect(boundFacetValues(values, 0)).toEqual({ shown: values, overflow: [] });
   });
 
   // The denominator is the group's largest count, not its total: the bars
@@ -738,17 +745,17 @@ describe("facet rail arithmetic", () => {
   it("measures a bar against the largest count in its group", () => {
     const values = orderFacetValues({ HEALTHY: 50, UNHEALTHY: 25, UNKNOWN: 5 }, undefined);
     expect(largestFacetCount(values)).toBe(50);
-    expect(facetBarWidth(50, 50)).toBe(100);
-    expect(facetBarWidth(25, 50)).toBe(50);
+    expect(facetBarValue(50, 50)).toBe(1);
+    expect(facetBarValue(25, 50)).toBe(0.5);
     // 25/80 is what a total-based denominator would give. Naming it here makes
     // the wrong denominator a failing number rather than a plausible one.
-    expect(facetBarWidth(25, 50)).not.toBe((100 * 25) / 80);
+    expect(facetBarValue(25, 50)).not.toBe(25 / 80);
   });
 
   it("draws nothing for a zero count and never divides by an empty group", () => {
     expect(largestFacetCount([])).toBe(0);
-    expect(facetBarWidth(0, 10)).toBe(0);
-    expect(facetBarWidth(4, 0)).toBe(0);
+    expect(facetBarValue(0, 10)).toBe(0);
+    expect(facetBarValue(4, 0)).toBe(0);
   });
 
   it("calls a rail empty only when every dimension is", () => {

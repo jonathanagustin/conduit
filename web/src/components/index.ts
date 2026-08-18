@@ -37,7 +37,7 @@ export {
   type FacetGroup,
   type FacetValue,
   boundFacetValues,
-  facetBarWidth,
+  facetBarValue,
   facetsAreEmpty,
   largestFacetCount,
   orderFacetValues,

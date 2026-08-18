@@ -72,11 +72,11 @@ export function orderFacetValues(
 
 export interface BoundedFacet {
   readonly shown: readonly FacetValue[];
-  /** How many values the bound left out. Never inferred by the caller from
-   * lengths: the count is what the "more" control has to say, and a control
-   * that folds values away without naming how many is a truncation the reader
-   * cannot see. */
-  readonly hidden: number;
+  /** The values the bound withheld. They are rendered, collapsed, behind a
+   * control labelled with this list's length -- returned rather than discarded
+   * so a truncation cannot be silent. A rail that dropped them would read
+   * exactly like the end of the list. */
+  readonly overflow: readonly FacetValue[];
 }
 
 /** Bound a group to `limit` values, keeping a selected value visible.
@@ -89,10 +89,10 @@ export function boundFacetValues(
   values: readonly FacetValue[],
   limit: number = DEFAULT_FACET_LIMIT,
 ): BoundedFacet {
-  if (limit <= 0 || values.length <= limit) return { shown: values, hidden: 0 };
+  if (limit <= 0 || values.length <= limit) return { shown: values, overflow: [] };
   const head = new Set(values.slice(0, limit));
-  const shown = values.filter((value) => head.has(value) || value.selected);
-  return { shown, hidden: values.length - shown.length };
+  const keep = (value: FacetValue) => head.has(value) || value.selected;
+  return { shown: values.filter(keep), overflow: values.filter((value) => !keep(value)) };
 }
 
 /** The largest count in a group, which is what a bar is a proportion of. */
@@ -100,7 +100,8 @@ export function largestFacetCount(values: readonly FacetValue[]): number {
   return values.reduce((largest, value) => (value.count > largest ? value.count : largest), 0);
 }
 
-/** A bar's width as a percentage of the group's largest count.
+/** A bar's fill as a fraction of the group's largest count, in the 0-1 range
+ * Blueprint's ProgressBar takes.
  *
  * Against the largest count rather than the group's total, so the bars compare
  * the values in one dimension against each other -- which is the comparison the
@@ -108,9 +109,9 @@ export function largestFacetCount(values: readonly FacetValue[]): number {
  * bar as a sliver and stop distinguishing anything. The count is printed beside
  * the bar in either case; the bar is the secondary signal, as the status tags
  * treat colour. */
-export function facetBarWidth(count: number, largest: number): number {
+export function facetBarValue(count: number, largest: number): number {
   if (largest <= 0 || count <= 0) return 0;
-  return Math.min(100, (100 * count) / largest);
+  return Math.min(1, count / largest);
 }
 
 /** Whether a rail has anything at all to show. An empty rail must read as an
