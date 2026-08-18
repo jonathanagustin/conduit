@@ -127,10 +127,19 @@ func TestPostgresDeletingAContactRemovesTheAddress(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if _, err := contacts.Save(ctx, domain.Contact{
-		Owner: alice(), Kind: domain.ContactEmail, Address: "alice@example.test",
-	}); err != nil {
-		t.Fatal(err)
+	// Two kinds, because deleting one must not take the other with it: a
+	// person removing the Slack channel they no longer read would otherwise
+	// silently stop receiving mail as well, and the next thing they would
+	// notice is a notification that never arrived.
+	for kind, address := range map[domain.ContactKind]string{
+		domain.ContactEmail: "alice@example.test",
+		domain.ContactSlack: "#alice-alerts",
+	} {
+		if _, err := contacts.Save(ctx, domain.Contact{
+			Owner: alice(), Kind: kind, Address: address,
+		}); err != nil {
+			t.Fatal(err)
+		}
 	}
 	deleted, err := contacts.Delete(ctx, alice(), domain.ContactEmail)
 	if err != nil || !deleted {
@@ -144,6 +153,13 @@ func TestPostgresDeletingAContactRemovesTheAddress(t *testing.T) {
 	}
 	if remaining != 0 {
 		t.Fatalf("%d rows still hold the deleted address", remaining)
+	}
+	held, err := contacts.List(ctx, alice())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(held) != 1 || held[0].Kind != domain.ContactSlack {
+		t.Fatalf("deleting one kind left %#v, want only the Slack contact", held)
 	}
 	if deleted, err := contacts.Delete(ctx, alice(), domain.ContactEmail); err != nil || deleted {
 		t.Fatalf("deleting an absent contact reported deleted=%v err=%v", deleted, err)

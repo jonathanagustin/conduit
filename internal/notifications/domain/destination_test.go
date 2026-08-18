@@ -105,6 +105,34 @@ func TestTheChannelsOwnKindWinsAndTheOrderDoesNot(t *testing.T) {
 	}
 }
 
+// The tie-break when no kind matches the channel at all.
+//
+// Unreachable with the two channels and three kinds this build knows -- EMAIL
+// is both a channel and a kind, so a deliverable contact either matches or is
+// the only candidate. It is reachable for a channel this build has never heard
+// of, which is exactly the case the vocabulary being open makes possible, and
+// the property that has to hold there is that two replicas resolving the same
+// recipient at the same moment pick the same place rather than sending twice.
+func TestAChannelMatchingNoKindStillResolvesTheSameWayTwice(t *testing.T) {
+	t.Parallel()
+	email := contact(platform(), ContactEmail, "platform@example.test")
+	slack := contact(platform(), ContactSlack, "#platform-alerts")
+	unknown := Recipient{Owner: platform(), Channel: Channel("SMS")}
+	for name, contacts := range map[string][]Contact{
+		"email first": {email, slack},
+		"slack first": {slack, email},
+	} {
+		destination, found := ResolveDestination(unknown, contacts)
+		if !found {
+			t.Fatalf("%s resolved to nothing for a channel this build does not know", name)
+		}
+		if destination.Kind != ContactEmail {
+			t.Errorf("%s resolved to %s; the order of the input decided the destination",
+				name, destination.Kind)
+		}
+	}
+}
+
 // No contacts is not an error and not a half-built destination: it is the
 // deployment that configured an endpoint and no address book, and the zero
 // value is what the transport reads as "send where you were configured to".
