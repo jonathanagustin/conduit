@@ -131,6 +131,52 @@ def assert_spoke_rbac_floor!(root, documents, expected_namespaces, profile)
       end
     end
   end
+
+  # The derivation, restated here on purpose. This is the one duplication in the
+  # gate that earns its keep: the template holds the rules and the argument for
+  # them, and a rule silently deleted from the template still renders a valid
+  # Role -- an Agent that cannot read Helm's release ledger fails at the first
+  # `helm list`, in the tenant's cluster, not here. Equality in both directions,
+  # so a rule added without being derived fails too.
+  required_rules = {
+    # internal/agent/helm.go release ledger (default `secret` driver) and the
+    # kubernetesSecretName half of internal/agent/material.go.
+    ['', 'secrets'] => %w[get list watch create update patch delete],
+    # apolloPodTemplatePaths and the bare-Pod branch in
+    # internal/controlplane/apollo_annotations.go; health.go lists Pods.
+    ['', 'pods'] => %w[get list watch create update patch delete],
+    ['', 'replicationcontrollers'] => %w[get list watch create update patch delete],
+    # Same table, plus `kubectl rollout restart|status` in helm.go, whose kinds
+    # internal/controlplane/commands.go restricts to Deployment and StatefulSet.
+    ['apps', 'deployments'] => %w[get list watch create update patch delete],
+    ['apps', 'statefulsets'] => %w[get list watch create update patch delete],
+    ['apps', 'daemonsets'] => %w[get list watch create update patch delete],
+    ['apps', 'replicasets'] => %w[get list watch create update patch delete],
+    ['batch', 'jobs'] => %w[get list watch create update patch delete],
+    ['batch', 'cronjobs'] => %w[get list watch create update patch delete],
+    # ingressReferences and observeIngressReferences in internal/agent/ingress.go.
+    ['networking.k8s.io', 'ingresses'] => %w[get list watch create update patch delete],
+    # ingressDiagnostic in the same file. Read-only; the Agent writes no Event.
+    ['', 'events'] => %w[get list watch],
+    # testdata/e2e-chart, applied by scripts/test-spoke-e2e.sh.
+    ['', 'configmaps'] => %w[get list watch create update patch delete]
+  }
+  roles.each do |role|
+    granted = Hash.new { |hash, key| hash[key] = [] }
+    role.fetch("rules").each do |rule|
+      rule.fetch("apiGroups").product(rule.fetch("resources")).each do |group, resource|
+        granted[[group, resource]] |= rule.fetch("verbs")
+      end
+    end
+    namespace = role.dig("metadata", "namespace")
+    required_rules.each do |key, verbs|
+      missing = verbs - granted.fetch(key, [])
+      abort "#{profile} Spoke Role in #{namespace} no longer grants #{key.join('/')} #{missing.join(',')}" unless missing.empty?
+    end
+    undeclared = granted.keys - required_rules.keys
+    abort "#{profile} Spoke Role in #{namespace} grants undeclared authority: #{undeclared.map { |key| key.join('/') }.join(', ')}" unless undeclared.empty?
+  end
+
 end
 
 charts.each_value do |chart|
