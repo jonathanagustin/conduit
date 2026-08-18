@@ -213,12 +213,16 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 			// the assertion; only its vocabulary differs.
 			continue
 		}
-		// Refused, and refused as unauthenticated rather than as a bad request:
-		// a route that validated a body before asking who was calling would
-		// report 400 here, and a client would never learn it needed to
-		// authenticate.
-		if response.Code != http.StatusUnauthorized && response.Code != http.StatusForbidden {
-			t.Errorf("%s refuses an anonymous caller with %d, want 401 or 403 (%s)",
+		// Refused as 401 exactly, not merely refused. Every non-public route
+		// currently answers 401 to a caller with no credential, which is worth
+		// asserting rather than widening to "some 4xx": a route that reached
+		// past its identity check and refused for a downstream reason -- an
+		// empty agent id, a body it could not parse -- would still be a 4xx, and
+		// deleting requireAgentIdentity from the lease route produces exactly
+		// that 403. A caller also learns from 401 that it should authenticate,
+		// which no other status tells it.
+		if response.Code != http.StatusUnauthorized {
+			t.Errorf("%s refuses an anonymous caller with %d, want 401 (%s)",
 				route.Pattern, response.Code, route.Detail)
 		}
 	}
