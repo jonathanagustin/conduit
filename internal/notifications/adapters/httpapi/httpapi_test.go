@@ -630,3 +630,28 @@ func TestAnUnservedMethodOrPathUnderThePrefixIsAnsweredHere(t *testing.T) {
 		}
 	}
 }
+
+// Whitespace around an owner is trimmed on both the query and the body path,
+// so " alice " is alice rather than a stranger. Pinned because the two paths
+// trim in different places and a caller who copied an identifier with a
+// trailing space would otherwise be refused their own settings page.
+func TestAnOwnerIsTrimmedOnBothTheQueryAndTheBodyPath(t *testing.T) {
+	t.Parallel()
+	test := newHarness(t, alice())
+	test.seedEntry(t, user("alice"), domain.ChannelEmail, "nev-alice")
+	response := test.do(http.MethodGet, "/v1/notifications/inbox?channel=EMAIL&ownerId=%20alice%20", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("a padded owner in the query answered %d: %s", response.Code, response.Body.String())
+	}
+	response = test.do(http.MethodPut, "/v1/notifications/preferences", fmt.Sprintf(
+		`{"owner":{"kind":"USER","id":" alice "},"resourceRid":%q,"channel":"EMAIL","allFutureTypes":true}`,
+		resource))
+	if response.Code != http.StatusOK {
+		t.Fatalf("a padded owner in the body answered %d: %s", response.Code, response.Body.String())
+	}
+	var written domain.Preference
+	decode(t, response, &written)
+	if written.Owner != user("alice") {
+		t.Fatalf("a padded owner was stored as %#v", written.Owner)
+	}
+}
