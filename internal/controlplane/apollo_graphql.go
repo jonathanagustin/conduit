@@ -44,6 +44,32 @@ func registerApolloGraphQL(
 		if !allowed {
 			return graphqlports.Sources{}, false
 		}
+		// The same bar the Apollo REST surface sets, because this serves the
+		// same data. Every Apollo OpenAPI read calls authorizeOperator with
+		// OperationReadResource against platform/root; without this, a
+		// principal holding nothing got the whole projection -- every
+		// Environment, installation, namespace and recall the Hub governs --
+		// by choosing GraphQL over REST. That is precisely what
+		// internal/apollographql/ports says cannot happen: "a client cannot
+		// get a different answer by choosing a protocol."
+		//
+		// Refusing the request rather than binding a nil or empty projection
+		// is deliberate. ListEnvironments and its siblings return a response
+		// with no error, so an unauthorized caller handed an empty projection
+		// would read "no environments" -- the unknown-reads-as-none
+		// conflation the same file says the provenance model exists to
+		// prevent. A refusal a client can see is the only honest answer this
+		// interface can give.
+		//
+		// It gates the Overview source with it as well, which is a widening
+		// this endpoint can afford: nothing in web/src calls
+		// /v1/apollo/graphql, so the console reaches overview data through its
+		// own authorized routes rather than through here.
+		if !requirePlatformOperation(
+			writer, request, governance, principal, configuration, OperationReadResource,
+		) {
+			return graphqlports.Sources{}, false
+		}
 		return graphqlports.Sources{
 			// The Apollo projection is nil when its initialization failed. A nil
 			// source refuses its half of the interface rather than taking the
