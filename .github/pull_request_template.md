@@ -27,5 +27,6 @@
 
 - [ ] Relevant focused tests passed locally.
 - [ ] `./scripts/verify-local.sh` passed.
-- [ ] The manual **Trunk gate** workflow passed for this exact commit.
+- [ ] The **Trunk gate** passed for this exact head commit (it runs on its own;
+      dispatch it only to re-run an unchanged tree).
 - [ ] The branch contains one coherent change and is current with `main`.

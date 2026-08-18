@@ -202,6 +202,11 @@ zenith_protocol() {
 }
 
 gate 'Check formatting' check_formatting
+# The runnable half of CI's head-authentication step. The authenticator itself
+# reads the run's own GitHub event and asks the API about a pull request, so it
+# has nothing to authenticate here; its self-test stubs both and is the part
+# that would fail if a refusal stopped refusing.
+gate 'Authenticate pull request head' ./scripts/authenticate-pull-request-head.test.sh
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
