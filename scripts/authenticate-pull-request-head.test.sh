@@ -120,6 +120,15 @@ expect_refused pull_request_closed \
   pull_request refs/pull/195/merge 195 '' "$checked_out" \
   "$(answer closed "$checked_out" claude/fix-195-automatic-gate-trigger owner/repo)"
 
+# The pull_request path made the API read racy in a way the dispatch path never
+# was: the event fires seconds after the pull request is opened, and GitHub
+# answered a ten-second-old one with truncated JSON. That reached the field
+# checks as empty strings, so the run failed citing some unrelated mismatch
+# instead of the read that did not happen.
+expect_refused pull_request_with_a_truncated_api_answer \
+  'no state or head commit' \
+  pull_request refs/pull/195/merge 195 '' "$checked_out" ''
+
 expect_refused pull_request_from_a_fork \
   'is headed by someone/conduit, not owner/repo' \
   pull_request refs/pull/195/merge 195 '' "$checked_out" \
