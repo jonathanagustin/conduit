@@ -98,12 +98,16 @@ go build -o "${work}/hub" "${repo_root}/cmd/platform-delivery"
 echo "simulate: starting it on ${hub_url}"
 # Insecure identity headers are what make a browser-driven simulation possible
 # at all: the console has no OIDC provider here, so the operator it acts as is
-# named by a header the harness sets. This is why the script is not a gate --
-# it configures a Hub no deployment should run.
+# named by a header the harness sets. The signing opt-in is the same kind of
+# declaration for the same kind of reason: there is no signing Secret here, and
+# a Hub that has not said it is a development Hub refuses to start rather than
+# signing Bundles as a signer nobody trusts. This is why the script is not a
+# gate -- it configures a Hub no deployment should run.
 LISTEN_ADDRESS="127.0.0.1:${port}" \
   DATA_DIRECTORY="${work}/data" \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
+  ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
   PLATFORM_BOOTSTRAP_ADMINISTRATORS=proposer,operator \
   "${work}/hub" >"${work}/hub.log" 2>&1 &
 hub_pid=$!

@@ -109,9 +109,6 @@ func main() {
 		slog.Error("load trusted Bundle keys", "error", err)
 		os.Exit(1)
 	}
-	if len(bundlePrivateKey) == 0 {
-		slog.Warn("BUNDLE_SIGNING_KEY_FILE is unset; Bundle signatures will use an ephemeral development key")
-	}
 	artifactScanner, err := loadArtifactScanner(os.Getenv("EXTERNAL_ARTIFACT_SCANNER"), os.Getenv("EXTERNAL_ARTIFACT_SCANNER_TIMEOUT"))
 	if err != nil {
 		slog.Error("configure external artifact scanner", "error", err)
@@ -119,6 +116,24 @@ func main() {
 	}
 	allowInsecureAgentIdentity := os.Getenv("ALLOW_INSECURE_AGENT_IDENTITY_HEADERS") == "true"
 	allowInsecureOperatorIdentity := os.Getenv("ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS") == "true"
+	allowEphemeralBundleSigning := os.Getenv("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY") == "true"
+	if err := checkBundleSigningPosture(len(bundlePrivateKey) != 0, allowEphemeralBundleSigning,
+		allowInsecureAgentIdentity || allowInsecureOperatorIdentity); err != nil {
+		slog.Error("refuse Bundle signing configuration", "error", err)
+		os.Exit(1)
+	}
+	if len(bundlePrivateKey) == 0 {
+		// The declared development key, generated here rather than left to the
+		// handler to generate silently, so that even a development Hub can say
+		// which signer it came up with.
+		bundlePrivateKey, err = controlplane.GenerateBundleSigningKey()
+		if err != nil {
+			slog.Error("generate the declared ephemeral Bundle signing key", "error", err)
+			os.Exit(1)
+		}
+		slog.Warn("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY is set; Bundles are signed by a key this process generated "+
+			"and no other process, replica or restart holds", "bundleSigner", bundleSigningKeyIdentifier(bundlePrivateKey))
+	}
 	operatorIdentityResolver, err := loadOIDCOperatorIdentityResolver(ctx, os.Getenv)
 	if err != nil {
 		slog.Error("configure operator OIDC identity", "error", err)
@@ -141,10 +156,12 @@ func main() {
 		slog.Error("SPIFFE identity cannot be combined with static TLS identity files")
 		os.Exit(1)
 	}
-	if spiffeEndpoint != "" && len(bundlePrivateKey) == 0 {
-		slog.Error("SPIFFE production identity requires BUNDLE_SIGNING_KEY_FILE")
-		os.Exit(1)
-	}
+	// The refusal that used to live here -- "SPIFFE production identity
+	// requires BUNDLE_SIGNING_KEY_FILE" -- is now checkBundleSigningPosture
+	// above, which requires it of every Hub that has not declared itself a
+	// development Hub rather than only of a SPIFFE one. SPIFFE cannot be
+	// combined with insecure identity headers (the check above), so a SPIFFE
+	// Hub reaching this point has already been required to hold a key.
 	if operatorIdentityResolver != nil && spiffeEndpoint == "" && (tlsCertificateFile == "" || tlsKeyFile == "") {
 		slog.Error("OIDC operator identity requires TLS_CERT_FILE and TLS_KEY_FILE or SPIFFE server identity")
 		os.Exit(1)
@@ -249,7 +266,13 @@ func main() {
 		defer stopMetrics()
 	}
 
+	// bundleSigner is on this line because this is the line that says a Hub came
+	// up. An operator comparing a restored Hub against the fleet it rejoined
+	// reads two identifiers rather than waiting for a target to refuse a
+	// Bundle, which is the whole reason a changed signer is dangerous: it
+	// presents as health.
 	slog.Info("Platform delivery control plane listening", "address", address, "secureAgentIdentity", !allowInsecureAgentIdentity,
+		"bundleSigner", bundleSigningKeyIdentifier(bundlePrivateKey),
 		"version", buildinfo.Version, "commit", buildinfo.Commit)
 	if spiffeSource != nil {
 		err = server.ListenAndServeTLS("", "")
@@ -587,6 +610,75 @@ func loadArtifactScanner(command, timeoutValue string) (controlplane.ArtifactSca
 	return controlplane.NewExternalArtifactScanner(command, timeout)
 }
 
+// checkBundleSigningPosture decides whether this Hub may start without a
+// mounted Bundle signing key, and the answer is no unless it has said it is a
+// development Hub.
+//
+// The failure being refused is not a missing feature. A Hub with no
+// BUNDLE_SIGNING_KEY_FILE signs Bundles with a key it generated for itself, so
+// a restore that brought the database back and forgot the signing Secret comes
+// up **healthy** under a new signing identity: probes pass, the console serves,
+// Bundles are produced and signed, and the only symptom is that a target
+// trusting the old signer refuses them -- or, worse, one that trusts whatever
+// it is told does not. That is a split-brain supply chain, and it converts a
+// recoverable backup mistake into a fleet-wide trust failure that presents as
+// health. Warning and carrying on is the wrong shape for it: the warning is
+// read after the incident, not before.
+//
+// "Production" is not invented here. This binary already declares a development
+// Hub exactly one way -- the ALLOW_INSECURE_*_IDENTITY_HEADERS opt-ins -- and a
+// Hub that has not set one of them is already required, a few lines below, to
+// hold an Agent client CA and a server key pair or a SPIFFE endpoint. So the
+// set of Hubs newly required to hold a signing key is exactly the set already
+// required to hold production identity material, and every manifest in this
+// repository that starts such a Hub already mounts the key.
+//
+// insecureIdentity therefore means "declared development", and the two
+// remaining refusals keep that declaration honest, in the shape identity
+// already uses: an insecure opt-in may not be combined with the secure
+// mechanism it would undermine.
+func checkBundleSigningPosture(hasSigningKey, allowEphemeralSigning, insecureIdentity bool) error {
+	if allowEphemeralSigning && hasSigningKey {
+		return errors.New("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY cannot be combined with BUNDLE_SIGNING_KEY_FILE; " +
+			"unset one so it is unambiguous which signer this Hub uses")
+	}
+	if allowEphemeralSigning && !insecureIdentity {
+		return errors.New("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY cannot be combined with production identity; " +
+			"it is available only to a Hub that also sets ALLOW_INSECURE_AGENT_IDENTITY_HEADERS or " +
+			"ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS")
+	}
+	if !hasSigningKey && !allowEphemeralSigning {
+		return errors.New("BUNDLE_SIGNING_KEY_FILE is required: set it to the path of a mounted PEM-encoded PKCS#8 " +
+			"Ed25519 private key, so that this Hub signs Bundles as the signer the fleet already trusts; " +
+			"a development Hub may instead set ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true and sign with a " +
+			"key generated at startup")
+	}
+	return nil
+}
+
+// bundleSigningKeyIdentifier names the signer a Hub came up with.
+//
+// It is the Ed25519 **public** key, base64-encoded exactly the way
+// BUNDLE_TRUSTED_KEYS_FILE encodes the keys a Hub will trust, so an operator
+// can take the value out of a log line and find it -- or fail to find it -- in
+// the trust map their fleet publishes. A public key is not key material and is
+// on every Bundle this Hub signs; the seed is never read here, never logged and
+// never put in an error.
+func bundleSigningKeyIdentifier(key ed25519.PrivateKey) string {
+	if len(key) != ed25519.PrivateKeySize {
+		return ""
+	}
+	public, ok := key.Public().(ed25519.PublicKey)
+	if !ok {
+		return ""
+	}
+	return base64.RawStdEncoding.EncodeToString(public)
+}
+
+// loadBundleSigningKey reads the mounted signer. An unset path answers
+// (nil, nil), which is not a decision to sign with something else:
+// checkBundleSigningPosture makes that decision, and refuses it unless the Hub
+// has declared itself a development Hub.
 func loadBundleSigningKey(path string) (ed25519.PrivateKey, error) {
 	if strings.TrimSpace(path) == "" {
 		return nil, nil

@@ -39,6 +39,13 @@ func NewHubHandler(
 
 // NewHub is NewHubHandler with the failure returned rather than raised, for
 // callers that would rather decide themselves.
+//
+// The assembled surface is wrapped in guardUnregisteredRoutes, so that the Hub
+// serves exactly the routes HubRouteAuthorization names a decision for and
+// nothing else. That wrap is the outermost thing here on purpose: a route added
+// anywhere beneath it -- the facade, the generated Apollo transport, a surface
+// mounted in this package -- reaches a caller only once somebody has said what
+// it requires.
 func NewHub(
 	repository controlplane.Repository, options controlplane.HandlerOptions, hub ...Options,
 ) (http.Handler, error) {
@@ -46,5 +53,9 @@ func NewHub(
 	if len(hub) > 0 {
 		hubOptions = hub[0]
 	}
-	return mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
+	handler, err := mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
+	if err != nil {
+		return nil, err
+	}
+	return guardUnregisteredRoutes(handler), nil
 }
