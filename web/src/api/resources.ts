@@ -280,8 +280,12 @@ export function useChangeRequest(id: string) {
 
 export type ReviewAction = "approve" | "reject" | "cancel" | "reopen";
 
-/** The body each review endpoint actually accepts. */
-export function reviewBody(action: ReviewAction, rationale: string): Record<string, string> {
+/** The body each review endpoint actually accepts.
+ *
+ * Reopen returns nothing rather than `{}`: requireEmptyBody in http.go reads
+ * bytes, not JSON fields, and rejects the two-byte document an empty object
+ * serialises to. */
+export function reviewBody(action: ReviewAction, rationale: string): Record<string, string> | undefined {
   switch (action) {
     case "approve":
     case "reject":
@@ -289,7 +293,7 @@ export function reviewBody(action: ReviewAction, rationale: string): Record<stri
     case "cancel":
       return { reason: rationale };
     case "reopen":
-      return {};
+      return undefined;
   }
 }
 
@@ -315,9 +319,8 @@ export function useReviewChangeRequest(id: string) {
   return useMutation({
     // Each endpoint takes a different body and the Hub sets DisallowUnknownFields,
     // so sending a union of the fields fails all four with 400. approve and
-    // reject take {rationale}; cancel takes {reason}; reopen requires an EMPTY
-    // body and rejects any field at all. Read off http.go 1556, 1584, 1637 and
-    // the requireEmptyBody at 1617.
+    // reject take {rationale}; cancel takes {reason}; reopen requires a body
+    // with no bytes -- requireEmptyBody, not an empty JSON object.
     mutationFn: ({ action, rationale }: { action: ReviewAction; rationale: string }) =>
       postJSON<ChangeReviewResult>(
         `/change-requests/${encodeURIComponent(id)}/${action}`,

@@ -215,10 +215,12 @@ test.describe("Change Requests", () => {
     await page.getByLabel("Rationale").fill("reopening");
     await page.getByRole("button", { name: "Reopen" }).click();
 
-    // Reopen takes an EMPTY body: the Hub calls requireEmptyBody and rejects any
-    // field at all, including the rationale the form collected.
+    // Reopen takes no body at all: requireEmptyBody reads bytes, so "{}" -- the
+    // serialisation of {} -- is a 400, not an empty object. The stub used to
+    // JSON.parse the POST and treat {} as empty, which is how this test stayed
+    // green while a real Hub refused the click.
     await expect.poll(() => hub.bodies().length).toBe(1);
-    expect(hub.bodies()[0]).toEqual({});
+    expect(hub.bodies()[0]).toBeNull();
   });
 
   test("sends cancel a reason rather than a rationale", async ({ page, hub }) => {

@@ -63,7 +63,9 @@ export async function postJSON<T>(
     method: "POST",
     credentials: "same-origin",
     headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body),
+    // requireEmptyBody (http.go) rejects any byte, including the "{}" that
+    // JSON.stringify(undefined) does not produce but JSON.stringify({}) does.
+    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     ...(options.signal ? { signal: options.signal } : {}),
   });
   if (!response.ok) {
