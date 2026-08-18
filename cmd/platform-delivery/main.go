@@ -173,7 +173,13 @@ func main() {
 	// startup failure rather than a first-tick surprise, because a Hub that
 	// started cleanly and silently never deployed an environment is worse than
 	// one that refused to start.
-	gitlessScheduler, err := configureGitless(os.Getenv)
+	gitlessResolutionLog, closeGitlessResolutionLog, err := openGitlessResolutionLog(ctx, os.Getenv)
+	if err != nil {
+		slog.Error("open Gitless resolution log", "error", err)
+		os.Exit(1)
+	}
+	defer closeGitlessResolutionLog()
+	gitlessScheduler, err := configureGitlessWithResolutionLog(os.Getenv, gitlessResolutionLog)
 	if err != nil {
 		slog.Error("configure Gitless GitOps", "error", err)
 		os.Exit(1)

@@ -46,6 +46,10 @@ type Config struct {
 
 	// ResolutionLogFile is where resolutions are appended before deployment.
 	ResolutionLogFile string
+	// ResolutionLog supplies a shared durable implementation. Production
+	// multi-replica Hubs use PostgreSQL; nil retains the file adapter for the
+	// explicit single-replica profile.
+	ResolutionLog ports.ResolutionLog
 
 	// Interval is how often desired state is restated.
 	Interval time.Duration
@@ -114,7 +118,10 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 	if strings.TrimSpace(config.PolicyFile) == "" {
 		return nil, fmt.Errorf("Gitless GitOps needs a publisher policy file; there is no safe default for who may publish")
 	}
-	if strings.TrimSpace(config.ResolutionLogFile) == "" {
+	if config.ResolutionLog != nil && strings.TrimSpace(config.ResolutionLogFile) != "" {
+		return nil, fmt.Errorf("Gitless GitOps resolution log must be either injected or file-backed, not both")
+	}
+	if config.ResolutionLog == nil && strings.TrimSpace(config.ResolutionLogFile) == "" {
 		return nil, fmt.Errorf("Gitless GitOps needs a resolution log; a deployment nobody can attribute is what it exists to prevent")
 	}
 
@@ -131,9 +138,12 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 		}
 	}
 
-	log, err := resolutionlog.Open(config.ResolutionLogFile)
-	if err != nil {
-		return nil, err
+	log := config.ResolutionLog
+	if log == nil {
+		log, err = resolutionlog.Open(config.ResolutionLogFile)
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	converger, err := converger(config, conduit)
