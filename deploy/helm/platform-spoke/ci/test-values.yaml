@@ -9,3 +9,5 @@ controlPlaneURL: https://platform-hub.platform-system.svc.cluster.local:8081
 tls:
   clientSecretName: platform-agent-tls
   externalCAConfigMapName: platform-external-ca
+rbac:
+  managedNamespaces: [example-product]

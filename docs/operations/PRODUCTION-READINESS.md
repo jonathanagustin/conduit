@@ -26,6 +26,7 @@ answer, and nothing here should be read as claiming it.
 | Identity | Production identity is OIDC for operators and mTLS or SPIFFE for Agents. Insecure identity headers exist only behind explicit `ALLOW_INSECURE_*` opt-ins; `cmd/platform-delivery` exits rather than combine them with any secure mechanism, and the chart gate aborts if any `ALLOW_INSECURE_` variable is set. | `cmd/platform-delivery/main.go` startup checks; `verify-helm-runtime.rb` ("chart enabled insecure identity"). |
 | Bundle signing | A Hub refuses to start with no `BUNDLE_SIGNING_KEY_FILE`. The ephemeral development key survives only behind an explicit `ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true`, which is itself refused in combination with a mounted key or with production identity — the fail-closed shape the insecure identity headers already have — and which no chart profile can set. Which signer a Hub came up with is on its startup line as `bundleSigner`: the base64 Ed25519 **public** key, the same encoding `BUNDLE_TRUSTED_KEYS_FILE` uses, so a changed signer is readable rather than only detectable by a target refusing a Bundle. | `checkBundleSigningPosture` in `cmd/platform-delivery/main.go`; `TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey`, `TestBundleSigningKeyIdentifierPublishesThePublicKeyOnly`; `verify-helm-runtime.rb` ("Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start", "Hub enabled insecure opt-ins", and the render that fails closed on an empty `bundleSigningSecretName`). |
 | Delivery | A clean production cluster reconciles the signed private runtime artifact from OCI with no Git source or credential: pull-only registry authority, trusted-signature success, wrong-signer rejection, exact-digest application. | A8; `scripts/test-gitless-clean-cluster.sh`; ADR 0001. |
+| Agent privilege | The Spoke chart renders the Agent's Kubernetes authority instead of leaving it to whatever binding a tenant happened to create: one namespaced `Role` and `RoleBinding` per entry in `rbac.managedNamespaces`, every rule derived from a call site in `internal/agent` and carrying that citation in the template, no cluster-scoped rule of any kind, no wildcard apiGroup/resource/verb, no `escalate`/`bind`/`impersonate`, and the binding provably naming the ServiceAccount the Deployment runs as. The chart fails to render when the namespace list is absent or empty rather than defaulting to the Agent's own namespace, which is not where it installs. | `ruby scripts/verify-helm-runtime.rb` (`assert_spoke_rbac_floor!`, over the default, external-identity and multi-namespace profiles, plus both fail-closed renders and the `rbac.create=false` escape hatch). **Bounded by gap 8**, which owns what this does not claim: this is a floor on what the chart grants, not a ceiling on the Agent's effective privilege, and Bundle reach between tenants is a separate question. Read the two together. |
 | Reconciliation | Tenant intent converges through Conduit-owned durable work (leases fenced by input revision, atomic decision/audit/outbox, crash-safe receipts); Flux owns only runtime convergence. | A9; ADR 0003; `scripts/test-postgres-repository.sh`. |
 | Air-gap packaging | The Zarf package assembles and validates for disconnected **installation**: image digests pinned, one confined namespace, non-root runtime with every capability dropped, no credential bytes in the manifest, HTTPS probes, and a required `BUNDLE_SIGNING_KEY_FILE`. It claims nothing about **operating** a disconnected estate after that install. | `Validate Zarf air-gap package` gate (`scripts/verify-zarf-package.rb`). **Bounded by gap 5**: a Release recalled on the source keeps running on a disconnected target, so lifecycle control of a disconnected estate is outside this row. Read the two together — see [Air gap: what this claims and what it does not](#air-gap-what-this-claims-and-what-it-does-not). |
 | Supply chain | Every workflow action, container base, and tool is digest- or checksum-pinned; images carry SBOM and vulnerability evidence with zero high/critical matches; Hadolint and the trusted-technology policy gate the Containerfiles. | `Validate trusted supply-chain policy`, `Scan for known vulnerabilities`, `Lint Containerfiles` gates. Image SBOM and vulnerability evidence is **digest-bound and produced at publication**, by the "Generate digest-bound SBOM and vulnerability evidence" step in `.github/workflows/platform-images.yml` (pinned Syft 1.50.0 and Grype 0.116.1); it is not a committed artifact, so this half of the row is proven per-publication rather than per-commit. Corrected on 2026-08-18: this row previously cited `docs/evidence/highs-1.15.1-shim-candidate-amd64.json`, which is the `UNADMITTED` optimizer candidate the [out-of-scope section](#explicitly-out-of-production-scope) excludes from production — evidence about an image this document says production does not run. |
@@ -78,8 +79,8 @@ number, in both directions, in the same change that creates either of them. A
 one-way reference is how this pair diverged: gap 5 never mentioned the air-gap
 row, so editing one left the other untouched and unreviewed. Applied here to
 Air-gap packaging ↔ gap 5, Metrics exposition ↔ gap 2, Disaster recovery ↔
-gap 4, and Concurrency and replica correctness ↔ the Missing rows in
-[Test types](#test-types).
+gap 4, Agent privilege ↔ gap 8, and Concurrency and replica correctness ↔ the
+Missing rows in [Test types](#test-types).
 
 The full record of that audit, including the findings that were refuted against
 the code and the ones deliberately left open, is
@@ -365,6 +366,37 @@ carried to the residual list as item 5.
    carrying SLO monitors drive automatic recall with a stated roll-off strategy.
    Conduit has the word only as two mute permissions in the generated role table
    and an unrelated internal prober.
+
+8. **The Agent's RBAC floor is not a ceiling, and cross-tenant Bundle reach is
+   still unanswered** (#264). Two halves, both bounding the Agent privilege row
+   above; read them together.
+
+   The chart's Role covers what `internal/agent` demonstrably calls. It does not
+   cover what the Agent is *asked* to apply: `helm upgrade --install` in
+   `internal/agent/helm.go` applies whatever the tenant's chart rendered, and
+   that path validates rendered *images* against the Plan's declared artifacts
+   while validating nothing about kinds — `apollo_annotations.go` states the
+   consequence directly, "Kinds outside this table still receive object
+   annotations". So a product chart carrying a Service, a PVC, a CRD or any
+   cluster-scoped object needs grants the tenant's cluster admin adds and this
+   repository cannot derive, because the chart is a Plan input rather than a
+   fact about Conduit. Nothing here measures the resulting effective privilege
+   in a real tenant cluster; the gate proves what the chart renders, not what
+   the Agent ends up holding.
+
+   The second half is untouched by any of this. Whether one Environment's
+   compromised Agent can lease or read another Environment's Plans and Bundles
+   is a Hub-side authorization question over the private Hub-to-Agent protocol,
+   not a Kubernetes RBAC one. The Fidelity boundary row records that protocol as
+   an explicit non-claim *for Apollo reconstruction*; that is not the same as it
+   having been specified and adversarially tested for Conduit, and it has not
+   been. Closing this half needs its own issue and its own gate.
+
+   **Tier 2 rather than Tier 1**, on the record so it can be argued with: a
+   rendered floor plus a tenant-owned grant for the tenant's own chart is an
+   ordinary and workable Kubernetes posture, so neither half blocks a
+   single-tenant production use. What the second half does block is a
+   *multi-tenant* claim, which is where Apollo parity lives.
 
 ## Test types
 
