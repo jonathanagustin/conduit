@@ -45,10 +45,10 @@ import "./notifications.css";
  * choosing for you -- so the screen has to state one, and a state the screen has
  * to state is a state a link has to be able to carry.
  *
- * There is no unread affordance and no "mark as read". `InboxEntry.ReadAt`
- * exists in the domain and no route writes it, so a checkbox here would be a
- * control that silently does nothing. The field is shown when the Hub sends it
- * and is otherwise absent. */
+ * There is no unread affordance and no "mark as read", and no column for one.
+ * `InboxEntry.ReadAt` exists in the domain and no route writes it, so a control
+ * would silently do nothing and a column would be empty for every row of every
+ * inbox -- which reads as a missing feature rather than as an unused field. */
 export function NotificationsPage() {
   const [params, setParams] = useSearchParams();
   const channel = readChannel(params.get("channel"));
@@ -324,6 +324,11 @@ function PreferenceEditor({
   resourceRid: string;
   stored: NotificationPreference | null;
 }) {
+  // Seeded twice on purpose. The initialiser is what the first render draws, so
+  // an existing subscription never flashes as an empty form; the effect below is
+  // what every later revision comes through. Removing either leaves a real hole:
+  // without the initialiser the form blinks, without the effect a save shows the
+  // draft rather than what the Hub stored.
   const [types, setTypes] = useState<string[]>(stored?.types ?? []);
   const [allFutureTypes, setAllFutureTypes] = useState(stored?.allFutureTypes ?? false);
   const revision = stored === null ? -1 : stored.revision;
