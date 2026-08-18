@@ -227,13 +227,20 @@ func (recorder *listener) received() []string {
 // host got the credential" is an observable fact rather than an assumption.
 type routed struct{ hosts map[string]string }
 
+// RoundTrip rewrites a COPY. A RoundTripper is not allowed to modify the
+// request it is given, and here that contract carries the redirect tests: the
+// client resolves a Location against request.URL and hands that URL to
+// CheckRedirect, so a transport that rewrote the original in place would leave
+// every policy decision comparing 127.0.0.1 against 127.0.0.1 and every
+// redirect test passing for a reason that has nothing to do with the rule.
 func (transport routed) RoundTrip(request *http.Request) (*http.Response, error) {
 	target, known := transport.hosts[request.URL.Host]
 	if !known {
 		return nil, fmt.Errorf("no test server stands in for %s", request.URL.Host)
 	}
-	request.URL.Scheme, request.URL.Host = "http", target
-	return http.DefaultTransport.RoundTrip(request)
+	proxied := request.Clone(request.Context())
+	proxied.URL.Scheme, proxied.URL.Host = "http", target
+	return http.DefaultTransport.RoundTrip(proxied)
 }
 
 // challenged builds a resolver against a registry that answers every request
@@ -371,6 +378,173 @@ func TestARepositoryWithNoRegistryHostIsRefused(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("a repository with no registry host was resolved")
+	}
+}
+
+// --- where a redirect may take a credential ---------------------------------
+//
+// TokenEndpoint decides which host a realm may NAME. Until #244 nothing decided
+// where that permitted host could then REDIRECT, and the resolver's client
+// followed a 302 with whatever the standard library was willing to carry: it
+// keeps Authorization for the same domain OR A SUBDOMAIN, comparing hostnames
+// and ignoring the scheme entirely. So a realm on the registry's own host could
+// move the credential to evil.registry.example, or to itself over plaintext.
+//
+// The cross-host row is here even though it was already safe. It was safe
+// because of net/http and not because of anything this repository does, and an
+// inherited protection nobody tests is one that can be removed silently.
+
+// redirectedRealm builds a resolver whose registry issues its own permitted
+// https realm and whose token endpoint answers with a 302 to target. Both the
+// foreign hosts and the registry's own /steal path record what arrived, so the
+// question "did the credential follow" is answered by observation.
+func redirectedRealm(t *testing.T, target string) (*ociresolve.Resolver, *listener, *recordingCredentials) {
+	t.Helper()
+	arrivals := &listener{}
+	attackerServer := httptest.NewServer(arrivals.handler())
+	t.Cleanup(attackerServer.Close)
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/token":
+			http.Redirect(writer, request, target, http.StatusFound)
+		case "/steal":
+			arrivals.handler()(writer, request)
+		default:
+			writer.Header().Set("WWW-Authenticate",
+				`Bearer realm="https://registry.example/token",service="registry.example"`)
+			writer.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	t.Cleanup(registryServer.Close)
+	attackerTarget, err := url.Parse(attackerServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials := &recordingCredentials{}
+	return ociresolve.New(&http.Client{Transport: routed{hosts: map[string]string{
+		"registry.example":      registryTarget.Host,
+		"attacker.example":      attackerTarget.Host,
+		"evil.registry.example": attackerTarget.Host,
+	}}}, credentials), arrivals, credentials
+}
+
+// The three rows of #244, measured. Before the policy, row one was refused the
+// credential by net/http, and rows two and three received it -- the subdomain
+// over https and the registry's own host in the clear.
+func TestAPermittedRealmCannotRedirectTheCredentialElsewhere(t *testing.T) {
+	for name, target := range map[string]string{
+		"to another host entirely":       "https://attacker.example/steal",
+		"to a subdomain of the registry": "https://evil.registry.example/steal",
+		"to its own host over plaintext": "http://registry.example/steal",
+		"to a subdomain over plaintext":  "http://evil.registry.example/steal",
+		"to another host over plaintext": "http://attacker.example/steal",
+	} {
+		t.Run(name, func(t *testing.T) {
+			resolver, arrivals, credentials := redirectedRealm(t, target)
+			_, err := resolver.Resolve(t.Context(), channel("latest-stable"))
+			if err == nil {
+				t.Fatal("a redirect away from the permitted realm produced a pin")
+			}
+			// Not "arrived without the credential": the redirect is not
+			// followed at all, so there is nothing to strip and nothing that
+			// depends on net/http choosing to strip it.
+			if got := arrivals.received(); len(got) != 0 {
+				t.Fatalf("the redirect target was contacted, carrying %q", got)
+			}
+			if credentials.timesAsked() == 0 {
+				t.Error("the realm was permitted, so the credential should have been read for it")
+			}
+			if strings.Contains(err.Error(), stolenPassword) || strings.Contains(err.Error(), stolenUsername) {
+				t.Errorf("the refusal names the credential: %v", err)
+			}
+		})
+	}
+}
+
+// The other direction, and the one an over-strict policy breaks. A realm
+// redirecting to another path on its own host over https is ordinary registry
+// behaviour -- a token service behind a versioned path, or a trailing-slash
+// normalisation -- and the credential is meant to follow it.
+func TestASameHostHttpsRedirectStillCarriesTheCredential(t *testing.T) {
+	arrivals := &listener{}
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.URL.Path == "/token":
+			http.Redirect(writer, request, "https://registry.example/v2/token?"+request.URL.RawQuery,
+				http.StatusFound)
+		case request.URL.Path == "/v2/token":
+			arrivals.mutex.Lock()
+			arrivals.authorizations = append(arrivals.authorizations, request.Header.Get("Authorization"))
+			arrivals.mutex.Unlock()
+			writer.Header().Set("Content-Type", "application/json")
+			_, _ = writer.Write([]byte(`{"token":"a-pull-token"}`))
+		case request.Header.Get("Authorization") == "Bearer a-pull-token":
+			writer.Header().Set("Docker-Content-Digest", digest)
+			writer.WriteHeader(http.StatusOK)
+		default:
+			writer.Header().Set("WWW-Authenticate",
+				`Bearer realm="https://registry.example/token",service="registry.example"`)
+			writer.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	t.Cleanup(registryServer.Close)
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver := ociresolve.New(&http.Client{Transport: routed{hosts: map[string]string{
+		"registry.example": registryTarget.Host,
+	}}}, &recordingCredentials{})
+
+	pin, err := resolver.Resolve(t.Context(), channel("latest-stable"))
+	if err != nil {
+		t.Fatalf("a same-host https redirect was refused: %v", err)
+	}
+	if pin.Digest != digest {
+		t.Fatalf("resolved to %s", pin)
+	}
+	got := arrivals.received()
+	if len(got) != 1 || !strings.HasPrefix(got[0], "Basic ") {
+		t.Fatalf("the redirected token endpoint received %q, want one request carrying the credential", got)
+	}
+}
+
+// A request with no credential has nothing to lose, and registries do redirect
+// uncredentialed traffic to another host. Constraining that would break pulls
+// and buy nothing, so the policy deliberately leaves it alone.
+func TestAnUncredentialedRedirectToAnotherHostIsStillFollowed(t *testing.T) {
+	mirrorServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+		writer.Header().Set("Docker-Content-Digest", digest)
+		writer.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(mirrorServer.Close)
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		http.Redirect(writer, request, "https://mirror.example/v2/example/runtime/manifests/latest-stable",
+			http.StatusTemporaryRedirect)
+	}))
+	t.Cleanup(registryServer.Close)
+	mirrorTarget, err := url.Parse(mirrorServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	resolver := ociresolve.New(&http.Client{Transport: routed{hosts: map[string]string{
+		"registry.example": registryTarget.Host,
+		"mirror.example":   mirrorTarget.Host,
+	}}}, ociresolve.Anonymous{})
+	pin, err := resolver.Resolve(t.Context(), channel("latest-stable"))
+	if err != nil {
+		t.Fatalf("an anonymous cross-host redirect was refused: %v", err)
+	}
+	if pin.Digest != digest {
+		t.Fatalf("resolved to %s", pin)
 	}
 }
 

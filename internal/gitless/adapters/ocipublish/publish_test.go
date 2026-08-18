@@ -214,6 +214,11 @@ type routed struct {
 	hosts  map[string]string
 }
 
+// RoundTrip rewrites a COPY, both because a RoundTripper may not modify the
+// request it is given and because the redirect tests below depend on it: the
+// client resolves a Location against request.URL and hands that URL to
+// CheckRedirect, so rewriting the original in place would make every redirect
+// look like one from 127.0.0.1 to 127.0.0.1.
 func (transport routed) RoundTrip(request *http.Request) (*http.Response, error) {
 	if request.URL.Scheme != transport.scheme {
 		return nil, fmt.Errorf("the publisher spoke %s where %s was configured", request.URL.Scheme, transport.scheme)
@@ -222,8 +227,9 @@ func (transport routed) RoundTrip(request *http.Request) (*http.Response, error)
 	if !known {
 		return nil, fmt.Errorf("no test server stands in for %s", request.URL.Host)
 	}
-	request.URL.Scheme, request.URL.Host = "http", target
-	return http.DefaultTransport.RoundTrip(request)
+	proxied := request.Clone(request.Context())
+	proxied.URL.Scheme, proxied.URL.Host = "http", target
+	return http.DefaultTransport.RoundTrip(proxied)
 }
 
 func challenged(t *testing.T, realm string, insecure bool,
@@ -402,6 +408,144 @@ func TestTheRegistrysOwnRealmIsFollowedWithTheScopeThePushNeeds(t *testing.T) {
 	}
 	if credentials.timesAsked() == 0 {
 		t.Error("no credential was read for the registry's own realm")
+	}
+}
+
+// --- where a redirect may take a credential ---------------------------------
+//
+// The realm check above says which host may be paid. It said nothing about
+// where that host may then redirect, and the publisher's client followed a 302
+// carrying whatever net/http was willing to carry: Authorization survives a
+// redirect to the same domain or a SUBDOMAIN of it, with the scheme ignored. A
+// push credential is the worst one to move -- it can write the artifact the
+// fleet converges on -- so #244 is fixed here as well as in the resolver, from
+// the one policy in registrychallenge.
+
+// anyScheme is routed without its scheme assertion. The plaintext-downgrade row
+// has to be able to REACH a server over http, or the harness would refuse the
+// hop and the test would pass without the policy ever being consulted.
+type anyScheme struct{ hosts map[string]string }
+
+func (transport anyScheme) RoundTrip(request *http.Request) (*http.Response, error) {
+	target, known := transport.hosts[request.URL.Host]
+	if !known {
+		return nil, fmt.Errorf("no test server stands in for %s", request.URL.Host)
+	}
+	proxied := request.Clone(request.Context())
+	proxied.URL.Scheme, proxied.URL.Host = "http", target
+	return http.DefaultTransport.RoundTrip(proxied)
+}
+
+// redirectedRealm builds a publisher whose registry issues its own permitted
+// https realm and whose token endpoint answers with a 302 to target. The
+// foreign hosts and the registry's own /steal path share one recorder, so the
+// credential's arrival is observed wherever it lands.
+func redirectedRealm(t *testing.T, target string) (*ocipublish.Publisher, *listener, *recordingCredentials) {
+	t.Helper()
+	arrivals := &listener{}
+	attackerServer := httptest.NewServer(arrivals.handler())
+	t.Cleanup(attackerServer.Close)
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/token":
+			http.Redirect(writer, request, target, http.StatusFound)
+		case "/steal":
+			arrivals.handler()(writer, request)
+		default:
+			writer.Header().Set("WWW-Authenticate",
+				`Bearer realm="https://registry.example/token",service="registry.example"`)
+			writer.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	t.Cleanup(registryServer.Close)
+	attackerTarget, err := url.Parse(attackerServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials := &recordingCredentials{}
+	publisher, err := ocipublish.New("registry.example/team/manifests", &http.Client{Transport: anyScheme{
+		hosts: map[string]string{
+			"registry.example":      registryTarget.Host,
+			"attacker.example":      attackerTarget.Host,
+			"evil.registry.example": attackerTarget.Host,
+		},
+	}}, credentials, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return publisher, arrivals, credentials
+}
+
+func TestAPermittedRealmCannotRedirectThePushCredentialElsewhere(t *testing.T) {
+	for name, target := range map[string]string{
+		"to another host entirely":       "https://attacker.example/steal",
+		"to a subdomain of the registry": "https://evil.registry.example/steal",
+		"to its own host over plaintext": "http://registry.example/steal",
+	} {
+		t.Run(name, func(t *testing.T) {
+			publisher, arrivals, credentials := redirectedRealm(t, target)
+			err := publisher.Put(t.Context(), "prod", manifests(digest))
+			if err == nil {
+				t.Fatal("a redirect away from the permitted realm published the manifests")
+			}
+			if got := arrivals.received(); len(got) != 0 {
+				t.Fatalf("the redirect target was contacted, carrying %q", got)
+			}
+			if credentials.timesAsked() == 0 {
+				t.Error("the realm was permitted, so the credential should have been read for it")
+			}
+			if strings.Contains(err.Error(), stolenPassword) || strings.Contains(err.Error(), stolenUsername) {
+				t.Errorf("the refusal names the credential: %v", err)
+			}
+		})
+	}
+}
+
+// The redirect that must keep working. A token service that answers on another
+// path of its own host over https is ordinary, and refusing it would break
+// every private push to a registry that does it.
+func TestASameHostHttpsRedirectStillCarriesThePushCredential(t *testing.T) {
+	arrivals := &listener{}
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch request.URL.Path {
+		case "/token":
+			http.Redirect(writer, request, "https://registry.example/v2/token?"+request.URL.RawQuery,
+				http.StatusFound)
+		case "/v2/token":
+			arrivals.handler()(writer, request)
+		default:
+			writer.Header().Set("WWW-Authenticate",
+				`Bearer realm="https://registry.example/token",service="registry.example"`)
+			writer.WriteHeader(http.StatusUnauthorized)
+		}
+	}))
+	t.Cleanup(registryServer.Close)
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	credentials := &recordingCredentials{}
+	publisher, err := ocipublish.New("registry.example/team/manifests", &http.Client{Transport: anyScheme{
+		hosts: map[string]string{"registry.example": registryTarget.Host},
+	}}, credentials, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// The stub 401s again after issuing the token, so the push does not
+	// complete, exactly as in the declared-realm test above. What is asserted
+	// is that the redirected token endpoint was paid.
+	_ = publisher.Put(t.Context(), "prod", manifests(digest))
+
+	got := arrivals.received()
+	if len(got) == 0 {
+		t.Fatal("a same-host https redirect was refused: the token endpoint was never reached")
+	}
+	if !strings.HasPrefix(got[0], "Basic ") {
+		t.Fatalf("the redirected token endpoint received %q, want the credential", got[0])
 	}
 }
 
