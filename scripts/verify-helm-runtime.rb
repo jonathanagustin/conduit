@@ -60,6 +60,24 @@ def validate_deployment!(deployment)
   end
 end
 
+# Every Hub this chart can render must come up as a signer its fleet already
+# trusts, in every profile rather than only in the default one.
+#
+# Two halves, and the second is the one that was missing. A Hub carrying an
+# ALLOW_INSECURE_ opt-in has declared it is not a production Hub, which no
+# chart-rendered Hub may do. A Hub with no BUNDLE_SIGNING_KEY_FILE now refuses
+# to start -- and before it refused, it signed Bundles with a key it generated
+# for itself, so a chart profile that dropped the key would have produced a Hub
+# that reported healthy while signing as a signer no target trusts.
+def assert_signs_as_a_trusted_signer!(deployment, profile)
+  environment = deployment.dig("spec", "template", "spec", "containers", 0, "env")
+    .to_h { |item| [item["name"], item["value"]] }
+  insecure = environment.keys.select { |name| name.start_with?("ALLOW_INSECURE_") }
+  abort "#{profile} Hub enabled insecure opt-ins: #{insecure.join(', ')}" unless insecure.empty?
+  abort "#{profile} Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start" if
+    environment["BUNDLE_SIGNING_KEY_FILE"].to_s.strip.empty?
+end
+
 charts.each_value do |chart|
   metadata = YAML.safe_load(File.read(File.join(chart, "Chart.yaml")))
   abort "chart version drifted from VERSION" unless metadata["version"] == version && metadata["appVersion"] == version
@@ -94,6 +112,15 @@ assert_fails_closed!(
   "platform-hub",
   charts.fetch(:hub),
   ["--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"), "--set-string", "image=example.invalid/platform-hub:latest"]
+)
+# A Hub with no signing Secret refuses to start, so the chart refuses to render
+# one. Failing here rather than at rollout is the difference between a failed
+# `helm upgrade` and a CrashLoopBackOff nobody reads until a deployment stalls.
+assert_fails_closed!(
+  helm,
+  "platform-hub",
+  charts.fetch(:hub),
+  ["--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"), "--set-string", "bundleSigningSecretName="]
 )
 assert_fails_closed!(
   helm,
@@ -231,6 +258,15 @@ abort "file repository path drifted" unless
   file_env["REPOSITORY_KIND"] == "file" && file_env["DATA_DIRECTORY"] == "/var/lib/platform-delivery"
 abort "file repository must not render a disruption budget" if file_hub_documents.any? { |item| item["kind"] == "PodDisruptionBudget" }
 
+# The signing posture, over every Hub profile this chart renders rather than
+# only the PostgreSQL default. File mode is the development/migration profile
+# and is exactly where an ephemeral signer would look reasonable and be wrong:
+# it is still a Hub whose Bundles reach targets.
+{
+  "PostgreSQL" => hub, "file-repository" => file_hub, "external-identity" => external_hub.find { |item| item["kind"] == "Deployment" },
+  "k3d-compatibility" => k3d_hub
+}.each { |profile, deployment| assert_signs_as_a_trusted_signer!(deployment, profile) }
+
 bootstrap_config = hub_documents.find { |item| item["kind"] == "ConfigMap" }
 abort "Hub console bootstrap ConfigMap is missing" unless bootstrap_config&.dig("metadata", "name") == "platform-hub-console-bootstrap"
 bootstrap_raw = bootstrap_config.dig("data", "bootstrap.json")
@@ -283,6 +319,7 @@ abort "scanner tool PVC was not externally supplied" unless scanner_volumes.dig(
 abort "scanner cache PVC was not externally supplied" unless scanner_volumes.dig("artifact-scanner-cache", "persistentVolumeClaim", "claimName") == "scanner-cache"
 abort "scanner registry identity was not externally supplied" unless scanner_volumes.dig("artifact-scanner-registry-auth", "secret", "secretName") == "scanner-registry"
 abort "scanner chart introduced another container" unless scanner_pod.fetch("containers").length == 1
+assert_signs_as_a_trusted_signer!(scanner_hub, "artifact-scanner")
 
 spoke_env = spoke.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
 required_spoke_env = %w[CONTROL_PLANE_URL CONTROL_PLANE_CA_FILE CONTROL_PLANE_CLIENT_CERT_FILE CONTROL_PLANE_CLIENT_KEY_FILE ENVIRONMENT_ID AGENT_ID]
@@ -307,6 +344,7 @@ abort "Rubix Hub Service must request a Pod certificate" unless annotations["com
 spp = JSON.parse(annotations.fetch("com.palantir.rubix.service.spp/v3"))
 endpoint = spp.fetch("endpoints").first
 abort "Rubix SPP endpoint is incomplete" unless endpoint == {"domain-aliases" => ["replace-me.example.internal"], "name" => "service", "prefix" => "/platform"}
+assert_signs_as_a_trusted_signer!(rubix_hub.find { |item| item["kind"] == "Deployment" }, "Rubix")
 
 (rubix_hub + rubix_spoke).select { |item| item["kind"] == "Deployment" }.each do |deployment|
   terms = deployment.dig("spec", "template", "spec", "affinity", "nodeAffinity", "requiredDuringSchedulingIgnoredDuringExecution", "nodeSelectorTerms") || []

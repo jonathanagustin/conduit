@@ -19,13 +19,27 @@ required = %w[
   PLATFORM_AGENT_ID
   PLATFORM_ALLOW_INSECURE_AGENT_IDENTITY_HEADERS
   PLATFORM_ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS
+  PLATFORM_ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY
   PLATFORM_BOOTSTRAP_ADMINISTRATORS
   PLATFORM_HELM_PLAIN_HTTP
 ]
 required.each do |variable|
   abort "missing Flux substitution #{variable}" unless runtime_text.include?("${#{variable}}")
 end
-abort "string and boolean substitutions must use Flux's quote variable" unless runtime_text.scan("${quote}").length == 8
+abort "string and boolean substitutions must use Flux's quote variable" unless runtime_text.scan("${quote}").length == 10
+# Every insecure opt-in in this base must be a substitution the deployment
+# supplies, never a value the runtime hard-codes. A base that shipped "true"
+# would make an insecure development posture the default for anybody who
+# applied it without reading it.
+runtime_text.scan(/ALLOW_INSECURE_[A-Z_]+/).uniq.each do |name|
+  abort "Flux runtime hard-codes an insecure opt-in: #{name}" if
+    runtime_text.match?(/name: #{name}\s*\n\s*value: ["']?true/)
+end
+example_text = File.read(source)
+abort "the Flux example must leave the ephemeral Bundle signing opt-in off" unless
+  example_text.include?('PLATFORM_ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY: "false"')
+abort "the SPIRE production overlay must mount a Bundle signing key" unless
+  File.read(spire_overlay).include?("BUNDLE_SIGNING_KEY_FILE")
 
 runtime_kinds = YAML.load_stream(runtime_text).map { |document| document.fetch("kind") }
 expected_runtime_kinds = %w[PersistentVolumeClaim Deployment Service Deployment]

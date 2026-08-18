@@ -26,8 +26,12 @@ start_hub() {
   local hub_port
   hub_port="$(node -e 'const net=require("node:net");const s=net.createServer();s.listen(0,"127.0.0.1",()=>{process.stdout.write(String(s.address().port));s.close();});')"
   hub_url="http://127.0.0.1:${hub_port}"
+  # This acceptance Hub mounts no signing Secret, so it has to say so. A Hub
+  # that has not declared itself a development Hub now refuses to start rather
+  # than signing Bundles with a key it generated for itself.
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
     ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
+    ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
     LISTEN_ADDRESS="127.0.0.1:${hub_port}" \
     DATA_DIRECTORY="${test_root}/state" \
     "${test_root}/platform-delivery" >"${test_root}/hub.log" 2>&1 &
