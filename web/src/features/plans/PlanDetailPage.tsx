@@ -5,7 +5,7 @@ import { usePlan } from "../../api/resources.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
-import { PlanStatusTag } from "./PlansPage.js";
+import { PlanStatusTag } from "../../components/PlanStatusTag.js";
 import "./plans.css";
 
 /** Plan detail -- P0: "What will or did execute?"
