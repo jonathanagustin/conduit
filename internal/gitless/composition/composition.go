@@ -24,6 +24,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/fluxconverge"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/ocipublish"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/ociresolve"
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registrychallenge"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlog"
 	"github.com/jonathanagustin/conduit/internal/gitless/application"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
@@ -52,14 +53,26 @@ type Config struct {
 
 	// CosignBinary is the verifier. Empty resolves "cosign" on PATH.
 	CosignBinary string
-	// CosignArguments are appended before the immutable artifact reference.
-	// Deployments use this for a mounted registry configuration; callers must
-	// never put credential contents themselves in arguments.
+	// CosignArguments are appended before the immutable artifact reference, for
+	// a non-default trust root or registry TLS material. Callers must never put
+	// credential contents in arguments: argv is world-readable.
 	CosignArguments []string
+	// CosignRegistryConfigDirectory is the directory holding the Docker
+	// config.json cosign authenticates private registries with, exported to it
+	// as DOCKER_CONFIG. cosign has no flag for this -- see the cosignverify
+	// package -- so it travels by environment or not at all.
+	CosignRegistryConfigDirectory string
 
 	// RegistryCredentials authenticate source resolution. Nil means anonymous,
 	// which remains the right profile for a public source registry.
 	RegistryCredentials ociresolve.Credentials
+
+	// TokenRealms declares, per registry host, which other hosts that registry
+	// may direct a credential to when it answers with a Bearer challenge. Nil
+	// means each registry may only direct credentials at itself. It reaches both
+	// the resolver and the publisher, because the question is the same one on
+	// both sides and answering it twice is how one side gets fixed.
+	TokenRealms registrychallenge.Allowlist
 
 	// Convergence is "flux" or "conduit". There is no default: which one is in
 	// use changes who owns approval, which is not a thing to fall back into.
@@ -142,8 +155,10 @@ func Configure(config Config, conduit ConduitConfig, observer application.Observ
 	}
 
 	source, err := application.New(
-		ociresolve.New(nil, config.RegistryCredentials),
-		cosignverify.New(config.CosignBinary, config.CosignArguments...),
+		ociresolve.New(nil, config.RegistryCredentials, ociresolve.WithTokenRealms(config.TokenRealms)),
+		cosignverify.New(config.CosignBinary,
+			cosignverify.WithArguments(config.CosignArguments...),
+			cosignverify.WithRegistryConfigDirectory(config.CosignRegistryConfigDirectory)),
 		policies,
 		log,
 		converger,
@@ -164,7 +179,8 @@ func converger(config Config, conduit ConduitConfig) (ports.Converger, error) {
 					"Flux convergence needs a manifest repository to publish to, or an explicit store")
 			}
 			published, err := ocipublish.New(
-				config.Flux.ManifestRepository, nil, config.Flux.RegistryCredentials, config.Flux.InsecureRegistry)
+				config.Flux.ManifestRepository, nil, config.Flux.RegistryCredentials, config.Flux.InsecureRegistry,
+				ocipublish.WithTokenRealms(config.TokenRealms))
 			if err != nil {
 				return nil, err
 			}

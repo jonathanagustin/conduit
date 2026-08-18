@@ -24,6 +24,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -33,22 +34,72 @@ import (
 // anyIdentity makes cosign extract instead of decide. See the package comment.
 const anyIdentity = ".*"
 
+// dockerConfigVariable is how cosign is told about a private registry.
+//
+// It is an environment variable and not a flag, and that distinction is the
+// whole of issue #220's first defect. `cosign verify` has no --registry-config;
+// it has --registry-username/-password/-token, which would put credential bytes
+// in argv, and it reads a mounted Docker configuration only through this
+// variable. Passing a flag cosign does not have is not a lenient no-op: cosign
+// exits 1 with "unknown flag", which is a hard verifier error, so the credential
+// feature could not be switched on at all without failing every reconcile.
+//
+// Verified empirically against the checksum-pinned v3.1.3 release this
+// repository ships (sha256 4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049
+// 520bc7d9df9efc7f71): with the variable set to a directory holding a
+// config.json, cosign sends `Authorization: Basic ...` to the registry; without
+// it, the same run sends none and the registry answers 401.
+const dockerConfigVariable = "DOCKER_CONFIG"
+
 // Verifier reports what cosign observed about an artifact's signature.
 type Verifier struct {
 	binary string
-	// extra is appended to every invocation, for a caller that must reach a
-	// private registry or a non-default trust root.
+	// extra is appended to every invocation, for a caller that needs a
+	// non-default trust root or registry TLS material.
 	extra []string
+	// dockerConfigDirectory is exported to the child as DOCKER_CONFIG. It is a
+	// DIRECTORY holding a config.json, which is what cosign reads; naming the
+	// credential file itself would leave verification silently anonymous.
+	dockerConfigDirectory string
+}
+
+// Option configures a Verifier. Options exist rather than more positional
+// parameters because the two things a private registry needs -- a credential
+// directory and possibly a CA bundle -- travel by different mechanisms, and
+// collapsing them into one string slice is how a flag cosign does not have got
+// shipped in the first place.
+type Option func(*Verifier)
+
+// WithRegistryConfigDirectory names the directory holding the Docker
+// config.json cosign should authenticate registries with.
+//
+// A directory, not a file. cosign joins "config.json" onto it, and a directory
+// with no config.json is not an error to cosign -- it simply pulls anonymously.
+// Callers should therefore validate the path before getting here; see
+// registryauth.DockerConfigDirectory.
+func WithRegistryConfigDirectory(directory string) Option {
+	return func(verifier *Verifier) { verifier.dockerConfigDirectory = strings.TrimSpace(directory) }
+}
+
+// WithArguments appends arguments before the immutable artifact reference.
+// Credential CONTENTS must never travel this way: argv is world-readable on a
+// shared host. It is for things like --registry-cacert, which names a path.
+func WithArguments(arguments ...string) Option {
+	return func(verifier *Verifier) { verifier.extra = append(verifier.extra, arguments...) }
 }
 
 // New takes the cosign binary to run. An empty name means "cosign", resolved on
 // PATH; a missing binary is reported when a verification is attempted rather
 // than at construction, so a Hub that never verifies anything still starts.
-func New(binary string, extra ...string) *Verifier {
+func New(binary string, options ...Option) *Verifier {
 	if strings.TrimSpace(binary) == "" {
 		binary = "cosign"
 	}
-	return &Verifier{binary: binary, extra: extra}
+	verifier := &Verifier{binary: binary}
+	for _, option := range options {
+		option(verifier)
+	}
+	return verifier
 }
 
 // entry is the part of cosign's JSON this adapter reads. The rest of the
@@ -89,6 +140,7 @@ func (verifier *Verifier) Verify(ctx context.Context, pin domain.Pin) (domain.At
 	var stdout, stderr bytes.Buffer
 	command := exec.CommandContext(ctx, verifier.binary, arguments...)
 	command.Stdout, command.Stderr = &stdout, &stderr
+	command.Env = verifier.environment(os.Environ())
 
 	if err := command.Run(); err != nil {
 		var exitErr *exec.ExitError
@@ -128,6 +180,31 @@ func (verifier *Verifier) Verify(ctx context.Context, pin domain.Pin) (domain.At
 		}, nil
 	}
 	return domain.Attestation{Signed: false, Digest: pin.Digest}, nil
+}
+
+// environment is the child's environment: the parent's, with DOCKER_CONFIG
+// replaced rather than appended.
+//
+// Replaced, because an ambient DOCKER_CONFIG in the Hub's own environment must
+// not decide which credentials verification uses. os/exec would in fact honour
+// a trailing duplicate, but a reader cannot see that from here, and "which of
+// two DOCKER_CONFIG entries wins" is not a thing this should depend on.
+//
+// Returning the parent's environment unchanged when nothing is configured is
+// deliberate: cosign still needs PATH, HOME and the proxy variables, and a Hub
+// pulling public artifacts never had a Docker configuration to begin with.
+func (verifier *Verifier) environment(parent []string) []string {
+	if verifier.dockerConfigDirectory == "" {
+		return parent
+	}
+	child := make([]string, 0, len(parent)+1)
+	for _, entry := range parent {
+		if name, _, found := strings.Cut(entry, "="); found && name == dockerConfigVariable {
+			continue
+		}
+		child = append(child, entry)
+	}
+	return append(child, dockerConfigVariable+"="+verifier.dockerConfigDirectory)
 }
 
 // looksUnsigned distinguishes "cosign looked and found nothing" from "cosign

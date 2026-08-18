@@ -18,7 +18,8 @@ source would mean an upgrade could begin deploying things nobody asked for.
 | `GITLESS_CONVERGENCE` | yes | `flux` or `conduit`. **No default** — see below. |
 | `GITLESS_INTERVAL` | no | How often desired state is restated. Defaults to `5m`. |
 | `GITLESS_COSIGN_BINARY` | no | The verifier. Empty resolves `cosign` on `PATH`. |
-| `GITLESS_REGISTRY_CONFIG` | for private registries | Mounted Docker `config.json` used by source resolution, Cosign verification, and Flux-manifest publication. The configured file must contain a usable entry for every registry host reached; there is no anonymous fallback for a missing host. |
+| `GITLESS_REGISTRY_CONFIG` | for private registries | Mounted Docker `config.json` used by source resolution, Cosign verification, and Flux-manifest publication. The file **must be named `config.json`** — see below. It must contain a usable entry for every registry host reached; there is no anonymous fallback for a missing host. |
+| `GITLESS_REGISTRY_TOKEN_REALMS` | for registries whose token realm is on another host | Comma-separated `registry-host=realm-host`. Unset, a registry may direct credentials only at itself. Needed for Docker Hub and the GitLab registry — see below. |
 | `GITLESS_FLUX_NAMESPACE` | with `flux` | Namespace the rendered manifests declare. Defaults to `flux-system`. |
 | `GITLESS_FLUX_SERVICE_ACCOUNT` | with `flux` | The bounded identity the Kustomization reconciles as. **No default.** |
 | `GITLESS_FLUX_PULL_SECRET` | with `flux` | The read-only registry pull Secret. **No default.** |
@@ -61,17 +62,104 @@ something (`"trustAnySigner": true`) would be read and ignored.
 
 Mount one read-only Docker `config.json` and set `GITLESS_REGISTRY_CONFIG` to
 its path. A single file may contain separate entries for the Foundry source
-registry and the manifest repository. The Hub passes the path—not credential
-contents—to Cosign and uses the decoded credentials through the resolver and
-publisher ports. Both OCI clients answer Basic and Bearer registry challenges;
-they do not send credentials to a host before it challenges. Errors name the
-registry host but never the username, password, or encoded `auth` value.
+registry and the manifest repository. The Hub uses the decoded credentials
+through the resolver and publisher ports, and points Cosign at the same file.
+Both OCI clients answer Basic and Bearer registry challenges; they do not send
+credentials to a host before it challenges. Errors name the registry host but
+never the username, password, or encoded `auth` value.
 
 Once this variable is set, a registry absent from the file is a configuration
 error instead of an anonymous retry. Leave it unset only when both registries
 are intentionally public. The Hub image carries the same checksum-pinned Cosign
 release used by the signing workflows and Gitless acceptance suite, so no
 runtime download or mutable tools volume is required.
+
+#### The file must be named `config.json`
+
+`cosign verify` has **no** `--registry-config` flag. What it reads is the
+directory named by `DOCKER_CONFIG`, onto which it joins `config.json`. So the
+Hub exports `DOCKER_CONFIG=$(dirname "$GITLESS_REGISTRY_CONFIG")` to the Cosign
+child process, and neither the path nor the credential bytes reach `argv`.
+
+That makes the file's *name* load-bearing, and getting it wrong has no symptom:
+Cosign pointed at a directory with no `config.json` does not complain, it
+authenticates anonymously — so resolution and publication would succeed with
+credentials while verification failed with a bare 401. The Hub therefore refuses
+to start when `GITLESS_REGISTRY_CONFIG` names anything else.
+
+A Kubernetes `kubernetes.io/dockerconfigjson` Secret projects its data under the
+key `.dockerconfigjson`, so project it explicitly:
+
+```yaml
+volumes:
+  - name: registry-credentials
+    secret:
+      secretName: conduit-registry
+      items:
+        - key: .dockerconfigjson
+          path: config.json
+```
+
+#### Where a credential may be sent
+
+A registry that wants Bearer authentication answers `401` with a
+`WWW-Authenticate` header naming a *realm* — the endpoint where credentials are
+exchanged for a token. That header arrives on an **unauthenticated** response,
+so it is chosen by whoever answered, not by you.
+
+Conduit constrains the realm rather than believing it. A realm is followed only
+when **all** of these hold:
+
+- it is an absolute **https** URL — always, with no setting that relaxes it;
+- it carries no userinfo of its own;
+- its host (including port) is either the registry being contacted, or a host
+  the operator declared for that registry in `GITLESS_REGISTRY_TOKEN_REALMS`.
+
+Anything else is refused *before the credential is read*, so a registry cannot
+direct a robot's password to a host of its choosing, and a refusal costs no
+credential access at all.
+
+`GITLESS_FLUX_INSECURE_REGISTRY=true` does **not** reach this. It says the
+manifest registry is contacted over http — an air-gapped mirror terminating TLS
+elsewhere. It is not a statement that a push credential may be posted in the
+clear, and it is not read as one.
+
+##### Registries whose token realm is on another host
+
+Same-host is the common shape but not the only one. Measured against live
+`GET /v2/` challenges:
+
+| Registry | Realm | Same host |
+| --- | --- | --- |
+| `ghcr.io` | `https://ghcr.io/token` | yes |
+| `quay.io` | `https://quay.io/v2/auth` | yes |
+| `gcr.io` | `https://gcr.io/v2/token` | yes |
+| `public.ecr.aws` | `https://public.ecr.aws/token/` | yes |
+| `registry-1.docker.io` | `https://auth.docker.io/token` | **no** |
+| `registry.gitlab.com` | `https://gitlab.com/jwt/auth` | **no** |
+
+So a plain same-host rule would break Docker Hub and the GitLab container
+registry. Declare those instead:
+
+```bash
+GITLESS_REGISTRY_TOKEN_REALMS="registry-1.docker.io=auth.docker.io,registry.gitlab.com=gitlab.com"
+```
+
+Entries are `registry-host=realm-host`, both bare hosts (a port is allowed, a
+URL or a `*` is rejected). A declaration applies to **that registry only** —
+declaring `auth.docker.io` for Docker Hub does not let some other registry
+direct credentials there. Unset, every registry may direct credentials at itself
+and nowhere else.
+
+For comparison, go-containerregistry's `validateRealmURL`
+(`pkg/v1/remote/transport/bearer.go`, added for its issue #2258) constrains the
+scheme the same way, always permits the registry's own `host:port`, and for any
+other host rejects only realms whose host is a private or link-local IP
+*literal* — leaving DNS-named cross-host realms permitted, and DNS-based SSRF
+explicitly out of scope. containerd's `core/remotes/docker/auth/fetch.go`
+constrains nothing: it parses the realm and posts to it. Conduit is stricter
+than both, because a Hub reaches a small set of registries an operator already
+had to name.
 
 ### Where the manifests go
 

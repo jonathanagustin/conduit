@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registryauth"
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registrychallenge"
 	"github.com/jonathanagustin/conduit/internal/gitless/application"
 	"github.com/jonathanagustin/conduit/internal/gitless/composition"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
@@ -69,7 +70,7 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 		interval = parsed
 	}
 	var credentials *registryauth.DockerConfig
-	var cosignArguments []string
+	var cosignRegistryConfigDirectory string
 	credentialFile := strings.TrimSpace(getenv("GITLESS_REGISTRY_CONFIG"))
 	// Gitless is genuinely off when it has no bindings. A stale optional mount
 	// must not make an otherwise unconfigured Hub fail to start.
@@ -80,18 +81,35 @@ func configureGitless(getenv func(string) string) (*application.Scheduler, error
 			return nil, err
 		}
 		// Cosign reads the same mounted Docker configuration as the two native
-		// registry adapters. Only its path reaches argv; credential bytes do not.
-		cosignArguments = []string{"--registry-config", credentialFile}
+		// registry adapters, but it reads it from DOCKER_CONFIG rather than from
+		// a flag -- `cosign verify` has no --registry-config, and passing one
+		// exits 1 with "unknown flag", which failed every verification for any
+		// Hub that set this variable. Neither the path nor the credential bytes
+		// reach argv now.
+		cosignRegistryConfigDirectory, err = registryauth.DockerConfigDirectory(credentialFile)
+		if err != nil {
+			return nil, err
+		}
+	}
+	// Which other host a registry may direct a credential to when it answers
+	// with a Bearer challenge. Unset means "its own host only", which is what
+	// GHCR, Quay, GCR and ECR all issue. Docker Hub and GitLab genuinely issue a
+	// realm elsewhere, so an operator using those declares it here rather than
+	// the registry's own 401 declaring it for them.
+	realms, err := registrychallenge.ParseAllowlist(splitCommaSeparated(getenv("GITLESS_REGISTRY_TOKEN_REALMS")))
+	if err != nil {
+		return nil, err
 	}
 	return composition.Configure(composition.Config{
-		Bindings:            bindings,
-		PolicyFile:          strings.TrimSpace(getenv("GITLESS_PUBLISHER_POLICY_FILE")),
-		ResolutionLogFile:   strings.TrimSpace(getenv("GITLESS_RESOLUTION_LOG_FILE")),
-		Interval:            interval,
-		CosignBinary:        strings.TrimSpace(getenv("GITLESS_COSIGN_BINARY")),
-		CosignArguments:     cosignArguments,
-		RegistryCredentials: credentials,
-		Convergence:         strings.TrimSpace(getenv("GITLESS_CONVERGENCE")),
+		Bindings:                      bindings,
+		TokenRealms:                   realms,
+		PolicyFile:                    strings.TrimSpace(getenv("GITLESS_PUBLISHER_POLICY_FILE")),
+		ResolutionLogFile:             strings.TrimSpace(getenv("GITLESS_RESOLUTION_LOG_FILE")),
+		Interval:                      interval,
+		CosignBinary:                  strings.TrimSpace(getenv("GITLESS_COSIGN_BINARY")),
+		CosignRegistryConfigDirectory: cosignRegistryConfigDirectory,
+		RegistryCredentials:           credentials,
+		Convergence:                   strings.TrimSpace(getenv("GITLESS_CONVERGENCE")),
 		Flux: composition.FluxConfig{
 			Namespace:          strings.TrimSpace(getenv("GITLESS_FLUX_NAMESPACE")),
 			ServiceAccountName: strings.TrimSpace(getenv("GITLESS_FLUX_SERVICE_ACCOUNT")),

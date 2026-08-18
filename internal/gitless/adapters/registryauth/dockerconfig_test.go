@@ -87,3 +87,60 @@ func loadFixture(t *testing.T, body string) *DockerConfig {
 	}
 	return config
 }
+
+// --- the directory Cosign is told about -------------------------------------
+//
+// Cosign has no flag for a credential file. It reads the DIRECTORY named by
+// DOCKER_CONFIG and joins config.json onto it, and a directory with no
+// config.json is not an error to Cosign: it authenticates anonymously. That
+// failure has no symptom until a private registry answers 401, so the name is
+// checked where the operator can still act on it.
+
+func TestTheDirectoryHandedToCosignIsTheOneHoldingConfigJson(t *testing.T) {
+	directory := t.TempDir()
+	got, err := DockerConfigDirectory(filepath.Join(directory, "config.json"))
+	if err != nil {
+		t.Fatalf("a conventionally named credential file was refused: %v", err)
+	}
+	if got != directory {
+		t.Fatalf("DOCKER_CONFIG would be %q, want the directory holding the file, %q", got, directory)
+	}
+}
+
+func TestACredentialFileCosignWouldNotReadIsRefused(t *testing.T) {
+	for name, path := range map[string]string{
+		// The key a Kubernetes dockerconfigjson Secret projects by default, and
+		// the most likely way to get this silently wrong.
+		"a dockerconfigjson projection": "/etc/gitless/registry/.dockerconfigjson",
+		"some other name":               "/etc/gitless/registry/registry.json",
+		"a directory":                   "/etc/gitless/registry",
+		"empty":                         "   ",
+	} {
+		got, err := DockerConfigDirectory(path)
+		if err == nil {
+			t.Errorf("%s was accepted, and would have produced DOCKER_CONFIG=%q", name, got)
+		}
+	}
+}
+
+func TestTheRefusalSaysWhatToRename(t *testing.T) {
+	_, err := DockerConfigDirectory("/etc/gitless/registry/.dockerconfigjson")
+	if err == nil {
+		t.Fatal("a file Cosign cannot read was accepted")
+	}
+	for _, want := range []string{"config.json", "DOCKER_CONFIG"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("the refusal does not mention %q: %v", want, err)
+		}
+	}
+}
+
+func TestTheDirectoryIsAbsoluteSoTheChildsWorkingDirectoryCannotChangeIt(t *testing.T) {
+	got, err := DockerConfigDirectory("relative/config.json")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !filepath.IsAbs(got) {
+		t.Fatalf("DOCKER_CONFIG would be the relative %q", got)
+	}
+}
