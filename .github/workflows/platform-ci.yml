@@ -350,6 +350,19 @@ jobs:
         run: |
           ./scripts/verify-console-contract.test.sh
           node scripts/verify-console-contract.mjs
+      # The console's layering -- one network seam in web/src/api, presentation
+      # in web/src/components, screens in web/src/features, composition in
+      # web/src/app -- was a convention nothing checked. Neither was the
+      # /console/ prefix that web/README.md calls load-bearing: it is written in
+      # three files, and when they disagree the console works under `vite dev`
+      # and 404s on every asset once embedded, which is after the suite above
+      # has passed. Same shape as the contract gate -- plain node over source
+      # text, with a self-test that plants each violation -- so it sits beside
+      # it for the same reason.
+      - name: Validate console boundaries
+        run: |
+          node scripts/verify-console-boundaries.test.mjs
+          node scripts/verify-console-boundaries.mjs
 
   # The linter, the vulnerability scan, and every sub-second validator. Two
   # minutes of the lane is staticcheck and govulncheck; the remaining two dozen
