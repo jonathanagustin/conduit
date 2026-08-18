@@ -24,10 +24,14 @@ An automated workflow must:
 - **Stay least-privilege** with a minimal `permissions:` block.
 - **Never publish, release, sign, or deploy.**
 
-The release and acceptance workflows stay `workflow_dispatch` only, enforced by
-`scripts/verify-optimizer-candidate-release-workflow.rb`,
-`scripts/verify-flux-runtime.rb`, and — for the release path itself, meaning
-`platform-release.yml` and the `platform-images.yml` publication it dispatches —
+The publication, release, and acceptance workflows stay `workflow_dispatch`
+only, enforced by `scripts/verify-trusted-supply-chain.rb`
+(`platform-images.yml`),
+`scripts/verify-optimizer-candidate-release-workflow.rb`
+(`platform-optimizer-candidate-release.yml`),
+`scripts/verify-flux-runtime.rb` (`platform-gitless-e2e.yml`), and -- for the
+release path itself, meaning `platform-release.yml` and the
+`platform-images.yml` publication it dispatches --
 `scripts/verify-release-workflow.rb`. Cutting a release is one dispatched
 instruction, described in
 [`release-and-publication.md`](release-and-publication.md); it is one because

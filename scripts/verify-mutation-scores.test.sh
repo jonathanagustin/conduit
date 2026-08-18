@@ -20,7 +20,7 @@ trap 'rm -rf "${tmp}"' EXIT
 # A real package and a real web source file on disk, so a rejection is about
 # the field under test rather than a coincidentally missing path.
 real_pkg="internal/governance/domain"
-real_web="web/src/features/fleet/filter.ts"
+real_web="web/src/features/changes/order.ts"
 
 # Run the gate against a baseline file, with a fixed "today" so staleness is
 # deterministic. Prints nothing; returns the gate's exit code.
