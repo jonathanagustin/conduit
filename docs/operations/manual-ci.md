@@ -88,12 +88,20 @@ than on `github.ref`, because the two paths name the same pull request with
 different refs: a second push cancels the first run, and a dispatched re-run
 supersedes an automatic one instead of billing beside it.
 
-Measured on #239, the pull request that made the change: opening it started run
-32119952760 on the `pull_request` event with nobody dispatching anything, and
-that run's preflight resolved pull request 239 from the event, pinned every
-checkout to the head commit `fcd125c`, and published the pending `Trunk gate`
-status against that same commit rather than against the merge commit
-`GITHUB_SHA` named.
+All of it was measured on #239, the pull request that made the change:
+
+- Opening it started run 32119952760 on the `pull_request` event with nobody
+  dispatching anything. That run's preflight resolved pull request 239 from the
+  event, pinned every checkout to the head commit `fcd125c`, and published the
+  pending `Trunk gate` status against that same commit rather than against the
+  merge commit `GITHUB_SHA` named.
+- Pushing a second commit started run 32120162382 and left 32119952760
+  `cancelled` three minutes in, mid-lane, rather than running the two side by
+  side.
+- Dispatching that branch while naming a *different* pull request was refused in
+  six seconds — "pull request 230 is headed by 39cc863…, but this run verifies
+  b0d59fb…" — with every lane then skipped, which is the whole point of the
+  preflight being a job of its own.
 
 The gates then run as four parallel lanes — `go`, `cli-matrix`, `console`, and
 `checks` — because as one sequential job the gate took 16m20s, of which four
