@@ -2121,6 +2121,25 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		duration := body.SuppressionDurationSeconds
 		if body.CreateSuppression {
+			// A suppression is durable Environment state that outlives the Plan
+			// which planted it, and POST /v1/environments/{id}/suppressions
+			// gates that same effect at Operate. Authorship is standing over a
+			// Change Request and not over an Environment, so the governed branch
+			// above -- which asks only whether the author is calling -- let an
+			// author who never held more than ProposeChange reach the effect at
+			// the lower of two bars (#150).
+			//
+			// Only the suppression is gated and not the cancellation: requiring
+			// Operate for the whole route would refuse an author cancelling
+			// their own Change Request in an Environment they hold nothing on,
+			// which governance admits on purpose. Stated once, after the branch
+			// dispatch, so that both branches answer to it.
+			if !governance.AuthorizeResourceOperation(request.Context(), principal, configuration,
+				environmentRID(existing.Plan.Environment), OperationOperate) {
+				writeLifecycleError(w, fmt.Errorf("%w: creating a suppression through Plan cancellation requires %s on %s",
+					ErrForbidden, OperationOperate, environmentRID(existing.Plan.Environment)))
+				return
+			}
 			if duration == 0 {
 				duration = 30 * 60
 			}
@@ -2130,7 +2149,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				})
 				return
 			}
-			if body.InstallationID != "" && !planContainsInstallation(existing.Plan, body.InstallationID) {
+			if body.InstallationID != "" && !existing.Plan.ContainsInstallation(body.InstallationID) {
 				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "installation is not in the Plan"})
 				return
 			}
@@ -2563,15 +2582,6 @@ func secureResponseHeaders(next http.Handler) http.Handler {
 		}
 		next.ServeHTTP(w, request)
 	})
-}
-
-func planContainsInstallation(plan Plan, installationID string) bool {
-	for _, step := range plan.Steps {
-		if step.InstallationID == installationID {
-			return true
-		}
-	}
-	return false
 }
 
 // approvedByThisCall is whether the review that just ran is what approved the

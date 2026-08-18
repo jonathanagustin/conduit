@@ -337,7 +337,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/plans/{planID}/approvals",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "POST /v1/plans/{planID}/cancel",
-			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + the Change Request's author, else requireResourceOperation; and Operate on the Environment whenever the cancellation asks for a suppression, which is the bar POST /v1/environments/{environmentID}/suppressions sets for the same effect (#150)"},
 		{Pattern: "POST /v1/plans/{planID}/finish",
 			Decision: DecisionAgent, Detail: "authorizeAgentForPlan"},
 		{Pattern: "POST /v1/plans/{planID}/heartbeat",
