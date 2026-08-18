@@ -57,10 +57,25 @@ carried to the residual list as item 5.
    `adapters/notifications`, which is the escalation #207 records as reaching
    nobody. Reading is through `application.Reader`.
 
+   **Reading and editing now have an HTTP surface.** The Hub serves
+   `GET /v1/notifications/inbox`, `GET /v1/notifications/events`, and `GET` and
+   `PUT /v1/notifications/preferences`, mounted from `internal/hub/composition`
+   rather than from `internal/controlplane`, which is at its line ceiling. They
+   are a Conduit extension: the pinned Apollo OpenAPI publishes no notification
+   operation, so no shape here is claimed to be Apollo's, and it is registered
+   as `notifications.HTTPSurface` in `docs/evidence/conduit-inventions.json`.
+   Authorization is two independent checks — Governance decides `resource:read`
+   on the resource a route names, and the adapter decides that the owner named
+   is the caller or a team the caller is on. The second admits no administrator
+   override, and
+   `TestThroughTheHubOnePrincipalIsRefusedAnotherPrincipalsInboxAndPreference`
+   holds it down against the assembled Hub.
+
    **What still blocks the row below:** no delivery channel — nothing sends an
-   email or posts to Slack, so an operator learns only by reading — and no
-   console inbox, no HTTP surface, and no way to edit a preference except
-   through the store. The other four events named above are still emitted by
+   email or posts to Slack, so an operator learns only by reading — no console
+   inbox, and no audit record of a notification authorization decision, because
+   `GovernanceService.audit` is unexported and the package holding it cannot
+   grow. The other four events named above are still emitted by
    nobody: a recall opening, a grant changing, a Plan failing and a Release
    becoming available are all raised inside `internal/controlplane`, which is at
    its line ceiling, so each needs its own extraction before it can emit.

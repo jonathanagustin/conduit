@@ -41,6 +41,13 @@
       "why": "Deduplication is a judgement, not a recovery: being told the same thing twice in the same place teaches people to ignore it. The channel half of the key is grounded -- Apollo configures email and in-app independently, so reaching one person on both is intended -- but collapsing one owner reached by two preferences on one channel is Conduit's own choice, and Apollo may well fan out per preference instead.",
       "displacedBy": "A capture of how Apollo resolves one event to its recipients, in particular whether it deduplicates a recipient reached by two preferences.",
       "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
+    },
+    {
+      "id": "notifications.HTTPSurface",
+      "what": "The Hub's authenticated notification routes and their request and response shapes: GET /v1/notifications/inbox, GET /v1/notifications/events, and GET and PUT /v1/notifications/preferences, keyed on the (resource, owner, channel) tuple the store already holds one row for.",
+      "why": "The pinned Apollo OpenAPI under docs/apollo/snapshots/ publishes no notification operation -- the string does not occur in api-definition.yml -- so there was no published shape to be faithful to. The settings pages captured in docs/evidence/apollo-notification-types.json establish the grain being edited (a per-resource, per-channel preference list, For User or For Team) and nothing else about a wire format, so the routes carry that grain and invent only the spelling. Declining to build it was the alternative, and it leaves the Tier 1 readiness gap open: a preference editable only through the store is not editable.",
+      "displacedBy": "A capture of Apollo's notification Hub API -- its route paths, its request and response shapes, and how it scopes an inbox read to a caller.",
+      "riskIfWrong": "Low outside Conduit, moderate inside it. Nothing round-trips these shapes into Apollo, and the routes sit under /v1/notifications where no Apollo-shaped route lives, so a wrong guess cannot collide with a real operation. What a wrong guess costs is a console and any client written against it, which would have to be rewritten when the real shape arrives."
     }
   ],
   "displaced": [

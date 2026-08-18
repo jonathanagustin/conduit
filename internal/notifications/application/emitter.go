@@ -65,10 +65,14 @@ func NewReader(store ports.Store) (*Reader, error) {
 	return &Reader{store: store}, nil
 }
 
-// defaultLimit bounds an unbounded request. A read path with no ceiling is a
+// MaximumLimit bounds an unbounded request. A read path with no ceiling is a
 // way to ask a control plane to load its whole history into memory, and every
 // caller that forgets to pass one gets the same answer size.
-const defaultLimit = 100
+//
+// Exported, with Bound beside it, because a transport that pages has to be able
+// to tell a caller what it actually applied. A ceiling a client cannot observe
+// looks exactly like an empty next page.
+const MaximumLimit = 100
 
 // Inbox reads what reached one recipient, most recent first.
 func (reader *Reader) Inbox(
@@ -80,7 +84,7 @@ func (reader *Reader) Inbox(
 	if !recipient.Channel.Valid() {
 		return nil, fmt.Errorf("notification channel %q is not one an inbox is kept on", recipient.Channel)
 	}
-	return reader.store.Inbox(ctx, recipient, bound(limit))
+	return reader.store.Inbox(ctx, recipient, Bound(limit))
 }
 
 // EventsForResource reads what the Hub raised about a resource, subscribed to
@@ -91,12 +95,13 @@ func (reader *Reader) EventsForResource(
 	if resourceRID == "" {
 		return nil, errors.New("reading events requires the resource they are about")
 	}
-	return reader.store.EventsForResource(ctx, resourceRID, bound(limit))
+	return reader.store.EventsForResource(ctx, resourceRID, Bound(limit))
 }
 
-func bound(limit int) int {
-	if limit <= 0 || limit > defaultLimit {
-		return defaultLimit
+// Bound reports the limit a read will actually use.
+func Bound(limit int) int {
+	if limit <= 0 || limit > MaximumLimit {
+		return MaximumLimit
 	}
 	return limit
 }
