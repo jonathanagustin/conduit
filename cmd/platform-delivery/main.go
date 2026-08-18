@@ -40,6 +40,20 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
+	// The one subcommand this binary answers to, and the reason it reads an
+	// argument at all: the schema check needs the Hub's DSN and every migration
+	// set that shares it, which is what this package already assembles. Running
+	// it from the Hub's own image is what makes it reachable from a `kubectl
+	// exec` or a Job without shipping a second binary. Anything else still falls
+	// through to a normal start, so no deployment's arguments change meaning.
+	// See verify_schema.go.
+	if len(os.Args) > 1 && os.Args[1] == verifySchemaCommand {
+		if err := verifySchema(ctx, os.Getenv, os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "platform-delivery "+verifySchemaCommand+":", err)
+			os.Exit(1)
+		}
+		return
+	}
 	address := os.Getenv("LISTEN_ADDRESS")
 	if address == "" {
 		address = ":8081"
