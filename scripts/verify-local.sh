@@ -199,6 +199,7 @@ gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate mutation scores' bash -c './scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
+gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh
 gate 'Validate operator console' ./scripts/test-console.sh
 gate 'Validate console contract' bash -c './scripts/verify-console-contract.test.sh && node scripts/verify-console-contract.mjs'
 # staticcheck and govulncheck are built against a specific Go release and
