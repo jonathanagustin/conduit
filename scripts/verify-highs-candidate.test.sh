@@ -142,6 +142,11 @@ cp "$verifier" "$tmp_dir/go-transport-verifier.sh"
 sed -i 's#^FORBIDDEN_GO_DEPS=.*#FORBIDDEN_GO_DEPS='"'"'^os/exec'"'"'#' "$tmp_dir/go-transport-verifier.sh"
 expect_rejected go-transport "$tmp_dir/go-transport-verifier.sh" --self-audit "$tmp_dir/go-transport-verifier.sh"
 
+cp "$verifier" "$tmp_dir/no-interp-needed-verifier.sh"
+sed -i '/if readelf -l "\$binary" | grep -q .INTERP./,/fi/d; /if readelf -d "\$binary" 2>&1 | grep -q .NEEDED./,/fi/d' \
+  "$tmp_dir/no-interp-needed-verifier.sh"
+expect_rejected no-interp-needed "$tmp_dir/no-interp-needed-verifier.sh" --self-audit "$tmp_dir/no-interp-needed-verifier.sh"
+
 printf '{}\n' > "$tmp_dir/minimal-candidate-metadata.json"
 mkdir "$tmp_dir/minimal-candidate"
 mv "$tmp_dir/minimal-candidate-metadata.json" "$tmp_dir/minimal-candidate/candidate-metadata.json"
