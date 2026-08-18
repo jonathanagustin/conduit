@@ -52,6 +52,19 @@ export interface HubStub {
   fails(pathSuffix: string, status: number, error: string, options?: { cursor?: string }): void;
   /** Serve a body for a POST, and record that it happened. */
   post(pathSuffix: string, body: unknown): void;
+  /** Refuse a POST the way the Hub refuses one.
+   *
+   * Answering every POST with 200 is how the reopen test stayed green while
+   * driving it as a principal the Hub returns 403 to: the console cannot report
+   * a refusal it was never given. An authorization failure is a status and an
+   * error document, not the record handed back unchanged. */
+  postFails(pathSuffix: string, status: number, error: string): void;
+  /** Serve the session projection for a named operator.
+   *
+   * The default operator authors nothing, so any screen that gates on
+   * authorship -- Cancel and Reopen on a Change Request -- has to name the
+   * viewer, and naming the author is what makes those controls appear. */
+  session(username: string): void;
   /** Convenience for the fleet endpoint, which needs its summary counted. */
   fleet(
     installations: FleetInstallation[],
@@ -65,6 +78,41 @@ export interface HubStub {
   /** The parsed JSON body of each POST, in order. Recording only method and
    * path is how a wrong request body survives a passing test. */
   bodies(): unknown[];
+}
+
+/** The /v1/session projection for a named operator, shaped as
+ * internal/controlplane/session.go serialises it.
+ *
+ * `actor` and `effective` carry the same name because these tests drive an
+ * operator acting for themselves. They are not interchangeable in general -- the
+ * author of a Change Request is the acting principal, so it is `actor` the
+ * console compares against it (see isAuthor in features/changes/review.ts) --
+ * and a delegation fixture would have to set them apart. */
+function sessionProjection(username: string) {
+  const identity = { username, teams: [], teamsTruncated: false, serviceAccount: false };
+  return {
+    actor: identity,
+    effective: identity,
+    delegated: false,
+    // All eight applications the Hub's session projection serves
+    // (internal/controlplane/session.go), enabled as they are for a principal
+    // with resource:read at platform/root. The stub used to carry the first
+    // four, which is the vocabulary an older projection had: the menu under
+    // test was then a strict subset of the menu production renders, so Export,
+    // Import, Risk Management and Teams appeared in no browser test at all.
+    applications: [
+      { id: "change-requests", enabled: true },
+      { id: "fleet", enabled: true },
+      { id: "plans", enabled: true },
+      { id: "promotions", enabled: true },
+      { id: "teams", enabled: true },
+      { id: "risk", enabled: true },
+      { id: "export", enabled: true },
+      { id: "import", enabled: true },
+    ],
+    globalOperations: ["resource:read"],
+    resources: [],
+  };
 }
 
 interface Stubbed {
@@ -145,6 +193,12 @@ function stub(page: Page): Promise<HubStub> {
     post(suffix, body) {
       stubs.push({ suffix, method: "POST", status: 200, body });
     },
+    postFails(suffix, status, error) {
+      stubs.push({ suffix, method: "POST", status, body: { error } });
+    },
+    session(username) {
+      api.get("/session", sessionProjection(username));
+    },
     fleet(installations, pagination = {}) {
       const { cursor, ...response } = pagination;
       stubs.push({
@@ -159,39 +213,7 @@ function stub(page: Page): Promise<HubStub> {
     bodies: () => sent,
   };
   api.fleet(MIXED_FLEET);
-  api.get("/session", {
-    actor: {
-      username: "browser-operator",
-      teams: [],
-      teamsTruncated: false,
-      serviceAccount: false,
-    },
-    effective: {
-      username: "browser-operator",
-      teams: [],
-      teamsTruncated: false,
-      serviceAccount: false,
-    },
-    delegated: false,
-    // All eight applications the Hub's session projection serves
-    // (internal/controlplane/session.go), enabled as they are for a principal
-    // with resource:read at platform/root. The stub used to carry the first
-    // four, which is the vocabulary an older projection had: the menu under
-    // test was then a strict subset of the menu production renders, so Export,
-    // Import, Risk Management and Teams appeared in no browser test at all.
-    applications: [
-      { id: "change-requests", enabled: true },
-      { id: "fleet", enabled: true },
-      { id: "plans", enabled: true },
-      { id: "promotions", enabled: true },
-      { id: "teams", enabled: true },
-      { id: "risk", enabled: true },
-      { id: "export", enabled: true },
-      { id: "import", enabled: true },
-    ],
-    globalOperations: ["resource:read"],
-    resources: [],
-  });
+  api.session("browser-operator");
   return Promise.all([install, hydrate]).then(() => api);
 }
 

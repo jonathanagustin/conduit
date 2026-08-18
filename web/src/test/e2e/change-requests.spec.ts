@@ -217,10 +217,12 @@ test.describe("Change Requests", () => {
     page,
     hub,
   }) => {
+    // Reopen is the author's action; the default operator is not the author and
+    // is no longer shown the button, so the session has to name one.
+    hub.session("author");
     hub.get("/change-requests/crq_upgrade", changeRequest({ status: "CANCELLED" }));
     hub.post("/change-requests/crq_upgrade/reopen", { changeRequest: changeRequest() });
     await page.goto("change-requests/crq_upgrade");
-    await page.getByLabel("Rationale").fill("reopening");
     await page.getByRole("button", { name: "Reopen" }).click();
 
     // Reopen takes no body at all: requireEmptyBody reads bytes, so "{}" -- the
@@ -231,7 +233,39 @@ test.describe("Change Requests", () => {
     expect(hub.bodies()[0]).toBeNull();
   });
 
+  test("reopens without asking for a rationale it cannot send", async ({ page, hub }) => {
+    // The endpoint has no field for one, so demanding one was a toll on the way
+    // to an action that discards it -- under a placeholder promising the text
+    // was recorded against your name.
+    hub.session("author");
+    hub.get("/change-requests/crq_upgrade", changeRequest({ status: "REJECTED" }));
+    hub.post("/change-requests/crq_upgrade/reopen", { changeRequest: changeRequest() });
+    await page.goto("change-requests/crq_upgrade");
+
+    await expect(page.getByLabel("Rationale")).toHaveValue("");
+    await expect(page.getByRole("button", { name: "Reopen" })).toBeEnabled();
+    await expect(page.getByText(/Reopening records no rationale/)).toBeVisible();
+  });
+
+  test("keeps a rationale reopen never sent rather than clearing it", async ({ page, hub }) => {
+    // Clearing the box on success is the last place the discarded text could
+    // still look consumed: the operator sees an empty form and a reopened
+    // request, and concludes the two were connected.
+    hub.session("author");
+    hub.get("/change-requests/crq_upgrade", changeRequest({ status: "CANCELLED" }));
+    hub.post("/change-requests/crq_upgrade/reopen", { changeRequest: changeRequest() });
+    await page.goto("change-requests/crq_upgrade");
+
+    await page.getByLabel("Rationale").fill("mistake, reopening");
+    await page.getByRole("button", { name: "Reopen" }).click();
+
+    await expect.poll(() => hub.bodies().length).toBe(1);
+    expect(hub.bodies()[0]).toBeNull();
+    await expect(page.getByLabel("Rationale")).toHaveValue("mistake, reopening");
+  });
+
   test("sends cancel a reason rather than a rationale", async ({ page, hub }) => {
+    hub.session("author");
     hub.get("/change-requests/crq_upgrade", changeRequest());
     hub.post("/change-requests/crq_upgrade/cancel", {
       changeRequest: changeRequest({ status: "CANCELLED" }),
@@ -242,6 +276,71 @@ test.describe("Change Requests", () => {
 
     await expect.poll(() => hub.bodies().length).toBe(1);
     expect(hub.bodies()[0]).toEqual({ reason: "superseded" });
+  });
+
+  // Cancel and Reopen are the author's, and only from the statuses each
+  // transition can leave: governance.go Reopen admits REJECTED, CANCELLED and
+  // ERROR, and the cancel route in http.go admits PENDING_APPROVALS and
+  // APPROVED. Offering them to a reviewer made two controls that demanded a
+  // rationale and then returned 403 -- and the stub answered 200, so nothing
+  // here noticed.
+  test("does not offer a reviewer the author-only actions", async ({ page, hub }) => {
+    hub.get("/change-requests/crq_upgrade", changeRequest());
+    await page.goto("change-requests/crq_upgrade");
+
+    await expect(page.getByRole("button", { name: "Approve" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel request" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
+  });
+
+  test("does not offer a reviewer Reopen on a settled request either", async ({ page, hub }) => {
+    hub.get("/change-requests/crq_upgrade", changeRequest({ status: "REJECTED" }));
+    await page.goto("change-requests/crq_upgrade");
+
+    await expect(page.getByTestId("change-request-detail")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
+  });
+
+  test("offers the author only the transition the status permits", async ({ page, hub }) => {
+    hub.session("author");
+    hub.get("/change-requests/crq_upgrade", changeRequest());
+    await page.goto("change-requests/crq_upgrade");
+
+    // Pending: cancellable, and there is nothing to reopen.
+    await expect(page.getByRole("button", { name: "Cancel request" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Reopen" })).toHaveCount(0);
+  });
+
+  test("offers the author Reopen, and not Cancel, once a request is settled", async ({
+    page,
+    hub,
+  }) => {
+    hub.session("author");
+    hub.get("/change-requests/crq_upgrade", changeRequest({ status: "CANCELLED" }));
+    await page.goto("change-requests/crq_upgrade");
+
+    await expect(page.getByRole("button", { name: "Reopen" })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cancel request" })).toHaveCount(0);
+  });
+
+  test("reports a refusal the Hub still makes rather than appearing to succeed", async ({
+    page,
+    hub,
+  }) => {
+    // The console gates on what it can see, and what it can see is one fetch
+    // old: a request cancelled by its author in another tab is still PENDING
+    // here. The Hub is the authority, so its refusal has to reach the screen.
+    hub.session("author");
+    hub.get("/change-requests/crq_upgrade", changeRequest());
+    hub.postFails("/change-requests/crq_upgrade/cancel", 403, "forbidden");
+    await page.goto("change-requests/crq_upgrade");
+
+    await page.getByLabel("Rationale").fill("superseded");
+    await page.getByRole("button", { name: "Cancel request" }).click();
+
+    await expect(page.getByText("That review was not recorded")).toBeVisible();
+    await expect(page.getByText("forbidden")).toBeVisible();
+    await expect(page.getByLabel("Rationale")).toHaveValue("superseded");
   });
 
   test("reports a refused review instead of appearing to succeed", async ({ page, hub }) => {

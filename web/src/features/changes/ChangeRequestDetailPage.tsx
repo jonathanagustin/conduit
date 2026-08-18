@@ -18,8 +18,10 @@ import {
   useReviewChangeRequest,
   type ReviewAction,
 } from "../../api/resources.js";
+import { useSession } from "../../api/session.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
+import { canCancel, canReopen, carriesRationale } from "./review.js";
 import "./changes.css";
 
 const STATUS_INTENT: Record<string, Intent> = {
@@ -51,14 +53,23 @@ export function ChangeRequestDetailPage() {
   const { changeRequestId = "" } = useParams();
   const { data, error, isPending, refetch } = useChangeRequest(changeRequestId);
   const review = useReviewChangeRequest(changeRequestId);
+  const session = useSession();
   const [rationale, setRationale] = useState("");
+  // Who the Hub will compare against the request's author. Unreadable until the
+  // session arrives, which hides the author-only actions rather than offering
+  // them to a viewer who may not be the author -- see isAuthor in review.ts.
+  const viewer = session.data?.actor.username ?? "";
 
   const act = (action: ReviewAction) => {
     review.mutate(
       { action, rationale },
       {
         onSuccess: () => {
-          setRationale("");
+          // Clear only what was actually sent. Reopen carries no rationale, so
+          // emptying the box after it would destroy text the Hub never saw.
+          if (carriesRationale(action)) {
+            setRationale("");
+          }
         },
       },
     );
@@ -225,9 +236,10 @@ export function ChangeRequestDetailPage() {
             fill
           />
           <div className="console-change__actions">
-            {/* A rationale is required for every decision. The Hub records the
-                review permanently, and "approved" with no reason is not an
-                answer to "what exactly am I approving?". */}
+            {/* A rationale is required for every decision taken here. The Hub
+                records the review permanently, and "approved" with no reason is
+                not an answer to "what exactly am I approving?". Reopen is not a
+                decision and is not in this row; it carries no rationale. */}
             {/* Reject left, Approve rightmost: the plan's wireframe 3 orders
                 them that way, and the affirming action last is the convention a
                 reviewer's hand already expects. */}
@@ -243,17 +255,32 @@ export function ChangeRequestDetailPage() {
               disabled={rationale.trim() === "" || review.isPending}
               onClick={() => act("approve")}
             />
-            <Button
-              text="Cancel request"
-              disabled={rationale.trim() === "" || review.isPending}
-              onClick={() => act("cancel")}
-            />
-            <Button
-              text="Reopen"
-              disabled={rationale.trim() === "" || review.isPending}
-              onClick={() => act("reopen")}
-            />
+            {/* Cancel is the author's, not a reviewer's, and only while there is
+                something to cancel. Offered to anyone else it was a button that
+                first demanded a rationale and then returned 403. */}
+            {canCancel(request, viewer) ? (
+              <Button
+                text="Cancel request"
+                disabled={rationale.trim() === "" || review.isPending}
+                onClick={() => act("cancel")}
+              />
+            ) : null}
           </div>
+
+          {/* Reopen sits outside the rationale form, and takes no rationale,
+              because the endpoint has nowhere to put one: requireEmptyBody
+              refuses any body at all. Leaving it beside the box meant the
+              placeholder's promise -- "recorded against your name" -- was made
+              about text that was silently discarded. */}
+          {canReopen(request, viewer) ? (
+            <div className="console-change__reopen">
+              <Button text="Reopen" disabled={review.isPending} onClick={() => act("reopen")} />
+              <p className="console-change__reopen-note">
+                Reopening records no rationale: the Hub re-evaluates this request against the
+                policies in force now, and writes nothing against your name.
+              </p>
+            </div>
+          ) : null}
         </div>
       )}
     </QueryState>
