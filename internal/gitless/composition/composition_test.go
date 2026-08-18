@@ -19,6 +19,10 @@ type nowhereStore struct{}
 func (nowhereStore) Put(context.Context, string, []byte) error             { return nil }
 func (nowhereStore) CurrentDigest(context.Context, string) (string, error) { return "", nil }
 
+type durableLog struct{}
+
+func (durableLog) Record(context.Context, domain.Resolution) error { return nil }
+
 type silent struct{}
 
 func (silent) Deployed(string, application.Outcome)  {}
@@ -86,6 +90,19 @@ func TestAConfiguredHubBuildsAScheduler(t *testing.T) {
 	}
 	if bound := scheduler.Bindings(); len(bound) != 1 || bound[0].Environment != "prod" {
 		t.Fatalf("bindings: %+v", bound)
+	}
+}
+
+func TestASharedResolutionLogReplacesTheSingleReplicaFile(t *testing.T) {
+	config := base(t, "prod=ghcr.io/example/runtime:latest-stable")
+	config.ResolutionLogFile = ""
+	config.ResolutionLog = durableLog{}
+	if scheduler, err := composition.Configure(config, composition.ConduitConfig{}, silent{}); err != nil || scheduler == nil {
+		t.Fatalf("shared resolution log did not configure: scheduler=%v err=%v", scheduler, err)
+	}
+	config.ResolutionLogFile = filepath.Join(t.TempDir(), "also.jsonl")
+	if _, err := composition.Configure(config, composition.ConduitConfig{}, silent{}); err == nil {
+		t.Fatal("two resolution-log authorities were accepted")
 	}
 }
 
