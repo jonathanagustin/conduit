@@ -36,9 +36,10 @@ or private source never enter Git.
    were invented or the behavior drifted.
 4. Run the relevant focused checks locally while iterating.
 5. Run `./scripts/verify-local.sh` before requesting merge.
-6. Manually dispatch the **Trunk gate** workflow against the pull-request
-   branch. GitHub Actions are intentionally not triggered by pushes or pull
-   requests.
+6. Opening the pull request starts the **Trunk gate**, and each push starts it
+   again, cancelling the run the push superseded. Dispatch it by hand only to
+   re-run a tree that has not changed (`--ref <branch> --field
+   pull_request=<number>`). Publication workflows remain dispatch-only.
 7. Squash-merge only after the required trunk gate passes and every explicit
    divergence is recorded. Delete the branch after merge.
 

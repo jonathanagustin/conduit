@@ -74,10 +74,58 @@ done
 #     `job.status`, which is its own status and is green no matter what the lanes
 #     did. Reading `job.status` there is the specific mistake that would publish
 #     success over a failed lane.
+#
+# Since #195 the gate also starts on a `pull_request` event, and three further
+# properties are checked below for that reason. Each is a hole rather than a
+# slowdown if it breaks, and none is visible in a passing run:
+#
+#   - the gate runs on both triggers. Losing `pull_request` puts a hand
+#     dispatch back in front of every pull request; losing `workflow_dispatch`
+#     makes a re-run on an unchanged tree impossible, because no event fires
+#     when nothing was pushed;
+#   - `concurrency` collapses per pull request rather than per ref. The two
+#     paths name the same pull request with different refs, so a key of
+#     `github.ref` lets a dispatched re-run bill alongside the automatic run of
+#     the same tree -- the stacking ADR 0006 permits this trigger only because
+#     it prevents;
+#   - every checkout and every status names the authenticated head sha. On a
+#     pull_request event GITHUB_SHA is the ephemeral merge commit, so a lane
+#     that omits the pin verifies a tree nobody proposed, and a status posted
+#     against GITHUB_SHA lands on a commit that disappears -- leaving
+#     scripts/verify-release-preconditions.sh, which reads the head's combined
+#     status, unable to find the gate that ran.
 ruby -ryaml -e '
   workflow = YAML.safe_load(File.read(ARGV[0], encoding: "UTF-8"), aliases: true)
   jobs = workflow.fetch("jobs")
   fail_with = lambda { |message| warn message; exit 1 }
+
+  # Psych implements YAML 1.1 and decodes an unquoted GitHub `on` key as true.
+  triggers = workflow["on"] || workflow[true]
+  fail_with.call("the gate must run on pull_request and stay dispatchable, found: #{triggers.keys.sort.inspect}") unless
+    triggers.is_a?(Hash) && triggers.keys.sort == %w[pull_request workflow_dispatch]
+  # A dispatch input GitHub refuses to accept as empty would be a lie about the
+  # other path, where nothing supplies it; the authenticator is what requires it
+  # on the path that has no other source.
+  fail_with.call("the dispatch input must not be required, since the gate also starts from a pull_request event") if
+    triggers.dig("workflow_dispatch", "inputs", "pull_request", "required") == true
+
+  concurrency = workflow.fetch("concurrency", {})
+  fail_with.call("the gate must cancel superseded runs (ADR 0006 guardrail 1)") unless
+    concurrency["cancel-in-progress"] == true
+  fail_with.call("the concurrency group must collapse per pull request, or the two trigger paths do not supersede each other: #{concurrency["group"].inspect}") unless
+    concurrency["group"].to_s.include?("github.event.pull_request.number")
+
+  gate_sha = workflow.fetch("env", {})["GATE_SHA"].to_s
+  fail_with.call("GATE_SHA must resolve to the pull-request head on the event path and the dispatched commit otherwise, found: #{gate_sha.inspect}") unless
+    gate_sha.include?("github.event.pull_request.head.sha") && gate_sha.include?("github.sha")
+  jobs.each do |id, job|
+    checkouts = job.fetch("steps", []).select { |step| step["uses"].to_s.start_with?("actions/checkout@") }
+    fail_with.call("job #{id} has no checkout to pin") if checkouts.empty?
+    checkouts.each do |checkout|
+      fail_with.call("job #{id} checks out #{checkout.dig("with", "ref").inspect} instead of the authenticated head; on a pull_request event that is the merge commit, which nobody proposed") unless
+        checkout.dig("with", "ref").to_s.include?("env.GATE_SHA")
+    end
+  end
 
   step_named = lambda do |job, name|
     job.fetch("steps", []).find { |step| step["name"] == name }
@@ -92,6 +140,23 @@ ruby -ryaml -e '
   fail_with.call("exactly one job must authenticate the pull-request head, found: #{authenticating.inspect}") unless
     authenticating.length == 1
   preflight = authenticating.first
+
+  # Both paths, or the one that is not wired up runs with no identity
+  # established at all. The authenticator refuses an event it was not given the
+  # number for, so a missing env line here fails the run rather than skipping the
+  # check -- but it fails every run on that path, which is a worse way to find
+  # out than this.
+  authenticator = jobs.fetch(preflight).fetch("steps")
+    .find { |step| step["run"].to_s.include?("scripts/authenticate-pull-request-head.sh") }
+  fail_with.call("#{preflight} must authenticate the head through scripts/authenticate-pull-request-head.sh") if
+    authenticator.nil?
+  {
+    "EVENT_PULL_REQUEST" => "github.event.pull_request.number",
+    "INPUT_PULL_REQUEST" => "inputs.pull_request",
+  }.each do |name, source|
+    fail_with.call("head authentication must read #{name} from #{source}, or the #{name == "EVENT_PULL_REQUEST" ? "pull_request" : "workflow_dispatch"} path names no pull request") unless
+      authenticator.fetch("env", {}).fetch(name, "").to_s.include?(source)
+  end
 
   pending = jobs_with.call("Publish pending Trunk status")
   fail_with.call("exactly one job may publish the pending Trunk status, found: #{pending.inspect}") unless
@@ -127,6 +192,19 @@ ruby -ryaml -e '
     verdict.include?("job.status")
   fail_with.call("the Trunk verdict must be computed from the lanes results (toJSON(needs))") unless
     jobs.fetch(finalizer).fetch("steps").any? { |step| step.fetch("env", {}).values.any? { |value| value.to_s.include?("toJSON(needs)") } }
+
+  # Where the three statuses land. GITHUB_SHA is the right commit on a dispatch
+  # and the wrong one on a pull_request event, and the difference is invisible
+  # in the run: the status is written, it is green, and it is attached to a
+  # merge commit that is not the head anyone will merge or release from.
+  ["Publish pending Trunk status", "Publish gate summary", "Publish final Trunk status"].each do |name|
+    body = jobs.values.flat_map { |job| job.fetch("steps", []) }
+      .find { |step| step["name"] == name }.fetch("run")
+    next unless body.include?("/statuses/")
+
+    fail_with.call("#{name} must post to the authenticated head (GATE_SHA); GITHUB_SHA is the merge commit on a pull_request event") unless
+      body.include?("statuses/${GATE_SHA}")
+  end
 ' "$workflow"
 
 # The verdict logic itself, executed rather than read. This is the one piece of
@@ -157,7 +235,10 @@ ruby -ryaml -e '
 verdict_for() {
   (
     cd "$verdict_root"
-    LANE_RESULTS="$1" GH_TOKEN=stub GITHUB_REPOSITORY=owner/repo GITHUB_SHA=deadbeef \
+    # GATE_SHA, not GITHUB_SHA: the step publishes against the authenticated
+    # head, and under `set -u` an unset one would fail the lifted body for a
+    # reason that has nothing to do with the verdict being measured.
+    LANE_RESULTS="$1" GH_TOKEN=stub GITHUB_REPOSITORY=owner/repo GATE_SHA=deadbeef \
       GITHUB_RUN_ID=1 bash -euo pipefail verdict.sh
   ) | sed -n 's/^Trunk gate verdict: //p'
 }

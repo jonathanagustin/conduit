@@ -87,9 +87,11 @@ because each `GOOS/GOARCH` pair has its own entries.
 
 ### Mechanisms learned the hard way this session
 
-- **The Trunk gate must be dispatched with `ref` set to the PR branch.** It
-  asserts `head_sha == GITHUB_SHA` and `refs/heads/<head_ref> == GITHUB_REF`;
-  dispatching from `main` fails in 11 seconds.
+- **The Trunk gate starts itself on `pull_request` (#195); a dispatch is only
+  for re-running an unchanged tree.** When you do dispatch, set `ref` to the PR
+  branch and pass `pull_request=<number>`: the preflight asserts the ref is the
+  pull request's branch and sits on its head, so dispatching from `main` fails
+  in about 11 seconds.
 - **A PR body that does not follow `.github/pull_request_template.md` fails gate
   step 3.** `scripts/verify-pr-fidelity.sh` requires a non-empty `## Outcome`, a
   non-empty `### Deliberate divergences`, and at least one complete
@@ -419,8 +421,8 @@ after a restore. Adding one is now a two-line change to
   Cloud, so this private repository under a personal account has no control at
   all. `merge-queue.yml` stays inert unless the repository moves to an
   organization or becomes public. If it ever does, the required check must become
-  `Merge queue`, not `Trunk gate`: `platform-ci.yml` is `workflow_dispatch` and
-  cannot run on a `merge_group`.
+  `Merge queue`, not `Trunk gate`: `platform-ci.yml` runs on `pull_request` and
+  `workflow_dispatch`, neither of which fires for a `merge_group`.
 
 ## Bootstrapping a fresh session
 
@@ -443,8 +445,9 @@ Before doing anything, read these to load context -- do not skip:
 - AGENTS.md and docs/operations/AGENTS.md
 
 Adopt these working rules for this repo:
-- New branch per change; open a PR; never push to main. CI is manual -- I
-  dispatch the Trunk gate (platform-ci.yml) against the PR head.
+- New branch per change; open a PR; never push to main. Opening or pushing the
+  PR runs the Trunk gate (platform-ci.yml) against its head; dispatch it only to
+  re-run a tree that has not changed. Publication stays manual.
 - Run ./scripts/verify-local.sh before handoff. The PostgreSQL gate DOES run in
   this sandbox -- start the daemon with `sudo bash scripts/start-docker.sh`
   first. An earlier handoff said the image pull was blocked; it is not any more.

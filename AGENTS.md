@@ -10,9 +10,10 @@ Read the nearest nested `AGENTS.md` before editing a subtree.
 ## Trunk and tenant fidelity
 
 `main` is the only long-lived branch. Make one coherent change on a short-lived
-branch, open a pull request, run the relevant local gates, manually dispatch the
-Trunk gate for the exact commit, and squash-merge. CI and publication stay
-manual-only; a merge never authorizes release or deployment.
+branch, open a pull request, run the relevant local gates, and squash-merge once
+the Trunk gate is green -- opening or pushing the pull request starts that gate,
+so dispatch it only to re-run an unchanged tree. Publication stays manual-only;
+a green gate never authorizes merge, release, or deployment.
 
 For Apollo-facing work, read
 `docs/operations/TENANT-FIDELITY.md` before implementation. Classify claims as a

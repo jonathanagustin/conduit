@@ -1,10 +1,12 @@
 # GitHub workflows
 
 - `main` is the only long-lived branch. Pull requests are squash-merged from
-  short-lived branches after the manually dispatched Trunk gate passes.
-- Keep Actions manual-only unless the user explicitly changes the cost policy.
-  A required status check may require a manual dispatch; it does not justify a
-  `push` or `pull_request` trigger.
+  short-lived branches after the Trunk gate passes; opening or pushing the pull
+  request starts that gate on its own (#195).
+- Verification and maintenance workflows may run on their own under ADR 0006's
+  guardrails: cancel superseded runs, cap runtime, least privilege, never
+  publish. Publication, release, signing, and deployment stay
+  `workflow_dispatch` only, and a green run authorizes none of them (A5).
 - Apollo-facing pull requests must complete the tenant-fidelity record. Unknown
   behavior stays unknown rather than becoming a plausible implementation.
 - Pin third-party Actions to full commit SHAs with version comments.

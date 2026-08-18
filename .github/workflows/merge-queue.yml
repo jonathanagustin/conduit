@@ -1,10 +1,11 @@
 name: Merge queue
 
 # The merge queue's verification, built as a SEPARATE workflow from the Trunk
-# gate on purpose (ADR 0006): the Trunk gate stays dispatch-based and
-# authenticates a pull-request head, which a merge group has no equivalent of.
-# This runs on merge_group instead, with no human in the loop, which A4 forbade
-# until ADR 0006 overturned it under guardrails -- all of which this file meets:
+# gate on purpose (ADR 0006): the Trunk gate authenticates a pull-request head,
+# which a merge group has no equivalent of, and its pull_request trigger (#195)
+# does not fire for one either. This runs on merge_group instead, with no human
+# in the loop, which A4 forbade until ADR 0006 overturned it under guardrails --
+# all of which this file meets:
 # it cancels superseded groups (concurrency), caps its runtime (timeout),
 # holds least privilege (contents: read), and never publishes.
 #

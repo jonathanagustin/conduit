@@ -1,9 +1,15 @@
 name: Trunk gate
 
-# Manual only. Every gate below is also runnable locally in one command --
-# scripts/verify-local.sh reads this file so the two cannot drift -- and the
-# automatic triggers were spending far more than they caught: a run of merges
-# queues one verification per merge, each superseding the last.
+# Runs on every proposed tree, and on request. Every gate below is also runnable
+# locally in one command -- scripts/verify-local.sh reads this file so the two
+# cannot drift.
+#
+# Automatic triggers were once forbidden outright, because a run of merges
+# queued one verification per merge and each superseded the last, spending far
+# more than it caught. ADR 0006 replaced that blanket rule with guardrails, and
+# the one that answers the incident directly is the concurrency block below: the
+# superseded run is cancelled rather than left to bill. A5 is untouched -- a
+# green run is evidence, not authorization to merge, release, publish or deploy.
 #
 # The gates run in four parallel lanes behind one head-authentication job. As a
 # single job of forty-five sequential steps this took 16m20s, of which four
@@ -27,18 +33,43 @@ name: Trunk gate
 #     gate, because a status that reports success while a lane failed is worse
 #     than no status at all.
 on:
+  # Verification of every proposed tree, without a person dispatching it (#195).
+  # The default activity types -- opened, synchronize, reopened -- are exactly
+  # the moments a tree becomes proposed or changes. Restricted to pull requests
+  # targeting main, the only long-lived branch, so a pull request between two
+  # topic branches does not spend a runner on a tree that is not a candidate.
+  pull_request:
+    branches: [main]
+  # Kept, and not a leftover: no event fires when nothing was pushed, so a
+  # re-run against an unchanged tree -- after a flake, or after a fix to the
+  # gate itself on main -- can only be asked for.
   workflow_dispatch:
     inputs:
       pull_request:
         description: Open pull request number whose exact head commit is being verified
-        required: true
+        # Optional to the trigger, because the workflow now also starts from a
+        # pull_request event that carries the number itself. It is still
+        # required on the dispatch path, where nothing else can supply it:
+        # scripts/authenticate-pull-request-head.sh refuses a dispatch that
+        # names no pull request rather than verifying whatever ref was named.
+        required: false
         type: string
-# Only the newest commit on a ref needs verifying: an older run's result is
-# about code nobody will merge. Without this, pushing a branch several times --
-# or merging a run of pull requests, as happened for sixty-one of them -- leaves
-# every superseded run queued and billed.
+# Only the newest run for a pull request needs to exist: an older run's result
+# is about code nobody will merge. Without this, pushing a branch several times
+# -- or merging a run of pull requests, as happened for sixty-one of them --
+# leaves every superseded run queued and billed. This is ADR 0006's first
+# guardrail and the reason the trigger above is allowed to exist.
+#
+# Keyed on the pull request rather than on github.ref, because the two paths
+# name the same pull request with different refs: refs/pull/<n>/merge from the
+# event, refs/heads/<branch> from a dispatch. Keyed on the ref, a dispatched
+# re-run would not supersede the automatic run of the same tree -- it would run
+# beside it, and both would bill, which is the stacking this exists to prevent
+# in miniature. github.ref remains the last fallback so a run that names no
+# pull request gets a group of its own rather than sharing one with every other
+# such run; there is no such run today, because the preflight refuses it.
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.event.inputs.pull_request || github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -52,41 +83,65 @@ defaults:
   run:
     working-directory: .
 
+env:
+  # The one commit this run verifies and publishes its verdict against: the pull
+  # request head, on both paths.
+  #
+  # On a pull_request event GITHUB_SHA is not that commit. It is the ephemeral
+  # merge commit GitHub built from the head and main -- a tree nobody proposed,
+  # which disappears, and which scripts/verify-release-preconditions.sh could
+  # never find again, because that script reads the combined commit status of
+  # the pull-request head. So every checkout below pins this sha and every
+  # status is published against it, and the preflight proves it really is the
+  # head of the pull request this run claims to be verifying.
+  GATE_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
+
 jobs:
-  # Nothing else in this workflow may start until the dispatched ref is proven
-  # to be the head of the named open pull request, so this is a job of its own
+  # Nothing else in this workflow may start until the tree being verified is
+  # proven to be the head of an open pull request, so this is a job of its own
   # that every lane needs rather than a step each lane would have to repeat.
   preflight:
     name: Head authentication
     runs-on: ubuntu-24.04
-    # Two API calls and two shell verifiers; a minute is generous.
+    # Two API calls and three shell verifiers; a minute is generous.
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Every lane verifies the authenticated head, not the merge commit the
+          # pull_request event checks out by default. A lane on a different tree
+          # than the one the Trunk status names would be a verdict about code
+          # that was never proposed.
+          ref: ${{ env.GATE_SHA }}
+      # Both paths, in one script with one test, because they establish the same
+      # thing from different places: the pull_request event supplies the number
+      # and the head sha itself, while a dispatch supplies a ref and a number
+      # that nothing relates to each other. The script prints the pull request
+      # it authenticated; nothing downstream may take the number from anywhere
+      # else, or the run would report on one pull request while reading another.
+      - name: Authenticate pull request head
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_PULL_REQUEST: ${{ github.event.pull_request.number }}
+          INPUT_PULL_REQUEST: ${{ inputs.pull_request }}
+        run: |
+          pull_request="$(./scripts/authenticate-pull-request-head.sh)"
+          echo "PULL_REQUEST_NUMBER=${pull_request}" >>"${GITHUB_ENV}"
+          # Runs after the authentication it is about, in the same step, for the
+          # same reason the fidelity verifier's test runs before the verifier is
+          # believed: a check whose refusals have stopped working looks exactly
+          # like a check whose refusals never come up. It plants every way a run
+          # can arrive at a tree nobody proposed -- a moved head, another pull
+          # request's ref, a closed pull request, a fork, a dispatch naming no
+          # pull request, an unpinned checkout -- and fails unless each is
+          # refused for its own stated reason.
+          ./scripts/authenticate-pull-request-head.test.sh
       - name: Validate tenant fidelity policy
         env:
           GH_TOKEN: ${{ github.token }}
-          PULL_REQUEST: ${{ inputs.pull_request }}
         run: |
-          [[ "${PULL_REQUEST}" =~ ^[1-9][0-9]*$ ]] || {
-            echo 'pull_request must be an open pull request number' >&2
-            exit 1
-          }
-          read -r state head_sha head_ref < <(
-            gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}" \
-              --jq '[.state, .head.sha, .head.ref] | @tsv'
-          )
-          [[ "${state}" == open ]]
-          [[ "${head_sha}" == "${GITHUB_SHA}" ]] || {
-            echo 'dispatch the Trunk gate against the pull request head commit' >&2
-            exit 1
-          }
-          [[ "refs/heads/${head_ref}" == "${GITHUB_REF}" ]] || {
-            echo 'dispatch the Trunk gate from the pull request branch' >&2
-            exit 1
-          }
           ./scripts/verify-pr-fidelity.test.sh
-          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST}" --jq .body |
+          gh api "repos/${GITHUB_REPOSITORY}/pulls/${PULL_REQUEST_NUMBER}" --jq .body |
             ./scripts/verify-pr-fidelity.sh
       # Telemetry about the run, not a verdict on the code, and marked so.
       #
@@ -103,16 +158,26 @@ jobs:
       # 503 outlasted two dispatches twenty minutes apart. The consequence is
       # that a status may be missing, which is visible and fixed by
       # re-dispatching, rather than wrong, which is neither.
+      #
+      # The status itself outlived the reason it was first written. It was for
+      # the pull-request rollup, which a workflow_dispatch check suite is not
+      # attached to; a pull_request check suite is, so that half is now covered
+      # by the trigger. What is not covered is the release path:
+      # scripts/verify-release-preconditions.sh refuses to cut a release unless
+      # `Trunk gate` is `success` in the combined commit status of the head, and
+      # a check suite is not a commit status -- `GET /commits/{sha}/status` does
+      # not report it. Deleting this bridge would leave every release refused
+      # for want of a gate that had in fact run.
       - name: Publish pending Trunk status
         continue-on-error: true
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ./scripts/retry-github-api.sh \
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GATE_SHA}" \
             -f state=pending \
             -f context='Trunk gate' \
-            -f description='Manual Trunk verification is running' \
+            -f description='Trunk verification is running' \
             -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
   # The Go suite and the gates that need a compiler and a database. No Node and
@@ -126,6 +191,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Every lane verifies the authenticated head, not the merge commit the
+          # pull_request event checks out by default. A lane on a different tree
+          # than the one the Trunk status names would be a verdict about code
+          # that was never proposed.
+          ref: ${{ env.GATE_SHA }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           # uses: inputs are not covered by defaults.run.working-directory,
@@ -196,6 +267,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Every lane verifies the authenticated head, not the merge commit the
+          # pull_request event checks out by default. A lane on a different tree
+          # than the one the Trunk status names would be a verdict about code
+          # that was never proposed.
+          ref: ${{ env.GATE_SHA }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
@@ -216,6 +293,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Every lane verifies the authenticated head, not the merge commit the
+          # pull_request event checks out by default. A lane on a different tree
+          # than the one the Trunk status names would be a verdict about code
+          # that was never proposed.
+          ref: ${{ env.GATE_SHA }}
       - name: Install pinned pnpm
         uses: pnpm/action-setup@0977fd99725f1db4007ccb2928dbb4e90d06cc86 # v6.0.10
         with:
@@ -279,6 +362,12 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Every lane verifies the authenticated head, not the merge commit the
+          # pull_request event checks out by default. A lane on a different tree
+          # than the one the Trunk status names would be a verdict about code
+          # that was never proposed.
+          ref: ${{ env.GATE_SHA }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
         with:
           go-version-file: go.mod
@@ -448,8 +537,8 @@ jobs:
       - name: GitOps acceptance
         run: ./scripts/test-gitops.sh
 
-  # The single owner of the `Trunk gate` commit status, which exists because a
-  # workflow_dispatch check suite is not attached to the pull-request rollup
+  # The single owner of the `Trunk gate` commit status, which the release path
+  # reads by that exact context out of the head commit's combined status
   # (docs/operations/manual-ci.md). It needs every lane, so GitHub will not start
   # it until each has finished, and it runs under always() so a red lane still
   # gets a verdict written about it.
@@ -461,6 +550,12 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          # Every lane verifies the authenticated head, not the merge commit the
+          # pull_request event checks out by default. A lane on a different tree
+          # than the one the Trunk status names would be a verdict about code
+          # that was never proposed.
+          ref: ${{ env.GATE_SHA }}
       # Observability: a glanceable per-gate table on the run's Summary page,
       # and a named ::error:: annotation for each failed gate, so a red run
       # names its failing gate without anyone opening the log. Reads this
@@ -524,8 +619,8 @@ jobs:
           echo "lane results: ${LANE_RESULTS}"
           echo "Trunk gate verdict: ${TRUNK_STATE}"
           ./scripts/retry-github-api.sh \
-            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GITHUB_SHA}" \
+            gh api --method POST "repos/${GITHUB_REPOSITORY}/statuses/${GATE_SHA}" \
             -f state="${TRUNK_STATE}" \
             -f context='Trunk gate' \
-            -f description="Manual Trunk verification ${TRUNK_STATE}" \
+            -f description="Trunk verification ${TRUNK_STATE}" \
             -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
