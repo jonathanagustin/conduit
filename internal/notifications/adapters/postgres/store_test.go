@@ -16,6 +16,16 @@ const resource = "ri.apollo.main.environment.d41d8cd98f00"
 
 func at() time.Time { return time.Date(2026, time.August, 18, 9, 0, 0, 0, time.UTC) }
 
+// fixedAt is the ports.Clock the preference service now takes, pinned to at()
+// plus an offset a test can choose, so a saved preference's timestamps stay
+// assertable and a second save can be made to land later. The service reads a
+// ports.Clock rather than a func() time.Time because the delivery dispatcher in
+// this same context already does, and one spelling of "now" per bounded context
+// is the point of having declared the port.
+type fixedAt struct{ offset time.Duration }
+
+func (clock fixedAt) Now() time.Time { return at().Add(clock.offset) }
+
 // The slice end to end against a real database: a preference is stored, an
 // event is emitted, and the person who asked can read it back.
 func TestPostgresNotificationsReachTheSubscriberWhoAskedForThem(t *testing.T) {
@@ -173,7 +183,7 @@ func TestPostgresNotificationMigrationsAreRecordedOnce(t *testing.T) {
 	}
 	// Migrations returns a copy, so appending to what a caller received cannot
 	// change what the next start runs.
-	appended := append(Migrations(), pgmigrate.Migration{Name: "0002-not-real", Statements: "SELECT 1"})
+	appended := append(Migrations(), pgmigrate.Migration{Name: "9999-not-real", Statements: "SELECT 1"})
 	if len(Migrations()) == len(appended) {
 		t.Error("a caller's append reached this store's migration list")
 	}
@@ -225,7 +235,7 @@ func TestPostgresAPreferenceEditedTwiceLeavesOneRow(t *testing.T) {
 	ctx := t.Context()
 	store := newStore(t, ctx)
 	resetStore(t, ctx, store)
-	preferences, err := application.NewPreferences(store, at)
+	preferences, err := application.NewPreferences(store, fixedAt{})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -43,6 +43,20 @@
       "riskIfWrong": "Low. Changing the fan-out rule changes delivery volume, not stored shape."
     },
     {
+      "id": "notifications.Message",
+      "what": "The rendered form of one inbox entry that a delivery transport sends: a subject line built from the event type and environment, and a body of the emitter's summary followed by the event id, type, resource, environment, actor and time.",
+      "why": "Something has to decide the wording, and deciding it once in the domain is better than deciding it per adapter, where two transports would phrase the same failure differently and give an operator two facts to reconcile during an incident. Apollo's settings pages establish that email and Slack contacts receive notifications; no capture shows what the message looks like when it arrives, so every choice here -- that the subject leads with the type a subscriber filtered on, that the body repeats the identifiers needed to act without opening a console -- is Conduit's.",
+      "displacedBy": "a capture of what Apollo puts in a notification email or Slack post, in particular whether the subject names the event type or the resource",
+      "riskIfWrong": "Low and cosmetic in the near term: a wrong subject line is annoying rather than dangerous. It becomes expensive if anyone parses the body, because a downstream receiver built against this shape has to change when the real one arrives. That is why the webhook payload is versioned and structured rather than only textual."
+    },
+    {
+      "id": "notifications.WebhookPayload",
+      "what": "The JSON body Conduit POSTs when delivering a notification to a configured webhook endpoint: a version discriminator, the event and recipient identity the delivery is keyed on, the rendered subject and body, and a Slack-compatible text field.",
+      "why": "A transport had to exist for the readiness document's Tier 1 gap 1 to close, and a webhook is the one transport Conduit can honestly offer: SMTP needs a recipient address and no store in this repository holds one. Apollo establishes that a team may own a Slack contact and that Slack contacts are deliverable; nothing establishes the request Apollo makes, so the field names, the version discriminator and the decision to duplicate the body into a Slack-shaped text field are Conduit's own.",
+      "displacedBy": "a capture of the request Apollo makes when it delivers to a Slack or email team contact, including its field names and headers",
+      "riskIfWrong": "Moderate, because this one is on the wire. A receiver written against these field names has to change when the observed request arrives, and a deployment that has pointed a mail relay at this endpoint would keep delivering under the old shape until it did. The version discriminator exists so that change is detectable rather than silent."
+    },
+    {
       "id": "notifications.HTTPSurface",
       "what": "The Hub's authenticated notification routes and their request and response shapes: GET /v1/notifications/inbox, GET /v1/notifications/events, and GET and PUT /v1/notifications/preferences, keyed on the (resource, owner, channel) tuple the store already holds one row for.",
       "why": "The pinned Apollo OpenAPI under docs/apollo/snapshots/ publishes no notification operation -- the string does not occur in api-definition.yml -- so there was no published shape to be faithful to. The settings pages captured in docs/evidence/apollo-notification-types.json establish the grain being edited (a per-resource, per-channel preference list, For User or For Team) and nothing else about a wire format, so the routes carry that grain and invent only the spelling. Declining to build it was the alternative, and it leaves the Tier 1 readiness gap open: a preference editable only through the store is not editable.",

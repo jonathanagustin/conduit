@@ -14,7 +14,7 @@ func alice() domain.Owner { return domain.Owner{Kind: domain.PrincipalUser, ID: 
 
 func newPreferences(t *testing.T, store *fakeStore) *Preferences {
 	t.Helper()
-	preferences, err := NewPreferences(store, at)
+	preferences, err := NewPreferences(store, fixedAt{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -23,7 +23,7 @@ func newPreferences(t *testing.T, store *fakeStore) *Preferences {
 
 func TestAPreferenceServiceWithNoStoreIsRefused(t *testing.T) {
 	t.Parallel()
-	if _, err := NewPreferences(nil, at); err == nil {
+	if _, err := NewPreferences(nil, fixedAt{}); err == nil {
 		t.Fatal("a preference service with nowhere to write was constructed")
 	}
 	// A nil clock is the ordinary case, not a misconfiguration: only a test
@@ -66,7 +66,7 @@ func TestSavingTheSameTupleTwiceReplacesRatherThanAccumulates(t *testing.T) {
 		t.Errorf("first save recorded %#v", first)
 	}
 
-	preferences.now = func() time.Time { return at().Add(time.Hour) }
+	preferences.clock = fixedAt{offset: time.Hour}
 	second, err := preferences.Save(t.Context(), domain.Preference{
 		Owner: alice(), ResourceRID: preferenceResource, Channel: domain.ChannelEmail,
 		AllFutureTypes: true,
