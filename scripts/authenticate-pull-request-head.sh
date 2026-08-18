@@ -70,10 +70,27 @@ esac
 # -- a head whose fork repository was deleted, say -- would otherwise collapse
 # and shift every field after it onto the wrong variable, which reads as a
 # mismatch in some unrelated check rather than as the missing field it is.
-IFS=$'\t' read -r state head_sha head_ref head_repository < <(
-  gh api "repos/${repository}/pulls/${pull_request}" \
+# Through the retry wrapper, because the pull_request path made this read racy
+# in a way the dispatch path never was. A person dispatches minutes after opening
+# a pull request; the event fires within seconds, and GitHub answered a
+# ten-second-old pull request with truncated JSON -- `unexpected end of JSON
+# input` -- which failed the gate before a single lane ran. The wrapper retries
+# 5xx and 429 and deliberately does not retry 401/403/422, so a genuine
+# permissions or request error still fails immediately rather than thirty
+# seconds later.
+#
+# Captured into a variable first rather than read from a process substitution:
+# in `read ... < <(cmd)` the exit status belongs to `read`, so a failing API call
+# reached the field checks as empty strings and was reported as some unrelated
+# mismatch instead of as the failed read it was.
+pull_request_fields="$(
+  "$(dirname -- "${BASH_SOURCE[0]}")/retry-github-api.sh" \
+    gh api "repos/${repository}/pulls/${pull_request}" \
     --jq '[.state, .head.sha, .head.ref, .head.repo.full_name] | @tsv'
-) || fail "could not read pull request ${pull_request} from the GitHub API"
+)" || fail "could not read pull request ${pull_request} from the GitHub API"
+IFS=$'\t' read -r state head_sha head_ref head_repository <<<"${pull_request_fields}"
+[[ -n "${state}" && -n "${head_sha}" ]] ||
+  fail "the GitHub API answered pull request ${pull_request} with no state or head commit"
 
 [[ "${state}" == open ]] ||
   fail "pull request ${pull_request} is '${state:-<unknown>}', not open"
