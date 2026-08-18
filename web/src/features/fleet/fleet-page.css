@@ -25,6 +25,22 @@
   margin: 0 16px 12px;
 }
 
+/* The rail beside the results, as the 2020 Apollo Environment view composes a
+   filter pane against a dense table. A fixed rail column keeps the bars in one
+   dimension comparable while the table's own columns resize. */
+.console-fleet__body {
+  display: grid;
+  min-height: 0;
+  align-items: start;
+  grid-template-columns: 240px minmax(0, 1fr);
+}
+
+.console-fleet__results {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+}
+
 .console-fleet__table {
   width: 100%;
 }
@@ -44,6 +60,14 @@
 .console-fleet__pagination > div {
   display: flex;
   gap: 8px;
+}
+
+/* Narrow enough that a 240px rail would leave the table unreadable: stack them,
+   rail first, so the filters stay reachable without horizontal scrolling. */
+@media (max-width: 900px) {
+  .console-fleet__body {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }
 
 @media (max-width: 600px) {
