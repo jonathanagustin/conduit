@@ -4,11 +4,13 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"os"
 	"sync"
 	"testing"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/application"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/ports"
 )
@@ -214,6 +216,56 @@ DROP FUNCTION conduit_test_reject_reconciliation_audit()`); err != nil {
 	}
 }
 
+func TestWorkerEvaluatesObservationFreshnessAtDecisionTime(t *testing.T) {
+	ctx := t.Context()
+	store, _ := newStorePair(t, ctx)
+	resetStore(t, ctx, store)
+	now := time.Date(2026, 8, 14, 21, 0, 0, 0, time.UTC)
+	clock := &stepClock{now: now}
+	workerStore := &loadHookStore{
+		Store: store,
+		onLoad: func() {
+			clock.Advance(10 * time.Second)
+		},
+	}
+	worker, err := application.NewWorker(workerStore, noopPlanner{}, clock, application.Config{
+		LeaseDuration:         time.Minute,
+		MaximumObservationAge: 10 * time.Second,
+		MaximumAttempts:       3,
+		BaseRetryDelay:        time.Second,
+		RepairBatchSize:       10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	key := domain.Key{Environment: "tenant-a", Installation: "catalog"}
+	if err := store.UpsertDesired(ctx, testDesired(key, "generation-1", "target-a", now)); err != nil {
+		t.Fatal(err)
+	}
+	if err := store.UpsertObservation(ctx, testObservation(key, "generation-1", "target-b", now.Add(-5*time.Second))); err != nil {
+		t.Fatal(err)
+	}
+	processed, err := worker.ProcessOne(ctx)
+	if err != nil || !processed {
+		t.Fatalf("process one: processed=%v err=%v", processed, err)
+	}
+	var document []byte
+	if err := store.database.QueryRowContext(ctx, `
+SELECT document FROM conduit_reconciliation_decisions
+WHERE environment = $1 AND installation = $2
+ORDER BY decided_at DESC, id DESC LIMIT 1`, key.Environment, key.Installation).Scan(&document); err != nil {
+		t.Fatal(err)
+	}
+	decision := domain.Decision{}
+	if err := json.Unmarshal(document, &decision); err != nil {
+		t.Fatalf("decode decision: %v", err)
+	}
+	if decision.Kind != domain.DecisionBlocked || decision.Reason != "STALE_OBSERVATION" {
+		t.Fatalf("decision=%#v", decision)
+	}
+	assertCount(t, ctx, store, "conduit_reconciliation_proposal_outbox", 0)
+}
+
 type workLeaseResult struct {
 	store *Store
 	lease ports.WorkLease
@@ -357,4 +409,40 @@ func testObservation(key domain.Key, generation, target string, observedAt time.
 func digest(value string) string {
 	sum := sha256.Sum256([]byte(value))
 	return "sha256:" + hex.EncodeToString(sum[:])
+}
+
+type stepClock struct {
+	mu  sync.Mutex
+	now time.Time
+}
+
+func (clock *stepClock) Now() time.Time {
+	clock.mu.Lock()
+	defer clock.mu.Unlock()
+	return clock.now
+}
+
+func (clock *stepClock) Advance(delta time.Duration) {
+	clock.mu.Lock()
+	defer clock.mu.Unlock()
+	clock.now = clock.now.Add(delta)
+}
+
+type loadHookStore struct {
+	*Store
+	onLoad func()
+}
+
+func (store *loadHookStore) LoadInput(ctx context.Context, key domain.Key) (domain.Input, error) {
+	if store.onLoad != nil {
+		store.onLoad()
+		store.onLoad = nil
+	}
+	return store.Store.LoadInput(ctx, key)
+}
+
+type noopPlanner struct{}
+
+func (noopPlanner) Propose(context.Context, domain.Proposal) (domain.PlanReceipt, error) {
+	return domain.PlanReceipt{}, nil
 }

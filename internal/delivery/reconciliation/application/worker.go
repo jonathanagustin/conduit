@@ -40,8 +40,8 @@ func NewWorker(store ports.Store, planner ports.Planner, clock ports.Clock, conf
 }
 
 func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
-	now := worker.clock.Now().UTC()
-	lease, found, err := worker.store.LeaseWork(ctx, now, worker.config.LeaseDuration)
+	leaseAt := worker.clock.Now().UTC()
+	lease, found, err := worker.store.LeaseWork(ctx, leaseAt, worker.config.LeaseDuration)
 	if err != nil || !found {
 		return found, err
 	}
@@ -49,7 +49,8 @@ func (worker *Worker) ProcessOne(ctx context.Context) (bool, error) {
 	if err != nil {
 		return true, worker.failWork(ctx, lease, fmt.Sprintf("load input: %v", err))
 	}
-	decision, proposal, err := domain.Decide(input, lease.Attempt, now, worker.config.MaximumObservationAge)
+	decideAt := worker.clock.Now().UTC()
+	decision, proposal, err := domain.Decide(input, lease.Attempt, decideAt, worker.config.MaximumObservationAge)
 	if err != nil {
 		return true, worker.failWork(ctx, lease, fmt.Sprintf("decide: %v", err))
 	}
