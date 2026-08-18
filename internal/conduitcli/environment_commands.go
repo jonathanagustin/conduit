@@ -235,16 +235,7 @@ func environmentVersionCommand(state *commandState) *cobra.Command {
 				if err != nil {
 					return nil, err
 				}
-				selected := map[string]struct{}{}
-				for _, entity := range entities {
-					channel := entity.ReleaseChannel
-					if channel == "" {
-						channel = environment.Environment.DefaultReleaseChannel
-					}
-					if channel == releaseChannel {
-						selected[entity.Name] = struct{}{}
-					}
-				}
+				selected := selectedInstallationIDs(entities, environment.Environment, releaseChannel)
 				filtered := make([]controlplane.TargetHubEntityVersion, 0, len(versions))
 				for _, version := range versions {
 					if _, included := selected[version.InstallationID]; included {
@@ -259,6 +250,45 @@ func environmentVersionCommand(state *commandState) *cobra.Command {
 	compare.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "include only Entities assigned to this Release Channel")
 	command.AddCommand(compare)
 	return command
+}
+
+// selectedInstallationIDs returns the installations whose Entity resolves to the
+// requested Release Channel, keyed the way a Plan mints installation identities.
+//
+// The identity of an installation is not always the Entity name. Plan expansion
+// in internal/controlplane mints "<entity>@<namespaceRID>" for a universal
+// Entity, one per eligible namespace, and the Agent reports that string back
+// unchanged as the installation ID. Keying this set by Entity name alone
+// therefore matched nothing a universal Entity ever reports, so the Release
+// Channel filter dropped every universal installation with no error and no
+// diagnostic: an operator comparing versions to find drift read the short result
+// as "no drift" rather than "not compared".
+//
+// Every declared namespace is enumerated rather than only the eligible ones. A
+// namespace the Entity is not eligible for has no installation to report, so the
+// surplus key cannot match anything, and reproducing the eligibility rules here
+// would only give them a second place to drift from the planner's.
+func selectedInstallationIDs(
+	entities []controlplane.Entity, environment controlplane.Environment, releaseChannel string,
+) map[string]struct{} {
+	selected := map[string]struct{}{}
+	for _, entity := range entities {
+		channel := entity.ReleaseChannel
+		if channel == "" {
+			channel = environment.DefaultReleaseChannel
+		}
+		if channel != releaseChannel {
+			continue
+		}
+		if entity.Universal == nil {
+			selected[entity.Name] = struct{}{}
+			continue
+		}
+		for _, namespace := range environment.Namespaces {
+			selected[entity.Name+"@"+namespace.RID] = struct{}{}
+		}
+	}
+	return selected
 }
 
 func readDesiredState(path string) (controlplane.DesiredState, error) {
