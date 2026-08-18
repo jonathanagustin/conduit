@@ -40,10 +40,19 @@ type AdministratorPolicy struct {
 // asks before serving a resource: may this caller perform this operation on
 // this coordinate.
 //
-// It is a struct rather than four arguments because the answer and the record
-// are one act. A caller assembles it with the store it reads grants from, the
-// sink it files decisions to, and the deployment's policy; it cannot assemble
-// one that decides without filing.
+// The pairing of answer and record is Allow's, and it is worth stating exactly
+// how far it reaches, because the shorter claim -- "this cannot decide without
+// filing" -- is false and would be believed. Allow is the *resource* decision,
+// and it always files. Administrator below is a predicate that returns a full
+// verdict and touches nothing: it is exported because the routes gated on
+// administrator status alone need the same answer these routes use, and those
+// routes record nothing. A refused `GET /v1/authorization-audit` leaves no
+// entry in the authorization audit, here and on every revision before this one.
+//
+// That gap is real and is deliberately not closed here. Recording the predicate
+// means recording it for every administrator-gated route, under an action name
+// none of them currently supply, which is a change to those routes rather than
+// to this struct.
 type ResourceDecision struct {
 	// Authorizer answers what the grant table conveys.
 	Authorizer *Authorizer
@@ -57,6 +66,11 @@ type ResourceDecision struct {
 }
 
 // Administrator reports whether this caller holds administrator authority.
+//
+// It answers and does not file. Callers that reach it through Allow have their
+// record written there; callers that gate on it directly -- every route behind
+// requireGovernanceAdministrator -- write nothing, which was true before this
+// function existed and is not changed by moving the predicate here.
 //
 // The two halves are judged against different principals, and the asymmetry is
 // the whole point. The bootstrap list is matched against the *carrier* — the
@@ -84,6 +98,8 @@ func (decision ResourceDecision) Administrator(ctx context.Context, principal do
 }
 
 // Allow decides whether the operation may proceed and files what it decided.
+// This is the pairing ResourceDecision claims: reaching this function means the
+// record is written, whichever branch the administrator predicate above took.
 //
 // The record is written for a refusal as well as a grant, and its failure is
 // not reported: a decision already taken is not undone by a store that would
