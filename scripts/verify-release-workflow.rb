@@ -67,7 +67,12 @@ fail_gate("release workflow declares no jobs") unless release_jobs.is_a?(Hash)
 release_job = release_jobs["release"]
 fail_gate("release workflow must declare a release job") unless release_job.is_a?(Hash)
 fail_gate("release job holds authority it does not use, or lacks authority it does") unless
-  release_job["permissions"] == {"actions" => "write", "contents" => "write", "statuses" => "read"}
+  release_job["permissions"] == {
+    "actions" => "write",
+    "contents" => "write",
+    "pull-requests" => "read",
+    "statuses" => "read"
+  }
 fail_gate("release job must cap its runtime") unless release_job["timeout-minutes"].is_a?(Integer)
 
 release_steps = Array(release_job["steps"])
