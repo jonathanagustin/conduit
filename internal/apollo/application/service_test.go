@@ -103,6 +103,37 @@ func publishRelease(t *testing.T, service *Service, product, version string) {
 	})
 }
 
+// A compatibility projection is the Environment's complete current desired
+// state. Keeping a Namespace omitted by the next projection serves stale data:
+// the list endpoint tells clients they can still access a Namespace Conduit has
+// removed.
+func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.SyncEnvironment(environments.CompatibilityProjection{
+		ID: "dev-use2",
+		Namespaces: []environments.ProjectedNamespace{{
+			RID: "ri.namespace.main.namespace.123", Name: "obsolete",
+		}},
+	})
+	before := service.ListNamespaces()
+	if before.Namespaces == nil || len(*before.Namespaces) != 1 {
+		t.Fatalf("the first projection did not establish the Namespace: %#v", before.Namespaces)
+	}
+
+	service.SyncEnvironment(environments.CompatibilityProjection{ID: "dev-use2"})
+
+	after := service.ListNamespaces()
+	if after.Namespaces == nil {
+		t.Fatal("the Namespace list was not answered")
+	}
+	if len(*after.Namespaces) != 0 {
+		t.Fatalf("a removed Namespace was served from stale projection state: %#v", *after.Namespaces)
+	}
+}
+
 // TestARecalledReleaseIsNotServedAsNotRecalled is the defect.
 //
 // recallStatus was hardcoded to false at publication time, and a Release is
