@@ -75,28 +75,146 @@ func TestASignedArtifactIsReportedWithItsCertificateIdentity(t *testing.T) {
 	}
 }
 
-func TestRegistryConfigurationIsPassedAsAPathNotCredentialContent(t *testing.T) {
+// --- how a private registry is reached --------------------------------------
+//
+// The version of these tests that shipped with #220 asserted only that
+// "--registry-config <path>" appeared in argv, against a stub that echoed its
+// arguments and accepted anything. cosign v3.1.3 -- the release this repository
+// pins by checksum and ships in the Hub image -- has no such flag, so the exact
+// argv the adapter produced exited 1 with "unknown flag: --registry-config",
+// which matches none of looksUnsigned's phrases and is therefore a hard verifier
+// error on every reconcile. The gate could not see it because the stub had no
+// opinion about flags.
+//
+// So the stub below has one. It refuses any flag outside the set cosign v3.1.3's
+// `verify` command actually accepts, and TestAFlagCosignDoesNotHaveIsAHardError
+// exercises that refusal, so a future change that reintroduces an invented flag
+// fails here rather than in a cluster.
+
+// verifyFlags is `cosign verify --help` at v3.1.3, restricted to the registry
+// and output flags an adapter has any reason to send. Read off the checksum-
+// pinned binary (sha256 4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9
+// df9efc7f71), not off documentation.
+const verifyFlags = "--certificate-identity --certificate-identity-regexp " +
+	"--certificate-oidc-issuer --certificate-oidc-issuer-regexp --output " +
+	"--registry-username --registry-password --registry-token --registry-cacert " +
+	"--registry-client-cert --registry-client-key --registry-server-name " +
+	"--allow-http-registry --allow-insecure-registry --k8s-keychain"
+
+// strictCosign stands in for the binary the way the previous stub did, plus the
+// one behaviour that matters: it exits 1 on a flag cosign does not have, with
+// the message cosign itself prints. It records argv and DOCKER_CONFIG so a test
+// can assert what the child was actually given.
+func strictCosign(t *testing.T) (binary, argv, dockerConfig string) {
+	t.Helper()
 	directory := t.TempDir()
-	binary := filepath.Join(directory, "cosign")
-	arguments := filepath.Join(directory, "arguments")
+	binary = filepath.Join(directory, "cosign")
+	argv = filepath.Join(directory, "argv")
+	dockerConfig = filepath.Join(directory, "docker-config")
 	script := "#!/bin/sh\n" +
-		"printf '%s\\n' \"$@\" > '" + arguments + "'\n" +
+		"printf '%s\\n' \"$@\" > '" + argv + "'\n" +
+		"printf '%s' \"${DOCKER_CONFIG-<unset>}\" > '" + dockerConfig + "'\n" +
+		"known='" + verifyFlags + "'\n" +
+		"for argument in \"$@\"; do\n" +
+		"  case \"${argument}\" in\n" +
+		"    --*)\n" +
+		"      name=\"${argument%%=*}\"\n" +
+		"      case \" ${known} \" in\n" +
+		"        *\" ${name} \"*) ;;\n" +
+		"        *) echo \"Error: unknown flag: ${name}\" >&2; exit 1;;\n" +
+		"      esac\n" +
+		"      ;;\n" +
+		"  esac\n" +
+		"done\n" +
 		"cat <<'JSON'\n" + realShape + "\nJSON\n"
 	if err := os.WriteFile(binary, []byte(script), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	configPath := filepath.Join(directory, "registry.json")
-	verifier := cosignverify.New(binary, "--registry-config", configPath)
-	if _, err := verifier.Verify(t.Context(), pin()); err != nil {
-		t.Fatalf("verify: %v", err)
-	}
-	passed, err := os.ReadFile(arguments)
+	return binary, argv, dockerConfig
+}
+
+func read(t *testing.T, path string) string {
+	t.Helper()
+	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
-	want := "--registry-config\n" + configPath + "\n" + pin().String() + "\n"
-	if !strings.HasSuffix(string(passed), want) {
-		t.Fatalf("cosign arguments do not end with the mounted config and immutable pin:\n%s", passed)
+	return string(body)
+}
+
+// The fix for #220's first defect, asserted on both sides: the credential
+// directory reaches cosign as DOCKER_CONFIG, and nothing about it reaches argv.
+func TestTheRegistryConfigurationReachesCosignAsDockerConfigRatherThanAFlag(t *testing.T) {
+	binary, argv, dockerConfig := strictCosign(t)
+	directory := t.TempDir()
+
+	verifier := cosignverify.New(binary, cosignverify.WithRegistryConfigDirectory(directory))
+	if _, err := verifier.Verify(t.Context(), pin()); err != nil {
+		t.Fatalf("verify against a stub that refuses flags cosign does not have: %v", err)
+	}
+
+	if got := read(t, dockerConfig); got != directory {
+		t.Errorf("cosign was run with DOCKER_CONFIG=%q, want %q", got, directory)
+	}
+	passed := read(t, argv)
+	if strings.Contains(passed, "--registry-config") {
+		t.Errorf("the adapter still passes a flag cosign has no such thing as:\n%s", passed)
+	}
+	// argv is world-readable on a shared host, so neither the credential
+	// directory nor anything under it belongs in it.
+	if strings.Contains(passed, directory) {
+		t.Errorf("the credential directory reached argv:\n%s", passed)
+	}
+	if want := pin().String() + "\n"; !strings.HasSuffix(passed, want) {
+		t.Errorf("cosign arguments do not end with the immutable pin:\n%s", passed)
+	}
+}
+
+// This is the guard on the guard. If the stub ever stops rejecting a flag
+// cosign does not have, this test stops failing, and the test above goes back to
+// being satisfiable by an adapter that cannot work against the real binary.
+func TestAFlagCosignDoesNotHaveIsAHardError(t *testing.T) {
+	binary, _, _ := strictCosign(t)
+	verifier := cosignverify.New(binary, cosignverify.WithArguments("--registry-config", t.TempDir()))
+	attestation, err := verifier.Verify(t.Context(), pin())
+	if err == nil {
+		t.Fatalf("a flag cosign does not have produced an attestation: %+v", attestation)
+	}
+	if attestation.Signed {
+		t.Fatal("a failed invocation reported a signature")
+	}
+}
+
+// An ambient DOCKER_CONFIG in the Hub's own environment must not decide which
+// credentials verification uses. The configured one wins, unambiguously.
+func TestTheConfiguredCredentialDirectoryOverridesAnAmbientOne(t *testing.T) {
+	binary, _, dockerConfig := strictCosign(t)
+	ambient := t.TempDir()
+	configured := t.TempDir()
+	t.Setenv("DOCKER_CONFIG", ambient)
+
+	verifier := cosignverify.New(binary, cosignverify.WithRegistryConfigDirectory(configured))
+	if _, err := verifier.Verify(t.Context(), pin()); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if got := read(t, dockerConfig); got != configured {
+		t.Fatalf("cosign was run with DOCKER_CONFIG=%q, want the configured %q", got, configured)
+	}
+}
+
+// And with nothing configured the child keeps the parent's environment. cosign
+// still needs PATH, HOME and the proxy variables, and a Hub pulling public
+// artifacts never had a Docker configuration to begin with.
+func TestNothingConfiguredLeavesTheEnvironmentAlone(t *testing.T) {
+	binary, _, dockerConfig := strictCosign(t)
+	ambient := t.TempDir()
+	t.Setenv("DOCKER_CONFIG", ambient)
+
+	if _, err := cosignverify.New(binary).Verify(t.Context(), pin()); err != nil {
+		t.Fatalf("verify: %v", err)
+	}
+	if got := read(t, dockerConfig); got != ambient {
+		t.Fatalf("cosign was run with DOCKER_CONFIG=%q, want the inherited %q", got, ambient)
 	}
 }
 

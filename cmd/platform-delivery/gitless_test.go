@@ -206,3 +206,54 @@ func policyFile(t *testing.T) string {
 	}
 	return path
 }
+
+// Cosign is told about a private registry through DOCKER_CONFIG, which names a
+// DIRECTORY it joins config.json onto. A credential file under any other name
+// would leave verification authenticating anonymously while resolution and
+// publication did not -- a split that first surfaces as a 401 from Cosign on
+// some later reconcile, naming neither the cause nor the fix. So it is a
+// startup refusal, like every other Gitless misconfiguration.
+func TestACredentialFileCosignCouldNotReadRefusesToStart(t *testing.T) {
+	values := fluxEnvironment(t, "registry.example/team/manifests")
+	path := filepath.Join(t.TempDir(), ".dockerconfigjson")
+	if err := os.WriteFile(path,
+		[]byte(`{"auths":{"registry.example":{"username":"writer","password":"token"}}}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	values["GITLESS_REGISTRY_CONFIG"] = path
+	_, err := configureGitless(env(values))
+	if err == nil {
+		t.Fatal("a credential file Cosign would not read was accepted")
+	}
+	if !strings.Contains(err.Error(), "config.json") {
+		t.Errorf("the refusal does not say what to rename it to: %v", err)
+	}
+}
+
+// A registry directs a credential at itself unless an operator said otherwise.
+// Docker Hub and GitLab genuinely issue a token realm on another host, so the
+// declaration exists -- but it is a declaration, not something a 401 can make
+// on the operator's behalf.
+func TestAMalformedTokenRealmDeclarationRefusesToStart(t *testing.T) {
+	for name, declaration := range map[string]string{
+		"no separator":  "registry-1.docker.io",
+		"a URL":         "registry-1.docker.io=https://auth.docker.io/token",
+		"a wildcard":    "registry-1.docker.io=*",
+		"nothing after": "registry-1.docker.io=",
+	} {
+		values := fluxEnvironment(t, "registry.example/team/manifests")
+		values["GITLESS_REGISTRY_TOKEN_REALMS"] = declaration
+		if _, err := configureGitless(env(values)); err == nil {
+			t.Errorf("%s was accepted as a token realm declaration", name)
+		}
+	}
+}
+
+func TestAWellFormedTokenRealmDeclarationStarts(t *testing.T) {
+	values := fluxEnvironment(t, "registry.example/team/manifests")
+	values["GITLESS_REGISTRY_TOKEN_REALMS"] = "registry-1.docker.io=auth.docker.io,registry.gitlab.com=gitlab.com"
+	scheduler, err := configureGitless(env(values))
+	if err != nil || scheduler == nil {
+		t.Fatalf("a Hub declaring cross-host token realms did not start: scheduler=%v err=%v", scheduler, err)
+	}
+}

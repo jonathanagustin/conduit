@@ -142,6 +142,17 @@ type Proposal struct {
 	InputDigest    string          `json:"inputDigest"`
 	IdempotencyKey string          `json:"idempotencyKey"`
 	Desired        DesiredSnapshot `json:"desired"`
+	// ObservedAt is the instant of the observation that made this proposal
+	// necessary, and it travels with the proposal because a dispatcher cannot
+	// otherwise tell two opposite situations apart: an installation that has
+	// drifted back after a Plan already succeeded, and a report that was taken
+	// before that Plan finished and has simply not caught up. Both reach dispatch
+	// as "desired and reported state differ" against a SUCCEEDED Plan; only the
+	// timestamps separate them. It is zero when the decision had no observation
+	// at all, which is the same evidence a proposal carried before this field
+	// existed, so a row written by an older writer stays readable and is treated
+	// as the case that cannot be distinguished.
+	ObservedAt time.Time `json:"observedAt,omitzero"`
 }
 
 type PlanReceipt struct {
@@ -185,6 +196,9 @@ func Decide(input Input, attempt uint32, now time.Time, maximumObservationAge ti
 	proposal := &Proposal{
 		ID: stableID("rcp_", decision.ID), Key: key, InputDigest: inputDigest,
 		IdempotencyKey: stableID("rci_", inputDigest+"\x00"+input.Desired.PayloadDigest), Desired: *input.Desired,
+	}
+	if input.Observation != nil {
+		proposal.ObservedAt = input.Observation.ObservedAt.UTC()
 	}
 	return decision, proposal, nil
 }

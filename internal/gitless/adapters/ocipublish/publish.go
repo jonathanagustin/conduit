@@ -31,6 +31,8 @@ import (
 	"time"
 
 	yaml "go.yaml.in/yaml/v3"
+
+	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registrychallenge"
 )
 
 const (
@@ -65,12 +67,29 @@ type Publisher struct {
 	// a test or an air-gapped mirror that terminates TLS elsewhere, and it is
 	// explicit rather than inferred from the host so it can never be switched
 	// on by a hostname somebody chose.
+	//
+	// It governs reaching THIS registry. It does not reach the token exchange:
+	// a credential is posted over https whatever this says. See the
+	// registrychallenge package.
 	insecure bool
+	// realms are the cross-host token realms an operator declared. Nil means
+	// this registry may only direct credentials at itself.
+	realms registrychallenge.Allowlist
+}
+
+// Option configures a Publisher.
+type Option func(*Publisher)
+
+// WithTokenRealms declares which token realm hosts each registry may direct
+// credentials to, beyond its own host.
+func WithTokenRealms(realms registrychallenge.Allowlist) Option {
+	return func(publisher *Publisher) { publisher.realms = realms }
 }
 
 // New parses "registry.example/team/manifests" into its parts and refuses
 // anything that is not registry-qualified.
-func New(repository string, client *http.Client, credentials Credentials, insecure bool) (*Publisher, error) {
+func New(repository string, client *http.Client, credentials Credentials, insecure bool,
+	options ...Option) (*Publisher, error) {
 	host, name, found := strings.Cut(strings.TrimSpace(repository), "/")
 	if !found || !strings.Contains(host, ".") && !strings.Contains(host, ":") {
 		return nil, fmt.Errorf(
@@ -83,7 +102,13 @@ func New(repository string, client *http.Client, credentials Credentials, insecu
 	if credentials == nil {
 		credentials = Anonymous{}
 	}
-	return &Publisher{client: client, credentials: credentials, host: host, name: name, insecure: insecure}, nil
+	publisher := &Publisher{
+		client: client, credentials: credentials, host: host, name: name, insecure: insecure,
+	}
+	for _, option := range options {
+		option(publisher)
+	}
+	return publisher, nil
 }
 
 func (publisher *Publisher) scheme() string {
@@ -355,11 +380,17 @@ func (publisher *Publisher) token(ctx context.Context, challenge string) (string
 	if realm == "" {
 		return "", fmt.Errorf("registry issued a challenge with no realm")
 	}
-	url := fmt.Sprintf("%s?scope=repository:%s:pull,push", realm, publisher.name)
-	if service != "" {
-		url += "&service=" + service
+	// Constrained BEFORE the credential is read. The realm came out of an
+	// unauthenticated 401, so it names wherever that response wanted the push
+	// credential sent. `insecure` is deliberately not consulted: it says this
+	// registry is reached over http, not that a push credential may be posted
+	// in the clear.
+	endpoint, err := publisher.realms.TokenEndpoint(realm, publisher.host)
+	if err != nil {
+		return "", err
 	}
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet,
+		registrychallenge.WithScope(endpoint, "repository:"+publisher.name+":pull,push", service), nil)
 	if err != nil {
 		return "", err
 	}

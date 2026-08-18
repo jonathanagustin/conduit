@@ -121,8 +121,14 @@ func TestPlannerUsesOrdinaryLifecycleAndRejectsSupersededAuthority(t *testing.T)
 // cycle and gets the same dead record back. Before Propose read the status, the
 // step digests still matched and the loop returned receipts naming a failed
 // Plan forever, never reaching FailProposal.
+//
+// RECORDED is here for the same reason with a different cause: it belongs to an
+// Environment this Hub does not drive, so it carries no steps and nothing will
+// ever execute from it.
 func TestPlannerRefusesToDispatchATerminalPlanAsSuccess(t *testing.T) {
-	for _, terminal := range []controlplane.PlanStatus{controlplane.PlanFailed, controlplane.PlanCancelled} {
+	for _, terminal := range []controlplane.PlanStatus{
+		controlplane.PlanFailed, controlplane.PlanCancelled, controlplane.PlanRecorded,
+	} {
 		t.Run(string(terminal), func(t *testing.T) {
 			ctx := t.Context()
 			state := loadExampleState(t)
@@ -178,6 +184,101 @@ func TestPlannerRefusesToDispatchATerminalPlanAsSuccess(t *testing.T) {
 				t.Fatalf("terminal Plan reported as a superseded snapshot: %v", err)
 			}
 			if !strings.Contains(err.Error(), string(terminal)) || !strings.Contains(err.Error(), record.ID) {
+				t.Fatalf("error names neither the status nor the Plan: %v", err)
+			}
+		})
+	}
+}
+
+// A SUCCEEDED Plan reaches Propose in two opposite situations that the status
+// alone cannot separate, so both are exercised against one setup that differs
+// only in when the observation was taken.
+//
+// The lagging case is the ordinary one -- a rollout that has just finished and a
+// report that has not caught up -- and it must keep dispatching, because failing
+// it would turn the common case into an escalation. The drifted case is #205:
+// the installation converged and moved back, the same content-derived bytes
+// resolve to the same succeeded record, and a receipt naming it is a success
+// that will be reported forever because nothing will ever execute again.
+func TestPlannerSeparatesALaggingObservationFromDriftAfterASucceededPlan(t *testing.T) {
+	succeededAt := time.Date(2026, 8, 18, 9, 0, 0, 0, time.UTC)
+	for _, testCase := range []struct {
+		name        string
+		observedAt  time.Time
+		wantReceipt bool
+	}{
+		{name: "observation predates the succeeded Plan", observedAt: succeededAt.Add(-time.Minute), wantReceipt: true},
+		{name: "observation postdates the succeeded Plan", observedAt: succeededAt.Add(time.Minute), wantReceipt: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			ctx := t.Context()
+			state := loadExampleState(t)
+			inputs := newMemoryInputs()
+			repository, err := NewRepository(controlplane.NewMemoryRepository(), inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			record, err := controlplane.NewLifecycle(repository).CreatePlan(ctx, state)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(record.Plan.Steps) == 0 {
+				t.Fatal("example desired state produced no ordinary Plan steps")
+			}
+			key := domain.Key{
+				Environment: record.Plan.Environment, Installation: record.Plan.Steps[0].InstallationID,
+			}
+			desired := inputs.desired[key.String()]
+			// Set the succeeded status and its instant directly. How a Plan reaches
+			// SUCCEEDED is the lifecycle's business and is tested there; what Propose
+			// reads is the status and when the record carrying it last changed.
+			if _, err := repository.UpdatePlan(ctx, record.ID, func(stored *controlplane.PlanRecord) error {
+				stored.Status = controlplane.PlanSucceeded
+				stored.UpdatedAt = succeededAt
+				return nil
+			}); err != nil {
+				t.Fatal(err)
+			}
+			// Same coordinates, still not converged: the shape a bad Helm history or
+			// a hand-deleted release leaves behind, and the shape a rollout whose
+			// report is one cycle old also leaves behind.
+			observation := domain.Observation{
+				Key: key, Generation: desired.Generation, TargetDigest: desired.TargetDigest,
+				Complete: false, ObservedAt: testCase.observedAt,
+			}
+			input := domain.Input{Desired: &desired, Observation: &observation}
+			decision, proposal, err := domain.Decide(input, 1, succeededAt.Add(2*time.Minute), 10*time.Minute)
+			if err != nil || proposal == nil || decision.Kind != domain.DecisionProposePlan {
+				t.Fatalf("decision=%#v proposal=%#v err=%v", decision, proposal, err)
+			}
+			if !proposal.ObservedAt.Equal(testCase.observedAt) {
+				t.Fatalf("proposal carried observedAt=%s, want %s", proposal.ObservedAt, testCase.observedAt)
+			}
+			planner, err := NewPlanner(repository, inputs)
+			if err != nil {
+				t.Fatal(err)
+			}
+			receipt, err := planner.Propose(ctx, *proposal)
+			if testCase.wantReceipt {
+				if err != nil {
+					t.Fatalf("lagging observation refused a succeeded Plan: %v", err)
+				}
+				if receipt.PlanID != record.ID || receipt.ProposalID != proposal.ID {
+					t.Fatalf("receipt=%#v record=%s", receipt, record.ID)
+				}
+				return
+			}
+			if err == nil {
+				t.Fatalf("dispatched drifted SUCCEEDED Plan %s as a success: receipt=%#v", record.ID, receipt)
+			}
+			// Supersession would exhaust the proposal immediately on a desired
+			// snapshot that did not change, trading one false report for another.
+			// The honest path is the ordinary retry the worker already applies.
+			if errors.Is(err, ports.ErrProposalSuperseded) {
+				t.Fatalf("drifted succeeded Plan reported as a superseded snapshot: %v", err)
+			}
+			if !strings.Contains(err.Error(), string(controlplane.PlanSucceeded)) ||
+				!strings.Contains(err.Error(), record.ID) {
 				t.Fatalf("error names neither the status nor the Plan: %v", err)
 			}
 		})

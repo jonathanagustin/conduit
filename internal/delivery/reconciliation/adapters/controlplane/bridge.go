@@ -12,6 +12,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
@@ -251,9 +252,51 @@ func (planner *Planner) Propose(ctx context.Context, proposal domain.Proposal) (
 	// content-derived, so a new record would need that derivation changed, and
 	// the determinism it provides is relied on elsewhere. Reporting the failure
 	// is the fix; choosing a re-plan policy is a separate decision.
-	if record.Status == controlplane.PlanFailed || record.Status == controlplane.PlanCancelled {
+	//
+	// RECORDED joins them for the same reason rather than a new one: it is a
+	// reviewed generation for an Environment this Hub does not drive, it carries
+	// no executable work, and it can never be approved or leased. It used to fail
+	// one check further down, because a RECORDED Plan has no steps, with a message
+	// about a missing installation target -- a symptom, when the cause is that
+	// nothing here will ever execute.
+	if record.Status == controlplane.PlanFailed || record.Status == controlplane.PlanCancelled ||
+		record.Status == controlplane.PlanRecorded {
 		return domain.PlanReceipt{}, fmt.Errorf(
 			"ordinary Plan %s for this desired state is %s", record.ID, record.Status,
+		)
+	}
+	// SUCCEEDED produces the identical loop and cannot join the list above,
+	// because two opposite situations arrive here looking the same: an
+	// installation that drifted back after its Plan succeeded, and a report taken
+	// before that Plan finished which has simply not caught up. Refusing both
+	// would fail the ordinary, common case of a rollout whose observation lags by
+	// one cycle.
+	//
+	// The timestamps separate them, and they are comparable because both are
+	// stamped by this Hub. A Plan cannot reach SUCCEEDED unless the report
+	// accompanying it proves every planned installation converged --
+	// validateEnvironmentReport applies, for succeeded=true, the same predicate
+	// reportedComplete applies here, including the no-wait grace-period case -- and
+	// FinishPlan stamps that report as it stamps the record. So an observation
+	// taken after the record changed and still reporting unconverged is not a
+	// rollout still settling: it is state that converged and moved back.
+	//
+	// The record's UpdatedAt is the Hub's clock; the execution's FinishedAt is the
+	// Agent's, carried in whatever the Agent reported. Comparing ObservedAt to
+	// UpdatedAt compares one clock to itself. Equal timestamps are read as the
+	// lagging case, because a coarse clock is not evidence of drift.
+	//
+	// An older observation still returns a receipt, and that receipt is honest:
+	// the Plan it names is the Plan for this proposal's work and it ran. Nor can
+	// that repeat forever, which is what makes this the whole fix rather than half
+	// of it -- ObservedAt only moves forward, so the next report is either
+	// converged, which ends the loop, or on the far side of this comparison, which
+	// escalates it.
+	if record.Status == controlplane.PlanSucceeded && proposal.ObservedAt.After(record.UpdatedAt) {
+		return domain.PlanReceipt{}, fmt.Errorf(
+			"ordinary Plan %s for this desired state is %s but installation %s was still unconverged at %s, after that Plan finished at %s",
+			record.ID, record.Status, proposal.Key.Installation,
+			proposal.ObservedAt.UTC().Format(time.RFC3339Nano), record.UpdatedAt.UTC().Format(time.RFC3339Nano),
 		)
 	}
 	matched := false
