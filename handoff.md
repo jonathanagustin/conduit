@@ -8,6 +8,87 @@ Earlier handoffs covered the sessions ending 2026-08-16 (PRs #30–#44) and
 2026-08-17. Their "Mechanisms" and "Bootstrapping" sections are carried forward
 below, corrected where a later session proved them wrong.
 
+## Orchestration run, 2026-08-18 (in flight)
+
+Durable state for a fresh agent. Everything below is either merged, open with a
+named next action, or delegated to a running agent.
+
+### Merged this run
+
+| PR | What |
+| --- | --- |
+| #219 | Notification ports, application and Postgres adapter; one live emit site (a reconciliation proposal that spent its retry budget). Tier 1 gap 1 partly closed. |
+| #206 | Review actions the Hub categorically refuses are no longer offered |
+| #211 | One release instruction instead of four |
+| #224 | A ledger test no longer drops a table other packages are reading |
+
+**#224 is worth knowing about before running the suite.**
+`TestDifferentComponentsRacingAFreshDatabaseDoNotCollide` used to reach the
+fresh-database case by dropping `conduit_schema_migrations` in the shared test
+database. Its own comment said that was why it "cannot run beside the others" and
+confined it to one package. Confinement to a package is not confinement: `go test`
+runs packages in parallel, so `cmd/platform-delivery` reading the ledger inside
+that window failed with `relation "conduit_schema_migrations" does not exist`, in
+a package that had done nothing wrong. CI never saw it because
+`scripts/test-postgres-repository.sh` invokes each package separately and the main
+`Test` gate runs without a DSN. The test now takes a throwaway database via
+`internal/pgtest` and lives in `internal/pgmigrate`. **Nothing drops a shared
+object any more, and nothing should.**
+
+### Open, with the next action named
+
+| PR | State | Next action |
+| --- | --- | --- |
+| #216 | Trunk gate FAILED: `pull request has no completed tenant-fidelity claim row` — its table's Class cell said `n/a`, which is not one of the accepted values. Body fix delegated. | Re-dispatch the Trunk gate once the body is fixed, then merge. |
+| #220 | Codex-authored: private OCI registry auth for the Gitless Hub. Under adversarial review + gate dispatch by an agent. | Read the agent's verdict; do not merge before it lands. |
+
+### Delegated and running
+
+Four agents, each in its own git worktree so they cannot collide:
+
+| Worktree | Branch | Task |
+| --- | --- | --- |
+| `/workspace/wt-delivery` | `claude/notification-delivery-channel` | Tier 1 gap 1: a transport port, a real adapter, and a dispatcher draining undelivered inbox entries with leases and a terminal-failure state |
+| `/workspace/wt-http` | `claude/notification-http-surface` | Tier 1 gap 1: authenticated HTTP surface for inbox, resource events and preferences, mounted through `internal/hub/composition` |
+| `/workspace/wt-authz` | `claude/fix-209-authorization-scopes` | #209: `AuthorizationScopes` expands `product/X` but not `platform/root`, so a platform-scoped principal is refused by REST and served by GraphQL. Agent must falsify or confirm with a failing test **before** fixing. |
+| `/workspace/conduit-review` | (read-only) | Adversarial review of #220 |
+
+### The binding constraint, and why work is shaped around it
+
+`internal/controlplane` sits **exactly on its ratcheted ceiling**
+(`docs/operations/controlplane-ceiling.json`; `node scripts/report-migration-progress.mjs --gate`).
+That is what blocks the four remaining notification emit sites — a recall opening,
+a grant changing, a Plan failing, a Release becoming available are all raised
+inside the monolith, so each needs an extraction first. Every workstream above is
+therefore routed through `internal/hub/composition` or a bounded context, and no
+agent is permitted to grow controlplane. **Extracting a context from controlplane
+is the highest-leverage unblocking work available**: it lowers the ceiling and
+frees emit sites at once.
+
+### Environment facts that cost time to rediscover
+
+- **No Docker daemon** in this sandbox, so `scripts/test-postgres-repository.sh`
+  and the `Validate PostgreSQL repository` gate cannot run. That one gate failing
+  in `verify-local.sh` is expected here and is not a signal.
+- **PostgreSQL 16 is installed locally** and is the way to test database code
+  anyway: `export CONDUIT_TEST_POSTGRES_DSN="postgres://conduit@127.0.0.1:55432/conduit_test?sslmode=disable"`.
+  Started with `/usr/lib/postgresql/16/bin/pg_ctl -D /tmp/pgdata -o "-p 55432 -k /tmp" start`.
+  Prefer this over deferring database claims to CI.
+- **The `gh` CLI is not available**; use the GitHub MCP tools.
+- **Commit before planting mutations.** `git checkout` does not restore untracked
+  files, and that has silently corrupted a mutation run in this repository more
+  than once — a mutant left in place while the harness reports a kill.
+
+### A correction carried forward from the previous session
+
+Commit `db32afa` claimed run 47 of the Trunk gate "hung ... reached the job limit
+and died", and weakened a schema re-apply test to avoid an invented
+`ACCESS EXCLUSIVE` contention. **All of it was wrong.** Run 47 ran 9m41s and its
+log ends `TRUNK_STATE: success`: every gate passed. The only failure was a 503
+from GitHub's commit-status API on the final status POST, and the stale `pending`
+status was misread as a hang. The test was restored in #144 and the gate was fixed
+in #145 so that a status post can no longer decide whether the code is good.
+
 ## Session ending 2026-08-18
 
 ### What shipped
