@@ -100,12 +100,24 @@ carried to the residual list as item 5.
    `authorizationCheck` record for ALLOW and DENY alike. That did not need
    `internal/controlplane` to grow — moving the decision out left it two lines
    smaller. The owner half is still unrecorded, and so is the administrator
-   predicate on its own. The other four events named above are still emitted by
-   nobody: a recall opening, a grant changing, a Plan failing and a Release
-   becoming available are all raised inside `internal/controlplane`, which is at
-   its line ceiling, so each needs its own extraction before it can emit.
-   Subscription grain is the Environment, because reconciliation and the Apollo
-   projection mint different identifiers for the same installation.
+   predicate on its own. **A recall opening now emits (#253).** A recall in an
+   accepted `DesiredState` is announced through `catalog/ports.RecallOpenings`
+   and `catalog/adapters/notifications`, the shape reconciliation's escalation
+   established: the control plane hands over the recalls in force and learns
+   nothing about notifications. It is typed with the two recall event types the
+   capture observes — `PRODUCT_IN_OPEN_ENDED_RECALL` for a recall with no upper
+   bound, `PRODUCT_RECALLS` otherwise — and the split between them is registered
+   as `catalog.RecallEventTypeSelection`. That did not need
+   `internal/controlplane` to grow either: the rule for what an automatic
+   security recall withdraws moved to `internal/catalog/domain`, leaving the
+   package nine lines smaller. The other three events named above are still
+   emitted by nobody: a grant changing, a Plan failing and a Release becoming
+   available are all raised inside `internal/controlplane`, which is at its line
+   ceiling, so each needs its own extraction before it can emit. Subscription
+   grain is the Environment, for recalls as for reconciliation: a preference is
+   joined by resource identifier, and the Environment is the identifier Conduit
+   publishes for the thing a recall is submitted against — #126 records that
+   `Recalls` is a field of `DesiredState` rather than of a Product.
 
 2. **Observability is partial.** Metrics now exist and the wedge signal is
    exported: `conduit_reconciliation_pending`, `_leased`, `_exhausted` and

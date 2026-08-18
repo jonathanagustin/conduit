@@ -156,7 +156,15 @@ func (api *apolloPublicAPI) requireAgent(w http.ResponseWriter, request *http.Re
 	return true
 }
 
-func (api *apolloPublicAPI) syncDesiredState(state DesiredState) {
+func (api *apolloPublicAPI) syncDesiredState(ctx context.Context, state DesiredState) {
+	// A recall carried by an accepted DesiredState has come into force, and this
+	// is the one funnel every accepted state passes through. The error is
+	// dropped deliberately: the state is committed and the Plan is written by
+	// the time this runs, so refusing here would report a failure for work that
+	// happened. The adapter reports its own.
+	if openings := api.configuration.RecallOpenings; openings != nil {
+		_ = openings.RecallsInForce(ctx, state.Environment.ID, state.Recalls)
+	}
 	projection := environments.CompatibilityProjection{ID: state.Environment.ID}
 	for _, entity := range state.Entities {
 		projection.Entities = append(projection.Entities, environments.ProjectedEntity{
