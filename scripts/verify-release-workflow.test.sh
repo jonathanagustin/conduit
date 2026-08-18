@@ -220,6 +220,9 @@ rename_trunk_status_context() {
 widen_release_permissions() {
   sed -i 's/^      statuses: read$/      statuses: read\n      packages: write/' "$1/platform-release.yml"
 }
+drop_pull_request_permission() {
+  sed -i '/^      pull-requests: read$/d' "$1/platform-release.yml"
+}
 
 expect_workflow_refusal automatic_release_trigger automatic_release_trigger
 expect_workflow_refusal automatic_publication_trigger automatic_publication_trigger
@@ -229,5 +232,6 @@ expect_workflow_refusal unguarded_publication drop_publication_ref_guard
 expect_workflow_refusal detached_publication_job detach_build_from_preflight
 expect_workflow_refusal renamed_status_context rename_trunk_status_context
 expect_workflow_refusal widened_release_permissions widen_release_permissions
+expect_workflow_refusal missing_pull_request_permission drop_pull_request_permission
 
 printf 'release path guards: pass\n'
