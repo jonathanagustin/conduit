@@ -1,7 +1,7 @@
 import { Tag } from "@blueprintjs/core";
 
-import type { PromotionRecord } from "../../api/catalog.js";
-import "./promotions.css";
+import type { PromotionRecord } from "../api/catalog.js";
+import "./release-channel-graph.css";
 
 /** The horizontal Release Channel graph: an ordered run of channels with a
  * selectable transition between each pair.

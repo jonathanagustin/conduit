@@ -1,4 +1,4 @@
-import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag, type Intent } from "@blueprintjs/core";
+import { Button, H2, HTMLTable, InputGroup, Section, SectionCard } from "@blueprintjs/core";
 import { Link } from "react-router-dom";
 
 import { usePlans } from "../../api/resources.js";
@@ -6,37 +6,9 @@ import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
 import { IndexPagination } from "../../components/IndexPagination.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
+import { PlanStatusTag } from "../../components/PlanStatusTag.js";
 import { useIndexQuery } from "../useIndexQuery.js";
 import "./plans.css";
-
-// Plan statuses, from internal/controlplane/lifecycle.go. A Plan an operator
-// has to act on reads loud; one that has finished cleanly does not.
-// The PlanStatus vocabulary is the Hub's, from internal/controlplane/lifecycle.go.
-// SUPERSEDED was invented and never emitted; the real terminal record for a
-// non-executing Environment is RECORDED (a reviewed generation carrying no
-// executable work), which was missing -- so a RECORDED Plan rendered as an
-// unstyled "none" tag instead of a deliberately calm one.
-export const PLAN_INTENT: Record<string, Intent> = {
-  AWAITING_APPROVAL: "warning",
-  APPROVED: "primary",
-  LEASED: "primary",
-  RUNNING: "primary",
-  SUCCEEDED: "success",
-  FAILED: "danger",
-  CANCELLED: "none",
-  RECORDED: "none",
-};
-
-export function PlanStatusTag({ value }: { value: string }) {
-  const intent = PLAN_INTENT[value];
-  return (
-    // Calm states stay minimal so a FAILED or REJECTED row carries the
-    // colour on a screen full of finished work.
-    <Tag intent={intent ?? "none"} minimal={intent === undefined || value === "SUCCEEDED" || value === "RECORDED"}>
-      {value}
-    </Tag>
-  );
-}
 
 export function PlansPage() {
   const index = useIndexQuery();

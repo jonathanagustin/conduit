@@ -1,0 +1,45 @@
+/* The channel run reads left to right, wrapping on narrow viewports. It is an
+   ordered list so the sequence survives without CSS. */
+.console-graph {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  margin: 0 0 12px;
+  padding: 0;
+  list-style: none;
+  gap: 4px;
+}
+
+.console-graph__node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.console-graph__channel {
+  padding: 4px 10px;
+  font-weight: 600;
+  background: var(--bp-surface-background-color-subtle-rest, #f6f7f9);
+  border: 1px solid var(--bp-surface-border-color-default, rgba(17, 20, 24, 0.15));
+  border-radius: 2px;
+}
+
+.console-graph__transition {
+  display: flex;
+  align-items: center;
+  padding: 2px 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 2px;
+  cursor: pointer;
+  gap: 4px;
+}
+
+.console-graph__transition:hover { background: rgba(17, 20, 24, 0.05); }
+
+.console-graph__transition--selected {
+  border-color: #2d72d2;
+  background: rgba(45, 114, 210, 0.1);
+}
+
+.console-graph__arrow { color: var(--bp-typography-color-muted, #5f6b7c); }

@@ -8,8 +8,8 @@ import { usePlans } from "../../api/resources.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
-import { HealthTag, LifecycleTag } from "../fleet/statusTags.js";
-import { PlanStatusTag } from "../plans/PlansPage.js";
+import { HealthTag, LifecycleTag } from "../../components/statusTags.js";
+import { PlanStatusTag } from "../../components/PlanStatusTag.js";
 import "./environments.css";
 
 /** Environment detail -- P0: "What is happening in this Environment?"

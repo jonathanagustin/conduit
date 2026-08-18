@@ -25,12 +25,27 @@
 // this compares them the way `verify-console-contract.mjs` compares status
 // vocabularies -- by reading the Go source as text, which needs no toolchain.
 //
-// Deliberately NOT checked here: whether one feature imports another. Three
-// such imports exist today (products -> promotions, environments -> fleet,
-// environments -> plans). Forbidding them is a refactor of `web/src`, and a
-// refactor of `web/src` regenerates the committed bundle in
-// `internal/consoleui/dist`. That is a design decision with a build artifact
-// attached, not a gate.
+// The fifth rule -- one feature may not import another -- was deliberately left
+// out of the first version of this file, because four such imports existed
+// (products -> promotions twice, environments -> fleet, environments -> plans)
+// and forbidding them meant a refactor of `web/src`, which regenerates the
+// committed bundle in `internal/consoleui/dist`. Stage 2 of
+// docs/ui/foundry-frontend-architecture.md did that refactor: `statusTags`,
+// `PlanStatusTag`, `ReleaseChannelGraph` and `TransitionDetail` are now in
+// `web/src/components/`, and the rule can be enforced.
+//
+// It is worth stating why it is a rule and not a preference. A feature that
+// imports another compiles, bundles, and renders. What it costs is paid later:
+// deleting or reshaping a screen becomes an archaeology exercise, because the
+// screen was also somebody's component library. Layering (rule 1) cannot catch
+// it -- `features` importing `features` is a same-layer import, which is legal
+// by construction. Only a sibling rule can.
+//
+// `web/src/features/useIndexQuery.ts` sits directly in `features/`, not in a
+// feature, and is imported by nine screens. That is shared feature-layer logic
+// rather than a cross-feature reach, so it is allowed: the rule compares the
+// *feature directory*, and a file with no feature directory has none to differ
+// from.
 //
 // Runs offline against committed files and needs no credentials.
 import { readFileSync, readdirSync, statSync } from "node:fs";
@@ -148,6 +163,20 @@ const nameOf = (path) => {
   return segments.length === 1 ? rest : segments[0];
 };
 
+// --- rule 5: a feature may not import another feature ------------------------
+// The feature a path belongs to: the directory below `web/src/features/`.
+// `null` for anything else, including a file sitting directly in `features/`
+// (`useIndexQuery.ts`), which is shared feature-layer logic rather than a
+// feature of its own. Two `null`s never compare unequal below, so such a file
+// is reachable from every feature and can itself reach none.
+function featureOf(path) {
+  const rest = relative(SRC, path);
+  if (rest.startsWith("..")) return null;
+  const segments = rest.split(/[\\/]/);
+  if (segments[0] !== "features" || segments.length < 3) return null;
+  return segments[1];
+}
+
 // --- rule 3: every relative import resolves ---------------------------------
 // The console writes `.js` specifiers for `.tsx` sources, so a resolver that
 // only tried the literal path would call every one of them broken.
@@ -248,6 +277,18 @@ for (const file of files) {
         `layering: ${show(file)} (${nameOf(file)}) imports "${specifier}" from ` +
           `${nameOf(target)}; a lower layer may not depend on a higher one`,
       );
+      continue;
+    }
+
+    // Rule 5. Checked after layering so a single bad import is reported once,
+    // as the more specific of the two.
+    const from = featureOf(file);
+    const into = featureOf(target);
+    if (from !== null && into !== null && from !== into) {
+      failures.push(
+        `cross-feature import: ${show(file)} (features/${from}) imports "${specifier}" from ` +
+          `features/${into}; shared presentation belongs in web/src/components`,
+      );
     }
   }
 }
@@ -256,7 +297,13 @@ if (failures.length) {
   for (const failure of failures) console.error(`FAIL console boundaries: ${failure}`);
   process.exit(1);
 }
+// The feature count is reported because rule 5 is the one rule that can pass
+// vacuously: with one feature, or none, no import can cross. Printing the
+// number the rule ranged over means a tree that stopped having features reads
+// differently from a tree whose features stopped importing each other.
+const features = new Set(files.map(featureOf).filter((name) => name !== null));
 console.log(
   `PASS console boundaries: ${layeredFiles} layered sources, ${checkedImports} relative imports, ` +
+    `${features.size} features with no cross-feature import, ` +
     `console prefix "${prefixes[0]?.value}" agrees in ${prefixes.length} places`,
 );
