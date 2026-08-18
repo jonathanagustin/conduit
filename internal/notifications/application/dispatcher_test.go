@@ -368,3 +368,157 @@ func TestRunStopsWithItsContext(t *testing.T) {
 		t.Fatal("Run ignored its cancelled context")
 	}
 }
+
+// resolvingContacts is a DestinationResolver a test can point wherever it
+// likes, including at a failure.
+type resolvingContacts struct {
+	destinations map[domain.Recipient]domain.Destination
+	err          error
+	calls        int
+}
+
+var _ ports.DestinationResolver = (*resolvingContacts)(nil)
+
+func (contacts *resolvingContacts) DestinationFor(
+	_ context.Context, recipient domain.Recipient,
+) (domain.Destination, bool, error) {
+	contacts.calls++
+	if contacts.err != nil {
+		return domain.Destination{}, false, contacts.err
+	}
+	destination, found := contacts.destinations[recipient]
+	return destination, found, nil
+}
+
+func routingDispatcher(
+	t *testing.T, queue *fakeQueue, transport ports.Transport,
+	resolver ports.DestinationResolver,
+) *application.Dispatcher {
+	t.Helper()
+	built, err := application.NewDispatcher(queue, transport, &fixedClock{now: moment()},
+		application.DispatcherConfig{
+			LeaseDuration: 30 * time.Second, MaximumAttempts: 3,
+			BaseRetryDelay: 2 * time.Second, PollInterval: time.Millisecond,
+			Destinations: resolver,
+		})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return built
+}
+
+// The point of the address book, seen from the delivery path: the message the
+// transport is handed names the recipient rather than only the endpoint.
+func TestADeliveryCarriesTheRecipientsOwnDestination(t *testing.T) {
+	t.Parallel()
+	entry := deliverableEntry("nev-1", domain.ChannelEmail)
+	queue := &fakeQueue{rows: []*queuedEntry{{entry: entry, availableAt: moment()}}}
+	transport := &recordingTransport{}
+	resolver := &resolvingContacts{destinations: map[domain.Recipient]domain.Destination{
+		entry.Recipient: {Kind: domain.ContactEmail, Address: "alice@example.test"},
+	}}
+	if err := routingDispatcher(t, queue, transport, resolver).Drain(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(transport.delivered) != 1 {
+		t.Fatalf("the transport was handed %d messages, want 1", len(transport.delivered))
+	}
+	if got := transport.delivered[0].Destination; got.Address != "alice@example.test" ||
+		got.Kind != domain.ContactEmail {
+		t.Fatalf("the message named destination %+v, want the recipient's own contact", got)
+	}
+}
+
+// The fallback, stated as a test so nobody has to take the comment's word for
+// it: a recipient with no contact still delivers, and names no destination, so
+// the transport sends where its operator configured it to.
+func TestARecipientWithNoContactFallsBackToTheConfiguredEndpoint(t *testing.T) {
+	t.Parallel()
+	entry := deliverableEntry("nev-1", domain.ChannelEmail)
+	queue := &fakeQueue{rows: []*queuedEntry{{entry: entry, availableAt: moment()}}}
+	transport := &recordingTransport{}
+	resolver := &resolvingContacts{destinations: map[domain.Recipient]domain.Destination{}}
+	if err := routingDispatcher(t, queue, transport, resolver).Drain(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(transport.delivered) != 1 {
+		t.Fatalf("a recipient with no contact was not delivered at all: %d messages", len(transport.delivered))
+	}
+	if transport.delivered[0].Destination.Named() {
+		t.Fatalf("a recipient with no contact was given destination %+v",
+			transport.delivered[0].Destination)
+	}
+	if queue.rows[0].deliveredAt.IsZero() {
+		t.Error("the fallback delivery was not recorded as delivered")
+	}
+}
+
+// A dispatcher with no address book at all is the deployment every Hub was
+// before contacts existed, and it must be unchanged rather than broken.
+func TestADispatcherWithNoAddressBookDeliversExactlyAsBefore(t *testing.T) {
+	t.Parallel()
+	queue := &fakeQueue{rows: []*queuedEntry{
+		{entry: deliverableEntry("nev-1", domain.ChannelEmail), availableAt: moment()},
+	}}
+	transport := &recordingTransport{}
+	if err := dispatcher(t, queue, transport, &fixedClock{now: moment()}).Drain(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(transport.delivered) != 1 || transport.delivered[0].Destination.Named() {
+		t.Fatalf("a dispatcher with no resolver delivered %#v", transport.delivered)
+	}
+}
+
+// The one case where falling back would be wrong. A store that could not be
+// read is not a recipient with no address, and delivering to the operator's
+// endpoint on a failed query would send a person's notification somewhere they
+// did not choose. The entry is retried instead, and nothing is sent.
+func TestAnUnreadableAddressBookRetriesRatherThanDeliveringElsewhere(t *testing.T) {
+	t.Parallel()
+	entry := deliverableEntry("nev-1", domain.ChannelEmail)
+	queue := &fakeQueue{rows: []*queuedEntry{{entry: entry, availableAt: moment()}}}
+	transport := &recordingTransport{}
+	resolver := &resolvingContacts{err: errors.New("connection reset by peer")}
+	if err := routingDispatcher(t, queue, transport, resolver).Drain(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if len(transport.delivered) != 0 {
+		t.Fatalf("a delivery was sent with an unresolved destination: %#v", transport.delivered)
+	}
+	row := queue.rows[0]
+	if !row.deliveredAt.IsZero() {
+		t.Fatal("an entry nobody received was recorded as delivered")
+	}
+	if row.exhausted {
+		t.Fatal("one unreadable read out of three attempts exhausted the budget")
+	}
+	if want := moment().Add(2 * time.Second); !row.availableAt.Equal(want) {
+		t.Errorf("the retry is due at %s, want the base delay at %s", row.availableAt, want)
+	}
+	if !strings.Contains(row.lastError, "resolve destination") {
+		t.Errorf("the recorded reason does not say what failed: %q", row.lastError)
+	}
+	// The reason must not name the transport, which was never asked.
+	if strings.Contains(row.lastError, "recording transport") {
+		t.Errorf("a resolver failure was recorded against the transport: %q", row.lastError)
+	}
+}
+
+// A resolver failure that outlasts the budget becomes terminal, like every
+// other repeated failure: the alternative is an entry retried forever.
+func TestARepeatedlyUnreadableAddressBookExhaustsItsBudget(t *testing.T) {
+	t.Parallel()
+	entry := deliverableEntry("nev-1", domain.ChannelEmail)
+	queue := &fakeQueue{rows: []*queuedEntry{{entry: entry, availableAt: moment()}}}
+	resolver := &resolvingContacts{err: errors.New("connection reset by peer")}
+	dispatch := routingDispatcher(t, queue, &recordingTransport{}, resolver)
+	for attempt := 0; attempt < 3; attempt++ {
+		queue.rows[0].availableAt = moment()
+		if _, err := dispatch.DeliverOne(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !queue.rows[0].exhausted {
+		t.Fatal("three failed resolutions out of a budget of three left the entry pending")
+	}
+}

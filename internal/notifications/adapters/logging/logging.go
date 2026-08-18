@@ -43,6 +43,13 @@ func (transport *Transport) Name() string { return "log" }
 // retried. A logger that dropped records would make that a lie, which is why
 // the summary and the recipient are attributes rather than an interpolated
 // message -- a handler that samples or truncates does so visibly.
+//
+// The record names the kind of destination this delivery resolved to and never
+// the address. An operator needs to be able to tell a delivery that found the
+// recipient's own contact from one that fell back to the configured endpoint,
+// and an empty destinationKind says which; writing the address itself into a
+// log that is shipped, indexed and retained by systems this decision cannot see
+// would be the one thing this whole change must not do.
 func (transport *Transport) Deliver(_ context.Context, message domain.Message) error {
 	transport.logger.Info("notification delivered",
 		"event", message.EventID,
@@ -52,6 +59,7 @@ func (transport *Transport) Deliver(_ context.Context, message domain.Message) e
 		"ownerKind", string(message.Recipient.Owner.Kind),
 		"owner", message.Recipient.Owner.ID,
 		"channel", string(message.Recipient.Channel),
+		"destinationKind", string(message.Destination.Kind),
 		"subject", message.Subject,
 		"occurredAt", message.OccurredAt,
 	)

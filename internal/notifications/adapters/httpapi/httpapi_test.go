@@ -114,15 +114,61 @@ func (store *memoryStore) EventsForResource(
 	return found, nil
 }
 
+// memoryContacts is the address book with the database taken out, keyed on the
+// same (owner, kind) tuple the PostgreSQL primary key uses.
+type memoryContacts struct {
+	rows map[string]domain.Contact
+}
+
+var _ ports.Contacts = (*memoryContacts)(nil)
+
+func contactKey(owner domain.Owner, kind domain.ContactKind) string {
+	return string(owner.Kind) + "\x00" + owner.ID + "\x00" + string(kind)
+}
+
+func (contacts *memoryContacts) SaveContact(_ context.Context, contact domain.Contact) error {
+	if err := contact.Validate(); err != nil {
+		return err
+	}
+	contacts.rows[contactKey(contact.Owner, contact.Kind)] = contact
+	return nil
+}
+
+func (contacts *memoryContacts) ContactsFor(
+	_ context.Context, owner domain.Owner,
+) ([]domain.Contact, error) {
+	held := []domain.Contact{}
+	for _, kind := range []domain.ContactKind{
+		domain.ContactEmail, domain.ContactPagerDuty, domain.ContactSlack,
+	} {
+		if contact, found := contacts.rows[contactKey(owner, kind)]; found {
+			held = append(held, contact)
+		}
+	}
+	return held, nil
+}
+
+func (contacts *memoryContacts) DeleteContact(
+	_ context.Context, owner domain.Owner, kind domain.ContactKind,
+) (bool, error) {
+	key := contactKey(owner, kind)
+	if _, found := contacts.rows[key]; !found {
+		return false, nil
+	}
+	delete(contacts.rows, key)
+	return true, nil
+}
+
 // harness mounts the routes over a store, with identity and authorization
 // answered by the test rather than by Governance -- the point being that this
 // package's refusals must not depend on which of them said no.
 type harness struct {
-	handler http.Handler
-	store   *memoryStore
-	caller  Principal
-	denyRID map[string]bool
-	resolve func(*http.Request) (Principal, error)
+	handler  http.Handler
+	store    *memoryStore
+	contacts *memoryContacts
+	caller   Principal
+	denyRID  map[string]bool
+	resolve  func(*http.Request) (Principal, error)
 }
 
 func newHarness(t *testing.T, caller Principal) *harness {
@@ -136,10 +182,15 @@ func newHarness(t *testing.T, caller Principal) *harness {
 	if err != nil {
 		t.Fatal(err)
 	}
-	test := &harness{store: store, caller: caller, denyRID: map[string]bool{}}
+	book := &memoryContacts{rows: map[string]domain.Contact{}}
+	contacts, err := application.NewContacts(book, fixedAt{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	test := &harness{store: store, contacts: book, caller: caller, denyRID: map[string]bool{}}
 	mux := http.NewServeMux()
 	if err := Register(mux, Config{
-		Reader: reader, Preferences: preferences,
+		Reader: reader, Preferences: preferences, Contacts: contacts,
 		Resolve: func(request *http.Request) (Principal, error) {
 			if test.resolve != nil {
 				return test.resolve(request)
@@ -195,6 +246,18 @@ func (test *harness) seedPreference(t *testing.T, owner domain.Owner, channel do
 	}
 }
 
+func (test *harness) seedContact(
+	t *testing.T, owner domain.Owner, kind domain.ContactKind, address string,
+) {
+	t.Helper()
+	if err := test.contacts.SaveContact(context.Background(), domain.Contact{
+		ID: application.ContactID(owner, kind), Owner: owner, Kind: kind,
+		Address: address, CreatedAt: at(), UpdatedAt: at(),
+	}); err != nil {
+		t.Fatal(err)
+	}
+}
+
 func alice() Principal { return Principal{Username: "alice", Teams: []string{"platform"}} }
 
 func user(name string) domain.Owner {
@@ -214,6 +277,7 @@ func TestAPrincipalIsRefusedAnotherPrincipalsInboxAndPreference(t *testing.T) {
 	bob := user("bob")
 	test.seedEntry(t, bob, domain.ChannelEmail, "nev-bob")
 	test.seedPreference(t, bob, domain.ChannelEmail)
+	test.seedContact(t, bob, domain.ContactEmail, "bob@example.test")
 
 	for _, refusal := range []struct {
 		name, method, target, body string
@@ -254,6 +318,30 @@ func TestAPrincipalIsRefusedAnotherPrincipalsInboxAndPreference(t *testing.T) {
 				`{"owner":{"kind":"TEAM","id":"security"},"resourceRid":%q,"channel":"EMAIL","allFutureTypes":true,"contactId":"contact-1"}`,
 				resource),
 		},
+		{
+			name:   "reading another user's contacts",
+			method: http.MethodGet,
+			target: "/v1/notifications/contacts?ownerKind=USER&ownerId=bob",
+		},
+		{
+			name:   "writing another user's contact",
+			method: http.MethodPut,
+			target: "/v1/notifications/contacts",
+			body: `{"owner":{"kind":"USER","id":"bob"},"kind":"EMAIL",` +
+				`"address":"attacker@example.test"}`,
+		},
+		{
+			name:   "writing a contact for a team the caller is not on",
+			method: http.MethodPut,
+			target: "/v1/notifications/contacts",
+			body: `{"owner":{"kind":"TEAM","id":"security"},"kind":"SLACK",` +
+				`"address":"#attacker-channel"}`,
+		},
+		{
+			name:   "deleting another user's contact",
+			method: http.MethodDelete,
+			target: "/v1/notifications/contacts?ownerKind=USER&ownerId=bob&kind=EMAIL",
+		},
 	} {
 		t.Run(refusal.name, func(t *testing.T) {
 			response := test.do(refusal.method, refusal.target, refusal.body)
@@ -264,7 +352,8 @@ func TestAPrincipalIsRefusedAnotherPrincipalsInboxAndPreference(t *testing.T) {
 			// A refusal that leaked the thing it refused would be worse than
 			// none, because the caller would have what they asked for and a
 			// status code saying they did not.
-			if strings.Contains(response.Body.String(), "nev-bob") {
+			if strings.Contains(response.Body.String(), "nev-bob") ||
+				strings.Contains(response.Body.String(), "bob@example.test") {
 				t.Fatalf("%s refused and disclosed anyway: %s", refusal.name, response.Body.String())
 			}
 		})
@@ -278,6 +367,19 @@ func TestAPrincipalIsRefusedAnotherPrincipalsInboxAndPreference(t *testing.T) {
 	}
 	if len(stored) != 1 || stored[0].Owner != bob || stored[0].AllFutureTypes {
 		t.Fatalf("a refused write changed stored state: %#v", stored)
+	}
+	// Nor his address, which is the one a refusal that failed would not merely
+	// have leaked: it would have redirected his mail to whoever wrote it.
+	held, err := test.contacts.ContactsFor(context.Background(), bob)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(held) != 1 || held[0].Address != "bob@example.test" {
+		t.Fatalf("a refused contact write changed where bob is reached: %#v", held)
+	}
+	if _, found := test.contacts.rows[contactKey(
+		domain.Owner{Kind: domain.PrincipalTeam, ID: "security"}, domain.ContactSlack)]; found {
+		t.Fatal("a refused write created a contact for a team the caller is not on")
 	}
 }
 
@@ -627,6 +729,7 @@ func TestAnUnservedMethodOrPathUnderThePrefixIsAnsweredHere(t *testing.T) {
 		{http.MethodDelete, "/v1/notifications/inbox", http.StatusMethodNotAllowed, "GET"},
 		{http.MethodPost, "/v1/notifications/preferences", http.StatusMethodNotAllowed, "GET, PUT"},
 		{http.MethodPut, "/v1/notifications/events", http.StatusMethodNotAllowed, "GET"},
+		{http.MethodPost, "/v1/notifications/contacts", http.StatusMethodNotAllowed, "GET, PUT, DELETE"},
 		{http.MethodGet, "/v1/notifications/outbox", http.StatusNotFound, ""},
 	} {
 		response := test.do(unsupported.method, unsupported.target, "")
@@ -663,5 +766,160 @@ func TestAnOwnerIsTrimmedOnBothTheQueryAndTheBodyPath(t *testing.T) {
 	decode(t, response, &written)
 	if written.Owner != user("alice") {
 		t.Fatalf("a padded owner was stored as %#v", written.Owner)
+	}
+}
+
+// The routes are usable by the person they belong to, which is what makes the
+// refusals above about identity rather than about the surface being inert.
+func TestAContactRoundTripsForItsOwnerAndItsTeam(t *testing.T) {
+	t.Parallel()
+	test := newHarness(t, alice())
+
+	written := test.do(http.MethodPut, "/v1/notifications/contacts",
+		`{"kind":"EMAIL","address":"alice@example.test"}`)
+	if written.Code != http.StatusOK {
+		t.Fatalf("alice was refused her own contact: %d %s", written.Code, written.Body.String())
+	}
+	var stored domain.Contact
+	decode(t, written, &stored)
+	if stored.Owner != user("alice") {
+		t.Errorf("a write with no owner named did not default to the caller: %#v", stored.Owner)
+	}
+	if stored.ID != application.ContactID(user("alice"), domain.ContactEmail) {
+		t.Errorf("the contact was minted as %q rather than from its (owner, kind)", stored.ID)
+	}
+	if stored.Address != "alice@example.test" {
+		t.Errorf("the address did not survive the round trip: %q", stored.Address)
+	}
+
+	// A team she is on, named explicitly, which is the parameter that has to be
+	// refused when it names a team she is not on.
+	team := domain.Owner{Kind: domain.PrincipalTeam, ID: "platform"}
+	if response := test.do(http.MethodPut, "/v1/notifications/contacts",
+		`{"owner":{"kind":"TEAM","id":"platform"},"kind":"SLACK","address":"#platform-alerts",`+
+			`"optIntoFutureResources":true}`); response.Code != http.StatusOK {
+		t.Fatalf("a member was refused their own team's contact: %d %s",
+			response.Code, response.Body.String())
+	}
+
+	read := test.do(http.MethodGet, "/v1/notifications/contacts?ownerKind=TEAM&ownerId=platform", "")
+	if read.Code != http.StatusOK {
+		t.Fatalf("reading the team's contacts answered %d: %s", read.Code, read.Body.String())
+	}
+	var listed struct {
+		Owner    domain.Owner     `json:"owner"`
+		Contacts []domain.Contact `json:"contacts"`
+	}
+	decode(t, read, &listed)
+	if listed.Owner != team || len(listed.Contacts) != 1 {
+		t.Fatalf("the team's address book read back as %#v", listed)
+	}
+	if listed.Contacts[0].Address != "#platform-alerts" || !listed.Contacts[0].OptIntoFutureResources {
+		t.Errorf("the stored contact read back as %#v", listed.Contacts[0])
+	}
+
+	deleted := test.do(http.MethodDelete,
+		"/v1/notifications/contacts?ownerKind=TEAM&ownerId=platform&kind=SLACK", "")
+	if deleted.Code != http.StatusOK {
+		t.Fatalf("deleting the team's contact answered %d: %s", deleted.Code, deleted.Body.String())
+	}
+	if len(test.contacts.rows) != 1 {
+		t.Fatalf("the deletion left %d contacts", len(test.contacts.rows))
+	}
+	if again := test.do(http.MethodDelete,
+		"/v1/notifications/contacts?ownerKind=TEAM&ownerId=platform&kind=SLACK", ""); again.Code != http.StatusNotFound {
+		t.Errorf("deleting an absent contact answered %d, want %d", again.Code, http.StatusNotFound)
+	}
+}
+
+// A contact is not about a resource, so Governance is not asked about one. The
+// owner check is the whole authorization, which is exactly why the refusal test
+// above enumerates every way of naming somebody else.
+func TestAContactIsNotGatedOnAnyResource(t *testing.T) {
+	t.Parallel()
+	test := newHarness(t, alice())
+	test.denyRID[resource] = true
+	if response := test.do(http.MethodPut, "/v1/notifications/contacts",
+		`{"kind":"EMAIL","address":"alice@example.test"}`); response.Code != http.StatusOK {
+		t.Fatalf("a contact write was refused for a resource it never named: %d %s",
+			response.Code, response.Body.String())
+	}
+}
+
+// The address must not leave through any door but the one it came in. A body
+// that fails to parse is the door most likely to be left open, because the
+// decoder's own message quotes what it choked on.
+func TestARefusedContactBodyIsNotEchoedBack(t *testing.T) {
+	t.Parallel()
+	test := newHarness(t, alice())
+	for name, body := range map[string]string{
+		"not an object":  `["alice@example.test"]`,
+		"unknown field":  `{"kind":"EMAIL","email":"alice@example.test"}`,
+		"truncated":      `{"kind":"EMAIL","address":"alice@example.test"`,
+		"wrongly shaped": `{"kind":"EMAIL","address":{"value":"alice@example.test"}}`,
+	} {
+		response := test.do(http.MethodPut, "/v1/notifications/contacts", body)
+		if response.Code != http.StatusBadRequest {
+			t.Errorf("%s answered %d, want %d", name, response.Code, http.StatusBadRequest)
+		}
+		if strings.Contains(response.Body.String(), "alice@example.test") {
+			t.Errorf("%s echoed the address back in its refusal: %s", name, response.Body.String())
+		}
+	}
+	// A kind Apollo does not offer is refused too, and by name -- a kind is not
+	// personal data and a caller who mistyped one deserves to be told.
+	unknown := test.do(http.MethodPut, "/v1/notifications/contacts",
+		`{"kind":"CARRIER_PIGEON","address":"alice@example.test"}`)
+	if unknown.Code != http.StatusUnprocessableEntity {
+		t.Errorf("an unknown kind answered %d, want %d", unknown.Code, http.StatusUnprocessableEntity)
+	}
+	if !strings.Contains(unknown.Body.String(), "CARRIER_PIGEON") {
+		t.Errorf("the refusal does not say which kind was refused: %s", unknown.Body.String())
+	}
+	if strings.Contains(unknown.Body.String(), "alice@example.test") {
+		t.Errorf("an unknown kind was refused with the address attached: %s", unknown.Body.String())
+	}
+	if len(test.contacts.rows) != 0 {
+		t.Fatalf("a refused write reached the store: %#v", test.contacts.rows)
+	}
+}
+
+// A Hub whose notification component has no address book serves no contact
+// routes, and says so as 404 rather than 405 -- the route does not exist there,
+// and telling a caller they used the wrong verb would be a lie.
+func TestWithNoAddressBookTheContactRoutesDoNotExist(t *testing.T) {
+	t.Parallel()
+	store := newStore()
+	reader, err := application.NewReader(store)
+	if err != nil {
+		t.Fatal(err)
+	}
+	preferences, err := application.NewPreferences(store, fixedAt{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	mux := http.NewServeMux()
+	if err := Register(mux, Config{
+		Reader: reader, Preferences: preferences,
+		Resolve:   func(*http.Request) (Principal, error) { return alice(), nil },
+		Authorize: func(context.Context, Principal, string, string) bool { return true },
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, method := range []string{http.MethodGet, http.MethodPut, http.MethodDelete} {
+		request := httptest.NewRequest(method, "/v1/notifications/contacts", strings.NewReader(""))
+		response := httptest.NewRecorder()
+		mux.ServeHTTP(response, request)
+		if response.Code != http.StatusNotFound {
+			t.Errorf("%s answered %d with no address book, want %d",
+				method, response.Code, http.StatusNotFound)
+		}
+	}
+	// And the routes that do exist are unaffected.
+	request := httptest.NewRequest(http.MethodGet, "/v1/notifications/inbox?channel=EMAIL", strings.NewReader(""))
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Errorf("the inbox answered %d with no address book", response.Code)
 	}
 }
