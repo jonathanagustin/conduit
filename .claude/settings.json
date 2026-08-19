@@ -35,7 +35,8 @@
       "Bash(gh label delete:*)",
       "Bash(gh pr merge:*)",
       "Bash(gh pr close:*)",
-      "Bash(gh repo delete:*)"
+      "Bash(gh repo delete:*)",
+      "mcp__github__merge_pull_request"
     ]
   }
 }
