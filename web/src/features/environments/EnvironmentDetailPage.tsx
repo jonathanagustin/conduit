@@ -20,6 +20,21 @@ import "./environments.css";
  * upstream has one would be a claim this Hub cannot honour. Plans is here in
  * place of upstream's Changes tab and is separately evidenced by capture 058,
  * an Environment-level Plans view. */
+// mirroredSourceNotice explains, in one sentence, that another Hub owns this
+// Environment's settings -- so an operator does not read local values as
+// authoritative or try to edit a read-only mirror. EDIT_ON_THIS_HUB (this Hub is
+// authoritative) and an unset source get no notice.
+function mirroredSourceNotice(source: string | undefined): string | undefined {
+  switch (source) {
+    case "COPY_OF_ANOTHER_HUB":
+      return "This Environment is a read-only copy of another Hub. Its settings mirror the upstream and cannot be edited here.";
+    case "EDIT_ON_ANOTHER_HUB":
+      return "This Environment's settings are owned by another Hub. Local changes are break-glass only and are not authoritative.";
+    default:
+      return undefined;
+  }
+}
+
 export function EnvironmentDetailPage() {
   const { environmentId = "" } = useParams();
   const [tab, setTab] = useState<string>("overview");
@@ -65,6 +80,16 @@ export function EnvironmentDetailPage() {
               ) : null}
             </section>
           ) : null}
+          {mirroredSourceNotice(record.environment.declaredStateSource) === undefined ? null : (
+            <Callout
+              intent="primary"
+              icon="git-repo"
+              compact
+              data-testid="environment-source-notice"
+            >
+              {mirroredSourceNotice(record.environment.declaredStateSource)}
+            </Callout>
+          )}
 
           <Tabs
             id="environment-tabs"
