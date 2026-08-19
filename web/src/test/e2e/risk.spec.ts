@@ -57,6 +57,22 @@ test.describe("Risk Management", () => {
     expect(hub.requests().filter((request) => request.startsWith("GET /v1/catalog-retirements")).length).toBe(1);
   });
 
+  test("frames the inline detail as a real Blueprint Section with a 4px corner", async ({ page, hub }) => {
+    // The detail panel is a Blueprint Section now, not a bare <section>, so its
+    // 4px corner comes from --bp-surface-border-radius rather than a radius rule
+    // on raw HTML -- the same primitive the products detail panels use. It stays
+    // inline and nonmodal, so the row context is preserved.
+    hub.get("/catalog-retirements", { retirements: [SECURITY_RECALL] });
+    await page.goto("risk");
+    const risk = new RiskPom(page);
+
+    await risk.recall("rcl_security").click();
+    await expect(risk.detail).toHaveClass(/bp6-section/);
+    await expect
+      .poll(() => risk.detail.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
+      .toBe("4px");
+  });
+
   test("distinguishes an active recall from a reverted one", async ({ page, hub }) => {
     hub.get("/catalog-retirements", {
       retirements: [SECURITY_RECALL, { ...MANUAL_RECALL, reverted: true }],

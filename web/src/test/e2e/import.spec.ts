@@ -73,6 +73,22 @@ test.describe("Import", () => {
     expect(hub.requests().filter((request) => request.startsWith("GET /v1/bundle-imports")).length).toBe(1);
   });
 
+  test("frames the inline detail as a real Blueprint Section with a 4px corner", async ({ page, hub }) => {
+    // The detail panel is a Blueprint Section now, not a bare <section>, so its
+    // 4px corner comes from --bp-surface-border-radius rather than a radius rule
+    // on raw HTML -- the same primitive the products detail panels use. It stays
+    // inline and nonmodal, so the row context is preserved.
+    hub.get("/bundle-imports", { imports: [ADMITTED_IMPORT] });
+    await page.goto("import");
+    const imports = new ImportPom(page);
+
+    await imports.record("imp_ok").click();
+    await expect(imports.detail).toHaveClass(/bp6-section/);
+    await expect
+      .poll(() => imports.detail.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
+      .toBe("4px");
+  });
+
   test("shows why a failed import failed, at the import and the task", async ({ page, hub }) => {
     hub.get("/bundle-imports", { imports: [ERRORED_IMPORT] });
     await page.goto("import");

@@ -127,8 +127,20 @@ function pipelineMatches(pipeline: ExportPipeline, term: string): boolean {
 function PipelineDetail({ pipeline }: { pipeline: ExportPipeline }) {
   const guarantees = pipelineGuarantees(pipeline);
   return (
-    <section className="console-exports__detail" aria-labelledby="pipeline-detail-title" data-testid="pipeline-detail">
-      <h2 id="pipeline-detail-title">{pipeline.displayName === "" ? pipeline.id : pipeline.displayName}</h2>
+    // A real Blueprint Section, not a bare <section>: the panel's white surface,
+    // 1px hairline and 4px corner now come from the primitive
+    // (--bp-surface-border-radius), matching the products detail panels, instead
+    // of a border/radius rule on raw HTML. It stays inline and nonmodal -- the
+    // selected row's context is preserved, so this is a primitive swap, not a
+    // dialog.
+    <Section
+      className="console-exports__detail"
+      compact
+      title={pipeline.displayName === "" ? pipeline.id : pipeline.displayName}
+      titleRenderer={H2}
+      data-testid="pipeline-detail"
+    >
+      <SectionCard>
       <section aria-labelledby="pipeline-selections-title" data-testid="pipeline-selections">
         <h3 id="pipeline-selections-title">Selections</h3>
         {pipeline.selections.length === 0 ? (
@@ -170,6 +182,7 @@ function PipelineDetail({ pipeline }: { pipeline: ExportPipeline }) {
           </div>
         ) : null}
       </dl>
-    </section>
+      </SectionCard>
+    </Section>
   );
 }

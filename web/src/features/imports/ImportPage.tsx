@@ -118,8 +118,20 @@ function importMatches(record: BundleImport, term: string): boolean {
 function ImportDetail({ record }: { record: BundleImport }) {
   const tasks = [...record.tasks].sort((left, right) => left.sequence - right.sequence);
   return (
-    <section className="console-imports__detail" aria-labelledby="import-detail-title" data-testid="import-detail">
-      <h2 id="import-detail-title">Import of {record.bundleId}</h2>
+    // A real Blueprint Section, not a bare <section>: the panel's white surface,
+    // 1px hairline and 4px corner now come from the primitive
+    // (--bp-surface-border-radius), matching the products detail panels, instead
+    // of a border/radius rule on raw HTML. It stays inline and nonmodal -- the
+    // selected row's context is preserved, so this is a primitive swap, not a
+    // dialog.
+    <Section
+      className="console-imports__detail"
+      compact
+      title={`Import of ${record.bundleId}`}
+      titleRenderer={H2}
+      data-testid="import-detail"
+    >
+      <SectionCard>
       <dl className="console-imports__meta">
         <div>
           <dt>Manifest digest</dt>
@@ -170,6 +182,7 @@ function ImportDetail({ record }: { record: BundleImport }) {
           ))}
         </ol>
       )}
-    </section>
+      </SectionCard>
+    </Section>
   );
 }

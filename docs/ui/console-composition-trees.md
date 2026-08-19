@@ -38,9 +38,12 @@ change-requests, exports, imports, risk, notifications, teams -- were adjusted b
 #285 (corners onto Blueprint primitives, the rem ladder onto the decimal
 5/10/15/20 rhythm). The trees below reflect that merged state: the plans
 diagnostics panel is a real `Section` (4px), and the exports/imports/risk inline
-detail insets are on the px ladder. What #285 did **not** change -- and Finding
-4 below still records -- is that those three inline detail panels remain plain
-`<section>` elements rather than Blueprint `Section`s.
+detail insets are on the px ladder. The two residual divergences #285 left --
+the exports/imports/risk inline detail panels remaining plain `<section>`
+elements (Finding 4), and the change-requests index lacking an `ObjectHeader` and
+`H2` list title (Finding 1) -- have since been closed: those three detail panels
+are now real Blueprint `Section`/`SectionCard`, and change-requests carries the
+shared chrome. The trees and findings below record that resolved state.
 
 ---
 
@@ -259,13 +262,15 @@ labelled a Conduit extension in its own banner. No `ObjectHeader`.
 
 ### list — `ChangeRequestsPage.tsx`
 
-The inbox: requests awaiting approval sort first. This index has **no
-`ObjectHeader`** and titles its `Section` without an `H2` renderer — see findings.
+The inbox: requests awaiting approval sort first. This index now mounts the
+shared `ObjectHeader` and titles its `Section` with the shared `H2` renderer, in
+line with every other index screen (Finding 1, resolved).
 
 ```
 [shared] AppFrame / AppHeader / NavigationRail
 └─ [console] ChangeRequestsPage (review queue)
-   └─ [console] Index panel  →  [BP] Section (compact, icon inbox, title "Change Requests"; default heading, no H2 renderer) + SectionCard (padded=false)
+   ├─ [shared] ObjectHeader (icon inbox, kind "Resource collection", title "Change Requests")
+   └─ [console] Index panel  →  [BP] Section (compact, icon inbox, title "Change Requests" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search)
       ├─ [console] ChangeRequestsTable  →  [BP] HTMLTable (interactive, striped) → Link + ChangeStatusTag (Tag) + Tag (outstanding count, warning)
       └─ [components] IndexPagination
@@ -302,8 +307,8 @@ inline; there is no build-history endpoint, so none is shown.
    └─ [console] Index panel  →  [BP] Section (compact, icon export, title "Export pipelines" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search, local filter)
       ├─ [console] PipelinesTable  →  [BP] HTMLTable (interactive, striped) → Tag (status / build strategy / success guarantees); rows selectable, selected bg rgba(45,114,210,.15)
-      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-exports__detail, pad 20px, 1px top border)
-         └─ raw h2/h3 + <ul> selections (each with [BP] Tag) + <dl> meta grid minmax(16rem,1fr), gap 1rem
+      └─ [console] DetailPanel (inline, nonmodal)  →  [BP] Section + SectionCard (compact, title via H2, .console-exports__detail; 1px hairline + 4px corner from --bp-surface-border-radius)
+         └─ h3 + <ul> selections (each with [BP] Tag) + <dl> meta grid minmax(16rem,1fr), gap 16px
 ```
 
 ---
@@ -319,7 +324,7 @@ inline; there is no build-history endpoint, so none is shown.
    └─ [console] Index panel  →  [BP] Section (compact, icon import, title "Bundle imports" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search, local filter)
       ├─ [console] ImportsTable  →  [BP] HTMLTable (interactive, striped) → mono bundle cell + Link (environment) + Tag (status intent) + Timestamp; rows selectable
-      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-imports__detail, pad 20px, 1px top border)
+      └─ [console] DetailPanel (inline, nonmodal)  →  [BP] Section + SectionCard (compact, title via H2, .console-imports__detail; 1px hairline + 4px corner from --bp-surface-border-radius)
          └─ <dl> meta grid minmax(18rem,1fr) + Link (change request) + Timestamp; danger error <p> (#cd4246); h3 "Tasks" + <ol> → [BP] Tag (status) per stage
 ```
 
@@ -336,7 +341,7 @@ inline; there is no build-history endpoint, so none is shown.
    └─ [console] Index panel  →  [BP] Section (compact, icon shield, title "Recalls" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search, local filter)
       ├─ [console] RecallsTable  →  [BP] HTMLTable (interactive, striped) → SourceTag (Tag: SECURITY danger / MANUAL primary) + Tag (active warning / reverted); rows selectable
-      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-risk__detail, pad 20px, 1px top border)
+      └─ [console] DetailPanel (inline, nonmodal)  →  [BP] Section + SectionCard (compact, title via H2, .console-risk__detail; 1px hairline + 4px corner from --bp-surface-border-radius)
          └─ <dl> meta grid minmax(16rem,1fr) + Timestamp (freeze-until)
 ```
 
@@ -397,11 +402,13 @@ mobile-record reflow — see findings.
 These are read off the code, not the audit; each is a real divergence a reader
 of `console-visual-language.md` section 8 would not predict.
 
-1. **change-requests list has no `ObjectHeader`, and titles its `Section`
-   without the shared `H2` renderer.** Every other index screen (environments,
-   products, plans, exports, imports, risk, teams) mounts an `ObjectHeader` and
-   passes `titleRenderer={H2}` to its panel; `ChangeRequestsPage` does neither,
-   so its heading order differs from its siblings. (`ChangeRequestsPage.tsx`.)
+1. **~~change-requests list has no `ObjectHeader`, and titles its `Section`
+   without the shared `H2` renderer.~~ Resolved.** `ChangeRequestsPage` now
+   mounts the shared `ObjectHeader` (icon inbox, kind "Resource collection",
+   title "Change Requests") as its first child and passes `titleRenderer={H2}`
+   to its list `Section`, so its heading order matches every other index screen
+   (environments, products, plans, exports, imports, risk, teams).
+   (`ChangeRequestsPage.tsx`.)
 
 2. **change-requests is grouped under "review queue (row → inline detail)" in
    section 8, but the code routes to a full detail page.** The row is a `Link`
@@ -415,13 +422,16 @@ of `console-visual-language.md` section 8 would not predict.
    `TeamsPage` renders neither `IndexPagination` nor the `@≤767px` mobile-record
    reflow that the other list screens carry. It filters the loaded set locally.
 
-4. **The inline detail panels on exports, imports and risk are plain `<section>`
-   elements, not Blueprint `Section`/`SectionCard`.** They are correctly inline
-   and nonmodal (never a `Dialog` or docked pane), but their surface, border and
-   corners come from feature CSS on a raw `<section>` rather than from the
-   primitive — unlike the products detail panels, which are real Blueprint
-   `Section`s. Teams detail and the notifications preference metadata likewise
-   compose raw `<section>`/`<dl>` rather than Blueprint panels.
+4. **~~The inline detail panels on exports, imports and risk are plain
+   `<section>` elements, not Blueprint `Section`/`SectionCard`.~~ Resolved.**
+   Those three inline detail panels are now real Blueprint `Section`/`SectionCard`
+   (compact, title via `H2`), so their white surface, 1px hairline and 4px corner
+   come from the primitive (`--bp-surface-border-radius`), exactly as the products
+   detail panels do; the hand-rolled border/radius rules on the raw `<section>`
+   were removed. They remain correctly inline and nonmodal (never a `Dialog` or
+   docked pane). Teams detail and the notifications preference metadata still
+   compose raw `<section>`/`<dl>` rather than Blueprint panels — a smaller,
+   separate residual, not part of this change.
 
 5. **The `Dialog` gap is real and deliberate.** No screen renders a Blueprint
    `Dialog`; every contextual detail (products, exports, imports, risk,

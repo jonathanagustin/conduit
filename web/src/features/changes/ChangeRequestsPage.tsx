@@ -1,7 +1,8 @@
-import { Button, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@blueprintjs/core";
+import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@blueprintjs/core";
 import { Link } from "react-router-dom";
 
 import { useChangeRequests } from "../../api/resources.js";
+import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { ChangeStatusTag } from "./ChangeRequestDetailPage.js";
 import { IndexPagination } from "../../components/IndexPagination.js";
@@ -28,7 +29,12 @@ export function ChangeRequestsPage() {
         const ordered = orderInbox(page.changeRequests);
         return (
           <div data-testid="change-requests-page">
-            <Section className="console-index" compact icon="inbox" title="Change Requests">
+            {/* Mount the shared identity row and title the list Section with the
+                shared H2 renderer, so this index's chrome matches every other
+                index screen (environments, products, plans, exports, imports,
+                risk, teams) instead of diverging. */}
+            <ObjectHeader icon="inbox" kind="Resource collection" title="Change Requests" />
+            <Section className="console-index" compact icon="inbox" title="Change Requests" titleRenderer={H2}>
               <SectionCard padded={false}>
                 <form className="console-index-controls" role="search" onSubmit={index.applySearch}>
                   <InputGroup
