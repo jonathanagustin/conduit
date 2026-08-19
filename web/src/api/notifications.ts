@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 
-import { getJSON, putJSON } from "./client.js";
+import { deleteJSON, getJSON, putJSON } from "./client.js";
 import { ApiError } from "./errors.js";
 
 /** Notification transport.
@@ -199,6 +199,109 @@ export function useSavePreference() {
       await queries.invalidateQueries({
         queryKey: ["notifications", "preference", stored.resourceRid, stored.channel],
       });
+    },
+  });
+}
+
+/** A destination a team owns, matched to `domain.ContactKind`
+ * (internal/notifications/domain/notifications.go) by
+ * `scripts/verify-console-contract.mjs`. All three are creatable through the New
+ * Team Contact dialog; PAGERDUTY is the odd one out at delivery time, which
+ * `contactDeliverable` records rather than the console hiding a kind the Hub
+ * accepts. */
+export const TEAM_CONTACT_KINDS = ["EMAIL", "SLACK", "PAGERDUTY"] as const;
+
+export type TeamContactKind = (typeof TEAM_CONTACT_KINDS)[number];
+
+/** Whether the Hub delivers to a contact of this kind. A PAGERDUTY contact can
+ * be created and receives nothing -- this mirrors `ContactKind.Deliverable`
+ * (notifications.go), where the New Team Contact dialog offers PagerDuty while
+ * the team-notifications page says it is not delivered to. Surfacing the
+ * contradiction is the honest thing; resolving it by hiding the kind would
+ * diverge from the Hub, which still stores it. */
+export function contactDeliverable(kind: string): boolean {
+  return kind === "EMAIL" || kind === "SLACK";
+}
+
+/** A stored team contact, mirroring `domain.Contact`'s json tags. One exists per
+ * (owner, kind): saving a second of the same kind edits the first rather than
+ * adding a destination. */
+export interface TeamContact {
+  id: string;
+  owner: NotificationOwner;
+  kind: string;
+  address: string;
+  optIntoFutureResources?: boolean;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+/** The read envelope: `{owner, contacts}` from readContacts (httpapi.go). Go
+ * encodes an empty slice as null, so `contacts` is nullable exactly like the
+ * inbox's `entries`. */
+interface TeamContactsResponse {
+  owner: NotificationOwner;
+  contacts?: TeamContact[] | null;
+}
+
+/** What a caller may set, as `contactRequest` (httpapi.go) declares it: the
+ * identifier and the timestamps are minted by the application layer, and the
+ * decoder sets DisallowUnknownFields, so sending one back fails the write. */
+export interface TeamContactEdit {
+  team: string;
+  kind: TeamContactKind;
+  address: string;
+  optIntoFutureResources: boolean;
+}
+
+/** A team's contact methods, or an empty list when it has none.
+ *
+ * The route refuses an owner the caller does not belong to, so a 403 here is
+ * "you are not a member of this team" rather than a broken console -- the panel
+ * renders that as its own state. Any other status still throws. A team with no
+ * contacts answers `{"contacts":null}`, which normalises to an empty array so
+ * the first, most common state does not read as a failure. */
+export function useTeamContacts(team: string) {
+  return useQuery({
+    queryKey: ["notifications", "contacts", team],
+    enabled: team !== "",
+    queryFn: ({ signal }) =>
+      getJSON<TeamContactsResponse>("/notifications/contacts", {
+        signal,
+        query: { ownerKind: "TEAM", ownerId: team },
+      }).then((response) => response.contacts ?? []),
+  });
+}
+
+/** Create or replace one of a team's contacts, then re-read the list. The Hub
+ * mints the identifier and timestamps and enforces one-per-(owner, kind), so the
+ * panel shows what was stored rather than what was sent. */
+export function useSaveTeamContact(team: string) {
+  const queries = useQueryClient();
+  return useMutation({
+    mutationFn: (edit: TeamContactEdit) =>
+      putJSON<TeamContact>("/notifications/contacts", {
+        owner: { kind: "TEAM", id: edit.team },
+        kind: edit.kind,
+        address: edit.address,
+        optIntoFutureResources: edit.optIntoFutureResources,
+      }),
+    onSuccess: async () => {
+      await queries.invalidateQueries({ queryKey: ["notifications", "contacts", team] });
+    },
+  });
+}
+
+/** Remove one of a team's contacts by kind, then re-read the list. */
+export function useDeleteTeamContact(team: string) {
+  const queries = useQueryClient();
+  return useMutation({
+    mutationFn: (kind: string) =>
+      deleteJSON<{ deleted: boolean }>("/notifications/contacts", {
+        query: { ownerKind: "TEAM", ownerId: team, kind },
+      }),
+    onSuccess: async () => {
+      await queries.invalidateQueries({ queryKey: ["notifications", "contacts", team] });
     },
   });
 }

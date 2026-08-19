@@ -23,7 +23,13 @@ import { statusIntent } from "../../api/imports.js";
 import { findingScore, orderFindingsByHubScore } from "../../api/catalog.js";
 import type { VulnerabilityFinding } from "../../api/catalog.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
-import { NOTIFICATION_CHANNELS, NOTIFICATION_EVENT_TYPES, inboxPage } from "../../api/notifications.js";
+import {
+  NOTIFICATION_CHANNELS,
+  NOTIFICATION_EVENT_TYPES,
+  TEAM_CONTACT_KINDS,
+  contactDeliverable,
+  inboxPage,
+} from "../../api/notifications.js";
 import {
   deliversSomething,
   readChannel,
@@ -885,5 +891,22 @@ describe("Environment README Markdown", () => {
 
   it("treats emphasis markers inside a code span as literal", () => {
     expect(parseInline("`a * b`")).toEqual([{ kind: "code", text: "a * b" }]);
+  });
+});
+
+// Team contact kinds. The tab offers every kind the Hub accepts, and marks the
+// ones it will not deliver to rather than hiding them -- mirroring
+// ContactKind.Deliverable, where PAGERDUTY is creatable but undeliverable.
+describe("Team contact kinds", () => {
+  it("offers exactly the Hub's contact kinds", () => {
+    expect([...TEAM_CONTACT_KINDS]).toEqual(["EMAIL", "SLACK", "PAGERDUTY"]);
+  });
+
+  it("marks PAGERDUTY undeliverable while EMAIL and SLACK deliver", () => {
+    expect(contactDeliverable("EMAIL")).toBe(true);
+    expect(contactDeliverable("SLACK")).toBe(true);
+    expect(contactDeliverable("PAGERDUTY")).toBe(false);
+    // An unknown kind is not something the Hub delivers to either.
+    expect(contactDeliverable("CARRIER_PIGEON")).toBe(false);
   });
 });

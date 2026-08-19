@@ -227,6 +227,24 @@ const VOCABULARIES = [
     },
   },
   {
+    // The kinds the New Team Contact tab can create. The route validates the
+    // kind, so a console offering one the Hub never had turns Save into a 422,
+    // and a console missing one hides a destination the Hub still stores and
+    // delivers to. PAGERDUTY is deliberately in the set even though it is
+    // undeliverable, matching the Hub.
+    name: "team contact kind",
+    go: {
+      file: "internal/notifications/domain/notifications.go",
+      pattern: /\bContact\w+\s+ContactKind\s*=\s*"([A-Z_]+)"/g,
+    },
+    console: {
+      file: "web/src/api/notifications.ts",
+      start: /export const TEAM_CONTACT_KINDS[^[]*\[/,
+      end: /\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
+  {
     name: "session application ids",
     go: {
       file: "internal/controlplane/session.go",

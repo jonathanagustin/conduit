@@ -141,7 +141,7 @@ const PLAN = {
 };
 
 const ENVIRONMENT = {
-  environment: { id: "prod-use1", generation: "0123456789abcdef", connectionSetting: "DIRECT" },
+  environment: { id: "prod-use1", generation: "0123456789abcdef", connectionSetting: "DIRECT", defaultReleaseChannel: "RELEASE", declaredStateSource: "COPY_OF_ANOTHER_HUB" },
   reported: {
     environment: "prod-use1",
     agentId: "agent-prod",
@@ -219,7 +219,43 @@ function seed(hub: Parameters<Parameters<typeof test>[2]>[0]["hub"]) {
     entries: NOTIFICATIONS,
   });
   hub.get("/notifications/preferences", PREFERENCE);
+  hub.get("/teams", { teams: [PAYMENTS_TEAM] });
+  hub.get("/teams/payments", PAYMENTS_TEAM);
+  hub.get("/notifications/contacts", {
+    owner: { kind: "TEAM", id: "payments" },
+    contacts: TEAM_CONTACTS,
+  });
+  hub.get("/environments/prod-use1/profile", ENVIRONMENT_PROFILE);
 }
+
+const PAYMENTS_TEAM = {
+  name: "payments",
+  displayName: "Payments",
+  description: "Owns the payments Product line.",
+  adminUsers: ["a.okonkwo"],
+  adminGroups: ["payments-leads"],
+  memberUsers: ["s.mehta", "j.ruiz"],
+  memberGroups: ["payments-engineers"],
+  labels: { costCenter: "cc-42" },
+  createdAt: "2026-08-01T09:00:00Z",
+  updatedAt: "2026-08-07T12:00:00Z",
+  revision: 3,
+};
+
+const TEAM_CONTACTS = [
+  { id: "c-1", owner: { kind: "TEAM", id: "payments" }, kind: "EMAIL", address: "payments-oncall@example.test", optIntoFutureResources: true, createdAt: "2026-08-01T09:00:00Z" },
+  { id: "c-2", owner: { kind: "TEAM", id: "payments" }, kind: "SLACK", address: "#payments-alerts", createdAt: "2026-08-01T09:00:00Z" },
+  { id: "c-3", owner: { kind: "TEAM", id: "payments" }, kind: "PAGERDUTY", address: "PDABC123", createdAt: "2026-08-01T09:00:00Z" },
+];
+
+const ENVIRONMENT_PROFILE = {
+  environmentId: "prod-use1",
+  displayName: "Production — US East",
+  description: "Primary revenue-serving Environment for the payments product.",
+  ownerTeam: "payments",
+  readme:
+    "# Runbook\n\nPage the **on-call** before any change. See the [dashboards](https://example.test/dashboards).\n\n- Health checks run every 30s\n- Rollbacks are automatic on a failed canary\n\n```\nkubectl -n payments get pods\n```",
+};
 
 const NOTIFICATIONS = [
   {
@@ -276,6 +312,7 @@ const SCREENS: Array<{ name: string; path: string; ready: string }> = [
     path: "notifications?resourceRid=ri.apollo.main.environment.d41d8cd98f00",
     ready: "notifications-page",
   },
+  { name: "13-team-detail", path: "teams/payments", ready: "team-detail" },
 ];
 
 for (const screen of SCREENS) {
@@ -286,3 +323,14 @@ for (const screen of SCREENS) {
     await page.screenshot({ path: `screenshots/${screen.name}.png`, fullPage: true });
   });
 }
+
+// The team's Contacts tab is a click past the detail landing, so it gets its
+// own capture with the tab opened.
+test("capture 14-team-contacts", async ({ page, hub }) => {
+  seed(hub);
+  await page.goto("teams/payments");
+  await expect(page.getByTestId("team-detail")).toBeVisible();
+  await page.getByRole("tab", { name: "Contacts" }).click();
+  await expect(page.getByTestId("team-contacts")).toBeVisible();
+  await page.screenshot({ path: "screenshots/14-team-contacts.png", fullPage: true });
+});

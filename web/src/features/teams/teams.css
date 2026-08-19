@@ -36,3 +36,26 @@
 .console-teams__meta dt {
   font-weight: 600;
 }
+
+/* Contact-methods tab. The form sits under the list on the same 24px section
+   band as the overview sections; controls flow on the 8px control gap. */
+.console-teams__contacts {
+  margin-block-start: 16px;
+}
+
+.console-teams__contacts-table {
+  width: 100%;
+}
+
+.console-teams__contact-form {
+  margin-block-start: 24px;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.console-teams__contact-form h2 {
+  flex-basis: 100%;
+  margin: 0;
+}
