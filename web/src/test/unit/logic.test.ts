@@ -9,6 +9,7 @@ import {
   carriesRationale,
 } from "../../features/changes/review.js";
 import { countOf, relative } from "../../components/Timestamp.js";
+import { parseInline, parseMarkdown } from "../../components/Markdown.js";
 import { latestForChannel, orderChannels } from "../../components/ReleaseChannelGraph.js";
 import {
   boundFacetValues,
@@ -813,5 +814,76 @@ describe("fleet facet groups", () => {
       group.values.filter((value) => value.selected).map((value) => `${group.key}=${value.value}`),
     );
     expect(selected).toEqual(["health=UNHEALTHY"]);
+  });
+});
+
+// The Environment README renderer. The parser is the injection boundary: an
+// operator's Markdown becomes a data model here and only that model reaches
+// React, so these tests pin the two properties that matter -- the supported
+// subset is recognised, and an unsafe construct degrades rather than escaping.
+describe("Environment README Markdown", () => {
+  it("splits paragraphs, headings, lists and fenced code into blocks", () => {
+    const blocks = parseMarkdown(
+      "# Title\n\nA paragraph line\nand its continuation.\n\n- one\n- two\n\n```\ncode line\n```\n",
+    );
+    expect(blocks.map((block) => block.kind)).toEqual([
+      "heading",
+      "paragraph",
+      "list",
+      "code",
+    ]);
+    const [heading, paragraph, list, code] = blocks;
+    // ATX depth clamps to h3-h5 so a README never emits an h1/h2 that competes
+    // with the page's own object header.
+    if (heading?.kind !== "heading") {
+      throw new Error("expected a heading block");
+    }
+    expect(heading.level).toBe(3);
+    // Continuation lines join into one paragraph rather than becoming two.
+    if (paragraph?.kind !== "paragraph") {
+      throw new Error("expected a paragraph block");
+    }
+    expect(paragraph.spans[0]).toEqual({
+      kind: "text",
+      text: "A paragraph line and its continuation.",
+    });
+    if (list?.kind !== "list") {
+      throw new Error("expected a list block");
+    }
+    expect(list.items.length).toBe(2);
+    if (code?.kind !== "code") {
+      throw new Error("expected a code block");
+    }
+    expect(code.text).toBe("code line");
+  });
+
+  it("clamps deeper headings to level five", () => {
+    const blocks = parseMarkdown("## Two\n\n#### Four");
+    expect(blocks.map((block) => (block.kind === "heading" ? block.level : 0))).toEqual([4, 5]);
+  });
+
+  it("recognises strong, emphasis and code inline spans", () => {
+    expect(parseInline("plain **bold** and *soft* and `mono`")).toEqual([
+      { kind: "text", text: "plain " },
+      { kind: "strong", text: "bold" },
+      { kind: "text", text: " and " },
+      { kind: "emphasis", text: "soft" },
+      { kind: "text", text: " and " },
+      { kind: "code", text: "mono" },
+    ]);
+  });
+
+  it("keeps a safe link but strips a javascript: scheme to plain text", () => {
+    expect(parseInline("see [the docs](https://example.test/x)")).toEqual([
+      { kind: "text", text: "see " },
+      { kind: "link", text: "the docs", href: "https://example.test/x" },
+    ]);
+    // An unsafe scheme must never become a live href; it degrades to the label
+    // text so the README cannot smuggle script through a link.
+    expect(parseInline("[click](javascript:evil)")).toEqual([{ kind: "text", text: "click" }]);
+  });
+
+  it("treats emphasis markers inside a code span as literal", () => {
+    expect(parseInline("`a * b`")).toEqual([{ kind: "code", text: "a * b" }]);
   });
 });

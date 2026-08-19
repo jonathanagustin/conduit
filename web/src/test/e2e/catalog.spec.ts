@@ -117,6 +117,28 @@ test.describe("Environments", () => {
     await expect(profile).toContainText("revenue-serving Environment");
   });
 
+  test("renders an Environment's Markdown README", async ({ page, hub }) => {
+    // The README is authored Markdown; the console renders a safe subset (React
+    // nodes, never innerHTML), so a heading and an emphasised span appear as
+    // real elements rather than as their raw markers.
+    hub.get("/environments", {
+      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+    });
+    hub.get("/environments/prod-use1", ENVIRONMENT);
+    hub.get("/environments/prod-use1/profile", {
+      environmentId: "prod-use1",
+      displayName: "Production — US East",
+      ownerTeam: "payments-platform",
+      readme: "# Runbook\n\nPage the **on-call** before any change.",
+    });
+    await page.goto("environments/prod-use1");
+
+    const readme = page.getByTestId("environment-readme");
+    await expect(readme.getByRole("heading", { name: "Runbook" })).toBeVisible();
+    await expect(readme.locator("strong")).toHaveText("on-call");
+    await expect(page.getByTestId("environment-profile")).toContainText("payments-platform");
+  });
+
   test("marks an Environment whose settings are owned by another Hub", async ({ page, hub }) => {
     // A COPY_OF_ANOTHER_HUB Environment mirrors upstream: its local values are
     // not authoritative and cannot be edited here, so the detail page says so
