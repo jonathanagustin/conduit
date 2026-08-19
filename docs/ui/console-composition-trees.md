@@ -55,8 +55,12 @@ appears inside the `[console]` subtree of each screen).
 [shared] AppFrame (console-app-frame; skip-link -> main#main-content, tabIndex -1)
 ├─ [shared] AppHeader (50px band app-header.css:6; 1px bottom divider :10-11; identity tile 50×50 flush-left with 1px right divider; 24px mark AppLogo.tsx round(50*0.48); title stack pad 0 12px, module title 16px/600, subtitle 12px muted; actions margin-left auto, pad-right 14px, gap 8px)
 │  └─ [BP] Navbar (role banner) + Icon/AppLogo(Icon) + b/small titles + optional Tabs/lead/search/actions slots
-├─ [shared] NavigationRail (48px dark icon rail navigation-rail.css:8, bp6-dark; item 36×36, 2px corner :21-27; touch 44px @≤600 — labeled-rail expansion is a pending follow-up)
-│  └─ [BP] Tooltip + NavLink/Icon (size 18) per primary dest; PopoverNext + Menu + MenuItem for the Applications grid
+├─ [shared] NavigationRail (two-state dark rail navigation-rail.css, bp6-dark; width from the shell `--console-rail` track app.css: 230px expanded / 48px collapsed; state from useRailCollapsed.ts, forced collapsed ≤800px)
+│  ├─ [console] header — pinned collapse toggle → [BP] Tooltip + Button (variant minimal, double-chevron; absent when the viewport forces the state)
+│  ├─ [console] scroll region (the stack's one overflow owner; 10px section gap) with [BP] Divider between the two groups
+│  │  ├─ [console] primary group (data-testid rail-primary) → per-dest [BP] NavLink + Icon; expanded: 32px row, 17px inset, Icon 16 + 12px gap + ellipsized Text label; collapsed: 36×36 icon tile (2px corner, 44px @≤600) + per-item Tooltip
+│  │  └─ [console] Applications group — expanded: [BP] Text heading "Applications" (12px/600 uppercase, 32px) + 36px NavLink rows (data-testid rail-applications); collapsed: PopoverNext + Menu + MenuItem grid (aria-label "Applications")
+│  └─ active = route state (aria-current) → primary-tinted fill + 4px left indicator; hover = neutral fill (not selection)
 └─ [shared] ObjectHeader (~50px subheader band; pad 10px 16px, gap 10px object-header.css:9; 1px bottom divider; 30px AppLogo; kind 12px uppercase 0.04em; title 16px/600/20 via EntityTitle)
    └─ [BP] AppLogo(Icon) + EntityTitle + Tag tags (gap 6px) + Popover/Menu/MenuItem "Actions" button (only when actions supplied)
 ```
@@ -74,8 +78,14 @@ Two more shared contracts every list inherits:
 
 Rail note: the rail carries `overview, environments, products, notifications` as
 primary destinations and `change-requests, fleet, plans, promotions, export,
-import, risk, teams` under the Applications popover (`web/src/app/navigation.ts`).
-Search and Settings are deliberately absent (no Hub contract behind them).
+import, risk, teams` as the Applications group (`web/src/app/navigation.ts`).
+Expanded, the Applications group is labeled rows under an "Applications" heading;
+collapsed, it folds back into the Applications popover, and the labels and
+heading give way to icons + tooltips. The primary destinations are the unheaded
+core region above the first section divider -- `navigation.ts` names exactly one
+group ("Applications"), so a second heading would be inventing a taxonomy the
+model does not have. Search and Settings are deliberately absent (no Hub
+contract behind them).
 
 ---
 
@@ -106,7 +116,7 @@ Verified template, reproduced verbatim. `web/src/features/fleet/FleetPage.tsx`.
 [shared] AppFrame
 ├─ [shared] AppHeader (50px band, 50×50 tile, 24px mark, 3px tab underline, 1px divider)
 │  └─ [BP] Icon + Text/Title + Tabs + Button/Menu actions
-├─ [shared] NavigationRail (48px icon rail — labeled-rail expansion is a pending follow-up)
+├─ [shared] NavigationRail (two-state rail: 230px expanded labeled rows / 48px collapsed icon rail; see Shared chrome)
 └─ [console] FleetPage (browser archetype)
    ├─ [console] SummaryBar
    │  └─ [BP] Tag (large minimal; per-health buckets + stale, warning intent)
