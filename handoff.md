@@ -1489,3 +1489,51 @@ serves `recallStatus: false` for a recalled Release — a safe-looking answer to
 an unsafe question) and #169 (canary tiers that follow the fleet by Environment
 label). Both in isolated worktrees, both with the replay/cost risks stated in
 their briefs rather than discovered later.
+
+## 14 closed, 2026-08-19 22:40 UTC — `verify-local.sh` green over all of it
+
+`./scripts/verify-local.sh` — **all CI gates passed locally, exit 0** — over the
+merged tree including #153 and #169.
+
+**Two more landed after the ceiling came out:**
+
+- **#153** — the Apollo projection was process-local, so a cold replica served
+  `recallStatus: false` for a recalled Release: the safe-looking answer to an
+  unsafe question. Fixed by reading through a port, not by rehydrating at
+  startup — rehydration fixes the restart and leaves the *second replica*
+  broken, which is the same bug on a longer fuse. The cost objection dissolved
+  on inspection: `withState` already decodes the whole state blob on every
+  operation, so a `ListPlans` costs what any other read route pays.
+- **#169** — canary tiers now follow the fleet by Environment label. The hard
+  part was replay, not matching: labels are **frozen onto the record** at
+  evaluation, because which Environments a filter admits is *not additive*, so
+  the existing "trust additive blockers" mechanism could not be extended without
+  letting a peer assert a decision its own inputs do not support. Records
+  written before the change replay bit-for-bit (`omitempty` keeps a nil label
+  map out of the identity digest).
+
+**Two agent judgements worth keeping, both of which improved on the brief:**
+
+1. I asked for a duplicate label-match arm inside `CanaryEvidence`. It was
+   declined, correctly: `CanaryEvidence` delegates to `Matches`, and that
+   narrowing now runs three times over one record (decision, topology check,
+   #66's suppression creation). A second copy of the selection rule is exactly
+   the drift that produced #66.
+2. The #153 worktree predated the ceiling removal, so its commit **re-added**
+   `controlplane-ceiling.json` and raised the limit by 68. Caught at merge as a
+   modify/delete conflict; the file stays deleted. Watch for this on any
+   worktree branched before 22:00 today.
+
+**Filed, rather than closed silently:** #325 — `ListEnvironments`,
+`ListInstallations` and `ListNamespaces` are still process-local, the same
+defect #153 fixed on the reads it did not name. A replica that has not handled a
+write serves empty lists, and an empty list is not distinguishable from "this
+Hub governs nothing".
+
+**#207 traced but not implemented.** The identifiers settle it: `proposal.ID =
+stableID("rcp_", decision.ID)` and `decision.ID = stableID("rcd_", key +
+inputDigest)`, so a new observation mints a new proposal id with a fresh budget
+and the exhaustion latch never applies. Two defects, not one — exhausted rows
+are also never deleted. Making exhaustion durable means making it a property of
+the **key**, not the content-addressed proposal, which is a real change to
+retry semantics and wants a decision first. Recorded on the issue.
