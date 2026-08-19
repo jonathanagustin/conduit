@@ -14,7 +14,7 @@ import {
  * transition node reveals why a Release cannot advance. */
 
 const ENVIRONMENT = {
-  environment: { id: "prod-use1", generation: "0123456789abcdef", connectionSetting: "DIRECT" },
+  environment: { id: "prod-use1", generation: "0123456789abcdef", connectionSetting: "DIRECT", defaultReleaseChannel: "RELEASE" },
   reported: {
     environment: "prod-use1",
     agentId: "agent-prod",
@@ -62,6 +62,9 @@ test.describe("Environments", () => {
 
     const row = page.getByRole("row", { name: /prod-use1/ });
     await expect(row).toContainText("DIRECT");
+    // The Environment's default Release Channel is now a column, so an operator
+    // can see which channel its Entities track without opening it.
+    await expect(row).toContainText("RELEASE");
     await expect(row).toContainText("1");
   });
 
