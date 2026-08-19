@@ -952,11 +952,17 @@ describe("Team contact kinds", () => {
   });
 
   it("marks PAGERDUTY undeliverable while EMAIL and SLACK deliver", () => {
-    expect(contactDeliverable("EMAIL")).toBe(true);
-    expect(contactDeliverable("SLACK")).toBe(true);
-    expect(contactDeliverable("PAGERDUTY")).toBe(false);
+    // The Hub's own answer wins when it sends one.
+    expect(contactDeliverable({ kind: "PAGERDUTY", deliverable: true })).toBe(true);
+    expect(contactDeliverable({ kind: "EMAIL", deliverable: false })).toBe(false);
+    // The mirror is the fallback for a Hub older than #262, and it must not
+    // read a missing field as "not delivered" -- that would libel every
+    // working EMAIL contact on such a Hub.
+    expect(contactDeliverable({ kind: "EMAIL" })).toBe(true);
+    expect(contactDeliverable({ kind: "SLACK" })).toBe(true);
+    expect(contactDeliverable({ kind: "PAGERDUTY" })).toBe(false);
     // An unknown kind is not something the Hub delivers to either.
-    expect(contactDeliverable("CARRIER_PIGEON")).toBe(false);
+    expect(contactDeliverable({ kind: "CARRIER_PIGEON" })).toBe(false);
   });
 });
 
