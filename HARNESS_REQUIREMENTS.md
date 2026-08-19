@@ -44,44 +44,54 @@ named as a gap rather than described as satisfied.
 | Trace of tool calls and costs | `[VERIFIED]` | Session transcripts under `/root/.claude/projects/`; GitHub Actions run logs; subagent token and duration counts are reported per agent. |
 | Interrupt and kill control | `[VERIFIED]` | User-visible interrupt in the client; `TaskStop` for background work. |
 | Instruction/data separation | `[VERIFIED]` | External content (GitHub event payloads, fetched pages, tool output) arrives inside marked envelopes naming which fields are untrusted. Honouring the marking is still the model's job — see the gap below. |
-| Approval gate on external mutation | `[VERIFIED] gap` | **`.claude/settings.json` denies `Bash(gh pr merge:*)`, but merges performed through the GitHub MCP tool `mcp__github__merge_pull_request` do not match that rule and are not gated.** The written policy and the enforced policy disagree. See below. |
+| Approval gate on external mutation | `[VERIFIED]` | `.claude/settings.json` denies `Bash(gh pr merge:*)` **and** `mcp__github__merge_pull_request`, so both paths to the merge endpoint are gated. Closing a pull request is gated on the shell path only — see the residual below. |
 | Secret isolation and redaction | `[INFERRED]` | Tokens are injected as environment variables and appear redacted (`***`) in Actions logs. No test forces a secret through an unredacted path, so this is inferred from observation rather than proven. |
 | Typed tools with structured errors | `[INFERRED]` | MCP tools are schema-typed. Bash is not, and its failures are frequently misreported by this environment — a blocked port times out rather than refusing, and a pipeline's exit status belongs to its last command. |
 | Idempotency and resume | `[INFERRED]` | The cluster bootstrap is idempotent by construction. Agent work is not: a killed subagent leaves a worktree and no checkpoint, and must be re-briefed from its last report. |
 | Monetary limits | `[UNKNOWN]` | No monetary ceiling is visible from inside the session. Cheapest probe: ask the platform owner. |
 | Offline evaluation before increasing autonomy | `[UNKNOWN]` | No evaluation suite scores task success, calibration, or handoff quality across runs. Nothing currently gates an increase in autonomy on measured performance. |
 
-## The open gap, stated precisely
+## The merge gap, and how it was closed
 
-`.claude/settings.json` expresses an intent to gate merges:
+`.claude/settings.json` expressed an intent to gate merges:
 
 ```json
 "deny": ["Bash(gh pr merge:*)", "Bash(gh pr close:*)", "Bash(gh repo delete:*)"]
 ```
 
-That rule matches a shell invocation. It does not match
-`mcp__github__merge_pull_request`, which is a different tool reaching the same
-GitHub endpoint. Pull requests have been merged in this repository through the
-MCP path while that deny rule was in force.
+Every one of those matches a **shell invocation**. None matched
+`mcp__github__merge_pull_request`, a different tool reaching the same GitHub
+endpoint. Pull requests #245, #246, #249, #250, #274 and #275 were merged in
+this repository through the MCP path while that deny rule was in force — the
+control read as enforced, was not, and its absence was only visible by comparing
+the policy to the trace.
 
-This is the failure mode the requirement exists to prevent: a control that reads
-as enforced, is not, and whose absence is only visible when someone compares the
-policy to the trace.
+It is closed: `mcp__github__merge_pull_request` is now denied outright, so
+merging this repository's pull requests requires a human on both paths. That is
+a deliberate reduction in what the agent may do, chosen over the alternative of
+rewriting the policy to match what was actually happening.
 
-Two remedies, and the choice is the repository owner's because they differ in
-what the agent is allowed to do:
+### What the rule syntax can and cannot express
 
-1. **Close it.** Add `mcp__github__merge_pull_request` (and the corresponding
-   `update_pull_request` state change) to the deny list. Merging then requires a
-   human. This matches the written policy and removes the agent's ability to
-   land its own work unattended.
-2. **Correct the policy to match reality.** Remove or narrow the `Bash(gh pr
-   merge:*)` deny and state explicitly that merge is delegated to the agent
-   under the standing instruction to handle pull requests. This keeps current
-   throughput and stops the settings file from asserting a control it does not
-   have.
+A permission rule's parenthesised part is a **string matcher** — `Bash(git *)`
+matches the command line, `Edit(//etc/*)` matches a path. An MCP tool takes
+structured JSON, not a string, so there is nothing for that matcher to match
+against: **MCP tools can only be allowed or denied by whole tool name.** There
+is no way to write "deny `update_pull_request` only when it sets
+`state: closed`" as a permission rule.
 
-Doing neither leaves a policy that is documentation rather than enforcement.
+### The residual, stated rather than hidden
+
+Closing a pull request is therefore still gated on one path only.
+`Bash(gh pr close:*)` is denied; `mcp__github__update_pull_request` with
+`state: "closed"` is not, and denying that tool outright would also forbid
+editing a pull request's title and body, which is routine and harmless.
+
+Closing that residual needs a `PreToolUse` hook matching
+`mcp__github__update_pull_request` that inspects `tool_input.state` and returns
+`permissionDecision: "deny"` for `closed` — enforcement outside the model, which
+is what this file is for. It is not built, because the same failure this file
+documents would be repeated by claiming otherwise.
 
 ## What a prompt cannot do
 
