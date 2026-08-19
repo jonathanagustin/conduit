@@ -2,6 +2,7 @@ import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@b
 import { Link } from "react-router-dom";
 
 import { useChangeRequests } from "../../api/resources.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { ChangeStatusTag } from "./ChangeRequestDetailPage.js";
@@ -47,11 +48,14 @@ export function ChangeRequestsPage() {
                   <Button type="submit" text="Search" />
                 </form>
                 {ordered.length === 0 ? (
-                  <p className="console-empty">
-                    {index.query.search === undefined
-                      ? "There are no Change Requests."
-                      : `No Change Request matches "${index.query.search}".`}
-                  </p>
+                  <EmptyState
+                    icon="git-pull"
+                    title={
+                      index.query.search === undefined
+                        ? "There are no Change Requests."
+                        : `No Change Request matches "${index.query.search}".`
+                    }
+                  />
                 ) : (
                   <HTMLTable className="console-change__table" interactive striped>
                     <thead>

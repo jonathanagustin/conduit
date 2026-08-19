@@ -30,6 +30,7 @@ import {
   type TeamContact,
   type TeamContactKind,
 } from "../../api/notifications.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
@@ -70,11 +71,14 @@ export function TeamsPage() {
                   <Button type="submit" text="Search" />
                 </form>
                 {visible.length === 0 ? (
-                  <p className="console-empty">
-                    {index.query.search === undefined
-                      ? "No teams are defined."
-                      : `No team matches "${index.query.search}".`}
-                  </p>
+                  <EmptyState
+                    icon="people"
+                    title={
+                      index.query.search === undefined
+                        ? "No teams are defined."
+                        : `No team matches "${index.query.search}".`
+                    }
+                  />
                 ) : (
                   <HTMLTable className="console-teams__table console-index-table" interactive striped>
                     <thead>
