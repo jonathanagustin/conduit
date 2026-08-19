@@ -24,6 +24,8 @@ const RELEASE_PIPELINE = {
   requireSecurityPass: true,
   requireMalwarePass: true,
   includeArtifacts: true,
+  requiredLabels: [{ name: "tier", resourceTypes: ["RELEASE"], values: ["gold", "silver"] }],
+  excludedLabels: [{ name: "deprecated", resourceTypes: [] }],
 };
 
 const SNAPSHOT_PIPELINE = {
@@ -94,6 +96,24 @@ test.describe("Export", () => {
     await expect
       .poll(() => exports.detail.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
       .toBe("4px");
+  });
+
+  test("shows the label filters a pipeline requires and excludes", async ({ page, hub }) => {
+    // The label filters are enforced server-side but were invisible here; a
+    // pipeline that silently drops resources missing a label should say so.
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    await page.goto("export");
+    const exports = new ExportPom(page);
+
+    await exports.pipeline("exp_release").click();
+    const filters = exports.detail.getByTestId("pipeline-label-filters");
+    await expect(filters).toContainText("Required");
+    await expect(filters).toContainText("tier");
+    await expect(filters).toContainText("gold | silver");
+    await expect(filters).toContainText("Excluded");
+    await expect(filters).toContainText("deprecated");
+    // A requirement with no values gates on the label's presence.
+    await expect(filters).toContainText("any value");
   });
 
   test("filters the loaded set locally and explains a match of nothing", async ({ page, hub }) => {
