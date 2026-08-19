@@ -23,4 +23,24 @@ export class FleetPom {
   get previous(): Locator {
     return this.pagination.getByRole("button", { name: "Previous" });
   }
+
+  get rail(): Locator {
+    return this.root.getByTestId("facet-rail");
+  }
+
+  /** One dimension of the rail, named by the query parameter it selects on --
+   * which is what the Hub serves the facet under, so a test cannot ask about a
+   * facet by a name the filter would not accept. */
+  facet(key: string): Locator {
+    return this.rail.getByTestId(`facet-${key}`);
+  }
+
+  /** A facet value, matched on the whole accessible name -- the value followed
+   * by its count. Anchored and escaped because a substring match would make
+   * HEALTHY find UNHEALTHY, and a Product name is full of regexp punctuation. */
+  facetValue(key: string, value: string, count?: number): Locator {
+    const escaped = value.replaceAll(/[.*+?^${}()|[\]\\]/g, String.raw`\$&`);
+    const suffix = count === undefined ? String.raw`\s+\d+` : `\\s+${count}`;
+    return this.facet(key).getByRole("button", { name: new RegExp(`^${escaped}${suffix}$`) });
+  }
 }

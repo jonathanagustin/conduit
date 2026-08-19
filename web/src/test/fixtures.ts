@@ -1,4 +1,4 @@
-import type { FleetInstallation, FleetProjection } from "../api/types.js";
+import type { FleetFacets, FleetInstallation, FleetProjection } from "../api/types.js";
 
 /** Deterministic API bodies for the browser tests.
  *
@@ -33,6 +33,12 @@ export function projection(
   installations: FleetInstallation[],
   pagination: Partial<Pick<FleetProjection, "nextCursor" | "previousCursor" | "hasPrevious" | "limit">> & {
     total?: number;
+    /** Facet counts that differ from the rows, which the Hub's near-miss walk
+     * produces whenever a filter is applied: a dimension excludes its own
+     * filter, so it counts installations the response does not carry. Nothing
+     * derivable from `installations` can express that, and a fixture that
+     * always derived it could never exercise the case the rail exists for. */
+    facets?: Partial<FleetFacets>;
   } = {},
 ): FleetProjection {
   const count = (pick: (item: FleetInstallation) => string) => {
@@ -61,6 +67,15 @@ export function projection(
       config: count((item) => item.configStatus),
       lifecycle: count((item) => item.lifecycle),
       stale: installations.filter((item) => item.stale).length,
+    },
+    facets: {
+      environment: count((item) => item.environment),
+      product: count((item) => item.product),
+      health: count((item) => item.health),
+      rolloutStatus: count((item) => item.rolloutStatus),
+      configStatus: count((item) => item.configStatus),
+      lifecycle: count((item) => item.lifecycle),
+      ...pagination.facets,
     },
   };
 }

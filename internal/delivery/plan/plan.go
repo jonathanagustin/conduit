@@ -160,3 +160,17 @@ type Plan struct {
 	Steps                    []Step             `json:"steps"`
 	IgnoredNamespaces        []IgnoredNamespace `json:"ignoredNamespaces,omitempty"`
 }
+
+// ContainsInstallation reports whether this Plan acts on the named
+// installation. It answers for the Plan rather than for whoever is asking, so
+// it belongs beside the Plan: the Hub uses it to refuse a cancellation that
+// would suppress an installation this Plan never touched, and nothing about
+// that question is HTTP's.
+func (plan Plan) ContainsInstallation(installationID string) bool {
+	for _, step := range plan.Steps {
+		if step.InstallationID == installationID {
+			return true
+		}
+	}
+	return false
+}
