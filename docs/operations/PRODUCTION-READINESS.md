@@ -34,7 +34,7 @@ answer, and nothing here should be read as claiming it.
 
 | Area | Claim | Evidence |
 | --- | --- | --- |
-| Correctness | **Every** local gate passes at the trunk tip (tests, vet, lint, formatting, domain boundaries, controlplane ceiling, contract validation, GitOps acceptance). The count is deliberately not restated here: `verify-local.sh` reads the step names out of `.github/workflows/platform-ci.yml` and **fails when CI runs a step it does not**, so the set is reconciled by the script rather than by a number in this table. | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. Corrected on 2026-08-18: this row read "All 30 local gates" and the script ran 35 — a hand-maintained count in a row that is supposed to be checkable, drifted, which is the failure mode the closing rule of this document names. |
+| Correctness | **Every** local gate passes at the trunk tip (tests, vet, lint, formatting, domain boundaries, contract validation, GitOps acceptance). The count is deliberately not restated here: `verify-local.sh` reads the step names out of `.github/workflows/platform-ci.yml` and **fails when CI runs a step it does not**, so the set is reconciled by the script rather than by a number in this table. | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. Corrected on 2026-08-18: this row read "All 30 local gates" and the script ran 35 — a hand-maintained count in a row that is supposed to be checkable, drifted, which is the failure mode the closing rule of this document names. |
 | Concurrency and replica correctness | The Hub runs two replicas over a transactional PostgreSQL repository, with a PodDisruptionBudget protecting one replica; concurrent lease, approval, idempotency, and crash-recovery are proven against real PostgreSQL. | A7; `scripts/test-postgres-repository.sh`; `ruby scripts/verify-helm-runtime.rb` (aborts unless replicas == 2 and the PDB exists). **Bounded by the two Missing rows in [Test types](#test-types)**: failure injection and load/soak. What is proven is that two replicas do not corrupt each other and that one dying mid-commit loses nothing. Availability *when the infrastructure underneath fails* — PostgreSQL failover, Agent disconnect mid-Plan, partition — is untested, and behaviour at depth is unmeasured. This row was titled "Availability" until the 2026-08-18 external audit; the title asserted more than the evidence carries. |
 | Identity | Production identity is OIDC for operators and mTLS or SPIFFE for Agents. Insecure identity headers exist only behind explicit `ALLOW_INSECURE_*` opt-ins; `cmd/platform-delivery` exits rather than combine them with any secure mechanism, and the chart gate aborts if any `ALLOW_INSECURE_` variable is set. | `cmd/platform-delivery/main.go` startup checks; `verify-helm-runtime.rb` ("chart enabled insecure identity"). |
 | Bundle signing | A Hub refuses to start with no `BUNDLE_SIGNING_KEY_FILE`. The ephemeral development key survives only behind an explicit `ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true`, which is itself refused in combination with a mounted key or with production identity — the fail-closed shape the insecure identity headers already have — and which no chart profile can set. Which signer a Hub came up with is on its startup line as `bundleSigner`: the base64 Ed25519 **public** key, the same encoding `BUNDLE_TRUSTED_KEYS_FILE` uses, so a changed signer is readable rather than only detectable by a target refusing a Bundle. | `checkBundleSigningPosture` in `cmd/platform-delivery/main.go`; `TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey`, `TestBundleSigningKeyIdentifierPublishesThePublicKeyOnly`; `verify-helm-runtime.rb` ("Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start", "Hub enabled insecure opt-ins", and the render that fails closed on an empty `bundleSigningSecretName`). |
@@ -145,7 +145,9 @@ carried to the residual list as item 5.
    **Reading and editing now have an HTTP surface.** The Hub serves
    `GET /v1/notifications/inbox`, `GET /v1/notifications/events`, and `GET` and
    `PUT /v1/notifications/preferences`, mounted from `internal/hub/composition`
-   rather than from `internal/controlplane`, which is at its line ceiling. They
+   rather than from `internal/controlplane` — originally because that package was
+   at a line ceiling, and still, because composition is where a cross-context
+   HTTP surface belongs. They
    are a Conduit extension: the pinned Apollo OpenAPI publishes no notification
    operation, so no shape here is claimed to be Apollo's, and it is registered
    as `notifications.HTTPSurface` in `docs/evidence/conduit-inventions.json`.
@@ -223,8 +225,10 @@ carried to the residual list as item 5.
    security recall withdraws moved to `internal/catalog/domain`, leaving the
    package nine lines smaller. The other three events named above are still
    emitted by nobody: a grant changing, a Plan failing and a Release becoming
-   available are all raised inside `internal/controlplane`, which is at its line
-   ceiling, so each needs its own extraction before it can emit. Subscription
+   available are all raised inside `internal/controlplane`. Each needed an
+   extraction before it could emit while that package was at a line ceiling;
+   **that ceiling was removed on 2026-08-19**, so the extraction is no longer a
+   precondition and these three are ordinary unstarted work. Subscription
    grain is the Environment, for recalls as for reconciliation: a preference is
    joined by resource identifier, and the Environment is the identifier Conduit
    publishes for the thing a recall is submitted against — #126 records that

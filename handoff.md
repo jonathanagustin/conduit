@@ -1410,3 +1410,44 @@ and real ownership over any refactor that games the measure.
   `PRODUCTION-READINESS.md` gap 4 and `backup-and-restore.md`; the implementation
   half is open, with `internal/gitless/adapters/resolutionlogpostgres` named as
   the precedent to copy and the two-authorities trap recorded.
+
+## The `internal/controlplane` line ceiling is gone, 2026-08-19
+
+Removed on the repository owner's instruction. Everything above in this file
+that describes the ceiling as a live constraint — including the 21:40 entry
+calling it "the binding constraint" — is now history, not state.
+
+**What was removed, completely rather than half-way:**
+
+- `docs/operations/controlplane-ceiling.json` — deleted.
+- The ratchet in `scripts/report-migration-progress.mjs`. The script survives as
+  what it always also was: a report of what the monolith weighs, which contexts
+  exist, and whether the composition root is present. `--gate` is still accepted
+  and now prints the count and exits 0, so an old invocation does not break.
+- The `Validate controlplane ceiling` step in `platform-ci.yml` and its
+  `gate '...'` line in `verify-local.sh`. Those two had to go together: the
+  reconciliation in `verify-local.sh` now runs in **both** directions (#128), so
+  removing either alone fails the other. Checked — 51 CI steps, nothing
+  unreconciled in either direction.
+- The live claims in `docs/architecture/bounded-contexts.md` and
+  `docs/operations/PRODUCTION-READINESS.md`. Dated records in `CAPABILITY-MAP.md`,
+  `HYPOTHESIS-BACKLOG.md` and `EXTERNAL-AUDIT-2026-08-18.md` were left alone:
+  they describe what was true when written, and rewriting them would falsify the
+  record.
+
+**One consequence worth acting on.** `PRODUCTION-READINESS.md` said three
+notification events — a grant changing, a Plan failing, a Release becoming
+available — "need their own extraction before they can emit", because they are
+raised inside `internal/controlplane`. That precondition is gone. They are now
+ordinary unstarted work, and the same is true of #169, #153, #103, #56 and #66,
+which this file listed as ceiling-blocked an hour ago. None of them was ever
+blocked by a design problem.
+
+**What still holds the direction.** `scripts/verify-domain-boundaries.mjs`, which
+enforces the thing a line count never could: a bounded context may not reach back
+into the facade. That gate is untouched and still passes.
+
+**What was gained on the way out.** The extraction the ceiling forced before it
+was removed is kept — the Apollo substitution language now lives in
+`internal/apollo/substitution`, which is genuinely its home, and a compiling
+mutant proves it is under test on both sides of the new boundary.

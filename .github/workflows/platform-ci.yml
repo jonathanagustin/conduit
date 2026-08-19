@@ -494,8 +494,6 @@ jobs:
         run: node scripts/render-runtime-source-descriptor.test.mjs
       - name: Validate version and tag agreement
         run: ./scripts/verify-version-matches-tag.sh
-      - name: Validate controlplane ceiling
-        run: node scripts/report-migration-progress.mjs --gate
       - name: Validate domain boundaries
         run: |
           node scripts/verify-domain-boundaries.mjs

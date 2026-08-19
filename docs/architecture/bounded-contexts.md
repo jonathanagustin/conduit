@@ -81,8 +81,20 @@ context's rules.
 
 A context that owns its decisions does not necessarily shrink the facade by the
 same amount. Where the moved rule needed a lookup, what replaces it is an
-adapter, and an adapter is longer than the straight-line code it replaces. The
-ceiling is a ratchet on direction, not a measure of how much moved.
+adapter, and an adapter is longer than the straight-line code it replaces. Line
+count was never a measure of how much moved.
+
+There was a line ceiling here — a checked-in maximum for `internal/controlplane`
+that could only move down, enforced as a gate. It was removed on 2026-08-19.
+It did work: it is what forced the Apollo substitution language out into
+`internal/apollo/substitution`. But the cost landed on the wrong work. At zero
+headroom it blocked changes with nothing to do with the monolith's size — a
+two-line fix preserving a rejected change request's rationale, a one-line fix to
+an export-pipeline identifier — and taxing unrelated correctness work is not
+what this migration is for. The direction still holds; it is held by the
+boundary test below and by `scripts/verify-domain-boundaries.mjs`, which
+enforces something a line count never could: that a context cannot reach back
+into the facade.
 
 ## Boundary test
 
