@@ -158,12 +158,108 @@ out as expectations. Four compiling mutants (round instead of floor, drop the
 yesterday branch, move the week threshold to 4 weeks, make the month 31 days)
 each kill exactly one of those tests.
 
-## Finding 4 — observed, not adopted
+Pinned again in a browser by `web/src/test/e2e/timestamps.spec.ts`, which walks
+every rung of the ladder through the rendered Plans table against a fixed clock
+and asserts the exact UTC value is carried in `datetime` and `title` beside it.
+The unit tests cannot establish that: they call the function, so a `Timestamp`
+that stopped rendering its own output would leave all of them green, and before
+this spec no e2e test asserted a rendered timestamp anywhere in the console.
 
-- **Blueprint 6 design tokens.** The stylesheet defines `--bp-palette-*`,
-  `--bp-intent-*`, `--bp-typography-*`, and `--bp-surface-*` with concrete
-  values. The console is on Blueprint 5. This is a real token set to check
-  against if the console ever moves, not a reason to move it.
+## Finding 4 — the console's design tokens are the tenant's, measured
+
+> **Correction.** The first version of this file said "the console is on
+> Blueprint 5". That was wrong, and it was inferred from the bare import path in
+> `web/src/styles/index.css` rather than read from the installed package.
+> `@blueprintjs/core` is **6.18.0**. The capture and the console are on the same
+> major, which is what makes the comparison below possible at all.
+
+The captured stylesheet defines **205** `--bp-*` tokens. The installed Blueprint
+defines exactly the same 205 — no token in one that is absent from the other —
+and every value matches once minifier notation is folded (`#fff` vs `#ffffff`,
+`.1s` vs `100ms`, `#0000001a` vs `rgba(0, 0, 0, 0.1)`). **Sixteen** of the 205
+differ textually; **zero** differ semantically.
+
+That is now a gate rather than a one-off reading.
+[`contracts/foundry-design-tokens.json`](contracts/foundry-design-tokens.json)
+holds the captured values, and `scripts/verify-design-tokens.mjs` compares them
+against the installed package on demand:
+
+```
+PASS design tokens: 205 Blueprint tokens match the values
+     foundry-frontend-apollo-control-panel 6.533.15 serves
+```
+
+It fails on a real difference — a single hex digit changed in the contract
+produces `--bp-intent-primary-rest: console has #2d72d2, the tenant serves
+#2d72d3` — and on either side gaining or losing a token. It says nothing about
+layout, spacing, component choice or copy, and it is not evidence about the
+Apollo deployment console: tokens are shared platform styling, which is exactly
+why they transfer when the screens built on them do not.
+
+### The typefaces, one of which the console was getting wrong
+
+The capture settles the faces directly, in its own `@font-face` blocks and
+rules:
+
+```
+pre,code{font-family:Source-Code-Pro,Courier New,monospace,blueprint-icons-16}
+.bp6-monospace-text,...{font-family:Source-Code-Pro,...,blueprint-icons-16!important}
+```
+
+…with `source-sans-pro` self-hosted for body text at weights 200/400/600 plus
+italics. Two consequences, both applied:
+
+- **Body text was right, its fallback stack was not.** Foundry ends every family
+  list with `blueprint-icons-16`, as Blueprint's own default does, so an icon
+  glyph rendered as text still resolves. The console's override dropped it. Now
+  restored.
+- **Code text was wrong everywhere.** Foundry renders digests, versions and
+  identifiers in **Source Code Pro**. The console asked for
+  `var(--pt-font-family-monospace)` in five files and
+  `var(--bp-font-family-monospace)` in two — and Blueprint 6 defines *neither*
+  (the real token is `--bp-typography-family-mono`, whose value is bare
+  `monospace`). All seven silently fell through to the browser default, and the
+  `, monospace` fallback in each declaration is the only reason the screens
+  looked deliberate. The console now self-hosts Source Code Pro and names one
+  `--console-font-family-monospace` stack, reproducing the captured rule
+  including its `!important` on `.bp6-monospace-text`, because Blueprint's own
+  rule for `code` hard-codes bare `monospace` rather than reading a token —
+  which is exactly why Foundry had to override it too.
+
+## Finding 5 — how far the bundles decode, and the hard bound on this capture
+
+Worth stating precisely, because "we have the bundle" reads as "we have the
+app", and here it does not.
+
+- **No source maps.** Zero of the 30 JavaScript blobs advertise a
+  `sourceMappingURL`. The original TypeScript is not recoverable; everything
+  below is recovered from the shipped bytes.
+- **English UI strings: 1,037.** Foundry compiles `{id, defaultMessage}` pairs
+  into the chunk, so the English is read directly rather than translated back
+  from a locale bundle.
+- **But the app has 3,382 message keys.** The 13 locale bundles carry the *whole*
+  app's key inventory, translated. Subtracting the English recovered from the
+  served chunks leaves **2,511 keys — 74% — with no served English at all**,
+  because they belong to lazily-loaded chunks the capture never fetched.
+  So this capture covers roughly **31%** of Control Panel's UI strings. Any
+  claim of the form "Control Panel has no X" is bounded by that number, and the
+  locale bundles are the cheapest way to check whether an absent thing is truly
+  absent or merely unfetched.
+- **Component structure decodes by name.** CSS-module class names are
+  `owner__element__hash`: 26 owning packages and 1,763 element names, led by
+  `resource-icon` (687), `control-panel-shell` (257), `deletion-queue` (86),
+  `markings` (84).
+- **The dependency graph decodes from the manifests.** `featureFlagReferences`
+  carries 65 entries across 24 `@foundry/*` packages with real monorepo paths
+  (`packages/control-panel/centralized-communications-extension/src/flags/…`),
+  including flag identifiers such as `enableCentralizedCommunicationsApollo`.
+
+What none of it recovers: component logic in readable form, the routes of the
+unfetched chunks, or any screen of the Apollo deployment console — which
+Finding 1 already establishes is not in this artifact at all.
+
+## Observed, not adopted
+
 - **Foundry's date-format presets**, e.g. `{day, month: "short", weekday:
   "short", year, hour, minute}` for a full timestamp and `{hour, minute}` for a
   time. The console deliberately shows ISO-8601 UTC in the `title` instead.

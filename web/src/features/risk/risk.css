@@ -24,6 +24,6 @@
 /* Vulnerability inventory: the CVE id is a mono identifier at the metadata
    type-scale size, matching the fleet coordinate. */
 .console-risk__cve {
-  font-family: var(--pt-font-family-monospace, monospace);
+  font-family: var(--console-font-family-monospace);
   font-size: 12px;
 }

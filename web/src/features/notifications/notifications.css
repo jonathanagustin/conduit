@@ -51,7 +51,7 @@
    that distinguishes two resources. */
 .console-notifications__rid {
   overflow-wrap: anywhere;
-  font-family: var(--pt-font-family-monospace, monospace);
+  font-family: var(--console-font-family-monospace);
   font-size: 0.85em;
 }
 

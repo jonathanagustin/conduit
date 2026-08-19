@@ -359,6 +359,20 @@ jobs:
         run: |
           ./scripts/verify-console-contract.test.sh
           node scripts/verify-console-contract.mjs
+      # The console's palette, intents, type scale and shadows come from
+      # Blueprint, and "installing Blueprint" has stood in for "matching the
+      # product" without anything measuring it -- so a version bump could
+      # restyle every screen away from Foundry with every gate still green.
+      # This compares the installed tokens against the 205 values captured from
+      # a live tenant (docs/apollo/FRONTEND-CAS-CAPTURE.md), folding the two
+      # builds' notation so #fff and #ffffff are not reported as drift. Its
+      # self-test plants a one-hex-digit difference to prove the folding does
+      # not swallow a real one. Needs the console's node_modules, so it runs in
+      # this job rather than beside the Go gates.
+      - name: Validate design tokens against the captured product
+        run: |
+          ./scripts/verify-design-tokens.test.sh
+          node scripts/verify-design-tokens.mjs
       # The console's layering -- one network seam in web/src/api, presentation
       # in web/src/components, screens in web/src/features, composition in
       # web/src/app -- was a convention nothing checked. Neither was the

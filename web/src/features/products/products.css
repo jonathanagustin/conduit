@@ -59,7 +59,7 @@
 /* The Product coordinate is longer than the pane and never wrapped. */
 .console-products__coordinate {
   overflow: hidden;
-  font-family: var(--bp-font-family-monospace, monospace);
+  font-family: var(--console-font-family-monospace);
   font-size: 12px;
   white-space: nowrap;
   text-overflow: ellipsis;
@@ -67,7 +67,7 @@
 
 /* A digest is long and never wrapped: a broken digest is worse than a scrollbar. */
 .console-products__digest {
-  font-family: var(--bp-font-family-monospace, monospace);
+  font-family: var(--console-font-family-monospace);
   font-size: 12px;
   white-space: nowrap;
 }
