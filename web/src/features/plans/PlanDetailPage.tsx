@@ -1,4 +1,4 @@
-import { Callout, H4, HTMLTable, Pre, Tag } from "@blueprintjs/core";
+import { Callout, H4, HTMLTable, Pre, Section, SectionCard, Tag } from "@blueprintjs/core";
 import { useParams } from "react-router-dom";
 
 import { usePlan } from "../../api/resources.js";
@@ -135,16 +135,24 @@ export function PlanDetailPage() {
                     </Callout>
                   ) : null}
                   {(task.resources ?? []).length > 0 ? (
-                    <details
+                    // A real Blueprint Section, not a styled <details>: the
+                    // collapsible disclosure now comes from the primitive, so
+                    // the panel's white surface, 1px hairline and 4px corner
+                    // (--bp-surface-border-radius) are the primitive's, not a
+                    // radius rule on a raw element. A failed task opens by
+                    // default because its diagnostics are why the Plan stopped.
+                    <Section
                       className="console-plan-detail__diagnostics"
-                      open={task.status.includes("FAILED")}
-                    >
-                      <summary>
-                        {(task.resources ?? []).length}{" "}
-                        {(task.resources ?? []).length === 1
+                      compact
+                      collapsible
+                      collapseProps={{ defaultIsOpen: task.status.includes("FAILED") }}
+                      title={`${(task.resources ?? []).length} ${
+                        (task.resources ?? []).length === 1
                           ? "resource diagnostic"
-                          : "resource diagnostics"}
-                      </summary>
+                          : "resource diagnostics"
+                      }`}
+                    >
+                      <SectionCard padded={false}>
                       <ul
                         aria-label={`Resource diagnostics for ${task.phase}`}
                         data-testid={`resource-diagnostics-${task.sequence}`}
@@ -185,7 +193,8 @@ export function PlanDetailPage() {
                           </li>
                         ))}
                       </ul>
-                    </details>
+                      </SectionCard>
+                    </Section>
                   ) : null}
                   {task.agentOutput !== undefined && task.agentOutput !== "" ? (
                     <details>

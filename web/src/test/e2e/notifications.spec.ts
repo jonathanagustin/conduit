@@ -187,6 +187,22 @@ test.describe("Notification preference", () => {
     await expect(notifications.type("PRODUCT_RECALLS")).not.toBeChecked();
   });
 
+  test("draws the type grouping with a 4px surface corner", async ({ page, hub }) => {
+    // The event-types fieldset is a bordered grouping, so it takes the normal
+    // surface corner (--bp-surface-border-radius, 4px), not the 2px compact-tile
+    // corner it carried.
+    hub.get("/notifications/inbox", inbox([entry()]));
+    hub.get("/notifications/preferences", PREFERENCE);
+    await page.goto("notifications");
+    const notifications = new NotificationsPom(page);
+    await notifications.entry("nev-1").click();
+
+    const grouping = notifications.editor.locator(".console-notifications__types");
+    await expect
+      .poll(() => grouping.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
+      .toBe("4px");
+  });
+
   test("treats no stored preference as a state rather than a failure", async ({ page, hub }) => {
     hub.get("/notifications/inbox", inbox(null));
     hub.fails(
