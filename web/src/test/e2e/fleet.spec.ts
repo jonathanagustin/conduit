@@ -141,6 +141,31 @@ test.describe("fleet overview", () => {
     await expect(page.getByRole("row", { name: /first/ })).toBeVisible();
   });
 
+  test("renders the shared table on the rulebook's row bands", async ({ page, hub }) => {
+    // The row bands are set once in components/console-table.css for every
+    // HTMLTable, so the fleet list stands in for all 13 index screens. This
+    // asserts the header band the console now owns (12px muted/semibold, a
+    // 30-34px line) and that a simple body row keeps Blueprint's ~40px default,
+    // closing the "Shared table / row heights" Gap in
+    // docs/ui/console-visual-language.md section 10.
+    hub.fleet([installation()]);
+    await page.goto("fleet");
+
+    const header = page.getByRole("columnheader").first();
+    await expect(header).toBeVisible();
+    await expect(header).toHaveCSS("font-size", "12px");
+    await expect(header).toHaveCSS("font-weight", "600");
+    const headerBox = await header.boundingBox();
+    expect(headerBox).not.toBeNull();
+    expect(headerBox?.height ?? 0).toBeGreaterThanOrEqual(30);
+    expect(headerBox?.height ?? 0).toBeLessThanOrEqual(34);
+
+    const rowBox = await page.getByRole("row", { name: /payments/ }).boundingBox();
+    expect(rowBox).not.toBeNull();
+    expect(rowBox?.height ?? 0).toBeGreaterThanOrEqual(38);
+    expect(rowBox?.height ?? 0).toBeLessThanOrEqual(60);
+  });
+
   test("shows an unrecognised status rather than hiding it", async ({ page, hub }) => {
     // The Hub's vocabularies grow. A status the console has no colour for must
     // still reach the operator.
