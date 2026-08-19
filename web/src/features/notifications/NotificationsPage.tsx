@@ -12,7 +12,7 @@ import {
   Switch,
   Tag,
 } from "@blueprintjs/core";
-import { useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router-dom";
 
 import {
   NOTIFICATION_CHANNELS,
@@ -120,7 +120,9 @@ export function NotificationsPage() {
                       </tr>
                     </thead>
                     <tbody>
-                      {page.entries.map((entry) => (
+                      {page.entries.map((entry) => {
+                        const target = notificationTarget(entry);
+                        return (
                         <tr
                           key={`${entry.event.id}-${entry.preferenceId}`}
                           data-testid={`inbox-entry-${entry.event.id}`}
@@ -146,14 +148,29 @@ export function NotificationsPage() {
                               </>
                             )}
                           </td>
-                          <td>{entry.event.summary}</td>
+                          <td>
+                            {target === undefined ? (
+                              entry.event.summary
+                            ) : (
+                              // stopPropagation so opening the resource does not
+                              // also fire the row's filter-by-resource click.
+                              <Link
+                                to={target}
+                                data-testid={`inbox-link-${entry.event.id}`}
+                                onClick={(clickEvent) => clickEvent.stopPropagation()}
+                              >
+                                {entry.event.summary}
+                              </Link>
+                            )}
+                          </td>
                           {/* An empty actor is reserved for events the system
                               raised on its own, which is a fact rather than a
                               missing value: "alice recalled this" and "a scanner
                               recalled this" are different things to act on. */}
                           <td>{actorOf(entry) ?? "the system"}</td>
                         </tr>
-                      ))}
+                        );
+                      })}
                     </tbody>
                   </HTMLTable>
                   {page.bounded ? (
@@ -214,6 +231,31 @@ function actorOf(entry: InboxEntry): string | undefined {
 function environmentOf(entry: InboxEntry): string | undefined {
   const environment = entry.event.environment;
   return environment === undefined || environment === "" ? undefined : environment;
+}
+
+// notificationTarget resolves the console route a notification should link to,
+// so an inbox entry takes an operator to the thing it is about rather than
+// leaving them to go find it. Event types that name a specific screen route
+// there (a failed Plan to the Plans table, a pending Change Request to the
+// review queue, a recall to Risk, a failed promotion to Promotions -- matching
+// Apollo's own deep links); anything else that carries an Environment routes to
+// that Environment. An entry with no resolvable target renders as plain text.
+function notificationTarget(entry: InboxEntry): string | undefined {
+  switch (entry.event.type) {
+    case "PLAN_FAILURES":
+      return "/plans";
+    case "CHANGE_REQUEST_PENDING_APPROVAL":
+      return "/change-requests";
+    case "PRODUCT_IN_OPEN_ENDED_RECALL":
+    case "PRODUCT_RECALLS":
+      return "/risk";
+    case "PRODUCT_RELEASE_PROMOTION_FAILED":
+      return "/promotions";
+    default: {
+      const environment = environmentOf(entry);
+      return environment === undefined ? undefined : `/environments/${environment}`;
+    }
+  }
 }
 
 /** The event types a preference enables, after a checkbox is toggled.

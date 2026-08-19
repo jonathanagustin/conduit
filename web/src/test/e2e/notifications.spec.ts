@@ -98,6 +98,35 @@ test.describe("Notification inbox", () => {
     expect(hub.requests().some((request) => request.includes("ownerId"))).toBe(false);
   });
 
+  test("deep-links an inbox entry to the resource it is about", async ({ page, hub }) => {
+    hub.get(
+      "/notifications/inbox",
+      inbox([
+        entry(),
+        entry({
+          event: {
+            id: "nev-3",
+            type: "INSTALLED_PRODUCT_RELEASE_VULNERABILITY_UPDATE",
+            resourceRid: ENVIRONMENT_RID,
+            environment: "prod-use1",
+            summary: "A newer Release closes a vulnerability in prod-use1",
+            occurredAt: "2026-08-18T10:00:00Z",
+          },
+          preferenceId: "npf-3",
+        }),
+      ]),
+    );
+    await page.goto("notifications");
+
+    // A failed-Plan notification opens the Plans table -- Apollo's own deep link.
+    await expect(page.getByTestId("inbox-link-nev-1")).toHaveAttribute("href", "/console/plans");
+    // An event with no screen-specific type opens the Environment it names.
+    await expect(page.getByTestId("inbox-link-nev-3")).toHaveAttribute(
+      "href",
+      "/console/environments/prod-use1",
+    );
+  });
+
   test("says an empty inbox is empty, including the null Go sends for one", async ({ page, hub }) => {
     hub.get("/notifications/inbox", inbox(null));
     await page.goto("notifications");
