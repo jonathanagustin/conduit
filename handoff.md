@@ -1054,3 +1054,41 @@ screens.
 own CAS backend answered `503` (Envoy `response-flags: URX`) to every method the
 capture tried. Hashes are listed in the capture's `UNAVAILABLE-503.txt`. Retry
 when that backend recovers if the debugger ever matters.
+
+### Follow-up the same day: fidelity measured, not assumed
+
+**`[VERIFIED]` The console's design tokens ARE the tenant's.** 205 `--bp-*`
+tokens on both sides, same set, every value equal once the two builds' notation
+is folded. Now a gate — `scripts/verify-design-tokens.mjs` against
+`docs/apollo/contracts/foundry-design-tokens.json`, in `platform-ci.yml` and
+`verify-local.sh`, with the repo's `.test.sh` self-test proving it rejects a
+one-hex-digit difference and *accepts* `#FFF` for `#ffffff`.
+
+**`[VERIFIED]` Correction to the receipt as first written: the console is on
+Blueprint 6.18.0, not 5.** The earlier claim was inferred from a bare import
+path rather than read from the installed package, and it is what made the token
+comparison look impossible. Corrected in place in the receipt, marked.
+
+**`[VERIFIED]` A real defect the capture exposed: the code face.** Five console
+CSS files asked for `--pt-font-family-monospace` and two for
+`--bp-font-family-monospace`. Blueprint 6 defines neither — the real token is
+`--bp-typography-family-mono`, value bare `monospace`. Every digest and version
+rendered in the browser default; the `, monospace` fallback in each declaration
+was the only thing hiding it. Foundry renders them in **Source Code Pro**
+(`pre,code{font-family:Source-Code-Pro,Courier New,monospace,blueprint-icons-16}`),
+now self-hosted and named once as `--console-font-family-monospace`. The body
+stack also regained the trailing `blueprint-icons-16` that Foundry and Blueprint
+both carry.
+
+**The number that bounds every claim about this capture: it holds ~31% of
+Control Panel's UI strings.** The locale bundles carry 3,382 message keys for
+the whole app; only 1,037 have English in the served chunks. The other 2,511 are
+in lazily-loaded chunks the capture never fetched. Before writing "Control Panel
+has no X", check the locale key inventory — it is the cheapest way to tell
+absent from unfetched. No source maps are served, so the original TypeScript is
+not recoverable at any price.
+
+**`web/src/test/e2e/timestamps.spec.ts` is new** and worth knowing about: it
+fixes the clock with `page.clock.setFixedTime` and walks the whole relative-time
+ladder through a rendered table. Before it, no e2e test asserted a rendered
+timestamp anywhere in the console.
