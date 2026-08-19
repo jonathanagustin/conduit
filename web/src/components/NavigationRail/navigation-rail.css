@@ -1,59 +1,220 @@
-/* A 48px rail. Dark regardless of the page theme, which is what makes the page
-   canvas beside it read as the working surface rather than as chrome. */
+/* The two-state global navigation rail. Dark regardless of the page theme,
+   which is what makes the page canvas beside it read as the working surface
+   rather than as chrome. The rail fills its shell grid track: 48px collapsed
+   (icons only, tooltips restored) or the expanded `--console-rail` width
+   (labeled rows + the Applications group heading). Collapse changes information
+   density, not just width. The width itself lives on the shell grid track
+   (web/src/app/app.css); this file owns the rail's interior. */
 .console-rail {
   display: flex;
-  flex: none;
   flex-direction: column;
-  align-items: center;
-  width: 48px;
-  padding: 8px 0;
-  gap: 4px;
+  min-width: 0;
+  min-height: 0;
   background: var(--bp-surface-background-color-default-rest, #1c2127);
 }
 
-.console-rail__spacer {
-  flex: 1;
+/* Header band: the collapse toggle, pinned above the scroll region. In the
+   expanded rail it sits at the trailing edge; collapsed, it centers over the
+   icon column. It is absent entirely when the state is forced (narrow
+   viewport), because there is nothing the operator can toggle to. */
+.console-rail__header {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: flex-end;
+  height: 40px;
+  padding: 4px 9px;
 }
 
-.console-rail__item {
-  display: grid;
-  place-items: center;
-  width: 36px;
-  height: 36px;
+.console-rail[data-collapsed] .console-rail__header {
+  justify-content: center;
+  padding: 4px 0;
+}
+
+/* The middle is the one child that owns overflow (the stack equation): header
+   and any footer stay pinned, the destinations scroll. 10px is the rulebook's
+   vertical section separation between the primary and Applications groups. */
+.console-rail__scroll {
+  display: flex;
+  flex: 1 1 auto;
+  flex-direction: column;
+  min-height: 0;
+  gap: 10px;
+  padding: 4px 0 8px;
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+.console-rail[data-collapsed] .console-rail__scroll {
+  align-items: center;
+  gap: 4px;
+  padding: 4px 0;
+}
+
+.console-rail__group {
+  display: flex;
+  flex-direction: column;
+}
+
+.console-rail[data-collapsed] .console-rail__group {
+  align-items: center;
+  width: 100%;
+}
+
+/* Group heading: 32px, 12px/600 uppercase muted label. Hidden when collapsed,
+   which is part of what collapse subtracts. */
+.console-rail__heading {
+  display: flex;
+  align-items: center;
+  height: 32px;
+  margin: 0;
+  padding: 0 17px;
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--bp-palette-gray-4, #abb3bf);
+}
+
+/* A section hairline between the primary and Applications groups. The Blueprint
+   Divider is a vertical rule by default (a left border, for horizontal menus);
+   in this vertical stack it is re-oriented to a horizontal hairline and muted to
+   a low-opacity white so it reads as separation in the dark scope, not a line
+   drawn on top. Scoped under `.console-rail` to outrank `.bp6-divider`. */
+.console-rail .console-rail__divider {
+  flex: none;
+  align-self: stretch;
+  height: 0;
+  margin: 0 12px;
+  border: 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.15);
+}
+
+.console-rail[data-collapsed] .console-rail__divider {
+  align-self: center;
+  width: 24px;
+  margin: 0;
+}
+
+.console-rail__list {
+  display: flex;
+  flex-direction: column;
+  margin: 0;
   padding: 0;
+  list-style: none;
+}
+
+.console-rail[data-collapsed] .console-rail__list {
+  align-items: center;
+  gap: 4px;
+}
+
+.console-rail__row {
+  display: flex;
+}
+
+.console-rail[data-collapsed] .console-rail__row {
+  justify-content: center;
+}
+
+/* Expanded row: 17px horizontal padding, a leading 16px icon, a 12px gap, then
+   the ellipsized label (min-width:0). Core/primary rows are 32px; application
+   rows are 36px, the second measured row height in the Foundry sidebar. */
+.console-rail__item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 32px;
+  padding: 0 17px;
   color: var(--bp-palette-gray-4, #abb3bf);
   background: transparent;
   border: 0;
-  border-radius: 2px;
+  border-radius: 0;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
   cursor: pointer;
 }
 
+.console-rail__group--application .console-rail__item {
+  height: 36px;
+}
+
+.console-rail__item .console-rail__label {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.console-rail__item > .bp6-icon {
+  flex: none;
+}
+
+/* Collapsed row: the 36x36 icon tile, centered, 2px compact corner. Density,
+   not just a narrower column. */
+.console-rail[data-collapsed] .console-rail__item {
+  display: grid;
+  place-items: center;
+  gap: 0;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: 2px;
+}
+
+/* Hover is a neutral low-opacity fill and is NOT selection. */
 .console-rail__item:hover {
   color: var(--bp-palette-light-gray-5, #f6f7f9);
   background: rgba(255, 255, 255, 0.1);
 }
 
-.console-rail__item--active {
+/* The open Applications popover trigger reads as engaged, not selected: a
+   neutral fill, never the primary-tinted selection treatment, because it names
+   no route. */
+.console-rail__item--applications[aria-expanded="true"] {
   color: var(--bp-palette-light-gray-5, #f6f7f9);
   background: rgba(255, 255, 255, 0.16);
 }
 
+/* Active = route state: a low-opacity primary-tinted fill AND a 4px left
+   indicator (the Control Panel administrative-rail rule). `aria-current="page"`
+   is what NavLink sets and what a screen reader announces; the class is the
+   same signal for styling. */
+.console-rail__item--active,
+.console-rail__item[aria-current="page"] {
+  color: var(--bp-palette-light-gray-5, #f6f7f9);
+  background: rgba(45, 114, 210, 0.2);
+}
+
+.console-rail__item--active::before,
+.console-rail__item[aria-current="page"]::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  background: var(--bp-intent-primary-rest, #2d72d2);
+  content: "";
+}
+
 /* The rail is the one control that must stay reachable by keyboard even when a
    popover has focus, so the ring is drawn inside the item rather than clipped. */
-.console-rail__item:focus-visible {
+.console-rail__item:focus-visible,
+.console-rail__toggle:focus-visible {
   outline: 2px solid var(--bp-palette-blue-5, #8abbff);
   outline-offset: -2px;
 }
 
 /* Keep the chrome narrow on phones, but make every icon target meet the 44px
-   touch recommendation. The observed 230px tenant sidebar left only 160px of
-   a 390px viewport; this contract reserves 342px for Platform's workspace. */
+   touch recommendation. Below the responsive break the rail is always the
+   collapsed icon rail (web/src/app/useRailCollapsed.ts), so only that state
+   needs the enlarged target. The observed 230px tenant sidebar left only 160px
+   of a 390px viewport; the 48px collapsed rail reserves 342px for the work. */
 @media (max-width: 600px) {
-  .console-rail {
-    padding: 4px 0;
-  }
-
-  .console-rail__item {
+  .console-rail[data-collapsed] .console-rail__item {
     width: 44px;
     height: 44px;
   }
