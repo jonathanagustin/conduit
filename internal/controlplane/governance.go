@@ -79,11 +79,25 @@ type ChangeRequest struct {
 	Evaluations           []PolicyEvaluation    `json:"evaluations"`
 	Requirements          []ReviewerRequirement `json:"requirements"`
 	Reviews               []ChangeReview        `json:"reviews,omitempty"`
-	Execution             *ChangeExecution      `json:"execution,omitempty"`
-	Error                 string                `json:"error,omitempty"`
-	CreatedAt             time.Time             `json:"createdAt"`
-	UpdatedAt             time.Time             `json:"updatedAt"`
-	Revision              uint64                `json:"revision"`
+	// PriorReviews holds the reviews of every earlier round, oldest first.
+	//
+	// Reopening rebuilds the record by re-evaluating against the policies in
+	// force now, which necessarily discards Reviews -- a reviewer who approved
+	// the old evaluation did not approve this one. But a REJECTED request's
+	// reviews carry the rationale a human wrote for refusing it, and that was
+	// the only copy: reopening deleted the answer to "why was this refused
+	// before?" precisely when someone had decided to try again (#103).
+	//
+	// Kept separate from Reviews rather than left in it, because approveOnce
+	// (below) walks Reviews to refuse a second approval from one subject. A
+	// carried-forward approval must not satisfy the new round, and must not
+	// block the same reviewer from approving it either.
+	PriorReviews []ChangeReview   `json:"priorReviews,omitempty"`
+	Execution    *ChangeExecution `json:"execution,omitempty"`
+	Error        string           `json:"error,omitempty"`
+	CreatedAt    time.Time        `json:"createdAt"`
+	UpdatedAt    time.Time        `json:"updatedAt"`
+	Revision     uint64           `json:"revision"`
 }
 
 type ChangeExecution struct {
@@ -960,7 +974,10 @@ func (service *GovernanceService) Reopen(
 	// failed to evaluate, every policy returning no_op, or no enabled policies
 	// at all -- so nobody vetoed anything and there is no judgement to overrule.
 	// Reject refuses any status but PENDING_APPROVALS, so an errored record's
-	// Reviews are empty and reopening overwrites machine output only.
+	// Reviews are empty and reopening overwrites machine output only. That
+	// reasoning holds for ERROR and for nothing else: a REJECTED record's
+	// Reviews carry a human's rationale, which is why they are carried into
+	// PriorReviews below rather than discarded with the evaluation.
 	//
 	// Excluding it was the worse half of a wedge. A crq_ id is derived from its
 	// target, so the errored record occupies that target permanently and every
@@ -985,6 +1002,11 @@ func (service *GovernanceService) Reopen(
 		return ChangeRequest{}, PlanRecord{}, err
 	}
 	reopened.ID, reopened.CreatedAt, reopened.Revision = request.ID, request.CreatedAt, request.Revision
+	// Oldest first, so a request reopened twice reads as a history rather than
+	// as a set. evaluateChangeRequest built `reopened` from scratch and knows
+	// nothing about earlier rounds, so this is the only place the chain can be
+	// joined up.
+	reopened.PriorReviews = append(append([]ChangeReview(nil), request.PriorReviews...), request.Reviews...)
 	request, err = service.repository.UpdateChangeRequest(ctx, id, func(current *ChangeRequest) error {
 		*current = reopened
 		current.UpdatedAt = service.now().UTC()
