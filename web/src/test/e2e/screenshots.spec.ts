@@ -371,3 +371,39 @@ test("capture 16-empty-state", async ({ page, hub }) => {
   await expect(page.getByTestId("environments-page")).toBeVisible();
   await page.screenshot({ path: "screenshots/16-empty-state.png", fullPage: true });
 });
+
+test("capture 17-vulnerability-inventory", async ({ page, hub }) => {
+  const chart = { repository: "registry.example/app", digest: "sha256:abc" };
+  hub.get("/catalog-retirements", { retirements: [] });
+  hub.get("/products", {
+    products: [
+      { product: "app.example:payments", releaseCount: 2, latestVersion: "2.4.2" },
+      { product: "app.example:search", releaseCount: 1, latestVersion: "8.1.0" },
+      { product: "app.example:ledger", releaseCount: 1, latestVersion: "1.9.0" },
+    ],
+    total: 3, pageSize: 3, limit: 100, hasPrevious: false,
+  });
+  hub.get("/products/app.example:payments/releases", {
+    releases: [{
+      product: "app.example:payments", version: "2.4.1", chart, images: [],
+      vulnerabilityAssessment: { outcome: "FAIL", activeVulnerabilities: 2, activeFindings: [{ id: "CVE-2026-0001", cvss: 9.8 }, { id: "CVE-2026-0002", severity: "MEDIUM" }] },
+    }],
+  });
+  hub.get("/products/app.example:search/releases", {
+    releases: [{
+      product: "app.example:search", version: "8.1.0", chart, images: [],
+      vulnerabilityAssessment: { outcome: "FAIL", activeVulnerabilities: 1, activeFindings: [{ id: "CVE-2026-0003", cvss: 7.4 }] },
+    }],
+  });
+  hub.get("/products/app.example:ledger/releases", {
+    releases: [{
+      product: "app.example:ledger", version: "1.9.0", chart, images: [],
+      vulnerabilityAssessment: { outcome: "FAIL", activeVulnerabilities: 1, activeFindings: [{ id: "CVE-2026-0004", cvss: 3.1 }] },
+    }],
+  });
+  await page.goto("risk");
+  await expect(page.getByTestId("risk-page")).toBeVisible();
+  await page.getByRole("tab", { name: "Vulnerabilities" }).click();
+  await expect(page.getByTestId("risk-vulnerabilities")).toBeVisible();
+  await page.screenshot({ path: "screenshots/17-vulnerability-inventory.png", fullPage: true });
+});

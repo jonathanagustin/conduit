@@ -20,8 +20,13 @@ import {
 } from "../../components/facets.js";
 import { fleetFacetGroups } from "../../features/fleet/facets.js";
 import { statusIntent } from "../../api/imports.js";
-import { findingScore, orderFindingsByHubScore } from "../../api/catalog.js";
-import type { VulnerabilityFinding } from "../../api/catalog.js";
+import { findingScore, orderFindingsByHubScore, severityTier } from "../../api/catalog.js";
+import type { ActiveFindingRow, VulnerabilityFinding } from "../../api/catalog.js";
+import {
+  filterInventoryByTier,
+  inventoryTiers,
+  orderInventoryRows,
+} from "../../features/risk/inventory.js";
 import { pipelineStatus, pipelineStatusIntent } from "../../api/exports.js";
 import {
   NOTIFICATION_CHANNELS,
@@ -908,5 +913,49 @@ describe("Team contact kinds", () => {
     expect(contactDeliverable("PAGERDUTY")).toBe(false);
     // An unknown kind is not something the Hub delivers to either.
     expect(contactDeliverable("CARRIER_PIGEON")).toBe(false);
+  });
+});
+
+// The cross-Release vulnerability inventory (Risk Management). It surfaces the
+// Hub's own active findings, so the tests pin the ordering, bucketing and
+// filtering rather than any re-derivation of what "active" means.
+describe("Vulnerability inventory", () => {
+  const row = (product: string, version: string, finding: VulnerabilityFinding): ActiveFindingRow => ({
+    product,
+    version,
+    finding,
+  });
+
+  it("ranks the Hub's tiers off the score, including a severity-only finding", () => {
+    // A CRITICAL finding with no CVSS scores 9.0 at the Hub; it must rank above a
+    // 0.5-CVSS finding, not below it -- the case that inverts if you order on
+    // CVSS alone.
+    expect(severityTier({ id: "a", severity: "CRITICAL" })).toBe("CRITICAL");
+    expect(severityTier({ id: "b", cvss: 0.5 })).toBe("LOW");
+    expect(severityTier({ id: "c", cvss: 7.5 })).toBe("HIGH");
+    // Unparsed severity is HIGH at the Hub, not harmless.
+    expect(severityTier({ id: "d", severity: "???" })).toBe("HIGH");
+    expect(severityTier({ id: "e", severity: "NONE" })).toBe("NONE");
+  });
+
+  it("orders rows worst-first with a stable Product/version/CVE tie-break", () => {
+    const rows = [
+      row("app.z", "1.0.0", { id: "CVE-3", cvss: 5 }),
+      row("app.a", "1.0.0", { id: "CVE-2", cvss: 9.8 }),
+      row("app.a", "1.0.0", { id: "CVE-1", cvss: 9.8 }),
+    ];
+    expect(orderInventoryRows(rows).map((r) => r.finding.id)).toEqual(["CVE-1", "CVE-2", "CVE-3"]);
+  });
+
+  it("offers only the tiers present, worst-first, and filters to one", () => {
+    const rows = [
+      row("app.a", "1.0.0", { id: "CVE-1", cvss: 9.8 }),
+      row("app.b", "2.0.0", { id: "CVE-2", cvss: 5 }),
+      row("app.b", "2.0.0", { id: "CVE-3", cvss: 5 }),
+    ];
+    expect(inventoryTiers(rows)).toEqual(["CRITICAL", "MEDIUM"]);
+    expect(filterInventoryByTier(rows, "MEDIUM").map((r) => r.finding.id)).toEqual(["CVE-2", "CVE-3"]);
+    // No tier selected returns everything.
+    expect(filterInventoryByTier(rows, undefined)).toHaveLength(3);
   });
 });

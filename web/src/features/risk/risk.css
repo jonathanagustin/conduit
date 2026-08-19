@@ -20,3 +20,10 @@
 .console-risk__meta dt {
   font-weight: 600;
 }
+
+/* Vulnerability inventory: the CVE id is a mono identifier at the metadata
+   type-scale size, matching the fleet coordinate. */
+.console-risk__cve {
+  font-family: var(--pt-font-family-monospace, monospace);
+  font-size: 12px;
+}

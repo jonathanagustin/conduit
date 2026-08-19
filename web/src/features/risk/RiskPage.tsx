@@ -1,20 +1,57 @@
 import { useState } from "react";
-import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@blueprintjs/core";
+import {
+  Button,
+  Callout,
+  H2,
+  HTMLSelect,
+  HTMLTable,
+  InputGroup,
+  Section,
+  SectionCard,
+  Tab,
+  Tabs,
+  Tag,
+} from "@blueprintjs/core";
 
+import {
+  findingScore,
+  severityTier,
+  useVulnerabilityInventory,
+  type SeverityTier,
+} from "../../api/catalog.js";
 import { recallRange, useRetirements, type Recall } from "../../api/risk.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
 import { useIndexQuery } from "../useIndexQuery.js";
+import { filterInventoryByTier, inventoryTiers, orderInventoryRows } from "./inventory.js";
 import "./risk.css";
 
-/** Risk Management -- the recalls that withdraw Release ranges from selection.
- * GET /v1/catalog-retirements returns the whole set as one named array, so the
- * search filters locally. Selecting a recall reveals what it does to what is
- * already installed, from the row already loaded, so there is no second fetch:
- * there is no per-recall endpoint, and inventing one would promise a detail the
- * Hub does not serve. */
+/** Risk Management -- two questions an operator asks about live risk. "What has
+ * been withdrawn?" is Recalls, backed by GET /v1/catalog-retirements. "What are
+ * my active vulnerabilities right now?" is the cross-Release inventory, which
+ * the Hub serves per Release and this composes -- see useVulnerabilityInventory.
+ * The inventory is a tab of its own so its per-Product fan-out fires only when
+ * an operator opens it, not on every visit to the recalls list. */
 export function RiskPage() {
+  const [tab, setTab] = useState<string>("recalls");
+  return (
+    <div data-testid="risk-page">
+      <ObjectHeader icon="shield" kind="Resource collection" title="Risk Management" />
+      <Tabs id="risk-tabs" selectedTabId={tab} onChange={(next) => setTab(String(next))} renderActiveTabPanelOnly>
+        <Tab id="recalls" title="Recalls" panel={<RecallsPanel />} />
+        <Tab id="vulnerabilities" title="Vulnerabilities" panel={<VulnerabilityInventoryPanel />} />
+      </Tabs>
+    </div>
+  );
+}
+
+/** The recalls that withdraw Release ranges from selection. Selecting a recall
+ * reveals what it does to what is already installed, from the row already
+ * loaded, so there is no second fetch: there is no per-recall endpoint, and
+ * inventing one would promise a detail the Hub does not serve. */
+function RecallsPanel() {
   const index = useIndexQuery();
   const { data, error, isPending, refetch } = useRetirements();
   const [selected, setSelected] = useState<string | undefined>(undefined);
@@ -31,8 +68,7 @@ export function RiskPage() {
         const visible = term === "" ? recalls : recalls.filter((recall) => recallMatches(recall, term));
         const chosen = visible.find((recall) => recall.id === selected);
         return (
-          <div data-testid="risk-page">
-            <ObjectHeader icon="shield" kind="Resource collection" title="Risk Management" />
+          <div data-testid="risk-recalls">
             <Section className="console-index" compact icon="shield" title="Recalls" titleRenderer={H2}>
               <SectionCard padded={false}>
                 <form className="console-index-controls" role="search" onSubmit={index.applySearch}>
@@ -46,11 +82,14 @@ export function RiskPage() {
                   <Button type="submit" text="Search" />
                 </form>
                 {visible.length === 0 ? (
-                  <p className="console-empty">
-                    {index.query.search === undefined
-                      ? "No Releases have been recalled."
-                      : `No recall matches "${index.query.search}".`}
-                  </p>
+                  <EmptyState
+                    icon="shield"
+                    title={
+                      index.query.search === undefined
+                        ? "No Releases have been recalled."
+                        : `No recall matches "${index.query.search}".`
+                    }
+                  />
                 ) : (
                   <HTMLTable className="console-risk__table console-index-table" interactive striped>
                     <thead>
@@ -97,6 +136,129 @@ export function RiskPage() {
         );
       }}
     </QueryState>
+  );
+}
+
+/** The cross-Release inventory of active, unsuppressed, out-of-grace findings --
+ * the Hub's own `activeFindings`, gathered across the catalog and ranked
+ * worst-first by the score the Hub gives them. The severity filter is over the
+ * tiers actually present, and a bounded catalog says so rather than implying the
+ * first page is the whole of it. */
+function VulnerabilityInventoryPanel() {
+  const inventory = useVulnerabilityInventory();
+  const [tier, setTier] = useState<SeverityTier | "ALL">("ALL");
+
+  if (inventory.isPending) {
+    return <p className="console-empty">Assembling the vulnerability inventory…</p>;
+  }
+  if (inventory.error !== null) {
+    return (
+      <Callout intent="danger" icon="error" data-testid="risk-vulnerabilities-error">
+        {inventory.error instanceof Error
+          ? inventory.error.message
+          : "The vulnerability inventory could not be read."}
+      </Callout>
+    );
+  }
+
+  const ordered = orderInventoryRows(inventory.rows);
+  const tiers = inventoryTiers(ordered);
+  const selectedTier = tier === "ALL" ? undefined : tier;
+  const visible = filterInventoryByTier(ordered, selectedTier);
+
+  return (
+    <div data-testid="risk-vulnerabilities">
+      <Section
+        className="console-index"
+        compact
+        icon="error"
+        title="Active vulnerabilities"
+        titleRenderer={H2}
+        rightElement={
+          <HTMLSelect
+            aria-label="Severity"
+            value={tier}
+            onChange={(event) => setTier(event.currentTarget.value as SeverityTier | "ALL")}
+          >
+            <option value="ALL">All severities</option>
+            {tiers.map((value) => (
+              <option key={value} value={value}>
+                {value}
+              </option>
+            ))}
+          </HTMLSelect>
+        }
+      >
+        <SectionCard padded={false}>
+          {inventory.bounded ? (
+            <Callout
+              compact
+              icon="stacked-chart"
+              intent="primary"
+              data-testid="risk-vulnerabilities-bounded"
+            >
+              This covers the {inventory.productCount} Products on the first catalog page. The catalog
+              holds more; open a Product to read its Releases' findings directly.
+            </Callout>
+          ) : null}
+          {ordered.length === 0 ? (
+            <EmptyState
+              icon="shield"
+              title="No active vulnerabilities across the catalog's Releases."
+              description="Every current assessment is clean, suppressed, or within its grace period."
+            />
+          ) : visible.length === 0 ? (
+            <EmptyState icon="filter" title={`No ${selectedTier} findings.`} />
+          ) : (
+            <HTMLTable className="console-risk__table console-index-table" striped>
+              <thead>
+                <tr>
+                  <th scope="col">Severity</th>
+                  <th scope="col">CVE</th>
+                  <th scope="col">Product</th>
+                  <th scope="col">Version</th>
+                  <th scope="col">Hub score</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visible.map((row) => (
+                  <tr
+                    key={`${row.product}@${row.version}:${row.finding.id}`}
+                    data-testid={`vuln-${row.finding.id}`}
+                  >
+                    <td>
+                      <SeverityTag tier={severityTier(row.finding)} />
+                    </td>
+                    <td className="console-risk__cve">{row.finding.id}</td>
+                    <td>{row.product}</td>
+                    <td>{row.version}</td>
+                    <td>{findingScore(row.finding).toFixed(1)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </HTMLTable>
+          )}
+        </SectionCard>
+      </Section>
+    </div>
+  );
+}
+
+/** The Hub's severity tier as a coloured tag. CRITICAL and HIGH are the tiers a
+ * recall can be raised for, so they read danger; the rest step down. */
+function SeverityTag({ tier }: { tier: SeverityTier }) {
+  const intent =
+    tier === "CRITICAL" || tier === "HIGH"
+      ? "danger"
+      : tier === "MEDIUM"
+        ? "warning"
+        : tier === "LOW"
+          ? "primary"
+          : "none";
+  return (
+    <Tag intent={intent} round minimal>
+      {tier}
+    </Tag>
   );
 }
 
