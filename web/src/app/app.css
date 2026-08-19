@@ -8,5 +8,5 @@
   flex: 1;
   min-width: 0;
   overflow: auto;
-  background: var(--bp-surface-background-color-subtle-rest, #f6f7f9);
+  background: var(--bp-palette-light-gray-5, #f6f7f9);
 }

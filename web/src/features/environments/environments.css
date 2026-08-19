@@ -25,9 +25,9 @@
   .console-environment__mobile-record {
     margin: 0;
     padding: 12px;
-    border: 1px solid var(--bp-border-color, #d3d8de);
+    border: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
     border-radius: 2px;
-    background: var(--bp-background-color, #fff);
+    background: var(--bp-palette-white, #fff);
   }
   .console-environment__mobile-record > div {
     display: grid;

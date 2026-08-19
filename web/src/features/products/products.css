@@ -3,8 +3,8 @@
 .console-products__pipeline {
   margin: 12px 0 16px;
   padding: 12px;
-  border: 1px solid var(--bp-border-color, #d3d8de);
-  background: var(--bp-background-color, #fff);
+  border: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
+  background: var(--bp-palette-white, #fff);
 }
 .console-products__pipeline > h2 { margin: 0 0 12px; font-size: 16px; }
 /* A digest is long and never wrapped: a broken digest is worse than a scrollbar. */
@@ -19,13 +19,13 @@
 .console-products__assessment {
   margin: 16px 0 0;
   padding: 12px;
-  border: 1px solid var(--bp-border-color, #d3d8de);
-  background: var(--bp-background-color, #fff);
+  border: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
+  background: var(--bp-palette-white, #fff);
 }
 .console-products__assessment > h2 { margin: 0 0 4px; font-size: 16px; }
 .console-products__assessment > h3 { margin: 16px 0 8px; font-size: 14px; }
 .console-products__assessment-provenance {
   margin: 0 0 12px;
-  color: var(--bp-text-color-muted, #5f6b7c);
+  color: var(--bp-typography-color-muted, #5f6b7c);
   font-size: 12px;
 }

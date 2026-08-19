@@ -29,7 +29,7 @@
 
 .console-imports__error,
 .console-imports__failure {
-  color: var(--pt-intent-danger, #cd4246);
+  color: var(--bp-intent-danger-rest, #cd4246);
 }
 
 .console-imports__tasks {

@@ -19,7 +19,7 @@
 .console-graph__channel {
   padding: 4px 10px;
   font-weight: 600;
-  background: var(--bp-surface-background-color-subtle-rest, #f6f7f9);
+  background: var(--bp-palette-light-gray-5, #f6f7f9);
   border: 1px solid var(--bp-surface-border-color-default, rgba(17, 20, 24, 0.15));
   border-radius: 2px;
 }
@@ -38,7 +38,7 @@
 .console-graph__transition:hover { background: rgba(17, 20, 24, 0.05); }
 
 .console-graph__transition--selected {
-  border-color: #2d72d2;
+  border-color: var(--bp-intent-primary-rest, #2d72d2);
   background: rgba(45, 114, 210, 0.1);
 }
 
