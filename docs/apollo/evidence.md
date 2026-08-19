@@ -20,6 +20,10 @@ infer missing behavior.
 - [Apollo client DLL evidence](APOLLO-CLIENT-DLL-EVIDENCE.md),
   [receipt](apollo-client-dll-receipt-2026-08-02.json), and
   [Java object closure](apollo-java-object-closure-2026-08-02.json)
+- [Frontend CAS closure capture](FRONTEND-CAS-CAPTURE.md) — the served
+  `apollo-control-panel` 6.533.15 bytes. Read its Finding 1 before mining it:
+  the app is Foundry **Control Panel** under an Apollo skin, so it authorizes
+  nothing about the Apollo deployment console.
 - [Maven inventory evidence](APOLLO-MAVEN-INVENTORY-EVIDENCE.md)
 - [Java object alignment](JAVA-OBJECT-ALIGNMENT.md)
 - [Role/interface inventory](ROLE-INTERFACE-INVENTORY.md)

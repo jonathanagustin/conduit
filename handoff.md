@@ -981,3 +981,76 @@ image, warm Go caches, lanes run one-at-a-time foreground with `timeout 580`;
 strip `needs: preflight`). Next best step: pick the most tractable remaining
 issue (a Bucket B pure-frontend one, or #297 with a ceiling offset), implement →
 act-gate four lanes → PR → merge.
+
+## Frontend CAS capture pulled and mined, 2026-08-19
+
+**What arrived.** `ghcr.io/jonathanagustin/apollo-ui/apollo-frontend-cas:6.533.15`
+— an OCI *artifact* (`application/vnd.foundry.tree.v1+tar`, empty config, one
+zstd layer), not a runnable image. Pulled through the ghcr HTTP API with `curl`;
+no Docker daemon is running in a fresh session and none is needed. The layer
+digest was checked against the manifest before anything was read from it. Full
+receipt: [`docs/apollo/FRONTEND-CAS-CAPTURE.md`](docs/apollo/FRONTEND-CAS-CAPTURE.md).
+
+**`[VERIFIED]` The capture is Foundry Control Panel, not the Apollo deployment
+console.** Its own title string is `{platform, select, apollo {Apollo} foundry
+{Foundry} gotham {Gotham}} <bold>Control Panel</bold>` — "Apollo" is the platform
+skin, "Control Panel" is the product. All 1,037 English `defaultMessage` strings
+are enrollment administration (auth/SAML, email, network ingress, deletion
+queue, markings, extensions). No Release, Product, Plan, Change Request, Recall,
+Promotion, Spoke or Environment-deployment screen vocabulary. This is the same
+name collision `APOLLO-CLIENT-DLL-EVIDENCE.md` records for the GraphQL client:
+**an artifact named `apollo-*` is not evidence about the deployment product.**
+Do not cite this capture for anything on Products, Releases, Environments,
+Plans, Change Requests, Promotions, Fleet, Risk, Export or Import.
+
+**`[VERIFIED]` What it does say about Apollo**, all Control-Panel-side
+administration of an Apollo enrollment: `restore-apollo-permissions`,
+`createApolloSpaceForOrganization` ("Bootstrap the enrollment with an Apollo
+space"), `/apollo-enrollment-organization`, `/apollo-third-party-applications`,
+`/environment/applied-apollo-labels`, and a "Manage Alerting" dialog that names
+Apollo's **NOC Inbox** and **monitors tabs** as the UI it toggles. That last one
+is the only description of deployment-side Apollo UI in the capture, and it is
+second-hand.
+
+**Shipped from it.** `web/src/components/Timestamp.tsx` now implements Foundry's
+own relative-time ladder rather than a hand-rolled approximation, recovered
+exactly from the captured chunk (English `defaultMessage` strings are inline, so
+nothing was translated back). Three defects it fixes: rounding read 59m59s as
+"60 minutes ago"; the ladder stopped at days, so last quarter read "97 days
+ago"; and there was no named yesterday/tomorrow. Two departures are deliberate
+and recorded in the file — the calendar-day comparison and `{formattedTime}` are
+UTC, because this console pins UTC and because a locale-formatted string cannot
+be pinned by a test.
+
+**Evidence.** 113 unit tests (the "relative time" block spells out the captured
+boundaries), 175 e2e specs, `tsc --noEmit`, `pnpm build` with the regenerated
+`internal/consoleui/dist` committed, `go test ./internal/consoleui/...`, and
+`node scripts/verify-console-contract.mjs` (14 vocabularies). Four compiling
+mutants — round instead of floor, drop the yesterday branch, 4-week threshold,
+31-day month — each kill exactly one test. `./scripts/verify-local.sh` was NOT
+run: this is a frontend and docs change, and the Go side moves only embedded
+`dist` bytes.
+
+**Environment fact for the next session.** `pnpm test:e2e` fails instantly with
+"Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1234/…".
+The sandbox ships build **1194**; this repo's pinned Playwright wants 1234. Do
+not run `npx playwright install` (the note in the environment says so and it
+would fetch over the proxy). Bridge it instead — the whole suite then passes:
+
+```bash
+mkdir -p /opt/pw-browsers/chromium_headless_shell-1234/chrome-headless-shell-linux64
+ln -sfn /opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell \
+        /opt/pw-browsers/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell
+```
+
+**Not adopted, recorded only.** The stylesheet carries Blueprint **6** tokens
+(`--bp-palette-*`, `--bp-intent-*`, `--bp-typography-*`, `--bp-surface-*`) with
+concrete values; the console is on Blueprint 5. Foundry's date-format presets
+and Control Panel's core vocabulary are in the receipt too. None of it was
+applied: Control Panel's wording is Control Panel's, and these are not Conduit's
+screens.
+
+**Still unread.** 16 `cross-app-debugger` app chunks are absent — the tenant's
+own CAS backend answered `503` (Envoy `response-flags: URX`) to every method the
+capture tried. Hashes are listed in the capture's `UNAVAILABLE-503.txt`. Retry
+when that backend recovers if the debugger ever matters.

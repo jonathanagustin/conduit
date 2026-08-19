@@ -190,39 +190,77 @@ describe("release channel ordering", () => {
 
 describe("relative time", () => {
   // A fixed "now" so the arithmetic is deterministic. Reading Date.now() inside
-  // the test would make the boundaries drift with the clock.
+  // the test would make the boundaries drift with the clock. Midday UTC so a
+  // day either side stays inside its own UTC date.
   const now = Date.parse("2026-08-07T12:00:00Z");
   const ago = (seconds: number) => new Date(now - seconds * 1000);
+  const days = (count: number) => ago(count * 86_400);
+
+  // Every expectation below is the captured Foundry ladder, not a preference:
+  // `apollo-control-panel` 6.533.15 truncates each unit, names yesterday and
+  // tomorrow before counting hours, and counts whole calendar days beyond that.
+  // See docs/apollo/FRONTEND-CAS-CAPTURE.md.
 
   it("counts seconds, then minutes, then hours, then days", () => {
     expect(relative(ago(5), now)).toBe("5 seconds ago");
     expect(relative(ago(120), now)).toBe("2 minutes ago");
     expect(relative(ago(7200), now)).toBe("2 hours ago");
-    expect(relative(ago(172_800), now)).toBe("2 days ago");
+    expect(relative(days(2), now)).toBe("2 days ago");
   });
 
   it("switches unit at each boundary rather than one either side of it", () => {
     expect(relative(ago(59), now)).toBe("59 seconds ago");
     expect(relative(ago(60), now)).toBe("1 minute ago");
-    expect(relative(ago(3599), now)).toBe("60 minutes ago");
+    // Truncated, not rounded: 59m59s is not an hour, and reading it as one made
+    // two screens disagree about whether a deadline had passed.
+    expect(relative(ago(3599), now)).toBe("59 minutes ago");
     expect(relative(ago(3600), now)).toBe("1 hour ago");
-    expect(relative(ago(86_399), now)).toBe("24 hours ago");
-    expect(relative(ago(86_400), now)).toBe("1 day ago");
+    expect(relative(ago(43_199), now)).toBe("11 hours ago");
+    expect(relative(ago(43_200), now)).toBe("12 hours ago");
+  });
+
+  it("names yesterday and tomorrow ahead of counting hours or days", () => {
+    // 12 hours back from midday is still today; 13 is not.
+    expect(relative(ago(12 * 3600), now)).toBe("12 hours ago");
+    expect(relative(ago(13 * 3600), now)).toBe("Yesterday at 23:00 UTC");
+    expect(relative(days(1), now)).toBe("Yesterday at 12:00 UTC");
+    expect(relative(new Date(now + 13 * 3_600_000), now)).toBe("Tomorrow at 01:00 UTC");
+  });
+
+  it("keeps the day count above the hour count once a whole day has passed", () => {
+    expect(relative(days(2), now)).toBe("2 days ago");
+    expect(relative(days(20), now)).toBe("20 days ago");
+  });
+
+  it("climbs to weeks, months and years the way the captured ladder does", () => {
+    // 21 days is 3 weeks; 60 days is 2 months; 730 days is 2 years. The spans
+    // are Foundry's coarse constants -- a month is 30 days, a year is 365.
+    expect(relative(days(21), now)).toBe("3 weeks ago");
+    expect(relative(days(59), now)).toBe("8 weeks ago");
+    expect(relative(days(60), now)).toBe("2 months ago");
+    expect(relative(days(97), now)).toBe("3 months ago");
+    expect(relative(days(729), now)).toBe("24 months ago");
+    expect(relative(days(730), now)).toBe("2 years ago");
   });
 
   it("agrees with its unit in the singular", () => {
     expect(relative(ago(1), now)).toBe("1 second ago");
     expect(relative(ago(60), now)).toBe("1 minute ago");
+    expect(relative(days(7), now)).toBe("7 days ago");
   });
 
   it("says 'in' for a timestamp ahead of the clock", () => {
     // Hub and browser clocks disagree; "-30 seconds ago" would be nonsense.
     expect(relative(new Date(now + 30_000), now)).toBe("in 30 seconds");
     expect(relative(new Date(now + 7_200_000), now)).toBe("in 2 hours");
+    expect(relative(new Date(now + 40 * 86_400_000), now)).toBe("in 5 weeks");
   });
 
-  it("treats the present as zero seconds rather than as future", () => {
-    expect(relative(new Date(now), now)).toBe("0 seconds ago");
+  it("says 'now' rather than putting a zero on the screen", () => {
+    expect(relative(new Date(now), now)).toBe("now");
+    expect(relative(new Date(now - 999), now)).toBe("now");
+    expect(relative(new Date(now + 999), now)).toBe("now");
+    expect(relative(new Date(now - 1000), now)).toBe("1 second ago");
   });
 });
 
