@@ -66,6 +66,38 @@ type ReleaseLifecyclePort interface {
 	ReleaseLifecycle(context.Context) (ReleaseLifecycle, error)
 }
 
+// EnvironmentInventoryPort is the durable authority for which Environments this
+// Hub governs, what is installed in them, and which Namespaces they target. It
+// is the same failure ReleaseLifecyclePort exists for, one surface over: the
+// inventory was pushed into this process by whichever replica accepted a
+// desired state, so a replica that had not served that POST -- and every replica
+// after a restart, because New rehydrates publications alone -- answered the
+// three list routes with an EMPTY list.
+//
+// Empty is the wrong shape of wrong. A client cannot distinguish it from "this
+// Hub governs nothing", so an unanswered question reads as a settled negative:
+// the unknown-reads-as-none conflation internal/apollographql/ports says the
+// provenance model exists to prevent, arriving through the store rather than
+// through authorization.
+//
+// It is a SEPARATE port from ReleaseLifecyclePort, not a widening of it, for two
+// reasons that are not stylistic. First, the two project different shapes and
+// are read at different times: every catalog read consults the lifecycle, and
+// folding per-Environment Entities and Namespaces into ReleaseLifecycle would
+// make ListReleases build a fleet inventory it never looks at. Second, and
+// decisively, they need DIFFERENT Plans. The lifecycle deliberately excludes
+// command Plans (latestDeclaredStates) because a command stores a desired state
+// with its Recalls stripped; the inventory must INCLUDE them, because a command
+// carries the Environment's full Entity set and the write path recorded it.
+// One port would have to pick one filter, and either choice is a defect.
+type EnvironmentInventoryPort interface {
+	// EnvironmentInventory returns one projection per Environment the Hub has
+	// accepted a desired state for, which is exactly the set the pushed
+	// projection used to hold -- read from durable state instead of from
+	// whichever process happened to serve the write.
+	EnvironmentInventory(context.Context) ([]environments.CompatibilityProjection, error)
+}
+
 // ReleaseLifecycle is what a single read of durable desired state yields. Both
 // halves travel together so that answering a Release costs one query rather
 // than one per field, and so that recallStatus and releaseChannels on the same
@@ -113,18 +145,18 @@ type releaseRecord struct {
 // Service holds compatibility projections, not authoritative desired state.
 // Durable Publications and Environment Reports cross explicit domain ports.
 type Service struct {
-	mu            sync.RWMutex
-	products      map[string]apollo.Product
-	releases      map[string]map[string]releaseRecord
-	environments  map[string]apollo.Environment
-	installations map[string]map[string]apollo.Installation
-	namespaces    map[string]map[string]apollo.Namespace
-	entityInfo    map[string][]apollo.EntityInfo
-	entityHealth  map[string][]apollo.EntityHealth
-	// recalls and promotions are deliberately absent from this struct. They are
-	// the two projections that were held here and answered wrong on any replica
-	// that had not served the write; they are read through lifecycle instead.
+	mu           sync.RWMutex
+	products     map[string]apollo.Product
+	releases     map[string]map[string]releaseRecord
+	entityInfo   map[string][]apollo.EntityInfo
+	entityHealth map[string][]apollo.EntityHealth
+	// recalls and promotions are deliberately absent from this struct, and so
+	// are environments, installations and namespaces. All five were held here
+	// and all five answered wrong on any replica that had not served the write:
+	// the first two as "not recalled", the last three as an empty list. They are
+	// read through lifecycle and inventory instead.
 	lifecycle ReleaseLifecyclePort
+	inventory EnvironmentInventoryPort
 	catalog   CatalogPort
 	reporting environmentports.ReportingPort
 	now       func() time.Time
@@ -132,7 +164,7 @@ type Service struct {
 
 func New(
 	ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort,
-	lifecycle ReleaseLifecyclePort,
+	lifecycle ReleaseLifecyclePort, inventory EnvironmentInventoryPort,
 ) (*Service, error) {
 	// Refused rather than tolerated: a nil lifecycle port would leave every
 	// recallStatus unanswerable at request time, which is the failure this
@@ -140,12 +172,17 @@ func New(
 	if lifecycle == nil {
 		return nil, errors.New("Apollo requires a Release lifecycle port")
 	}
+	// Refused for the same reason and with more force: a nil inventory port
+	// would not fail loudly, it would serve an empty Environment list, and an
+	// empty list is indistinguishable from a Hub that governs nothing.
+	if inventory == nil {
+		return nil, errors.New("Apollo requires an Environment inventory port")
+	}
 	service := &Service{
 		products: make(map[string]apollo.Product), releases: make(map[string]map[string]releaseRecord),
-		environments: make(map[string]apollo.Environment), installations: make(map[string]map[string]apollo.Installation),
-		namespaces: make(map[string]map[string]apollo.Namespace), entityInfo: make(map[string][]apollo.EntityInfo),
+		entityInfo:   make(map[string][]apollo.EntityInfo),
 		entityHealth: make(map[string][]apollo.EntityHealth), catalog: catalogPort, reporting: reporting,
-		lifecycle: lifecycle, now: time.Now,
+		lifecycle: lifecycle, inventory: inventory, now: time.Now,
 	}
 	publications, err := catalogPort.ListPublications(ctx, "")
 	if err != nil {
@@ -581,12 +618,21 @@ func (service *Service) restorePublication(publication catalog.Publication) {
 	service.releases[publication.Product][publication.Version] = releaseRecord{model: model, digest: publication.PublicationDigest}
 }
 
-func (service *Service) SyncEnvironment(projection environments.CompatibilityProjection) {
+// projectEnvironment is the translation SyncEnvironment used to perform at write
+// time, moved to read time unchanged. It stays a pure function of one durable
+// projection so the answer cannot depend on which process is asked -- which is
+// the whole of the defect it replaces.
+//
+// SyncEnvironment itself is gone rather than left in place beside these reads. A
+// write path nothing reads is not free: it is a second, stale copy of the same
+// facts that the next reader may reasonably mistake for the source, and it is
+// how this surface acquired the bug in the first place.
+func projectEnvironment(projection environments.CompatibilityProjection) (
+	apollo.Environment, map[string]apollo.Installation, map[string]apollo.Namespace,
+) {
 	rid := EnvironmentRID(projection.ID)
 	environmentType, status := apollo.EnvironmentType("production"), apollo.ManagementStatus("managed")
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	service.environments[rid] = apollo.Environment{Rid: rid, Name: projection.ID, EnvironmentType: &environmentType, Status: status}
+	environment := apollo.Environment{Rid: rid, Name: projection.ID, EnvironmentType: &environmentType, Status: status}
 	installations := make(map[string]apollo.Installation, len(projection.Entities))
 	for _, entity := range projection.Entities {
 		installationRID := "ri.apollo.main.installation." + stableSuffix(projection.ID+":"+entity.Name)
@@ -598,13 +644,6 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 			PackageRid: packageRID, ProductId: entity.Product, ReleaseChannel: &channel, Version: &version,
 		}
 	}
-	service.installations[rid] = installations
-	// Recalls and promotions are NOT taken from this projection, deliberately.
-	// They used to be, and that made a Release's recallStatus an artifact of
-	// which replica served the write: this method runs only in the process that
-	// handled the POST, so the other replica -- and every replica after a
-	// restart -- answered "not recalled" for a withdrawn Release. They are read
-	// from durable desired state on each catalog read instead.
 	namespaces := make(map[string]apollo.Namespace, len(projection.Namespaces))
 	for _, namespace := range projection.Namespaces {
 		id := namespace.Name
@@ -614,66 +653,99 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 		owners, editors, viewers := []string{}, []string{}, []string{}
 		namespaces[id] = apollo.Namespace{Id: id, Owners: &owners, Editors: &editors, Viewers: &viewers}
 	}
-	service.namespaces[rid] = namespaces
+	return environment, installations, namespaces
 }
 
-func (service *Service) ListEnvironments() apollo.ListEnvironmentsResponse {
-	service.mu.RLock()
-	values := make([]apollo.Environment, 0, len(service.environments))
-	for _, value := range service.environments {
-		values = append(values, clone(value))
+// ListEnvironments answers from durable state on every call, so the fleet a
+// client is shown does not depend on which replica took the last write. The
+// error is returned rather than swallowed into an empty list: "I could not
+// reach the store" and "this Hub governs nothing" are different answers and a
+// client acts differently on each.
+func (service *Service) ListEnvironments(ctx context.Context) (apollo.ListEnvironmentsResponse, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.ListEnvironmentsResponse{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	service.mu.RUnlock()
+	values := make([]apollo.Environment, 0, len(inventory))
+	for _, projection := range inventory {
+		environment, _, _ := projectEnvironment(projection)
+		values = append(values, environment)
+	}
 	sort.Slice(values, func(i, j int) bool { return values[i].Rid < values[j].Rid })
-	return apollo.ListEnvironmentsResponse{Environments: &values}
+	return apollo.ListEnvironmentsResponse{Environments: &values}, nil
 }
 
-func (service *Service) GetEnvironment(rid string) (apollo.Environment, error) {
-	service.mu.RLock()
-	value, exists := service.environments[rid]
-	service.mu.RUnlock()
-	if !exists {
-		return apollo.Environment{}, &Error{Kind: NotFound, Message: "Environment not found"}
+func (service *Service) GetEnvironment(ctx context.Context, rid string) (apollo.Environment, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.Environment{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	return clone(value), nil
+	for _, projection := range inventory {
+		if environment, _, _ := projectEnvironment(projection); environment.Rid == rid {
+			return environment, nil
+		}
+	}
+	return apollo.Environment{}, &Error{Kind: NotFound, Message: "Environment not found"}
 }
 
-func (service *Service) ListInstallations(environmentRID string) apollo.ListInstallationsResponse {
-	service.mu.RLock()
-	values := make([]apollo.Installation, 0, len(service.installations[environmentRID]))
-	for _, value := range service.installations[environmentRID] {
-		values = append(values, clone(value))
+func (service *Service) ListInstallations(ctx context.Context, environmentRID string) (apollo.ListInstallationsResponse, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.ListInstallationsResponse{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	service.mu.RUnlock()
+	values := []apollo.Installation{}
+	for _, projection := range inventory {
+		environment, installations, _ := projectEnvironment(projection)
+		if environment.Rid != environmentRID {
+			continue
+		}
+		for _, value := range installations {
+			values = append(values, value)
+		}
+	}
 	sort.Slice(values, func(i, j int) bool { return values[i].Rid < values[j].Rid })
-	return apollo.ListInstallationsResponse{Installations: &values}
+	return apollo.ListInstallationsResponse{Installations: &values}, nil
 }
 
-func (service *Service) GetInstallation(environmentRID, installationRID string) (apollo.Installation, error) {
-	service.mu.RLock()
-	value, exists := service.installations[environmentRID][installationRID]
-	service.mu.RUnlock()
-	if !exists {
-		return apollo.Installation{}, &Error{Kind: NotFound, Message: "Installation not found"}
+func (service *Service) GetInstallation(ctx context.Context, environmentRID, installationRID string) (apollo.Installation, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.Installation{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	return clone(value), nil
+	for _, projection := range inventory {
+		environment, installations, _ := projectEnvironment(projection)
+		if environment.Rid != environmentRID {
+			continue
+		}
+		if value, exists := installations[installationRID]; exists {
+			return value, nil
+		}
+	}
+	return apollo.Installation{}, &Error{Kind: NotFound, Message: "Installation not found"}
 }
 
-func (service *Service) ListNamespaces() apollo.ListNamespacesResponse {
-	service.mu.RLock()
+// ListNamespaces folds every Environment's Namespaces into one list, because
+// Apollo's Namespace is Hub-wide while Conduit declares Namespaces inside an
+// Environment. Two Environments naming the same Namespace collapse to one
+// entry, as they did before.
+func (service *Service) ListNamespaces(ctx context.Context) (apollo.ListNamespacesResponse, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.ListNamespacesResponse{}, fmt.Errorf("read Environment inventory: %w", err)
+	}
 	unique := make(map[string]apollo.Namespace)
-	for _, environmentNamespaces := range service.namespaces {
-		for id, value := range environmentNamespaces {
+	for _, projection := range inventory {
+		_, _, namespaces := projectEnvironment(projection)
+		for id, value := range namespaces {
 			unique[id] = value
 		}
 	}
 	values := make([]apollo.Namespace, 0, len(unique))
 	for _, value := range unique {
-		values = append(values, clone(value))
+		values = append(values, value)
 	}
-	service.mu.RUnlock()
 	sort.Slice(values, func(i, j int) bool { return values[i].Id < values[j].Id })
-	return apollo.ListNamespacesResponse{Namespaces: &values}
+	return apollo.ListNamespacesResponse{Namespaces: &values}, nil
 }
 
 func (service *Service) PutEntityInfo(ctx context.Context, environment string, values []apollo.EntityInfo) error {

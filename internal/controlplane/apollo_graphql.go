@@ -110,11 +110,11 @@ type apolloProjectionAdapter struct {
 }
 
 func (adapter apolloProjectionAdapter) ListEnvironments() (apollo.ListEnvironmentsResponse, error) {
-	return adapter.service.ListEnvironments(), nil
+	return adapter.service.ListEnvironments(adapter.ctx)
 }
 
 func (adapter apolloProjectionAdapter) ListInstallations(rid string) (apollo.ListInstallationsResponse, error) {
-	return adapter.service.ListInstallations(rid), nil
+	return adapter.service.ListInstallations(adapter.ctx, rid)
 }
 
 func (adapter apolloProjectionAdapter) ListProducts() (apollo.ListProductsResponse, error) {
@@ -126,7 +126,7 @@ func (adapter apolloProjectionAdapter) ListReleases(product string) (apollo.List
 }
 
 func (adapter apolloProjectionAdapter) GetEnvironment(rid string) (apollo.Environment, error) {
-	value, err := adapter.service.GetEnvironment(rid)
+	value, err := adapter.service.GetEnvironment(adapter.ctx, rid)
 	return value, apolloProjectionError(err)
 }
 

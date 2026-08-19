@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
@@ -27,9 +28,10 @@ func (*catalogFixture) CoordinateRetired(context.Context, string, string) (bool,
 }
 
 // lifecycleFixture stands in for the durable desired state a Hub replica reads
-// recalls and promotions FROM. It is deliberately not reachable through
-// SyncEnvironment: nothing a request pushes into one process may decide these
-// answers, because the next request may be served by the other replica.
+// recalls and promotions FROM. It is deliberately not reachable through any
+// write path on the Service: nothing a request pushes into one process may
+// decide these answers, because the next request may be served by the other
+// replica.
 type lifecycleFixture struct {
 	lifecycle ReleaseLifecycle
 	err       error
@@ -37,6 +39,20 @@ type lifecycleFixture struct {
 
 func (fixture *lifecycleFixture) ReleaseLifecycle(context.Context) (ReleaseLifecycle, error) {
 	return fixture.lifecycle, fixture.err
+}
+
+// inventoryFixture stands in for the durable desired state the Environment,
+// Installation and Namespace reads come FROM. Like lifecycleFixture it is
+// deliberately not reachable through a push: the process that accepted a
+// desired state is not the process that will be asked about it, so nothing a
+// write puts in this process's memory may decide these answers.
+type inventoryFixture struct {
+	inventory []environments.CompatibilityProjection
+	err       error
+}
+
+func (fixture *inventoryFixture) EnvironmentInventory(context.Context) ([]environments.CompatibilityProjection, error) {
+	return fixture.inventory, fixture.err
 }
 
 type reportingFixture struct{}
@@ -53,7 +69,7 @@ func (reportingFixture) PutReport(_ context.Context, report environments.Report)
 
 func TestPublicHelmPublicationDigestRetainsThePreExtractionCanonicalShape(t *testing.T) {
 	fixture := &catalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{}, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -78,7 +94,7 @@ func TestPublicHelmPublicationDigestRetainsThePreExtractionCanonicalShape(t *tes
 
 func TestNativeHelmPublicationDigestKeepsPlatformAssetsOutOfThePublicDTO(t *testing.T) {
 	fixture := &catalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{}, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -117,33 +133,72 @@ func publishRelease(t *testing.T, service *Service, product, version string) {
 }
 
 // A compatibility projection is the Environment's complete current desired
-// state. Keeping a Namespace omitted by the next projection serves stale data:
-// the list endpoint tells clients they can still access a Namespace Conduit has
-// removed.
+// state. Serving a Namespace the current projection omits is stale data: the
+// list endpoint would tell clients they can still access a Namespace Conduit
+// has removed.
+//
+// Reading the projection instead of accumulating it makes that structural, and
+// this test is what says so. It drives the inventory port rather than a push,
+// because a push is what the read no longer has.
 func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	service.SyncEnvironment(environments.CompatibilityProjection{
+	durable := &inventoryFixture{inventory: []environments.CompatibilityProjection{{
 		ID: "dev-use2",
 		Namespaces: []environments.ProjectedNamespace{{
 			RID: "ri.namespace.main.namespace.123", Name: "obsolete",
 		}},
-	})
-	before := service.ListNamespaces()
+	}}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{}, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := service.ListNamespaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if before.Namespaces == nil || len(*before.Namespaces) != 1 {
 		t.Fatalf("the first projection did not establish the Namespace: %#v", before.Namespaces)
 	}
 
-	service.SyncEnvironment(environments.CompatibilityProjection{ID: "dev-use2"})
+	durable.inventory = []environments.CompatibilityProjection{{ID: "dev-use2"}}
 
-	after := service.ListNamespaces()
+	after, err := service.ListNamespaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if after.Namespaces == nil {
 		t.Fatal("the Namespace list was not answered")
 	}
 	if len(*after.Namespaces) != 0 {
 		t.Fatalf("a removed Namespace was served from stale projection state: %#v", *after.Namespaces)
+	}
+}
+
+// An unreachable store must not be reported as a Hub that governs nothing. The
+// three reads answer with lists, and a list has no way to say "unavailable" --
+// so the error has to travel, or the caller acts on a false absence.
+func TestAnUnreachableInventoryIsNotServedAsAnEmptyFleet(t *testing.T) {
+	durable := &inventoryFixture{err: errors.New("desired state store unavailable")}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{}, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ListEnvironments(context.Background()); err == nil {
+		t.Error("an unreachable inventory listed zero Environments instead of failing")
+	}
+	if _, err := service.ListInstallations(context.Background(), "ri.apollo.main.environment.abc"); err == nil {
+		t.Error("an unreachable inventory listed zero Installations instead of failing")
+	}
+	if _, err := service.ListNamespaces(context.Background()); err == nil {
+		t.Error("an unreachable inventory listed zero Namespaces instead of failing")
+	}
+}
+
+// The constructor refuses a missing inventory port rather than defaulting to an
+// empty one, for the same reason: an absent port would not fail, it would serve
+// a Hub that appears to govern nothing.
+func TestAMissingInventoryPortIsRefusedAtConstruction(t *testing.T) {
+	if _, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{}, nil); err == nil {
+		t.Error("a Service was constructed without an Environment inventory port")
 	}
 }
 
@@ -159,7 +214,7 @@ func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
 // it.
 func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
 	durable := &lifecycleFixture{}
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -210,7 +265,7 @@ func TestARevertedRecallDoesNotMarkAReleaseRecalled(t *testing.T) {
 			Reason: "withdrawn then restored", Reverted: true,
 		}},
 	}}
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -235,7 +290,7 @@ func TestRemovingARecallFromDesiredStateStopsReportingIt(t *testing.T) {
 			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
 		}},
 	}}
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -262,7 +317,7 @@ func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
 			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
 		}},
 	}}
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -300,7 +355,7 @@ func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
 // promotion that succeeded looks like one that never happened.
 func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	durable := &lifecycleFixture{}
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
