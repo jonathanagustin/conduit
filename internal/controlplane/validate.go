@@ -902,6 +902,9 @@ func validateArtifactRegistries(
 		if assignment.Revision < 1 {
 			*errs = append(*errs, ValidationError{Path: path + ".revision", Message: "must be positive"})
 		}
+		if t := assignment.Type; t != "" && t != "STANDARD" && t != "EXTERNAL_PALANTIR_BUILD" {
+			*errs = append(*errs, ValidationError{Path: path + ".type", Message: "must be STANDARD or EXTERNAL_PALANTIR_BUILD"})
+		}
 		authentication := assignment.Authentication
 		if authentication == "" {
 			authentication = "NONE"
@@ -937,7 +940,6 @@ func validateArtifactRegistries(
 	}
 	return hosts
 }
-
 func registerRegistryHost(
 	path, host, assignmentID string, hosts map[string]string, errs *[]ValidationError,
 ) {

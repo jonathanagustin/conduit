@@ -389,6 +389,36 @@ func TestArtifactRegistryAuthenticationValidationIsFailClosed(t *testing.T) {
 	}
 }
 
+func TestArtifactRegistryTypeValidationIsFailClosed(t *testing.T) {
+	t.Parallel()
+	typeError := func(assignment ArtifactRegistryAssignment) bool {
+		state := foundation()
+		state.Environment.ArtifactRegistries = []ArtifactRegistryAssignment{assignment}
+		for _, validationError := range Validate(state) {
+			if strings.Contains(validationError.Path, "artifactRegistries[0].type") {
+				return true
+			}
+		}
+		return false
+	}
+	base := ArtifactRegistryAssignment{ID: "primary", URL: "registry.example", Revision: 1}
+	// An unknown type is rejected rather than passed through as a label.
+	unknown := base
+	unknown.Type = "TENANT"
+	if !typeError(unknown) {
+		t.Fatal("unknown Artifact Registry type accepted")
+	}
+	// Empty (STANDARD), STANDARD, and the Apollo-documented external-build type
+	// are accepted.
+	for _, accepted := range []string{"", "STANDARD", "EXTERNAL_PALANTIR_BUILD"} {
+		valid := base
+		valid.Type = accepted
+		if typeError(valid) {
+			t.Errorf("type %q rejected", accepted)
+		}
+	}
+}
+
 func TestExternalSecretRequirementsProduceWriteOnlyRotationCoordinates(t *testing.T) {
 	t.Parallel()
 	state := foundation()
