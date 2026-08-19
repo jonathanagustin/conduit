@@ -1344,3 +1344,69 @@ Closing an issue costs a verification pass against the source, not a reading of
 the PR titles: #299 and #290 were both closed on file:line evidence, and #298's
 remaining third was found the same way after two of its three parts turned out
 to be already shipped.
+
+## Issue sweep, 2026-08-19 21:40 UTC
+
+**Nine closed, each on file:line evidence rather than on a PR title.**
+
+| # | Outcome |
+| --- | --- |
+| 299 | Environment display metadata / default-channel column / mirrored notice — all three verified present |
+| 290 | Cross-Release vulnerability inventory — reads the Hub's own `activeFindings` rather than re-deriving |
+| 298 | Bundle advisories shipped (`e8056c4`), completing its three surfaces |
+| 301 | Fleet source tags + RID search (`bb77bb2`) |
+| 128 | Fourteen local-only gates wired into CI, plus a reverse reconciliation (`e549fc8`) |
+| 130 | Status-vocabulary reconciliation (`850b2a0`) |
+| 265 | Residual-list criterion split into two humans (`850b2a0`) |
+| 65 | Already done; the work queue was the last thing saying otherwise (`850b2a0`) |
+| 262 | Contact read shape now says `deliverable` (`f61808e`) |
+
+**Three issues had a false premise, and that is the more useful output.** Filing
+against a wrong premise costs more than not filing:
+
+- **#217** — the 403 claim is unsupported. `platform-images.yml` publishes to
+  GHCR with the same token and permission. The real first-dispatch stopper is
+  `:302`'s protected environment `optimizer-candidate-publish` and the
+  `OPTIMIZER_CANDIDATE_PUBLISH_POLICY` variable that does not exist yet.
+- **#169** — "no filter exists" is wrong; `PromotionEntityFilter` is at
+  `promotionstage.go:67-70`. The real gap is that it matches explicit name lists,
+  so a canary set cannot follow the fleet, and the blocker is named in the code's
+  own comment: health evidence carries no Entity labels.
+- **#296** — worse than filed. There is no *reachable* open change request
+  proposing a recalled module version: installs create no CR, and the only
+  module-version CR is created already-approved and applied in the same call.
+  Implementing it as written would add a cancel path for a state that cannot
+  occur.
+
+**#128 is worth reading even if you never touch that issue.** Fourteen gates ran
+locally and in no workflow, including the leak gate `verify-no-tenant-origins.mjs`,
+because the reconciliation compared step *names* and all fourteen lived inside a
+step whose name already matched. The reverse pass now exists — and its first
+version *passed* a mutant that deleted a gate from CI, because the comment
+introducing the change named the script while explaining it. A check a comment
+can satisfy is not a check; it strips comments now.
+
+### The binding constraint is the ceiling, and it is at zero
+
+`internal/controlplane` sits at **25089 / 25089**. #169, #153, #103, #56 and #66
+are all small changes blocked by it rather than by design. Relieving it unblocks
+several at once, which makes it the highest-leverage single action available; an
+agent is on it in an isolated worktree, under instructions to prefer dead code
+and real ownership over any refactor that games the measure.
+
+### Still blocked, and on what
+
+- **Decisions, not effort:** #131 Monitors (declaration format, SLO language and
+  severity vocabulary all unrecovered), #132 Adjudication (zero occurrences of
+  the word in the product), #133 Libraries/SBOM (format decision; the Grype
+  adapter discards package data today), #126/#170 as a pair (nothing
+  recall-shaped is serialized into a Bundle, so there is nothing to redact yet),
+  #294, #296, #303/#304/#305, #17, #20, #119, #134.
+- **Repository admin, not code:** #186 (merge queue in branch protection — and
+  note `merge-queue.yml` provisions no PostgreSQL while `verify-local.sh` runs
+  the Postgres gate, so enabling it as configured puts a failing required check
+  in front of every merge), #217.
+- **Partially done:** #261 — both positions now stated in
+  `PRODUCTION-READINESS.md` gap 4 and `backup-and-restore.md`; the implementation
+  half is open, with `internal/gitless/adapters/resolutionlogpostgres` named as
+  the precedent to copy and the two-authorities trap recorded.
