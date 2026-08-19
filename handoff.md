@@ -1282,3 +1282,65 @@ English strings, all one developer tool for inspecting cross-application message
 passing (Sources / Messages / Sent / Received / "Core channels", "Show Inactive
 Sources"). Zero `apollo`, no deployment vocabulary, three routes. Recorded in the
 receipt so the last unexamined part of the capture stays examined.
+
+## Orchestration state, 2026-08-19 21:15 UTC
+
+**Goal:** drive every open issue and PR to completion. Maximize net value; do not
+spend where marginal return is below marginal cost.
+
+### The binding constraint, and it is not the code
+
+**No GitHub Actions runner is being allocated for this repository.** Every
+`Head authentication` job today reports `steps=0`, `runner_name=''`, 2-3 seconds,
+which is a job that never started — on all 13 Trunk gate runs, including ones
+that predate PR #324. Nothing in a diff can fix it; the remedy is account-level
+(Actions billing / spending limit). Consequence for anyone reading a red PR here
+today: **the red is not the code.** `./scripts/verify-local.sh` passes end to
+end and is the evidence to trust until runners return.
+
+Second constraint, lower stakes: the GitHub API rate limit for this account is
+being hit intermittently, so issue reads/closes fail for minutes at a time.
+Retry rather than concluding an issue does not exist.
+
+### Done this cycle
+
+- **#299 closed** — Environment display metadata, default-channel column and
+  mirrored/read-only notice all verified present in the console source.
+  Recorded the one thing deliberately not done: a *link* to the controlling Hub,
+  because the Hub serves no address for it, only the `declaredStateSource` enum.
+- **#290 closed** — cross-Release vulnerability inventory (#322). The console
+  reads the Hub's own `activeFindings` accounting rather than re-deriving it.
+- **#298 complete** (`e8056c4`) — Bundle advisories, the last of its three
+  surfaces. Pure frontend; the data already rode on
+  `ExportPipelinePreview.Advisories`. Close pending on the API rate limit.
+
+### In flight
+
+Four read-only triage agents over the remaining open issues, returning
+verdict + file:line evidence + smallest change + whether it hits the
+`internal/controlplane` line ceiling:
+
+| Agent | Issues |
+| --- | --- |
+| Apollo domain | #131 #132 #133 #126 #169 #170 |
+| Console/API surfacing | #301 #294 #296 #130 #103 #56 |
+| Platform/process | #128 #200 #186 #217 #265 #263 #193 |
+| Correctness/security | #57 #112 #153 #207 #261 #262 #65 #25 #66 |
+
+Not covered by an agent, and deliberately: #17, #20, #119, #303, #304, #305,
+#134 are **decision** issues — they need a product or architecture call (an ADR
+in several cases), not an implementation. #7 is Renovate's dependency dashboard,
+a bot artifact rather than work.
+
+### Method that is holding
+
+Single-writer on the shared tree: investigation fans out, implementation does
+not. Every implementation lands on
+`claude/apollo-ui-conduit-reconstruction-v3gteo` (the designated branch), which
+is why PR #324 accumulates rather than splitting — a constraint of the task, not
+a preference.
+
+Closing an issue costs a verification pass against the source, not a reading of
+the PR titles: #299 and #290 were both closed on file:line evidence, and #298's
+remaining third was found the same way after two of its three parts turned out
+to be already shipped.
