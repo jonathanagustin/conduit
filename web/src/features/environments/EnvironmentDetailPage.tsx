@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Callout, H2, HTMLTable, Section, SectionCard, Tab, Tabs, Tag } from "@blueprintjs/core";
 import { NavLink, useParams } from "react-router-dom";
 
-import { useEnvironment, useEnvironmentCommands } from "../../api/catalog.js";
+import { useEnvironment, useEnvironmentCommands, useEnvironmentProfile } from "../../api/catalog.js";
 import type { EnvironmentCatalogRecord } from "../../api/resources.js";
 import { usePlans } from "../../api/resources.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
@@ -24,6 +24,7 @@ export function EnvironmentDetailPage() {
   const { environmentId = "" } = useParams();
   const [tab, setTab] = useState<string>("overview");
   const environment = useEnvironment(environmentId);
+  const profile = useEnvironmentProfile(environmentId);
 
   return (
     <QueryState
@@ -50,6 +51,20 @@ export function EnvironmentDetailPage() {
               )
             }
           />
+          {/* Operator-authored display metadata, when the Environment has a
+              profile. Most do not (the endpoint answers 404), so this renders
+              nothing rather than an error -- an absent profile is normal. */}
+          {profile.data !== undefined &&
+          (profile.data.displayName !== undefined || profile.data.description !== undefined) ? (
+            <section className="console-environment__profile" data-testid="environment-profile">
+              {profile.data.displayName !== undefined ? (
+                <h2 className="console-environment__display-name">{profile.data.displayName}</h2>
+              ) : null}
+              {profile.data.description !== undefined ? (
+                <p className="console-environment__description">{profile.data.description}</p>
+              ) : null}
+            </section>
+          ) : null}
 
           <Tabs
             id="environment-tabs"
