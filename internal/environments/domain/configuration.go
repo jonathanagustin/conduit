@@ -100,8 +100,13 @@ type VulnerabilityUpgradePolicy struct {
 
 // ArtifactRegistryAssignment is a registry an Environment may pull from.
 type ArtifactRegistryAssignment struct {
-	ID                  string   `json:"id"`
-	URL                 string   `json:"url"`
+	ID  string `json:"id"`
+	URL string `json:"url"`
+	// Type distinguishes a standard OCI registry from an external build registry
+	// (Apollo displays "External Palantir Build" as a registry type). Empty means
+	// STANDARD; the only other supported value is EXTERNAL_PALANTIR_BUILD. It is a
+	// display/classification attribute and does not change how artifacts resolve.
+	Type                string   `json:"type,omitempty"`
 	Revision            int      `json:"revision"`
 	Mirrors             []string `json:"mirrors,omitempty"`
 	Authentication      string   `json:"authentication,omitempty"`
