@@ -1,8 +1,10 @@
 # Handoff
 
-**Updated:** 2026-08-18 17:50 UTC
+**Updated:** 2026-08-19 UTC
 **Lead or owner:** orchestrating session (see `ORCHESTRATOR.md`)
-**Status:** blocked
+**Status:** active — Apollo `core/whats-new` parity program in flight (see the
+2026-08-19 section at the end). The 2026-08-18 authorization/credential blocker
+below is the prior focus, left as recorded; this session did not touch it.
 
 This file carries the shape of [`HANDOFF.template.md`](HANDOFF.template.md) at
 the top — current state, decisions, next actions — and the dated historical
@@ -906,3 +908,76 @@ node scripts/verify-console-contract.mjs        # 7 vocabularies match the Hub
 node scripts/verify-mutation-scores.mjs         # mutation baseline intact
 ./scripts/verify-local.sh                        # full gate set
 ```
+
+## Apollo `core/whats-new` parity program, 2026-08-19
+
+**Goal (standing):** full Apollo feature parity, next-best-step, one act-gated PR
+at a time. Trigger was reading `core/whats-new` and filing issues for everything
+Conduit lacks; the user then directed "undecline and implement" the deliberate
+boundaries too.
+
+**Method that held.** All 192 `core/whats-new` items were audited against the Go
+source (eight parallel Explore surveys), then reconciled against the repo's own
+prior disposition — `docs/apollo/ROSETTA-RELEASE-NOTES.md` (the maintainers had
+already mined this exact page on 2026-08-15), `docs/apollo/IMAGE-DERIVED-GAPS.md`,
+`docs/apollo/conformance.md`. Finding: the large majority are already
+implemented, already tracked (#15/#17/#54/#65/#126/#150/#169/#170/#173/#175/#241),
+or documented deliberate boundaries. Only the genuine, unfiled, non-duplicate
+residual was filed.
+
+**Filed (deduped against the 32 open issues):**
+- Bucket A — control-plane/CLI gaps: #290 (Risk app is recalls-only, no
+  cross-release vuln inventory), #291, #292, #293, #294 (promotion lifecycle
+  states), #295, #296 (module recall → cancel CRs), #297 (registry type +
+  delete-prevent).
+- Bucket B — console surfacing of backend-present data: #298 (export console),
+  #299 (env console), #300 (teams tabs), #301 (entity source pills + RID search),
+  #302 (notification deep-links).
+- Bucket C — undecline & implement boundaries: #303 / #304 (debug terminals /
+  JIT — reverse the H30 boundary in `docs/apollo/reference/debug-access.md`,
+  needs a superseding ADR before code), #305 (`--ignore-recalls` /
+  `--ignore-secret-requirements` as a *reviewed* change-request field, not a CLI
+  bypass). Plus undecline comments on #17 (adopt Space tenancy) and #119 (native
+  SMTP + first-class Slack delivery).
+- Skipped as existing: sensitive recall-metadata redaction is #170; canary-by-
+  filter is #169.
+
+**Merged this session (each gated green on all four act Trunk lanes):**
+- #291 → PR #307: PLANNED_FIX suppressions require `PlannedFixReference` evidence.
+- #292 → PR #306: `cve check -o csv` vulnerability report export (added a
+  `CSVMarshaler` seam to `writeOutput`).
+- #293 → PR #308: `release-channel diff --releases` compares Release sets to find
+  the promotion worklist.
+- #295 → PR #309: module install inherits the Environment `DefaultReleaseChannel`
+  (via `moduleInstallChannel` reading `latestDesiredStates`).
+
+**Remaining work, with tractability notes (next contributor read this first):**
+- Ceiling is the gating constraint: `internal/controlplane` sits at 25087 / 25089
+  (2 lines under). Every control-plane parity change now needs an offset or a
+  domain extraction; the ratchet only moves down. CLI-only (#292/#293) and
+  domain-only changes avoid it.
+- #297 (registry type) is broader than it looks: the type belongs on the registry
+  catalog *record* (assign only copies existing records — `environment_commands.go`),
+  so it touches `artifact_registry_catalog.go` too. The delete-prevent half is
+  largely already enforced: a Release referencing an unassigned registry host
+  already fails `validateArtifactRegistryAssignment`; the observed-state ("still
+  reported") nuance is the remaining boundary.
+- #296 (recall → cancel CRs) is semantically ambiguous in Conduit: module
+  *installs* create installations directly, not change requests, so "which open
+  CR references the recalled version" needs a definition before code. Scope it
+  first.
+- #294 (promotion lifecycle states) and #290 (risk vuln inventory) are the two
+  largest — new state model / new aggregate API + console, respectively.
+- Bucket B console issues avoid the ceiling but each needs `pnpm --dir web build`
+  (CI=true) + a regenerated `internal/consoleui/dist` commit + the console gate.
+  Verify per issue whether the console API already returns the data (pure
+  frontend) or needs an API addition (back to the ceiling).
+- Bucket C reversals (#303/#304, and #17/#119) are architecture-scale and want an
+  ADR / product decision before implementation.
+
+**Resume:** `main` is at the #309 merge. Task list item #12 tracks the program.
+The act gate harness is unchanged (`/tmp/act-gate` helper, `conduit-act:24.04`
+image, warm Go caches, lanes run one-at-a-time foreground with `timeout 580`;
+strip `needs: preflight`). Next best step: pick the most tractable remaining
+issue (a Bucket B pure-frontend one, or #297 with a ceiling offset), implement →
+act-gate four lanes → PR → merge.
