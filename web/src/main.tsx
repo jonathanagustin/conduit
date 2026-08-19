@@ -4,6 +4,10 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App.js";
 import { Providers } from "./app/providers.js";
 import { loadRuntimeBootstrap } from "./runtime/bootstrap.js";
+// Source Sans 3 (the current release of Source Sans Pro) is the typeface Foundry
+// renders in; self-hosted via @fontsource so the embedded console loads it with
+// no network. Imported before the stylesheet that names it as the base family.
+import "@fontsource-variable/source-sans-3";
 import "./styles/index.css";
 
 const container = document.getElementById("root");
