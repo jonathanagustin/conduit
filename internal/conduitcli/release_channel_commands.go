@@ -255,19 +255,26 @@ func releaseChannelImportCommand(state *commandState) *cobra.Command {
 	return command
 }
 
-// releaseChannelDiffCommand reports what differs between two Release Channel
-// definitions, and --all is what makes it report everything instead.
+// releaseChannelDiffCommand reports what differs between two Release Channels,
+// and --all is what makes it report everything instead.
 //
 // The flag documented "include unchanged fields" while the command printed
 // both definitions whole either way, so the only thing --all changed was the
 // `"all"` value echoed back beside output that never varied. Two channels
 // differing in one label requirement rendered as two complete documents an
 // operator had to compare by eye -- the work the command exists to have done.
+//
+// --releases changes what is diffed: instead of the two channels' definition
+// fields, it compares the *set of Releases* on each channel and reports the
+// asymmetric difference, which is the promotion worklist -- the Releases on the
+// source a promotion would carry to the target. A channel name that differs by
+// one field and a channel that is a whole Release behind are different
+// questions; the definition diff answered only the first.
 func releaseChannelDiffCommand(state *commandState) *cobra.Command {
 	var stateFile, source, target string
-	var all bool
+	var all, releases bool
 	command := &cobra.Command{
-		Use: "diff", Short: "Diff two Release Channel definitions", Args: cobra.NoArgs,
+		Use: "diff", Short: "Diff two Release Channels by definition or by Release set", Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			desired, err := readDesiredState(stateFile)
 			if err != nil {
@@ -276,6 +283,18 @@ func releaseChannelDiffCommand(state *commandState) *cobra.Command {
 			left, right := findReleaseChannel(&desired, source), findReleaseChannel(&desired, target)
 			if left == nil || right == nil {
 				return errors.New("source and target Release Channels must exist")
+			}
+			if releases {
+				onlySource, onlyTarget, both := releaseChannelReleaseDiff(&desired, source, target)
+				output := map[string]any{
+					"sourceChannel": source, "targetChannel": target,
+					"onlyOnSource": onlySource, "onlyOnTarget": onlyTarget,
+					"equal": len(onlySource) == 0 && len(onlyTarget) == 0,
+				}
+				if all {
+					output["onBoth"] = both
+				}
+				return writeOutput(state.runtime.Stdout, state.output, output)
 			}
 			equal := reflect.DeepEqual(left, right)
 			if all {
@@ -291,11 +310,39 @@ func releaseChannelDiffCommand(state *commandState) *cobra.Command {
 	command.Flags().StringVar(&stateFile, "state-file", "", "desired-state YAML or JSON")
 	command.Flags().StringVarP(&source, "source-channel", "s", "", "source Release Channel")
 	command.Flags().StringVarP(&target, "target-channel", "t", "", "target Release Channel")
-	command.Flags().BoolVar(&all, "all", false, "include unchanged fields")
+	command.Flags().BoolVar(&all, "all", false, "include unchanged fields (definitions) or shared Releases (--releases)")
+	command.Flags().BoolVar(&releases, "releases", false, "diff the Releases on each channel to find promotions, not the channel definitions")
 	for _, flag := range []string{"state-file", "source-channel", "target-channel"} {
 		_ = command.MarkFlagRequired(flag)
 	}
 	return command
+}
+
+// releaseChannelReleaseDiff buckets the desired state's Releases by which of two
+// channels they are on. onlySource is the promotion worklist: Releases the
+// target channel does not yet carry. A Release is identified by product@version,
+// and one on neither channel is not part of this comparison at all.
+func releaseChannelReleaseDiff(desired *controlplane.DesiredState, source, target string) (onlySource, onlyTarget, both []string) {
+	for _, release := range desired.Releases {
+		onSource := containsString(release.Channels, source)
+		onTarget := containsString(release.Channels, target)
+		if !onSource && !onTarget {
+			continue
+		}
+		identity := release.Product + "@" + release.Version
+		switch {
+		case onSource && onTarget:
+			both = append(both, identity)
+		case onSource:
+			onlySource = append(onlySource, identity)
+		default:
+			onlyTarget = append(onlyTarget, identity)
+		}
+	}
+	sort.Strings(onlySource)
+	sort.Strings(onlyTarget)
+	sort.Strings(both)
+	return onlySource, onlyTarget, both
 }
 
 func releaseChannelAddCommand(state *commandState) *cobra.Command {
