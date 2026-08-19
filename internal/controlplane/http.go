@@ -2477,17 +2477,26 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		visible := make([]FleetInstallation, 0, len(projection.Installations))
-		projection.Summary = FleetSummary{Health: map[string]int{}, Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{}}
-		projection.MaxResultAgeSeconds = 0
 		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
-		for _, item := range projection.Installations {
-			if administrator || governance.Authorize(request.Context(), effectivePrincipal(principal), environmentRID(item.Environment), OperationReadResource) {
-				visible = append(visible, item)
-				addFleetSummary(&projection, item)
+		// The authorization predicate is controlplane's -- who the caller is,
+		// and what OperationReadResource on an Environment means -- while the
+		// walk that applies it to rows and facet contributions belongs to the
+		// reporting domain (RetainReadable). Memoised because the answer depends
+		// only on the Environment and both walks ask about the same handful.
+		readable := map[string]bool{}
+		mayRead := func(environment string) bool {
+			if administrator {
+				return true
 			}
+			allowed, decided := readable[environment]
+			if !decided {
+				allowed = governance.Authorize(request.Context(), effectivePrincipal(principal),
+					environmentRID(environment), OperationReadResource)
+				readable[environment] = allowed
+			}
+			return allowed
 		}
-		projection.Installations = visible
+		projection.RetainReadable(mayRead)
 		projection, err = paginateFleetProjection(projection, fleetQuery, cursor, limit)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
@@ -2672,20 +2681,6 @@ func fleetActionChange(
 		change.Diff["suppressed"] = ChangeDiffEntry{Before: true, After: false}
 	}
 	return change
-}
-
-func addFleetSummary(projection *FleetProjection, item FleetInstallation) {
-	projection.Summary.Total++
-	projection.Summary.Health[item.Health]++
-	projection.Summary.Rollout[item.RolloutStatus]++
-	projection.Summary.Config[item.ConfigStatus]++
-	projection.Summary.Lifecycle[item.Lifecycle]++
-	if item.Stale {
-		projection.Summary.Stale++
-	}
-	if item.ObservationAgeSeconds > projection.MaxResultAgeSeconds {
-		projection.MaxResultAgeSeconds = item.ObservationAgeSeconds
-	}
 }
 
 func requireAgentIdentity(w http.ResponseWriter, request *http.Request, allowInsecureHeaders bool) (AgentIdentity, bool) {

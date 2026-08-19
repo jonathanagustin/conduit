@@ -738,3 +738,89 @@ func TestAnOrdinaryEnvironmentStillGoesStale(t *testing.T) {
 		t.Fatalf("an aged report on an ordinary Environment did not read stale: %#v", projection.Summary)
 	}
 }
+
+// A facet count is a disclosure. Without this, the route's authorization filter
+// covers the rows and the summary and leaves the facets counting the whole
+// fleet -- so an operator with no grant on an Environment would still learn how
+// many installations it holds, and in which health, from the numbers beside the
+// filter controls.
+func TestFleetHTTPFacetsCountOnlyAuthorizedEnvironments(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	for environment, health := range map[string]string{"visible": HealthHealthy, "hidden": HealthUnhealthy} {
+		if _, err := repository.PutEnvironmentReport(ctx, EnvironmentReport{
+			Environment: environment, AgentID: "agent-" + environment, ObservedAt: time.Now().UTC(),
+			Entities: []ReportedEntity{{InstallationID: "api", Product: "app.example:api", Health: health}},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	governance := NewGovernanceService(repository)
+	if _, err := governance.PutTeam(ctx, Team{
+		Name: "readers", DisplayName: "Readers", AdminUsers: []string{"team-admin"}, MemberUsers: []string{"reader"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := governance.PutGrant(ctx, ResourceGrant{
+		ResourceRID: environmentRID("visible"), Team: "readers", Operations: []string{OperationReadResource},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandler(repository, HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
+
+	// Selecting the visible Environment's health makes the hidden one a health
+	// near miss, which is exactly the item a facet would count and a row would
+	// not -- so this is the query where an unfiltered facet leaks.
+	response := governanceRequest(t, handler, http.MethodGet,
+		"/v1/fleet/installations?health="+HealthHealthy, "reader", "", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("read = %d %s", response.Code, response.Body.String())
+	}
+	var projection FleetProjection
+	if err := json.Unmarshal(response.Body.Bytes(), &projection); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := projection.Facets.Health[HealthHealthy], 1; got != want {
+		t.Errorf("Facets.Health[HEALTHY] = %d, want %d", got, want)
+	}
+	if got := projection.Facets.Health[HealthUnhealthy]; got != 0 {
+		t.Errorf("Facets.Health[UNHEALTHY] = %d, want 0 -- it counts an Environment this reader cannot read", got)
+	}
+	if got := projection.Facets.Environment["hidden"]; got != 0 {
+		t.Errorf("Facets.Environment[hidden] = %d, want 0 -- the Environment name itself is a disclosure", got)
+	}
+
+	// A reader granted both Environments sees the near miss, which is what makes
+	// the assertions above statements about authorization rather than about the
+	// facets never counting a near miss at all.
+	if _, err := governance.PutTeam(ctx, Team{
+		Name: "wide-readers", DisplayName: "Wide readers",
+		AdminUsers: []string{"team-admin"}, MemberUsers: []string{"wide-reader"},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	for _, environment := range []string{"visible", "hidden"} {
+		if _, err := governance.PutGrant(ctx, ResourceGrant{
+			ResourceRID: environmentRID(environment), Team: "wide-readers",
+			Operations: []string{OperationReadResource},
+		}); err != nil {
+			t.Fatal(err)
+		}
+	}
+	wide := governanceRequest(t, handler, http.MethodGet,
+		"/v1/fleet/installations?health="+HealthHealthy, "wide-reader", "", nil)
+	if wide.Code != http.StatusOK {
+		t.Fatalf("wide read = %d %s", wide.Code, wide.Body.String())
+	}
+	var full FleetProjection
+	if err := json.Unmarshal(wide.Body.Bytes(), &full); err != nil {
+		t.Fatal(err)
+	}
+	if got, want := full.Facets.Health[HealthUnhealthy], 1; got != want {
+		t.Errorf("wide-reader Facets.Health[UNHEALTHY] = %d, want %d", got, want)
+	}
+	if got, want := len(full.Installations), 1; got != want {
+		t.Errorf("wide-reader installations = %d, want %d -- a near miss is not a result", got, want)
+	}
+}
