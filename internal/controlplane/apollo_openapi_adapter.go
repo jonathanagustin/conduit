@@ -357,14 +357,18 @@ func (adapter *apolloOpenAPIAdapter) ListReleases(ctx context.Context, request a
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, productRID(request.ProductId)); err != nil {
 		return nil, err
 	}
-	return apollo.ListReleases200JSONResponse(adapter.legacy.application.ListReleases(request.ProductId)), nil
+	response, err := adapter.legacy.application.ListReleases(ctx, request.ProductId)
+	if err != nil {
+		return nil, err
+	}
+	return apollo.ListReleases200JSONResponse(response), nil
 }
 
 func (adapter *apolloOpenAPIAdapter) GetRelease(ctx context.Context, request apollo.GetReleaseRequestObject) (apollo.GetReleaseResponseObject, error) {
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, productRID(request.ProductId)); err != nil {
 		return nil, err
 	}
-	response, err := adapter.legacy.application.GetRelease(request.ProductId, request.ProductVersion)
+	response, err := adapter.legacy.application.GetRelease(ctx, request.ProductId, request.ProductVersion)
 	if application.IsKind(err, application.NotFound) {
 		// The one miss the contract names. ReleaseNotFound is "The specified
 		// release could not be found within the Apollo Catalog", and its

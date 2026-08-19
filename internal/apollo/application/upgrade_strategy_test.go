@@ -32,7 +32,7 @@ func nativePublication(strategy string) NativeHelmPublication {
 
 func servedRelease(t *testing.T, service *Service, product, version string) map[string]any {
 	t.Helper()
-	release, err := service.GetRelease(product, version)
+	release, err := service.GetRelease(context.Background(), product, version)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -49,7 +49,7 @@ func servedRelease(t *testing.T, service *Service, product, version string) map[
 
 func TestADeclaredUpgradeStrategyIsServedAsDeclared(t *testing.T) {
 	t.Parallel()
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -68,7 +68,7 @@ func TestADeclaredUpgradeStrategyIsServedAsDeclared(t *testing.T) {
 // "shutdown" and the other serves "".
 func TestAnUndeclaredUpgradeStrategyIsOmittedRatherThanInvented(t *testing.T) {
 	t.Parallel()
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -102,7 +102,7 @@ func TestALegacyPublicationsSynthesizedStrategyIsNotServed(t *testing.T) {
 		t.Fatalf("the legacy key is still decoded, so synthesized values survive: %q", legacy.UpgradeStrategy)
 	}
 	service, err := New(context.Background(),
-		&catalogFixture{publications: []catalog.Publication{legacy}}, reportingFixture{})
+		&catalogFixture{publications: []catalog.Publication{legacy}}, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -121,11 +121,15 @@ func TestARestoredPublicationWithNoStrategyServesNoIllegalEnumMember(t *testing.
 	service, err := New(context.Background(), &catalogFixture{publications: []catalog.Publication{{
 		MavenCoordinate: "com.example:tf:1.0.0", Product: "com.example:tf", Version: "1.0.0",
 		Kind: "terraform", PublicationDigest: "sha256:x", ReleaseChannels: []string{"RELEASE"},
-	}}}, reportingFixture{})
+	}}}, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	encoded, err := json.Marshal(service.ListReleases("com.example:tf"))
+	listed, err := service.ListReleases(context.Background(), "com.example:tf")
+	if err != nil {
+		t.Fatal(err)
+	}
+	encoded, err := json.Marshal(listed)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -142,7 +146,7 @@ func TestARestoredPublicationWithNoStrategyServesNoIllegalEnumMember(t *testing.
 func TestRedeclaringADifferentUpgradeStrategyConflictsRatherThanBeingSwallowed(t *testing.T) {
 	t.Parallel()
 	fixture := &conflictingCatalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -163,7 +167,7 @@ func TestRedeclaringADifferentUpgradeStrategyConflictsRatherThanBeingSwallowed(t
 // value outside the pinned enum must not reach storage, however it arrives.
 func TestAnUnknownUpgradeStrategyIsRefusedAtPublication(t *testing.T) {
 	t.Parallel()
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}

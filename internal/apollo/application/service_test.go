@@ -26,6 +26,19 @@ func (*catalogFixture) CoordinateRetired(context.Context, string, string) (bool,
 	return false, nil
 }
 
+// lifecycleFixture stands in for the durable desired state a Hub replica reads
+// recalls and promotions FROM. It is deliberately not reachable through
+// SyncEnvironment: nothing a request pushes into one process may decide these
+// answers, because the next request may be served by the other replica.
+type lifecycleFixture struct {
+	lifecycle ReleaseLifecycle
+	err       error
+}
+
+func (fixture *lifecycleFixture) ReleaseLifecycle(context.Context) (ReleaseLifecycle, error) {
+	return fixture.lifecycle, fixture.err
+}
+
 type reportingFixture struct{}
 
 func (reportingFixture) LatestPlan(context.Context, string) (environments.PlanProjection, error) {
@@ -40,7 +53,7 @@ func (reportingFixture) PutReport(_ context.Context, report environments.Report)
 
 func TestPublicHelmPublicationDigestRetainsThePreExtractionCanonicalShape(t *testing.T) {
 	fixture := &catalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +78,7 @@ func TestPublicHelmPublicationDigestRetainsThePreExtractionCanonicalShape(t *tes
 
 func TestNativeHelmPublicationDigestKeepsPlatformAssetsOutOfThePublicDTO(t *testing.T) {
 	fixture := &catalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -108,7 +121,7 @@ func publishRelease(t *testing.T, service *Service, product, version string) {
 // the list endpoint tells clients they can still access a Namespace Conduit has
 // removed.
 func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -145,22 +158,20 @@ func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
 // error a client cannot recover from, because it installs on the strength of
 // it.
 func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishRelease(t, service, "app.example:api", "0.1.0")
 	publishRelease(t, service, "app.example:api", "0.2.0")
 
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Recalls: []environments.ProjectedRecall{{
-			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true,
-			Reason: "withdrawn for cause",
-		}},
-	})
+	durable.lifecycle.Recalls = []environments.ProjectedRecall{{
+		Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true,
+		Reason: "withdrawn for cause",
+	}}
 
-	recalled, err := service.GetRelease("app.example:api", "0.1.0")
+	recalled, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +191,7 @@ func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
 
 	// The fix must stay narrow. A Release the recall does not cover is still
 	// not recalled, or the flag would mean nothing.
-	untouched, err := service.GetRelease("app.example:api", "0.2.0")
+	untouched, err := service.GetRelease(context.Background(), "app.example:api", "0.2.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,20 +204,19 @@ func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
 // the other direction -- a usable Release withheld on the strength of a
 // withdrawal that was taken back.
 func TestARevertedRecallDoesNotMarkAReleaseRecalled(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	publishRelease(t, service, "app.example:api", "0.1.0")
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
+	durable := &lifecycleFixture{lifecycle: ReleaseLifecycle{
 		Recalls: []environments.ProjectedRecall{{
 			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true,
 			Reason: "withdrawn then restored", Reverted: true,
 		}},
-	})
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publishRelease(t, service, "app.example:api", "0.1.0")
 
-	release, err := service.GetRelease("app.example:api", "0.1.0")
+	release, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,24 +230,22 @@ func TestARevertedRecallDoesNotMarkAReleaseRecalled(t *testing.T) {
 // replaces rather than accumulates -- otherwise a recall could never be undone
 // by editing desired state, only by reverting it.
 func TestRemovingARecallFromDesiredStateStopsReportingIt(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{lifecycle: ReleaseLifecycle{
+		Recalls: []environments.ProjectedRecall{{
+			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
+		}},
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishRelease(t, service, "app.example:api", "0.1.0")
-	withRecall := environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Recalls: []environments.ProjectedRecall{{
-			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
-		}},
-	}
-	service.SyncEnvironment(withRecall)
-	if release, _ := service.GetRelease("app.example:api", "0.1.0"); !release.RecallStatus.Recalled {
+	if release, _ := service.GetRelease(context.Background(), "app.example:api", "0.1.0"); !release.RecallStatus.Recalled {
 		t.Fatal("the fixture did not establish a recall to remove")
 	}
 
-	service.SyncEnvironment(environments.CompatibilityProjection{ID: "dev-use2"})
-	release, err := service.GetRelease("app.example:api", "0.1.0")
+	durable.lifecycle.Recalls = nil
+	release, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,24 +257,26 @@ func TestRemovingARecallFromDesiredStateStopsReportingIt(t *testing.T) {
 // ListReleases has to agree with GetRelease. Two read paths that disagree
 // about whether a Release is recalled is worse than either answer.
 func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{lifecycle: ReleaseLifecycle{
+		Recalls: []environments.ProjectedRecall{{
+			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
+		}},
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishRelease(t, service, "app.example:api", "0.1.0")
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Recalls: []environments.ProjectedRecall{{
-			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
-		}},
-	})
 
-	listed := service.ListReleases("app.example:api")
+	listed, err := service.ListReleases(context.Background(), "app.example:api")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if listed.Releases == nil || len(*listed.Releases) != 1 {
 		t.Fatalf("expected one Release, got %#v", listed.Releases)
 	}
 	fromList := (*listed.Releases)[0]
-	fromGet, err := service.GetRelease("app.example:api", "0.1.0")
+	fromGet, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +299,8 @@ func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
 // reporting a channel hides a Release from a client selecting on it, so a
 // promotion that succeeded looks like one that never happened.
 func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +309,7 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	publishRelease(t, service, "app.example:api", "1.0.0-rc1")
 	publishRelease(t, service, "app.example:api", "1.1.0-rc1")
 
-	before, err := service.GetRelease("app.example:api", "1.0.0-rc1")
+	before, err := service.GetRelease(context.Background(), "app.example:api", "1.0.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,15 +319,12 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 		t.Fatalf("the fixture already publishes onto RELEASE: %#v", before.ReleaseChannels)
 	}
 
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Promotions: []environments.ProjectedPromotion{{
-			Product: "app.example:api", Version: "1.0.0-rc1",
-			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
-		}},
-	})
+	durable.lifecycle.Promotions = []environments.ProjectedPromotion{{
+		Product: "app.example:api", Version: "1.0.0-rc1",
+		FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
+	}}
 
-	promoted, err := service.GetRelease("app.example:api", "1.0.0-rc1")
+	promoted, err := service.GetRelease(context.Background(), "app.example:api", "1.0.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +339,7 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 
 	// Narrow, like the recall fix. A Release nobody promoted is unaffected, or
 	// the field would say nothing about any particular Release.
-	untouched, err := service.GetRelease("app.example:api", "1.1.0-rc1")
+	untouched, err := service.GetRelease(context.Background(), "app.example:api", "1.1.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,20 +351,17 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	// dangerous direction: serving a Release on a channel it was blocked from
 	// reaching tells a client selecting on that channel to install something
 	// the promotion gate refused.
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Promotions: []environments.ProjectedPromotion{
-			{
-				Product: "app.example:api", Version: "1.0.0-rc1",
-				FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
-			},
-			{
-				Product: "app.example:api", Version: "1.1.0-rc1",
-				FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: false,
-			},
+	durable.lifecycle.Promotions = []environments.ProjectedPromotion{
+		{
+			Product: "app.example:api", Version: "1.0.0-rc1",
+			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
 		},
-	})
-	blocked, err := service.GetRelease("app.example:api", "1.1.0-rc1")
+		{
+			Product: "app.example:api", Version: "1.1.0-rc1",
+			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: false,
+		},
+	}
+	blocked, err := service.GetRelease(context.Background(), "app.example:api", "1.1.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +372,10 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	// And the list route answers the same as the single-release route, since
 	// they are separate call sites and only one of them being fixed is the
 	// failure this whole class keeps producing.
-	listed := service.ListReleases("app.example:api")
+	listed, err := service.ListReleases(context.Background(), "app.example:api")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if listed.Releases == nil {
 		t.Fatal("no releases listed")
 	}
