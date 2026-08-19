@@ -26,6 +26,24 @@ export interface BundleLabelRequirement {
   values?: string[];
 }
 
+/** One Entity's version as a Target Hub last reported running it, so a
+ * disconnected source Hub can build an incremental Bundle against what the
+ * target actually has. Mirrors controlplane.TargetHubEntityVersion. */
+export interface TargetHubEntityVersion {
+  environment: string;
+  installationId: string;
+  product: string;
+  version: string;
+}
+
+/** The Entity versions recorded for one Target Hub, and when. Mirrors
+ * controlplane.TargetHubVersions. */
+export interface TargetHubVersions {
+  targetHub: string;
+  entities: TargetHubEntityVersion[];
+  recordedAt: string;
+}
+
 export interface ExportPipeline {
   id: string;
   displayName: string;
@@ -46,6 +64,7 @@ export interface ExportPipeline {
   buildDespiteMissingResources?: boolean;
   requiredLabels?: BundleLabelRequirement[];
   excludedLabels?: BundleLabelRequirement[];
+  targetHubVersions?: Record<string, TargetHubVersions>;
 }
 
 /** The lifecycle state of a pipeline, normalized so an empty status reads as

@@ -8,6 +8,7 @@ import {
   useExportPipelines,
   type BundleLabelRequirement,
   type ExportPipeline,
+  type TargetHubVersions,
 } from "../../api/exports.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
@@ -169,6 +170,7 @@ function PipelineDetail({ pipeline }: { pipeline: ExportPipeline }) {
           <LabelRequirementList caption="Excluded" requirements={pipeline.excludedLabels} />
         </section>
       ) : null}
+      <TargetHubVersionsView versions={pipeline.targetHubVersions} />
       <dl className="console-exports__meta">
         <div>
           <dt>Build strategy</dt>
@@ -227,5 +229,51 @@ function LabelRequirementList({
         ))}
       </ul>
     </div>
+  );
+}
+
+// TargetHubVersionsView shows what Entity versions each Target Hub last reported
+// running, which is the baseline a disconnected source Hub builds an incremental
+// Bundle against. It renders nothing when no Target Hub has reported, because an
+// unrecorded target is a real state -- the source has never heard from it -- not
+// an empty table.
+function TargetHubVersionsView({
+  versions,
+}: {
+  versions: Record<string, TargetHubVersions> | undefined;
+}) {
+  const hubs = Object.values(versions ?? {}).sort((left, right) =>
+    left.targetHub.localeCompare(right.targetHub),
+  );
+  if (hubs.length === 0) {
+    return null;
+  }
+  return (
+    <section aria-labelledby="pipeline-target-hubs-title" data-testid="pipeline-target-hub-versions">
+      <h3 id="pipeline-target-hubs-title">Target Hub versions</h3>
+      {hubs.map((hub) => (
+        <div key={hub.targetHub} className="console-exports__target-hub">
+          <h4>{hub.targetHub}</h4>
+          <HTMLTable className="console-exports__target-hub-table" compact striped>
+            <thead>
+              <tr>
+                <th>Environment</th>
+                <th>Product</th>
+                <th>Version</th>
+              </tr>
+            </thead>
+            <tbody>
+              {hub.entities.map((entity) => (
+                <tr key={entity.installationId}>
+                  <td>{entity.environment}</td>
+                  <td>{entity.product}</td>
+                  <td>{entity.version}</td>
+                </tr>
+              ))}
+            </tbody>
+          </HTMLTable>
+        </div>
+      ))}
+    </section>
   );
 }
