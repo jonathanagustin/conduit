@@ -243,8 +243,13 @@ export function ChangeRequestDetailPage() {
             {/* Reject left, Approve rightmost: the plan's wireframe 3 orders
                 them that way, and the affirming action last is the convention a
                 reviewer's hand already expects. */}
+            {/* One solid fill per group: Approve is the single principal action
+                and carries it. Reject keeps its danger meaning but is outlined,
+                not filled, so two heavy buttons do not compete; Cancel is an
+                ordinary secondary action and is minimal. */}
             <Button
               intent="danger"
+              outlined
               text="Reject"
               disabled={rationale.trim() === "" || review.isPending}
               onClick={() => act("reject")}
@@ -260,6 +265,7 @@ export function ChangeRequestDetailPage() {
                 first demanded a rationale and then returned 403. */}
             {canCancel(request, viewer) ? (
               <Button
+                minimal
                 text="Cancel request"
                 disabled={rationale.trim() === "" || review.isPending}
                 onClick={() => act("cancel")}
@@ -274,7 +280,15 @@ export function ChangeRequestDetailPage() {
               about text that was silently discarded. */}
           {canReopen(request, viewer) ? (
             <div className="console-change__reopen">
-              <Button text="Reopen" disabled={review.isPending} onClick={() => act("reopen")} />
+              {/* Reopen is the author's own action, not a decision, and it is
+                  outlined rather than filled: its own group carries no solid
+                  primary. */}
+              <Button
+                outlined
+                text="Reopen"
+                disabled={review.isPending}
+                onClick={() => act("reopen")}
+              />
               <p className="console-change__reopen-note">
                 Reopening records no rationale: the Hub re-evaluates this request against the
                 policies in force now, and writes nothing against your name.

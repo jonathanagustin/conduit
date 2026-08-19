@@ -205,6 +205,40 @@ test.describe("Plans", () => {
     await expect(detail.task("OBSERVE")).toBeVisible();
   });
 
+  test("frames the diagnostics as a real Blueprint panel with a 4px corner", async ({
+    page,
+    hub,
+  }) => {
+    // The panel is a Blueprint Section now, not a styled <details>, so its 4px
+    // corner comes from --bp-surface-border-radius rather than a radius rule on
+    // a raw element. Asserting the computed corner guards that the primitive,
+    // not the removed CSS, is what draws the panel.
+    hub.get(
+      "/plans/pln_deploy",
+      planRecord({
+        status: "FAILED",
+        execution: {
+          tasks: [
+            {
+              sequence: 1,
+              phase: "APPLY",
+              status: "FAILED",
+              resources: [{ kind: "Pod", name: "payments-api", reason: "Unschedulable" }],
+            },
+          ],
+        },
+      }),
+    );
+    await page.goto("plans/pln_deploy");
+    const detail = new PlanDetailPom(page);
+
+    const panel = detail.task("APPLY").locator(".console-plan-detail__diagnostics");
+    await expect(panel).toHaveClass(/bp6-section/);
+    await expect
+      .poll(() => panel.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
+      .toBe("4px");
+  });
+
   test("keeps raw Agent output collapsed until asked for", async ({ page, hub }) => {
     // The output is bounded and redacted by the Hub, but it is still noise on a
     // screen whose question is "what happened"; upstream collapses it too.
