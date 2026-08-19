@@ -12,15 +12,18 @@
   font-size: 0.9em;
 }
 
+/* Spacing on the console's decimal px ladder rather than the parallel rem
+   ladder: 20px body framing, 16px within-panel gap, 288px (18rem) meta column
+   min kept exact. docs/ui/console-visual-language.md 10. */
 .console-imports__detail {
-  padding: 1rem;
+  padding: 20px;
   border-block-start: 1px solid var(--pt-divider-black, rgba(17, 20, 24, 0.15));
 }
 
 .console-imports__meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(18rem, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));
+  gap: 16px;
 }
 
 .console-imports__meta dt {
@@ -33,11 +36,11 @@
 }
 
 .console-imports__tasks {
-  padding-inline-start: 1.25rem;
+  padding-inline-start: 20px;
 }
 
 .console-imports__tasks li {
-  margin-block: 0.25rem;
+  margin-block: 4px;
 }
 
 .console-imports__stage {

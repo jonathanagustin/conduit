@@ -42,24 +42,19 @@
   gap: 8px;
 }
 
+/* The panel is a Blueprint `Section`/`SectionCard` now, so its white surface,
+   1px hairline and 4px corner (`--bp-surface-border-radius`) come from the
+   primitive rather than from this file -- the reconstruction's target. What is
+   left here is only the diagnostics list the SectionCard wraps. */
 .console-plan-detail__diagnostics {
   margin-top: 8px;
-  border: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
-  background: var(--bp-palette-white, #fff);
 }
 
-.console-plan-detail__diagnostics > summary {
-  padding: 8px 12px;
-  font-weight: 600;
-  cursor: pointer;
-}
-
-.console-plan-detail__diagnostics > ul {
+.console-plan-detail__diagnostics ul {
   display: grid;
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
 }
 
 .console-plan-detail__diagnostics li {
