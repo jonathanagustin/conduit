@@ -18,4 +18,16 @@ export class RiskPom {
   get detail(): Locator {
     return this.page.getByTestId("recall-detail");
   }
+
+  openVulnerabilities(): Promise<void> {
+    return this.page.getByRole("tab", { name: "Vulnerabilities" }).click();
+  }
+
+  get vulnerabilities(): Locator {
+    return this.page.getByTestId("risk-vulnerabilities");
+  }
+
+  vuln(id: string): Locator {
+    return this.page.getByTestId(`vuln-${id}`);
+  }
 }

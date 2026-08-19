@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQueries, useQuery } from "@tanstack/react-query";
 
 import { getJSON } from "./client.js";
 import type { EnvironmentCatalogRecord, ReportedEntity } from "./resources.js";
@@ -133,6 +133,33 @@ export function orderFindingsByHubScore(findings: VulnerabilityFinding[]): Vulne
     const difference = findingScore(right) - findingScore(left);
     return difference !== 0 ? difference : left.id.localeCompare(right.id);
   });
+}
+
+/** The severity tier the Hub's score falls in, using the same CVSS thresholds
+ * `findingScore` mirrors from risk.go. This is a label for the score, not a
+ * second severity vocabulary: a finding with no CVSS whose provider severity is
+ * unparsed scores CVSS_HIGH and so reads HIGH here, exactly as it does at the
+ * Hub. Used to bucket the cross-Release inventory without ranking any finding
+ * differently from how it is ordered. */
+export type SeverityTier = "CRITICAL" | "HIGH" | "MEDIUM" | "LOW" | "NONE";
+
+export const SEVERITY_TIERS: readonly SeverityTier[] = ["CRITICAL", "HIGH", "MEDIUM", "LOW", "NONE"];
+
+export function severityTier(finding: VulnerabilityFinding): SeverityTier {
+  const score = findingScore(finding);
+  if (score >= CVSS_CRITICAL) {
+    return "CRITICAL";
+  }
+  if (score >= CVSS_HIGH) {
+    return "HIGH";
+  }
+  if (score >= CVSS_MEDIUM) {
+    return "MEDIUM";
+  }
+  if (score >= CVSS_LOW) {
+    return "LOW";
+  }
+  return "NONE";
 }
 
 /** True when a timestamp is Go's zero `time.Time`. `omitempty` does not omit a
@@ -285,6 +312,66 @@ export function useProductReleases(product: string) {
         signal,
       }).then((body) => body.releases),
   });
+}
+
+/** One active finding located to the Release it was found in. The cross-Release
+ * vulnerability inventory (Risk Management) is a list of these. */
+export interface ActiveFindingRow {
+  product: string;
+  version: string;
+  finding: VulnerabilityFinding;
+}
+
+/** The cross-Release inventory of active vulnerabilities.
+ *
+ * The Hub has no aggregate "active findings across the catalog" endpoint -- the
+ * assessment is computed and served per Release on GET
+ * /products/{product}/releases -- so this composes it from the parts. Crucially
+ * it does NOT re-derive which findings are active: `activeFindings` is exactly
+ * what internal/controlplane/risk.go already resolved as unsuppressed and out of
+ * grace, so this reads the Hub's own accounting rather than a second, drifting
+ * copy of it. It flattens those into one list keyed by (Product, version).
+ *
+ * The cost is a fan-out: one Releases read per Product on the first page of the
+ * catalog. That is why the caller renders it on a tab of its own rather than on
+ * page load, and why `bounded` reports when the catalog has more Products than
+ * this first page carried -- an aggregate the Hub could answer in one query
+ * would not need either, which is the backend follow-up this leaves open. */
+export function useVulnerabilityInventory() {
+  const products = useProducts({});
+  const names = products.data?.products.map((summary) => summary.product) ?? [];
+  const releaseQueries = useQueries({
+    queries: names.map((product) => ({
+      queryKey: ["product-releases", product],
+      queryFn: ({ signal }: { signal: AbortSignal }) =>
+        getJSON<{ releases: Release[] }>(`/products/${encodeURIComponent(product)}/releases`, {
+          signal,
+        }).then((body) => body.releases),
+    })),
+  });
+
+  const rows: ActiveFindingRow[] = [];
+  releaseQueries.forEach((query, index) => {
+    const product = names[index];
+    if (product === undefined) {
+      return;
+    }
+    for (const release of query.data ?? []) {
+      for (const finding of release.vulnerabilityAssessment?.activeFindings ?? []) {
+        rows.push({ product, version: release.version, finding });
+      }
+    }
+  });
+
+  return {
+    rows,
+    isPending: products.isPending || releaseQueries.some((query) => query.isPending),
+    error: products.error ?? releaseQueries.find((query) => query.error)?.error ?? null,
+    productCount: names.length,
+    // The Products index is paged; when the catalog holds more than this first
+    // page, the inventory covers only the Products it carried, and says so.
+    bounded: (products.data?.total ?? 0) > names.length,
+  };
 }
 
 export function usePromotions(query: PromotionQuery = {}) {
