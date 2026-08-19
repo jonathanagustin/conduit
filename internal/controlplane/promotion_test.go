@@ -126,6 +126,102 @@ func TestPromotionFailureSuppressesCanaryAndRecoveryRemovesSuppression(t *testin
 	}
 }
 
+// canaryPromotionRequest is a canary stage whose filters nominate one Entity in
+// one Environment, so evidence for anything else is submitted but deliberately
+// outside the decision.
+func canaryPromotionRequest(now time.Time) PromotionEvaluationRequest {
+	request := promotionRequest(now)
+	request.Policy = PromotionPolicy{
+		Type:           PromotionCanary,
+		RequiredLabels: map[string]string{"security": "approved"},
+		EntityFilters: []PromotionEntityFilter{{
+			Environments: []string{"dev-use2"}, Installations: []string{"example-api"},
+		}},
+		Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+	}
+	return request
+}
+
+// A canary decides on the Entities its filters nominate, so it may suppress only
+// those. Suppressing an excluded Entity refuses the next Plan that touches it on
+// the strength of a decision that never looked at it, and the operator has no
+// way to read that back off the promotion: the filters say the Entity was not a
+// canary, and the suppression says it failed one.
+func TestBlockedCanaryDoesNotSuppressAnEntityItsFiltersExcluded(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
+	repository := promotionRepository(t)
+	lifecycle := NewLifecycle(repository)
+	lifecycle.now = func() time.Time { return now }
+	blocked := canaryPromotionRequest(now)
+	blocked.Evidence = []PromotionHealthEvidence{
+		{Environment: "dev-use2", InstallationID: "example-api", Health: "UNHEALTHY", ObservedAt: now},
+		{Environment: "dev-use2", InstallationID: "excluded-api", Health: "UNHEALTHY", ObservedAt: now},
+	}
+	record, err := lifecycle.EvaluatePromotion(context.Background(), blocked)
+	if err != nil || record.Status != PromotionBlocked {
+		t.Fatalf("blocked canary = %#v, %v", record, err)
+	}
+	suppressions, err := repository.ListSuppressions(context.Background(), "dev-use2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suppressed := make([]string, 0, len(suppressions))
+	for _, suppression := range suppressions {
+		if suppression.Source == SuppressionPromotion && suppression.Active(now) {
+			suppressed = append(suppressed, suppression.InstallationID)
+		}
+	}
+	if len(suppressed) != 1 || suppressed[0] != "example-api" {
+		t.Fatalf("canary suppressed %v, want only the nominated canary example-api", suppressed)
+	}
+}
+
+// The other half of the same change, and the reason creation was narrowed
+// without narrowing removal: records written before the filter existed have to
+// stay reachable. Removal is keyed on Environment plus Release, and the
+// Environment set is read from the whole submitted evidence, so a passing run
+// clears a suppression its own filters would have excluded from creation. Narrow
+// both halves and those records become permanent.
+func TestPassingCanaryStillClearsASuppressionItsFiltersWouldNotHaveCreated(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
+	repository := promotionRepository(t)
+	lifecycle := NewLifecycle(repository)
+	lifecycle.now = func() time.Time { return now }
+	passing := canaryPromotionRequest(now)
+	passing.Evidence = []PromotionHealthEvidence{
+		{
+			Environment: "dev-use2", InstallationID: "example-api", Health: "HEALTHY",
+			HealthySince: now.Add(-72 * time.Hour), ObservedAt: now,
+		},
+		{Environment: "staging-use2", InstallationID: "example-api", Health: "UNHEALTHY", ObservedAt: now},
+	}
+	stranded := SuppressionRecord{
+		Environment: "staging-use2", InstallationID: "example-api", Scope: SuppressionEntity,
+		Source:    SuppressionPromotion,
+		Reason:    "promotion health gate failed for " + passing.Release.Product + ":" + passing.Release.Version,
+		CreatedBy: "platform-delivery", Product: passing.Release.Product, Version: passing.Release.Version,
+		StartsAt: now.Add(-time.Hour), CreatedAt: now.Add(-time.Hour),
+		Threshold: defaultAutoSuppressionThreshold, Revision: 1,
+	}
+	stranded.ID = suppressionID(stranded)
+	if _, err := repository.CreateSuppression(context.Background(), stranded); err != nil {
+		t.Fatal(err)
+	}
+	record, err := lifecycle.EvaluatePromotion(context.Background(), passing)
+	if err != nil || record.Status != PromotionPassed {
+		t.Fatalf("passing canary = %#v, %v", record, err)
+	}
+	cleared, err := repository.GetSuppression(context.Background(), stranded.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.Active(now) || cleared.RemovedBy != "platform-delivery" {
+		t.Fatalf("suppression outside the canary filters = %#v, want removed by the passing run", cleared)
+	}
+}
+
 func TestRampedRolloutConstraintAppliesOnlyToUpgrades(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
