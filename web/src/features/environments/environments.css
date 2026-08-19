@@ -82,3 +82,19 @@
     overflow-wrap: anywhere;
   }
 }
+
+.console-environment__profile {
+  margin: 12px 16px 0;
+}
+
+.console-environment__display-name {
+  margin: 0 0 4px;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.console-environment__description {
+  margin: 0;
+  max-width: 70ch;
+  color: var(--bp-text-color-muted, #5f6b7c);
+}

@@ -85,6 +85,9 @@ test.describe("Environments", () => {
       environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
     });
     hub.get("/environments/prod-use1", ENVIRONMENT);
+    // Most Environments have no profile; the endpoint answers 404 and the detail
+    // page shows no metadata section rather than an error.
+    hub.fails("/environments/prod-use1/profile", 404, "no profile for prod-use1");
     await page.goto("environments");
 
     await page.getByRole("link", { name: "prod-use1" }).click();
@@ -94,6 +97,24 @@ test.describe("Environments", () => {
     const entity = environment.entityRow("payments");
     await expect(entity).toContainText("2.4.1");
     await expect(entity).toContainText("HEALTHY");
+    await expect(page.getByTestId("environment-profile")).toHaveCount(0);
+  });
+
+  test("shows an Environment's display metadata when it has a profile", async ({ page, hub }) => {
+    hub.get("/environments", {
+      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+    });
+    hub.get("/environments/prod-use1", ENVIRONMENT);
+    hub.get("/environments/prod-use1/profile", {
+      environmentId: "prod-use1",
+      displayName: "Production — US East",
+      description: "Primary revenue-serving Environment for the payments product.",
+    });
+    await page.goto("environments/prod-use1");
+
+    const profile = page.getByTestId("environment-profile");
+    await expect(profile).toContainText("Production — US East");
+    await expect(profile).toContainText("revenue-serving Environment");
   });
 
   test("keeps Environment search and opaque paging in the URL", async ({ page, hub }) => {

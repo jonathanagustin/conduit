@@ -231,6 +231,31 @@ export function useEnvironment(environmentId: string) {
   });
 }
 
+/** The operator-authored display metadata for an Environment: a human name, a
+ * description, and a Markdown README. Mirrors internal/environments/domain
+ * Profile. Most Environments have none, so the endpoint answers 404 and the
+ * query is not retried -- an absent profile is a normal state, not a failure. */
+export interface EnvironmentProfile {
+  environmentId: string;
+  displayName?: string;
+  description?: string;
+  readme?: string;
+  ownerTeam?: string;
+}
+
+export function useEnvironmentProfile(environmentId: string) {
+  return useQuery({
+    queryKey: ["environment-profile", environmentId],
+    queryFn: ({ signal }) =>
+      getJSON<EnvironmentProfile>(`/environments/${encodeURIComponent(environmentId)}/profile`, {
+        signal,
+      }),
+    // An Environment with no profile answers 404; that is not worth retrying and
+    // not worth surfacing as an error. The detail page renders nothing then.
+    retry: false,
+  });
+}
+
 export function useEnvironmentCommands(environmentId: string) {
   return useQuery({
     queryKey: ["environment-commands", environmentId],
