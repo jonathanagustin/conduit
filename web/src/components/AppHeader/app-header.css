@@ -20,8 +20,12 @@
 .console-app-header__titles {
   display: flex;
   flex-direction: column;
+  /* min-width:0 keeps the title stack shrinkable so the module title truncates
+     with an ellipsis rather than pushing the actions off the band. */
   min-width: 0;
-  padding: 0 14px;
+  /* 12px after the identity tile, the rulebook's measured title offset (was
+     14px). docs/ui/console-visual-language.md section 10, title left offset. */
+  padding: 0 12px;
 }
 
 .console-app-header__titles > b,
@@ -48,7 +52,9 @@
   display: flex;
   align-self: stretch;
   height: 100%;
-  gap: 18px;
+  /* 20px column gap between product-navigation tabs, the rulebook's measured
+     tab rhythm (was 18px). docs/ui/console-visual-language.md section 5. */
+  gap: 20px;
 }
 .console-app-header__tabs > button {
   box-sizing: border-box;
@@ -57,7 +63,11 @@
   color: var(--bp-typography-color-muted, #5f6b7c);
   background: transparent;
   border: 0;
-  border-bottom: 2px solid transparent;
+  /* 3px selected-emphasis underline, reserved transparent on rest rows so the
+     active state adds no layout shift. Rulebook measures a 3px inset on the
+     selected product-navigation tab (was 2px).
+     docs/ui/console-visual-language.md section 10, tab underline. */
+  border-bottom: 3px solid transparent;
   cursor: pointer;
 }
 .console-app-header__tabs > button.is-active {
@@ -87,7 +97,9 @@
   gap: 8px;
 }
 .console-app-header--compact {
-  height: 53px;
+  /* Compact band matches the primary 50px band (was 53px).
+     docs/ui/console-visual-language.md section 10, compact band. */
+  height: 50px;
   border-bottom: 0;
 }
 .console-app-header__compact-icon {

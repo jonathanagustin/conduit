@@ -37,7 +37,10 @@ export function AppLogo({
       }
       data-testid={testId}
     >
-      <Icon icon={icon} size={Math.round(size * 0.5)} />
+      {/* Glyph at 48% of the tile: a 50px identity tile carries a 24x24 mark,
+          the rulebook's measured product-mark size (was round(size*0.5)=25).
+          docs/ui/console-visual-language.md section 10, AppHeader product mark. */}
+      <Icon icon={icon} size={Math.round(size * 0.48)} />
     </span>
   );
 }
