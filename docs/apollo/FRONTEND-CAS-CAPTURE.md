@@ -74,6 +74,16 @@ The capture's own `PROVENANCE.md` names two frontend batches at version
   before. The debugger's own inventory is 229 keys, of which 14 have served
   English. Completing a capture of one app does not fill in another.
 
+  **And the debugger is not worth mining again.** Its `app.js` and `runtime.js`
+  were read: 41 English strings, all of one tool — "Cross App Debugger",
+  Sources / Messages / Sent / Received / Timestamp / Source ID / Target Source
+  ID / Num chars, "Core channels", "Commands channels", "Shared state channels",
+  "Show Inactive Sources", "No activity". It is a developer inspector for
+  cross-application message passing between Foundry frontends. Zero occurrences
+  of `apollo`, one of `deploy` (in prose, not an identifier), and three routes.
+  Nothing about deployment, and nothing Conduit's console has an analogue for.
+  Recorded so the last unexamined part of the capture stays examined.
+
 ## Finding 1 — this is Foundry Control Panel, not the Apollo deployment console
 
 The load-bearing finding, and the reason to read this file before mining the

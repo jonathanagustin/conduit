@@ -373,6 +373,19 @@ jobs:
         run: |
           ./scripts/verify-design-tokens.test.sh
           node scripts/verify-design-tokens.mjs
+      # `var(--x, fallback)` is silent when --x is undefined: the fallback runs
+      # and the page looks deliberate, so a wrong token name is invisible until
+      # somebody audits every var() against the design system. Nine had
+      # accumulated -- Blueprint 4/5 names, near-misses, and names nobody ever
+      # defined. Seven had fallbacks that happened to be right; two did not, and
+      # one of those put a `font:` shorthand's family on generic sans-serif, so
+      # the ObjectHeader title silently opted out of Source Sans on every object
+      # page. This reads every var() and fails on any name Blueprint, the
+      # console's own CSS, or a component's inline style does not define.
+      - name: Validate console CSS variables
+        run: |
+          ./scripts/verify-console-css-variables.test.sh
+          node scripts/verify-console-css-variables.mjs
       # The console's layering -- one network seam in web/src/api, presentation
       # in web/src/components, screens in web/src/features, composition in
       # web/src/app -- was a convention nothing checked. Neither was the

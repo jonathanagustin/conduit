@@ -222,6 +222,7 @@ gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targ
 gate 'Validate operator console' ./scripts/test-console.sh
 gate 'Validate console contract' bash -c './scripts/verify-console-contract.test.sh && node scripts/verify-console-contract.mjs'
 gate 'Validate design tokens against the captured product' bash -c './scripts/verify-design-tokens.test.sh && node scripts/verify-design-tokens.mjs'
+gate 'Validate console CSS variables' bash -c './scripts/verify-console-css-variables.test.sh && node scripts/verify-console-css-variables.mjs'
 gate 'Validate console boundaries' bash -c 'node scripts/verify-console-boundaries.test.mjs && node scripts/verify-console-boundaries.mjs'
 # staticcheck and govulncheck are built against a specific Go release and
 # refuse a module newer than it. Pin the analysis toolchain here rather than

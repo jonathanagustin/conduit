@@ -1033,15 +1033,23 @@ run: this is a frontend and docs change, and the Go side moves only embedded
 
 **Environment fact for the next session.** `pnpm test:e2e` fails instantly with
 "Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1234/…".
-The sandbox ships build **1194**; this repo's pinned Playwright wants 1234. Do
-not run `npx playwright install` (the note in the environment says so and it
-would fetch over the proxy). Bridge it instead — the whole suite then passes:
+The sandbox pre-installs build **1194**; this repo's pinned Playwright wants
+1234. The fix is the one this repository already uses — let Playwright install
+its own pinned build, exactly as `scripts/test-console.sh` does:
 
 ```bash
-mkdir -p /opt/pw-browsers/chromium_headless_shell-1234/chrome-headless-shell-linux64
-ln -sfn /opt/pw-browsers/chromium_headless_shell-1194/chrome-linux/headless_shell \
-        /opt/pw-browsers/chromium_headless_shell-1234/chrome-headless-shell-linux64/chrome-headless-shell
+pnpm --dir web exec playwright install chromium
 ```
+
+> **Correction, same day.** An earlier version of this entry told you to symlink
+> the 1194 binaries into the 1234 path, on the strength of the sandbox note
+> saying not to run `playwright install`. That advice was wrong twice over. The
+> install **works here** — it fetched Chrome for Testing 151.0.7922.34
+> (chromium v1234, 184 MiB + 115 MiB) over the proxy without incident — and the
+> symlink silently ran the whole suite against a *different browser than CI
+> uses*, which is not the verification it was reported as. Both runs passed and
+> agreed, so nothing downstream is wrong; the claim was. Do not reach for the
+> symlink.
 
 **Not adopted, recorded only.** The stylesheet carries Blueprint **6** tokens
 (`--bp-palette-*`, `--bp-intent-*`, `--bp-typography-*`, `--bp-surface-*`) with
@@ -1216,3 +1224,61 @@ ever needs that app.
 The gate grew a fifth rule for the schema (`apollo` root field, a declared root
 nothing uses, a used root that vanished). Self-test now plants **nine**
 violations and requires each to be rejected.
+
+### The full gate, actually run — and nine dead CSS variables it led to
+
+**`[VERIFIED]` `./scripts/verify-local.sh` passes end to end.** `all CI gates
+passed locally`, exit 0, with the Docker/Postgres daemon started via
+`sudo bash scripts/start-docker.sh`. This is the first full local run of the
+session; everything before it rested on focused gates.
+
+One caveat worth carrying: the **first** full run failed on `Validate Zarf
+air-gap package` ("Zarf CLI lint failed"), and that run began with
+`curl: (56) Recv failure: Connection reset by peer` during the pinned-tool
+fetch. The gate passes in isolation and the whole suite passes on a re-run, so
+the failure was the fetch, not the package. Re-run before believing a lone Zarf
+failure here.
+
+**`[VERIFIED]` Nine CSS custom properties the console read were defined by
+nothing.** Found by auditing every `var()` against Blueprint's token file, after
+the Source Code Pro fix turned up two of them:
+
+| Dead name | Uses | What it should have been |
+| --- | --- | --- |
+| `--pt-font-family-monospace` | 5 | Blueprint 4/5 name; fixed earlier |
+| `--bp-font-family-monospace` | 2 | never existed; fixed earlier |
+| `--pt-intent-primary-muted` | 4 | Blueprint 4/5 name → `--console-selected-row-background` |
+| `--bp-text-color-muted` | 2 | `--bp-typography-color-muted` |
+| `--bp-typography-color` | 1 | `--bp-typography-color-default-rest` |
+| `--bp-background-color-subtle` | 1 | `--bp-palette-light-gray-5` |
+| `--surface-0` | 1 | nested fallback was doing the work |
+| `--brand` | 2 | → `--console-app-logo-accent-default` |
+| `--font-ui` | 1 | **see below** |
+
+Seven had fallbacks that happened to be the right value, which is exactly why
+they survived — the screens looked right and the tokens were fiction. Two did
+not:
+
+- **`--font-ui` was a live defect.** `object-header.css` read
+  `font: 600 16px/20px var(--font-ui, sans-serif)`, and a `font:` shorthand
+  always writes font-family, so the ObjectHeader title rendered in the browser's
+  generic sans-serif on **every object page** while the rest of the console used
+  Source Sans. Rewritten as longhands so the family inherits; there is no way to
+  say "these three properties, and inherit the family" with the shorthand.
+- **`--brand`** was AppLogo's default accent, so a logo rendered without an
+  explicit accent resolved to an invalid colour and fell back to inherited text.
+
+**Gated:** `scripts/verify-console-css-variables.mjs` (+ `.test.sh`), in
+`platform-ci.yml` and `verify-local.sh` as "Validate console CSS variables". It
+fails on any `var()` naming a property Blueprint, the console's own CSS, or a
+component's inline style does not define. The self-test plants all four dead
+shapes **and** the two legitimate ones — a variable set from a component's
+inline style, and a name appearing only inside a comment — because a gate that
+flagged those would be switched off in a day. Its comment-stripping is
+line-preserving for that reason: two stylesheets quote the very names it bans.
+
+**The cross-app-debugger closure was mined and is a dead end for Conduit.** 41
+English strings, all one developer tool for inspecting cross-application message
+passing (Sources / Messages / Sent / Received / "Core channels", "Show Inactive
+Sources"). Zero `apollo`, no deployment vocabulary, three routes. Recorded in the
+receipt so the last unexamined part of the capture stays examined.

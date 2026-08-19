@@ -50,6 +50,25 @@ body {
 :root {
   --console-font-family-monospace: "Source Code Pro", "Courier New", monospace,
     "blueprint-icons-16";
+
+  /* The selected-row tint, and the console's own because Blueprint 6 has no
+     token for it. Four feature stylesheets asked for `--pt-intent-primary-muted`
+     -- a Blueprint 4/5 name that 6 does not define -- and each carried this
+     literal as its fallback, so the colour was right and the token was fiction.
+     Named here once instead: the primary intent at 15%, which is what those
+     four literals spelled out. */
+  --console-selected-row-background: color-mix(
+    in srgb,
+    var(--bp-intent-primary-rest) 15%,
+    transparent
+  );
+
+  /* The logo accent when a caller supplies none. Was `var(--brand)`, which
+     nothing defines, so the tile and glyph resolved to an invalid colour and
+     fell back to inherited text. The bootstrap's own default accent is
+     #2d72d2, which is exactly `--bp-intent-primary-rest`, so the undefaulted
+     case now lands where the defaulted one does. */
+  --console-app-logo-accent-default: var(--bp-intent-primary-rest);
 }
 
 pre,
