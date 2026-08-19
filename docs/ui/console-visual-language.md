@@ -309,10 +309,13 @@ introduce it.
 | AppHeader | subtitle | 12px muted `app-header.css:44-45` | 12px metadata | Aligned |
 | AppHeader | tab underline | 2px `app-header.css:60,65` | selected emphasis underline | Aligned (idiom) |
 | AppHeader | compact band | 53px `app-header.css:90` | 50px (some 48) | Divergent (53 vs 50) |
-| NavigationRail | rail width | 48px `navigation-rail.css:8` | 230-260px category rail | Divergent (icon rail; no category rail) |
-| NavigationRail | item box | 36x36 `navigation-rail.css:21-22` | 30px medium / compact tile | Divergent (36 vs 30) |
-| NavigationRail | item corner | 2px `navigation-rail.css:27` | 2-3px compact | Aligned |
-| NavigationRail | touch target | 44px @≤600 `navigation-rail.css:57` | enlarge for coarse pointer | Aligned |
+| NavigationRail | rail width | 230px expanded / 48px collapsed, via the shell `--console-rail` track `app.css:9,17` | 230-260px category rail; 50px collapsed | Aligned (reconstructed: two-state platform sidebar; 230px sits in the band, 48px is the icon rail) |
+| NavigationRail | expanded row | 32px core / 36px application `navigation-rail.css:129,142`; 17px inset, Icon 16 + 12px gap + ellipsized label | 32px core / ~36px application rows; 17px pad; 16px icon, 12px gap, min-width:0 | Aligned (reconstructed) |
+| NavigationRail | group heading | 32px, 12px/600 uppercase `navigation-rail.css:66-75` | 32px, 12px/600 uppercase | Aligned (reconstructed) |
+| NavigationRail | active indicator | primary-tint fill + 4px left bar `navigation-rail.css:186-199` | low-opacity primary fill + 4px left indicator | Aligned (reconstructed: Control Panel rule; hover stays neutral) |
+| NavigationRail | collapsed item box | 36x36, 2px corner `navigation-rail.css:157-165` | 30px medium / compact tile | Divergent (36 vs 30, unchanged) |
+| NavigationRail | touch target | 44px @≤600 `navigation-rail.css:216-219` | enlarge for coarse pointer | Aligned |
+| NavigationRail | collapse density | labels + heading hidden, tooltips restored, Applications popover `NavigationRail.tsx` | collapse changes density, not only width | Aligned (reconstructed) |
 | ObjectHeader | padding | 12px 16px `object-header.css:9` | 10px around 30px control (~50px subheader) | Divergent |
 | ObjectHeader | title | 18px/600/23 `object-header.css:34` | 16px panel / 20-28 page | Divergent (18 between) |
 | ObjectHeader | kind line | 11px uppercase `object-header.css:27` | 12px metadata | Divergent (11 vs 12) |
@@ -320,7 +323,7 @@ introduce it.
 | Shared table | column align | left default; wrap identifiers `notifications.css:38,53` | left-align default; truncate names | Aligned |
 | IndexPagination | control band | 12px 16px `index-pagination.css:3,15` | 20-24 region framing / decimal | Divergent |
 | Dialog | modal surface | none (`grep Dialog` empty) | 550x600, hdr/body/ftr, ~20px body | Gap (deliberate: inline panels, `products.css:16-18`) |
-| Shell canvas | work area | `flex:1; min-width:0` `app.css:7-11` | fluid `minmax(0,1fr)` beside rail | Aligned |
+| Shell canvas | work area | grid `var(--console-rail) minmax(0,1fr)` `app.css:8-14` | fluid `minmax(0,1fr)` beside fixed rail | Aligned (reconstructed: the shell is the layout-vocabulary grid; the rail track is `--console-rail`, the work column `minmax(0,1fr)`) |
 
 ### Feature screens
 
@@ -362,4 +365,17 @@ than by a radius rule on a raw element. The interiors taxonomy also resolves the
 tentative "inline detail vs docked pane" note against exports/imports/risk: the
 inline row->detail is the contextual-detail-panel family (nonmodal, preserves
 the list context), a legitimate interior, so it was kept as-is rather than
-converted. Divergence (1), the icon rail, remains the open backlog item.
+converted.
+
+Divergence (1) is now closed for the rail itself: the NavigationRail is the
+two-state Foundry platform sidebar -- a 230px expanded labeled rail (rows, an
+"Applications" group heading, a pinned collapse toggle, a scrolling middle) that
+collapses to the 48px icon rail (labels and heading gone, per-item tooltips and
+the Applications popover restored), with the shell recomposed as the
+`var(--console-rail) minmax(0,1fr)` layout-vocabulary grid. The active route row
+takes the low-opacity primary fill and the 4px left indicator (the Control Panel
+rule); hover stays a neutral fill. What remains of (1) is the **docked detail
+pane**: the console still routes to full-width detail screens rather than a
+~300px docked pane beside a preserved list, which the per-screen rows above
+record as reconstructed to fixed-rail + fluid-work without a docked detail,
+since the routes exercise no selection-detail to dock.
