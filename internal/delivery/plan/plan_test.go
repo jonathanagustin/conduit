@@ -148,3 +148,20 @@ func TestHelmReleaseFallsBackToTheEntity(t *testing.T) {
 		t.Errorf("override = %s", got)
 	}
 }
+
+// The Hub refuses to suppress an installation a cancelled Plan never touched,
+// so the answer has to be about the steps and nothing else -- an empty Plan
+// contains nothing, and a step for one installation does not admit another.
+func TestContainsInstallationAnswersFromTheSteps(t *testing.T) {
+	t.Parallel()
+	plan := Plan{Steps: []Step{{InstallationID: "example-api"}, {InstallationID: "example-worker"}}}
+	if !plan.ContainsInstallation("example-worker") {
+		t.Error("a Plan does not contain an installation one of its steps names")
+	}
+	if plan.ContainsInstallation("example-database") {
+		t.Error("a Plan contains an installation no step names")
+	}
+	if (Plan{}).ContainsInstallation("example-api") {
+		t.Error("a Plan with no steps contains an installation")
+	}
+}

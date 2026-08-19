@@ -2121,6 +2121,25 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		duration := body.SuppressionDurationSeconds
 		if body.CreateSuppression {
+			// A suppression is durable Environment state that outlives the Plan
+			// which planted it, and POST /v1/environments/{id}/suppressions
+			// gates that same effect at Operate. Authorship is standing over a
+			// Change Request and not over an Environment, so the governed branch
+			// above -- which asks only whether the author is calling -- let an
+			// author who never held more than ProposeChange reach the effect at
+			// the lower of two bars (#150).
+			//
+			// Only the suppression is gated and not the cancellation: requiring
+			// Operate for the whole route would refuse an author cancelling
+			// their own Change Request in an Environment they hold nothing on,
+			// which governance admits on purpose. Stated once, after the branch
+			// dispatch, so that both branches answer to it.
+			if !governance.AuthorizeResourceOperation(request.Context(), principal, configuration,
+				environmentRID(existing.Plan.Environment), OperationOperate) {
+				writeLifecycleError(w, fmt.Errorf("%w: creating a suppression through Plan cancellation requires %s on %s",
+					ErrForbidden, OperationOperate, environmentRID(existing.Plan.Environment)))
+				return
+			}
 			if duration == 0 {
 				duration = 30 * 60
 			}
@@ -2130,7 +2149,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				})
 				return
 			}
-			if body.InstallationID != "" && !planContainsInstallation(existing.Plan, body.InstallationID) {
+			if body.InstallationID != "" && !existing.Plan.ContainsInstallation(body.InstallationID) {
 				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": "installation is not in the Plan"})
 				return
 			}
@@ -2458,17 +2477,26 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
-		visible := make([]FleetInstallation, 0, len(projection.Installations))
-		projection.Summary = FleetSummary{Health: map[string]int{}, Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{}}
-		projection.MaxResultAgeSeconds = 0
 		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
-		for _, item := range projection.Installations {
-			if administrator || governance.Authorize(request.Context(), effectivePrincipal(principal), environmentRID(item.Environment), OperationReadResource) {
-				visible = append(visible, item)
-				addFleetSummary(&projection, item)
+		// The authorization predicate is controlplane's -- who the caller is,
+		// and what OperationReadResource on an Environment means -- while the
+		// walk that applies it to rows and facet contributions belongs to the
+		// reporting domain (RetainReadable). Memoised because the answer depends
+		// only on the Environment and both walks ask about the same handful.
+		readable := map[string]bool{}
+		mayRead := func(environment string) bool {
+			if administrator {
+				return true
 			}
+			allowed, decided := readable[environment]
+			if !decided {
+				allowed = governance.Authorize(request.Context(), effectivePrincipal(principal),
+					environmentRID(environment), OperationReadResource)
+				readable[environment] = allowed
+			}
+			return allowed
 		}
-		projection.Installations = visible
+		projection.RetainReadable(mayRead)
 		projection, err = paginateFleetProjection(projection, fleetQuery, cursor, limit)
 		if err != nil {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
@@ -2565,15 +2593,6 @@ func secureResponseHeaders(next http.Handler) http.Handler {
 	})
 }
 
-func planContainsInstallation(plan Plan, installationID string) bool {
-	for _, step := range plan.Steps {
-		if step.InstallationID == installationID {
-			return true
-		}
-	}
-	return false
-}
-
 // approvedByThisCall is whether the review that just ran is what approved the
 // request, rather than the request having already been approved when the route
 // was called. Only the export-pipeline branch needs it. The fleet branch is
@@ -2662,20 +2681,6 @@ func fleetActionChange(
 		change.Diff["suppressed"] = ChangeDiffEntry{Before: true, After: false}
 	}
 	return change
-}
-
-func addFleetSummary(projection *FleetProjection, item FleetInstallation) {
-	projection.Summary.Total++
-	projection.Summary.Health[item.Health]++
-	projection.Summary.Rollout[item.RolloutStatus]++
-	projection.Summary.Config[item.ConfigStatus]++
-	projection.Summary.Lifecycle[item.Lifecycle]++
-	if item.Stale {
-		projection.Summary.Stale++
-	}
-	if item.ObservationAgeSeconds > projection.MaxResultAgeSeconds {
-		projection.MaxResultAgeSeconds = item.ObservationAgeSeconds
-	}
 }
 
 func requireAgentIdentity(w http.ResponseWriter, request *http.Request, allowInsecureHeaders bool) (AgentIdentity, bool) {

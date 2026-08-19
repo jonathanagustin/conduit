@@ -27,3 +27,18 @@ export {
 export { PLAN_INTENT, PlanStatusTag } from "./PlanStatusTag.js";
 export { ReleaseChannelGraph, latestForChannel, orderChannels } from "./ReleaseChannelGraph.js";
 export { TransitionDetail } from "./TransitionDetail.js";
+// The rail knows no vocabulary and no endpoint: it is given groups and reports
+// clicks, so any index screen with server-side filters can take it. Keeping it
+// here rather than in features/fleet is what stops a second consumer having to
+// reach across features, which rule 5 of the boundary gate forbids.
+export { FacetRail, type FacetRailProps } from "./FacetRail.js";
+export {
+  DEFAULT_FACET_LIMIT,
+  type FacetGroup,
+  type FacetValue,
+  boundFacetValues,
+  facetBarValue,
+  facetsAreEmpty,
+  largestFacetCount,
+  orderFacetValues,
+} from "./facets.js";
