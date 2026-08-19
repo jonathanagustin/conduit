@@ -12,6 +12,21 @@ export class EnvironmentDetailPom {
     return this.root.getByTestId("environment-overview-summary");
   }
 
+  /** The Overview's fixed-rail + fluid-work grid. */
+  get overview(): Locator {
+    return this.root.getByTestId("environment-overview");
+  }
+
+  /** The fluid work column the summary pane is seated beside. */
+  get overviewWork(): Locator {
+    return this.root.getByTestId("environment-overview-work");
+  }
+
+  /** The dense Entities table in the Overview work column. */
+  get entityTable(): Locator {
+    return this.overview.getByRole("table");
+  }
+
   tab(name: "Overview" | "Plans" | "Commands"): Locator {
     return this.root.getByRole("tab", { name, exact: true });
   }
