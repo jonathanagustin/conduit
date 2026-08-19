@@ -1,4 +1,9 @@
 .console-fleet {
+  /* The browser archetype's rail width, named so the grid equation below reads
+     as the layout vocabulary's `var(--rail) minmax(0,1fr)` and one edit moves
+     the rail. 240px sits inside the rulebook's 230-260px category-rail band.
+     docs/ui/console-visual-language.md section 8. */
+  --console-rail: 240px;
   display: flex;
   flex-direction: column;
   min-height: 100%;
@@ -8,7 +13,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  padding: 12px 16px;
+  /* Region-framing band on the decimal ladder: 20px frames the work area,
+     10px keeps the control row dense (was 12px 16px, off the ladder). This is
+     the same band the shared IndexPagination controls use. */
+  padding: 10px 20px;
   gap: 8px;
 }
 
@@ -22,17 +30,20 @@
 }
 
 .console-fleet__stale {
-  margin: 0 16px 12px;
+  margin: 0 20px 12px;
 }
 
 /* The rail beside the results, as the 2020 Apollo Environment view composes a
-   filter pane against a dense table. A fixed rail column keeps the bars in one
-   dimension comparable while the table's own columns resize. */
+   filter pane against a dense table. The browser archetype's fixed rail +
+   fluid work equation: a fixed `--console-rail` track that does not shrink,
+   and a `minmax(0,1fr)` work column that owns the remaining width (the 0 min
+   lets its table truncate rather than force the grid wider).
+   docs/ui/console-visual-language.md section 8; foundry layout vocabulary. */
 .console-fleet__body {
   display: grid;
   min-height: 0;
   align-items: start;
-  grid-template-columns: 264px minmax(0, 1fr);
+  grid-template-columns: var(--console-rail) minmax(0, 1fr);
 }
 
 .console-fleet__results {
@@ -53,7 +64,8 @@
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 12px 16px;
+  /* Same region-framing band as the controls above the table. */
+  padding: 10px 20px;
   gap: 16px;
 }
 

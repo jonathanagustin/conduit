@@ -110,7 +110,7 @@ export function FleetPage() {
 
       <div className="console-fleet__body">
         <FleetFacetRail facets={data.facets} query={query} onFilter={setFilter} />
-        <div className="console-fleet__results">
+        <div className="console-fleet__results" data-testid="fleet-results">
           {data.installations.length === 0 ? (
             <AccessibleNonIdealState
               icon="search"

@@ -9,7 +9,7 @@ import {
   useProducts,
   usePromotions,
 } from "../../api/catalog.js";
-import type { VulnerabilityAssessment } from "../../api/catalog.js";
+import type { Release, VulnerabilityAssessment } from "../../api/catalog.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
@@ -127,11 +127,22 @@ export function ProductDetailPage() {
             title={product}
             subtitle={`${releases.length} ${releases.length === 1 ? "Release" : "Releases"}`}
           />
-          <ProductPromotionPipeline product={product} />
-          {releases.length === 0 ? (
-            <p className="console-empty">This Product has no Releases.</p>
-          ) : (
-            <HTMLTable className="console-products__table" striped>
+          {/* The Product view as the 2020 Apollo capture composes it: a fixed
+              resource summary beside the release/change feed and the dense
+              Release table (docs/ui/HISTORICAL-APOLLO-EVIDENCE-2020-2022.md).
+              The grid is the fixed-rail + fluid-work equation; the pane holds
+              the summary, the work column the pipeline, table and any revealed
+              finding. Below 900px the rail collapses above the work column. */}
+          <div className="console-products__browser">
+            <div className="console-products__pane">
+              <ProductResourceSummary product={product} releases={releases} />
+            </div>
+            <div className="console-products__work" data-testid="product-work">
+              <ProductPromotionPipeline product={product} />
+              {releases.length === 0 ? (
+                <p className="console-empty">This Product has no Releases.</p>
+              ) : (
+                <HTMLTable className="console-products__table" striped>
               <thead>
                 <tr>
                   <th scope="col">Version</th>
@@ -179,14 +190,16 @@ export function ProductDetailPage() {
                   </tr>
                 ))}
               </tbody>
-            </HTMLTable>
-          )}
-          {chosenRelease?.vulnerabilityAssessment === undefined ? null : (
-            <VulnerabilityDetail
-              version={chosenRelease.version}
-              assessment={chosenRelease.vulnerabilityAssessment}
-            />
-          )}
+                </HTMLTable>
+              )}
+              {chosenRelease?.vulnerabilityAssessment === undefined ? null : (
+                <VulnerabilityDetail
+                  version={chosenRelease.version}
+                  assessment={chosenRelease.vulnerabilityAssessment}
+                />
+              )}
+            </div>
+          </div>
         </div>
       )}
     </QueryState>
@@ -224,12 +237,15 @@ function VulnerabilityDetail({
   const active = orderFindingsByHubScore(assessment.activeFindings ?? []);
   const suppressed = assessment.suppressedFindingDetails ?? [];
   return (
-    <section
+    <Section
+      compact
+      icon="shield"
+      title={`Vulnerability findings for ${version}`}
+      titleRenderer={H2}
       className="console-products__assessment"
-      aria-labelledby="release-assessment-title"
       data-testid="release-assessment-detail"
     >
-      <h2 id="release-assessment-title">Vulnerability findings for {version}</h2>
+      <SectionCard>
       <p className="console-products__assessment-provenance">
         {assessment.provider === undefined ? "Scanner not named" : `Scanned by ${assessment.provider}`}
         {isZeroTime(assessment.assessedAt) ? null : (
@@ -317,7 +333,84 @@ function VulnerabilityDetail({
           </HTMLTable>
         </>
       )}
-    </section>
+      </SectionCard>
+    </Section>
+  );
+}
+
+/** The fixed resource summary that heads the Product browser, the counterpart
+ * of the 2020 Apollo capture's "fixed resource summary" beside the release feed
+ * and install table. Every fact is derived from the Releases the page already
+ * loaded -- distinct channels, how many Releases carry an assessment and how
+ * many report active findings -- so the pane cannot disagree with the table it
+ * sits beside, the same rule the Environment Overview summary follows. Channels
+ * are the Product's own vocabulary, so they are shown as Tags rather than
+ * counted into a status the Hub never named. */
+function ProductResourceSummary({
+  product,
+  releases,
+}: {
+  product: string;
+  releases: readonly Release[];
+}) {
+  const channels = [...new Set(releases.flatMap((release) => release.channels ?? []))].sort();
+  const assessed = releases.filter((release) => release.vulnerabilityAssessment !== undefined).length;
+  const withActive = releases.filter(
+    (release) => (release.vulnerabilityAssessment?.activeVulnerabilities ?? 0) > 0,
+  ).length;
+  return (
+    <Section
+      compact
+      icon="cube"
+      title="Resource"
+      titleRenderer={H2}
+      className="console-products__summary"
+      data-testid="product-resource-summary"
+    >
+      <SectionCard>
+        <dl className="console-products__facts">
+          <div>
+            <dt>Product</dt>
+            {/* A coordinate is longer than the pane and never wrapped, so it
+                truncates and carries its full value as a title. */}
+            <dd className="console-products__coordinate" title={product}>
+              {product}
+            </dd>
+          </div>
+          <div>
+            <dt>Releases</dt>
+            <dd>{releases.length}</dd>
+          </div>
+          <div>
+            <dt>Channels</dt>
+            <dd>
+              {channels.length === 0
+                ? "—"
+                : channels.map((channel) => (
+                    <Tag key={channel} minimal round>
+                      {channel}
+                    </Tag>
+                  ))}
+            </dd>
+          </div>
+          <div>
+            <dt>Assessed</dt>
+            <dd>
+              {assessed} of {releases.length}
+              {withActive > 0 ? (
+                <>
+                  {" "}
+                  &middot;{" "}
+                  <Tag intent="warning" minimal round>
+                    {withActive} with active findings
+                  </Tag>
+                </>
+              ) : null}
+            </dd>
+          </div>
+        </dl>
+      </SectionCard>
+    </Section>
   );
 }
 
@@ -325,8 +418,14 @@ function ProductPromotionPipeline({ product }: { product: string }) {
   const { data, error, isPending, refetch } = usePromotions({ product, limit: 200 });
   const [selected, setSelected] = useState<string | undefined>(undefined);
   return (
-    <section className="console-products__pipeline" aria-labelledby="product-promotion-title">
-      <h2 id="product-promotion-title">Release Channel pipeline</h2>
+    <Section
+      compact
+      icon="exchange"
+      title="Release Channel pipeline"
+      titleRenderer={H2}
+      className="console-products__pipeline"
+    >
+      <SectionCard>
       <QueryState
         isPending={isPending}
         error={error}
@@ -359,7 +458,8 @@ function ProductPromotionPipeline({ product }: { product: string }) {
           );
         }}
       </QueryState>
-    </section>
+      </SectionCard>
+    </Section>
   );
 }
 
