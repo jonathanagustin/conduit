@@ -146,9 +146,6 @@ const (
 	FacetLifecycle   = "lifecycle"
 )
 
-// CONDUIT-INVENTED: reporting.FleetFacets
-// Displaced-by: a capture or published schema showing Apollo's own fleet/installation filter-count response -- its field names, and whether a selected dimension is excluded from its own count
-//
 // FleetFacets counts installations per value of each filterable dimension, with
 // that dimension's OWN filter excluded from the count.
 //
@@ -166,6 +163,9 @@ const (
 // excluding it changes nothing and the facet equals the corresponding Summary
 // map. Stale is not here because it is not a filterable dimension; maxAgeSeconds
 // decides staleness rather than selecting on it.
+//
+// CONDUIT-INVENTED: reporting.FleetFacets
+// Displaced-by: a capture or published schema showing Apollo's own fleet/installation filter-count response -- its field names, and whether a selected dimension is excluded from its own count
 type FleetFacets struct {
 	Environment map[string]int `json:"environment"`
 	Product     map[string]int `json:"product"`
@@ -245,6 +245,52 @@ type FleetProjection struct {
 	// them, so a caller that filters nothing can ignore this entirely.
 	FacetContributions []FacetContribution `json:"-"`
 	PageMetadata
+}
+
+// RetainReadable rebuilds the projection to hold only the installations an
+// authorization predicate admits, recomputing every derived count -- the
+// summary and the facets, near misses included -- over exactly that set.
+//
+// It is the reporting half of the fleet's authorization. BuildFleet cannot ask
+// who the caller is, so the handler passes the question in as mayRead, keyed on
+// the Environment because that is the resource a fleet row is authorized
+// against. A facet count is a disclosure the same way a row is, so a near-miss
+// contribution is admitted only when its Environment is, and the contribution
+// set is then dropped: it was scaffolding for this rebuild, not part of the
+// response.
+func (projection *FleetProjection) RetainReadable(mayRead func(environment string) bool) {
+	visible := make([]FleetInstallation, 0, len(projection.Installations))
+	projection.Summary = FleetSummary{Health: map[string]int{}, Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{}}
+	projection.Facets = NewFleetFacets()
+	projection.MaxResultAgeSeconds = 0
+	for _, item := range projection.Installations {
+		if !mayRead(item.Environment) {
+			continue
+		}
+		visible = append(visible, item)
+		projection.Summary.Total++
+		projection.Summary.Health[item.Health]++
+		projection.Summary.Rollout[item.RolloutStatus]++
+		projection.Summary.Config[item.ConfigStatus]++
+		projection.Summary.Lifecycle[item.Lifecycle]++
+		// A row in the result matched every selected dimension, so it counts
+		// toward every facet: excluding a dimension from its own facet only ever
+		// adds near misses, never removes a match.
+		projection.Facets.AddInstallation(item)
+		if item.Stale {
+			projection.Summary.Stale++
+		}
+		if item.ObservationAgeSeconds > projection.MaxResultAgeSeconds {
+			projection.MaxResultAgeSeconds = item.ObservationAgeSeconds
+		}
+	}
+	for _, contribution := range projection.FacetContributions {
+		if mayRead(contribution.Environment) {
+			projection.Facets.Add(contribution.Dimension, contribution.Value)
+		}
+	}
+	projection.FacetContributions = nil
+	projection.Installations = visible
 }
 
 // fleetDimension binds a dimension's name to the installation field it reads

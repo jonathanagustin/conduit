@@ -200,3 +200,84 @@ func TestFleetFacetsAreNarrowedBySearch(t *testing.T) {
 		t.Errorf("Facets.Health[HEALTHY] = %d, want %d -- search excludes it from every facet", got, want)
 	}
 }
+
+// RetainReadable is the authorization rebuild the Hub applies after BuildFleet:
+// it drops rows an operator may not read AND rebuilds every derived count over
+// what is left, so a facet cannot leak the size of an Environment the caller
+// cannot see. The predicate stands in for the Hub's per-Environment check.
+func TestRetainReadableRebuildsEveryCountOverTheReadableSet(t *testing.T) {
+	t.Parallel()
+	observed := []Observed{
+		{Environment: "prod", InstallationID: "api", Product: "app.example:api",
+			Health: HealthHealthy, RolloutStatus: RolloutUpToDate, ConfigStatus: ConfigApplied, Lifecycle: LifecycleInstalled},
+		{Environment: "prod", InstallationID: "worker", Product: "app.example:worker",
+			Health: HealthUnhealthy, RolloutStatus: RolloutUpToDate, ConfigStatus: ConfigApplied, Lifecycle: LifecycleInstalled},
+		{Environment: "secret", InstallationID: "vault", Product: "app.example:vault",
+			Health: HealthHealthy, RolloutStatus: RolloutUpToDate, ConfigStatus: ConfigApplied, Lifecycle: LifecycleInstalled},
+	}
+	now := time.Unix(1_700_000_000, 0).UTC()
+
+	// Selecting HEALTHY leaves the unhealthy prod row as a near miss, so the
+	// contribution walk is exercised too, not only the row walk.
+	projection := BuildFleet(nil, observed, FleetQuery{Health: HealthHealthy}, now)
+
+	// Sanity: before authorization, both Environments' healthy rows and the
+	// unhealthy near miss are present.
+	if got, want := projection.Summary.Total, 2; got != want {
+		t.Fatalf("pre-authorization total = %d, want %d", got, want)
+	}
+	if got := projection.Facets.Environment["secret"]; got == 0 {
+		t.Fatalf("test setup: expected the secret Environment to appear before authorization")
+	}
+
+	projection.RetainReadable(func(environment string) bool { return environment != "secret" })
+
+	// The secret row is gone from the result and from every count.
+	for _, item := range projection.Installations {
+		if item.Environment == "secret" {
+			t.Fatalf("a row from an unreadable Environment survived RetainReadable")
+		}
+	}
+	if got, want := projection.Summary.Total, 1; got != want {
+		t.Errorf("Summary.Total = %d, want %d -- only the readable healthy row remains", got, want)
+	}
+	if got, want := projection.Facets.Environment["secret"], 0; got != want {
+		t.Errorf("Facets.Environment[secret] = %d, want %d -- a facet must not disclose an unreadable Environment's size", got, want)
+	}
+	// The unhealthy prod near miss is readable, so the HEALTHY facet still
+	// excludes its own filter and counts it.
+	if got, want := projection.Facets.Health[HealthUnhealthy], 1; got != want {
+		t.Errorf("Facets.Health[UNHEALTHY] = %d, want %d -- a readable near miss is still counted", got, want)
+	}
+	// And the scaffolding is dropped from the response.
+	if projection.FacetContributions != nil {
+		t.Errorf("FacetContributions survived the rebuild; it is scaffolding, not response")
+	}
+}
+
+// An administrator-shaped predicate admits everything, so RetainReadable must
+// change nothing about the counts a full read produced.
+func TestRetainReadableWithATotalPredicateIsIdentityOnCounts(t *testing.T) {
+	t.Parallel()
+	observed := []Observed{
+		{Environment: "prod", InstallationID: "api", Product: "app.example:api",
+			Health: HealthHealthy, RolloutStatus: RolloutUpToDate, ConfigStatus: ConfigApplied, Lifecycle: LifecycleInstalled},
+		{Environment: "dev", InstallationID: "api", Product: "app.example:api",
+			Health: HealthUnhealthy, RolloutStatus: RolloutOutOfDate, ConfigStatus: ConfigDrifted, Lifecycle: LifecycleInstalled},
+	}
+	now := time.Unix(1_700_000_000, 0).UTC()
+
+	reference := BuildFleet(nil, observed, FleetQuery{Health: HealthHealthy}, now)
+	rebuilt := BuildFleet(nil, observed, FleetQuery{Health: HealthHealthy}, now)
+	rebuilt.RetainReadable(func(string) bool { return true })
+
+	if got, want := rebuilt.Summary.Total, reference.Summary.Total; got != want {
+		t.Errorf("total after an admit-all rebuild = %d, want %d", got, want)
+	}
+	if got, want := rebuilt.Facets.Health[HealthUnhealthy], reference.Facets.Health[HealthUnhealthy]; got != want {
+		t.Errorf("UNHEALTHY facet after an admit-all rebuild = %d, want %d", got, want)
+	}
+	if len(rebuilt.Installations) != len(reference.Installations) {
+		t.Errorf("admit-all left %d installations, want %d", len(rebuilt.Installations), len(reference.Installations))
+	}
+}
