@@ -130,8 +130,8 @@ func Validate(state DesiredState) []ValidationError {
 				fmt.Sprintf("%s.images[%d]", prefix, imageIndex), image, assignedRegistryHosts, &errs,
 			)
 		}
-		validateVulnerabilityAssessment(prefix, release, nil, &errs)
-		validateArtifactAvailability(prefix, release, nil, &errs)
+		validateVulnerabilityAssessment(prefix, release, &errs)
+		validateArtifactAvailability(prefix, release, &errs)
 		seenChannels := make(map[string]struct{}, len(release.Channels))
 		for channelIndex, channel := range release.Channels {
 			channelPath := fmt.Sprintf("%s.channels[%d]", prefix, channelIndex)
@@ -702,17 +702,18 @@ func validateSelectedReleasePolicies(path string, release Release, environment E
 	}
 }
 
-func validateVulnerabilityAssessment(
-	path string,
-	release Release,
-	policy *ArtifactSecurityPolicy,
-	errs *[]ValidationError,
-) {
+// validateVulnerabilityAssessment checks an assessment's own coherence -- shape,
+// counts, suppression provenance, exact digest coverage -- and nothing about the
+// Environment. Whether a policy requires one to be present, or requires PASS, is
+// decided against the Release an Entity actually selected, by
+// validateSelectedReleasePolicies. This took a *ArtifactSecurityPolicy for both
+// of those and every one of its three callers passed nil, so the policy branches
+// were unreachable while reading as a second line of defence -- #54 cited one of
+// them as a live check. Deleted rather than wired up: duplicating the gate here
+// would refuse a catalogued Release no Entity installs.
+func validateVulnerabilityAssessment(path string, release Release, errs *[]ValidationError) {
 	assessment := release.VulnerabilityAssessment
 	if assessment == nil {
-		if policy != nil {
-			*errs = append(*errs, ValidationError{Path: path + ".vulnerabilityAssessment", Message: "is required by the Environment artifact security policy"})
-		}
 		return
 	}
 	assessmentPath := path + ".vulnerabilityAssessment"
@@ -760,12 +761,6 @@ func validateVulnerabilityAssessment(
 	validateSuppressedVulnerabilityFindings(assessmentPath, assessment, errs)
 	covered := validateDigestCoverage(assessmentPath, assessment.ArtifactDigests, errs)
 	validateArtifactDigestCoverage(assessmentPath, release.Images, covered, errs)
-	if policy == nil {
-		return
-	}
-	if policy.RequiredOutcome == "PASS" && assessment.Outcome != "PASS" {
-		*errs = append(*errs, ValidationError{Path: assessmentPath + ".outcome", Message: "must be PASS under the Environment policy"})
-	}
 }
 
 func validateSuppressedVulnerabilityFindings(path string, assessment *VulnerabilityAssessment, errs *[]ValidationError) {
@@ -858,19 +853,11 @@ func validateVulnerabilitySuppressionProvenance(
 	}
 }
 
-func validateArtifactAvailability(
-	path string,
-	release Release,
-	policy *ArtifactAvailabilityPolicy,
-	errs *[]ValidationError,
-) {
+// validateArtifactAvailability is the availability half of the same split, and
+// carried the same dead *ArtifactAvailabilityPolicy for the same reason.
+func validateArtifactAvailability(path string, release Release, errs *[]ValidationError) {
 	assessment := release.ArtifactAvailability
 	if assessment == nil {
-		if policy != nil {
-			*errs = append(*errs, ValidationError{
-				Path: path + ".artifactAvailability", Message: "is required by the Environment artifact availability policy",
-			})
-		}
 		return
 	}
 	assessmentPath := path + ".artifactAvailability"
@@ -888,9 +875,6 @@ func validateArtifactAvailability(
 	}
 	covered := validateDigestCoverage(assessmentPath, assessment.ArtifactDigests, errs)
 	validateArtifactDigestCoverage(assessmentPath, releaseArtifacts(release), covered, errs)
-	if policy != nil && assessment.Outcome != "AVAILABLE" {
-		*errs = append(*errs, ValidationError{Path: assessmentPath + ".outcome", Message: "must be AVAILABLE under the Environment policy"})
-	}
 }
 
 func validateArtifactRegistries(

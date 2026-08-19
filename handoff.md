@@ -1,5 +1,170 @@
 # Handoff
 
+**Updated:** 2026-08-18 17:50 UTC
+**Lead or owner:** orchestrating session (see `ORCHESTRATOR.md`)
+**Status:** blocked
+
+This file carries the shape of [`HANDOFF.template.md`](HANDOFF.template.md) at
+the top — current state, decisions, next actions — and the dated historical
+record below it. The history is appended to, not rewritten; a correction to an
+earlier session's claim is made where the claim is, and marked.
+
+## Mission
+
+- **Goal:** keep `main` correct and shippable while closing the defects the
+  gate cannot catch — authorization and credential-destination faults, which
+  pass CI by construction.
+- **Deliverables:** merged pull requests with reproducible evidence; the
+  operating structure in `ORCHESTRATOR.md` and its companions.
+- **Measurable success criteria:** Trunk gate green on the head commit; every
+  claimed fix killed by a **compiling** mutant; no regression introduced by a
+  fix.
+- **Constraints and non-goals:** a green gate is evidence, never authorization
+  (A5). Releasing, publishing, and deploying to a tenant each need explicit
+  human instruction. Do not run `./scripts/verify-local.sh` while another
+  process holds the shared Docker/Postgres daemon.
+- **Authorized side effects:** branches, pull requests, issues, and merges in
+  `jonathanagustin/conduit` under the standing instruction to handle pull
+  requests. Nothing outside this repository's scope.
+
+## Current verified state
+
+- `[VERIFIED]` `main` is at `8d16d35`; merges through #273 have landed —
+  checked at 2026-08-18 17:38 UTC via `git fetch && git log`.
+- `[VERIFIED]` **A live regression is on `main`.** `registrychallenge.CheckRedirect`
+  refuses a credentialed cross-host redirect. Docker Hub answers a credentialed
+  blob read with `307 → production.cloudfront.docker.com`, measured directly
+  from this sandbox at 17:39 UTC, so `ocipublish.CurrentDigest` — the read the
+  Flux converger performs every reconcile — fails against any CDN-backed
+  registry. Fix open as PR #274.
+- `[VERIFIED]` **#242's regression guard is gone from `main`.** Reverting the
+  `intended := *request.URL` capture compiles and the whole `ocipublish`
+  package still passes. #248 removed the only thing that made the pre- and
+  post-round-trip URLs differ. Restored in PR #274.
+- `[VERIFIED]` The two #247 review findings were corrected on `main` by later
+  work: `resource_decision.go` now states plainly that "this cannot decide
+  without filing" is false for `Administrator`, and the parity test carries the
+  `alice → bob` row pinning the delegated-administrator widening.
+- `[VERIFIED]` The frontend is green on `main`: 70 unit, 122 stubbed e2e, and
+  12 live specs against a real Hub (approve → Agent executes → `SUCCEEDED`),
+  plus the embedded-asset check.
+- `[VERIFIED]` The console already has a hydration seam: the Hub replaces
+  `<!--conduit-console-bootstrap-->` in `web/index.html` with a meta tag, and
+  `internal/consoleui/bootstrap.go` defines `conduit.console.bootstrap/v1`. It
+  **deliberately** carries no API-origin, authentication, capability, script,
+  feature-toggle, or security-policy fields, so tenant data cannot smuggle in a
+  capability.
+- `[VERIFIED]` A written control does not hold: `.claude/settings.json` denies
+  `Bash(gh pr merge:*)`, but merges via `mcp__github__merge_pull_request` do not
+  match that rule and have succeeded. See `HARNESS_REQUIREMENTS.md`.
+- `[UNKNOWN]` How Apollo Hub supplies runtime configuration to its frontend.
+  Matters because the hydration direction was chosen as "however Apollo Hub does
+  it", and this repository forbids inferring Apollo behavior. Cheapest probe:
+  search the pinned snapshot at
+  `docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c`
+  for a config or session-projection operation; expect the answer to be
+  "not established", which is a valid answer.
+
+## Decisions
+
+- **Strip the credential across a redirect rather than refusing to follow** —
+  alternatives: keep refusing; refuse only the scheme-downgrade row. Reason:
+  the policy sits on the client, so it governs credentialed blob reads, and
+  refusing breaks CDN-backed registries; stripping keeps the identical set of
+  destinations that may receive the credential. Evidence: PR #274, five
+  compiling mutants. Reversible: yes.
+- **Adversarial review before merging security-relevant work** — reason: two
+  live credential leaks (#228, #242) were found by review of already-merged,
+  already-green code, and review of #247/#248 found two more real defects the
+  gate could not. Evidence: the review reports. Reversible: yes, but the base
+  rate argues against.
+- **Superseded:** "the Trunk gate job's conclusion may differ from the status it
+  publishes" — closed by #249; both surfaces now agree.
+
+## Active workstreams
+
+- PR #274 — strip-not-refuse plus the restored #242 guard — gate running as of
+  17:49 UTC — no blocker — high return, it clears a live regression.
+- Multipass IAM port and Apollo hydration research — both agents killed by a
+  session limit before producing anything — blocked on re-dispatch, not on
+  information.
+- **Integration owner:** this session.
+
+## Actual cost and value
+
+- Four subagents lost to a session limit (reset 13:40 UTC) mid-task; ~7 hours of
+  wall time passed with other sessions merging through #273.
+- Information gained that changed decisions: the Docker Hub 307 measurement, and
+  the surviving-mutant proof that #242's guard was gone. Both overturned what a
+  status report alone would have said.
+
+## Blocker
+
+- **Exact blocker:** GitHub Actions is not allocating runners for this
+  repository. Every job fails within about two to three seconds with
+  `runner_id: 0`, no runner name, no `steps` array at all, and a 404 on its
+  log. Verified across two independent branches and four run attempts.
+- `[VERIFIED]` The whole run finishes in 8 seconds
+  (`run_duration_ms: 8000`) against 399 seconds for the last green run
+  (`32154882696`). That is the reliable quantitative discriminator.
+- `[VERIFIED]` It is not caused by any change on either branch: PR #275 is
+  documentation-only and its first run failed identically, and the same
+  workflow succeeded on eight runs earlier today (most recent green:
+  `32154882696`, 15:30 UTC).
+- `[INFERRED]` Possibly an exhausted Actions minutes quota or a reached
+  spending limit — this repository is private. Confidence: **low**. There is no
+  billing evidence behind this; it rests only on the shape of the failure.
+- **A measurement error to not repeat.** This blocker was first recorded citing
+  `get_workflow_run_usage` reporting `total_ms: 0` and `duration_ms: 0` for
+  every job, as proof that nothing executed. That evidence is worthless: the
+  same endpoint reports `total_ms: 0` and `duration_ms: 0` for run
+  `32154882696`, which was **fully green** and whose Go suite ran for 4m41s
+  with complete logs. This endpoint reports zero for this repository whether or
+  not a job ran, so it cannot distinguish the two. Use `run_duration_ms`, the
+  absence of a `steps` array, and `runner_id: 0` instead.
+- **Minimum external input or authorization required:** someone with billing
+  access checks Actions minutes and the spending limit for the account. If that
+  is not it, the run pages for `32167586350` and `32168615490` will carry the
+  reason in the web UI, which the API does not expose.
+- **Useful work preserved at:** branches `claude/fix-redirect-strip-not-refuse`
+  (PR #274) and `claude/orchestrator-deployment` (PR #275), both pushed. Both
+  trees were verified locally; #274's five lanes all passed on GitHub at 17:55
+  UTC before the aggregator stopped being schedulable.
+- **Do not** keep re-running. Four attempts produced the identical signature; a
+  fifth without new evidence is the repeated unchanged action the doctrine
+  forbids. Elapsed time counts as new evidence at most once an hour.
+
+## Prioritized next actions
+
+1. Unblock Actions (see above) — nothing else in CI can proceed until then —
+   requires billing access, which this session does not have.
+2. Merge PR #274 once the gate can run — clears a live regression on the
+   reconcile path — high confidence — low cost — reversible. Its five
+   verification lanes already passed on the exact head `6c13975`; only the
+   status-publishing job never ran, so the commit status is stuck `pending`
+   rather than red.
+3. Decide the `mcp__github__merge_pull_request` gate (close it, or correct the
+   policy to match reality) — this is the repository owner's call, not the
+   agent's — see `HARNESS_REQUIREMENTS.md`.
+4. Re-dispatch the Apollo hydration research and the Multipass IAM port — both
+   are scoped and briefed; neither is blocked on information or on CI.
+
+## Resume recipe
+
+- **Read first:** this section, then `ORCHESTRATOR.md`.
+- **Current branch:** `main` at `8d16d35`; open work on
+  `claude/fix-redirect-strip-not-refuse` (PR #274).
+- **Fast health check:** `go build ./... && go test -count=1 ./internal/gitless/...`
+- **Tests or evaluators:** the Trunk gate; `./scripts/verify-local.sh` when the
+  shared Docker/Postgres daemon is free.
+- **Mutable facts to revalidate:** `main`'s head, open pull requests, and
+  whether PR #274 merged — all of them move between sessions.
+- **First recommended action:** check PR #274's Trunk status.
+
+---
+
+## Historical record
+
 A snapshot of the work done in the session ending 2026-08-18, what is merged,
 what is still open, and the mechanisms a next contributor should know before
 touching this tree. Everything is on `main` unless marked otherwise.

@@ -8,6 +8,9 @@ The living UI contract is intentionally small:
 - `contracts/runtime-bootstrap.md` defines the closed tenant-branding runtime surface.
 - `contracts/notification-inbox.md` defines the per-principal inbox screen and the
   preference it edits, both Conduit extensions with no Apollo shape to be faithful to.
+- `contracts/fleet-facets.md` defines the fleet's faceted filter rail, and in
+  particular what each of its counts is over -- the one thing about a facet that
+  cannot be inferred from looking at it.
 
 The files under `evidence/` and the dated inventories in this directory are
 bounded evidence records. They can support only the observation and provenance
