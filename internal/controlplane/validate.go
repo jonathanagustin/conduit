@@ -833,6 +833,11 @@ func validateVulnerabilitySuppressionProvenance(
 	default:
 		*errs = append(*errs, ValidationError{Path: path + ".category", Message: "must be FALSE_POSITIVE, WONT_FIX, VENDOR_DEPENDENCY, or PLANNED_FIX"})
 	}
+	if provenance.Category == VulnerabilitySuppressionPlannedFix {
+		require("plannedFixReference", provenance.PlannedFixReference)
+	} else if strings.TrimSpace(provenance.PlannedFixReference) != "" {
+		*errs = append(*errs, ValidationError{Path: path + ".plannedFixReference", Message: "is only valid for a PLANNED_FIX suppression"})
+	}
 	if provenance.CreatedAt.IsZero() {
 		*errs = append(*errs, ValidationError{Path: path + ".createdAt", Message: "must not be empty"})
 	}
