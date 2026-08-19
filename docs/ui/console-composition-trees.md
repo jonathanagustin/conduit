@@ -28,17 +28,19 @@ bands, corners, insets -- read from each screen's CSS (`web/src/**/*.css`) and
 are the ones `console-visual-language.md` section 8 assigns.
 
 **Grounding.** These trees are grounded in the code as of the current `main`
-(HEAD merges #284). Every region and primitive was read from the file that
+(HEAD merges #285). Every region and primitive was read from the file that
 renders it; no region, primitive, or measurement is invented. Where a screen has
 no rail its tree has no rail; where a value is not set in the CSS it is not
 stated.
 
-**Worklist reconstruction caveat.** The worklist screens -- plans,
-change-requests, exports, imports, risk, notifications, teams -- have an
-in-flight worklist PR (tracked around #285) that adjusts some of their corners,
-spacing and primitives. The trees below depict them **as they are on current
-`main`**; their post-merge corners and insets are to be reconciled after that PR
-lands rather than guessed at here.
+**Worklist reconstruction, reconciled.** The worklist screens -- plans,
+change-requests, exports, imports, risk, notifications, teams -- were adjusted by
+#285 (corners onto Blueprint primitives, the rem ladder onto the decimal
+5/10/15/20 rhythm). The trees below reflect that merged state: the plans
+diagnostics panel is a real `Section` (4px), and the exports/imports/risk inline
+detail insets are on the px ladder. What #285 did **not** change -- and Finding
+4 below still records -- is that those three inline detail panels remain plain
+`<section>` elements rather than Blueprint `Section`s.
 
 ---
 
@@ -238,7 +240,7 @@ labelled a Conduit extension in its own banner. No `ObjectHeader`.
    ├─ [console] Failure / cancellation banners  →  [BP] Callout (danger / warning)
    ├─ [console] Steps  →  [BP] H4 + HTMLTable (striped): #/Action/Entity/Product/Version/Namespace
    └─ [console] Task timeline  →  [BP] H4 + <ol>.console-plan-detail__timeline (order is the information)
-      └─ per task: [BP] Tag (phase) + Tag (status intent) + Callout (danger, task failure) + <details> diagnostics (1px border, no radius set → 0 corner) + Pre (agent output)
+      └─ per task: [BP] Tag (phase) + Tag (status intent) + Callout (danger, task failure) + Section/SectionCard diagnostics (collapsible, open by default on failure, 4px via --bp-surface-border-radius) + Pre (agent output)
 ```
 
 ---
@@ -290,7 +292,7 @@ inline; there is no build-history endpoint, so none is shown.
    └─ [console] Index panel  →  [BP] Section (compact, icon export, title "Export pipelines" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search, local filter)
       ├─ [console] PipelinesTable  →  [BP] HTMLTable (interactive, striped) → Tag (status / build strategy / success guarantees); rows selectable, selected bg rgba(45,114,210,.15)
-      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-exports__detail, pad 1rem, 1px top border)
+      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-exports__detail, pad 20px, 1px top border)
          └─ raw h2/h3 + <ul> selections (each with [BP] Tag) + <dl> meta grid minmax(16rem,1fr), gap 1rem
 ```
 
@@ -307,7 +309,7 @@ inline; there is no build-history endpoint, so none is shown.
    └─ [console] Index panel  →  [BP] Section (compact, icon import, title "Bundle imports" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search, local filter)
       ├─ [console] ImportsTable  →  [BP] HTMLTable (interactive, striped) → mono bundle cell + Link (environment) + Tag (status intent) + Timestamp; rows selectable
-      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-imports__detail, pad 1rem, 1px top border)
+      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-imports__detail, pad 20px, 1px top border)
          └─ <dl> meta grid minmax(18rem,1fr) + Link (change request) + Timestamp; danger error <p> (#cd4246); h3 "Tasks" + <ol> → [BP] Tag (status) per stage
 ```
 
@@ -324,7 +326,7 @@ inline; there is no build-history endpoint, so none is shown.
    └─ [console] Index panel  →  [BP] Section (compact, icon shield, title "Recalls" via H2) + SectionCard (padded=false)
       ├─ [console] ControlStrip  →  [BP] InputGroup + Button (Search, local filter)
       ├─ [console] RecallsTable  →  [BP] HTMLTable (interactive, striped) → SourceTag (Tag: SECURITY danger / MANUAL primary) + Tag (active warning / reverted); rows selectable
-      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-risk__detail, pad 1rem, 1px top border)
+      └─ [console] DetailPanel (inline, nonmodal; plain <section>.console-risk__detail, pad 20px, 1px top border)
          └─ <dl> meta grid minmax(16rem,1fr) + Timestamp (freeze-until)
 ```
 
