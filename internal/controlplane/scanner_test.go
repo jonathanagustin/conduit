@@ -336,7 +336,8 @@ func TestSuppressedFindingsRequireActiveApprovedProvenance(t *testing.T) {
 		Suppression: VulnerabilitySuppressionProvenance{
 			ProviderID: "suppression-1", Scope: VulnerabilitySuppressionImage, ScopeValue: "registry.example/example-api",
 			Category: VulnerabilitySuppressionPlannedFix, Rationale: "Upgrade tracked in SEC-1234",
-			RequestedBy: "product-owner", ApprovedBy: "security-reviewer", ChangeRequestID: "change-1",
+			PlannedFixReference: "SEC-1234",
+			RequestedBy:         "product-owner", ApprovedBy: "security-reviewer", ChangeRequestID: "change-1",
 			CreatedAt: assessedAt.Add(-2 * time.Hour), ApprovedAt: assessedAt.Add(-time.Hour), ValidUntil: assessedAt.Add(30 * 24 * time.Hour),
 		},
 	}}
@@ -375,6 +376,12 @@ func TestSuppressedFindingsRequireActiveApprovedProvenance(t *testing.T) {
 		},
 		"outside artifact set": func(candidate *VulnerabilityAssessment) {
 			candidate.SuppressedFindingDetails[0].ArtifactDigest = "sha256:ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"
+		},
+		"planned fix without a reference": func(candidate *VulnerabilityAssessment) {
+			candidate.SuppressedFindingDetails[0].Suppression.PlannedFixReference = ""
+		},
+		"planned fix reference on another category": func(candidate *VulnerabilityAssessment) {
+			candidate.SuppressedFindingDetails[0].Suppression.Category = VulnerabilitySuppressionWontFix
 		},
 	} {
 		t.Run(name, func(t *testing.T) {
