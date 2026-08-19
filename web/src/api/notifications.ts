@@ -163,6 +163,25 @@ export function useInbox(channel: NotificationChannel) {
   });
 }
 
+/** A team's inbox on one channel.
+ *
+ * Unlike `useInbox`, this names the owner: `ownerKind`/`ownerId` are what make a
+ * team inbox reachable, and are exactly the parameters the route refuses when
+ * they name a team the caller is not on. A 403 is therefore "you are not a
+ * member of this team", which the panel renders as its own state rather than as
+ * a failure. The channel is required by the route, so it is part of the key. */
+export function useTeamInbox(team: string, channel: NotificationChannel) {
+  return useQuery({
+    queryKey: ["notifications", "team-inbox", team, channel],
+    enabled: team !== "",
+    queryFn: ({ signal }) =>
+      getJSON<InboxResponse>("/notifications/inbox", {
+        signal,
+        query: { ownerKind: "TEAM", ownerId: team, channel },
+      }).then(inboxPage),
+  });
+}
+
 /** One preference, or `null` when none is stored.
  *
  * The Hub answers 404 for `ErrNoPreference`, and "you are not subscribed to

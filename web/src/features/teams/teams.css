@@ -59,3 +59,25 @@
   flex-basis: 100%;
   margin: 0;
 }
+
+/* Team Notifications tab -- the team inbox as a read. The channel toggle sits
+   above the table on the same control gap the Contacts form uses. */
+.console-teams__notifications {
+  margin-block-start: 16px;
+}
+
+.console-teams__notifications-controls {
+  display: flex;
+  justify-content: flex-end;
+  margin-block-end: 8px;
+}
+
+.console-teams__notifications-table {
+  width: 100%;
+}
+
+.console-teams__notifications-rid {
+  font-family: var(--pt-font-family-monospace, monospace);
+  font-size: 12px;
+  word-break: break-all;
+}
