@@ -116,4 +116,84 @@ test.describe("Risk Management", () => {
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(new RiskPom(page).recall("rcl_security")).toBeVisible();
   });
+
+  const CHART = { repository: "registry.example/app", digest: "sha256:abc" };
+
+  test("aggregates active vulnerabilities across Releases, worst-first", async ({ page, hub }) => {
+    hub.get("/catalog-retirements", { retirements: [] });
+    hub.get("/products", {
+      products: [
+        { product: "app.example:payments", releaseCount: 2, latestVersion: "2.4.2" },
+        { product: "app.example:search", releaseCount: 1, latestVersion: "8.1.0" },
+      ],
+      total: 2, pageSize: 2, limit: 100, hasPrevious: false,
+    });
+    hub.get("/products/app.example:payments/releases", {
+      releases: [
+        {
+          product: "app.example:payments", version: "2.4.1", chart: CHART, images: [],
+          vulnerabilityAssessment: {
+            outcome: "FAIL", activeVulnerabilities: 2,
+            activeFindings: [{ id: "CVE-2026-0001", cvss: 9.8 }, { id: "CVE-2026-0002", severity: "MEDIUM" }],
+          },
+        },
+        { product: "app.example:payments", version: "2.4.2", chart: CHART, images: [] },
+      ],
+    });
+    hub.get("/products/app.example:search/releases", {
+      releases: [
+        {
+          product: "app.example:search", version: "8.1.0", chart: CHART, images: [],
+          vulnerabilityAssessment: { outcome: "FAIL", activeVulnerabilities: 1, activeFindings: [{ id: "CVE-2026-0003", cvss: 4.5 }] },
+        },
+      ],
+    });
+    await page.goto("risk");
+    const risk = new RiskPom(page);
+    await risk.openVulnerabilities();
+
+    await expect(risk.vuln("CVE-2026-0001")).toContainText("CRITICAL");
+    await expect(risk.vuln("CVE-2026-0001")).toContainText("app.example:payments");
+    await expect(risk.vuln("CVE-2026-0001")).toContainText("2.4.1");
+    // A finding on a different Product's Release is in the same inventory.
+    await expect(risk.vuln("CVE-2026-0003")).toContainText("app.example:search");
+
+    // The severity filter narrows to one tier.
+    await page.getByLabel("Severity").selectOption("CRITICAL");
+    await expect(risk.vuln("CVE-2026-0001")).toBeVisible();
+    await expect(risk.vuln("CVE-2026-0002")).toHaveCount(0);
+  });
+
+  test("says the catalog is clean rather than showing an empty table", async ({ page, hub }) => {
+    hub.get("/catalog-retirements", { retirements: [] });
+    hub.get("/products", {
+      products: [{ product: "app.example:payments", releaseCount: 1, latestVersion: "2.4.2" }],
+      total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+    });
+    hub.get("/products/app.example:payments/releases", {
+      releases: [{ product: "app.example:payments", version: "2.4.2", chart: CHART, images: [], vulnerabilityAssessment: { outcome: "PASS", activeVulnerabilities: 0 } }],
+    });
+    await page.goto("risk");
+    const risk = new RiskPom(page);
+    await risk.openVulnerabilities();
+
+    await expect(risk.vulnerabilities).toContainText("No active vulnerabilities across the catalog's Releases.");
+  });
+
+  test("says when the inventory covers only the first catalog page", async ({ page, hub }) => {
+    hub.get("/catalog-retirements", { retirements: [] });
+    hub.get("/products", {
+      products: [{ product: "app.example:payments", releaseCount: 1, latestVersion: "2.4.2" }],
+      total: 5, pageSize: 1, limit: 1, hasPrevious: false, nextCursor: "more",
+    });
+    hub.get("/products/app.example:payments/releases", {
+      releases: [{ product: "app.example:payments", version: "2.4.1", chart: CHART, images: [], vulnerabilityAssessment: { outcome: "FAIL", activeVulnerabilities: 1, activeFindings: [{ id: "CVE-2026-0009", cvss: 8.1 }] } }],
+    });
+    await page.goto("risk");
+    const risk = new RiskPom(page);
+    await risk.openVulnerabilities();
+
+    await expect(page.getByTestId("risk-vulnerabilities-bounded")).toContainText("first catalog page");
+    await expect(risk.vuln("CVE-2026-0009")).toBeVisible();
+  });
 });
