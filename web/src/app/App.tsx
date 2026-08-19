@@ -20,6 +20,7 @@ import { ExportPage } from "../features/exports/ExportPage.js";
 import { NotificationsPage } from "../features/notifications/NotificationsPage.js";
 import { OverviewPage } from "../features/overview/OverviewPage.js";
 import { APPLICATION_DESTINATIONS, RAIL_DESTINATIONS } from "./navigation.js";
+import { useRailCollapsed } from "./useRailCollapsed.js";
 import { NotFound } from "./NotFound.js";
 import "./app.css";
 import type { ConsoleBootstrap } from "../runtime/bootstrap.js";
@@ -41,6 +42,7 @@ export function App({ bootstrap }: AppProps) {
   const applications = APPLICATION_DESTINATIONS.filter((destination) =>
     enabledApplications.has(destination.id),
   );
+  const rail = useRailCollapsed();
   return (
 		<AppFrame
 			icon={bootstrap.brand.icon}
@@ -48,8 +50,13 @@ export function App({ bootstrap }: AppProps) {
 			title={bootstrap.brand.title}
 			subtitle={bootstrap.brand.subtitle}
 		>
-      <div className="console-shell">
-        <NavigationRail primary={RAIL_DESTINATIONS} applications={applications} />
+      <div className="console-shell" data-collapsed={rail.collapsed ? "true" : undefined}>
+        <NavigationRail
+          primary={RAIL_DESTINATIONS}
+          applications={applications}
+          collapsed={rail.collapsed}
+          {...(rail.toggle ? { onToggleCollapsed: rail.toggle } : {})}
+        />
         <div className="console-shell__canvas" data-testid="console-workspace-canvas">
           {session.error !== null ? (
             <Callout

@@ -136,31 +136,34 @@ test.describe("Overview", () => {
 
 test.describe("navigation rail", () => {
   test("carries the documented architecture, not a most-used list", async ({ page, hub }) => {
-    quiet(hub);
-    await page.goto("overview");
-
-    // Home, Environments, Software Catalog, Notifications. Fleet is an
-    // Application, matching the plan's IA where it takes the upstream Entity Map
-    // role. Notifications is a rail peer rather than an Application because an
-    // inbox is per-principal: it is not in the session projection's application
-    // vocabulary, and gating it on one would hide an operator's own inbox behind
-    // a platform-scoped grant they may not hold.
-    const rail = page.getByRole("navigation", { name: "Global navigation" });
-    await expect(rail.getByRole("link", { name: "Home" })).toBeVisible();
-    await expect(rail.getByRole("link", { name: "Environments" })).toBeVisible();
-    await expect(rail.getByRole("link", { name: "Software Catalog" })).toBeVisible();
-    await expect(rail.getByRole("link", { name: "Notifications" })).toBeVisible();
-    await expect(rail.getByRole("link", { name: "Fleet" })).toHaveCount(0);
-  });
-
-  test("reaches Fleet and Change Requests through Applications", async ({ page, hub }) => {
+    // The desktop default is the expanded, labeled rail. Home, Environments,
+    // Software Catalog and Notifications are the primary destinations; Fleet is
+    // an Application, matching the plan's IA where it takes the upstream Entity
+    // Map role. Notifications is a rail peer rather than an Application because
+    // an inbox is per-principal: it is not in the session projection's
+    // application vocabulary, and gating it on one would hide an operator's own
+    // inbox behind a platform-scoped grant they may not hold.
     quiet(hub);
     await page.goto("overview");
     const shell = new ConsoleShell(page);
 
-    await shell.applicationsButton.click();
-    await expect(shell.application("Fleet")).toHaveAttribute("href", "/console/fleet");
-    await shell.application("Fleet").click();
+    await expect(shell.primaryLink("Home")).toBeVisible();
+    await expect(shell.primaryLink("Environments")).toBeVisible();
+    await expect(shell.primaryLink("Software Catalog")).toBeVisible();
+    await expect(shell.primaryLink("Notifications")).toBeVisible();
+    // Fleet is grouped under the Applications heading, not among the primaries.
+    await expect(shell.primaryLink("Fleet")).toHaveCount(0);
+    await expect(shell.applicationsGroup.getByText("Applications", { exact: true })).toBeVisible();
+    await expect(shell.applicationLink("Fleet")).toBeVisible();
+  });
+
+  test("reaches Fleet from the expanded Applications group", async ({ page, hub }) => {
+    quiet(hub);
+    await page.goto("overview");
+    const shell = new ConsoleShell(page);
+
+    await expect(shell.applicationLink("Fleet")).toHaveAttribute("href", "/console/fleet");
+    await shell.applicationLink("Fleet").click();
 
     await expect(page).toHaveURL(/\/console\/fleet$/);
   });
@@ -169,13 +172,12 @@ test.describe("navigation rail", () => {
     // Eight, from internal/controlplane/session.go. The harness stub carried
     // four for a while, so Export, Import, Risk Management and Teams were in
     // APPLICATION_DESTINATIONS and reachable by URL but appeared in no browser
-    // test: the menu under test was a strict subset of the menu operators see,
+    // test: the section under test was a strict subset of the one operators see,
     // and a destination dropped from the rail would have changed nothing here.
     quiet(hub);
     await page.goto("overview");
     const shell = new ConsoleShell(page);
 
-    await shell.applicationsButton.click();
     for (const [name, href] of [
       ["Change Requests", "/console/change-requests"],
       ["Fleet", "/console/fleet"],
@@ -186,18 +188,28 @@ test.describe("navigation rail", () => {
       ["Risk Management", "/console/risk"],
       ["Teams", "/console/teams"],
     ] as const) {
-      await expect(shell.application(name)).toHaveAttribute("href", href);
+      await expect(shell.applicationLink(name)).toHaveAttribute("href", href);
     }
   });
 
-  test("returns keyboard focus to Applications when its menu closes", async ({ page, hub }) => {
+  test("folds the Applications section into its popover when the rail is collapsed", async ({
+    page,
+    hub,
+  }) => {
+    // Collapse is where the popover behavior is retained: the labeled section is
+    // gone, and the grid trigger returns keyboard focus to itself on close so a
+    // keyboard operator is never stranded inside a menu that has closed.
     quiet(hub);
     await page.goto("overview");
     const shell = new ConsoleShell(page);
 
+    await shell.collapseToggle.click();
+    await expect(shell.applicationsGroup).toHaveCount(0);
+
     await shell.applicationsButton.focus();
     await shell.applicationsButton.press("Enter");
     await expect(shell.application("Change Requests")).toBeFocused();
+    await expect(shell.application("Fleet")).toHaveAttribute("href", "/console/fleet");
     await page.keyboard.press("Escape");
 
     await expect(shell.applicationsButton).toBeFocused();
@@ -220,11 +232,10 @@ test.describe("navigation rail", () => {
     await page.goto("overview");
     const shell = new ConsoleShell(page);
 
-    await shell.applicationsButton.click();
-    await expect(shell.application("Change Requests")).toBeVisible();
-    await expect(shell.application("Fleet")).toHaveCount(0);
-    await expect(shell.application("Export")).toHaveCount(0);
-    await expect(page.getByRole("menuitem", { name: /GraphQL/i })).toHaveCount(0);
+    await expect(shell.applicationLink("Change Requests")).toBeVisible();
+    await expect(shell.applicationLink("Fleet")).toHaveCount(0);
+    await expect(shell.applicationLink("Export")).toHaveCount(0);
+    await expect(shell.applicationsGroup.getByRole("link", { name: /GraphQL/i })).toHaveCount(0);
   });
 
   test("reports an unreadable session instead of falling back to hardcoded applications", async ({
@@ -237,6 +248,9 @@ test.describe("navigation rail", () => {
     const shell = new ConsoleShell(page);
 
     await expect(shell.capabilitiesUnavailable).toBeVisible();
+    // No enabled application, so the Applications section is not rendered at all
+    // -- neither the labeled group nor its collapsed popover trigger.
+    await expect(shell.applicationsGroup).toHaveCount(0);
     await expect(shell.applicationsButton).toHaveCount(0);
   });
 
