@@ -29,6 +29,22 @@ curl -sSL -H "Authorization: Bearer $TOK" \
 sha256sum layer.tar.zst   # must equal the manifest digest before anything is read from it
 ```
 
+### The sibling artifact, pulled and dismissed
+
+`ghcr.io/jonathanagustin/apollo-ui/apollo-control-panel-frontend:6.533.15`
+(manifest `sha256:c18fac2221c9…`, layer `sha256:325c31ee70fd…`, created
+`2026-08-19T17:29:12Z`) is named alongside this one and is **a strict subset of
+it**. Pulled and diffed rather than assumed: 30 blobs, all byte-identical to
+their copies here, missing the `c4219b7e…` `cross-app-debugger` entry script
+this artifact carries, and its `entry-manifest.json` payload is byte-equal to
+`manifests/apollo-control-panel.json`. It adds **no chunk**, so it does not move
+the 31%-coverage bound in Finding 5. Recorded so nobody pulls it twice.
+
+It contributes exactly one fact its provenance note states and this one does
+not: the manifests are the tenant's
+`x-workspace-application-entry-manifests` payload — the mechanism by which
+Foundry hands a browser its entry manifest, with both CAS and versioned URLs.
+
 ## What it is
 
 The capture's own `PROVENANCE.md` names two frontend batches at version

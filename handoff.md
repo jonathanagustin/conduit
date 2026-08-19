@@ -1150,3 +1150,23 @@ the 30 blobs, and the app chunk has no `uri:` literal.
 **No Conduit code follows from any of it.** All 438 endpoints are Foundry
 platform administration. Recorded deliberately in the receipt so the next
 session does not go looking for the change that should have accompanied this.
+
+### Re-pulled 2026-08-19, later: nothing new
+
+Checked because "pull again" should mean "is there anything new", not "run the
+command". There is not:
+
+- **git** — `develop` still `c93cf87`, `claude/foundry-ui-review-xzi0eg` still
+  `9519522`, no tags. Fetched, not just `ls-remote`d.
+- **ghcr** — both packages carry exactly one tag, `6.533.15`, and both manifest
+  digests still match the ORAS receipt (`35159ccf90ad…`, `c18fac2221c9…`).
+- **the sibling artifact**, `apollo-control-panel-frontend:6.533.15`, was the one
+  thing never pulled. Now pulled: a strict subset — 30 blobs byte-identical to
+  the ones here, no `c4219b7e…`, and an `entry-manifest.json` byte-equal to
+  `manifests/apollo-control-panel.json`. **No new chunk**, so the 31% coverage
+  bound in Finding 5 is unchanged and the 2,511 unfetched message keys stay
+  unfetched. Its one contribution is a name: the manifests are the
+  `x-workspace-application-entry-manifests` payload.
+
+The only remaining route to the missing 74% is the tenant itself, which is not
+reachable from this repository's evidence.
