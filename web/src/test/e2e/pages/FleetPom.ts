@@ -28,6 +28,15 @@ export class FleetPom {
     return this.root.getByTestId("facet-rail");
   }
 
+  /** The fluid work column the rail is seated beside. */
+  get results(): Locator {
+    return this.root.getByTestId("fleet-results");
+  }
+
+  get table(): Locator {
+    return this.results.getByRole("table");
+  }
+
   /** One dimension of the rail, named by the query parameter it selects on --
    * which is what the Hub serves the facet under, so a test cannot ask about a
    * facet by a name the filter would not accept. */

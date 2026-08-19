@@ -60,12 +60,7 @@ export function EnvironmentDetailPage() {
             <Tab
               id="overview"
               title="Overview"
-              panel={
-                <>
-                  <OverviewSummary record={record} />
-                  <EntitiesPanel record={record} />
-                </>
-              }
+              panel={<EnvironmentOverview record={record} />}
             />
             <Tab
               id="plans"
@@ -81,6 +76,31 @@ export function EnvironmentDetailPage() {
         </div>
       )}
     </QueryState>
+  );
+}
+
+/** The Overview as the browser archetype composes it: a fixed summary pane
+ * beside the dense Entities table, which is how the 2020 Apollo Environment
+ * view is measured -- "a fixed summary/filter pane with ... a dense
+ * attributable event table" (docs/ui/HISTORICAL-APOLLO-EVIDENCE-2020-2022.md).
+ * The summary sat above the table before; here it is the rail so the health of
+ * the Environment stays in view while its Entities scroll beside it.
+ *
+ * The grid is the layout vocabulary's fixed-rail + fluid-work equation: a fixed
+ * `--console-rail` track and a `minmax(0,1fr)` work column whose 0 minimum lets
+ * the table truncate rather than force the grid wider. Below 900px the rail
+ * collapses under the work area (progressive subtraction, not an invented card
+ * stack); the table's own 767px reflow to record cards is left untouched. */
+function EnvironmentOverview({ record }: { record: EnvironmentCatalogRecord }) {
+  return (
+    <div className="console-environment__browser" data-testid="environment-overview">
+      <div className="console-environment__pane">
+        <OverviewSummary record={record} />
+      </div>
+      <div className="console-environment__work" data-testid="environment-overview-work">
+        <EntitiesPanel record={record} />
+      </div>
+    </div>
   );
 }
 

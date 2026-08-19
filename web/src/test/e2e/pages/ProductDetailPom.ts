@@ -12,6 +12,31 @@ export class ProductDetailPom {
     return this.root.getByTestId(`release-${version}`);
   }
 
+  /** The fixed resource-summary pane that heads the Product browser. */
+  get resourceSummary(): Locator {
+    return this.root.getByTestId("product-resource-summary");
+  }
+
+  /** The fluid work column the resource summary is seated beside. */
+  get work(): Locator {
+    return this.root.getByTestId("product-work");
+  }
+
+  /** The dense Release/install table in the work column. */
+  get releaseTable(): Locator {
+    return this.root.getByRole("table").first();
+  }
+
+  /** The pipeline panel as a real Blueprint Section (its 4px corner and
+   * hairline come from the primitive, not from a styled div). */
+  get pipelineCard(): Locator {
+    return this.root.locator(".console-products__pipeline.bp6-section");
+  }
+
+  get assessmentCard(): Locator {
+    return this.root.locator(".console-products__assessment.bp6-section");
+  }
+
   get promotionPipeline(): Locator {
     return this.root.getByTestId("release-channel-pipeline");
   }
