@@ -31,6 +31,10 @@ export interface Environment {
   generation?: string;
   connectionSetting?: string;
   defaultReleaseChannel?: string;
+  // Which Hub owns this Environment's settings: EDIT_ON_THIS_HUB (authoritative),
+  // EDIT_ON_ANOTHER_HUB (imported, break-glass only), COPY_OF_ANOTHER_HUB
+  // (read-only mirror). See internal/environments/domain/federation.go.
+  declaredStateSource?: string;
   config?: Record<string, unknown>;
 }
 

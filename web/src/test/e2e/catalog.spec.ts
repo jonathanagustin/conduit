@@ -117,6 +117,25 @@ test.describe("Environments", () => {
     await expect(profile).toContainText("revenue-serving Environment");
   });
 
+  test("marks an Environment whose settings are owned by another Hub", async ({ page, hub }) => {
+    // A COPY_OF_ANOTHER_HUB Environment mirrors upstream: its local values are
+    // not authoritative and cannot be edited here, so the detail page says so
+    // rather than letting an operator read a read-only mirror as the source.
+    hub.get("/environments", {
+      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+    });
+    hub.get("/environments/prod-use1", {
+      environment: { ...ENVIRONMENT.environment, declaredStateSource: "COPY_OF_ANOTHER_HUB" },
+      reported: ENVIRONMENT.reported,
+    });
+    hub.fails("/environments/prod-use1/profile", 404, "no profile for prod-use1");
+    await page.goto("environments/prod-use1");
+
+    await expect(page.getByTestId("environment-source-notice")).toContainText(
+      "read-only copy of another Hub",
+    );
+  });
+
   test("keeps Environment search and opaque paging in the URL", async ({ page, hub }) => {
     hub.get("/environments", {
       environments: [ENVIRONMENT_SUMMARY], total: 2, pageSize: 1, limit: 1,
