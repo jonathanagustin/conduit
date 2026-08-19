@@ -12,14 +12,11 @@
   font-size: 0.9em;
 }
 
-/* Spacing on the console's decimal px ladder rather than the parallel rem
-   ladder: 20px body framing, 16px within-panel gap, 288px (18rem) meta column
-   min kept exact. docs/ui/console-visual-language.md 10. */
-.console-imports__detail {
-  padding: 20px;
-  border-block-start: 1px solid var(--pt-divider-black, rgba(17, 20, 24, 0.15));
-}
-
+/* The inline detail panel is a Blueprint Section now, so its surface, 1px
+   hairline and 4px corner come from the primitive (--bp-surface-border-radius),
+   not a hand-rolled border/radius rule here. The within-panel gap stays on the
+   console's decimal px ladder: 16px, with the 288px (18rem) meta column min kept
+   exact. docs/ui/console-visual-language.md 10. */
 .console-imports__meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(288px, 1fr));

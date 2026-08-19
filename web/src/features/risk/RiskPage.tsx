@@ -139,10 +139,20 @@ function SourceTag({ source }: { source: string | undefined }) {
 
 function RecallDetail({ recall }: { recall: Recall }) {
   return (
-    <section className="console-risk__detail" aria-labelledby="recall-detail-title" data-testid="recall-detail">
-      <h2 id="recall-detail-title">
-        {recall.product} — {recallRange(recall)}
-      </h2>
+    // A real Blueprint Section, not a bare <section>: the panel's white surface,
+    // 1px hairline and 4px corner now come from the primitive
+    // (--bp-surface-border-radius), matching the products detail panels, instead
+    // of a border/radius rule on raw HTML. It stays inline and nonmodal -- the
+    // selected row's context is preserved, so this is a primitive swap, not a
+    // dialog.
+    <Section
+      className="console-risk__detail"
+      compact
+      title={`${recall.product} — ${recallRange(recall)}`}
+      titleRenderer={H2}
+      data-testid="recall-detail"
+    >
+      <SectionCard>
       <dl className="console-risk__meta">
         <div>
           <dt>Reason</dt>
@@ -179,7 +189,8 @@ function RecallDetail({ recall }: { recall: Recall }) {
           </div>
         ) : null}
       </dl>
-    </section>
+      </SectionCard>
+    </Section>
   );
 }
 
