@@ -137,6 +137,14 @@ type VulnerabilitySuppressionProvenance struct {
 	CreatedAt       time.Time `json:"createdAt"`
 	ApprovedAt      time.Time `json:"approvedAt"`
 	ValidUntil      time.Time `json:"validUntil"`
+	// PlannedFixReference is the external evidence of the scheduled resolution
+	// behind a PLANNED_FIX suppression: the tracking reference for the fix the
+	// suppression holds a finding open until. Like every field here it is an
+	// external assertion, not resolved against this Hub. It is required for a
+	// PLANNED_FIX suppression and must be empty for any other category, so a
+	// planned fix cannot be claimed without naming what the plan is -- ValidUntil
+	// already says when, this says what.
+	PlannedFixReference string `json:"plannedFixReference,omitempty"`
 }
 
 // MalwareAssessment is provider-neutral evidence that the exact immutable
