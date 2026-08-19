@@ -262,6 +262,19 @@ describe("relative time", () => {
     expect(relative(new Date(now + 40 * 86_400_000), now)).toBe("in 5 weeks");
   });
 
+  it("keeps an unparseable value visible and a zero time absent", () => {
+    // Two failures that look alike and are not. An unparseable string is worth
+    // reporting to whoever sent it; Go's zero time is a field that was never
+    // set, and reporting it says "2025 years ago" about nothing.
+    expect(hasInstant("not-a-timestamp")).toBe(false);
+    expect(hasInstant("0001-01-01T00:00:00Z")).toBe(false);
+    // ...so Timestamp cannot use hasInstant alone to decide: the unparseable
+    // branch must be reached first. Pinned in the browser suite, where the
+    // rendering is; here we pin the predicate that misled it.
+    expect(Number.isNaN(new Date("not-a-timestamp").getTime())).toBe(true);
+    expect(Number.isNaN(new Date("0001-01-01T00:00:00Z").getTime())).toBe(false);
+  });
+
   it("says 'now' rather than putting a zero on the screen", () => {
     expect(relative(new Date(now), now)).toBe("now");
     expect(relative(new Date(now - 999), now)).toBe("now");

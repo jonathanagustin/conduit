@@ -9,18 +9,27 @@ import { hasInstant } from "../api/types.js";
  * stripping the Z as an earlier version of the Plans table did, lets two pages
  * disagree about the order of events. */
 export function Timestamp({ value }: { value: string | undefined }) {
-  // hasInstant rather than a presence check: the Hub sends Go's zero time as
-  // "0001-01-01T00:00:00Z" on any `time.Time` marked omitempty, because
-  // encoding/json does not omit structs. Rendering that produced "2025 years
-  // ago" about a report that never happened -- see api/types.ts.
-  if (!hasInstant(value)) {
+  if (value === undefined || value === "") {
     return <>—</>;
   }
   const at = new Date(value);
   if (Number.isNaN(at.getTime())) {
     // An unparseable timestamp is shown as sent rather than as "Invalid Date":
     // the raw value is the only thing that can be reported to whoever sent it.
+    //
+    // This branch has to come BEFORE the zero-time check below, and briefly did
+    // not. hasInstant() answers false for an unparseable string as well as for
+    // an absent one -- correct for "did this installation report?", wrong here,
+    // because it turned a value worth reporting into a dash. The console suite
+    // caught it; the ordering is the fix.
     return <span title="This timestamp could not be parsed">{value}</span>;
+  }
+  // Go's zero time, which arrives as "0001-01-01T00:00:00Z" on any time.Time
+  // marked omitempty because encoding/json does not omit structs. Rendering it
+  // produced "2025 years ago" about a report that never happened. It parses
+  // perfectly well, which is why presence checks miss it -- see api/types.ts.
+  if (!hasInstant(value)) {
+    return <>—</>;
   }
   const exact = at.toISOString().replace(".000", "");
   return (
