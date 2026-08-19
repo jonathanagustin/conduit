@@ -1451,3 +1451,41 @@ into the facade. That gate is untouched and still passes.
 was removed is kept — the Apollo substitution language now lives in
 `internal/apollo/substitution`, which is genuinely its home, and a compiling
 mutant proves it is under test on both sides of the new boundary.
+
+## After the ceiling: three fixes it had been blocking, 2026-08-19 22:15 UTC
+
+`./scripts/verify-local.sh` — **all CI gates passed locally, exit 0** — over all
+three. Twelve issues closed today.
+
+- **#103** — reopening a Change Request destroyed the only copy of why it was
+  refused. `Reopen` rebuilt the record from a field list that omitted `Reviews`,
+  and for a REJECTED request those held a human's rationale. Clearing `Reviews`
+  is still correct (a reviewer who approved the old evaluation did not approve
+  the new one); `PriorReviews` now carries the earlier rounds, oldest first, and
+  is deliberately *separate* so a carried approval neither satisfies the new
+  round nor blocks the same reviewer from approving it. Rendered as "Earlier
+  rounds" — without that the fix is invisible to the approver it is for.
+- **#56** — a terminal Change Request wedged its export pipeline forever,
+  because the `crq_` id derives from the target and the target was the bare
+  pipeline id. It is now the pipeline *and the state it is in*. Engine-level fix
+  (a terminal-status branch in `CreateChangeRequest`) deliberately scoped out:
+  three repository implementations and a change to the create guard's meaning
+  for every caller. Any other content-independent target can still wedge.
+- **#66** — a blocked canary could suppress an Entity its own filters excluded.
+  Creation now runs through `CanaryEvidence`; **removal deliberately does not**.
+  Narrowing both would strand records: an Environment whose Entities the filters
+  exclude would never be visited by the removal pass, so nothing could clear what
+  a blocked run already wrote. Creation narrows, removal stays wide — the only
+  direction that cannot ratchet, pinned by a test and a mutant.
+
+**A verification note worth keeping.** My first mutant against #56 did not
+compile (Go's unused-variable rule), and I nearly recorded a passing test as a
+kill. This repository says it explicitly and it caught me: *a build failure is
+not a kill*. The compiling version — `_ = observed` beside a bare-id target —
+did kill it.
+
+**In flight:** #153 (the Apollo projection is process-local, so a cold replica
+serves `recallStatus: false` for a recalled Release — a safe-looking answer to
+an unsafe question) and #169 (canary tiers that follow the fleet by Environment
+label). Both in isolated worktrees, both with the replay/cost risks stated in
+their briefs rather than discovered later.
