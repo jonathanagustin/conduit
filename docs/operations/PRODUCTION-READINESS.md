@@ -398,6 +398,34 @@ carried to the residual list as item 5.
    single-tenant production use. What the second half does block is a
    *multi-tenant* claim, which is where Apollo parity lives.
 
+9. **The artifact security gate derives no evidence of its own** (#54). A
+   `VulnerabilityAssessment` arrives inside the caller-submitted `DesiredState`
+   and carries no signature or attestation; its provenance is two free strings,
+   `Provider` and `RunID` (`internal/catalog/domain/release.go`). Where a
+   supplied assessment is present and inside the freshness window,
+   `enrichRequiredArtifactAssessments` keeps it and the scanner never runs, so a
+   principal holding `change:propose` can attach `Status: COMPLETE`,
+   `Outcome: PASS`, `ActiveVulnerabilities: 0` over the exact digest set and the
+   gate reports a pass it did not derive. Suppression provenance has the same
+   shape at a smaller scale: `approvedBy` and `changeRequestId` are checked for
+   being present and ordered, never resolved against an approver's authority —
+   `docs/apollo/reference/security-scanning.md` now says so in those words.
+
+   **Narrowed, not closed.** The freshness half is fixed: a policy stating no
+   `maximumScanAgeSeconds` used to accept evidence of unbounded age and now
+   resolves to a seven-day floor, so stale evidence is re-derived where a
+   scanner exists and refused where none is. What that buys is a bound on *how
+   long* a forged assessment survives, not on whether one is admitted — a
+   fabricated `assessedAt` of now sits inside any window.
+
+   **Tier 2 rather than Tier 1**, and the reason is a mitigation rather than an
+   absence: forging requires `change:propose`, and the Plan still traverses the
+   approval policy, so a human reviewer sees the assessment. What it does block
+   is the claim that the *machine* gate is independent assurance against an
+   authorized proposer, which is what a governance product sells. It compounds
+   with self-approval: a proposer who can approve their own change request faces
+   no second party at all.
+
 ## Test types
 
 The levels below are organised by **what class of failure each one catches that

@@ -113,6 +113,57 @@ const VOCABULARIES = [
       pattern: /^\s*([A-Z_]+):/gm,
     },
   },
+  // The four filter vocabularies in web/src/api/types.ts. A different claim from
+  // the colour tables above: those decide how a status LOOKS, these decide which
+  // statuses the console treats as the set the Hub can send. types.ts already
+  // carried a comment recording that an earlier version invented RELINQUISHED
+  // and PENDING while omitting IN_GRACE_PERIOD, BLOCKED and RECALLED -- and
+  // nothing checked it, so the comment was the only thing standing between the
+  // file and a repeat. They are gated now because the fleet facet rail made them
+  // load-bearing again: it orders each dimension's values by count and breaks
+  // ties on these lists, so a real status this list omits sorts behind every
+  // declared one for no reason, and an invented one can never appear in a facet
+  // at all -- pure fiction with no failing behaviour to reveal it.
+  {
+    name: "fleet health filter",
+    go: { file: "internal/environments/domain/reporting.go", pattern: /\bHealth\w+\s*=\s*"([A-Z_]+)"/g },
+    console: {
+      file: "web/src/api/types.ts",
+      start: /export const HEALTH\s*=\s*\[/,
+      end: /\n\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
+  {
+    name: "fleet rollout filter",
+    go: { file: "internal/environments/domain/reporting.go", pattern: /\bRollout\w+\s*=\s*"([A-Z_]+)"/g },
+    console: {
+      file: "web/src/api/types.ts",
+      start: /export const ROLLOUT\s*=\s*\[/,
+      end: /\n\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
+  {
+    name: "fleet config filter",
+    go: { file: "internal/environments/domain/reporting.go", pattern: /\bConfig\w+\s*=\s*"([A-Z_]+)"/g },
+    console: {
+      file: "web/src/api/types.ts",
+      start: /export const CONFIG\s*=\s*\[/,
+      end: /\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
+  {
+    name: "fleet lifecycle filter",
+    go: { file: "internal/environments/domain/reporting.go", pattern: /\bLifecycle\w+\s*=\s*"([A-Z_]+)"/g },
+    console: {
+      file: "web/src/api/types.ts",
+      start: /export const LIFECYCLE\s*=\s*\[/,
+      end: /\] as const;/,
+      pattern: /"([A-Z_]+)"/g,
+    },
+  },
   {
     name: "plan status",
     go: { file: "internal/controlplane/lifecycle.go", pattern: /\bPlan\w+\s+PlanStatus\s*=\s*"([A-Z_]+)"/g },

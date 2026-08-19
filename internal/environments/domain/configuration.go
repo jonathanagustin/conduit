@@ -37,17 +37,46 @@ type ArtifactSecurityPolicy struct {
 	// or ANY when promotion only requires evidence that scanning completed.
 	RequiredOutcome string `json:"requiredOutcome"`
 	// MaximumScanAgeSeconds bounds how old a selected Release's vulnerability
-	// assessment may be when an upgrade is proposed. Zero leaves freshness
-	// unchecked, which is the prior behaviour: the policy already requires a
-	// complete, passing, digest-matched scan to exist, but not a recent one, so
-	// an Entity could move to a Release whose passing scan had aged out. A
-	// positive value makes a stale assessment trigger a fresh scan before the
-	// upgrade proceeds, so "a scan must occur before an upgrade" holds on
-	// recency and not only on a scan having happened once. Freshness is enforced
-	// where the version-move is decided and a clock is available -- proposal-time
-	// enrichment -- not in the clock-free desired-state validation, whose purity
-	// keeps a generation's meaning immutable.
+	// assessment may be when an upgrade is proposed. A positive value makes a
+	// stale assessment trigger a fresh scan before the upgrade proceeds, so "a
+	// scan must occur before an upgrade" holds on recency and not only on a scan
+	// having happened once. Freshness is enforced where the version-move is
+	// decided and a clock is available -- proposal-time enrichment -- not in the
+	// clock-free desired-state validation, whose purity keeps a generation's
+	// meaning immutable.
+	//
+	// Zero no longer means unchecked. It used to, and that was the residue #54
+	// named: a policy declaring RequiredOutcome PASS but naming no age accepted
+	// arbitrarily old evidence, so freshness was an option a policy author could
+	// forget rather than a floor. Zero now resolves to
+	// DefaultMaximumScanAgeSeconds. A policy that genuinely wants a longer window
+	// still has one -- it has to state the number, where a reviewer can see it.
 	MaximumScanAgeSeconds int `json:"maximumScanAgeSeconds,omitempty"`
+}
+
+// DefaultMaximumScanAgeSeconds is the freshness bound an ArtifactSecurityPolicy
+// gets when it names none: seven days.
+//
+// The number is a judgement, and the shape of the judgement matters more than
+// the value. Exceeding it costs a rescan rather than a refusal wherever a
+// scanner is configured, so choosing it too tight costs latency, while choosing
+// it too loose reintroduces the defect. A week is the outer edge at which a
+// passing scan can still be said to reflect current vulnerability knowledge,
+// since the feeds Grype and its peers consume publish daily. It is deliberately
+// not a day: a default that fails closed every twenty-four hours on a Hub with
+// no scanner configured would be read as breakage and switched off, and a floor
+// nobody leaves in place is not a floor.
+//
+// CONDUIT-INVENTED: environments.DefaultMaximumScanAgeSeconds
+// Displaced-by: a published statement of the scan-freshness window Apollo applies when a security constraint names none
+const DefaultMaximumScanAgeSeconds = 7 * 24 * 60 * 60
+
+// EffectiveMaximumScanAge is the freshness window this policy actually enforces.
+func (policy ArtifactSecurityPolicy) EffectiveMaximumScanAge() time.Duration {
+	if policy.MaximumScanAgeSeconds > 0 {
+		return time.Duration(policy.MaximumScanAgeSeconds) * time.Second
+	}
+	return DefaultMaximumScanAgeSeconds * time.Second
 }
 
 // ArtifactAvailabilityPolicy is the same kind of gate for whether the artifacts
