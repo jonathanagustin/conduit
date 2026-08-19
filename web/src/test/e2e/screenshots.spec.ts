@@ -362,3 +362,12 @@ test("capture 15-team-notifications", async ({ page, hub }) => {
   await expect(page.getByTestId("team-notifications")).toBeVisible();
   await page.screenshot({ path: "screenshots/15-team-notifications.png", fullPage: true });
 });
+
+test("capture 16-empty-state", async ({ page, hub }) => {
+  // An empty browse list shows the Foundry-UI-derived EmptyState rather than a
+  // bare paragraph.
+  hub.get("/environments", { environments: [], total: 0, pageSize: 0, limit: 100, hasPrevious: false });
+  await page.goto("environments");
+  await expect(page.getByTestId("environments-page")).toBeVisible();
+  await page.screenshot({ path: "screenshots/16-empty-state.png", fullPage: true });
+});

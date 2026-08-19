@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Button, Callout, InputGroup, Section, SectionCard } from "@blueprintjs/core";
 
 import { usePromotions, type PromotionRecord } from "../../api/catalog.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { QueryState } from "../../components/QueryState.js";
 import { ReleaseChannelGraph } from "../../components/ReleaseChannelGraph.js";
 import { TransitionDetail } from "../../components/TransitionDetail.js";
@@ -61,11 +62,14 @@ export function PromotionsPage() {
             </form>
 
             {promotions.length === 0 ? (
-              <p className="console-empty">
-                {index.query.search === undefined
-                  ? "No promotions have been evaluated."
-                  : `No promotion matches "${index.query.search}".`}
-              </p>
+              <EmptyState
+                icon="exchange"
+                title={
+                  index.query.search === undefined
+                    ? "No promotions have been evaluated."
+                    : `No promotion matches "${index.query.search}".`
+                }
+              />
             ) : (
               [...byProduct.entries()].map(([product, group]) => (
                 <Section key={product} className="console-promotions__card" compact title={product}>

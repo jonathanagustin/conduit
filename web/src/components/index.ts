@@ -2,6 +2,7 @@ export { AppLogo, type AppLogoProps } from "./AppLogo/AppLogo.js";
 export { AppHeader, type AppHeaderProps } from "./AppHeader/AppHeader.js";
 export { AppFrame, type AppFrameProps } from "./AppFrame/AppFrame.js";
 export { AccessibleNonIdealState } from "./AccessibleNonIdealState.js";
+export { EmptyState } from "./EmptyState.js";
 export {
   NavigationRail,
   type NavigationRailProps,

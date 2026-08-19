@@ -10,6 +10,7 @@ import {
   usePromotions,
 } from "../../api/catalog.js";
 import type { Release, VulnerabilityAssessment } from "../../api/catalog.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
@@ -49,11 +50,14 @@ export function ProductsPage() {
                   <Button type="submit" text="Search" />
                 </form>
                 {page.products.length === 0 ? (
-                  <p className="console-empty">
-                    {index.query.search === undefined
-                      ? "No Products have been published."
-                      : `No Product matches "${index.query.search}".`}
-                  </p>
+                  <EmptyState
+                    icon="cube"
+                    title={
+                      index.query.search === undefined
+                        ? "No Products have been published."
+                        : `No Product matches "${index.query.search}".`
+                    }
+                  />
                 ) : (
                   <>
             <HTMLTable className="console-products__table console-index-table" interactive striped>
