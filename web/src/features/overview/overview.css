@@ -12,6 +12,6 @@
 
 /* "Clear" is a result, not an absence, so it is not styled as muted filler. */
 .console-overview__clear {
-  color: var(--bp-intent-success-text-color, #1c6e42);
+  color: var(--bp-typography-color-success-hover, #1c6e42);
   font-weight: 500;
 }

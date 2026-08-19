@@ -1,5 +1,5 @@
 .console-teams__coordinate {
-  color: var(--pt-text-color-muted, #5f6b7c);
+  color: var(--bp-typography-color-muted, #5f6b7c);
   font-family: var(--pt-font-family-monospace, monospace);
   font-size: 0.85em;
 }
