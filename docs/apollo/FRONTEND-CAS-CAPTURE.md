@@ -54,11 +54,25 @@ The capture's own `PROVENANCE.md` names two frontend batches at version
   scripts (app chunk plus the shared `react` / `blueprint-core` /
   `blueprint-icons` / `security-context` / `graphql` / `intl-messageformat` /
   `polyfills` DLLs, and 13 locale bundles), and one stylesheet.
-- **`foundry-frontend-cross-app-debugger`** — shared DLLs only. Its 16 app
-  chunks answered `503` from the tenant's own CAS backend with Envoy
-  `response-flags: URX`; the exact hashes are listed in `UNAVAILABLE-503.txt`.
-  That is a tenant availability fact, not a capture failure, and it bounds any
-  claim about the debugger.
+- **`foundry-frontend-cross-app-debugger`** — shared DLLs only *in this
+  artifact*. Its 16 app chunks answered `503` from the tenant's own CAS backend
+  with Envoy `response-flags: URX`; the exact hashes are listed in
+  `UNAVAILABLE-503.txt`. That was a tenant availability fact, not a capture
+  failure.
+
+  **Since resolved.** `jonathanagustin/apollo-ui` `develop` at `7a23c71`
+  ("cas: decompress the 16 cross-app-debugger chunks to canonical
+  (hash-matching) bytes") carries all 16, plus the debugger's `app.js`,
+  `runtime.js`, `app.css` and 13 locale bundles. Checked here rather than taken
+  on trust: all **47** blobs in `all/frontend/` hash to their own filenames, and
+  all 16 formerly-unavailable hashes are present. The artifact this receipt
+  describes is still the 31-blob one; the completed set lives in that repository.
+
+  It moves the coverage figure below by **four keys**. The recovered chunks
+  contribute 37 English strings, and they are the *debugger's*, not Control
+  Panel's — 875 of Control Panel's 3,382 keys have served English, against 871
+  before. The debugger's own inventory is 229 keys, of which 14 have served
+  English. Completing a capture of one app does not fill in another.
 
 ## Finding 1 — this is Foundry Control Panel, not the Apollo deployment console
 
@@ -254,13 +268,22 @@ app", and here it does not.
   into the chunk, so the English is read directly rather than translated back
   from a locale bundle.
 - **But the app has 3,382 message keys.** The 13 locale bundles carry the *whole*
-  app's key inventory, translated. Subtracting the English recovered from the
-  served chunks leaves **2,511 keys — 74% — with no served English at all**,
-  because they belong to lazily-loaded chunks the capture never fetched.
-  So this capture covers roughly **31%** of Control Panel's UI strings. Any
-  claim of the form "Control Panel has no X" is bounded by that number, and the
-  locale bundles are the cheapest way to check whether an absent thing is truly
-  absent or merely unfetched.
+  app's key inventory, translated. Intersecting them with the English recovered
+  from the served chunks leaves **2,507 Control Panel keys — 74% — with no
+  served English at all**, because they belong to lazily-loaded chunks the
+  capture never fetched. So this capture covers **26%** of Control Panel's UI
+  strings. Any claim of the form "Control Panel has no X" is bounded by that
+  number, and the locale bundles are the cheapest way to check whether an absent
+  thing is truly absent or merely unfetched.
+
+  > **Correction.** This first read "1,037 English strings recovered, so ~31%",
+  > which was wrong in a way worth naming: it divided the *total* English count
+  > by Control Panel's key inventory, and the two sets are not nested — 1,037
+  > includes DLL and shared-package keys Control Panel's locale bundles never
+  > list. The correct figure is the intersection, 875 of 3,382. The
+  > companion "74% unfetched" figure was always the set difference and was
+  > right, which is how the error announced itself: 31% and 74% do not sum.
+
 - **Component structure decodes by name.** CSS-module class names are
   `owner__element__hash`: 26 owning packages and 1,763 element names, led by
   `resource-icon` (687), `control-panel-shell` (257), `deletion-queue` (86),
@@ -286,12 +309,18 @@ deleted:
 | [`apollo-control-panel-rest-endpoints-6.533.15.json`](apollo-control-panel-rest-endpoints-6.533.15.json) | 438 Conjure REST endpoints across 34 services |
 | [`apollo-control-panel-graphql-operations-6.533.15.json`](apollo-control-panel-graphql-operations-6.533.15.json) | 24 complete GraphQL operations, 30 fragments, 54 definitions |
 
-Provenance: `jonathanagustin/apollo-ui`, branch
-`claude/foundry-ui-review-xzi0eg`, commit `9519522`, files
+Provenance: `jonathanagustin/apollo-ui`, files
 `contracts/rest-conjure-endpoints.json` and `contracts/graphql-operations.json`,
 copied byte-for-byte. Their local digests are
 `96ffd597a501548881a3451e875ae4a215ae08de1dcaebab6339fccf538f5cb1` and
 `e4fa55d375133810b3bb78720e0344b7801b2b4e68bf565c6a53ed898cdef082`.
+
+First taken from branch `claude/foundry-ui-review-xzi0eg` at `9519522`. That
+branch has since been consolidated onto `develop`, which was **force-updated**
+to `7a23c71`; both refs now point there. The two files are byte-identical at
+both commits — checked, not assumed — so the copies here remain accurate and
+only the pin moved. Copying them rather than referencing them is why a rewritten
+history costs a footnote instead of the evidence.
 
 **Confidence, carried over rather than upgraded.** REST is *bundle-path-only*:
 method, endpoint name and templated path come from the generated

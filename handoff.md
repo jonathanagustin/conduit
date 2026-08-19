@@ -1170,3 +1170,49 @@ command". There is not:
 
 The only remaining route to the missing 74% is the tenant itself, which is not
 reachable from this repository's evidence.
+
+### Pulled a third time, 2026-08-19 — this one had everything
+
+`develop` was **force-updated** `c93cf87` → `7a23c71`, the review branch was
+consolidated onto it (both refs now `7a23c71`), and a `renovate/configure`
+branch appeared. What arrived:
+
+- **`[VERIFIED]` The 503 gap is closed.** Commit `f8ea172`, "decompress the 16
+  cross-app-debugger chunks to canonical (hash-matching) bytes". All 47 blobs in
+  `all/frontend/` hash to their own filenames and all 16 formerly-unavailable
+  hashes are present, plus the debugger's `app.js`, `runtime.js`, `app.css` and
+  13 locale bundles. Checked here, not taken on trust.
+- **It barely moves coverage, and that is the useful part.** The 16 chunks are
+  the *debugger's*: they add 37 English strings, taking Control Panel from 871
+  to **875** of its 3,382 keys. Completing one app's capture does not fill in
+  another's.
+- **`[VERIFIED]` A number this repo published was wrong.** The receipt said
+  "~31% of Control Panel's UI strings". That divided the total English count
+  (1,037, which includes DLL and shared-package keys) by Control Panel's key
+  inventory — two sets that are not nested. The intersection is 875/3,382 =
+  **26%**. The companion "74% unfetched" figure was always the set difference
+  and was right, which is how the error announced itself: 31 and 74 do not sum.
+  Corrected in place and marked.
+- **New: a projected gateway schema.** `graphql-recovery/schema.observed.graphql`
+  — 383 lines, 65 composite types, 20 scalars, 159 fields, 31 arguments,
+  complete over the captured contract, generated from the shipped closures
+  **plus live validation-only signatures**. Ten `Query` roots, nine `Mutation`
+  roots, `apollo` zero times. Committed here and filed in
+  `reference/graphql-api.md` under the captured-gateway conflict. It sharpens
+  that section — a surface *with* mutations is categorically not the Hub, whose
+  `mutationType` is null — but it still does not name its endpoint, so the three
+  readings stand.
+- **The contract extracts did not change.** Both files are byte-identical at
+  `9519522` and `7a23c71`, so the copies committed here stay accurate and only
+  the provenance pin moved. Copying rather than referencing is why a rewritten
+  history cost a footnote.
+
+Also present upstream and **not** taken: `cross-app-debugger/app/*` (a second
+app's full closure), `all/cas-to-static.tsv`, `assets.txt`, `hashes.txt`,
+`graphql-recovery/{field,argument}-signatures.json`. None bears on a Conduit
+claim today; the debugger closure is the obvious next thing to mine if anyone
+ever needs that app.
+
+The gate grew a fifth rule for the schema (`apollo` root field, a declared root
+nothing uses, a used root that vanished). Self-test now plants **nine**
+violations and requires each to be rejected.

@@ -225,6 +225,55 @@ eliminated: whatever serves `Query.apollo` with 13 types of deployment domain,
 it is not the surface this tenant's Control Panel talks to. Resolving it still
 needs a fresh capture that records origin *and* path.
 
+#### The same surface, projected as a schema
+
+The operations above were later projected into SDL and committed here as
+[`../foundry-gateway-observed-schema-6.533.15.graphql`](../foundry-gateway-observed-schema-6.533.15.graphql),
+with its completeness report at
+[`../foundry-gateway-observed-schema-completeness-6.533.15.json`](../foundry-gateway-observed-schema-completeness-6.533.15.json).
+Its own header calls it a *Foundry GraphQL Gateway observed-contract schema
+projection*, generated from the exact shipped document closures **plus live
+validation-only field and argument signatures** — so unlike the operation
+extract, part of it was probed rather than only read.
+
+383 lines. 65 composite types, 20 scalars, 159 fields, 31 arguments, and the
+report claims completeness scoped to the captured contract: 24 of 24 operation
+variants valid, zero unresolved fields or arguments. It explicitly does **not**
+claim uncaptured applications, unused members, resolver behaviour, defaults, or
+the tenant's private introspection result.
+
+Two properties matter here:
+
+```graphql
+type Query {
+  authenticationProvider(rid: RID!): AuthenticationProvider
+  currentStargateUser: StargateUser
+  enrollment(rid: RID!): Enrollment
+  me: User!
+  principal(id: String!): Principal
+  resourceMetadata(rid: RID!): ResourceMetadata
+  sessionClassification: ClassificationBanner
+  stargateIsPalantirUser: Boolean
+  stargateUser(rid: RID!): StargateUser
+  stargateUserDirectory(rid: RID!): StargateUserDirectory
+}
+```
+
+- **Ten `Query` fields, and the string `apollo` appears zero times in all 383
+  lines.** The captured gateway comparison above rests on "no `apollo` root
+  field anywhere in it"; this is that same absence, on this tenant, in a
+  projection rather than a 26,140-line introspection dump.
+- **It has a `Mutation` root with nine fields** — all Stargate user-directory
+  writes. That is a categorical difference from the Hub reached on 2026-08-15,
+  whose `__schema.mutationType` is null and whose served SDL declares no
+  mutation root at all. Two GraphQL surfaces, one with mutations and one
+  without, is not a visibility difference.
+
+It still does not name its endpoint, so it does not resolve the three readings
+either. What it does is remove the last way of dismissing this observation as
+thin: the Control Panel's GraphQL surface is now described at the same grain as
+the surfaces it is being compared against, and it remains a different one.
+
 ## The interface Conduit serves (2026-08-15)
 
 The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the

@@ -29,6 +29,13 @@ infer missing behavior.
   both recovered statically from the bundles and both **bundle-derived, not
   type-verified against a live response**. Not one of the 438 is a deployment
   endpoint, which is Finding 1 established from the wire instead of the strings.
+- [Foundry gateway observed-contract schema](foundry-gateway-observed-schema-6.533.15.graphql)
+  and its [completeness report](foundry-gateway-observed-schema-completeness-6.533.15.json)
+  — the same 24 operations projected into SDL, with live validation-only field
+  and argument signatures. Ten `Query` roots, nine `Mutation` roots, and the
+  string `apollo` zero times in 383 lines. Read it with
+  [`reference/graphql-api.md`](reference/graphql-api.md), which files it against
+  the unresolved captured-gateway conflict rather than as a resolution of it.
 - [Maven inventory evidence](APOLLO-MAVEN-INVENTORY-EVIDENCE.md)
 - [Java object alignment](JAVA-OBJECT-ALIGNMENT.md)
 - [Role/interface inventory](ROLE-INTERFACE-INVENTORY.md)

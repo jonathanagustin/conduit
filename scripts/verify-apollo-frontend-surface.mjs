@@ -9,7 +9,7 @@
 // this repository -- a count in an unread artifact overstated a divergence by a
 // factor of two.
 //
-// Four things are checked, and the third is the one that matters:
+// Five things are checked, and the third is the one that matters:
 //
 //   1. Self-consistency. Each extract records its own counts; they must match
 //      what it actually contains, or the headline numbers quoted in
@@ -42,6 +42,7 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 const REST = resolve(ROOT, "docs/apollo/apollo-control-panel-rest-endpoints-6.533.15.json");
 const GRAPHQL = resolve(ROOT, "docs/apollo/apollo-control-panel-graphql-operations-6.533.15.json");
 const SEAM = resolve(ROOT, "docs/evidence/apollo-control-panel-seam.json");
+const SCHEMA = resolve(ROOT, "docs/apollo/foundry-gateway-observed-schema-6.533.15.graphql");
 
 /** The base the generated IHttpApiBridge supplies and the bundle therefore
  * never carries. Established by the three-way agreement below, not assumed. */
@@ -185,6 +186,64 @@ if (vanished.length) {
   fail(`the extract no longer contains recorded near-miss(es): ${vanished.join(", ")}`);
 }
 
+// --- 5. the projected gateway schema ----------------------------------------
+// The SDL and the operation extract describe the same surface at two grains, so
+// each is a check on the other. reference/graphql-api.md leans on two claims
+// about the SDL; both are pinned here rather than left as prose.
+const sdl = readFileSync(SCHEMA, "utf8");
+for (const [pattern, what] of LEAKS) {
+  const found = sdl.match(pattern);
+  if (found) fail(`the projected schema contains ${what}: ${found[0].slice(0, 40)}`);
+}
+
+const rootFields = (name) => {
+  const block = new RegExp(`type ${name} \\{(.*?)\\n\\}`, "s").exec(sdl);
+  if (block === null) return null;
+  return new Set(
+    block[1]
+      .trim()
+      .split("\n")
+      .filter((line) => line.trim())
+      .map((line) => /\s*([A-Za-z_][A-Za-z0-9_]*)/.exec(line)[1]),
+  );
+};
+const query = rootFields("Query");
+const mutation = rootFields("Mutation");
+if (query === null || mutation === null) {
+  fail("the projected schema no longer declares both a Query and a Mutation root");
+} else {
+  // graphql-api.md: "the string apollo appears zero times in all 383 lines",
+  // which is the whole reason this surface is filed as a different one from the
+  // Hub's. If a projection ever contains it, that section needs rewriting.
+  const apollo = sdl.match(/apollo/gi) ?? [];
+  if (apollo.length) {
+    fail(
+      `the projected gateway schema now mentions apollo ${apollo.length} time(s) -- ` +
+        `reference/graphql-api.md files this surface as one with no Apollo domain and must be revisited`,
+    );
+  }
+  // Every root field the captured operations use must exist in the projection,
+  // and the projection must declare no root the operations never used: it is a
+  // projection OF those operations, so either direction failing means the two
+  // artifacts have drifted apart.
+  const used = new Set();
+  const byDefinitionName = new Map(graphql.definitions.map((definition) => [definition.name, definition]));
+  for (const operation of operations) {
+    const definition = byDefinitionName.get(operation.operation);
+    const first = definition && /\{\s*([A-Za-z_][A-Za-z0-9_]*)/.exec(definition.source);
+    if (first) used.add(first[1]);
+  }
+  const declared = new Set([...query, ...mutation]);
+  const undeclared = [...used].filter((field) => !declared.has(field));
+  const unused = [...declared].filter((field) => !used.has(field));
+  if (undeclared.length) {
+    fail(`operations select root field(s) the projected schema does not declare: ${undeclared.join(", ")}`);
+  }
+  if (unused.length) {
+    fail(`the projected schema declares root field(s) no captured operation uses: ${unused.join(", ")}`);
+  }
+}
+
 if (failures.length) {
   for (const failure of failures) console.error(`FAIL apollo frontend surface: ${failure}`);
   process.exit(1);
@@ -192,5 +251,7 @@ if (failures.length) {
 console.log(
   `PASS apollo frontend surface: ${rows.length} endpoints across ${services.size} services and ` +
     `${operations.length} complete GraphQL operations; ${agreed} Apollo operation(s) agree with the ` +
-    `Maven projection under ${BRIDGE_BASE}; ${hits.length} deployment-vocabulary hit(s), all recorded false friends`,
+    `Maven projection under ${BRIDGE_BASE}; ${hits.length} deployment-vocabulary hit(s), all recorded ` +
+    `false friends; the projected schema declares ${query?.size ?? 0} Query and ${mutation?.size ?? 0} ` +
+    `Mutation root field(s), all used by the operations, and mentions apollo 0 times`,
 );
