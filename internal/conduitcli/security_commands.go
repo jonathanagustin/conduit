@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -39,6 +40,14 @@ func cveCommand(state *commandState) *cobra.Command {
 				result, err := service.ScanRelease(command.Context(), release)
 				if err != nil {
 					return nil, err
+				}
+				if strings.EqualFold(state.output, "csv") {
+					// The CSV rendering is a second view of the same scan an
+					// operator hands to an auditor. It carries no
+					// freshProviderInvocation echo because a spreadsheet cell
+					// reading "true" beside a stale row is exactly the false
+					// assurance the JSON path's comment warns against.
+					return vulnerabilityReportCSV{product: release.Product, version: release.Version, details: details, result: result}, nil
 				}
 				// freshProviderInvocation is unconditional because the scan is:
 				// ScanRelease posts the Release to the Hub's scanner on every
@@ -83,6 +92,47 @@ func cveCommand(state *commandState) *cobra.Command {
 	_ = check.MarkFlagRequired("maven-coordinates-file")
 	command.AddCommand(check)
 	return command
+}
+
+// vulnerabilityReportCSV renders a scan result as a table for `-o csv`. Without
+// --details it is one summary row per assessment; with --details it is the
+// per-CVE vulnerability findings. It reads only fields the JSON summary/detail
+// already expose, so the CSV is a second rendering of one scan rather than a
+// different one.
+type vulnerabilityReportCSV struct {
+	product string
+	version string
+	details bool
+	result  controlplane.ArtifactScanResult
+}
+
+func (report vulnerabilityReportCSV) MarshalCSV() ([][]string, error) {
+	if report.details {
+		rows := [][]string{{"product", "version", "assessment", "findingId", "severity", "cvss"}}
+		if vulnerability := report.result.VulnerabilityAssessment; vulnerability != nil {
+			for _, finding := range vulnerability.ActiveFindings {
+				rows = append(rows, []string{
+					report.product, report.version, "vulnerability",
+					finding.ID, finding.Severity, strconv.FormatFloat(finding.CVSS, 'f', -1, 64),
+				})
+			}
+		}
+		return rows, nil
+	}
+	rows := [][]string{{"product", "version", "assessment", "status", "outcome", "count", "suppressed"}}
+	if vulnerability := report.result.VulnerabilityAssessment; vulnerability != nil {
+		rows = append(rows, []string{
+			report.product, report.version, "vulnerability", vulnerability.Status, vulnerability.Outcome,
+			strconv.Itoa(vulnerability.ActiveVulnerabilities), strconv.Itoa(vulnerability.SuppressedFindings),
+		})
+	}
+	if malware := report.result.MalwareAssessment; malware != nil {
+		rows = append(rows, []string{
+			report.product, report.version, "malware", malware.Status, malware.Outcome,
+			strconv.Itoa(malware.Findings), "",
+		})
+	}
+	return rows, nil
 }
 
 func helmChartCommand(state *commandState) *cobra.Command {

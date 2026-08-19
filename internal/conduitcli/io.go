@@ -1,6 +1,7 @@
 package conduitcli
 
 import (
+	"encoding/csv"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -62,12 +63,36 @@ func decodeDocument(path string, output any) error {
 // ignored. Naming two formats and meaning them beats advertising a third that
 // does not exist; `pretty` is now refused by the same branch that refuses any
 // other unknown format, which says so.
+// CSVMarshaler is implemented by a command result that can render itself as a
+// table. writeOutput only offers "csv" for values that implement it: a generic
+// map has no column order, so serializing one as CSV would invent a shape
+// rather than report it. A command that has no honest tabular form does not opt
+// in, and asking for csv there is refused by the same branch that refuses any
+// other format the command cannot produce.
+type CSVMarshaler interface {
+	MarshalCSV() ([][]string, error)
+}
+
 func writeOutput(writer io.Writer, format string, value any) error {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
 		encoder := json.NewEncoder(writer)
 		encoder.SetIndent("", "  ")
 		return encoder.Encode(value)
+	case "csv":
+		marshaler, ok := value.(CSVMarshaler)
+		if !ok {
+			return fmt.Errorf("output format csv is not available for this command; use json or yaml")
+		}
+		rows, err := marshaler.MarshalCSV()
+		if err != nil {
+			return fmt.Errorf("encode csv output: %w", err)
+		}
+		csvWriter := csv.NewWriter(writer)
+		if err := csvWriter.WriteAll(rows); err != nil {
+			return fmt.Errorf("write csv output: %w", err)
+		}
+		return csvWriter.Error()
 	case "yaml":
 		jsonValue, err := json.Marshal(value)
 		if err != nil {
@@ -82,6 +107,6 @@ func writeOutput(writer io.Writer, format string, value any) error {
 		defer encoder.Close()
 		return encoder.Encode(generic)
 	default:
-		return fmt.Errorf("unsupported output format %q; use json or yaml", format)
+		return fmt.Errorf("unsupported output format %q; use json, yaml, or csv", format)
 	}
 }
