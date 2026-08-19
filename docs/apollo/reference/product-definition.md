@@ -245,8 +245,11 @@ point at which they are cheap to find:
   `configuration.yml` and validates both documents as a pair.
   `ValidateApolloVolumeOverride` is the upsize-only gate for an installation's
   replacement size.
-- `internal/controlplane/apollo_substitution.go` parses and resolves the
-  substitution language.
+- `internal/apollo/substitution` parses and resolves the substitution language.
+  It moved out of `internal/controlplane` because it is pinned Apollo
+  vocabulary and nothing else: every accepted spelling is read off the
+  published Product Specification, and no package outside the control plane
+  ever referenced one of its symbols.
 - `internal/controlplane/apollo_manifest.go` carries the workload extensions
   (`volumes-v2`, public endpoints, hostname and traffic traits).
 - `internal/conduitcli/apollo-product-definition-v1.schema.json` is the embedded
