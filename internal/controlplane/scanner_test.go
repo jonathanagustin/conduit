@@ -12,6 +12,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 type recordingScanner struct {
@@ -130,11 +132,12 @@ func TestFreshAssessmentIsNotRescanned(t *testing.T) {
 	}
 }
 
-func TestStaleAssessmentWithoutFreshnessBoundIsKept(t *testing.T) {
+// A policy that names no scan age used to accept evidence of any age at all,
+// which is what made freshness an option rather than a floor (#54). It now
+// resolves to the domain default, so the same policy rescans.
+func TestStaleAssessmentWithoutFreshnessBoundIsRescanned(t *testing.T) {
 	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
 	state := foundation()
-	// No MaximumScanAgeSeconds: the prior behaviour, where an old passing scan is
-	// accepted and only a missing one is scanned.
 	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS"}
 	assessAllReleasesAt(&state, now.Add(-365*24*time.Hour))
 
@@ -142,8 +145,76 @@ func TestStaleAssessmentWithoutFreshnessBoundIsKept(t *testing.T) {
 	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, now); err != nil {
 		t.Fatal(err)
 	}
+	if len(scanner.releases) != len(state.Releases) {
+		t.Fatalf("a year-old assessment survived the default freshness floor: scanner calls = %d, want %d",
+			len(scanner.releases), len(state.Releases))
+	}
+}
+
+// The floor is a floor and not a schedule: evidence inside the default window
+// is still honoured, so the fix does not turn every proposal into a rescan.
+func TestFreshAssessmentWithoutFreshnessBoundIsKept(t *testing.T) {
+	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+	state := foundation()
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS"}
+	assessAllReleasesAt(&state, now.Add(-(environments.DefaultMaximumScanAgeSeconds-3600)*time.Second))
+
+	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
+	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, now); err != nil {
+		t.Fatal(err)
+	}
 	if len(scanner.releases) != 0 {
-		t.Fatalf("an old assessment was rescanned without a freshness bound: scanner calls = %d, want 0", len(scanner.releases))
+		t.Fatalf("evidence inside the default window was rescanned: scanner calls = %d, want 0", len(scanner.releases))
+	}
+}
+
+// A stated bound wider than the default is still honoured. The defect was a
+// policy that said nothing, not a policy that said something permissive: an
+// explicit number is visible to whoever reviews the desired state.
+func TestStatedFreshnessBoundWiderThanTheDefaultIsHonoured(t *testing.T) {
+	now := time.Date(2026, 8, 16, 0, 0, 0, 0, time.UTC)
+	state := foundation()
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{
+		RequiredOutcome: "PASS", MaximumScanAgeSeconds: 30 * 24 * 60 * 60,
+	}
+	assessAllReleasesAt(&state, now.Add(-20*24*time.Hour))
+
+	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
+	if err := enrichRequiredArtifactAssessments(context.Background(), scanner, &state, now); err != nil {
+		t.Fatal(err)
+	}
+	if len(scanner.releases) != 0 {
+		t.Fatalf("a stated 30-day bound was overridden by the 7-day default: scanner calls = %d, want 0", len(scanner.releases))
+	}
+}
+
+// The assembled Hub, on the path the issue names. A Hub with no scanner
+// configured cannot derive evidence, so old evidence under a bound-less policy
+// is refused rather than accepted -- which is the freshness floor being load
+// bearing at the HTTP boundary and not only in the helper.
+func TestPlanProposalRefusesOldEvidenceUnderAPolicyWithNoStatedScanAge(t *testing.T) {
+	state := assessedFoundation()
+	state.Environment.ArtifactSecurityPolicy = &ArtifactSecurityPolicy{RequiredOutcome: "PASS"}
+	assessAllReleasesAt(&state, time.Now().Add(-365*24*time.Hour))
+	payload, _ := json.Marshal(state)
+
+	handler := NewHandler(NewMemoryRepository(), HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/plans", bytes.NewReader(payload)))
+	if response.Code != http.StatusUnprocessableEntity || !strings.Contains(response.Body.String(), "no scanner") {
+		t.Fatalf("year-old evidence accepted: status=%d body=%s", response.Code, response.Body.String())
+	}
+
+	// Same request, same policy, with a scanner: the Hub derives the evidence
+	// instead of refusing, so the floor costs a scan rather than an outage.
+	scanner := &recordingScanner{result: passingScanResult(state.Releases[0])}
+	withScanner := NewHandler(NewMemoryRepository(), HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true, ArtifactScanner: scanner,
+	})
+	response = httptest.NewRecorder()
+	withScanner.ServeHTTP(response, httptest.NewRequest(http.MethodPost, "/v1/plans", bytes.NewReader(payload)))
+	if response.Code != http.StatusCreated || len(scanner.releases) != len(state.Releases) {
+		t.Fatalf("plan status=%d body=%s scanner calls=%d", response.Code, response.Body.String(), len(scanner.releases))
 	}
 }
 

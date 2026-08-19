@@ -132,12 +132,191 @@ type FleetSummary struct {
 	Stale     int            `json:"stale"`
 }
 
+// The filterable dimensions, named by the query parameter each one is selected
+// with. The names are the JSON keys of FleetFacets and the query parameters the
+// HTTP layer reads, deliberately: a facet whose key differs from the parameter
+// that selects it is a rail that offers a filter the caller cannot apply, and
+// nothing else in the system would notice.
+const (
+	FacetEnvironment = "environment"
+	FacetProduct     = "product"
+	FacetHealth      = "health"
+	FacetRollout     = "rolloutStatus"
+	FacetConfig      = "configStatus"
+	FacetLifecycle   = "lifecycle"
+)
+
+// FleetFacets counts installations per value of each filterable dimension, with
+// that dimension's OWN filter excluded from the count.
+//
+// Summary answers "what is in the result", and every count in it moves when any
+// filter moves. That is the right answer for a headline and the wrong one for a
+// filter control: selecting health=UNHEALTHY would collapse Summary.Health to a
+// single bucket, and a rail reading "HEALTHY 0" beside a fleet that is mostly
+// healthy states something false about the fleet in order to state something
+// true about the page. Excluding a dimension from its own facet is what makes
+// each count answer the question the control actually poses -- "how many would I
+// get if I picked this instead" -- which is also the only reading under which
+// the counts can be used to navigate.
+//
+// A dimension nobody has selected is unaffected: its filter is absent, so
+// excluding it changes nothing and the facet equals the corresponding Summary
+// map. Stale is not here because it is not a filterable dimension; maxAgeSeconds
+// decides staleness rather than selecting on it.
+//
+// CONDUIT-INVENTED: reporting.FleetFacets
+// Displaced-by: a capture or published schema showing Apollo's own fleet/installation filter-count response -- its field names, and whether a selected dimension is excluded from its own count
+type FleetFacets struct {
+	Environment map[string]int `json:"environment"`
+	Product     map[string]int `json:"product"`
+	Health      map[string]int `json:"health"`
+	Rollout     map[string]int `json:"rolloutStatus"`
+	Config      map[string]int `json:"configStatus"`
+	Lifecycle   map[string]int `json:"lifecycle"`
+}
+
+// NewFleetFacets returns facets with every dimension present and empty, so a
+// caller that accumulates into them never writes to a nil map, and a dimension
+// with no values serialises as {} rather than null.
+func NewFleetFacets() FleetFacets {
+	return FleetFacets{
+		Environment: map[string]int{}, Product: map[string]int{}, Health: map[string]int{},
+		Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{},
+	}
+}
+
+// Add records one installation's value under one dimension. An unknown
+// dimension is ignored rather than panicking: the dimension names are constants
+// in this package and a caller cannot invent one without editing it.
+func (facets *FleetFacets) Add(dimension, value string) {
+	if counts := facets.dimension(dimension); counts != nil {
+		counts[value]++
+	}
+}
+
+func (facets *FleetFacets) dimension(name string) map[string]int {
+	switch name {
+	case FacetEnvironment:
+		return facets.Environment
+	case FacetProduct:
+		return facets.Product
+	case FacetHealth:
+		return facets.Health
+	case FacetRollout:
+		return facets.Rollout
+	case FacetConfig:
+		return facets.Config
+	case FacetLifecycle:
+		return facets.Lifecycle
+	}
+	return nil
+}
+
+// AddInstallation records an installation under every dimension at once, which
+// is what an item matching the whole query contributes.
+func (facets *FleetFacets) AddInstallation(item FleetInstallation) {
+	for _, dimension := range fleetDimensions {
+		facets.Add(dimension.name, dimension.of(item))
+	}
+}
+
+// FacetContribution is one installation's contribution to exactly one facet
+// dimension: an installation that matches every part of the query except that
+// dimension, and so is counted by that dimension's facet and by nothing else.
+//
+// It carries its Environment because the HTTP layer authorizes per Environment
+// and has to drop a contribution the caller may not see -- a facet count is a
+// disclosure like any row. It is never serialised: it is scaffolding the caller
+// needs to rebuild Facets after filtering, and a client has no use for it.
+type FacetContribution struct {
+	Environment string
+	Dimension   string
+	Value       string
+}
+
 type FleetProjection struct {
 	GeneratedAt         time.Time           `json:"generatedAt"`
 	MaxResultAgeSeconds int64               `json:"maxResultAgeSeconds"`
 	Installations       []FleetInstallation `json:"installations"`
 	Summary             FleetSummary        `json:"summary"`
+	Facets              FleetFacets         `json:"facets"`
+	// FacetContributions is the near-miss set: one entry per installation that
+	// failed exactly one dimension of the query. Facets above already counts
+	// them, so a caller that filters nothing can ignore this entirely.
+	FacetContributions []FacetContribution `json:"-"`
 	PageMetadata
+}
+
+// RetainReadable rebuilds the projection to hold only the installations an
+// authorization predicate admits, recomputing every derived count -- the
+// summary and the facets, near misses included -- over exactly that set.
+//
+// It is the reporting half of the fleet's authorization. BuildFleet cannot ask
+// who the caller is, so the handler passes the question in as mayRead, keyed on
+// the Environment because that is the resource a fleet row is authorized
+// against. A facet count is a disclosure the same way a row is, so a near-miss
+// contribution is admitted only when its Environment is, and the contribution
+// set is then dropped: it was scaffolding for this rebuild, not part of the
+// response.
+func (projection *FleetProjection) RetainReadable(mayRead func(environment string) bool) {
+	visible := make([]FleetInstallation, 0, len(projection.Installations))
+	projection.Summary = FleetSummary{Health: map[string]int{}, Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{}}
+	projection.Facets = NewFleetFacets()
+	projection.MaxResultAgeSeconds = 0
+	for _, item := range projection.Installations {
+		if !mayRead(item.Environment) {
+			continue
+		}
+		visible = append(visible, item)
+		projection.Summary.Total++
+		projection.Summary.Health[item.Health]++
+		projection.Summary.Rollout[item.RolloutStatus]++
+		projection.Summary.Config[item.ConfigStatus]++
+		projection.Summary.Lifecycle[item.Lifecycle]++
+		// A row in the result matched every selected dimension, so it counts
+		// toward every facet: excluding a dimension from its own facet only ever
+		// adds near misses, never removes a match.
+		projection.Facets.AddInstallation(item)
+		if item.Stale {
+			projection.Summary.Stale++
+		}
+		if item.ObservationAgeSeconds > projection.MaxResultAgeSeconds {
+			projection.MaxResultAgeSeconds = item.ObservationAgeSeconds
+		}
+	}
+	for _, contribution := range projection.FacetContributions {
+		if mayRead(contribution.Environment) {
+			projection.Facets.Add(contribution.Dimension, contribution.Value)
+		}
+	}
+	projection.FacetContributions = nil
+	projection.Installations = visible
+}
+
+// fleetDimension binds a dimension's name to the installation field it reads
+// and the query field that selects it. One table drives matching, faceting and
+// the near-miss walk, because a filter that reads one field while its facet
+// counts another is a rail whose numbers are about a different question than
+// the one the click asks.
+type fleetDimension struct {
+	name     string
+	of       func(FleetInstallation) string
+	selected func(FleetQuery) string
+}
+
+var fleetDimensions = [...]fleetDimension{
+	{FacetEnvironment, func(item FleetInstallation) string { return item.Environment },
+		func(query FleetQuery) string { return query.Environment }},
+	{FacetProduct, func(item FleetInstallation) string { return item.Product },
+		func(query FleetQuery) string { return query.Product }},
+	{FacetHealth, func(item FleetInstallation) string { return item.Health },
+		func(query FleetQuery) string { return query.Health }},
+	{FacetRollout, func(item FleetInstallation) string { return item.RolloutStatus },
+		func(query FleetQuery) string { return query.Rollout }},
+	{FacetConfig, func(item FleetInstallation) string { return item.ConfigStatus },
+		func(query FleetQuery) string { return query.Config }},
+	{FacetLifecycle, func(item FleetInstallation) string { return item.Lifecycle },
+		func(query FleetQuery) string { return query.Lifecycle }},
 }
 
 func BuildFleet(
@@ -190,9 +369,30 @@ func BuildFleet(
 	projection := FleetProjection{
 		GeneratedAt: now,
 		Summary:     FleetSummary{Health: map[string]int{}, Rollout: map[string]int{}, Config: map[string]int{}, Lifecycle: map[string]int{}},
+		Facets:      NewFleetFacets(),
 	}
 	for _, item := range items {
-		if !fleetMatches(item, query) {
+		// Search is not a dimension and has no facet, so an item the search
+		// text excludes contributes to nothing. Faceting it would mean offering
+		// counts for a filter combination the caller cannot reach from here.
+		if !fleetSearchMatches(item, query) {
+			continue
+		}
+		missed, misses := fleetDimensionMisses(item, query)
+		if misses > 1 {
+			continue
+		}
+		if misses == 1 {
+			// Matches everything but one selected dimension: counted only by
+			// that dimension's facet, which is what "excluding its own filter"
+			// means item by item. It is not a result, so it is not an
+			// installation, not in Summary, and not in MaxResultAgeSeconds.
+			dimension := fleetDimensions[missed]
+			contribution := FacetContribution{
+				Environment: item.Environment, Dimension: dimension.name, Value: dimension.of(item),
+			}
+			projection.Facets.Add(contribution.Dimension, contribution.Value)
+			projection.FacetContributions = append(projection.FacetContributions, contribution)
 			continue
 		}
 		projection.Installations = append(projection.Installations, item)
@@ -201,6 +401,7 @@ func BuildFleet(
 		projection.Summary.Rollout[item.RolloutStatus]++
 		projection.Summary.Config[item.ConfigStatus]++
 		projection.Summary.Lifecycle[item.Lifecycle]++
+		projection.Facets.AddInstallation(item)
 		if item.Stale {
 			projection.Summary.Stale++
 		}
@@ -208,6 +409,20 @@ func BuildFleet(
 			projection.MaxResultAgeSeconds = item.ObservationAgeSeconds
 		}
 	}
+	// Items arrive from a map, so the near-miss set would otherwise be in a
+	// different order on every call. Nothing downstream depends on the order --
+	// it is counted, not shown -- but an unordered slice makes a test that
+	// compares one flaky, and a flaky test gets loosened rather than fixed.
+	sort.Slice(projection.FacetContributions, func(i, j int) bool {
+		left, right := projection.FacetContributions[i], projection.FacetContributions[j]
+		if left.Dimension != right.Dimension {
+			return left.Dimension < right.Dimension
+		}
+		if left.Value != right.Value {
+			return left.Value < right.Value
+		}
+		return left.Environment < right.Environment
+	})
 	sort.Slice(projection.Installations, func(i, j int) bool {
 		if projection.Installations[i].Environment != projection.Installations[j].Environment {
 			return projection.Installations[i].Environment < projection.Installations[j].Environment
@@ -218,15 +433,38 @@ func BuildFleet(
 }
 
 func fleetMatches(item FleetInstallation, query FleetQuery) bool {
+	if !fleetSearchMatches(item, query) {
+		return false
+	}
+	_, misses := fleetDimensionMisses(item, query)
+	return misses == 0
+}
+
+func fleetSearchMatches(item FleetInstallation, query FleetQuery) bool {
 	search := strings.ToLower(strings.TrimSpace(query.Search))
-	return (search == "" || strings.Contains(strings.ToLower(item.InstallationID), search) ||
-		strings.Contains(strings.ToLower(item.Environment), search) || strings.Contains(strings.ToLower(item.Product), search)) &&
-		(query.Environment == "" || item.Environment == query.Environment) &&
-		(query.Product == "" || item.Product == query.Product) &&
-		(query.Health == "" || item.Health == query.Health) &&
-		(query.Rollout == "" || item.RolloutStatus == query.Rollout) &&
-		(query.Config == "" || item.ConfigStatus == query.Config) &&
-		(query.Lifecycle == "" || item.Lifecycle == query.Lifecycle)
+	return search == "" || strings.Contains(strings.ToLower(item.InstallationID), search) ||
+		strings.Contains(strings.ToLower(item.Environment), search) ||
+		strings.Contains(strings.ToLower(item.Product), search)
+}
+
+// fleetDimensionMisses reports how many selected dimensions the item fails and,
+// when exactly one does, its index in fleetDimensions. A dimension the query
+// does not select cannot be missed, so an unfiltered query misses nothing and
+// every matching item counts toward every facet.
+func fleetDimensionMisses(item FleetInstallation, query FleetQuery) (int, int) {
+	missed, misses := -1, 0
+	for index, dimension := range fleetDimensions {
+		selected := dimension.selected(query)
+		if selected != "" && dimension.of(item) != selected {
+			missed, misses = index, misses+1
+			if misses > 1 {
+				// Two or more misses is neither a result nor a single facet's
+				// near miss, so which ones they were stops mattering.
+				return -1, misses
+			}
+		}
+	}
+	return missed, misses
 }
 
 // Key is the identity of a fleet row. Exported because pagination and action
