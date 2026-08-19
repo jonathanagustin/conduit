@@ -121,14 +121,27 @@ Anything else is refused *before the credential is read*, so a registry cannot
 direct a robot's password to a host of its choosing, and a refusal costs no
 credential access at all.
 
-The same rule survives a **redirect**. A permitted realm that answers `302` may
-send the credentialed request to another path on its own host over https, and
-nowhere else: not to a subdomain of itself, and not to itself over http. Go's
-`http.Client` on its own would have followed both — it keeps the `Authorization`
-header across a redirect to a subdomain and never compares the scheme — so
-without this the https promise above held for the realm and not for where the
-realm pointed. Requests carrying no credential are still redirected normally,
-because a registry redirecting an anonymous blob fetch to a CDN is ordinary.
+The same rule survives a **redirect**. The credential travels to another path on
+the registry's own host over https, and nowhere else: not to a subdomain of
+itself, and not to itself over http. Go's `http.Client` on its own would have
+carried it to both — it keeps the `Authorization` header across a redirect to a
+subdomain and never compares the scheme — so without this the https promise
+above held for the realm and not for where the realm pointed.
+
+A redirect anywhere else is **followed without the credential**, not refused.
+That distinction is operational, not cosmetic. The rule is set on the HTTP
+client, so it governs every request Conduit makes to a registry rather than only
+the token exchange, and credentialed *blob* reads are redirected across hosts by
+ordinary registries: Docker Hub answers one with a `307` to
+`production.cloudfront.docker.com`, ghcr.io with a `307` to
+`pkg-containers.githubusercontent.com`, both carrying a pre-signed URL. Refusing
+those broke `CurrentDigest` — the read the Flux converger performs on every
+reconcile — against any CDN-backed registry. The pre-signed URL carries its own
+authorisation in the query string and never wanted the header, so dropping it
+loses nothing: the read completes, and the credential still reaches only the host
+it was addressed to. Requests carrying no credential are unconstrained, because
+a registry redirecting an anonymous blob fetch to a CDN is ordinary and there is
+nothing to protect.
 
 `GITLESS_FLUX_INSECURE_REGISTRY=true` does **not** reach this. It says the
 manifest registry is contacted over http — an air-gapped mirror terminating TLS

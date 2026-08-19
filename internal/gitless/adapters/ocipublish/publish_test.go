@@ -232,6 +232,182 @@ func (transport routed) RoundTrip(request *http.Request) (*http.Response, error)
 	return http.DefaultTransport.RoundTrip(proxied)
 }
 
+// The regression that refusing caused, in the call that suffered it.
+//
+// CurrentDigest is what the Flux converger reads every reconcile. Its GET is
+// credentialed, and Docker Hub and ghcr.io both answer a credentialed read with
+// a cross-host 307 to a CDN carrying a pre-signed URL:
+//
+//	-> 307 location: https://production.cloudfront.docker.com/registry-v2/...
+//	     ?Expires=...&Signature=...&Key-Pair-Id=...
+//
+// A policy that returned an error for that redirect failed this read against
+// every CDN-backed registry -- which is the ordinary deployment. The CDN wants
+// no Authorization header and is authorised by the query string, so the correct
+// answer is to arrive without the credential, not to refuse to arrive.
+//
+// Both halves are asserted, because either alone would pass a broken policy: the
+// read succeeds, AND the CDN saw no credential.
+func TestACredentialedReadFollowsACrossHostRedirectWithoutItsCredential(t *testing.T) {
+	t.Parallel()
+	layer := "sha256:dd44" + strings.Repeat("0", 60)
+	var cdnSawAuthorization string
+	var cdnWasReached bool
+	cdnServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		cdnWasReached = true
+		cdnSawAuthorization = request.Header.Get("Authorization")
+		// A pre-signed URL carries its own authorisation in the query string.
+		// It neither needs nor wants the header, which is why arriving without
+		// one is not a degraded outcome.
+		if request.URL.Query().Get("Signature") == "" {
+			writer.WriteHeader(http.StatusForbidden)
+			return
+		}
+		_, _ = writer.Write(manifests(digest))
+	}))
+	defer cdnServer.Close()
+	// The manifest is served by the registry; only the BLOB is redirected. That
+	// is the shape Docker Hub and ghcr.io actually have.
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if request.Header.Get("Authorization") == "" {
+			writer.Header().Set("WWW-Authenticate", `Basic realm="registry"`)
+			writer.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		if strings.Contains(request.URL.Path, "/blobs/") {
+			http.Redirect(writer, request,
+				"https://cdn.example/registry-v2/blobs?Expires=1&Signature=abc&Key-Pair-Id=K2",
+				http.StatusTemporaryRedirect)
+			return
+		}
+		writer.Header().Set("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+		fmt.Fprintf(writer, `{"layers":[{"digest":%q}]}`, layer)
+	}))
+	defer registryServer.Close()
+
+	cdnTarget, err := url.Parse(cdnServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publisher, err := ocipublish.New("registry.example/team/manifests", &http.Client{Transport: routed{
+		scheme: "https",
+		hosts: map[string]string{
+			"registry.example": registryTarget.Host,
+			"cdn.example":      cdnTarget.Host,
+		},
+	}}, &recordingCredentials{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	read, err := publisher.CurrentDigest(t.Context(), "prod")
+	if err != nil {
+		t.Fatalf("a credentialed read was broken by a registry's ordinary CDN redirect: %v", err)
+	}
+	if read != digest {
+		t.Errorf("the read followed the redirect but returned %q, want %q", read, digest)
+	}
+	if !cdnWasReached {
+		t.Fatal("the CDN was never reached, so the redirect was not followed at all")
+	}
+	if cdnSawAuthorization != "" {
+		t.Errorf("the credential travelled to the CDN: %q", cdnSawAuthorization)
+	}
+}
+
+// rewritingInPlace is a RoundTripper that violates the contract routed keeps: it
+// dispatches a copy but leaves the CALLER's request pointing somewhere else
+// afterwards.
+//
+// It exists to hold #242's fix in place. do() captures `intended := *request.URL`
+// before the round trip precisely because the URL read afterwards is where the
+// request was SENT, not where this code chose to send it -- and a proxy, a
+// mirror, or any transport somebody adds later may rewrite in place. Nothing
+// else in this package makes those two URLs differ any more, so without this the
+// capture can be reverted with the whole suite still green. That is not
+// hypothetical: it happened, in the change that added the redirect policy.
+type rewritingInPlace struct {
+	hosts map[string]string
+	// disguiseAs is what the caller's request is left reading as. It is the
+	// publisher's OWN host, which is the dangerous direction: a guard reading
+	// the URL afterwards would see a host it trusts and attach the credential
+	// to a request this code had aimed elsewhere.
+	disguiseAs string
+}
+
+func (transport rewritingInPlace) RoundTrip(request *http.Request) (*http.Response, error) {
+	target, known := transport.hosts[request.URL.Host]
+	if !known {
+		return nil, fmt.Errorf("no test server stands in for %s", request.URL.Host)
+	}
+	proxied := request.Clone(request.Context())
+	proxied.URL.Scheme, proxied.URL.Host = "http", target
+	response, err := http.DefaultTransport.RoundTrip(proxied)
+	request.URL.Scheme, request.URL.Host = "https", transport.disguiseAs
+	return response, err
+}
+
+// The same attack as the test above -- a registry naming another host in a
+// Location header -- reached through a transport that leaves request.URL
+// looking harmless. The refusal must come from where the code aimed, not from
+// where the request ended up.
+func TestPublisherJudgesWhereItAimedTheCredentialNotWhereTheRequestEnded(t *testing.T) {
+	t.Parallel()
+	var attackerSawAuthorization string
+	attackerServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if header := request.Header.Get("Authorization"); header != "" {
+			attackerSawAuthorization = header
+		}
+		writer.Header().Set("WWW-Authenticate", `Basic realm="registry"`)
+		writer.WriteHeader(http.StatusUnauthorized)
+	}))
+	defer attackerServer.Close()
+	registryServer := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		switch {
+		case request.Method == http.MethodHead:
+			writer.WriteHeader(http.StatusNotFound)
+		case strings.HasSuffix(request.URL.Path, "/blobs/uploads/"):
+			writer.Header().Set("Location", "https://attacker.example/hijacked/upload")
+			writer.WriteHeader(http.StatusAccepted)
+		default:
+			writer.WriteHeader(http.StatusCreated)
+		}
+	}))
+	defer registryServer.Close()
+
+	attackerTarget, err := url.Parse(attackerServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	registryTarget, err := url.Parse(registryServer.URL)
+	if err != nil {
+		t.Fatal(err)
+	}
+	publisher, err := ocipublish.New("registry.example/team/manifests", &http.Client{Transport: rewritingInPlace{
+		hosts: map[string]string{
+			"registry.example": registryTarget.Host,
+			"attacker.example": attackerTarget.Host,
+		},
+		disguiseAs: "registry.example",
+	}}, &recordingCredentials{}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	if err := publisher.Put(t.Context(), "prod", manifests(digest)); err == nil {
+		t.Fatal("publishing followed the registry's Location to another host and reported success")
+	} else if !strings.Contains(err.Error(), "another host") {
+		t.Fatalf("error does not explain the refusal: %v", err)
+	}
+	if attackerSawAuthorization != "" {
+		t.Fatalf("the push credential reached a host the registry named: %q", attackerSawAuthorization)
+	}
+}
+
 func challenged(t *testing.T, realm string, insecure bool,
 	options ...ocipublish.Option) (*ocipublish.Publisher, *listener, *recordingCredentials) {
 	t.Helper()
@@ -480,7 +656,10 @@ func redirectedRealm(t *testing.T, target string) (*ocipublish.Publisher, *liste
 	return publisher, arrivals, credentials
 }
 
-func TestAPermittedRealmCannotRedirectThePushCredentialElsewhere(t *testing.T) {
+// As on the resolver side, the assertion is what ARRIVED rather than that
+// nothing did. See the sibling test in ociresolve for why refusing the redirect
+// outright was the wrong shape.
+func TestAPermittedRealmCannotCarryThePushCredentialElsewhere(t *testing.T) {
 	for name, target := range map[string]string{
 		"to another host entirely":       "https://attacker.example/steal",
 		"to a subdomain of the registry": "https://evil.registry.example/steal",
@@ -488,18 +667,20 @@ func TestAPermittedRealmCannotRedirectThePushCredentialElsewhere(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			publisher, arrivals, credentials := redirectedRealm(t, target)
-			err := publisher.Put(t.Context(), "prod", manifests(digest))
-			if err == nil {
+			if err := publisher.Put(t.Context(), "prod", manifests(digest)); err == nil {
 				t.Fatal("a redirect away from the permitted realm published the manifests")
 			}
-			if got := arrivals.received(); len(got) != 0 {
-				t.Fatalf("the redirect target was contacted, carrying %q", got)
+			got := arrivals.received()
+			if len(got) == 0 {
+				t.Fatal("the redirect target was never contacted, so this proves nothing about what it would have received")
+			}
+			for _, carried := range got {
+				if carried != "" {
+					t.Fatalf("the redirect target was contacted, carrying %q", carried)
+				}
 			}
 			if credentials.timesAsked() == 0 {
 				t.Error("the realm was permitted, so the credential should have been read for it")
-			}
-			if strings.Contains(err.Error(), stolenPassword) || strings.Contains(err.Error(), stolenUsername) {
-				t.Errorf("the refusal names the credential: %v", err)
 			}
 		})
 	}
