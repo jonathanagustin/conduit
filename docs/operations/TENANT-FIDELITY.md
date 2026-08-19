@@ -197,6 +197,48 @@ and `TestNoFlagPromisesRetentionInReviewContext` in `internal/conduitcli`, which
 run each command without the flag, reject it as unknown when passed, and fail if
 any flag in the command tree advertises retention in review context again.
 
+### Multipass federation refuses a username this deployment already means something by
+
+Multipass is Foundry's IAM service, not Apollo's, and the claim class for
+everything below is stated per row rather than inherited from this document's
+Apollo scope.
+
+**Reproduced faithfully.** The recovered `principals/User` carries `id`,
+`username` and an `attributes` map and nothing else; given name, family name,
+email, realm, organization and active are `@JsonIgnore` accessors over that map.
+`internal/identity/domain/multipass.go` models exactly that and derives the rest,
+including the recovered default that an ABSENT `multipass:active` means active.
+Class: **Public contract**, source `com.palantir.multipass:multipass-api:3.2636.0`
+by way of the deterministic TypeScript projection generated from the recovered
+`multipass-legacy-api.yml`. The contract file itself is not present in the
+read-only Foundry clone consulted here; the generated projection and its
+`PROVENANCE.json` are.
+
+**Where Conduit diverges.** `FederatedClaims` REFUSES to mint claims when the
+federated username lands on a name this deployment reserves -- its
+`BootstrapAdministrators`, plus the `local-developer` development fallback --
+and refuses a user Multipass reports as deactivated. Multipass has no such rule;
+this is a **Conduit extension** and exists because
+`governance/application.ResourceDecision.Administrator` matches the bootstrap
+list against `Principal.Username` with plain string equality and grants
+administrator authority before any grant exists. Without the refusal, creating
+an account in somebody else's directory would be enough to administer Conduit.
+
+**Unknown, and recorded as Unknown.** `multipass:active` is compared to the
+exact string `"true"`, matching the reference client. Whether the server's own
+accessor parses the string case-insensitively is not established by any source
+this repository holds. The comparison here is the stricter of the two, which is
+the safe direction for a value whose only use is to refuse federation.
+
+**Inert.** Nothing composes any of it. No route, handler or authorization path
+reaches a `MultipassDirectory`, and Governance continues to make every
+authorization decision from grants.
+
+**Detected by:** `TestMultipassUserAttributeDerivation` and
+`TestFederatedClaims` in `internal/identity/domain`, and the `httptest`-backed
+route assertions in `internal/identity/adapters/multipasshttp`. No test here has
+ever run against a live Multipass.
+
 ## Tenant runtime data
 
 The immutable frontend bundle receives tenant-specific branding only through
