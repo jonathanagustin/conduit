@@ -161,3 +161,27 @@ func TestReleaseChannelPopulateStaysUnimplementedWhileItsMeaningIsUnestablished(
 		t.Fatalf("release-channel import is missing: %v", names)
 	}
 }
+
+func TestReleaseChannelReleaseDiffFindsThePromotionWorklist(t *testing.T) {
+	t.Parallel()
+	desired := controlplane.DesiredState{Releases: []controlplane.Release{
+		{Product: "app", Version: "1.0.0", Channels: []string{"STAGING", "PRODUCTION"}},
+		{Product: "app", Version: "1.1.0", Channels: []string{"STAGING"}},
+		{Product: "worker", Version: "2.0.0", Channels: []string{"STAGING"}},
+		{Product: "legacy", Version: "0.9.0", Channels: []string{"PRODUCTION"}},
+		{Product: "unrelated", Version: "0.1.0", Channels: []string{"DEV"}},
+	}}
+	onlySource, onlyTarget, both := releaseChannelReleaseDiff(&desired, "STAGING", "PRODUCTION")
+	// The promotion worklist: on STAGING, not yet on PRODUCTION. Sorted by
+	// product@version, and the DEV-only Release is on neither channel so it is
+	// not part of the comparison at all.
+	if !slices.Equal(onlySource, []string{"app@1.1.0", "worker@2.0.0"}) {
+		t.Errorf("promotion worklist = %v", onlySource)
+	}
+	if !slices.Equal(onlyTarget, []string{"legacy@0.9.0"}) {
+		t.Errorf("only-on-target = %v", onlyTarget)
+	}
+	if !slices.Equal(both, []string{"app@1.0.0"}) {
+		t.Errorf("shared = %v", both)
+	}
+}
