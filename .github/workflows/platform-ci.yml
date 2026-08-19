@@ -591,6 +591,14 @@ jobs:
           node scripts/verify-documentation-claims.mjs
           node scripts/verify-no-tenant-origins.mjs
           node scripts/verify-secondary-apollo-evidence.mjs
+          # Neither Apollo authorization artifact can be regenerated in CI --
+          # one needs a live tenant, the other names a source capture that is
+          # not in this repository -- so the generator and its output are two
+          # copies of the same thing with nothing comparing them. They had
+          # already drifted by three fields (#122). This reconciles them and
+          # holds the apollo--prefix partition bound both files now state.
+          node scripts/verify-apollo-authorization-bounds.mjs
+          ./scripts/verify-apollo-authorization-bounds.test.sh
           node scripts/apollo-graphql/verify-observed-schema.mjs
           ./scripts/verify-apollo-graphql.test.sh
           node scripts/apollo-graphql/verify-apollo-interface.mjs

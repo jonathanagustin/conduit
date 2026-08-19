@@ -1586,3 +1586,59 @@ without the info still cannot filter health by the entity's node set, and cannot
 advance `Lifecycle` or apply `K8sNamespace`. Those are staleness — preserved
 from the durable report, not clobbered — so #326 stays open scoped to persisting
 the raw Agent reports behind a port, which is what would actually close it.
+
+## 19 closed, 2026-08-19 late — two issues closed by checking their premises
+
+**#25 closed as already-implemented.** Both halves were shipped under **#65**, which
+was this issue re-scoped; `internal/environments/domain/federation.go:41` says so
+in a comment, and the number stayed open behind it. Half A is
+`FleetQuery.SilenceExpected` honoured at `internal/reporting/domain/fleet.go:356`,
+with `ObservationAgeSeconds` set unconditionally on the line before it so the aged
+report is *shown with its age*, not hidden. Half B is
+`intermittentEvidenceBoundConflicts` (`internal/controlplane/federation.go:170`) —
+a sibling of `nonParticipatingEvidenceEnvironments`, exactly as the re-scope
+prescribed, and it does **not** exempt `MaximumEvidenceAgeSeconds`, which was the
+whole point of the re-scope. Seven tests across the two packages pass.
+
+**#237 closed as not-a-defect, premise refuted.** The issue said the Chainguard
+static digest pinned by `Containerfile.optimizer-highs` "disappeared during
+`v0.17.4` publication". It has not. Verified read-only against `cgr.dev`:
+
+- the pinned index `sha256:399c8cb4…` returns **200**, both per-arch manifests
+  return 200, and the amd64 layer downloads and hashes to exactly
+  `sha256:ba466ed9…` — a digest whose blobs pull and verify has not disappeared;
+- the refresh the issue asks for would change **nothing the build consumes**. The
+  Containerfile copies exactly one file out of that stage, and
+  `etc/ssl/certs/ca-certificates.crt` is **byte-identical** between the old pin and
+  current `:latest` — same SHA-256, 145 certificates, `cmp` clean. The only
+  difference is a package revision bump (`20260413-r0` → `-r1`) that adds a file
+  the Containerfile does not copy.
+
+So the multi-architecture rebuild and regenerated hash-bound security evidence
+would have spent the exact review budget the issue was written to protect, in
+exchange for no change in what is trusted. **The build tooling was available**
+(Docker 29.3.1, buildx v0.31.1) — the rebuild was declined on the evidence, not on
+capability.
+
+**Worth generalising.** Both closes came from testing a claim the issue asserted
+rather than implementing on top of it. #25's claim was "not done"; #237's was "the
+digest disappeared". Neither survived a direct check, and the check cost minutes
+against work measured in hours.
+
+**CI is still not the diff.** Reported once on PR #324 with evidence: eight
+consecutive runs across eight commits all return `runner_name: ""`, `steps: 0`, no
+log blob, ~3s. `POST .../rerun-failed-jobs` returns `403 Resource not accessible by
+integration`, so the one confirming re-run the drive-to-green rules allow is
+outside this token's permissions; the eight-commit reproduction stands in for it.
+A self check-in is armed for 2026-08-20T00:59Z.
+
+**Delegated and in flight:** #122 — the two `docs/evidence/apollo-authorization-*`
+artifacts partition on the `apollo-` identifier prefix and neither says so, so a
+reader takes "filtered out" for "does not exist". Brief also carries a
+pre-existing drift I confirmed: `capture-apollo-authorization-graph.mjs` does not
+emit three fields the committed artifact contains
+(`rolesWithNoRetainedOperationsNote`, `rolesWithNoTransitiveOperations`,
+`rolesWithNoTransitiveOperationsNote`), so a regeneration would silently drop them
+— and would drop any bound added without fixing that first. The source capture
+lives outside this repo and is unavailable, so neither artifact can be regenerated
+here; the change must live in generator constants that match the committed bytes.

@@ -177,6 +177,8 @@ apollo_contract() {
     node scripts/verify-documentation-claims.mjs &&
     node scripts/verify-no-tenant-origins.mjs &&
     node scripts/verify-secondary-apollo-evidence.mjs &&
+    node scripts/verify-apollo-authorization-bounds.mjs &&
+    ./scripts/verify-apollo-authorization-bounds.test.sh &&
     node scripts/apollo-graphql/verify-observed-schema.mjs &&
     ./scripts/verify-apollo-graphql.test.sh &&
     node scripts/apollo-graphql/verify-apollo-interface.mjs &&
