@@ -26,6 +26,15 @@ const RELEASE_PIPELINE = {
   includeArtifacts: true,
   requiredLabels: [{ name: "tier", resourceTypes: ["RELEASE"], values: ["gold", "silver"] }],
   excludedLabels: [{ name: "deprecated", resourceTypes: [] }],
+  targetHubVersions: {
+    "hub-edge": {
+      targetHub: "hub-edge",
+      recordedAt: "2026-08-01T00:00:00Z",
+      entities: [
+        { environment: "prod-use1", installationId: "inst_pay", product: "app.example:payments", version: "1.4.2" },
+      ],
+    },
+  },
 };
 
 const SNAPSHOT_PIPELINE = {
@@ -114,6 +123,21 @@ test.describe("Export", () => {
     await expect(filters).toContainText("deprecated");
     // A requirement with no values gates on the label's presence.
     await expect(filters).toContainText("any value");
+  });
+
+  test("shows the Entity versions each Target Hub last reported", async ({ page, hub }) => {
+    // A disconnected source Hub builds an incremental Bundle against what the
+    // target last ran; the panel now shows that baseline instead of hiding it.
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    await page.goto("export");
+    const exports = new ExportPom(page);
+
+    await exports.pipeline("exp_release").click();
+    const targetHubs = exports.detail.getByTestId("pipeline-target-hub-versions");
+    await expect(targetHubs).toContainText("hub-edge");
+    await expect(targetHubs).toContainText("prod-use1");
+    await expect(targetHubs).toContainText("app.example:payments");
+    await expect(targetHubs).toContainText("1.4.2");
   });
 
   test("filters the loaded set locally and explains a match of nothing", async ({ page, hub }) => {
