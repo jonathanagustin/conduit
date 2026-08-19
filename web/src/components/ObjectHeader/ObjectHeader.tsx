@@ -49,7 +49,9 @@ export function ObjectHeader({
 }: ObjectHeaderProps) {
   return (
     <header className="console-object-header" data-testid={testId}>
-      <AppLogo icon={icon} accent={accent} size={42} testId={`${testId}-icon`} />
+      {/* 30px identity control: 10px of vertical padding around it makes the
+          ~50px subheader band (docs/ui/console-visual-language.md section 10). */}
+      <AppLogo icon={icon} accent={accent} size={30} testId={`${testId}-icon`} />
       <div className="console-object-header__entity">
         <div className="console-object-header__kind">{kind}</div>
         <EntityTitle

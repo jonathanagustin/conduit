@@ -1,6 +1,10 @@
 import type { ReactNode } from "react";
 import { AppHeader, type AppHeaderProps } from "../AppHeader/AppHeader.js";
 import "./app-frame.css";
+// The shared row bands for every console HTMLTable live here rather than in a
+// feature, and load with the always-rendered frame so all 13 list screens share
+// one measured header/simple/rich contract. See components/console-table.css.
+import "../console-table.css";
 
 /** Full-height application frame: header above, body filling the rest.
  *
