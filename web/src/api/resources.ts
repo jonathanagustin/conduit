@@ -30,6 +30,7 @@ export interface Environment {
   id: string;
   generation?: string;
   connectionSetting?: string;
+  defaultReleaseChannel?: string;
   config?: Record<string, unknown>;
 }
 

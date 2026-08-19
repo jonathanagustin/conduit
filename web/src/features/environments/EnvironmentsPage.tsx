@@ -55,6 +55,7 @@ export function EnvironmentsPage() {
                 <tr>
                   <th scope="col">Environment</th>
                   <th scope="col">Connection</th>
+                  <th scope="col">Default channel</th>
                   <th scope="col">Entities reported</th>
                   <th scope="col">Last report</th>
                 </tr>
@@ -79,6 +80,16 @@ export function EnvironmentsPage() {
                       )}
                     </td>
                     <td>
+                      {record.environment.defaultReleaseChannel === undefined ||
+                      record.environment.defaultReleaseChannel === "" ? (
+                        "—"
+                      ) : (
+                        <Tag minimal round>
+                          {record.environment.defaultReleaseChannel}
+                        </Tag>
+                      )}
+                    </td>
+                    <td>
                       {record.reported === undefined ? (
                         <Tag intent="warning" minimal round>
                           never reported
@@ -99,6 +110,7 @@ export function EnvironmentsPage() {
                       <dl className="console-index-mobile-record" key={record.environment.id}>
                         <div><dt>Environment</dt><dd><Link to={`/environments/${encodeURIComponent(record.environment.id)}`}>{record.environment.id}</Link></dd></div>
                         <div><dt>Connection</dt><dd>{record.environment.connectionSetting ?? "unset"}</dd></div>
+                        <div><dt>Default channel</dt><dd>{record.environment.defaultReleaseChannel === undefined || record.environment.defaultReleaseChannel === "" ? "—" : record.environment.defaultReleaseChannel}</dd></div>
                         <div><dt>Entities reported</dt><dd>{record.reported?.entityCount ?? "never reported"}</dd></div>
                         <div><dt>Last report</dt><dd><Timestamp value={record.reported?.observedAt} /></dd></div>
                       </dl>
