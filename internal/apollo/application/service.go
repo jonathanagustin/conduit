@@ -50,6 +50,31 @@ type CatalogPort interface {
 	CoordinateRetired(context.Context, string, string) (bool, error)
 }
 
+// ReleaseLifecyclePort is the durable authority for what Conduit has withdrawn
+// and what it has promoted. It is read on every catalog read rather than
+// pushed into this process when a desired state is accepted, because the POST
+// that declares a recall is served by ONE Hub replica while the GET that asks
+// about it is served by either: a projection held in memory answers "not
+// recalled" on the replica that never saw the write, and on every replica after
+// a restart. That is the unrecoverable direction of the error -- a client
+// installs a withdrawn Release on the strength of it.
+type ReleaseLifecyclePort interface {
+	// ReleaseLifecycle returns every recall and promotion currently declared by
+	// any Environment's desired state, aggregated across Environments because
+	// Apollo declares both on the Release while Conduit declares them inside an
+	// Environment.
+	ReleaseLifecycle(context.Context) (ReleaseLifecycle, error)
+}
+
+// ReleaseLifecycle is what a single read of durable desired state yields. Both
+// halves travel together so that answering a Release costs one query rather
+// than one per field, and so that recallStatus and releaseChannels on the same
+// response describe the same moment.
+type ReleaseLifecycle struct {
+	Recalls    []environments.ProjectedRecall
+	Promotions []environments.ProjectedPromotion
+}
+
 // PublicationAssets are optional Conduit-native exact bytes associated with a
 // Helm publication. They are never part of the public Apollo request model.
 type PublicationAssets struct {
@@ -96,26 +121,31 @@ type Service struct {
 	namespaces    map[string]map[string]apollo.Namespace
 	entityInfo    map[string][]apollo.EntityInfo
 	entityHealth  map[string][]apollo.EntityHealth
-	// recalls is keyed by Environment, because that is how Conduit declares a
-	// withdrawal. Apollo's recallStatus is a property of the Release rather
-	// than of an Environment, so the read below aggregates.
-	recalls map[string][]environments.ProjectedRecall
-	// promotions is keyed by Environment for the same reason, and aggregated on
-	// read for the same reason: a Channel a Release has reached is a property of
-	// the Release, and Conduit records the crossing per Environment.
-	promotions map[string][]environments.ProjectedPromotion
-	catalog    CatalogPort
-	reporting  environmentports.ReportingPort
-	now        func() time.Time
+	// recalls and promotions are deliberately absent from this struct. They are
+	// the two projections that were held here and answered wrong on any replica
+	// that had not served the write; they are read through lifecycle instead.
+	lifecycle ReleaseLifecyclePort
+	catalog   CatalogPort
+	reporting environmentports.ReportingPort
+	now       func() time.Time
 }
 
-func New(ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort) (*Service, error) {
+func New(
+	ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort,
+	lifecycle ReleaseLifecyclePort,
+) (*Service, error) {
+	// Refused rather than tolerated: a nil lifecycle port would leave every
+	// recallStatus unanswerable at request time, which is the failure this
+	// surface is least able to report and least able to afford.
+	if lifecycle == nil {
+		return nil, errors.New("Apollo requires a Release lifecycle port")
+	}
 	service := &Service{
 		products: make(map[string]apollo.Product), releases: make(map[string]map[string]releaseRecord),
 		environments: make(map[string]apollo.Environment), installations: make(map[string]map[string]apollo.Installation),
 		namespaces: make(map[string]map[string]apollo.Namespace), entityInfo: make(map[string][]apollo.EntityInfo),
 		entityHealth: make(map[string][]apollo.EntityHealth), catalog: catalogPort, reporting: reporting,
-		now: time.Now,
+		lifecycle: lifecycle, now: time.Now,
 	}
 	publications, err := catalogPort.ListPublications(ctx, "")
 	if err != nil {
@@ -155,13 +185,20 @@ func (service *Service) GetProduct(product string) (apollo.Product, error) {
 	return clone(value), nil
 }
 
-func (service *Service) ListReleases(product string) apollo.ListReleasesResponse {
+// ListReleases reads the lifecycle once and applies it to every Release, so a
+// list costs the same one query a single Release does, and so no two Releases
+// in one response are described from different moments.
+func (service *Service) ListReleases(ctx context.Context, product string) (apollo.ListReleasesResponse, error) {
+	lifecycle, err := service.lifecycle.ReleaseLifecycle(ctx)
+	if err != nil {
+		return apollo.ListReleasesResponse{}, fmt.Errorf("read Release lifecycle: %w", err)
+	}
 	service.mu.RLock()
 	values := make([]apollo.Release, 0, len(service.releases[product]))
 	for version, value := range service.releases[product] {
 		model := clone(value.model)
-		model.RecallStatus = service.recallStatusLocked(product, version)
-		channels := service.effectiveChannelsLocked(product, version, value.model.ReleaseChannels)
+		model.RecallStatus = recallStatus(product, version, lifecycle.Recalls)
+		channels := effectiveChannels(product, version, value.model.ReleaseChannels, lifecycle.Promotions)
 		model.ReleaseChannels = &channels
 		values = append(values, model)
 	}
@@ -171,10 +208,18 @@ func (service *Service) ListReleases(product string) apollo.ListReleasesResponse
 		_, _, right, _ := parseMavenCoordinate(values[j].MavenCoordinate)
 		return catalog.CompareVersions(left, right) < 0
 	})
-	return apollo.ListReleasesResponse{Releases: &values}
+	return apollo.ListReleasesResponse{Releases: &values}, nil
 }
 
-func (service *Service) GetRelease(product, version string) (apollo.Release, error) {
+func (service *Service) GetRelease(ctx context.Context, product, version string) (apollo.Release, error) {
+	// The lifecycle read comes first and its failure is fatal to the response.
+	// Answering the rest of the Release with recallStatus false because the
+	// store could not be reached would report a withdrawal that exists as an
+	// absence of one; a client can retry an error, it cannot un-install.
+	lifecycle, err := service.lifecycle.ReleaseLifecycle(ctx)
+	if err != nil {
+		return apollo.Release{}, fmt.Errorf("read Release lifecycle: %w", err)
+	}
 	service.mu.RLock()
 	defer service.mu.RUnlock()
 	value, exists := service.releases[product][version]
@@ -182,34 +227,38 @@ func (service *Service) GetRelease(product, version string) (apollo.Release, err
 		return apollo.Release{}, &Error{Kind: NotFound, Message: "Release not found"}
 	}
 	model := clone(value.model)
-	model.RecallStatus = service.recallStatusLocked(product, version)
-	channels := service.effectiveChannelsLocked(product, version, value.model.ReleaseChannels)
+	model.RecallStatus = recallStatus(product, version, lifecycle.Recalls)
+	channels := effectiveChannels(product, version, value.model.ReleaseChannels, lifecycle.Promotions)
 	model.ReleaseChannels = &channels
 	return model, nil
 }
 
-// effectiveChannelsLocked answers Apollo's releaseChannels from the channels the
-// Release has actually reached. The caller holds at least a read lock.
+// effectiveChannels answers Apollo's releaseChannels from the channels the
+// Release has actually reached, given the promotions read from durable state.
 //
 // Computed on read rather than stamped at publication, for the reason
-// recallStatusLocked records below: a Release is published once and promoted
+// recallStatus records below: a Release is published once and promoted
 // later, so the stamped value was the version's default channels and stayed
 // them however many promotions passed. A Release promoted to a channel was
 // served on the channel it started on.
 //
+// It takes the promotions rather than reading them, and holds no lock, because
+// the read is a repository query the caller has already made once for the whole
+// response -- doing it per Release would multiply the query by the catalog.
+//
 // The rule is not restated here. catalog.EffectiveChannels owns which channels
 // a Release has reached, including the transitive walk over passed promotions,
 // and this only supplies it with what Conduit recorded.
-func (service *Service) effectiveChannelsLocked(product, version string, declared *[]string) []string {
-	passed := make([]catalog.Promotion, 0)
-	for _, environmentPromotions := range service.promotions {
-		for _, promotion := range environmentPromotions {
-			passed = append(passed, catalog.Promotion{
-				Product: promotion.Product, Version: promotion.Version,
-				FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
-				Passed: promotion.Passed,
-			})
-		}
+func effectiveChannels(
+	product, version string, declared *[]string, promotions []environments.ProjectedPromotion,
+) []string {
+	passed := make([]catalog.Promotion, 0, len(promotions))
+	for _, promotion := range promotions {
+		passed = append(passed, catalog.Promotion{
+			Product: promotion.Product, Version: promotion.Version,
+			FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
+			Passed: promotion.Passed,
+		})
 	}
 	channels := []string(nil)
 	if declared != nil {
@@ -220,46 +269,49 @@ func (service *Service) effectiveChannelsLocked(product, version string, declare
 	}, passed)
 }
 
-// recallStatusLocked answers Apollo's recallStatus from the recalls Conduit
-// actually holds. The caller holds at least a read lock.
+// recallStatus answers Apollo's recallStatus from the recalls Conduit actually
+// holds, as read from durable desired state by the caller.
 //
 // It is computed on read rather than stamped at publication, because a Release
 // is published once and recalled later; the stamped value was necessarily
 // false, and stayed false however many recalls arrived afterwards.
 //
-// Aggregated across Environments, because Apollo declares recallStatus on the
-// Release while Conduit declares a recall inside an Environment's desired
-// state. "Recalled somewhere" is the only statement the catalog level can
-// honestly make, and it is the safe direction: reporting a Release as not
-// recalled when some Environment has withdrawn it is the error a client cannot
-// recover from, since it installs on the strength of it.
+// The recalls arrive already aggregated across Environments, because Apollo
+// declares recallStatus on the Release while Conduit declares a recall inside
+// an Environment's desired state. "Recalled somewhere" is the only statement
+// the catalog level can honestly make, and it is the safe direction: reporting
+// a Release as not recalled when some Environment has withdrawn it is the error
+// a client cannot recover from, since it installs on the strength of it.
+//
+// They are passed in rather than held on the Service for the same reason the
+// answer is computed rather than stamped: a copy kept in one process is right
+// only in that process. The Hub runs more than one replica and restarts, and
+// the copy was written solely by the request that accepted the desired state.
 //
 // recalledBy and recalledAt stay absent. The contract permits it -- "if
 // recalled is false, other properties will not be filled out" -- and Conduit's
 // Recall carries neither an actor nor a timestamp, so filling them would be
 // the invention this surface exists to avoid.
-func (service *Service) recallStatusLocked(product, version string) apollo.RecallStatus {
-	for _, environmentRecalls := range service.recalls {
-		for _, recall := range environmentRecalls {
-			if recall.Reverted || recall.Product != product {
-				continue
-			}
-			if !catalog.RecallAppliesToVersion(catalog.Recall{
-				Product:                recall.Product,
-				StartingVersion:        recall.StartingVersion,
-				EndingVersionExclusive: recall.EndingVersionExclusive,
-				ExcludedVersions:       recall.ExcludedVersions,
-				SingleVersion:          recall.SingleVersion,
-			}, version) {
-				continue
-			}
-			reason := recall.Reason
-			status := apollo.RecallStatus{Recalled: true}
-			if strings.TrimSpace(reason) != "" {
-				status.Reason = &reason
-			}
-			return status
+func recallStatus(product, version string, recalls []environments.ProjectedRecall) apollo.RecallStatus {
+	for _, recall := range recalls {
+		if recall.Reverted || recall.Product != product {
+			continue
 		}
+		if !catalog.RecallAppliesToVersion(catalog.Recall{
+			Product:                recall.Product,
+			StartingVersion:        recall.StartingVersion,
+			EndingVersionExclusive: recall.EndingVersionExclusive,
+			ExcludedVersions:       recall.ExcludedVersions,
+			SingleVersion:          recall.SingleVersion,
+		}, version) {
+			continue
+		}
+		reason := recall.Reason
+		status := apollo.RecallStatus{Recalled: true}
+		if strings.TrimSpace(reason) != "" {
+			status.Reason = &reason
+		}
+		return status
 	}
 	return apollo.RecallStatus{Recalled: false}
 }
@@ -547,17 +599,12 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 		}
 	}
 	service.installations[rid] = installations
-	if service.recalls == nil {
-		service.recalls = make(map[string][]environments.ProjectedRecall)
-	}
-	// Replaced wholesale rather than merged: this projection is the whole of
-	// what the Environment currently declares, so a recall that has been
-	// removed from desired state must stop being reported.
-	service.recalls[rid] = append([]environments.ProjectedRecall(nil), projection.Recalls...)
-	if service.promotions == nil {
-		service.promotions = make(map[string][]environments.ProjectedPromotion)
-	}
-	service.promotions[rid] = append([]environments.ProjectedPromotion(nil), projection.Promotions...)
+	// Recalls and promotions are NOT taken from this projection, deliberately.
+	// They used to be, and that made a Release's recallStatus an artifact of
+	// which replica served the write: this method runs only in the process that
+	// handled the POST, so the other replica -- and every replica after a
+	// restart -- answered "not recalled" for a withdrawn Release. They are read
+	// from durable desired state on each catalog read instead.
 	namespaces := make(map[string]apollo.Namespace, len(projection.Namespaces))
 	for _, namespace := range projection.Namespaces {
 		id := namespace.Name

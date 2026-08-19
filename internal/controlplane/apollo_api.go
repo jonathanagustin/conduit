@@ -29,6 +29,7 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 		context.Background(),
 		apolloCatalogPort{repository: repository},
 		apolloReportingPort{repository: repository},
+		apolloReleaseLifecyclePort{repository: repository},
 	)
 	if err != nil {
 		api.initializationError = err
@@ -174,26 +175,12 @@ func (api *apolloPublicAPI) syncDesiredState(ctx context.Context, state DesiredS
 	for _, namespace := range state.Environment.Namespaces {
 		projection.Namespaces = append(projection.Namespaces, environments.ProjectedNamespace{RID: namespace.RID, Name: namespace.Name})
 	}
-	// Recalls travel with the projection so the Apollo surface can answer
-	// recallStatus from what Conduit actually withdrew, rather than from the
-	// hardcoded false it froze at publication time.
-	for _, recall := range state.Recalls {
-		projection.Recalls = append(projection.Recalls, environments.ProjectedRecall{
-			Product: recall.Product, StartingVersion: recall.StartingVersion,
-			EndingVersionExclusive: recall.EndingVersionExclusive,
-			ExcludedVersions:       append([]string(nil), recall.ExcludedVersions...),
-			SingleVersion:          recall.SingleVersion, Reason: recall.Reason, Reverted: recall.Reverted,
-		})
-	}
-	// Promotions travel for the same reason recalls do: releaseChannels was
-	// stamped at publication and a Release reaches a channel afterwards.
-	for _, promotion := range state.Promotions {
-		projection.Promotions = append(projection.Promotions, environments.ProjectedPromotion{
-			Product: promotion.Product, Version: promotion.Version,
-			FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
-			Passed: promotion.Status == PromotionPassed,
-		})
-	}
+	// Recalls and promotions do NOT travel with this projection. They did, and
+	// that made recallStatus depend on which replica served the write: this
+	// funnel runs only in the process that accepted the desired state, so the
+	// other replica answered "not recalled" for a withdrawn Release, as did
+	// every replica after a restart. apolloReleaseLifecyclePort reads them from
+	// the Plans instead, which both replicas share.
 	api.application.SyncEnvironment(projection)
 }
 

@@ -12,6 +12,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jonathanagustin/conduit/internal/apollo"
+	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	"net/http"
 	"net/http/httptest"
 	"path/filepath"
@@ -1070,5 +1071,128 @@ func TestWorseHealthKeepsTheLeftOnATie(t *testing.T) {
 	// fleet returns whichever node happened to be read last.
 	if got := worseHealth("UNRANKED_A", "UNRANKED_B"); got != "UNRANKED_A" {
 		t.Errorf("a tie resolved to %q, want the left operand — the fold must be stable", got)
+	}
+}
+
+// A recall declared through one Hub replica must read as a recall from the
+// other. This Hub runs two replicas behind one address, so the POST that
+// withdraws a Release and the GET that asks about it are routinely served by
+// different processes -- and a restart makes every process the second one.
+//
+// Apollo's recallStatus was answered from a map on the service struct that only
+// syncDesiredState wrote, and syncDesiredState runs in the process that handled
+// the POST. The other replica therefore served recalled=false for a Release
+// Conduit had withdrawn: the safe-looking answer to an unsafe question, and the
+// one direction of this error a client cannot recover from, because it installs
+// on the strength of it.
+//
+// The second API here is constructed independently over the SAME repository,
+// which is what a second replica and a restarted process both are.
+func TestARecalledReleaseReadsAsRecalledFromASecondReplica(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	governance := NewGovernanceService(repository)
+
+	// The replica that serves the write.
+	writer := newApolloPublicAPI(repository, governance, HandlerOptions{})
+	if writer.initializationError != nil {
+		t.Fatal(writer.initializationError)
+	}
+	if err := writer.application.PublishNativeHelmChart(ctx, "app.example:example-api:0.9.0",
+		apolloapp.NativeHelmPublication{
+			ChartName: "example-api", ChartVersion: "0.9.0",
+			ChartRepository: "oci://registry.example/charts/example-api",
+		}); err != nil {
+		t.Fatal(err)
+	}
+
+	state := assessedFoundation()
+	state.Recalls = []Recall{{
+		ID: "recall-api-0.9.0", Product: "app.example:example-api", StartingVersion: "0.9.0",
+		SingleVersion: true, Strategy: RecallStrategy{Type: RecallRollForward}, Reason: "withdrawn for cause",
+	}}
+	if _, err := NewLifecycle(repository).CreatePlan(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	writer.syncDesiredState(ctx, state)
+
+	// Stated rather than assumed: the replica that served the write agrees the
+	// Release is recalled, so a failure below is about which process answered
+	// and not about the recall itself.
+	served, err := writer.application.GetRelease(ctx, "app.example:example-api", "0.9.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !served.RecallStatus.Recalled {
+		t.Fatal("the fixture never established a recall to read back")
+	}
+
+	reader := newApolloPublicAPI(repository, governance, HandlerOptions{})
+	if reader.initializationError != nil {
+		t.Fatal(reader.initializationError)
+	}
+	got, err := reader.application.GetRelease(ctx, "app.example:example-api", "0.9.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.RecallStatus.Recalled {
+		t.Error("a second replica served a recalled Release as not recalled; the recall " +
+			"was answered from process memory only the writing replica held")
+	}
+	if got.RecallStatus.Reason == nil || *got.RecallStatus.Reason != "withdrawn for cause" {
+		t.Errorf("the recall reason did not survive the replica boundary: %#v", got.RecallStatus.Reason)
+	}
+
+	// The list route is a separate call site, and half a fix here leaves two
+	// read paths disagreeing about whether a Release may be installed.
+	listed, err := reader.application.ListReleases(ctx, "app.example:example-api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listed.Releases == nil {
+		t.Fatal("the second replica listed no Releases at all")
+	}
+	for _, release := range *listed.Releases {
+		if release.MavenCoordinate == "app.example:example-api:0.9.0" && !release.RecallStatus.Recalled {
+			t.Error("ListReleases on the second replica served the recalled Release as not recalled")
+		}
+	}
+}
+
+// An Entity command stores a desired state with its Recalls stripped, because
+// commands deliberately bypass recall eligibility. That state is a Plan like
+// any other, so reading simply the newest Plan per Environment as the
+// Environment's declaration would make issuing one command report every
+// recalled Release in that Environment as not recalled.
+func TestACommandPlanDoesNotEraseAnEnvironmentsRecalls(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	state := assessedFoundation()
+	state.Recalls = []Recall{{
+		ID: "recall-api-0.9.0", Product: "app.example:example-api", StartingVersion: "0.9.0",
+		SingleVersion: true, Strategy: RecallStrategy{Type: RecallRollForward}, Reason: "withdrawn for cause",
+	}}
+	if _, err := NewLifecycle(repository).CreatePlan(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	commandState := cloneJSON(state)
+	commandState.Recalls = nil
+	if _, err := repository.CreatePlan(ctx, PlanRecord{
+		ID: "plan-command", CreatedAt: time.Now().UTC().Add(time.Hour),
+		Plan:         Plan{Environment: state.Environment.ID},
+		DesiredState: &commandState,
+		Command:      &EntityCommand{InstallationID: "example-api", Type: CommandRestartResource},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	lifecycle, err := apolloReleaseLifecyclePort{repository: repository}.ReleaseLifecycle(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lifecycle.Recalls) != 1 || lifecycle.Recalls[0].Product != "app.example:example-api" {
+		t.Errorf("a command Plan erased the Environment's recalls: %#v", lifecycle.Recalls)
 	}
 }
