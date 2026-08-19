@@ -13,8 +13,8 @@
   top: 8px;
   left: 8px;
   padding: 8px 12px;
-  color: #fff;
-  background: #1c2127;
+  color: var(--bp-palette-white, #fff);
+  background: var(--bp-palette-dark-gray-1, #1c2127);
   transform: translateY(calc(-100% - 16px));
 }
 

@@ -21,7 +21,7 @@
   width: 36px;
   height: 36px;
   padding: 0;
-  color: #abb3bf;
+  color: var(--bp-palette-gray-4, #abb3bf);
   background: transparent;
   border: 0;
   border-radius: 2px;
@@ -29,19 +29,19 @@
 }
 
 .console-rail__item:hover {
-  color: #f6f7f9;
+  color: var(--bp-palette-light-gray-5, #f6f7f9);
   background: rgba(255, 255, 255, 0.1);
 }
 
 .console-rail__item--active {
-  color: #f6f7f9;
+  color: var(--bp-palette-light-gray-5, #f6f7f9);
   background: rgba(255, 255, 255, 0.16);
 }
 
 /* The rail is the one control that must stay reachable by keyboard even when a
    popover has focus, so the ring is drawn inside the item rather than clipped. */
 .console-rail__item:focus-visible {
-  outline: 2px solid #8abbff;
+  outline: 2px solid var(--bp-palette-blue-5, #8abbff);
   outline-offset: -2px;
 }
 

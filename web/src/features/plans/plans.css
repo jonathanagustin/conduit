@@ -44,8 +44,8 @@
 
 .console-plan-detail__diagnostics {
   margin-top: 8px;
-  border: 1px solid var(--bp-border-color, #d3d8de);
-  background: var(--bp-background-color, #fff);
+  border: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
+  background: var(--bp-palette-white, #fff);
 }
 
 .console-plan-detail__diagnostics > summary {
@@ -59,7 +59,7 @@
   margin: 0;
   padding: 0;
   list-style: none;
-  border-top: 1px solid var(--bp-border-color, #d3d8de);
+  border-top: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
 }
 
 .console-plan-detail__diagnostics li {
@@ -67,7 +67,7 @@
 }
 
 .console-plan-detail__diagnostics li + li {
-  border-top: 1px solid var(--bp-border-color, #d3d8de);
+  border-top: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
 }
 
 .console-plan-detail__diagnostics dl {
@@ -82,7 +82,7 @@
 }
 
 .console-plan-detail__diagnostics dt {
-  color: var(--bp-text-color-muted, #5f6b7c);
+  color: var(--bp-typography-color-muted, #5f6b7c);
   font-size: 12px;
 }
 
