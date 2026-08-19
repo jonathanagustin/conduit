@@ -157,6 +157,41 @@ Entity.
 `internal/controlplane`, which pin the timed-stage suppression, the excluded
 canary Entity, and the removal reach respectively.
 
+### A canary tier may be selected by Environment label, which no source establishes
+
+**Source class:** Conduit extension. **Extension:** `PromotionEntityFilter` gains
+`environmentLabels`, a label requirement alongside the two name lists.
+
+Nothing in the pinned sources establishes that Apollo's canary Entity filters
+select on anything but names, so this is a reviewed local decision and not a
+reproduction. It exists because a tier written as a list of Environment names
+cannot follow the fleet: the Environment stood up this morning is in the fleet
+and not in the tier, nothing says so, and the stage goes on deciding a fleet-wide
+promotion on the Environments somebody remembered to list (issue #169). A label
+requirement makes tier membership a property of the Environment, so labelling a
+new Environment extends the canary set with no policy edit.
+
+**Scope, and the two limits that make it safe.** The Hub resolves the labels from
+the Environment's most recently reviewed generation and stamps them onto the
+evidence, *overwriting* whatever the submitter sent -- health evidence carries no
+attestation, so a caller free to declare its own Environment labels could write
+itself into any canary tier. And the stamped labels are recorded on the
+`PromotionRecord`, not resolved again at replay: unlike an Environment-dependent
+blocker this selection is **not** additive -- narrowing a canary set drops
+unhealthy evidence and can turn BLOCKED into PASSED -- so it cannot be taken on
+trust the way `ENVIRONMENT_CANNOT_VOUCH` is. Freezing the labels the decision
+used keeps a record re-derivable from itself, and keeps a later relabelling from
+rewriting a decision already made. Filtering by *Entity* label remains
+unsupported for the unchanged reason: evidence carries no Entity labels.
+
+**What would close it.** A published statement of what Apollo's canary Entity
+filters may select on, which would either establish this shape or displace it.
+
+**Detected by:** `TestCanarySetSelectedByEnvironmentLabelFollowsTheFleet` in
+`internal/catalog/domain` and `TestCanaryTierFollowsTheFleetByEnvironmentLabel`
+in `internal/controlplane`, which pin the selection rules and, respectively, the
+overwrite, the replay, and the tier extending without a policy edit.
+
 ### Six apollo-cli flags Conduit does not carry, and one it refuses out loud
 
 **Source class:** Public contract (the flags appear in the pinned apollo-cli
