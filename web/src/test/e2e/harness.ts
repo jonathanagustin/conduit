@@ -1,7 +1,7 @@
 import { test as base, type Page, type Route } from "@playwright/test";
 
 import { projection, MIXED_FLEET } from "../fixtures.js";
-import type { FleetInstallation, FleetProjection } from "../../api/types.js";
+import type { FleetFacets, FleetInstallation, FleetProjection } from "../../api/types.js";
 
 /** Browser helpers.
  *
@@ -82,6 +82,14 @@ export interface HubStub {
     pagination?: Partial<Pick<FleetProjection, "nextCursor" | "previousCursor" | "hasPrevious" | "limit">> & {
       cursor?: string;
       total?: number;
+      /** The query-string fragment this response answers for, so one test can
+       * stub the fleet before and after a filter is applied. */
+      query?: string;
+      /** Facet counts the rows cannot produce. A dimension excludes its own
+       * filter, so once one is applied the facets legitimately count
+       * installations this response does not carry -- which is the state the
+       * rail exists for and the one a derived fixture cannot express. */
+      facets?: Partial<FleetFacets>;
     },
   ): void;
   /** Every request the console made to /v1, in order, as "METHOD path?query". */
@@ -134,6 +142,11 @@ interface Stubbed {
   status: number;
   body: unknown;
   cursor?: string;
+  /** A query-string fragment this stub answers for, e.g. "health=UNHEALTHY".
+   * Without it a screen whose filter changes the response can only be stubbed
+   * once, and a test claiming a filter narrowed the table would be reading the
+   * same body before and after the click. */
+  query?: string;
 }
 
 function stub(page: Page): Promise<HubStub> {
@@ -179,7 +192,8 @@ function stub(page: Page): Promise<HubStub> {
         (entry) =>
           entry.method === method &&
           path.endsWith(entry.suffix) &&
-          entry.cursor === requestedCursor,
+          entry.cursor === requestedCursor &&
+          (entry.query === undefined || requested.search.includes(entry.query)),
       );
     if (match === undefined) {
       // An unstubbed call is a test defect, not a 404: failing loudly here stops
@@ -219,13 +233,14 @@ function stub(page: Page): Promise<HubStub> {
       api.get("/session", sessionProjection(username));
     },
     fleet(installations, pagination = {}) {
-      const { cursor, ...response } = pagination;
+      const { cursor, query, ...response } = pagination;
       stubs.push({
         suffix: "/fleet/installations",
         method: "GET",
         status: 200,
         body: projection(installations, response),
         ...(cursor === undefined ? {} : { cursor }),
+        ...(query === undefined ? {} : { query }),
       });
     },
     requests: () => seen,

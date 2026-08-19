@@ -28,17 +28,19 @@ test.describe("fleet overview", () => {
     await expect(row).toContainText("INSTALLED");
   });
 
-  test("summarises the fleet above the table", async ({ page, hub }) => {
+  test("summarises the result above the table", async ({ page, hub }) => {
     hub.fleet([
       installation(),
       installation({ installationId: "ledger", health: "UNHEALTHY" }),
     ]);
     await page.goto("fleet");
 
+    // The headline describes the result and nothing else. Per-health counts
+    // belong to the rail, where they mean something different -- see
+    // docs/ui/contracts/fleet-facets.md.
     const summary = page.getByRole("status", { name: "Fleet summary" });
     await expect(summary).toContainText("2 installations");
-    await expect(summary).toContainText("HEALTHY 1");
-    await expect(summary).toContainText("UNHEALTHY 1");
+    await expect(summary).toContainText("STALE 0");
   });
 
   test("says when a report is stale rather than presenting it as current", async ({ page, hub }) => {
@@ -61,11 +63,12 @@ test.describe("fleet overview", () => {
   });
 
   test("filters by status at the Hub, not in the page", async ({ page, hub }) => {
-    hub.fleet([installation()]);
+    hub.fleet([installation(), installation({ installationId: "ledger", health: "UNHEALTHY" })]);
     await page.goto("fleet");
-    await expect(page.getByTestId("fleet-page")).toBeVisible();
+    const fleet = new FleetPom(page);
+    await expect(fleet.root).toBeVisible();
 
-    await page.getByLabel("Health").selectOption("UNHEALTHY");
+    await fleet.facetValue("health", "UNHEALTHY").click();
 
     // The filter has to reach the Hub as a query parameter. Filtering the rows
     // already fetched would filter a page rather than the fleet, and would be

@@ -42,7 +42,7 @@ does today.
 | Selectable transition carrying promotion constraints | Partial | `ReleaseChannelGraph` renders selectable transitions with status and a blocker count, but from `/v1/promotions`; the dedicated `promotion-stages` endpoint is unread |
 | Fixed summary pane beside a tabbed detail region | Absent | The console uses a horizontal `ObjectHeader`; no persistent side summary |
 | Selected row opens an in-context detail region | Absent | The console navigates to a separate route. Import, Export and Risk reveal detail from the already-loaded row, which is the nearest equivalent |
-| Faceted filters with counts and proportional bars | Absent | No `facet` symbol anywhere under `web/src/features`. Fleet has search and selects, but no counts |
+| Faceted filters with counts and proportional bars | Aligned (2026-08-18) | `components/FacetRail.tsx` on the Fleet page, driven by `facets` on `/v1/fleet/installations`. See the correction below and `contracts/fleet-facets.md` |
 | Event timeline paired with the event table | Absent | Only `PlanDetailPage` carries any timeline; there is no event timeline |
 | Stacked version-distribution bar with a percentage | Absent | `SummaryBar` is a tag strip, not proportional |
 
@@ -52,6 +52,24 @@ above and should stay unaligned. The **event timeline** has no endpoint to feed
 it, so building one would mean inventing the data. **Faceted counts** are the one
 2020 pattern that is genuinely good, genuinely absent, and blocked only by the
 Hub not returning counts.
+
+> **Correction, 2026-08-18.** The last sentence above and item 6 below were both
+> wrong about the blocker, in a way worth recording rather than deleting. The
+> Hub *was* returning per-dimension counts: `reporting.FleetSummary` has carried
+> `Health`, `Rollout`, `Config` and `Lifecycle` maps since the fleet projection
+> was extracted, `BuildFleet` accumulated them over every item matching the
+> query before paging, and `web/src/api/types.ts` already typed them. The
+> console rendered them as a flat tag strip. So "no counts" was read off the
+> *screen* and asserted about the *contract*, which is the audit method's own
+> failure mode.
+>
+> There was a contract change to make, but not that one. The counts were
+> computed after the whole query was applied, which is right for a headline and
+> wrong for a filter control: selecting a health collapsed every other health
+> bucket to zero. `facets` — each dimension counted with its own filter excluded
+> — is what a rail needs, and is what landed. `contracts/fleet-facets.md` states
+> the distinction; `reporting.FleetFacets` in the invention register states what
+> would displace the shape.
 
 ## Part 2 — the sharper finding: served but unsurfaced
 
@@ -222,8 +240,9 @@ gap is scoping those to an Environment, not new data.
    Release-scoped Security tab in 360.
 5. **Plan risk scores** (capture 368) on `PlanStep`, rendered as conditional
    evidence rather than a field every Plan has.
-6. **Faceted filter counts.** Needs `/v1/fleet/installations` to return counts
-   before the UI can show them, so it is a contract change first.
+6. ~~**Faceted filter counts.**~~ Done, 2026-08-18, and not for the reason
+   given here — see the correction in Part 1. The counts were already served;
+   what was missing was a facet semantics a rail can be read under.
 7. **Leave alone:** the dark-only palette, the 2020 navigation and labels, an
    event timeline, and any SBOM screen. The first two are out of bounds by the
    rule this document opens with; the third has no data behind it; the fourth
