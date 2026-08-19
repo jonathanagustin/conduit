@@ -971,6 +971,21 @@ func (service *ModuleService) InstallTrackingChannel(ctx context.Context, enviro
 	return service.repository.CreateModuleInstallation(ctx, installation)
 }
 
+// moduleInstallChannel resolves the Release Channel a Module installation tracks
+// when the request did not name one: an explicit request wins, else it inherits
+// the Environment's default from the latest desired state (as Product Entities
+// do). "" -- unknown Environment or no default -- leaves InstallTrackingChannel's
+// "RELEASE" fallback intact.
+func moduleInstallChannel(requested string, plans []PlanRecord, environment string) string {
+	if requested != "" {
+		return requested
+	}
+	if state, ok := latestDesiredStates(plans)[environment]; ok {
+		return state.Environment.DefaultReleaseChannel
+	}
+	return ""
+}
+
 // moduleUpdateIsNewer decides whether a resolved target is actually an update.
 //
 // The ModuleRelease type does not require an orderable version, and upstream's

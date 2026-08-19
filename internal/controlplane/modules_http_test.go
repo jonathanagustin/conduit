@@ -93,3 +93,31 @@ func TestModuleHTTPPublicationInstallationUpdateAndUnlink(t *testing.T) {
 		t.Fatalf("unlink deleted Entities: %#v", installation)
 	}
 }
+
+func TestModuleInstallChannelInheritsEnvironmentDefault(t *testing.T) {
+	t.Parallel()
+	plans := []PlanRecord{{
+		ID:           "plan-1",
+		Plan:         Plan{Environment: "env-a"},
+		DesiredState: &DesiredState{Environment: Environment{ID: "env-a", DefaultReleaseChannel: "RELEASE_CANDIDATE"}},
+	}}
+	// An explicit request wins over the Environment default.
+	if got := moduleInstallChannel("DEV", plans, "env-a"); got != "DEV" {
+		t.Errorf("requested channel = %q, want DEV", got)
+	}
+	// No request inherits the Environment's default Release Channel, not a
+	// hardcoded RELEASE.
+	if got := moduleInstallChannel("", plans, "env-a"); got != "RELEASE_CANDIDATE" {
+		t.Errorf("inherited channel = %q, want RELEASE_CANDIDATE", got)
+	}
+	// An unknown Environment leaves "" so InstallTrackingChannel keeps its
+	// RELEASE fallback.
+	if got := moduleInstallChannel("", plans, "env-unknown"); got != "" {
+		t.Errorf("unknown Environment channel = %q, want empty", got)
+	}
+	// An Environment with no default also falls back.
+	noDefault := []PlanRecord{{ID: "plan-2", Plan: Plan{Environment: "env-b"}, DesiredState: &DesiredState{Environment: Environment{ID: "env-b"}}}}
+	if got := moduleInstallChannel("", noDefault, "env-b"); got != "" {
+		t.Errorf("no-default Environment channel = %q, want empty", got)
+	}
+}
