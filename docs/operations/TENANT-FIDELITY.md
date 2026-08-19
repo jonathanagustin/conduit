@@ -117,6 +117,46 @@ conformance.
 `internal/catalog/domain`, which asserts the blocker message describes blocking
 and that the evaluation produces no recall.
 
+### Any blocked promotion creates promotion suppressions, not only a failed canary
+
+**Source class:** Public contract (`reference/promotion.md`: *"A failed canary
+creates an Entity-scoped promotion suppression"*). **Divergence:** the trigger is
+wider than the published sentence.
+
+`reconcilePromotionSuppressions` (`internal/controlplane/suppression.go`) creates
+an Entity-scoped promotion suppression for every UNHEALTHY piece of evidence in
+**any** BLOCKED promotion. A timed stage counts. So does a stage blocked by a
+label requirement or by the overall evaluation timeout, as long as some Entity
+also happened to report unhealthy -- the published rule names one trigger, and
+Conduit acts on a class of them.
+
+**Why Conduit keeps the wider trigger.** The suppression is not the promotion's
+verdict, it is a hold on the Entity the evidence says is unhealthy, and that
+Entity is unhealthy whichever clause stopped the promotion. Narrowing to a failed
+canary would mean a timed stage watching an Entity fall over, blocking on it, and
+then leasing the next Plan straight at it. The hold is bounded and self-clearing:
+it is Entity-scoped, it carries the Release that produced it, and a later passing
+evaluation for that Release removes it.
+
+**Scope, stated because it is narrow.** Two limits are enforced rather than
+declared. A canary stage suppresses only the Entities its `EntityFilters`
+nominated -- an Entity excluded from the decision cannot be suppressed by it
+(issue #66) -- and nothing at all is created from a PASSED promotion. Removal
+stays deliberately wider than creation: it is keyed on Environment plus Release
+and reads its Environments from the whole submitted evidence, so a record written
+before that filter existed is still cleared by a later passing run. Narrowing
+creation without leaving removal wide would have made those records permanent.
+
+**What would close it.** A published statement of which blocked stages Apollo
+suppresses on, or a decision that a timed stage should not hold an unhealthy
+Entity.
+
+**Detected by:** `TestPromotionFailureSuppressesCanaryAndRecoveryRemovesSuppression`,
+`TestBlockedCanaryDoesNotSuppressAnEntityItsFiltersExcluded` and
+`TestPassingCanaryStillClearsASuppressionItsFiltersWouldNotHaveCreated` in
+`internal/controlplane`, which pin the timed-stage suppression, the excluded
+canary Entity, and the removal reach respectively.
+
 ### Six apollo-cli flags Conduit does not carry, and one it refuses out loud
 
 **Source class:** Public contract (the flags appear in the pinned apollo-cli
