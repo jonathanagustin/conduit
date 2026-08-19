@@ -1,18 +1,55 @@
 .console-environments__table { width: 100%; }
-.console-environment { padding: 16px; }
+.console-environment {
+  /* Fixed summary-pane width for the Overview browser grid below. 260px is the
+     top of the rulebook's 230-260px rail band, chosen because the pane holds
+     worded facts ("38 of 40 Entities healthy") rather than a facet column.
+     docs/ui/console-visual-language.md section 8. */
+  --console-rail: 260px;
+  padding: 16px;
+}
 .console-environment__header {
   display: flex; flex-wrap: wrap; align-items: center; margin-bottom: 12px; gap: 8px;
 }
 .console-environment__header h3 { margin: 0 8px 0 0; }
 
-.console-environment__summary {
+/* The Overview's fixed-rail + fluid-work grid. The summary pane does not shrink;
+   the work column is minmax(0,1fr) so the Entities table truncates inside it.
+   20px is the region-framing gutter between the two columns. */
+.console-environment__browser {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
-  margin-bottom: 12px;
+  align-items: start;
+  grid-template-columns: var(--console-rail) minmax(0, 1fr);
+  gap: 20px;
+}
+
+/* The pane is a stack of summary Sections; it holds a fixed track, so its
+   Sections stack down it rather than flowing into a responsive grid. */
+.console-environment__pane {
+  min-width: 0;
+}
+
+/* The scroll/truncation owner of the work column: min-width:0 lets the table
+   inside ellipsise rather than widen the grid. */
+.console-environment__work {
+  min-width: 0;
+}
+
+.console-environment__summary {
+  display: flex;
+  flex-direction: column;
   gap: 12px;
 }
 
 .console-environment__mobile-records { display: none; }
+
+/* Progressive subtraction: below 900px a 260px rail would starve the table, so
+   the pane collapses above the work area rather than beside it. The table's own
+   reflow to record cards happens later, at 767px. */
+@media (max-width: 900px) {
+  .console-environment__browser {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
 
 @media (max-width: 767px) {
   .console-environment { padding: 12px; }
