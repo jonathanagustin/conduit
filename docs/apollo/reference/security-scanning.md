@@ -37,8 +37,24 @@ security boundary for a suppression is governance approval of the Plan that
 carries it, not any property of these fields.
 Validation requires one unique record per suppressed finding, an artifact from
 the exact assessed digest set, approval before the scan, and an expiry strictly
-after the scan. Missing, expired, unapproved, mis-scoped, or count-only
-suppressions fail closed and cannot turn a vulnerability outcome into `PASS`.
+after the scan. Suppressions that are count-only, mis-scoped, expired at the
+time of the scan, or missing any provenance field fail closed and cannot turn a
+vulnerability outcome into `PASS`.
+
+**That fail-closed set is a check on shape, not on authority**, and the
+distinction is the whole of what this section guarantees. `requestedBy`,
+`approvedBy` and `changeRequestId` are checked for being present, ordered, and
+inside their window; none of the three is resolved against a person, a role, or
+a change record, here or anywhere else in the Hub. A submitter who supplies a
+self-consistent provenance block naming an approver who approved nothing passes
+every check listed above. An earlier revision of this paragraph said
+"unapproved" suppressions fail closed, which read as authority and was not true
+of the code: what fails closed is an *empty* approver, not an unauthorized one.
+Establishing the stronger property is tracked in
+[#54](https://github.com/jonathanagustin/conduit/issues/54), and by the
+paragraph above it is not simply an unimplemented check — the reference these
+fields carry belongs to the approving system, so a local resolution would be
+answering a question about somebody else's record.
 
 Platform still does not create or remove provider-side suppressions, schedule
 scans, store scanner credentials, or claim Apollo's private Risk Management API.
@@ -49,6 +65,28 @@ When an Environment security policy requires missing vulnerability evidence,
 Plan proposal obtains and validates evidence before governance evaluation. A
 separate authenticated `POST /v1/artifact-scans` operation supports deliberate
 operator invocation. Bundle admission continues to enforce its malware gate.
+
+## Scan freshness
+
+Evidence has an age bound and every policy has one. `maximumScanAgeSeconds` on
+the Environment's `ArtifactSecurityPolicy` states it; a policy that states
+nothing gets `DefaultMaximumScanAgeSeconds`, seven days, rather than no bound at
+all. Evidence older than the window is re-derived at Plan proposal by the
+configured scanner, and refused where no scanner is configured — the same
+fail-closed path as evidence that was never supplied. A policy wanting a longer
+window states the number, where whoever reviews the desired state can see it.
+
+The seven days is Conduit's own choice with no Apollo ground truth behind it,
+and is registered as such in `docs/evidence/conduit-inventions.json`.
+
+Two bounds on what freshness means here, both deliberate. It is checked when the
+upgrade is proposed and not again when a leased Plan executes, so a Plan
+approved just inside the window can execute later against older evidence.
+And the check is on the age a supplied assessment claims: a fresh `assessedAt`
+is what a caller asserts, not what the Hub witnessed. Independent assurance
+against the assessment itself is the open half of
+[#54](https://github.com/jonathanagustin/conduit/issues/54) and is not what this
+section provides.
 
 ## Release-channel promotion labels
 
