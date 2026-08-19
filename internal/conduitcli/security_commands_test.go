@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/spf13/cobra"
 )
 
@@ -202,4 +203,50 @@ func TestRunBoundedCommandReportsWhatTheToolSaid(t *testing.T) {
 			t.Errorf("error %q does not say which tool is missing", err)
 		}
 	})
+}
+
+func TestVulnerabilityReportCSVRendersSummaryAndDetail(t *testing.T) {
+	t.Parallel()
+	result := controlplane.ArtifactScanResult{
+		VulnerabilityAssessment: &controlplane.VulnerabilityAssessment{
+			Status: "COMPLETE", Outcome: "PASS", ActiveVulnerabilities: 2, SuppressedFindings: 1,
+			ActiveFindings: []controlplane.VulnerabilityFinding{
+				{ID: "CVE-2026-1", Severity: "HIGH", CVSS: 7.5},
+				{ID: "CVE-2026-2", Severity: "LOW"},
+			},
+		},
+		MalwareAssessment: &controlplane.MalwareAssessment{Status: "COMPLETE", Outcome: "PASS", Findings: 0},
+	}
+
+	summary, err := vulnerabilityReportCSV{product: "p", version: "1.0", result: result}.MarshalCSV()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// header + one vulnerability summary row + one malware summary row.
+	if len(summary) != 3 {
+		t.Fatalf("summary rows = %d: %v", len(summary), summary)
+	}
+	if summary[1][2] != "vulnerability" || summary[1][5] != "2" || summary[1][6] != "1" {
+		t.Errorf("vulnerability summary row = %v", summary[1])
+	}
+	if summary[2][2] != "malware" || summary[2][5] != "0" {
+		t.Errorf("malware summary row = %v", summary[2])
+	}
+
+	detail, err := vulnerabilityReportCSV{product: "p", version: "1.0", details: true, result: result}.MarshalCSV()
+	if err != nil {
+		t.Fatal(err)
+	}
+	// header + one row per active finding.
+	if len(detail) != 3 {
+		t.Fatalf("detail rows = %d: %v", len(detail), detail)
+	}
+	if detail[1][3] != "CVE-2026-1" || detail[1][4] != "HIGH" || detail[1][5] != "7.5" {
+		t.Errorf("first finding row = %v", detail[1])
+	}
+	// A finding with no CVSS renders an explicit 0, not a blank a reader could
+	// mistake for a missing column.
+	if detail[2][5] != "0" {
+		t.Errorf("zero-CVSS finding rendered cvss = %q, want \"0\"", detail[2][5])
+	}
 }

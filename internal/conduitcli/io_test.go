@@ -52,11 +52,11 @@ func TestWriteOutputSupportsStableAutomationFormats(t *testing.T) {
 	}
 }
 
-// `pretty` was advertised in --help as a third format and implemented as a
-// second name for `yaml`, so an operator who asked for a human-oriented
-// rendering got the machine one and nothing said so. There are two formats; a
-// third name is now refused by the branch that refuses any other unknown one,
-// and the refusal names the two that exist so the operator can pick.
+// `pretty` was advertised in --help as a format and implemented as a second
+// name for `yaml`, so an operator who asked for a human-oriented rendering got
+// the machine one and nothing said so. An unknown name is now refused by the
+// branch that refuses any other one, and the refusal names the formats that do
+// exist -- json, yaml, and csv -- so the operator can pick.
 func TestWriteOutputRefusesAFormatConduitDoesNotHave(t *testing.T) {
 	t.Parallel()
 	value := map[string]any{"status": "PENDING"}
@@ -67,7 +67,7 @@ func TestWriteOutputRefusesAFormatConduitDoesNotHave(t *testing.T) {
 			t.Errorf("format %q was accepted and rendered %q", format, output.String())
 			continue
 		}
-		if !strings.Contains(err.Error(), "use json or yaml") {
+		if !strings.Contains(err.Error(), "use json, yaml, or csv") {
 			t.Errorf("format %q error = %v, want the formats that do exist", format, err)
 		}
 		// Nothing partial reaches the caller's writer: a rejected format that
@@ -120,5 +120,32 @@ func TestDecodeDocumentBoundsWhatItReads(t *testing.T) {
 		} else if !strings.Contains(err.Error(), test.wantError) {
 			t.Errorf("%s: error %q does not mention %q", name, err, test.wantError)
 		}
+	}
+}
+
+type stubCSVMarshaler struct{ rows [][]string }
+
+func (stub stubCSVMarshaler) MarshalCSV() ([][]string, error) { return stub.rows, nil }
+
+// csv is offered only for a value that can name its own columns. A plain map has
+// no column order, so csv must refuse it rather than serialize an invented one.
+func TestWriteOutputRendersCSVOnlyForMarshalers(t *testing.T) {
+	t.Parallel()
+
+	var table bytes.Buffer
+	if err := writeOutput(&table, "csv", stubCSVMarshaler{rows: [][]string{{"a", "b"}, {"1", "2"}}}); err != nil {
+		t.Fatal(err)
+	}
+	if table.String() != "a,b\n1,2\n" {
+		t.Fatalf("csv=%q", table.String())
+	}
+
+	var refused bytes.Buffer
+	err := writeOutput(&refused, "csv", map[string]any{"status": "PENDING"})
+	if err == nil {
+		t.Fatalf("csv rendered a plain map as %q", refused.String())
+	}
+	if refused.Len() != 0 {
+		t.Errorf("csv wrote %q before refusing", refused.String())
 	}
 }

@@ -111,7 +111,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	flags := root.PersistentFlags()
 	flags.StringVar(&state.config.Server, "server", state.config.Server, "Conduit Hub base URL (CONDUIT_SERVER)")
 	flags.DurationVar(&state.config.Timeout, "timeout", defaultTimeout, "request timeout")
-	flags.StringVarP(&state.output, "output", "o", "json", "output format: json or yaml")
+	flags.StringVarP(&state.output, "output", "o", "json", "output format: json, yaml, or csv")
 	flags.StringVar(&state.profile, "profile", runtime.Getenv("CONDUIT_PROFILE"), "named local connection profile")
 	flags.StringVar(&state.config.CAFile, "ca-file", state.config.CAFile, "Hub CA PEM file (CONDUIT_CA_FILE)")
 	flags.StringVar(&state.config.ClientCertFile, "client-cert-file", state.config.ClientCertFile, "operator client certificate PEM file")
