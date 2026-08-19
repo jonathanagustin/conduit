@@ -39,11 +39,31 @@ export interface PageMetadata {
   hasPrevious: boolean;
 }
 
+/** Counts per value of each filterable dimension, each computed with its OWN
+ * filter excluded -- so `health` still reports every health bucket after
+ * `health=UNHEALTHY` has been applied, while `environment` narrows with it.
+ *
+ * The keys are the FleetQuery field names below, and that is the Hub's doing
+ * (reporting.FleetFacets in internal/reporting/domain/fleet.go): a facet is
+ * served under the name of the parameter that selects it, so a rail cannot
+ * offer a filter the Hub would not accept. This differs from `summary`, which
+ * describes the result and moves with every filter.
+ * docs/ui/contracts/fleet-facets.md states which is which and why. */
+export interface FleetFacets {
+  environment: Record<string, number>;
+  product: Record<string, number>;
+  health: Record<string, number>;
+  rolloutStatus: Record<string, number>;
+  configStatus: Record<string, number>;
+  lifecycle: Record<string, number>;
+}
+
 export interface FleetProjection extends PageMetadata {
   generatedAt: string;
   maxResultAgeSeconds: number;
   installations: FleetInstallation[];
   summary: FleetSummary;
+  facets: FleetFacets;
 }
 
 export interface CatalogQuery {
