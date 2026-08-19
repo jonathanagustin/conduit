@@ -70,6 +70,13 @@ export interface HubStub {
   /** Refuse a PUT the way the Hub refuses one -- 422 for a preference that could
    * never deliver anything, 403 for one that names somebody else's. */
   putFails(pathSuffix: string, status: number, error: string): void;
+  /** Serve a body for a DELETE, and record that it happened. The contact
+   * address book is the first route to answer DELETE, keyed entirely by query
+   * string, so the stub matches the suffix the same way the others do. */
+  del(pathSuffix: string, body: unknown): void;
+  /** Refuse a DELETE the way the Hub refuses one -- 403 for another owner's
+   * contact, 404 for a kind the owner does not hold. */
+  delFails(pathSuffix: string, status: number, error: string): void;
   /** Serve the session projection for a named operator.
    *
    * The default operator authors nothing, so any screen that gates on
@@ -134,7 +141,7 @@ function sessionProjection(username: string) {
   };
 }
 
-type StubbedMethod = "GET" | "POST" | "PUT";
+type StubbedMethod = "GET" | "POST" | "PUT" | "DELETE";
 
 interface Stubbed {
   suffix: string;
@@ -228,6 +235,12 @@ function stub(page: Page): Promise<HubStub> {
     },
     putFails(suffix, status, error) {
       stubs.push({ suffix, method: "PUT", status, body: { error } });
+    },
+    del(suffix, body) {
+      stubs.push({ suffix, method: "DELETE", status: 200, body });
+    },
+    delFails(suffix, status, error) {
+      stubs.push({ suffix, method: "DELETE", status, body: { error } });
     },
     session(username) {
       api.get("/session", sessionProjection(username));

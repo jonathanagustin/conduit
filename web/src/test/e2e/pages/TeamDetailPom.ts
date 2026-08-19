@@ -14,4 +14,12 @@ export class TeamDetailPom {
   get members(): Locator {
     return this.page.getByTestId("team-members");
   }
+
+  get contacts(): Locator {
+    return this.page.getByTestId("team-contacts");
+  }
+
+  openContacts(): Promise<void> {
+    return this.page.getByRole("tab", { name: "Contacts" }).click();
+  }
 }
