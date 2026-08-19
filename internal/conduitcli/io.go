@@ -54,25 +54,15 @@ func decodeDocument(path string, output any) error {
 	return nil
 }
 
-// writeOutput renders in the two formats Conduit has.
+// writeOutput renders in the formats Conduit has: json, yaml, and csv.
 //
-// It used to accept a third name, `pretty`, in the same branch as `yaml`, and
-// --help advertised "json, yaml, or pretty". The two names produced
-// byte-identical bytes, so an operator who chose `pretty` for a human-oriented
-// rendering got the machine format and nothing said the choice had been
-// ignored. Naming two formats and meaning them beats advertising a third that
-// does not exist; `pretty` is now refused by the same branch that refuses any
-// other unknown format, which says so.
-// CSVMarshaler is implemented by a command result that can render itself as a
-// table. writeOutput only offers "csv" for values that implement it: a generic
-// map has no column order, so serializing one as CSV would invent a shape
-// rather than report it. A command that has no honest tabular form does not opt
-// in, and asking for csv there is refused by the same branch that refuses any
-// other format the command cannot produce.
-type CSVMarshaler interface {
-	MarshalCSV() ([][]string, error)
-}
-
+// It used to accept a name, `pretty`, in the same branch as `yaml`, and --help
+// advertised "json, yaml, or pretty". The two names produced byte-identical
+// bytes, so an operator who chose `pretty` for a human-oriented rendering got
+// the machine format and nothing said the choice had been ignored. Naming the
+// formats and meaning them beats advertising one that does not exist; `pretty`
+// is now refused by the same branch that refuses any other unknown format,
+// which says so.
 func writeOutput(writer io.Writer, format string, value any) error {
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
@@ -109,4 +99,14 @@ func writeOutput(writer io.Writer, format string, value any) error {
 	default:
 		return fmt.Errorf("unsupported output format %q; use json, yaml, or csv", format)
 	}
+}
+
+// CSVMarshaler is implemented by a command result that can render itself as a
+// table. writeOutput only offers "csv" for values that implement it: a generic
+// map has no column order, so serializing one as CSV would invent a shape
+// rather than report it. A command with no honest tabular form does not opt in,
+// and asking for csv there is refused by the same branch that refuses any other
+// format the command cannot produce.
+type CSVMarshaler interface {
+	MarshalCSV() ([][]string, error)
 }
