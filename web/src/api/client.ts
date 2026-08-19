@@ -99,3 +99,21 @@ export async function postJSON<T>(
   }
   return (await response.json()) as T;
 }
+
+/** DELETE, for the routes that identify their subject entirely in the query
+ * string. The contact address book is the first: deleteContact (httpapi.go)
+ * reads ownerKind/ownerId/kind from the query and takes no body, so this sends
+ * none and still parses the JSON envelope the route answers with. */
+export async function deleteJSON<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const requested = url(path, options.query);
+  const response = await fetch(requested, {
+    method: "DELETE",
+    credentials: "same-origin",
+    headers: { Accept: "application/json" },
+    ...(options.signal ? { signal: options.signal } : {}),
+  });
+  if (!response.ok) {
+    throw await failure(response, requested);
+  }
+  return (await response.json()) as T;
+}

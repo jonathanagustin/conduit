@@ -105,4 +105,83 @@ test.describe("Teams", () => {
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(new TeamIndexPom(page).row("Payments")).toBeVisible();
   });
+
+  test("lists a team's contact methods and marks the undeliverable kind", async ({ page, hub }) => {
+    hub.get("/teams/payments", PAYMENTS_TEAM);
+    hub.get("/notifications/contacts", {
+      owner: { kind: "TEAM", id: "payments" },
+      contacts: [
+        { id: "c-1", owner: { kind: "TEAM", id: "payments" }, kind: "EMAIL", address: "payments-oncall@example.test", optIntoFutureResources: true, createdAt: "2026-08-01T09:00:00Z" },
+        { id: "c-2", owner: { kind: "TEAM", id: "payments" }, kind: "PAGERDUTY", address: "PDABC123", createdAt: "2026-08-01T09:00:00Z" },
+      ],
+    });
+    await page.goto("teams/payments");
+    const team = new TeamDetailPom(page);
+    await team.openContacts();
+
+    await expect(team.contacts).toContainText("payments-oncall@example.test");
+    // PAGERDUTY is created but not delivered to, mirroring the Hub.
+    await expect(page.getByTestId("team-contact-PAGERDUTY")).toContainText("not delivered");
+    await expect(page.getByTestId("team-contact-EMAIL")).toContainText("Auto-subscribed");
+  });
+
+  test("explains that only members may see a team's contacts", async ({ page, hub }) => {
+    hub.get("/teams/payments", PAYMENTS_TEAM);
+    // The address book refuses an owner the caller does not belong to; that is a
+    // membership fact, not a broken console, so the panel says so.
+    hub.fails("/notifications/contacts", 403, "notifications for TEAM payments belong to that owner");
+    await page.goto("teams/payments");
+    const team = new TeamDetailPom(page);
+    await team.openContacts();
+
+    await expect(page.getByTestId("team-contacts-error")).toContainText("Only members of this team");
+  });
+
+  test("adds a contact method and re-reads the stored list", async ({ page, hub }) => {
+    hub.get("/teams/payments", PAYMENTS_TEAM);
+    hub.get("/notifications/contacts", { owner: { kind: "TEAM", id: "payments" }, contacts: [] });
+    await page.goto("teams/payments");
+    const team = new TeamDetailPom(page);
+    await team.openContacts();
+    await expect(team.contacts).toContainText("This team has no contact methods.");
+
+    hub.put("/notifications/contacts", {
+      id: "c-9", owner: { kind: "TEAM", id: "payments" }, kind: "SLACK", address: "#payments-alerts", createdAt: "2026-08-09T12:00:00Z",
+    });
+    // The re-read after the write returns the stored contact (last stub wins).
+    hub.get("/notifications/contacts", {
+      owner: { kind: "TEAM", id: "payments" },
+      contacts: [{ id: "c-9", owner: { kind: "TEAM", id: "payments" }, kind: "SLACK", address: "#payments-alerts", createdAt: "2026-08-09T12:00:00Z" }],
+    });
+
+    await page.getByLabel("Contact kind").selectOption("SLACK");
+    await page.getByLabel("Contact address").fill("#payments-alerts");
+    await page.getByRole("button", { name: "Save contact" }).click();
+
+    await expect(page.getByTestId("team-contact-SLACK")).toContainText("#payments-alerts");
+    // The console sent the team owner and the chosen kind, not a bare address.
+    const sent = hub.bodies().at(-1) as { owner: { kind: string; id: string }; kind: string; address: string };
+    expect(sent.owner).toEqual({ kind: "TEAM", id: "payments" });
+    expect(sent.kind).toBe("SLACK");
+  });
+
+  test("removes a contact method", async ({ page, hub }) => {
+    hub.get("/teams/payments", PAYMENTS_TEAM);
+    hub.get("/notifications/contacts", {
+      owner: { kind: "TEAM", id: "payments" },
+      contacts: [{ id: "c-1", owner: { kind: "TEAM", id: "payments" }, kind: "EMAIL", address: "payments-oncall@example.test", createdAt: "2026-08-01T09:00:00Z" }],
+    });
+    await page.goto("teams/payments");
+    const team = new TeamDetailPom(page);
+    await team.openContacts();
+    await expect(page.getByTestId("team-contact-EMAIL")).toBeVisible();
+
+    hub.del("/notifications/contacts", { owner: { kind: "TEAM", id: "payments" }, kind: "EMAIL", deleted: true });
+    hub.get("/notifications/contacts", { owner: { kind: "TEAM", id: "payments" }, contacts: [] });
+    await page.getByRole("button", { name: "Remove EMAIL contact" }).click();
+
+    await expect(team.contacts).toContainText("This team has no contact methods.");
+    // The delete named the kind in the query string, the way the route reads it.
+    expect(hub.requests().some((request) => request.startsWith("DELETE /v1/notifications/contacts") && request.includes("kind=EMAIL"))).toBe(true);
+  });
 });
