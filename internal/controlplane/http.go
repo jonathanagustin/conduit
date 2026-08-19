@@ -1213,8 +1213,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
+		plans, err := repository.ListPlans(request.Context(), request.PathValue("environmentID"))
+		if err != nil {
+			writeLifecycleError(w, err)
+			return
+		}
+		channel := moduleInstallChannel(body.ReleaseChannel, plans, request.PathValue("environmentID"))
 		installation, err := modules.InstallTrackingChannel(
-			request.Context(), request.PathValue("environmentID"), body.Module, body.Version, body.ReleaseChannel, body.Variables,
+			request.Context(), request.PathValue("environmentID"), body.Module, body.Version, channel, body.Variables,
 		)
 		if err != nil {
 			writeLifecycleError(w, err)
