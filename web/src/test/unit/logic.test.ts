@@ -9,6 +9,12 @@ import {
   carriesRationale,
 } from "../../features/changes/review.js";
 import { countOf, relative } from "../../components/Timestamp.js";
+import {
+  installationSource,
+  installationSourceLabel,
+  parseInstallationRID,
+} from "../../api/fleet.js";
+import { hasInstant } from "../../api/types.js";
 import { parseInline, parseMarkdown } from "../../components/Markdown.js";
 import { latestForChannel, orderChannels } from "../../components/ReleaseChannelGraph.js";
 import {
@@ -995,5 +1001,78 @@ describe("Vulnerability inventory", () => {
     expect(filterInventoryByTier(rows, "MEDIUM").map((r) => r.finding.id)).toEqual(["CVE-2", "CVE-3"]);
     // No tier selected returns everything.
     expect(filterInventoryByTier(rows, undefined)).toHaveLength(3);
+  });
+});
+
+describe("installation source", () => {
+  const row = (overrides: Record<string, unknown> = {}) =>
+    ({
+      environment: "prod-use1",
+      installationId: "payments",
+      product: "app.example:payments",
+      namespace: "payments",
+      health: "UNKNOWN",
+      rolloutStatus: "OUT_OF_DATE",
+      configStatus: "INDETERMINATE",
+      lifecycle: "UNKNOWN",
+      stale: true,
+      ...overrides,
+    }) as Parameters<typeof installationSource>[0];
+
+  // The wire shape is not hypothetical: marshalling a desired-only row through
+  // BuildFleet produces exactly this, Go's zero time included, because
+  // encoding/json's omitempty does not omit a struct.
+  it("reads Go's zero observedAt as never reported, not as a report in year 1", () => {
+    expect(
+      installationSource(row({ desiredVersion: "2.4.1", observedAt: "0001-01-01T00:00:00Z" })),
+    ).toBe("DECLARED_ONLY");
+    expect(hasInstant("0001-01-01T00:00:00Z")).toBe(false);
+    expect(hasInstant(undefined)).toBe(false);
+    expect(hasInstant("")).toBe(false);
+    expect(hasInstant("2026-08-07T12:00:00Z")).toBe(true);
+  });
+
+  it("separates the two sides of the fleet merge", () => {
+    expect(
+      installationSource(
+        row({ desiredVersion: "2.4.1", observedVersion: "2.4.1", observedAt: "2026-08-07T12:00:00Z" }),
+      ),
+    ).toBe("DECLARED_AND_REPORTED");
+    expect(installationSource(row({ desiredVersion: "2.4.1" }))).toBe("DECLARED_ONLY");
+    // Something is running that nothing declared.
+    expect(
+      installationSource(row({ observedVersion: "2.4.1", observedAt: "2026-08-07T12:00:00Z" })),
+    ).toBe("REPORTED_ONLY");
+  });
+
+  it("calls an undeclared installation unmanaged, and says so in the title", () => {
+    expect(installationSourceLabel("REPORTED_ONLY").label).toBe("unmanaged");
+    expect(installationSourceLabel("REPORTED_ONLY").intent).toBe("warning");
+    // The placeholder warning is the whole point of the declared-only tag.
+    expect(installationSourceLabel("DECLARED_ONLY").title).toContain("placeholders");
+  });
+});
+
+describe("installation RID", () => {
+  it("splits a RID the Hub's search cannot match into filters it can", () => {
+    expect(parseInstallationRID("installation/prod-use1/payments")).toEqual({
+      environment: "prod-use1",
+      installationId: "payments",
+    });
+    expect(parseInstallationRID("  installation/prod-use1/payments  ")).toEqual({
+      environment: "prod-use1",
+      installationId: "payments",
+    });
+  });
+
+  it("leaves anything that is not an installation RID alone", () => {
+    // A plain search term, another RID kind, and a malformed one. Silently
+    // truncating any of these would search for something nobody typed.
+    expect(parseInstallationRID("payments")).toBeUndefined();
+    expect(parseInstallationRID("environment/prod-use1")).toBeUndefined();
+    expect(parseInstallationRID("installation/prod-use1")).toBeUndefined();
+    expect(parseInstallationRID("installation/prod-use1/payments/extra")).toBeUndefined();
+    expect(parseInstallationRID("installation//payments")).toBeUndefined();
+    expect(parseInstallationRID("installation/prod-use1/")).toBeUndefined();
   });
 });

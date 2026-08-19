@@ -1,5 +1,6 @@
 import { installation } from "../fixtures.js";
 import { expect, test } from "./harness.js";
+import type { FleetInstallation } from "../../api/types.js";
 import { FleetPom } from "./pages/FleetPom.js";
 
 /** Fleet overview -- P0 use case 1 of docs/ui/contracts/overview.md.
@@ -196,4 +197,78 @@ test.describe("fleet overview", () => {
     await expect(page.getByText("the catalog is unavailable")).toBeVisible();
     await expect(page.getByRole("button", { name: "Try again" })).toBeVisible();
   });
+
+  test("says which side of the merge each row came from", async ({ page, hub }) => {
+    hub.fleet([
+      installation(),
+      // Declared, never reported. BuildFleet gives it placeholder statuses that
+      // read exactly like an installation that reported bad news -- and Go's
+      // zero time on the wire, which is the trap this tag has to survive.
+      without(installation({
+        installationId: "ledger",
+        observedAt: "0001-01-01T00:00:00Z",
+        health: "UNKNOWN",
+        rolloutStatus: "OUT_OF_DATE",
+        configStatus: "INDETERMINATE",
+        lifecycle: "UNKNOWN",
+        stale: true,
+      }), "observedVersion"),
+      // Reported by an Agent, declared by nothing.
+      without(installation({
+        installationId: "stowaway",
+        observedVersion: "0.9.0",
+        observedAt: "2026-08-07T11:59:00Z",
+      }), "desiredVersion"),
+    ]);
+    await page.goto("fleet");
+
+    await expect(page.getByTestId("fleet-source-payments")).toHaveText("reported");
+    await expect(page.getByTestId("fleet-source-ledger")).toHaveText("declared");
+    await expect(page.getByTestId("fleet-source-stowaway")).toHaveText("unmanaged");
+    // The zero time must not render as a report from year 1 anywhere on the row.
+    await expect(page.getByRole("row", { name: /ledger/ })).not.toContainText("years ago");
+  });
+
+  test("finds an installation pasted as a RID", async ({ page, hub }) => {
+    hub.fleet([installation(), installation({ installationId: "ledger" })]);
+    hub.fleet([installation()], { query: "environment=prod-use1&search=payments", total: 1 });
+    await page.goto("fleet");
+
+    const search = page.getByRole("search").getByLabel(/search/i);
+    await search.fill("installation/prod-use1/payments");
+    await search.press("Enter");
+
+    // The RID becomes the two filters the Hub understands, and both land in the
+    // URL so the view is shareable and survives reload.
+    await expect(page).toHaveURL(/environment=prod-use1/);
+    await expect(page).toHaveURL(/search=payments/);
+  });
+
+  test("leaves a term that is not a RID as the operator typed it", async ({ page, hub }) => {
+    hub.fleet([installation()]);
+    hub.fleet([installation()], { query: "search=environment%2Fprod-use1", total: 1 });
+    await page.goto("fleet");
+
+    const search = page.getByRole("search").getByLabel(/search/i);
+    await search.fill("environment/prod-use1");
+    await search.press("Enter");
+
+    // An Environment RID is not an installation RID; splitting it would search
+    // for something nobody typed.
+    await expect(page).not.toHaveURL(/environment=prod-use1/);
+  });
 });
+
+/** Drop an optional field entirely rather than setting it to undefined: the
+ * fixture's overrides are exact-optional, and the distinction under test is
+ * exactly "the key is absent" versus "the key carries Go's zero value". */
+function without(
+  row: FleetInstallation,
+  ...keys: Array<"desiredVersion" | "observedVersion" | "observedAt">
+): FleetInstallation {
+  const copy = { ...row };
+  for (const key of keys) {
+    delete copy[key];
+  }
+  return copy;
+}

@@ -1,3 +1,5 @@
+import { hasInstant } from "../api/types.js";
+
 /** One rendering of a moment in time, used everywhere.
  *
  * The plan's accessibility contract requires both forms: "Dates show relative
@@ -7,7 +9,11 @@
  * stripping the Z as an earlier version of the Plans table did, lets two pages
  * disagree about the order of events. */
 export function Timestamp({ value }: { value: string | undefined }) {
-  if (value === undefined || value === "") {
+  // hasInstant rather than a presence check: the Hub sends Go's zero time as
+  // "0001-01-01T00:00:00Z" on any `time.Time` marked omitempty, because
+  // encoding/json does not omit structs. Rendering that produced "2025 years
+  // ago" about a report that never happened -- see api/types.ts.
+  if (!hasInstant(value)) {
     return <>—</>;
   }
   const at = new Date(value);
