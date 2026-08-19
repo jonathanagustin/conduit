@@ -2,6 +2,7 @@ import { Button, H2, HTMLTable, InputGroup, Section, SectionCard, Tag } from "@b
 import { Link } from "react-router-dom";
 
 import { useEnvironments } from "../../api/resources.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
 import { IndexPagination } from "../../components/IndexPagination.js";
@@ -43,11 +44,14 @@ export function EnvironmentsPage() {
                   <Button type="submit" text="Search" />
                 </form>
                 {page.environments.length === 0 ? (
-                  <p className="console-empty">
-                    {index.query.search === undefined
-                      ? "No Environments are known to this Hub."
-                      : `No Environment matches "${index.query.search}".`}
-                  </p>
+                  <EmptyState
+                    icon="cloud"
+                    title={
+                      index.query.search === undefined
+                        ? "No Environments are known to this Hub."
+                        : `No Environment matches "${index.query.search}".`
+                    }
+                  />
                 ) : (
                   <>
             <HTMLTable className="console-environments__table console-index-table" interactive striped>

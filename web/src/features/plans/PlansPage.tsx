@@ -2,6 +2,7 @@ import { Button, H2, HTMLTable, InputGroup, Section, SectionCard } from "@bluepr
 import { Link } from "react-router-dom";
 
 import { usePlans } from "../../api/resources.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
 import { IndexPagination } from "../../components/IndexPagination.js";
@@ -38,11 +39,14 @@ export function PlansPage() {
                   <Button type="submit" text="Search" />
                 </form>
                 {page.plans.length === 0 ? (
-                  <p className="console-empty">
-                    {index.query.search === undefined
-                      ? "No Plans have been created."
-                      : `No Plan matches "${index.query.search}".`}
-                  </p>
+                  <EmptyState
+                    icon="gantt-chart"
+                    title={
+                      index.query.search === undefined
+                        ? "No Plans have been created."
+                        : `No Plan matches "${index.query.search}".`
+                    }
+                  />
                 ) : (
                   <>
             <HTMLTable className="console-plans__table console-index-table" interactive striped>
