@@ -570,6 +570,33 @@ jobs:
           # that "no drift reported" has stopped meaning anything.
           node scripts/verify-documentation-freshness.mjs
           ./scripts/verify-documentation-freshness.test.sh
+          # These fourteen ran in scripts/verify-local.sh and in NO workflow
+          # (#128). The comment at the top of this file and the one at the top
+          # of verify-local.sh both say the two "cannot drift"; what actually
+          # could not drift was tool versions and step NAMES, and every one of
+          # these lived inside a step whose name already matched. So the
+          # reconciliation saw no gap while fourteen gates were local-only --
+          # including verify-no-tenant-origins.mjs, which is a leak gate, and
+          # the two GraphQL verifiers that hold the observed-schema and
+          # served-interface claims in docs/apollo/conformance.md.
+          #
+          # verify-local.sh now also reconciles in this direction: every
+          # scripts/* file its gate bodies invoke must appear in this workflow,
+          # so adding a local gate without adding it here fails locally.
+          node scripts/verify-apollo-rosetta-inventory.mjs
+          node scripts/verify-rosetta-release-notes.mjs
+          node scripts/verify-apollo-control-panel-seam.mjs
+          node scripts/verify-apollo-identifier-grammar.mjs
+          node scripts/verify-conduit-inventions.mjs
+          node scripts/verify-notification-types.mjs
+          node scripts/verify-minted-values.mjs
+          node scripts/verify-documentation-claims.mjs
+          node scripts/verify-no-tenant-origins.mjs
+          node scripts/verify-secondary-apollo-evidence.mjs
+          node scripts/apollo-graphql/verify-observed-schema.mjs
+          ./scripts/verify-apollo-graphql.test.sh
+          node scripts/apollo-graphql/verify-apollo-interface.mjs
+          ./scripts/verify-apollo-interface.test.sh
       # Every other verify-* script is gated above; this one was not, so the
       # append-only property on the metrics ledger and the PDR/hypothesis
       # gatekeeping were unenforced. It passes today.

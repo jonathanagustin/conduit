@@ -292,6 +292,51 @@ if ((${#skipped[@]})); then
   echo 'add them above, or list them in not_run_as_written with a reason.' >&2
   exit 1
 fi
+# --- drift the other way ------------------------------------------------
+# The reconciliation above walks ci.yml -> this script and asks whether each CI
+# step is covered here. Nothing walked the other way, and the gap that opened in
+# it was not small: fourteen Apollo gates ran here and in no workflow at all
+# (#128), because every one of them lived inside a step whose *name* already
+# matched -- and a name is all the check above compares. The leak gate
+# verify-no-tenant-origins.mjs was among them.
+#
+# So: every scripts/* file this script's gates invoke must appear somewhere in
+# the workflow. Matching on the basename rather than the full path, because CI
+# writes some of these with `./` and some without, and the question is whether
+# the file is reached at all, not how it was spelled.
+#
+# Comment lines are stripped from the workflow before matching, and that is not
+# a detail. A gate deleted from CI usually leaves its name behind in the comment
+# that explained the step, so an unstripped match would report a gate as covered
+# by the very comment mourning it. A check a comment can satisfy is not a check.
+locally_only=(
+  # Not a gate. It repairs cache symlinks whose targets Codespaces drops on
+  # restart, before any gate runs; CI gets a fresh runner with nothing to repair.
+  'repair-volatile-cache-links.sh'
+)
+mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb)' "${BASH_SOURCE[0]}" |
+  sed 's|^\./||' | sort -u)
+if ((${#invoked[@]} == 0)); then
+  echo "found no scripts/* invocations in $(basename "${BASH_SOURCE[0]}"); the reverse check has stopped working" >&2
+  exit 1
+fi
+workflow_code="$(grep -vE '^[[:space:]]*#' "${workflow}")"
+uncovered=()
+for script in "${invoked[@]}"; do
+  name="${script##*/}"
+  excused=false
+  for known in "${locally_only[@]}"; do
+    [[ "${name}" == "${known}" ]] && excused=true
+  done
+  "${excused}" && continue
+  grep -qF -- "${name}" <<<"${workflow_code}" || uncovered+=("${script}")
+done
+if ((${#uncovered[@]})); then
+  printf 'this script runs gates ci.yml does not: %s\n' "$(printf '%s; ' "${uncovered[@]}")" >&2
+  echo 'add them to a workflow step, or list them in locally_only with a reason.' >&2
+  exit 1
+fi
+
 if ((${#failures[@]})); then
   printf 'failed: %s\n' "$(printf '%s; ' "${failures[@]}")" >&2
   exit 1
