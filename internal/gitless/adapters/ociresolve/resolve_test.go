@@ -435,7 +435,15 @@ func redirectedRealm(t *testing.T, target string) (*ociresolve.Resolver, *listen
 // The three rows of #244, measured. Before the policy, row one was refused the
 // credential by net/http, and rows two and three received it -- the subdomain
 // over https and the registry's own host in the clear.
-func TestAPermittedRealmCannotRedirectTheCredentialElsewhere(t *testing.T) {
+//
+// The assertion is that the target is reached CARRYING NOTHING, not that it is
+// never reached. Refusing outright was the first shape of this fix and it was
+// wrong: the policy sits on the client, so it also governed credentialed blob
+// fetches, which Docker Hub and ghcr.io answer with a cross-host redirect to a
+// CDN. Arriving empty-handed is the property that matters and the one that
+// costs nothing -- and it is the stronger assertion, because a target that is
+// never contacted cannot tell you what a contacted one would have received.
+func TestAPermittedRealmCannotCarryTheCredentialElsewhere(t *testing.T) {
 	for name, target := range map[string]string{
 		"to another host entirely":       "https://attacker.example/steal",
 		"to a subdomain of the registry": "https://evil.registry.example/steal",
@@ -445,21 +453,23 @@ func TestAPermittedRealmCannotRedirectTheCredentialElsewhere(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			resolver, arrivals, credentials := redirectedRealm(t, target)
-			_, err := resolver.Resolve(t.Context(), channel("latest-stable"))
-			if err == nil {
+			// The resolve still fails: /steal is not a token endpoint and
+			// answers nothing usable. What is being measured is what arrived
+			// there, not that something went wrong.
+			if _, err := resolver.Resolve(t.Context(), channel("latest-stable")); err == nil {
 				t.Fatal("a redirect away from the permitted realm produced a pin")
 			}
-			// Not "arrived without the credential": the redirect is not
-			// followed at all, so there is nothing to strip and nothing that
-			// depends on net/http choosing to strip it.
-			if got := arrivals.received(); len(got) != 0 {
-				t.Fatalf("the redirect target was contacted, carrying %q", got)
+			got := arrivals.received()
+			if len(got) == 0 {
+				t.Fatal("the redirect target was never contacted, so this proves nothing about what it would have received")
+			}
+			for _, carried := range got {
+				if carried != "" {
+					t.Fatalf("the redirect target was contacted, carrying %q", carried)
+				}
 			}
 			if credentials.timesAsked() == 0 {
 				t.Error("the realm was permitted, so the credential should have been read for it")
-			}
-			if strings.Contains(err.Error(), stolenPassword) || strings.Contains(err.Error(), stolenUsername) {
-				t.Errorf("the refusal names the credential: %v", err)
 			}
 		})
 	}

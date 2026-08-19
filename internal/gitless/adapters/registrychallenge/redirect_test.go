@@ -28,10 +28,17 @@ func request(t *testing.T, url string, credentialed bool) *http.Request {
 // repository: net/http drops Authorization across domains, keeps it across
 // SUBDOMAINS, and never looks at the scheme. If that changes, this row fails
 // here rather than silently in production.
-func TestACredentialedRedirectMayOnlyStayOnItsOwnHostOverHttps(t *testing.T) {
+//
+// `carry` is the assertion, and it is deliberately about the HEADER rather than
+// about the error. Every row is followed -- the policy strips instead of
+// refusing, because refusing broke credentialed blob reads against every
+// CDN-backed registry -- so "was it refused" no longer distinguishes anything.
+// What distinguishes the rows is whether the credential is still on the request
+// when it goes out, which is the property the package actually promises.
+func TestACredentialedRedirectCarriesItsCredentialOnlyToItsOwnHostOverHttps(t *testing.T) {
 	for name, hop := range map[string]struct {
 		from, to string
-		permit   bool
+		carry    bool
 	}{
 		"another host entirely":         {"https://registry.example/token", "https://attacker.example/steal", false},
 		"a subdomain of the registry":   {"https://registry.example/token", "https://evil.registry.example/steal", false},
@@ -50,15 +57,31 @@ func TestACredentialedRedirectMayOnlyStayOnItsOwnHostOverHttps(t *testing.T) {
 	} {
 		t.Run(name, func(t *testing.T) {
 			original := request(t, hop.from, true)
-			err := registrychallenge.CheckRedirect(request(t, hop.to, true), []*http.Request{original})
-			if hop.permit && err != nil {
-				t.Fatalf("a redirect to %s was refused: %v", hop.to, err)
+			redirected := request(t, hop.to, true)
+			if err := registrychallenge.CheckRedirect(redirected, []*http.Request{original}); err != nil {
+				t.Fatalf("a redirect to %s was refused rather than stripped: %v", hop.to, err)
 			}
-			if !hop.permit && err == nil {
-				t.Fatalf("a credential was allowed to follow a redirect to %s", hop.to)
+			carried := redirected.Header.Get("Authorization")
+			if hop.carry && carried == "" {
+				t.Fatalf("the credential was stripped from a redirect to %s, which stays at its own origin", hop.to)
 			}
-			if err != nil && strings.Contains(err.Error(), "SUPER-SECRET-TOKEN") {
-				t.Errorf("the refusal names the credential: %v", err)
+			if !hop.carry && carried != "" {
+				t.Fatalf("a credential was carried to %s: %q", hop.to, carried)
+			}
+			// Blanked is not deleted. An empty Authorization header still tells
+			// the next host that a credential was being carried, and some
+			// servers treat a present-but-empty header differently from an
+			// absent one.
+			if !hop.carry {
+				if _, present := redirected.Header["Authorization"]; present {
+					t.Errorf("the Authorization header was blanked rather than deleted for %s", hop.to)
+				}
+			}
+			// The original is the caller's request and outlives this call. A
+			// policy that stripped it instead of the copy would disarm the
+			// retry the adapter is about to make against its own host.
+			if original.Header.Get("Authorization") == "" {
+				t.Errorf("the caller's own request was stripped on the way to %s", hop.to)
 			}
 		})
 	}
