@@ -909,6 +909,98 @@ func TestAQueryTouchingNoMintedValueDisclosesNone(t *testing.T) {
 	}
 }
 
+// TestPageSizeIsNotHonouredAndTheDeclarationSaysSo pins a DECLARED divergence
+// rather than a fixed defect, and it is written that way on purpose.
+//
+// `pageSize` is a required argument on every collection field and no resolver
+// reads it (issue #112, finding 5). The undisclosed part was the defect; the
+// behaviour itself cannot be corrected without minting a page-token grammar no
+// capture establishes, which would put a Conduit-invented string behind an
+// OBSERVED coordinate -- the exact shape issues #57 and #112 report. Truncating
+// without a token would be worse: the client would read a short page as the end
+// of the collection.
+//
+// So the divergence stands, is declared in docs/operations/TENANT-FIDELITY.md,
+// and is pinned here so that "we know and we said so" cannot quietly become
+// "we know and we stopped saying so". If someone does implement paging, this
+// test fails and the declaration has to be revisited in the same change.
+func TestPageSizeIsNotHonouredAndTheDeclarationSaysSo(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	apolloSource.environments = append(apolloSource.environments,
+		apollo.Environment{Name: "staging", Rid: "ri.apollo.main.environment.b"},
+		apollo.Environment{Name: "dev", Rid: "ri.apollo.main.environment.c"})
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { environments(pageSize: 1) { nextPageToken environments { id } } } }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", response.Errors)
+	}
+	page := response.Data["apollo"].(map[string]any)["environments"].(map[string]any)
+	if got := len(page["environments"].([]any)); got != 3 {
+		t.Fatalf("environments(pageSize: 1) returned %d of 3; pageSize is now honoured, so the "+
+			"declared divergence in docs/operations/TENANT-FIDELITY.md is stale and the page token "+
+			"grammar it warns about needs an answer", got)
+	}
+	// Null is consistent with the above and is a value, not a refusal: a page
+	// that is the whole collection has no next one.
+	if token, present := page["nextPageToken"]; !present || token != nil {
+		t.Fatalf("nextPageToken = %#v (present=%v); a token here would be a Conduit-invented cursor "+
+			"behind a recovered coordinate", token, present)
+	}
+}
+
+// The minted value that is not an identifier, and the one issues #57 and #112
+// named: a dependency's optionality.
+//
+// Neither pinned publish request model carries an optionality input, so a
+// dependency published on the public Apollo routes arrives with nobody having
+// stated whether it is optional, and this coordinate answered "false" for it
+// under a bare OBSERVED annotation -- telling the client an Apollo Hub had said
+// so. The value does not change; what changes is that the response now says
+// whose it is.
+func TestAnUndeclaredDependencyOptionalityIsDisclosedAsConduitsOwn(t *testing.T) {
+	resolver, apolloSource, _ := newFixture(t)
+	// Optional is nil, which is what the public publish path can express: the
+	// request model has no field for it.
+	dependencies := []apollo.ProductDependency{{ProductId: ptr(apollo.ProductId("billing"))}}
+	apolloSource.releases["checkout"] = []apollo.Release{{
+		MavenCoordinate: "com.example:checkout:1.4.2", ProductDependencies: &dependencies,
+	}}
+	response := resolver.Execute(t.Context(), Request{
+		Query: `{ apollo { products(pageSize: 10) { products { productReleases(pageSize: 10) {
+			productReleases { manifest { productDependencies { optional } } }
+		} } } } }`,
+	})
+	if len(response.Errors) != 0 {
+		t.Fatalf("unexpected errors: %v", response.Errors)
+	}
+	products := response.Data["apollo"].(map[string]any)["products"].(map[string]any)["products"].([]any)
+	releases := products[0].(map[string]any)["productReleases"].(map[string]any)["productReleases"].([]any)
+	served := releases[0].(map[string]any)["manifest"].(map[string]any)["productDependencies"].([]any)
+	if len(served) != 1 || served[0].(map[string]any)["optional"] != "false" {
+		t.Fatalf("optional resolved to %#v; the value itself is unchanged", served)
+	}
+
+	provenance := response.Extensions["provenance"].(map[string]any)
+	minted := provenance["conduitMintedValues"].([]string)
+	found := false
+	for _, coordinate := range minted {
+		if coordinate == "ApolloProductDependency.optional" {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("a query that read a dependency's optionality disclosed no minted value: %v; "+
+			"the client is being told an Apollo Hub answered with Conduit's default", minted)
+	}
+	// Still OBSERVED. Apollo declares the coordinate; only the value is ours,
+	// and demoting the coordinate would understate the recovery to correct an
+	// overstatement about the value.
+	if native := provenance["conduitNativeServed"].([]string); len(native) != 0 {
+		t.Fatalf("a recovered coordinate was disclosed as Conduit's invention: %v", native)
+	}
+}
+
 // --- Conduit-namespaced resource identifiers --------------------------------
 
 // The grammar is Apollo's and the namespace is not, which is the whole design.

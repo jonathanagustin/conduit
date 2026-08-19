@@ -389,6 +389,71 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	}
 }
 
+// reportingWithVersion answers a Report whose entity is running a DIFFERENT
+// version from the one the desired state declares -- an Environment mid-upgrade,
+// or one whose upgrade failed.
+type reportingWithVersion struct {
+	reportingFixture
+	report environments.Report
+}
+
+func (fixture reportingWithVersion) GetReport(context.Context, string) (environments.Report, error) {
+	return fixture.report, nil
+}
+
+// TestInstallationVersionIsTheDesiredVersionNotAnAgentReport pins a DECLARED
+// divergence, not a fixed defect.
+//
+// The pinned snapshot describes Installation.version as "The reported version
+// from the Apollo Agent responsible for managing this Installation." Conduit
+// populates it from the reviewed DESIRED state, which is real Conduit data under
+// a contract sentence describing different data (issue #57; issue #112 finding
+// 4). A client watching an upgrade reads desired as observed.
+//
+// Reported versions do exist -- a Spoke agent finishing a Plan submits them and
+// they land in the Environments Report -- but they never flow back into this
+// projection, and joining them would need an installation identity the
+// CompatibilityProjection does not carry: it holds an Entity NAME while a
+// ReportedEntity is keyed on an installation ID. Guessing that join is the
+// mistake TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers already
+// exists to prevent, so this is declared in docs/apollo/public-api.md and
+// docs/operations/TENANT-FIDELITY.md rather than approximated.
+//
+// The test asserts the divergence rather than the fix, so that wiring reported
+// state in fails here and forces the declaration to be revisited in the same
+// change.
+func TestInstallationVersionIsTheDesiredVersionNotAnAgentReport(t *testing.T) {
+	reporting := reportingWithVersion{report: environments.Report{
+		Environment: "prod",
+		Entities: []environments.ReportedEntity{{
+			InstallationID: "checkout-api", Product: "com.example:checkout", Version: "1.0.0",
+		}},
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reporting, &lifecycleFixture{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	service.SyncEnvironment(environments.CompatibilityProjection{
+		ID: "prod",
+		Entities: []environments.ProjectedEntity{{
+			Name: "checkout-api", Product: "com.example:checkout", Version: "2.0.0", ReleaseChannel: "RELEASE",
+		}},
+	})
+	installations := service.ListInstallations(EnvironmentRID("prod"))
+	if installations.Installations == nil || len(*installations.Installations) != 1 {
+		t.Fatalf("installations = %#v", installations)
+	}
+	installation := (*installations.Installations)[0]
+	if installation.Version == nil {
+		t.Fatal("version is absent; the divergence says it is served, just not from an Agent report")
+	}
+	if *installation.Version != "2.0.0" {
+		t.Fatalf("version = %q; if this is now %q the reported version reaches the projection, "+
+			"the declared divergence is stale, and docs/apollo/public-api.md must be corrected "+
+			"in the same change", *installation.Version, "1.0.0")
+	}
+}
+
 func containsChannel(channels []string, wanted string) bool {
 	for _, channel := range channels {
 		if channel == wanted {

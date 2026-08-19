@@ -20,6 +20,12 @@
       "grammarPublishedAs": "apollo-openapi aeid:apollo-environment-demo:helm-chart:wordpress, in the ListInstallations and GetInstallation response examples",
       "conduitSupplies": "the value only. The shape is Apollo's published one -- same segment count, same helm-chart product type, and an environment in the second segment -- but the string is composed from Conduit's own environment and entity names rather than answered by a Hub."
     },
+    "ApolloProductDependency.optional": {
+      "mintedBy": "internal/apollographql/application/resolver.go resolveDependency, over catalog.Dependency.Optional",
+      "grammarPublishedAs": "apollo-openapi ProductDependency.optional, typed boolean and NOT in the schema's required set; the recovered GraphQL coordinate is a String, so no scalar type is established for the GraphQL side either",
+      "conduitSupplies": "both the default and the rendering. Neither pinned publish request -- PublishHelmChartRequest nor PublishServiceRequest -- carries an optionality input, so a publicly published dependency has no publisher declaration and Conduit answers Conduit's own default, false. catalog.Dependency.Optional is a plain bool, so a declared false and an undeclared one are the same stored value and cannot be told apart on read. The strings \"true\" and \"false\" are Conduit's rendering of that bool into the String the recovered coordinate declares.",
+      "invention": "apollographql.DependencyOptionalDefault"
+    },
     "ApolloProduct.rid": {
       "mintedBy": "internal/apollographql/application/identifiers.go productRID",
       "grammarPublishedAs": "apollo-openapi ri.autopilot.main.team.123, which shows the service segment naming the service that owns the resource. Apollo publishes no type token for a Product, so the namespace is Conduit's own rather than a guess inside ri.apollo.",

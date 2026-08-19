@@ -15,6 +15,7 @@ import (
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -366,8 +367,12 @@ func TestApolloPublicAPIEnvironmentInstallationNamespaceAndStatus(t *testing.T) 
 		Environments []apolloEnvironment `json:"environments"`
 	}
 	decodeResponse(t, response, http.StatusOK, &environments)
-	if len(environments.Environments) != 1 || environments.Environments[0].Status != "managed" ||
-		environments.Environments[0].EnvironmentType != "production" {
+	// environmentType is deliberately NOT asserted here. It used to be pinned to
+	// "production" for an Environment this very test names dev-use2, which is
+	// the fabrication issues #57 and #112 reported; it is now omitted, and
+	// TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor pins the omission on the
+	// wire rather than through a DTO that cannot tell absent from empty.
+	if len(environments.Environments) != 1 || environments.Environments[0].Status != "managed" {
 		t.Fatalf("environments = %#v", environments)
 	}
 	environmentRID := environments.Environments[0].RID
@@ -581,6 +586,120 @@ func TestApolloPublicAPIStatusIdentityCannotCrossEnvironments(t *testing.T) {
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("cross-Environment status = %d %s", response.Code, response.Body.String())
 	}
+}
+
+// TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor pins the four optional
+// properties Conduit stopped fabricating, and pins the one it cannot stop.
+//
+// It decodes into map[string]any rather than into the typed DTOs the rest of
+// this file uses, and that is the point. A `[]string` field decodes to nil from
+// both `"owners": []` and an absent `owners`, so a typed assertion cannot tell
+// "no group holds Owner permissions" -- a claim governance never made -- from
+// "Conduit holds no answer". The defect issues #57 and #112 reported is exactly
+// that conflation, so the test has to read the key set the client receives.
+//
+// The required/optional split is read from the pinned snapshot rather than
+// restated, so this fails if a future snapshot makes an omitted property
+// required or relaxes `status`.
+func TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor(t *testing.T) {
+	required := snapshotRequiredProperties(t)
+	for schema, property := range map[string]string{
+		"Environment": "environmentType", "Namespace": "owners",
+	} {
+		if required[schema][property] {
+			t.Fatalf("%s.%s is required in the pinned snapshot; omitting it is a contract break, not a fidelity fix",
+				schema, property)
+		}
+	}
+	if !required["Environment"]["status"] {
+		t.Fatal("Environment.status is no longer required in the pinned snapshot; " +
+			"the constant below may now be omitted instead of declared as a divergence")
+	}
+
+	handler := Handler()
+	state := foundation()
+	state.Environment.Namespaces = []NamespaceTarget{{
+		RID: "ri.namespace.main.namespace.123", Name: "example", OntologyCountValid: true,
+	}}
+	if response := requestJSON(t, handler, http.MethodPost, "/v1/plans", state); response.Code != http.StatusCreated {
+		t.Fatalf("create plan = %d %s", response.Code, response.Body.String())
+	}
+
+	var environments struct {
+		Environments []map[string]any `json:"environments"`
+	}
+	decodeResponse(t, requestJSON(t, handler, http.MethodGet, "/api/v0/environments", nil),
+		http.StatusOK, &environments)
+	if len(environments.Environments) != 1 {
+		t.Fatalf("environments = %#v", environments)
+	}
+	environment := environments.Environments[0]
+	if _, present := environment["environmentType"]; present {
+		t.Fatalf("environmentType is on the wire as %#v; Conduit's Environments domain has no "+
+			"environment-type concept, and the snapshot does not require the property",
+			environment["environmentType"])
+	}
+	// The one that stays. status is in the snapshot's required set, so the
+	// honest option is a declared divergence rather than an omission that breaks
+	// the contract.
+	if environment["status"] != "managed" {
+		t.Fatalf("status = %#v; the declared divergence says it is the constant %q", environment["status"], "managed")
+	}
+
+	var namespaces struct {
+		Namespaces []map[string]any `json:"namespaces"`
+	}
+	decodeResponse(t, requestJSON(t, handler, http.MethodGet, "/api/v0/namespaces", nil),
+		http.StatusOK, &namespaces)
+	if len(namespaces.Namespaces) != 1 || namespaces.Namespaces[0]["id"] != "example" {
+		t.Fatalf("namespaces = %#v", namespaces)
+	}
+	for _, property := range []string{"owners", "editors", "viewers"} {
+		if value, present := namespaces.Namespaces[0][property]; present {
+			t.Fatalf("namespace %s is on the wire as %#v; an empty array asserts that no group holds "+
+				"that permission, which Conduit never established", property, value)
+		}
+	}
+}
+
+// snapshotRequiredProperties reads each named schema's `required` list out of
+// the pinned snapshot, line by line for the reason enumConstrainedProperties
+// gives above: the document is pinned by digest in its own path and cannot
+// drift under the check.
+func snapshotRequiredProperties(t *testing.T) map[string]map[string]bool {
+	t.Helper()
+	contents, err := os.ReadFile(filepath.Clean(apolloSnapshot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := map[string]map[string]bool{}
+	schema, inRequired := "", false
+	for _, line := range strings.Split(string(contents), "\n") {
+		if match := snapshotSchemaName.FindStringSubmatch(line); match != nil {
+			schema, inRequired = match[1], false
+			result[schema] = map[string]bool{}
+			continue
+		}
+		if schema == "" {
+			continue
+		}
+		if strings.TrimRight(line, " ") == "      required:" {
+			inRequired = true
+			continue
+		}
+		match := snapshotEnumMember.FindStringSubmatch(line)
+		if inRequired && match != nil {
+			result[schema][strings.TrimSpace(match[1])] = true
+			continue
+		}
+		if match == nil {
+			inRequired = false
+		}
+	}
+	if !result["Environment"]["rid"] || !result["Namespace"]["id"] {
+		t.Fatalf("the required-property reader found nothing it should have: %#v", result)
+	}
+	return result
 }
 
 func requestJSON(t *testing.T, handler http.Handler, method, path string, value any) *httptest.ResponseRecorder {
