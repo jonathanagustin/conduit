@@ -187,6 +187,26 @@ test.describe("Change Requests", () => {
     await expect(page.getByRole("button", { name: "Approve" })).toBeDisabled();
   });
 
+  test("gives the decision group exactly one solid primary button", async ({ page, hub }) => {
+    // Intent is emphasis: the single principal action carries the one solid
+    // fill and the others stay outlined or minimal, so two heavy buttons never
+    // compete. Approve is that action; Reject keeps its danger meaning but is
+    // outlined.
+    hub.get("/change-requests/crq_upgrade", changeRequest());
+    await page.goto("change-requests/crq_upgrade");
+
+    const group = page.locator(".console-change__actions");
+    // A Blueprint button is "solid" when it is neither minimal nor outlined.
+    const solid = group.locator("button:not(.bp6-minimal):not(.bp6-outlined)");
+    await expect(solid).toHaveCount(1);
+    await expect(solid).toHaveClass(/bp6-intent-primary/);
+    await expect(solid).toHaveText("Approve Change Request");
+    // Reject is present but visually secondary: danger meaning, outlined fill.
+    const reject = group.getByRole("button", { name: "Reject" });
+    await expect(reject).toHaveClass(/bp6-outlined/);
+    await expect(reject).toHaveClass(/bp6-intent-danger/);
+  });
+
   test("sends an approval and shows the Hub's resulting state", async ({ page, hub }) => {
     hub.get("/change-requests/crq_upgrade", changeRequest());
     // The review endpoints answer with an envelope -- {"changeRequest": ...}

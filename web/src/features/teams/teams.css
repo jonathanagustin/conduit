@@ -1,31 +1,36 @@
+/* The coordinate is a muted mono identifier at the console's 12px metadata
+   type-scale size, matching the Product coordinate, rather than the relative
+   0.85em it carried. docs/ui/console-visual-language.md 10. */
 .console-teams__coordinate {
   color: var(--bp-typography-color-muted, #5f6b7c);
   font-family: var(--pt-font-family-monospace, monospace);
-  font-size: 0.85em;
+  font-size: 12px;
 }
 
 .console-teams__description {
   max-width: 60ch;
 }
 
+/* Section separation on the console's decimal px ladder (24px section band),
+   not the parallel rem ladder. docs/ui/console-visual-language.md 10. */
 .console-teams__role,
 .console-teams__labels,
 .console-teams__meta {
-  margin-block-start: 1.5rem;
+  margin-block-start: 24px;
 }
 
 .console-teams__principals {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem;
+  gap: 8px;
   padding: 0;
   list-style: none;
 }
 
 .console-teams__meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(12rem, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(192px, 1fr));
+  gap: 16px;
 }
 
 .console-teams__meta dt {
