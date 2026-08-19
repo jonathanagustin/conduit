@@ -17,6 +17,15 @@ export interface BundleSelectionRule {
   releaseChannels?: string[];
 }
 
+/** A label a pipeline requires or excludes when selecting resources, scoped to
+ * an optional set of resource types. It mirrors controlplane.BundleLabelRequirement;
+ * `values` empty means the label's presence is what matters, not a specific value. */
+export interface BundleLabelRequirement {
+  resourceTypes: string[];
+  name: string;
+  values?: string[];
+}
+
 export interface ExportPipeline {
   id: string;
   displayName: string;
@@ -35,6 +44,8 @@ export interface ExportPipeline {
   includeArtifacts?: boolean;
   requireMalwarePass?: boolean;
   buildDespiteMissingResources?: boolean;
+  requiredLabels?: BundleLabelRequirement[];
+  excludedLabels?: BundleLabelRequirement[];
 }
 
 /** The lifecycle state of a pipeline, normalized so an empty status reads as

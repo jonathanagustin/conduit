@@ -6,6 +6,7 @@ import {
   pipelineStatus,
   pipelineStatusIntent,
   useExportPipelines,
+  type BundleLabelRequirement,
   type ExportPipeline,
 } from "../../api/exports.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
@@ -161,6 +162,13 @@ function PipelineDetail({ pipeline }: { pipeline: ExportPipeline }) {
           </ul>
         )}
       </section>
+      {(pipeline.requiredLabels?.length ?? 0) + (pipeline.excludedLabels?.length ?? 0) > 0 ? (
+        <section aria-labelledby="pipeline-labels-title" data-testid="pipeline-label-filters">
+          <h3 id="pipeline-labels-title">Label filters</h3>
+          <LabelRequirementList caption="Required" requirements={pipeline.requiredLabels} />
+          <LabelRequirementList caption="Excluded" requirements={pipeline.excludedLabels} />
+        </section>
+      ) : null}
       <dl className="console-exports__meta">
         <div>
           <dt>Build strategy</dt>
@@ -184,5 +192,40 @@ function PipelineDetail({ pipeline }: { pipeline: ExportPipeline }) {
       </dl>
       </SectionCard>
     </Section>
+  );
+}
+
+// LabelRequirementList renders one side of a pipeline's label filter -- the
+// labels it requires, or the ones it excludes. It renders nothing when that side
+// is empty, so a pipeline that only requires labels shows no empty "Excluded"
+// heading. A requirement with no values gates on the label's presence; one with
+// values gates on any of them, and the resource-type scope is shown when set.
+function LabelRequirementList({
+  caption,
+  requirements,
+}: {
+  caption: string;
+  requirements: BundleLabelRequirement[] | undefined;
+}) {
+  if (requirements === undefined || requirements.length === 0) {
+    return null;
+  }
+  return (
+    <div className="console-exports__labels" data-testid={`pipeline-labels-${caption.toLowerCase()}`}>
+      <h4>{caption}</h4>
+      <ul>
+        {requirements.map((requirement, position) => (
+          <li key={`${requirement.name}-${position}`}>
+            <Tag minimal round>
+              {requirement.name}
+            </Tag>{" "}
+            {requirement.values !== undefined && requirement.values.length > 0
+              ? requirement.values.join(" | ")
+              : "any value"}
+            {requirement.resourceTypes.length > 0 ? ` (${requirement.resourceTypes.join(", ")})` : ""}
+          </li>
+        ))}
+      </ul>
+    </div>
   );
 }

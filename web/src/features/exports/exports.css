@@ -15,6 +15,15 @@
   padding-inline-start: 20px;
 }
 
+.console-exports__labels h4 {
+  margin-block: 12px 4px;
+  font-weight: 600;
+}
+
+.console-exports__labels ul {
+  padding-inline-start: 20px;
+}
+
 .console-exports__meta {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(256px, 1fr));
