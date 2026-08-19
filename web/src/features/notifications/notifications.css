@@ -61,10 +61,14 @@
   padding: 12px 16px;
 }
 
+/* The preference grid is on the console's decimal px ladder, not the parallel
+   rem ladder: 16px gap, 256px (16rem) column min kept exact. The table tracks
+   above stay in rem because they are the aligned table, not the preference.
+   docs/ui/console-visual-language.md 10. */
 .console-notifications__meta {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(16rem, 1fr));
-  gap: 1rem;
+  grid-template-columns: repeat(auto-fit, minmax(256px, 1fr));
+  gap: 16px;
   margin: 0;
 }
 
@@ -79,12 +83,15 @@
 
 .console-notifications__types {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(22rem, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(352px, 1fr));
   gap: 0 16px;
   margin: 0;
   padding: 8px 12px;
   border: 1px solid var(--bp-palette-light-gray-1, #d3d8de);
-  border-radius: 2px;
+  /* A bordered grouping is a normal surface: 4px corner, the same
+     `--bp-surface-border-radius` Blueprint cards use, not the 2px compact-tile
+     corner it carried. docs/ui/console-visual-language.md 4. */
+  border-radius: var(--bp-surface-border-radius, 4px);
 }
 
 .console-notifications__types legend {

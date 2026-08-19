@@ -332,14 +332,14 @@ heights fold into the shared-table Gap above and are not repeated per screen.
 | fleet | browser / worklist | `--console-rail:240px` `fleet-page.css:6`; grid `var(--console-rail) minmax(0,1fr)` `:46`; controls/pagination 10px 20px `:19,68` | rail+detail beside fluid work area; 20-24 gutters | Aligned (reconstructed: facet rail re-seated as the 240px fixed rail beside the fluid table; no docked detail -- the fleet route exercises no selection-detail, so none was invented) |
 | environments | browser / worklist | `--console-rail:260px` `environments.css:7`; Overview grid `var(--console-rail) minmax(0,1fr)` `:18-21`; rail collapses ≤900px `:48-50` | split summary/filter pane + dense table (2020 corroboration) | Aligned (reconstructed: the Overview's responsive summary grid is now a fixed 260px summary pane beside the dense Entities table; the 767px card reflow is kept) |
 | products | browser / worklist | `--console-rail:260px` `products.css:5`; browser grid `:13-16`; pipeline/assessment are Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `:32` | fixed resource summary + release/change feed + dense install table; 4px card corners | Aligned (reconstructed: fixed resource-summary pane beside the release/change feed and install table; squared `<section>` divs replaced by real Blueprint Sections, so 4px corners come from the primitive) |
-| plans | browser / worklist | detail 16px `plans.css:12`; timeline as `<ol>` `:29-36`; diagnostics panel 1px border `:45-49` | list -> detail; keep record evidence in context | Aligned (composition); Divergent (panel corners 0 vs 4) |
-| change-requests | review queue | page 16px `changes.css:2`; decision/reopen action rows `:47-62` | review queue; one primary action per group | Aligned (composition); Gap (action-group primary-button audit) |
-| promotions | review queue | card 12px `promotions.css:2`; transition panel via `transition-detail.css` | transition review; constraint evidence in context | Aligned |
-| exports | review queue (row->inline detail) | selectable rows `exports.css:1-7`; detail 1rem pad, 1px top border `:9-12`; meta grid `minmax(16rem,1fr)` `:18-23` | master/detail (never equal width); ~20px body | Divergent (rem ladder; inline detail vs docked pane) |
-| imports | review queue (row->inline detail) | selectable rows `imports.css:1-7`; detail 1rem `:15-18`; danger text `:32` | master/detail; status colour = meaning | Divergent (rem ladder) |
-| risk | review queue (row->inline detail) | selectable rows `risk.css:1-7`; detail 1rem `:9-12`; meta `minmax(16rem,1fr)` `:14-18` | master/detail; facet/severity in context | Divergent (rem ladder) |
-| notifications | review queue (row->inline detail) | fixed table tracks `notifications.css:7,12,17,29,34`; fieldset 2px corner `:87`; preference grid `:58-62` | shared column tracks; truncate names / keep coordinates | Aligned (table); Divergent (rem ladder in preference) |
-| teams | browser / worklist | coordinate 0.85em mono muted `teams.css:2-4`; meta grid `minmax(12rem,1fr)` `:25-29` | list -> detail; muted identifiers | Aligned (composition); Divergent (em/rem sizing) |
+| plans | browser / worklist | detail 16px `plans.css:12`; timeline as `<ol>` `:29-36`; diagnostics panel a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `PlanDetailPage.tsx` | list -> detail; keep record evidence in context | Aligned (reconstructed: the squared `<details>` panel is a real Blueprint Section now, so its 4px corner comes from the primitive, not a radius rule on a raw element; native disclosure kept via the Section's collapsible) |
+| change-requests | review queue | page 16px `changes.css:2`; decision/reopen actions `ChangeRequestDetailPage.tsx` | review queue; one primary action per group | Aligned (reconstructed: one solid fill per group -- Approve is the single principal action; Reject keeps its danger meaning but is outlined, Cancel is minimal, Reopen outlined) |
+| promotions | review queue | card 12px `promotions.css:2`; pipeline/transition panels are Blueprint `Section`/`SectionCard` | transition review; constraint evidence in context | Aligned |
+| exports | review queue (row->inline detail) | selectable rows `exports.css:1-7`; detail 20px pad, 1px top border `:9-12`; meta grid `minmax(256px,1fr)` `:18-23` | master/detail (never equal width); ~20px body | Aligned (reconstructed: rem ladder reconciled onto the decimal px ladder -- 20px body, 16px gap, 256px column min kept exact; inline detail is the contextual-detail-panel family per the interiors taxonomy, kept nonmodal, not converted to a docked pane) |
+| imports | review queue (row->inline detail) | selectable rows `imports.css:1-7`; detail 20px `:15-18`; danger text `:32` | master/detail; status colour = meaning | Aligned (reconstructed: rem spacing reconciled onto the decimal px ladder; inline detail kept nonmodal) |
+| risk | review queue (row->inline detail) | selectable rows `risk.css:1-7`; detail 20px `:9-12`; meta `minmax(256px,1fr)` `:14-18` | master/detail; facet/severity in context | Aligned (reconstructed: rem spacing reconciled onto the decimal px ladder; inline detail kept nonmodal) |
+| notifications | review queue (row->inline detail) | fixed table tracks `notifications.css:7,12,17,29,34`; fieldset 4px corner `:87`; preference grid `:58-62` | shared column tracks; truncate names / keep coordinates | Aligned (reconstructed: preference `__meta`/`__types` grids on the decimal px ladder; fieldset grouping takes the 4px surface corner; the aligned table tracks are left in rem) |
+| teams | browser / worklist | coordinate 12px mono muted `teams.css:2-4`; meta grid `minmax(192px,1fr)` `:25-29` | list -> detail; muted identifiers | Aligned (reconstructed: coordinate on the 12px metadata type-scale; spacing on the decimal px ladder -- 24px section band, 8px cluster gap, 16px meta gap) |
 | overview | dashboard | page 16px `overview.css:1`; grid `auto-fill minmax(280px,1fr)` `:2-7`; clear=success `:14-16` | dashboard panel grid; affirmative state colour | Aligned |
 
 ### The through-line for the reconstruction
@@ -352,3 +352,14 @@ the px decimal ladder and should be reconciled onto the latter; (3) panels are
 **squared (0 corner) flat regions** where the rulebook's normal card is 4px.
 None of these is a defect to hot-fix -- each is a per-region PR in the backlog,
 and this table is its spec.
+
+Divergences (2) and (3) are now closed across the worklist and review-queue
+screens: the rem spacing ladder on exports, imports, risk, notifications and
+teams is reconciled onto the decimal px ladder, and the last squared panels
+(the plans diagnostics `<details>`, the notifications type fieldset) take the
+4px surface corner -- the plans one by becoming a real Blueprint Section rather
+than by a radius rule on a raw element. The interiors taxonomy also resolves the
+tentative "inline detail vs docked pane" note against exports/imports/risk: the
+inline row->detail is the contextual-detail-panel family (nonmodal, preserves
+the list context), a legitimate interior, so it was kept as-is rather than
+converted. Divergence (1), the icon rail, remains the open backlog item.
