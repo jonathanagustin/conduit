@@ -154,18 +154,51 @@ reporting and execution, promotion evaluation, constraint intersection, and
 auditability are covered by executable tests. No private Hub↔Agent wire format
 is exposed.
 
-**Vocabulary: observed, and not yet reconciled.** The values above are a
+**Vocabulary: observed, and now reconciled (#130).** The values above are a
 single 2023 tenant's UI, not a published contract, so they are Tenant
 observation under
 [`../../operations/TENANT-FIDELITY.md`](../../operations/TENANT-FIDELITY.md)
-and none of them is authority to rename anything. They are recorded because
-Conduit ships vocabularies covering the same ground — `internal/reporting`
-carries `UP_TO_DATE`/`OUT_OF_DATE`/`IN_GRACE_PERIOD` and
-`HEALTHY`/`UNHEALTHY`/`INDETERMINATE`/`UNKNOWN`/`REPAIRING`/`WARNING`/`ERROR`/`TERMINAL`
-— and nobody has ever compared the two. `Recalled`, `Blocked`, `Not fully
-live` and `Current version` have no obvious counterpart, and
-`In grace period` has no observed one. That comparison is follow-up work, not
-something to settle from a marketing video.
+and none of them is authority to rename anything. What follows maps them onto
+what Conduit actually ships; nothing here renames a Conduit value.
+
+> **Correction.** This paragraph used to attribute
+> `IN_GRACE_PERIOD`/`REPAIRING`/`WARNING`/`ERROR`/`TERMINAL` to
+> `internal/reporting`. They are not there. Conduit ships **two** status
+> vocabularies in two bounded contexts, and conflating them is what made the
+> comparison look simple:
+>
+> | | `internal/reporting/domain/fleet.go:44-56` (the fleet projection) | `internal/environments/domain/reporting.go:6-27` (what an Agent reports) |
+> | --- | --- | --- |
+> | Health | `HEALTHY` `UNHEALTHY` `UNKNOWN` | `HEALTHY` `UNHEALTHY` `INDETERMINATE` `UNKNOWN` `REPAIRING` `WARNING` `ERROR` `TERMINAL` |
+> | Rollout | `UP_TO_DATE` `OUT_OF_DATE` | `UP_TO_DATE` `IN_GRACE_PERIOD` `BLOCKED` `RECALLED` `OUT_OF_DATE` |
+> | Config | `APPLIED` `DRIFTED` `INDETERMINATE` | `APPLIED` `DRIFTED` `UNAVAILABLE` `INDETERMINATE` |
+>
+> The fleet projection is deliberately the narrower set — it is a projection,
+> and `scripts/verify-console-contract.mjs` pins the console's tables to *it*
+> in both directions.
+
+| Observed in the 2023 UI | Conduit counterpart | Reading |
+| --- | --- | --- |
+| health `Healthy` | `HEALTHY` in both contexts | mapped |
+| health `Indeterminate` | `INDETERMINATE` (environments context only; the fleet projection has no such value) | mapped, context-split |
+| health `Not fully live` | none | **no counterpart** — closest are `REPAIRING`/`WARNING`, and neither is established as its equivalent |
+| health `Not reported` / `Unreported` | not a health value here: absence of a report is `Stale`/`SilenceExpected` plus placeholder statuses (`fleet.go:326-332`) | modelled elsewhere |
+| rollout `Up to date` | `UP_TO_DATE` in both | mapped |
+| rollout `Recalled` | `RECALLED` (environments context only) | mapped, context-split |
+| rollout `Blocked` | `BLOCKED` (environments context only) | mapped, context-split |
+| rollout `Current version` (+ "Ensure rolloff") | none | **no counterpart** |
+| rollout `IN_GRACE_PERIOD` | — | **no observed counterpart**: Conduit ships it, the 2023 UI never showed it |
+| entity lifecycle `Installed` | `INSTALLED` | mapped |
+| entity lifecycle `Pending install` | none — Conduit has `INSTALLED`/`UNINSTALLED`/`UNKNOWN` | **no counterpart** |
+| config axis (`APPLIED`/`DRIFTED`/`INDETERMINATE`) | — | **no observed counterpart at all**: the 2023 UI showed no config-status facet |
+
+The load-bearing observation stays the one recorded above: the summary bar's
+`Blocked` and the facet's `Recalled` count the same four entities, so the two
+words are one state in that UI and neither can be taken as the wire value.
+
+This is a reconciliation, not a change: no Conduit value is renamed, added or
+removed on the strength of a marketing video, and the four **no counterpart**
+rows are recorded as unestablished rather than invented.
 
 The local source, frames, audio, and transcript remain uncommitted audit
 artifacts; the digests above identify what was read.

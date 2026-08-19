@@ -2,9 +2,22 @@
 
 The go/no-go record for running Conduit in production. Every `READY` row
 cites the executable gate or committed evidence that proves it — a row
-without a passing check does not belong here. The residual items at the
-bottom are decisions or actions only a human operator can take; nothing in
-this repository can complete them.
+without a passing check does not belong here.
+
+The residual items at the bottom are things nothing in this repository can
+complete. They are not all owed by the same person, and the list used to read as
+though they were (#265). Two distinct humans appear:
+
+- the **deploying operator**, who runs Conduit somewhere and owns the choices
+  that belong to that deployment — signing keys, backup schedule and retention,
+  tenant authorization;
+- the **repository administrator**, who owns settings on
+  `jonathanagustin/conduit` itself and whom a deployment never involves.
+
+Item 3 is the second kind. An operator standing up a Hub cannot install a GitHub
+App on somebody else's repository, and reading it as their obligation is a
+blocker they can never clear. Marked in place rather than moved, so the
+numbering the audit record cites stays stable.
 
 Status date: 2026-08-17, trunk `d8315ed`. Externally audited 2026-08-18 by two
 reviewers with no repository access; the resulting corrections to this document,
@@ -495,9 +508,11 @@ skew** is the one a delivery platform is least entitled to get wrong.
    Nothing here generates, distributes or rotates a signing key; what the
    repository now guarantees is that a Hub missing one says so instead of
    inventing one.
-3. **Renovate activation.** `renovate.json` is committed and gated; the
+3. **Renovate activation.** *(Repository administrator, not the deploying
+   operator — see the preamble.)* `renovate.json` is committed and gated; the
    Renovate GitHub App still needs an admin install on the repository
-   before update PRs and the Dependency Dashboard appear.
+   before update PRs and the Dependency Dashboard appear. Nothing about a
+   deployment depends on it.
 4. **Tenant deployment authorization.** Deploying to any tenant requires
    its own explicit approval through the owning deployment repository;
    a successful build or upload never authorizes it.
