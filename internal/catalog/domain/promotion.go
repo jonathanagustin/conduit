@@ -96,6 +96,20 @@ type PromotionHealthEvidence struct {
 	Health         string    `json:"health"`
 	HealthySince   time.Time `json:"healthySince,omitempty"`
 	ObservedAt     time.Time `json:"observedAt"`
+	// EnvironmentLabels is the labels the Hub held for this Environment at the
+	// instant of evaluation, stamped on by the Hub and never by the submitter.
+	// It exists so PromotionEntityFilter can select a canary tier by label
+	// instead of by name -- the evaluator cannot read an Environment, and a
+	// filter matching on labels it cannot see would silently select nothing.
+	//
+	// It is carried on the record rather than resolved again at replay, and that
+	// is load-bearing. Label-based selection is not additive: narrowing a canary
+	// set can make a promotion PASS, so it cannot be taken on trust the way an
+	// Environment-dependent BLOCKER is (see validatePromotions). Freezing the
+	// labels the decision actually used is what keeps a record re-derivable from
+	// itself, and keeps a later relabelling from rewriting a decision already
+	// made.
+	EnvironmentLabels map[string]string `json:"environmentLabels,omitempty"`
 }
 
 type PromotionEvaluationRequest struct {
