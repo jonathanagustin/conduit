@@ -98,3 +98,24 @@
   max-width: 70ch;
   color: var(--bp-text-color-muted, #5f6b7c);
 }
+
+.console-environment__owner-team {
+  margin: 8px 0 0;
+  color: var(--bp-text-color-muted, #5f6b7c);
+}
+
+.console-environment__readme {
+  margin: 12px 0 0;
+  max-width: 70ch;
+}
+
+.console-environment__readme > :first-child {
+  margin-top: 0;
+}
+
+.console-environment__readme pre {
+  overflow-x: auto;
+  padding: 8px 10px;
+  border-radius: 3px;
+  background: var(--bp-background-color-subtle, #f6f7f9);
+}

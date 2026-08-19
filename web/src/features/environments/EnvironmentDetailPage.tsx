@@ -5,6 +5,7 @@ import { NavLink, useParams } from "react-router-dom";
 import { useEnvironment, useEnvironmentCommands, useEnvironmentProfile } from "../../api/catalog.js";
 import type { EnvironmentCatalogRecord } from "../../api/resources.js";
 import { usePlans } from "../../api/resources.js";
+import { Markdown } from "../../components/Markdown.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
 import { Timestamp } from "../../components/Timestamp.js";
@@ -68,15 +69,32 @@ export function EnvironmentDetailPage() {
           />
           {/* Operator-authored display metadata, when the Environment has a
               profile. Most do not (the endpoint answers 404), so this renders
-              nothing rather than an error -- an absent profile is normal. */}
+              nothing rather than an error -- an absent profile is normal. The
+              README is authored Markdown (up to 64 KiB in the domain) and is
+              rendered by the injection-proof subset renderer. */}
           {profile.data !== undefined &&
-          (profile.data.displayName !== undefined || profile.data.description !== undefined) ? (
+          (profile.data.displayName !== undefined ||
+            profile.data.description !== undefined ||
+            profile.data.ownerTeam !== undefined ||
+            (profile.data.readme !== undefined && profile.data.readme.trim() !== "")) ? (
             <section className="console-environment__profile" data-testid="environment-profile">
               {profile.data.displayName !== undefined ? (
                 <h2 className="console-environment__display-name">{profile.data.displayName}</h2>
               ) : null}
               {profile.data.description !== undefined ? (
                 <p className="console-environment__description">{profile.data.description}</p>
+              ) : null}
+              {profile.data.ownerTeam !== undefined ? (
+                <p className="console-environment__owner-team">
+                  Owned by <Tag minimal round>{profile.data.ownerTeam}</Tag>
+                </p>
+              ) : null}
+              {profile.data.readme !== undefined && profile.data.readme.trim() !== "" ? (
+                <Markdown
+                  className="console-environment__readme"
+                  source={profile.data.readme}
+                  data-testid="environment-readme"
+                />
               ) : null}
             </section>
           ) : null}
