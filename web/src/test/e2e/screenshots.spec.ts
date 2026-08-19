@@ -334,3 +334,31 @@ test("capture 14-team-contacts", async ({ page, hub }) => {
   await expect(page.getByTestId("team-contacts")).toBeVisible();
   await page.screenshot({ path: "screenshots/14-team-contacts.png", fullPage: true });
 });
+
+test("capture 15-team-notifications", async ({ page, hub }) => {
+  seed(hub);
+  // The team inbox is owner-scoped; override the personal inbox the seed set
+  // with a team-owned one so the capture shows a team's notifications.
+  hub.get("/notifications/inbox", {
+    owner: { kind: "TEAM", id: "payments" },
+    channel: "IN_APP",
+    limit: 100,
+    entries: [
+      {
+        recipient: { owner: { kind: "TEAM", id: "payments" }, channel: "IN_APP" },
+        event: { id: "tev-1", type: "PLAN_FAILURES", resourceRid: "ri.apollo.main.environment.d41d8cd98f00", environment: "prod-use1", summary: "Reconciliation of installation payments in prod-use1 gave up", occurredAt: "2026-08-09T11:42:00Z" },
+        preferenceId: "tpf-1",
+      },
+      {
+        recipient: { owner: { kind: "TEAM", id: "payments" }, channel: "IN_APP" },
+        event: { id: "tev-2", type: "PRODUCT_RELEASE_PROMOTION_FAILED", resourceRid: "ri.apollo.main.product.7c9a2be40155", summary: "app.example:ledger 1.9.0 could not be promoted to STAGING", occurredAt: "2026-08-09T09:15:00Z" },
+        preferenceId: "tpf-2",
+      },
+    ],
+  });
+  await page.goto("teams/payments");
+  await expect(page.getByTestId("team-detail")).toBeVisible();
+  await page.getByRole("tab", { name: "Notifications" }).click();
+  await expect(page.getByTestId("team-notifications")).toBeVisible();
+  await page.screenshot({ path: "screenshots/15-team-notifications.png", fullPage: true });
+});

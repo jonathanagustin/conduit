@@ -184,4 +184,45 @@ test.describe("Teams", () => {
     // The delete named the kind in the query string, the way the route reads it.
     expect(hub.requests().some((request) => request.startsWith("DELETE /v1/notifications/contacts") && request.includes("kind=EMAIL"))).toBe(true);
   });
+
+  test("shows what has reached the team inbox", async ({ page, hub }) => {
+    hub.get("/teams/payments", PAYMENTS_TEAM);
+    hub.get("/notifications/inbox", {
+      owner: { kind: "TEAM", id: "payments" },
+      channel: "IN_APP",
+      limit: 100,
+      entries: [
+        {
+          recipient: { owner: { kind: "TEAM", id: "payments" }, channel: "IN_APP" },
+          event: {
+            id: "tev-1",
+            type: "PLAN_FAILURES",
+            resourceRid: "ri.apollo.main.environment.d41d8cd98f00",
+            environment: "prod-use1",
+            summary: "Reconciliation of installation payments in prod-use1 gave up",
+            occurredAt: "2026-08-09T11:42:00Z",
+          },
+          preferenceId: "tpf-1",
+        },
+      ],
+    });
+    await page.goto("teams/payments");
+    const team = new TeamDetailPom(page);
+    await team.openNotifications();
+
+    await expect(page.getByTestId("team-inbox-entry-tev-1")).toContainText("PLAN_FAILURES");
+    await expect(team.notifications).toContainText("Reconciliation of installation payments");
+    // The read named the team owner, which is what makes a team inbox reachable.
+    expect(hub.requests().some((request) => request.startsWith("GET /v1/notifications/inbox") && request.includes("ownerId=payments"))).toBe(true);
+  });
+
+  test("explains that only members may read a team's notifications", async ({ page, hub }) => {
+    hub.get("/teams/payments", PAYMENTS_TEAM);
+    hub.fails("/notifications/inbox", 403, "notifications for TEAM payments belong to that owner");
+    await page.goto("teams/payments");
+    const team = new TeamDetailPom(page);
+    await team.openNotifications();
+
+    await expect(page.getByTestId("team-notifications-error")).toContainText("Only members of this team");
+  });
 });

@@ -22,4 +22,12 @@ export class TeamDetailPom {
   openContacts(): Promise<void> {
     return this.page.getByRole("tab", { name: "Contacts" }).click();
   }
+
+  get notifications(): Locator {
+    return this.page.getByTestId("team-notifications");
+  }
+
+  openNotifications(): Promise<void> {
+    return this.page.getByRole("tab", { name: "Notifications" }).click();
+  }
 }
