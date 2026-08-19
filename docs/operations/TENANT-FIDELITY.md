@@ -58,6 +58,129 @@ Behaviours where Conduit keeps Apollo's published vocabulary and does something
 different with it. Each is a `Conduit extension or divergence` under the claim
 classes above, recorded here because the Change record section requires it.
 
+### Four Apollo properties are omitted rather than answered with a constant, and the fifth cannot be
+
+**Source class:** Public contract (the pinned OpenAPI's `required` sets).
+**Divergence:** Conduit omits four optional properties it has no data for, and
+serves one required property as a constant.
+
+Issues #57 and #112 reported that `MAPPED-or-REFUSED` governs *which* Apollo
+coordinates answer and nothing governed *what they answer with*. On the REST
+surface four properties carried values no Conduit data and no publisher produced:
+`Environment.environmentType` was the constant `"production"` for every
+Environment — including one this repository's own test names `dev-use2` — and a
+Namespace's `owners`, `editors` and `viewers` were three empty arrays, which
+assert that no group holds those permissions rather than that nobody knows.
+The response-shape gate passed all four, because `"production"` is a legal enum
+member and `[]` is a legal array; shape is all a schema can check.
+
+**What Conduit does now.** All four are absent from the response. The pinned
+snapshot lists `rid`, `name` and `status` as `Environment`'s required properties
+and `id` as `Namespace`'s only one, so every omitted property is optional and an
+absent key is contract-legal. Under [ADR 0007](../decisions/0007-registered-invention-over-refusal.md)
+this is not a refusal: the record forbids declining to answer a coordinate for
+want of data, and says nothing requiring an invented value for an optional field
+the contract already permits to be absent. Omission is the third option, and it
+is the only one available here — REST carries no provenance tier, so there is no
+way to serve a value and disclose it as Conduit's.
+
+**Scope, stated because the fifth is the interesting one.** `Environment.status`
+is **not** omitted, and could not be: it is in the snapshot's required set, so
+omitting it to be honest about provenance would break the contract instead. It
+stays the constant `"managed"`, and is declared in
+[`../apollo/public-api.md`](../apollo/public-api.md) as a Conduit-supplied
+constant that discriminates nothing. Being unable to fix it honestly is not a
+licence to stop saying so.
+
+**What would close it.** For `environmentType`, an environment-type concept in
+Conduit's Environments domain, or a capture establishing what Apollo means by the
+value for a Hub that is not Apollo. For the Namespace groups, a Namespace
+permission model in Governance. For `status`, a managed/unmanaged distinction
+Conduit could actually report.
+
+**Detected by:** `TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor` in
+`internal/controlplane`, which reads the `required` sets out of the pinned
+snapshot rather than restating them, decodes into `map[string]any` so an absent
+key is distinguishable from an empty one, and fails if a future snapshot makes an
+omitted property required or relaxes `status`.
+
+### `Installation.version` is the version Conduit intends, not the version an Agent reported
+
+**Source class:** Public contract (the snapshot's own description of the
+property). **Divergence:** the data behind it.
+
+The pinned snapshot describes `Installation.version` as *"The reported version
+from the Apollo Agent responsible for managing this Installation."* Conduit
+populates it from the reviewed **desired** state. The data is real Conduit data;
+the contract sentence describes different data, so a client watching an upgrade
+reads desired as observed, and the two disagree for exactly as long as an
+in-flight or failed upgrade lasts (#57; #112 finding 4).
+
+**Why Conduit does not simply serve the reported one.** Reported versions exist —
+a Spoke agent finishing a Plan submits them and they land in the Environments
+Report — but the join is unavailable, not merely unwired.
+`environments.CompatibilityProjection` carries a `ProjectedEntity` with an Entity
+*name*; a `ReportedEntity` is keyed on an installation *id*, and a Plan step
+carries both because they are not the same thing. Joining on Product instead
+would collapse two installations of one Product in one Environment. Serving a
+join that looks right and is not is the failure
+`TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers` already exists to
+prevent, so the honest move is to say which version this is rather than to
+approximate the other.
+
+**Scope, stated because it is narrow.** The value itself is unchanged and
+correct as desired state. What changed is that the GraphQL coverage table stopped
+claiming otherwise: `ApolloEntity.version` cited *"as reported by the Apollo
+Agent"* verbatim from the contract, and now names the desired version explicitly.
+
+**What would close it.** The compatibility projection carrying reporting's
+installation id, at which point the reported version can be served under the
+property whose description already promises it — and this row deleted rather than
+softened.
+
+**Detected by:** `TestInstallationVersionIsTheDesiredVersionNotAnAgentReport` in
+`internal/apollo/application`, which sets a desired version of `2.0.0` against a
+Report saying `1.0.0` and fails if the reported one ever reaches the projection
+while this row still stands.
+
+### `pageSize` is accepted and not honoured, and `nextPageToken` is always null
+
+**Source class:** Public contract (the recovered GraphQL interface declares
+`pageSize` on every collection field and `nextPageToken` on every page type).
+**Divergence:** neither argument nor token does anything.
+
+`pageSize` is a **required** argument on every collection field in
+`api/graphql/apollo.interface.graphql` and no resolver in `internal/apollographql`
+reads it: `environments(pageSize: 1)` against three returns three (#112 finding
+5). `nextPageToken` answers null unconditionally, which is consistent — a page
+that is the whole collection has no next one — but the pair together let a client
+believe it is paging when it is not.
+
+**Why Conduit declares this rather than implementing it.** Slicing the records is
+trivial. The token is not. Emitting one means minting a cursor grammar, and no
+capture establishes what an Apollo page token looks like, so the client would
+receive a Conduit-invented string behind a coordinate recovered from a Hub —
+precisely the defect #57 and #112 exist to report, reintroduced in the act of
+closing them. `valueTier` cannot rescue it either: a disclosed invented cursor is
+still one a client cannot use, and it would then have to survive round-tripping
+back into a `pageSize`-and-token contract nothing establishes the semantics of.
+The remaining option, truncating without a token, is the worst: a short page with
+a null token tells the client the collection ended.
+
+**Scope, stated because it is narrow.** GraphQL only. The public REST surface
+publishes no pagination at all — the pinned snapshot contains neither `pageSize`
+nor `nextPageToken` — so there is nothing to diverge from there.
+
+**What would close it.** A capture or published statement establishing Apollo's
+page-token grammar, which would make both the token and the argument
+implementable against evidence rather than against a guess.
+
+**Detected by:** `TestPageSizeIsNotHonouredAndTheDeclarationSaysSo` in
+`internal/apollographql/application`, which asks for one of three Environments,
+requires three, and fails if paging is implemented without this row being
+revisited. The coverage table states the same thing where a reader of the served
+interface will find it.
+
 ### A security recall blocks an Entity command that would deploy the Release
 
 **Source class:** Public contract (commands bypass recall eligibility).
@@ -250,11 +373,17 @@ written. An auditor asking which ticket authorized an Environment deletion got
 nothing, with no trace that the answer had been collected and dropped.
 
 **Why Conduit drops them rather than carrying them.** Carrying the value means a
-review-context field on the Plan proposal, which lives in `internal/controlplane`
--- the monolith that is exactly on its recorded line ceiling
-(`docs/operations/controlplane-ceiling.json`), a ratchet that may only move
-down. Raising a migration ceiling to hold a CLI convenience field inverts what
-the ratchet is for. The repository's own doctrine already settled the other half
+review-context field on the Plan proposal, which lives in `internal/controlplane`.
+
+> **Correction, 2026-08-19.** This paragraph used to give the `internal/controlplane`
+> line ceiling as the reason, and that reason is gone: the ceiling and its gate
+> were removed, so `docs/operations/controlplane-ceiling.json` no longer exists.
+> The divergence stands on the half below, which was always the stronger half
+> and never depended on the ceiling. Recorded rather than silently reworded,
+> because a reader who remembers the old reasoning should be able to see that it
+> was retired rather than quietly dropped.
+
+The repository's own doctrine already settled the other half
 of the choice, at `internal/conduitcli/apollo_parity_commands.go`: *"a rationale
 would be accepted and dropped. A flag that silently does nothing is worse than
 an absent one."* An honest absent flag beats a false promise.

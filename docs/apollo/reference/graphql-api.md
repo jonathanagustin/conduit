@@ -328,7 +328,7 @@ is made, and only `OBSERVED` returns true from it.
 
 `tier` says who established that a coordinate **exists**. It has never said where
 the **value** came from, and while the two were always the same nobody needed it
-to. Three coordinates make them differ, and until
+to. Six coordinates make them differ, and until
 [ADR 0007](../../decisions/0007-registered-invention-over-refusal.md) the
 interface had no way to say so — they served under a bare `OBSERVED` annotation
 whose disclosure told clients an Apollo Hub had answered with them. It had not.
@@ -338,6 +338,19 @@ whose disclosure told clients an Apollo Hub had answered with them. It had not.
 | `ApolloEnvironment.rid` | `apollo-openapi ri.apollo.main.environment.123` | the locator |
 | `ApolloEntity.packageRid` | `apollo-openapi ri.apollo.main.package.123` | the locator |
 | `ApolloEntity.id` | `apollo-openapi aeid:apollo-environment-demo:helm-chart:wordpress` | the value only; the shape is Apollo's |
+| `ApolloProduct.rid` | `apollo-openapi ri.autopilot.main.team.123`, the service segment naming the owning service | the whole identifier, under `ri.conduit.main.*` |
+| `ApolloProductRelease.rid` | `apollo-openapi ri.autopilot.main.team.123`, as above | the whole identifier, keyed on the Maven coordinate |
+| `ApolloProductDependency.optional` | `apollo-openapi ProductDependency.optional`, a boolean the schema does not require | the default and the rendering; no pinned publish request lets a publisher state optionality |
+
+The last row is the one that is not an identifier, and it is the one issues #57
+and #112 named. Neither `PublishHelmChartRequest` nor `PublishServiceRequest`
+carries an optionality input, so a dependency published on the public Apollo
+routes has no publisher declaration behind it and Conduit answers its own
+default. `catalog.Dependency.Optional` is a plain `bool`, so a declared `false`
+and an undeclared one are indistinguishable at the read; the disclosure is
+therefore field-wide, which over-states the case where Conduit's own manifest
+route did declare optionality. That is the safe direction — under-disclosure is
+the defect being corrected.
 
 These now serve as `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`, and
 the response's provenance extension lists them under `conduitMintedValues` — a

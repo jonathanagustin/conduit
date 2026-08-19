@@ -631,8 +631,29 @@ func projectEnvironment(projection environments.CompatibilityProjection) (
 	apollo.Environment, map[string]apollo.Installation, map[string]apollo.Namespace,
 ) {
 	rid := EnvironmentRID(projection.ID)
-	environmentType, status := apollo.EnvironmentType("production"), apollo.ManagementStatus("managed")
-	environment := apollo.Environment{Rid: rid, Name: projection.ID, EnvironmentType: &environmentType, Status: status}
+	// environmentType is omitted, not stamped. It used to be the constant
+	// "production" for every Environment, including the one this repository's
+	// own test names dev-use2, and "production" is a legal member of the pinned
+	// enum, so the shape gate passed it (#57, #112). Conduit's Environments
+	// domain has no environment-type concept at all -- nothing on
+	// CompatibilityProjection distinguishes one -- so there is no value to
+	// derive and no publisher who stated one.
+	//
+	// Omission is available here and is not a null: the pinned snapshot lists
+	// environmentType among Environment's properties and NOT among its required
+	// ones, so an absent key is a contract-legal way to say "Conduit holds no
+	// answer". ADR 0007 forbids refusing a coordinate for want of data; it does
+	// not require inventing a value for an optional field the contract already
+	// permits to be absent.
+	//
+	// status has no such option. The same snapshot lists it in Environment's
+	// required set, so omitting it would break the contract to make a point
+	// about provenance. It stays "managed" and is DECLARED as a Conduit-supplied
+	// constant in docs/apollo/public-api.md and docs/operations/TENANT-FIDELITY.md
+	// rather than left to be discovered.
+	environment := apollo.Environment{
+		Rid: rid, Name: projection.ID, Status: apollo.ManagementStatus("managed"),
+	}
 	installations := make(map[string]apollo.Installation, len(projection.Entities))
 	for _, entity := range projection.Entities {
 		installationRID := "ri.apollo.main.installation." + stableSuffix(projection.ID+":"+entity.Name)
@@ -650,8 +671,25 @@ func projectEnvironment(projection environments.CompatibilityProjection) (
 		if id == "" {
 			id = namespace.RID
 		}
-		owners, editors, viewers := []string{}, []string{}, []string{}
-		namespaces[id] = apollo.Namespace{Id: id, Owners: &owners, Editors: &editors, Viewers: &viewers}
+		// owners, editors and viewers are omitted rather than served empty.
+		//
+		// They used to be three `[]string{}` values, and an empty JSON array is
+		// a fact: it says no group holds Owner, Editor or Viewer permissions on
+		// this Namespace. Governance never produced that claim --
+		// ProjectedNamespace carries a RID and a Name and nothing else, and
+		// Conduit has no notion of a Namespace permission group to report
+		// (issues #57, #112). The empty array was the unknown-reads-as-none
+		// conflation, on the surface that has no provenance tier to disclose it
+		// with.
+		//
+		// The pinned snapshot requires only `id` on Namespace, so all three are
+		// omissible and an absent key means "Conduit holds no answer". That also
+		// narrows the cross-surface inconsistency #57 raised against
+		// ports/ports.go's claim that a client "cannot get a different answer by
+		// choosing a protocol": GraphQL still refuses ApolloEnvironment.namespaceId
+		// outright, and REST no longer answers the neighbouring question with a
+		// sliver that reads as a fact.
+		namespaces[id] = apollo.Namespace{Id: id}
 	}
 	return environment, installations, namespaces
 }
