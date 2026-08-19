@@ -6,15 +6,11 @@
   background: var(--pt-intent-primary-muted, rgba(45, 114, 210, 0.15));
 }
 
-/* The inline detail's spacing is on the console's decimal px ladder, not the
-   parallel rem ladder: 20px is the review-queue body framing, 16px the
-   within-panel gap, and 256px (16rem) the meta column min kept exact so the
-   two-up wrap point is unchanged. See docs/ui/console-visual-language.md 10. */
-.console-exports__detail {
-  padding: 20px;
-  border-block-start: 1px solid var(--pt-divider-black, rgba(17, 20, 24, 0.15));
-}
-
+/* The inline detail panel is a Blueprint Section now, so its surface, 1px
+   hairline and 4px corner come from the primitive (--bp-surface-border-radius),
+   not a hand-rolled border/radius rule here. The within-panel gap stays on the
+   console's decimal px ladder: 16px, with the 256px (16rem) meta column min kept
+   exact so the two-up wrap point is unchanged. docs/ui/console-visual-language.md 10. */
 .console-exports__selections {
   padding-inline-start: 20px;
 }

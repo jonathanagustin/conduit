@@ -52,7 +52,7 @@ The rulebook's light palette and the console's use of it:
 | Raised surface | `#fff` | `--bp-palette-white` (exact) / `--bp-surface-background-color-default-rest` (computed) | panels `products.css:7,23`, `plans.css:48`, cards `object-header.css:10`, `summary-bar.css:7` |
 | Neutral border | `#d3d8de` | `--bp-palette-light-gray-1` (exact) | panel/card borders, 8 sites e.g. `plans.css:47`, `products.css:6`, `notifications.css:86` |
 | Affirmative state | `#1c6e42` | `--bp-typography-color-success-hover` (exact) | "clear" risk result `overview.css:15` |
-| Destructive | `#cd4246` | `--bp-intent-danger-rest` (exact) | import failure text `imports.css:32` |
+| Destructive | `#cd4246` | `--bp-intent-danger-rest` (exact) | import failure text `imports.css:30` |
 | Rail glyph (rest) | `#abb3bf` | `--bp-palette-gray-4` (exact) | `navigation-rail.css:24` |
 | Focus ring | `#8abbff` | `--bp-palette-blue-5` (exact) | rail focus `navigation-rail.css:44` |
 
@@ -338,9 +338,9 @@ heights fold into the shared-table Gap above and are not repeated per screen.
 | plans | browser / worklist | detail 16px `plans.css:12`; timeline as `<ol>` `:29-36`; diagnostics panel a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `PlanDetailPage.tsx` | list -> detail; keep record evidence in context | Aligned (reconstructed: the squared `<details>` panel is a real Blueprint Section now, so its 4px corner comes from the primitive, not a radius rule on a raw element; native disclosure kept via the Section's collapsible) |
 | change-requests | review queue | page 16px `changes.css:2`; decision/reopen actions `ChangeRequestDetailPage.tsx` | review queue; one primary action per group | Aligned (reconstructed: one solid fill per group -- Approve is the single principal action; Reject keeps its danger meaning but is outlined, Cancel is minimal, Reopen outlined) |
 | promotions | review queue | card 12px `promotions.css:2`; pipeline/transition panels are Blueprint `Section`/`SectionCard` | transition review; constraint evidence in context | Aligned |
-| exports | review queue (row->inline detail) | selectable rows `exports.css:1-7`; detail 20px pad, 1px top border `:9-12`; meta grid `minmax(256px,1fr)` `:18-23` | master/detail (never equal width); ~20px body | Aligned (reconstructed: rem ladder reconciled onto the decimal px ladder -- 20px body, 16px gap, 256px column min kept exact; inline detail is the contextual-detail-panel family per the interiors taxonomy, kept nonmodal, not converted to a docked pane) |
-| imports | review queue (row->inline detail) | selectable rows `imports.css:1-7`; detail 20px `:15-18`; danger text `:32` | master/detail; status colour = meaning | Aligned (reconstructed: rem spacing reconciled onto the decimal px ladder; inline detail kept nonmodal) |
-| risk | review queue (row->inline detail) | selectable rows `risk.css:1-7`; detail 20px `:9-12`; meta `minmax(256px,1fr)` `:14-18` | master/detail; facet/severity in context | Aligned (reconstructed: rem spacing reconciled onto the decimal px ladder; inline detail kept nonmodal) |
+| exports | review queue (row->inline detail) | selectable rows `exports.css:1-7`; inline detail a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `ExportPage.tsx`; meta grid `minmax(256px,1fr)` `:18` | master/detail (never equal width); ~20px body; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real Blueprint Section now, so its 4px corner comes from the primitive, not a border/radius rule on raw HTML; 16px gap and 256px column min kept exact; inline detail is the contextual-detail-panel family per the interiors taxonomy, kept nonmodal, not converted to a docked pane) |
+| imports | review queue (row->inline detail) | selectable rows `imports.css:1-7`; inline detail a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `ImportPage.tsx`; danger text `:30` | master/detail; status colour = meaning; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real Blueprint Section now, so its 4px corner comes from the primitive; inline detail kept nonmodal) |
+| risk | review queue (row->inline detail) | selectable rows `risk.css:1-7`; inline detail a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `RiskPage.tsx`; meta `minmax(256px,1fr)` `:14` | master/detail; facet/severity in context; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real Blueprint Section now, so its 4px corner comes from the primitive; inline detail kept nonmodal) |
 | notifications | review queue (row->inline detail) | fixed table tracks `notifications.css:7,12,17,29,34`; fieldset 4px corner `:87`; preference grid `:58-62` | shared column tracks; truncate names / keep coordinates | Aligned (reconstructed: preference `__meta`/`__types` grids on the decimal px ladder; fieldset grouping takes the 4px surface corner; the aligned table tracks are left in rem) |
 | teams | browser / worklist | coordinate 12px mono muted `teams.css:2-4`; meta grid `minmax(192px,1fr)` `:25-29` | list -> detail; muted identifiers | Aligned (reconstructed: coordinate on the 12px metadata type-scale; spacing on the decimal px ladder -- 24px section band, 8px cluster gap, 16px meta gap) |
 | overview | dashboard | page 16px `overview.css:1`; grid `auto-fill minmax(280px,1fr)` `:2-7`; clear=success `:14-16` | dashboard panel grid; affirmative state colour | Aligned |
@@ -358,14 +358,16 @@ and this table is its spec.
 
 Divergences (2) and (3) are now closed across the worklist and review-queue
 screens: the rem spacing ladder on exports, imports, risk, notifications and
-teams is reconciled onto the decimal px ladder, and the last squared panels
-(the plans diagnostics `<details>`, the notifications type fieldset) take the
-4px surface corner -- the plans one by becoming a real Blueprint Section rather
-than by a radius rule on a raw element. The interiors taxonomy also resolves the
+teams is reconciled onto the decimal px ladder, and the squared detail panels
+now take the 4px surface corner by becoming real Blueprint `Section`s rather than
+by a radius rule on a raw element -- the plans diagnostics `<details>`, the
+exports/imports/risk inline detail panels, with the notifications type fieldset
+taking the same 4px surface corner. The interiors taxonomy also resolves the
 tentative "inline detail vs docked pane" note against exports/imports/risk: the
 inline row->detail is the contextual-detail-panel family (nonmodal, preserves
-the list context), a legitimate interior, so it was kept as-is rather than
-converted.
+the list context), a legitimate interior, so the primitive was swapped to a real
+Blueprint `Section` while the family was kept nonmodal, not converted to a docked
+pane.
 
 Divergence (1) is now closed for the rail itself: the NavigationRail is the
 two-state Foundry platform sidebar -- a 230px expanded labeled rail (rows, an

@@ -80,6 +80,22 @@ test.describe("Export", () => {
     expect(hub.requests().filter((request) => request.startsWith("GET /v1/export-pipelines")).length).toBe(1);
   });
 
+  test("frames the inline detail as a real Blueprint Section with a 4px corner", async ({ page, hub }) => {
+    // The detail panel is a Blueprint Section now, not a bare <section>, so its
+    // 4px corner comes from --bp-surface-border-radius rather than a radius rule
+    // on raw HTML -- the same primitive the products detail panels use. It stays
+    // inline and nonmodal, so the row context is preserved.
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    await page.goto("export");
+    const exports = new ExportPom(page);
+
+    await exports.pipeline("exp_release").click();
+    await expect(exports.detail).toHaveClass(/bp6-section/);
+    await expect
+      .poll(() => exports.detail.evaluate((element) => getComputedStyle(element).borderTopLeftRadius))
+      .toBe("4px");
+  });
+
   test("filters the loaded set locally and explains a match of nothing", async ({ page, hub }) => {
     hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE, SNAPSHOT_PIPELINE] });
     await page.goto("export");

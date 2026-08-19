@@ -72,6 +72,24 @@ test.describe("Change Requests", () => {
     await expect(page.getByText("Upgrade payments to 2.4.1")).toBeVisible();
   });
 
+  test("carries the shared ObjectHeader and an H2 list title like its sibling indexes", async ({
+    page,
+    hub,
+  }) => {
+    // Finding 1 resolved: this index now mounts the shared ObjectHeader identity
+    // row and titles its Section with the shared H2 renderer, so its heading
+    // order matches every other index screen instead of diverging.
+    hub.get("/change-requests", indexPage("changeRequests", [changeRequest()]));
+    await page.goto("change-requests");
+
+    const header = page.getByTestId("object-header");
+    await expect(header).toBeVisible();
+    await expect(header).toContainText("Change Requests");
+    // The list Section title is a real <h2> (the shared titleRenderer), distinct
+    // from the ObjectHeader's <h1> identity title.
+    await expect(page.getByRole("heading", { level: 2, name: "Change Requests" })).toBeVisible();
+  });
+
   test("puts requests awaiting approval before settled ones", async ({ page, hub }) => {
     hub.get("/change-requests", indexPage("changeRequests", [
         changeRequest({ id: "crq_done", status: "APPROVED", updatedAt: "2026-08-07T13:00:00Z" }),
