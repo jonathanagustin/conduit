@@ -18,11 +18,15 @@ import { Link, useParams } from "react-router-dom";
 import { principalCount, useTeam, useTeams, type Team } from "../../api/teams.js";
 import { ApiError } from "../../api/errors.js";
 import {
+  NOTIFICATION_CHANNELS,
   TEAM_CONTACT_KINDS,
   contactDeliverable,
   useDeleteTeamContact,
   useSaveTeamContact,
   useTeamContacts,
+  useTeamInbox,
+  type InboxEntry,
+  type NotificationChannel,
   type TeamContact,
   type TeamContactKind,
 } from "../../api/notifications.js";
@@ -145,6 +149,9 @@ export function TeamDetailPage() {
                 Teams Contact Management tab. The panel handles the not-a-member
                 refusal itself, so the tab is always offered. */}
             <Tab id="contacts" title="Contacts" panel={<TeamContactsPanel team={team.name} />} />
+            {/* The team's Notifications tab -- what has reached the team inbox.
+                Same member-only refusal as Contacts. */}
+            <Tab id="notifications" title="Notifications" panel={<TeamNotificationsPanel team={team.name} />} />
           </Tabs>
         </div>
       )}
@@ -351,6 +358,88 @@ function NewContactForm({
         </Callout>
       ) : null}
     </form>
+  );
+}
+
+/** What has reached the team's inbox -- Apollo's team Notifications tab. This is
+ * a read: the personal Notifications screen owns per-resource subscription
+ * editing, and a team's preference additionally needs a contact, so this panel
+ * shows what the team was told rather than duplicating that editor. The channel
+ * toggles between the two the route accepts; a 403 is the same not-a-member
+ * refusal the Contacts tab renders. */
+function TeamNotificationsPanel({ team }: { team: string }) {
+  const [channel, setChannel] = useState<NotificationChannel>("IN_APP");
+  const inbox = useTeamInbox(team, channel);
+
+  return (
+    <section className="console-teams__notifications" data-testid="team-notifications">
+      <div className="console-teams__notifications-controls">
+        <HTMLSelect
+          aria-label="Inbox channel"
+          value={channel}
+          onChange={(event) => setChannel(event.currentTarget.value as NotificationChannel)}
+          options={NOTIFICATION_CHANNELS.map((value) => ({ value, label: value }))}
+        />
+      </div>
+      {inbox.isPending ? (
+        <p className="console-empty">Loading the team inbox…</p>
+      ) : inbox.error !== null ? (
+        (() => {
+          const forbidden = inbox.error instanceof ApiError && inbox.error.status === 403;
+          return (
+            <Callout
+              intent={forbidden ? "primary" : "danger"}
+              icon={forbidden ? "lock" : "error"}
+              data-testid="team-notifications-error"
+            >
+              {forbidden
+                ? "Only members of this team can read its notifications."
+                : inbox.error.message}
+            </Callout>
+          );
+        })()
+      ) : inbox.data.entries.length === 0 ? (
+        <p className="console-empty" data-testid="team-notifications-empty">
+          Nothing has reached this team's {channel} inbox. An entry is recorded when an event matches
+          a notification preference the team owns.
+        </p>
+      ) : (
+        <>
+          <HTMLTable className="console-teams__notifications-table" striped>
+            <thead>
+              <tr>
+                <th scope="col">Occurred</th>
+                <th scope="col">Type</th>
+                <th scope="col">Resource</th>
+                <th scope="col">Summary</th>
+              </tr>
+            </thead>
+            <tbody>
+              {inbox.data.entries.map((entry: InboxEntry) => (
+                <tr key={`${entry.event.id}-${entry.preferenceId}`} data-testid={`team-inbox-entry-${entry.event.id}`}>
+                  <td>
+                    <Timestamp value={entry.event.occurredAt} />
+                  </td>
+                  <td>
+                    <Tag minimal round>
+                      {entry.event.type}
+                    </Tag>
+                  </td>
+                  <td className="console-teams__notifications-rid">{entry.event.resourceRid}</td>
+                  <td>{entry.event.summary}</td>
+                </tr>
+              ))}
+            </tbody>
+          </HTMLTable>
+          {inbox.data.bounded ? (
+            <Callout compact icon="stacked-chart" intent="primary" data-testid="team-inbox-bounded">
+              This is the most recent {inbox.data.limit} entries, which is as many as one read
+              returns. There may be older ones this page does not show.
+            </Callout>
+          ) : null}
+        </>
+      )}
+    </section>
   );
 }
 
