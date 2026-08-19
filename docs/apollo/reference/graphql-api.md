@@ -180,6 +180,51 @@ Nothing here changes what the recovery established about the Hub it reached.
 It changes what may be inferred about Apollo's GraphQL surface in general,
 which is less than one capture suggests.
 
+### A third observation (2026-08-19), by a different method
+
+The captured `apollo-control-panel` 6.533.15 frontend closure — receipt in
+[`../FRONTEND-CAS-CAPTURE.md`](../FRONTEND-CAS-CAPTURE.md) — yields the client's
+**own** GraphQL operations, mined statically from the shipped bundles with no
+live call: 24 complete operations and 30 fragments, committed as
+[`../apollo-control-panel-graphql-operations-6.533.15.json`](../apollo-control-panel-graphql-operations-6.533.15.json).
+
+It is a genuinely independent observation. Different date, different tenant
+surface, and a method with no probe in it at all: these are the documents the
+tenant *served to a browser*, so nothing here depends on validation probing,
+on the guard/canary discipline, or on what a schema chose to introspect.
+
+What it shows:
+
+| Observation | Result |
+| --- | --- |
+| Root fields used | `me`, `enrollment`, `principal`, `resourceMetadata`, `sessionClassification`, `authenticationProvider`, and the Stargate user-directory reads and mutations |
+| `apollo` root field | **absent** |
+| Deployment vocabulary anywhere in the extract | **zero** matches |
+| Client | `forge-graphql-client/0.0.0`, sending `Palantir-Asset-Track` and a bearer token |
+
+**What it settles.** The 2026-08-03 capture recorded "five Control Panel
+shell/enrollment operations; none is an Apollo Hub operation" from one route.
+This is the same finding at 24 operations across the whole app closure, so that
+result was not an artifact of which route was loaded. A Foundry frontend that
+exposes `Query.me` and no `Query.apollo` is now observed twice, by two methods —
+matching the captured gateway schema and differing from the Hub reached on
+2026-08-15.
+
+**What it does not settle, and this is the point.** It cannot separate the three
+readings above, because *it does not establish which endpoint it posts to
+either*. The only `/graphql` string in the closure is Apollo Client's library
+default in `HttpLink`'s constructor; there is no `graphql-gateway` string in any
+of the 30 blobs and no `uri:` literal in the app chunk, so the path is assembled
+at runtime from configuration the capture does not contain. It therefore adds a
+third surface-shaped observation with the same missing datum that made
+`hubFingerprint` insufficient, rather than the endpoint identity that would
+resolve the conflict.
+
+So the conflict stands, with one reading now better supported and none
+eliminated: whatever serves `Query.apollo` with 13 types of deployment domain,
+it is not the surface this tenant's Control Panel talks to. Resolving it still
+needs a fresh capture that records origin *and* path.
+
 ## The interface Conduit serves (2026-08-15)
 
 The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the

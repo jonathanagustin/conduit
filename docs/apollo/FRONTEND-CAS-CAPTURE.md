@@ -258,6 +258,145 @@ What none of it recovers: component logic in readable form, the routes of the
 unfetched chunks, or any screen of the Apollo deployment console — which
 Finding 1 already establishes is not in this artifact at all.
 
+## Finding 6 — the whole API surface, and what it settles
+
+A companion extraction mined the same bundle closure for the API the frontend
+talks to, statically and with no live calls. It is committed here rather than
+referenced, because its source is a `claude/*` branch that may be rebased or
+deleted:
+
+| Artifact | Recovered |
+| --- | --- |
+| [`apollo-control-panel-rest-endpoints-6.533.15.json`](apollo-control-panel-rest-endpoints-6.533.15.json) | 438 Conjure REST endpoints across 34 services |
+| [`apollo-control-panel-graphql-operations-6.533.15.json`](apollo-control-panel-graphql-operations-6.533.15.json) | 24 complete GraphQL operations, 30 fragments, 54 definitions |
+
+Provenance: `jonathanagustin/apollo-ui`, branch
+`claude/foundry-ui-review-xzi0eg`, commit `9519522`, files
+`contracts/rest-conjure-endpoints.json` and `contracts/graphql-operations.json`,
+copied byte-for-byte. Their local digests are
+`96ffd597a501548881a3451e875ae4a215ae08de1dcaebab6339fccf538f5cb1` and
+`e4fa55d375133810b3bb78720e0344b7801b2b4e68bf565c6a53ed898cdef082`.
+
+**Confidence, carried over rather than upgraded.** REST is *bundle-path-only*:
+method, endpoint name and templated path come from the generated
+`IHttpApiBridge` calls (`bridge.call(service, endpointName, httpMethod,
+endpointPath, …)`), and no request or response Conjure bean shape has been
+type-verified against a live 2xx. GraphQL is *closure-complete* — every
+operation's fragments resolve — but the field and argument **types** are the
+reconstructed document's, not the server schema's, and have not been probed.
+Neither may be cited as a verified contract.
+
+**Leak posture, checked here rather than taken on trust.** Scanning both files
+for `ri.*` RID literals, Palantir hostnames, JWTs, UUIDs and absolute URLs
+returns zero of each. Every path is templated (`{rid}`, `{organizationRid}`,
+`{enrollmentRid}`).
+
+### It corroborates Finding 1 from the other end, and much harder
+
+Finding 1 argues from UI strings that this is Control Panel. The API surface
+argues the same thing from the wire, at a scale that is difficult to explain
+away — **438 endpoints, and not one deployment endpoint**:
+
+```
+CompassService 49 | OrganizationAndProjectService 41 | EnrollmentManagementService 34
+MandatoryControlsService 28 | AuthenticationProviderService 26 | NamespaceAndProjectService 26
+UserDirectoryService 21 | CustomerManagedDomainService 20 | TaskRequestService 20
+IngressConfigurationService 19 | WorkspaceService 17 | CommentService 14
+GroupAdministrationService 14 | OrganizationManagementService 14 | DomainService 11
+EnrollmentService 11 | DeletionContextService 10 | OrganizationPermissionService 7
+OrganizationTriagingService 6 | ScopedSessionDefinitionService 6 | CbacBannerService 5
+EnrollmentSetupManagementService 5 | OrganizationService 5 | SearchService 5
+ConfigurationService 3 | CorsConfigurationService 3 | EnvironmentService 3
+PathService 3 | ShareService 3 | UserSettingsService 3
+DescriptionService 2 | ScopedSessionSelectionService 2 | EdgeControlPanelService 1
+TokenService 1
+```
+
+Compass, enrollment, organization, identity, mandatory controls, networking.
+There is no Product, Release, Plan, Change Request, Promotion, Recall or Spoke
+service. Scanning all 438 for deployment vocabulary
+(`release|product|install|deploy|plan|spoke|recall|rollout|artifact|helm|chart|version|upgrade|promot|maestro|agent`)
+returns **four** hits, and each is a false friend worth naming so the next
+reader does not have to re-check them:
+
+| Hit | What it actually is |
+| --- | --- |
+| `TaskRequestService.getBatchTaskRequestVersionDetails` `/task-requests/batch/version` | a revision of a task request |
+| `TaskRequestService.createRequestVersion` `/task-requests/{taskRid}/version/create` | the same |
+| `WorkspaceService.getAssetsInstalledOnTrack` `/installedAssets` | **frontend** SLS assets on a release *track* — the mechanism that served this very bundle, per the `staticUrl` shape in `manifests/`, not Apollo Entity installation |
+| `WorkspaceService.getAssetRoleInfoInstalledOnTrack` `/assetRoleInfo` | the same |
+
+`EnvironmentService` — the one service whose name suggests deployment — has
+exactly three endpoints, all reads: `getAppliedApolloLabels`
+(`/environment/applied-apollo-labels`), `getAvailablePlatforms`, and `isItar`.
+
+The GraphQL side agrees: the deployment-vocabulary scan over the entire
+operation extract returns **zero**. The 24 operations use these root fields —
+
+`me` (2), `enrollment`, `principal`, `resourceMetadata`, `sessionClassification`,
+`authenticationProvider`, `stargateUserDirectory` (4), `stargateUser`,
+`currentStargateUser` (2), `stargateIsPalantirUser`, and the Stargate
+create/update/delete/reset/passkey/OTP/enable mutations
+
+— and **no `apollo` root field**. What that does and does not settle for
+Conduit's GraphQL work is recorded in
+[`reference/graphql-api.md`](reference/graphql-api.md), under the captured
+gateway comparison, because that is where the open conflict lives.
+
+### Two independent sources agree, three for three
+
+The extraction's own confidence label is "bundle-path-only, not type-verified",
+and it stays that. But this repository already holds the *other side of the same
+seam*: [`../evidence/apollo-control-panel-seam.json`](../evidence/apollo-control-panel-seam.json)
+is a bytecode-exact projection of the published Maven artifact
+`com.palantir.controlpanel:control-panel-api-objects:1.1588.0`, captured
+2026-08-17, at **Primary** fidelity for operation names, HTTP shapes and field
+types. It declares exactly three Apollo-named operations. The frontend closure,
+mined two days later from shipped bytes by an unrelated method, calls exactly
+those three — and every field agrees:
+
+| Operation | Maven projection (server) | Frontend closure (client) |
+| --- | --- | --- |
+| `createApolloSpaceForOrganization` | `POST /control-panel/api/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-apollo-space` — `EnrollmentManagementService` | `POST /admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-apollo-space` — same service |
+| `restoreApolloPermissions` | `PUT /control-panel/api/admin/enrollment/{enrollmentRid}/restore-apollo-permissions` — `EnrollmentManagementService` | `PUT /admin/enrollment/{enrollmentRid}/restore-apollo-permissions` — same service |
+| `getAppliedApolloLabels` | `GET /control-panel/api/environment/applied-apollo-labels` — `EnvironmentService` | `GET /environment/applied-apollo-labels` — same service |
+
+Same service, same method, same path — the client paths differ from the server
+paths by exactly the constant `/control-panel/api`, which the generated
+`IHttpApiBridge` supplies and the bundle therefore never carries.
+
+That is worth more than three rows. It establishes what the other 435 paths
+*are*: service-relative under `/control-panel/api`, not fragments of unknown
+origin. It does not make them type-verified — nothing here says anything about
+request or response beans — but "the path shape is confirmed against a Primary
+source wherever the two overlap" is a materially different claim from "mined
+from a minified bundle and unchecked".
+
+Pinned by `scripts/verify-apollo-frontend-surface.mjs`, which fails on a
+disagreement in service, method or path, on an operation the projection declares
+and the frontend has lost, on a count that stops matching its contents, on a RID
+literal appearing in a templated path, and on a **new** deployment-vocabulary
+endpoint the four recorded false friends do not account for — so Finding 1 goes
+stale loudly rather than quietly. Its self-test plants all six.
+
+### One thing it does not recover: which endpoint the client posts to
+
+Worth stating because it looks recoverable and is not. The only `/graphql`
+string in the closure is Apollo Client's own library default (`{uri = "/graphql"}`
+in `HttpLink`'s constructor), not the app's configuration; there is no
+`graphql-gateway` string anywhere in the 30 blobs and no `uri:` literal in the
+app chunk. The endpoint is assembled at runtime. What the bytes *do* name is
+the client: requests carry `Fetch-User-Agent: … forge-graphql-client/0.0.0`,
+a `Palantir-Asset-Track` header and a bearer token.
+
+### No Conduit code follows from this
+
+Recorded deliberately. Every one of the 438 endpoints is Foundry platform
+administration — Compass resources, enrollments, organizations, directories,
+ingress. None is an Apollo public-profile route Conduit serves or should serve,
+and none is a console obligation. The value here is evidential: it closes off a
+line of inquiry rather than opening one.
+
 ## Observed, not adopted
 
 - **Foundry's date-format presets**, e.g. `{day, month: "short", weekday:

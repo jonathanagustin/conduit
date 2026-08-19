@@ -23,7 +23,12 @@ infer missing behavior.
 - [Frontend CAS closure capture](FRONTEND-CAS-CAPTURE.md) — the served
   `apollo-control-panel` 6.533.15 bytes. Read its Finding 1 before mining it:
   the app is Foundry **Control Panel** under an Apollo skin, so it authorizes
-  nothing about the Apollo deployment console.
+  nothing about the Apollo deployment console. With it, the API surface that
+  closure calls — [438 Conjure REST endpoints](apollo-control-panel-rest-endpoints-6.533.15.json)
+  across 34 services and [24 GraphQL operations](apollo-control-panel-graphql-operations-6.533.15.json),
+  both recovered statically from the bundles and both **bundle-derived, not
+  type-verified against a live response**. Not one of the 438 is a deployment
+  endpoint, which is Finding 1 established from the wire instead of the strings.
 - [Maven inventory evidence](APOLLO-MAVEN-INVENTORY-EVIDENCE.md)
 - [Java object alignment](JAVA-OBJECT-ALIGNMENT.md)
 - [Role/interface inventory](ROLE-INTERFACE-INVENTORY.md)

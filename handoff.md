@@ -1092,3 +1092,61 @@ not recoverable at any price.
 fixes the clock with `page.clock.setFixedTime` and walks the whole relative-time
 ladder through a rendered table. Before it, no e2e test asserted a rendered
 timestamp anywhere in the console.
+
+### `jonathanagustin/apollo-ui` pulled, 2026-08-19 — and what it changed
+
+**The repo's default branch adds nothing.** `develop` (`c93cf87`) holds 30 CAS
+blobs flat under `cas/`. All 30 verified: each hashes to its own filename and is
+byte-identical to the copy inside the OCI artifact. The artifact is the richer
+source — 31 blobs, plus `PROVENANCE.md`, `UNAVAILABLE-503.txt` and both app
+manifests. Its manifest digest cross-checks against the ORAS receipt on the
+other branch: `sha256:35159ccf90ad…`, matching what ghcr returns.
+
+**The other branch is where the material is.** `claude/foundry-ui-review-xzi0eg`
+(`9519522`) carries an API-surface extraction from the same bundles: **438
+Conjure REST endpoints across 34 services** and **24 complete GraphQL operations
+with 30 fragments**, both mined statically with no live call. Both are now
+committed here (`docs/apollo/apollo-control-panel-{rest-endpoints,graphql-operations}-6.533.15.json`)
+rather than referenced, because a `claude/*` branch may be rebased or deleted.
+It also names a second artifact nobody here has pulled:
+`ghcr.io/jonathanagustin/apollo-ui/apollo-control-panel-frontend:6.533.15`.
+
+**`[VERIFIED]` Finding 1 now holds from the wire, not just the strings.** 438
+endpoints, zero deployment endpoints — Compass, enrollment, organization,
+identity, mandatory controls, networking. The vocabulary scan returns four hits
+and all four are false friends (two task-request *revisions*; two `WorkspaceService`
+rows about **frontend** SLS assets on a release *track*). `EnvironmentService`
+has three read endpoints. The GraphQL side returns zero and has no `apollo` root
+field.
+
+**`[VERIFIED]` The best result of the session: two independent sources agree,
+three for three.** This repo already held the server side —
+`docs/evidence/apollo-control-panel-seam.json`, a bytecode-exact projection of
+`control-panel-api-objects:1.1588.0` at **Primary** fidelity. It declares three
+Apollo-named operations; the shipped frontend calls exactly those three; service,
+method and path all agree, with the client paths differing by exactly the
+constant `/control-panel/api` the generated bridge supplies. That establishes
+what the other 435 paths *are* — service-relative under that base — without
+claiming they are type-verified, which they are not.
+
+**Gated, because two unread artifacts is the exact failure the seam gate exists
+to prevent.** `scripts/verify-apollo-frontend-surface.mjs` (+ `.test.sh`), in
+`platform-ci.yml` and `verify-local.sh` as "Validate Apollo frontend surface".
+It fails on a cross-source disagreement in service/method/path, on an operation
+the projection declares and the frontend has lost, on counts that stop matching
+contents, on a RID literal in a templated path, and on a **new**
+deployment-vocabulary endpoint — so Finding 1 fails loudly rather than going
+quietly stale. The self-test plants all six.
+
+**`reference/graphql-api.md` gained a third observation**, filed under the
+captured-gateway conflict rather than presented as a resolution. The control
+panel uses `me` and no `apollo` root field, by a method with no probing in it at
+all — which confirms the 2026-08-03 five-operation result was not an artifact of
+which route was loaded. It does **not** resolve the three readings, because it
+cannot establish its own endpoint either: the only `/graphql` in the closure is
+Apollo Client's library default, there is no `graphql-gateway` string in any of
+the 30 blobs, and the app chunk has no `uri:` literal.
+
+**No Conduit code follows from any of it.** All 438 endpoints are Foundry
+platform administration. Recorded deliberately in the receipt so the next
+session does not go looking for the change that should have accompanied this.

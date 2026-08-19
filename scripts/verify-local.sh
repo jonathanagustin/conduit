@@ -248,6 +248,7 @@ gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
 gate 'Validate Zenith protocol ledgers' zenith_protocol
 gate 'Validate review ledger' review_ledger
+gate 'Validate Apollo frontend surface' bash -c 'node scripts/verify-apollo-frontend-surface.mjs && ./scripts/verify-apollo-frontend-surface.test.sh'
 gate 'Validate Module publication' go run ./cmd/platform-module-publisher --directory examples/modules --dry-run
 gate 'GitOps acceptance' ./scripts/test-gitops.sh
 

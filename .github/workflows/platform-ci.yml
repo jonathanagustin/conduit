@@ -581,6 +581,20 @@ jobs:
         run: |
           node scripts/verify-review-ledger.mjs
           ./scripts/verify-review-ledger.test.sh
+      # Two API-surface extracts recovered from the captured apollo-control-panel
+      # frontend arrived as unread artifacts, which is the exact shape the seam
+      # gate above exists to prevent. This reads them: their own counts, their
+      # templated-path disclosure boundary, and -- the part that gives them
+      # credibility -- their agreement with docs/evidence/apollo-control-panel-seam.json,
+      # a Primary-fidelity bytecode projection of the SERVER side. The two sources
+      # overlap on three Apollo operations and agree on all three under the
+      # /control-panel/api bridge base. It also pins the four false-friend
+      # deployment-vocabulary rows, so FRONTEND-CAS-CAPTURE.md's Finding 1 fails
+      # loudly if a real deployment endpoint ever appears.
+      - name: Validate Apollo frontend surface
+        run: |
+          node scripts/verify-apollo-frontend-surface.mjs
+          ./scripts/verify-apollo-frontend-surface.test.sh
       - name: GitOps acceptance
         run: ./scripts/test-gitops.sh
 

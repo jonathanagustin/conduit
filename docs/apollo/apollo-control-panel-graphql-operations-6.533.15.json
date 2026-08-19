@@ -1,0 +1,1041 @@
+{
+  "schemaVersion": 2,
+  "evidenceKind": "foundry-graphql-exact-document-closure-registry",
+  "method": "Capture-scoped shipped document closure recovery; variants merge only by exact operation and closure hashes",
+  "completenessRule": "Each operation references exact definition hashes; no fragment is resolved globally by name.",
+  "summary": {
+    "captureCount": 1,
+    "bundleCount": 30,
+    "documentCount": 57,
+    "operationOccurrenceCount": 24,
+    "operationVariantCount": 24,
+    "completeOperationVariantCount": 24,
+    "incompleteOperationVariantCount": 0,
+    "fragmentVariantCount": 30,
+    "fragmentNameCollisionCount": 0,
+    "definitionCount": 54
+  },
+  "definitions": [
+    {
+      "sha256": "00548c986d502ec354ba76023dc87ec16e9bac2fa9495f67da522c1df1ee61eb",
+      "kind": "operation",
+      "name": "CertificatesQuery",
+      "type": "query",
+      "source": "query CertificatesQuery($enrollmentRid: RID!) {\n  enrollment(rid: $enrollmentRid) {\n    certificates {\n      ...Certificate\n      _id\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "06e08a5dbd711b6145cff7be670972c9f8d76651f9c62ca6fc1ae18519a29b45",
+      "kind": "fragment",
+      "name": "GroupPreviewGroup",
+      "typeCondition": "Group",
+      "source": "fragment GroupPreviewGroup on Group {\n  ...PrincipalHeaderPrincipal\n  description\n  guestOrganizations {\n    ...GroupOrganizationsOrganization\n    _id\n  }\n  id\n  membershipExpirationSettings {\n    maximumDuration\n    latestDate\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "0c6dd226420d0eb095a9e252bba9a51c35f8ce973b357a2f71b286afa0d3b7e3",
+      "kind": "operation",
+      "name": "SendStargatePasskeyEnrollmentOtpMutation",
+      "type": "mutation",
+      "source": "mutation SendStargatePasskeyEnrollmentOtpMutation($userDirectoryRid: RID!, $userRid: RID!) {\n  sendStargatePasskeyEnrollmentOtp(\n    userDirectoryRid: $userDirectoryRid\n    userRid: $userRid\n  ) {\n    error\n  }\n}"
+    },
+    {
+      "sha256": "0d45287221f9e3c61ae2ceaab6196d8c3fcef13c3314337527728f2bbd4b2f3f",
+      "kind": "operation",
+      "name": "CheckEmailQuery",
+      "type": "query",
+      "source": "query CheckEmailQuery($userDirectoryRid: RID!, $organizationRid: RID!, $email: String!) {\n  stargateUserDirectory(rid: $userDirectoryRid) {\n    rid\n    emailAvailability(organizationRid: $organizationRid, email: $email) {\n      isAvailable\n      organizationHasRuleForEmail\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "168f838d05b529b088769fd4e06ec65943f00ff49aade7b8a06ee21f5f05df40",
+      "kind": "fragment",
+      "name": "ActionTypeBlueprintIconFragment",
+      "typeCondition": "BlueprintIcon",
+      "source": "fragment ActionTypeBlueprintIconFragment on BlueprintIcon {\n  locator\n  color\n}"
+    },
+    {
+      "sha256": "17ff38f503d3fee03c586ac3627cab306c2fa2f0fb8e368342db55b751b65217",
+      "kind": "operation",
+      "name": "PrincipalAnchorPopoverPrincipalQuery",
+      "type": "query",
+      "source": "query PrincipalAnchorPopoverPrincipalQuery($principalId: String!) {\n  principal(id: $principalId) {\n    id\n    _id\n    ...PrincipalHeaderPrincipal\n    ...PrincipalPreviewPrincipal\n  }\n}"
+    },
+    {
+      "sha256": "20bf9e286b1298d89b95bc2c3946628f05155457ad43a1f1b68a31f4d5ef3fa9",
+      "kind": "operation",
+      "name": "UpdateUserMutation",
+      "type": "mutation",
+      "source": "mutation UpdateUserMutation($stargateUpdateUserInput: StargateUpdateUserInput!, $userRid: RID!) {\n  updateStargateUser(input: $stargateUpdateUserInput, userRid: $userRid) {\n    rid\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "25875e9aaf27f9ee1130951afa61345dc70672c6ba7edf603018ac29c27a08f7",
+      "kind": "operation",
+      "name": "UpdatePasskeyMutation",
+      "type": "mutation",
+      "source": "mutation UpdatePasskeyMutation($description: String!, $passkeyId: String!, $userRid: RID!) {\n  updateStargatePasskey(\n    description: $description\n    passkeyId: $passkeyId\n    userRid: $userRid\n  ) {\n    id\n    description\n  }\n}"
+    },
+    {
+      "sha256": "30e313f512de5839170c05a7c438d30c576546316ad6cd26a9760e5543b3ce8a",
+      "kind": "operation",
+      "name": "CustomerDataSupportedQuery",
+      "type": "query",
+      "source": "query CustomerDataSupportedQuery {\n  me {\n    organization {\n      enrollment {\n        customerDataStatus {\n          ...NotionalDataBannerEnrollmentCustomerDataStatus\n        }\n        _id\n      }\n      _id\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "31ecef067eb8be37e7b1eaad00a192c2b132c5e7ab48857d66d0660120acbee6",
+      "kind": "operation",
+      "name": "DeleteStargatePasskeyV2Mutation",
+      "type": "mutation",
+      "source": "mutation DeleteStargatePasskeyV2Mutation($passkeyId: String!, $userRid: RID!) {\n  deleteStargatePasskeyV2(passkeyId: $passkeyId, userRid: $userRid) {\n    error\n  }\n}"
+    },
+    {
+      "sha256": "324e45f1c4634864d162893cd8e8194d5fc5f335ac05c286cc029b85bbbb4fa3",
+      "kind": "operation",
+      "name": "ListUsersInUserDirectoryQuery",
+      "type": "query",
+      "source": "query ListUsersInUserDirectoryQuery($userDirectoryRid: RID!, $filter: StargateUserSearchFilter, $sort: StargateUserSort, $pageSize: Int!, $pageToken: PageToken) {\n  stargateUserDirectory(rid: $userDirectoryRid) {\n    userCount\n    usersV2(\n      filter: $filter\n      sort: $sort\n      pageSize: $pageSize\n      pageToken: $pageToken\n    ) {\n      values {\n        ...StargateUserFragment\n        _id\n      }\n      nextPageToken\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "3a2a9d4e2d12ab9bc5be5c5af4c2b3fbc8771ff8b81377c548fccef5989d9158",
+      "kind": "operation",
+      "name": "GetUserDirectoryQuotasQuery",
+      "type": "query",
+      "source": "query GetUserDirectoryQuotasQuery($userDirectoryRid: RID!) {\n  stargateUserDirectory(rid: $userDirectoryRid) {\n    rid\n    quotas {\n      maxUserPasskeys\n      maxUsers {\n        status\n        usage {\n          ... on LongEnrollmentQuotaUsage_Exact {\n            quotaValue\n            usage\n          }\n        }\n      }\n      palantirActionsAllowed\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "3d66dd6df5b17c73d85104a9751dd099f16bc91d5c3337b539cd9a9edb7dfa45",
+      "kind": "fragment",
+      "name": "PrincipalPreviewPrincipal",
+      "typeCondition": "Principal",
+      "source": "fragment PrincipalPreviewPrincipal on Principal {\n  ... on Group {\n    ...GroupPreviewGroup\n  }\n  ... on User {\n    ...UserPreviewUser\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "3ebca4bdb56592cec99ae9b496a3d75816fb2dc440fc8eb7a0748421f1b76bda",
+      "kind": "fragment",
+      "name": "ObjectTypeGroupIconObjectTypeGroup",
+      "typeCondition": "ObjectTypeGroup",
+      "source": "fragment ObjectTypeGroupIconObjectTypeGroup on ObjectTypeGroup {\n  latest {\n    ...ObjectTypeGroupIconColorsObjectTypeGroupVersion\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "45706f15ee24962d6f193e3fe8425df2f1db34359dbc3bf05bf6fb288bdcb0a9",
+      "kind": "fragment",
+      "name": "ScopedSessionsAndCbacBannerSecondaryBanner",
+      "typeCondition": "SecondaryClassificationBanner",
+      "source": "fragment ScopedSessionsAndCbacBannerSecondaryBanner on SecondaryClassificationBanner {\n  ...ScopedSessionsPopoverContentV2SecondaryBanner\n}"
+    },
+    {
+      "sha256": "4ac347578097540a968f1babd04ba1d11e0e6efac18df27ae7e1a6f701b270ba",
+      "kind": "operation",
+      "name": "UserPasskeysByRidQuery",
+      "type": "query",
+      "source": "query UserPasskeysByRidQuery($userRid: RID!) {\n  stargateUser(rid: $userRid) {\n    passkeys {\n      id\n      description\n      lastModifiedAt\n      lastUsed\n      whenCreated\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "50323eae54b4424326fe486237c8592c72c1a5716937fa3f1d0a56de0e962b47",
+      "kind": "operation",
+      "name": "CreateUserMutation",
+      "type": "mutation",
+      "source": "mutation CreateUserMutation($createUserInput: StargateCreateUserInput!, $organizationRid: RID!, $userDirectoryRid: RID!) {\n  createStargateUser(\n    input: $createUserInput\n    organizationRid: $organizationRid\n    userDirectoryRid: $userDirectoryRid\n  ) {\n    rid\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "5103dfb3788d44989e6e4f0d99767cf244aba3a3dd50429538b94f688dd57539",
+      "kind": "fragment",
+      "name": "ObjectTypeIconObjectTypeVersion",
+      "typeCondition": "ObjectTypeVersion",
+      "source": "fragment ObjectTypeIconObjectTypeVersion on ObjectTypeVersion {\n  iconV2 {\n    color\n    locator\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "548faad9d1ef325a62328c4ed1ae266766a02c4128d67a399b997715dc1f23ae",
+      "kind": "operation",
+      "name": "SetStargateUserEnabledStatusMutation",
+      "type": "mutation",
+      "source": "mutation SetStargateUserEnabledStatusMutation($userRid: RID!, $enabled: Boolean!) {\n  setStargateUserEnabledStatus(userRid: $userRid, enabled: $enabled) {\n    state\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "59cc6e6e27879d0459d3260b4632f3c9f590cc47b5079d049c69c322c056e500",
+      "kind": "operation",
+      "name": "GetUserByAuthHeaderQuery",
+      "type": "query",
+      "source": "query GetUserByAuthHeaderQuery {\n  currentStargateUser {\n    ...StargateUserFragment\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "5efc2b9605605f2e5375ec9f56a0692b922c45ccf6ce7f7ac0ac304825823304",
+      "kind": "fragment",
+      "name": "WarningsAndNoticesSecondaryBanner",
+      "typeCondition": "SecondaryClassificationBanner",
+      "source": "fragment WarningsAndNoticesSecondaryBanner on SecondaryClassificationBanner {\n  text\n}"
+    },
+    {
+      "sha256": "670244bb663cf74d8ea6a56f6d7fa3e80199b3287828497c8ada7d173b45f042",
+      "kind": "operation",
+      "name": "ResetUserAccountMutation",
+      "type": "mutation",
+      "source": "mutation ResetUserAccountMutation($userRid: RID!) {\n  resetStargateUserAccount(userRid: $userRid) {\n    state\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "6773b877e1a6d31610f42ff5bb8962318478d916be3780888d679dd3b9170531",
+      "kind": "fragment",
+      "name": "ObjectTypeIconObjectType",
+      "typeCondition": "ObjectType",
+      "source": "fragment ObjectTypeIconObjectType on ObjectType {\n  latest {\n    ...ObjectTypeIconObjectTypeVersion\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "6b2d927bf7bbf3be31212c6e68fa4d9dc4838f6e5669787e6002ec56abfc2d9a",
+      "kind": "operation",
+      "name": "GetUsersInDirectory",
+      "type": "query",
+      "source": "query GetUsersInDirectory($userDirectoryRid: RID!) {\n  stargateUserDirectory(rid: $userDirectoryRid) {\n    users(pageSize: 1000) {\n      values {\n        ...StargateUserFragment\n        _id\n      }\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "6c1172e011b2d2021299b3e232990c3e662799549a198dd430574c635523f5ff",
+      "kind": "fragment",
+      "name": "OntologyIconLinkTypeDefinition",
+      "typeCondition": "LinkTypeDefinition",
+      "source": "fragment OntologyIconLinkTypeDefinition on LinkTypeDefinition {\n  ... on LinkTypeDefinition_Intermediary {\n    __typename\n  }\n  ... on LinkTypeDefinition_ManyToMany {\n    __typename\n  }\n  ... on LinkTypeDefinition_OneToMany {\n    manySide {\n      cardinality\n      _id\n    }\n  }\n}"
+    },
+    {
+      "sha256": "7eef1cf8b3f18603301d444c97a3a30e9c138dcdda4c19d170497f21dfe68acd",
+      "kind": "fragment",
+      "name": "ScopedSessionsPopoverContentV2SecondaryBanner",
+      "typeCondition": "SecondaryClassificationBanner",
+      "source": "fragment ScopedSessionsPopoverContentV2SecondaryBanner on SecondaryClassificationBanner {\n  ...WarningsAndNoticesSecondaryBanner\n}"
+    },
+    {
+      "sha256": "82c76313f238fdae1f37e709769afc5fb0152bcc91ae9c58fbee92291dd73177",
+      "kind": "fragment",
+      "name": "ActionTypeIconFragment",
+      "typeCondition": "ActionTypeVersion",
+      "source": "fragment ActionTypeIconFragment on ActionTypeVersion {\n  logic {\n    rules {\n      ...ActionTypeTitle_RuleFragment\n    }\n  }\n  iconV2 {\n    ...ActionTypeBlueprintIconFragment\n  }\n  displayName\n  _id\n}"
+    },
+    {
+      "sha256": "8497a57151579b2a24243b84b836e79b0594d1654fdd0e6785d0d07c3bb4c169",
+      "kind": "fragment",
+      "name": "GroupOrganizationsOrganization",
+      "typeCondition": "Organization",
+      "source": "fragment GroupOrganizationsOrganization on Organization {\n  ...Organization\n  rid\n  _id\n}"
+    },
+    {
+      "sha256": "8b39a74ed63d1f41727513e2404b42ffc00e89b78b5b0ccccbbaf2a0dd1e2b8e",
+      "kind": "fragment",
+      "name": "InterfaceIconInterface",
+      "typeCondition": "OntologyInterface",
+      "source": "fragment InterfaceIconInterface on OntologyInterface {\n  interfaceLatestVersion: latestVersion {\n    ...InterfaceIconInterfaceVersion\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "8d2aef354c5eecfb8f49a4b252dead99737194281c56942eb6236e93c06af81c",
+      "kind": "fragment",
+      "name": "OntologyIconResource",
+      "typeCondition": "Resource",
+      "source": "fragment OntologyIconResource on Resource {\n  rid\n  ... on ObjectType @optional {\n    ...ObjectTypeIconObjectType\n  }\n  ... on ActionType @optional {\n    ...ActionIconActionType\n  }\n  ... on LinkType @optional {\n    linkTypeLatestVersion: latest {\n      definition {\n        ...OntologyIconLinkTypeDefinition\n      }\n      _id\n    }\n  }\n  ... on ObjectTypeGroup @optional {\n    ...ObjectTypeGroupIconObjectTypeGroup\n  }\n  ... on OntologyInterface @optional {\n    ...InterfaceIconInterface\n  }\n  ... on SharedObjectTypeProperty @optional {\n    latestSharedPropertyVersion: latestV2 {\n      type {\n        ...PropertyIconPropertyType\n      }\n      _id\n    }\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "9182b498bdca8eda19d0a65b2453d5ad78c7efce0979ad9819067f925bd2dacc",
+      "kind": "operation",
+      "name": "LoadingScopedSessionChangedDialogQuery",
+      "type": "query",
+      "source": "query LoadingScopedSessionChangedDialogQuery {\n  me {\n    groupsIncludingTransitive {\n      ...LoadingScopedSessionChangedDialogGroup\n      _id\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "91e95142f7ffdaae497db166a69da9a0fad24b7bb058d7a0c4c0658cd92239f6",
+      "kind": "fragment",
+      "name": "Organization",
+      "typeCondition": "Organization",
+      "source": "fragment Organization on Organization {\n  marking {\n    ...OrganizationMarking\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "936fbab4a9adbf589ee22d3fe3bf5c4538a4dc236d571f409a5888376e7e27c6",
+      "kind": "operation",
+      "name": "DeleteUserMutation",
+      "type": "mutation",
+      "source": "mutation DeleteUserMutation($userRid: RID!) {\n  deleteStargateUser(userRid: $userRid)\n}"
+    },
+    {
+      "sha256": "93a0addd1bc00ed524e990181985189df98cb8a23b7ff7126f6fb637dbc3f6bd",
+      "kind": "fragment",
+      "name": "ActionTypeTitle_RuleFragment",
+      "typeCondition": "ActionTypeRule",
+      "source": "fragment ActionTypeTitle_RuleFragment on ActionTypeRule {\n  __typename\n}"
+    },
+    {
+      "sha256": "942e3d67e497c6a800b17af8c324afa495d0758ea89c79962b3ac62d2144f3cc",
+      "kind": "operation",
+      "name": "CurrentUserPasskeysQuery",
+      "type": "query",
+      "source": "query CurrentUserPasskeysQuery {\n  currentStargateUser {\n    passkeys {\n      id\n      description\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "9a6700aeceace3e3d77d06889b011ab1970b1d325b30148698726a2f3636ddf5",
+      "kind": "operation",
+      "name": "LoadingGqlOntologyIconQuery",
+      "type": "query",
+      "source": "query LoadingGqlOntologyIconQuery($rid: RID!) {\n  resourceMetadata(rid: $rid) {\n    resource {\n      rid\n      _id\n      ...OntologyIconResource\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "a23c2f5f600b9da1692a402f269e610b5998ab28848cfd7d7039a62837c2b2a2",
+      "kind": "fragment",
+      "name": "UserPreviewUser",
+      "typeCondition": "User",
+      "source": "fragment UserPreviewUser on User {\n  guestOrganizations {\n    ...UserOrganizationsOrganization\n    _id\n  }\n  id\n  organization {\n    ...UserOrganizationsOrganization\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "aa01edf535044d9fef82ef2cfd5e145c0a67012903ee25c4eff4e3441cf40181",
+      "kind": "operation",
+      "name": "GetIsPalantirUser",
+      "type": "query",
+      "source": "query GetIsPalantirUser {\n  stargateIsPalantirUser\n}"
+    },
+    {
+      "sha256": "aeab3dd405b46b41486d4fcdf69de91eaffcf1923095798a0ae521f331885acb",
+      "kind": "operation",
+      "name": "ClassificationBannerQuery",
+      "type": "query",
+      "source": "query ClassificationBannerQuery {\n  sessionClassification {\n    documentString\n    prefix\n    textColor\n    backgroundColor\n    secondaryBanners {\n      ...ScopedSessionsAndCbacBannerSecondaryBanner\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "afddc9301a6f1a87aff7184ebceeb04e151ebe03f039dc7a7e43deb4550f4557",
+      "kind": "fragment",
+      "name": "StargateUserFragment",
+      "typeCondition": "StargateUser",
+      "source": "fragment StargateUserFragment on StargateUser {\n  rid\n  userDirectory {\n    rid\n    _id\n  }\n  email\n  familyName\n  givenName\n  lastLoggedInAt\n  lastModifiedAt {\n    time\n    user {\n      id\n      _id\n    }\n  }\n  multipassUser {\n    id\n    attributes {\n      key\n      value\n    }\n    _id\n  }\n  phone\n  state\n  stateInfo {\n    statusReason\n    statusDateTime\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "b6d0ab972ee08dd293e4c5187aa4c9833ca56f1c8c012ff938e9c5c9d3a0d664",
+      "kind": "fragment",
+      "name": "PropertyIconPropertyType",
+      "typeCondition": "ObjectTypePropertyType",
+      "source": "fragment PropertyIconPropertyType on ObjectTypePropertyType {\n  ... on ObjectTypePropertyType_Array {\n    subtype {\n      __typename\n    }\n  }\n}"
+    },
+    {
+      "sha256": "b879a3feaed1b071ca883355dd495b1e6b1033153165c14d32a835bb0ff27d8b",
+      "kind": "fragment",
+      "name": "Certificate",
+      "typeCondition": "EnrollmentCertificate",
+      "source": "fragment Certificate on EnrollmentCertificate {\n  status\n  expiresAt\n  rid\n  commonName\n  _id\n}"
+    },
+    {
+      "sha256": "b9a92f7968f509e904eaefa9f7bfca15e3ed7bde7004dd136f332bd9f5a50c03",
+      "kind": "fragment",
+      "name": "LoadingScopedSessionChangedDialogGroup",
+      "typeCondition": "Group",
+      "source": "fragment LoadingScopedSessionChangedDialogGroup on Group {\n  ...PrincipalAnchorPrincipal\n  id\n  groupsIncludingTransitive {\n    id\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "b9d50c2859a8ec7bc2f515f347a13a5413322ba0fc5be83c4f4d9dd7bb4df94d",
+      "kind": "fragment",
+      "name": "PrincipalAnchorPrincipal",
+      "typeCondition": "Principal",
+      "source": "fragment PrincipalAnchorPrincipal on Principal {\n  id\n  ... on Group {\n    name\n  }\n  ... on User {\n    fullName\n    username\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "bc2ddbbc894a5b2bffc1ae534ded647b8adcb3c59d711c40e663e3303c3d2fb7",
+      "kind": "fragment",
+      "name": "PrincipalHeaderPrincipal",
+      "typeCondition": "Principal",
+      "source": "fragment PrincipalHeaderPrincipal on Principal {\n  id\n  ... on Group {\n    name\n    permissions {\n      canViewMembers\n      currentUserMembership {\n        expiration\n      }\n      _id\n    }\n  }\n  ... on User {\n    displayName\n    initials\n    permissions {\n      isCurrentUser\n    }\n    username\n  }\n  ...PrincipalAvatarPrincipal\n  _id\n}"
+    },
+    {
+      "sha256": "bef8213466b3f558c085d88dc9069daad5fc6ccf88bfb29bde823a38b531f75c",
+      "kind": "fragment",
+      "name": "OrganizationMarking",
+      "typeCondition": "OrganizationMarking",
+      "source": "fragment OrganizationMarking on OrganizationMarking {\n  description\n  id\n  name\n  permissions {\n    isMember\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "c5e99e04a525749e6ccbd23f85a356aaa6027e62483a55254c81d0dc7128c88d",
+      "kind": "fragment",
+      "name": "ActionIconActionType",
+      "typeCondition": "ActionType",
+      "source": "fragment ActionIconActionType on ActionType {\n  actionTypeLatestVersion: latestVersion {\n    ...ActionTypeIconFragment\n    _id\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "caddd85ca2084e8310def0729a6a3c5bad59643e1aa50c3c604089ffb845ec42",
+      "kind": "operation",
+      "name": "DeletePasskeyMutation",
+      "type": "mutation",
+      "source": "mutation DeletePasskeyMutation($passkeyId: String!, $userRid: RID!) {\n  deleteStargatePasskey(passkeyId: $passkeyId, userRid: $userRid)\n}"
+    },
+    {
+      "sha256": "d052a7a15883c0ce0b7303d848d59eb123fdacb03e556c67467714f7c1dbfd2a",
+      "kind": "fragment",
+      "name": "UserOrganizationsOrganization",
+      "typeCondition": "Organization",
+      "source": "fragment UserOrganizationsOrganization on Organization {\n  ...Organization\n  name\n  rid\n  _id\n}"
+    },
+    {
+      "sha256": "d15255e662975a0da18596751dbe1554ae2454a3080bd0da8823e57cd2113c53",
+      "kind": "fragment",
+      "name": "NotionalDataBannerEnrollmentCustomerDataStatus",
+      "typeCondition": "EnrollmentCustomerDataStatus",
+      "source": "fragment NotionalDataBannerEnrollmentCustomerDataStatus on EnrollmentCustomerDataStatus {\n  ... on EnrollmentCustomerDataStatus_NotAllowed {\n    hideBanner\n  }\n}"
+    },
+    {
+      "sha256": "d2fe2d633535a6813f979ff3f16073396755b9020ec9c40564b01f3a2fd8d21f",
+      "kind": "fragment",
+      "name": "ObjectTypeGroupIconColorsObjectTypeGroupVersion",
+      "typeCondition": "ObjectTypeGroupVersion",
+      "source": "fragment ObjectTypeGroupIconColorsObjectTypeGroupVersion on ObjectTypeGroupVersion {\n  firstIconColor\n  secondIconColor\n  thirdIconColor\n  fourthIconColor\n  _id\n}"
+    },
+    {
+      "sha256": "e0a79c8a2f8ae6842681c705a4098c81163b06f13aea399b49a081dbb3e9058b",
+      "kind": "fragment",
+      "name": "PrincipalAvatarPrincipal",
+      "typeCondition": "Principal",
+      "source": "fragment PrincipalAvatarPrincipal on Principal {\n  ... on Group {\n    name\n    permissions {\n      currentUserMembership {\n        __typename\n      }\n      _id\n    }\n  }\n  ... on User {\n    fullName\n    imageUrl @optional\n    initials\n    permissions {\n      isCurrentUser\n    }\n    username\n  }\n  _id\n}"
+    },
+    {
+      "sha256": "f423041bee822be1c027dfd55458fcbf7acec4aa4b7080aa8351718c8b14e29a",
+      "kind": "operation",
+      "name": "GetDirectoryByAuthProviderQuery",
+      "type": "query",
+      "source": "query GetDirectoryByAuthProviderQuery($authenticationProviderRid: RID!) {\n  authenticationProvider(rid: $authenticationProviderRid) {\n    stargateUserDirectory {\n      rid\n      _id\n    }\n    _id\n  }\n}"
+    },
+    {
+      "sha256": "ffb733283c0d1fd5221b27296fc2182550270b1f6ba45bbf68391a570ec70119",
+      "kind": "fragment",
+      "name": "InterfaceIconInterfaceVersion",
+      "typeCondition": "OntologyInterfaceVersion",
+      "source": "fragment InterfaceIconInterfaceVersion on OntologyInterfaceVersion {\n  iconV2 {\n    locator\n    color\n  }\n  _id\n}"
+    }
+  ],
+  "operations": [
+    {
+      "operation": "CertificatesQuery",
+      "type": "query",
+      "operationDefinitionSha256": "00548c986d502ec354ba76023dc87ec16e9bac2fa9495f67da522c1df1ee61eb",
+      "closureSha256": "a756cde865de4ae4ae441f5e28344c74cc47f7846d175329b4c4356c7d12a1fc",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "Certificate",
+          "definitionSha256": "b879a3feaed1b071ca883355dd495b1e6b1033153165c14d32a835bb0ff27d8b"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "97759",
+          "bindingNames": [
+            "h7"
+          ],
+          "start": 396050,
+          "end": 396432
+        }
+      ]
+    },
+    {
+      "operation": "CheckEmailQuery",
+      "type": "query",
+      "operationDefinitionSha256": "0d45287221f9e3c61ae2ceaab6196d8c3fcef13c3314337527728f2bbd4b2f3f",
+      "closureSha256": "2c53cbd66407c0141ffa643a1b17527fe5d79459b33ebec52a84ea7adfa7205e",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "o"
+          ],
+          "start": 579587,
+          "end": 579920
+        }
+      ]
+    },
+    {
+      "operation": "ClassificationBannerQuery",
+      "type": "query",
+      "operationDefinitionSha256": "aeab3dd405b46b41486d4fcdf69de91eaffcf1923095798a0ae521f331885acb",
+      "closureSha256": "5d41ffa0dca351799afbf090745ffbfb131566592f80581702d1ec702803bb07",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "ScopedSessionsAndCbacBannerSecondaryBanner",
+          "definitionSha256": "45706f15ee24962d6f193e3fe8425df2f1db34359dbc3bf05bf6fb288bdcb0a9"
+        },
+        {
+          "name": "ScopedSessionsPopoverContentV2SecondaryBanner",
+          "definitionSha256": "7eef1cf8b3f18603301d444c97a3a30e9c138dcdda4c19d170497f21dfe68acd"
+        },
+        {
+          "name": "WarningsAndNoticesSecondaryBanner",
+          "definitionSha256": "5efc2b9605605f2e5375ec9f56a0692b922c45ccf6ce7f7ac0ac304825823304"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "97759",
+          "bindingNames": [
+            "gL"
+          ],
+          "start": 366986,
+          "end": 367744
+        }
+      ]
+    },
+    {
+      "operation": "CreateUserMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "50323eae54b4424326fe486237c8592c72c1a5716937fa3f1d0a56de0e962b47",
+      "closureSha256": "2dcda0ea4059aed940c2dd9e5201e70ca6fa23bec4fce4e090af9fd3dafa75a3",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "s"
+          ],
+          "start": 579923,
+          "end": 580241
+        }
+      ]
+    },
+    {
+      "operation": "CurrentUserPasskeysQuery",
+      "type": "query",
+      "operationDefinitionSha256": "942e3d67e497c6a800b17af8c324afa495d0758ea89c79962b3ac62d2144f3cc",
+      "closureSha256": "155a4eeea4d547020773292b9674ec2fd18cfbd7cdc74162c90c4890f5102bac",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "l"
+          ],
+          "start": 580244,
+          "end": 580401
+        }
+      ]
+    },
+    {
+      "operation": "CustomerDataSupportedQuery",
+      "type": "query",
+      "operationDefinitionSha256": "30e313f512de5839170c05a7c438d30c576546316ad6cd26a9760e5543b3ce8a",
+      "closureSha256": "9c8b0275d687c2a3c43609a88c1262fc17c53c170b7977abbc65f3089b77a59c",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "NotionalDataBannerEnrollmentCustomerDataStatus",
+          "definitionSha256": "d15255e662975a0da18596751dbe1554ae2454a3080bd0da8823e57cd2113c53"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "97759",
+          "bindingNames": [
+            "g$"
+          ],
+          "start": 371520,
+          "end": 372046
+        }
+      ]
+    },
+    {
+      "operation": "DeletePasskeyMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "caddd85ca2084e8310def0729a6a3c5bad59643e1aa50c3c604089ffb845ec42",
+      "closureSha256": "698558e0df28fe8de1a17bf7d87e56157ffd9a80471116c9daebb4e77c183243",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "c"
+          ],
+          "start": 580404,
+          "end": 580574
+        }
+      ]
+    },
+    {
+      "operation": "DeleteStargatePasskeyV2Mutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "31ecef067eb8be37e7b1eaad00a192c2b132c5e7ab48857d66d0660120acbee6",
+      "closureSha256": "78363054ce08893839a929a10d64fbdba8efae652c31c8dfe018e1a61afd5a12",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "u"
+          ],
+          "start": 580577,
+          "end": 580777
+        }
+      ]
+    },
+    {
+      "operation": "DeleteUserMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "936fbab4a9adbf589ee22d3fe3bf5c4538a4dc236d571f409a5888376e7e27c6",
+      "closureSha256": "e90de9fedd948f612f9f1d1f2d8527c387c1f7733d68d567caea6d556ae72fd2",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "d"
+          ],
+          "start": 580780,
+          "end": 580900
+        }
+      ]
+    },
+    {
+      "operation": "GetDirectoryByAuthProviderQuery",
+      "type": "query",
+      "operationDefinitionSha256": "f423041bee822be1c027dfd55458fcbf7acec4aa4b7080aa8351718c8b14e29a",
+      "closureSha256": "87f79746bd241d6f85920dd603b256b8530cccbb46538bb1d16f6bde759ba450",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "p"
+          ],
+          "start": 580903,
+          "end": 581143
+        }
+      ]
+    },
+    {
+      "operation": "GetIsPalantirUser",
+      "type": "query",
+      "operationDefinitionSha256": "aa01edf535044d9fef82ef2cfd5e145c0a67012903ee25c4eff4e3441cf40181",
+      "closureSha256": "bef2064ec9e882259a586f327ab661a14b65a0fe2d8fbe304562f263c7e779ef",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "m"
+          ],
+          "start": 581146,
+          "end": 581231
+        }
+      ]
+    },
+    {
+      "operation": "GetUserByAuthHeaderQuery",
+      "type": "query",
+      "operationDefinitionSha256": "59cc6e6e27879d0459d3260b4632f3c9f590cc47b5079d049c69c322c056e500",
+      "closureSha256": "569707ae8e977b4d2c3cdce42241f6b7cf9e3254c12d0273c90b58830f89ccc8",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "StargateUserFragment",
+          "definitionSha256": "afddc9301a6f1a87aff7184ebceeb04e151ebe03f039dc7a7e43deb4550f4557"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "f"
+          ],
+          "start": 581234,
+          "end": 581369
+        }
+      ]
+    },
+    {
+      "operation": "GetUserDirectoryQuotasQuery",
+      "type": "query",
+      "operationDefinitionSha256": "3a2a9d4e2d12ab9bc5be5c5af4c2b3fbc8771ff8b81377c548fccef5989d9158",
+      "closureSha256": "75a08c2fcb13ec648f6dd3dac3959409408c376093310d20f1d31e5f06605b0f",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "g"
+          ],
+          "start": 581372,
+          "end": 581792
+        }
+      ]
+    },
+    {
+      "operation": "GetUsersInDirectory",
+      "type": "query",
+      "operationDefinitionSha256": "6b2d927bf7bbf3be31212c6e68fa4d9dc4838f6e5669787e6002ec56abfc2d9a",
+      "closureSha256": "d55f8ff26f1a1a21768aa05e4e74397829f03db92125d903d71e8f145b7c8880",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "StargateUserFragment",
+          "definitionSha256": "afddc9301a6f1a87aff7184ebceeb04e151ebe03f039dc7a7e43deb4550f4557"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "h"
+          ],
+          "start": 581795,
+          "end": 582054
+        }
+      ]
+    },
+    {
+      "operation": "ListUsersInUserDirectoryQuery",
+      "type": "query",
+      "operationDefinitionSha256": "324e45f1c4634864d162893cd8e8194d5fc5f335ac05c286cc029b85bbbb4fa3",
+      "closureSha256": "496edeea7e8cccb3684e0fadc809120988347758d10a63ccd900a13ec43e8692",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "StargateUserFragment",
+          "definitionSha256": "afddc9301a6f1a87aff7184ebceeb04e151ebe03f039dc7a7e43deb4550f4557"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "y"
+          ],
+          "start": 582057,
+          "end": 582554
+        }
+      ]
+    },
+    {
+      "operation": "LoadingGqlOntologyIconQuery",
+      "type": "query",
+      "operationDefinitionSha256": "9a6700aeceace3e3d77d06889b011ab1970b1d325b30148698726a2f3636ddf5",
+      "closureSha256": "68a92080992fb96616a4b19e59eac2cbd3d7d08ef81cf32fe51dfc5f5f63df26",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "ActionIconActionType",
+          "definitionSha256": "c5e99e04a525749e6ccbd23f85a356aaa6027e62483a55254c81d0dc7128c88d"
+        },
+        {
+          "name": "ActionTypeBlueprintIconFragment",
+          "definitionSha256": "168f838d05b529b088769fd4e06ec65943f00ff49aade7b8a06ee21f5f05df40"
+        },
+        {
+          "name": "ActionTypeIconFragment",
+          "definitionSha256": "82c76313f238fdae1f37e709769afc5fb0152bcc91ae9c58fbee92291dd73177"
+        },
+        {
+          "name": "ActionTypeTitle_RuleFragment",
+          "definitionSha256": "93a0addd1bc00ed524e990181985189df98cb8a23b7ff7126f6fb637dbc3f6bd"
+        },
+        {
+          "name": "InterfaceIconInterface",
+          "definitionSha256": "8b39a74ed63d1f41727513e2404b42ffc00e89b78b5b0ccccbbaf2a0dd1e2b8e"
+        },
+        {
+          "name": "InterfaceIconInterfaceVersion",
+          "definitionSha256": "ffb733283c0d1fd5221b27296fc2182550270b1f6ba45bbf68391a570ec70119"
+        },
+        {
+          "name": "ObjectTypeGroupIconColorsObjectTypeGroupVersion",
+          "definitionSha256": "d2fe2d633535a6813f979ff3f16073396755b9020ec9c40564b01f3a2fd8d21f"
+        },
+        {
+          "name": "ObjectTypeGroupIconObjectTypeGroup",
+          "definitionSha256": "3ebca4bdb56592cec99ae9b496a3d75816fb2dc440fc8eb7a0748421f1b76bda"
+        },
+        {
+          "name": "ObjectTypeIconObjectType",
+          "definitionSha256": "6773b877e1a6d31610f42ff5bb8962318478d916be3780888d679dd3b9170531"
+        },
+        {
+          "name": "ObjectTypeIconObjectTypeVersion",
+          "definitionSha256": "5103dfb3788d44989e6e4f0d99767cf244aba3a3dd50429538b94f688dd57539"
+        },
+        {
+          "name": "OntologyIconLinkTypeDefinition",
+          "definitionSha256": "6c1172e011b2d2021299b3e232990c3e662799549a198dd430574c635523f5ff"
+        },
+        {
+          "name": "OntologyIconResource",
+          "definitionSha256": "8d2aef354c5eecfb8f49a4b252dead99737194281c56942eb6236e93c06af81c"
+        },
+        {
+          "name": "PropertyIconPropertyType",
+          "definitionSha256": "b6d0ab972ee08dd293e4c5187aa4c9833ca56f1c8c012ff938e9c5c9d3a0d664"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "25021",
+          "bindingNames": [
+            "B"
+          ],
+          "start": 809746,
+          "end": 810016
+        }
+      ]
+    },
+    {
+      "operation": "LoadingScopedSessionChangedDialogQuery",
+      "type": "query",
+      "operationDefinitionSha256": "9182b498bdca8eda19d0a65b2453d5ad78c7efce0979ad9819067f925bd2dacc",
+      "closureSha256": "9131f25825e6fca467254535d63df2e29a5f4f7f2eb25a0ded2b20ad56553422",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "LoadingScopedSessionChangedDialogGroup",
+          "definitionSha256": "b9a92f7968f509e904eaefa9f7bfca15e3ed7bde7004dd136f332bd9f5a50c03"
+        },
+        {
+          "name": "PrincipalAnchorPrincipal",
+          "definitionSha256": "b9d50c2859a8ec7bc2f515f347a13a5413322ba0fc5be83c4f4d9dd7bb4df94d"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "97759",
+          "bindingNames": [
+            "mq"
+          ],
+          "start": 328550,
+          "end": 328819
+        }
+      ]
+    },
+    {
+      "operation": "PrincipalAnchorPopoverPrincipalQuery",
+      "type": "query",
+      "operationDefinitionSha256": "17ff38f503d3fee03c586ac3627cab306c2fa2f0fb8e368342db55b751b65217",
+      "closureSha256": "ed5b14bb9ba456123191513602cf00520718b2ecd1fc575835ec0b64d4565aeb",
+      "complete": true,
+      "fragments": [
+        {
+          "name": "GroupOrganizationsOrganization",
+          "definitionSha256": "8497a57151579b2a24243b84b836e79b0594d1654fdd0e6785d0d07c3bb4c169"
+        },
+        {
+          "name": "GroupPreviewGroup",
+          "definitionSha256": "06e08a5dbd711b6145cff7be670972c9f8d76651f9c62ca6fc1ae18519a29b45"
+        },
+        {
+          "name": "Organization",
+          "definitionSha256": "91e95142f7ffdaae497db166a69da9a0fad24b7bb058d7a0c4c0658cd92239f6"
+        },
+        {
+          "name": "OrganizationMarking",
+          "definitionSha256": "bef8213466b3f558c085d88dc9069daad5fc6ccf88bfb29bde823a38b531f75c"
+        },
+        {
+          "name": "PrincipalAvatarPrincipal",
+          "definitionSha256": "e0a79c8a2f8ae6842681c705a4098c81163b06f13aea399b49a081dbb3e9058b"
+        },
+        {
+          "name": "PrincipalHeaderPrincipal",
+          "definitionSha256": "bc2ddbbc894a5b2bffc1ae534ded647b8adcb3c59d711c40e663e3303c3d2fb7"
+        },
+        {
+          "name": "PrincipalPreviewPrincipal",
+          "definitionSha256": "3d66dd6df5b17c73d85104a9751dd099f16bc91d5c3337b539cd9a9edb7dfa45"
+        },
+        {
+          "name": "UserOrganizationsOrganization",
+          "definitionSha256": "d052a7a15883c0ce0b7303d848d59eb123fdacb03e556c67467714f7c1dbfd2a"
+        },
+        {
+          "name": "UserPreviewUser",
+          "definitionSha256": "a23c2f5f600b9da1692a402f269e610b5998ab28848cfd7d7039a62837c2b2a2"
+        }
+      ],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "33191",
+          "bindingNames": [
+            "z"
+          ],
+          "start": 765982,
+          "end": 766277
+        }
+      ]
+    },
+    {
+      "operation": "ResetUserAccountMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "670244bb663cf74d8ea6a56f6d7fa3e80199b3287828497c8ada7d173b45f042",
+      "closureSha256": "98ac1a9a0a86072cdc6cd27bd77f69b864c33a1532130e24d0435d0e8c4e6d31",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "v"
+          ],
+          "start": 582557,
+          "end": 582716
+        }
+      ]
+    },
+    {
+      "operation": "SendStargatePasskeyEnrollmentOtpMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "0c6dd226420d0eb095a9e252bba9a51c35f8ce973b357a2f71b286afa0d3b7e3",
+      "closureSha256": "d95adaac3da2232779d45925c7dda57a413a539730329e27fb1b7701f82cbf3e",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "_"
+          ],
+          "start": 582719,
+          "end": 582969
+        }
+      ]
+    },
+    {
+      "operation": "SetStargateUserEnabledStatusMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "548faad9d1ef325a62328c4ed1ae266766a02c4128d67a399b997715dc1f23ae",
+      "closureSha256": "cbcb51f79220af6c43bad403191e91492b596f6bbc8ee23046321e8f92b9fdc8",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "E"
+          ],
+          "start": 582972,
+          "end": 583186
+        }
+      ]
+    },
+    {
+      "operation": "UpdatePasskeyMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "25875e9aaf27f9ee1130951afa61345dc70672c6ba7edf603018ac29c27a08f7",
+      "closureSha256": "ce5e4dec1f303cfb845c9f21f26db0dcd54a87b6be9e138faf56b81a23afb03d",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "b"
+          ],
+          "start": 583189,
+          "end": 583459
+        }
+      ]
+    },
+    {
+      "operation": "UpdateUserMutation",
+      "type": "mutation",
+      "operationDefinitionSha256": "20bf9e286b1298d89b95bc2c3946628f05155457ad43a1f1b68a31f4d5ef3fa9",
+      "closureSha256": "68c55b86f6223c43e6bdb0d039856ea4ce86daa2b814b322c0b03e898392f2c8",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "T"
+          ],
+          "start": 583462,
+          "end": 583692
+        }
+      ]
+    },
+    {
+      "operation": "UserPasskeysByRidQuery",
+      "type": "query",
+      "operationDefinitionSha256": "4ac347578097540a968f1babd04ba1d11e0e6efac18df27ae7e1a6f701b270ba",
+      "closureSha256": "169bc1912c0e53ad6db997328e662802aaac6546b83b2013915274dd968ad78e",
+      "complete": true,
+      "fragments": [],
+      "sources": [
+        {
+          "captureId": "apollo-control-panel",
+          "bundleFile": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf.js",
+          "bundleSha256": "198df39ba4aad82a611deb9d1decb1682071214ef0c9ea6b4afe60305a29d0bf",
+          "moduleId": "85348",
+          "bindingNames": [
+            "S"
+          ],
+          "start": 583695,
+          "end": 583931
+        }
+      ]
+    }
+  ]
+}
