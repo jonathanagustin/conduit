@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
@@ -513,6 +514,110 @@ func TestInstallationVersionIsTheDesiredVersionNotAnAgentReport(t *testing.T) {
 		t.Fatalf("version = %q; if this is now %q the reported version reaches the projection, "+
 			"the declared divergence is stale, and docs/apollo/public-api.md must be corrected "+
 			"in the same change", *installation.Version, "1.0.0")
+	}
+}
+
+// sharedReporting is the durable Environment Report BOTH Hub replicas write
+// through. Unlike reportingFixture it remembers what was put, because the defect
+// under test is one replica overwriting what the other recorded there.
+type sharedReporting struct {
+	plan   environments.PlanProjection
+	report environments.Report
+}
+
+func (fixture *sharedReporting) LatestPlan(context.Context, string) (environments.PlanProjection, error) {
+	return fixture.plan, nil
+}
+
+func (fixture *sharedReporting) GetReport(context.Context, string) (environments.Report, error) {
+	return fixture.report, nil
+}
+
+func (fixture *sharedReporting) PutReport(_ context.Context, report environments.Report) (environments.Report, error) {
+	fixture.report = report
+	return report, nil
+}
+
+// TestAReplicaWithoutEntityInfoDoesNotOverwriteHealthWithIndeterminate pins
+// issue #326.
+//
+// An Apollo Agent posts entitiesInfo and entitiesHealth as two separate
+// requests. Behind two Hub replicas they can land on different processes, and
+// entityInfo/entityHealth are process-local maps -- the two that issue #325
+// deliberately left in memory when it moved Environments, Installations,
+// Namespaces, Recalls and Promotions behind durable ports.
+//
+// The replica that saw only the health report reaches the merge with an empty
+// info map, MatchInfo synthesizes an EntityInfo whose Quorum is "UNKNOWN", and
+// AggregateHealth returns INDETERMINATE from that quorum WITHOUT LOOKING AT THE
+// NODES. It then persists that verdict to the shared Report, so the degraded
+// answer is not confined to the replica that computed it: every replica and
+// every later read sees it.
+//
+// A restart between the two POSTs reproduces this on a single replica.
+func TestAReplicaWithoutEntityInfoDoesNotOverwriteHealthWithIndeterminate(t *testing.T) {
+	ctx := context.Background()
+	reporting := &sharedReporting{plan: environments.PlanProjection{
+		ID: "plan-1",
+		Steps: []environments.PlanStepProjection{{
+			InstallationID: "checkout-api", Entity: "checkout-api",
+			Product: "com.example:checkout", Version: "1.0.0", Namespace: "checkout",
+		}},
+	}}
+	replica := func() *Service {
+		service, err := New(ctx, &catalogFixture{}, reporting, &lifecycleFixture{}, &inventoryFixture{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return service
+	}
+	replicaA, replicaB := replica(), replica()
+
+	quorum := apollo.Quorum("ALL")
+	nodes := []apollo.NodeInfo{{
+		CreationTimestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		HostId:            "host-a", NodeId: "node-a", ProductVersion: "1.0.0",
+	}}
+	info := []apollo.EntityInfo{{
+		EntityType: "SERVICE", Id: "checkout-api",
+		ProductGroup: "com.example", ProductName: "checkout",
+		Quorum:    &quorum,
+		NodesInfo: &nodes,
+	}}
+	containers := []apollo.ContainerStatus{{ContainerId: "checkout", Liveness: true, Readiness: true}}
+	health := []apollo.EntityHealth{{
+		ProductGroup: "com.example", ProductName: "checkout", ProductVersion: "1.0.0",
+		NodeId: "node-a", ContainerStatuses: &containers,
+	}}
+
+	// Replica A serves both of the Agent's requests and records the true verdict.
+	if err := replicaA.PutEntityInfo(ctx, "prod", info); err != nil {
+		t.Fatal(err)
+	}
+	if err := replicaA.PutEntityHealth(ctx, "prod", health); err != nil {
+		t.Fatal(err)
+	}
+	if got := reporting.report.Entities[0]; got.Health != environments.HealthHealthy {
+		t.Fatalf("replica that saw both reports recorded health %q, want %q; the premise of this "+
+			"test is broken before the defect it pins is reached", got.Health, environments.HealthHealthy)
+	}
+	if got := reporting.report.Entities[0].HealthDetails; got == nil || got.Quorum != "ALL" {
+		t.Fatalf("durable quorum = %#v, want ALL; the fix reads the quorum from here", got)
+	}
+
+	// The Agent's NEXT health report is load-balanced to replica B, which never
+	// saw the entitiesInfo POST.
+	if err := replicaB.PutEntityHealth(ctx, "prod", health); err != nil {
+		t.Fatal(err)
+	}
+	entity := reporting.report.Entities[0]
+	if entity.Health != environments.HealthHealthy {
+		t.Fatalf("after a replica that never saw entitiesInfo merged the same healthy node, the "+
+			"durable report says %q, want %q: the answer now depends on which process the Agent's "+
+			"request reached", entity.Health, environments.HealthHealthy)
+	}
+	if entity.HealthDetails == nil || entity.HealthDetails.Quorum != "ALL" {
+		t.Fatalf("durable quorum = %#v after the info-less merge, want ALL preserved", entity.HealthDetails)
 	}
 }
 

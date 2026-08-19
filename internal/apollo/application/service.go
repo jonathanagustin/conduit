@@ -834,10 +834,10 @@ func (service *Service) persistReportedState(ctx context.Context, environment st
 				ConfigStatus: environments.ConfigIndeterminate, Lifecycle: environments.LifecycleUnknown,
 			}
 		}
-		matchingInfo := MatchInfo(info, step)
+		matchingInfo, observedTheEntity := observedInfo(info, step)
 		matchingHealth := MatchHealth(health, matchingInfo, step.Product)
 		if len(dereference(matchingInfo.NodesInfo)) > 0 || len(matchingHealth) > 0 {
-			details, result := AggregateHealth(matchingInfo.Quorum, matchingHealth)
+			details, result := AggregateHealth(quorumFor(matchingInfo, observedTheEntity, entity), matchingHealth)
 			entity.Health, entity.HealthDetails, entity.ObservedAt = result, &details, now
 			if matchingInfo.K8sNamespace != nil && *matchingInfo.K8sNamespace != "" {
 				entity.Namespace = *matchingInfo.K8sNamespace
@@ -914,9 +914,27 @@ func ValidateEntityHealth(values []apollo.EntityHealth) error {
 }
 
 func MatchInfo(info []apollo.EntityInfo, step environments.PlanStepProjection) apollo.EntityInfo {
+	matched, _ := observedInfo(info, step)
+	return matched
+}
+
+// observedInfo is MatchInfo with the one bit MatchInfo throws away: whether the
+// returned EntityInfo was reported by an Agent or synthesized here because
+// nothing matched. The synthesized value is indistinguishable from a real one --
+// same type, a plausible ProductGroup and ProductName, and a Quorum of
+// "UNKNOWN" -- and AggregateHealth turns that quorum into INDETERMINATE
+// regardless of how healthy the nodes are.
+//
+// That is harmless when the miss means the Agent has said nothing about the
+// entity. It is not harmless when the miss means THIS PROCESS has said nothing:
+// entitiesInfo and entitiesHealth arrive as two requests and two Hub replicas
+// can serve one each, so a replica holding only the health report reaches the
+// merge with no info at all and writes INDETERMINATE over the HEALTHY the other
+// replica computed from the same Agent's data (issue #326).
+func observedInfo(info []apollo.EntityInfo, step environments.PlanStepProjection) (apollo.EntityInfo, bool) {
 	for _, candidate := range info {
 		if candidate.Id == step.Entity && candidate.ProductGroup+":"+candidate.ProductName == step.Product {
-			return candidate
+			return candidate, true
 		}
 	}
 	parts := strings.SplitN(step.Product, ":", 2)
@@ -925,7 +943,29 @@ func MatchInfo(info []apollo.EntityInfo, step environments.PlanStepProjection) a
 		group, name = parts[0], parts[1]
 	}
 	quorum := apollo.Quorum("UNKNOWN")
-	return apollo.EntityInfo{ProductGroup: group, ProductName: name, Quorum: &quorum}
+	return apollo.EntityInfo{ProductGroup: group, ProductName: name, Quorum: &quorum}, false
+}
+
+// quorumFor picks the quorum the health aggregation runs under. When the Agent's
+// info was observed in this process, that is the answer. When it was not, the
+// durable Environment Report is consulted before falling back to the
+// synthesized "UNKNOWN": the report is the copy every replica can see, and a
+// quorum another replica already recorded there is observed evidence, merely
+// observed elsewhere. This is the same move issue #325 made for Environments,
+// Installations and Namespaces -- read the shared copy rather than this
+// process's memory -- and it stops a partial report from degrading a verdict.
+//
+// It is a floor, not the whole fix. A replica without the info still cannot
+// filter health by the entity's node set or advance Lifecycle; issue #326 tracks
+// persisting the raw Agent reports, which is what would close that.
+func quorumFor(
+	info apollo.EntityInfo, observed bool, durable environments.ReportedEntity,
+) *apollo.Quorum {
+	if observed || durable.HealthDetails == nil || durable.HealthDetails.Quorum == "" {
+		return info.Quorum
+	}
+	carried := apollo.Quorum(durable.HealthDetails.Quorum)
+	return &carried
 }
 
 func MatchHealth(health []apollo.EntityHealth, info apollo.EntityInfo, product string) []apollo.EntityHealth {

@@ -1537,3 +1537,52 @@ and the exhaustion latch never applies. Two defects, not one — exhausted rows
 are also never deleted. Making exhaustion durable means making it a property of
 the **key**, not the content-addressed proposal, which is a real change to
 retry semantics and wants a decision first. Recorded on the issue.
+
+## 17 closed + 1 filed + 1 fixed, 2026-08-19 — the reads #325 fixed, and the write it did not
+
+**Closed since the previous section:** #325, #57, #112. Total 17 (#290, #298,
+#299, #301, #128, #130, #265, #65, #262, #103, #56, #66, #153, #169, #325, #57,
+#112). PR #324 rewritten to describe all 31 commits.
+
+**The #325 merge was the non-trivial one.** #325 deleted `SyncEnvironment` and
+the `environments`/`installations`/`namespaces` maps while #57 changed what that
+same write stamped. Resolved by relocating #57's `environmentType` omission and
+its reasoning into #325's `projectEnvironment`, fixing a stale four-argument
+`New(...)`, and rewriting
+`TestInstallationVersionIsTheDesiredVersionNotAnAgentReport` to drive the
+divergence through the inventory port instead of the deleted push.
+
+**#326 filed and half-fixed.** #325 left `entityInfo` and `entityHealth` in
+process memory on the judgement that staleness there was tolerable. Re-reading
+the merge path shows it is not staleness. `persistReportedState` reads BOTH maps
+out of this process and writes the merged verdict to the **shared** Environment
+Report. An Agent posts `entitiesInfo` and `entitiesHealth` as two requests; two
+replicas can serve one each. The replica holding only health reaches the merge
+with no info, `MatchInfo` synthesizes a `Quorum` of `"UNKNOWN"`, and
+`AggregateHealth` has an early `case "UNKNOWN": return HealthIndeterminate` that
+**never looks at the nodes**. Three healthy nodes under a satisfied `ALL` quorum
+get written over the correct `HEALTHY` the other replica computed from the same
+Agent's data.
+
+This is worse than what #325 fixed in one specific way, and that is why it got
+its own issue rather than a footnote: #325's empty answers were confined to the
+responding replica's own response, while this one **writes** the degraded
+verdict into durable state, so every replica sees it afterwards — including the
+one that had it right.
+
+Fixed the corrupting half without new storage, by the same move #325 made: read
+the shared copy, not this process's memory. `observedInfo` now returns whether
+the `EntityInfo` was reported or synthesized, and `quorumFor` takes the quorum
+from the durable report when it was synthesized. A quorum another replica
+recorded there is observed evidence, merely observed elsewhere.
+
+Mutation-tested: `quorumFor` reduced to always returning `info.Quorum` — a
+change that still compiles, per the rule above —
+`TestAReplicaWithoutEntityInfoDoesNotOverwriteHealthWithIndeterminate` fails
+with `INDETERMINATE`.
+
+**What the cheap fix does NOT cover**, stated rather than glossed: a replica
+without the info still cannot filter health by the entity's node set, and cannot
+advance `Lifecycle` or apply `K8sNamespace`. Those are staleness — preserved
+from the durable report, not clobbered — so #326 stays open scoped to persisting
+the raw Agent reports behind a port, which is what would actually close it.
