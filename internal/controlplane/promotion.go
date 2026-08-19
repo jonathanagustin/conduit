@@ -177,7 +177,7 @@ func effectiveReleaseLabels(release Release) map[string]string {
 		return labels
 	}
 	var errs []ValidationError
-	validateVulnerabilityAssessment("release", release, nil, &errs)
+	validateVulnerabilityAssessment("release", release, &errs)
 	if len(errs) != 0 {
 		return labels
 	}
