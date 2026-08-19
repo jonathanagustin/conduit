@@ -9,7 +9,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
-	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // apolloPublicAPI is the outer anti-corruption adapter. Identity and governance
@@ -30,6 +29,7 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 		apolloCatalogPort{repository: repository},
 		apolloReportingPort{repository: repository},
 		apolloReleaseLifecyclePort{repository: repository},
+		apolloEnvironmentInventoryPort{repository: repository},
 	)
 	if err != nil {
 		api.initializationError = err
@@ -166,22 +166,18 @@ func (api *apolloPublicAPI) syncDesiredState(ctx context.Context, state DesiredS
 	if openings := api.configuration.RecallOpenings; openings != nil {
 		_ = openings.RecallsInForce(ctx, state.Environment.ID, state.Recalls)
 	}
-	projection := environments.CompatibilityProjection{ID: state.Environment.ID}
-	for _, entity := range state.Entities {
-		projection.Entities = append(projection.Entities, environments.ProjectedEntity{
-			Name: entity.Name, Product: entity.Product, Version: entity.Version, ReleaseChannel: entity.ReleaseChannel,
-		})
-	}
-	for _, namespace := range state.Environment.Namespaces {
-		projection.Namespaces = append(projection.Namespaces, environments.ProjectedNamespace{RID: namespace.RID, Name: namespace.Name})
-	}
-	// Recalls and promotions do NOT travel with this projection. They did, and
-	// that made recallStatus depend on which replica served the write: this
-	// funnel runs only in the process that accepted the desired state, so the
-	// other replica answered "not recalled" for a withdrawn Release, as did
-	// every replica after a restart. apolloReleaseLifecyclePort reads them from
-	// the Plans instead, which both replicas share.
-	api.application.SyncEnvironment(projection)
+	// Nothing about the accepted state is pushed into the Apollo service any
+	// more. It used to receive a CompatibilityProjection here, and that made the
+	// Environment list, the Installation list and the Namespace list artifacts
+	// of which replica served the write: this funnel runs only in the process
+	// that accepted the desired state, so the other replica -- and every replica
+	// after a restart -- served all three EMPTY, which a client cannot tell
+	// apart from a Hub that governs nothing. apolloReleaseLifecyclePort and
+	// apolloEnvironmentInventoryPort read the same facts from the Plans, which
+	// both replicas share.
+	//
+	// This function is kept for the recall openings above; it is deliberately no
+	// longer a projection push, and adding one back would reintroduce the defect.
 }
 
 func parseMavenCoordinate(coordinate string) (string, string, string, bool) {

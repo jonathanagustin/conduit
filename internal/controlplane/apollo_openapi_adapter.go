@@ -283,14 +283,21 @@ func (adapter *apolloOpenAPIAdapter) ListEnvironments(ctx context.Context, _ apo
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, ""); err != nil {
 		return nil, err
 	}
-	return apollo.ListEnvironments200JSONResponse(adapter.legacy.application.ListEnvironments()), nil
+	// The read reaches the store now, so it can fail -- and a failure is
+	// propagated rather than served as an empty list. An empty Apollo
+	// environments page is indistinguishable from a Hub that governs nothing.
+	response, err := adapter.legacy.application.ListEnvironments(ctx)
+	if err != nil {
+		return nil, apolloApplicationError(err)
+	}
+	return apollo.ListEnvironments200JSONResponse(response), nil
 }
 
 func (adapter *apolloOpenAPIAdapter) GetEnvironment(ctx context.Context, request apollo.GetEnvironmentRequestObject) (apollo.GetEnvironmentResponseObject, error) {
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, ""); err != nil {
 		return nil, err
 	}
-	response, err := adapter.legacy.application.GetEnvironment(request.EnvironmentRid)
+	response, err := adapter.legacy.application.GetEnvironment(ctx, request.EnvironmentRid)
 	return apollo.GetEnvironment200JSONResponse(response), apolloApplicationError(err)
 }
 
@@ -298,14 +305,18 @@ func (adapter *apolloOpenAPIAdapter) ListInstallations(ctx context.Context, requ
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, ""); err != nil {
 		return nil, err
 	}
-	return apollo.ListInstallations200JSONResponse(adapter.legacy.application.ListInstallations(request.EnvironmentRid)), nil
+	response, err := adapter.legacy.application.ListInstallations(ctx, request.EnvironmentRid)
+	if err != nil {
+		return nil, apolloApplicationError(err)
+	}
+	return apollo.ListInstallations200JSONResponse(response), nil
 }
 
 func (adapter *apolloOpenAPIAdapter) GetInstallation(ctx context.Context, request apollo.GetInstallationRequestObject) (apollo.GetInstallationResponseObject, error) {
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, ""); err != nil {
 		return nil, err
 	}
-	response, err := adapter.legacy.application.GetInstallation(request.EnvironmentRid, request.InstallationRid)
+	response, err := adapter.legacy.application.GetInstallation(ctx, request.EnvironmentRid, request.InstallationRid)
 	return apollo.GetInstallation200JSONResponse(response), apolloApplicationError(err)
 }
 
@@ -313,7 +324,11 @@ func (adapter *apolloOpenAPIAdapter) ListNamespaces(ctx context.Context, _ apoll
 	if err := adapter.authorizeOperator(ctx, OperationReadResource, ""); err != nil {
 		return nil, err
 	}
-	return apollo.ListNamespaces200JSONResponse(adapter.legacy.application.ListNamespaces()), nil
+	response, err := adapter.legacy.application.ListNamespaces(ctx)
+	if err != nil {
+		return nil, apolloApplicationError(err)
+	}
+	return apollo.ListNamespaces200JSONResponse(response), nil
 }
 
 func (adapter *apolloOpenAPIAdapter) ListProducts(ctx context.Context, _ apollo.ListProductsRequestObject) (apollo.ListProductsResponseObject, error) {
