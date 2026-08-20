@@ -23,6 +23,6 @@ if ! command -v mise >/dev/null 2>&1 || [ "$(mise --version | awk '{print $1}')"
 	mv "${HOME}/.local/bin/mise.new" "${HOME}/.local/bin/mise"
 fi
 
-mise install
+mise install --locked --yes
 mise run install-cursor
 mise exec -- direnv allow "${PWD}"
