@@ -4,18 +4,18 @@ Guidance for Claude Code working in this repository.
 
 ## Operating doctrine
 
-@ORCHESTRATOR.md
+@docs/operations/ORCHESTRATOR.md
 
 Three companion documents are **not** imported here, deliberately — loading them
 into every run is the overhead the doctrine above exists to avoid:
 
-- [`HIGH_ASSURANCE.md`](HIGH_ASSURANCE.md) — read it when, and only when, the
+- [`HIGH_ASSURANCE.md`](docs/operations/HIGH_ASSURANCE.md) — read it when, and only when, the
   work is high-impact, sensitive, irreversible, or externally consequential.
   Releasing, publishing, deploying to a tenant, and anything touching
   credentials or production data qualify.
 - [`HANDOFF.template.md`](HANDOFF.template.md) — the shape a handoff takes.
   Instantiate for substantial or persistent work only.
-- [`HARNESS_REQUIREMENTS.md`](HARNESS_REQUIREMENTS.md) — what this environment
+- [`HARNESS_REQUIREMENTS.md`](docs/operations/HARNESS_REQUIREMENTS.md) — what this environment
   enforces outside the model, and the one control that currently reads as
   enforced and is not. Read before assuming a guardrail will stop you.
 

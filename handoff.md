@@ -1,7 +1,7 @@
 # Handoff
 
 **Updated:** 2026-08-19 UTC
-**Lead or owner:** orchestrating session (see `ORCHESTRATOR.md`)
+**Lead or owner:** orchestrating session (see `docs/operations/ORCHESTRATOR.md`)
 **Status:** active — Apollo `core/whats-new` parity program in flight (see the
 2026-08-19 section at the end). The 2026-08-18 authorization/credential blocker
 below is the prior focus, left as recorded; this session did not touch it.
@@ -17,7 +17,7 @@ earlier session's claim is made where the claim is, and marked.
   gate cannot catch — authorization and credential-destination faults, which
   pass CI by construction.
 - **Deliverables:** merged pull requests with reproducible evidence; the
-  operating structure in `ORCHESTRATOR.md` and its companions.
+  operating structure in `docs/operations/ORCHESTRATOR.md` and its companions.
 - **Measurable success criteria:** Trunk gate green on the head commit; every
   claimed fix killed by a **compiling** mutant; no regression introduced by a
   fix.
@@ -58,7 +58,7 @@ earlier session's claim is made where the claim is, and marked.
   capability.
 - `[VERIFIED]` A written control does not hold: `.claude/settings.json` denies
   `Bash(gh pr merge:*)`, but merges via `mcp__github__merge_pull_request` do not
-  match that rule and have succeeded. See `HARNESS_REQUIREMENTS.md`.
+  match that rule and have succeeded. See `docs/operations/HARNESS_REQUIREMENTS.md`.
 - `[UNKNOWN]` How Apollo Hub supplies runtime configuration to its frontend.
   Matters because the hydration direction was chosen as "however Apollo Hub does
   it", and this repository forbids inferring Apollo behavior. Cheapest probe:
@@ -147,13 +147,13 @@ earlier session's claim is made where the claim is, and marked.
    rather than red.
 3. Decide the `mcp__github__merge_pull_request` gate (close it, or correct the
    policy to match reality) — this is the repository owner's call, not the
-   agent's — see `HARNESS_REQUIREMENTS.md`.
+   agent's — see `docs/operations/HARNESS_REQUIREMENTS.md`.
 4. Re-dispatch the Apollo hydration research and the Multipass IAM port — both
    are scoped and briefed; neither is blocked on information or on CI.
 
 ## Resume recipe
 
-- **Read first:** this section, then `ORCHESTRATOR.md`.
+- **Read first:** this section, then `docs/operations/ORCHESTRATOR.md`.
 - **Current branch:** `main` at `8d16d35`; open work on
   `claude/fix-redirect-strip-not-refuse` (PR #274).
 - **Fast health check:** `go build ./... && go test -count=1 ./internal/gitless/...`
