@@ -33,7 +33,7 @@
       "matchDatasources": [
         "docker"
       ],
-      "rangeStrategy": "pinDigest"
+      "pinDigests": true
     },
     {
       "description": "Group non-major Go dependency updates",
