@@ -228,6 +228,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorSelf, Detail: "operatorPrincipal + ownedBy(principal, owner)"},
 		{Pattern: "GET /v1/overview",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + BuildOverviewProjection, which projects only what the principal reads"},
+		{Pattern: "GET /v1/packaging-runs/{runID}",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; read-only packaging-run progress for every authenticated operator, with no artifact bytes and no approval"},
 		{Pattern: "GET /v1/plans",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + canReadPlan per Plan row"},
 		{Pattern: "GET /v1/plans/{planID}",
