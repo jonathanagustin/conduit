@@ -45,29 +45,6 @@ bounded adapter.
 - Release artifacts use semantic tags, exact OCI digests, SBOMs, and available
   provenance/attestation mechanisms.
 
-## Zenith operating model
-
-For substantial reconstruction, migration, or release work, read
-`docs/operations/AGENTS.md` and its ledgers before editing. Use the adapted
-orchestrate → verify loop: decompose by independently testable capability,
-name the ground-truth source and acceptance gate, preserve a single writer per
-file set, and independently rerun every reported gate before commit. Delegate
-only when the user or applicable higher-priority instructions authorize it.
-
-The complete repository-local Zenith playbook is pinned under
-`tools/zenith-protocol/`; read
-`tools/zenith-protocol/skills/zenith-protocol/SKILL.md` for a substantial
-cycle. Its ledgers resolve through `.zenith-protocol.json`. Do not publish the
-vendored private plugin or treat its workflow as authority to delegate, commit,
-push, release, or deploy.
-
-Write domain findings to their canonical evidence or contract note in the same
-change, reflect closure state in the capability map, gatekeep new hypotheses,
-and record load-bearing assumptions. Record changes to the working method first
-as measured PDR trials; append objective measurements rather than relying on
-memory. Run `node scripts/verify-zenith-protocol.mjs` at the commit boundary.
-Zenith records index evidence; they do not replace executable tests.
-
 ## Mutation testing
 
 `scripts/run-mutation-testing.sh <package>` runs [gremlins](https://github.com/go-gremlins/gremlins)
@@ -177,7 +154,7 @@ Nested instructions:
 - `internal/AGENTS.md`: control-plane and agent invariants.
 - `deploy/AGENTS.md`: reusable runtime and environment-ownership boundary.
 - `.github/AGENTS.md`: CI and release workflow rules.
-- `docs/operations/AGENTS.md`: adapted Zenith ledgers and conformance rules.
+- `docs/operations/AGENTS.md`: operations documentation and verification rules.
 
 ## Where work is tracked
 
@@ -193,8 +170,7 @@ agent is expected to keep in step.
 The documents under `docs/` remain the evidence record: what was found, when,
 from which source, and why a decision went the way it did. An issue closes and
 leaves the board; the reasoning must not leave the repository.
-`docs/operations/APOLLO-WORK-QUEUE.md` indexes the open issues, and each PH row
-in `docs/operations/HYPOTHESIS-BACKLOG.md` carries its issue number.
+`docs/operations/APOLLO-WORK-QUEUE.md` indexes the issue workflow.
 
 ### Claiming work when more than one agent is running
 

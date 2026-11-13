@@ -60,7 +60,7 @@ independent adapters and a digest-pinned disposable PostgreSQL service. It
 checks concurrent approval and leasing, idempotency, abort rollback, and audit
 failure rollback. `scripts/verify-helm-runtime.rb` checks two replicas,
 zero-unavailable rolling updates, the disruption budget, and the read-only DSN
-Secret mount. B4, H14, A7, and P10 retain the current status and method evidence.
+Secret mount.
 
 ## Pros and cons of the options
 
