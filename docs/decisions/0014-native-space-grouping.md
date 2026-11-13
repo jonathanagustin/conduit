@@ -82,3 +82,10 @@ reader write refusal, assignment conflict, spoofed creation metadata, and
 service-account delegation that must not inherit bootstrap administration.
 This slice does not yet connect the production store constructor or CLI/GraphQL
 selection; those remain part of #17.
+
+The Hub executable opens this component in the same durability mode and data
+root as its delivery repository (or the same mounted PostgreSQL DSN). Worker
+mode does not initialize the HTTP-only component. PostgreSQL backup/restore
+checks the Space migration ledger before constructors run, then compares the
+exact Space identity and assignment, including their provenance, after restore.
+This does not claim old-binary compatibility or complete CLI/GraphQL coverage.
