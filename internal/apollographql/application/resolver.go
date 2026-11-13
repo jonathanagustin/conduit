@@ -528,8 +528,28 @@ func resolvePage(field string, source any) (any, error) {
 		return nil, fmt.Errorf("page field %q resolved against %T", field, source)
 	}
 	if field == "nextPageToken" {
-		// Every visible record fits one page today, so there is no next one.
-		// This is a value, not a refusal: Conduit knows the answer is "none".
+		// Null, and it is a value rather than a refusal: there genuinely is no
+		// next page, because there is only ever one.
+		//
+		// The comment here used to read "every visible record fits one page
+		// today", which described a capacity Conduit does not enforce. `pageSize`
+		// is a required argument on every collection field and NO resolver reads
+		// it -- `environments(pageSize: 1)` against five returns five (issue
+		// #112, finding 5). So a page is always the whole collection and the
+		// token is always null; the two statements are consistent, and the
+		// second is the one a client needs.
+		//
+		// Honouring pageSize is NOT the fix it looks like. Slicing the records is
+		// trivial; the token is not. Emitting one means minting a cursor grammar,
+		// and no capture establishes what an Apollo page token looks like -- so a
+		// client would receive a Conduit-invented string under a coordinate
+		// recovered from a Hub, which is precisely the defect issues #57 and #112
+		// are about. Truncating without a token is worse still: the client is
+		// silently told the collection ended.
+		//
+		// So this is DECLARED rather than fixed, in
+		// docs/operations/TENANT-FIDELITY.md, and the coverage table above says
+		// the same thing in the entry a client can read.
 		return nil, nil
 	}
 	items := make([]child, 0, len(held.records))
@@ -884,6 +904,25 @@ func resolveDependency(field string, source any) (any, error) {
 		// The recovered field is a String, not a Boolean: the Hub was never
 		// asked for its scalar type. Conduit renders its own boolean rather
 		// than claiming the Hub's shape.
+		//
+		// CONDUIT-INVENTED: apollographql.DependencyOptionalDefault
+		// Displaced-by: a published Apollo publish request model carrying
+		// dependency optionality, which would make the served value the
+		// publisher's rather than Conduit's.
+		//
+		// This used to answer under a bare OBSERVED annotation, which told a
+		// client an Apollo Hub had said "false" (issues #57, #112). Neither
+		// pinned publish request carries an optionality input, so for a publicly
+		// published dependency nobody said anything and this default is Conduit's
+		// own. The coordinate now discloses valueTier: CONDUIT_NATIVE, which is
+		// the only thing a GraphQL client ever sees, and the annotation covers
+		// the rendering as well as the default: "true"/"false" are Conduit's
+		// spelling of a bool into a String whose real scalar type is unknown.
+		//
+		// The disclosure is field-wide rather than per-value because a valueTier
+		// is a property of the coordinate. That over-discloses the case where
+		// Conduit's own manifest route DID declare optionality -- and that is the
+		// safe direction. Under-disclosure is the defect these issues reported.
 		if dependency.Optional != nil && *dependency.Optional {
 			return "true", nil
 		}

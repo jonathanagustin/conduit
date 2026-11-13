@@ -5,13 +5,17 @@ import {
   pipelineGuarantees,
   pipelineStatus,
   pipelineStatusIntent,
+  previewRefusal,
+  useExportPipelinePreview,
   useExportPipelines,
   type BundleLabelRequirement,
   type ExportPipeline,
+  type ExportPipelinePreview,
   type TargetHubVersions,
 } from "../../api/exports.js";
 import { ObjectHeader } from "../../components/ObjectHeader/ObjectHeader.js";
 import { QueryState } from "../../components/QueryState.js";
+import { countOf, Timestamp } from "../../components/Timestamp.js";
 import { useIndexQuery } from "../useIndexQuery.js";
 import "./exports.css";
 
@@ -171,6 +175,12 @@ function PipelineDetail({ pipeline }: { pipeline: ExportPipeline }) {
         </section>
       ) : null}
       <TargetHubVersionsView versions={pipeline.targetHubVersions} />
+      {/* Keyed on the pipeline so selecting another one clears the preview.
+          Without the key the panel would keep showing the previous pipeline's
+          advisories under the new pipeline's heading, which is the worst
+          possible failure for a screen whose whole job is "what would this
+          build omit". */}
+      <AdvisoriesView key={pipeline.id} pipelineId={pipeline.id} />
       <dl className="console-exports__meta">
         <div>
           <dt>Build strategy</dt>
@@ -275,5 +285,111 @@ function TargetHubVersionsView({
         </div>
       ))}
     </section>
+  );
+}
+
+/** What a build would omit, asked for on demand.
+ *
+ * A Bundle build has three outcomes rather than two -- it succeeded, it
+ * succeeded with advisories, or it failed -- and until this panel existed the
+ * middle one was invisible in the console. A pipeline whose selection rule named
+ * a Product with no unrecalled Release on the channels it asked for builds a
+ * Bundle that silently does not contain that Product, and at the destination
+ * that omission is indistinguishable from a clean build.
+ *
+ * Behind a button rather than fired on render: the route is a POST, and
+ * `PreviewExportPipeline` walks the catalog and reads the Bundle lineage to
+ * answer. It writes nothing, so running it is safe -- but it is work, and a
+ * panel opening is not a reason to ask for it. */
+function AdvisoriesView({ pipelineId }: { pipelineId: string }) {
+  const preview = useExportPipelinePreview();
+  const refusal = previewRefusal(preview.error);
+  return (
+    <section aria-labelledby="pipeline-advisories-title" data-testid="pipeline-advisories">
+      <h3 id="pipeline-advisories-title">Advisories</h3>
+      <p className="console-exports__advisories-note">
+        A pre-build preview reports what a build would leave out. It reads the catalog and this
+        pipeline&apos;s Bundle lineage; it builds nothing and changes nothing.
+      </p>
+      <Button
+        text={preview.data === undefined ? "Run pre-build preview" : "Run again"}
+        icon="search-template"
+        loading={preview.isPending}
+        onClick={() => preview.mutate(pipelineId)}
+        data-testid="run-pipeline-preview"
+      />
+      {/* A refusal the Hub documents is a state, not a failure, so it reads as
+          an explanation. Anything else is reported as the failure it is --
+          swallowing it would tell an operator "no advisories" about a preview
+          that never ran. */}
+      {refusal !== undefined ? (
+        <p className="console-exports__advisories-refusal" data-testid="pipeline-preview-refused">
+          {refusal}
+        </p>
+      ) : preview.error !== null ? (
+        <p className="console-error" data-testid="pipeline-preview-error">
+          The pre-build preview could not be read: {preview.error.message}
+        </p>
+      ) : null}
+      {preview.data === undefined ? null : (
+        <AdvisoryList preview={preview.data} />
+      )}
+    </section>
+  );
+}
+
+/** The advisories themselves, with the change counts that give them their
+ * context: "no advisories" over a build that touches nothing means something
+ * different from "no advisories" over a build that adds forty resources. */
+function AdvisoryList({ preview }: { preview: ExportPipelinePreview }) {
+  const advisories = preview.advisories ?? [];
+  return (
+    <div data-testid="pipeline-preview-result">
+      <dl className="console-exports__meta">
+        <div>
+          <dt>Previewed</dt>
+          <dd>
+            <Timestamp value={preview.generatedAt} /> &middot; revision {preview.pipelineRevision}
+          </dd>
+        </div>
+        <div>
+          <dt>Would change</dt>
+          <dd>
+            {countOf(preview.added?.length ?? 0, "addition")},{" "}
+            {countOf(preview.updated?.length ?? 0, "update")},{" "}
+            {countOf(preview.removed?.length ?? 0, "removal")}
+          </dd>
+        </div>
+        <div>
+          <dt>Security outcome</dt>
+          <dd>{preview.securityOutcome === "" ? "—" : preview.securityOutcome}</dd>
+        </div>
+      </dl>
+      {advisories.length === 0 ? (
+        <p className="console-empty" data-testid="pipeline-no-advisories">
+          This build would report no advisories.
+        </p>
+      ) : (
+        <ul className="console-exports__advisories" data-testid="pipeline-advisory-list">
+          {advisories.map((advisory, position) => (
+            <li key={`${advisory.kind}-${position}`}>
+              {/* The kind leads because it is the closed set: an operator groups
+                  and acts on kinds, and the message is the prose beside it. */}
+              <Tag intent="warning" minimal round>
+                {advisory.kind}
+              </Tag>{" "}
+              {advisory.message}
+              {advisory.subjects !== undefined && advisory.subjects.length > 0 ? (
+                <ul className="console-exports__advisory-subjects">
+                  {advisory.subjects.map((subject) => (
+                    <li key={subject}>{subject}</li>
+                  ))}
+                </ul>
+              ) : null}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }

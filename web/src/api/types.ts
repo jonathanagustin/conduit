@@ -111,3 +111,31 @@ export const ROLLOUT = [
 ] as const;
 export const CONFIG = ["APPLIED", "DRIFTED", "UNAVAILABLE", "INDETERMINATE"] as const;
 export const LIFECYCLE = ["INSTALLED", "UNINSTALLED", "UNKNOWN"] as const;
+
+/** Go's zero `time.Time`, as it arrives on the wire.
+ *
+ * `encoding/json`'s `omitempty` does not omit a zero `time.Time` -- it omits
+ * false, 0, nil, and empty strings/slices/maps, and a struct is none of those.
+ * So a field like `FleetInstallation.ObservedAt` (`json:"observedAt,omitempty"`,
+ * internal/reporting/domain/fleet.go:121) is absent from the Go value's meaning
+ * and present on the wire, as `"0001-01-01T00:00:00Z"`. Confirmed by marshalling
+ * a desired-only row rather than reasoned about:
+ *
+ *   {"environment":"e1",...,"observedAt":"0001-01-01T00:00:00Z","stale":true}
+ *
+ * Anything that tests such a field for presence is therefore wrong, and anything
+ * that renders it says "2025 years ago" about a report that never happened. */
+/** Whether a timestamp field names a moment that actually happened.
+ *
+ * Kept here beside the transport types rather than beside the clock, because it
+ * is a fact about how the Hub serializes Go structs and not about how the
+ * console renders time. */
+export function hasInstant(value: string | undefined): value is string {
+  if (value === undefined || value === "") {
+    return false;
+  }
+  const at = Date.parse(value);
+  // Year 1 rather than the exact string above, so a zero time still reads as
+  // absent when an encoder writes it without the trailing Z or in another zone.
+  return !Number.isNaN(at) && new Date(at).getUTCFullYear() > 1;
+}

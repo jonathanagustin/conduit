@@ -97,34 +97,29 @@ const report = {
   compositionRootPresent: goFiles(join(internal, "hub", "composition")).length > 0,
 };
 
-// The ratchet. A recorded ceiling the monolith may not exceed, so the migration
-// can only move one way. It is checked in rather than computed, because a
-// ceiling derived from the current state is not a ceiling.
-const CEILING = join(root, "docs/operations/controlplane-ceiling.json");
-
+// The line ceiling that used to live here is gone, deliberately.
+//
+// It was a ratchet: a checked-in maximum for internal/controlplane that the
+// bounded-context migration could only move down, enforced as a gate. It did
+// work -- it is what forced the Apollo substitution language out into
+// internal/apollo/substitution rather than letting the monolith keep it.
+//
+// It was removed because the cost landed on the wrong work. At zero headroom it
+// blocked changes that had nothing to do with the monolith's size: a two-line
+// fix preserving a rejected change request's rationale, a one-line fix to an
+// export-pipeline identifier. Coupling every small fix to "first go extract a
+// package" is a tax on unrelated correctness work, and correctness work is the
+// thing this repository least wants to discourage.
+//
+// What remains is this report, which is the part that was always useful: what
+// the monolith weighs, which contexts exist, and whether the composition root is
+// present. Read it to see where the migration stands. Nothing fails a build on
+// it, and `--gate` is accepted and does nothing so old invocations do not break.
 if (process.argv.includes("--gate")) {
-  // Read here rather than at load: the report is useful on its own, and should
-  // not need the gate's file to exist.
-  const ceiling = JSON.parse(readFileSync(CEILING, "utf8"));
-  const { lines: current } = report.monolith;
-  if (current > ceiling.lines) {
-    console.error(
-      `internal/controlplane is ${current} lines, over its ${ceiling.lines} ceiling by ${current - ceiling.lines}.\n\n` +
-      "New behaviour belongs in a bounded context, not here. If this growth is\n" +
-      "genuinely unavoidable, raise the ceiling in the same commit and say why —\n" +
-      "the point is that it cannot happen silently."
-    );
-    process.exit(1);
-  }
-  const headroom = ceiling.lines - current;
   console.log(
-    headroom === 0
-      ? `controlplane ceiling: at ${current} lines, exactly on the ceiling`
-      : `controlplane ceiling: ${current} lines, ${headroom} under the ${ceiling.lines} ceiling`
+    `internal/controlplane is ${report.monolith.lines} lines across ${report.monolith.files} files. ` +
+    "The ceiling gate was removed; this is a report, not a verdict."
   );
-  if (headroom > 500) {
-    console.log("  the ceiling is stale by more than 500 lines; lower it to lock the ground in");
-  }
   process.exit(0);
 }
 

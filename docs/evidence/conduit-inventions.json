@@ -29,6 +29,13 @@
       "riskIfWrong": "Low in shape, moderate in consequence. The identifiers are opaque and self-consistent, so nothing inside Conduit breaks; but a client that round-trips one into a real Apollo API will not match anything, which is exactly why the coordinates serving them disclose valueTier: CONDUIT_NATIVE."
     },
     {
+      "id": "apollographql.DependencyOptionalDefault",
+      "what": "The optionality Conduit answers for a Product dependency no publisher declared one for: false, rendered as the string \"false\".",
+      "why": "Neither pinned publish request model carries an optionality input -- PublishHelmChartRequest and PublishServiceRequest both stop at extensions -- so a dependency published on the public Apollo routes arrives with nobody having stated whether it is optional. Conduit's own manifest route can state it, and does, but both paths land in catalog.Dependency.Optional, a plain bool: a declared false and an undeclared one are the same stored value, so the read cannot tell them apart. False is the choice because it is the conservative one for a dependency resolver -- treating an unstated dependency as required refuses a Plan that is missing it, where treating it as optional would silently install without it.",
+      "displacedBy": "A published Apollo publish request model carrying dependency optionality, which would let a publisher state it and make the served value theirs rather than Conduit's; or, short of that, a tri-state on catalog.Dependency that keeps an undeclared optionality distinguishable from a declared false all the way to the read.",
+      "riskIfWrong": "Low. The value is conservative in the direction that fails loudly, and the coordinate discloses valueTier: CONDUIT_NATIVE so a client is told the answer is Conduit's. A dependency a publisher meant as optional reads as required, which blocks a Plan rather than shipping a broken one."
+    },
+    {
       "id": "notifications.InboxEntry",
       "what": "A per-recipient inbox record carrying its own read state.",
       "why": "Read state is modelled per-recipient because two people notified about the same promotion failure read it independently, and storing readAt on the event would let one of them mark it read for both. Apollo has an inbox -- Hub Settings carries a 'My notifications' page and the tenant viewer role names it -- but no capture shows an entry or its read state.",

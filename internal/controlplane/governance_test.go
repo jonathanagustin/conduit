@@ -1270,3 +1270,74 @@ func TestPolicyOpinionsAreCountedNotCancelled(t *testing.T) {
 		t.Errorf("a change no policy had an opinion on = %q %q", request.Status, request.Error)
 	}
 }
+
+// Reopening a rejected Change Request used to destroy the only copy of why it
+// was refused (#103). Reviews are necessarily cleared -- a reviewer who
+// approved the old evaluation did not approve the new one -- but a rejection's
+// rationale is a human's answer to "why not", and it was deleted at exactly the
+// moment somebody decided to try again.
+func TestReopeningPreservesWhyTheRequestWasRefused(t *testing.T) {
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	service := NewGovernanceService(repository)
+	_, _ = service.PutTeam(ctx, Team{Name: "reviewers", DisplayName: "Reviewers", AdminUsers: []string{"reviewer"}, MemberUsers: []string{"reviewer"}})
+	_, _ = service.PutPolicy(ctx, ApprovalPolicy{ID: "review", DisplayName: "Review", Enabled: true, Expression: `require_team("reviewers", "review")`})
+	author, _ := service.ResolvePrincipal(ctx, IdentityClaims{Username: "author"})
+	reviewer, _ := service.ResolvePrincipal(ctx, IdentityClaims{Username: "reviewer"})
+	_, request, err := service.ProposePlan(ctx, foundation(), author, "", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	request, _, err = service.Reject(ctx, request.ID, reviewer, "the rollback path is untested")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _, err = service.Reopen(ctx, request.ID, author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(request.Reviews) != 0 {
+		t.Fatalf("reopening carried a review into the new round: %#v", request.Reviews)
+	}
+	if len(request.PriorReviews) != 1 {
+		t.Fatalf("the rejection rationale did not survive the reopen: %#v", request.PriorReviews)
+	}
+	if request.PriorReviews[0].Rationale != "the rollback path is untested" ||
+		request.PriorReviews[0].Decision != "REJECT" ||
+		request.PriorReviews[0].Subject != "reviewer" {
+		t.Fatalf("the carried review is not the rejection that happened: %#v", request.PriorReviews[0])
+	}
+
+	// A second round accumulates rather than replaces, oldest first, so a
+	// request refused twice reads as a history and not as a set.
+	request, _, err = service.Reject(ctx, request.ID, reviewer, "still untested")
+	if err != nil {
+		t.Fatal(err)
+	}
+	request, _, err = service.Reopen(ctx, request.ID, author)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(request.PriorReviews) != 2 {
+		t.Fatalf("a second refusal did not accumulate: %#v", request.PriorReviews)
+	}
+	if request.PriorReviews[0].Rationale != "the rollback path is untested" ||
+		request.PriorReviews[1].Rationale != "still untested" {
+		t.Fatalf("prior reviews are not oldest-first: %#v", request.PriorReviews)
+	}
+
+	// The carried approval must not satisfy the new round, and must not stop
+	// the same reviewer approving it either -- which is why these live outside
+	// Reviews, where approveOnce walks for duplicates.
+	request, _, err = service.Approve(ctx, request.ID, reviewer, "rollback now covered")
+	if err != nil {
+		t.Fatalf("a reviewer who refused earlier rounds could not approve this one: %v", err)
+	}
+	if len(request.Reviews) != 1 || request.Reviews[0].Decision != "APPROVE" {
+		t.Fatalf("the new round's reviews are wrong: %#v", request.Reviews)
+	}
+	if len(request.PriorReviews) != 2 {
+		t.Fatalf("approving disturbed the history: %#v", request.PriorReviews)
+	}
+}

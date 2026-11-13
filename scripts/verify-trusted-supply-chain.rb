@@ -85,10 +85,10 @@ abort "Hub Cosign source build must pin the reviewed upstream release" unless
   cosign_build_mod.include?("tool github.com/sigstore/cosign/v3/cmd/cosign") &&
     cosign_build_mod.match?(/^\s*github\.com\/sigstore\/cosign\/v3 v3\.1\.3 \/\/ indirect$/)
 abort "Hub Cosign source build must pin the patched Go toolchain and dependency graph" unless
-  cosign_build_mod.match?(/^go 1\.26\.6$/) &&
-    cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.40\.0 \/\/ indirect$/) &&
-    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.39\.0 \/\/ indirect$/) &&
-    cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.82\.1 \/\/ indirect$/)
+  cosign_build_mod.match?(/^go 1\.26\.11$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.41\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.42\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.83\.1 \/\/ indirect$/)
 abort "Hub runtime must build and carry the locked Cosign command" unless
   hub_containerfile.include?("COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./") &&
     hub_containerfile.include?("go mod download") &&
@@ -243,7 +243,7 @@ abort "Conduit archives must have verified keyless SLSA provenance bundles" unle
 abort "release must not depend on unavailable private-repository GitHub attestations" if
   workflow.include?("actions/attest@") || workflow.include?("attestations: write")
 abort "runtime builds must use the fixed Go toolchain by exact image digest" unless
-  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36") }
+  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0") }
 abort "runtime roots must use the reviewed Chainguard static index by exact digest" unless
   [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("cgr.dev/chainguard/static:latest@sha256:f68e3a8244c7d0f4cd56635aaff8e6a533cf6cc3850d8fb339567a5782d6a0b0") }
 abort "Helm must be rebuilt from integrity-pinned 4.2.3 source with fixed oras-go" unless

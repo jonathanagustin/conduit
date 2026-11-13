@@ -180,6 +180,100 @@ Nothing here changes what the recovery established about the Hub it reached.
 It changes what may be inferred about Apollo's GraphQL surface in general,
 which is less than one capture suggests.
 
+### A third observation (2026-08-19), by a different method
+
+The captured `apollo-control-panel` 6.533.15 frontend closure — receipt in
+[`../FRONTEND-CAS-CAPTURE.md`](../FRONTEND-CAS-CAPTURE.md) — yields the client's
+**own** GraphQL operations, mined statically from the shipped bundles with no
+live call: 24 complete operations and 30 fragments, committed as
+[`../apollo-control-panel-graphql-operations-6.533.15.json`](../apollo-control-panel-graphql-operations-6.533.15.json).
+
+It is a genuinely independent observation. Different date, different tenant
+surface, and a method with no probe in it at all: these are the documents the
+tenant *served to a browser*, so nothing here depends on validation probing,
+on the guard/canary discipline, or on what a schema chose to introspect.
+
+What it shows:
+
+| Observation | Result |
+| --- | --- |
+| Root fields used | `me`, `enrollment`, `principal`, `resourceMetadata`, `sessionClassification`, `authenticationProvider`, and the Stargate user-directory reads and mutations |
+| `apollo` root field | **absent** |
+| Deployment vocabulary anywhere in the extract | **zero** matches |
+| Client | `forge-graphql-client/0.0.0`, sending `Palantir-Asset-Track` and a bearer token |
+
+**What it settles.** The 2026-08-03 capture recorded "five Control Panel
+shell/enrollment operations; none is an Apollo Hub operation" from one route.
+This is the same finding at 24 operations across the whole app closure, so that
+result was not an artifact of which route was loaded. A Foundry frontend that
+exposes `Query.me` and no `Query.apollo` is now observed twice, by two methods —
+matching the captured gateway schema and differing from the Hub reached on
+2026-08-15.
+
+**What it does not settle, and this is the point.** It cannot separate the three
+readings above, because *it does not establish which endpoint it posts to
+either*. The only `/graphql` string in the closure is Apollo Client's library
+default in `HttpLink`'s constructor; there is no `graphql-gateway` string in any
+of the 30 blobs and no `uri:` literal in the app chunk, so the path is assembled
+at runtime from configuration the capture does not contain. It therefore adds a
+third surface-shaped observation with the same missing datum that made
+`hubFingerprint` insufficient, rather than the endpoint identity that would
+resolve the conflict.
+
+So the conflict stands, with one reading now better supported and none
+eliminated: whatever serves `Query.apollo` with 13 types of deployment domain,
+it is not the surface this tenant's Control Panel talks to. Resolving it still
+needs a fresh capture that records origin *and* path.
+
+#### The same surface, projected as a schema
+
+The operations above were later projected into SDL and committed here as
+[`../foundry-gateway-observed-schema-6.533.15.graphql`](../foundry-gateway-observed-schema-6.533.15.graphql),
+with its completeness report at
+[`../foundry-gateway-observed-schema-completeness-6.533.15.json`](../foundry-gateway-observed-schema-completeness-6.533.15.json).
+Its own header calls it a *Foundry GraphQL Gateway observed-contract schema
+projection*, generated from the exact shipped document closures **plus live
+validation-only field and argument signatures** — so unlike the operation
+extract, part of it was probed rather than only read.
+
+383 lines. 65 composite types, 20 scalars, 159 fields, 31 arguments, and the
+report claims completeness scoped to the captured contract: 24 of 24 operation
+variants valid, zero unresolved fields or arguments. It explicitly does **not**
+claim uncaptured applications, unused members, resolver behaviour, defaults, or
+the tenant's private introspection result.
+
+Two properties matter here:
+
+```graphql
+type Query {
+  authenticationProvider(rid: RID!): AuthenticationProvider
+  currentStargateUser: StargateUser
+  enrollment(rid: RID!): Enrollment
+  me: User!
+  principal(id: String!): Principal
+  resourceMetadata(rid: RID!): ResourceMetadata
+  sessionClassification: ClassificationBanner
+  stargateIsPalantirUser: Boolean
+  stargateUser(rid: RID!): StargateUser
+  stargateUserDirectory(rid: RID!): StargateUserDirectory
+}
+```
+
+- **Ten `Query` fields, and the string `apollo` appears zero times in all 383
+  lines.** The captured gateway comparison above rests on "no `apollo` root
+  field anywhere in it"; this is that same absence, on this tenant, in a
+  projection rather than a 26,140-line introspection dump.
+- **It has a `Mutation` root with nine fields** — all Stargate user-directory
+  writes. That is a categorical difference from the Hub reached on 2026-08-15,
+  whose `__schema.mutationType` is null and whose served SDL declares no
+  mutation root at all. Two GraphQL surfaces, one with mutations and one
+  without, is not a visibility difference.
+
+It still does not name its endpoint, so it does not resolve the three readings
+either. What it does is remove the last way of dismissing this observation as
+thin: the Control Panel's GraphQL surface is now described at the same grain as
+the surfaces it is being compared against, and it remains a different one.
+
 ## The interface Conduit serves (2026-08-15)
 
 The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the
@@ -234,7 +328,7 @@ is made, and only `OBSERVED` returns true from it.
 
 `tier` says who established that a coordinate **exists**. It has never said where
 the **value** came from, and while the two were always the same nobody needed it
-to. Three coordinates make them differ, and until
+to. Six coordinates make them differ, and until
 [ADR 0007](../../decisions/0007-registered-invention-over-refusal.md) the
 interface had no way to say so — they served under a bare `OBSERVED` annotation
 whose disclosure told clients an Apollo Hub had answered with them. It had not.
@@ -244,6 +338,19 @@ whose disclosure told clients an Apollo Hub had answered with them. It had not.
 | `ApolloEnvironment.rid` | `apollo-openapi ri.apollo.main.environment.123` | the locator |
 | `ApolloEntity.packageRid` | `apollo-openapi ri.apollo.main.package.123` | the locator |
 | `ApolloEntity.id` | `apollo-openapi aeid:apollo-environment-demo:helm-chart:wordpress` | the value only; the shape is Apollo's |
+| `ApolloProduct.rid` | `apollo-openapi ri.autopilot.main.team.123`, the service segment naming the owning service | the whole identifier, under `ri.conduit.main.*` |
+| `ApolloProductRelease.rid` | `apollo-openapi ri.autopilot.main.team.123`, as above | the whole identifier, keyed on the Maven coordinate |
+| `ApolloProductDependency.optional` | `apollo-openapi ProductDependency.optional`, a boolean the schema does not require | the default and the rendering; no pinned publish request lets a publisher state optionality |
+
+The last row is the one that is not an identifier, and it is the one issues #57
+and #112 named. Neither `PublishHelmChartRequest` nor `PublishServiceRequest`
+carries an optionality input, so a dependency published on the public Apollo
+routes has no publisher declaration behind it and Conduit answers its own
+default. `catalog.Dependency.Optional` is a plain `bool`, so a declared `false`
+and an undeclared one are indistinguishable at the read; the disclosure is
+therefore field-wide, which over-states the case where Conduit's own manifest
+route did declare optionality. That is the safe direction — under-disclosure is
+the defect being corrected.
 
 These now serve as `@provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)`, and
 the response's provenance extension lists them under `conduitMintedValues` — a

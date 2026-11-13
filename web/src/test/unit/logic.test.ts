@@ -9,6 +9,12 @@ import {
   carriesRationale,
 } from "../../features/changes/review.js";
 import { countOf, relative } from "../../components/Timestamp.js";
+import {
+  installationSource,
+  installationSourceLabel,
+  parseInstallationRID,
+} from "../../api/fleet.js";
+import { hasInstant } from "../../api/types.js";
 import { parseInline, parseMarkdown } from "../../components/Markdown.js";
 import { latestForChannel, orderChannels } from "../../components/ReleaseChannelGraph.js";
 import {
@@ -190,39 +196,90 @@ describe("release channel ordering", () => {
 
 describe("relative time", () => {
   // A fixed "now" so the arithmetic is deterministic. Reading Date.now() inside
-  // the test would make the boundaries drift with the clock.
+  // the test would make the boundaries drift with the clock. Midday UTC so a
+  // day either side stays inside its own UTC date.
   const now = Date.parse("2026-08-07T12:00:00Z");
   const ago = (seconds: number) => new Date(now - seconds * 1000);
+  const days = (count: number) => ago(count * 86_400);
+
+  // Every expectation below is the captured Foundry ladder, not a preference:
+  // `apollo-control-panel` 6.533.15 truncates each unit, names yesterday and
+  // tomorrow before counting hours, and counts whole calendar days beyond that.
+  // See docs/apollo/FRONTEND-CAS-CAPTURE.md.
 
   it("counts seconds, then minutes, then hours, then days", () => {
     expect(relative(ago(5), now)).toBe("5 seconds ago");
     expect(relative(ago(120), now)).toBe("2 minutes ago");
     expect(relative(ago(7200), now)).toBe("2 hours ago");
-    expect(relative(ago(172_800), now)).toBe("2 days ago");
+    expect(relative(days(2), now)).toBe("2 days ago");
   });
 
   it("switches unit at each boundary rather than one either side of it", () => {
     expect(relative(ago(59), now)).toBe("59 seconds ago");
     expect(relative(ago(60), now)).toBe("1 minute ago");
-    expect(relative(ago(3599), now)).toBe("60 minutes ago");
+    // Truncated, not rounded: 59m59s is not an hour, and reading it as one made
+    // two screens disagree about whether a deadline had passed.
+    expect(relative(ago(3599), now)).toBe("59 minutes ago");
     expect(relative(ago(3600), now)).toBe("1 hour ago");
-    expect(relative(ago(86_399), now)).toBe("24 hours ago");
-    expect(relative(ago(86_400), now)).toBe("1 day ago");
+    expect(relative(ago(43_199), now)).toBe("11 hours ago");
+    expect(relative(ago(43_200), now)).toBe("12 hours ago");
+  });
+
+  it("names yesterday and tomorrow ahead of counting hours or days", () => {
+    // 12 hours back from midday is still today; 13 is not.
+    expect(relative(ago(12 * 3600), now)).toBe("12 hours ago");
+    expect(relative(ago(13 * 3600), now)).toBe("Yesterday at 23:00 UTC");
+    expect(relative(days(1), now)).toBe("Yesterday at 12:00 UTC");
+    expect(relative(new Date(now + 13 * 3_600_000), now)).toBe("Tomorrow at 01:00 UTC");
+  });
+
+  it("keeps the day count above the hour count once a whole day has passed", () => {
+    expect(relative(days(2), now)).toBe("2 days ago");
+    expect(relative(days(20), now)).toBe("20 days ago");
+  });
+
+  it("climbs to weeks, months and years the way the captured ladder does", () => {
+    // 21 days is 3 weeks; 60 days is 2 months; 730 days is 2 years. The spans
+    // are Foundry's coarse constants -- a month is 30 days, a year is 365.
+    expect(relative(days(21), now)).toBe("3 weeks ago");
+    expect(relative(days(59), now)).toBe("8 weeks ago");
+    expect(relative(days(60), now)).toBe("2 months ago");
+    expect(relative(days(97), now)).toBe("3 months ago");
+    expect(relative(days(729), now)).toBe("24 months ago");
+    expect(relative(days(730), now)).toBe("2 years ago");
   });
 
   it("agrees with its unit in the singular", () => {
     expect(relative(ago(1), now)).toBe("1 second ago");
     expect(relative(ago(60), now)).toBe("1 minute ago");
+    expect(relative(days(7), now)).toBe("7 days ago");
   });
 
   it("says 'in' for a timestamp ahead of the clock", () => {
     // Hub and browser clocks disagree; "-30 seconds ago" would be nonsense.
     expect(relative(new Date(now + 30_000), now)).toBe("in 30 seconds");
     expect(relative(new Date(now + 7_200_000), now)).toBe("in 2 hours");
+    expect(relative(new Date(now + 40 * 86_400_000), now)).toBe("in 5 weeks");
   });
 
-  it("treats the present as zero seconds rather than as future", () => {
-    expect(relative(new Date(now), now)).toBe("0 seconds ago");
+  it("keeps an unparseable value visible and a zero time absent", () => {
+    // Two failures that look alike and are not. An unparseable string is worth
+    // reporting to whoever sent it; Go's zero time is a field that was never
+    // set, and reporting it says "2025 years ago" about nothing.
+    expect(hasInstant("not-a-timestamp")).toBe(false);
+    expect(hasInstant("0001-01-01T00:00:00Z")).toBe(false);
+    // ...so Timestamp cannot use hasInstant alone to decide: the unparseable
+    // branch must be reached first. Pinned in the browser suite, where the
+    // rendering is; here we pin the predicate that misled it.
+    expect(Number.isNaN(new Date("not-a-timestamp").getTime())).toBe(true);
+    expect(Number.isNaN(new Date("0001-01-01T00:00:00Z").getTime())).toBe(false);
+  });
+
+  it("says 'now' rather than putting a zero on the screen", () => {
+    expect(relative(new Date(now), now)).toBe("now");
+    expect(relative(new Date(now - 999), now)).toBe("now");
+    expect(relative(new Date(now + 999), now)).toBe("now");
+    expect(relative(new Date(now - 1000), now)).toBe("1 second ago");
   });
 });
 
@@ -908,11 +965,17 @@ describe("Team contact kinds", () => {
   });
 
   it("marks PAGERDUTY undeliverable while EMAIL and SLACK deliver", () => {
-    expect(contactDeliverable("EMAIL")).toBe(true);
-    expect(contactDeliverable("SLACK")).toBe(true);
-    expect(contactDeliverable("PAGERDUTY")).toBe(false);
+    // The Hub's own answer wins when it sends one.
+    expect(contactDeliverable({ kind: "PAGERDUTY", deliverable: true })).toBe(true);
+    expect(contactDeliverable({ kind: "EMAIL", deliverable: false })).toBe(false);
+    // The mirror is the fallback for a Hub older than #262, and it must not
+    // read a missing field as "not delivered" -- that would libel every
+    // working EMAIL contact on such a Hub.
+    expect(contactDeliverable({ kind: "EMAIL" })).toBe(true);
+    expect(contactDeliverable({ kind: "SLACK" })).toBe(true);
+    expect(contactDeliverable({ kind: "PAGERDUTY" })).toBe(false);
     // An unknown kind is not something the Hub delivers to either.
-    expect(contactDeliverable("CARRIER_PIGEON")).toBe(false);
+    expect(contactDeliverable({ kind: "CARRIER_PIGEON" })).toBe(false);
   });
 });
 
@@ -957,5 +1020,78 @@ describe("Vulnerability inventory", () => {
     expect(filterInventoryByTier(rows, "MEDIUM").map((r) => r.finding.id)).toEqual(["CVE-2", "CVE-3"]);
     // No tier selected returns everything.
     expect(filterInventoryByTier(rows, undefined)).toHaveLength(3);
+  });
+});
+
+describe("installation source", () => {
+  const row = (overrides: Record<string, unknown> = {}) =>
+    ({
+      environment: "prod-use1",
+      installationId: "payments",
+      product: "app.example:payments",
+      namespace: "payments",
+      health: "UNKNOWN",
+      rolloutStatus: "OUT_OF_DATE",
+      configStatus: "INDETERMINATE",
+      lifecycle: "UNKNOWN",
+      stale: true,
+      ...overrides,
+    }) as Parameters<typeof installationSource>[0];
+
+  // The wire shape is not hypothetical: marshalling a desired-only row through
+  // BuildFleet produces exactly this, Go's zero time included, because
+  // encoding/json's omitempty does not omit a struct.
+  it("reads Go's zero observedAt as never reported, not as a report in year 1", () => {
+    expect(
+      installationSource(row({ desiredVersion: "2.4.1", observedAt: "0001-01-01T00:00:00Z" })),
+    ).toBe("DECLARED_ONLY");
+    expect(hasInstant("0001-01-01T00:00:00Z")).toBe(false);
+    expect(hasInstant(undefined)).toBe(false);
+    expect(hasInstant("")).toBe(false);
+    expect(hasInstant("2026-08-07T12:00:00Z")).toBe(true);
+  });
+
+  it("separates the two sides of the fleet merge", () => {
+    expect(
+      installationSource(
+        row({ desiredVersion: "2.4.1", observedVersion: "2.4.1", observedAt: "2026-08-07T12:00:00Z" }),
+      ),
+    ).toBe("DECLARED_AND_REPORTED");
+    expect(installationSource(row({ desiredVersion: "2.4.1" }))).toBe("DECLARED_ONLY");
+    // Something is running that nothing declared.
+    expect(
+      installationSource(row({ observedVersion: "2.4.1", observedAt: "2026-08-07T12:00:00Z" })),
+    ).toBe("REPORTED_ONLY");
+  });
+
+  it("calls an undeclared installation unmanaged, and says so in the title", () => {
+    expect(installationSourceLabel("REPORTED_ONLY").label).toBe("unmanaged");
+    expect(installationSourceLabel("REPORTED_ONLY").intent).toBe("warning");
+    // The placeholder warning is the whole point of the declared-only tag.
+    expect(installationSourceLabel("DECLARED_ONLY").title).toContain("placeholders");
+  });
+});
+
+describe("installation RID", () => {
+  it("splits a RID the Hub's search cannot match into filters it can", () => {
+    expect(parseInstallationRID("installation/prod-use1/payments")).toEqual({
+      environment: "prod-use1",
+      installationId: "payments",
+    });
+    expect(parseInstallationRID("  installation/prod-use1/payments  ")).toEqual({
+      environment: "prod-use1",
+      installationId: "payments",
+    });
+  });
+
+  it("leaves anything that is not an installation RID alone", () => {
+    // A plain search term, another RID kind, and a malformed one. Silently
+    // truncating any of these would search for something nobody typed.
+    expect(parseInstallationRID("payments")).toBeUndefined();
+    expect(parseInstallationRID("environment/prod-use1")).toBeUndefined();
+    expect(parseInstallationRID("installation/prod-use1")).toBeUndefined();
+    expect(parseInstallationRID("installation/prod-use1/payments/extra")).toBeUndefined();
+    expect(parseInstallationRID("installation//payments")).toBeUndefined();
+    expect(parseInstallationRID("installation/prod-use1/")).toBeUndefined();
   });
 });

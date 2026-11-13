@@ -171,4 +171,95 @@ test.describe("Export", () => {
     await page.getByRole("button", { name: "Try again" }).click();
     await expect(new ExportPom(page).pipeline("exp_snapshot")).toBeVisible();
   });
+  test("reports what a build would omit, only when asked", async ({ page, hub }) => {
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    hub.post("/export-pipelines/exp_release/preview", {
+      pipelineId: "exp_release",
+      pipelineRevision: 7,
+      generatedAt: "2026-08-07T12:00:00Z",
+      added: ["rel_payments_1.4.2", "rel_search_8.1.0"],
+      updated: ["env_prod-use1"],
+      removed: [],
+      securityOutcome: "PASS",
+      // Both closed-set kinds the Hub can emit (artifacts/domain/envelope.go).
+      advisories: [
+        {
+          kind: "NO_PRODUCT_RELEASES",
+          message: "no unrecalled Release on the requested Release Channels",
+          subjects: ["app.example:ledger", "app.example:reporting"],
+        },
+        {
+          kind: "UNIMPLEMENTED_STRATEGY",
+          message: "MINIMAL falls through to the latest-per-channel path",
+        },
+      ],
+    });
+    await page.goto("export");
+    await new ExportPom(page).pipeline("exp_release").click();
+
+    // The POST is not issued because a panel opened: nothing has run yet.
+    await expect(page.getByTestId("pipeline-advisories")).toBeVisible();
+    await expect(page.getByTestId("pipeline-preview-result")).toHaveCount(0);
+
+    await page.getByTestId("run-pipeline-preview").click();
+
+    const result = page.getByTestId("pipeline-preview-result");
+    await expect(result).toContainText("2 additions, 1 update, 0 removals");
+    await expect(result).toContainText("PASS");
+    const advisories = page.getByTestId("pipeline-advisory-list");
+    await expect(advisories).toContainText("NO_PRODUCT_RELEASES");
+    // The subjects are the whole point: which Products the Bundle will not hold.
+    await expect(advisories).toContainText("app.example:ledger");
+    await expect(advisories).toContainText("UNIMPLEMENTED_STRATEGY");
+  });
+
+  test("says a clean build reports none rather than showing nothing", async ({ page, hub }) => {
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    hub.post("/export-pipelines/exp_release/preview", {
+      pipelineId: "exp_release",
+      pipelineRevision: 7,
+      generatedAt: "2026-08-07T12:00:00Z",
+      added: [],
+      updated: [],
+      removed: [],
+      securityOutcome: "PASS",
+    });
+    await page.goto("export");
+    await new ExportPom(page).pipeline("exp_release").click();
+    await page.getByTestId("run-pipeline-preview").click();
+
+    await expect(page.getByTestId("pipeline-no-advisories")).toContainText(
+      "This build would report no advisories.",
+    );
+  });
+
+  test("explains a refused preview instead of reporting a failure", async ({ page, hub }) => {
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    // 409 from PreviewExportPipeline when the schedule disables the preview.
+    hub.postFails(
+      "/export-pipelines/exp_release/preview",
+      409,
+      "conflict: pre-build preview is disabled",
+    );
+    await page.goto("export");
+    await new ExportPom(page).pipeline("exp_release").click();
+    await page.getByTestId("run-pipeline-preview").click();
+
+    await expect(page.getByTestId("pipeline-preview-refused")).toContainText(
+      "disables the pre-build preview",
+    );
+    // A documented refusal must not read as a fault.
+    await expect(page.getByTestId("pipeline-preview-error")).toHaveCount(0);
+  });
+
+  test("a preview that genuinely failed is reported as a failure", async ({ page, hub }) => {
+    hub.get("/export-pipelines", { pipelines: [RELEASE_PIPELINE] });
+    hub.postFails("/export-pipelines/exp_release/preview", 500, "catalog unavailable");
+    await page.goto("export");
+    await new ExportPom(page).pipeline("exp_release").click();
+    await page.getByTestId("run-pipeline-preview").click();
+
+    await expect(page.getByTestId("pipeline-preview-error")).toContainText("catalog unavailable");
+    await expect(page.getByTestId("pipeline-preview-refused")).toHaveCount(0);
+  });
 });
