@@ -1,0 +1,185 @@
+openapi: 3.0.3
+info:
+  title: Conduit packaging-run reads
+  version: "0.0.0"
+  description: >
+    Conduit-native read model for packaging runs. This document is not an
+    Apollo contract and it has no generated transport. Approval stays on the
+    governance routes. Plan status stays on GET /v1/plans/{planID}.
+paths:
+  /v1/packaging-runs:
+    get:
+      operationId: listPackagingRuns
+      summary: Paginated packaging-run index
+      parameters:
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/view"
+        - name: phase
+          in: query
+          schema: {type: string}
+        - name: outcome
+          in: query
+          schema: {type: string}
+        - name: planId
+          in: query
+          schema: {type: string}
+        - name: search
+          in: query
+          schema: {type: string}
+      responses:
+        "200":
+          description: Authorized page. configured is false when no worker is configured.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RunPage"}
+        "401":
+          description: Anonymous caller.
+        "422":
+          description: Malformed cursor, cursor reused with different filters, or out-of-range limit.
+        "502":
+          description: A configured Temporal client could not answer.
+  /v1/packaging-runs/{runID}:
+    get:
+      operationId: getPackagingRun
+      summary: One packaging run's current progress
+      parameters:
+        - $ref: "#/components/parameters/runID"
+      responses:
+        "200":
+          description: Run progress, or configured false when no worker is configured.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/RunStatus"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown run while a worker is configured.
+        "502":
+          description: A configured Temporal client could not answer.
+  /v1/packaging-runs/{runID}/events:
+    get:
+      operationId: listPackagingRunEvents
+      summary: Ordered step history for one packaging run
+      parameters:
+        - $ref: "#/components/parameters/runID"
+        - $ref: "#/components/parameters/limit"
+        - $ref: "#/components/parameters/cursor"
+        - $ref: "#/components/parameters/view"
+      responses:
+        "200":
+          description: >
+            Event page. A step that has not been reached is absent. configured
+            is false when no worker is configured, including for an unknown id.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/EventPage"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown run, or a run whose environment the caller cannot read.
+        "422":
+          description: Malformed cursor, cursor reused with different filters, or out-of-range limit.
+        "502":
+          description: A configured Temporal client could not answer.
+components:
+  parameters:
+    runID:
+      name: runID
+      in: path
+      required: true
+      schema: {type: string}
+    limit:
+      name: limit
+      in: query
+      schema: {type: integer, minimum: 1}
+      description: >
+        summary defaults to 100 and rejects values above 200. full, and an
+        omitted view, default to 20 and reject values above 20.
+    cursor:
+      name: cursor
+      in: query
+      schema: {type: string, maxLength: 2048}
+      description: Opaque seek cursor bound to the active filter fingerprint.
+    view:
+      name: view
+      in: query
+      schema: {type: string, enum: [summary, full]}
+  schemas:
+    RunStatus:
+      type: object
+      required: [tier, configured, authority, planAuthority, approvalAuthority]
+      properties:
+        tier: {type: string, enum: [CONDUIT_NATIVE]}
+        configured: {type: boolean}
+        authority: {type: string, enum: [packaging-run]}
+        planAuthority: {type: string, enum: [conduit-plan]}
+        approvalAuthority: {type: string, enum: [conduit-governance]}
+        runId: {type: string}
+        phase: {type: string}
+        outcome: {type: string}
+        reason: {type: string}
+        sourceDigest: {type: string}
+        artifactDigest: {type: string}
+        proposalRevision: {type: string}
+        targetPlanRef: {type: string}
+        planId: {type: string, description: Reference only. Plan status is not included.}
+        handoffReconciled: {type: boolean}
+        lastReview: {type: string}
+        duplicateReviews: {type: integer}
+    RunPage:
+      type: object
+      required: [tier, configured, authority, planAuthority, approvalAuthority, items, pageSize, limit, hasPrevious, total]
+      properties:
+        tier: {type: string, enum: [CONDUIT_NATIVE]}
+        configured: {type: boolean}
+        authority: {type: string, enum: [packaging-run]}
+        planAuthority: {type: string, enum: [conduit-plan]}
+        approvalAuthority: {type: string, enum: [conduit-governance]}
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/RunStatus"}
+        pageSize: {type: integer}
+        limit: {type: integer}
+        hasPrevious: {type: boolean}
+        nextCursor: {type: string}
+        previousCursor: {type: string}
+        total: {type: integer, description: Authorized rows after filters, before the page slice.}
+    StepEvent:
+      type: object
+      required: [sequence, at, step]
+      properties:
+        sequence: {type: integer}
+        at: {type: string, format: date-time}
+        step:
+          type: string
+          description: assess, propose, validate, review, approval, or handoff.
+        outcome:
+          type: string
+          description: A missing step is omitted. WAITING and NOT_RUN are not passes.
+        reason: {type: string}
+        sourceDigest: {type: string}
+        artifactDigest: {type: string}
+        proposalRevision: {type: string}
+        approvalId: {type: string}
+        planId: {type: string}
+        targetPlanRef: {type: string}
+    EventPage:
+      type: object
+      required: [tier, configured, authority, planAuthority, approvalAuthority, items, pageSize, limit, hasPrevious, total]
+      properties:
+        tier: {type: string, enum: [CONDUIT_NATIVE]}
+        configured: {type: boolean}
+        authority: {type: string, enum: [packaging-run]}
+        planAuthority: {type: string, enum: [conduit-plan]}
+        approvalAuthority: {type: string, enum: [conduit-governance]}
+        runId: {type: string}
+        items:
+          type: array
+          items: {$ref: "#/components/schemas/StepEvent"}
+        pageSize: {type: integer}
+        limit: {type: integer}
+        hasPrevious: {type: boolean}
+        nextCursor: {type: string}
+        previousCursor: {type: string}
+        total: {type: integer}

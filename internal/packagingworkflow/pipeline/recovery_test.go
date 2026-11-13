@@ -15,6 +15,7 @@ import (
 
 	enumspb "go.temporal.io/api/enums/v1"
 	historypb "go.temporal.io/api/history/v1"
+	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/worker"
 	sdkworkflow "go.temporal.io/sdk/workflow"
@@ -120,6 +121,10 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if restored.Phase != domain.PhaseReview || restored.ArtifactDigest != status.ArtifactDigest || restored.SourceDigest != id.SourceDigest {
 		t.Fatalf("status after server restart = %#v, before = %#v", restored, status)
 	}
+	restoredEvents := queryStepEvents(t, ctx, running.Server.Client(), id.WorkflowID())
+	if !sawEvent(restoredEvents, domain.StepReview, domain.EventWaiting) || sawEvent(restoredEvents, domain.StepHandoff, "") {
+		t.Fatalf("events after server restart = %#v", restoredEvents)
+	}
 	record := domain.ApprovalRecord{
 		ApprovalID: "appr-restart", RunID: id.RunID, ProposalRevision: restored.ProposalRevision,
 		ArtifactDigest: restored.ArtifactDigest, TargetPlanRef: id.TargetPlanRef, Decision: domain.DecisionApproved,
@@ -161,6 +166,34 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if plans[0].Status != controlplane.PlanAwaitingApproval || plans[0].Lease != nil || len(plans[0].Approvals) != 0 || plans[0].Execution != nil {
 		t.Fatalf("handoff approved or executed the plan: %#v", plans[0])
 	}
+	finishedEvents := queryStepEvents(t, ctx, running.Server.Client(), id.WorkflowID())
+	if !sawEvent(finishedEvents, domain.StepHandoff, string(domain.OutcomeHandoffRecorded)) {
+		t.Fatalf("events after handoff = %#v", finishedEvents)
+	}
+	for _, event := range finishedEvents {
+		if event.Step == domain.StepHandoff && event.PlanID != result.PlanID {
+			t.Fatalf("handoff event = %#v", event)
+		}
+		if strings.Contains(event.Reason, "BEGIN PRIVATE KEY") || strings.Contains(event.Reason, "kind: fixture") {
+			t.Fatalf("event copied a secret or the fixture body: %#v", event)
+		}
+	}
+	listed, err := running.Server.Client().ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
+		PageSize: 20,
+		Query:    `WorkflowType = "packaging.Run"`,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	found := false
+	for _, execution := range listed.GetExecutions() {
+		if execution.GetExecution().GetWorkflowId() == id.WorkflowID() {
+			found = true
+		}
+	}
+	if !found {
+		t.Fatalf("visibility did not list %s (%d executions)", id.WorkflowID(), len(listed.GetExecutions()))
+	}
 	replayHistory(t, ctx, running.Server.Client(), id.WorkflowID())
 	logFootprint(t, db, startup, temporalRSS())
 	_ = run
@@ -201,6 +234,28 @@ func query(t *testing.T, ctx context.Context, c client.Client, workflowID string
 		t.Fatal(err)
 	}
 	return status
+}
+
+func queryStepEvents(t *testing.T, ctx context.Context, c client.Client, workflowID string) []domain.StepEvent {
+	t.Helper()
+	value, err := c.QueryWorkflow(ctx, workflowID, "", QueryEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events []domain.StepEvent
+	if err := value.Get(&events); err != nil {
+		t.Fatal(err)
+	}
+	return events
+}
+
+func sawEvent(events []domain.StepEvent, step, outcome string) bool {
+	for _, event := range events {
+		if event.Step == step && (outcome == "" || event.Outcome == outcome) {
+			return true
+		}
+	}
+	return false
 }
 
 func queryStatus(ctx context.Context, c client.Client, workflowID string) (domain.RunStatus, error) {

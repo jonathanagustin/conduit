@@ -51,6 +51,17 @@ func (r fixedReader) Read(context.Context, string) (domain.RunStatus, error) {
 	return r.status, nil
 }
 
+func (r fixedReader) List(context.Context) ([]domain.RunStatus, error) {
+	if r.status.RunID == "" {
+		return nil, nil
+	}
+	return []domain.RunStatus{r.status}, nil
+}
+
+func (r fixedReader) Events(context.Context, string) ([]domain.StepEvent, error) {
+	return nil, ErrNotFound
+}
+
 func TestReaderCannotRelabelTheAuthority(t *testing.T) {
 	mux := http.NewServeMux()
 	Register(mux, Config{

@@ -219,9 +219,20 @@ server remains operator-supplied. The Helm and Zarf worker deployments are
 off unless an operator turns them on, and they reuse the Hub image rather
 than adding a second image.
 
+## Amendment, 2026-11-13, index and history
+
+`GET /v1/packaging-runs` and `GET /v1/packaging-runs/{runID}/events` are
+reads. The index is a page of `RunStatus` rows. The history is the step
+journal recorded in workflow state from the version-2 marker, queried
+back as Conduit events rather than returned as Temporal history. A step
+that has not been reached is absent. Neither route approves, cancels,
+reruns, or reports Plan status. The index and the history are shown
+only to a caller who can read the target environment. The single-run
+route is unchanged.
+
 ## More information
 
 - Supersedes: none
 - Superseded by: none
 - Operator notes: `../operations/temporal-packaging-poc.md`
-- Issues: #349, with integration notes for #341, #342, and #343
+- Issues: #349, with integration notes for #341, #342, and #343. The index and history are #376 and #377.

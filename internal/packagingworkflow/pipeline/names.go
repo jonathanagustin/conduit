@@ -10,6 +10,7 @@ const (
 	SignalReview = "packaging.Review"
 	UpdateReview = "packaging.SubmitReview"
 	QueryStatus  = "packaging.Status"
+	QueryEvents  = "packaging.Events"
 
 	ActAssess       = "packaging.Assess"
 	ActPropose      = "packaging.Propose"

@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"sort"
 	"strings"
+	"time"
 )
 
 const (
@@ -23,6 +24,24 @@ const (
 	// MaxSeenApprovals bounds the duplicate-detection list carried across
 	// continue-as-new. A review wait does not accumulate an unbounded log.
 	MaxSeenApprovals = 32
+	// MaxStepEvents bounds the step journal carried in workflow state.
+	// A packaging run records a handful of steps; the cap keeps
+	// continue-as-new from copying an unbounded log.
+	MaxStepEvents = 32
+
+	StepAssess   = "assess"
+	StepPropose  = "propose"
+	StepValidate = "validate"
+	StepReview   = "review"
+	StepApproval = "approval"
+	StepHandoff  = "handoff"
+
+	// EventWaiting is the review-wait result. It is not a pass.
+	EventWaiting = "WAITING"
+	// EventNotRun is the explicit token for a step that was considered and
+	// did not run. This worker omits a step that has not been reached
+	// instead of emitting the token, and neither form is a pass.
+	EventNotRun = "NOT_RUN"
 
 	OutcomePass            Outcome = "PASS"
 	OutcomeFailRequired    Outcome = "FAIL_REQUIRED"
@@ -327,6 +346,8 @@ type State struct {
 	Reason           string            `json:"reason,omitempty"`
 	Outcome          Outcome           `json:"outcome,omitempty"`
 	TargetPlanRef    string            `json:"targetPlanRef,omitempty"`
+	Events           []StepEvent       `json:"events,omitempty"`
+	eventsEnabled    bool
 }
 
 func (s *State) Block(outcome Outcome, reason string) {
@@ -444,3 +465,75 @@ func firstNonEmpty(values ...string) string {
 	}
 	return ""
 }
+
+// EnvironmentOf is the environment id in a target-plan reference. The
+// reference is `environment/entity`. Anything else has no environment, and
+// a reader must hide that run rather than guess a tenant.
+func EnvironmentOf(targetPlanRef string) string {
+	environment, _, ok := strings.Cut(targetPlanRef, "/")
+	if !ok || environment == "" || strings.ContainsAny(environment, " \t") {
+		return ""
+	}
+	return environment
+}
+
+// StepEvent is one recorded packaging step. It carries the same references
+// as RunStatus and no file body. A step that has not been reached is absent.
+type StepEvent struct {
+	Sequence         int       `json:"sequence"`
+	At               time.Time `json:"at"`
+	Step             string    `json:"step"`
+	Outcome          string    `json:"outcome,omitempty"`
+	Reason           string    `json:"reason,omitempty"`
+	SourceDigest     string    `json:"sourceDigest,omitempty"`
+	ArtifactDigest   string    `json:"artifactDigest,omitempty"`
+	ProposalRevision string    `json:"proposalRevision,omitempty"`
+	ApprovalID       string    `json:"approvalId,omitempty"`
+	PlanID           string    `json:"planId,omitempty"`
+	TargetPlanRef    string    `json:"targetPlanRef,omitempty"`
+}
+
+// EnableEvents turns on the step journal for this in-memory state. The flag
+// is not serialized: a continued run enables it again from its own version
+// marker, and the events already recorded travel in Events.
+func (s *State) EnableEvents() { s.eventsEnabled = true }
+
+// EventsEnabled reports whether Note will append.
+func (s *State) EventsEnabled() bool { return s != nil && s.eventsEnabled }
+
+// Note appends one bounded step event. A secret-shaped value is replaced
+// with a fixed reason and is not copied. The call is a no-op once the
+// journal is full or when the run did not enable events.
+func (s *State) Note(at time.Time, step, outcome, reason, approvalID string) {
+	if s == nil || !s.eventsEnabled || len(s.Events) >= MaxStepEvents {
+		return
+	}
+	reason = TrimReason(reason)
+	if sensitive(step) || sensitive(outcome) || sensitive(reason) || sensitive(approvalID) {
+		reason = "redacted"
+		if sensitive(step) {
+			step = "redacted"
+		}
+		if sensitive(outcome) {
+			outcome = ""
+		}
+		if sensitive(approvalID) {
+			approvalID = ""
+		}
+	}
+	s.Events = append(s.Events, StepEvent{
+		Sequence:         len(s.Events) + 1,
+		At:               at.UTC(),
+		Step:             step,
+		Outcome:          outcome,
+		Reason:           reason,
+		SourceDigest:     s.Assessment.SourceDigest,
+		ArtifactDigest:   s.Proposal.Artifact.Digest,
+		ProposalRevision: s.Proposal.ProposalRevision,
+		ApprovalID:       approvalID,
+		PlanID:           s.Plan.PlanID,
+		TargetPlanRef:    s.TargetPlanRef,
+	})
+}
+
+func sensitive(value string) bool { return RejectSensitive(value) != nil }
