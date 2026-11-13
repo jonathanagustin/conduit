@@ -42,6 +42,12 @@ variables:
   - name: BUNDLE_SIGNING_SECRET
     description: Existing Secret containing bundle-signing-key.pem
     default: platform-bundle-signing
+  - name: PACKAGING_TEMPORAL_ADDRESS
+    description: Frontend address of the operator-supplied Temporal server. Used only by the optional packaging-worker component.
+    default: "127.0.0.1:7233"
+  - name: PACKAGING_POSTGRES_SECRET
+    description: Existing Secret whose dsn key is the Hub Postgres DSN. Used only by the optional packaging-worker component.
+    default: platform-postgres
 
 components:
   - name: runtime
@@ -64,3 +70,18 @@ components:
         kind: Deployment
         namespace: platform-system
         name: platform-spoke-agent
+  - name: packaging-worker
+    required: false
+    description: Optional packaging worker. Temporal Server is operator-supplied and is not in this package. Deploy only with --components packaging-worker after overriding PACKAGING_TEMPORAL_ADDRESS.
+    manifests:
+      - name: packaging-worker
+        namespace: platform-system
+        files:
+          - manifests/packaging-worker.yaml
+    images:
+      - "###ZARF_PKG_TMPL_HUB_IMAGE###"
+    healthChecks:
+      - apiVersion: apps/v1
+        kind: Deployment
+        namespace: platform-system
+        name: platform-packaging-worker

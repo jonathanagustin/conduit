@@ -1,0 +1,46 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: platform-packaging-worker
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-packaging-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-packaging-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: platform-packaging-worker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: packaging-worker
+          image: "###ZARF_CONST_HUB_IMAGE###"
+          imagePullPolicy: IfNotPresent
+          args: ["packaging-worker"]
+          env:
+            - { name: REPOSITORY_KIND, value: postgres }
+            - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/dsn }
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PACKAGING_TEMPORAL_ADDRESS###" }
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: database, mountPath: /run/conduit-database, readOnly: true }
+      volumes:
+        - name: database
+          secret:
+            secretName: "###ZARF_VAR_PACKAGING_POSTGRES_SECRET###"
+            items:
+              - { key: dsn, path: dsn }

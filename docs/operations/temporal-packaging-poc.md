@@ -1,10 +1,15 @@
-# Temporal packaging proof
+# Temporal packaging workflow
 
-Local demonstration of [ADR 0013](../decisions/0013-temporal-for-packaging-workflows.md).
+Operator notes for [ADR 0013](../decisions/0013-temporal-for-packaging-workflows.md).
 Temporal runs the packaging workflow. Conduit governance remains the
 approval authority. The delivery kernel remains the authority for Plans,
-leases, rollout, and observed state. This is not a production Temporal
-deployment and it is not an air-gap claim.
+leases, rollout, and observed state. The worker calls `ProposePlan` and
+stops. It does not approve, lease, or execute. This is not a production
+Temporal deployment and it is not an air-gap claim.
+
+The assistant console does not render `GET /v1/packaging-runs/{runID}`.
+That console is the ACP assistant, and a packaging-run panel there is
+#342. The route is already on the Hub for an authenticated operator.
 
 ## What you are running
 
@@ -60,6 +65,21 @@ reimplement Temporal inside the delivery kernel to fill that gap.
 There is no model in this proof. A workflow that can sit on loopback
 does not mean a model is available offline.
 
+## Local process
+
+`mise run packaging-server` or `task packaging:server` starts the pinned
+dev server on `127.0.0.1:7233` with `--db-filename` and
+`--ui-disable-news-fetch`. `task packaging:worker` runs
+`cmd/packaging-workflow worker`, which proposes Plans into
+`.packaging-state/plans` and journals their ids beside that. Point the
+Hub at the same frontend with `PACKAGING_TEMPORAL_ADDRESS=127.0.0.1:7233`
+when you want `GET /v1/packaging-runs/{runID}` to answer. Leave that
+variable unset and the Hub does not dial Temporal.
+
+`platform-delivery packaging-worker` is the same worker using
+`REPOSITORY_KIND` and `DATA_DIRECTORY` or `POSTGRES_DSN_FILE`, so a
+deployed worker shares the Hub's Plan store.
+
 ## Demo
 
 The crash drill is the test, not a tour of the UI:
@@ -77,10 +97,11 @@ The test does four things in order:
 2. Stops the worker and the server. Starts the server on the same
    sqlite file and a new worker. The query still shows the same source
    digest, proposal revision, and artifact digest.
-3. Writes an approval record, then signals. The handoff activity writes
-   the Plan journal and blocks. The test stops the worker before the
-   activity returns. A new worker reconciles the journal. The Plan
-   count stays 1.
+3. Writes an approval record, then signals. The handoff activity calls
+   `ProposePlan`, records the Plan id, and blocks. The test stops the
+   worker before the activity returns. A new worker opens the Plan
+   repository from disk and reconciles. There is one Plan, its status
+   is `AWAITING_APPROVAL`, and it has no lease and no execution.
 4. Replays the completed history with the same worker code and checks
    the history text for the fixture body and for a private-key marker.
 
@@ -101,6 +122,24 @@ a review signal with no governance record, a changed artifact digest,
 an execution-control denial at handoff, a submit that is acknowledged
 only on the retry, continue-as-new carrying the assessment, and a
 credential marker refused before it becomes workflow input.
+
+## Packaging the worker
+
+Helm `packagingWorkflow.enabled` and `packagingWorkflow.worker.enabled`
+default to false. Turning both on, and setting
+`packagingWorkflow.address`, renders a second Deployment from the Hub
+image with args `packaging-worker`. It requires `repository.kind=postgres`
+so the worker and the Hub share one Plan store. TLS material and an API
+key are mounted from secrets the operator already has. The chart does
+not deploy a Temporal server.
+
+Zarf component `packaging-worker` is `required: false`. It reuses the Hub
+image. `PACKAGING_TEMPORAL_ADDRESS` defaults to `127.0.0.1:7233` and
+`PACKAGING_POSTGRES_SECRET` defaults to `platform-postgres`; override
+both before deploying the component. The Temporal server is not in the
+package. `zarf dev lint` covers the optional component. Nothing in this
+repository has deployed it, and the dev server's sqlite file is not the
+database that component expects.
 
 ## What this does not show
 

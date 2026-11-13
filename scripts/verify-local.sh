@@ -147,7 +147,7 @@ release_path() {
 build_commands() {
   local command
   for command in platform-delivery platform-operator platform-spoke-agent \
-    platform-module-publisher platform-grype-scanner conduit; do
+    platform-module-publisher platform-grype-scanner packaging-workflow conduit; do
     go build -o /dev/null "./cmd/${command}" || return 1
   done
 }

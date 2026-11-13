@@ -1,0 +1,107 @@
+{{- if .Values.packagingWorkflow.worker.enabled }}
+{{- if not .Values.packagingWorkflow.enabled }}
+{{- fail "packagingWorkflow.worker.enabled requires packagingWorkflow.enabled" }}
+{{- end }}
+{{- if ne .Values.repository.kind "postgres" }}
+{{- fail "packagingWorkflow.worker.enabled requires repository.kind postgres so the worker and the Hub share one Plan store" }}
+{{- end }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "platform-hub.fullname" . }}-packaging
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-hub.labels" . | nindent 4 }}
+    app.kubernetes.io/component: packaging-worker
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: {{ include "platform-hub.name" . }}
+      app.kubernetes.io/instance: {{ .Release.Name }}
+      app.kubernetes.io/component: packaging-worker
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: {{ include "platform-hub.name" . }}
+        app.kubernetes.io/instance: {{ .Release.Name }}
+        app.kubernetes.io/component: packaging-worker
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65532
+        runAsGroup: 65532
+        fsGroup: 65532
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: packaging-worker
+          image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
+          imagePullPolicy: {{ .Values.imagePullPolicy }}
+          args: ["packaging-worker"]
+          env:
+            - { name: REPOSITORY_KIND, value: postgres }
+            - { name: POSTGRES_DSN_FILE, value: /run/conduit-database/{{ .Values.repository.postgres.dsnKey }} }
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: {{ required "packagingWorkflow.address is required when packagingWorkflow.enabled" .Values.packagingWorkflow.address | quote }} }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: {{ .Values.packagingWorkflow.namespace | quote }} }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: {{ .Values.packagingWorkflow.taskQueue | quote }} }
+            {{- with .Values.packagingWorkflow.serverName }}
+            - { name: PACKAGING_TEMPORAL_SERVER_NAME, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.tls.certSecretName }}
+            - { name: PACKAGING_TEMPORAL_TLS_CERT_FILE, value: /run/packaging-temporal-tls/tls.crt }
+            - { name: PACKAGING_TEMPORAL_TLS_KEY_FILE, value: /run/packaging-temporal-tls/tls.key }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.tls.caConfigMapName }}
+            - { name: PACKAGING_TEMPORAL_TLS_CA_FILE, value: /run/packaging-temporal-ca/ca.pem }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.apiKeySecretName }}
+            - { name: PACKAGING_TEMPORAL_API_KEY_FILE, value: /run/packaging-temporal-api-key/api-key }
+            {{- end }}
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
+            readOnlyRootFilesystem: true
+          volumeMounts:
+            - { name: database, mountPath: /run/conduit-database, readOnly: true }
+            {{- with .Values.packagingWorkflow.tls.certSecretName }}
+            - { name: packaging-temporal-tls, mountPath: /run/packaging-temporal-tls, readOnly: true }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.tls.caConfigMapName }}
+            - { name: packaging-temporal-ca, mountPath: /run/packaging-temporal-ca, readOnly: true }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.apiKeySecretName }}
+            - { name: packaging-temporal-api-key, mountPath: /run/packaging-temporal-api-key, readOnly: true }
+            {{- end }}
+      volumes:
+        - name: database
+          secret:
+            secretName: {{ required "repository.postgres.secretName is required for PostgreSQL" .Values.repository.postgres.secretName }}
+            optional: false
+            items:
+              - key: {{ .Values.repository.postgres.dsnKey }}
+                path: {{ .Values.repository.postgres.dsnKey }}
+        {{- with .Values.packagingWorkflow.tls.certSecretName }}
+        - name: packaging-temporal-tls
+          secret:
+            secretName: {{ . }}
+            optional: false
+        {{- end }}
+        {{- with .Values.packagingWorkflow.tls.caConfigMapName }}
+        - name: packaging-temporal-ca
+          configMap:
+            name: {{ . }}
+            items:
+              - { key: ca.pem, path: ca.pem }
+        {{- end }}
+        {{- with .Values.packagingWorkflow.apiKeySecretName }}
+        - name: packaging-temporal-api-key
+          secret:
+            secretName: {{ . }}
+            optional: false
+            items:
+              - { key: api-key, path: api-key }
+        {{- end }}
+{{- end }}

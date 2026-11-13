@@ -1,0 +1,129 @@
+// Package runtime dials Temporal and runs the packaging worker. The Hub uses
+// the client for the read-only status route. The worker process is the only
+// place activities run.
+package runtime
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"time"
+
+	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/client"
+
+	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/config"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
+	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/pipeline"
+)
+
+// Dial returns a Temporal client. The caller closes it.
+func Dial(cfg config.Config) (client.Client, error) {
+	if !cfg.Enabled {
+		return nil, errors.New("packaging Temporal is disabled")
+	}
+	options := client.Options{HostPort: cfg.Address, Namespace: cfg.Namespace}
+	tlsConfig, err := cfg.ClientTLS()
+	if err != nil {
+		return nil, err
+	}
+	if tlsConfig != nil {
+		options.ConnectionOptions.TLS = tlsConfig
+	}
+	if cfg.APIKey != "" {
+		options.Credentials = client.NewAPIKeyStaticCredentials(cfg.APIKey)
+	}
+	return client.Dial(options)
+}
+
+// StatusReader queries packaging-run progress. It does not approve or submit.
+func StatusReader(c client.Client) packaginghttp.Reader {
+	return statusReader{client: c}
+}
+
+// Unavailable is a status reader used when the Hub was configured with a
+// Temporal address but could not dial it. The Hub still serves Plans.
+type Unavailable struct{ Err error }
+
+func (u Unavailable) Read(context.Context, string) (domain.RunStatus, error) {
+	if u.Err == nil {
+		return domain.RunStatus{}, errors.New("packaging Temporal client is unavailable")
+	}
+	return domain.RunStatus{}, u.Err
+}
+
+type statusReader struct{ client client.Client }
+
+func (r statusReader) Read(ctx context.Context, runID string) (domain.RunStatus, error) {
+	value, err := r.client.QueryWorkflow(ctx, "packaging-"+runID, "", pipeline.QueryStatus)
+	if err != nil {
+		var notFound *serviceerror.NotFound
+		if errors.As(err, &notFound) {
+			return domain.RunStatus{}, packaginghttp.ErrNotFound
+		}
+		return domain.RunStatus{}, err
+	}
+	var status domain.RunStatus
+	if err := value.Get(&status); err != nil {
+		return domain.RunStatus{}, err
+	}
+	return status, nil
+}
+
+// RunWorker polls until ctx is cancelled. repository is the delivery kernel's
+// store. The worker proposes Plans through it and does not approve them.
+func RunWorker(ctx context.Context, cfg config.Config, repository controlplane.Repository) error {
+	if !cfg.Enabled {
+		return errors.New("PACKAGING_TEMPORAL_ADDRESS is required to run the packaging worker")
+	}
+	temporalClient, err := Dial(cfg)
+	if err != nil {
+		return err
+	}
+	defer temporalClient.Close()
+	dataDir := cfg.DataDir
+	if dataDir == "" {
+		dataDir = ".platform-delivery"
+	}
+	ledger, err := adapters.Open(dataDir + "/packaging-journal")
+	if err != nil {
+		return err
+	}
+	work := pipeline.RegisterWorker(temporalClient, cfg.TaskQueue, pipeline.Activities{
+		FixtureDir: cfg.FixtureDir,
+		Ledger:     ledger,
+		Plans:      planlifecycle.New(repository, ledger),
+	})
+	if err := work.Start(); err != nil {
+		return fmt.Errorf("start packaging worker: %w", err)
+	}
+	<-ctx.Done()
+	work.Stop()
+	return nil
+}
+
+// DialTimeout bounds a Hub's startup dial so a down Temporal frontend cannot
+// stall Plan serving.
+func DialTimeout(ctx context.Context, cfg config.Config, timeout time.Duration) (client.Client, error) {
+	ctx, cancel := context.WithTimeout(ctx, timeout)
+	defer cancel()
+	type result struct {
+		client client.Client
+		err    error
+	}
+	done := make(chan result, 1)
+	go func() {
+		c, err := Dial(cfg)
+		done <- result{c, err}
+	}()
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case got := <-done:
+		return got.client, got.err
+	}
+}

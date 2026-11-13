@@ -17,13 +17,15 @@ import (
 	"go.temporal.io/sdk/testsuite"
 	"go.temporal.io/sdk/workflow"
 
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/fixtures"
 )
 
 func TestHappyPathSignalsOnlyAfterConduitApproval(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	env := boot(acts)
 	message := approve(t, acts, id)
 	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalReview, message) }, 0)
@@ -35,8 +37,8 @@ func TestHappyPathSignalsOnlyAfterConduitApproval(t *testing.T) {
 	if result.ArtifactDigest == "" || result.ProposalRevision == "" || result.SourceDigest != id.SourceDigest {
 		t.Fatalf("identity was not carried: %#v", result)
 	}
-	if mustPlans(t, acts.Ledger) != 1 {
-		t.Fatalf("plans = %d", mustPlans(t, acts.Ledger))
+	if mustPlans(t, repository) != 1 {
+		t.Fatalf("plans = %d", mustPlans(t, repository))
 	}
 	encoded, _ := json.Marshal(result)
 	if jsonContains(encoded, "kind: fixture") || jsonContains(encoded, "BEGIN PRIVATE KEY") {
@@ -45,7 +47,7 @@ func TestHappyPathSignalsOnlyAfterConduitApproval(t *testing.T) {
 }
 
 func TestUpdateCarriesTheSameDecisionAsASignal(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, _ := prepare(t)
 	message := approve(t, acts, id)
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() {
@@ -61,7 +63,7 @@ func TestUpdateCarriesTheSameDecisionAsASignal(t *testing.T) {
 }
 
 func TestSignalWithoutGovernanceRecordDoesNotHandoff(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() {
 		env.SignalWorkflow(SignalReview, domain.ReviewMessage{
@@ -71,26 +73,26 @@ func TestSignalWithoutGovernanceRecordDoesNotHandoff(t *testing.T) {
 	}, 0)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeRejected || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome != domain.OutcomeRejected || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
 func TestStaleAndChangedArtifactDoNotHandoff(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	message := approve(t, acts, id)
 	message.ArtifactDigest = "sha256:changed"
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalReview, message) }, 0)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeStaleApproval || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome != domain.OutcomeStaleApproval || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
 func TestDuplicateApprovalHandsOffOnce(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	message := approve(t, acts, id)
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() {
@@ -99,8 +101,8 @@ func TestDuplicateApprovalHandsOffOnce(t *testing.T) {
 	}, 0)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeHandoffRecorded || mustPlans(t, acts.Ledger) != 1 {
-		t.Fatalf("result = %#v plans = %d", result, mustPlans(t, acts.Ledger))
+	if result.Outcome != domain.OutcomeHandoffRecorded || mustPlans(t, repository) != 1 {
+		t.Fatalf("result = %#v plans = %d", result, mustPlans(t, repository))
 	}
 	if result.DuplicateReviews > 1 {
 		t.Fatalf("duplicate reviews = %d", result.DuplicateReviews)
@@ -117,7 +119,7 @@ func TestValidationGatesBlockHandoff(t *testing.T) {
 		{"requirement: unsupported\n", domain.OutcomeUnsupported},
 	} {
 		t.Run(string(tc.want), func(t *testing.T) {
-			acts, id := prepare(t)
+			acts, id, repository := prepare(t)
 			body := append(append([]byte{}, fixtures.Source...), tc.marker...)
 			if err := os.WriteFile(filepath.Join(acts.FixtureDir, "source.txt"), body, 0o644); err != nil {
 				t.Fatal(err)
@@ -126,7 +128,7 @@ func TestValidationGatesBlockHandoff(t *testing.T) {
 			env := boot(acts)
 			env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 			result := mustComplete(t, env)
-			if result.Outcome != tc.want || mustPlans(t, acts.Ledger) != 0 {
+			if result.Outcome != tc.want || mustPlans(t, repository) != 0 {
 				t.Fatalf("result = %#v", result)
 			}
 		})
@@ -134,20 +136,20 @@ func TestValidationGatesBlockHandoff(t *testing.T) {
 }
 
 func TestMismatchedValidationDoesNotInheritAPass(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	acts.ValidateFn = func(context.Context, domain.RunIdentity, string, domain.Receipt) (domain.Validation, error) {
 		return domain.Validation{Outcome: domain.OutcomePass, ArtifactDigest: "sha256:earlier", ProposalRevision: "rev-earlier"}, nil
 	}
 	env := boot(acts)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeFailRequired || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome != domain.OutcomeFailRequired || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
 func TestTransientProposalRetryKeepsOneReceipt(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	var calls atomic.Int32
 	inner := fixtures.Suite{}.Propose
 	acts.ProposeFn = func(ctx context.Context, got domain.RunIdentity, dir string) (domain.Receipt, error) {
@@ -161,47 +163,47 @@ func TestTransientProposalRetryKeepsOneReceipt(t *testing.T) {
 	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalReview, message) }, 0)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if calls.Load() != 2 || result.Outcome != domain.OutcomeHandoffRecorded || mustPlans(t, acts.Ledger) != 1 {
+	if calls.Load() != 2 || result.Outcome != domain.OutcomeHandoffRecorded || mustPlans(t, repository) != 1 {
 		t.Fatalf("calls = %d result = %#v", calls.Load(), result)
 	}
 }
 
 func TestActivityTimeoutBlocksWithoutHandoff(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	env := boot(acts)
 	env.OnActivity(ActAssess, mock.Anything, mock.Anything).Return(domain.Receipt{}, temporal.NewTimeoutError(enumspb.TIMEOUT_TYPE_START_TO_CLOSE, nil))
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeTimedOut || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome != domain.OutcomeTimedOut || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
 func TestApprovalWaitTimeout(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	env := boot(acts)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Millisecond})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeTimedOut || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome != domain.OutcomeTimedOut || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
 func TestCancelDuringReviewDoesNotHandoff(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Minute)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	if !env.IsWorkflowCompleted() || !temporal.IsCanceledError(env.GetWorkflowError()) {
 		t.Fatalf("completed = %v err = %v", env.IsWorkflowCompleted(), env.GetWorkflowError())
 	}
-	if mustPlans(t, acts.Ledger) != 0 {
+	if mustPlans(t, repository) != 0 {
 		t.Fatal("cancel submitted a plan")
 	}
 }
 
 func TestCancelRacesAnApprovalAndDoesNotHandoff(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	message := approve(t, acts, id)
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() {
@@ -209,39 +211,46 @@ func TestCancelRacesAnApprovalAndDoesNotHandoff(t *testing.T) {
 		env.CancelWorkflow()
 	}, time.Minute)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
-	if mustPlans(t, acts.Ledger) != 0 {
+	if mustPlans(t, repository) != 0 {
 		t.Fatal("raced approval submitted a plan")
 	}
 }
 
 func TestExecutionControlIsRecheckedAtHandoff(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	message := approve(t, acts, id)
-	acts.Ledger.DenyReason = "suppressed"
+	now := time.Now().UTC().Add(-time.Minute)
+	if _, err := repository.CreateSuppression(context.Background(), controlplane.SuppressionRecord{
+		ID: "sup-env-dev", Environment: "env-dev", Scope: controlplane.SuppressionEnvironment,
+		Source: controlplane.SuppressionManual, Reason: "maintenance", CreatedBy: "operator",
+		StartsAt: now, CreatedAt: now,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalReview, message) }, 0)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome == domain.OutcomeHandoffRecorded || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome == domain.OutcomeHandoffRecorded || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
 func TestCrashAfterSubmitReconcilesWithoutASecondPlan(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	message := approve(t, acts, id)
-	acts.Ledger.FailAfterSubmit = true
+	acts.Plans.(*planlifecycle.Submitter).FailAfterSubmit = true
 	env := boot(acts)
 	env.RegisterDelayedCallback(func() { env.SignalWorkflow(SignalReview, message) }, 0)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeHandoffRecorded || !result.HandoffReconciled || acts.Ledger.Submits() != 1 {
-		t.Fatalf("result = %#v submits = %d", result, acts.Ledger.Submits())
+	if result.Outcome != domain.OutcomeHandoffRecorded || !result.HandoffReconciled || mustPlans(t, repository) != 1 {
+		t.Fatalf("result = %#v plans = %d", result, mustPlans(t, repository))
 	}
 }
 
 func TestContinueAsNewCarriesTheAssessment(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	var assessments atomic.Int32
 	inner := fixtures.Suite{}.Assess
 	acts.AssessFn = func(ctx context.Context, got domain.RunIdentity, dir string) (domain.Receipt, error) {
@@ -271,23 +280,23 @@ func TestContinueAsNewCarriesTheAssessment(t *testing.T) {
 	next.ContinueAsNewAfterEvents = defaultHistoryEvents
 	followed.ExecuteWorkflow(PackagingWorkflow, next)
 	result := mustComplete(t, followed)
-	if result.Outcome != domain.OutcomeHandoffRecorded || assessments.Load() != 1 || mustPlans(t, acts.Ledger) != 1 {
+	if result.Outcome != domain.OutcomeHandoffRecorded || assessments.Load() != 1 || mustPlans(t, repository) != 1 {
 		t.Fatalf("assessments = %d result = %#v", assessments.Load(), result)
 	}
 }
 
 func TestCredentialMarkerNeverBecomesWorkflowInput(t *testing.T) {
-	acts, id := prepare(t)
+	acts, id, repository := prepare(t)
 	env := boot(acts)
 	id.ToolVersions = "lint=BEGIN PRIVATE KEY"
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id})
 	result := mustComplete(t, env)
-	if result.Outcome != domain.OutcomeFailRequired || mustPlans(t, acts.Ledger) != 0 {
+	if result.Outcome != domain.OutcomeFailRequired || mustPlans(t, repository) != 0 {
 		t.Fatalf("result = %#v", result)
 	}
 }
 
-func prepare(t *testing.T) (*Activities, domain.RunIdentity) {
+func prepare(t *testing.T) (*Activities, domain.RunIdentity, *controlplane.MemoryRepository) {
 	t.Helper()
 	dir := t.TempDir()
 	if err := fixtures.Materialize(dir); err != nil {
@@ -297,11 +306,12 @@ func prepare(t *testing.T) (*Activities, domain.RunIdentity) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	repository := controlplane.NewMemoryRepository()
 	id, err := fixtures.Identity("sample-app-1")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return &Activities{FixtureDir: dir, Ledger: ledger}, id
+	return &Activities{FixtureDir: dir, Ledger: ledger, Plans: planlifecycle.New(repository, ledger)}, id, repository
 }
 
 func boot(acts *Activities) *testsuite.TestWorkflowEnvironment {
@@ -346,13 +356,13 @@ func mustComplete(t *testing.T, env *testsuite.TestWorkflowEnvironment) domain.R
 	return result
 }
 
-func mustPlans(t *testing.T, ledger *adapters.Ledger) int {
+func mustPlans(t *testing.T, repository controlplane.Repository) int {
 	t.Helper()
-	count, err := ledger.PlanCount()
+	plans, err := repository.ListPlans(context.Background(), "")
 	if err != nil {
 		t.Fatal(err)
 	}
-	return count
+	return len(plans)
 }
 
 func jsonContains(encoded []byte, needle string) bool {

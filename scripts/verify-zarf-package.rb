@@ -13,7 +13,10 @@ manifests = YAML.load_stream(manifest_text)
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package must have one required runtime component" unless definition.fetch("components").map { |item| [item["name"], item["required"]] } == [["runtime", true]]
+abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"]] } == [["runtime", true], ["packaging-worker", false]]
+worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
+abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
+abort "optional packaging worker must not be required" if worker["required"]
 
 images = definition.dig("components", 0, "images")
 abort "Zarf package must contain exactly Hub and Agent images" unless images&.length == 2

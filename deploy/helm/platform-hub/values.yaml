@@ -118,3 +118,18 @@ resources:
 nodeSelector: {}
 affinity: {}
 tolerations: []
+
+# Packaging workflow. Off unless an operator supplies a Temporal frontend.
+# The server itself is not deployed by this chart.
+packagingWorkflow:
+  enabled: false
+  address: ""
+  namespace: default
+  taskQueue: packaging-localhost
+  serverName: ""
+  tls:
+    certSecretName: ""
+    caConfigMapName: ""
+  apiKeySecretName: ""
+  worker:
+    enabled: false
