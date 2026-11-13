@@ -55,7 +55,7 @@ Three surfaces are covered, and they are mounted three different ways:
 | Control-plane REST | `internal/controlplane`, patterns registered on its own mux | 113 |
 | Apollo `/api/v0` | `internal/apollo/openapi.gen.go`, generated from the pinned OpenAPI snapshot | 13 |
 | Notifications | `internal/notifications/adapters/httpapi`, mounted from `internal/hub/composition` in front of the facade | 8 |
-| Packaging runs | `internal/packagingworkflow/httpapi`, mounted from `internal/hub/composition` in front of the facade | 3 |
+| Packaging runs | `internal/packagingworkflow/httpapi`, mounted from `internal/hub/composition` in front of the facade | 5 |
 
 ## The gate
 
@@ -80,11 +80,11 @@ is rejected. Both run in CI and in `scripts/verify-local.sh` under
 | `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 5 |
 | `operator-self` | an authenticated operator; the answer is about that operator only | 7 |
 | `operator-filtered` | an authenticated operator, then a Governance decision on every row of the answer | 10 |
-| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 95 |
+| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 97 |
 | `agent` | an Agent identity scoped to the Environment or Plan in the path | 8 |
 | `bundle-signature` | a Bundle envelope signed by a key this Hub trusts | 1 |
 
-The register itself is the full 137-row table; what follows is every class
+The register itself is the full 139-row table; what follows is every class
 except `operator-grant`, which is the bulk and is uniform.
 
 ### `public` — served to anybody
@@ -133,6 +133,13 @@ information over time, so both are `operator-filtered`: the caller needs
 `read` on the environment named by the target-plan reference. A row the
 caller cannot read is omitted from the index. The history route answers
 404 for that run, the same status it uses when the run does not exist.
+
+`POST /v1/packaging-runs/{runID}/cancel` and `POST /v1/packaging-runs/{runID}/rerun`
+are `operator-grant`. The caller needs `operate` on that same environment.
+The decision is written to the authorization audit with the run binding
+before a worker is told. Cancel stops the packaging run only. A run that
+already handed off a Plan is not cancelled here, and this route does not
+call `POST /v1/plans/{planID}/cancel`.
 
 ### `operator-self` — the caller's own rows only
 

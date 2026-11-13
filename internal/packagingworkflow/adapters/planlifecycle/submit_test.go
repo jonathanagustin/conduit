@@ -43,6 +43,31 @@ func TestSubmitProposesOneUnauthoredPlan(t *testing.T) {
 	}
 }
 
+func TestASecondRunReusesTheSamePlan(t *testing.T) {
+	repository := controlplane.NewMemoryRepository()
+	submitter := New(repository, openLedger(t))
+	first, err := submitter.Submit(context.Background(), sampleRequest())
+	if err != nil {
+		t.Fatal(err)
+	}
+	again := sampleRequest()
+	again.RunID = "sample-app-2"
+	second, err := submitter.Submit(context.Background(), again)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans, err := repository.ListPlans(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || second.PlanID == "" || second.PlanID != first.PlanID {
+		t.Fatalf("plans = %d first = %#v second = %#v", len(plans), first, second)
+	}
+	if plans[0].Status != controlplane.PlanAwaitingApproval || plans[0].Lease != nil || len(plans[0].Approvals) != 0 {
+		t.Fatalf("reused plan changed state: %#v", plans[0])
+	}
+}
+
 func TestSuppressionBlocksBeforeAPlanExists(t *testing.T) {
 	repository := controlplane.NewMemoryRepository()
 	now := time.Now().UTC().Add(-time.Minute)

@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	enumspb "go.temporal.io/api/enums/v1"
 	"go.temporal.io/api/serviceerror"
 	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/client"
@@ -47,9 +48,13 @@ func Dial(cfg config.Config) (client.Client, error) {
 	return client.Dial(options)
 }
 
-// StatusReader queries packaging-run progress. It does not approve or submit.
-func StatusReader(c client.Client) packaginghttp.Reader {
-	return statusReader{client: c}
+// StatusReader queries packaging-run progress and applies a governed cancel or
+// rerun after the Hub has already authorized it. It does not approve or submit.
+func StatusReader(c client.Client, taskQueue string) packaginghttp.Controls {
+	if taskQueue == "" {
+		taskQueue = pipeline.TaskQueue
+	}
+	return statusReader{client: c, taskQueue: taskQueue}
 }
 
 // Unavailable is a status reader used when the Hub was configured with a
@@ -75,7 +80,18 @@ func (u Unavailable) err() error {
 	return u.Err
 }
 
-type statusReader struct{ client client.Client }
+func (Unavailable) Configured() bool { return false }
+
+func (u Unavailable) Cancel(context.Context, string) error { return u.err() }
+
+func (u Unavailable) Start(context.Context, domain.RunIdentity) (domain.RunStatus, error) {
+	return domain.RunStatus{}, u.err()
+}
+
+type statusReader struct {
+	client    client.Client
+	taskQueue string
+}
 
 func (r statusReader) Read(ctx context.Context, runID string) (domain.RunStatus, error) {
 	value, err := r.client.QueryWorkflow(ctx, "packaging-"+runID, "", pipeline.QueryStatus)
@@ -131,6 +147,41 @@ func (r statusReader) List(ctx context.Context) ([]domain.RunStatus, error) {
 			return nil, errors.New("packaging run index is larger than 1000 runs")
 		}
 	}
+}
+
+func (statusReader) Configured() bool { return true }
+
+func (r statusReader) Cancel(ctx context.Context, runID string) error {
+	err := r.client.CancelWorkflow(ctx, "packaging-"+runID, "")
+	if err == nil {
+		return nil
+	}
+	var notFound *serviceerror.NotFound
+	if errors.As(err, &notFound) {
+		return packaginghttp.ErrNotFound
+	}
+	return err
+}
+
+func (r statusReader) Start(ctx context.Context, id domain.RunIdentity) (domain.RunStatus, error) {
+	if err := id.Validate(); err != nil {
+		return domain.RunStatus{}, err
+	}
+	if id.ProposalRevision != "" {
+		return domain.RunStatus{}, errors.New("a new packaging run does not carry a proposal revision")
+	}
+	_, err := r.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:                    id.WorkflowID(),
+		TaskQueue:             r.taskQueue,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+	}, pipeline.WorkflowName, pipeline.Input{Identity: id})
+	if err != nil {
+		return domain.RunStatus{}, err
+	}
+	return domain.RunStatus{
+		RunID: id.RunID, Phase: domain.PhaseAssess,
+		SourceDigest: id.SourceDigest, TargetPlanRef: id.TargetPlanRef,
+	}, nil
 }
 
 func (r statusReader) Events(ctx context.Context, runID string) ([]domain.StepEvent, error) {

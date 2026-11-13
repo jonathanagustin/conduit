@@ -37,6 +37,10 @@ type Options struct {
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader
+	// PackagingControls cancels or reruns a packaging run after governance
+	// allows it. Nil keeps the write routes and refuses them. Cancel does not
+	// cancel a Plan.
+	PackagingControls packaginghttp.Controls
 }
 
 // mountNotifications puts the notification routes in front of the legacy

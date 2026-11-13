@@ -85,6 +85,12 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 			return domain.Result{}, fmt.Errorf("unknown packaging phase %q", state.Phase)
 		}
 		if err != nil {
+			// A cancellation is a terminal packaging-run outcome. Recording it
+			// here does not cancel a Plan; the workflow returns the cancellation
+			// so Temporal keeps that status, and the query shows it.
+			if temporal.IsCanceledError(err) || ctx.Err() != nil {
+				state.Block(domain.OutcomeCancelled, "run cancelled")
+			}
 			return domain.Result{}, err
 		}
 	}
