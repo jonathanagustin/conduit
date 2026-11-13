@@ -26,12 +26,11 @@ async function pages(api, path) {
 }
 
 async function preparations(api, repository, state) {
-  const issues = await pages(api, `repos/${repository}/issues?state=${state}&labels=${encodeURIComponent(pending)}`);
+  const prs = await pages(api, `repos/${repository}/pulls?state=${state}&base=main`);
   const result = [];
-  for (const issue of issues) {
-    if (!issue.pull_request) continue;
-    const pr = await api("GET", `repos/${repository}/pulls/${issue.number}`);
-    if (pr.base.ref === "main" && pr.head.ref === releaseBranch && pr.head.repo?.full_name === repository) result.push(pr);
+  for (const pr of prs) {
+    const isPending = pr.labels.some(label => (typeof label === "string" ? label : label.name) === pending);
+    if (isPending && pr.base.ref === "main" && pr.head.ref === releaseBranch && pr.head.repo?.full_name === repository) result.push(pr);
   }
   return result;
 }
@@ -84,7 +83,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     assertPreparationWrite(method, path);
     const args = ["api", "--method", method, path];
     if (body) args.push("--input", "-");
-    const output = execFileSync(fileURLToPath(new URL("./retry-github-api.sh", import.meta.url)), ["gh", ...args], { encoding: "utf8", input: body ? JSON.stringify(body) : undefined });
+    const output = execFileSync(fileURLToPath(new URL("./retry-github-api.sh", import.meta.url)), ["gh", ...args], { encoding: "utf8", maxBuffer: 16 * 1024 * 1024, input: body ? JSON.stringify(body) : undefined });
     return output.trim() ? JSON.parse(output) : undefined;
   };
   if (process.argv[2] === "reconcile") await reconcilePublished(api, repository);

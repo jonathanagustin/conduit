@@ -1,10 +1,15 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
+import { mkdtempSync, writeFileSync, chmodSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { execFileSync } from "node:child_process";
+import { fileURLToPath } from "node:url";
 import { assertPreparationWrite, ensureTrunk, reconcilePublished, releaseBranch } from "../../scripts/release-preparation.mjs";
 
 const repo = "owner/conduit";
 const sha = "a".repeat(40);
-const pr = {number: 42, state: "open", base: {ref: "main"}, head: {sha, ref: releaseBranch, repo: {full_name: repo}}};
+const pr = {labels: [{name: "autorelease: pending"}], number: 42, state: "open", base: {ref: "main"}, head: {sha, ref: releaseBranch, repo: {full_name: repo}}};
 const file = value => ({encoding: "base64", content: Buffer.from(value).toString("base64")});
 function apiFixture({pull = pr, status = [], runs = [], releases = [], comparison = "ahead", version = "0.18.0", failure} = {}) {
  const writes = [];
@@ -12,8 +17,8 @@ function apiFixture({pull = pr, status = [], runs = [], releases = [], compariso
   assertPreparationWrite(method, path);
   if (failure && path.includes(failure)) throw new Error("injected API failure");
   if (method !== "GET") { writes.push({method, path, body}); return; }
-  if (path.includes("/issues?")) return [{number: pull.number, pull_request: {}}];
-  if (path.endsWith(`/pulls/${pull.number}`)) return pull;
+  if (path.includes("/issues?")) throw new Error("issue-read authority is outside the approved scope");
+  if (path.includes("/pulls?")) return [pull];
   if (path.includes("/commits/") && path.endsWith("/status")) return {statuses: status};
   if (path.includes("/runs?")) return {workflow_runs: runs};
   if (path.includes("/releases?")) return releases;
@@ -67,4 +72,22 @@ test("ordinary preparation writes cannot create tags, Releases, or dispatch publ
  for(const [method,path] of [["POST",`repos/${repo}/git/refs`],["POST",`repos/${repo}/releases`],["POST",`repos/${repo}/actions/workflows/platform-release.yml/dispatches`],["POST",`repos/${repo}/actions/workflows/platform-images.yml/dispatches`],["PATCH",`repos/${repo}/git/refs/tags/v0.18.0`]]) {
   assert.throws(()=>assertPreparationWrite(method,path),/cannot write/);
  }
+});
+
+
+test("the CLI reads PR metadata beyond Node's default output buffer without issue authority", () => {
+ const directory = mkdtempSync(join(tmpdir(), "conduit-release-api-"));
+ try {
+  const executable = join(directory, "gh");
+  writeFileSync(executable, `#!/usr/bin/env node
+const path = process.argv.at(-1);
+if (!path.includes("/pulls?")) { console.error("unexpected endpoint without pull-request authority"); process.exit(1); }
+const prs = Array.from({length:25}, (_,index) => ({number:index+1, labels:[], body:"x".repeat(50000)}));
+process.stdout.write(JSON.stringify(prs));
+`);
+  chmodSync(executable, 0o755);
+  execFileSync(process.execPath, [fileURLToPath(new URL("../../scripts/release-preparation.mjs", import.meta.url)), "verify"], {
+   env: {...process.env, GITHUB_REPOSITORY:repo, PATH:`${directory}:${process.env.PATH}`}, timeout:10000,
+  });
+ } finally { rmSync(directory,{recursive:true,force:true}); }
 });
