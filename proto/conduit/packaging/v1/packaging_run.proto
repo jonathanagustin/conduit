@@ -1,0 +1,60 @@
+syntax = "proto3";
+
+// Package conduit.packaging.v1 is the read contract for one packaging run.
+// Other Hub domains use the same proto/conduit/<domain>/v1 layout.
+package conduit.packaging.v1;
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/packaging/v1;packagingv1";
+
+// PackagingRunService reads packaging-run progress.
+// It does not accept an approval and it does not report Plan status.
+service PackagingRunService {
+  // GetPackagingRun is the read model of GET /v1/packaging-runs/{run_id}.
+  rpc GetPackagingRun(GetPackagingRunRequest) returns (GetPackagingRunResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// GetPackagingRunRequest names the run to read.
+message GetPackagingRunRequest {
+  // run_id is the path value of GET /v1/packaging-runs/{run_id}.
+  string run_id = 1;
+}
+
+// GetPackagingRunResponse is the REST body of GET /v1/packaging-runs/{run_id}.
+message GetPackagingRunResponse {
+  // tier is the REST field tier.
+  string tier = 1;
+  // configured is the REST field configured.
+  bool configured = 2;
+  // authority is the REST field authority.
+  string authority = 3;
+  // plan_authority is the REST field planAuthority.
+  string plan_authority = 4;
+  // approval_authority is the REST field approvalAuthority.
+  string approval_authority = 5;
+  // run_id is the REST field runId.
+  string run_id = 6;
+  // phase is the REST field phase.
+  string phase = 7;
+  // outcome is the REST field outcome.
+  string outcome = 8;
+  // reason is the REST field reason.
+  string reason = 9;
+  // source_digest is the REST field sourceDigest.
+  string source_digest = 10;
+  // artifact_digest is the REST field artifactDigest.
+  string artifact_digest = 11;
+  // proposal_revision is the REST field proposalRevision.
+  string proposal_revision = 12;
+  // target_plan_ref is the REST field targetPlanRef.
+  string target_plan_ref = 13;
+  // plan_id is the REST field planId.
+  string plan_id = 14;
+  // handoff_reconciled is the REST field handoffReconciled.
+  bool handoff_reconciled = 15;
+  // last_review is the REST field lastReview.
+  string last_review = 16;
+  // duplicate_reviews is the REST field duplicateReviews.
+  int32 duplicate_reviews = 17;
+}

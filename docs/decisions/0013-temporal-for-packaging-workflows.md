@@ -249,4 +249,7 @@ after the audit and does not pretend to signal.
 - Supersedes: none
 - Superseded by: none
 - Operator notes: `../operations/temporal-packaging-poc.md`
+- Connect slice: `../operations/connect-packaging-run.md` serves the single-run
+  read over Connect beside the REST route. The authority split above is unchanged.
+  The index, the history, cancel, and rerun stay on REST.
 - Issues: #349, with integration notes for #341, #342, and #343. The index and history are #376 and #377. Cancel and rerun are #378.

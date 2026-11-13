@@ -34,6 +34,8 @@ require (
 	go.temporal.io/sdk v1.51.0
 )
 
+require connectrpc.com/connect v1.21.1
+
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/agnivade/levenshtein v1.2.1 // indirect

@@ -58,11 +58,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		if !authorized(cfg, writer, request) {
 			return
 		}
-		if cfg.Reader == nil {
-			writeJSON(writer, http.StatusOK, stamp(domain.RunStatus{}, false))
-			return
-		}
-		run, err := cfg.Reader.Read(request.Context(), request.PathValue("runID"))
+		status, err := readStatus(request.Context(), cfg, request.PathValue("runID"))
 		if errors.Is(err, ErrNotFound) {
 			writeError(writer, http.StatusNotFound, err.Error())
 			return
@@ -71,10 +67,45 @@ func Register(mux *http.ServeMux, cfg Config) {
 			writeError(writer, http.StatusBadGateway, "packaging run status is unavailable")
 			return
 		}
-		writeJSON(writer, http.StatusOK, redactRun(run))
+		writeJSON(writer, http.StatusOK, status)
 	})
 	mountCollections(mux, cfg)
 	mountControls(mux, cfg)
+}
+
+// authorize applies the route's caller check. A nil authorizer refuses
+// everyone, which is what an unconfigured deployment must do.
+func authorize(cfg Config, request *http.Request) error {
+	if cfg.Authorize == nil {
+		return StatusError{Status: http.StatusUnauthorized, Message: "unauthorized"}
+	}
+	return cfg.Authorize(request)
+}
+
+func refusalStatus(err error) (int, string) {
+	status := http.StatusUnauthorized
+	var coded StatusError
+	if errors.As(err, &coded) && coded.Status != 0 {
+		status = coded.Status
+	}
+	message := "unauthorized"
+	if err.Error() != "" {
+		message = err.Error()
+	}
+	return status, message
+}
+
+// readStatus loads one run the same way the REST route does: a nil reader is
+// an unconfigured worker, and a found run is stamped and redacted.
+func readStatus(ctx context.Context, cfg Config, runID string) (domain.RunStatus, error) {
+	if cfg.Reader == nil {
+		return stamp(domain.RunStatus{}, false), nil
+	}
+	run, err := cfg.Reader.Read(ctx, runID)
+	if err != nil {
+		return domain.RunStatus{}, err
+	}
+	return redactRun(run), nil
 }
 
 func writeError(writer http.ResponseWriter, status int, message string) {

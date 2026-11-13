@@ -68,3 +68,30 @@ tasks:
     interactive: true
     cmds:
       - mise exec -- grok --yolo
+
+  proto:
+    desc: Regenerate Go and TypeScript from proto/conduit
+    cmd: |
+      set -eu
+      version="1.75.0"
+      case "$(uname -s)/$(uname -m)" in
+        Linux/x86_64) asset="buf-Linux-x86_64" ;;
+        Linux/aarch64) asset="buf-Linux-aarch64" ;;
+        Darwin/arm64) asset="buf-Darwin-arm64" ;;
+        Darwin/x86_64) asset="buf-Darwin-x86_64" ;;
+        *) echo "unsupported buf platform: $(uname -s)/$(uname -m)" >&2; exit 1 ;;
+      esac
+      bindir="${PWD}/.cache/buf/${version}"
+      mkdir -p "${bindir}"
+      if [ ! -x "${bindir}/buf" ]; then
+        curl --fail --silent --show-error --location \
+          "https://github.com/bufbuild/buf/releases/download/v${version}/${asset}" \
+          --output "${bindir}/buf"
+        chmod 0755 "${bindir}/buf"
+      fi
+      export PATH="$(go env GOPATH)/bin:${bindir}:${PWD}/web/node_modules/.bin:${PATH}"
+      go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
+      go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.21.1
+      buf generate
+      python3 scripts/normalize-connect-stubs.py
+      gofmt -w gen/go
