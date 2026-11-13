@@ -858,7 +858,6 @@ Before doing anything, read these to load context -- do not skip:
 - docs/operations/PRODUCTION-READINESS.md     (the Tier 1 gaps and what remains)
 - docs/operations/manual-ci.md                (CI is manual workflow_dispatch)
 - docs/operations/schema-migrations.md        (how a schema change is made here)
-- docs/operations/ASSUMPTIONS-LEDGER.md       (A1-A9; A4 overturned by ADR 0006)
 - docs/operations/local-verification.md
 - AGENTS.md and docs/operations/AGENTS.md
 
@@ -1430,8 +1429,8 @@ calling it "the binding constraint" — is now history, not state.
   removing either alone fails the other. Checked — 51 CI steps, nothing
   unreconciled in either direction.
 - The live claims in `docs/architecture/bounded-contexts.md` and
-  `docs/operations/PRODUCTION-READINESS.md`. Dated records in `CAPABILITY-MAP.md`,
-  `HYPOTHESIS-BACKLOG.md` and `EXTERNAL-AUDIT-2026-08-18.md` were left alone:
+  `docs/operations/PRODUCTION-READINESS.md`. The dated record in
+  `EXTERNAL-AUDIT-2026-08-18.md` was left alone:
   they describe what was true when written, and rewriting them would falsify the
   record.
 

@@ -20,8 +20,9 @@ import (
 // destination that could not be saved through the routes cannot appear at
 // delivery time either.
 type Contacts struct {
-	store ports.Contacts
-	clock ports.Clock
+	store         ports.Contacts
+	clock         ports.Clock
+	channelScoped bool
 }
 
 var _ ports.DestinationResolver = (*Contacts)(nil)
@@ -37,6 +38,17 @@ func NewContacts(store ports.Contacts, clock ports.Clock) (*Contacts, error) {
 		clock = SystemClock{}
 	}
 	return &Contacts{store: store, clock: clock}, nil
+}
+
+// NewChannelContacts creates a resolver for channel-specific native delivery.
+// Its address-book operations use the same validation and authorization scope.
+func NewChannelContacts(store ports.Contacts, clock ports.Clock) (*Contacts, error) {
+	contacts, err := NewContacts(store, clock)
+	if err != nil {
+		return nil, err
+	}
+	contacts.channelScoped = true
+	return contacts, nil
 }
 
 // List returns every contact one owner holds.
@@ -142,6 +154,10 @@ func (contacts *Contacts) DestinationFor(
 	if err != nil {
 		return domain.Destination{}, false, fmt.Errorf(
 			"read notification contacts for %s %s: %w", recipient.Owner.Kind, recipient.Owner.ID, err)
+	}
+	if contacts.channelScoped {
+		destination, found := domain.ResolveChannelDestination(recipient, held)
+		return destination, found, nil
 	}
 	destination, found := domain.ResolveDestination(recipient, held)
 	return destination, found, nil

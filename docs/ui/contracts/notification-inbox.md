@@ -36,7 +36,9 @@ console states a channel, owns it in the URL as `?channel=`, defaults to
 `IN_APP` — `domain.NeedsTransport` makes the in-app inbox row its own delivery,
 so it is the one channel with content in a deployment that has configured no
 transport — and falls back to that default rather than forwarding a channel the
-route would refuse.
+route would refuse. The supported list is EMAIL, IN_APP and SLACK; SLACK is
+a registered Conduit preference extension (`notifications.SlackChannel`), with
+URL persistence and Hub request coverage in the browser suite.
 
 **A read is bounded and the response reports the bound that was applied.**
 `application.Bound` turns every request into at most `MaximumLimit` (100), and
@@ -73,9 +75,9 @@ only outcome is a 422.
 
 - **No unread state and no "mark as read".** `domain.InboxEntry.ReadAt` exists
   and no route writes it. A control here would silently do nothing.
-- **No team inbox and no team preference.** A team preference requires a
-  contact, `domain.Contact` is modelled and no store persists one, so the
-  editor would be offering a subscription that delivers nowhere.
+- **No team inbox and no team preference.** The API stores team
+  preferences and contacts, and native delivery honors their selected contact
+  IDs, but this screen only edits the calling user's preference.
 - **No notification count on the rail.** Nothing serves an unread count, and a
   badge computed from a bounded page would be wrong exactly when it mattered.
 

@@ -211,8 +211,10 @@ being carried by the fact that nobody had interrupted one.
 `internal/pgmigrate/crash_postgres_test.go` interrupts one. It re-executes the
 test binary as the migrating process and `SIGKILL`s it — no deferred
 `Rollback`, no `Close`, the kernel closes the socket and PostgreSQL discovers
-the client is gone — then asserts that the schema and the ledger agree about
-every migration, and that re-running the migrations afterwards completes. The
+the client is gone. The parent waits for that exact database backend to exit
+before reading the schema and ledger: PostgreSQL may finish an in-flight COMMIT
+after the client dies, so reading sooner can compare two different committed
+states. It then asserts that the schema and the ledger agree about every migration, and that re-running the migrations afterwards completes. The
 kills land at four named points inside `applyOne` (after the DDL, either side
 of the ledger `INSERT`, and immediately before `COMMIT`) and at uniformly
 random instants across the whole of `Apply`. Measured on one run at sixty

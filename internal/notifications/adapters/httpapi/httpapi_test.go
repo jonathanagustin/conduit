@@ -601,7 +601,7 @@ func TestARequestThatNamesNoChannelOrResourceIsRefusedRatherThanGuessed(t *testi
 	test := newHarness(t, alice())
 	for _, bad := range []struct{ name, method, target, body string }{
 		{"inbox with no channel", http.MethodGet, "/v1/notifications/inbox", ""},
-		{"inbox with an invented channel", http.MethodGet, "/v1/notifications/inbox?channel=SLACK", ""},
+		{"inbox with an invented channel", http.MethodGet, "/v1/notifications/inbox?channel=PAGERDUTY", ""},
 		{"inbox with an invented owner kind", http.MethodGet, "/v1/notifications/inbox?channel=EMAIL&ownerKind=ROBOT&ownerId=x", ""},
 		{"a team inbox with no team", http.MethodGet, "/v1/notifications/inbox?channel=EMAIL&ownerKind=TEAM", ""},
 		{"events with no resource", http.MethodGet, "/v1/notifications/events", ""},

@@ -16,7 +16,7 @@ import (
 
 // Notification delivery is off unless configured, exactly as METRICS_ADDRESS
 // leaves the metrics listener off. An existing deployment gains no outbound
-// behaviour by upgrading: with neither variable set, no transport is built, no
+// behaviour by upgrading: with no delivery settings, no transport is built, no
 // dispatcher is constructed, no loop runs and no request leaves the process.
 // Sending mail nobody asked for is worse than not sending it.
 const (
@@ -62,6 +62,12 @@ func NewNotificationTransport(
 	endpoint := strings.TrimSpace(getenv(NotificationWebhookURLVariable))
 	timeoutValue := strings.TrimSpace(getenv(NotificationWebhookTimeoutVariable))
 	useLog := strings.TrimSpace(getenv(NotificationDeliveryLogVariable)) == "true"
+	if nativeNotificationRequested(getenv) {
+		if endpoint != "" || timeoutValue != "" || useLog {
+			return nil, errors.New("native notification settings cannot be combined with webhook or log delivery")
+		}
+		return newNativeNotificationTransport(getenv)
+	}
 	if endpoint == "" && timeoutValue != "" {
 		return nil, fmt.Errorf("%s requires %s",
 			NotificationWebhookTimeoutVariable, NotificationWebhookURLVariable)

@@ -102,6 +102,6 @@ exposes the same proof as a manual-only acceptance workflow.
 
 - Supersedes: none
 - Superseded by: none
-- Evidence snapshot/revision: Conduit branch `codex/bootstrap-zenith-license`
+- Initial decision revision: `3566f44b51623c23dab5d0a4a6133865469e0c75`
 - Pareto/value assessment: signed OCI adds registry operations but reduces
   credential blast radius, runtime Git dependency, and cache-recovery risk

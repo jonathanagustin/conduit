@@ -1,4 +1,0 @@
-interface:
-  display_name: "Optimize Evidence"
-  short_description: "Run measured, provenance-bound optimization trials"
-  default_prompt: "Use $optimize-evidence to model this system, expose unknowns, compare Pareto-efficient alternatives, and calibrate predictions against outcomes."
