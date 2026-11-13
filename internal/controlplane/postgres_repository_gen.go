@@ -14,16 +14,6 @@ var (
 	_ time.Time
 )
 
-func (repository *PostgresRepository) AppendAuthorizationAudit(ctx context.Context, event AuthorizationAuditEvent) (AuthorizationAuditEvent, error) {
-	var result0 AuthorizationAuditEvent
-	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
-		var innerErr error
-		result0, innerErr = memory.AppendAuthorizationAudit(ctx, event)
-		return innerErr
-	})
-	return result0, err
-}
-
 func (repository *PostgresRepository) ClaimExportPipelineScheduleRun(ctx context.Context, run ExportPipelineScheduleRun) (ExportPipelineScheduleRun, bool, error) {
 	var result0 ExportPipelineScheduleRun
 	var result1 bool
@@ -340,16 +330,6 @@ func (repository *PostgresRepository) ListApprovalPolicies(ctx context.Context) 
 	err := repository.withState(ctx, false, func(memory *MemoryRepository) error {
 		var innerErr error
 		result0, innerErr = memory.ListApprovalPolicies(ctx)
-		return innerErr
-	})
-	return result0, err
-}
-
-func (repository *PostgresRepository) ListAuthorizationAudit(ctx context.Context, resourceRID string) ([]AuthorizationAuditEvent, error) {
-	var result0 []AuthorizationAuditEvent
-	err := repository.withState(ctx, false, func(memory *MemoryRepository) error {
-		var innerErr error
-		result0, innerErr = memory.ListAuthorizationAudit(ctx, resourceRID)
 		return innerErr
 	})
 	return result0, err

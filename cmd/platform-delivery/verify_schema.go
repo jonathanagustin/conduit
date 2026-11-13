@@ -26,6 +26,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
+	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
@@ -45,6 +46,7 @@ const verifySchemaCommand = "verify-schema"
 func hubMigrationSets() []pgmigrate.Set {
 	return []pgmigrate.Set{
 		{Component: controlplane.PostgresMigrationComponent, Migrations: controlplane.PostgresMigrations()},
+		{Component: auditpostgres.Component(), Migrations: auditpostgres.Migrations()},
 		{Component: reconciliationpostgres.Component(), Migrations: reconciliationpostgres.Migrations()},
 		{Component: notificationspostgres.Component(), Migrations: notificationspostgres.Migrations()},
 		{Component: resolutionlogpostgres.Component(), Migrations: resolutionlogpostgres.Migrations()},

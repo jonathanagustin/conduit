@@ -52,6 +52,8 @@ import (
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
 	gitlessdomain "github.com/jonathanagustin/conduit/internal/gitless/domain"
+	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
+	governancedomain "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 	"github.com/jonathanagustin/conduit/internal/pgtest"
 )
@@ -118,6 +120,7 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 	// before reading it. So the ledger is interrogated on a plain connection
 	// first, and the repositories are constructed afterwards.
 	assertNothingPending(t, ctx, restored)
+	assertRestoredAuthorizationAudit(t, ctx, restored, seeded.auditCheckpoint)
 	assertNoTornDecisionTriple(t, ctx, restored)
 	assertStateSurvived(t, ctx, targetDSN, seeded)
 }
@@ -125,6 +128,8 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 // seededState is what the drill wrote before the dump and expects to read back
 // through the real repositories afterwards.
 type seededState struct {
+	auditEvent            governancedomain.AuthorizationAuditEvent
+	auditCheckpoint       governancedomain.AuditCheckpoint
 	environment           string
 	planID                string
 	blobDigest            string
@@ -153,6 +158,28 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 	}
 	record, err := controlplane.NewLifecycle(repository).CreatePlan(ctx, state)
 	if err != nil {
+		t.Fatal(err)
+	}
+
+	auditEvent := governancedomain.NewAuthorizationCheckEvent(time.Date(2026, 8, 17, 12, 0, 0, 0, time.UTC), "restore-operator", "read", "restore-audit-resource", governancedomain.DecisionAllow, "restore evidence", nil)
+	if _, err := repository.AppendAuthorizationAudit(ctx, auditEvent); err != nil {
+		t.Fatal(err)
+	}
+	auditDatabase, err := sql.Open("pgx", dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer auditDatabase.Close()
+	auditTransaction, err := auditDatabase.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	auditCheckpoint, err := auditpostgres.New(auditTransaction).Verify(ctx, nil)
+	if err != nil {
+		_ = auditTransaction.Rollback()
+		t.Fatal(err)
+	}
+	if err := auditTransaction.Commit(); err != nil {
 		t.Fatal(err)
 	}
 
@@ -198,6 +225,7 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 		t.Fatal(err)
 	}
 	return seededState{
+		auditEvent: auditEvent, auditCheckpoint: auditCheckpoint,
 		environment: state.Environment.ID, planID: record.ID,
 		blobDigest: digest, blobContents: blob, key: key, generation: "gen-seeded",
 		resolutionEnvironment: resolutionEnvironment, resolutionDigest: resolutionDigest,
@@ -308,6 +336,7 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 	t.Helper()
 	for component, migrations := range map[string][]pgmigrate.Migration{
 		controlplane.PostgresMigrationComponent: controlplane.PostgresMigrations(),
+		auditpostgres.Component():               auditpostgres.Migrations(),
 		reconciliationpostgres.Component():      reconciliationpostgres.Migrations(),
 		resolutionlogpostgres.Component():       resolutionlogpostgres.Migrations(),
 	} {
@@ -326,6 +355,21 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 				component, names,
 			)
 		}
+	}
+}
+
+// Check the restored chain against a checkpoint retained outside the dump,
+// before constructing a repository can adopt legacy rows or change metadata.
+func assertRestoredAuthorizationAudit(t *testing.T, ctx context.Context, database *sql.DB, expected governancedomain.AuditCheckpoint) {
+	t.Helper()
+	transaction, err := database.BeginTx(ctx, &sql.TxOptions{Isolation: sql.LevelRepeatableRead, ReadOnly: true})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer transaction.Rollback()
+	actual, err := auditpostgres.New(transaction).Verify(ctx, &expected)
+	if err != nil || actual != expected {
+		t.Fatalf("restored audit checkpoint=%#v, error=%v", actual, err)
 	}
 }
 
@@ -400,6 +444,22 @@ func assertStateSurvived(t *testing.T, ctx context.Context, dataSourceName strin
 		t.Fatalf("opening the control-plane repository on the restored database: %v", err)
 	}
 	defer repository.Close()
+	audits, err := repository.ListAuthorizationAudit(ctx, seeded.auditEvent.ResourceRID)
+	if err != nil || len(audits) != 1 {
+		t.Fatalf("restored authorization audit=%#v, error=%v", audits, err)
+	}
+	expectedAudit, err := json.Marshal(seeded.auditEvent)
+	if err != nil {
+		t.Fatal(err)
+	}
+	actualAudit, err := json.Marshal(audits[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Equal(expectedAudit, actualAudit) {
+		t.Fatal("restored authorization audit differs from its original bytes")
+	}
+
 	plans, err := repository.ListPlans(ctx, seeded.environment)
 	if err != nil {
 		t.Fatal(err)

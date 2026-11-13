@@ -114,6 +114,7 @@ accurate and does not have to be idempotent.
 | --- | --- | --- |
 | `reconciliation` | `internal/delivery/reconciliation/adapters/postgres` | desired state, observations, leased work, decisions, audit, proposal outbox, plan receipts |
 | `controlplane` | `internal/controlplane` | the versioned metadata snapshot and the artifact blob store |
+| `authorization-audit` | `internal/governance/adapters/auditpostgres` | append-only authorization events, digest chain head and rewrite/truncate guards |
 | `notifications` | `internal/notifications/adapters/postgres` | notification events, subscription preferences, per-recipient inbox entries and their delivery state, and one contact address per (owner, kind) |
 | `gitless-resolution-log` | `internal/gitless/adapters/resolutionlogpostgres` | append-only source selector, digest, publisher, and failed-convergence history |
 
