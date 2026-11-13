@@ -124,11 +124,12 @@ const reasoningDuration = (timing: ThreadGroupPart["timing"]) =>
  * conversation and have no registered UI render through it instead of the
  * tool group; without it they render like any other tool call.
  * `ComposerExtra` renders in the composer's action row beside the attach
- * button.
+ * button. `ViewportHeader` renders at the top of the centered column.
  */
 export type ThreadComponents = {
   AssistantMessage?: ComponentType | undefined;
   Welcome?: ComponentType | undefined;
+  ViewportHeader?: ComponentType | undefined;
   ToolFallback?: ToolCallMessagePartComponent | undefined;
   ToolGroup?:
     | ComponentType<PropsWithChildren<{ group: ThreadGroupPart }>>
@@ -231,7 +232,9 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({
   isEmpty,
   autoFocus,
 }) => {
-  const { Welcome = ThreadWelcome } = useContext(ThreadComponentsContext);
+  const { Welcome = ThreadWelcome, ViewportHeader } = useContext(
+    ThreadComponentsContext,
+  );
 
   return (
     <ThreadPrimitive.Root
@@ -256,6 +259,7 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({
             isEmpty && "justify-center",
           )}
         >
+          {ViewportHeader ? <ViewportHeader /> : null}
           <AuiIf condition={isNewChatView}>
             <Welcome />
           </AuiIf>

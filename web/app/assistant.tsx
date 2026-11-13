@@ -5,6 +5,8 @@ import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { ConversationMapAui } from "@/components/assistant-ui/elements/conversation-map.aui";
 import { useCodexRuntime } from "@/src/api/runtime";
 import { AcpPanels } from "@/src/embed/acp-panels";
+
+const THREAD_COMPONENTS = { ViewportHeader: AcpPanels };
 import {
   SidebarInset,
   SidebarProvider,
@@ -52,10 +54,9 @@ export const Assistant = () => {
               </Breadcrumb>
             </header>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-              <AcpPanels />
               <div className="relative min-h-0 flex-1">
                 <ConversationMapAui side="right" />
-                <Thread />
+                <Thread components={THREAD_COMPONENTS} />
               </div>
             </div>
           </SidebarInset>
