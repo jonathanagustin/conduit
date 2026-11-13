@@ -56,6 +56,9 @@ importers:
       cn:
         specifier: ^0.5.0
         version: 0.5.2
+      heat-graph:
+        specifier: ^0.0.26
+        version: 0.0.26(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       lucide-react:
         specifier: ^1.61.0
         version: 1.72.0(@types/react@19.3.0)(react@19.3.1)
@@ -2331,6 +2334,16 @@ packages:
 
   header-case@2.0.4:
     resolution: {integrity: sha512-H/vuk5TEEVZwrR0lp2zed9OCo1uAILMlx0JEMgC26rzyJJ3N1v6XkwHHXJQdR2doSjcGPM6OKPYoJgf0plJ11Q==}
+
+  heat-graph@0.0.26:
+    resolution: {integrity: sha512-HEbsPfwodtfmpp0gvZ2rCF9gOwdEg7j1HhukLyZXudza8tgzoWUiWWnvMvbrWoS0P3Xg6THVsuaOx0h13SSVYA==}
+    peerDependencies:
+      '@types/react': '*'
+      react: ^18 || ^19
+      react-dom: ^18 || ^19
+    peerDependenciesMeta:
+      '@types/react':
+        optional: true
 
   highlight.js@10.7.3:
     resolution: {integrity: sha512-tzcUFauisWKNHaRkN4Wjl/ZA07gENAjFl3J/c480dprkGTg5EQstgaNFqBfUqCq54kZRIEcreTsAgF/m2quD7A==}
@@ -5172,6 +5185,16 @@ snapshots:
     dependencies:
       capital-case: 1.0.4
       tslib: 2.9.1
+
+  heat-graph@0.0.26(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+    dependencies:
+      '@radix-ui/react-popper': 1.4.0(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+      react: 19.3.1
+      react-dom: 19.3.1(react@19.3.1)
+    optionalDependencies:
+      '@types/react': 19.3.0
+    transitivePeerDependencies:
+      - '@types/react-dom'
 
   highlight.js@10.7.3: {}
 
