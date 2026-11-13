@@ -165,6 +165,19 @@ const VOCABULARIES = [
     },
   },
   {
+    name: "promotion lifecycle",
+    go: {
+      file: "internal/catalog/domain/promotion_lifecycle.go",
+      pattern: /\bPromotion\w+\s+PromotionLifecycle\s*=\s*"([A-Z_]+)"/g,
+    },
+    console: {
+      file: "web/src/components/promotionLifecycle.ts",
+      start: /export const PROMOTION_LIFECYCLE_INTENT[^{]*\{/,
+      end: /\n\};/,
+      pattern: /^\s*([A-Z_]+):/gm,
+    },
+  },
+  {
     name: "plan status",
     go: { file: "internal/controlplane/lifecycle.go", pattern: /\bPlan\w+\s+PlanStatus\s*=\s*"([A-Z_]+)"/g },
     console: {

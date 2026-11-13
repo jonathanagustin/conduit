@@ -45,6 +45,16 @@ CREATE TABLE IF NOT EXISTS conduit_repository_blobs (
  environment text PRIMARY KEY,
  inputs jsonb NOT NULL
 );`,
+}, {
+	Name: "0003-promotion-lifecycle",
+	Statements: `CREATE TABLE IF NOT EXISTS conduit_promotion_lifecycle (
+ id text PRIMARY KEY,
+ run_id text NOT NULL,
+ previous_id text NOT NULL,
+ lifecycle text NOT NULL CHECK (lifecycle IN ('RUNNING', 'SUCCEEDED', 'ABORTED', 'CANCELLED')),
+ reason text NOT NULL,
+ value_tier text NOT NULL
+);`,
 }}
 
 // PostgresMigrations is this context's schema as the runner sees it, so a
@@ -183,11 +193,17 @@ func (repository *PostgresRepository) withStateTransaction(ctx context.Context, 
 	if err != nil {
 		return err
 	}
+	if err := loadPromotionLifecycles(ctx, transaction, memory); err != nil {
+		return err
+	}
 	if err := operation(memory, transaction); err != nil {
 		return err
 	}
 	if write {
-		encoded, err = memory.encodeState()
+		if err := storePromotionLifecycles(ctx, transaction, memory); err != nil {
+			return err
+		}
+		encoded, err = encodeLegacyPromotionState(memory)
 		if err != nil {
 			return err
 		}
@@ -314,16 +330,6 @@ type memoryRepositoryState struct {
 	ChangeRequests              map[string]ChangeRequest                 `json:"changeRequests"`
 	AuthorizationAudit          map[string]AuthorizationAuditEvent       `json:"authorizationAudit"`
 	ProductPublications         map[string]ProductPublication            `json:"productPublications"`
-}
-
-func (repository *MemoryRepository) encodeState() ([]byte, error) {
-	repository.mu.Lock()
-	defer repository.mu.Unlock()
-	encoded, err := json.Marshal(repository.stateLocked())
-	if err != nil {
-		return nil, fmt.Errorf("encode repository state: %w", err)
-	}
-	return encoded, nil
 }
 
 func (repository *MemoryRepository) stateLocked() memoryRepositoryState {

@@ -1,6 +1,10 @@
 import { Tag } from "@blueprintjs/core";
 
 import type { PromotionRecord } from "../api/catalog.js";
+import {
+  PROMOTION_LIFECYCLE_INTENT,
+  isTerminalPromotion,
+} from "./promotionLifecycle.js";
 import "./release-channel-graph.css";
 
 /** The horizontal Release Channel graph: an ordered run of channels with a
@@ -28,52 +32,93 @@ export function ReleaseChannelGraph({
   onSelect: (id: string) => void;
 }) {
   const channels = orderChannels(promotions);
+  const shown = new Set(
+    channels.flatMap((channel) => {
+      const current = latestForChannel(promotions, channel);
+      return current ? [current.id] : [];
+    }),
+  );
+  const otherActive = currentInProgress(promotions).filter(
+    (promotion) => !shown.has(promotion.id),
+  );
   return (
-    <ol
-      className="console-graph"
-      aria-label="Release Channel pipeline"
-      data-testid="release-channel-pipeline"
-    >
-      {channels.map((channel, index) => {
-        // Promotion records are immutable evidence and a boundary accumulates
-        // them, so find() would surface whichever the Hub happened to sort
-        // first -- an older evaluation implying a blocking state that has since
-        // been resolved. The most recent evaluation is the current answer.
-        const outgoing = latestForChannel(promotions, channel);
-        return (
-          <li key={channel} className="console-graph__node">
-            <span className="console-graph__channel">{channel}</span>
-            {outgoing !== undefined && index < channels.length - 1 ? (
-              <button
-                type="button"
-                className={
-                  outgoing.id === selectedId
-                    ? "console-graph__transition console-graph__transition--selected"
-                    : "console-graph__transition"
-                }
-                aria-pressed={outgoing.id === selectedId}
-                aria-label={`${outgoing.fromChannel} to ${outgoing.toChannel}: ${outgoing.status}`}
-                data-testid={`promotion-transition-${outgoing.id}`}
-                onClick={() => onSelect(outgoing.id)}
-              >
-                <span aria-hidden="true" className="console-graph__arrow">
-                  &rarr;
-                </span>
-                <Tag
-                  intent={outgoing.status === "PASSED" ? "success" : "warning"}
-                  round
-                  minimal={outgoing.status === "PASSED"}
+    <div data-testid="release-channel-pipeline">
+      <ol
+        className="console-graph"
+        aria-label="Release Channel pipeline"
+      >
+        {channels.map((channel, index) => {
+          // Promotion records are immutable evidence and a boundary accumulates
+          // them, so find() would surface whichever the Hub happened to sort
+          // first -- an older evaluation implying a blocking state that has since
+          // been resolved. The most recent evaluation is the current answer.
+          const outgoing = latestForChannel(promotions, channel);
+          return (
+            <li key={channel} className="console-graph__node">
+              <span className="console-graph__channel">{channel}</span>
+              {outgoing !== undefined && index < channels.length - 1 ? (
+                <button
+                  type="button"
+                  className={
+                    outgoing.id === selectedId
+                      ? "console-graph__transition console-graph__transition--selected"
+                      : "console-graph__transition"
+                  }
+                  aria-pressed={outgoing.id === selectedId}
+                  aria-label={`${outgoing.fromChannel} to ${outgoing.toChannel}: ${outgoing.lifecycle ?? outgoing.status}${outgoing.lifecycleReason ? `: ${outgoing.lifecycleReason}` : ""}`}
+                  data-testid={`promotion-transition-${outgoing.id}`}
+                  onClick={() => onSelect(outgoing.id)}
                 >
-                  {outgoing.status === "PASSED"
-                    ? "can advance"
-                    : `${(outgoing.blockers ?? outgoing.reasons ?? []).length || 1} blocking`}
-                </Tag>
-              </button>
-            ) : null}
-          </li>
-        );
-      })}
-    </ol>
+                  <span aria-hidden="true" className="console-graph__arrow">
+                    &rarr;
+                  </span>
+                  <Tag
+                    intent={
+                      outgoing.lifecycle
+                        ? PROMOTION_LIFECYCLE_INTENT[outgoing.lifecycle]
+                        : outgoing.status === "PASSED"
+                          ? "success"
+                          : "warning"
+                    }
+                    round
+                    minimal={outgoing.status === "PASSED"}
+                  >
+                    {outgoing.lifecycle ??
+                      (outgoing.status === "PASSED"
+                        ? "can advance"
+                        : `${(outgoing.blockers ?? outgoing.reasons ?? []).length || 1} blocking`)}
+                  </Tag>
+                  {outgoing.lifecycleReason ? (
+                    <span>{outgoing.lifecycleReason}</span>
+                  ) : null}
+                </button>
+              ) : null}
+            </li>
+          );
+        })}
+      </ol>
+      {otherActive.length > 0 ? (
+        <div role="group" aria-label="Other in-progress promotions">
+          <p>Other in-progress promotions</p>
+          {otherActive.map((promotion) => (
+            <button
+              key={promotion.id}
+              type="button"
+              className="console-graph__transition"
+              aria-pressed={promotion.id === selectedId}
+              data-testid={`promotion-transition-${promotion.id}`}
+              onClick={() => onSelect(promotion.id)}
+            >
+              version {promotion.version}: {promotion.fromChannel} &rarr;{" "}
+              {promotion.toChannel}{" "}
+              <Tag intent="primary" round>
+                RUNNING
+              </Tag>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -84,17 +129,42 @@ export function latestForChannel(
 ): PromotionRecord | undefined {
   return promotions
     .filter((promotion) => promotion.fromChannel === channel)
-    .reduce<PromotionRecord | undefined>((latest, candidate) => {
-      if (latest === undefined) {
-        return candidate;
-      }
-      // Missing timestamps sort oldest, so a record that carries one always
-      // wins over one that does not.
-      return (candidate.evaluatedAt ?? candidate.evaluationStartedAt ?? "") >=
-        (latest.evaluatedAt ?? latest.evaluationStartedAt ?? "")
-        ? candidate
-        : latest;
-    }, undefined);
+    .reduce<PromotionRecord | undefined>(newerEvaluation, undefined);
+}
+
+function newerEvaluation(
+  latest: PromotionRecord | undefined,
+  candidate: PromotionRecord,
+): PromotionRecord {
+  if (!latest) return candidate;
+  if (latest.runId && latest.runId === candidate.runId) {
+    const latestTerminal = isTerminalPromotion(latest.lifecycle);
+    const candidateTerminal = isTerminalPromotion(candidate.lifecycle);
+    if (latestTerminal && !candidateTerminal) return latest;
+    if (candidateTerminal && !latestTerminal) return candidate;
+    if (candidate.previousEvaluationId === latest.id) return candidate;
+    if (latest.previousEvaluationId === candidate.id) return latest;
+  }
+  return (candidate.evaluatedAt ?? candidate.evaluationStartedAt ?? "") >=
+    (latest.evaluatedAt ?? latest.evaluationStartedAt ?? "")
+    ? candidate
+    : latest;
+}
+
+// Keep active Release versions discoverable even when another version owns the
+// most recent channel evaluation. A terminal head removes its older RUNNING
+// observations instead of leaving a stopped run in this view.
+export function currentInProgress(
+  promotions: PromotionRecord[],
+): PromotionRecord[] {
+  const heads = new Map<string, PromotionRecord>();
+  for (const promotion of promotions) {
+    const key = promotion.runId ?? promotion.id;
+    heads.set(key, newerEvaluation(heads.get(key), promotion));
+  }
+  return [...heads.values()].filter(
+    (promotion) => promotion.lifecycle === "RUNNING",
+  );
 }
 
 /** Channels in the order the promotions chain them, not alphabetically.
@@ -115,7 +185,9 @@ export function orderChannels(promotions: PromotionRecord[]): string[] {
   if (start === undefined) {
     // No unambiguous head: either there are no promotions, or they form a
     // cycle. Show what exists rather than nothing.
-    return [...new Set(promotions.flatMap((p) => [p.fromChannel, p.toChannel]))];
+    return [
+      ...new Set(promotions.flatMap((p) => [p.fromChannel, p.toChannel])),
+    ];
   }
   const ordered = [start];
   const limit = next.size + 1;

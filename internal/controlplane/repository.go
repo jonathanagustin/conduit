@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"io"
 	"os"
 	"path/filepath"
@@ -676,11 +677,18 @@ func (repository *MemoryRepository) CreatePromotionUnlessStagePaused(
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
 	control := repository.promotionStageControls[promotionStageControlID(record.Product, record.FromChannel, record.ToChannel)]
-	if control.Status == PromotionStagePaused {
+	if control.Status == PromotionStagePaused && record.Lifecycle != catalog.PromotionCancelled && record.Lifecycle != catalog.PromotionAborted {
 		return PromotionRecord{}, promotionStagePausedError(control)
 	}
 	if existing, exists := repository.promotions[record.ID]; exists {
 		return existing, nil
+	}
+	existingRecords := make([]PromotionRecord, 0, len(repository.promotions))
+	for _, existing := range repository.promotions {
+		existingRecords = append(existingRecords, existing)
+	}
+	if err := catalog.ValidatePromotionContinuation(record, existingRecords); err != nil {
+		return PromotionRecord{}, fmt.Errorf("%w: %s", ErrConflict, err)
 	}
 	repository.promotions[record.ID] = record
 	return record, nil
@@ -1550,13 +1558,20 @@ func (repository *FileRepository) CreatePromotionUnlessStagePaused(
 	if err != nil {
 		return PromotionRecord{}, err
 	}
-	if control.Status == PromotionStagePaused {
+	if control.Status == PromotionStagePaused && record.Lifecycle != catalog.PromotionCancelled && record.Lifecycle != catalog.PromotionAborted {
 		return PromotionRecord{}, promotionStagePausedError(control)
 	}
 	if existing, err := repository.readPromotion(record.ID); err == nil {
 		return existing, nil
 	} else if !errors.Is(err, ErrNotFound) {
 		return PromotionRecord{}, err
+	}
+	records, err := repository.listPromotionsUnlocked(record.Product)
+	if err != nil {
+		return PromotionRecord{}, err
+	}
+	if err := catalog.ValidatePromotionContinuation(record, records); err != nil {
+		return PromotionRecord{}, fmt.Errorf("%w: %s", ErrConflict, err)
 	}
 	if err := atomicWriteJSON(repository.promotionPath(record.ID), record); err != nil {
 		return PromotionRecord{}, err
@@ -1856,6 +1871,10 @@ func (repository *FileRepository) ListPromotions(
 ) ([]PromotionRecord, error) {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
+	return repository.listPromotionsUnlocked(product)
+}
+
+func (repository *FileRepository) listPromotionsUnlocked(product string) ([]PromotionRecord, error) {
 	entries, err := os.ReadDir(repository.promotionDirectory())
 	if err != nil {
 		return nil, fmt.Errorf("list promotions: %w", err)

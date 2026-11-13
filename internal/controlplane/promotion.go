@@ -39,12 +39,36 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 	if err != nil {
 		return PromotionRecord{}, err
 	}
-	if control.Status == PromotionStagePaused {
+	if control.Status == PromotionStagePaused && request.Termination == "" {
 		return PromotionRecord{}, promotionStagePausedError(control)
 	}
 	existing, err := lifecycle.repository.ListPromotions(ctx, request.Release.Product)
 	if err != nil {
 		return PromotionRecord{}, err
+	}
+	var previous *PromotionRecord
+	if request.PreviousEvaluationID != "" {
+		for index := range existing {
+			if existing[index].ID == request.PreviousEvaluationID {
+				previous = &existing[index]
+				break
+			}
+		}
+		if previous == nil || previous.RunID == "" {
+			return PromotionRecord{}, fmt.Errorf("%w: promotion predecessor not found", ErrInvalidTransition)
+		}
+		if !request.EvaluationStartedAt.IsZero() && !request.EvaluationStartedAt.Equal(previous.EvaluationStartedAt) {
+			return PromotionRecord{}, fmt.Errorf("%w: promotion start time changed", ErrInvalidTransition)
+		}
+		request.EvaluationStartedAt = previous.EvaluationStartedAt
+	} else if request.EvaluationStartedAt.IsZero() {
+		request.EvaluationStartedAt = now
+	}
+	if request.Termination != "" && (previous == nil || (request.Termination != catalog.PromotionAborted && request.Termination != catalog.PromotionCancelled) || strings.TrimSpace(request.TerminationReason) == "") {
+		return PromotionRecord{}, fmt.Errorf("%w: termination requires a predecessor, ABORTED or CANCELLED, and a reason", ErrInvalidTransition)
+	}
+	if request.Termination == "" && request.TerminationReason != "" {
+		return PromotionRecord{}, fmt.Errorf("%w: reason requires termination", ErrInvalidTransition)
 	}
 	if !releaseOnChannel(request.Release, existing, request.FromChannel) {
 		return PromotionRecord{}, fmt.Errorf("%w: release is not reachable on source channel %s", ErrInvalidTransition, request.FromChannel)
@@ -75,6 +99,13 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 	}
 	blockers := append(nonParticipating, boundConflicts...)
 	blockers = append(blockers, evaluatePromotion(request, now)...)
+	if request.Termination != "" {
+		kind := catalog.PromotionBlockerAborted
+		if request.Termination == catalog.PromotionCancelled {
+			kind = catalog.PromotionBlockerCancelled
+		}
+		blockers = append(blockers, catalog.PromotionBlocker{Kind: kind, Message: strings.TrimSpace(request.TerminationReason)})
+	}
 	sortBlockers(blockers)
 	status := PromotionPassed
 	if len(blockers) > 0 {
@@ -89,11 +120,28 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 		Status:              status, Blockers: blockers, Reasons: blockerMessages(blockers),
 		EvaluatedAt: now, Revision: 1,
 	}
+	record.Lifecycle, record.LifecycleReason = catalog.PromotionLifecycleFor(status, blockers)
+	record.ValueTier = "CONDUIT_NATIVE"
+	if request.Termination != "" {
+		record.Lifecycle = request.Termination
+		record.LifecycleReason = strings.TrimSpace(request.TerminationReason)
+	}
 	sort.Slice(record.Evidence, func(i, j int) bool {
 		left := record.Evidence[i].Environment + "/" + record.Evidence[i].InstallationID
 		right := record.Evidence[j].Environment + "/" + record.Evidence[j].InstallationID
 		return left < right
 	})
+	if previous != nil {
+		record.RunID = previous.RunID
+		record.PreviousEvaluationID = previous.ID
+	} else {
+		// Use the immutable first evaluation's identity as the run coordinate.
+		runIdentity, err := promotionIdentity(record)
+		if err != nil {
+			return PromotionRecord{}, err
+		}
+		record.RunID = "run_" + strings.TrimPrefix(runIdentity, "pro_")
+	}
 	identity, err := promotionIdentity(record)
 	if err != nil {
 		return PromotionRecord{}, err
@@ -330,10 +378,40 @@ func validatePromotions(promotions []PromotionRecord, releases []Release, errs *
 		// them, so the re-derivation above selects from exactly the values the
 		// original decision selected from -- with no repository, and with no
 		// dependence on what those Environments are labelled today.
+		// Terminal blockers only deny eligibility. Preserve their meaning even in
+		// a legacy client's projection that cannot carry the lifecycle envelope.
+		blockers = append(blockers, blockersOfKind(promotion.Blockers, catalog.PromotionBlockerAborted)...)
+		blockers = append(blockers, blockersOfKind(promotion.Blockers, catalog.PromotionBlockerCancelled)...)
 		sortBlockers(blockers)
 		expectedStatus := PromotionPassed
 		if len(blockers) > 0 {
 			expectedStatus = PromotionBlocked
+		}
+		if promotion.RunID == "" {
+			if err := catalog.ValidatePromotionContinuation(promotion, nil); err != nil {
+				*errs = append(*errs, ValidationError{Path: path + ".lifecycle", Message: err.Error()})
+			}
+		}
+		if promotion.RunID != "" {
+			others := append([]PromotionRecord(nil), promotions[:index]...)
+			others = append(others, promotions[index+1:]...)
+			// A root is followed by descendants; only another root competes with it.
+			ancestors := others
+			if promotion.PreviousEvaluationID == "" {
+				ancestors = nil
+				for _, other := range others {
+					if other.RunID == promotion.RunID && other.PreviousEvaluationID == "" {
+						ancestors = append(ancestors, other)
+					}
+				}
+			}
+			if err := catalog.ValidatePromotionContinuation(promotion, ancestors); err != nil {
+				*errs = append(*errs, ValidationError{Path: path + ".lifecycle", Message: err.Error()})
+			}
+			phase, reason := catalog.PromotionLifecycleFor(expectedStatus, blockers)
+			if promotion.Lifecycle != phase || promotion.LifecycleReason != reason || promotion.ValueTier != "CONDUIT_NATIVE" {
+				*errs = append(*errs, ValidationError{Path: path + ".lifecycle", Message: "must reproduce from the recorded decision and terminal reason"})
+			}
 		}
 		if promotion.Status != expectedStatus || !stringSlicesEqual(promotion.Reasons, blockerMessages(blockers)) {
 			*errs = append(*errs, ValidationError{Path: path + ".status", Message: "must reproduce from the recorded policy and evidence"})
