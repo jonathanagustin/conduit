@@ -47,7 +47,8 @@ the repositories and their adoption work, not just DDL, and is a measurement
 of this stated synthetic dataset on this host, not a production capacity bound.
 
 This addresses the populated-data part of #263. It does **not** run a Hub
-server or Agent, establish either direction of wire-version compatibility,
-roll two serving replicas, renew an in-flight lease, or establish backward
-audit-reader compatibility. Those remain production blockers until separately
-rehearsed. There is no down migration or implicit rollback claim.
+server or Agent, roll two serving replicas, renew an in-flight lease, or
+establish backward audit-reader compatibility. The separate
+[wire-version rehearsal](version-skew-rehearsal.md) runs both Agent/Hub source
+directions with real Helm. The live rollout remains a production blocker.
+There is no down migration or implicit rollback claim.
