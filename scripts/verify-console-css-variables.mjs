@@ -34,7 +34,7 @@ import { dirname, join, relative, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const SRC = resolve(ROOT, "web/src");
+const SOURCE_ROOTS = ["web/src", "web/app", "web/components"].map((directory) => resolve(ROOT, directory));
 const BLUEPRINT = resolve(ROOT, "web/node_modules/@blueprintjs/core/lib/css/blueprint-design-tokens.css");
 
 function walk(directory) {
@@ -47,7 +47,13 @@ function walk(directory) {
 let files;
 let blueprint;
 try {
-  files = walk(SRC);
+  files = SOURCE_ROOTS.filter((directory) => {
+    try {
+      return statSync(directory).isDirectory();
+    } catch {
+      return false;
+    }
+  }).flatMap((directory) => walk(directory));
   blueprint = readFileSync(BLUEPRINT, "utf8");
 } catch (error) {
   console.error(`FAIL console css variables: could not read the console sources -- ${error.message}`);
