@@ -332,16 +332,6 @@ type memoryRepositoryState struct {
 	ProductPublications         map[string]ProductPublication            `json:"productPublications"`
 }
 
-func (repository *MemoryRepository) encodeState() ([]byte, error) {
-	repository.mu.Lock()
-	defer repository.mu.Unlock()
-	encoded, err := json.Marshal(repository.stateLocked())
-	if err != nil {
-		return nil, fmt.Errorf("encode repository state: %w", err)
-	}
-	return encoded, nil
-}
-
 func (repository *MemoryRepository) stateLocked() memoryRepositoryState {
 	return memoryRepositoryState{
 		Plans: repository.plans, Reports: repository.reports, Suppressions: repository.suppressions,

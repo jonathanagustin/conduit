@@ -3,6 +3,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 import type { PromotionRecord } from "../../api/catalog.js";
 import {
+  currentInProgress,
   latestForChannel,
   ReleaseChannelGraph,
 } from "../../components/ReleaseChannelGraph.js";
@@ -74,4 +75,46 @@ it("keeps the terminal state when one run's observations share a timestamp", () 
   };
   expect(latestForChannel([running, cancelled], "DEV")?.id).toBe("cancelled");
   expect(latestForChannel([cancelled, running], "DEV")?.id).toBe("cancelled");
+});
+
+it("keeps an older active version discoverable while hiding a terminated run's old observations", () => {
+  const oldRun: PromotionRecord = {
+    ...base,
+    id: "old-running",
+    runId: "old-run",
+    lifecycle: "RUNNING",
+    version: "0.1.0",
+    evaluatedAt: "2026-11-13T10:00:00Z",
+  };
+  const latest: PromotionRecord = {
+    ...base,
+    id: "latest",
+    runId: "latest-run",
+    lifecycle: "SUCCEEDED",
+    status: "PASSED",
+    evaluatedAt: "2026-11-13T12:00:00Z",
+  };
+  expect(
+    currentInProgress([oldRun, latest]).map((record) => record.id),
+  ).toEqual([oldRun.id]);
+  const cancelled: PromotionRecord = {
+    ...oldRun,
+    id: "cancelled",
+    previousEvaluationId: oldRun.id,
+    lifecycle: "CANCELLED",
+  };
+  expect(currentInProgress([cancelled, oldRun, latest])).toEqual([]);
+});
+
+it("shows an unrecognized future lifecycle without claiming cancellation", () => {
+  const promotion: PromotionRecord = {
+    ...base,
+    lifecycle: "FUTURE" as NonNullable<PromotionRecord["lifecycle"]>,
+  };
+  const detail = renderToStaticMarkup(
+    createElement(TransitionDetail, { promotion }),
+  );
+  expect(detail).toContain("FUTURE");
+  expect(detail).toContain("Promotion lifecycle not recognized.");
+  expect(detail).not.toContain("Promotion cancelled.");
 });

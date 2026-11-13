@@ -2,7 +2,10 @@
 
 Conduit distinguishes a reproducible eligibility verdict (`PASSED` / `BLOCKED`)
 from a promotion run's lifecycle. The graph and transition detail show the
-lifecycle when supplied and retain the verdict view for older records.
+lifecycle when supplied and retain the verdict view for older records. Active
+runs for older Release versions remain selectable beside newer channel results;
+terminated runs do not leave their earlier RUNNING observations in that list.
+Unknown future phase tokens render without inventing a cancellation outcome.
 
 The public Apollo changelog describes in-progress, succeeded and aborted
 promotions and cancellation reasons. Its current pinned documentation row is
@@ -83,3 +86,10 @@ graph and detail, legacy rendering, and terminal observations sharing a clock
 tick with older running evidence. The console contract gate compares the Go
 phase vocabulary with the shared presentation map, and embedded assets are
 rebuilt and compared against the production build.
+
+Local acceptance completed with the full Go race suite and vet, the pinned
+PostgreSQL gate, 127 console unit tests, 191 browser tests and exact embedded
+asset comparison. Three compiling mutations were killed: removing the terminal
+predecessor guard, including additive lifecycle fields in legacy decision
+identities, and disabling PostgreSQL envelope hydration. Mutation work used a
+separate committed worktree; production source was not restored from a mutant.

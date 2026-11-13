@@ -14,7 +14,12 @@ import {
  * transition node reveals why a Release cannot advance. */
 
 const ENVIRONMENT = {
-  environment: { id: "prod-use1", generation: "0123456789abcdef", connectionSetting: "DIRECT", defaultReleaseChannel: "RELEASE" },
+  environment: {
+    id: "prod-use1",
+    generation: "0123456789abcdef",
+    connectionSetting: "DIRECT",
+    defaultReleaseChannel: "RELEASE",
+  },
   reported: {
     environment: "prod-use1",
     agentId: "agent-prod",
@@ -54,9 +59,16 @@ const ENVIRONMENT_PLAN = {
 };
 
 test.describe("Environments", () => {
-  test("lists Environments with their connection setting", async ({ page, hub }) => {
+  test("lists Environments with their connection setting", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments", {
-      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      environments: [ENVIRONMENT_SUMMARY],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     await page.goto("environments");
 
@@ -68,26 +80,47 @@ test.describe("Environments", () => {
     await expect(row).toContainText("1");
   });
 
-  test("marks an Environment that has never reported", async ({ page, hub }) => {
+  test("marks an Environment that has never reported", async ({
+    page,
+    hub,
+  }) => {
     // Never having reported and reporting nothing are different conditions: one
     // has no Agent, the other has an Agent with nothing to say.
     hub.get("/environments", {
-      environments: [{ environment: { id: "dev-use2", connectionSetting: "DIRECT" } }],
-      total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      environments: [
+        { environment: { id: "dev-use2", connectionSetting: "DIRECT" } },
+      ],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     await page.goto("environments");
 
-    await expect(page.getByRole("row", { name: /dev-use2/ })).toContainText("never reported");
+    await expect(page.getByRole("row", { name: /dev-use2/ })).toContainText(
+      "never reported",
+    );
   });
 
-  test("opens an Environment and shows its reported Entities", async ({ page, hub }) => {
+  test("opens an Environment and shows its reported Entities", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments", {
-      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      environments: [ENVIRONMENT_SUMMARY],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     hub.get("/environments/prod-use1", ENVIRONMENT);
     // Most Environments have no profile; the endpoint answers 404 and the detail
     // page shows no metadata section rather than an error.
-    hub.fails("/environments/prod-use1/profile", 404, "no profile for prod-use1");
+    hub.fails(
+      "/environments/prod-use1/profile",
+      404,
+      "no profile for prod-use1",
+    );
     await page.goto("environments");
 
     await page.getByRole("link", { name: "prod-use1" }).click();
@@ -100,15 +133,23 @@ test.describe("Environments", () => {
     await expect(page.getByTestId("environment-profile")).toHaveCount(0);
   });
 
-  test("shows an Environment's display metadata when it has a profile", async ({ page, hub }) => {
+  test("shows an Environment's display metadata when it has a profile", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments", {
-      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      environments: [ENVIRONMENT_SUMMARY],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     hub.get("/environments/prod-use1", ENVIRONMENT);
     hub.get("/environments/prod-use1/profile", {
       environmentId: "prod-use1",
       displayName: "Production — US East",
-      description: "Primary revenue-serving Environment for the payments product.",
+      description:
+        "Primary revenue-serving Environment for the payments product.",
     });
     await page.goto("environments/prod-use1");
 
@@ -122,7 +163,11 @@ test.describe("Environments", () => {
     // nodes, never innerHTML), so a heading and an emphasised span appear as
     // real elements rather than as their raw markers.
     hub.get("/environments", {
-      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      environments: [ENVIRONMENT_SUMMARY],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     hub.get("/environments/prod-use1", ENVIRONMENT);
     hub.get("/environments/prod-use1/profile", {
@@ -134,23 +179,41 @@ test.describe("Environments", () => {
     await page.goto("environments/prod-use1");
 
     const readme = page.getByTestId("environment-readme");
-    await expect(readme.getByRole("heading", { name: "Runbook" })).toBeVisible();
+    await expect(
+      readme.getByRole("heading", { name: "Runbook" }),
+    ).toBeVisible();
     await expect(readme.locator("strong")).toHaveText("on-call");
-    await expect(page.getByTestId("environment-profile")).toContainText("payments-platform");
+    await expect(page.getByTestId("environment-profile")).toContainText(
+      "payments-platform",
+    );
   });
 
-  test("marks an Environment whose settings are owned by another Hub", async ({ page, hub }) => {
+  test("marks an Environment whose settings are owned by another Hub", async ({
+    page,
+    hub,
+  }) => {
     // A COPY_OF_ANOTHER_HUB Environment mirrors upstream: its local values are
     // not authoritative and cannot be edited here, so the detail page says so
     // rather than letting an operator read a read-only mirror as the source.
     hub.get("/environments", {
-      environments: [ENVIRONMENT_SUMMARY], total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      environments: [ENVIRONMENT_SUMMARY],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     hub.get("/environments/prod-use1", {
-      environment: { ...ENVIRONMENT.environment, declaredStateSource: "COPY_OF_ANOTHER_HUB" },
+      environment: {
+        ...ENVIRONMENT.environment,
+        declaredStateSource: "COPY_OF_ANOTHER_HUB",
+      },
       reported: ENVIRONMENT.reported,
     });
-    hub.fails("/environments/prod-use1/profile", 404, "no profile for prod-use1");
+    hub.fails(
+      "/environments/prod-use1/profile",
+      404,
+      "no profile for prod-use1",
+    );
     await page.goto("environments/prod-use1");
 
     await expect(page.getByTestId("environment-source-notice")).toContainText(
@@ -158,15 +221,30 @@ test.describe("Environments", () => {
     );
   });
 
-  test("keeps Environment search and opaque paging in the URL", async ({ page, hub }) => {
+  test("keeps Environment search and opaque paging in the URL", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments", {
-      environments: [ENVIRONMENT_SUMMARY], total: 2, pageSize: 1, limit: 1,
-      hasPrevious: false, nextCursor: "environment-next",
+      environments: [ENVIRONMENT_SUMMARY],
+      total: 2,
+      pageSize: 1,
+      limit: 1,
+      hasPrevious: false,
+      nextCursor: "environment-next",
     });
-    hub.get("/environments", {
-      environments: [{ environment: { id: "stage-use1" } }], total: 2, pageSize: 1, limit: 1,
-      hasPrevious: true, previousCursor: "",
-    }, { cursor: "environment-next" });
+    hub.get(
+      "/environments",
+      {
+        environments: [{ environment: { id: "stage-use1" } }],
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        hasPrevious: true,
+        previousCursor: "",
+      },
+      { cursor: "environment-next" },
+    );
     await page.goto("environments");
     const environments = new EnvironmentIndexPom(page);
 
@@ -179,10 +257,17 @@ test.describe("Environments", () => {
     await environments.search.fill("prod");
     await environments.search.press("Enter");
     await expect(page).toHaveURL(/search=prod/);
-    await expect.poll(() => hub.requests().some((request) => request.includes("search=prod"))).toBe(true);
+    await expect
+      .poll(() =>
+        hub.requests().some((request) => request.includes("search=prod")),
+      )
+      .toBe(true);
   });
 
-  test("leads the Overview with health, not with a table", async ({ page, hub }) => {
+  test("leads the Overview with health, not with a table", async ({
+    page,
+    hub,
+  }) => {
     // Capture 206 shows the upstream Overview as numbered sections; the plan's
     // wireframe leads with health and generation. An Entities table under the
     // name "Overview" answers a different question from the one the tab asks.
@@ -210,7 +295,8 @@ test.describe("Environments", () => {
     await expect(page.getByText("1 drifted")).toBeVisible();
     // Scoped to the Generation section: the generation also appears as a tag in
     // the header, and an unscoped match is ambiguous rather than wrong.
-    const generation = environment.overviewSummary.getByText(/0123456789abcdef/);
+    const generation =
+      environment.overviewSummary.getByText(/0123456789abcdef/);
     await expect(generation).toBeVisible();
   });
 
@@ -221,10 +307,15 @@ test.describe("Environments", () => {
     hub.get("/environments/dev-use2", { environment: { id: "dev-use2" } });
     await page.goto("environments/dev-use2");
 
-    await expect(page.getByText("This Environment has never reported")).toBeVisible();
+    await expect(
+      page.getByText("This Environment has never reported"),
+    ).toBeVisible();
   });
 
-  test("renders a command from inside the Plan that carries it", async ({ page, hub }) => {
+  test("renders a command from inside the Plan that carries it", async ({
+    page,
+    hub,
+  }) => {
     // /commands returns PlanRecord values whose command is nested, not a flat
     // command list. Decoding it flat produced a row of dashes with the Plan's
     // status sitting in the Type column, and the empty-state test could not see
@@ -255,44 +346,91 @@ test.describe("Environments", () => {
     await expect(row).toContainText("SUCCEEDED");
   });
 
-  test("moves between the Overview, Plans and Commands tabs", async ({ page, hub }) => {
+  test("moves between the Overview, Plans and Commands tabs", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments/prod-use1", ENVIRONMENT);
-    hub.get("/plans", { plans: [], total: 0, pageSize: 0, limit: 100, hasPrevious: false });
+    hub.get("/plans", {
+      plans: [],
+      total: 0,
+      pageSize: 0,
+      limit: 100,
+      hasPrevious: false,
+    });
     hub.get("/environments/prod-use1/commands", []);
     await page.goto("environments/prod-use1");
     const environment = new EnvironmentDetailPom(page);
 
     await environment.tab("Plans").click();
-    await expect(page.getByText("This Environment has no Plans.")).toBeVisible();
+    await expect(
+      page.getByText("This Environment has no Plans."),
+    ).toBeVisible();
 
     await environment.tab("Commands").click();
-    await expect(page.getByText(/No commands have been executed/)).toBeVisible();
+    await expect(
+      page.getByText(/No commands have been executed/),
+    ).toBeVisible();
   });
 
-  test("asks the Hub only for this Environment's Plans", async ({ page, hub }) => {
+  test("asks the Hub only for this Environment's Plans", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments/prod-use1", ENVIRONMENT);
-    hub.get("/plans", { plans: [], total: 0, pageSize: 0, limit: 100, hasPrevious: false });
+    hub.get("/plans", {
+      plans: [],
+      total: 0,
+      pageSize: 0,
+      limit: 100,
+      hasPrevious: false,
+    });
     await page.goto("environments/prod-use1");
     const environment = new EnvironmentDetailPom(page);
     await environment.tab("Plans").click();
 
-    await expect(page.getByText("This Environment has no Plans.")).toBeVisible();
-    expect(hub.requests().some((request) => request.includes("environment=prod-use1"))).toBe(true);
+    await expect(
+      page.getByText("This Environment has no Plans."),
+    ).toBeVisible();
+    expect(
+      hub
+        .requests()
+        .some((request) => request.includes("environment=prod-use1")),
+    ).toBe(true);
   });
 
-  test("opens a Plan from the Environment's scoped Plans tab", async ({ page, hub }) => {
+  test("opens a Plan from the Environment's scoped Plans tab", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/environments/prod-use1", ENVIRONMENT);
-    hub.get("/plans", { plans: [{ id: ENVIRONMENT_PLAN.id, environment: ENVIRONMENT_PLAN.plan.environment,
-      status: ENVIRONMENT_PLAN.status, stepCount: ENVIRONMENT_PLAN.plan.steps.length,
-      approvalCount: ENVIRONMENT_PLAN.approvals.length, requiredApprovals: ENVIRONMENT_PLAN.requiredApprovals,
-      createdAt: ENVIRONMENT_PLAN.createdAt, updatedAt: ENVIRONMENT_PLAN.updatedAt,
-      revision: ENVIRONMENT_PLAN.revision }], total: 1, pageSize: 1, limit: 100, hasPrevious: false });
+    hub.get("/plans", {
+      plans: [
+        {
+          id: ENVIRONMENT_PLAN.id,
+          environment: ENVIRONMENT_PLAN.plan.environment,
+          status: ENVIRONMENT_PLAN.status,
+          stepCount: ENVIRONMENT_PLAN.plan.steps.length,
+          approvalCount: ENVIRONMENT_PLAN.approvals.length,
+          requiredApprovals: ENVIRONMENT_PLAN.requiredApprovals,
+          createdAt: ENVIRONMENT_PLAN.createdAt,
+          updatedAt: ENVIRONMENT_PLAN.updatedAt,
+          revision: ENVIRONMENT_PLAN.revision,
+        },
+      ],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
+    });
     hub.get("/plans/pln_environment", ENVIRONMENT_PLAN);
     await page.goto("environments/prod-use1");
     const environment = new EnvironmentDetailPom(page);
 
     await environment.tab("Plans").click();
-    await expect(environment.planRow("pln_environment")).toContainText("APPROVED");
+    await expect(environment.planRow("pln_environment")).toContainText(
+      "APPROVED",
+    );
     await expect(environment.planLink("pln_environment")).toHaveAttribute(
       "href",
       "/console/plans/pln_environment",
@@ -342,8 +480,17 @@ test.describe("Products", () => {
 
   test("lists Products with their release count", async ({ page, hub }) => {
     hub.get("/products", {
-      products: [{ product: "app.example:payments", releaseCount: 2, latestVersion: "2.4.2" }],
-      total: 1, pageSize: 1, limit: 100, hasPrevious: false,
+      products: [
+        {
+          product: "app.example:payments",
+          releaseCount: 2,
+          latestVersion: "2.4.2",
+        },
+      ],
+      total: 1,
+      pageSize: 1,
+      limit: 100,
+      hasPrevious: false,
     });
     await page.goto("products");
 
@@ -351,26 +498,62 @@ test.describe("Products", () => {
     await expect(row).toContainText("2");
   });
 
-  test("pages Product summaries without downloading Releases", async ({ page, hub }) => {
+  test("pages Product summaries without downloading Releases", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/products", {
-      products: [{ product: "app.example:first", releaseCount: 12, latestVersion: "1.2.0" }],
-      total: 2, pageSize: 1, limit: 1, hasPrevious: false, nextCursor: "product-next",
+      products: [
+        {
+          product: "app.example:first",
+          releaseCount: 12,
+          latestVersion: "1.2.0",
+        },
+      ],
+      total: 2,
+      pageSize: 1,
+      limit: 1,
+      hasPrevious: false,
+      nextCursor: "product-next",
     });
-    hub.get("/products", {
-      products: [{ product: "app.example:second", releaseCount: 8, latestVersion: "2.0.0" }],
-      total: 2, pageSize: 1, limit: 1, hasPrevious: true, previousCursor: "",
-    }, { cursor: "product-next" });
+    hub.get(
+      "/products",
+      {
+        products: [
+          {
+            product: "app.example:second",
+            releaseCount: 8,
+            latestVersion: "2.0.0",
+          },
+        ],
+        total: 2,
+        pageSize: 1,
+        limit: 1,
+        hasPrevious: true,
+        previousCursor: "",
+      },
+      { cursor: "product-next" },
+    );
     await page.goto("products");
     const products = new ProductIndexPom(page);
 
-    await expect(products.pagination).toContainText("Showing 1 of 2 matching results");
+    await expect(products.pagination).toContainText(
+      "Showing 1 of 2 matching results",
+    );
     await products.next.click();
     await expect(page).toHaveURL(/cursor=product-next/);
-    await expect(page.getByRole("row", { name: /app.example:second/ })).toContainText("8");
-    expect(hub.requests().some((request) => request.includes("view=summary"))).toBe(true);
+    await expect(
+      page.getByRole("row", { name: /app.example:second/ }),
+    ).toContainText("8");
+    expect(
+      hub.requests().some((request) => request.includes("view=summary")),
+    ).toBe(true);
   });
 
-  test("shows each Release with its channels and immutable chart digest", async ({ page, hub }) => {
+  test("shows each Release with its channels and immutable chart digest", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
     hub.get("/promotions", indexPage("promotions", PRODUCT_PROMOTIONS));
     await page.goto("products/app.example%3Apayments");
@@ -383,7 +566,10 @@ test.describe("Products", () => {
     await expect(release).toContainText("sha256:abc");
   });
 
-  test("does not present an unassessed Release as a clean one", async ({ page, hub }) => {
+  test("does not present an unassessed Release as a clean one", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
     hub.get("/promotions", indexPage("promotions", PRODUCT_PROMOTIONS));
     await page.goto("products/app.example%3Apayments");
@@ -419,15 +605,30 @@ test.describe("Products", () => {
     ).toBe(true);
   });
 
-  for (const lifecycle of ["RUNNING", "SUCCEEDED", "ABORTED", "CANCELLED"] as const) {
-    test(`shows ${lifecycle} in the promotion graph and selected transition`, async ({ page, hub }) => {
-      const reason = lifecycle === "CANCELLED" || lifecycle === "ABORTED" ? "Superseded by the security fix" : "";
+  for (const lifecycle of [
+    "RUNNING",
+    "SUCCEEDED",
+    "ABORTED",
+    "CANCELLED",
+  ] as const) {
+    test(`shows ${lifecycle} in the promotion graph and selected transition`, async ({
+      page,
+      hub,
+    }) => {
+      const reason =
+        lifecycle === "CANCELLED" || lifecycle === "ABORTED"
+          ? "Superseded by the security fix"
+          : "";
       const promotion = {
-        ...PRODUCT_PROMOTIONS[0], lifecycle, valueTier: "CONDUIT_NATIVE",
+        ...PRODUCT_PROMOTIONS[0],
+        lifecycle,
+        valueTier: "CONDUIT_NATIVE",
         status: lifecycle === "SUCCEEDED" ? "PASSED" : "BLOCKED",
         ...(reason ? { lifecycleReason: reason } : {}),
       };
-      hub.get("/products/app.example:payments/releases", { releases: RELEASES });
+      hub.get("/products/app.example:payments/releases", {
+        releases: RELEASES,
+      });
       hub.get("/promotions", indexPage("promotions", [promotion]));
       await page.goto("products/app.example%3Apayments");
       const product = new ProductDetailPom(page);
@@ -444,17 +645,63 @@ test.describe("Products", () => {
     });
   }
 
-  test("keeps Releases usable when the Product promotion projection fails", async ({ page, hub }) => {
+  test("keeps an in-progress older Release visible beside the newest channel result", async ({
+    page,
+    hub,
+  }) => {
+    const running = {
+      ...PRODUCT_PROMOTIONS[0],
+      id: "older-running",
+      version: "2.4.1",
+      runId: "old-run",
+      lifecycle: "RUNNING",
+      evaluatedAt: "2026-08-07T10:00:00Z",
+      valueTier: "CONDUIT_NATIVE",
+    };
+    const succeeded = {
+      ...PRODUCT_PROMOTIONS[0],
+      id: "newer-succeeded",
+      version: "2.4.2",
+      runId: "new-run",
+      lifecycle: "SUCCEEDED",
+      status: "PASSED",
+      evaluatedAt: "2026-08-07T12:00:00Z",
+    };
+    hub.get("/products/app.example:payments/releases", { releases: RELEASES });
+    hub.get("/promotions", indexPage("promotions", [running, succeeded]));
+    await page.goto("products/app.example%3Apayments");
+    const product = new ProductDetailPom(page);
+    await expect(
+      product.promotionTransitionById("newer-succeeded"),
+    ).toContainText("SUCCEEDED");
+    const older = product.promotionTransitionById("older-running");
+    await expect(older).toContainText("version 2.4.1");
+    await expect(older).toContainText("RUNNING");
+    await older.click();
+    await expect(
+      product.promotionConstraintsById("older-running"),
+    ).toContainText("Promotion in progress.");
+  });
+
+  test("keeps Releases usable when the Product promotion projection fails", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
     hub.fails("/promotions", 500, "promotion store unavailable");
     await page.goto("products/app.example%3Apayments");
     const product = new ProductDetailPom(page);
 
     await expect(product.release("2.4.1")).toBeVisible();
-    await expect(page.getByText(/promotion pipeline .* could not be read/i)).toBeVisible();
+    await expect(
+      page.getByText(/promotion pipeline .* could not be read/i),
+    ).toBeVisible();
   });
 
-  test("calls an unevaluated Product pipeline unknown rather than clear", async ({ page, hub }) => {
+  test("calls an unevaluated Product pipeline unknown rather than clear", async ({
+    page,
+    hub,
+  }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
     hub.get("/promotions", indexPage("promotions", []));
     await page.goto("products/app.example%3Apayments");
@@ -464,7 +711,10 @@ test.describe("Products", () => {
 });
 
 test.describe("Promotions", () => {
-  test("keeps opaque traversal in the URL across reload and retry", async ({ page, hub }) => {
+  test("keeps opaque traversal in the URL across reload and retry", async ({
+    page,
+    hub,
+  }) => {
     const first = {
       id: "prm_first",
       product: "app.example:payments",
@@ -495,16 +745,31 @@ test.describe("Promotions", () => {
     );
 
     await page.goto("promotions?search=payments");
-    await page.getByTestId("promotions-pagination").getByRole("button", { name: "Next" }).click();
+    await page
+      .getByTestId("promotions-pagination")
+      .getByRole("button", { name: "Next" })
+      .click();
     await expect(page).toHaveURL(/cursor=promotion-next/);
-    await expect(page.getByTestId("promotion-transition-prm_second")).toBeVisible();
+    await expect(
+      page.getByTestId("promotion-transition-prm_second"),
+    ).toBeVisible();
 
-    const beforeReload = hub.requests().filter((request) => request.includes("cursor=promotion-next")).length;
+    const beforeReload = hub
+      .requests()
+      .filter((request) => request.includes("cursor=promotion-next")).length;
     await page.reload();
-    await expect(page.getByTestId("promotion-transition-prm_second")).toBeVisible();
-    expect(hub.requests().filter((request) => request.includes("cursor=promotion-next")).length).toBeGreaterThan(beforeReload);
+    await expect(
+      page.getByTestId("promotion-transition-prm_second"),
+    ).toBeVisible();
+    expect(
+      hub
+        .requests()
+        .filter((request) => request.includes("cursor=promotion-next")).length,
+    ).toBeGreaterThan(beforeReload);
 
-    hub.fails("/promotions", 500, "promotion store unavailable", { cursor: "promotion-next" });
+    hub.fails("/promotions", 500, "promotion store unavailable", {
+      cursor: "promotion-next",
+    });
     await page.reload();
     await expect(page.getByText(/promotions could not be read/i)).toBeVisible();
     hub.get(
@@ -518,57 +783,78 @@ test.describe("Promotions", () => {
       { cursor: "promotion-next" },
     );
     await page.getByRole("button", { name: "Try again" }).click();
-    await expect(page.getByTestId("promotion-transition-prm_second")).toBeVisible();
+    await expect(
+      page.getByTestId("promotion-transition-prm_second"),
+    ).toBeVisible();
     await expect(page).toHaveURL(/cursor=promotion-next/);
 
-    await page.getByTestId("promotions-pagination").getByRole("button", { name: "Previous" }).click();
+    await page
+      .getByTestId("promotions-pagination")
+      .getByRole("button", { name: "Previous" })
+      .click();
     await expect(page).not.toHaveURL(/cursor=/);
     await expect(page).toHaveURL(/search=payments/);
   });
 
-  test("says a promotion passed without listing constraints", async ({ page, hub }) => {
-    hub.get("/promotions", indexPage("promotions", [
-      {
-        id: "prm_1",
-        product: "app.example:payments",
-        version: "2.4.1",
-        fromChannel: "RELEASE",
-        toChannel: "STAGING",
-        status: "PASSED",
-      },
-    ]));
+  test("says a promotion passed without listing constraints", async ({
+    page,
+    hub,
+  }) => {
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [
+        {
+          id: "prm_1",
+          product: "app.example:payments",
+          version: "2.4.1",
+          fromChannel: "RELEASE",
+          toChannel: "STAGING",
+          status: "PASSED",
+        },
+      ]),
+    );
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_1").click();
 
-    await expect(page.getByText("Every constraint on this transition is satisfied.")).toBeVisible();
+    await expect(
+      page.getByText("Every constraint on this transition is satisfied."),
+    ).toBeVisible();
   });
 
-  test("shows why a blocked promotion cannot advance", async ({ page, hub }) => {
+  test("shows why a blocked promotion cannot advance", async ({
+    page,
+    hub,
+  }) => {
     // "Why not" is the whole screen: a status alone leaves the operator with
     // nothing to act on.
-    hub.get("/promotions", indexPage("promotions", [
-      {
-        id: "prm_2",
-        product: "app.example:payments",
-        version: "2.4.2",
-        fromChannel: "RELEASE",
-        toChannel: "STAGING",
-        status: "BLOCKED",
-        blockers: [
-          {
-            kind: "HEALTHY_ENTITIES_BELOW_MINIMUM",
-            message: "2 of 5 Entities are healthy",
-            subjects: ["prod-use1", "prod-euw1"],
-          },
-        ],
-      },
-    ]));
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [
+        {
+          id: "prm_2",
+          product: "app.example:payments",
+          version: "2.4.2",
+          fromChannel: "RELEASE",
+          toChannel: "STAGING",
+          status: "BLOCKED",
+          blockers: [
+            {
+              kind: "HEALTHY_ENTITIES_BELOW_MINIMUM",
+              message: "2 of 5 Entities are healthy",
+              subjects: ["prod-use1", "prod-euw1"],
+            },
+          ],
+        },
+      ]),
+    );
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_2").click();
 
-    await expect(page.getByText("HEALTHY_ENTITIES_BELOW_MINIMUM")).toBeVisible();
+    await expect(
+      page.getByText("HEALTHY_ENTITIES_BELOW_MINIMUM"),
+    ).toBeVisible();
     await expect(page.getByText("2 of 5 Entities are healthy")).toBeVisible();
     await expect(page.getByText(/prod-use1, prod-euw1/)).toBeVisible();
   });
@@ -577,37 +863,48 @@ test.describe("Promotions", () => {
     page,
     hub,
   }) => {
-    hub.get("/promotions", indexPage("promotions", [
-      {
-        id: "prm_3",
-        product: "app.example:payments",
-        version: "2.4.3",
-        fromChannel: "RELEASE",
-        toChannel: "STAGING",
-        status: "BLOCKED",
-        reasons: ["the soak period has not elapsed"],
-      },
-    ]));
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [
+        {
+          id: "prm_3",
+          product: "app.example:payments",
+          version: "2.4.3",
+          fromChannel: "RELEASE",
+          toChannel: "STAGING",
+          status: "BLOCKED",
+          reasons: ["the soak period has not elapsed"],
+        },
+      ]),
+    );
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_3").click();
 
-    await expect(page.getByText("the soak period has not elapsed")).toBeVisible();
+    await expect(
+      page.getByText("the soak period has not elapsed"),
+    ).toBeVisible();
   });
 
-  test("calls a blocked promotion with no reason a Hub defect", async ({ page, hub }) => {
+  test("calls a blocked promotion with no reason a Hub defect", async ({
+    page,
+    hub,
+  }) => {
     // Blocked with nothing to satisfy is not a constraint the operator can act
     // on, and saying so is more useful than an empty list.
-    hub.get("/promotions", indexPage("promotions", [
-      {
-        id: "prm_4",
-        product: "app.example:payments",
-        version: "2.4.4",
-        fromChannel: "RELEASE",
-        toChannel: "STAGING",
-        status: "BLOCKED",
-      },
-    ]));
+    hub.get(
+      "/promotions",
+      indexPage("promotions", [
+        {
+          id: "prm_4",
+          product: "app.example:payments",
+          version: "2.4.4",
+          fromChannel: "RELEASE",
+          toChannel: "STAGING",
+          status: "BLOCKED",
+        },
+      ]),
+    );
     await page.goto("promotions");
     const promotions = new PromotionsPom(page);
     await promotions.transition("prm_4").click();

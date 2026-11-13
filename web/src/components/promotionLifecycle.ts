@@ -11,3 +11,21 @@ export const PROMOTION_LIFECYCLE_INTENT: Record<
   ABORTED: "danger",
   CANCELLED: "warning",
 };
+
+export const PROMOTION_LIFECYCLE_MESSAGE: Record<
+  NonNullable<PromotionRecord["lifecycle"]>,
+  string
+> = {
+  RUNNING: "Promotion in progress.",
+  SUCCEEDED: "Promotion succeeded.",
+  ABORTED: "Promotion aborted.",
+  CANCELLED: "Promotion cancelled.",
+};
+
+export function isTerminalPromotion(lifecycle: string | undefined): boolean {
+  return (
+    lifecycle === "SUCCEEDED" ||
+    lifecycle === "ABORTED" ||
+    lifecycle === "CANCELLED"
+  );
+}

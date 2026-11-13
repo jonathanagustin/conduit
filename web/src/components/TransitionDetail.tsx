@@ -1,7 +1,10 @@
 import { Callout, Tag } from "@blueprintjs/core";
 
 import type { PromotionRecord } from "../api/catalog.js";
-import { PROMOTION_LIFECYCLE_INTENT } from "./promotionLifecycle.js";
+import {
+  PROMOTION_LIFECYCLE_INTENT,
+  PROMOTION_LIFECYCLE_MESSAGE,
+} from "./promotionLifecycle.js";
 import "./transition-detail.css";
 
 /** What governs one transition. This is the panel capture 314 describes.
@@ -45,16 +48,11 @@ export function TransitionDetail({
 
       {promotion.lifecycle !== undefined ? (
         <Callout
-          intent={PROMOTION_LIFECYCLE_INTENT[promotion.lifecycle]}
+          intent={PROMOTION_LIFECYCLE_INTENT[promotion.lifecycle] ?? "none"}
           compact
         >
-          {promotion.lifecycle === "RUNNING"
-            ? "Promotion in progress."
-            : promotion.lifecycle === "SUCCEEDED"
-              ? "Promotion succeeded."
-              : promotion.lifecycle === "ABORTED"
-                ? "Promotion aborted."
-                : "Promotion cancelled."}
+          {PROMOTION_LIFECYCLE_MESSAGE[promotion.lifecycle] ??
+            "Promotion lifecycle not recognized."}
           {promotion.lifecycleReason ? ` ${promotion.lifecycleReason}` : ""}
           {promotion.valueTier === "CONDUIT_NATIVE" ? (
             <Tag minimal>Conduit lifecycle</Tag>
