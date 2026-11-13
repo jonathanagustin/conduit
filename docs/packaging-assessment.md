@@ -227,6 +227,17 @@ invoke that venv's Python with `-I`. The exact installed dependency versions are
 checked and recorded. `python -I -B scripts/test-packaging-validator.py` exercises
 negative cases; its mocked tools are explicitly NOT live-validation evidence.
 
+`python3 scripts/test-packaging-gates.py` is the shared CI/local regression gate.
+It requires Python 3.12, creates a temporary isolated venv, installs the exact
+requirements pins and runs both validator and Codex-protocol regression suites.
+Any install/test failure or timeout fails the gate. The Trunk Go lane calls it
+under the existing Go-relevant scope; scripts/ and workflow edits select that
+lane. `verify-local.sh` calls the same command and includes Python scripts in
+its reverse CI-coverage check. No new permissions, Actions, model calls or
+credential requirements are introduced. Existing head authentication, draft
+skip policy, concurrency and runtime limits remain unchanged. Draft CI can
+therefore still skip; wiring is not evidence that hosted CI ran or passed.
+
 Actual isolated execution produced all-passed structural checks for the generated
 end-to-end fixture. A separate actual CLI call with altered content returned
 exit 1, artifact-binding failed and all later checks not-run. Nine unit/process
