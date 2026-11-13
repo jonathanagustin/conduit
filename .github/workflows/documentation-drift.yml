@@ -20,13 +20,11 @@ name: Documentation drift
 # Depends on scripts/verify-documentation-manifest.mjs, which lands with the
 # Apollo-documented-surface work (#29). Merge this after that, or a scheduled
 # run finds no script.
+# Schedule removed 2026-11-12: the weekly crawl had been failing every Monday
+# because the Palantir public docs corpus drifted, and the 45-day freshness
+# gate on trunk was already hard-failing. Re-enable a schedule only after a
+# reviewed corpus refresh. Until then this is dispatch-only.
 on:
-  schedule:
-    # Mondays at 07:00 UTC -- weekly is the lowest useful frequency and is well
-    # inside the 45-day window the offline freshness gate hard-fails at, so
-    # drift surfaces here long before it can block a candidate. Offset an hour
-    # from the mutation sweep so the two do not start together.
-    - cron: "0 7 * * 1"
   workflow_dispatch:
 
 concurrency:

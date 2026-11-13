@@ -15,9 +15,10 @@ name: Mutation sweep
 # catching mutation-score drift between the code changes that cause it.
 on:
   schedule:
-    # Mondays at 06:00 UTC. A weekly cadence is well inside the 90-day staleness
-    # window the offline gate enforces, so the recorded baseline never rots.
-    - cron: "0 6 * * 1"
+    # First of the month at 06:00 UTC. Weekly runs were spending a runner to
+    # confirm a baseline that barely moves; monthly stays inside the 90-day
+    # offline staleness window. Dispatch remains available for a manual sweep.
+    - cron: "0 6 1 * *"
   workflow_dispatch:
     inputs:
       write:
@@ -90,5 +91,6 @@ jobs:
         if: ${{ inputs.write }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
+          retention-days: 7
           name: mutation-scores
           path: docs/operations/mutation-scores.json
