@@ -241,3 +241,58 @@ as a release gate. A future governed integration must bind the actual trusted
 producer/run, freshness/policy, exact target and artifact identities through
 existing Conduit controls. Image authenticity, package build, runtime/airgap
 behavior and deployment permission are outside this validation profile.
+
+## Codex runtime feasibility and handshake-only preflight
+
+Current main and the separate #342 UI branch were inspected read-only before
+this step. UI remains fixture-only/unavailable and is not changed here. The
+machine's global Codex was 0.166.0 while mise.toml pins 0.148.0. Rather than
+silently change the repository contract, an official @openai/codex@0.148.0 copy
+was acquired in an isolated temporary prefix with lifecycle scripts disabled.
+No global installation, personal configuration or stored authentication was
+copied/changed. Official documentation consulted:
+https://learn.chatgpt.com/docs/app-server .
+
+The exact executable generated its JSON schemas. Crucial mismatch: current
+online documentation describes restricted read roots, but the pinned 0.148.0
+TurnStartParams SandboxPolicy readOnly variant only exposes type/networkAccess,
+not restricted readable roots. Read-only is therefore NOT enough evidence that
+an agent cannot read unrelated host files. No model turn was launched on that
+assumption, and no sandbox/security setting was changed.
+
+Generated schema hashes (SHA-256):
+- v1/InitializeParams.json:
+  6f0094be9a65242ec779a40794cbd4fdfa32fca1e45084a16adfb50501d33ea2
+- v1/InitializeResponse.json:
+  62ad689c2cb6379913c1d72749cfd8de5089d35760214123518eb92eef11acc9
+- v2/TurnStartParams.json:
+  ff2e7e0796fbe2ad99e5ec7d489cc8c8630b75f2ab8f17857711107587e3197d
+
+`scripts/probe-codex-runtime.py --executable PATH --sha256 HASH` accepts only the
+reviewed official Windows 0.148.0 executable, SHA-256
+`2ad2cf8a732da68b8f141634f92db1a03016c5faf533a7225fbc0fb740130410`.
+It uses fresh HOME/CODEX_HOME/workspace/config directories and a filtered process
+environment. It sends ONLY initialize and initialized with experimentalApi=false.
+No thread/start, turn/start, login, model request, MCP tool or approval response
+is sent. The actual server-reported home must match the isolated directory.
+
+Protocol output is bounded through shutdown. Any server request, malformed/extra
+response, unknown notification, capture failure, nonzero exit, timeout or cleanup
+failure blocks success. The one observed startup notification,
+remoteControl/status/changed, is accepted only with disabled status and no remote
+environment. Its private identity fields are never echoed. This is a process
+preflight, NOT a security sandbox or operational agent adapter.
+
+Actual verified result: handshake-verified-model-disabled, remoteControl=disabled,
+runtimeAvailable=false, threadStarted=false, turnStarted=false. Eight protocol /
+orchestration tests pass, covering wrong IDs/home/binaries, duplicate/oversized
+frames, credential exclusion, extra approvals, bad exits, timeout, overflow,
+cleanup failures and connected remote-control state. Test command:
+`python -I -B scripts/test-codex-probe.py`.
+
+**Live runtime blocker:** establish an independently confined inference
+workspace (or explicitly review a different pinned protocol and verify its
+platform enforcement), plus a dedicated authorized authentication flow. Merely
+setting cwd or read-only does not prove that scope. No HTTP runtime endpoint,
+backend-owned agent session, real model response, tool bridge or UI integration
+is implemented by this probe. #342 remains open; UI availability must stay false.
