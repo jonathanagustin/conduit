@@ -153,3 +153,51 @@ then runs actual Helm 3.19.0 strict lint and render on both charts in a temporar
 directory. Python jsonschema and PyYAML are prerequisites. Both charts passed.
 This is NOT Kubernetes admission/operator validation, Zarf package creation,
 image pull/provenance verification or live workload testing. No cluster is used.
+
+## Evidence-bound source-to-scaffold path
+
+`go run ./cmd/conduit-assess plan ROOT COMMIT Dockerfile [SUPPORTING_FILE...]`
+reads a bounded JSON request on stdin and emits the `reviewed-packaging/v1`
+contract. First pass with `{}` returns a `needs-review` packet: selected source
+path/blob/content hashes, an aggregate evidence digest, literal observations
+and explicit blockers. Raw source text is not echoed; parsed literals are not a secret-redaction guarantee.
+
+A subsequent request has two objects:
+- `scaffold`: the strict input documented above. Its source revision and content
+  hash must match the actual primary Git blob, not a supplied assertion alone.
+- `review`: `evidenceSHA256` from that exact source set, plus `decisions`, each
+  containing `topic`, `disposition` and a bounded nonempty `rationale`. Required
+  topics are persistence, secrets, startup-downloads and identity. Dispositions
+  are none, required or unknown; only an explicit none for all four is supported
+  by this deliberately narrow internal-stateless profile.
+
+The decision values are caller declarations, not proof a human reviewed them
+and NOT deployment approval. Missing/stale decisions, changed source scope,
+unknown/required capabilities, runtime VOLUME, missing/unresolved/mismatched
+numeric USER, or a proposed port without final-stage literal TCP evidence yield
+blockers with NO artifacts or proposal digest. Current planning conservatively
+rejects multi-stage and other unsupported Dockerfile syntax even when discovery
+can show partial facts. The final effective literal USER wins over intermediate
+USER instructions. This is not a complete Dockerfile interpreter.
+
+On success, the plan contains `scaffold-needs-validation` artifacts and a separate
+`planSHA256` binding the evidence set, canonical review decisions and artifact
+digest. Changing the rationale/source/configuration invalidates that identity;
+reordering identical decisions does not. Existing Conduit approval/execution
+controls remain authoritative. This command does not submit a delivery Plan or
+create an approval. The lower-level `scaffold` command remains an explicit-input
+renderer without this evidence-binding layer.
+
+Verified end to end: an isolated synthetic Git repository was read, a review
+packet issued, explicit test decisions supplied, and actual emitted artifacts
+passed the pinned schema and Helm lint/render checker. The test identities and
+example.invalid images are synthetic, not deployment candidates.
+
+Real GeoServer negative trial: pinned revision above, selecting Dockerfile,
+README.md and startup.sh, evidence SHA-256
+`95247295415aed92bf40cafc55e85883c1cfd7333eec3628c2d1bc873a691db0`.
+Source-backed review identified persistence, administrative-secret lifecycle,
+unresolved startup extension downloads and missing UDS identity integration.
+The workflow returned those four blockers plus unsupported Dockerfile syntax
+and missing final numeric USER evidence. It emitted NO artifacts. This is an
+honest coverage limit, not a successful GeoServer packaging result.

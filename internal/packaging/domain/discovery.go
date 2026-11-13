@@ -16,10 +16,11 @@ type SourceFact struct {
 	Stage int    `json:"stage"`
 }
 type Discovery struct {
-	Status    string       `json:"status"`
-	Extractor string       `json:"extractor"`
-	Facts     []SourceFact `json:"facts"`
-	Warnings  []string     `json:"warnings"`
+	FinalStage int          `json:"finalStage"`
+	Status     string       `json:"status"`
+	Extractor  string       `json:"extractor"`
+	Facts      []SourceFact `json:"facts"`
+	Warnings   []string     `json:"warnings"`
 }
 
 var escapeDirective = regexp.MustCompile(`(?im)^\s*#\s*escape\s*=`)
@@ -94,9 +95,12 @@ func DiscoverDockerfile(name, text string) Discovery {
 		case "USER":
 			if len(fields) == 2 && !strings.ContainsAny(args, "$\r\n\x00") {
 				add("declared-user", args, i+1)
+			} else {
+				d.Warnings = append(d.Warnings, fmt.Sprintf("%s:%d: unresolved user", name, i+1))
 			}
 		}
 	}
+	d.FinalStage = stage
 	if stage == 0 {
 		d.Warnings = append(d.Warnings, "No literal FROM instruction found.")
 	}

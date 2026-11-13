@@ -169,6 +169,13 @@
       "riskIfWrong": "Product naming and preparation format may need migration before publication. Input metadata consistency and CLI byte hashes do not authenticate signatures or registry availability. Output says NOT_PUBLISHED and preserves those unperformed checks; no publication, subscription or deployment authority is added."
     },
     {
+      "id": "packaging.PlanPackaging",
+      "what": "Versioned source-evidence-bound caller review to constrained scaffold workflow, not delivery approval.",
+      "why": "Invalidate stale review inputs and keep unsupported application requirements explicit before artifact emission.",
+      "displacedBy": "A reviewed production evidence-to-packaging workflow contract.",
+      "riskIfWrong": "Caller declarations can be incorrect; byte-bound evidence is not semantic truth, image provenance, runtime validation or human authorization."
+    },
+    {
       "id": "packaging.GenerateScaffold",
       "what": "Conduit-native constrained internal-stateless profile emitting deterministic review artifacts, not deployable integration.",
       "why": "Keep unsupported requirements explicit while testing pinned schema contracts before agent runtime integration.",

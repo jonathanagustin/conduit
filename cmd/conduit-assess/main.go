@@ -22,6 +22,8 @@ func main() {
 	var err error
 	if len(os.Args) == 1 {
 		err = run(os.Stdin, os.Stdout)
+	} else if os.Args[1] == "plan" {
+		err = plan(os.Args[2:], os.Stdin, os.Stdout)
 	} else if os.Args[1] == "scaffold" && len(os.Args) == 2 {
 		err = scaffold(os.Stdin, os.Stdout)
 	} else if os.Args[1] == "discover" {
