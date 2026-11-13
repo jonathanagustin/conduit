@@ -16,3 +16,8 @@ document in the same change.
 | A8 | A clean production cluster can reconcile the signed private Conduit runtime artifact without any Git credential or Git source. | CONFIRMED | `scripts/test-gitless-clean-cluster.sh`; clean k3d run at `c43c547` proved pull-only authentication, trusted-signature success, wrong-signer rejection, exact-digest reconciliation, and zero Git sources or credentials | Gitless GitOps production claim |
 | A9 | Production PostgreSQL Hub replicas continuously reconcile committed tenant intent through context-owned durable work while Flux owns only Conduit runtime convergence. | CONFIRMED | `scripts/test-postgres-repository.sh`; `scripts/verify-domain-boundaries.mjs`; ADR 0003 | Hub composition, Gitless boundary, and B6/H10 |
 | A10 | An online `pg_dump` of a Hub database restores into a database that needs no migration and holds no torn decision/audit/outbox transaction, so no quiesce step is required to take a backup. | CONFIRMED | `TestPostgresBackupAndRestoreDrill` (`scripts/test-postgres-repository.sh`) — dump taken while decisions commit, restored into a fresh database, ledger and cross-table invariants asserted before any repository is constructed | `docs/operations/backup-and-restore.md`; PRODUCTION-READINESS gap 4 |
+
+Frontend reset (2026-11-13): the assistant-ui default template requires a Next.js
+server for chat; it is not a replacement static bundle for the Go embed. Confirmed
+by the ACP custom Node server and the production build route report. No Conduit
+tool, tenant bootstrap, or domain API coverage is claimed by the new scaffold.

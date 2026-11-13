@@ -1,5 +1,11 @@
 # Console documentation
 
+The `web/` source is now an assistant-ui default Next.js scaffold. See
+[`web/README.md`](../../web/README.md) for provenance, verification commands,
+and the hosting/backend integration boundary. The Go Hub still serves its
+previously embedded console. The contracts below describe that former console;
+they are evidence for future integration, not capabilities of the new scaffold.
+
 The living UI contract is intentionally small:
 
 - `contracts/pagination.md` defines the shared index behavior.

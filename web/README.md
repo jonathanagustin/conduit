@@ -1,61 +1,100 @@
-# Conduit console
+# Conduit assistant
 
-The console is built as static assets, embedded in the Hub binary, and served
-under `/console/` from the same origin as its APIs. The current UI contracts
-are indexed in `../docs/ui/README.md`.
+Goal: a working Conduit assistant shell using default assistant-ui Elements,
+Codex as the agent runtime, and minimal custom frontend code.
 
-## Decisions this scaffold makes
+## Run a simulation
 
-**Blueprint 6.18.0.** The package pins `@blueprintjs/core` 6.18.0, icons
-6.13.0, select 6.3.4, and table 6.2.4.
+```sh
+cd web
+pnpm install --frozen-lockfile
+CONDUIT_AGENT_MODE=demo pnpm dev
+```
 
-**Ported, not shared, primitives.** `packages/foundry/packages/foundry-ui` has
-the component vocabulary this console wants -- `AppFrame`, `AppHeader`,
-`SideNavigation`, `ResourceTable`, `ObjectDetails`, `DataSurface`, `FormDialog`,
-`SettingsLayout` -- but it peers Blueprint **5.19.1** and React **18.2.0**, and
-its other consumers (`workspace-app`, `gotham`) are on that major too. Those
-components are therefore ported into this package rather than depended on, and
-foundry-ui is left alone so its existing consumers keep building. Ported files
-must keep the provenance note they arrive with.
+Open http://localhost:3000/console/. Send any prompt to see streamed fixture
+validation results and an approval request. Approve, deny, or stop the turn.
+The persistent banner and transcript label this as a simulation: no model calls,
+commands, tests, scans or deployments are performed. `pnpm build` followed by
+`CONDUIT_AGENT_MODE=demo pnpm start` runs the production preview.
 
-Nothing here resolves a workspace sibling. Conduit builds its own console and
-the Hub embed remains a repository-local build product.
+## Connect Codex
 
-**No client-side store.** Server state lives in the query cache, route state in
-the URL, form state local. Add a store when a workflow proves it is needed.
+```sh
+# Authenticate in the server's normal Codex environment first.
+codex login
+pnpm dev
+```
 
-**Polling, not sockets.** Request/response REST with bounded, visibility-aware
-polling. Server-sent events only if measurement shows polling is inadequate.
+The custom Node server binds only to 127.0.0.1. The browser opens the same-origin
+`/console/acp` WebSocket; a bridge starts one pinned `codex-acp` 2.6.0 process per
+connection, and that adapter starts Codex App Server. Credentials stay on the
+server. `CONDUIT_AGENT_WORKSPACE` selects the workspace (default: repository root);
+`PORT` changes the listening port. Export these environment variables before
+starting the custom server; it does not load them from `.env.local`.
 
-## The base path is load-bearing
+The bridge checks Origin and loopback peer, pins the workspace, strips client
+MCP server commands, refuses client authentication/mode/config mutation, starts
+in read-only mode, limits messages, and terminates the child on disconnect.
+Permission requests flow through assistant-ui's tool approval UI. This is a
+local developer preview, not a multi-user authenticated gateway. No backend
+deployment approvals or Conduit tools are wired. Agent permission is separate
+from Conduit's deployment authorization.
 
-`vite.config.ts` sets `base: "/console/"` and the router sets a matching
-`basename`. Both are required: with the default base the app works under
-`vite dev` and 404s on every asset once embedded in the Hub.
+The agent owns the ACP transcript. Page reload/disconnect does not promise durable
+thread restoration; this bridge terminates the owning process. Session persistence,
+remote identity, isolation, reconnect recovery and Conduit tool integration remain
+follow-up work. The thread list uses upstream behavior, not a database-backed inbox.
 
-There is a third statement of it -- `internal/consoleui/handler.go` refuses a
-request path that does not carry the prefix -- and
-`node scripts/verify-console-boundaries.mjs` fails when the three disagree. The
-same gate pins the console's layering, so `web/src/api` stays the only place a
-request is made and `web/src/components` cannot reach up into `web/src/features`.
-`docs/ui/foundry-frontend-architecture.md` records why those are the boundaries
-worth having here, and which parts of Foundry's much larger frontend are not.
+## Elements and provenance
 
-## Commands
+The official assistant-ui CLI 0.0.134 created this default Next.js starter from
+`assistant-ui/assistant-ui@995487b02b19dd739389246898181a0284099d2b`,
+`templates/default`. Default styling is retained. The available web Elements and
+runtime bindings are installed from the base-nova registry;
+`elements-manifest.json` lists the 148 relevant entries. These are reusable
+components, not 148 live backend features. Provider-specific bindings need the
+matching runtime; the AI SDK context binding is retained but not used by Codex.
+The unrelated Eve application entrypoint was excluded.
 
-    pnpm install
-    pnpm dev        # http://localhost:5173/console/, proxying /v1 to the Hub
-    pnpm build      # typecheck, then emit dist/
-    pnpm typecheck
+The ACP React adapter under `lib/acp` is vendored from that same immutable source
+with its MIT license because the upstream `@assistant-ui/acp` package is
+unpublished. Its compile-time version macro is replaced by a local version
+constant; no sibling checkout or mutable source link is needed. See its README.
+The published Codex adapter is separate:
+https://github.com/agentclientprotocol/codex-acp.
 
-The Playwright suite's preview port is derived from this checkout's path rather
-than fixed, so two worktrees verifying two branches on one machine do not land
-on the same one; `CONSOLE_TEST_PORT` still overrides it. Reusing an
-already-running preview server is allowed and checked rather than assumed: the
-suite refuses to start against a server serving any build but this checkout's,
-because a run that borrows another worktree's server reports that tree's
-results as this one's. `src/test/e2e/global-setup.ts` is that check.
+## Verification
 
-`internal/consoleui/handler.go` owns the embed and the Hub composition mounts
-the handler. A production build must regenerate `dist/` and run the console
-gate so the embedded assets match this source.
+```sh
+pnpm lint
+pnpm typecheck
+pnpm build
+pnpm test:bridge
+# With a running demo preview and Playwright Chromium installed:
+CONDUIT_DEMO_URL=http://localhost:3000/console/ node --test server/demo-browser.test.mjs
+```
+
+Bridge fixtures verify initialization, streamed updates, permission decisions,
+cancellation, workspace pinning, blocked mode changes, origin rejection and
+malformed-message closure. Browser verification covers streamed demo output,
+approval, denial and Stop; it skips unless CONDUIT_DEMO_URL is set.
+The real Codex ACP 2.6.0 initialize handshake passed. Live inference was not
+verified: the environment's Codex credential was rejected. Lint passes with
+three upstream redundant-spread warnings in the vendored adapter.
+
+## Migration boundary and next work
+
+This replaces the Blueprint frontend and its tests, not Conduit's Go control
+plane. The Hub still serves its previously committed `internal/consoleui/dist`
+assets. The new Next.js app is not a static replacement for that embed. Hosting
+and proxy configuration, Hub authentication/tenant bootstrap integration, and
+legacy Vite/Blueprint/screen-contract CI gates must be migrated before promotion.
+The Go race/vet checks were attempted but unavailable: this environment's
+`/usr/bin/go` is not the Go compiler and rejects `test` and `vet`.
+
+Next real slice: authorized proposal → validation evidence → explicit deployment
+approval, with backend state authoritative. Temporal is requested follow-up:
+first define workflow ownership against Conduit's existing durable leases, then
+prove worker restart, bounded retry, cancellation and approval recovery for one
+workflow. Temporal, Kubernetes execution, UDS/Zarf packaging and disconnected
+operation are not implemented by this UI/ACP change.

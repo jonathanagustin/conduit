@@ -1,5 +1,11 @@
 # Capability map
 
+Frontend reset: `web/` now contains the assistant-ui default starter. Historical
+rows referencing `web/src` tests no longer establish current frontend coverage.
+The Go implementation and previously embedded console are retained. See
+`web/README.md`; new scaffold gates are typecheck, lint, build, and ACP bridge tests. Live Hub
+integration and the replacement of legacy console CI gates remain OPEN.
+
 This map distinguishes implemented repository behavior from work that still
 needs an executable gate. `SOLVED` means the named gate exists; it does not mean
 that gate was run for the current commit.

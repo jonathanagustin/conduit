@@ -1,0 +1,602 @@
+{
+  "registry": "https://r.assistant-ui.com/styles/base-nova/registry.json",
+  "retrieved": "2026-11-13",
+  "items": [
+    {
+      "name": "elements-collapsible-root",
+      "files": ["components/assistant-ui/elements/collapsible-root.tsx"]
+    },
+    {
+      "name": "elements-surfaces",
+      "files": ["components/assistant-ui/elements/surfaces.tsx"]
+    },
+    {
+      "name": "elements-loading-state",
+      "files": ["components/assistant-ui/elements/loading-state.tsx"]
+    },
+    {
+      "name": "elements-thinking-indicator",
+      "files": ["components/assistant-ui/elements/thinking-indicator.tsx"]
+    },
+    {
+      "name": "elements-reasoning-panel",
+      "files": ["components/assistant-ui/elements/reasoning-panel.tsx"]
+    },
+    {
+      "name": "elements-streaming-text",
+      "files": ["components/assistant-ui/elements/streaming-text.tsx"]
+    },
+    {
+      "name": "elements-typing-indicator",
+      "files": ["components/assistant-ui/elements/typing-indicator.tsx"]
+    },
+    {
+      "name": "elements-message-pair",
+      "files": ["components/assistant-ui/elements/message-pair.tsx"]
+    },
+    {
+      "name": "elements-message-branches",
+      "files": ["components/assistant-ui/elements/message-branches.tsx"]
+    },
+    {
+      "name": "elements-message-actions",
+      "files": ["components/assistant-ui/elements/message-actions.tsx"]
+    },
+    {
+      "name": "elements-suggestions",
+      "files": ["components/assistant-ui/elements/suggestions.tsx"]
+    },
+    {
+      "name": "elements-error-state",
+      "files": ["components/assistant-ui/elements/error-state.tsx"]
+    },
+    {
+      "name": "elements-tool-call",
+      "files": ["components/assistant-ui/elements/tool-call.tsx"]
+    },
+    {
+      "name": "elements-run-activity",
+      "files": ["components/assistant-ui/elements/run-activity.tsx"]
+    },
+    {
+      "name": "elements-tool-timeline",
+      "files": ["components/assistant-ui/elements/tool-timeline.tsx"]
+    },
+    {
+      "name": "elements-terminal-block",
+      "files": ["components/assistant-ui/elements/terminal-block.tsx"]
+    },
+    {
+      "name": "elements-code-diff",
+      "files": ["components/assistant-ui/elements/code-diff.tsx"]
+    },
+    {
+      "name": "elements-web-search",
+      "files": ["components/assistant-ui/elements/web-search.tsx"]
+    },
+    {
+      "name": "elements-sources",
+      "files": ["components/assistant-ui/elements/sources.tsx"]
+    },
+    {
+      "name": "elements-inline-citation",
+      "files": ["components/assistant-ui/elements/inline-citation.tsx"]
+    },
+    {
+      "name": "elements-link-preview",
+      "files": ["components/assistant-ui/elements/link-preview.tsx"]
+    },
+    {
+      "name": "elements-image-generation",
+      "files": ["components/assistant-ui/elements/image-generation.tsx"]
+    },
+    {
+      "name": "elements-image-gallery",
+      "files": ["components/assistant-ui/elements/image-gallery.tsx"]
+    },
+    {
+      "name": "elements-data-table",
+      "files": ["components/assistant-ui/elements/data-table.tsx"]
+    },
+    {
+      "name": "elements-number-ticker",
+      "files": ["components/assistant-ui/elements/number-ticker.tsx"]
+    },
+    {
+      "name": "elements-agent-plan",
+      "files": ["components/assistant-ui/elements/agent-plan.tsx"]
+    },
+    {
+      "name": "elements-subagent-list",
+      "files": ["components/assistant-ui/elements/subagent-list.tsx"]
+    },
+    {
+      "name": "elements-agent-status",
+      "files": ["components/assistant-ui/elements/agent-status.tsx"]
+    },
+    {
+      "name": "elements-task-card",
+      "files": ["components/assistant-ui/elements/task-card.tsx"]
+    },
+    {
+      "name": "elements-approval-card",
+      "files": ["components/assistant-ui/elements/approval-card.tsx"]
+    },
+    {
+      "name": "elements-receipt-focus",
+      "files": ["components/assistant-ui/elements/receipt-focus.ts"]
+    },
+    {
+      "name": "elements-option-list",
+      "files": ["components/assistant-ui/elements/option-list.tsx"]
+    },
+    {
+      "name": "elements-question-flow",
+      "files": ["components/assistant-ui/elements/question-flow.tsx"]
+    },
+    {
+      "name": "elements-recommendation-card",
+      "files": ["components/assistant-ui/elements/recommendation-card.tsx"]
+    },
+    {
+      "name": "elements-artifact-card",
+      "files": ["components/assistant-ui/elements/artifact-card.tsx"]
+    },
+    {
+      "name": "elements-composer",
+      "files": ["components/assistant-ui/elements/composer.tsx"]
+    },
+    {
+      "name": "elements-chat-panel",
+      "files": ["components/assistant-ui/elements/chat-panel.tsx"]
+    },
+    {
+      "name": "elements-empty-state",
+      "files": ["components/assistant-ui/elements/empty-state.tsx"]
+    },
+    {
+      "name": "elements-thread-list",
+      "files": ["components/assistant-ui/elements/thread-list.tsx"]
+    },
+    {
+      "name": "elements-scroll-anchor",
+      "files": ["components/assistant-ui/elements/scroll-anchor.tsx"]
+    },
+    {
+      "name": "elements-conversation-map",
+      "files": ["components/assistant-ui/elements/conversation-map.tsx"]
+    },
+    {
+      "name": "elements-todo-list",
+      "files": ["components/assistant-ui/elements/todo-list.tsx"]
+    },
+    {
+      "name": "elements-message-queue",
+      "files": ["components/assistant-ui/elements/message-queue.tsx"]
+    },
+    {
+      "name": "elements-message-attachment",
+      "files": ["components/assistant-ui/elements/message-attachment.tsx"]
+    },
+    {
+      "name": "elements-reviewable-diff",
+      "files": ["components/assistant-ui/elements/reviewable-diff.tsx"]
+    },
+    {
+      "name": "elements-file-tree",
+      "files": ["components/assistant-ui/elements/file-tree.tsx"]
+    },
+    {
+      "name": "elements-elicitation-form",
+      "files": ["components/assistant-ui/elements/elicitation-form.tsx"]
+    },
+    {
+      "name": "elements-retrieval-chunks",
+      "files": ["components/assistant-ui/elements/retrieval-chunks.tsx"]
+    },
+    {
+      "name": "elements-chart",
+      "files": ["components/assistant-ui/elements/chart.tsx"]
+    },
+    {
+      "name": "elements-media-player",
+      "files": ["components/assistant-ui/elements/media-player.tsx"]
+    },
+    {
+      "name": "elements-trace-waterfall",
+      "files": ["components/assistant-ui/elements/trace-waterfall.tsx"]
+    },
+    {
+      "name": "elements-canvas-split",
+      "files": ["components/assistant-ui/elements/canvas-split.tsx"]
+    },
+    {
+      "name": "elements-voice-conversation",
+      "files": ["components/assistant-ui/elements/voice-conversation.tsx"]
+    },
+    {
+      "name": "elements-read-aloud",
+      "files": ["components/assistant-ui/elements/read-aloud.tsx"]
+    },
+    {
+      "name": "elements-mcp-server-panel",
+      "files": ["components/assistant-ui/elements/mcp-server-panel.tsx"]
+    },
+    {
+      "name": "elements-feedback-dialog",
+      "files": ["components/assistant-ui/elements/feedback-dialog.tsx"]
+    },
+    {
+      "name": "elements-quote-reply",
+      "files": ["components/assistant-ui/elements/quote-reply.tsx"]
+    },
+    {
+      "name": "elements-edit-message",
+      "files": ["components/assistant-ui/elements/edit-message.tsx"]
+    },
+    {
+      "name": "elements-stopped-run",
+      "files": ["components/assistant-ui/elements/stopped-run.tsx"]
+    },
+    {
+      "name": "elements-message-timing",
+      "files": ["components/assistant-ui/elements/message-timing.tsx"]
+    },
+    {
+      "name": "elements-connection-state",
+      "files": ["components/assistant-ui/elements/connection-state.tsx"]
+    },
+    {
+      "name": "elements-agent-card",
+      "files": ["components/assistant-ui/elements/agent-card.tsx"]
+    },
+    {
+      "name": "elements-web-preview",
+      "files": ["components/assistant-ui/elements/web-preview.tsx"]
+    },
+    {
+      "name": "elements-draft-restore",
+      "files": ["components/assistant-ui/elements/draft-restore.tsx"]
+    },
+    {
+      "name": "elements-diagram",
+      "files": ["components/assistant-ui/elements/diagram.tsx"]
+    },
+    {
+      "name": "elements-flow-graph",
+      "files": ["components/assistant-ui/elements/flow-graph.tsx"]
+    },
+    {
+      "name": "elements-activity-graph",
+      "files": ["components/assistant-ui/elements/activity-graph.tsx"]
+    },
+    {
+      "name": "elements-tool-group",
+      "files": ["components/assistant-ui/elements/tool-group.tsx"]
+    },
+    {
+      "name": "elements-context-breakdown",
+      "files": ["components/assistant-ui/elements/context-breakdown.tsx"]
+    },
+    {
+      "name": "elements-model-picker",
+      "files": ["components/assistant-ui/elements/model-picker.tsx"]
+    },
+    {
+      "name": "elements-reasoning-effort",
+      "files": ["components/assistant-ui/elements/reasoning-effort.tsx"]
+    },
+    {
+      "name": "elements-guardrail-notice",
+      "files": ["components/assistant-ui/elements/guardrail-notice.tsx"]
+    },
+    {
+      "name": "elements-day-separator",
+      "files": ["components/assistant-ui/elements/day-separator.tsx"]
+    },
+    {
+      "name": "elements-speaker-identity",
+      "files": ["components/assistant-ui/elements/speaker-identity.tsx"]
+    },
+    {
+      "name": "elements-regenerate-menu",
+      "files": ["components/assistant-ui/elements/regenerate-menu.tsx"]
+    },
+    {
+      "name": "elements-confidence-marker",
+      "files": ["components/assistant-ui/elements/confidence-marker.tsx"]
+    },
+    {
+      "name": "elements-tool-error",
+      "files": ["components/assistant-ui/elements/tool-error.tsx"]
+    },
+    {
+      "name": "elements-permission-grant",
+      "files": ["components/assistant-ui/elements/permission-grant.tsx"]
+    },
+    {
+      "name": "elements-computer-use",
+      "files": ["components/assistant-ui/elements/computer-use.tsx"]
+    },
+    {
+      "name": "elements-code-runner",
+      "files": ["components/assistant-ui/elements/code-runner.tsx"]
+    },
+    {
+      "name": "elements-document-reference",
+      "files": ["components/assistant-ui/elements/document-reference.tsx"]
+    },
+    {
+      "name": "elements-memory-chips",
+      "files": ["components/assistant-ui/elements/memory-chips.tsx"]
+    },
+    {
+      "name": "elements-research-report",
+      "files": ["components/assistant-ui/elements/research-report.tsx"]
+    },
+    {
+      "name": "elements-map-answer",
+      "files": ["components/assistant-ui/elements/map-answer.tsx"]
+    },
+    {
+      "name": "elements-geo-map",
+      "files": ["components/assistant-ui/elements/geo-map.tsx"]
+    },
+    {
+      "name": "elements-math-block",
+      "files": ["components/assistant-ui/elements/math-block.tsx"]
+    },
+    {
+      "name": "elements-spec-sheet",
+      "files": ["components/assistant-ui/elements/spec-sheet.tsx"]
+    },
+    {
+      "name": "elements-comparison-card",
+      "files": ["components/assistant-ui/elements/comparison-card.tsx"]
+    },
+    {
+      "name": "elements-timeline",
+      "files": ["components/assistant-ui/elements/timeline.tsx"]
+    },
+    {
+      "name": "elements-job-progress",
+      "files": ["components/assistant-ui/elements/job-progress.tsx"]
+    },
+    {
+      "name": "elements-score-breakdown",
+      "files": ["components/assistant-ui/elements/score-breakdown.tsx"]
+    },
+    {
+      "name": "elements-cost-meter",
+      "files": ["components/assistant-ui/elements/cost-meter.tsx"]
+    },
+    {
+      "name": "elements-quota-banner",
+      "files": ["components/assistant-ui/elements/quota-banner.tsx"]
+    },
+    {
+      "name": "elements-agent-handoff",
+      "files": ["components/assistant-ui/elements/agent-handoff.tsx"]
+    },
+    {
+      "name": "elements-background-inbox",
+      "files": ["components/assistant-ui/elements/background-inbox.tsx"]
+    },
+    {
+      "name": "elements-checkpoint-history",
+      "files": ["components/assistant-ui/elements/checkpoint-history.tsx"]
+    },
+    {
+      "name": "elements-schedule-card",
+      "files": ["components/assistant-ui/elements/schedule-card.tsx"]
+    },
+    {
+      "name": "elements-prompt-library",
+      "files": ["components/assistant-ui/elements/prompt-library.tsx"]
+    },
+    {
+      "name": "elements-command-palette",
+      "files": ["components/assistant-ui/elements/command-palette.tsx"]
+    },
+    {
+      "name": "elements-shared-conversation",
+      "files": ["components/assistant-ui/elements/shared-conversation.tsx"]
+    },
+    {
+      "name": "elements-conversation-search",
+      "files": ["components/assistant-ui/elements/conversation-search.tsx"]
+    },
+    {
+      "name": "elements-thread-search",
+      "files": ["components/assistant-ui/elements/thread-search.tsx"]
+    },
+    {
+      "name": "elements-launcher-bubble",
+      "files": ["components/assistant-ui/elements/launcher-bubble.tsx"]
+    },
+    {
+      "name": "elements-settings-panel",
+      "files": ["components/assistant-ui/elements/settings-panel.tsx"]
+    },
+    {
+      "name": "elements-onboarding",
+      "files": ["components/assistant-ui/elements/onboarding.tsx"]
+    },
+    {
+      "name": "elements-mobile-composer",
+      "files": ["components/assistant-ui/elements/mobile-composer.tsx"]
+    },
+    {
+      "name": "thread",
+      "files": ["components/assistant-ui/elements/thread.aui.tsx"]
+    },
+    {
+      "name": "elements-voice",
+      "files": ["components/assistant-ui/elements/voice.tsx"]
+    },
+    {
+      "name": "elements-context-display",
+      "files": ["components/assistant-ui/elements/context-display.tsx"]
+    },
+    {
+      "name": "voice",
+      "files": ["components/assistant-ui/elements/voice.aui.tsx"]
+    },
+    {
+      "name": "voice-conversation",
+      "files": ["components/assistant-ui/elements/voice-conversation.aui.tsx"]
+    },
+    {
+      "name": "task-card",
+      "files": ["components/assistant-ui/elements/task-card.aui.tsx"]
+    },
+    {
+      "name": "agent-status",
+      "files": ["components/assistant-ui/elements/agent-status.aui.tsx"]
+    },
+    {
+      "name": "markdown-text",
+      "files": ["components/assistant-ui/elements/markdown-text.tsx"]
+    },
+    {
+      "name": "reasoning",
+      "files": ["components/assistant-ui/elements/reasoning.aui.tsx"]
+    },
+    {
+      "name": "conversation-map",
+      "files": ["components/assistant-ui/elements/conversation-map.aui.tsx"]
+    },
+    {
+      "name": "elements-reasoning",
+      "files": ["components/assistant-ui/elements/reasoning.tsx"]
+    },
+    {
+      "name": "message-timing",
+      "files": ["components/assistant-ui/elements/message-timing.aui.tsx"]
+    },
+    {
+      "name": "context-display",
+      "files": ["components/assistant-ui/elements/context-display.aui.tsx"]
+    },
+    {
+      "name": "thread-list",
+      "files": ["components/assistant-ui/elements/thread-list.aui.tsx"]
+    },
+    {
+      "name": "mcp-config",
+      "files": ["components/assistant-ui/elements/mcp-config.aui.tsx"]
+    },
+    {
+      "name": "elements-attachment-state",
+      "files": ["components/assistant-ui/elements/attachment-state.ts"]
+    },
+    {
+      "name": "attachment",
+      "files": ["components/assistant-ui/elements/attachment.aui.tsx"]
+    },
+    {
+      "name": "follow-up-suggestions",
+      "files": [
+        "components/assistant-ui/elements/follow-up-suggestions.aui.tsx"
+      ]
+    },
+    {
+      "name": "tooltip-icon-button",
+      "files": ["components/assistant-ui/elements/tooltip-icon-button.tsx"]
+    },
+    {
+      "name": "syntax-highlighter",
+      "files": ["components/assistant-ui/elements/syntax-highlighter.tsx"]
+    },
+    {
+      "name": "assistant-modal",
+      "files": ["components/assistant-ui/elements/assistant-modal.aui.tsx"]
+    },
+    {
+      "name": "assistant-sidebar",
+      "files": ["components/assistant-ui/elements/assistant-sidebar.aui.tsx"]
+    },
+    {
+      "name": "tool-fallback",
+      "files": ["components/assistant-ui/elements/tool-fallback.aui.tsx"]
+    },
+    {
+      "name": "tool-group",
+      "files": ["components/assistant-ui/elements/tool-group.aui.tsx"]
+    },
+    {
+      "name": "shiki-highlighter",
+      "files": ["components/assistant-ui/elements/shiki-highlighter.aui.tsx"]
+    },
+    {
+      "name": "elements-shiki-highlighter",
+      "files": ["components/assistant-ui/elements/shiki-highlighter.tsx"]
+    },
+    {
+      "name": "mermaid-diagram",
+      "files": ["components/assistant-ui/elements/mermaid-diagram.aui.tsx"]
+    },
+    {
+      "name": "elements-mermaid-diagram",
+      "files": ["components/assistant-ui/elements/mermaid-diagram.tsx"]
+    },
+    {
+      "name": "threadlist-sidebar",
+      "files": ["components/assistant-ui/elements/threadlist-sidebar.aui.tsx"]
+    },
+    {
+      "name": "quote",
+      "files": ["components/assistant-ui/elements/quote.aui.tsx"]
+    },
+    {
+      "name": "sources",
+      "files": ["components/assistant-ui/elements/sources.aui.tsx"]
+    },
+    {
+      "name": "image",
+      "files": ["components/assistant-ui/elements/image.tsx"]
+    },
+    {
+      "name": "file",
+      "files": ["components/assistant-ui/elements/file.tsx"]
+    },
+    {
+      "name": "model-selector",
+      "files": ["components/assistant-ui/elements/model-selector.aui.tsx"]
+    },
+    {
+      "name": "elements-model-selector",
+      "files": ["components/assistant-ui/elements/model-selector.tsx"]
+    },
+    {
+      "name": "logos",
+      "files": ["components/assistant-ui/elements/logos.tsx"]
+    },
+    {
+      "name": "heat-graph",
+      "files": ["components/assistant-ui/elements/heat-graph.tsx"]
+    },
+    {
+      "name": "composer-trigger-popover",
+      "files": [
+        "components/assistant-ui/elements/composer-trigger-popover.aui.tsx"
+      ]
+    },
+    {
+      "name": "directive-text",
+      "files": ["components/assistant-ui/elements/directive-text.aui.tsx"]
+    },
+    {
+      "name": "elements-directive-text",
+      "files": ["components/assistant-ui/elements/directive-text.tsx"]
+    },
+    {
+      "name": "elements-generative-markdown",
+      "files": ["components/assistant-ui/elements/generative-markdown.tsx"]
+    },
+    {
+      "name": "generative-ui",
+      "files": ["components/assistant-ui/elements/generative-ui.tsx"]
+    }
+  ]
+}

@@ -1,0 +1,1 @@
+Vendored from assistant-ui/assistant-ui@995487b02b19dd739389246898181a0284099d2b, packages/acp/src. MIT license retained. The upstream package is unpublished; source is local and has no sibling checkout dependency. API is experimental.
