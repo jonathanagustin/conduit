@@ -52,8 +52,6 @@ governance, execution, or persistence models.
   inventories, credentials, namespaces, and installations belong to their
   deployment repositories.
 - `docs/` contains the curated living documentation and retained evidence.
-- `tools/zenith-protocol/` is a pinned private, repository-local operating
-  playbook. It must not be published to a public package or plugin registry.
 
 Start with the [documentation index](docs/README.md),
 [bounded-context map](docs/architecture/bounded-contexts.md), and
@@ -75,12 +73,6 @@ The aggregate is `./scripts/verify-local.sh`. Windows can run many focused
 packages, but process-group code in the optimization backends is Unix-specific;
 a Windows failure there is not a Linux result. Run the exact full gate in a
 Linux workspace before promotion.
-
-Zenith's mechanically checkable repository rules are verified with:
-
-```bash
-node tools/zenith-protocol/scripts/conform.mjs --config .zenith-protocol.json
-```
 
 See [local verification](docs/operations/local-verification.md) for the limits
 of each result.

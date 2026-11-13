@@ -65,7 +65,6 @@ composition. `scripts/verify-domain-boundaries.mjs` rejects a planted
 control-plane import in reconciliation application code while allowing the
 named compatibility adapter.
 
-B6, H10, A9, P11, and metric m0153 record the current scope.
 
 ## More information
 

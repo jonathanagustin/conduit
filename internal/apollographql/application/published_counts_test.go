@@ -134,26 +134,6 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 		pattern: `(\d+) of the (\d+) are served, the other (\d+) refuse`,
 		want:    []int{counts.served, counts.declared, counts.refused},
 		says:    "the conformance row's served split",
-	}, {
-		path:    "../../../docs/operations/CAPABILITY-MAP.md",
-		pattern: `declares (\d+) recovered coordinates and (\d+) that no capture established, serving (\d+) of the (\d+)`,
-		want:    []int{counts.observed, counts.documented, counts.served, counts.declared},
-		says:    "H28's capability statement",
-	}, {
-		path:    "../../../docs/operations/CAPABILITY-MAP.md",
-		pattern: `so (\d+) recovered coordinates refuse rather than resolve to null`,
-		want:    []int{counts.refused},
-		says:    "H28's refusal count",
-	}, {
-		path:    "../../../docs/operations/HYPOTHESIS-BACKLOG.md",
-		pattern: `(\d+) recovered and (\d+) uncaptured coordinates declared, (\d+) of the (\d+) served`,
-		want:    []int{counts.observed, counts.documented, counts.served, counts.declared},
-		says:    "B14's outcome line",
-	}, {
-		path:    "../../../docs/operations/HYPOTHESIS-BACKLOG.md",
-		pattern: `(\d+) recovered coordinates declared and refused`,
-		want:    []int{counts.refused},
-		says:    "B14's refusal count",
 	}}
 
 	documents := map[string]string{}
