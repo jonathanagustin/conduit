@@ -2,10 +2,6 @@
 
 version: "3"
 
-vars:
-  MISE_SHIMS: "{{.HOME}}/.local/share/mise/shims"
-  AGENT_PATH: "{{.MISE_SHIMS}}:{{.HOME}}/.local/bin:{{.HOME}}/.vite-plus/bin:{{.PATH}}"
-
 tasks:
   default:
     desc: Everything CI runs, on this machine
@@ -42,28 +38,19 @@ tasks:
     cmd: node scripts/apollo-docs/audit-public-documentation-images.mjs docs/apollo/public-documentation-manifest.tsv {{.OUTPUT_DIR}}
 
   claude:
-    desc: Launch Claude Code with permission prompts disabled (auto-installs if missing)
+    desc: Launch the mise-pinned Claude Code with permission prompts disabled
     interactive: true
-    env:
-      PATH: "{{.AGENT_PATH}}"
     cmds:
-      - command -v claude >/dev/null 2>&1 || curl -fsSL https://claude.ai/install.sh | bash
-      - exec "$(command -v claude)" --dangerously-skip-permissions
+      - mise exec -- claude --dangerously-skip-permissions
 
   codex:
-    desc: Launch Codex with approvals and sandbox disabled (auto-installs if missing)
+    desc: Launch the mise-pinned Codex with approvals and sandbox disabled
     interactive: true
-    env:
-      PATH: "{{.AGENT_PATH}}"
     cmds:
-      - command -v codex >/dev/null 2>&1 || npm install -g @openai/codex
-      - exec "$(command -v codex)" --dangerously-bypass-approvals-and-sandbox
+      - mise exec -- codex --dangerously-bypass-approvals-and-sandbox
 
   grok:
-    desc: Launch Grok CLI with tool approvals disabled (auto-installs if missing)
+    desc: Launch the mise-pinned Grok CLI with tool approvals disabled
     interactive: true
-    env:
-      PATH: "{{.AGENT_PATH}}"
     cmds:
-      - command -v grok >/dev/null 2>&1 || curl -fsSL https://x.ai/cli/install.sh | bash
-      - exec "$(command -v grok)" --yolo
+      - mise exec -- grok --yolo
