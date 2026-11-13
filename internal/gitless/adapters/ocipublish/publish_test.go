@@ -17,6 +17,14 @@ import (
 
 var digest = "sha256:aa11" + strings.Repeat("0", 60)
 
+// httptest.Server.Close closes idle connections on http.DefaultTransport.
+// These tests run in parallel and RoundTrip through that transport, so one
+// test finishing cancels another's request. A private clone is not the
+// transport Close touches.
+var isolatedTransport = sync.OnceValue(func() *http.Transport {
+	return http.DefaultTransport.(*http.Transport).Clone()
+})
+
 func manifests(sourceDigest string) []byte {
 	return []byte(`apiVersion: source.toolkit.fluxcd.io/v1
 kind: OCIRepository
@@ -229,7 +237,7 @@ func (transport routed) RoundTrip(request *http.Request) (*http.Response, error)
 	}
 	proxied := request.Clone(request.Context())
 	proxied.URL.Scheme, proxied.URL.Host = "http", target
-	return http.DefaultTransport.RoundTrip(proxied)
+	return isolatedTransport().RoundTrip(proxied)
 }
 
 // The regression that refusing caused, in the call that suffered it.
@@ -346,7 +354,7 @@ func (transport rewritingInPlace) RoundTrip(request *http.Request) (*http.Respon
 	}
 	proxied := request.Clone(request.Context())
 	proxied.URL.Scheme, proxied.URL.Host = "http", target
-	response, err := http.DefaultTransport.RoundTrip(proxied)
+	response, err := isolatedTransport().RoundTrip(proxied)
 	request.URL.Scheme, request.URL.Host = "https", transport.disguiseAs
 	return response, err
 }
@@ -609,7 +617,7 @@ func (transport anyScheme) RoundTrip(request *http.Request) (*http.Response, err
 	}
 	proxied := request.Clone(request.Context())
 	proxied.URL.Scheme, proxied.URL.Host = "http", target
-	return http.DefaultTransport.RoundTrip(proxied)
+	return isolatedTransport().RoundTrip(proxied)
 }
 
 // redirectedRealm builds a publisher whose registry issues its own permitted
