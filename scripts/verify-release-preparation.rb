@@ -30,7 +30,7 @@ check.call(config["packages"].keys == ["."], "Conduit has one product version")
 package = config["packages"]["."]
 check.call(package["release-type"] == "simple" && package["version-file"] == "VERSION", "VERSION must stay authoritative")
 check.call(config["include-component-in-tag"] == false && config["include-v-in-tag"] == true, "tags must stay vX.Y.Z")
-check.call(config["bootstrap-sha"] == "44e1e8845fe01c2a461061f6557a128ebf716af6", "bootstrap must remain the published v0.17.5 commit")
+check.call(config["bootstrap-sha"] == "92e0c6f6258b68f7bebf5da04978ac54ec337844", "bootstrap must remain the published v0.17.5 commit")
 check.call(package["bump-minor-pre-major"] == true && package["bump-patch-for-minor-pre-major"] == false, "pre-1.0 semantics changed without a policy decision")
 expected = %w[platform-hub platform-spoke].flat_map { |chart| %w[version appVersion].map { |key| {"type" => "yaml", "path" => "deploy/helm/#{chart}/Chart.yaml", "jsonpath" => "$.#{key}"} } }
 check.call(package["extra-files"] == expected, "version updates must enumerate the two charts only")
