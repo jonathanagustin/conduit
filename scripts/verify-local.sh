@@ -165,6 +165,7 @@ apollo_contract() {
     ruby scripts/apollo-docs/validate-module-definitions.rb &&
     ./scripts/verify-foundry-interop.sh &&
     node scripts/verify-conduit-cli-contract.mjs &&
+    ./scripts/verify-conduit-cli-contract.test.sh &&
     node scripts/verify-foundry-audit3-capture.mjs &&
     node scripts/verify-audit3-contract.mjs &&
     node scripts/verify-apollo-rosetta-inventory.mjs &&
