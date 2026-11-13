@@ -186,3 +186,20 @@ Executable evidence:
 ```text
 go test ./internal/controlplane ./internal/grypescanner -run 'Test.*ArtifactScan|TestApolloSecurityPromotionLabels|TestSuppressedFindings|TestScanner'
 ```
+
+## Local CLI Grype reports (2026-11-13)
+
+`cve grype scan` invokes the installed Grype directly against the operator's
+source, without fetching Hub or Apollo vulnerability data. The public contract
+prefers NVD data, then CVSS v3/v2 and Grype severity; only the selected v3 score
+remains. Output flags cannot be passed through, `--output-file` is always JSON,
+and a valid report survives a provider nonzero exit while the command fails.
+Invalid output produces no report. Grype itself can access registries/databases.
+
+The [CLI review](../cli-additions-review-2026-11-13.md) states native schema,
+tie, severity-zero, size, and credential-output choices. Provenance explicitly
+marks this local report as CONDUIT_NATIVE and non-authoritative. This does not
+weaken the separate Hub scanner's provenance requirements for ignored findings.
+`internal/grypescanner/local_test.go` and
+`internal/conduitcli/grype_commands_test.go` exercise these behaviors with an
+executable fixture; they do not establish real-image or Apollo binary parity.

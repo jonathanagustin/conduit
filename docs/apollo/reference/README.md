@@ -16,6 +16,7 @@ Read only the topic relevant to the current change:
 | Checkpoint Bundle cadence and lineage | [bundle-checkpoints.md](bundle-checkpoints.md) | Snapshot/incremental lineage, default cadence, onboarding and transport boundary |
 | Bundle resource label selection | [bundle-selection-labels.md](bundle-selection-labels.md) | Type scoping, presence/value matching, AND/OR and exclusion precedence |
 | Bundle data-selection strategies | [bundle-selection.md](bundle-selection.md) | Environment/Module/Product/Release/Team rules, initialization and incremental semantics |
+| November 2026 CLI additions | [cli-additions.md](cli-additions.md) | 18-page classification; local Grype implementation and scoped product gaps |
 | CLI setup and publication workflows | [cli-getting-started.md](cli-getting-started.md) | Distribution, profiles/auth, Environment output, Helm and Asset publication, byte-equivalence limit |
 | Connected publisher admission | [connected-hubs.md](connected-hubs.md) | External OAuth/whitelist ownership, Artifact + Product + Release authorization, outbound-Spoke separation |
 | Emergency Entity commands | [commands.md](commands.md) | Priority, constraint bypass, single-flight execution, cancel/abort, uninstall and workload restart |

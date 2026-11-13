@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
-  "captured": "2026-08-15",
-  "sourceManifest": "docs/apollo/snapshots/cli-command-sources-2026-08-15.tsv",
-  "sourceCount": 105,
+  "captured": "2026-11-13",
+  "sourceManifest": "docs/apollo/snapshots/cli-command-sources-2026-11-13.tsv",
+  "sourceCount": 107,
   "commands": [
     {
       "command": "apollo-cli artifact-registry list",
@@ -390,6 +390,65 @@
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve/",
       "sourceSha256": "0bae491d061df39af7b650b2a7d60c5211918374bf0cf81bac8aa1465d46bcd3"
+    },
+    {
+      "command": "apollo-cli cve grype scan",
+      "synopsis": "apollo-cli cve grype scan <source> [flags] [-- <grype flags>]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--output-file",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_grype_scan/",
+      "sourceSha256": "ae00240c6b5a84b62c09dd9240a28027e1eed4dc8f222165731f905e216858f2"
+    },
+    {
+      "command": "apollo-cli cve grype",
+      "synopsis": "",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_grype/",
+      "sourceSha256": "e81d2ad990b39d8a661006300992d39286957e5beab6f6e698da5c1cd7228721"
     },
     {
       "command": "apollo-cli entity aggregate [Experimental]",

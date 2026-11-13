@@ -1,7 +1,7 @@
 // Package conduitcli is the conduit command tree: the operator-facing client
 // for the delivery Hub. It owns argument parsing, profile and connection
-// configuration, and output formatting; every operation it performs is a call
-// into the Hub's public API rather than logic of its own.
+// configuration, and output formatting. Governed mutations call the Hub's
+// public API; explicitly local tools keep their output separate from Hub evidence.
 package conduitcli
 
 import (
@@ -64,6 +64,7 @@ type Service interface {
 type serviceFactory func(context.Context, ConnectionConfig) (Service, func(), error)
 
 type Runtime struct {
+	Stdin          io.Reader
 	Stdout         io.Writer
 	Stderr         io.Writer
 	Getenv         func(string) string
@@ -78,6 +79,9 @@ type commandState struct {
 }
 
 func NewRoot(runtime Runtime) *cobra.Command {
+	if runtime.Stdin == nil {
+		runtime.Stdin = os.Stdin
+	}
 	if runtime.Stdout == nil {
 		runtime.Stdout = os.Stdout
 	}
@@ -107,6 +111,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 		SilenceUsage:  true,
 	}
 	root.SetOut(runtime.Stdout)
+	root.SetIn(runtime.Stdin)
 	root.SetErr(runtime.Stderr)
 	flags := root.PersistentFlags()
 	flags.StringVar(&state.config.Server, "server", state.config.Server, "Conduit Hub base URL (CONDUIT_SERVER)")

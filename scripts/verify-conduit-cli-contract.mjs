@@ -4,8 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const contractPath = "docs/apollo/cli-command-contract.json";
 const contract = JSON.parse(await readFile(contractPath, "utf8"));
-const manifestPath = "docs/apollo/snapshots/cli-command-sources-2026-08-15.tsv";
-if (contract.sourceManifest !== manifestPath || contract.captured !== "2026-08-15") {
+const manifestPath = "docs/apollo/snapshots/cli-command-sources-2026-11-13.tsv";
+if (contract.sourceManifest !== manifestPath || contract.captured !== "2026-11-13") {
   throw new Error("Apollo CLI compatibility profile must name its reviewed source snapshot");
 }
 const manifest = await readFile(manifestPath, "utf8");
