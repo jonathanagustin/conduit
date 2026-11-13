@@ -20,12 +20,9 @@ import "fmt"
 // the interface gained a way to say "this value is ours", so refusing for want of
 // a way to say it stopped being the only honest option.
 //
-// Two callers remain. The defect case below, which Reconcile fails the build on.
-// And ADR 0007 group 2 -- the five spaceId coordinates -- which stay refused for
-// a reason no mechanism fixes: Palantir's own documentation puts the Space id's
-// origin outside the Hub, arriving by agent report, so there is no Conduit value
-// to disclose and a constant would be a synthesized value wearing a tenancy
-// field.
+// Refusal remains for genuinely unserved recovered fields and for declarations
+// backed by no source. ADR 0014 supersedes the Space refusal: those fields now
+// read persisted native assignments with explicit value provenance.
 func RefuseUnserved(coordinate Coordinate, tier Tier) string {
 	if !tier.Established() {
 		// Reconcile makes this a build failure, so reaching it at request time

@@ -173,7 +173,7 @@ func newFixture(t *testing.T) (*fixture, *fakeApollo, *fakeOverview) {
 		t.Fatalf("build resolver: %v", err)
 	}
 	resolver.now = func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }
-	return &fixture{Resolver: resolver, sources: ports.Sources{Apollo: apolloSource, Overview: overview}}, apolloSource, overview
+	return &fixture{Resolver: resolver, sources: ports.Sources{Apollo: apolloSource, Overview: overview, Grouping: &fakeGrouping{ids: []string{"bundle-1"}}}}, apolloSource, overview
 }
 
 func ptr[T any](value T) *T { return &value }
@@ -203,9 +203,9 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 			unserved++
 		}
 	}
-	if unserved != 9 {
+	if unserved != 1 {
 		t.Errorf(
-			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 9. "+
+			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 1. "+
 				"If this moved on purpose, update the count and docs/apollo/reference/graphql-api.md",
 			unserved,
 		)
@@ -220,6 +220,7 @@ func TestEveryCoveredCoordinateResolves(t *testing.T) {
 	resolver, apolloSource, _ := newFixture(t)
 	sources := map[string]any{
 		"Query":             rootSource{},
+		"ApolloBundle":      bundleSource{id: "bundle-1"},
 		"ApolloQuery":       rootSource{},
 		"ApolloEnvironment": apolloSource.environments[0],
 		"ApolloEntity":      entitySource{installation: apolloSource.installations["ri.apollo.main.environment.a"][0], environment: apolloSource.environments[0]},
@@ -247,6 +248,8 @@ func TestEveryCoveredCoordinateResolves(t *testing.T) {
 	// that must return no record rather than scanning for something that could
 	// not be there.
 	perCoordinate := map[domain.Coordinate]map[string]any{
+		at("ApolloQuery", "bundle"):  {"rid": bundleRID("bundle-1")},
+		at("ApolloQuery", "bundles"): {"rids": bundleRID("bundle-1")},
 		at("ApolloQuery", "productRelease"): {
 			"rid":      productReleaseRID("com.example:checkout:1.4.2"),
 			"pageSize": 10,
@@ -278,19 +281,18 @@ func TestEveryCoveredCoordinateResolves(t *testing.T) {
 
 // --- refusal ----------------------------------------------------------------
 
-// The distinction the whole interface rests on. ApolloBundle is a shape an
-// Apollo Hub answers for and Conduit has never held; answering null would state
-// that this bundle has no resource identifier, which Conduit cannot know.
+// The remaining namespace field has no native governed-resource source.
+// Its refusal must remain distinct from a configured source observing absence.
 func TestUnservedRecoveredCoordinateIsRefusedRatherThanNulled(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{
-		Query: `{ apollo { bundle(rid: "ri.apollo.main.bundle.a") { rid } } }`,
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { namespaceId } } }`,
 	})
 	if len(response.Errors) == 0 {
-		t.Fatal("Conduit answered for a bundle it has never held instead of refusing")
+		t.Fatal("Conduit answered for a namespace it does not model instead of refusing")
 	}
 	message := response.Errors[0].Message
-	for _, want := range []string{"ApolloQuery.bundle", "Apollo Hub", "null"} {
+	for _, want := range []string{"ApolloEnvironment.namespaceId", "Apollo Hub", "null"} {
 		if !strings.Contains(message, want) {
 			t.Errorf("refusal does not mention %q: %s", want, message)
 		}
@@ -307,31 +309,31 @@ func TestUnservedRecoveredCoordinateIsRefusedRatherThanNulled(t *testing.T) {
 // stops that null being read as an observed absence is the errors entry naming
 // the coordinate, which is why the assertions below are on it.
 //
-// The old assertion was also a tautology: `environment["spaceId"] != nil`
+// The old assertion was also a tautology: `environment["namespaceId"] != nil`
 // passes whether the key is absent or present-and-null, because a Go map
 // lookup of a missing key returns nil either way. It could not distinguish the
 // two cases it existed to distinguish. The comma-ok form below can.
 func TestARefusalIsNotReportedAsAResolvedValue(t *testing.T) {
 	resolver, _, _ := newFixture(t)
 	response := resolver.Execute(t.Context(), Request{
-		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name spaceId } } }`,
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name namespaceId } } }`,
 	})
 	environment := response.
 		Data["apollo"].(map[string]any)["environment"].(map[string]any)
 	if environment["name"] != "prod" {
 		t.Fatalf("a served coordinate did not answer: %v", environment["name"])
 	}
-	value, present := environment["spaceId"]
+	value, present := environment["namespaceId"]
 	if !present {
 		t.Fatal("the refused coordinate was omitted from data; GraphQL requires it present and null")
 	}
 	if value != nil {
 		t.Fatalf("an unserved coordinate answered with %v", value)
 	}
-	if len(response.Errors) != 1 || !strings.Contains(response.Errors[0].Message, "ApolloEnvironment.spaceId") {
+	if len(response.Errors) != 1 || !strings.Contains(response.Errors[0].Message, "ApolloEnvironment.namespaceId") {
 		t.Fatalf("the unserved coordinate produced no refusal naming it: %v", response.Errors)
 	}
-	if got := response.Errors[0].Path.String(); got != "apollo.environment.spaceId" {
+	if got := response.Errors[0].Path.String(); got != "apollo.environment.namespaceId" {
 		t.Errorf("refusal is not anchored to the field that caused it: %q", got)
 	}
 }
@@ -773,7 +775,7 @@ func TestARefusedCoordinateIsNotCountedAmongThoseAnswered(t *testing.T) {
 		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name } } }`,
 	})
 	withRefusal := resolver.Execute(t.Context(), Request{
-		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name spaceId } } }`,
+		Query: `{ apollo { environment(rid: "ri.apollo.main.environment.a") { name namespaceId } } }`,
 	})
 	if len(withRefusal.Errors) != 1 {
 		t.Fatalf("the refused coordinate did not refuse: %v", withRefusal.Errors)

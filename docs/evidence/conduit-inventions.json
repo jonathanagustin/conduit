@@ -146,6 +146,13 @@
       "why": "The adopted grouping decision needs operators to inspect and assign persisted native Spaces. Captured CLI selection flags do not establish a Space management command group; these commands disclose native scope and use Hub authority rather than local claims.",
       "displacedBy": "A published or sanitized Apollo Space management CLI contract defining command paths, arguments and mutation semantics.",
       "riskIfWrong": "Command spelling and binding workflow may require migration. Native records retain provenance, Hub authorization filters reads and controls mutations, and membership grants no resource permissions."
+    },
+    {
+      "id": "spaces.GraphQLGrouping",
+      "what": "The five recovered spaceId fields resolve independently authorized persisted native assignments; Entity inherits Environment and Release inherits Product. Native Bundle RID lookup uses the authorized persisted Bundle catalogue and retains the recovered scalar bundles shape.",
+      "why": "The adopted #17 decision requires real Space data rather than a default constant. Evidence establishes the five names but not a private Apollo membership source or Bundle lookup implementation. ADR 0014 defines and discloses these bounded native choices.",
+      "displacedBy": "A published or sanitized Apollo record establishing Space identity per Environment, Entity, Product, Release and Bundle, plus Bundle lookup semantics.",
+      "riskIfWrong": "Membership inheritance and native Bundle identifiers require migration if recovered evidence differs. Read authority remains canonical and carrier-aware; missing assignment is distinct from unavailable or denied storage. All six native values disclose CONDUIT_NATIVE while coordinate provenance remains OBSERVED."
     }
   ],
   "displaced": [

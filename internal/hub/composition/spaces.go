@@ -108,3 +108,38 @@ func (authority spaceAuthority) RequireRead(ctx context.Context, id string) erro
 	}
 	return spaces.ErrForbidden
 }
+
+// withSpaceLookup binds GraphQL's narrow lookup to the same original carrier and
+// canonical resource-read operation as other Hub reads. Assignment is not access.
+func withSpaceLookup(repository controlplane.Repository, options controlplane.HandlerOptions, store spaceports.Store) controlplane.HandlerOptions {
+	if store == nil {
+		return options
+	}
+	authorizationOptions := options
+	service := controlplane.NewGovernanceService(repository)
+	options.SpaceIDLookup = func(ctx context.Context, carrier controlplane.Principal, kind, id string) (string, error) {
+		resource := spaces.Resource{Kind: kind, ID: id}
+		if err := resource.Validate(); err != nil {
+			return "", err
+		}
+		rid := "platform/root"
+		switch kind {
+		case spaces.Environment:
+			rid = "environment/" + id
+		case spaces.Product:
+			rid = "product/" + id
+		}
+		if !service.AuthorizeResourceOperation(ctx, carrier, authorizationOptions, rid, governance.OperationReadResource) {
+			return "", spaces.ErrForbidden
+		}
+		binding, err := store.GetBinding(ctx, resource)
+		if errors.Is(err, spaces.ErrNotFound) {
+			return "", nil
+		}
+		if err != nil {
+			return "", errors.New("native Space assignment could not be read")
+		}
+		return binding.SpaceID, nil
+	}
+	return options
+}

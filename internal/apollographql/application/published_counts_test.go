@@ -101,7 +101,7 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 
 	claims := []countedClaim{{
 		path:    "../../../docs/decisions/0007-registered-invention-over-refusal.md",
-		pattern: `(\d+) recovered coordinates declared, of which (\d+) are served and (\d+) are unanswerable`,
+		pattern: `(\d+) recovered coordinates declared, of which (\d+) are served and (\d+) (?:are|is) unanswerable`,
 		want:    []int{counts.observed, counts.observedServed, counts.refused},
 		says:    "the ADR's consequences",
 	}, {
@@ -116,12 +116,12 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 		says:    "the served total and its decomposition",
 	}, {
 		path:    "../../../docs/apollo/reference/graphql-api.md",
-		pattern: `(\d+) \(35% of the (\d+) declared; 41% of the (\d+) served\)`,
+		pattern: `(\d+) \(35% of the (\d+) declared; 35% of the (\d+) served\)`,
 		want:    []int{counts.documented, counts.declared, counts.served},
 		says:    "the uncaptured share and both of its denominators",
 	}, {
 		path:    "../../../docs/apollo/conformance.md",
-		pattern: `(\d+) recovered coordinates are declared and refused`,
+		pattern: `(\d+) recovered coordinates? (?:are|is) declared and refused`,
 		want:    []int{counts.refused},
 		says:    "the conformance summary's refusal count",
 	}, {

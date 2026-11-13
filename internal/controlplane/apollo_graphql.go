@@ -67,6 +67,7 @@ func registerApolloGraphQL(
 			return graphqlports.Sources{}, false
 		}
 		return graphqlports.Sources{
+			Grouping: nativeGraphQLGrouping{principal: principal, configuration: configuration, repository: repository, reads: reads},
 			// The Apollo projection is nil when its initialization failed. A nil
 			// source refuses its half of the interface rather than taking the
 			// process down, which is the same choice the REST surface makes.

@@ -104,9 +104,13 @@ func TestApolloGraphQLAnswersAnOperatorAndDisclosesWhatNoHubEstablished(t *testi
 // route rather than only in the resolver's own tests.
 func TestApolloGraphQLRefusesACoordinateConduitCannotAnswer(t *testing.T) {
 	t.Parallel()
-	handler := NewHandler(NewMemoryRepository(), HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
+	repository := NewMemoryRepository()
+	if _, err := NewLifecycle(repository).CreatePlan(t.Context(), foundation()); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandler(repository, HandlerOptions{AllowInsecureOperatorIdentityHeaders: true})
 	response := graphqlRequest(t, handler, "local-developer",
-		`{ apollo { bundle(rid: "ri.apollo.main.bundle.a") { rid } } }`)
+		`{ apollo { environments(pageSize: 1) { environments { namespaceId } } } }`)
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d %s", response.Code, response.Body.String())
 	}
