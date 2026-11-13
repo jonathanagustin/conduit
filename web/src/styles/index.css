@@ -22,7 +22,9 @@
 }
 
 /* The stock assistant message cancels its action-bar padding with a negative
- * margin, which pulls the sticky suggestion row up over that bar. */
+ * margin, and the suggestion row lives in a sticky footer that covers the
+ * bottom of the scrollport. The trailing margin has to be taller than that
+ * footer or the action bar cannot scroll clear of the chips. */
 [data-slot="aui_message-group"] {
-  margin-bottom: 9rem;
+  margin-bottom: 22rem;
 }

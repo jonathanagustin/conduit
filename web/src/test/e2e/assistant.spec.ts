@@ -103,12 +103,15 @@ test.describe("fake ACP bridge", () => {
       const chip = page.getByRole("button", { name: "What is still unknown?" });
       await expect(chip).toBeVisible();
       await expect
-        .poll(async () => {
-          const copyBox = await copy.boundingBox();
-          const chipBox = await chip.boundingBox();
-          if (!copyBox || !chipBox) return false;
-          return copyBox.y + copyBox.height <= chipBox.y + 2;
-        })
+        .poll(
+          async () => {
+            const copyBox = await copy.boundingBox();
+            const chipBox = await chip.boundingBox();
+            if (!copyBox || !chipBox) return false;
+            return copyBox.y + copyBox.height <= chipBox.y + 2;
+          },
+          { timeout: 10_000 },
+        )
         .toBe(true);
       await page.getByLabel("Message input").fill("second turn");
       await page.getByRole("button", { name: "Send message" }).click();

@@ -118,42 +118,50 @@ export function AcpPanels() {
 // The stock thread anchors a turn at the top and pins the composer, so a
 // diagram at the end of a long reply sits under the footer. Nudge the
 // viewport once the run settles so the graphic clears that footer.
+function clearActionBar(): void {
+  const viewport = document.querySelector<HTMLElement>(
+    "[data-slot=aui_thread-viewport]",
+  );
+  const footer = viewport?.querySelector<HTMLElement>(
+    ".aui-thread-viewport-footer",
+  );
+  const bar = viewport?.querySelector<HTMLElement>(
+    "[data-slot=aui_assistant-message-footer]",
+  );
+  if (!viewport || !footer || !bar) return;
+  const limit =
+    viewport.getBoundingClientRect().bottom -
+    footer.getBoundingClientRect().height -
+    16;
+  const overflow = bar.getBoundingClientRect().bottom - limit;
+  if (overflow > 1) viewport.scrollTop += overflow;
+}
+
 function DiagramReveal() {
   const running = useAuiState((state) => state.thread.isRunning);
-  const revealed = useRef("");
   useEffect(() => {
     if (running) return;
-    let frame = 0;
-    let tries = 0;
-    const tick = () => {
-      tries += 1;
-      const host = document.querySelector<HTMLElement>(
-        "[data-slot=mermaid-diagram]",
-      );
-      const svg = host?.querySelector("svg");
-      const viewport = host?.closest<HTMLElement>(
-        "[data-slot=aui_thread-viewport]",
-      );
-      const footer = viewport?.querySelector<HTMLElement>(
-        ".aui-thread-viewport-footer",
-      );
-      if (!host || !svg || !viewport || !footer) {
-        if (tries < 40) frame = requestAnimationFrame(tick);
-        return;
-      }
-      const marker = svg.getAttribute("viewBox") ?? "";
-      if (revealed.current === marker) return;
-      const footerHeight = footer.getBoundingClientRect().height;
-      const limit = viewport.getBoundingClientRect().bottom - footerHeight - 48;
-      const message = host.closest<HTMLElement>(
-        "[data-slot=aui_assistant-message-root]",
-      );
-      const overflow = (message ?? host).getBoundingClientRect().bottom - limit;
-      if (overflow > 1) viewport.scrollBy({ top: overflow });
-      revealed.current = marker;
+    const viewport = document.querySelector<HTMLElement>(
+      "[data-slot=aui_thread-viewport]",
+    );
+    if (!viewport) return;
+    const observer = new ResizeObserver(() => clearActionBar());
+    observer.observe(viewport);
+    const watch = new MutationObserver(() => {
+      const diagram = viewport.querySelector("[data-slot=mermaid-diagram]");
+      if (diagram) observer.observe(diagram);
+      clearActionBar();
+    });
+    watch.observe(viewport, { childList: true, subtree: true });
+    const timer = window.setInterval(clearActionBar, 200);
+    const stop = window.setTimeout(() => window.clearInterval(timer), 5000);
+    clearActionBar();
+    return () => {
+      observer.disconnect();
+      watch.disconnect();
+      window.clearInterval(timer);
+      window.clearTimeout(stop);
     };
-    frame = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(frame);
   }, [running]);
   return null;
 }
