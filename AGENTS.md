@@ -9,6 +9,12 @@ Read the nearest nested `AGENTS.md` before editing a subtree.
 
 ## Trunk and tenant fidelity
 
+- Use Conventional Commits for every commit, pull request title, and squash
+  subject, such as `fix: ...`, `chore(deps): ...`, or `docs: ...`.
+- Supply an explicit squash message. Keep commit messages and pull request
+  descriptions free of generated-by signatures, session links, and attribution
+  footers.
+
 `main` is the only long-lived branch. Make one coherent change on a short-lived
 branch, open a pull request, run the relevant local gates, and squash-merge once
 the Trunk gate is green -- opening or pushing the pull request starts that gate,
