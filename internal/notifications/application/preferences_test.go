@@ -125,7 +125,7 @@ func TestAPreferenceThatNamesNoTupleIsRefusedBeforeAnythingIsRead(t *testing.T) 
 			Channel: domain.ChannelEmail, AllFutureTypes: true,
 		}},
 		{"a channel no resource is configured on", domain.Preference{
-			Owner: alice(), ResourceRID: preferenceResource, Channel: "SLACK", AllFutureTypes: true,
+			Owner: alice(), ResourceRID: preferenceResource, Channel: "PAGERDUTY", AllFutureTypes: true,
 		}},
 	} {
 		t.Run(incomplete.name, func(t *testing.T) {

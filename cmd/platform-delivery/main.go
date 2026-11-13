@@ -316,6 +316,9 @@ func configureReconciliation(
 	}
 	kind := strings.TrimSpace(getenv("REPOSITORY_KIND"))
 	if kind == "" || kind == "file" {
+		if composition.NotificationDeliveryRequested(getenv) {
+			return nil, func() {}, nil, nil, notificationComponent{}, errors.New("notification delivery requires REPOSITORY_KIND=postgres and its durable queue")
+		}
 		// Explicit single-replica development mode keeps the compatibility
 		// repository and does not claim durable multi-replica reconciliation.
 		// It reports no queue statistics either, because the queues it would
@@ -421,13 +424,10 @@ func configureReconciliation(
 	}
 	deliveryConfig := composition.DefaultDispatcherConfig()
 	deliveryConfig.OnError = func(err error) { slog.Error("notification delivery cycle", "error", err) }
-	// The address book, read at delivery time so a notification reaches the
-	// recipient's own destination rather than only the endpoint an operator
-	// configured. The endpoint is still how the message leaves the process and
-	// still the fallback for a recipient holding no contact, so a deployment
-	// that records no contacts delivers exactly where it did before.
-	contacts, err := notificationsapplication.NewContacts(
-		notificationStore, notificationsapplication.SystemClock{})
+	// Native delivery resolves the contact matching the selected channel. The
+	// existing generic relay mode retains its legacy destination/fallback policy.
+	contacts, err := composition.NewNotificationDestinationResolver(
+		transport, notificationStore, notificationsapplication.SystemClock{})
 	if err != nil {
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err

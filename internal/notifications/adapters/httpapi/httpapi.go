@@ -615,7 +615,7 @@ func requestedChannel(value string) (domain.Channel, error) {
 	channel := domain.Channel(strings.TrimSpace(value))
 	if !channel.Valid() {
 		return "", fmt.Errorf(
-			"notification channel %q is not one a resource can be configured on; use EMAIL or IN_APP", value)
+			"notification channel %q is not one a resource can be configured on; use EMAIL, IN_APP or SLACK", value)
 	}
 	return channel, nil
 }

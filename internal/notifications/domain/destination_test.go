@@ -159,3 +159,20 @@ func TestARecipientWithNoContactResolvesToNothingAtAll(t *testing.T) {
 		t.Fatal("an addressless contact resolved to a destination")
 	}
 }
+
+func TestNativeChannelResolutionDoesNotFallBackAcrossContactKinds(t *testing.T) {
+	contacts := []Contact{contact(alice(), ContactSlack, "#alice"), contact(platform(), ContactEmail, "team@example.test")}
+	if destination, found := ResolveChannelDestination(Recipient{Owner: alice(), Channel: ChannelEmail}, contacts); found {
+		t.Fatalf("email fell back to another contact: %#v", destination)
+	}
+	destination, found := ResolveChannelDestination(Recipient{Owner: alice(), Channel: ChannelSlack}, contacts)
+	if !found || destination.Kind != ContactSlack || destination.Address != "#alice" {
+		t.Fatalf("Slack destination=%#v, %v", destination, found)
+	}
+	if _, found := ResolveChannelDestination(Recipient{Owner: platform(), Channel: ChannelSlack}, contacts); found {
+		t.Fatal("another owner's Slack contact was used")
+	}
+	if _, found := ResolveChannelDestination(Recipient{Owner: alice(), Channel: ChannelInApp}, contacts); found {
+		t.Fatal("in-app notification acquired an external destination")
+	}
+}

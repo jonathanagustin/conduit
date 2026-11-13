@@ -33,7 +33,7 @@ import { ApiError } from "./errors.js";
 
 /** Where a notification is delivered. Matched to `domain.Channel` by
  * `scripts/verify-console-contract.mjs`, which fails when the two sets drift. */
-export const NOTIFICATION_CHANNELS = ["EMAIL", "IN_APP"] as const;
+export const NOTIFICATION_CHANNELS = ["EMAIL", "IN_APP", "SLACK"] as const;
 
 export type NotificationChannel = (typeof NOTIFICATION_CHANNELS)[number];
 

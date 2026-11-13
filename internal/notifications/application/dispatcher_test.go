@@ -522,3 +522,31 @@ func TestARepeatedlyUnreadableAddressBookExhaustsItsBudget(t *testing.T) {
 		t.Fatal("three failed resolutions out of a budget of three left the entry pending")
 	}
 }
+
+type providerDelay struct{ delay time.Duration }
+
+func (providerDelay) Error() string                     { return "provider requested a delay" }
+func (failure providerDelay) RetryAfter() time.Duration { return failure.delay }
+
+func TestProviderRetryDelayIsAMinimumAndDoesNotResetTheAttemptBudget(t *testing.T) {
+	row := &queuedEntry{entry: deliverableEntry("nev-delayed", domain.ChannelSlack), availableAt: moment()}
+	queue := &fakeQueue{rows: []*queuedEntry{row}}
+	clock := &fixedClock{now: moment()}
+	transport := &recordingTransport{err: fmt.Errorf("wrapped: %w", providerDelay{delay: 45 * time.Second})}
+	worker := dispatcher(t, queue, transport, clock)
+	if _, err := worker.DeliverOne(t.Context()); err != nil {
+		t.Fatal(err)
+	}
+	if !row.availableAt.Equal(moment().Add(45*time.Second)) || row.exhausted || !row.deliveredAt.IsZero() {
+		t.Fatalf("provider delay not respected: due=%s exhausted=%v", row.availableAt, row.exhausted)
+	}
+	for index := 0; index < 2; index++ {
+		clock.now = row.availableAt
+		if _, err := worker.DeliverOne(t.Context()); err != nil {
+			t.Fatal(err)
+		}
+	}
+	if !row.exhausted || row.attempt != 3 {
+		t.Fatalf("retry budget reset: attempt=%d exhausted=%v", row.attempt, row.exhausted)
+	}
+}

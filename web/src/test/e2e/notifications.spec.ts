@@ -190,6 +190,14 @@ test.describe("Notification inbox", () => {
       .poll(() => hub.requests().filter((request) => request.includes("channel=EMAIL")).length)
       .toBeGreaterThan(0);
 
+    await notifications.channel.selectOption("SLACK");
+    await expect(page).toHaveURL(/channel=SLACK/);
+    await expect
+      .poll(() => hub.requests().filter((request) => request.includes("channel=SLACK")).length)
+      .toBeGreaterThan(0);
+    await page.reload();
+    await expect(notifications.channel).toHaveValue("SLACK");
+
     // An unrecognised channel in a hand-edited link falls back rather than being
     // forwarded: the route refuses one it does not know with a 400, and a bad
     // link should not look like a broken console.

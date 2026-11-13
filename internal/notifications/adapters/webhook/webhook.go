@@ -1,14 +1,9 @@
 // Package webhook delivers a rendered notification by POSTing it to one
 // operator-configured HTTPS endpoint.
 //
-// Why a webhook rather than SMTP. Both were candidates and the deciding
-// question was what Conduit can honestly promise. SMTP needs an envelope
-// sender, a TLS and authentication policy, and a delivery agent; a webhook
-// needs one URL, which an operator already has: a Slack incoming webhook is
-// exactly this shape, and so is every mail relay's HTTP submission API. It is
-// also the adapter that can be tested to the byte with no socket open, by
-// substituting an http.RoundTripper, which SMTP cannot be without a fake
-// server.
+// This adapter retains the generic relay contract. Native SMTP and Slack
+// adapters are also available; an operator explicitly chooses native routing
+// or this existing webhook mode in Hub configuration.
 //
 // The endpoint is where a delivery goes; who it is *for* now travels with it.
 // This package used to say no recipient address existed to send to, which was
