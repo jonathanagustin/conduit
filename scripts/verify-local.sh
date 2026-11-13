@@ -259,6 +259,10 @@ gate 'GitOps acceptance' ./scripts/test-gitops.sh
 # CI's browser step additionally installs runner OS dependencies.
 
 not_run_as_written=(
+  # Hosted scheduling only; the local verifier always runs the full gate set.
+  'Classify changed paths'
+  'Skip when no Go-relevant paths changed'
+  'Skip when no relevant paths changed'
   'Install pinned Helm'
   'Install pinned pnpm'
   'Install pinned Node'

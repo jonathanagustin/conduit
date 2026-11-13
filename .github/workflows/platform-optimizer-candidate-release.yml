@@ -256,6 +256,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: optimizer-candidate-${{ inputs.backend }}-${{ matrix.architecture }}
           path: |
             dist/${{ inputs.backend }}-${{ matrix.architecture }}
@@ -290,6 +291,7 @@ jobs:
             "${RUNNER_TEMP}/optimizer-candidate-gate.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: optimizer-candidate-${{ inputs.backend }}-gate
           path: ${{ runner.temp }}/optimizer-candidate-gate.json
           if-no-files-found: error
@@ -502,6 +504,7 @@ jobs:
             "${BACKEND}" "${index_reference}" >> "${GITHUB_STEP_SUMMARY}"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: optimizer-candidate-${{ inputs.backend }}-distribution
           path: |
             ${{ runner.temp }}/optimizer-release/optimizer-candidate-${{ inputs.backend }}-gate/optimizer-candidate-gate.json

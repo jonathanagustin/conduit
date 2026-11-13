@@ -267,6 +267,7 @@ jobs:
       - if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: oci-${{ matrix.component }}
           path: |
             dist/${{ matrix.component }}.json
@@ -514,18 +515,21 @@ jobs:
             platform-oci-manifest.json dist/hub.json dist/spoke-agent.json
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: platform-oci-manifest
           path: platform-oci-manifest.json
           if-no-files-found: error
       - if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: platform-runtime
           path: platform-runtime.json
           if-no-files-found: error
       - if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: platform-helm-charts
           path: |
             platform-helm-charts.json
@@ -534,6 +538,7 @@ jobs:
       - if: startsWith(github.ref, 'refs/tags/v')
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
         with:
+          retention-days: 7
           name: platform-zarf-packages
           path: zarf-dist/*
           if-no-files-found: error
