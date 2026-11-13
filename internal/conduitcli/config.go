@@ -16,6 +16,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/operator"
+	spacedomain "github.com/jonathanagustin/conduit/internal/spaces/domain"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
@@ -25,6 +26,7 @@ const defaultTimeout = 30 * time.Second
 // transport construction. It contains paths to trust material, never material
 // contents, and deliberately has no permissive map-based configuration.
 type ConnectionConfig struct {
+	SpaceID            string
 	Server             string
 	Timeout            time.Duration
 	CAFile             string
@@ -43,6 +45,9 @@ type clientConnection struct {
 }
 
 func (configuration ConnectionConfig) validate() (*url.URL, error) {
+	if configuration.SpaceID != "" && !spacedomain.ValidID(configuration.SpaceID) {
+		return nil, errors.New("--space-id must name a native Space identity")
+	}
 	server, err := url.Parse(strings.TrimSpace(configuration.Server))
 	if err != nil || server.Scheme == "" || server.Host == "" {
 		return nil, errors.New("--server must be an absolute http(s) URL")

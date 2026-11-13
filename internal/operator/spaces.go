@@ -90,3 +90,19 @@ func (adapter *HTTPControlPlane) ListSpaceBindings(ctx context.Context, id strin
 	err := adapter.request(ctx, http.MethodGet, "/v1/spaces/"+url.PathEscape(id)+"/bindings", nil, &result)
 	return result.Bindings, err
 }
+
+// SetSpaceSelection configures relevant native listing/publication calls. It
+// neither changes credentials nor applies a resource grant.
+func (adapter *HTTPControlPlane) SetSpaceSelection(id string) error {
+	if id != "" && !domain.ValidID(id) {
+		return errors.New("expected a native Space identity")
+	}
+	adapter.spaceID = id
+	return nil
+}
+func (adapter *HTTPControlPlane) withSpaceSelection(path string) string {
+	if adapter.spaceID == "" {
+		return path
+	}
+	return path + "?spaceId=" + url.QueryEscape(adapter.spaceID)
+}

@@ -26,3 +26,10 @@ type Authority interface {
 	RequireBinding(context.Context, string, domain.Resource) (string, error)
 	RequireResourceRead(context.Context, domain.Resource) error
 }
+
+// PublicationAuthority is bound to an authenticated publisher. A normal Space
+// reader cannot reserve coordinates; the existing publication decisions still
+// govern whether a resource can be published.
+type PublicationAuthority interface {
+	RequireProductPublication(context.Context, string, string) (string, error)
+}

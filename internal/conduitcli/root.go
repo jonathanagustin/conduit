@@ -102,6 +102,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	state.config.SPIFFEEndpoint = firstNonEmpty(runtime.Getenv("CONDUIT_SPIFFE_ENDPOINT"), runtime.Getenv("SPIFFE_ENDPOINT_SOCKET"))
 	state.config.HubSPIFFEID = firstNonEmpty(runtime.Getenv("CONDUIT_HUB_SPIFFE_ID"), runtime.Getenv("CONTROL_PLANE_SPIFFE_ID"))
 	state.config.BearerTokenFile = runtime.Getenv("CONDUIT_BEARER_TOKEN_FILE")
+	state.config.SpaceID = runtime.Getenv("CONDUIT_SPACE_ID")
 	state.config.Timeout = defaultTimeout
 
 	root := &cobra.Command{
@@ -114,6 +115,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.SetIn(runtime.Stdin)
 	root.SetErr(runtime.Stderr)
 	flags := root.PersistentFlags()
+	flags.StringVar(&state.config.SpaceID, "space-id", state.config.SpaceID, "native Space selection for Environment listing and publication (CONDUIT_SPACE_ID)")
 	flags.StringVar(&state.config.Server, "server", state.config.Server, "Conduit Hub base URL (CONDUIT_SERVER)")
 	flags.DurationVar(&state.config.Timeout, "timeout", defaultTimeout, "request timeout")
 	flags.StringVarP(&state.output, "output", "o", "json", "output format: json, yaml, or csv")
@@ -302,6 +304,10 @@ func newService(ctx context.Context, configuration ConnectionConfig) (Service, f
 	}
 	adapter, err := operator.NewHTTPControlPlane(configuration.Server, connection.client)
 	if err != nil {
+		connection.cleanup()
+		return nil, nil, err
+	}
+	if err := adapter.SetSpaceSelection(configuration.SpaceID); err != nil {
 		connection.cleanup()
 		return nil, nil, err
 	}

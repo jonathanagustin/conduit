@@ -120,3 +120,25 @@ func (service *Service) RequireScope(ctx context.Context, spaceID string, resour
 	}
 	return nil
 }
+
+// ReserveProductPublication records immutable grouping intent only after the
+// caller-bound publication authority permits it. Failed later publication may
+// leave intent; this does not assert that an artifact or release exists.
+func (service *Service) ReserveProductPublication(ctx context.Context, spaceID, productID string) (domain.Binding, error) {
+	authority, ok := service.authority.(ports.PublicationAuthority)
+	if !ok {
+		return domain.Binding{}, domain.ErrForbidden
+	}
+	subject, err := authority.RequireProductPublication(ctx, spaceID, productID)
+	if err != nil {
+		return domain.Binding{}, err
+	}
+	if _, err := service.store.GetSpace(ctx, spaceID); err != nil {
+		return domain.Binding{}, err
+	}
+	value, err := domain.NewBinding(spaceID, domain.Resource{Kind: domain.Product, ID: productID}, subject, service.now())
+	if err != nil {
+		return domain.Binding{}, err
+	}
+	return service.store.BindResource(ctx, value)
+}

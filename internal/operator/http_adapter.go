@@ -46,6 +46,7 @@ func NewSPIFFEHTTPClient(source SPIFFEX509Source, expectedHubID string) (*http.C
 
 // HTTPControlPlane is an outbound adapter for the operator application port.
 type HTTPControlPlane struct {
+	spaceID string
 	baseURL *url.URL
 	client  *http.Client
 }
@@ -88,9 +89,9 @@ func (adapter *HTTPControlPlane) PublishProductRelease(
 	// decodes the public body with DisallowUnknownFields, so sending them earns
 	// a 400. Dropping them instead would be worse than the 400 -- an optional
 	// dependency silently becoming required changes what the Release means.
-	if len(bundle.DefaultConfig) > 0 || len(bundle.ConfigSchema) > 0 || manifestExceedsPublicContract(manifest) {
+	if adapter.spaceID != "" || len(bundle.DefaultConfig) > 0 || len(bundle.ConfigSchema) > 0 || manifestExceedsPublicContract(manifest) {
 		var ignored struct{}
-		err := adapter.request(ctx, http.MethodPost, "/v1/product-publications/helm-chart", bundle, &ignored)
+		err := adapter.request(ctx, http.MethodPost, adapter.withSpaceSelection("/v1/product-publications/helm-chart"), bundle, &ignored)
 		return ProductReleasePublication{MavenCoordinate: coordinate, Created: err == nil}, err
 	}
 	artifacts := make([]map[string]string, 0, len(manifest.Extensions.Artifacts))
@@ -125,7 +126,7 @@ func (adapter *HTTPControlPlane) PublishTerraformProductRelease(
 	ctx context.Context, manifest controlplane.TerraformProductManifest,
 ) (controlplane.ProductPublication, error) {
 	var publication controlplane.ProductPublication
-	err := adapter.request(ctx, http.MethodPost, "/v1/product-publications/terraform", manifest, &publication)
+	err := adapter.request(ctx, http.MethodPost, adapter.withSpaceSelection("/v1/product-publications/terraform"), manifest, &publication)
 	return publication, err
 }
 
@@ -140,7 +141,7 @@ func (adapter *HTTPControlPlane) ListProductPublications(
 }
 
 func (adapter *HTTPControlPlane) ListEnvironments(ctx context.Context) ([]controlplane.EnvironmentCatalogRecord, error) {
-	return listCatalogPages(ctx, adapter, "/v1/environments", func(page catalogPageEnvelope[controlplane.EnvironmentCatalogRecord]) []controlplane.EnvironmentCatalogRecord {
+	return listCatalogPages(ctx, adapter, adapter.withSpaceSelection("/v1/environments"), func(page catalogPageEnvelope[controlplane.EnvironmentCatalogRecord]) []controlplane.EnvironmentCatalogRecord {
 		return page.Environments
 	})
 }
@@ -178,7 +179,15 @@ func listCatalogPages[T any](
 	cursor := ""
 	seen := map[string]struct{}{}
 	for {
-		query := path + "?limit=20&view=full"
+		parsed, err := url.Parse(path)
+		if err != nil {
+			return nil, err
+		}
+		pageQueryValues := parsed.Query()
+		pageQueryValues.Set("limit", "20")
+		pageQueryValues.Set("view", "full")
+		parsed.RawQuery = pageQueryValues.Encode()
+		query := parsed.String()
 		if cursor != "" {
 			query += "&cursor=" + url.QueryEscape(cursor)
 		}
