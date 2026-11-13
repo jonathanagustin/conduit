@@ -1,0 +1,94 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/main/schemas/config.json",
+  "bootstrap-sha": "44e1e8845fe01c2a461061f6557a128ebf716af6",
+  "include-component-in-tag": false,
+  "include-v-in-tag": true,
+  "pull-request-title-pattern": "chore(main): release ${version}",
+  "pull-request-header": "## Outcome\n\nPrepare the next Conduit version and changelog for review. Publication requires a separate manual Release workflow dispatch after this pull request passes Trunk and is authorized for merge.\n\n## Tenant fidelity\n\n| Claim or behavior | Class | Immutable source or sanitized evidence | Scope not established |\n| --- | --- | --- | --- |\n| Conduit version and changelog preparation | Conduit extension | ADR 0010 and issue #339 | No Apollo compatibility or artifact publication claim |\n\n### Deliberate divergences\n\nConduit-owned release preparation only. No runtime or generated Apollo transport changes, tenant data, tag creation, or publication.\n\n## Verification\n\nThe required Trunk gate must pass on this exact pull-request head before merge. Review VERSION, both Helm chart versions, the release manifest, and the changelog together.\n\n## Changes",
+  "pull-request-footer": "Publication remains a separate manual Release workflow dispatch.",
+  "packages": {
+    ".": {
+      "release-type": "simple",
+      "package-name": "conduit",
+      "version-file": "VERSION",
+      "bump-minor-pre-major": true,
+      "bump-patch-for-minor-pre-major": false,
+      "changelog-path": "CHANGELOG.md",
+      "changelog-sections": [
+        {
+          "type": "feat",
+          "section": "Features"
+        },
+        {
+          "type": "fix",
+          "section": "Bug Fixes"
+        },
+        {
+          "type": "perf",
+          "section": "Performance Improvements"
+        },
+        {
+          "type": "revert",
+          "section": "Reverts"
+        },
+        {
+          "type": "chore",
+          "section": "Chore",
+          "hidden": true
+        },
+        {
+          "type": "docs",
+          "section": "Docs",
+          "hidden": true
+        },
+        {
+          "type": "test",
+          "section": "Test",
+          "hidden": true
+        },
+        {
+          "type": "ci",
+          "section": "Ci",
+          "hidden": true
+        },
+        {
+          "type": "build",
+          "section": "Build",
+          "hidden": true
+        },
+        {
+          "type": "refactor",
+          "section": "Refactor",
+          "hidden": true
+        },
+        {
+          "type": "style",
+          "section": "Style",
+          "hidden": true
+        }
+      ],
+      "extra-files": [
+        {
+          "type": "yaml",
+          "path": "deploy/helm/platform-hub/Chart.yaml",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "yaml",
+          "path": "deploy/helm/platform-hub/Chart.yaml",
+          "jsonpath": "$.appVersion"
+        },
+        {
+          "type": "yaml",
+          "path": "deploy/helm/platform-spoke/Chart.yaml",
+          "jsonpath": "$.version"
+        },
+        {
+          "type": "yaml",
+          "path": "deploy/helm/platform-spoke/Chart.yaml",
+          "jsonpath": "$.appVersion"
+        }
+      ]
+    }
+  }
+}

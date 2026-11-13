@@ -72,3 +72,7 @@ logs. A successful build or upload does not authorize deployment to a tenant.
 Rollback means selecting a previously verified immutable artifact through the
 owning deployment repository and approval path. Do not overwrite a published
 tag to simulate rollback.
+
+Release preparation can be proposed by Release Please; see
+[`release-preparation.md`](release-preparation.md). Its PR-only workflow does
+not replace the manual release instruction or any publication precondition.
