@@ -51,6 +51,8 @@ type EntityConfigurationAdapter func(
 ) (*ManagedInstallationConfiguration, *UniversalInstallationConfiguration, []SecretRequirement, error)
 
 type HandlerOptions struct {
+	// SpaceIDLookup reads independently authorized native assignment metadata.
+	SpaceIDLookup                        func(context.Context, Principal, string, string) (string, error)
 	ConsoleHandler                       http.Handler
 	AllowInsecureAgentIdentityHeaders    bool
 	AllowInsecureOperatorIdentityHeaders bool

@@ -80,3 +80,6 @@ func ridLocator(value string) string {
 func isConduitRID(value string) bool {
 	return strings.HasPrefix(value, conduitRIDPrefix)
 }
+
+// bundleRID identifies an existing native Bundle without claiming an Apollo type token.
+func bundleRID(id string) string { return conduitRIDPrefix + "bundle." + ridLocator(id) }

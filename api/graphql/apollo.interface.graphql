@@ -48,8 +48,8 @@ type Query {
 }
 
 type ApolloBundle {
-  rid: String @provenance(tier: OBSERVED)
-  spaceId: String @provenance(tier: OBSERVED)
+  rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
+  spaceId: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
 }
 
 type ApolloChangeRequest {
@@ -68,7 +68,7 @@ type ApolloEntity {
   health: String @provenance(tier: DOCUMENTED)
   id: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   packageRid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
-  spaceId: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   version: String @provenance(tier: DOCUMENTED)
 }
 
@@ -84,7 +84,7 @@ type ApolloEnvironment {
   name: String @provenance(tier: OBSERVED)
   namespaceId: String @provenance(tier: OBSERVED)
   rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
-  spaceId: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
 }
 
 type ApolloEnvironmentPage {
@@ -107,7 +107,7 @@ type ApolloProduct {
   productId: String @provenance(tier: OBSERVED)
   productReleases(pageSize: Int!): ApolloProductReleasePage @provenance(tier: OBSERVED)
   rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
-  spaceId: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
 }
 
 type ApolloProductDependency {
@@ -125,7 +125,7 @@ type ApolloProductRelease {
   mavenCoordinate: String @provenance(tier: OBSERVED)
   product: ApolloProduct @provenance(tier: OBSERVED)
   rid: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
-  spaceId: String @provenance(tier: OBSERVED)
+  spaceId: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
 }
 
 type ApolloProductReleaseManifest {

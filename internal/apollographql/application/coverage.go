@@ -20,6 +20,15 @@ func at(typeName, field string) domain.Coordinate {
 // while forgetting to remove one makes the build fail. Silence should cost
 // coverage, never truth.
 var coverage = domain.NewCoverage(map[domain.Coordinate]string{
+	at("ApolloEnvironment", "spaceId"):    "native: persisted authorized Environment Space assignment",
+	at("ApolloEntity", "spaceId"):         "native: persisted authorized owning Environment Space assignment",
+	at("ApolloProduct", "spaceId"):        "native: persisted authorized Product Space assignment",
+	at("ApolloProductRelease", "spaceId"): "native: persisted authorized owning Product Space assignment",
+	at("ApolloBundle", "spaceId"):         "native: persisted authorized Bundle Space assignment",
+	at("ApolloQuery", "bundle"):           "native: authorized Bundle identity catalogue",
+	at("ApolloQuery", "bundles"):          "native: authorized Bundle identity catalogue; recovered scalar argument and result",
+	at("ApolloBundle", "rid"):             "native: minted from persisted Bundle identity, valueTier CONDUIT_NATIVE",
+
 	// --- Recovered from an Apollo Hub, and answerable from Conduit's Apollo
 	// compatibility projection. These are the same records the Apollo REST
 	// surface serves, so the protocol a client picks cannot change the answer.

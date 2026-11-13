@@ -343,14 +343,16 @@ func (resolver *bound) resolve(
 		return child{typeName: "ApolloQuery", source: rootSource{}}, nil
 	case "ApolloQuery":
 		return resolver.resolveQuery(ctx, coordinate.Field, arguments)
+	case "ApolloBundle":
+		return resolver.resolveBundle(ctx, coordinate.Field, source)
 	case "ApolloEnvironment":
 		return resolver.resolveEnvironment(ctx, coordinate.Field, source, arguments)
 	case "ApolloEntity":
 		return resolver.resolveEntity(ctx, coordinate.Field, source)
 	case "ApolloProduct":
-		return resolver.resolveProduct(coordinate.Field, source)
+		return resolver.resolveProduct(ctx, coordinate.Field, source)
 	case "ApolloProductRelease":
-		return resolveProductRelease(coordinate.Field, source)
+		return resolver.resolveProductRelease(ctx, coordinate.Field, source)
 	case "ApolloProductReleaseManifest":
 		return resolveManifest(coordinate.Field, source)
 	case "ApolloProductDependency":
@@ -387,6 +389,8 @@ func stringArgument(arguments map[string]any, name string) (string, error) {
 
 func (resolver *bound) resolveQuery(ctx context.Context, field string, arguments map[string]any) (any, error) {
 	switch field {
+	case "bundle", "bundles":
+		return resolver.queryBundle(ctx, field, arguments)
 	case "environment":
 		if resolver.sources.Apollo == nil {
 			return nil, errNoSource
@@ -647,6 +651,8 @@ func (resolver *bound) resolveEnvironment(
 		return nil, fmt.Errorf("ApolloEnvironment.%s resolved against %T", field, source)
 	}
 	switch field {
+	case "spaceId":
+		return resolver.spaceID(ctx, "ENVIRONMENT", string(environment.Name))
 	case "name", "id":
 		// One value answers both, because Conduit holds one human identifier for
 		// an Environment and Apollo's own contract accepts that value under both
@@ -776,6 +782,8 @@ func (resolver *bound) resolveEntity(ctx context.Context, field string, source a
 		return nil, fmt.Errorf("ApolloEntity.%s resolved against %T", field, source)
 	}
 	switch field {
+	case "spaceId":
+		return resolver.spaceID(ctx, "ENVIRONMENT", string(entity.environment.Name))
 	case "id":
 		return string(entity.installation.ApolloEntityId), nil
 	case "packageRid":
@@ -816,12 +824,14 @@ func (resolver *bound) resolveEntity(ctx context.Context, field string, source a
 	return nil, fmt.Errorf("ApolloEntity.%s is covered but this resolver has no case for it", field)
 }
 
-func (resolver *bound) resolveProduct(field string, source any) (any, error) {
+func (resolver *bound) resolveProduct(ctx context.Context, field string, source any) (any, error) {
 	product, ok := source.(apollo.Product)
 	if !ok {
 		return nil, fmt.Errorf("ApolloProduct.%s resolved against %T", field, source)
 	}
 	switch field {
+	case "spaceId":
+		return resolver.spaceID(ctx, "PRODUCT", string(product.Id))
 	case "rid":
 		return productRID(string(product.Id)), nil
 	case "productId":
@@ -852,12 +862,14 @@ type releaseSource struct {
 	release apollo.Release
 }
 
-func resolveProductRelease(field string, source any) (any, error) {
+func (resolver *bound) resolveProductRelease(ctx context.Context, field string, source any) (any, error) {
 	held, ok := source.(releaseSource)
 	if !ok {
 		return nil, fmt.Errorf("ApolloProductRelease.%s resolved against %T", field, source)
 	}
 	switch field {
+	case "spaceId":
+		return resolver.spaceID(ctx, "PRODUCT", string(held.product.Id))
 	case "rid":
 		return productReleaseRID(string(held.release.MavenCoordinate)), nil
 	case "mavenCoordinate":

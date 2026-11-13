@@ -78,7 +78,16 @@ type OverviewSource = reportingports.OverviewSource
 // that half of the interface rather than a panic: an interface that dies
 // because one store is absent is worse than one that says which half is
 // unavailable.
+// NativeGrouping supplies already-authorized native grouping and Bundle identity
+// reads. Empty SpaceID means a configured store observed no assignment; failures
+// must remain errors. It grants no resource authority.
+type NativeGrouping interface {
+	SpaceID(context.Context, string, string) (string, error)
+	BundleIDs(context.Context) ([]string, error)
+}
+
 type Sources struct {
+	Grouping NativeGrouping
 	Apollo   ApolloProjection
 	Overview OverviewSource
 }

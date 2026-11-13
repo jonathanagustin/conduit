@@ -434,24 +434,20 @@ tree deliberately. Omitting them made every citation unresolvable, so every case
 rejected for that reason instead of its own and the harness passed while testing
 nothing.
 
-**Declared is not the same as answerable.** 9 recovered coordinates are
-declared and unanswerable here. Those refuse rather than resolving to null: a
-null is a value, and answering `ApolloBundle.rid: null` would assert an absence
-Conduit has never observed. The refusal says so and sends the reader to a Hub.
+**Declared is not the same as answerable.** 1 recovered coordinate remains
+declared and unanswerable: `ApolloEnvironment.namespaceId`. It refuses rather
+than asserting an absence. ADR 0014 now serves native Space assignments for all
+five scoped fields and native Bundle identifiers. Values disclose
+`CONDUIT_NATIVE`; recovered field names remain `OBSERVED`. Entities inherit the
+Environment assignment, and Releases the Product's. No assignment becomes null
+only after a configured store confirms absence; failed or denied reads remain
+errors. A native Bundle RID is not an Apollo Bundle RID. The recovered
+`bundles(rids: RID!)` field remains scalar in both argument and result.
 
-The reason is not that Conduit holds none of these resources — it builds, signs
-and imports Bundles, and serves Products and Product Releases today. It is that
-Conduit holds no *Apollo* identifiers for them and has no Space. A Conduit
-bundle is `bnd_<hex>`, which is a different identifier for a different object,
-not an Apollo RID under another name.
-[`docs/decisions/0005-apollo-coordinates-that-stay-refused.md`](../../decisions/0005-apollo-coordinates-that-stay-refused.md)
-records all twelve, splits them by what would actually close each one, and is
-pinned against the resolver by
-`TestRefusedCoordinatesMatchTheDecisionRecord` — so serving one, or declaring a
-thirteenth, fails the build until the record is updated.
-`internal/apollographql/domain.Reconcile` publishes that count and fails the
-build on the two cases that are defects -- a field Conduit added that nothing
-backs, and a resolver claiming a coordinate the schema does not declare.
+The live enumeration in ADR 0007 is pinned by
+`TestRefusedCoordinatesMatchTheDecisionRecord`; the older ADR 0005 remains
+historical. `internal/apollographql/domain.Reconcile` rejects declarations with
+no source and resolvers claiming undeclared coordinates.
 
 A cited name does not excuse a missing source. `DOCUMENTED` and
 `CONDUIT_NATIVE` reconcile identically: Apollo publishing the name is evidence
@@ -461,12 +457,12 @@ chose to declare the field either way.
 | Property | Value |
 | --- | --- |
 | Recovered coordinates declared | 41 |
-| — of which served | 32 |
-| — of which declared but unanswerable | 9 |
-| Coordinates served that no capture established | 22 (35% of the 63 declared; 41% of the 54 served) |
+| — of which served | 40 |
+| — of which declared but unanswerable | 1 |
+| Coordinates served that no capture established | 22 (35% of the 63 declared; 35% of the 62 served) |
 | — of which Apollo names or documents | 22 |
 | — of which are Conduit's own invention | **0 (0%)** |
-| Coordinates served, total | 54 (32 `OBSERVED` + 22 `DOCUMENTED`) |
+| Coordinates served, total | 62 (40 `OBSERVED` + 22 `DOCUMENTED`) |
 | Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
 | Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
 
@@ -474,8 +470,8 @@ Two numbers, and they answer different questions. `unrecoveredShare` (35%) is
 the fraction no Hub has confirmed; it should fall as captures widen. Its
 denominator is what the SDL **declares** — 63 — not what the server answers:
 `build-interface-schema.mjs:260` divides by `observedFields + documentedFields +
-conduitNativeFields`. Measured against the 54 coordinates actually served it is
-41%. The declared figure is the published one because it is the property of the
+conduitNativeFields`. Measured against the 62 coordinates actually served it is
+35%. The declared figure is the published one because it is the property of the
 contract; the served figure is stated here so the two are never silently swapped.
 `conduitNativeShare` (0%) is the fraction no Apollo source of any kind supports;
 it should stay honest rather than stay zero. Conflating them is how "documented"

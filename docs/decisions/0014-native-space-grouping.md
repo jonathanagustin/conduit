@@ -106,3 +106,27 @@ including forbidden reads and conflicting assignment, fail the command. An
 actual Hub round trip tests the commands, cross-tenant filtering, provenance,
 and the absence of mutations after rejected commands. Global selection,
 profile persistence and publication integration remain required follow-up work.
+
+## GraphQL assignment slice
+
+All five recovered `spaceId` fields now read persisted assignments through a
+caller-bound port. Environment and Entity use the native Environment ID;
+Product and Product Release use the owning Product ID; Bundle uses its stored
+native ID. Creation of no assignment is not inferred: a configured store must
+return not-found before the field answers null. Missing configuration, storage
+failure and denied access remain errors and are not counted as served values.
+Every field retains observed coordinate provenance and discloses its native
+value tier. The choices are registered as `spaces.GraphQLGrouping`.
+
+The Bundle entry point now reads the authorized native Bundle identity catalogue
+under the existing `platform/root` read boundary. Its RID uses the established
+`ri.conduit.main.bundle.<locator>` namespace, not a guessed Apollo type token.
+The unusual recovered `bundles(rids: RID!)` spelling still has a single argument
+and a single result; it is not silently converted to a batch API. The stored
+Bundle record, rather than assignment intent alone, establishes its existence.
+
+An actual Hub integration test creates different Space assignments for the
+Environment, Product and Bundle and verifies all five fields, inheritance,
+value disclosure, independent read authority and sanitized storage failures.
+Namespace remains separate. This slice does not complete CLI selection or the
+guest-user publication requirement of #17.

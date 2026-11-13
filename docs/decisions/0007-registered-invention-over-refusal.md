@@ -174,11 +174,13 @@ Chosen option: **serve, disclose, register**. Concretely:
    included. `scripts/verify-documentation-claims.mjs` enforces the cheapest part
    of this automatically.
 
-### Group 1 — no Apollo resource identifiers (3)
+### Resolved group 1 — native resource identifiers
 
 `ApolloBundle.rid`, `ApolloQuery.bundle`, `ApolloQuery.bundles`.
 
-Conduit holds all three resources and lacks only Apollo's identifier for them.
+All three remaining Bundle coordinates are now served from authorized persisted
+native Bundle identities under ADR 0014. No Apollo Bundle identifier is claimed.
+Conduit holds these resources and lacks only Apollo's identifier for them.
 Under this record it mints one, in a form that cannot be mistaken for Apollo's.
 
 **Three of the original six are served as of 2026-08-17.** `ApolloProduct.rid`,
@@ -234,40 +236,17 @@ Note preserved from ADR 0005 because it remains a live trap: `ri.apollo.main.bun
 appears in this repository only in Conduit's own GraphQL fixtures. It is our test
 data, not evidence, and citing it would be circular.
 
-### Group 2 — no Space tenancy boundary (5)
+### Resolved group 2 — persisted native Space grouping
 
-`ApolloBundle.spaceId`, `ApolloEntity.spaceId`, `ApolloEnvironment.spaceId`,
-`ApolloProduct.spaceId`, `ApolloProductRelease.spaceId`.
-
-This is the group where the evidence argues hardest against serving, and saying
-so is part of deciding it.
-
-`ApolloSpaceId` is documented as external in origin and delivered by agent
-report. Minting one is not filling a gap in our knowledge; it is Conduit issuing
-an identifier whose defined meaning belongs to a system Conduit is not. Under
-ADR 0005 that ended the discussion. Under this record it does not, because
-`valueTier: CONDUIT_NATIVE` says the necessary thing on the wire: this is
-Conduit's tenancy identifier occupying Apollo's field, and it is not an
-`ApolloSpaceId`.
-
-**This reopens issue #17.** It closed 2026-08-16 as won't-do, and its stated
-reason was "the honest refusal over a single default Space" — the exact
-preference the owner has now overruled. #17's decision therefore does not survive
-this record on its own reasoning, and the question it answered has to be asked
-again under the new rule. Its substantive objection does survive and must be
-answered rather than dismissed: **a single default Space is a discriminator that
-discriminates nothing until a second exists.** An invented Space that is always
-the same constant is a synthesized value wearing a tenancy field, and it is worse
-than a refusal because it looks like data.
-
-The consequence is that group 2 does not close by minting a constant. It closes
-by Conduit having a real tenancy boundary of its own to report — one that differs
-between deployments and can differ within one. Until that exists, these five stay
-refused under this record too, and they are the only coordinates that do.
-
-**Displaced by:** a capture establishing what an Apollo Space id is for a
-resource Conduit holds, which would replace the invention outright rather than
-disclosing alongside it.
+Superseded by the adopted decision in #17 and ADR 0014. The five recovered
+Space fields now read real persisted native assignments, with
+`valueTier: CONDUIT_NATIVE`; no default constant or ApolloSpaceId is minted.
+Entities inherit their Environment assignment and Releases their Product's.
+Bundle lookup uses existing authorized native Bundle records and an explicitly
+native RID; recovered scalar `bundles(rids: RID!)` cardinality is retained.
+Missing assignment becomes null only after the configured store establishes
+absence; unavailable storage and denied authority remain errors. Namespace is
+still a separate governed-resource question.
 
 ### Group 3 — no namespace (1)
 
@@ -288,10 +267,9 @@ whether it corresponds to a Kubernetes namespace.
 
 ## Consequences
 
-- Today the interface has 41 recovered coordinates declared, of which 32 are
-  served and 9 are unanswerable. Three of group 1 landed on 2026-08-17; the
-  figure falls to five once the Bundle coordinates and group 3 follow. It is
-  pinned by
+- Today the interface has 41 recovered coordinates declared, of which 40 are
+  served and 1 is unanswerable. ADR 0014 serves real native Space assignments
+  and Bundle identifiers; namespace remains separate. This is pinned by
   `TestPublishedCoordinateCountsMatchTheInterface`, which now reads this record
   rather than the superseded one, so the number cannot drift ahead of the
   interface or behind it.

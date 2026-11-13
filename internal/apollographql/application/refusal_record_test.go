@@ -150,11 +150,6 @@ func TestRefusedCoordinatesMatchTheDecisionRecord(t *testing.T) {
 	// -- a capture that may never come, versus a decision somebody could make
 	// this week -- and every count above survives that move unchanged.
 	for coordinate, title := range map[string]string{
-		"ApolloBundle.rid":              "### Group 1 — no Apollo resource identifiers (3)",
-		"ApolloQuery.bundle":            "### Group 1 — no Apollo resource identifiers (3)",
-		"ApolloQuery.bundles":           "### Group 1 — no Apollo resource identifiers (3)",
-		"ApolloBundle.spaceId":          "### Group 2 — no Space tenancy boundary (5)",
-		"ApolloEnvironment.spaceId":     "### Group 2 — no Space tenancy boundary (5)",
 		"ApolloEnvironment.namespaceId": "### Group 3 — no namespace (1)",
 	} {
 		if got := recorded[coordinate]; got != title {

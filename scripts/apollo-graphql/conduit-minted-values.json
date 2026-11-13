@@ -37,6 +37,42 @@
       "grammarPublishedAs": "apollo-openapi ri.autopilot.main.team.123, as above.",
       "conduitSupplies": "the whole identifier, keyed on the Maven coordinate Apollo already treats as the release's identity.",
       "invention": "apollographql.ConduitNamespacedRID"
+    },
+    "ApolloBundle.rid": {
+      "mintedBy": "internal/apollographql/application/identifiers.go bundleRID",
+      "grammarPublishedAs": "apollo-openapi ri.autopilot.main.team.123; Apollo publishes no Bundle type token",
+      "conduitSupplies": "the entire native identifier, derived from a persisted Bundle ID under ri.conduit.main.bundle",
+      "invention": "apollographql.ConduitNamespacedRID"
+    },
+    "ApolloBundle.spaceId": {
+      "mintedBy": "internal/apollographql/application/grouping.go spaceID, reading persisted native assignment through caller-bound composition",
+      "grammarPublishedAs": "apollo-graphql ApolloBundle.spaceId; no native identity grammar is established by Apollo",
+      "conduitSupplies": "a real persisted native Space identity, independently authorized for the owning resource; missing assignment is null only after the configured store observes absence",
+      "invention": "spaces.GraphQLGrouping"
+    },
+    "ApolloEntity.spaceId": {
+      "mintedBy": "internal/apollographql/application/grouping.go spaceID, reading persisted native assignment through caller-bound composition",
+      "grammarPublishedAs": "apollo-graphql ApolloEntity.spaceId; no native identity grammar is established by Apollo",
+      "conduitSupplies": "a real persisted native Space identity, independently authorized for the owning resource; missing assignment is null only after the configured store observes absence",
+      "invention": "spaces.GraphQLGrouping"
+    },
+    "ApolloEnvironment.spaceId": {
+      "mintedBy": "internal/apollographql/application/grouping.go spaceID, reading persisted native assignment through caller-bound composition",
+      "grammarPublishedAs": "apollo-graphql ApolloEnvironment.spaceId; no native identity grammar is established by Apollo",
+      "conduitSupplies": "a real persisted native Space identity, independently authorized for the owning resource; missing assignment is null only after the configured store observes absence",
+      "invention": "spaces.GraphQLGrouping"
+    },
+    "ApolloProduct.spaceId": {
+      "mintedBy": "internal/apollographql/application/grouping.go spaceID, reading persisted native assignment through caller-bound composition",
+      "grammarPublishedAs": "apollo-graphql ApolloProduct.spaceId; no native identity grammar is established by Apollo",
+      "conduitSupplies": "a real persisted native Space identity, independently authorized for the owning resource; missing assignment is null only after the configured store observes absence",
+      "invention": "spaces.GraphQLGrouping"
+    },
+    "ApolloProductRelease.spaceId": {
+      "mintedBy": "internal/apollographql/application/grouping.go spaceID, reading persisted native assignment through caller-bound composition",
+      "grammarPublishedAs": "apollo-graphql ApolloProductRelease.spaceId; no native identity grammar is established by Apollo",
+      "conduitSupplies": "a real persisted native Space identity, independently authorized for the owning resource; missing assignment is null only after the configured store observes absence",
+      "invention": "spaces.GraphQLGrouping"
     }
   },
   "whyAnEntryNeedNotNameAnInvention": "Two different claims are being kept apart here. 'Conduit built this value' is what valueTier discloses, and it is true of every coordinate in this file. 'Conduit invented this shape' is a stronger claim, true of some of them, and it belongs in the invention register. ApolloEntity.id used to name an invention that turned out to be a misreading -- the shape was Apollo's all along -- and requiring an invention on every entry would have forced a replacement guess rather than allowing the honest answer, which is that there is nothing invented left to register."

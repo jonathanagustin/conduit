@@ -440,3 +440,14 @@ are historical corpus measurements, not the current live inventory.
 | --- | --- | --- |
 | Local `cve grype scan` and group | Implemented, bounded public semantics | CLI executable-fixture and normalizer tests cover NVD/CVSS preference, output flags, JSON file/YAML stdout, nonzero exit, invalid output, and native provenance. No Hub data, authoritative artifact assessment, real-image execution, native Apollo binary, or private schema parity claim. |
 | Other November CLI additions | Reviewed, product work scoped | Source hashes and contracts recorded in the review and reference ledger; commands enter the profile only after implementation and behavioral tests. |
+
+### Native Space projection (2026-11-13)
+
+ADR 0014 backs all five recovered GraphQL `spaceId` coordinates with independently
+authorized, persisted native assignments. Coordinates remain observed; values
+are explicitly native. Entity and Release membership derives from their owning
+Environment and Product. Native Bundle lookup requires an existing Bundle and
+its established read authority. `TestSpaceGraphQLReadsActualAssignmentsWithCanonicalAuthority`
+and resolver tests cover these distinctions, provenance and storage failure.
+This is a Conduit extension, not private Apollo wire compatibility; Space
+selection and guest-user publication remain unfinished under #17.

@@ -53,6 +53,7 @@ func NewHub(
 	if len(hub) > 0 {
 		hubOptions = hub[0]
 	}
+	options = withSpaceLookup(repository, options, hubOptions.Spaces)
 	handler, err := mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
 	if err != nil {
 		return nil, err
