@@ -3,7 +3,9 @@ package controlplane
 import (
 	"context"
 	"errors"
+	"sort"
 
+	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
@@ -31,6 +33,128 @@ func (port apolloCatalogPort) CoordinateRetired(ctx context.Context, product, ve
 		return false, nil
 	}
 	return err == nil, err
+}
+
+// apolloReleaseLifecyclePort answers what has been withdrawn and what has been
+// promoted from the Plans the repository holds, which is the only copy both Hub
+// replicas can see. Apollo asked its own memory before this existed, and its
+// memory was written only by the request that accepted the desired state: the
+// replica that did not serve that POST reported a recalled Release as not
+// recalled, and so did every replica after a restart.
+//
+// The cost is one repository read per Apollo catalog read. On this Hub that is
+// the same unit of work every other read route already pays -- the repository
+// materializes its whole state per operation either way -- and it buys an
+// answer that does not depend on which process the client reached.
+type apolloReleaseLifecyclePort struct{ repository Repository }
+
+func (port apolloReleaseLifecyclePort) ReleaseLifecycle(ctx context.Context) (apolloapp.ReleaseLifecycle, error) {
+	plans, err := port.repository.ListPlans(ctx, "")
+	if err != nil {
+		return apolloapp.ReleaseLifecycle{}, err
+	}
+	states := latestDeclaredStates(plans)
+	// Environments in sorted order so that two Environments recalling the same
+	// Release do not make the reported reason depend on map iteration, which
+	// would change the answer between two identical requests.
+	identifiers := make([]string, 0, len(states))
+	for environment := range states {
+		identifiers = append(identifiers, environment)
+	}
+	sort.Strings(identifiers)
+	var lifecycle apolloapp.ReleaseLifecycle
+	for _, environment := range identifiers {
+		state := states[environment]
+		for _, recall := range state.Recalls {
+			lifecycle.Recalls = append(lifecycle.Recalls, environments.ProjectedRecall{
+				Product: recall.Product, StartingVersion: recall.StartingVersion,
+				EndingVersionExclusive: recall.EndingVersionExclusive,
+				ExcludedVersions:       append([]string(nil), recall.ExcludedVersions...),
+				SingleVersion:          recall.SingleVersion, Reason: recall.Reason, Reverted: recall.Reverted,
+			})
+		}
+		for _, promotion := range state.Promotions {
+			lifecycle.Promotions = append(lifecycle.Promotions, environments.ProjectedPromotion{
+				Product: promotion.Product, Version: promotion.Version,
+				FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
+				Passed: promotion.Status == PromotionPassed,
+			})
+		}
+	}
+	return lifecycle, nil
+}
+
+// apolloEnvironmentInventoryPort answers which Environments this Hub governs,
+// what is installed in them and which Namespaces they target, from the Plans
+// the repository holds -- the only copy both Hub replicas can see.
+//
+// Apollo asked its own memory before this existed, and that memory was written
+// only by the request that accepted the desired state. The replica that did not
+// serve that POST listed NO Environments, NO Installations and NO Namespaces,
+// and so did every replica after a restart. Empty is the dangerous answer here:
+// a client reads it as "this Hub governs nothing" rather than as "this process
+// was not told", which is the unknown-reads-as-none conflation the provenance
+// model exists to prevent.
+//
+// Unlike apolloReleaseLifecyclePort this reads latestDesiredStates and NOT
+// latestDeclaredStates -- command Plans included. A command stores a desired
+// state with its Recalls stripped, which is why the lifecycle skips it, but it
+// carries the Environment's full Entity and Namespace set and the old write
+// path recorded exactly that. Excluding commands here would empty an
+// Environment's Installations the moment an operator restarted a resource.
+type apolloEnvironmentInventoryPort struct{ repository Repository }
+
+func (port apolloEnvironmentInventoryPort) EnvironmentInventory(ctx context.Context) (
+	[]environments.CompatibilityProjection, error,
+) {
+	plans, err := port.repository.ListPlans(ctx, "")
+	if err != nil {
+		return nil, err
+	}
+	states := latestDesiredStates(plans)
+	// Sorted, because the caller sorts by Apollo RID and two Environments can
+	// contribute the same Namespace id: map iteration would otherwise let two
+	// identical requests disagree about which Environment's copy was served.
+	identifiers := make([]string, 0, len(states))
+	for environment := range states {
+		identifiers = append(identifiers, environment)
+	}
+	sort.Strings(identifiers)
+	inventory := make([]environments.CompatibilityProjection, 0, len(identifiers))
+	for _, environment := range identifiers {
+		state := states[environment]
+		projection := environments.CompatibilityProjection{ID: state.Environment.ID}
+		for _, entity := range state.Entities {
+			projection.Entities = append(projection.Entities, environments.ProjectedEntity{
+				Name: entity.Name, Product: entity.Product, Version: entity.Version,
+				ReleaseChannel: entity.ReleaseChannel,
+			})
+		}
+		for _, namespace := range state.Environment.Namespaces {
+			projection.Namespaces = append(projection.Namespaces, environments.ProjectedNamespace{
+				RID: namespace.RID, Name: namespace.Name,
+			})
+		}
+		inventory = append(inventory, projection)
+	}
+	return inventory, nil
+}
+
+// latestDeclaredStates is latestDesiredStates with Entity commands left out. A
+// command stores a desired state whose Recalls have been stripped -- commands
+// deliberately bypass recall eligibility -- so the newest plan in an
+// Environment can be one that says nothing about withdrawals. Reading it as the
+// Environment's declaration would report a recalled Release as not recalled the
+// moment anyone issued a command there.
+func latestDeclaredStates(plans []PlanRecord) map[string]DesiredState {
+	declared := make([]PlanRecord, 0, len(plans))
+	for _, plan := range plans {
+		if plan.Command != nil {
+			continue
+		}
+		declared = append(declared, plan)
+	}
+	return latestDesiredStates(declared)
 }
 
 // apolloReportingPort narrows lifecycle state to reviewed Plan projections and

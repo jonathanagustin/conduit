@@ -9,10 +9,10 @@
   border-radius: 0;
   background: color-mix(
     in srgb,
-    var(--console-app-logo-accent, var(--brand)) 15%,
+    var(--console-app-logo-accent, var(--console-app-logo-accent-default)) 15%,
     transparent
   );
-  color: var(--console-app-logo-accent, var(--brand));
+  color: var(--console-app-logo-accent, var(--console-app-logo-accent-default));
 }
 
 /* Centre the glyph and let it fill about half the tile. */

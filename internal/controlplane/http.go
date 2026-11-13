@@ -860,12 +860,24 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 				return
 			}
 			pipelineID := request.PathValue("pipelineID")
+			// The target is the pipeline AND the state it is in, not the bare
+			// pipeline id: a Change Request id is derived from the target alone, so
+			// a bare id lets the first archive of a pipeline hold that id forever
+			// and a terminal verdict on it wedges the pipeline. See
+			// exportPipelineProposalID. A pipeline that does not exist reads as the
+			// zero state, which still proposes and still fails in apply, as before.
+			observed, observeErr := repository.GetExportPipeline(request.Context(), pipelineID)
+			if observeErr != nil && !errors.Is(observeErr, ErrNotFound) {
+				writeLifecycleError(w, observeErr)
+				return
+			}
+			targetID := exportPipelineProposalID(pipelineID, observed)
 			change := EntityChange{
-				ID: "chg_" + stableShortID(changeType+"\x00"+pipelineID), Type: changeType,
+				ID: "chg_" + stableShortID(changeType+"\x00"+targetID), Type: changeType,
 				Request: map[string]any{"pipelineRid": pipelineID}, Diff: map[string]ChangeDiffEntry{},
 				ReferencedResources: map[string]ReferencedResource{"bundlingpipeline": {RID: "export-pipeline/" + pipelineID, Name: pipelineID}},
 			}
-			changeRequest, policyApproves, err := governance.ProposeChanges(request.Context(), "EXPORT_PIPELINE_LIFECYCLE_"+changeType, pipelineID,
+			changeRequest, policyApproves, err := governance.ProposeChanges(request.Context(), "EXPORT_PIPELINE_LIFECYCLE_"+changeType, targetID,
 				"platform", []EntityChange{change}, principal, title+" "+pipelineID, "")
 			if err != nil {
 				writeLifecycleError(w, err)
@@ -2622,15 +2634,18 @@ func finalizeApprovedChangeRequest(
 	// with no record of having run, so a second call performs the action a
 	// second time. Reaching them requires an approval taken now.
 	if approvedByThisCall && request.Status == ChangeApproved && strings.HasPrefix(request.TargetKind, "EXPORT_PIPELINE_LIFECYCLE_") {
+		// TargetID is the proposal identity -- pipeline plus the state proposed
+		// against -- so the pipeline itself comes from the change payload.
+		pipelineID := exportPipelineLifecycleTarget(request)
 		switch strings.TrimPrefix(request.TargetKind, "EXPORT_PIPELINE_LIFECYCLE_") {
 		case ChangeTypeArchivePipeline:
-			_, err := bundles.SetPipelineArchived(ctx, request.TargetID, true)
+			_, err := bundles.SetPipelineArchived(ctx, pipelineID, true)
 			return nil, err
 		case ChangeTypeUnarchivePipeline:
-			_, err := bundles.SetPipelineArchived(ctx, request.TargetID, false)
+			_, err := bundles.SetPipelineArchived(ctx, pipelineID, false)
 			return nil, err
 		case ChangeTypeDeletePipeline:
-			_, err := bundles.DeletePipeline(ctx, request.TargetID)
+			_, err := bundles.DeletePipeline(ctx, pipelineID)
 			return nil, err
 		}
 	}

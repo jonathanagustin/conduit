@@ -9,6 +9,8 @@ import (
 	"sort"
 	"strings"
 	"time"
+
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 )
 
 type SuppressionScope string
@@ -48,9 +50,31 @@ type SuppressionRecord struct {
 }
 
 func (lifecycle *Lifecycle) reconcilePromotionSuppressions(ctx context.Context, promotion PromotionRecord) error {
+	// The environments a passing run can clear are read from the WHOLE submitted
+	// evidence set, deliberately, and this is not the same set the creation loop
+	// below walks. Narrowing both halves at once would strand every suppression
+	// written before the filter existed: an Environment whose Entities the
+	// canary excludes would never be visited again, and no passing evaluation
+	// could ever remove what a blocked one wrote. Creation narrows; removal
+	// stays exactly as wide as it was, which is the only direction that does not
+	// ratchet an Entity into permanent suppression.
 	environments := map[string]struct{}{}
 	for _, evidence := range promotion.Evidence {
 		environments[evidence.Environment] = struct{}{}
+	}
+	// A promotion may suppress only the Entities its own decision actually
+	// weighed. A canary stage's EntityFilters name that set, and the evaluation
+	// already narrows to it (see EvaluatePromotion) -- but this loop used to walk
+	// the unfiltered evidence, so an Entity the policy deliberately left out of
+	// the canary still got an Entity-scoped suppression from a canary it was
+	// never part of, and the next Plan touching that Entity refused to lease on a
+	// decision that had ignored it. Filtering here keeps the suppression's blast
+	// radius equal to the decision's.
+	suppressible := promotion.Evidence
+	if stageType(promotion.Policy) == PromotionCanary {
+		suppressible = catalog.CanaryEvidence(promotion.Evidence, promotion.Policy.EntityFilters)
+	}
+	for _, evidence := range suppressible {
 		if promotion.Status != PromotionBlocked || evidence.Health != "UNHEALTHY" {
 			continue
 		}

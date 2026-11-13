@@ -185,6 +185,28 @@ def main() -> int:
             "categories": len(union["categories"]),
             "resourceFamilies": len(families),
         },
+        # Every number above is one capture's observation. The role table moves,
+        # and the move is visible without leaving the repository: this artifact
+        # and the later graph capture disagree by twelve roles and two families.
+        # A count quoted without the capture it came from is a claim about the
+        # tenant that the capture does not support.
+        "countsCaveat": (
+            "Every total here and under contributingEndpoints is one capture's "
+            "observation, not a constant. The role table drifts in both "
+            "directions: the 88 apollo- roles this artifact records appear as "
+            "100 roles across 22 families in "
+            "docs/evidence/apollo-authorization-graph.json, captured later from "
+            "the same tenant, which adds the base-image and template families "
+            "outright -- a difference re-derivable from the two committed "
+            "files. Issue #122 additionally reports an independent capture of "
+            "GET /multipass/api/roles/v2/all on the same tenant about three "
+            "weeks before this one returning 173 roles against the 167 recorded "
+            "here; that capture is held in a separate repository and is "
+            "reported, not established here. This artifact carries no capture "
+            "date for its source, only a path, a digest and a byte count, so no "
+            "total in it may be quoted as a current figure -- only as what that "
+            "digest contained."
+        ),
         "resourceFamilies": families,
         "adjacentForeignIdentifiers": adjacent,
         "recovered": [
@@ -200,7 +222,53 @@ def main() -> int:
             "category -> workflows edges (scrubbed).",
             "displayName and description text for every identifier (scrubbed).",
             "Whether this tenant's role set equals the Apollo product default set.",
+            "Which resource families the tenant serves outside the apollo- "
+            "identifier prefix -- see identifierPartition. Their absence here is "
+            "a filter this extractor applies, not a finding about the tenant.",
         ],
+        # The partition this extractor applies, stated as a bound. Without it a
+        # reader who greps this file for a family and finds nothing concludes the
+        # family does not exist, when the truth is that it was filtered out
+        # before the file was written (#122). The filter is the first thing
+        # collect() does and it is not recoverable from the output, so it has to
+        # be declared here or it is invisible.
+        "identifierPartition": {
+            "prefix": PREFIX,
+            "filter": (
+                "A role, operation, workflow or category identifier is retained "
+                "only when the identifier itself begins with the prefix above. "
+                "An identifier that merely contains 'apollo' is not retained as "
+                "vocabulary; it is listed separately under "
+                "adjacentForeignIdentifiers. Nothing outside those two sets "
+                "reaches this file, and the per-endpoint totals under "
+                "contributingEndpoints record how much was dropped: for each "
+                "map, 'total' is what the endpoint returned and 'apollo' is what "
+                "survived the filter."
+            ),
+            "bound": (
+                "Both docs/evidence/apollo-authorization-graph.json and "
+                "docs/evidence/apollo-authorization-vocabulary.json partition "
+                "Apollo's authorization surface on the apollo- identifier "
+                "prefix, and the partition is applied before anything is "
+                "written. A resource family whose identifiers do not carry that "
+                "prefix is therefore absent from this file as a property of the "
+                "filter, not as a finding about the tenant. Read every absence "
+                "and every zero count here as 'no apollo-prefixed identifier', "
+                "never as 'no such family'. Establishing which unprefixed "
+                "families the same endpoint serves would need a re-capture "
+                "without the filter, which neither artifact attempts."
+            ),
+            "reportedNotEstablished": (
+                "Issue #122 reports, from a live-tenant capture of the same "
+                "endpoint held in a separate repository, that this product's "
+                "authorization surface also carries resource families whose "
+                "identifiers do not begin with apollo-. That capture is not "
+                "re-verifiable from inside this repository, so the specific "
+                "families and operations it names are reported, not established "
+                "here. What is established here is the filter recorded above, "
+                "and therefore the bound."
+            ),
+        },
         "boundary": (
             "This is a tenant-observed identifier vocabulary. It does not establish "
             "Apollo authorization semantics, private Hub behavior, or that a Platform "

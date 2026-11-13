@@ -1,0 +1,3 @@
+# Generated, tracked operator-console assets. The source remains searchable in
+# /web, and the bundle can be searched explicitly with `rg -uu <path>`.
+/internal/consoleui/dist/

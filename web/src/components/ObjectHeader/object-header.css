@@ -41,7 +41,15 @@
      as a local panel title rather than a 20-28px page heading (was 18px, which
      sat between the two rulebook bands). docs/ui/console-visual-language.md
      section 10, ObjectHeader title. */
-  font: 600 16px/20px var(--font-ui, sans-serif);
+  /* Longhands, not the `font:` shorthand. This read
+     `font: 600 16px/20px var(--font-ui, sans-serif)`, and nothing defines
+     `--font-ui`, so the shorthand set the family to the generic `sans-serif`
+     and this one heading opted out of Source Sans on every object page. A
+     shorthand always writes font-family, so there is no way to say "these three
+     properties, and inherit the family" with it. */
+  font-weight: 600;
+  font-size: 16px;
+  line-height: 20px;
   white-space: nowrap;
   text-overflow: ellipsis;
 }

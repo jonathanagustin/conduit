@@ -96,12 +96,12 @@
 .console-environment__description {
   margin: 0;
   max-width: 70ch;
-  color: var(--bp-text-color-muted, #5f6b7c);
+  color: var(--bp-typography-color-muted, #5f6b7c);
 }
 
 .console-environment__owner-team {
   margin: 8px 0 0;
-  color: var(--bp-text-color-muted, #5f6b7c);
+  color: var(--bp-typography-color-muted, #5f6b7c);
 }
 
 .console-environment__readme {
@@ -117,5 +117,5 @@
   overflow-x: auto;
   padding: 8px 10px;
   border-radius: 3px;
-  background: var(--bp-background-color-subtle, #f6f7f9);
+  background: var(--bp-palette-light-gray-5, #f6f7f9);
 }

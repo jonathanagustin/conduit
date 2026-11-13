@@ -232,14 +232,26 @@ export const TEAM_CONTACT_KINDS = ["EMAIL", "SLACK", "PAGERDUTY"] as const;
 
 export type TeamContactKind = (typeof TEAM_CONTACT_KINDS)[number];
 
-/** Whether the Hub delivers to a contact of this kind. A PAGERDUTY contact can
- * be created and receives nothing -- this mirrors `ContactKind.Deliverable`
- * (notifications.go), where the New Team Contact dialog offers PagerDuty while
- * the team-notifications page says it is not delivered to. Surfacing the
- * contradiction is the honest thing; resolving it by hiding the kind would
- * diverge from the Hub, which still stores it. */
-export function contactDeliverable(kind: string): boolean {
-  return kind === "EMAIL" || kind === "SLACK";
+/** Whether the Hub delivers to a contact of this kind.
+ *
+ * The Hub now answers this itself: `readContacts` projects `deliverable` from
+ * `ContactKind.Deliverable` onto every contact it returns (#262,
+ * internal/notifications/adapters/httpapi/httpapi.go). Prefer that answer --
+ * it is the Hub's, and a second copy of a predicate is how the console and the
+ * Hub start disagreeing about which destinations are live.
+ *
+ * The mirror below is the fallback for a Hub that predates the field, and it is
+ * a fallback rather than the answer: a missing `deliverable` must not read as
+ * "not delivered", which would libel every working EMAIL contact on an older
+ * Hub. A PAGERDUTY contact can be created and receives nothing -- the New Team
+ * Contact dialog offers it while the team-notifications page says it is not
+ * delivered to. Surfacing that contradiction is the honest thing; hiding the
+ * kind would diverge from the Hub, which still stores it. */
+export function contactDeliverable(contact: { kind: string; deliverable?: boolean }): boolean {
+  if (contact.deliverable !== undefined) {
+    return contact.deliverable;
+  }
+  return contact.kind === "EMAIL" || contact.kind === "SLACK";
 }
 
 /** A stored team contact, mirroring `domain.Contact`'s json tags. One exists per
@@ -251,6 +263,9 @@ export interface TeamContact {
   kind: string;
   address: string;
   optIntoFutureResources?: boolean;
+  /** Whether anything is ever delivered here, as the Hub computes it. Optional
+   * only because a Hub older than #262 does not send it. */
+  deliverable?: boolean;
   createdAt: string;
   updatedAt?: string;
 }

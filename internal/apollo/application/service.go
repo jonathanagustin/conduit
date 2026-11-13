@@ -50,6 +50,63 @@ type CatalogPort interface {
 	CoordinateRetired(context.Context, string, string) (bool, error)
 }
 
+// ReleaseLifecyclePort is the durable authority for what Conduit has withdrawn
+// and what it has promoted. It is read on every catalog read rather than
+// pushed into this process when a desired state is accepted, because the POST
+// that declares a recall is served by ONE Hub replica while the GET that asks
+// about it is served by either: a projection held in memory answers "not
+// recalled" on the replica that never saw the write, and on every replica after
+// a restart. That is the unrecoverable direction of the error -- a client
+// installs a withdrawn Release on the strength of it.
+type ReleaseLifecyclePort interface {
+	// ReleaseLifecycle returns every recall and promotion currently declared by
+	// any Environment's desired state, aggregated across Environments because
+	// Apollo declares both on the Release while Conduit declares them inside an
+	// Environment.
+	ReleaseLifecycle(context.Context) (ReleaseLifecycle, error)
+}
+
+// EnvironmentInventoryPort is the durable authority for which Environments this
+// Hub governs, what is installed in them, and which Namespaces they target. It
+// is the same failure ReleaseLifecyclePort exists for, one surface over: the
+// inventory was pushed into this process by whichever replica accepted a
+// desired state, so a replica that had not served that POST -- and every replica
+// after a restart, because New rehydrates publications alone -- answered the
+// three list routes with an EMPTY list.
+//
+// Empty is the wrong shape of wrong. A client cannot distinguish it from "this
+// Hub governs nothing", so an unanswered question reads as a settled negative:
+// the unknown-reads-as-none conflation internal/apollographql/ports says the
+// provenance model exists to prevent, arriving through the store rather than
+// through authorization.
+//
+// It is a SEPARATE port from ReleaseLifecyclePort, not a widening of it, for two
+// reasons that are not stylistic. First, the two project different shapes and
+// are read at different times: every catalog read consults the lifecycle, and
+// folding per-Environment Entities and Namespaces into ReleaseLifecycle would
+// make ListReleases build a fleet inventory it never looks at. Second, and
+// decisively, they need DIFFERENT Plans. The lifecycle deliberately excludes
+// command Plans (latestDeclaredStates) because a command stores a desired state
+// with its Recalls stripped; the inventory must INCLUDE them, because a command
+// carries the Environment's full Entity set and the write path recorded it.
+// One port would have to pick one filter, and either choice is a defect.
+type EnvironmentInventoryPort interface {
+	// EnvironmentInventory returns one projection per Environment the Hub has
+	// accepted a desired state for, which is exactly the set the pushed
+	// projection used to hold -- read from durable state instead of from
+	// whichever process happened to serve the write.
+	EnvironmentInventory(context.Context) ([]environments.CompatibilityProjection, error)
+}
+
+// ReleaseLifecycle is what a single read of durable desired state yields. Both
+// halves travel together so that answering a Release costs one query rather
+// than one per field, and so that recallStatus and releaseChannels on the same
+// response describe the same moment.
+type ReleaseLifecycle struct {
+	Recalls    []environments.ProjectedRecall
+	Promotions []environments.ProjectedPromotion
+}
+
 // PublicationAssets are optional Conduit-native exact bytes associated with a
 // Helm publication. They are never part of the public Apollo request model.
 type PublicationAssets struct {
@@ -88,34 +145,44 @@ type releaseRecord struct {
 // Service holds compatibility projections, not authoritative desired state.
 // Durable Publications and Environment Reports cross explicit domain ports.
 type Service struct {
-	mu            sync.RWMutex
-	products      map[string]apollo.Product
-	releases      map[string]map[string]releaseRecord
-	environments  map[string]apollo.Environment
-	installations map[string]map[string]apollo.Installation
-	namespaces    map[string]map[string]apollo.Namespace
-	entityInfo    map[string][]apollo.EntityInfo
-	entityHealth  map[string][]apollo.EntityHealth
-	// recalls is keyed by Environment, because that is how Conduit declares a
-	// withdrawal. Apollo's recallStatus is a property of the Release rather
-	// than of an Environment, so the read below aggregates.
-	recalls map[string][]environments.ProjectedRecall
-	// promotions is keyed by Environment for the same reason, and aggregated on
-	// read for the same reason: a Channel a Release has reached is a property of
-	// the Release, and Conduit records the crossing per Environment.
-	promotions map[string][]environments.ProjectedPromotion
-	catalog    CatalogPort
-	reporting  environmentports.ReportingPort
-	now        func() time.Time
+	mu           sync.RWMutex
+	products     map[string]apollo.Product
+	releases     map[string]map[string]releaseRecord
+	entityInfo   map[string][]apollo.EntityInfo
+	entityHealth map[string][]apollo.EntityHealth
+	// recalls and promotions are deliberately absent from this struct, and so
+	// are environments, installations and namespaces. All five were held here
+	// and all five answered wrong on any replica that had not served the write:
+	// the first two as "not recalled", the last three as an empty list. They are
+	// read through lifecycle and inventory instead.
+	lifecycle ReleaseLifecyclePort
+	inventory EnvironmentInventoryPort
+	catalog   CatalogPort
+	reporting environmentports.ReportingPort
+	now       func() time.Time
 }
 
-func New(ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort) (*Service, error) {
+func New(
+	ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort,
+	lifecycle ReleaseLifecyclePort, inventory EnvironmentInventoryPort,
+) (*Service, error) {
+	// Refused rather than tolerated: a nil lifecycle port would leave every
+	// recallStatus unanswerable at request time, which is the failure this
+	// surface is least able to report and least able to afford.
+	if lifecycle == nil {
+		return nil, errors.New("Apollo requires a Release lifecycle port")
+	}
+	// Refused for the same reason and with more force: a nil inventory port
+	// would not fail loudly, it would serve an empty Environment list, and an
+	// empty list is indistinguishable from a Hub that governs nothing.
+	if inventory == nil {
+		return nil, errors.New("Apollo requires an Environment inventory port")
+	}
 	service := &Service{
 		products: make(map[string]apollo.Product), releases: make(map[string]map[string]releaseRecord),
-		environments: make(map[string]apollo.Environment), installations: make(map[string]map[string]apollo.Installation),
-		namespaces: make(map[string]map[string]apollo.Namespace), entityInfo: make(map[string][]apollo.EntityInfo),
+		entityInfo:   make(map[string][]apollo.EntityInfo),
 		entityHealth: make(map[string][]apollo.EntityHealth), catalog: catalogPort, reporting: reporting,
-		now: time.Now,
+		lifecycle: lifecycle, inventory: inventory, now: time.Now,
 	}
 	publications, err := catalogPort.ListPublications(ctx, "")
 	if err != nil {
@@ -155,13 +222,20 @@ func (service *Service) GetProduct(product string) (apollo.Product, error) {
 	return clone(value), nil
 }
 
-func (service *Service) ListReleases(product string) apollo.ListReleasesResponse {
+// ListReleases reads the lifecycle once and applies it to every Release, so a
+// list costs the same one query a single Release does, and so no two Releases
+// in one response are described from different moments.
+func (service *Service) ListReleases(ctx context.Context, product string) (apollo.ListReleasesResponse, error) {
+	lifecycle, err := service.lifecycle.ReleaseLifecycle(ctx)
+	if err != nil {
+		return apollo.ListReleasesResponse{}, fmt.Errorf("read Release lifecycle: %w", err)
+	}
 	service.mu.RLock()
 	values := make([]apollo.Release, 0, len(service.releases[product]))
 	for version, value := range service.releases[product] {
 		model := clone(value.model)
-		model.RecallStatus = service.recallStatusLocked(product, version)
-		channels := service.effectiveChannelsLocked(product, version, value.model.ReleaseChannels)
+		model.RecallStatus = recallStatus(product, version, lifecycle.Recalls)
+		channels := effectiveChannels(product, version, value.model.ReleaseChannels, lifecycle.Promotions)
 		model.ReleaseChannels = &channels
 		values = append(values, model)
 	}
@@ -171,10 +245,18 @@ func (service *Service) ListReleases(product string) apollo.ListReleasesResponse
 		_, _, right, _ := parseMavenCoordinate(values[j].MavenCoordinate)
 		return catalog.CompareVersions(left, right) < 0
 	})
-	return apollo.ListReleasesResponse{Releases: &values}
+	return apollo.ListReleasesResponse{Releases: &values}, nil
 }
 
-func (service *Service) GetRelease(product, version string) (apollo.Release, error) {
+func (service *Service) GetRelease(ctx context.Context, product, version string) (apollo.Release, error) {
+	// The lifecycle read comes first and its failure is fatal to the response.
+	// Answering the rest of the Release with recallStatus false because the
+	// store could not be reached would report a withdrawal that exists as an
+	// absence of one; a client can retry an error, it cannot un-install.
+	lifecycle, err := service.lifecycle.ReleaseLifecycle(ctx)
+	if err != nil {
+		return apollo.Release{}, fmt.Errorf("read Release lifecycle: %w", err)
+	}
 	service.mu.RLock()
 	defer service.mu.RUnlock()
 	value, exists := service.releases[product][version]
@@ -182,34 +264,38 @@ func (service *Service) GetRelease(product, version string) (apollo.Release, err
 		return apollo.Release{}, &Error{Kind: NotFound, Message: "Release not found"}
 	}
 	model := clone(value.model)
-	model.RecallStatus = service.recallStatusLocked(product, version)
-	channels := service.effectiveChannelsLocked(product, version, value.model.ReleaseChannels)
+	model.RecallStatus = recallStatus(product, version, lifecycle.Recalls)
+	channels := effectiveChannels(product, version, value.model.ReleaseChannels, lifecycle.Promotions)
 	model.ReleaseChannels = &channels
 	return model, nil
 }
 
-// effectiveChannelsLocked answers Apollo's releaseChannels from the channels the
-// Release has actually reached. The caller holds at least a read lock.
+// effectiveChannels answers Apollo's releaseChannels from the channels the
+// Release has actually reached, given the promotions read from durable state.
 //
 // Computed on read rather than stamped at publication, for the reason
-// recallStatusLocked records below: a Release is published once and promoted
+// recallStatus records below: a Release is published once and promoted
 // later, so the stamped value was the version's default channels and stayed
 // them however many promotions passed. A Release promoted to a channel was
 // served on the channel it started on.
 //
+// It takes the promotions rather than reading them, and holds no lock, because
+// the read is a repository query the caller has already made once for the whole
+// response -- doing it per Release would multiply the query by the catalog.
+//
 // The rule is not restated here. catalog.EffectiveChannels owns which channels
 // a Release has reached, including the transitive walk over passed promotions,
 // and this only supplies it with what Conduit recorded.
-func (service *Service) effectiveChannelsLocked(product, version string, declared *[]string) []string {
-	passed := make([]catalog.Promotion, 0)
-	for _, environmentPromotions := range service.promotions {
-		for _, promotion := range environmentPromotions {
-			passed = append(passed, catalog.Promotion{
-				Product: promotion.Product, Version: promotion.Version,
-				FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
-				Passed: promotion.Passed,
-			})
-		}
+func effectiveChannels(
+	product, version string, declared *[]string, promotions []environments.ProjectedPromotion,
+) []string {
+	passed := make([]catalog.Promotion, 0, len(promotions))
+	for _, promotion := range promotions {
+		passed = append(passed, catalog.Promotion{
+			Product: promotion.Product, Version: promotion.Version,
+			FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
+			Passed: promotion.Passed,
+		})
 	}
 	channels := []string(nil)
 	if declared != nil {
@@ -220,46 +306,49 @@ func (service *Service) effectiveChannelsLocked(product, version string, declare
 	}, passed)
 }
 
-// recallStatusLocked answers Apollo's recallStatus from the recalls Conduit
-// actually holds. The caller holds at least a read lock.
+// recallStatus answers Apollo's recallStatus from the recalls Conduit actually
+// holds, as read from durable desired state by the caller.
 //
 // It is computed on read rather than stamped at publication, because a Release
 // is published once and recalled later; the stamped value was necessarily
 // false, and stayed false however many recalls arrived afterwards.
 //
-// Aggregated across Environments, because Apollo declares recallStatus on the
-// Release while Conduit declares a recall inside an Environment's desired
-// state. "Recalled somewhere" is the only statement the catalog level can
-// honestly make, and it is the safe direction: reporting a Release as not
-// recalled when some Environment has withdrawn it is the error a client cannot
-// recover from, since it installs on the strength of it.
+// The recalls arrive already aggregated across Environments, because Apollo
+// declares recallStatus on the Release while Conduit declares a recall inside
+// an Environment's desired state. "Recalled somewhere" is the only statement
+// the catalog level can honestly make, and it is the safe direction: reporting
+// a Release as not recalled when some Environment has withdrawn it is the error
+// a client cannot recover from, since it installs on the strength of it.
+//
+// They are passed in rather than held on the Service for the same reason the
+// answer is computed rather than stamped: a copy kept in one process is right
+// only in that process. The Hub runs more than one replica and restarts, and
+// the copy was written solely by the request that accepted the desired state.
 //
 // recalledBy and recalledAt stay absent. The contract permits it -- "if
 // recalled is false, other properties will not be filled out" -- and Conduit's
 // Recall carries neither an actor nor a timestamp, so filling them would be
 // the invention this surface exists to avoid.
-func (service *Service) recallStatusLocked(product, version string) apollo.RecallStatus {
-	for _, environmentRecalls := range service.recalls {
-		for _, recall := range environmentRecalls {
-			if recall.Reverted || recall.Product != product {
-				continue
-			}
-			if !catalog.RecallAppliesToVersion(catalog.Recall{
-				Product:                recall.Product,
-				StartingVersion:        recall.StartingVersion,
-				EndingVersionExclusive: recall.EndingVersionExclusive,
-				ExcludedVersions:       recall.ExcludedVersions,
-				SingleVersion:          recall.SingleVersion,
-			}, version) {
-				continue
-			}
-			reason := recall.Reason
-			status := apollo.RecallStatus{Recalled: true}
-			if strings.TrimSpace(reason) != "" {
-				status.Reason = &reason
-			}
-			return status
+func recallStatus(product, version string, recalls []environments.ProjectedRecall) apollo.RecallStatus {
+	for _, recall := range recalls {
+		if recall.Reverted || recall.Product != product {
+			continue
 		}
+		if !catalog.RecallAppliesToVersion(catalog.Recall{
+			Product:                recall.Product,
+			StartingVersion:        recall.StartingVersion,
+			EndingVersionExclusive: recall.EndingVersionExclusive,
+			ExcludedVersions:       recall.ExcludedVersions,
+			SingleVersion:          recall.SingleVersion,
+		}, version) {
+			continue
+		}
+		reason := recall.Reason
+		status := apollo.RecallStatus{Recalled: true}
+		if strings.TrimSpace(reason) != "" {
+			status.Reason = &reason
+		}
+		return status
 	}
 	return apollo.RecallStatus{Recalled: false}
 }
@@ -529,12 +618,42 @@ func (service *Service) restorePublication(publication catalog.Publication) {
 	service.releases[publication.Product][publication.Version] = releaseRecord{model: model, digest: publication.PublicationDigest}
 }
 
-func (service *Service) SyncEnvironment(projection environments.CompatibilityProjection) {
+// projectEnvironment is the translation SyncEnvironment used to perform at write
+// time, moved to read time unchanged. It stays a pure function of one durable
+// projection so the answer cannot depend on which process is asked -- which is
+// the whole of the defect it replaces.
+//
+// SyncEnvironment itself is gone rather than left in place beside these reads. A
+// write path nothing reads is not free: it is a second, stale copy of the same
+// facts that the next reader may reasonably mistake for the source, and it is
+// how this surface acquired the bug in the first place.
+func projectEnvironment(projection environments.CompatibilityProjection) (
+	apollo.Environment, map[string]apollo.Installation, map[string]apollo.Namespace,
+) {
 	rid := EnvironmentRID(projection.ID)
-	environmentType, status := apollo.EnvironmentType("production"), apollo.ManagementStatus("managed")
-	service.mu.Lock()
-	defer service.mu.Unlock()
-	service.environments[rid] = apollo.Environment{Rid: rid, Name: projection.ID, EnvironmentType: &environmentType, Status: status}
+	// environmentType is omitted, not stamped. It used to be the constant
+	// "production" for every Environment, including the one this repository's
+	// own test names dev-use2, and "production" is a legal member of the pinned
+	// enum, so the shape gate passed it (#57, #112). Conduit's Environments
+	// domain has no environment-type concept at all -- nothing on
+	// CompatibilityProjection distinguishes one -- so there is no value to
+	// derive and no publisher who stated one.
+	//
+	// Omission is available here and is not a null: the pinned snapshot lists
+	// environmentType among Environment's properties and NOT among its required
+	// ones, so an absent key is a contract-legal way to say "Conduit holds no
+	// answer". ADR 0007 forbids refusing a coordinate for want of data; it does
+	// not require inventing a value for an optional field the contract already
+	// permits to be absent.
+	//
+	// status has no such option. The same snapshot lists it in Environment's
+	// required set, so omitting it would break the contract to make a point
+	// about provenance. It stays "managed" and is DECLARED as a Conduit-supplied
+	// constant in docs/apollo/public-api.md and docs/operations/TENANT-FIDELITY.md
+	// rather than left to be discovered.
+	environment := apollo.Environment{
+		Rid: rid, Name: projection.ID, Status: apollo.ManagementStatus("managed"),
+	}
 	installations := make(map[string]apollo.Installation, len(projection.Entities))
 	for _, entity := range projection.Entities {
 		installationRID := "ri.apollo.main.installation." + stableSuffix(projection.ID+":"+entity.Name)
@@ -546,87 +665,125 @@ func (service *Service) SyncEnvironment(projection environments.CompatibilityPro
 			PackageRid: packageRID, ProductId: entity.Product, ReleaseChannel: &channel, Version: &version,
 		}
 	}
-	service.installations[rid] = installations
-	if service.recalls == nil {
-		service.recalls = make(map[string][]environments.ProjectedRecall)
-	}
-	// Replaced wholesale rather than merged: this projection is the whole of
-	// what the Environment currently declares, so a recall that has been
-	// removed from desired state must stop being reported.
-	service.recalls[rid] = append([]environments.ProjectedRecall(nil), projection.Recalls...)
-	if service.promotions == nil {
-		service.promotions = make(map[string][]environments.ProjectedPromotion)
-	}
-	service.promotions[rid] = append([]environments.ProjectedPromotion(nil), projection.Promotions...)
 	namespaces := make(map[string]apollo.Namespace, len(projection.Namespaces))
 	for _, namespace := range projection.Namespaces {
 		id := namespace.Name
 		if id == "" {
 			id = namespace.RID
 		}
-		owners, editors, viewers := []string{}, []string{}, []string{}
-		namespaces[id] = apollo.Namespace{Id: id, Owners: &owners, Editors: &editors, Viewers: &viewers}
+		// owners, editors and viewers are omitted rather than served empty.
+		//
+		// They used to be three `[]string{}` values, and an empty JSON array is
+		// a fact: it says no group holds Owner, Editor or Viewer permissions on
+		// this Namespace. Governance never produced that claim --
+		// ProjectedNamespace carries a RID and a Name and nothing else, and
+		// Conduit has no notion of a Namespace permission group to report
+		// (issues #57, #112). The empty array was the unknown-reads-as-none
+		// conflation, on the surface that has no provenance tier to disclose it
+		// with.
+		//
+		// The pinned snapshot requires only `id` on Namespace, so all three are
+		// omissible and an absent key means "Conduit holds no answer". That also
+		// narrows the cross-surface inconsistency #57 raised against
+		// ports/ports.go's claim that a client "cannot get a different answer by
+		// choosing a protocol": GraphQL still refuses ApolloEnvironment.namespaceId
+		// outright, and REST no longer answers the neighbouring question with a
+		// sliver that reads as a fact.
+		namespaces[id] = apollo.Namespace{Id: id}
 	}
-	service.namespaces[rid] = namespaces
+	return environment, installations, namespaces
 }
 
-func (service *Service) ListEnvironments() apollo.ListEnvironmentsResponse {
-	service.mu.RLock()
-	values := make([]apollo.Environment, 0, len(service.environments))
-	for _, value := range service.environments {
-		values = append(values, clone(value))
+// ListEnvironments answers from durable state on every call, so the fleet a
+// client is shown does not depend on which replica took the last write. The
+// error is returned rather than swallowed into an empty list: "I could not
+// reach the store" and "this Hub governs nothing" are different answers and a
+// client acts differently on each.
+func (service *Service) ListEnvironments(ctx context.Context) (apollo.ListEnvironmentsResponse, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.ListEnvironmentsResponse{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	service.mu.RUnlock()
+	values := make([]apollo.Environment, 0, len(inventory))
+	for _, projection := range inventory {
+		environment, _, _ := projectEnvironment(projection)
+		values = append(values, environment)
+	}
 	sort.Slice(values, func(i, j int) bool { return values[i].Rid < values[j].Rid })
-	return apollo.ListEnvironmentsResponse{Environments: &values}
+	return apollo.ListEnvironmentsResponse{Environments: &values}, nil
 }
 
-func (service *Service) GetEnvironment(rid string) (apollo.Environment, error) {
-	service.mu.RLock()
-	value, exists := service.environments[rid]
-	service.mu.RUnlock()
-	if !exists {
-		return apollo.Environment{}, &Error{Kind: NotFound, Message: "Environment not found"}
+func (service *Service) GetEnvironment(ctx context.Context, rid string) (apollo.Environment, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.Environment{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	return clone(value), nil
+	for _, projection := range inventory {
+		if environment, _, _ := projectEnvironment(projection); environment.Rid == rid {
+			return environment, nil
+		}
+	}
+	return apollo.Environment{}, &Error{Kind: NotFound, Message: "Environment not found"}
 }
 
-func (service *Service) ListInstallations(environmentRID string) apollo.ListInstallationsResponse {
-	service.mu.RLock()
-	values := make([]apollo.Installation, 0, len(service.installations[environmentRID]))
-	for _, value := range service.installations[environmentRID] {
-		values = append(values, clone(value))
+func (service *Service) ListInstallations(ctx context.Context, environmentRID string) (apollo.ListInstallationsResponse, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.ListInstallationsResponse{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	service.mu.RUnlock()
+	values := []apollo.Installation{}
+	for _, projection := range inventory {
+		environment, installations, _ := projectEnvironment(projection)
+		if environment.Rid != environmentRID {
+			continue
+		}
+		for _, value := range installations {
+			values = append(values, value)
+		}
+	}
 	sort.Slice(values, func(i, j int) bool { return values[i].Rid < values[j].Rid })
-	return apollo.ListInstallationsResponse{Installations: &values}
+	return apollo.ListInstallationsResponse{Installations: &values}, nil
 }
 
-func (service *Service) GetInstallation(environmentRID, installationRID string) (apollo.Installation, error) {
-	service.mu.RLock()
-	value, exists := service.installations[environmentRID][installationRID]
-	service.mu.RUnlock()
-	if !exists {
-		return apollo.Installation{}, &Error{Kind: NotFound, Message: "Installation not found"}
+func (service *Service) GetInstallation(ctx context.Context, environmentRID, installationRID string) (apollo.Installation, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.Installation{}, fmt.Errorf("read Environment inventory: %w", err)
 	}
-	return clone(value), nil
+	for _, projection := range inventory {
+		environment, installations, _ := projectEnvironment(projection)
+		if environment.Rid != environmentRID {
+			continue
+		}
+		if value, exists := installations[installationRID]; exists {
+			return value, nil
+		}
+	}
+	return apollo.Installation{}, &Error{Kind: NotFound, Message: "Installation not found"}
 }
 
-func (service *Service) ListNamespaces() apollo.ListNamespacesResponse {
-	service.mu.RLock()
+// ListNamespaces folds every Environment's Namespaces into one list, because
+// Apollo's Namespace is Hub-wide while Conduit declares Namespaces inside an
+// Environment. Two Environments naming the same Namespace collapse to one
+// entry, as they did before.
+func (service *Service) ListNamespaces(ctx context.Context) (apollo.ListNamespacesResponse, error) {
+	inventory, err := service.inventory.EnvironmentInventory(ctx)
+	if err != nil {
+		return apollo.ListNamespacesResponse{}, fmt.Errorf("read Environment inventory: %w", err)
+	}
 	unique := make(map[string]apollo.Namespace)
-	for _, environmentNamespaces := range service.namespaces {
-		for id, value := range environmentNamespaces {
+	for _, projection := range inventory {
+		_, _, namespaces := projectEnvironment(projection)
+		for id, value := range namespaces {
 			unique[id] = value
 		}
 	}
 	values := make([]apollo.Namespace, 0, len(unique))
 	for _, value := range unique {
-		values = append(values, clone(value))
+		values = append(values, value)
 	}
-	service.mu.RUnlock()
 	sort.Slice(values, func(i, j int) bool { return values[i].Id < values[j].Id })
-	return apollo.ListNamespacesResponse{Namespaces: &values}
+	return apollo.ListNamespacesResponse{Namespaces: &values}, nil
 }
 
 func (service *Service) PutEntityInfo(ctx context.Context, environment string, values []apollo.EntityInfo) error {
@@ -677,10 +834,10 @@ func (service *Service) persistReportedState(ctx context.Context, environment st
 				ConfigStatus: environments.ConfigIndeterminate, Lifecycle: environments.LifecycleUnknown,
 			}
 		}
-		matchingInfo := MatchInfo(info, step)
+		matchingInfo, observedTheEntity := observedInfo(info, step)
 		matchingHealth := MatchHealth(health, matchingInfo, step.Product)
 		if len(dereference(matchingInfo.NodesInfo)) > 0 || len(matchingHealth) > 0 {
-			details, result := AggregateHealth(matchingInfo.Quorum, matchingHealth)
+			details, result := AggregateHealth(quorumFor(matchingInfo, observedTheEntity, entity), matchingHealth)
 			entity.Health, entity.HealthDetails, entity.ObservedAt = result, &details, now
 			if matchingInfo.K8sNamespace != nil && *matchingInfo.K8sNamespace != "" {
 				entity.Namespace = *matchingInfo.K8sNamespace
@@ -757,9 +914,27 @@ func ValidateEntityHealth(values []apollo.EntityHealth) error {
 }
 
 func MatchInfo(info []apollo.EntityInfo, step environments.PlanStepProjection) apollo.EntityInfo {
+	matched, _ := observedInfo(info, step)
+	return matched
+}
+
+// observedInfo is MatchInfo with the one bit MatchInfo throws away: whether the
+// returned EntityInfo was reported by an Agent or synthesized here because
+// nothing matched. The synthesized value is indistinguishable from a real one --
+// same type, a plausible ProductGroup and ProductName, and a Quorum of
+// "UNKNOWN" -- and AggregateHealth turns that quorum into INDETERMINATE
+// regardless of how healthy the nodes are.
+//
+// That is harmless when the miss means the Agent has said nothing about the
+// entity. It is not harmless when the miss means THIS PROCESS has said nothing:
+// entitiesInfo and entitiesHealth arrive as two requests and two Hub replicas
+// can serve one each, so a replica holding only the health report reaches the
+// merge with no info at all and writes INDETERMINATE over the HEALTHY the other
+// replica computed from the same Agent's data (issue #326).
+func observedInfo(info []apollo.EntityInfo, step environments.PlanStepProjection) (apollo.EntityInfo, bool) {
 	for _, candidate := range info {
 		if candidate.Id == step.Entity && candidate.ProductGroup+":"+candidate.ProductName == step.Product {
-			return candidate
+			return candidate, true
 		}
 	}
 	parts := strings.SplitN(step.Product, ":", 2)
@@ -768,7 +943,29 @@ func MatchInfo(info []apollo.EntityInfo, step environments.PlanStepProjection) a
 		group, name = parts[0], parts[1]
 	}
 	quorum := apollo.Quorum("UNKNOWN")
-	return apollo.EntityInfo{ProductGroup: group, ProductName: name, Quorum: &quorum}
+	return apollo.EntityInfo{ProductGroup: group, ProductName: name, Quorum: &quorum}, false
+}
+
+// quorumFor picks the quorum the health aggregation runs under. When the Agent's
+// info was observed in this process, that is the answer. When it was not, the
+// durable Environment Report is consulted before falling back to the
+// synthesized "UNKNOWN": the report is the copy every replica can see, and a
+// quorum another replica already recorded there is observed evidence, merely
+// observed elsewhere. This is the same move issue #325 made for Environments,
+// Installations and Namespaces -- read the shared copy rather than this
+// process's memory -- and it stops a partial report from degrading a verdict.
+//
+// It is a floor, not the whole fix. A replica without the info still cannot
+// filter health by the entity's node set or advance Lifecycle; issue #326 tracks
+// persisting the raw Agent reports, which is what would close that.
+func quorumFor(
+	info apollo.EntityInfo, observed bool, durable environments.ReportedEntity,
+) *apollo.Quorum {
+	if observed || durable.HealthDetails == nil || durable.HealthDetails.Quorum == "" {
+		return info.Quorum
+	}
+	carried := apollo.Quorum(durable.HealthDetails.Quorum)
+	return &carried
 }
 
 func MatchHealth(health []apollo.EntityHealth, info apollo.EntityInfo, product string) []apollo.EntityHealth {

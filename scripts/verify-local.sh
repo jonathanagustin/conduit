@@ -165,6 +165,7 @@ apollo_contract() {
     ruby scripts/apollo-docs/validate-module-definitions.rb &&
     ./scripts/verify-foundry-interop.sh &&
     node scripts/verify-conduit-cli-contract.mjs &&
+    ./scripts/verify-conduit-cli-contract.test.sh &&
     node scripts/verify-foundry-audit3-capture.mjs &&
     node scripts/verify-audit3-contract.mjs &&
     node scripts/verify-apollo-rosetta-inventory.mjs &&
@@ -177,6 +178,8 @@ apollo_contract() {
     node scripts/verify-documentation-claims.mjs &&
     node scripts/verify-no-tenant-origins.mjs &&
     node scripts/verify-secondary-apollo-evidence.mjs &&
+    node scripts/verify-apollo-authorization-bounds.mjs &&
+    ./scripts/verify-apollo-authorization-bounds.test.sh &&
     node scripts/apollo-graphql/verify-observed-schema.mjs &&
     ./scripts/verify-apollo-graphql.test.sh &&
     node scripts/apollo-graphql/verify-apollo-interface.mjs &&
@@ -221,19 +224,17 @@ gate 'Vet' go vet ./...
 gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh
 gate 'Validate operator console' ./scripts/test-console.sh
 gate 'Validate console contract' bash -c './scripts/verify-console-contract.test.sh && node scripts/verify-console-contract.mjs'
+gate 'Validate design tokens against the captured product' bash -c './scripts/verify-design-tokens.test.sh && node scripts/verify-design-tokens.mjs'
+gate 'Validate console CSS variables' bash -c './scripts/verify-console-css-variables.test.sh && node scripts/verify-console-css-variables.mjs'
 gate 'Validate console boundaries' bash -c 'node scripts/verify-console-boundaries.test.mjs && node scripts/verify-console-boundaries.mjs'
-# staticcheck and govulncheck are built against a specific Go release and
-# refuse a module newer than it. Pin the analysis toolchain here rather than
-# lowering `toolchain` in go.mod, which would also pull the digest-pinned
-# container builds off go1.26.6 and bypass their supply-chain pinning.
-gate 'Scan for known vulnerabilities' env GOTOOLCHAIN=go1.25.13 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
-gate 'Lint' env GOTOOLCHAIN=go1.25.13 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+# Keep the scanners on the same patched compiler used by production builds.
+gate 'Scan for known vulnerabilities' env GOTOOLCHAIN=go1.26.11 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+gate 'Lint' env GOTOOLCHAIN=go1.26.11 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 gate 'Validate Renovate configuration' jq --exit-status . renovate.json
 gate 'Lint Containerfiles' env HADOLINT_BIN="${hadolint_bin}" ./scripts/verify-containerfiles.sh
 gate 'Validate OCI release manifest assembly' oci_manifest
 gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-source-descriptor.test.mjs
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
-gate 'Validate controlplane ceiling' node scripts/report-migration-progress.mjs --gate
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate route authorization' bash -c 'node scripts/verify-route-authorization.test.mjs && node scripts/verify-route-authorization.mjs'
 gate 'Validate trusted supply-chain policy' supply_chain
@@ -247,6 +248,7 @@ gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
 gate 'Validate Zenith protocol ledgers' zenith_protocol
 gate 'Validate review ledger' review_ledger
+gate 'Validate Apollo frontend surface' bash -c 'node scripts/verify-apollo-frontend-surface.mjs && ./scripts/verify-apollo-frontend-surface.test.sh'
 gate 'Validate Module publication' go run ./cmd/platform-module-publisher --directory examples/modules --dry-run
 gate 'GitOps acceptance' ./scripts/test-gitops.sh
 
@@ -257,6 +259,10 @@ gate 'GitOps acceptance' ./scripts/test-gitops.sh
 # CI's browser step additionally installs runner OS dependencies.
 
 not_run_as_written=(
+  # Hosted scheduling only; the local verifier always runs the full gate set.
+  'Classify changed paths'
+  'Skip when no Go-relevant paths changed'
+  'Skip when no relevant paths changed'
   'Install pinned Helm'
   'Install pinned pnpm'
   'Install pinned Node'
@@ -289,6 +295,51 @@ if ((${#skipped[@]})); then
   echo 'add them above, or list them in not_run_as_written with a reason.' >&2
   exit 1
 fi
+# --- drift the other way ------------------------------------------------
+# The reconciliation above walks ci.yml -> this script and asks whether each CI
+# step is covered here. Nothing walked the other way, and the gap that opened in
+# it was not small: fourteen Apollo gates ran here and in no workflow at all
+# (#128), because every one of them lived inside a step whose *name* already
+# matched -- and a name is all the check above compares. The leak gate
+# verify-no-tenant-origins.mjs was among them.
+#
+# So: every scripts/* file this script's gates invoke must appear somewhere in
+# the workflow. Matching on the basename rather than the full path, because CI
+# writes some of these with `./` and some without, and the question is whether
+# the file is reached at all, not how it was spelled.
+#
+# Comment lines are stripped from the workflow before matching, and that is not
+# a detail. A gate deleted from CI usually leaves its name behind in the comment
+# that explained the step, so an unstripped match would report a gate as covered
+# by the very comment mourning it. A check a comment can satisfy is not a check.
+locally_only=(
+  # Not a gate. It repairs cache symlinks whose targets Codespaces drops on
+  # restart, before any gate runs; CI gets a fresh runner with nothing to repair.
+  'repair-volatile-cache-links.sh'
+)
+mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb)' "${BASH_SOURCE[0]}" |
+  sed 's|^\./||' | sort -u)
+if ((${#invoked[@]} == 0)); then
+  echo "found no scripts/* invocations in $(basename "${BASH_SOURCE[0]}"); the reverse check has stopped working" >&2
+  exit 1
+fi
+workflow_code="$(grep -vE '^[[:space:]]*#' "${workflow}")"
+uncovered=()
+for script in "${invoked[@]}"; do
+  name="${script##*/}"
+  excused=false
+  for known in "${locally_only[@]}"; do
+    [[ "${name}" == "${known}" ]] && excused=true
+  done
+  "${excused}" && continue
+  grep -qF -- "${name}" <<<"${workflow_code}" || uncovered+=("${script}")
+done
+if ((${#uncovered[@]})); then
+  printf 'this script runs gates ci.yml does not: %s\n' "$(printf '%s; ' "${uncovered[@]}")" >&2
+  echo 'add them to a workflow step, or list them in locally_only with a reason.' >&2
+  exit 1
+fi
+
 if ((${#failures[@]})); then
   printf 'failed: %s\n' "$(printf '%s; ' "${failures[@]}")" >&2
   exit 1
