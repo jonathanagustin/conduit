@@ -125,15 +125,20 @@ for (const [value, scope] of expectedTypes) {
   }
 }
 
-// 2. Channels and contact kinds. These are separate on purpose: Slack and
-// PagerDuty are destinations a team owns, not channels a resource can express a
-// preference on, and collapsing them would promise per-resource Slack settings
-// no captured page shows.
-compare(
-  "channels",
-  new Set((capture.deliveryChannels?.perResourcePreference ?? []).map(identifier)),
-  declared("Channel"),
-);
+// 2. Keep captured preference channels separate from registered native
+// extensions. A native channel must never be counted as recovered evidence.
+const capturedChannels = new Set((capture.deliveryChannels?.perResourcePreference ?? []).map(identifier));
+const nativeChannels = new Map([["SLACK", "notifications.SlackChannel"]]);
+const declaredChannels = declared("Channel");
+const inventions = JSON.parse(readFileSync(resolve(ROOT, "docs/evidence/conduit-inventions.json"), "utf8"));
+for (const [channel, invention] of nativeChannels) {
+  if (capturedChannels.has(channel)) fail(`native channel ${channel} now appears in captured evidence; reconcile its provenance`);
+  if (!declaredChannels.has(channel)) fail(`native channel ${channel} is registered but not declared`);
+  if (!source.includes(`CONDUIT-INVENTED: ${invention}`) || !inventions.inventions?.some((entry) => entry.id === invention)) {
+    fail(`native channel ${channel} requires its source disclosure and invention register entry`);
+  }
+}
+compare("channels", capturedChannels, new Set([...declaredChannels].filter((value) => !nativeChannels.has(value))));
 compare(
   "contact kinds",
   new Set((capture.deliveryChannels?.teamContactKinds ?? []).map((entry) => identifier(entry.label))),
@@ -172,5 +177,6 @@ if (failures.length) {
 console.log(
   `PASS notification vocabulary: ${expectedTypes.size} observed event types, ` +
     `${declaredTypes.size - expectedTypes.size} named only by Apollo's prose and carrying no scope, ` +
-    `${declared("Channel").size} channels and ${declared("ContactKind").size} contact kinds match the capture`,
+    `${capturedChannels.size} captured preference channels, ${nativeChannels.size} registered native channel(s), ` +
+    `${declared("ContactKind").size} contact kinds match the capture`,
 );

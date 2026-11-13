@@ -90,7 +90,7 @@ func (dispatcher *Dispatcher) DeliverOne(ctx context.Context) (bool, error) {
 		return true, dispatcher.queue.FailDelivery(
 			ctx, lease, fmt.Sprintf("render: %v", err), now, true)
 	}
-	message.Destination, err = dispatcher.destination(ctx, lease.Entry.Recipient)
+	message.Destination, err = dispatcher.destination(ctx, lease.Entry)
 	if err != nil {
 		// Retried rather than sent, and this is the one place where falling back
 		// would be the wrong answer. A store that could not be read is not a
@@ -118,12 +118,19 @@ func (dispatcher *Dispatcher) DeliverOne(ctx context.Context) (bool, error) {
 // The address never reaches this function's error path, because the only error
 // it can return is the store's own.
 func (dispatcher *Dispatcher) destination(
-	ctx context.Context, recipient domain.Recipient,
+	ctx context.Context, entry domain.InboxEntry,
 ) (domain.Destination, error) {
 	if dispatcher.config.Destinations == nil {
 		return domain.Destination{}, nil
 	}
-	destination, found, err := dispatcher.config.Destinations.DestinationFor(ctx, recipient)
+	var destination domain.Destination
+	var found bool
+	var err error
+	if resolver, ok := dispatcher.config.Destinations.(ports.EntryDestinationResolver); ok {
+		destination, found, err = resolver.DestinationForEntry(ctx, entry)
+	} else {
+		destination, found, err = dispatcher.config.Destinations.DestinationFor(ctx, entry.Recipient)
+	}
 	if err != nil {
 		return domain.Destination{}, err
 	}
@@ -168,6 +175,13 @@ func (dispatcher *Dispatcher) fail(
 	retryAt := now
 	if !exhausted {
 		retryAt = dispatcher.retryAt(now, lease.Attempt)
+		var delayed ports.RetryAfterError
+		if errors.As(cause, &delayed) && delayed.RetryAfter() > 0 {
+			requested := now.Add(delayed.RetryAfter())
+			if requested.After(retryAt) {
+				retryAt = requested
+			}
+		}
 	}
 	reason := fmt.Sprintf("%s transport: %v", dispatcher.transport.Name(), cause)
 	return dispatcher.queue.FailDelivery(ctx, lease, reason, retryAt, exhausted)

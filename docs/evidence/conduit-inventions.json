@@ -111,6 +111,13 @@
       "why": "The pinned public release-channel documentation and changelog establish in-progress, succeeded and aborted promotions and cancellation reasons, but publish no lifecycle API shape or transition contract. Keeping immutable evaluations in a predecessor chain preserves existing eligibility replay and provides atomic terminal transitions without rewriting prior decisions.",
       "displacedBy": "A published Apollo promotion lifecycle API schema and transition contract, including cancellation reasons.",
       "riskIfWrong": "Medium. Run identifiers, phase wire tokens and continuation requests may differ from Apollo. They are served only on Conduit-native v1 routes with CONDUIT_NATIVE disclosure; published Apollo transport schemas remain unchanged."
+    },
+    {
+      "id": "notifications.SlackChannel",
+      "what": "A first-class SLACK channel for native v1 resource preferences, inbox fan-out and channel-specific delivery.",
+      "why": "Public notifications documentation establishes Slack delivery and captured team contacts establish the Slack destination kind, but the captured resource settings only show email and in-app preference lists. The maintainer requested native multi-channel delivery in #119. A separate channel makes routing explicit without claiming a recovered private preference schema.",
+      "displacedBy": "A published or authorized captured Apollo per-resource Slack notification preference schema.",
+      "riskIfWrong": "Low for native delivery, moderate for compatibility claims. The channel and its subscription scope are Conduit-owned; published Apollo transports remain unchanged. Future recovered preference schemas require reimplementation against that evidence."
     }
   ],
   "displaced": [

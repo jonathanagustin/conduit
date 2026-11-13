@@ -167,24 +167,27 @@ func EventTypes() []EventType {
 
 // Channel is where a notification is delivered.
 //
-// Email and in-app are the two the resource settings page configures, each with
-// its own independent preference list over the same types. Slack and PagerDuty
-// exist only as team-contact kinds, so they are ContactKind values below and
-// not Channels: the capture shows no per-resource Slack preference list.
+// The captured resource settings establish email and in-app preferences. Native
+// Slack subscriptions extend that model to the publicly documented Slack
+// delivery capability; no private per-resource Slack wire shape is claimed.
 type Channel string
 
 const (
 	ChannelEmail Channel = "EMAIL"
 	ChannelInApp Channel = "IN_APP"
+	// ChannelSlack enables native Slack subscriptions.
+	// CONDUIT-INVENTED: notifications.SlackChannel
+	// Displaced-by: a published or authorized captured Apollo per-resource Slack notification preference schema.
+	ChannelSlack Channel = "SLACK"
 )
 
 // Valid reports whether this is a channel a resource can express preferences on.
 func (channel Channel) Valid() bool {
-	return channel == ChannelEmail || channel == ChannelInApp
+	return channel == ChannelEmail || channel == ChannelInApp || channel == ChannelSlack
 }
 
-// Channels is both delivery channels, sorted.
-func Channels() []Channel { return []Channel{ChannelEmail, ChannelInApp} }
+// Channels returns the supported delivery channels, sorted.
+func Channels() []Channel { return []Channel{ChannelEmail, ChannelInApp, ChannelSlack} }
 
 // ContactKind is a destination a team can own.
 //

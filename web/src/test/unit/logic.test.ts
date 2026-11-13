@@ -672,12 +672,12 @@ describe("notification channel selection", () => {
   // defaulting, so forwarding one would turn a hand-edited link into what reads
   // as a broken console.
   it("falls back rather than forwarding a channel the Hub would refuse", () => {
-    expect(readChannel("SLACK")).toBe("IN_APP");
+    expect(readChannel("PAGERDUTY")).toBe("IN_APP");
     expect(readChannel("in_app")).toBe("IN_APP");
   });
 
   it("offers only channels the Hub has", () => {
-    expect([...NOTIFICATION_CHANNELS]).toEqual(["EMAIL", "IN_APP"]);
+    expect([...NOTIFICATION_CHANNELS]).toEqual(["EMAIL", "IN_APP", "SLACK"]);
   });
 });
 

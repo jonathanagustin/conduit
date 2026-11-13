@@ -211,10 +211,8 @@ func TestAPreferenceThatCouldNeverDeliverIsRefused(t *testing.T) {
 			value.Types = nil
 			value.AllFutureTypes = false
 		},
-		// Slack is a team-contact kind, not something a resource's settings page
-		// can express a preference on. Accepting it would promise delivery on a
-		// channel that has no preference list behind it.
-		"contact kind as channel": func(value *Preference) { value.Channel = Channel(ContactSlack) },
+		// PagerDuty remains a stored contact kind without a delivery channel.
+		"contact kind as channel": func(value *Preference) { value.Channel = Channel(ContactPagerDuty) },
 	} {
 		value := preference("pref-1", owner, mutate)
 		if err := value.Validate(); err == nil {
@@ -393,20 +391,21 @@ func TestTheTwoObservedScopesAreCarriedSeparately(t *testing.T) {
 	}
 }
 
-// Both channels a resource can be configured on, and only those. Slack and
-// PagerDuty are team-contact kinds; no captured page offers a per-resource
-// Slack preference list.
-func TestOnlyTheTwoObservedChannelsAreConfigurable(t *testing.T) {
+// Email/in-app are captured; Slack is the explicit native delivery extension.
+func TestObservedAndNativeDeliveryChannelsAreConfigurable(t *testing.T) {
 	t.Parallel()
-	if channels := Channels(); len(channels) != 2 {
-		t.Fatalf("expected two channels, got %v", channels)
+	if channels := Channels(); len(channels) != 3 {
+		t.Fatalf("expected three channels, got %v", channels)
 	}
 	for _, channel := range Channels() {
 		if !channel.Valid() {
 			t.Errorf("advertised channel %q is not valid", channel)
 		}
 	}
-	if Channel("SLACK").Valid() {
-		t.Error("Slack validated as a resource preference channel, though it is only a team-contact kind")
+	if !ChannelSlack.Valid() {
+		t.Error("native Slack subscriptions are unavailable")
+	}
+	if Channel("PAGERDUTY").Valid() {
+		t.Error("a contact-only kind became a delivery channel")
 	}
 }

@@ -138,7 +138,7 @@ carried to the residual list as item 5.
    migration `0002-notification-delivery`.
 
    It is **off unless configured**, on the same reasoning as `METRICS_ADDRESS`:
-   with neither `NOTIFICATION_WEBHOOK_URL` nor `NOTIFICATION_DELIVERY_LOG` set,
+   with no webhook, logging, or native SMTP/Slack delivery settings set,
    no transport is built, no dispatcher is constructed, no loop runs and no
    request leaves the process. Upgrading an existing deployment changes nothing.
 
@@ -199,13 +199,14 @@ carried to the residual list as item 5.
    for is carried through a save unchanged. The contract is
    `docs/ui/contracts/notification-inbox.md`.
 
-   **What still blocks the row below:** there is **no SMTP transport and no
-   Slack transport**, so a resolved address reaches a webhook receiver that must
-   itself know how to reach a mailbox or a channel; **nothing verifies that an
-   address is reachable**, so a typo is indistinguishable from a working
-   destination until a delivery fails; and the console reads the caller's own
-   inbox only — a team inbox is now storable but has no screen — with **no unread
-   state**, because `InboxEntry.ReadAt` exists and no route writes it.
+   **Native recipient delivery (#119).** SMTP and Slack now submit directly to
+   the selected owner/channel contact through the durable dispatcher. SMTP
+   requires verified TLS and final DATA acceptance; Slack requires `ok: true`.
+   Mounted credential files, bounded timeouts and provider-aware retries are
+   described in `native-notification-delivery.md`. Isolated protocol servers and
+   real PostgreSQL tests establish submission and durable routing, not real
+   mailbox receipt. Contact reachability is still discovered on delivery; team
+   inbox UI and unread-state writes remain absent.
    Notification authorization decisions *are* audited as of
    #241: the resource half of the check is `ResourceDecision.Allow` in
    `internal/governance/application`, which both these routes and the
@@ -503,7 +504,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** Bounds the Concurrency and replica correctness row above: that row proves replicas do not corrupt each other, not that the Hub stays available when the infrastructure under it fails. |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. Bounds the Concurrency and replica correctness row above. |
 | It is running and nobody can tell | **Observability assertion** | Present for metrics: the exposition format, the label allowlist and the wedge-versus-busy distinction are all asserted. Tracing remains unbuilt. |
-| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it; the recipient can now read their own inbox in the console rather than by hand. Still **missing** the end: the only *outbound* destination is that one configured endpoint, so "told" means "recorded where the recipient can look, and sent somewhere an operator watches", not "sent to the recipient". |
+| Nobody is told what happened | **Delivery end-to-end** | **Partial.** Ports exist and are driven: one emit site records an exhausted reconciliation proposal, fans it out to the preferences stored for the Environment, and a read path returns it — asserted against a real database in `internal/notifications/adapters/postgres` — and, when an operator configures one, a transport leases the entry and POSTs it or logs it; the recipient can now read their own inbox in the console rather than by hand. Native SMTP and Slack also submit to the selected recipient contact (#119), verified with isolated protocol servers and the PostgreSQL queue. Real mailbox receipt and human acknowledgement are not established. |
 | A recall does not reach a disconnected target | **Bundle round trip** | **Blocked** by the design decision in #126, not by effort. |
 
 Three of these cannot be written today, and saying so is the point: listing them
