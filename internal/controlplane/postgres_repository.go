@@ -39,6 +39,12 @@ CREATE TABLE IF NOT EXISTS conduit_repository_blobs (
     contents bytea NOT NULL,
     CHECK (octet_length(contents) >= 0)
 );`,
+}, {
+	Name: "0002-apollo-agent-reports",
+	Statements: `CREATE TABLE IF NOT EXISTS conduit_apollo_agent_reports (
+ environment text PRIMARY KEY,
+ inputs jsonb NOT NULL
+);`,
 }}
 
 // PostgresMigrations is this context's schema as the runner sees it, so a
@@ -136,6 +142,7 @@ func (repository *MemoryRepository) Transaction(
 	if err != nil {
 		return err
 	}
+	working.apolloAgentReports = cloneApolloAgentReports(repository.apolloAgentReports)
 	if err := operation(working); err != nil {
 		return err
 	}
@@ -143,12 +150,17 @@ func (repository *MemoryRepository) Transaction(
 	next := working.stateLocked()
 	working.mu.Unlock()
 	repository.applyStateLocked(next)
+	repository.apolloAgentReports = working.apolloAgentReports
 	return nil
 }
 
 func (repository *PostgresRepository) withState(
 	ctx context.Context, write bool, operation func(*MemoryRepository) error,
 ) error {
+	return repository.withStateTransaction(ctx, write, func(memory *MemoryRepository, _ *sql.Tx) error { return operation(memory) })
+}
+
+func (repository *PostgresRepository) withStateTransaction(ctx context.Context, write bool, operation func(*MemoryRepository, *sql.Tx) error) error {
 	if repository == nil || repository.database == nil {
 		return errors.New("PostgreSQL repository is closed")
 	}
@@ -171,7 +183,7 @@ func (repository *PostgresRepository) withState(
 	if err != nil {
 		return err
 	}
-	if err := operation(memory); err != nil {
+	if err := operation(memory, transaction); err != nil {
 		return err
 	}
 	if write {

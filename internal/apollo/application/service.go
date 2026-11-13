@@ -18,7 +18,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
-	environmentports "github.com/jonathanagustin/conduit/internal/environments/ports"
 )
 
 type ErrorKind string
@@ -145,11 +144,9 @@ type releaseRecord struct {
 // Service holds compatibility projections, not authoritative desired state.
 // Durable Publications and Environment Reports cross explicit domain ports.
 type Service struct {
-	mu           sync.RWMutex
-	products     map[string]apollo.Product
-	releases     map[string]map[string]releaseRecord
-	entityInfo   map[string][]apollo.EntityInfo
-	entityHealth map[string][]apollo.EntityHealth
+	mu       sync.RWMutex
+	products map[string]apollo.Product
+	releases map[string]map[string]releaseRecord
 	// recalls and promotions are deliberately absent from this struct, and so
 	// are environments, installations and namespaces. All five were held here
 	// and all five answered wrong on any replica that had not served the write:
@@ -158,14 +155,17 @@ type Service struct {
 	lifecycle ReleaseLifecyclePort
 	inventory EnvironmentInventoryPort
 	catalog   CatalogPort
-	reporting environmentports.ReportingPort
+	reporting ReportingPort
 	now       func() time.Time
 }
 
 func New(
-	ctx context.Context, catalogPort CatalogPort, reporting environmentports.ReportingPort,
+	ctx context.Context, catalogPort CatalogPort, reporting ReportingPort,
 	lifecycle ReleaseLifecyclePort, inventory EnvironmentInventoryPort,
 ) (*Service, error) {
+	if reporting == nil {
+		return nil, errors.New("Apollo requires an atomic reporting port")
+	}
 	// Refused rather than tolerated: a nil lifecycle port would leave every
 	// recallStatus unanswerable at request time, which is the failure this
 	// surface is least able to report and least able to afford.
@@ -180,8 +180,7 @@ func New(
 	}
 	service := &Service{
 		products: make(map[string]apollo.Product), releases: make(map[string]map[string]releaseRecord),
-		entityInfo:   make(map[string][]apollo.EntityInfo),
-		entityHealth: make(map[string][]apollo.EntityHealth), catalog: catalogPort, reporting: reporting,
+		catalog: catalogPort, reporting: reporting,
 		lifecycle: lifecycle, inventory: inventory, now: time.Now,
 	}
 	publications, err := catalogPort.ListPublications(ctx, "")
@@ -790,71 +789,14 @@ func (service *Service) PutEntityInfo(ctx context.Context, environment string, v
 	if err := ValidateEntityInfo(values); err != nil {
 		return err
 	}
-	service.mu.Lock()
-	service.entityInfo[environment] = clone(values)
-	service.mu.Unlock()
-	return service.persistReportedState(ctx, environment)
+	return service.reporting.UpdateAgentReports(ctx, environment, AgentReportPatch{Info: &values}, service.projectReportedState)
 }
 
 func (service *Service) PutEntityHealth(ctx context.Context, environment string, values []apollo.EntityHealth) error {
 	if err := ValidateEntityHealth(values); err != nil {
 		return err
 	}
-	service.mu.Lock()
-	service.entityHealth[environment] = clone(values)
-	service.mu.Unlock()
-	return service.persistReportedState(ctx, environment)
-}
-
-func (service *Service) persistReportedState(ctx context.Context, environment string) error {
-	service.mu.RLock()
-	info, health := clone(service.entityInfo[environment]), clone(service.entityHealth[environment])
-	service.mu.RUnlock()
-	plan, err := service.reporting.LatestPlan(ctx, environment)
-	if err != nil {
-		return err
-	}
-	if plan.ID == "" {
-		return nil
-	}
-	existing := map[string]environments.ReportedEntity{}
-	if report, reportErr := service.reporting.GetReport(ctx, environment); reportErr == nil {
-		for _, entity := range report.Entities {
-			existing[entity.InstallationID] = entity
-		}
-	}
-	now := service.now().UTC()
-	reported := make([]environments.ReportedEntity, 0, len(plan.Steps))
-	for _, step := range plan.Steps {
-		entity := existing[step.InstallationID]
-		if entity.InstallationID == "" {
-			entity = environments.ReportedEntity{
-				InstallationID: step.InstallationID, Product: step.Product, Version: step.Version, Namespace: step.Namespace,
-				Health: environments.HealthUnknown, RolloutStatus: environments.RolloutOutOfDate,
-				ConfigStatus: environments.ConfigIndeterminate, Lifecycle: environments.LifecycleUnknown,
-			}
-		}
-		matchingInfo, observedTheEntity := observedInfo(info, step)
-		matchingHealth := MatchHealth(health, matchingInfo, step.Product)
-		if len(dereference(matchingInfo.NodesInfo)) > 0 || len(matchingHealth) > 0 {
-			details, result := AggregateHealth(quorumFor(matchingInfo, observedTheEntity, entity), matchingHealth)
-			entity.Health, entity.HealthDetails, entity.ObservedAt = result, &details, now
-			if matchingInfo.K8sNamespace != nil && *matchingInfo.K8sNamespace != "" {
-				entity.Namespace = *matchingInfo.K8sNamespace
-			}
-			if len(matchingHealth) > 0 {
-				entity.Version = matchingHealth[0].ProductVersion
-			}
-			if len(dereference(matchingInfo.NodesInfo)) > 0 {
-				entity.Lifecycle = environments.LifecycleInstalled
-			}
-		}
-		reported = append(reported, entity)
-	}
-	_, err = service.reporting.PutReport(ctx, environments.Report{
-		Environment: environment, AgentID: "apollo-public-api", ObservedAt: now, Entities: reported,
-	})
-	return err
+	return service.reporting.UpdateAgentReports(ctx, environment, AgentReportPatch{Health: &values}, service.projectReportedState)
 }
 
 func ValidateEntityInfo(values []apollo.EntityInfo) error {
