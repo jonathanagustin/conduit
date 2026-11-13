@@ -1,0 +1,50 @@
+name: Prepare release
+
+# UDS CLI's manifest/config pattern and UDS Core's PR-only phase, adapted to
+# Conduit's manual publication policy (ADR 0010). This workflow owns no tags.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-main
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  prepare:
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: write
+      pull-requests: write
+      # GITHUB_TOKEN PR writes do not emit pull_request workflow runs.
+      # Dispatch only the existing authenticating Trunk gate; no new secret.
+      actions: write
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.0
+      - name: Reconcile manually published release preparations
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-preparation.mjs reconcile
+      - name: Create or update the release pull request
+        uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        with:
+          token: ${{ github.token }}
+          target-branch: main
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          skip-github-release: true
+      - name: Ensure the release pull request has its Trunk gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: node scripts/release-preparation.mjs verify
