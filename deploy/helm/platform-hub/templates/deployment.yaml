@@ -100,6 +100,24 @@ spec:
             - { name: DOCKER_CONFIG, value: {{ $.Values.artifactScanner.registryAuthMountPath | quote }} }
             {{- end }}
             {{- end }}
+            {{- if .Values.packagingWorkflow.enabled }}
+            - { name: PACKAGING_TEMPORAL_ADDRESS, value: {{ required "packagingWorkflow.address is required when packagingWorkflow.enabled" .Values.packagingWorkflow.address | quote }} }
+            - { name: PACKAGING_TEMPORAL_NAMESPACE, value: {{ .Values.packagingWorkflow.namespace | quote }} }
+            - { name: PACKAGING_TEMPORAL_TASK_QUEUE, value: {{ .Values.packagingWorkflow.taskQueue | quote }} }
+            {{- with .Values.packagingWorkflow.serverName }}
+            - { name: PACKAGING_TEMPORAL_SERVER_NAME, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.tls.certSecretName }}
+            - { name: PACKAGING_TEMPORAL_TLS_CERT_FILE, value: /run/packaging-temporal-tls/tls.crt }
+            - { name: PACKAGING_TEMPORAL_TLS_KEY_FILE, value: /run/packaging-temporal-tls/tls.key }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.tls.caConfigMapName }}
+            - { name: PACKAGING_TEMPORAL_TLS_CA_FILE, value: /run/packaging-temporal-ca/ca.pem }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.apiKeySecretName }}
+            - { name: PACKAGING_TEMPORAL_API_KEY_FILE, value: /run/packaging-temporal-api-key/api-key }
+            {{- end }}
+            {{- end }}
           ports:
             - { name: https, containerPort: {{ .Values.service.port }} }
           startupProbe:
@@ -135,6 +153,17 @@ spec:
             {{- end }}
             {{- with .Values.artifactScanner.registryAuthSecretName }}
             - { name: artifact-scanner-registry-auth, mountPath: {{ $.Values.artifactScanner.registryAuthMountPath | quote }}, readOnly: true }
+            {{- end }}
+            {{- if .Values.packagingWorkflow.enabled }}
+            {{- with .Values.packagingWorkflow.tls.certSecretName }}
+            - { name: packaging-temporal-tls, mountPath: /run/packaging-temporal-tls, readOnly: true }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.tls.caConfigMapName }}
+            - { name: packaging-temporal-ca, mountPath: /run/packaging-temporal-ca, readOnly: true }
+            {{- end }}
+            {{- with .Values.packagingWorkflow.apiKeySecretName }}
+            - { name: packaging-temporal-api-key, mountPath: /run/packaging-temporal-api-key, readOnly: true }
+            {{- end }}
             {{- end }}
       volumes:
         {{- if eq .Values.repository.kind "file" }}
@@ -183,6 +212,29 @@ spec:
           secret:
             secretName: {{ . }}
             optional: false
+        {{- end }}
+        {{- if .Values.packagingWorkflow.enabled }}
+        {{- with .Values.packagingWorkflow.tls.certSecretName }}
+        - name: packaging-temporal-tls
+          secret:
+            secretName: {{ . }}
+            optional: false
+        {{- end }}
+        {{- with .Values.packagingWorkflow.tls.caConfigMapName }}
+        - name: packaging-temporal-ca
+          configMap:
+            name: {{ . }}
+            items:
+              - { key: ca.pem, path: ca.pem }
+        {{- end }}
+        {{- with .Values.packagingWorkflow.apiKeySecretName }}
+        - name: packaging-temporal-api-key
+          secret:
+            secretName: {{ . }}
+            optional: false
+            items:
+              - { key: api-key, path: api-key }
+        {{- end }}
         {{- end }}
       {{- with .Values.nodeSelector }}
       nodeSelector:

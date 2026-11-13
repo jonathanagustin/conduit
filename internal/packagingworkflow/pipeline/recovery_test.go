@@ -19,8 +19,10 @@ import (
 	"go.temporal.io/sdk/worker"
 	sdkworkflow "go.temporal.io/sdk/workflow"
 
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/devserver"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/fixtures"
@@ -36,9 +38,26 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if err := fixtures.Materialize(fixture); err != nil {
 		t.Fatal(err)
 	}
-	ledger, err := adapters.Open(filepath.Join(dir, "state"))
+	stateDir := filepath.Join(dir, "state")
+	plansDir := filepath.Join(dir, "plans")
+	ledger, err := adapters.Open(stateDir)
 	if err != nil {
 		t.Fatal(err)
+	}
+	activitiesFor := func(hold, pause string) Activities {
+		t.Helper()
+		repository, err := controlplane.NewFileRepository(plansDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		journal, err := adapters.Open(stateDir)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return Activities{
+			FixtureDir: fixture, Ledger: journal, Plans: planlifecycle.New(repository, journal),
+			HoldFile: hold, PauseAfterSubmitFile: pause,
+		}
 	}
 	hold := filepath.Join(dir, "hold")
 	pause := filepath.Join(dir, "pause-after-submit")
@@ -67,8 +86,7 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	acts := Activities{FixtureDir: fixture, Ledger: ledger, HoldFile: hold, PauseAfterSubmitFile: pause}
-	workerOne := startWorker(t, ctx, running.Server.Client(), acts)
+	workerOne := startWorker(t, ctx, running.Server.Client(), activitiesFor(hold, pause))
 	run, err := running.Server.Client().ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:        id.WorkflowID(),
 		TaskQueue: TaskQueue,
@@ -82,7 +100,7 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if err := os.Remove(hold); err != nil {
 		t.Fatal(err)
 	}
-	workerTwo := startWorker(t, ctx, running.Server.Client(), Activities{FixtureDir: fixture, Ledger: ledger, PauseAfterSubmitFile: pause})
+	workerTwo := startWorker(t, ctx, running.Server.Client(), activitiesFor("", pause))
 	status := waitPhase(t, ctx, running.Server.Client(), id.WorkflowID(), domain.PhaseReview)
 	if status.SourceDigest != id.SourceDigest || status.ArtifactDigest == "" {
 		t.Fatalf("status after activity restart = %#v", status)
@@ -97,7 +115,7 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 		t.Fatalf("restart dev server: %v\n%s", err, logs.String())
 	}
 	defer running.Server.Stop()
-	workerThree := startWorker(t, ctx, running.Server.Client(), Activities{FixtureDir: fixture, Ledger: ledger, PauseAfterSubmitFile: pause})
+	workerThree := startWorker(t, ctx, running.Server.Client(), activitiesFor("", pause))
 	restored := query(t, ctx, running.Server.Client(), id.WorkflowID())
 	if restored.Phase != domain.PhaseReview || restored.ArtifactDigest != status.ArtifactDigest || restored.SourceDigest != id.SourceDigest {
 		t.Fatalf("status after server restart = %#v, before = %#v", restored, status)
@@ -116,29 +134,32 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	waitFor(t, 15*time.Second, func() bool { return fileExists(pause + ".ready") })
-	plans, err := ledger.PlanCount()
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plans != 1 {
-		t.Fatalf("plans before acknowledgement = %d", plans)
+	if count := governedPlans(t, plansDir); count != 1 {
+		t.Fatalf("plans before acknowledgement = %d", count)
 	}
 	workerThree.Stop()
 	if err := os.Remove(pause); err != nil {
 		t.Fatal(err)
 	}
-	workerFour := startWorker(t, ctx, running.Server.Client(), Activities{FixtureDir: fixture, Ledger: ledger})
+	workerFour := startWorker(t, ctx, running.Server.Client(), activitiesFor("", ""))
 	defer workerFour.Stop()
 	var result domain.Result
 	if err := running.Server.Client().GetWorkflow(ctx, id.WorkflowID(), "").Get(ctx, &result); err != nil {
 		t.Fatal(err)
 	}
-	plans, err = ledger.PlanCount()
+	reopened, err := controlplane.NewFileRepository(plansDir)
 	if err != nil {
 		t.Fatal(err)
 	}
-	if plans != 1 || result.PlanID == "" || result.Outcome != domain.OutcomeHandoffRecorded || result.ArtifactDigest != status.ArtifactDigest {
-		t.Fatalf("result = %#v plans = %d", result, plans)
+	plans, err := reopened.ListPlans(ctx, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(plans) != 1 || result.PlanID != plans[0].ID || result.Outcome != domain.OutcomeHandoffRecorded || result.ArtifactDigest != status.ArtifactDigest {
+		t.Fatalf("result = %#v plans = %#v", result, plans)
+	}
+	if plans[0].Status != controlplane.PlanAwaitingApproval || plans[0].Lease != nil || len(plans[0].Approvals) != 0 || plans[0].Execution != nil {
+		t.Fatalf("handoff approved or executed the plan: %#v", plans[0])
 	}
 	replayHistory(t, ctx, running.Server.Client(), id.WorkflowID())
 	logFootprint(t, db, startup, temporalRSS())
@@ -147,7 +168,7 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 
 func startWorker(t *testing.T, ctx context.Context, c client.Client, acts Activities) worker.Worker {
 	t.Helper()
-	work := RegisterWorker(c, acts)
+	work := RegisterWorker(c, TaskQueue, acts)
 	if err := work.Start(); err != nil {
 		t.Fatal(err)
 	}
@@ -227,6 +248,19 @@ func waitFor(t *testing.T, budget time.Duration, ready func() bool) {
 		time.Sleep(50 * time.Millisecond)
 	}
 	t.Fatalf("condition not met within %s", budget)
+}
+
+func governedPlans(t *testing.T, dir string) int {
+	t.Helper()
+	repository, err := controlplane.NewFileRepository(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	plans, err := repository.ListPlans(context.Background(), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	return len(plans)
 }
 
 func fileExists(path string) bool {

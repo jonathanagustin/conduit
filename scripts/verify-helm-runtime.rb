@@ -513,4 +513,28 @@ assert_signs_as_a_trusted_signer!(rubix_hub.find { |item| item["kind"] == "Deplo
 end
 abort "Rubix profiles must mount the external CA bundle" unless (rubix_hub + rubix_spoke).to_s.include?("tls-external-ca-pem-bundle")
 
+abort "default Hub renders a packaging worker" if hub_documents.any? { |item| item.dig("metadata", "name").to_s.end_with?("-packaging") }
+abort "default Hub enables packaging Temporal" if hub_documents.to_s.include?("PACKAGING_TEMPORAL_")
+enabled = render!(
+  helm, "platform-hub", charts.fetch(:hub), File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  ["--set", "packagingWorkflow.enabled=true", "--set", "packagingWorkflow.worker.enabled=true",
+   "--set-string", "packagingWorkflow.address=temporal.example:7233"]
+)
+worker = enabled.find { |item| item["kind"] == "Deployment" && item.dig("metadata", "name").to_s.end_with?("-packaging") }
+abort "enabled packaging worker did not render" unless worker
+validate_deployment!(worker)
+container = worker.dig("spec", "template", "spec", "containers", 0)
+abort "packaging worker must use the packaging-worker subcommand" unless container["args"] == ["packaging-worker"]
+worker_env = container.fetch("env").to_h { |item| [item["name"], item["value"]] }
+abort "packaging worker did not receive the Temporal address" unless worker_env["PACKAGING_TEMPORAL_ADDRESS"] == "temporal.example:7233"
+abort "packaging worker must share the Hub Postgres store" unless worker_env["REPOSITORY_KIND"] == "postgres"
+abort "packaging worker must not receive an approval or lease credential" if worker_env.keys.any? { |name| name.include?("APPROVAL") || name.include?("LEASE") }
+stdout, stderr, status = capture(
+  helm, "template", "platform-hub", charts.fetch(:hub), "--namespace", "platform-system",
+  "--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  "--set", "packagingWorkflow.enabled=true", "--set", "packagingWorkflow.worker.enabled=true"
+)
+abort "packaging worker rendered without its Temporal address" if status.success?
+abort "packaging worker failure did not name the address" unless (stdout + stderr).include?("address")
+
 puts "Two-chart Helm runtime and bounded Rubix profile verified with #{run!(helm, 'version', '--short').strip}"

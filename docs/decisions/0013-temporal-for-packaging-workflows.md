@@ -207,6 +207,18 @@ inputs. `CONDUIT_TEMPORAL_CLI=... go test ./internal/packagingworkflow/pipeline/
 -run TestDevServerRestartRecoversWaitAndHandoff` is the crash drill.
 `scripts/packaging-temporal-demo.sh` runs that drill.
 
+## Amendment, 2026-11-13
+
+The localhost proof's handoff journal was a stub. The worker now calls
+`GovernanceService.ProposePlan` and records the returned Plan id. A retry
+reads that id and does not propose again. `ProposePlan` is the ordinary
+lifecycle: the Plan stays `AWAITING_APPROVAL` with no lease and no
+execution. The worker does not call `Approve`. Suppression on the target
+environment is rechecked before the proposal and blocks it. The Temporal
+server remains operator-supplied. The Helm and Zarf worker deployments are
+off unless an operator turns them on, and they reuse the Hub image rather
+than adding a second image.
+
 ## More information
 
 - Supersedes: none

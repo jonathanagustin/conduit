@@ -13,7 +13,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.temporal.io/sdk/client"
 
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/devserver"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/fixtures"
@@ -74,7 +76,7 @@ func newRoot() *cobra.Command {
 				return err
 			}
 			defer c.Close()
-			work := pipeline.RegisterWorker(c, acts)
+			work := pipeline.RegisterWorker(c, pipeline.TaskQueue, acts)
 			if err := work.Start(); err != nil {
 				return err
 			}
@@ -169,7 +171,13 @@ func activities(stateDir, fixtureDir string) (pipeline.Activities, error) {
 	if err != nil {
 		return pipeline.Activities{}, err
 	}
-	return pipeline.Activities{FixtureDir: fixtureDir, Ledger: ledger}, nil
+	repository, err := controlplane.NewFileRepository(stateDir + "/plans")
+	if err != nil {
+		return pipeline.Activities{}, err
+	}
+	return pipeline.Activities{
+		FixtureDir: fixtureDir, Ledger: ledger, Plans: planlifecycle.New(repository, ledger),
+	}, nil
 }
 
 func approve(address, stateDir, fixtureDir, runID string) error {
