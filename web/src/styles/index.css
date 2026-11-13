@@ -20,3 +20,9 @@
   --aui-control-font-size: 0.875rem;
   --aui-field-padding-x: 0.875rem;
 }
+
+/* The stock assistant message cancels its action-bar padding with a negative
+ * margin, which pulls the sticky suggestion row up over that bar. */
+[data-slot="aui_message-group"] {
+  margin-bottom: 9rem;
+}

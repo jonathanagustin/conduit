@@ -1,9 +1,10 @@
-import { useEffect, useRef } from "react";
-import { useAuiState } from "@assistant-ui/react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { useAui, useAuiState } from "@assistant-ui/react";
 
 import { AgentPlan } from "@/components/assistant-ui/elements/agent-plan";
 import { ContextDisplay } from "@/components/assistant-ui/elements/context-display.aui";
-import { decidePermission } from "@/src/api/client";
+import { ErrorState } from "@/components/assistant-ui/elements/error-state";
+import { bridgeInfo, decidePermission } from "@/src/api/client";
 
 type PlanEntry = { content: string; status: string; priority: string };
 
@@ -25,10 +26,18 @@ function planOf(value: unknown): PlanEntry[] {
 
 function PermissionRelay() {
   const decision = useAuiState((state) => {
-    for (const message of state.thread.messages) {
-      if (message.role !== "assistant") continue;
-      for (const part of message.content) {
+    const messages = state.thread.messages;
+    for (let index = messages.length - 1; index >= 0; index -= 1) {
+      const message = messages[index];
+      if (!message || message.role !== "assistant") continue;
+      for (
+        let partIndex = message.content.length - 1;
+        partIndex >= 0;
+        partIndex -= 1
+      ) {
+        const part = message.content[partIndex];
         if (
+          !part ||
           part.type !== "tool-call" ||
           !part.approval ||
           part.approval.approved === undefined
@@ -76,7 +85,7 @@ export function AcpPanels() {
       const message = messages[index];
       if (!message || message.role !== "assistant") continue;
       const window = message.metadata?.custom?.["contextWindow"];
-      return typeof window === "number" ? window : 0;
+      if (typeof window === "number" && window > 0) return window;
     }
     return 0;
   });
@@ -86,6 +95,8 @@ export function AcpPanels() {
     <>
       <PermissionRelay />
       <DiagramReveal />
+      <ChatShortcuts />
+      <BridgeStatus />
       {contextWindow > 0 || plan.length > 0 ? (
         <div className="flex w-full flex-col gap-3 pb-3">
           {contextWindow > 0 ? (
@@ -133,7 +144,10 @@ function DiagramReveal() {
       if (revealed.current === marker) return;
       const footerHeight = footer.getBoundingClientRect().height;
       const limit = viewport.getBoundingClientRect().bottom - footerHeight - 16;
-      const overflow = host.getBoundingClientRect().bottom - limit;
+      const message = host.closest<HTMLElement>(
+        "[data-slot=aui_assistant-message-root]",
+      );
+      const overflow = (message ?? host).getBoundingClientRect().bottom - limit;
       if (overflow > 1) viewport.scrollBy({ top: overflow });
       revealed.current = marker;
     };
@@ -141,4 +155,58 @@ function DiagramReveal() {
     return () => cancelAnimationFrame(frame);
   }, [running]);
   return null;
+}
+
+function ChatShortcuts() {
+  const aui = useAui();
+  const running = useAuiState((state) => state.thread.isRunning);
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && running) {
+        event.preventDefault();
+        aui.thread.cancelRun();
+        return;
+      }
+      const meta = event.metaKey || event.ctrlKey;
+      if (meta && event.shiftKey && event.key.toLowerCase() === "o") {
+        event.preventDefault();
+        document
+          .querySelector<HTMLButtonElement>("[data-slot=aui_thread-list-new]")
+          ?.click();
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [aui, running]);
+  return null;
+}
+
+function BridgeStatus() {
+  const [down, setDown] = useState(false);
+  const [retrying, setRetrying] = useState(false);
+  const check = useCallback(async () => {
+    setRetrying(true);
+    try {
+      await bridgeInfo();
+      setDown(false);
+    } catch {
+      setDown(true);
+    } finally {
+      setRetrying(false);
+    }
+  }, []);
+  useEffect(() => {
+    void check();
+  }, [check]);
+  if (!down) return null;
+  return (
+    <ErrorState
+      title="Codex bridge is unreachable"
+      detail="The assistant bridge on 127.0.0.1 is not answering. Start it, then retry. Nothing is sent until the bridge is up."
+      retrying={retrying}
+      onRetry={() => {
+        void check();
+      }}
+    />
+  );
 }

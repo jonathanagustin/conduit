@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AssistantRuntimeProvider, AuiConfig } from "@assistant-ui/react";
 import { McpManagerResource } from "@assistant-ui/react-mcp";
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
@@ -8,6 +8,7 @@ import { ConversationMapAui } from "@/components/assistant-ui/elements/conversat
 import { useCodexRuntime } from "@/src/api/runtime";
 import { AcpPanels } from "@/src/embed/acp-panels";
 import { ComposerCommands } from "@/src/embed/composer-commands";
+import { ThreadWelcome } from "@/src/embed/thread-welcome";
 import { ElementCatalog } from "@/src/embed/element-catalog";
 import {
   SidebarInset,
@@ -28,6 +29,7 @@ import {
 const THREAD_COMPONENTS = {
   ViewportHeader: AcpPanels,
   ComposerExtra: ComposerCommands,
+  Welcome: ThreadWelcome,
 };
 
 const ASSISTANT_CONFIG = AuiConfig({
@@ -44,9 +46,31 @@ const ASSISTANT_CONFIG = AuiConfig({
   }),
 });
 
+const THEME_KEY = "conduit-console-theme";
+
 export const Assistant = () => {
   const runtime = useCodexRuntime();
   const [view, setView] = useState<"thread" | "elements">("thread");
+  const [dark, setDark] = useState(false);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(THEME_KEY);
+    const next =
+      stored === "dark" ||
+      (stored !== "light" &&
+        window.matchMedia("(prefers-color-scheme: dark)").matches);
+    setDark(next);
+    document.documentElement.classList.toggle("dark", next);
+  }, []);
+
+  const toggleTheme = () => {
+    setDark((current) => {
+      const next = !current;
+      document.documentElement.classList.toggle("dark", next);
+      window.localStorage.setItem(THEME_KEY, next ? "dark" : "light");
+      return next;
+    });
+  };
 
   return (
     <AssistantRuntimeProvider runtime={runtime} config={ASSISTANT_CONFIG}>
@@ -74,7 +98,18 @@ export const Assistant = () => {
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
+              <p className="text-muted-foreground hidden text-xs lg:block">
+                Enter sends, Esc stops, Ctrl+Shift+O or ⌘⇧O starts a new chat
+              </p>
               <div className="ml-auto flex items-center gap-1">
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-sm"
+                  aria-pressed={dark}
+                  onClick={toggleTheme}
+                >
+                  {dark ? "Light" : "Dark"}
+                </button>
                 <button
                   type="button"
                   aria-pressed={view === "thread"}

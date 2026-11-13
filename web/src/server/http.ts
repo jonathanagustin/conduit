@@ -1,4 +1,8 @@
-import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import {
+  createServer,
+  type IncomingMessage,
+  type ServerResponse,
+} from "node:http";
 import { mkdirSync, realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -12,7 +16,9 @@ import {
   createPermissionBook,
   emptySnapshot,
   redact,
+  sessionConfig,
   settleApproval,
+  type SessionConfigOption,
   type AcpUpdate,
   type PermissionRequest,
   type RunSnapshot,
@@ -26,10 +32,16 @@ type Thread = {
   updatedAt: string;
   sessionId: string;
   userTexts: string[];
+  configOptions: SessionConfigOption[];
   activeRun?: string;
 };
 
-type Active = { threadId: string; runId: string; snapshot: RunSnapshot; write: (snapshot: RunSnapshot) => void };
+type Active = {
+  threadId: string;
+  runId: string;
+  snapshot: RunSnapshot;
+  write: (snapshot: RunSnapshot) => void;
+};
 
 export type BridgeServer = {
   port: number;
@@ -38,7 +50,8 @@ export type BridgeServer = {
 };
 
 function workspaceDir(): string {
-  const requested = process.env["ASSISTANT_WORKSPACE"] ?? join(tmpdir(), "conduit-assistant");
+  const requested =
+    process.env["ASSISTANT_WORKSPACE"] ?? join(tmpdir(), "conduit-assistant");
   mkdirSync(requested, { recursive: true });
   return realpathSync(requested);
 }
@@ -71,7 +84,9 @@ function readBody(request: IncomingMessage): Promise<string> {
   });
 }
 
-async function readJson(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function readJson(
+  request: IncomingMessage,
+): Promise<Record<string, unknown>> {
   const raw = await readBody(request);
   if (raw.length === 0) return {};
   const parsed = JSON.parse(raw) as unknown;
@@ -90,7 +105,10 @@ function threadView(thread: Thread) {
   };
 }
 
-export async function createBridge(options?: { workspace?: string; port?: number }): Promise<BridgeServer> {
+export async function createBridge(options?: {
+  workspace?: string;
+  port?: number;
+}): Promise<BridgeServer> {
   const workspace = options?.workspace ?? workspaceDir();
   const threads = new Map<string, Thread>();
   const active = new Map<string, Active>();
@@ -112,6 +130,7 @@ export async function createBridge(options?: { workspace?: string; port?: number
     run.write(run.snapshot);
   };
 
+  let defaults: SessionConfigOption[] = [];
   agent = await startAgent(workspace, {
     book,
     onUpdate,
@@ -122,23 +141,37 @@ export async function createBridge(options?: { workspace?: string; port?: number
     },
   });
 
-  async function newSession(): Promise<string> {
-    const created = await agent.connection.agent.request(AGENT_METHODS.session_new, {
-      cwd: workspace,
-      mcpServers: [],
-    });
-    return created.sessionId;
+  async function newSession(): Promise<{
+    sessionId: string;
+    configOptions: SessionConfigOption[];
+  }> {
+    const created = (await agent.connection.agent.request(
+      AGENT_METHODS.session_new,
+      {
+        cwd: workspace,
+        mcpServers: [],
+      },
+    )) as { sessionId: string; configOptions?: unknown };
+    return {
+      sessionId: created.sessionId,
+      configOptions: sessionConfig(created.configOptions),
+    };
   }
 
   const server = createServer((request, response) => {
     void handle(request, response).catch((error: unknown) => {
-      const message = redact(error instanceof Error ? error.message : "assistant bridge failed");
+      const message = redact(
+        error instanceof Error ? error.message : "assistant bridge failed",
+      );
       if (!response.headersSent) json(response, 500, { error: message });
       else response.end();
     });
   });
 
-  async function handle(request: IncomingMessage, response: ServerResponse): Promise<void> {
+  async function handle(
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
     const url = new URL(request.url ?? "/", "http://127.0.0.1");
     const path = url.pathname;
     const method = request.method ?? "GET";
@@ -155,24 +188,80 @@ export async function createBridge(options?: { workspace?: string; port?: number
       return;
     }
 
+    if (method === "GET" && path === "/api/assistant/config") {
+      json(response, 200, { options: defaults });
+      return;
+    }
+
     if (method === "GET" && path === "/api/assistant/threads") {
       json(response, 200, { threads: [...threads.values()].map(threadView) });
       return;
     }
 
     if (method === "POST" && path === "/api/assistant/threads") {
-      const sessionId = await newSession();
+      const session = await newSession();
       const thread: Thread = {
         id: crypto.randomUUID(),
         title: "New chat",
         archived: false,
         updatedAt: new Date().toISOString(),
-        sessionId,
+        sessionId: session.sessionId,
         userTexts: [],
+        configOptions: session.configOptions,
       };
       threads.set(thread.id, thread);
       json(response, 201, threadView(thread));
       return;
+    }
+
+    const configMatch = /^\/api\/assistant\/threads\/([^/]+)\/config$/.exec(
+      path,
+    );
+    if (configMatch) {
+      const thread = threads.get(decodeURIComponent(configMatch[1] ?? ""));
+      if (!thread) {
+        json(response, 404, { error: "unknown conversation" });
+        return;
+      }
+      if (method === "GET") {
+        json(response, 200, { options: thread.configOptions });
+        return;
+      }
+      if (method === "POST") {
+        const body = await readJson(request);
+        const configId =
+          typeof body["configId"] === "string" ? body["configId"] : "";
+        const value = body["value"];
+        if (
+          configId.length === 0 ||
+          (typeof value !== "string" && typeof value !== "boolean")
+        ) {
+          json(response, 400, {
+            error: "configId and a string or boolean value are required",
+          });
+          return;
+        }
+        try {
+          const updated = (await agent.connection.agent.request(
+            AGENT_METHODS.session_set_config_option,
+            {
+              sessionId: thread.sessionId,
+              configId,
+              value,
+            },
+          )) as { configOptions?: unknown };
+          thread.configOptions = sessionConfig(updated.configOptions);
+          json(response, 200, { options: thread.configOptions });
+        } catch (error) {
+          const message = redact(
+            error instanceof Error
+              ? error.message
+              : "session config was rejected",
+          );
+          json(response, 501, { error: message });
+        }
+        return;
+      }
     }
 
     const threadMatch = /^\/api\/assistant\/threads\/([^/]+)$/.exec(path);
@@ -184,14 +273,18 @@ export async function createBridge(options?: { workspace?: string; port?: number
       }
       if (method === "PATCH") {
         const body = await readJson(request);
-        if (typeof body["title"] === "string") thread.title = redact(body["title"]).slice(0, 80);
-        if (typeof body["archived"] === "boolean") thread.archived = body["archived"];
+        if (typeof body["title"] === "string")
+          thread.title = redact(body["title"]).slice(0, 80);
+        if (typeof body["archived"] === "boolean")
+          thread.archived = body["archived"];
         thread.updatedAt = new Date().toISOString();
         json(response, 200, threadView(thread));
         return;
       }
       if (method === "DELETE") {
-        await agent.connection.agent.request(AGENT_METHODS.session_close, { sessionId: thread.sessionId }).catch(() => undefined);
+        await agent.connection.agent
+          .request(AGENT_METHODS.session_close, { sessionId: thread.sessionId })
+          .catch(() => undefined);
         threads.delete(thread.id);
         json(response, 200, { ok: true });
         return;
@@ -204,7 +297,9 @@ export async function createBridge(options?: { workspace?: string; port?: number
       return;
     }
 
-    const cancelMatch = /^\/api\/assistant\/threads\/([^/]+)\/cancel$/.exec(path);
+    const cancelMatch = /^\/api\/assistant\/threads\/([^/]+)\/cancel$/.exec(
+      path,
+    );
     if (method === "POST" && cancelMatch) {
       const thread = threads.get(decodeURIComponent(cancelMatch[1] ?? ""));
       const body = await readJson(request);
@@ -214,12 +309,16 @@ export async function createBridge(options?: { workspace?: string; port?: number
         return;
       }
       book.cancelRun(runId);
-      await agent.connection.agent.notify(AGENT_METHODS.session_cancel, { sessionId: thread.sessionId });
+      await agent.connection.agent.notify(AGENT_METHODS.session_cancel, {
+        sessionId: thread.sessionId,
+      });
       json(response, 202, { ok: true });
       return;
     }
 
-    const permissionMatch = /^\/api\/assistant\/permissions\/([^/]+)$/.exec(path);
+    const permissionMatch = /^\/api\/assistant\/permissions\/([^/]+)$/.exec(
+      path,
+    );
     if (method === "POST" && permissionMatch) {
       const body = await readJson(request);
       const decision = book.decide({
@@ -238,11 +337,16 @@ export async function createBridge(options?: { workspace?: string; port?: number
         const option = run.snapshot.tools
           .flatMap((tool) => tool.approval?.options ?? [])
           .find((candidate) => candidate.optionId === String(body["optionId"]));
-        const approved = option?.kind === "allow_once" || option?.kind === "allow_always";
-        run.snapshot = settleApproval(run.snapshot, decodeURIComponent(permissionMatch[1] ?? ""), {
-          optionId: String(body["optionId"]),
-          approved,
-        });
+        const approved =
+          option?.kind === "allow_once" || option?.kind === "allow_always";
+        run.snapshot = settleApproval(
+          run.snapshot,
+          decodeURIComponent(permissionMatch[1] ?? ""),
+          {
+            optionId: String(body["optionId"]),
+            approved,
+          },
+        );
         run.write(run.snapshot);
       }
       json(response, 200, { ok: true });
@@ -252,31 +356,58 @@ export async function createBridge(options?: { workspace?: string; port?: number
     json(response, 404, { error: "unknown assistant route" });
   }
 
-  async function runTurn(threadId: string, request: IncomingMessage, response: ServerResponse): Promise<void> {
+  async function runTurn(
+    threadId: string,
+    request: IncomingMessage,
+    response: ServerResponse,
+  ): Promise<void> {
     const thread = threads.get(threadId);
     if (!thread) {
       json(response, 404, { error: "unknown conversation" });
       return;
     }
     if (thread.activeRun) {
-      json(response, 409, { error: "a run is already active on this conversation" });
+      json(response, 409, {
+        error: "a run is already active on this conversation",
+      });
       return;
     }
     const body = await readJson(request);
     const runId = String(body["runId"] ?? "");
-    const userTexts = Array.isArray(body["userTexts"]) ? body["userTexts"].filter((entry): entry is string => typeof entry === "string") : [];
+    const userTexts = Array.isArray(body["userTexts"])
+      ? body["userTexts"].filter(
+          (entry): entry is string => typeof entry === "string",
+        )
+      : [];
     const prompt = userTexts.at(-1) ?? "";
     if (runId.length === 0 || prompt.length === 0) {
       json(response, 400, { error: "runId and a user message are required" });
       return;
     }
+    await applyChoice(
+      thread,
+      "model",
+      typeof body["model"] === "string" ? body["model"] : undefined,
+    );
+    await applyChoice(
+      thread,
+      "reasoning_effort",
+      typeof body["effort"] === "string" ? body["effort"] : undefined,
+    );
     const previous = thread.userTexts;
     const extended =
-      userTexts.length === previous.length + 1 && previous.every((text, index) => text === userTexts[index]);
-    const same = userTexts.length === previous.length && previous.every((text, index) => text === userTexts[index]);
+      userTexts.length === previous.length + 1 &&
+      previous.every((text, index) => text === userTexts[index]);
+    const same =
+      userTexts.length === previous.length &&
+      previous.every((text, index) => text === userTexts[index]);
     if (!extended && !same && previous.length > 0) {
-      await agent.connection.agent.request(AGENT_METHODS.session_close, { sessionId: thread.sessionId }).catch(() => undefined);
-      thread.sessionId = await newSession();
+      await agent.connection.agent
+        .request(AGENT_METHODS.session_close, { sessionId: thread.sessionId })
+        .catch(() => undefined);
+      const session = await newSession();
+      thread.sessionId = session.sessionId;
+      thread.configOptions = session.configOptions;
     }
 
     thread.activeRun = runId;
@@ -287,45 +418,77 @@ export async function createBridge(options?: { workspace?: string; port?: number
       connection: "keep-alive",
     });
     const write = (snapshot: RunSnapshot) => {
-      if (!response.writableEnded) response.write(`data: ${JSON.stringify({ type: "snapshot", snapshot })}\n\n`);
+      if (!response.writableEnded)
+        response.write(
+          `data: ${JSON.stringify({ type: "snapshot", snapshot })}\n\n`,
+        );
     };
-    const run: Active = { threadId: thread.id, runId, snapshot: emptySnapshot(), write };
+    const run: Active = {
+      threadId: thread.id,
+      runId,
+      snapshot: emptySnapshot(),
+      write,
+    };
     active.set(thread.sessionId, run);
     let cancelled = false;
     request.on("close", () => {
       if (response.writableEnded || cancelled) return;
       cancelled = true;
       book.cancelRun(runId);
-      void agent.connection.agent.notify(AGENT_METHODS.session_cancel, { sessionId: thread.sessionId });
+      void agent.connection.agent.notify(AGENT_METHODS.session_cancel, {
+        sessionId: thread.sessionId,
+      });
     });
 
     try {
-      const blocks: ({ type: "text"; text: string } | { type: "image"; mimeType: string; data: string })[] = [
-        { type: "text", text: prompt },
-      ];
-      const attachments = Array.isArray(body["attachments"]) ? body["attachments"] : [];
+      const blocks: (
+        | { type: "text"; text: string }
+        | { type: "image"; mimeType: string; data: string }
+      )[] = [{ type: "text", text: prompt }];
+      const attachments = Array.isArray(body["attachments"])
+        ? body["attachments"]
+        : [];
       for (const attachment of attachments) {
         if (!attachment || typeof attachment !== "object") continue;
         const record = attachment as Record<string, unknown>;
-        const mimeType = typeof record["mimeType"] === "string" ? record["mimeType"] : "application/octet-stream";
+        const mimeType =
+          typeof record["mimeType"] === "string"
+            ? record["mimeType"]
+            : "application/octet-stream";
         const data = typeof record["data"] === "string" ? record["data"] : "";
-        const name = typeof record["name"] === "string" ? record["name"] : "attachment";
-        if (mimeType.startsWith("image/") && data.length > 0) blocks.push({ type: "image", mimeType, data });
-        else if (data.length > 0) blocks.push({ type: "text", text: `Attachment ${name} (${mimeType})\n${data.slice(0, 100_000)}` });
+        const name =
+          typeof record["name"] === "string" ? record["name"] : "attachment";
+        if (mimeType.startsWith("image/") && data.length > 0)
+          blocks.push({ type: "image", mimeType, data });
+        else if (data.length > 0)
+          blocks.push({
+            type: "text",
+            text: `Attachment ${name} (${mimeType})\n${data.slice(0, 100_000)}`,
+          });
       }
-      const result = (await agent.connection.agent.request(AGENT_METHODS.session_prompt, {
-        sessionId: thread.sessionId,
-        prompt: blocks,
-      })) as { stopReason?: string };
+      const result = (await agent.connection.agent.request(
+        AGENT_METHODS.session_prompt,
+        {
+          sessionId: thread.sessionId,
+          prompt: blocks,
+        },
+      )) as { stopReason?: string };
       thread.userTexts = userTexts;
       write(run.snapshot);
-      const stopReason = typeof result.stopReason === "string" ? result.stopReason : "end_turn";
-      response.write(`data: ${JSON.stringify({ type: "done", stopReason })}\n\n`);
+      const stopReason =
+        typeof result.stopReason === "string" ? result.stopReason : "end_turn";
+      response.write(
+        `data: ${JSON.stringify({ type: "done", stopReason })}\n\n`,
+      );
     } catch (error) {
-      const message = redact(error instanceof Error ? error.message : "the Codex run failed");
+      const message = redact(
+        error instanceof Error ? error.message : "the Codex run failed",
+      );
       book.cancelRun(runId);
       if (!response.writableEnded) {
-        response.write(`data: ${JSON.stringify({ type: "error", message })}\n\n`);
+        response.write(
+          `data: ${JSON.stringify({ type: "error", message })}\n\n`,
+        );
       }
     } finally {
       active.delete(thread.sessionId);
@@ -333,6 +496,34 @@ export async function createBridge(options?: { workspace?: string; port?: number
       if (!response.writableEnded) response.end();
     }
   }
+
+  async function applyChoice(
+    thread: Thread,
+    configId: string,
+    value: string | undefined,
+  ): Promise<void> {
+    if (!value) return;
+    const current = thread.configOptions.find(
+      (option) => option.id === configId,
+    );
+    if (!current || current.currentValue === value) return;
+    if (!current.options?.some((option) => option.value === value)) return;
+    const updated = (await agent.connection.agent.request(
+      AGENT_METHODS.session_set_config_option,
+      {
+        sessionId: thread.sessionId,
+        configId,
+        value,
+      },
+    )) as { configOptions?: unknown };
+    thread.configOptions = sessionConfig(updated.configOptions);
+  }
+
+  const probe = await newSession();
+  defaults = probe.configOptions;
+  await agent.connection.agent
+    .request(AGENT_METHODS.session_close, { sessionId: probe.sessionId })
+    .catch(() => undefined);
 
   await new Promise<void>((resolve) => {
     server.listen(options?.port ?? 0, "127.0.0.1", () => resolve());

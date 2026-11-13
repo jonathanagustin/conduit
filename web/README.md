@@ -19,6 +19,8 @@ ASSISTANT_UI_ALLOW_AGENT=1 npx --yes assistant-ui@latest add <item> --yes --use-
 
 `<item>` is every `elements-*` entry and the runtime items `voice`, `voice-conversation`, `task-card`, `agent-status`, `mcp-config`, `assistant-modal`, `assistant-sidebar`, `shiki-highlighter`, `model-selector`, `logos`, `heat-graph`, `directive-text`, and `generative-ui`. The Elements tab mounts the ones the ACP thread does not drive, with labeled demo data.
 
+The thread itself is the chat. Enter sends the composer. Esc stops the running turn. Ctrl+Shift+O or ⌘⇧O starts a new chat. Codex ACP advertises the model and reasoning effort as session config options `model` and `reasoning_effort`; the composer selector calls `session/set_config_option`. When an agent omits one of those options, the control stays read-only or hidden and the thread says why. The bridge accepts image attachments and inlines other files as text. The Dark/Light control toggles the `dark` class on the document.
+
 
 ## Getting Started
 

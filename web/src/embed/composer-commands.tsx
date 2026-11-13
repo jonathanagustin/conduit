@@ -1,6 +1,7 @@
 "use client";
 
 import { ComposerTriggerPopover } from "@/components/assistant-ui/elements/composer-trigger-popover.aui";
+import { SessionControls } from "@/src/embed/session-controls";
 import {
   unstable_useMentionAdapter,
   unstable_useSlashCommandAdapter,
@@ -38,6 +39,7 @@ export function ComposerCommands() {
   });
   return (
     <>
+      <SessionControls />
       <ComposerTriggerPopover char="/" {...slash} />
       <ComposerTriggerPopover char="@" {...mentions} />
     </>

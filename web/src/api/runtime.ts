@@ -46,7 +46,10 @@ const feedbackAdapter: FeedbackAdapter = {
   },
 };
 
-export function recordedFeedback(): readonly { messageId: string; type: "positive" | "negative" }[] {
+export function recordedFeedback(): readonly {
+  messageId: string;
+  type: "positive" | "negative";
+}[] {
   return feedbackLog;
 }
 
@@ -54,23 +57,27 @@ export const STARTERS = [
   {
     title: "Assess this workspace",
     label: "blockers and unknowns",
-    prompt: "Assess this workspace for packaging blockers. List what you can verify and what is unknown. Do not deploy anything.",
+    prompt:
+      "Assess this workspace for packaging blockers. List what you can verify and what is unknown. Do not deploy anything.",
   },
   {
     title: "Review proposed diffs",
     label: "read only",
-    prompt: "Review the files in this workspace and summarize proposed changes. Do not write outside the workspace and do not deploy.",
+    prompt:
+      "Review the files in this workspace and summarize proposed changes. Do not write outside the workspace and do not deploy.",
   },
 ];
 
 const FOLLOW_UPS = [
   {
     title: "What is still unknown?",
-    prompt: "List the claims that are still unknown, and the evidence that would resolve each one.",
+    prompt:
+      "List the claims that are still unknown, and the evidence that would resolve each one.",
   },
   {
     title: "Show the tool boundary",
-    prompt: "Which actions would need a separate approval before anything is deployed? Tool success is not deployment approval.",
+    prompt:
+      "Which actions would need a separate approval before anything is deployed? Tool success is not deployment approval.",
   },
 ];
 
@@ -94,7 +101,9 @@ function dataOf(value: string): string {
   return index === -1 ? value : value.slice(index + marker.length);
 }
 
-function attachmentsOf(message: ThreadMessage): { name: string; mimeType: string; data: string }[] {
+function attachmentsOf(
+  message: ThreadMessage,
+): { name: string; mimeType: string; data: string }[] {
   if (message.role !== "user") return [];
   const attachments = [];
   for (const part of message.content) {
@@ -128,7 +137,11 @@ function toolPart(tool: ToolSnapshot): ToolCallMessagePart {
   if (tool.argsText.startsWith("{")) {
     try {
       const parsed = JSON.parse(tool.argsText) as unknown;
-      if (parsed !== null && typeof parsed === "object" && !Array.isArray(parsed)) {
+      if (
+        parsed !== null &&
+        typeof parsed === "object" &&
+        !Array.isArray(parsed)
+      ) {
         args = parsed as ToolCallMessagePart["args"];
       }
     } catch {
@@ -173,17 +186,26 @@ function partsOf(snapshot: RunSnapshot): ThreadAssistantMessagePart[] {
   if (snapshot.reasoning.length > 0) {
     parts.push({ type: "reasoning", text: snapshot.reasoning });
   }
-  if (snapshot.text.length > 0) parts.push({ type: "text", text: snapshot.text });
+  if (snapshot.text.length > 0)
+    parts.push({ type: "text", text: snapshot.text });
   for (const tool of snapshot.tools) parts.push(toolPart(tool));
   for (const source of snapshot.sources) {
-    parts.push({ type: "source", sourceType: "url", id: source.id, url: source.url, title: source.title });
+    parts.push({
+      type: "source",
+      sourceType: "url",
+      id: source.id,
+      url: source.url,
+      title: source.title,
+    });
   }
   return parts;
 }
 
 type Yield = {
   content: readonly ThreadAssistantMessagePart[];
-  status?: { type: "requires-action"; reason: "tool-calls" } | { type: "running" };
+  status?:
+    | { type: "requires-action"; reason: "tool-calls" }
+    | { type: "running" };
   metadata?: ChatYieldMetadata;
 };
 
@@ -191,6 +213,7 @@ type ParkedRun = {
   runId: string;
   queue: RunSnapshot[];
   notify: () => void;
+  posted: Set<string>;
   finished?: { stopReason: string };
   failure?: Error;
   pending: Promise<unknown>;
@@ -199,22 +222,34 @@ type ParkedRun = {
 const parkedRuns = new Map<string, ParkedRun>();
 
 function approvalPending(snapshot: RunSnapshot): boolean {
-  return snapshot.tools.some((tool) => tool.approval !== undefined && tool.approval.decision === undefined);
+  return snapshot.tools.some(
+    (tool) =>
+      tool.approval !== undefined && tool.approval.decision === undefined,
+  );
 }
 
-function answeredApproval(messages: readonly ThreadMessage[]): { requestId: string; optionId: string } | undefined {
-  for (let index = messages.length - 1; index >= 0; index -= 1) {
-    const message = messages[index];
-    if (!message || message.role !== "assistant") continue;
-    for (const part of message.content) {
-      if (part.type !== "tool-call" || !part.approval || part.approval.approved === undefined) continue;
-      const fallback = part.approval.options?.find((option) =>
-        part.approval?.approved ? String(option.kind).includes("allow") : String(option.kind).includes("reject"),
-      )?.id;
-      const optionId = part.approval.optionId ?? fallback;
-      if (!optionId) continue;
-      return { requestId: part.approval.id, optionId };
-    }
+function answeredApproval(
+  messages: readonly ThreadMessage[],
+): { requestId: string; optionId: string } | undefined {
+  const message = [...messages]
+    .reverse()
+    .find((entry) => entry.role === "assistant");
+  if (!message) return undefined;
+  for (const part of message.content) {
+    if (
+      part.type !== "tool-call" ||
+      !part.approval ||
+      part.approval.approved === undefined
+    )
+      continue;
+    const fallback = part.approval.options?.find((option) =>
+      part.approval?.approved
+        ? String(option.kind).includes("allow")
+        : String(option.kind).includes("reject"),
+    )?.id;
+    const optionId = part.approval.optionId ?? fallback;
+    if (!optionId) continue;
+    return { requestId: part.approval.id, optionId };
   }
   return undefined;
 }
@@ -240,7 +275,8 @@ async function* queueRun({
   unstable_threadId,
 }: Parameters<ChatModelAdapter["run"]>[0]): AsyncGenerator<Yield, void> {
   const threadId = unstable_threadId;
-  if (!threadId) throw new Error("the assistant thread is not connected to a Codex session");
+  if (!threadId)
+    throw new Error("the assistant thread is not connected to a Codex session");
   const userMessages = messages.filter((message) => message.role === "user");
   const last = userMessages.at(-1);
   if (!last) throw new Error("a run needs a user message");
@@ -264,12 +300,30 @@ async function* queueRun({
     failure = existing.failure;
     pending = existing.pending;
     const decision = answeredApproval(messages);
-    if (decision) await decidePermission({ requestId: decision.requestId, threadId, runId, optionId: decision.optionId });
+    if (
+      decision &&
+      decision.requestId.includes(`::${runId}::`) &&
+      !existing.posted.has(decision.requestId)
+    ) {
+      existing.posted.add(decision.requestId);
+      await decidePermission({
+        requestId: decision.requestId,
+        threadId,
+        runId,
+        optionId: decision.optionId,
+      });
+    }
   } else {
     runId = crypto.randomUUID();
     queue = [];
     notify = () => undefined;
-    const state: ParkedRun = { runId, queue, notify, pending: Promise.resolve() };
+    const state: ParkedRun = {
+      runId,
+      queue,
+      notify,
+      posted: new Set(),
+      pending: Promise.resolve(),
+    };
     parkedRuns.set(threadId, state);
     pending = streamRun(
       {
@@ -283,7 +337,10 @@ async function* queueRun({
         onSnapshot(snapshot) {
           queue.push(snapshot);
           chunks += 1;
-          if (firstToken === undefined && (snapshot.text.length > 0 || snapshot.reasoning.length > 0)) {
+          if (
+            firstToken === undefined &&
+            (snapshot.text.length > 0 || snapshot.reasoning.length > 0)
+          ) {
             firstToken = Date.now();
           }
           state.notify();
@@ -296,7 +353,8 @@ async function* queueRun({
         state.notify();
       },
       (error: unknown) => {
-        failure = error instanceof Error ? error : new Error("the Codex run failed");
+        failure =
+          error instanceof Error ? error : new Error("the Codex run failed");
         state.failure = failure;
         state.notify();
       },
@@ -326,8 +384,16 @@ async function* queueRun({
         const waiting = approvalPending(snapshot);
         yield {
           content: partsOf(snapshot),
-          status: waiting ? { type: "requires-action", reason: "tool-calls" } : { type: "running" },
-          metadata: metadata(started, chunks, snapshot, firstToken, finished ? Date.now() - started : undefined),
+          status: waiting
+            ? { type: "requires-action", reason: "tool-calls" }
+            : { type: "running" },
+          metadata: metadata(
+            started,
+            chunks,
+            snapshot,
+            firstToken,
+            finished ? Date.now() - started : undefined,
+          ),
         };
         if (waiting && !finished) return;
         continue;
@@ -376,7 +442,9 @@ export const codexModel: ChatModelAdapter = {
 };
 
 function titleFrom(messages: readonly ThreadMessage[]): string {
-  const text = messages.map((message) => userText(message)).find((value) => value.length > 0);
+  const text = messages
+    .map((message) => userText(message))
+    .find((value) => value.length > 0);
   if (!text) return "New chat";
   return text.length > 80 ? `${text.slice(0, 77)}…` : text;
 }
@@ -413,7 +481,8 @@ export const threadListAdapter: RemoteThreadListAdapter = {
   async fetch(threadId) {
     const threads = await listThreads();
     const thread = threads.find((candidate) => candidate.id === threadId);
-    if (!thread) throw new Error("that conversation is no longer on the bridge");
+    if (!thread)
+      throw new Error("that conversation is no longer on the bridge");
     return toRemote(thread);
   },
   async generateTitle(remoteId, messages) {
