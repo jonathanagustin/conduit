@@ -39,8 +39,9 @@ instruction, described in
 [`release-and-publication.md`](release-and-publication.md); it is one because
 the workflow chains the tag and the publication, not because any trigger fires
 on its own. The Trunk gate below runs automatically on `pull_request` under
-those guardrails (#195); a merge queue, when built, is still a separate
-`merge_group` workflow.
+those guardrails (#195). The merge queue is deliberately disabled: ADR 0009
+records the owner's choice to keep this private personal-account repository.
+The dormant queue workflow was removed; `Trunk gate` remains the required check.
 
 ## Trunk gate
 
