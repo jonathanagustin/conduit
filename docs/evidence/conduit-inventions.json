@@ -15,6 +15,13 @@
   ],
   "inventions": [
     {
+      "id": "grype.LocalNormalizedReport",
+      "what": "The local Grype report envelope retains provider/package/fix data, selects NVD identifiers and scores, and marks normalization as CONDUIT_NATIVE rather than a Hub artifact assessment.",
+      "why": "The pinned public CLI page specifies local execution, NVD preference, CVSS v3/v2 fallback, JSON file output and nonzero-exit behavior, but provides no JSON report fixture or complete tie-break rules. Conduit preserves the Grype envelope with explicit native metadata. NVD scores take priority, then version 3 over 2, then highest score and lexical identifier; zero v3 scores use Grype's Negligible label. Only selected v3 scores remain in the primary CVSS array.",
+      "displacedBy": "A sanitized Apollo CLI Grype JSON report establishing output schema, normalization tie-breaks and zero-score severity vocabulary.",
+      "riskIfWrong": "The local JSON representation may differ from Apollo's. It is marked native, does not fetch Apollo data, and cannot become an authoritative Hub artifact assessment merely by being produced. The Hub scanner's strict immutable-artifact contract is unchanged."
+    },
+    {
       "id": "apollographql.ConduitNamespacedRID",
       "what": "Apollo-shaped resource identifiers for resources Apollo has published no type token for, minted under ri.conduit.main.<type>.<locator> rather than ri.apollo.",
       "why": "The grammar ri.<service>.main.<type>.<locator> is published, and the service segment names the service that owns the resource -- which is why Autopilot's teams are ri.autopilot and not ri.apollo. A Product that exists only in Conduit is owned by Conduit. Guessing a token inside ri.apollo instead would risk a silent collision: if Apollo's real token for something else matches the guess, two different objects share one identifier and nothing raises a hand. A Conduit-namespaced identifier can only be wrong in the direction of being obviously ours. ADR 0007 left this choice open and this is the answer.",
