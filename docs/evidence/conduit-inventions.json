@@ -125,6 +125,13 @@
       "why": "Public notifications documentation establishes Slack delivery and captured team contacts establish the Slack destination kind, but the captured resource settings only show email and in-app preference lists. The maintainer requested native multi-channel delivery in #119. A separate channel makes routing explicit without claiming a recovered private preference schema.",
       "displacedBy": "A published or authorized captured Apollo per-resource Slack notification preference schema.",
       "riskIfWrong": "Low for native delivery, moderate for compatibility claims. The channel and its subscription scope are Conduit-owned; published Apollo transports remain unchanged. Future recovered preference schemas require reimplementation against that evidence."
+    },
+    {
+      "id": "spaces.NativeGrouping",
+      "what": "Conduit-owned persisted Space identity and grouping metadata, including a random space_ identifier, immutable Environment/Product/Bundle anchor assignments, creation provenance and explicit native tier.",
+      "why": "The adopted decision in #17 requires a real first-class grouping. Public CLI references and the Rosetta release notes establish Space selection and guest-user publication, while apollo-identifier-grammar.json distinguishes externally issued Apollo Space identity from Foundry namespace identity. These sources do not establish a native Hub Space record, identifier format, or ownership transport. This model supplies native persisted data without claiming to issue an Apollo identity or confer resource grants.",
+      "displacedBy": "A sanitized Apollo Space record establishing identity, grouping metadata and ownership semantics, including guest-user publication.",
+      "riskIfWrong": "The native identity, record schema, and immutable anchor assignment policy require an explicit migration if recovered evidence differs. Entity and Release grouping derives from their owning Environment and Product; assignment intent does not assert a resource is live. Group selection never grants authorization; existing resource checks remain required. No private Apollo Space transport or role family is claimed."
     }
   ],
   "displaced": [

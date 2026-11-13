@@ -11,6 +11,7 @@ into Conduit-owned concepts before it can affect delivery.
 |---|---|---|
 | Apollo integration | Pinned Apollo vocabulary, generated route metadata, conformance evidence, and translation into narrow Conduit ports | Private Hub-to-Agent behavior, Conduit authorization policy, or persisted delivery state |
 | Delivery | Plans, rollout rules, maintenance decisions, desired-state compilation, and rollback intent | Cluster access or transport-specific request shapes |
+| Spaces | Native Space identity and immutable resource grouping anchors | Authentication, resource grants, deployment authority, or private Apollo Space identity |
 | Governance | Principals, grants, roles, the approval-policy language and its predicates, approval requirements, the audit contract a decision is filed under, and authorization decisions | Authentication, execution, or the Change Request lifecycle that asks it for a decision |
 | Identity | Conversion of verified credentials into operator or Spoke identity, and the policy a token must satisfy to be one | Permission grants, or how a token's signature is checked and how a credential arrives |
 | Execution | Lease ownership, attempt numbering, expiry, and execution state | Approval policy or cluster mechanics |
