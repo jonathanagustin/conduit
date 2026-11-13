@@ -49,7 +49,9 @@ export function commitDefects(record) {
 
 export function proposalDefects(proposal, commits, expectedSHA) {
   const defects = [];
-  if (proposal.head?.sha !== expectedSHA || commits.at(-1)?.sha !== expectedSHA) defects.push("pull request head moved or commit list is incomplete");
+  if (proposal.head?.sha !== expectedSHA || commits.at(-1)?.sha !== expectedSHA ||
+      !Number.isSafeInteger(proposal.commits) || proposal.commits !== commits.length ||
+      new Set(commits.map((record) => record.sha)).size !== commits.length) defects.push("pull request head moved or commit list is incomplete");
   if (!conventionalSubject(proposal.title)) defects.push("expected a Conventional Commit pull request title");
   if (attributionFooter(proposal.body ?? "")) defects.push("forbidden pull request attribution/session footer");
   for (const record of commits) for (const defect of commitDefects(record)) defects.push(`${record.sha?.slice(0, 12) ?? "unknown"}: ${defect}`);
@@ -64,7 +66,10 @@ function githubMetadata() {
   const retry = join(dirname(fileURLToPath(import.meta.url)), "retry-github-api.sh");
   const api = (path, paginate = false) => {
     try {
-      return JSON.parse(execFileSync(retry, ["gh", "api", path, ...(paginate ? ["--paginate", "--slurp"] : [])], { encoding: "utf8", maxBuffer: 64 << 20 }));
+      // tojson emits one complete compact JSON value per page, including on
+      // older gh clients that support pagination but not --slurp.
+      const output = execFileSync(retry, ["gh", "api", path, ...(paginate ? ["--paginate", "--jq", "tojson"] : [])], { encoding: "utf8", maxBuffer: 64 << 20, stdio: ["ignore", "pipe", "pipe"] });
+      return paginate ? output.trim().split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line)) : JSON.parse(output);
     } catch {
       throw new Error("unable to read authenticated commit metadata");
     }
