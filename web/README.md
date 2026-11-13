@@ -17,6 +17,35 @@ The persistent banner and transcript label this as a simulation: no model calls,
 commands, tests, scans or deployments are performed. `pnpm build` followed by
 `CONDUIT_AGENT_MODE=demo pnpm start` runs the production preview.
 
+## Run the Temporal rehearsal
+
+Start three terminals in `web/`:
+
+```sh
+pnpm temporal:server
+pnpm temporal:worker
+CONDUIT_AGENT_MODE=temporal-demo pnpm dev
+```
+
+The developer service uses localhost:7233, a Temporal UI at
+http://localhost:8233, and SQLite under `.cache/temporal/` at the repository
+root. First use downloads the SDK-managed Temporal CLI and needs network access.
+This does not establish offline readiness. Stop services with Ctrl+C. The worker
+and client accept TEMPORAL_ADDRESS and TEMPORAL_NAMESPACE for another service.
+
+Send a proposal to start a real workflow with fixture activities. Approve or deny
+in the tool card; Stop requests cancellation. Send `fail-validation` for the
+failure path. Copy the displayed workflow ID, reload, and send
+`resume <workflow-id>` to reconnect to durable workflow state, without restoring
+conversation history. Approval expires after 24 hours; retries stop after three
+attempts. Neither rehearsal mode runs commands or cluster operations.
+
+```sh
+pnpm test:temporal
+CONDUIT_TEMPORAL_DEMO_URL=http://localhost:3000/console/ node --test server/temporal-browser.test.mjs
+```
+
+
 ## Connect Codex
 
 ```sh
@@ -93,8 +122,7 @@ The Go race/vet checks were attempted but unavailable: this environment's
 `/usr/bin/go` is not the Go compiler and rejects `test` and `vet`.
 
 Next real slice: authorized proposal → validation evidence → explicit deployment
-approval, with backend state authoritative. Temporal is requested follow-up:
-first define workflow ownership against Conduit's existing durable leases, then
-prove worker restart, bounded retry, cancellation and approval recovery for one
-workflow. Temporal, Kubernetes execution, UDS/Zarf packaging and disconnected
-operation are not implemented by this UI/ACP change.
+approval, with backend state authoritative. Temporal now coordinates the optional rehearsal with fixture activities and
+worker-recovery tests. Real Kubernetes execution, Hub integration, UDS/Zarf
+packaging, authenticated remote hosting and disconnected operation remain
+unimplemented. See the job-alignment note for the next acceptance gates.

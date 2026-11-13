@@ -3,7 +3,9 @@
 Frontend reset: `web/` now contains the assistant-ui default starter. Historical
 rows referencing `web/src` tests no longer establish current frontend coverage.
 The Go implementation and previously embedded console are retained. See
-`web/README.md`; new scaffold gates are typecheck, lint, build, and ACP bridge tests. Live Hub
+`web/README.md`; new scaffold gates are typecheck, lint, build, and ACP bridge tests. An optional Temporal rehearsal is implemented with fixture activities, tested
+worker recovery and approval signals; `web/orchestration/workflow.test.ts` and
+`web/server/temporal-browser.test.mjs` are its acceptance gates. Live Hub
 integration and the replacement of legacy console CI gates remain OPEN.
 
 This map distinguishes implemented repository behavior from work that still
