@@ -14,6 +14,11 @@ Read the nearest nested `AGENTS.md` before editing a subtree.
 - Supply an explicit squash message. Keep commit messages and pull request
   descriptions free of generated-by signatures, session links, and attribution
   footers.
+  Use an explicit clean squash message: GitHub's default combined messages can
+  restore attribution from branch commits. Trunk validates every introduced
+  commit and PR title/body before the other lanes run. Inspect the resulting
+  merge metadata before performing another merge; a green source check cannot
+  control a message supplied at merge time.
 
 `main` is the only long-lived branch. Make one coherent change on a short-lived
 branch, open a pull request, run the relevant local gates, and squash-merge once

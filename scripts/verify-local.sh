@@ -199,6 +199,7 @@ gate 'Check formatting' check_formatting
 # has nothing to authenticate here; its self-test stubs both and is the part
 # that would fail if a refusal stopped refusing.
 gate 'Authenticate pull request head' ./scripts/authenticate-pull-request-head.test.sh
+gate 'Validate commit metadata' bash -c 'node scripts/verify-commit-metadata.test.mjs && node scripts/verify-commit-metadata.mjs'
 gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 # The other runnable half of that same CI step: the read that feeds the verifier.
 # Separate from the line above because they fail differently and only one of them

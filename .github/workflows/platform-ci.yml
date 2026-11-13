@@ -103,7 +103,7 @@ jobs:
   preflight:
     name: Head authentication
     runs-on: ubuntu-24.04
-    # Two API calls and three shell verifiers; a minute is generous.
+    # Authenticated head, complete commit metadata, and tenant-fidelity checks.
     timeout-minutes: 10
     # Draft revisions do not bill a full Trunk gate. workflow_dispatch has no
     # pull_request and still runs.
@@ -139,6 +139,16 @@ jobs:
           # pull request, an unpinned checkout -- and fails unless each is
           # refused for its own stated reason.
           ./scripts/authenticate-pull-request-head.test.sh
+      - name: Install pinned Node
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24.22.0
+      - name: Validate commit metadata
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/verify-commit-metadata.test.mjs
+          node scripts/verify-commit-metadata.mjs --github
       - name: Validate tenant fidelity policy
         env:
           GH_TOKEN: ${{ github.token }}
