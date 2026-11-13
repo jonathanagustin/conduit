@@ -1,10 +1,11 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { useAui, useAuiState } from "@assistant-ui/react";
 
 import { AgentPlan } from "@/components/assistant-ui/elements/agent-plan";
 import { ContextDisplay } from "@/components/assistant-ui/elements/context-display.aui";
 import { ErrorState } from "@/components/assistant-ui/elements/error-state";
-import { bridgeInfo, decidePermission } from "@/src/api/client";
+import { decidePermission } from "@/src/api/client";
+import { useBridgeHealth } from "@/src/embed/bridge-health";
 
 type PlanEntry = { content: string; status: string; priority: string };
 
@@ -143,7 +144,7 @@ function DiagramReveal() {
       const marker = svg.getAttribute("viewBox") ?? "";
       if (revealed.current === marker) return;
       const footerHeight = footer.getBoundingClientRect().height;
-      const limit = viewport.getBoundingClientRect().bottom - footerHeight - 16;
+      const limit = viewport.getBoundingClientRect().bottom - footerHeight - 48;
       const message = host.closest<HTMLElement>(
         "[data-slot=aui_assistant-message-root]",
       );
@@ -182,30 +183,19 @@ function ChatShortcuts() {
 }
 
 function BridgeStatus() {
-  const [down, setDown] = useState(false);
-  const [retrying, setRetrying] = useState(false);
-  const check = useCallback(async () => {
-    setRetrying(true);
-    try {
-      await bridgeInfo();
-      setDown(false);
-    } catch {
-      setDown(true);
-    } finally {
-      setRetrying(false);
-    }
-  }, []);
+  const health = useBridgeHealth();
   useEffect(() => {
-    void check();
-  }, [check]);
-  if (!down) return null;
+    void health.check();
+  }, [health.check]);
+  if (health.phase !== "dropped" && health.phase !== "reconnecting")
+    return null;
   return (
     <ErrorState
       title="Codex bridge is unreachable"
       detail="The assistant bridge on 127.0.0.1 is not answering. Start it, then retry. Nothing is sent until the bridge is up."
-      retrying={retrying}
+      retrying={health.phase === "reconnecting"}
       onRetry={() => {
-        void check();
+        void health.check();
       }}
     />
   );

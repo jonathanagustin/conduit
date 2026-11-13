@@ -9,6 +9,7 @@ import { useCodexRuntime } from "@/src/api/runtime";
 import { AcpPanels } from "@/src/embed/acp-panels";
 import { ComposerCommands } from "@/src/embed/composer-commands";
 import { ThreadWelcome } from "@/src/embed/thread-welcome";
+import { BridgeConnection, ConsoleChrome } from "@/src/embed/console-shell";
 import { ElementCatalog } from "@/src/embed/element-catalog";
 import {
   SidebarInset,
@@ -98,8 +99,8 @@ export const Assistant = () => {
                   </BreadcrumbItem>
                 </BreadcrumbList>
               </Breadcrumb>
-              <p className="text-muted-foreground hidden text-xs lg:block">
-                Enter sends, Esc stops, Ctrl+Shift+O or ⌘⇧O starts a new chat
+              <p className="text-muted-foreground hidden text-xs xl:block">
+                Enter sends, Esc stops, Ctrl+K commands, Ctrl+Shift+O new chat
               </p>
               <div className="ml-auto flex items-center gap-1">
                 <button
@@ -110,27 +111,16 @@ export const Assistant = () => {
                 >
                   {dark ? "Light" : "Dark"}
                 </button>
-                <button
-                  type="button"
-                  aria-pressed={view === "thread"}
-                  className="text-muted-foreground data-[pressed=true]:text-foreground rounded-md px-2 py-1 text-sm"
-                  data-pressed={view === "thread"}
-                  onClick={() => setView("thread")}
-                >
-                  Thread
-                </button>
-                <button
-                  type="button"
-                  aria-pressed={view === "elements"}
-                  className="text-muted-foreground data-[pressed=true]:text-foreground rounded-md px-2 py-1 text-sm"
-                  data-pressed={view === "elements"}
-                  onClick={() => setView("elements")}
-                >
-                  Elements
-                </button>
+                <ConsoleChrome
+                  view={view}
+                  onView={setView}
+                  dark={dark}
+                  onToggleTheme={toggleTheme}
+                />
               </div>
             </header>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
+              <BridgeConnection />
               {view === "thread" ? (
                 <div className="relative min-h-0 flex-1">
                   <ConversationMapAui side="right" />

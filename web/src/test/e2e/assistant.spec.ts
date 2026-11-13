@@ -72,48 +72,112 @@ test("shows a clear error when the Codex bridge is unreachable", async ({
   );
 });
 
-test("runs a fake ACP thread with usage, model, and theme controls", async ({
-  page,
-}) => {
-  process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
-  process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
-    fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
-  ]);
-  process.env["ASSISTANT_ACP_FIXTURE"] = "1";
-  process.env["INITIAL_AGENT_MODE"] = "workspace-write";
-  const bridge: BridgeServer = await createBridge({ port: 8787 });
-  try {
-    await hydrate(page);
-    await page.goto("/console/");
-    await expect(
-      page.getByRole("button", { name: "Assess this workspace" }),
-    ).toBeVisible();
-    await expect(page.getByText("Codex demo")).toBeVisible();
-    await page.getByLabel("Message input").fill("inspect the workspace");
-    await page.getByRole("button", { name: "Send message" }).click();
-    await page.getByRole("button", { name: "Allow once" }).click();
-    await expect(page.getByText("12 (12%)")).toBeVisible();
-    await expect(page.getByText("Ask", { exact: true })).toBeInViewport();
-    const copy = page.getByRole("button", { name: "Copy", exact: true }).last();
-    const chip = page.getByRole("button", { name: "What is still unknown?" });
-    await expect(chip).toBeVisible();
-    await expect
-      .poll(async () => {
-        const copyBox = await copy.boundingBox();
-        const chipBox = await chip.boundingBox();
-        if (!copyBox || !chipBox) return false;
-        return copyBox.y + copyBox.height <= chipBox.y + 2;
-      })
-      .toBe(true);
-    await page.getByLabel("Message input").fill("second turn");
-    await page.getByRole("button", { name: "Send message" }).click();
-    await page.getByRole("button", { name: "Allow once" }).click();
-    await expect(page.getByText("24 (24%)")).toBeVisible();
-    await page.getByRole("button", { name: "Dark" }).click();
-    await expect(page.locator("html")).toHaveClass(/dark/);
-    await page.getByRole("button", { name: "Light" }).click();
-    await expect(page.locator("html")).not.toHaveClass(/dark/);
-  } finally {
-    await bridge.close();
-  }
+test.describe("fake ACP bridge", () => {
+  test.describe.configure({ mode: "serial" });
+
+  test("runs a fake ACP thread with usage, model, and theme controls", async ({
+    page,
+  }) => {
+    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
+    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
+      fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
+    ]);
+    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
+    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
+    const bridge: BridgeServer = await createBridge({ port: 8787 });
+    try {
+      await hydrate(page);
+      await page.goto("/console/");
+      await expect(
+        page.getByRole("button", { name: "Assess this workspace" }),
+      ).toBeVisible();
+      await expect(page.getByText("Codex demo")).toBeVisible();
+      await page.getByLabel("Message input").fill("inspect the workspace");
+      await page.getByRole("button", { name: "Send message" }).click();
+      await page.getByRole("button", { name: "Allow once" }).click();
+      await expect(page.getByText("12 (12%)")).toBeVisible();
+      await expect(page.getByText("Ask", { exact: true })).toBeInViewport();
+      const copy = page
+        .getByRole("button", { name: "Copy", exact: true })
+        .last();
+      const chip = page.getByRole("button", { name: "What is still unknown?" });
+      await expect(chip).toBeVisible();
+      await expect
+        .poll(async () => {
+          const copyBox = await copy.boundingBox();
+          const chipBox = await chip.boundingBox();
+          if (!copyBox || !chipBox) return false;
+          return copyBox.y + copyBox.height <= chipBox.y + 2;
+        })
+        .toBe(true);
+      await page.getByLabel("Message input").fill("second turn");
+      await page.getByRole("button", { name: "Send message" }).click();
+      await page.getByRole("button", { name: "Allow once" }).click();
+      await expect(page.getByText("24 (24%)")).toBeVisible();
+      await page.getByRole("button", { name: "Dark" }).click();
+      await expect(page.locator("html")).toHaveClass(/dark/);
+      await page.getByRole("button", { name: "Light" }).click();
+      await expect(page.locator("html")).not.toHaveClass(/dark/);
+    } finally {
+      await bridge.close();
+    }
+  });
+
+  test("opens settings, the command palette, and thread search", async ({
+    page,
+  }) => {
+    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
+    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
+      fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
+    ]);
+    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
+    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
+    const bridge: BridgeServer = await createBridge({ port: 8787 });
+    try {
+      await hydrate(page);
+      await page.goto("/console/");
+      await page.getByRole("button", { name: "Settings" }).click();
+      await expect(
+        page.getByRole("heading", { name: "Settings" }),
+      ).toBeVisible();
+      await expect(page.getByText("/api/assistant")).toBeVisible();
+      await expect(page.getByText("Command palette")).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Codex demo" }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.keyboard.press("Control+K");
+      await expect(
+        page.getByRole("combobox", { name: "Type a command" }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("option", { name: "Open settings" }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.getByLabel("Message input").fill("inspect the workspace");
+      await page.getByRole("button", { name: "Send message" }).click();
+      await page.getByRole("button", { name: "Allow once" }).click();
+      await expect(
+        page.locator("[data-slot=aui_thread-list-item]"),
+      ).toContainText(/inspect/i);
+      await page.getByRole("button", { name: "Search", exact: true }).click();
+      await expect(
+        page.getByRole("combobox", { name: "Search threads" }),
+      ).toBeVisible();
+      await page
+        .getByRole("combobox", { name: "Search threads" })
+        .fill("inspect");
+      await expect(
+        page.getByRole("option", { name: /inspect the workspace/i }),
+      ).toBeVisible();
+      await page.keyboard.press("Escape");
+      await page.getByRole("button", { name: "Prompts" }).click();
+      await page.getByRole("option", { name: /Packaging blockers/ }).dblclick();
+      await expect(page.getByLabel("Message input")).toHaveValue(
+        /packaging blockers/,
+      );
+    } finally {
+      await bridge.close();
+    }
+  });
 });

@@ -1,3 +1,4 @@
+import { loadSettings, saveSettings } from "./console-settings.js";
 import type {
   RunSnapshot,
   SessionConfigOption,
@@ -95,8 +96,28 @@ export async function archiveThread(
 }
 
 const choice: { model?: string; effort?: string } = {};
+const choiceListeners = new Set<() => void>();
+
+export function subscribeSessionChoice(listener: () => void): () => void {
+  choiceListeners.add(listener);
+  return () => {
+    choiceListeners.delete(listener);
+  };
+}
+
+function storedChoice(): { model?: string; effort?: string } {
+  if (typeof localStorage === "undefined") return {};
+  const saved = loadSettings(localStorage);
+  return {
+    ...(saved.model ? { model: saved.model } : {}),
+    ...(saved.effort ? { effort: saved.effort } : {}),
+  };
+}
 
 export function rememberedSessionChoice(): { model?: string; effort?: string } {
+  const saved = storedChoice();
+  if (saved.model) choice.model = saved.model;
+  if (saved.effort) choice.effort = saved.effort;
   return { ...choice };
 }
 
@@ -106,6 +127,15 @@ export function rememberSessionChoice(next: {
 }): void {
   if (next.model !== undefined) choice.model = next.model;
   if (next.effort !== undefined) choice.effort = next.effort;
+  if (typeof localStorage !== "undefined") {
+    const saved = loadSettings(localStorage);
+    saveSettings(localStorage, {
+      ...saved,
+      ...(next.model !== undefined ? { model: next.model } : {}),
+      ...(next.effort !== undefined ? { effort: next.effort } : {}),
+    });
+  }
+  for (const listener of choiceListeners) listener();
 }
 
 export async function defaultSessionConfig(): Promise<SessionConfigOption[]> {

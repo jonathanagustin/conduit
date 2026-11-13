@@ -6,15 +6,18 @@ import { useEffect, useState } from "react";
 import { ModelSelector } from "@/components/assistant-ui/elements/model-selector.aui";
 import {
   defaultSessionConfig,
+  rememberedSessionChoice,
   rememberSessionChoice,
   sessionConfigOf,
   setSessionConfig,
+  subscribeSessionChoice,
 } from "@/src/api/client";
+import { loadSettings } from "@/src/embed/console-prefs";
 import type { SessionConfigOption } from "@/src/api/protocol";
 
 const MODEL_FALLBACK =
   "This ACP session does not advertise a model config option, so the selector stays on the current model and does not call session/set_config_option.";
-const EFFORT_FALLBACK =
+export const EFFORT_FALLBACK =
   "This ACP session does not advertise a reasoning_effort config option, so no effort control is shown. Codex ACP exposes it as session config id reasoning_effort when the agent sends it.";
 
 function selectOption(
@@ -31,22 +34,53 @@ export function SessionControls() {
   );
 
   useEffect(() => {
-    if (!remoteId || remoteId.startsWith("offline-")) {
-      let cancelled = false;
-      void defaultSessionConfig()
-        .then((next) => {
-          if (!cancelled) setOptions(next);
-        })
-        .catch(() => {
-          if (!cancelled) setOptions([]);
-        });
-      return () => {
-        cancelled = true;
-      };
+    const saved = loadSettings(window.localStorage);
+    if (saved.model || saved.effort) {
+      rememberSessionChoice({
+        ...(saved.model ? { model: saved.model } : {}),
+        ...(saved.effort ? { effort: saved.effort } : {}),
+      });
     }
-    const threadId = remoteId;
     let cancelled = false;
-    void sessionConfigOf(threadId)
+    const threadId =
+      remoteId && !remoteId.startsWith("offline-") ? remoteId : undefined;
+    const load = threadId ? sessionConfigOf(threadId) : defaultSessionConfig();
+    void load
+      .then(async (next) => {
+        if (cancelled) return next;
+        let current = next;
+        const choice = rememberedSessionChoice();
+        if (threadId && choice.model) {
+          const model = selectOption(current, "model");
+          if (
+            model &&
+            model.currentValue !== choice.model &&
+            model.options?.some((option) => option.value === choice.model)
+          ) {
+            current = await setSessionConfig(
+              threadId,
+              "model",
+              choice.model,
+            ).catch(() => current);
+          }
+        }
+        if (cancelled) return current;
+        if (threadId && choice.effort) {
+          const effort = selectOption(current, "reasoning_effort");
+          if (
+            effort &&
+            effort.currentValue !== choice.effort &&
+            effort.options?.some((option) => option.value === choice.effort)
+          ) {
+            current = await setSessionConfig(
+              threadId,
+              "reasoning_effort",
+              choice.effort,
+            ).catch(() => current);
+          }
+        }
+        return current;
+      })
       .then((next) => {
         if (!cancelled) setOptions(next);
       })
@@ -57,6 +91,21 @@ export function SessionControls() {
       cancelled = true;
     };
   }, [remoteId]);
+
+  useEffect(() => {
+    return subscribeSessionChoice(() => {
+      const choice = rememberedSessionChoice();
+      setOptions((current) =>
+        current?.map((option) => {
+          if (option.id === "model" && choice.model)
+            return { ...option, currentValue: choice.model };
+          if (option.id === "reasoning_effort" && choice.effort)
+            return { ...option, currentValue: choice.effort };
+          return option;
+        }),
+      );
+    });
+  }, []);
 
   if (!options) return null;
   const threadId =
