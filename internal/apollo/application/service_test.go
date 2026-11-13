@@ -521,6 +521,7 @@ func TestInstallationVersionIsTheDesiredVersionNotAnAgentReport(t *testing.T) {
 // through. Unlike reportingFixture it remembers what was put, because the defect
 // under test is one replica overwriting what the other recorded there.
 type sharedReporting struct {
+	inputs AgentReportInputs
 	plan   environments.PlanProjection
 	report environments.Report
 }
@@ -628,4 +629,22 @@ func containsChannel(channels []string, wanted string) bool {
 		}
 	}
 	return false
+}
+
+func (reportingFixture) UpdateAgentReports(_ context.Context, environment string, _ AgentReportPatch, project func(AgentReportSnapshot) (*environments.Report, error)) error {
+	_, err := project(AgentReportSnapshot{Environment: environment})
+	return err
+}
+func (fixture *sharedReporting) UpdateAgentReports(_ context.Context, environment string, patch AgentReportPatch, project func(AgentReportSnapshot) (*environments.Report, error)) error {
+	if patch.Info != nil {
+		fixture.inputs.Info = *patch.Info
+	}
+	if patch.Health != nil {
+		fixture.inputs.Health = *patch.Health
+	}
+	report, err := project(AgentReportSnapshot{Environment: environment, Inputs: fixture.inputs, Plan: fixture.plan, Report: fixture.report})
+	if err == nil && report != nil {
+		fixture.report = *report
+	}
+	return err
 }

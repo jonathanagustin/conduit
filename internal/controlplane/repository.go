@@ -26,6 +26,7 @@ type MemoryRepository struct {
 	mu                          sync.Mutex
 	plans                       map[string]PlanRecord
 	reports                     map[string]EnvironmentReport
+	apolloAgentReports          map[string]persistedApolloAgentReports
 	suppressions                map[string]SuppressionRecord
 	promotions                  map[string]PromotionRecord
 	promotionStageControls      map[string]PromotionStageControl
@@ -61,6 +62,7 @@ type memoryBlob struct {
 func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
 		plans: make(map[string]PlanRecord), reports: make(map[string]EnvironmentReport),
+		apolloAgentReports:          make(map[string]persistedApolloAgentReports),
 		suppressions:                make(map[string]SuppressionRecord),
 		promotions:                  make(map[string]PromotionRecord),
 		promotionStageControls:      make(map[string]PromotionStageControl),
@@ -2033,14 +2035,14 @@ func (repository *FileRepository) PutEnvironmentReport(
 ) (EnvironmentReport, error) {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
-	if existing, err := repository.readReport(report.Environment); err == nil {
-		report.Revision = existing.Revision + 1
-	} else if errors.Is(err, ErrNotFound) {
-		report.Revision = 1
-	} else {
+	envelope, err := repository.readApolloReportEnvelope(report.Environment)
+	if err != nil && !errors.Is(err, ErrNotFound) {
 		return EnvironmentReport{}, err
 	}
-	if err := atomicWriteJSON(repository.reportPath(report.Environment), report); err != nil {
+	report.Revision = envelope.Revision + 1
+	envelope.EnvironmentReport = report
+	envelope.ApolloProjectionPending = false
+	if err := atomicWriteJSON(repository.reportPath(report.Environment), envelope); err != nil {
 		return EnvironmentReport{}, err
 	}
 	return report, nil
@@ -2084,11 +2086,13 @@ func (repository *FileRepository) listEnvironmentReportsUnlocked() ([]Environmen
 		if entry.IsDir() || filepath.Ext(entry.Name()) != ".json" {
 			continue
 		}
-		var report EnvironmentReport
+		var report apolloReportEnvelope
 		if err := readJSON(filepath.Join(repository.reportDirectory(), entry.Name()), &report); err != nil {
 			return nil, err
 		}
-		merged[report.Environment] = report
+		if !report.ApolloProjectionPending {
+			merged[report.Environment] = report.EnvironmentReport
+		}
 	}
 	catalogEntries, err := os.ReadDir(repository.importedCatalogDirectory())
 	if err != nil {
@@ -2177,11 +2181,14 @@ func (repository *FileRepository) readReport(environment string) (EnvironmentRep
 	if !dnsLabelPattern.MatchString(environment) {
 		return EnvironmentReport{}, ErrNotFound
 	}
-	var report EnvironmentReport
-	if err := readJSON(repository.reportPath(environment), &report); err != nil {
+	envelope, err := repository.readApolloReportEnvelope(environment)
+	if err != nil {
 		return EnvironmentReport{}, err
 	}
-	return report, nil
+	if envelope.ApolloProjectionPending {
+		return EnvironmentReport{}, ErrNotFound
+	}
+	return envelope.EnvironmentReport, nil
 }
 
 func (repository *FileRepository) readSuppression(id string) (SuppressionRecord, error) {
