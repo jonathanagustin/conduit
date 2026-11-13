@@ -57,5 +57,9 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	handler, err = mountSpaces(handler, repository, options, hubOptions.Spaces)
+	if err != nil {
+		return nil, err
+	}
 	return guardUnregisteredRoutes(mountPackaging(handler, repository, options, hubOptions)), nil
 }

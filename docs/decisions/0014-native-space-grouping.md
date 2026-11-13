@@ -63,3 +63,22 @@ GraphQL coordinates remain required by #17. This foundation does not yet expose
 those paths or claim that #17 is complete. The refusal records are changed only
 when their resolvers are backed by these persisted assignments and behaviorally
 tested; declarations must not get ahead of their data sources.
+
+## Native HTTP management slice
+
+The native `/v1/spaces` adapter mounts only when composition supplies its store.
+Creation and immutable assignment use the canonical `platform/root`
+`permissions:manage` decision, retaining the original carrier for delegated
+credentials. Space visibility requires that authority or a readable anchor;
+rosters independently filter every resource using the same operation as its
+existing Hub read surface. Bundle visibility follows the existing platform read
+boundary. These are Conduit choices, registered as `spaces.HTTPSurface`.
+
+The request body cannot supply identity, creation provenance, or a stronger
+provenance tier. Unknown fields and trailing documents fail before persistence.
+Identity-provider diagnostics are replaced with a generic transport error.
+Composition tests exercise cross-tenant reads, filtered shared-Space rosters,
+reader write refusal, assignment conflict, spoofed creation metadata, and
+service-account delegation that must not inherit bootstrap administration.
+This slice does not yet connect the production store constructor or CLI/GraphQL
+selection; those remain part of #17.

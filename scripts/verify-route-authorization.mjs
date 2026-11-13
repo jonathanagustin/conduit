@@ -65,6 +65,7 @@ const SOURCES = [
   { path: "internal/controlplane", surface: "controlplane REST" },
   { path: "internal/apollo/openapi.gen.go", surface: "Apollo /api/v0" },
   { path: "internal/notifications/adapters/httpapi", surface: "notifications" },
+{ path:"internal/spaces/adapters/httpapi",surface:"spaces" },
   { path: "internal/packagingworkflow/httpapi", surface: "packaging" },
 ];
 

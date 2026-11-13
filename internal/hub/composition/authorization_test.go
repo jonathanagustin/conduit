@@ -10,6 +10,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
+	spacememory "github.com/jonathanagustin/conduit/internal/spaces/adapters/memory"
 )
 
 // pathFor turns a register pattern into a concrete request target.
@@ -200,7 +201,7 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 	t.Parallel()
 	store := newNotificationStore()
 	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{},
-		Options{NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+		Options{Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -268,7 +269,7 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 		// Named, so the "local-developer" bootstrap shortcut is off and every
 		// decision below has to come from a grant this principal does not hold.
 		BootstrapAdministrators: []string{"root"},
-	}, Options{NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+	}, Options{Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
