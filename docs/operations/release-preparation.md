@@ -5,7 +5,7 @@ release Conduit. [ADR 0010](../decisions/0010-release-preparation-with-manual-pu
 records the UDS sibling sources, Conduit adaptations and token permissions.
 
 The initial manifest is `0.17.5`, matching the published `v0.17.5` tag at
-`44e1e8845fe01c2a461061f6557a128ebf716af6`. Do not reset that manifest or
+`92e0c6f6258b68f7bebf5da04978ac54ec337844`. Do not reset that manifest or
 bootstrap from a newer arbitrary main commit. Future release PRs advance the
 manifest together with VERSION, CHANGELOG.md and both Helm chart versions.
 

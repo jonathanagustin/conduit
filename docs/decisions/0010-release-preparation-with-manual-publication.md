@@ -87,3 +87,14 @@ to create pull requests. Live creation, unchanged-run idempotency and the explic
 exact-head Trunk handoff are recorded in `docs/operations/release-preparation.md`.
 A permission error remains a setup failure, not a reason to introduce a credential
 or skip the required gate.
+
+## Owner-authorized history correction, 2026-11-13
+
+The owner explicitly authorized rewriting historical metadata, including
+published release tags. The `v0.17.5` commit is now `92e0c6f6258b68f7bebf5da04978ac54ec337844`
+(previously `44e1e8845fe01c2a461061f6557a128ebf716af6`). Its file tree is identical.
+Release Please's bootstrap and pinned verifier follow the corrected commit;
+release versions, manifest values, publication authority, and artifacts are
+unchanged. The [history correction record](../operations/history-correction-2026-11-13.md)
+records the scope and source-SHA translation. This is a one-time metadata
+correction, not permission to move tags during ordinary release recovery.
