@@ -464,13 +464,13 @@ jobs:
       # reports call-graph-reachable findings, so a toolchain or dependency
       # that drifts behind the release image fails here rather than shipping.
       - name: Scan for known vulnerabilities
-        run: GOTOOLCHAIN=go1.25.13 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
+        run: GOTOOLCHAIN=go1.26.11 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       # vet catches a narrow set. staticcheck is what found the dead store in
       # RunDueExportPipelines and the unused coordinate check that turned out to
       # be a real hole. staticcheck.conf records the one excluded category and
       # why, so the exclusion is reviewable rather than a flag buried here.
       - name: Lint
-        run: GOTOOLCHAIN=go1.25.13 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+        run: GOTOOLCHAIN=go1.26.11 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       - name: Validate Renovate configuration
         run: jq --exit-status . renovate.json >/dev/null
       - name: Install pinned Hadolint

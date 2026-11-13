@@ -226,12 +226,9 @@ gate 'Validate console contract' bash -c './scripts/verify-console-contract.test
 gate 'Validate design tokens against the captured product' bash -c './scripts/verify-design-tokens.test.sh && node scripts/verify-design-tokens.mjs'
 gate 'Validate console CSS variables' bash -c './scripts/verify-console-css-variables.test.sh && node scripts/verify-console-css-variables.mjs'
 gate 'Validate console boundaries' bash -c 'node scripts/verify-console-boundaries.test.mjs && node scripts/verify-console-boundaries.mjs'
-# staticcheck and govulncheck are built against a specific Go release and
-# refuse a module newer than it. Pin the analysis toolchain here rather than
-# lowering `toolchain` in go.mod, which would also pull the digest-pinned
-# container builds off go1.26.6 and bypass their supply-chain pinning.
-gate 'Scan for known vulnerabilities' env GOTOOLCHAIN=go1.25.13 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
-gate 'Lint' env GOTOOLCHAIN=go1.25.13 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
+# Keep the scanners on the same patched compiler used by production builds.
+gate 'Scan for known vulnerabilities' env GOTOOLCHAIN=go1.26.11 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+gate 'Lint' env GOTOOLCHAIN=go1.26.11 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
 gate 'Validate Renovate configuration' jq --exit-status . renovate.json
 gate 'Lint Containerfiles' env HADOLINT_BIN="${hadolint_bin}" ./scripts/verify-containerfiles.sh
 gate 'Validate OCI release manifest assembly' oci_manifest
