@@ -1,10 +1,9 @@
 import { expect, test } from "@playwright/test";
 
-// The Hub serves the embedded bundle with the tenant bootstrap already
-// rendered. There is no Codex bridge beside that process, so the shell must
-// come up and say so rather than invent a session.
-test("embedded assistant shell names the tenant and the missing bridge", async ({ page }) => {
+// The Hub serves the embedded bundle with the tenant bootstrap already rendered.
+test("embedded assistant shell is the default starter", async ({ page }) => {
   await page.goto("./");
-  await expect(page.getByTestId("tenant-title")).toBeVisible();
-  await expect(page.getByTestId("bridge-status")).toContainText("not running");
+  await expect(page.getByText("How can I help you today?")).toBeVisible();
+  await expect(page.getByText("Starter Template")).toBeVisible();
+  await expect(page.getByRole("link", { name: "assistant-ui" })).toBeVisible();
 });

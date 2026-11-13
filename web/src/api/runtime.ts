@@ -21,6 +21,7 @@ import {
   archiveThread,
   cancelRun,
   createThread,
+  decidePermission,
   deleteThread,
   listThreads,
   renameThread,
@@ -177,16 +178,46 @@ function partsOf(snapshot: RunSnapshot): ThreadAssistantMessagePart[] {
   for (const source of snapshot.sources) {
     parts.push({ type: "source", sourceType: "url", id: source.id, url: source.url, title: source.title });
   }
-  if (snapshot.plan.length > 0) {
-    parts.push({
-      type: "text",
-      text: `\n\nPlan\n${snapshot.plan.map((entry) => `- ${entry.status} (${entry.priority}) ${entry.content}`).join("\n")}`,
-    });
-  }
   return parts;
 }
 
-type Yield = { content: readonly ThreadAssistantMessagePart[]; metadata?: ChatYieldMetadata };
+type Yield = {
+  content: readonly ThreadAssistantMessagePart[];
+  status?: { type: "requires-action"; reason: "tool-calls" } | { type: "running" };
+  metadata?: ChatYieldMetadata;
+};
+
+type ParkedRun = {
+  runId: string;
+  queue: RunSnapshot[];
+  notify: () => void;
+  finished?: { stopReason: string };
+  failure?: Error;
+  pending: Promise<unknown>;
+};
+
+const parkedRuns = new Map<string, ParkedRun>();
+
+function approvalPending(snapshot: RunSnapshot): boolean {
+  return snapshot.tools.some((tool) => tool.approval !== undefined && tool.approval.decision === undefined);
+}
+
+function answeredApproval(messages: readonly ThreadMessage[]): { requestId: string; optionId: string } | undefined {
+  for (let index = messages.length - 1; index >= 0; index -= 1) {
+    const message = messages[index];
+    if (!message || message.role !== "assistant") continue;
+    for (const part of message.content) {
+      if (part.type !== "tool-call" || !part.approval || part.approval.approved === undefined) continue;
+      const fallback = part.approval.options?.find((option) =>
+        part.approval?.approved ? String(option.kind).includes("allow") : String(option.kind).includes("reject"),
+      )?.id;
+      const optionId = part.approval.optionId ?? fallback;
+      if (!optionId) continue;
+      return { requestId: part.approval.id, optionId };
+    }
+  }
+  return undefined;
+}
 
 type ChatYieldMetadata = {
   timing: {
@@ -196,7 +227,11 @@ type ChatYieldMetadata = {
     firstTokenTime?: number;
     totalStreamTime?: number;
   };
-  custom: { usage?: string; plan?: RunSnapshot["plan"] };
+  custom: {
+    usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    contextWindow?: number;
+    plan?: RunSnapshot["plan"];
+  };
 };
 
 async function* queueRun({
@@ -206,78 +241,104 @@ async function* queueRun({
 }: Parameters<ChatModelAdapter["run"]>[0]): AsyncGenerator<Yield, void> {
   const threadId = unstable_threadId;
   if (!threadId) throw new Error("the assistant thread is not connected to a Codex session");
-  const runId = crypto.randomUUID();
   const userMessages = messages.filter((message) => message.role === "user");
   const last = userMessages.at(-1);
   if (!last) throw new Error("a run needs a user message");
 
-  const queue: RunSnapshot[] = [];
-  let notify: () => void = () => undefined;
-  let finished: { stopReason: string } | undefined;
-  let failure: Error | undefined;
   const started = Date.now();
   let firstToken: number | undefined;
   let chunks = 0;
+  const existing = parkedRuns.get(threadId);
+  let runId: string;
+  let queue: RunSnapshot[];
+  let notify: () => void;
+  let finished: { stopReason: string } | undefined;
+  let failure: Error | undefined;
+  let pending: Promise<unknown>;
+
+  if (existing) {
+    runId = existing.runId;
+    queue = existing.queue;
+    notify = existing.notify;
+    finished = existing.finished;
+    failure = existing.failure;
+    pending = existing.pending;
+    const decision = answeredApproval(messages);
+    if (decision) await decidePermission({ requestId: decision.requestId, threadId, runId, optionId: decision.optionId });
+  } else {
+    runId = crypto.randomUUID();
+    queue = [];
+    notify = () => undefined;
+    const state: ParkedRun = { runId, queue, notify, pending: Promise.resolve() };
+    parkedRuns.set(threadId, state);
+    pending = streamRun(
+      {
+        threadId,
+        runId,
+        userTexts: userMessages.map((message) => userText(message)),
+        attachments: attachmentsOf(last),
+      },
+      {
+        signal: abortSignal,
+        onSnapshot(snapshot) {
+          queue.push(snapshot);
+          chunks += 1;
+          if (firstToken === undefined && (snapshot.text.length > 0 || snapshot.reasoning.length > 0)) {
+            firstToken = Date.now();
+          }
+          state.notify();
+        },
+      },
+    ).then(
+      (result) => {
+        finished = result;
+        state.finished = result;
+        state.notify();
+      },
+      (error: unknown) => {
+        failure = error instanceof Error ? error : new Error("the Codex run failed");
+        state.failure = failure;
+        state.notify();
+      },
+    );
+    state.pending = pending;
+  }
 
   const onAbort = () => {
     void cancelRun(threadId, runId).catch(() => undefined);
   };
   abortSignal.addEventListener("abort", onAbort);
 
-  const pending = streamRun(
-    {
-      threadId,
-      runId,
-      userTexts: userMessages.map((message) => userText(message)),
-      attachments: attachmentsOf(last),
-    },
-    {
-      signal: abortSignal,
-      onSnapshot(snapshot) {
-        queue.push(snapshot);
-        chunks += 1;
-        if (firstToken === undefined && (snapshot.text.length > 0 || snapshot.reasoning.length > 0)) {
-          firstToken = Date.now();
-        }
-        notify();
-      },
-    },
-  ).then(
-    (result) => {
-      finished = result;
-      notify();
-    },
-    (error: unknown) => {
-      failure = error instanceof Error ? error : new Error("the Codex run failed");
-      notify();
-    },
-  );
-
   try {
-    while (!finished && !failure) {
-      if (queue.length === 0) {
+    for (;;) {
+      const parked = parkedRuns.get(threadId);
+      finished = parked?.finished ?? finished;
+      failure = parked?.failure ?? failure;
+      if (!finished && !failure && queue.length === 0) {
         await new Promise<void>((resolve) => {
-          notify = resolve;
+          const current = parkedRuns.get(threadId);
+          if (current) current.notify = resolve;
         });
         continue;
       }
       const snapshot = queue.shift();
-      if (!snapshot) continue;
-      yield {
-        content: partsOf(snapshot),
-        metadata: metadata(started, chunks, snapshot, firstToken),
-      };
+      if (snapshot) {
+        const waiting = approvalPending(snapshot);
+        yield {
+          content: partsOf(snapshot),
+          status: waiting ? { type: "requires-action", reason: "tool-calls" } : { type: "running" },
+          metadata: metadata(started, chunks, snapshot, firstToken, finished ? Date.now() - started : undefined),
+        };
+        if (waiting && !finished) return;
+        continue;
+      }
+      if (failure) throw failure;
+      if (finished) {
+        parkedRuns.delete(threadId);
+        await pending;
+        return;
+      }
     }
-    while (queue.length > 0) {
-      const snapshot = queue.shift();
-      if (!snapshot) continue;
-      yield {
-        content: partsOf(snapshot),
-        metadata: metadata(started, chunks, snapshot, firstToken, Date.now() - started),
-      };
-    }
-    if (failure) throw failure;
-    await pending;
   } finally {
     abortSignal.removeEventListener("abort", onAbort);
   }
@@ -298,7 +359,14 @@ function metadata(
   if (firstToken !== undefined) timing.firstTokenTime = firstToken - started;
   if (totalStreamTime !== undefined) timing.totalStreamTime = totalStreamTime;
   const custom: ChatYieldMetadata["custom"] = {};
-  if (snapshot.usage) custom.usage = `${snapshot.usage.used} / ${snapshot.usage.size}`;
+  if (snapshot.usage) {
+    custom.usage = {
+      inputTokens: snapshot.usage.used,
+      outputTokens: 0,
+      totalTokens: snapshot.usage.used,
+    };
+    custom.contextWindow = snapshot.usage.size;
+  }
   if (snapshot.plan.length > 0) custom.plan = snapshot.plan;
   return { timing, custom };
 }

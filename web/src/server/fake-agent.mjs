@@ -153,7 +153,30 @@ async function prompt(id, params) {
     sessionId: params.sessionId,
     update: {
       sessionUpdate: "agent_message_chunk",
-      content: { type: "text", text: allowed ? "Read complete." : "The read was rejected." },
+      content: {
+        type: "text",
+        text: allowed
+          ? "Read complete.\n\n```ts\nexport function allow(tool: string) {\n  return tool !== \"deploy\";\n}\n```\n\n```mermaid\ngraph TD\n  Ask --> Read\n  Read --> Answer\n```"
+          : "The read was rejected.",
+      },
+    },
+  });
+  notify("session/update", {
+    sessionId: params.sessionId,
+    update: {
+      sessionUpdate: "plan",
+      entries: [
+        { content: "Read the workspace", status: "completed", priority: "high" },
+        { content: "Report what is unknown", status: "pending", priority: "medium" },
+      ],
+    },
+  });
+  notify("session/update", {
+    sessionId: params.sessionId,
+    update: {
+      sessionUpdate: "tool_call_update",
+      toolCallId: "call-1",
+      content: [{ type: "resource_link", uri: "https://example.com/docs", name: "Docs" }],
     },
   });
   notify("session/update", {

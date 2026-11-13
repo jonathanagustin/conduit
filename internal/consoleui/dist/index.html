@@ -3,21 +3,18 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Conduit assistant</title>
+    <title>assistant-ui Starter App</title>
     <!--
-      The Hub replaces this marker with the tenant bootstrap as a meta tag
-      before serving. Everything above and below is tenant-agnostic and is
-      byte-identical in every deployment, which is what lets the bundle stay
-      content-addressed and immutable.
-
-      The marker is a comment so that a build output carrying it is still valid
-      HTML, and so an unrendered document -- served by anything that is not the
-      Hub -- produces a console that refuses to start rather than one that
-      renders with invented branding.
+      The Hub replaces this marker with the tenant bootstrap before serving.
+      A document that still contains it is not a configured console.
     -->
     <!--conduit-console-bootstrap-->
-    <script type="module" crossorigin src="/console/assets/index-CwCUQP36.js"></script>
-    <link rel="stylesheet" crossorigin href="/console/assets/index-D7wk3scC.css">
+    <script type="module" crossorigin src="/console/assets/index-Ei-7Vno4.js"></script>
+    <link rel="modulepreload" crossorigin href="/console/assets/rolldown-runtime-DSDNlrLa.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/clike-DxkGR8k4.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/javascript-Bx691ERD.js">
+    <link rel="modulepreload" crossorigin href="/console/assets/markup-VL_1QFWm.js">
+    <link rel="stylesheet" crossorigin href="/console/assets/index-LWLindfO.css">
   </head>
   <body>
     <div id="root"></div>
