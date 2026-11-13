@@ -1,0 +1,2264 @@
+{
+ "serviceCount": 34,
+ "endpointCount": 438,
+ "services": {
+  "AuthenticationProviderService": [
+   {
+    "method": "PUT",
+    "name": "getProviderCategories",
+    "path": "/authentication-provider/categories"
+   },
+   {
+    "method": "GET",
+    "name": "getProvidersByEnrollment",
+    "path": "/authentication-provider/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "POST",
+    "name": "createProvider",
+    "path": "/authentication-provider/enrollment/{enrollmentRid}/create"
+   },
+   {
+    "method": "POST",
+    "name": "createUserDirectoryV2Provider",
+    "path": "/authentication-provider/enrollment/{enrollmentRid}/create-user-directory-v2-provider"
+   },
+   {
+    "method": "GET",
+    "name": "getProviderCreationInfo",
+    "path": "/authentication-provider/enrollment/{enrollmentRid}/creation-info"
+   },
+   {
+    "method": "PUT",
+    "name": "discoverOidcProviderMetadataV2",
+    "path": "/authentication-provider/enrollment/{enrollmentRid}/oidc/discover"
+   },
+   {
+    "method": "PUT",
+    "name": "getSamlIdentityProviderMetadata",
+    "path": "/authentication-provider/enrollment/{enrollmentRid}/samlIdentityProviderMetadata"
+   },
+   {
+    "method": "POST",
+    "name": "discoverOidcProviderMetadata",
+    "path": "/authentication-provider/oidc/discover"
+   },
+   {
+    "method": "POST",
+    "name": "createProviderManagedByPalantir",
+    "path": "/authentication-provider/organization/{organizationRid}/create/managed-by-palantir"
+   },
+   {
+    "method": "PUT",
+    "name": "updateProvider",
+    "path": "/authentication-provider/{providerRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getProvider",
+    "path": "/authentication-provider/{providerRid}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteProvider",
+    "path": "/authentication-provider/{providerRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "updateProviderEnabledStatus",
+    "path": "/authentication-provider/{providerRid}/enabled/{enabled}"
+   },
+   {
+    "method": "PUT",
+    "name": "updateEnrollmentOfProvider",
+    "path": "/authentication-provider/{providerRid}/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "POST",
+    "name": "regenerateServiceProviderEntityId",
+    "path": "/authentication-provider/{providerRid}/entityId"
+   },
+   {
+    "method": "PUT",
+    "name": "setServiceProviderEntityId",
+    "path": "/authentication-provider/{providerRid}/entityId"
+   },
+   {
+    "method": "POST",
+    "name": "createGroup",
+    "path": "/authentication-provider/{providerRid}/group"
+   },
+   {
+    "method": "PUT",
+    "name": "renameGroup",
+    "path": "/authentication-provider/{providerRid}/groups/{groupId}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteGroup",
+    "path": "/authentication-provider/{providerRid}/groups/{groupId}"
+   },
+   {
+    "method": "PUT",
+    "name": "setGroupAttributes",
+    "path": "/authentication-provider/{providerRid}/groups/{groupId}/attributes"
+   },
+   {
+    "method": "PUT",
+    "name": "setGroupOrganizations",
+    "path": "/authentication-provider/{providerRid}/groups/{groupId}/organizations"
+   },
+   {
+    "method": "PUT",
+    "name": "updateSamlKeyStore",
+    "path": "/authentication-provider/{providerRid}/keyStore"
+   },
+   {
+    "method": "PUT",
+    "name": "refreshSamlIdentityProviderMetadata",
+    "path": "/authentication-provider/{providerRid}/refreshIdentityProviderMetadata"
+   },
+   {
+    "method": "PUT",
+    "name": "refreshJwkSet",
+    "path": "/authentication-provider/{providerRid}/refreshJwkSet"
+   },
+   {
+    "method": "POST",
+    "name": "generateSamlKeyPair",
+    "path": "/authentication-provider/{providerRid}/saml-key-pair"
+   },
+   {
+    "method": "PUT",
+    "name": "updateUserDirectoryProviderCategory",
+    "path": "/authentication-provider/{providerRid}/update-category"
+   }
+  ],
+  "CbacBannerService": [
+   {
+    "method": "POST",
+    "name": "getBannerForMarkings",
+    "path": "/cbac/banner/markings"
+   },
+   {
+    "method": "POST",
+    "name": "getBanner",
+    "path": "/cbac/banner/resources"
+   },
+   {
+    "method": "POST",
+    "name": "getBanners",
+    "path": "/cbac/banner/resources/all"
+   },
+   {
+    "method": "GET",
+    "name": "getBannerForUser",
+    "path": "/cbac/banner/user"
+   },
+   {
+    "method": "GET",
+    "name": "getBannerForOtherUser",
+    "path": "/cbac/banner/user/{userId}"
+   }
+  ],
+  "CommentService": [
+   {
+    "method": "POST",
+    "name": "batchGetCommentsDeprecated",
+    "path": "/comments/batch"
+   },
+   {
+    "method": "POST",
+    "name": "batchGetCommentsPageDeprecated",
+    "path": "/comments/batch/page"
+   },
+   {
+    "method": "POST",
+    "name": "batchGetCommentsPageV2",
+    "path": "/comments/batch/page-v2"
+   },
+   {
+    "method": "POST",
+    "name": "bulkGetCommentCounts",
+    "path": "/comments/counts"
+   },
+   {
+    "method": "POST",
+    "name": "getCommentsPageDeprecated",
+    "path": "/comments/page"
+   },
+   {
+    "method": "POST",
+    "name": "getCommentsPageV2",
+    "path": "/comments/page-v2"
+   },
+   {
+    "method": "GET",
+    "name": "getCommentsDeprecated",
+    "path": "/{resourceId}/comments"
+   },
+   {
+    "method": "POST",
+    "name": "addComment",
+    "path": "/{resourceId}/comments"
+   },
+   {
+    "method": "PUT",
+    "name": "bulkUpdateComments",
+    "path": "/{resourceId}/comments"
+   },
+   {
+    "method": "PUT",
+    "name": "getCommentsById",
+    "path": "/{resourceId}/comments/by-id"
+   },
+   {
+    "method": "PUT",
+    "name": "updateComment",
+    "path": "/{resourceId}/comments/{commentId}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteComment",
+    "path": "/{resourceId}/comments/{commentId}"
+   },
+   {
+    "method": "POST",
+    "name": "addReaction",
+    "path": "/{resourceId}/comments/{commentId}/reactions"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteReaction",
+    "path": "/{resourceId}/comments/{commentId}/reactions/{reaction}"
+   }
+  ],
+  "CompassService": [
+   {
+    "method": "GET",
+    "name": "getAllResources",
+    "path": "/all-resources"
+   },
+   {
+    "method": "GET",
+    "name": "getAutosaveLocation",
+    "path": "/autosave"
+   },
+   {
+    "method": "POST",
+    "name": "saveAutosaveResource",
+    "path": "/autosaves/save/{rid}"
+   },
+   {
+    "method": "PUT",
+    "name": "putAutosaveResource",
+    "path": "/autosaves/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "batchGetChildrenByName",
+    "path": "/batch/folders/children-by-name"
+   },
+   {
+    "method": "POST",
+    "name": "getHomeFoldersForUsers",
+    "path": "/batch/folders/home"
+   },
+   {
+    "method": "POST",
+    "name": "getHomeFoldersMetadata",
+    "path": "/batch/folders/home/metadata"
+   },
+   {
+    "method": "POST",
+    "name": "getResources",
+    "path": "/batch/resources"
+   },
+   {
+    "method": "POST",
+    "name": "batchGetAncestors",
+    "path": "/batch/resources/ancestors"
+   },
+   {
+    "method": "POST",
+    "name": "resourcesExist",
+    "path": "/batch/resources/exist"
+   },
+   {
+    "method": "PUT",
+    "name": "removeResourcesFromProjectPreview",
+    "path": "/batch/resources/make-non-preview"
+   },
+   {
+    "method": "PUT",
+    "name": "addResourcesToProjectPreview",
+    "path": "/batch/resources/make-preview"
+   },
+   {
+    "method": "POST",
+    "name": "batchGetParents",
+    "path": "/batch/resources/parents"
+   },
+   {
+    "method": "PUT",
+    "name": "batchPutResource",
+    "path": "/batch/resources/put"
+   },
+   {
+    "method": "PUT",
+    "name": "batchPutResourceStatus",
+    "path": "/batch/resources/status"
+   },
+   {
+    "method": "PUT",
+    "name": "getBranchesForResources",
+    "path": "/branches-for-resources"
+   },
+   {
+    "method": "GET",
+    "name": "getFavorites",
+    "path": "/favorites"
+   },
+   {
+    "method": "POST",
+    "name": "addFavorites",
+    "path": "/favorites"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteFavorites",
+    "path": "/favorites"
+   },
+   {
+    "method": "POST",
+    "name": "markFavoritesAsMigrated",
+    "path": "/favorites-migrated"
+   },
+   {
+    "method": "GET",
+    "name": "isFavoritesMigrated",
+    "path": "/favorites-migrated"
+   },
+   {
+    "method": "POST",
+    "name": "createFolder",
+    "path": "/folders"
+   },
+   {
+    "method": "POST",
+    "name": "createFolderAllowingHidden",
+    "path": "/folders-allowing-hidden"
+   },
+   {
+    "method": "GET",
+    "name": "getHomeFolder",
+    "path": "/folders/home"
+   },
+   {
+    "method": "GET",
+    "name": "getHomeFolderV2",
+    "path": "/folders/home/v2"
+   },
+   {
+    "method": "GET",
+    "name": "getAllChildrenRids",
+    "path": "/folders/{rid}/all-children-rids"
+   },
+   {
+    "method": "GET",
+    "name": "getChildren",
+    "path": "/folders/{rid}/children"
+   },
+   {
+    "method": "PUT",
+    "name": "createPath",
+    "path": "/paths"
+   },
+   {
+    "method": "GET",
+    "name": "resolvePath",
+    "path": "/paths"
+   },
+   {
+    "method": "PUT",
+    "name": "getProjectPreviewResources",
+    "path": "/project-preview-resources."
+   },
+   {
+    "method": "GET",
+    "name": "getActions",
+    "path": "/registry/actions"
+   },
+   {
+    "method": "GET",
+    "name": "getApplications",
+    "path": "/registry/applications"
+   },
+   {
+    "method": "GET",
+    "name": "getDefaultBranchName",
+    "path": "/registry/default-branch-name-json"
+   },
+   {
+    "method": "POST",
+    "name": "postResource",
+    "path": "/resources"
+   },
+   {
+    "method": "PUT",
+    "name": "putServiceProjectResourceAllowingHidden",
+    "path": "/resources-allowing-hidden/service-projects/{rid}"
+   },
+   {
+    "method": "PUT",
+    "name": "putResourceAllowingHidden",
+    "path": "/resources-allowing-hidden/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "createResourceFrom",
+    "path": "/resources/create-from/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "moveResourcesV2",
+    "path": "/resources/move"
+   },
+   {
+    "method": "PUT",
+    "name": "putServiceProjectResource",
+    "path": "/resources/service-projects/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "checkName",
+    "path": "/resources/{parentRid}/checkName"
+   },
+   {
+    "method": "POST",
+    "name": "checkNames",
+    "path": "/resources/{parentRid}/checkNames"
+   },
+   {
+    "method": "PUT",
+    "name": "putResource",
+    "path": "/resources/{rid}"
+   },
+   {
+    "method": "GET",
+    "name": "getResource",
+    "path": "/resources/{rid}"
+   },
+   {
+    "method": "GET",
+    "name": "getAncestors",
+    "path": "/resources/{rid}/ancestors"
+   },
+   {
+    "method": "POST",
+    "name": "setName",
+    "path": "/resources/{rid}/name"
+   },
+   {
+    "method": "GET",
+    "name": "getParent",
+    "path": "/resources/{rid}/parent"
+   },
+   {
+    "method": "GET",
+    "name": "getPath",
+    "path": "/resources/{rid}/path-json"
+   },
+   {
+    "method": "POST",
+    "name": "touch",
+    "path": "/resources/{rid}/touch"
+   },
+   {
+    "method": "GET",
+    "name": "getTimestampedFavorites",
+    "path": "/timestamped-favorites"
+   }
+  ],
+  "ConfigurationService": [
+   {
+    "method": "POST",
+    "name": "updateAlertingStatus",
+    "path": "/configuration/alerting"
+   },
+   {
+    "method": "GET",
+    "name": "getAlertingStatusByOrg",
+    "path": "/configuration/alerting/organization/{organizationRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getAlertingStatus",
+    "path": "/configuration/alerting/{spaceId}"
+   }
+  ],
+  "CorsConfigurationService": [
+   {
+    "method": "GET",
+    "name": "getCorsConfigurationsForEnrollment",
+    "path": "/cors/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "patchCorsConfigurationForDomain",
+    "path": "/cors/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "isAvailable",
+    "path": "/cors/enrollment/{enrollmentRid}/is-available"
+   }
+  ],
+  "CustomerManagedDomainService": [
+   {
+    "method": "PUT",
+    "name": "activateCertificateForDomain",
+    "path": "/customer-managed-domains/{enrollmentRid}/activate"
+   },
+   {
+    "method": "GET",
+    "name": "getCustomerManagedDomainAvailabilityStatus",
+    "path": "/customer-managed-domains/{enrollmentRid}/availability-status"
+   },
+   {
+    "method": "GET",
+    "name": "getCustomerManagedCertificates",
+    "path": "/customer-managed-domains/{enrollmentRid}/certificates"
+   },
+   {
+    "method": "POST",
+    "name": "createCertificateSigningRequest",
+    "path": "/customer-managed-domains/{enrollmentRid}/create-certificate-signing-request"
+   },
+   {
+    "method": "POST",
+    "name": "createCustomerManagedDomain",
+    "path": "/customer-managed-domains/{enrollmentRid}/create-domain"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteCustomerManagedDomain",
+    "path": "/customer-managed-domains/{enrollmentRid}/domain/{domain}"
+   },
+   {
+    "method": "GET",
+    "name": "getCustomerManagedDomains",
+    "path": "/customer-managed-domains/{enrollmentRid}/domains/v2"
+   },
+   {
+    "method": "GET",
+    "name": "getCertificateExpirations",
+    "path": "/customer-managed-domains/{enrollmentRid}/expiring/{days}"
+   },
+   {
+    "method": "GET",
+    "name": "getInfoForDnsSetup",
+    "path": "/customer-managed-domains/{enrollmentRid}/info-for-dns-setup"
+   },
+   {
+    "method": "POST",
+    "name": "migrateFromExistingDomain",
+    "path": "/customer-managed-domains/{enrollmentRid}/migrate"
+   },
+   {
+    "method": "PUT",
+    "name": "swapCertificates",
+    "path": "/customer-managed-domains/{enrollmentRid}/swap-certificates"
+   },
+   {
+    "method": "GET",
+    "name": "getCustomerManagedCertificate",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteCertificate",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "replaceSignedCertificate",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}/replace-signed-certificate"
+   },
+   {
+    "method": "GET",
+    "name": "getCertificateSigningRequest",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}/signing-request"
+   },
+   {
+    "method": "PUT",
+    "name": "submitSignedCertificate",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}/submit-signed-certificate"
+   },
+   {
+    "method": "PUT",
+    "name": "validateSignedCertificateV2",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}/validate"
+   },
+   {
+    "method": "PUT",
+    "name": "validateSignedCertificate",
+    "path": "/customer-managed-domains/{enrollmentRid}/{certificateRid}/validate-signed-certificate"
+   },
+   {
+    "method": "PUT",
+    "name": "finishDomainSetup",
+    "path": "/customer-managed-domains/{enrollmentRid}/{domain}/finish-setup"
+   },
+   {
+    "method": "GET",
+    "name": "getDomainSetupStatus",
+    "path": "/customer-managed-domains/{enrollmentRid}/{domain}/setup-status"
+   }
+  ],
+  "DeletionContextService": [
+   {
+    "method": "POST",
+    "name": "createDeletionContext",
+    "path": "/deletion-contexts"
+   },
+   {
+    "method": "GET",
+    "name": "listDeletionContexts",
+    "path": "/deletion-contexts"
+   },
+   {
+    "method": "GET",
+    "name": "getFeatureFlagsForUser",
+    "path": "/deletion-contexts/feature-flags"
+   },
+   {
+    "method": "PUT",
+    "name": "previewDeletionContext",
+    "path": "/deletion-contexts/preview"
+   },
+   {
+    "method": "GET",
+    "name": "getDeletionContext",
+    "path": "/deletion-contexts/{deletionContextRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentDetails",
+    "path": "/deletion-contexts/{deletionContextRid}/enrollments/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getNamespaces",
+    "path": "/deletion-contexts/{deletionContextRid}/namespaces"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationDetails",
+    "path": "/deletion-contexts/{deletionContextRid}/organizations/{organizationRid}"
+   },
+   {
+    "method": "POST",
+    "name": "rejectDeletionContext",
+    "path": "/deletion-contexts/{deletionContextRid}/reject"
+   },
+   {
+    "method": "POST",
+    "name": "approveDeletionContext",
+    "path": "/deletion-contexts/{deletionContextRid}/start"
+   }
+  ],
+  "DescriptionService": [
+   {
+    "method": "POST",
+    "name": "patchDescriptions",
+    "path": "/batch/descriptions"
+   },
+   {
+    "method": "POST",
+    "name": "patchDescription",
+    "path": "/resources/{rid}/description"
+   }
+  ],
+  "DomainService": [
+   {
+    "method": "GET",
+    "name": "getAll",
+    "path": "/domain"
+   },
+   {
+    "method": "GET",
+    "name": "getAllDomainNames",
+    "path": "/domain/all-domain-names"
+   },
+   {
+    "method": "GET",
+    "name": "getEnvironmentBaseDomainNames",
+    "path": "/domain/environment-base-domain-names"
+   },
+   {
+    "method": "GET",
+    "name": "getMigrationStatus",
+    "path": "/domain/migration-status"
+   },
+   {
+    "method": "GET",
+    "name": "getPalantirRootDomainNames",
+    "path": "/domain/palantir-root-domain-names"
+   },
+   {
+    "method": "POST",
+    "name": "create",
+    "path": "/domain/{name}"
+   },
+   {
+    "method": "PUT",
+    "name": "update",
+    "path": "/domain/{name}"
+   },
+   {
+    "method": "DELETE",
+    "name": "delete",
+    "path": "/domain/{name}"
+   },
+   {
+    "method": "GET",
+    "name": "get",
+    "path": "/domain/{name}"
+   },
+   {
+    "method": "PUT",
+    "name": "canCreate",
+    "path": "/domain/{name}/can-create"
+   },
+   {
+    "method": "PUT",
+    "name": "migrateDomain",
+    "path": "/domain/{name}/migrate"
+   }
+  ],
+  "EdgeControlPanelService": [
+   {
+    "method": "GET",
+    "name": "getEdgeSettings",
+    "path": "/control-panel/edge-settings"
+   }
+  ],
+  "EnrollmentManagementService": [
+   {
+    "method": "GET",
+    "name": "getAllEnrollmentsDeprecated",
+    "path": "/admin/customers"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentDeprecated",
+    "path": "/admin/customers/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentByAuthHeaderDeprecated",
+    "path": "/admin/enrollment-by-auth-header"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentCreationInfo",
+    "path": "/admin/enrollment-creation-info"
+   },
+   {
+    "method": "GET",
+    "name": "getAllEnrollmentRidsDeprecated",
+    "path": "/admin/enrollment-rids"
+   },
+   {
+    "method": "POST",
+    "name": "createEnrollment",
+    "path": "/admin/enrollment/create"
+   },
+   {
+    "method": "GET",
+    "name": "getAllEnrollmentInfosDeprecated",
+    "path": "/admin/enrollment/infos"
+   },
+   {
+    "method": "PUT",
+    "name": "getEnrollmentInfosDeprecated",
+    "path": "/admin/enrollment/infos"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentForOrganizationDeprecated",
+    "path": "/admin/enrollment/org/{organizationRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "getEnrollmentsForOrganizationsDeprecated",
+    "path": "/admin/enrollment/organizations"
+   },
+   {
+    "method": "POST",
+    "name": "createEnrollmentV2",
+    "path": "/admin/enrollment/v2/create"
+   },
+   {
+    "method": "PUT",
+    "name": "updateEnrollment",
+    "path": "/admin/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentApplicationAndExtensionRestrictions",
+    "path": "/admin/enrollment/{enrollmentRid}/application-and-extension-restrictions"
+   },
+   {
+    "method": "POST",
+    "name": "createOrganizationInEnrollment",
+    "path": "/admin/enrollment/{enrollmentRid}/create-organization"
+   },
+   {
+    "method": "POST",
+    "name": "createOrganizationInEnrollmentForPalantirSupport",
+    "path": "/admin/enrollment/{enrollmentRid}/create-palantir-support-organization"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentCreationSettings",
+    "path": "/admin/enrollment/{enrollmentRid}/creation-settings"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentCreationStatus",
+    "path": "/admin/enrollment/{enrollmentRid}/creation-status"
+   },
+   {
+    "method": "GET",
+    "name": "isCustomerDataAllowed",
+    "path": "/admin/enrollment/{enrollmentRid}/customer-data-allowed"
+   },
+   {
+    "method": "PUT",
+    "name": "updateEnrollmentHosts",
+    "path": "/admin/enrollment/{enrollmentRid}/hosts"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentHosts",
+    "path": "/admin/enrollment/{enrollmentRid}/hosts/v2"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationCreationInfo",
+    "path": "/admin/enrollment/{enrollmentRid}/organization-creation-info"
+   },
+   {
+    "method": "PUT",
+    "name": "assignOrganizationToEnrollment",
+    "path": "/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/assign"
+   },
+   {
+    "method": "POST",
+    "name": "createApolloSpaceForOrganization",
+    "path": "/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-apollo-space"
+   },
+   {
+    "method": "POST",
+    "name": "createPrivateNamespaceForOrganization",
+    "path": "/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-private-namespace"
+   },
+   {
+    "method": "PUT",
+    "name": "removeOrganizationFromEnrollment",
+    "path": "/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/remove"
+   },
+   {
+    "method": "PUT",
+    "name": "registerEnrollmentForDeletion",
+    "path": "/admin/enrollment/{enrollmentRid}/register-for-deletion"
+   },
+   {
+    "method": "PUT",
+    "name": "restoreApolloPermissions",
+    "path": "/admin/enrollment/{enrollmentRid}/restore-apollo-permissions"
+   },
+   {
+    "method": "PUT",
+    "name": "restoreEnrollmentPermissions",
+    "path": "/admin/enrollment/{enrollmentRid}/restore-enrollment-permissions"
+   },
+   {
+    "method": "PUT",
+    "name": "restoreOrganizationPermissions",
+    "path": "/admin/enrollment/{enrollmentRid}/restore-organization-permissions"
+   },
+   {
+    "method": "PUT",
+    "name": "setOrganizationInEnrollmentForPalantirSupport",
+    "path": "/admin/enrollment/{enrollmentRid}/set-palantir-support-organization"
+   },
+   {
+    "method": "PUT",
+    "name": "unregisterEnrollmentForDeletion",
+    "path": "/admin/enrollment/{enrollmentRid}/unregister-for-deletion"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentForHostDeprecated",
+    "path": "/admin/hosts/{host}/enrollment-rid"
+   },
+   {
+    "method": "PUT",
+    "name": "moveOrganizationsAndHosts",
+    "path": "/admin/move-organizations-and-hosts"
+   },
+   {
+    "method": "POST",
+    "name": "createInternalGroupWithAdministrativePermissions",
+    "path": "/admin/organization/{organizationRid}/create-internal-group-with-administrative-permissions"
+   }
+  ],
+  "EnrollmentService": [
+   {
+    "method": "GET",
+    "name": "getEnrollmentByAuthHeader",
+    "path": "/enrollments/by-auth-header"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentByHost",
+    "path": "/enrollments/by-host/{host}"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentByOrganization",
+    "path": "/enrollments/by-organization/{organizationRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "getEnrollmentsByOrganizations",
+    "path": "/enrollments/by-organizations"
+   },
+   {
+    "method": "PUT",
+    "name": "getOrganizationsPlatforms",
+    "path": "/enrollments/by-organizations/platforms"
+   },
+   {
+    "method": "PUT",
+    "name": "getEnrollments",
+    "path": "/enrollments/by-rids"
+   },
+   {
+    "method": "PUT",
+    "name": "getEnrollmentsOrganizations",
+    "path": "/enrollments/by-rids/organizations"
+   },
+   {
+    "method": "PUT",
+    "name": "getEnrollmentsPlatforms",
+    "path": "/enrollments/by-rids/platforms"
+   },
+   {
+    "method": "GET",
+    "name": "getAllEnrollmentRids",
+    "path": "/enrollments/rids"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollment",
+    "path": "/enrollments/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentOrganizations",
+    "path": "/enrollments/{enrollmentRid}/organizations"
+   }
+  ],
+  "EnrollmentSetupManagementService": [
+   {
+    "method": "POST",
+    "name": "createEnrollmentSetupContext",
+    "path": "/enrollment-setup-management/enrollment/{enrollmentRid}/context"
+   },
+   {
+    "method": "GET",
+    "name": "getEnrollmentSetupContexts",
+    "path": "/enrollment-setup-management/enrollment/{enrollmentRid}/context"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteEnrollmentSetupContext",
+    "path": "/enrollment-setup-management/enrollment/{enrollmentRid}/context/{setupContextId}"
+   },
+   {
+    "method": "POST",
+    "name": "generateEnrollmentSetupLink",
+    "path": "/enrollment-setup-management/enrollment/{enrollmentRid}/context/{setupContextId}/setup-link"
+   },
+   {
+    "method": "DELETE",
+    "name": "invalidateEnrollmentSetupLink",
+    "path": "/enrollment-setup-management/enrollment/{enrollmentRid}/context/{setupContextId}/setup-link"
+   }
+  ],
+  "EnvironmentService": [
+   {
+    "method": "GET",
+    "name": "getAppliedApolloLabels",
+    "path": "/environment/applied-apollo-labels"
+   },
+   {
+    "method": "GET",
+    "name": "getAvailablePlatforms",
+    "path": "/environment/available-platforms"
+   },
+   {
+    "method": "GET",
+    "name": "isItar",
+    "path": "/environment/is-itar"
+   }
+  ],
+  "GroupAdministrationService": [
+   {
+    "method": "PUT",
+    "name": "getGroupContactDetails",
+    "path": "/groups/contact-details"
+   },
+   {
+    "method": "PUT",
+    "name": "updateGroupContactDetails",
+    "path": "/groups/contact-details/groups/{groupId}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteGroupContactDetails",
+    "path": "/groups/contact-details/groups/{groupId}"
+   },
+   {
+    "method": "PUT",
+    "name": "getGroupMemberExpirations",
+    "path": "/groups/expirations/members"
+   },
+   {
+    "method": "PUT",
+    "name": "getGroupMemberExpirationsForPrincipals",
+    "path": "/groups/expirations/memberships"
+   },
+   {
+    "method": "PUT",
+    "name": "getGroupMemberExpirationSettings",
+    "path": "/groups/member-expiration-settings"
+   },
+   {
+    "method": "PUT",
+    "name": "updateGroupMemberExpirationSettings",
+    "path": "/groups/member-expiration-settings/groups/{groupId}"
+   },
+   {
+    "method": "PUT",
+    "name": "getAllGroupMembers",
+    "path": "/groups/members/all"
+   },
+   {
+    "method": "PUT",
+    "name": "getImmediateGroupMembers",
+    "path": "/groups/members/immediate"
+   },
+   {
+    "method": "PUT",
+    "name": "getAllGroupsForPrincipals",
+    "path": "/groups/memberships/all"
+   },
+   {
+    "method": "GET",
+    "name": "getAllGroups",
+    "path": "/groups/memberships/all/on-behalf-of"
+   },
+   {
+    "method": "PUT",
+    "name": "getImmediateGroupsForPrincipals",
+    "path": "/groups/memberships/immediate"
+   },
+   {
+    "method": "GET",
+    "name": "getImmediateGroups",
+    "path": "/groups/memberships/immediate/on-behalf-of"
+   },
+   {
+    "method": "POST",
+    "name": "updateGroup",
+    "path": "/groups/update"
+   }
+  ],
+  "IngressConfigurationService": [
+   {
+    "method": "GET",
+    "name": "getEnrollmentIngressConfiguration",
+    "path": "/ingress/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getIngressAvailability",
+    "path": "/ingress/enrollment/{enrollmentRid}/availability"
+   },
+   {
+    "method": "PUT",
+    "name": "completeIngressMigration",
+    "path": "/ingress/enrollment/{enrollmentRid}/complete-migration"
+   },
+   {
+    "method": "GET",
+    "name": "getContributorsCanApprovePatches",
+    "path": "/ingress/enrollment/{enrollmentRid}/contributors-can-approve"
+   },
+   {
+    "method": "POST",
+    "name": "createIngressPatch",
+    "path": "/ingress/enrollment/{enrollmentRid}/create-patch"
+   },
+   {
+    "method": "GET",
+    "name": "getAllowableCountries",
+    "path": "/ingress/enrollment/{enrollmentRid}/domain/{domain}/allowable-countries"
+   },
+   {
+    "method": "GET",
+    "name": "getIngressMigrationStatus",
+    "path": "/ingress/enrollment/{enrollmentRid}/migration-status"
+   },
+   {
+    "method": "PUT",
+    "name": "setPalantirAccess",
+    "path": "/ingress/enrollment/{enrollmentRid}/palantir-access"
+   },
+   {
+    "method": "GET",
+    "name": "getPendingIngressPatchRids",
+    "path": "/ingress/enrollment/{enrollmentRid}/pending-patch-rids"
+   },
+   {
+    "method": "PUT",
+    "name": "revertIngressMigration",
+    "path": "/ingress/enrollment/{enrollmentRid}/revert-migration"
+   },
+   {
+    "method": "PUT",
+    "name": "startIngressMigration",
+    "path": "/ingress/enrollment/{enrollmentRid}/start-migration"
+   },
+   {
+    "method": "GET",
+    "name": "getIngressMigrationConfiguration",
+    "path": "/ingress/migration-configuration"
+   },
+   {
+    "method": "PUT",
+    "name": "updateIngressPatch",
+    "path": "/ingress/patch/{patchRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "getIngressPatches",
+    "path": "/ingress/patches"
+   },
+   {
+    "method": "PUT",
+    "name": "migrateProxyProtocolCidrs",
+    "path": "/ingress/proxy-protocol/migrate"
+   },
+   {
+    "method": "PUT",
+    "name": "migrateProxyProtocolCidrsForEnrollment",
+    "path": "/ingress/proxy-protocol/migrate/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getSubdomainIngressConfiguration",
+    "path": "/ingress/subdomain/{subdomainRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "getSubdomainsIngressConfigurations",
+    "path": "/ingress/subdomains/by-rids"
+   },
+   {
+    "method": "GET",
+    "name": "getUserNetworkingInfo",
+    "path": "/ingress/user-networking-info"
+   }
+  ],
+  "MandatoryControlsService": [
+   {
+    "method": "POST",
+    "name": "getMarkingAccess",
+    "path": "/authz/markings/access"
+   },
+   {
+    "method": "POST",
+    "name": "getAllMarkingAccess",
+    "path": "/authz/markings/access/all"
+   },
+   {
+    "method": "POST",
+    "name": "getOrganizationMembers",
+    "path": "/authz/markings/access/organization-members"
+   },
+   {
+    "method": "POST",
+    "name": "getOrganizationGuestAccess",
+    "path": "/authz/markings/access/organizations"
+   },
+   {
+    "method": "POST",
+    "name": "getCategoriesAndMarkingsForPrincipals",
+    "path": "/authz/markings/access/principals"
+   },
+   {
+    "method": "POST",
+    "name": "updateMarkingAccess",
+    "path": "/authz/markings/access/update"
+   },
+   {
+    "method": "GET",
+    "name": "getAllCategories",
+    "path": "/authz/markings/categories"
+   },
+   {
+    "method": "POST",
+    "name": "createCategoryDeprecated",
+    "path": "/authz/markings/categories"
+   },
+   {
+    "method": "POST",
+    "name": "createCategory",
+    "path": "/authz/markings/categories/v2"
+   },
+   {
+    "method": "GET",
+    "name": "getCategoryWithPermissionInfo",
+    "path": "/authz/markings/categories/{categoryId}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteCategory",
+    "path": "/authz/markings/categories/{categoryId}"
+   },
+   {
+    "method": "PUT",
+    "name": "updateCategory",
+    "path": "/authz/markings/categories/{categoryId}"
+   },
+   {
+    "method": "POST",
+    "name": "createMarkingDeprecated",
+    "path": "/authz/markings/categories/{categoryId}/markings"
+   },
+   {
+    "method": "POST",
+    "name": "createMarking",
+    "path": "/authz/markings/categories/{categoryId}/markings/v2"
+   },
+   {
+    "method": "PUT",
+    "name": "updateCategoryProtected",
+    "path": "/authz/markings/categories/{categoryId}/protected"
+   },
+   {
+    "method": "POST",
+    "name": "undeleteCategory",
+    "path": "/authz/markings/categories/{categoryId}/undelete"
+   },
+   {
+    "method": "POST",
+    "name": "getMarkings",
+    "path": "/authz/markings/markings"
+   },
+   {
+    "method": "GET",
+    "name": "getAllMarkings",
+    "path": "/authz/markings/markings"
+   },
+   {
+    "method": "PUT",
+    "name": "getMarkingIdsByGlobalIds",
+    "path": "/authz/markings/markings/ids"
+   },
+   {
+    "method": "GET",
+    "name": "getMarkingWithPermissionInfo",
+    "path": "/authz/markings/markings/{markingId}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteMarking",
+    "path": "/authz/markings/markings/{markingId}"
+   },
+   {
+    "method": "PUT",
+    "name": "updateMarking",
+    "path": "/authz/markings/markings/{markingId}"
+   },
+   {
+    "method": "POST",
+    "name": "undeleteMarking",
+    "path": "/authz/markings/markings/{markingId}/undelete"
+   },
+   {
+    "method": "POST",
+    "name": "getMarkingsOnResources",
+    "path": "/authz/markings/resources"
+   },
+   {
+    "method": "POST",
+    "name": "getMarkingsSummaries",
+    "path": "/authz/markings/resources/summaries"
+   },
+   {
+    "method": "POST",
+    "name": "getMarkingsSummariesWithChanges",
+    "path": "/authz/markings/resources/summaries/changes"
+   },
+   {
+    "method": "GET",
+    "name": "getCategoriesAndMarkings",
+    "path": "/authz/markings/usable"
+   },
+   {
+    "method": "PUT",
+    "name": "getCategoriesAndMarkingsV2",
+    "path": "/authz/markings/usable"
+   }
+  ],
+  "NamespaceAndProjectService": [
+   {
+    "method": "GET",
+    "name": "getAllNamespaceRids",
+    "path": "/hierarchy/v2/all-namespace-rids"
+   },
+   {
+    "method": "POST",
+    "name": "getNamespaceRidsByMavenGroups",
+    "path": "/hierarchy/v2/batch/namespace-rids-by-maven-group"
+   },
+   {
+    "method": "POST",
+    "name": "getNamespaceMavenGroupPrefixesForEnrollments",
+    "path": "/hierarchy/v2/batch/namespace/maven-group-prefix-for-enrollments"
+   },
+   {
+    "method": "PUT",
+    "name": "getNamespaces",
+    "path": "/hierarchy/v2/batch/namespaces"
+   },
+   {
+    "method": "PUT",
+    "name": "getNamespaceQuotaForEnrollments",
+    "path": "/hierarchy/v2/batch/namespaces/quota"
+   },
+   {
+    "method": "PUT",
+    "name": "getNamespaceRidsForResources",
+    "path": "/hierarchy/v2/batch/namespaces/resources"
+   },
+   {
+    "method": "PUT",
+    "name": "getProjects",
+    "path": "/hierarchy/v2/batch/projects"
+   },
+   {
+    "method": "PUT",
+    "name": "getProjectsV3",
+    "path": "/hierarchy/v2/batch/projects-v3"
+   },
+   {
+    "method": "PUT",
+    "name": "getOwningEnrollmentRidsForResources",
+    "path": "/hierarchy/v2/batch/resources/enrollments"
+   },
+   {
+    "method": "PUT",
+    "name": "getProjectRidsForResources",
+    "path": "/hierarchy/v2/batch/resources/projects"
+   },
+   {
+    "method": "POST",
+    "name": "generateProjectRid",
+    "path": "/hierarchy/v2/generate-project-rid"
+   },
+   {
+    "method": "POST",
+    "name": "createNamespace",
+    "path": "/hierarchy/v2/namespaces"
+   },
+   {
+    "method": "POST",
+    "name": "createNamespaceInEnrollment",
+    "path": "/hierarchy/v2/namespaces-in-enrollment"
+   },
+   {
+    "method": "PUT",
+    "name": "updateNamespace",
+    "path": "/hierarchy/v2/namespaces/{rid}"
+   },
+   {
+    "method": "PUT",
+    "name": "setNamespaceFileSystem",
+    "path": "/hierarchy/v2/namespaces/{rid}/fileSystemId"
+   },
+   {
+    "method": "PUT",
+    "name": "updateProjectAccessRequestConfiguration",
+    "path": "/hierarchy/v2/project-access-request-configuration/{projectRid}"
+   },
+   {
+    "method": "POST",
+    "name": "createProject",
+    "path": "/hierarchy/v2/projects"
+   },
+   {
+    "method": "POST",
+    "name": "createProjectFromTemplate",
+    "path": "/hierarchy/v2/projects-from-template"
+   },
+   {
+    "method": "GET",
+    "name": "getAllConjunctiveMarkingsInProject",
+    "path": "/hierarchy/v2/projects/{projectRid}/all-conjunctive-markings"
+   },
+   {
+    "method": "PUT",
+    "name": "updateProject",
+    "path": "/hierarchy/v2/projects/{rid}"
+   },
+   {
+    "method": "PUT",
+    "name": "removeDeletedOrganizationMarkings",
+    "path": "/hierarchy/v2/projects/{rid}/remove-deleted-organization-markings"
+   },
+   {
+    "method": "POST",
+    "name": "getAllPrincipalsWithRoleOnResources",
+    "path": "/hierarchy/v2/roles/all"
+   },
+   {
+    "method": "PUT",
+    "name": "getEffectiveRoleGrants",
+    "path": "/hierarchy/v2/roles/effective/grants"
+   },
+   {
+    "method": "PUT",
+    "name": "getEffectiveRolesForPrincipals",
+    "path": "/hierarchy/v2/roles/effective/principals"
+   },
+   {
+    "method": "POST",
+    "name": "createServiceProject",
+    "path": "/hierarchy/v2/service-projects"
+   },
+   {
+    "method": "PUT",
+    "name": "updateServiceProject",
+    "path": "/hierarchy/v2/service-projects/{rid}"
+   }
+  ],
+  "OrganizationAndProjectService": [
+   {
+    "method": "POST",
+    "name": "getOrganizations",
+    "path": "/batch/hierarchy/organizations"
+   },
+   {
+    "method": "POST",
+    "name": "getOrganizationAndProjectInfos",
+    "path": "/batch/hierarchy/projects"
+   },
+   {
+    "method": "POST",
+    "name": "getDecoratedOrganizationAndProjectInfos",
+    "path": "/batch/hierarchy/projects/decorated"
+   },
+   {
+    "method": "POST",
+    "name": "getFileSystemIdsForProjects",
+    "path": "/batch/projectFileSystemId"
+   },
+   {
+    "method": "POST",
+    "name": "getProjects",
+    "path": "/batch/projects-by-rids"
+   },
+   {
+    "method": "PUT",
+    "name": "setProjectContactInformation",
+    "path": "/contact-information/{projectRid}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteProjectContactInformation",
+    "path": "/contact-information/{projectRid}"
+   },
+   {
+    "method": "POST",
+    "name": "convertExistingProjects",
+    "path": "/convertExistingProjects"
+   },
+   {
+    "method": "POST",
+    "name": "moveResources",
+    "path": "/folders/{folderRid}/children"
+   },
+   {
+    "method": "GET",
+    "name": "getAllNamespaceProjectRids",
+    "path": "/hierarchy/namespaces/{namespaceRid}/project-rids"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationRids",
+    "path": "/hierarchy/organization-rids"
+   },
+   {
+    "method": "GET",
+    "name": "getAllOrganizations",
+    "path": "/hierarchy/organizations"
+   },
+   {
+    "method": "POST",
+    "name": "createOrganization",
+    "path": "/hierarchy/organizations"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationsAndProjects",
+    "path": "/hierarchy/organizations/all-projects"
+   },
+   {
+    "method": "POST",
+    "name": "updateOrganization",
+    "path": "/hierarchy/organizations/{rid}"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganization",
+    "path": "/hierarchy/organizations/{rid}"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationProjectRids",
+    "path": "/hierarchy/organizations/{rid}/project-rids"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationProjects",
+    "path": "/hierarchy/organizations/{rid}/projects"
+   },
+   {
+    "method": "POST",
+    "name": "createProject",
+    "path": "/hierarchy/projects"
+   },
+   {
+    "method": "GET",
+    "name": "getFavoriteProjects",
+    "path": "/hierarchy/projects/favorites"
+   },
+   {
+    "method": "GET",
+    "name": "getFavoriteProjectRids",
+    "path": "/hierarchy/projects/favorites-rids"
+   },
+   {
+    "method": "POST",
+    "name": "getProjectScopeFromResources",
+    "path": "/hierarchy/projects/scope"
+   },
+   {
+    "method": "POST",
+    "name": "importResource",
+    "path": "/hierarchy/projects/{projectRid}/imports"
+   },
+   {
+    "method": "GET",
+    "name": "getProjectImports",
+    "path": "/hierarchy/projects/{projectRid}/imports"
+   },
+   {
+    "method": "GET",
+    "name": "getProjectScope",
+    "path": "/hierarchy/projects/{projectRid}/scope"
+   },
+   {
+    "method": "POST",
+    "name": "updateProject",
+    "path": "/hierarchy/projects/{rid}"
+   },
+   {
+    "method": "GET",
+    "name": "getProject",
+    "path": "/hierarchy/projects/{rid}"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationAndProjectInfo",
+    "path": "/hierarchy/resources/{rid}/project"
+   },
+   {
+    "method": "POST",
+    "name": "createServiceProject",
+    "path": "/hierarchy/service-projects"
+   },
+   {
+    "method": "POST",
+    "name": "updateServiceProject",
+    "path": "/hierarchy/service-projects/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "updateResourceMarkings",
+    "path": "/markings/{rid}"
+   },
+   {
+    "method": "PUT",
+    "name": "getResourceRoleSets",
+    "path": "/roleSets"
+   },
+   {
+    "method": "POST",
+    "name": "getResourceRoles",
+    "path": "/roles"
+   },
+   {
+    "method": "POST",
+    "name": "updateServiceProjectResourceRoles",
+    "path": "/roles/service-projects/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "updateResourcesRoles",
+    "path": "/roles/v2/bulk"
+   },
+   {
+    "method": "POST",
+    "name": "updateResourceRolesV2",
+    "path": "/roles/v2/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "updateResourceRoles",
+    "path": "/roles/{rid}"
+   },
+   {
+    "method": "POST",
+    "name": "removeAllDisableInheritedPermissions",
+    "path": "/roles/{rid}/remove-disable-inherited-permissions"
+   },
+   {
+    "method": "POST",
+    "name": "searchProjects",
+    "path": "/search/projects"
+   },
+   {
+    "method": "POST",
+    "name": "getResourceLocations",
+    "path": "/ui/batch/resources/location"
+   },
+   {
+    "method": "GET",
+    "name": "getResourceLocation",
+    "path": "/ui/resources/{rid}/location"
+   }
+  ],
+  "OrganizationManagementService": [
+   {
+    "method": "POST",
+    "name": "createOrganization",
+    "path": "/organizations"
+   },
+   {
+    "method": "GET",
+    "name": "getAllOrganizations",
+    "path": "/organizations/all"
+   },
+   {
+    "method": "POST",
+    "name": "getOrganizations",
+    "path": "/organizations/info"
+   },
+   {
+    "method": "POST",
+    "name": "getOrganizationsByMarkingIds",
+    "path": "/organizations/info/markingIds"
+   },
+   {
+    "method": "PUT",
+    "name": "putCrossOrganizationPermissions",
+    "path": "/organizations/permissions"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteCrossOrganizationPermissions",
+    "path": "/organizations/permissions"
+   },
+   {
+    "method": "PUT",
+    "name": "updateOrganization",
+    "path": "/organizations/{organizationRid}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteOrganization",
+    "path": "/organizations/{organizationRid}"
+   },
+   {
+    "method": "GET",
+    "name": "isAdministratorTypesMigrationComplete",
+    "path": "/organizations/{organizationRid}/administrator-types-migration-complete"
+   },
+   {
+    "method": "POST",
+    "name": "updateOrganizationAdministrators",
+    "path": "/organizations/{organizationRid}/administrators"
+   },
+   {
+    "method": "PUT",
+    "name": "disableOrganization",
+    "path": "/organizations/{organizationRid}/disable"
+   },
+   {
+    "method": "PUT",
+    "name": "registerOrganizationForDeletion",
+    "path": "/organizations/{organizationRid}/register-for-deletion"
+   },
+   {
+    "method": "POST",
+    "name": "undeleteOrganization",
+    "path": "/organizations/{organizationRid}/undelete"
+   },
+   {
+    "method": "PUT",
+    "name": "unregisterOrganizationForDeletion",
+    "path": "/organizations/{organizationRid}/unregister-for-deletion"
+   }
+  ],
+  "OrganizationPermissionService": [
+   {
+    "method": "POST",
+    "name": "hasAccess",
+    "path": "/organizations/access"
+   },
+   {
+    "method": "POST",
+    "name": "canAdministerUsers",
+    "path": "/organizations/administer/users"
+   },
+   {
+    "method": "POST",
+    "name": "canAssignManagers",
+    "path": "/organizations/assign-managers"
+   },
+   {
+    "method": "PUT",
+    "name": "getOrganizationPrincipalVisibilitySettings",
+    "path": "/organizations/principal-visibility-settings"
+   },
+   {
+    "method": "PUT",
+    "name": "updateOrganizationPrincipalVisibilitySettings",
+    "path": "/organizations/principal-visibility-settings/update"
+   },
+   {
+    "method": "PUT",
+    "name": "getOrganizationRolesGrants",
+    "path": "/organizations/role-grants"
+   },
+   {
+    "method": "PUT",
+    "name": "updateOrganizationRolesGrants",
+    "path": "/organizations/role-grants/update"
+   }
+  ],
+  "OrganizationService": [
+   {
+    "method": "PUT",
+    "name": "getAllOrganizationMetadatas",
+    "path": "/organizations/v2/all"
+   },
+   {
+    "method": "PUT",
+    "name": "getOrganizationMetadatas",
+    "path": "/organizations/v2/metadata"
+   },
+   {
+    "method": "PUT",
+    "name": "getOrganizationMetadatasByMarkingId",
+    "path": "/organizations/v2/metadata/marking"
+   },
+   {
+    "method": "GET",
+    "name": "getOrganizationMetadatasPage",
+    "path": "/organizations/v2/metadatas"
+   },
+   {
+    "method": "PUT",
+    "name": "getOrganizationPermissions",
+    "path": "/organizations/v2/permissions"
+   }
+  ],
+  "OrganizationTriagingService": [
+   {
+    "method": "PUT",
+    "name": "putGroupRules",
+    "path": "/organization-triaging/providers/{providerRid}/groups"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteGroupRules",
+    "path": "/organization-triaging/providers/{providerRid}/groups"
+   },
+   {
+    "method": "GET",
+    "name": "getGroupRules",
+    "path": "/organization-triaging/providers/{providerRid}/groups"
+   },
+   {
+    "method": "PUT",
+    "name": "putUserRules",
+    "path": "/organization-triaging/providers/{providerRid}/users"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteUserRules",
+    "path": "/organization-triaging/providers/{providerRid}/users"
+   },
+   {
+    "method": "GET",
+    "name": "getUserRules",
+    "path": "/organization-triaging/providers/{providerRid}/users"
+   }
+  ],
+  "PathService": [
+   {
+    "method": "POST",
+    "name": "getPaths",
+    "path": "/batch/paths"
+   },
+   {
+    "method": "POST",
+    "name": "getResourcesByPaths",
+    "path": "/batch/resources-by-paths"
+   },
+   {
+    "method": "GET",
+    "name": "getResourceByPath",
+    "path": "/resources"
+   }
+  ],
+  "ScopedSessionDefinitionService": [
+   {
+    "method": "POST",
+    "name": "createScopedSessionDefinition",
+    "path": "/sessions/definitions"
+   },
+   {
+    "method": "GET",
+    "name": "getCurrentScopedSession",
+    "path": "/sessions/definitions/current"
+   },
+   {
+    "method": "GET",
+    "name": "getCurrentScopedSessionDefinition",
+    "path": "/sessions/definitions/me"
+   },
+   {
+    "method": "GET",
+    "name": "getAllScopedSessionDefinitions",
+    "path": "/sessions/definitions/organizations/{organizationRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "updateScopedSessionDefinition",
+    "path": "/sessions/definitions/{scopedSessionDefinitionId}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteScopedSessionDefinition",
+    "path": "/sessions/definitions/{scopedSessionDefinitionId}"
+   }
+  ],
+  "ScopedSessionSelectionService": [
+   {
+    "method": "GET",
+    "name": "getScopedSessionSelectionInfo",
+    "path": "/sessions/selection"
+   },
+   {
+    "method": "POST",
+    "name": "setScopedSessionSelection",
+    "path": "/sessions/selection"
+   }
+  ],
+  "SearchService": [
+   {
+    "method": "POST",
+    "name": "aggregateByField",
+    "path": "/aggregate-field"
+   },
+   {
+    "method": "POST",
+    "name": "indexMetadatas",
+    "path": "/batch/search/{bucket}"
+   },
+   {
+    "method": "POST",
+    "name": "search",
+    "path": "/search"
+   },
+   {
+    "method": "POST",
+    "name": "indexMetadata",
+    "path": "/search/{rid}/{bucket}"
+   },
+   {
+    "method": "POST",
+    "name": "saveSearchTextInHistory",
+    "path": "/searchTextHistory"
+   }
+  ],
+  "ShareService": [
+   {
+    "method": "GET",
+    "name": "getShares",
+    "path": "/shares"
+   },
+   {
+    "method": "GET",
+    "name": "getNewSharesCount",
+    "path": "/shares/new"
+   },
+   {
+    "method": "POST",
+    "name": "postShare",
+    "path": "/shares/{rid}"
+   }
+  ],
+  "TaskRequestService": [
+   {
+    "method": "PUT",
+    "name": "getBatchSuggestedReviewers",
+    "path": "/task-requests/batch/suggested-reviewers"
+   },
+   {
+    "method": "PUT",
+    "name": "getBatchTaskRequests",
+    "path": "/task-requests/batch/task-requests"
+   },
+   {
+    "method": "PUT",
+    "name": "getBatchTaskRequestVersionDetails",
+    "path": "/task-requests/batch/version"
+   },
+   {
+    "method": "POST",
+    "name": "createTaskRequest",
+    "path": "/task-requests/create"
+   },
+   {
+    "method": "POST",
+    "name": "createTaskRequestOnBehalfOf",
+    "path": "/task-requests/create-on-behalf-of"
+   },
+   {
+    "method": "GET",
+    "name": "getTaskRequest",
+    "path": "/task-requests/{taskRid}"
+   },
+   {
+    "method": "POST",
+    "name": "updateTaskRequest",
+    "path": "/task-requests/{taskRid}"
+   },
+   {
+    "method": "GET",
+    "name": "canCreatorViewTaskRequest",
+    "path": "/task-requests/{taskRid}/can-creator-view"
+   },
+   {
+    "method": "POST",
+    "name": "updateSubtaskCheckpoints",
+    "path": "/task-requests/{taskRid}/checkpoints"
+   },
+   {
+    "method": "PUT",
+    "name": "closeTaskRequest",
+    "path": "/task-requests/{taskRid}/close"
+   },
+   {
+    "method": "POST",
+    "name": "dismissDisapprovals",
+    "path": "/task-requests/{taskRid}/dismiss-disapprovals"
+   },
+   {
+    "method": "PUT",
+    "name": "invokeTaskRequest",
+    "path": "/task-requests/{taskRid}/invoke"
+   },
+   {
+    "method": "GET",
+    "name": "getMinimalTaskRequest",
+    "path": "/task-requests/{taskRid}/minimal"
+   },
+   {
+    "method": "POST",
+    "name": "notifyReviewer",
+    "path": "/task-requests/{taskRid}/notify-reviewer"
+   },
+   {
+    "method": "PUT",
+    "name": "publishDraftTaskRequest",
+    "path": "/task-requests/{taskRid}/publish-draft"
+   },
+   {
+    "method": "PUT",
+    "name": "refreshTaskRequest",
+    "path": "/task-requests/{taskRid}/refresh"
+   },
+   {
+    "method": "POST",
+    "name": "reviewSubtasks",
+    "path": "/task-requests/{taskRid}/review"
+   },
+   {
+    "method": "POST",
+    "name": "reviewSubtasksOnBehalfOf",
+    "path": "/task-requests/{taskRid}/review-on-behalf-of"
+   },
+   {
+    "method": "POST",
+    "name": "updateReviewers",
+    "path": "/task-requests/{taskRid}/update-reviewers"
+   },
+   {
+    "method": "PUT",
+    "name": "createRequestVersion",
+    "path": "/task-requests/{taskRid}/version/create"
+   }
+  ],
+  "TokenService": [
+   {
+    "method": "POST",
+    "name": "createTokenForResource",
+    "path": "/tokens/resource/{resource}"
+   }
+  ],
+  "UserDirectoryService": [
+   {
+    "method": "POST",
+    "name": "createUserDirectory",
+    "path": "/user-directory"
+   },
+   {
+    "method": "GET",
+    "name": "getDirectories",
+    "path": "/user-directory/enrollment/{enrollmentRid}"
+   },
+   {
+    "method": "GET",
+    "name": "isPalantirUser",
+    "path": "/user-directory/is-palantir-user"
+   },
+   {
+    "method": "GET",
+    "name": "getUserByAuthHeader",
+    "path": "/user-directory/user"
+   },
+   {
+    "method": "PUT",
+    "name": "updateUser",
+    "path": "/user-directory/user/{userDirectoryUserRid}"
+   },
+   {
+    "method": "DELETE",
+    "name": "deleteUser",
+    "path": "/user-directory/user/{userDirectoryUserRid}"
+   },
+   {
+    "method": "GET",
+    "name": "getUser",
+    "path": "/user-directory/user/{userDirectoryUserRid}"
+   },
+   {
+    "method": "PUT",
+    "name": "updatePasskey",
+    "path": "/user-directory/user/{userDirectoryUserRid}/passkey"
+   },
+   {
+    "method": "DELETE",
+    "name": "deletePasskey",
+    "path": "/user-directory/user/{userDirectoryUserRid}/passkey"
+   },
+   {
+    "method": "GET",
+    "name": "getUserPasskeys",
+    "path": "/user-directory/user/{userDirectoryUserRid}/passkeys"
+   },
+   {
+    "method": "GET",
+    "name": "getUserDirectoryMigrationStatus",
+    "path": "/user-directory/{userDirectoryId}/migration-status"
+   },
+   {
+    "method": "PUT",
+    "name": "checkEmail",
+    "path": "/user-directory/{userDirectoryRid}/check-email"
+   },
+   {
+    "method": "GET",
+    "name": "exportDirectoryData",
+    "path": "/user-directory/{userDirectoryRid}/export"
+   },
+   {
+    "method": "PUT",
+    "name": "isEmailAvailable",
+    "path": "/user-directory/{userDirectoryRid}/is-email-available"
+   },
+   {
+    "method": "PUT",
+    "name": "setUserDirectoryMigrationStatus",
+    "path": "/user-directory/{userDirectoryRid}/migration-status"
+   },
+   {
+    "method": "GET",
+    "name": "getUserDirectoryQuotas",
+    "path": "/user-directory/{userDirectoryRid}/quotas"
+   },
+   {
+    "method": "POST",
+    "name": "createUser",
+    "path": "/user-directory/{userDirectoryRid}/user"
+   },
+   {
+    "method": "GET",
+    "name": "getUsersInDirectory",
+    "path": "/user-directory/{userDirectoryRid}/user"
+   },
+   {
+    "method": "POST",
+    "name": "privilegedResetUserAccount",
+    "path": "/user-directory/{userDirectoryRid}/user/{userDirectoryUserRid}/privileged-reset-account"
+   },
+   {
+    "method": "POST",
+    "name": "resetUserAccount",
+    "path": "/user-directory/{userDirectoryRid}/user/{userDirectoryUserRid}/reset-account"
+   },
+   {
+    "method": "PUT",
+    "name": "setEnabledStatus",
+    "path": "/user-directory/{userDirectoryRid}/user/{userDirectoryUserRid}/set-enabled-status"
+   }
+  ],
+  "UserSettingsService": [
+   {
+    "method": "GET",
+    "name": "getUserSettings",
+    "path": "/user-settings"
+   },
+   {
+    "method": "PUT",
+    "name": "addFavorite",
+    "path": "/user-settings/add-favorite/{extensionId}"
+   },
+   {
+    "method": "PUT",
+    "name": "removeFavorite",
+    "path": "/user-settings/remove-favorite/{extensionId}"
+   }
+  ],
+  "WorkspaceService": [
+   {
+    "method": "GET",
+    "name": "getAssetRoleInfoInstalledOnTrack",
+    "path": "/assetRoleInfo"
+   },
+   {
+    "method": "GET",
+    "name": "getAthenaEnabled",
+    "path": "/athenaEnabled"
+   },
+   {
+    "method": "GET",
+    "name": "getFeatureFlagsEnabledByConfig",
+    "path": "/configEnabledFeatureFlags"
+   },
+   {
+    "method": "PUT",
+    "name": "setDeveloperMode",
+    "path": "/developerMode"
+   },
+   {
+    "method": "GET",
+    "name": "getDeveloperModeOptions",
+    "path": "/developerModeOptions"
+   },
+   {
+    "method": "GET",
+    "name": "getDisabledApplicationRoutes",
+    "path": "/disabled-application-routes"
+   },
+   {
+    "method": "GET",
+    "name": "getEnabledApplicationNames",
+    "path": "/enabled-application-names"
+   },
+   {
+    "method": "GET",
+    "name": "getEnabledFeatureFlagV2Info",
+    "path": "/enabledFeatureFlagV2Info"
+   },
+   {
+    "method": "GET",
+    "name": "getEvaluatedFeatureFlagInfo",
+    "path": "/evaluatedFeatureFlagInfo"
+   },
+   {
+    "method": "GET",
+    "name": "getFeatureFlagV2Info",
+    "path": "/featureFlagV2Info"
+   },
+   {
+    "method": "GET",
+    "name": "getAvailableLocales",
+    "path": "/getAvailableLocales"
+   },
+   {
+    "method": "GET",
+    "name": "getPageLocale",
+    "path": "/getPageLocale"
+   },
+   {
+    "method": "GET",
+    "name": "getAssetsInstalledOnTrack",
+    "path": "/installedAssets"
+   },
+   {
+    "method": "GET",
+    "name": "getLifecycleStatusByApplication",
+    "path": "/lifecycleStatusByApplication"
+   },
+   {
+    "method": "GET",
+    "name": "getPageEnvironmentDataV2",
+    "path": "/pageEnvironmentData-v2"
+   },
+   {
+    "method": "PUT",
+    "name": "getUserConfigurationSettings",
+    "path": "/userConfigurationSettings"
+   },
+   {
+    "method": "GET",
+    "name": "getUserHasAccessToAthenaApplications",
+    "path": "/userHasAccessToAthenaApplications"
+   }
+  ]
+ }
+}

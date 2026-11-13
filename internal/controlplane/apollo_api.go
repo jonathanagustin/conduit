@@ -9,7 +9,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
-	environments "github.com/jonathanagustin/conduit/internal/environments/domain"
 )
 
 // apolloPublicAPI is the outer anti-corruption adapter. Identity and governance
@@ -29,6 +28,8 @@ func newApolloPublicAPI(repository Repository, governance *GovernanceService, co
 		context.Background(),
 		apolloCatalogPort{repository: repository},
 		apolloReportingPort{repository: repository},
+		apolloReleaseLifecyclePort{repository: repository},
+		apolloEnvironmentInventoryPort{repository: repository},
 	)
 	if err != nil {
 		api.initializationError = err
@@ -165,36 +166,18 @@ func (api *apolloPublicAPI) syncDesiredState(ctx context.Context, state DesiredS
 	if openings := api.configuration.RecallOpenings; openings != nil {
 		_ = openings.RecallsInForce(ctx, state.Environment.ID, state.Recalls)
 	}
-	projection := environments.CompatibilityProjection{ID: state.Environment.ID}
-	for _, entity := range state.Entities {
-		projection.Entities = append(projection.Entities, environments.ProjectedEntity{
-			Name: entity.Name, Product: entity.Product, Version: entity.Version, ReleaseChannel: entity.ReleaseChannel,
-		})
-	}
-	for _, namespace := range state.Environment.Namespaces {
-		projection.Namespaces = append(projection.Namespaces, environments.ProjectedNamespace{RID: namespace.RID, Name: namespace.Name})
-	}
-	// Recalls travel with the projection so the Apollo surface can answer
-	// recallStatus from what Conduit actually withdrew, rather than from the
-	// hardcoded false it froze at publication time.
-	for _, recall := range state.Recalls {
-		projection.Recalls = append(projection.Recalls, environments.ProjectedRecall{
-			Product: recall.Product, StartingVersion: recall.StartingVersion,
-			EndingVersionExclusive: recall.EndingVersionExclusive,
-			ExcludedVersions:       append([]string(nil), recall.ExcludedVersions...),
-			SingleVersion:          recall.SingleVersion, Reason: recall.Reason, Reverted: recall.Reverted,
-		})
-	}
-	// Promotions travel for the same reason recalls do: releaseChannels was
-	// stamped at publication and a Release reaches a channel afterwards.
-	for _, promotion := range state.Promotions {
-		projection.Promotions = append(projection.Promotions, environments.ProjectedPromotion{
-			Product: promotion.Product, Version: promotion.Version,
-			FromChannel: promotion.FromChannel, ToChannel: promotion.ToChannel,
-			Passed: promotion.Status == PromotionPassed,
-		})
-	}
-	api.application.SyncEnvironment(projection)
+	// Nothing about the accepted state is pushed into the Apollo service any
+	// more. It used to receive a CompatibilityProjection here, and that made the
+	// Environment list, the Installation list and the Namespace list artifacts
+	// of which replica served the write: this funnel runs only in the process
+	// that accepted the desired state, so the other replica -- and every replica
+	// after a restart -- served all three EMPTY, which a client cannot tell
+	// apart from a Hub that governs nothing. apolloReleaseLifecyclePort and
+	// apolloEnvironmentInventoryPort read the same facts from the Plans, which
+	// both replicas share.
+	//
+	// This function is kept for the recall openings above; it is deliberately no
+	// longer a projection push, and adding one back would reintroduce the defect.
 }
 
 func parseMavenCoordinate(coordinate string) (string, string, string, bool) {

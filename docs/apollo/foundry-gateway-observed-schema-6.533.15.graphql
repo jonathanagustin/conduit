@@ -1,0 +1,383 @@
+# Foundry GraphQL Gateway — observed-contract schema projection
+# Generated from exact shipped document closures plus live validation-only field/argument signatures.
+# Completeness is scoped to the captured contract; this is not a claim about unused private schema members.
+
+# Client-only @optional marker some captured operations carry (a graphql-dll
+# directive the gateway accepts). The reconstructed schema.graphql intentionally
+# omits it; declared here only so codegen can validate operations that use it.
+directive @optional on FIELD | INLINE_FRAGMENT | FRAGMENT_SPREAD
+
+scalar DateTime
+scalar DeleteStargatePasskeyError
+scalar EnrollmentCertificateStatus
+scalar EnrollmentQuotaStatus
+scalar LinkTypeSideCardinality
+scalar Long
+scalar PageToken
+scalar RID
+scalar SendStargatePasskeyEnrollmentOtpError
+scalar StargateCreateUserInput
+scalar StargateUpdateUserInput
+scalar StargateUserDirectoryEmailAvailabilityStatus
+scalar StargateUserSearchFilter
+scalar StargateUserSort
+scalar StargateUserStatus
+scalar StargateUserStatusReason
+
+type ActionType implements Resource {
+  _id: ID!
+  latestVersion: ActionTypeVersion
+  rid: RID!
+}
+
+type ActionTypeLogic {
+  rules: [ActionTypeRule!]!
+}
+
+union ActionTypeRule = ObservedOverlap_7acbe52532fb
+type ActionTypeVersion {
+  _id: ID!
+  displayName: String!
+  iconV2: BlueprintIcon!
+  logic: ActionTypeLogic!
+}
+
+type Attribution {
+  time: DateTime!
+  user: User
+}
+
+interface AuthenticationProvider {
+  _id: ID!
+  stargateUserDirectory: StargateUserDirectory
+}
+
+type BlueprintIcon {
+  color: String!
+  locator: String!
+}
+
+interface ClassificationBanner {
+  _id: ID!
+  backgroundColor: String!
+  documentString: String!
+  prefix: String!
+  secondaryBanners: [SecondaryClassificationBanner!]!
+  textColor: String!
+}
+
+interface DeleteStargatePasskeyResult {
+  error: DeleteStargatePasskeyError
+}
+
+type Enrollment {
+  _id: ID!
+  certificates: [EnrollmentCertificate!]!
+  customerDataStatus: EnrollmentCustomerDataStatus!
+}
+
+interface EnrollmentCertificate {
+  _id: ID!
+  commonName: String!
+  expiresAt: DateTime
+  rid: RID!
+  status: EnrollmentCertificateStatus!
+}
+
+union EnrollmentCustomerDataStatus = ObservedOverlap_e6c5b144ccf8
+interface EnrollmentCustomerDataStatus_NotAllowed {
+  hideBanner: Boolean!
+}
+
+type Group implements Principal {
+  _id: ID!
+  description: String!
+  groupsIncludingTransitive: [Group!]!
+  guestOrganizations: [Organization!]!
+  id: String!
+  membershipExpirationSettings: GroupMembershipExpirationSettings
+  name: String!
+  permissions: GroupPermissions!
+}
+
+type GroupMembership {
+  expiration: DateTime
+}
+
+interface GroupMembershipExpirationSettings {
+  latestDate: DateTime
+  maximumDuration: Long
+}
+
+interface GroupPermissions {
+  _id: ID!
+  canViewMembers: Boolean!
+  currentUserMembership: GroupMembership
+}
+
+type LinkType implements Resource {
+  _id: ID!
+  latest: LinkTypeVersion
+  rid: RID!
+}
+
+union LinkTypeDefinition = LinkTypeDefinition_OneToMany | ObservedOverlap_6052c4b65c73 | ObservedOverlap_8a1bd5390287
+union LinkTypeDefinition_Intermediary = ObservedOverlap_6052c4b65c73
+union LinkTypeDefinition_ManyToMany = ObservedOverlap_8a1bd5390287
+type LinkTypeDefinition_OneToMany {
+  manySide: LinkTypeSide!
+}
+
+type LinkTypeSide {
+  _id: ID!
+  cardinality: LinkTypeSideCardinality!
+}
+
+type LinkTypeVersion {
+  _id: ID!
+  definition: LinkTypeDefinition!
+}
+
+interface LongEnrollmentQuota {
+  status: EnrollmentQuotaStatus!
+  usage: LongEnrollmentQuotaUsage!
+}
+
+union LongEnrollmentQuotaUsage = ObservedOverlap_43f7bc28f91d
+interface LongEnrollmentQuotaUsage_Exact {
+  quotaValue: Long
+  usage: Long
+}
+
+type MandatoryControlPermissions {
+  isMember: Boolean!
+}
+
+type Mutation {
+  createStargateUser(input: StargateCreateUserInput!, organizationRid: RID!, userDirectoryRid: RID!): StargateUser!
+  deleteStargatePasskey(passkeyId: String!, userRid: RID!): Boolean!
+  deleteStargatePasskeyV2(passkeyId: String!, userRid: RID!): DeleteStargatePasskeyResult!
+  deleteStargateUser(userRid: RID!): Boolean!
+  resetStargateUserAccount(userRid: RID!): StargateUser!
+  sendStargatePasskeyEnrollmentOtp(userDirectoryRid: RID!, userRid: RID!): SendStargatePasskeyEnrollmentOtpResult!
+  setStargateUserEnabledStatus(enabled: Boolean!, userRid: RID!): StargateUser!
+  updateStargatePasskey(description: String!, passkeyId: String!, userRid: RID!): StargatePasskey!
+  updateStargateUser(input: StargateUpdateUserInput!, userRid: RID!): StargateUser!
+}
+
+type ObjectType implements Resource {
+  _id: ID!
+  latest: ObjectTypeVersion
+  rid: RID!
+}
+
+interface ObjectTypeGroup {
+  _id: ID!
+  latest: ObjectTypeGroupVersion
+}
+
+interface ObjectTypeGroupVersion {
+  _id: ID!
+  firstIconColor: String
+  fourthIconColor: String
+  secondIconColor: String
+  thirdIconColor: String
+}
+
+union ObjectTypePropertyType = ObservedOverlap_657270eabd7e
+interface ObjectTypePropertyType_Array {
+  subtype: ObjectTypePropertyType!
+}
+
+type ObjectTypeVersion {
+  _id: ID!
+  iconV2: BlueprintIcon!
+}
+
+type ObservedOverlap_2c65f76fa398 implements Resource & SharedObjectTypeProperty {
+  _id: ID!
+  latestV2: SharedObjectTypePropertyVersion
+  rid: RID!
+}
+
+type ObservedOverlap_43f7bc28f91d implements LongEnrollmentQuotaUsage_Exact {
+  quotaValue: Long
+  usage: Long
+}
+
+type ObservedOverlap_49cea141063d implements ObjectTypeGroup & Resource {
+  _id: ID!
+  latest: ObjectTypeGroupVersion
+  rid: RID!
+}
+
+type ObservedOverlap_6052c4b65c73 {
+  _observedRecoveryPlaceholder: Boolean
+}
+
+type ObservedOverlap_657270eabd7e implements ObjectTypePropertyType_Array {
+  subtype: ObjectTypePropertyType!
+}
+
+type ObservedOverlap_7acbe52532fb {
+  _observedRecoveryPlaceholder: Boolean
+}
+
+type ObservedOverlap_8a1bd5390287 {
+  _observedRecoveryPlaceholder: Boolean
+}
+
+type ObservedOverlap_e6c5b144ccf8 implements EnrollmentCustomerDataStatus_NotAllowed {
+  hideBanner: Boolean!
+}
+
+type OntologyInterface implements Resource {
+  _id: ID!
+  latestVersion: OntologyInterfaceVersion
+  rid: RID!
+}
+
+type OntologyInterfaceVersion {
+  _id: ID!
+  iconV2: BlueprintIcon!
+}
+
+type Organization {
+  _id: ID!
+  enrollment: Enrollment
+  marking: OrganizationMarking!
+  name: String!
+  rid: RID!
+}
+
+type OrganizationMarking {
+  _id: ID!
+  description: String!
+  id: String!
+  name: String!
+  permissions: MandatoryControlPermissions!
+}
+
+interface Principal {
+  _id: ID!
+  id: String!
+}
+
+type PrincipalAttribute {
+  key: String!
+  value: [String!]!
+}
+
+type Query {
+  authenticationProvider(rid: RID!): AuthenticationProvider
+  currentStargateUser: StargateUser
+  enrollment(rid: RID!): Enrollment
+  me: User!
+  principal(id: String!): Principal
+  resourceMetadata(rid: RID!): ResourceMetadata
+  sessionClassification: ClassificationBanner
+  stargateIsPalantirUser: Boolean
+  stargateUser(rid: RID!): StargateUser
+  stargateUserDirectory(rid: RID!): StargateUserDirectory
+}
+
+interface Resource {
+  _id: ID!
+  rid: RID!
+}
+
+type ResourceMetadata {
+  _id: ID!
+  resource: Resource
+}
+
+interface SecondaryClassificationBanner {
+  text: String!
+}
+
+interface SendStargatePasskeyEnrollmentOtpResult {
+  error: SendStargatePasskeyEnrollmentOtpError
+}
+
+interface SharedObjectTypeProperty {
+  latestV2: SharedObjectTypePropertyVersion
+}
+
+interface SharedObjectTypePropertyVersion {
+  _id: ID!
+  type: ObjectTypePropertyType!
+}
+
+interface StargateDirectoryQuotas {
+  maxUserPasskeys: Int!
+  maxUsers: LongEnrollmentQuota!
+  palantirActionsAllowed: Boolean!
+}
+
+interface StargatePasskey {
+  description: String!
+  id: String!
+  lastModifiedAt: DateTime
+  lastUsed: DateTime
+  whenCreated: DateTime!
+}
+
+interface StargateUser {
+  _id: ID!
+  email: String!
+  familyName: String!
+  givenName: String!
+  lastLoggedInAt: DateTime
+  lastModifiedAt: Attribution!
+  multipassUser: User
+  passkeys: [StargatePasskey!]!
+  phone: String
+  rid: RID!
+  state: StargateUserStatus!
+  stateInfo: StargateUserStatusInfo
+  userDirectory: StargateUserDirectory!
+}
+
+interface StargateUserDirectory {
+  _id: ID!
+  emailAvailability(email: String!, organizationRid: RID!): StargateUserDirectoryEmailAvailability!
+  quotas: StargateDirectoryQuotas!
+  rid: RID!
+  userCount: Int!
+  users(pageSize: Int!): StargateUserPage!
+  usersV2(filter: StargateUserSearchFilter, pageSize: Int!, pageToken: PageToken, sort: StargateUserSort): StargateUserPage!
+}
+
+interface StargateUserDirectoryEmailAvailability {
+  isAvailable: StargateUserDirectoryEmailAvailabilityStatus!
+  organizationHasRuleForEmail: Boolean!
+}
+
+interface StargateUserPage {
+  nextPageToken: PageToken
+  values: [StargateUser!]!
+}
+
+interface StargateUserStatusInfo {
+  statusDateTime: DateTime
+  statusReason: StargateUserStatusReason
+}
+
+type User implements Principal {
+  _id: ID!
+  attributes: [PrincipalAttribute!]!
+  displayName: String!
+  fullName: String
+  groupsIncludingTransitive: [Group!]!
+  guestOrganizations: [Organization!]!
+  id: String!
+  imageUrl: String
+  initials: String!
+  organization: Organization
+  permissions: UserPermissions!
+  username: String!
+}
+
+type UserPermissions {
+  isCurrentUser: Boolean!
+}

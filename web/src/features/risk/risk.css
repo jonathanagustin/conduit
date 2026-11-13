@@ -3,7 +3,7 @@
 }
 
 .console-risk__table tbody tr[aria-selected="true"] {
-  background: var(--pt-intent-primary-muted, rgba(45, 114, 210, 0.15));
+  background: var(--console-selected-row-background);
 }
 
 /* The inline detail panel is a Blueprint Section now, so its surface, 1px
@@ -24,6 +24,6 @@
 /* Vulnerability inventory: the CVE id is a mono identifier at the metadata
    type-scale size, matching the fleet coordinate. */
 .console-risk__cve {
-  font-family: var(--pt-font-family-monospace, monospace);
+  font-family: var(--console-font-family-monospace);
   font-size: 12px;
 }

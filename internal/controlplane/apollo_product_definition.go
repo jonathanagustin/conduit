@@ -11,6 +11,8 @@ import (
 	"strings"
 
 	"go.yaml.in/yaml/v3"
+
+	subst "github.com/jonathanagustin/conduit/internal/apollo/substitution"
 )
 
 // A Product Definition is the pair of documents a Product ships: manifest.yml
@@ -747,7 +749,7 @@ func validateApolloManagedFiles(definition ApolloProductDefinition, errs *[]Vali
 		case file.Content == nil:
 			add(errorPath+".content", "must name a portion of the conf block")
 		case isString:
-			if _, exists := lookupApolloConfPath(configuration.Conf, []string{content}); !exists {
+			if _, exists := subst.LookupConfPath(configuration.Conf, []string{content}); !exists {
 				add(errorPath+".content", "must name a key of the conf block")
 			}
 		}
@@ -907,7 +909,7 @@ func validateApolloDefinitionSubstitutions(
 	errs := make([]ValidationError, 0)
 	configuration := definition.Configuration
 	check := func(path, value string) {
-		substitutions, err := ParseApolloSubstitutions(value)
+		substitutions, err := subst.Parse(value)
 		if err != nil {
 			errs = append(errs, ValidationError{Path: path, Message: err.Error()})
 			return
@@ -937,40 +939,40 @@ func validateApolloDefinitionSubstitutions(
 }
 
 func apolloSubstitutionTargetError(
-	substitution ApolloSubstitution, definition ApolloProductDefinition,
+	substitution subst.Substitution, definition ApolloProductDefinition,
 	definitions map[string]ApolloEndpointDefinition, produced, consumed map[string]struct{},
 ) string {
 	switch substitution.Kind {
-	case ApolloSubstitutionSecret:
+	case subst.KindSecret:
 		if _, exists := definition.Configuration.GeneratedSecrets[substitution.Argument]; !exists {
 			return fmt.Sprintf("substitution %s names no generated_secrets entry", substitution.Raw)
 		}
-	case ApolloSubstitutionDiscovered:
+	case subst.KindDiscovered:
 		if _, exists := consumed[substitution.Argument]; !exists {
 			return fmt.Sprintf("substitution %s names no discovery.consumes entry", substitution.Raw)
 		}
-	case ApolloSubstitutionSelfDiscovered:
+	case subst.KindSelfDiscovered:
 		if _, exists := produced[substitution.Argument]; !exists {
 			return fmt.Sprintf("substitution %s names no discovery.produces entry", substitution.Raw)
 		}
-	case ApolloSubstitutionConf:
-		if _, exists := lookupApolloConfPath(
-			definition.Configuration.Conf, apolloConfSegments(substitution)); !exists {
+	case subst.KindConf:
+		if _, exists := subst.LookupConfPath(
+			definition.Configuration.Conf, substitution.ConfSegments()); !exists {
 			return fmt.Sprintf("substitution %s names no conf entry", substitution.Raw)
 		}
-	case ApolloSubstitutionVolume:
+	case subst.KindVolume:
 		if _, exists := definition.Manifest.Extensions.VolumesV2[substitution.Argument]; !exists {
 			return fmt.Sprintf("substitution %s names no volumes-v2 volume", substitution.Raw)
 		}
-	case ApolloSubstitutionEndpoint:
+	case subst.KindEndpoint:
 		if _, exists := definitions[substitution.Argument]; !exists {
 			return fmt.Sprintf("substitution %s names no endpoints.definitions entry", substitution.Raw)
 		}
-		if _, known := apolloEndpointFields[substitution.Field]; !known {
+		if _, known := subst.CanonicalEndpointField(substitution.Field); !known {
 			return fmt.Sprintf("substitution %s names an unknown endpoint field", substitution.Raw)
 		}
-	case ApolloSubstitutionSSL:
-		if _, known := apolloSSLFields[substitution.Argument]; !known {
+	case subst.KindSSL:
+		if _, known := subst.SSLFile(substitution.Argument); !known {
 			return fmt.Sprintf("substitution %s names an unknown ssl field", substitution.Raw)
 		}
 	}

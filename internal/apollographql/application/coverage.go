@@ -32,7 +32,7 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	at("ApolloEnvironment", "id"):                "apollo: Environment.Name, the value the status routes accept as {environmentId}",
 	at("ApolloEnvironment", "rid"):               "apollo: Environment.Rid",
 	at("ApolloEnvironment", "entities"):          "apollo: Service.ListInstallations",
-	at("ApolloEnvironmentPage", "nextPageToken"): "pagination: absent while every visible record fits one page",
+	at("ApolloEnvironmentPage", "nextPageToken"): "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 	// The five collections the probe could not type. Their cardinality is cited
 	// in documented-cardinality.json and verified against the pinned snapshot;
 	// the records themselves were always here.
@@ -44,19 +44,19 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	at("ApolloEntity", "id"):                                  "apollo: Installation.ApolloEntityId",
 	at("ApolloEntity", "packageRid"):                          "apollo: Installation.PackageRid",
 	at("ApolloEntity", "environment"):                         "apollo: Installation.EnvironmentRid",
-	at("ApolloEntityPage", "nextPageToken"):                   "pagination: absent while every visible record fits one page",
+	at("ApolloEntityPage", "nextPageToken"):                   "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 	at("ApolloProduct", "productId"):                          "apollo: Product.Id",
 	at("ApolloProduct", "rid"):                                "conduit: minted from Product.Id, disclosed as valueTier CONDUIT_NATIVE",
 	at("ApolloProductRelease", "rid"):                         "conduit: minted from Release.MavenCoordinate, disclosed as valueTier CONDUIT_NATIVE",
 	at("ApolloQuery", "productRelease"):                       "apollo: Service.ListProducts and Service.ListReleases, matched on the minted rid",
 	at("ApolloProduct", "productReleases"):                    "apollo: Service.ListReleases",
-	at("ApolloProductPage", "nextPageToken"):                  "pagination: absent while every visible record fits one page",
+	at("ApolloProductPage", "nextPageToken"):                  "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 	at("ApolloProductRelease", "mavenCoordinate"):             "apollo: Release.MavenCoordinate",
 	at("ApolloProductRelease", "product"):                     "apollo: Product owning the release",
 	at("ApolloProductRelease", "manifest"):                    "apollo: Release upgrade strategy and dependencies",
-	at("ApolloProductReleasePage", "nextPageToken"):           "pagination: absent while every visible record fits one page",
+	at("ApolloProductReleasePage", "nextPageToken"):           "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 	at("ApolloProductReleaseManifest", "upgradeStrategy"):     "apollo: Release.UpgradeStrategy",
-	at("ApolloProductDependency", "optional"):                 "apollo: ProductDependency.Optional",
+	at("ApolloProductDependency", "optional"):                 "apollo: ProductDependency.Optional, defaulted and rendered by Conduit, disclosed as valueTier CONDUIT_NATIVE",
 	at("ApolloProductDependency", "product"):                  "apollo: ProductDependency product coordinate",
 
 	// --- Added to the interface by Conduit because no Hub established them in
@@ -69,28 +69,36 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	// the pinned OpenAPI and the CLI publish, which is what displacement means.
 	// The coverage table does not restate the tier, because the SDL states it and
 	// a second copy would be a second thing to drift.
-	at("ApolloQuery", "plans"):                      "reporting: OverviewSource.VisiblePlans",
-	at("ApolloQuery", "plan"):                       "reporting: OverviewSource.VisiblePlans",
-	at("ApolloQuery", "changeRequests"):             "reporting: OverviewSource.VisibleChangeRequests",
-	at("ApolloQuery", "promotions"):                 "reporting: OverviewSource.VisiblePromotions",
-	at("ApolloEnvironment", "health"):               "reporting: OverviewSource.VisibleInstallations, aggregated per environment",
-	at("ApolloEntity", "health"):                    "reporting: OverviewSource.VisibleInstallations",
-	at("ApolloEntity", "version"):                   "apollo: Installation.Version, as reported by the Apollo Agent",
+	at("ApolloQuery", "plans"):          "reporting: OverviewSource.VisiblePlans",
+	at("ApolloQuery", "plan"):           "reporting: OverviewSource.VisiblePlans",
+	at("ApolloQuery", "changeRequests"): "reporting: OverviewSource.VisibleChangeRequests",
+	at("ApolloQuery", "promotions"):     "reporting: OverviewSource.VisiblePromotions",
+	at("ApolloEnvironment", "health"):   "reporting: OverviewSource.VisibleInstallations, aggregated per environment",
+	at("ApolloEntity", "health"):        "reporting: OverviewSource.VisibleInstallations",
+	// NOT "as reported by the Apollo Agent", which is what this said and what
+	// the pinned snapshot's own description of Installation.version claims.
+	// Conduit populates that field from the reviewed DESIRED state, and reported
+	// versions reach the Environments Report without ever flowing back into this
+	// projection (issues #57, #112). The value is real Conduit data under a
+	// contract sentence that describes different data, so the coverage table
+	// states which data it actually is; the divergence is declared in
+	// docs/apollo/public-api.md and docs/operations/TENANT-FIDELITY.md.
+	at("ApolloEntity", "version"):                   "apollo: Installation.Version, the reviewed desired version, NOT an Agent report",
 	at("ApolloPlan", "rid"):                         "reporting: PlanSummary.ID",
 	at("ApolloPlan", "environmentRid"):              "reporting: PlanSummary.Environment",
 	at("ApolloPlan", "status"):                      "reporting: PlanSummary.Phase",
 	at("ApolloPlanPage", "plans"):                   "reporting: OverviewSource.VisiblePlans",
-	at("ApolloPlanPage", "nextPageToken"):           "pagination: absent while every visible record fits one page",
+	at("ApolloPlanPage", "nextPageToken"):           "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 	at("ApolloChangeRequest", "rid"):                "reporting: ChangeRequestSummary.ID",
 	at("ApolloChangeRequest", "title"):              "reporting: ChangeRequestSummary.Title",
 	at("ApolloChangeRequest", "status"):             "reporting: ChangeRequestSummary.AwaitingApproval",
 	at("ApolloChangeRequestPage", "changeRequests"): "reporting: OverviewSource.VisibleChangeRequests",
-	at("ApolloChangeRequestPage", "nextPageToken"):  "pagination: absent while every visible record fits one page",
+	at("ApolloChangeRequestPage", "nextPageToken"):  "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 	at("ApolloPromotion", "rid"):                    "reporting: PromotionSummary.ID",
 	at("ApolloPromotion", "productId"):              "reporting: PromotionSummary.Product",
 	at("ApolloPromotion", "status"):                 "reporting: PromotionSummary.Blocked",
 	at("ApolloPromotionPage", "promotions"):         "reporting: OverviewSource.VisiblePromotions",
-	at("ApolloPromotionPage", "nextPageToken"):      "pagination: absent while every visible record fits one page",
+	at("ApolloPromotionPage", "nextPageToken"):      "pagination: always absent; pageSize is not honoured, so every page is the whole collection",
 })
 
 // Coverage is the table above, exposed so a test and the operator-facing report

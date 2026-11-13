@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -393,6 +394,52 @@ func (service *BundleService) SetPipelineArchived(ctx context.Context, id string
 	pipeline.UpdatedAt = now
 	pipeline.Revision++
 	return service.repository.PutExportPipeline(ctx, pipeline)
+}
+
+// exportPipelineProposalID names a lifecycle proposal by the pipeline AND the
+// state it was proposed against.
+//
+// A Change Request id is a digest of TargetKind and TargetID alone (see
+// evaluateChangeRequest), and the create guard returns whatever record already
+// occupies that id regardless of its status. With a bare pipeline id as the
+// target, the first archive of a pipeline owns that id for good: once it
+// reaches a terminal status -- cancelled, rejected, or errored because no
+// approval policy was enabled yet -- every later archive of that pipeline is
+// answered with the stale terminal record, nothing is applied, and the pipeline
+// can never be archived again. Reopen is author-gated, so a departed author
+// leaves no recourse to any principal. Folding the observed revision and a
+// digest of the lifecycle state in gives a proposal against a pipeline that has
+// since moved its own record, the way a label definition proposal carries its
+// revision and content digest.
+//
+// Proposals against an UNMOVED pipeline still collapse onto one record, which is
+// what the guard is for: SetPipelineArchived and DeletePipeline are no-ops when
+// the pipeline already holds the target state, so a repeat with nothing to do is
+// a retry, not a second decision.
+func exportPipelineProposalID(pipelineID string, pipeline ExportPipeline) string {
+	state, _ := json.Marshal(struct {
+		Status     string    `json:"status"`
+		Revision   uint64    `json:"revision"`
+		ArchivedAt time.Time `json:"archivedAt"`
+		DeletedAt  time.Time `json:"deletedAt"`
+	}{pipeline.Status, pipeline.Revision, pipeline.ArchivedAt, pipeline.DeletedAt})
+	return pipelineID + ":" + strconv.FormatUint(pipeline.Revision, 10) + ":" + stableShortID(string(state))
+}
+
+// exportPipelineLifecycleTarget recovers the pipeline a lifecycle Change Request
+// acts on. TargetID carries the proposal identity above, not a bare pipeline id,
+// so the pipeline comes from the change payload's pipelineRid -- the field
+// change_types.go requires of every pipeline lifecycle change. Records written
+// before the state was folded in have TargetID == the pipeline id, and that is
+// the fallback, so an approval arriving today against a request stored yesterday
+// still archives the right pipeline instead of none.
+func exportPipelineLifecycleTarget(request ChangeRequest) string {
+	for _, change := range request.Changes {
+		if rid, ok := change.Request["pipelineRid"].(string); ok && strings.TrimSpace(rid) != "" {
+			return rid
+		}
+	}
+	return request.TargetID
 }
 
 func (service *BundleService) DeletePipeline(ctx context.Context, id string) (ExportPipeline, error) {

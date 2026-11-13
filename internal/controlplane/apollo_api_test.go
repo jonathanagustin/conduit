@@ -12,8 +12,10 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/jonathanagustin/conduit/internal/apollo"
+	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"path/filepath"
 	"reflect"
 	"strings"
@@ -365,8 +367,12 @@ func TestApolloPublicAPIEnvironmentInstallationNamespaceAndStatus(t *testing.T) 
 		Environments []apolloEnvironment `json:"environments"`
 	}
 	decodeResponse(t, response, http.StatusOK, &environments)
-	if len(environments.Environments) != 1 || environments.Environments[0].Status != "managed" ||
-		environments.Environments[0].EnvironmentType != "production" {
+	// environmentType is deliberately NOT asserted here. It used to be pinned to
+	// "production" for an Environment this very test names dev-use2, which is
+	// the fabrication issues #57 and #112 reported; it is now omitted, and
+	// TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor pins the omission on the
+	// wire rather than through a DTO that cannot tell absent from empty.
+	if len(environments.Environments) != 1 || environments.Environments[0].Status != "managed" {
 		t.Fatalf("environments = %#v", environments)
 	}
 	environmentRID := environments.Environments[0].RID
@@ -580,6 +586,120 @@ func TestApolloPublicAPIStatusIdentityCannotCrossEnvironments(t *testing.T) {
 	if response.Code != http.StatusForbidden {
 		t.Fatalf("cross-Environment status = %d %s", response.Code, response.Body.String())
 	}
+}
+
+// TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor pins the four optional
+// properties Conduit stopped fabricating, and pins the one it cannot stop.
+//
+// It decodes into map[string]any rather than into the typed DTOs the rest of
+// this file uses, and that is the point. A `[]string` field decodes to nil from
+// both `"owners": []` and an absent `owners`, so a typed assertion cannot tell
+// "no group holds Owner permissions" -- a claim governance never made -- from
+// "Conduit holds no answer". The defect issues #57 and #112 reported is exactly
+// that conflation, so the test has to read the key set the client receives.
+//
+// The required/optional split is read from the pinned snapshot rather than
+// restated, so this fails if a future snapshot makes an omitted property
+// required or relaxes `status`.
+func TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor(t *testing.T) {
+	required := snapshotRequiredProperties(t)
+	for schema, property := range map[string]string{
+		"Environment": "environmentType", "Namespace": "owners",
+	} {
+		if required[schema][property] {
+			t.Fatalf("%s.%s is required in the pinned snapshot; omitting it is a contract break, not a fidelity fix",
+				schema, property)
+		}
+	}
+	if !required["Environment"]["status"] {
+		t.Fatal("Environment.status is no longer required in the pinned snapshot; " +
+			"the constant below may now be omitted instead of declared as a divergence")
+	}
+
+	handler := Handler()
+	state := foundation()
+	state.Environment.Namespaces = []NamespaceTarget{{
+		RID: "ri.namespace.main.namespace.123", Name: "example", OntologyCountValid: true,
+	}}
+	if response := requestJSON(t, handler, http.MethodPost, "/v1/plans", state); response.Code != http.StatusCreated {
+		t.Fatalf("create plan = %d %s", response.Code, response.Body.String())
+	}
+
+	var environments struct {
+		Environments []map[string]any `json:"environments"`
+	}
+	decodeResponse(t, requestJSON(t, handler, http.MethodGet, "/api/v0/environments", nil),
+		http.StatusOK, &environments)
+	if len(environments.Environments) != 1 {
+		t.Fatalf("environments = %#v", environments)
+	}
+	environment := environments.Environments[0]
+	if _, present := environment["environmentType"]; present {
+		t.Fatalf("environmentType is on the wire as %#v; Conduit's Environments domain has no "+
+			"environment-type concept, and the snapshot does not require the property",
+			environment["environmentType"])
+	}
+	// The one that stays. status is in the snapshot's required set, so the
+	// honest option is a declared divergence rather than an omission that breaks
+	// the contract.
+	if environment["status"] != "managed" {
+		t.Fatalf("status = %#v; the declared divergence says it is the constant %q", environment["status"], "managed")
+	}
+
+	var namespaces struct {
+		Namespaces []map[string]any `json:"namespaces"`
+	}
+	decodeResponse(t, requestJSON(t, handler, http.MethodGet, "/api/v0/namespaces", nil),
+		http.StatusOK, &namespaces)
+	if len(namespaces.Namespaces) != 1 || namespaces.Namespaces[0]["id"] != "example" {
+		t.Fatalf("namespaces = %#v", namespaces)
+	}
+	for _, property := range []string{"owners", "editors", "viewers"} {
+		if value, present := namespaces.Namespaces[0][property]; present {
+			t.Fatalf("namespace %s is on the wire as %#v; an empty array asserts that no group holds "+
+				"that permission, which Conduit never established", property, value)
+		}
+	}
+}
+
+// snapshotRequiredProperties reads each named schema's `required` list out of
+// the pinned snapshot, line by line for the reason enumConstrainedProperties
+// gives above: the document is pinned by digest in its own path and cannot
+// drift under the check.
+func snapshotRequiredProperties(t *testing.T) map[string]map[string]bool {
+	t.Helper()
+	contents, err := os.ReadFile(filepath.Clean(apolloSnapshot))
+	if err != nil {
+		t.Fatal(err)
+	}
+	result := map[string]map[string]bool{}
+	schema, inRequired := "", false
+	for _, line := range strings.Split(string(contents), "\n") {
+		if match := snapshotSchemaName.FindStringSubmatch(line); match != nil {
+			schema, inRequired = match[1], false
+			result[schema] = map[string]bool{}
+			continue
+		}
+		if schema == "" {
+			continue
+		}
+		if strings.TrimRight(line, " ") == "      required:" {
+			inRequired = true
+			continue
+		}
+		match := snapshotEnumMember.FindStringSubmatch(line)
+		if inRequired && match != nil {
+			result[schema][strings.TrimSpace(match[1])] = true
+			continue
+		}
+		if match == nil {
+			inRequired = false
+		}
+	}
+	if !result["Environment"]["rid"] || !result["Namespace"]["id"] {
+		t.Fatalf("the required-property reader found nothing it should have: %#v", result)
+	}
+	return result
 }
 
 func requestJSON(t *testing.T, handler http.Handler, method, path string, value any) *httptest.ResponseRecorder {
@@ -1070,5 +1190,128 @@ func TestWorseHealthKeepsTheLeftOnATie(t *testing.T) {
 	// fleet returns whichever node happened to be read last.
 	if got := worseHealth("UNRANKED_A", "UNRANKED_B"); got != "UNRANKED_A" {
 		t.Errorf("a tie resolved to %q, want the left operand — the fold must be stable", got)
+	}
+}
+
+// A recall declared through one Hub replica must read as a recall from the
+// other. This Hub runs two replicas behind one address, so the POST that
+// withdraws a Release and the GET that asks about it are routinely served by
+// different processes -- and a restart makes every process the second one.
+//
+// Apollo's recallStatus was answered from a map on the service struct that only
+// syncDesiredState wrote, and syncDesiredState runs in the process that handled
+// the POST. The other replica therefore served recalled=false for a Release
+// Conduit had withdrawn: the safe-looking answer to an unsafe question, and the
+// one direction of this error a client cannot recover from, because it installs
+// on the strength of it.
+//
+// The second API here is constructed independently over the SAME repository,
+// which is what a second replica and a restarted process both are.
+func TestARecalledReleaseReadsAsRecalledFromASecondReplica(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	governance := NewGovernanceService(repository)
+
+	// The replica that serves the write.
+	writer := newApolloPublicAPI(repository, governance, HandlerOptions{})
+	if writer.initializationError != nil {
+		t.Fatal(writer.initializationError)
+	}
+	if err := writer.application.PublishNativeHelmChart(ctx, "app.example:example-api:0.9.0",
+		apolloapp.NativeHelmPublication{
+			ChartName: "example-api", ChartVersion: "0.9.0",
+			ChartRepository: "oci://registry.example/charts/example-api",
+		}); err != nil {
+		t.Fatal(err)
+	}
+
+	state := assessedFoundation()
+	state.Recalls = []Recall{{
+		ID: "recall-api-0.9.0", Product: "app.example:example-api", StartingVersion: "0.9.0",
+		SingleVersion: true, Strategy: RecallStrategy{Type: RecallRollForward}, Reason: "withdrawn for cause",
+	}}
+	if _, err := NewLifecycle(repository).CreatePlan(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	writer.syncDesiredState(ctx, state)
+
+	// Stated rather than assumed: the replica that served the write agrees the
+	// Release is recalled, so a failure below is about which process answered
+	// and not about the recall itself.
+	served, err := writer.application.GetRelease(ctx, "app.example:example-api", "0.9.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !served.RecallStatus.Recalled {
+		t.Fatal("the fixture never established a recall to read back")
+	}
+
+	reader := newApolloPublicAPI(repository, governance, HandlerOptions{})
+	if reader.initializationError != nil {
+		t.Fatal(reader.initializationError)
+	}
+	got, err := reader.application.GetRelease(ctx, "app.example:example-api", "0.9.0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !got.RecallStatus.Recalled {
+		t.Error("a second replica served a recalled Release as not recalled; the recall " +
+			"was answered from process memory only the writing replica held")
+	}
+	if got.RecallStatus.Reason == nil || *got.RecallStatus.Reason != "withdrawn for cause" {
+		t.Errorf("the recall reason did not survive the replica boundary: %#v", got.RecallStatus.Reason)
+	}
+
+	// The list route is a separate call site, and half a fix here leaves two
+	// read paths disagreeing about whether a Release may be installed.
+	listed, err := reader.application.ListReleases(ctx, "app.example:example-api")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if listed.Releases == nil {
+		t.Fatal("the second replica listed no Releases at all")
+	}
+	for _, release := range *listed.Releases {
+		if release.MavenCoordinate == "app.example:example-api:0.9.0" && !release.RecallStatus.Recalled {
+			t.Error("ListReleases on the second replica served the recalled Release as not recalled")
+		}
+	}
+}
+
+// An Entity command stores a desired state with its Recalls stripped, because
+// commands deliberately bypass recall eligibility. That state is a Plan like
+// any other, so reading simply the newest Plan per Environment as the
+// Environment's declaration would make issuing one command report every
+// recalled Release in that Environment as not recalled.
+func TestACommandPlanDoesNotEraseAnEnvironmentsRecalls(t *testing.T) {
+	t.Parallel()
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	state := assessedFoundation()
+	state.Recalls = []Recall{{
+		ID: "recall-api-0.9.0", Product: "app.example:example-api", StartingVersion: "0.9.0",
+		SingleVersion: true, Strategy: RecallStrategy{Type: RecallRollForward}, Reason: "withdrawn for cause",
+	}}
+	if _, err := NewLifecycle(repository).CreatePlan(ctx, state); err != nil {
+		t.Fatal(err)
+	}
+	commandState := cloneJSON(state)
+	commandState.Recalls = nil
+	if _, err := repository.CreatePlan(ctx, PlanRecord{
+		ID: "plan-command", CreatedAt: time.Now().UTC().Add(time.Hour),
+		Plan:         Plan{Environment: state.Environment.ID},
+		DesiredState: &commandState,
+		Command:      &EntityCommand{InstallationID: "example-api", Type: CommandRestartResource},
+	}); err != nil {
+		t.Fatal(err)
+	}
+
+	lifecycle, err := apolloReleaseLifecyclePort{repository: repository}.ReleaseLifecycle(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(lifecycle.Recalls) != 1 || lifecycle.Recalls[0].Product != "app.example:example-api" {
+		t.Errorf("a command Plan erased the Environment's recalls: %#v", lifecycle.Recalls)
 	}
 }

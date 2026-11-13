@@ -108,23 +108,18 @@ type PlanProjection struct {
 
 // CompatibilityProjection is the reviewed subset exposed to a foreign API.
 // It contains no transport DTOs and no executable authority.
+//
+// Recalls and promotions are deliberately NOT carried here, though they were
+// once. This projection is pushed into a compatibility surface's memory by the
+// process that accepted a desired state, and a Hub runs more than one replica:
+// the replica that never handled that POST -- and every replica after a restart
+// -- would have answered "not recalled" for a Release Conduit had withdrawn.
+// Recalls and promotions are read from durable desired state instead, through
+// the compatibility surface's own lifecycle port.
 type CompatibilityProjection struct {
 	ID         string
 	Entities   []ProjectedEntity
 	Namespaces []ProjectedNamespace
-	// Recalls is what this Environment has withdrawn. It is carried because the
-	// Apollo compatibility surface declares recallStatus on every Release and
-	// was answering it with a hardcoded false while Conduit held the real
-	// answer -- a recalled Release served as not recalled, which is the one
-	// direction of that error a client cannot recover from.
-	Recalls []ProjectedRecall
-	// Promotions is what this Environment has passed. Carried for the same
-	// reason as Recalls and against the same defect: the Apollo compatibility
-	// surface declares releaseChannels on every Release and was answering with
-	// the channels frozen at publication, so a Release promoted afterwards was
-	// served on the channels it started on. A Release is published once and
-	// promoted later; a stamped value cannot be right.
-	Promotions []ProjectedPromotion
 }
 
 // ProjectedPromotion is one passed channel boundary, narrowed to what decides

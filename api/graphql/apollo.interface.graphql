@@ -111,7 +111,7 @@ type ApolloProduct {
 }
 
 type ApolloProductDependency {
-  optional: String @provenance(tier: OBSERVED)
+  optional: String @provenance(tier: OBSERVED, valueTier: CONDUIT_NATIVE)
   product: ApolloProduct @provenance(tier: OBSERVED)
 }
 

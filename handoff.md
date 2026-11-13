@@ -981,3 +981,664 @@ image, warm Go caches, lanes run one-at-a-time foreground with `timeout 580`;
 strip `needs: preflight`). Next best step: pick the most tractable remaining
 issue (a Bucket B pure-frontend one, or #297 with a ceiling offset), implement →
 act-gate four lanes → PR → merge.
+
+## Frontend CAS capture pulled and mined, 2026-08-19
+
+**What arrived.** `ghcr.io/jonathanagustin/apollo-ui/apollo-frontend-cas:6.533.15`
+— an OCI *artifact* (`application/vnd.foundry.tree.v1+tar`, empty config, one
+zstd layer), not a runnable image. Pulled through the ghcr HTTP API with `curl`;
+no Docker daemon is running in a fresh session and none is needed. The layer
+digest was checked against the manifest before anything was read from it. Full
+receipt: [`docs/apollo/FRONTEND-CAS-CAPTURE.md`](docs/apollo/FRONTEND-CAS-CAPTURE.md).
+
+**`[VERIFIED]` The capture is Foundry Control Panel, not the Apollo deployment
+console.** Its own title string is `{platform, select, apollo {Apollo} foundry
+{Foundry} gotham {Gotham}} <bold>Control Panel</bold>` — "Apollo" is the platform
+skin, "Control Panel" is the product. All 1,037 English `defaultMessage` strings
+are enrollment administration (auth/SAML, email, network ingress, deletion
+queue, markings, extensions). No Release, Product, Plan, Change Request, Recall,
+Promotion, Spoke or Environment-deployment screen vocabulary. This is the same
+name collision `APOLLO-CLIENT-DLL-EVIDENCE.md` records for the GraphQL client:
+**an artifact named `apollo-*` is not evidence about the deployment product.**
+Do not cite this capture for anything on Products, Releases, Environments,
+Plans, Change Requests, Promotions, Fleet, Risk, Export or Import.
+
+**`[VERIFIED]` What it does say about Apollo**, all Control-Panel-side
+administration of an Apollo enrollment: `restore-apollo-permissions`,
+`createApolloSpaceForOrganization` ("Bootstrap the enrollment with an Apollo
+space"), `/apollo-enrollment-organization`, `/apollo-third-party-applications`,
+`/environment/applied-apollo-labels`, and a "Manage Alerting" dialog that names
+Apollo's **NOC Inbox** and **monitors tabs** as the UI it toggles. That last one
+is the only description of deployment-side Apollo UI in the capture, and it is
+second-hand.
+
+**Shipped from it.** `web/src/components/Timestamp.tsx` now implements Foundry's
+own relative-time ladder rather than a hand-rolled approximation, recovered
+exactly from the captured chunk (English `defaultMessage` strings are inline, so
+nothing was translated back). Three defects it fixes: rounding read 59m59s as
+"60 minutes ago"; the ladder stopped at days, so last quarter read "97 days
+ago"; and there was no named yesterday/tomorrow. Two departures are deliberate
+and recorded in the file — the calendar-day comparison and `{formattedTime}` are
+UTC, because this console pins UTC and because a locale-formatted string cannot
+be pinned by a test.
+
+**Evidence.** 113 unit tests (the "relative time" block spells out the captured
+boundaries), 175 e2e specs, `tsc --noEmit`, `pnpm build` with the regenerated
+`internal/consoleui/dist` committed, `go test ./internal/consoleui/...`, and
+`node scripts/verify-console-contract.mjs` (14 vocabularies). Four compiling
+mutants — round instead of floor, drop the yesterday branch, 4-week threshold,
+31-day month — each kill exactly one test. `./scripts/verify-local.sh` was NOT
+run: this is a frontend and docs change, and the Go side moves only embedded
+`dist` bytes.
+
+**Environment fact for the next session.** `pnpm test:e2e` fails instantly with
+"Executable doesn't exist at /opt/pw-browsers/chromium_headless_shell-1234/…".
+The sandbox pre-installs build **1194**; this repo's pinned Playwright wants
+1234. The fix is the one this repository already uses — let Playwright install
+its own pinned build, exactly as `scripts/test-console.sh` does:
+
+```bash
+pnpm --dir web exec playwright install chromium
+```
+
+> **Correction, same day.** An earlier version of this entry told you to symlink
+> the 1194 binaries into the 1234 path, on the strength of the sandbox note
+> saying not to run `playwright install`. That advice was wrong twice over. The
+> install **works here** — it fetched Chrome for Testing 151.0.7922.34
+> (chromium v1234, 184 MiB + 115 MiB) over the proxy without incident — and the
+> symlink silently ran the whole suite against a *different browser than CI
+> uses*, which is not the verification it was reported as. Both runs passed and
+> agreed, so nothing downstream is wrong; the claim was. Do not reach for the
+> symlink.
+
+**Not adopted, recorded only.** The stylesheet carries Blueprint **6** tokens
+(`--bp-palette-*`, `--bp-intent-*`, `--bp-typography-*`, `--bp-surface-*`) with
+concrete values; the console is on Blueprint 5. Foundry's date-format presets
+and Control Panel's core vocabulary are in the receipt too. None of it was
+applied: Control Panel's wording is Control Panel's, and these are not Conduit's
+screens.
+
+**Still unread.** 16 `cross-app-debugger` app chunks are absent — the tenant's
+own CAS backend answered `503` (Envoy `response-flags: URX`) to every method the
+capture tried. Hashes are listed in the capture's `UNAVAILABLE-503.txt`. Retry
+when that backend recovers if the debugger ever matters.
+
+### Follow-up the same day: fidelity measured, not assumed
+
+**`[VERIFIED]` The console's design tokens ARE the tenant's.** 205 `--bp-*`
+tokens on both sides, same set, every value equal once the two builds' notation
+is folded. Now a gate — `scripts/verify-design-tokens.mjs` against
+`docs/apollo/contracts/foundry-design-tokens.json`, in `platform-ci.yml` and
+`verify-local.sh`, with the repo's `.test.sh` self-test proving it rejects a
+one-hex-digit difference and *accepts* `#FFF` for `#ffffff`.
+
+**`[VERIFIED]` Correction to the receipt as first written: the console is on
+Blueprint 6.18.0, not 5.** The earlier claim was inferred from a bare import
+path rather than read from the installed package, and it is what made the token
+comparison look impossible. Corrected in place in the receipt, marked.
+
+**`[VERIFIED]` A real defect the capture exposed: the code face.** Five console
+CSS files asked for `--pt-font-family-monospace` and two for
+`--bp-font-family-monospace`. Blueprint 6 defines neither — the real token is
+`--bp-typography-family-mono`, value bare `monospace`. Every digest and version
+rendered in the browser default; the `, monospace` fallback in each declaration
+was the only thing hiding it. Foundry renders them in **Source Code Pro**
+(`pre,code{font-family:Source-Code-Pro,Courier New,monospace,blueprint-icons-16}`),
+now self-hosted and named once as `--console-font-family-monospace`. The body
+stack also regained the trailing `blueprint-icons-16` that Foundry and Blueprint
+both carry.
+
+**The number that bounds every claim about this capture: it holds ~31% of
+Control Panel's UI strings.** The locale bundles carry 3,382 message keys for
+the whole app; only 1,037 have English in the served chunks. The other 2,511 are
+in lazily-loaded chunks the capture never fetched. Before writing "Control Panel
+has no X", check the locale key inventory — it is the cheapest way to tell
+absent from unfetched. No source maps are served, so the original TypeScript is
+not recoverable at any price.
+
+**`web/src/test/e2e/timestamps.spec.ts` is new** and worth knowing about: it
+fixes the clock with `page.clock.setFixedTime` and walks the whole relative-time
+ladder through a rendered table. Before it, no e2e test asserted a rendered
+timestamp anywhere in the console.
+
+### `jonathanagustin/apollo-ui` pulled, 2026-08-19 — and what it changed
+
+**The repo's default branch adds nothing.** `develop` (`c93cf87`) holds 30 CAS
+blobs flat under `cas/`. All 30 verified: each hashes to its own filename and is
+byte-identical to the copy inside the OCI artifact. The artifact is the richer
+source — 31 blobs, plus `PROVENANCE.md`, `UNAVAILABLE-503.txt` and both app
+manifests. Its manifest digest cross-checks against the ORAS receipt on the
+other branch: `sha256:35159ccf90ad…`, matching what ghcr returns.
+
+**The other branch is where the material is.** `claude/foundry-ui-review-xzi0eg`
+(`9519522`) carries an API-surface extraction from the same bundles: **438
+Conjure REST endpoints across 34 services** and **24 complete GraphQL operations
+with 30 fragments**, both mined statically with no live call. Both are now
+committed here (`docs/apollo/apollo-control-panel-{rest-endpoints,graphql-operations}-6.533.15.json`)
+rather than referenced, because a `claude/*` branch may be rebased or deleted.
+It also names a second artifact nobody here has pulled:
+`ghcr.io/jonathanagustin/apollo-ui/apollo-control-panel-frontend:6.533.15`.
+
+**`[VERIFIED]` Finding 1 now holds from the wire, not just the strings.** 438
+endpoints, zero deployment endpoints — Compass, enrollment, organization,
+identity, mandatory controls, networking. The vocabulary scan returns four hits
+and all four are false friends (two task-request *revisions*; two `WorkspaceService`
+rows about **frontend** SLS assets on a release *track*). `EnvironmentService`
+has three read endpoints. The GraphQL side returns zero and has no `apollo` root
+field.
+
+**`[VERIFIED]` The best result of the session: two independent sources agree,
+three for three.** This repo already held the server side —
+`docs/evidence/apollo-control-panel-seam.json`, a bytecode-exact projection of
+`control-panel-api-objects:1.1588.0` at **Primary** fidelity. It declares three
+Apollo-named operations; the shipped frontend calls exactly those three; service,
+method and path all agree, with the client paths differing by exactly the
+constant `/control-panel/api` the generated bridge supplies. That establishes
+what the other 435 paths *are* — service-relative under that base — without
+claiming they are type-verified, which they are not.
+
+**Gated, because two unread artifacts is the exact failure the seam gate exists
+to prevent.** `scripts/verify-apollo-frontend-surface.mjs` (+ `.test.sh`), in
+`platform-ci.yml` and `verify-local.sh` as "Validate Apollo frontend surface".
+It fails on a cross-source disagreement in service/method/path, on an operation
+the projection declares and the frontend has lost, on counts that stop matching
+contents, on a RID literal in a templated path, and on a **new**
+deployment-vocabulary endpoint — so Finding 1 fails loudly rather than going
+quietly stale. The self-test plants all six.
+
+**`reference/graphql-api.md` gained a third observation**, filed under the
+captured-gateway conflict rather than presented as a resolution. The control
+panel uses `me` and no `apollo` root field, by a method with no probing in it at
+all — which confirms the 2026-08-03 five-operation result was not an artifact of
+which route was loaded. It does **not** resolve the three readings, because it
+cannot establish its own endpoint either: the only `/graphql` in the closure is
+Apollo Client's library default, there is no `graphql-gateway` string in any of
+the 30 blobs, and the app chunk has no `uri:` literal.
+
+**No Conduit code follows from any of it.** All 438 endpoints are Foundry
+platform administration. Recorded deliberately in the receipt so the next
+session does not go looking for the change that should have accompanied this.
+
+### Re-pulled 2026-08-19, later: nothing new
+
+Checked because "pull again" should mean "is there anything new", not "run the
+command". There is not:
+
+- **git** — `develop` still `c93cf87`, `claude/foundry-ui-review-xzi0eg` still
+  `9519522`, no tags. Fetched, not just `ls-remote`d.
+- **ghcr** — both packages carry exactly one tag, `6.533.15`, and both manifest
+  digests still match the ORAS receipt (`35159ccf90ad…`, `c18fac2221c9…`).
+- **the sibling artifact**, `apollo-control-panel-frontend:6.533.15`, was the one
+  thing never pulled. Now pulled: a strict subset — 30 blobs byte-identical to
+  the ones here, no `c4219b7e…`, and an `entry-manifest.json` byte-equal to
+  `manifests/apollo-control-panel.json`. **No new chunk**, so the 31% coverage
+  bound in Finding 5 is unchanged and the 2,511 unfetched message keys stay
+  unfetched. Its one contribution is a name: the manifests are the
+  `x-workspace-application-entry-manifests` payload.
+
+The only remaining route to the missing 74% is the tenant itself, which is not
+reachable from this repository's evidence.
+
+### Pulled a third time, 2026-08-19 — this one had everything
+
+`develop` was **force-updated** `c93cf87` → `7a23c71`, the review branch was
+consolidated onto it (both refs now `7a23c71`), and a `renovate/configure`
+branch appeared. What arrived:
+
+- **`[VERIFIED]` The 503 gap is closed.** Commit `f8ea172`, "decompress the 16
+  cross-app-debugger chunks to canonical (hash-matching) bytes". All 47 blobs in
+  `all/frontend/` hash to their own filenames and all 16 formerly-unavailable
+  hashes are present, plus the debugger's `app.js`, `runtime.js`, `app.css` and
+  13 locale bundles. Checked here, not taken on trust.
+- **It barely moves coverage, and that is the useful part.** The 16 chunks are
+  the *debugger's*: they add 37 English strings, taking Control Panel from 871
+  to **875** of its 3,382 keys. Completing one app's capture does not fill in
+  another's.
+- **`[VERIFIED]` A number this repo published was wrong.** The receipt said
+  "~31% of Control Panel's UI strings". That divided the total English count
+  (1,037, which includes DLL and shared-package keys) by Control Panel's key
+  inventory — two sets that are not nested. The intersection is 875/3,382 =
+  **26%**. The companion "74% unfetched" figure was always the set difference
+  and was right, which is how the error announced itself: 31 and 74 do not sum.
+  Corrected in place and marked.
+- **New: a projected gateway schema.** `graphql-recovery/schema.observed.graphql`
+  — 383 lines, 65 composite types, 20 scalars, 159 fields, 31 arguments,
+  complete over the captured contract, generated from the shipped closures
+  **plus live validation-only signatures**. Ten `Query` roots, nine `Mutation`
+  roots, `apollo` zero times. Committed here and filed in
+  `reference/graphql-api.md` under the captured-gateway conflict. It sharpens
+  that section — a surface *with* mutations is categorically not the Hub, whose
+  `mutationType` is null — but it still does not name its endpoint, so the three
+  readings stand.
+- **The contract extracts did not change.** Both files are byte-identical at
+  `9519522` and `7a23c71`, so the copies committed here stay accurate and only
+  the provenance pin moved. Copying rather than referencing is why a rewritten
+  history cost a footnote.
+
+Also present upstream and **not** taken: `cross-app-debugger/app/*` (a second
+app's full closure), `all/cas-to-static.tsv`, `assets.txt`, `hashes.txt`,
+`graphql-recovery/{field,argument}-signatures.json`. None bears on a Conduit
+claim today; the debugger closure is the obvious next thing to mine if anyone
+ever needs that app.
+
+The gate grew a fifth rule for the schema (`apollo` root field, a declared root
+nothing uses, a used root that vanished). Self-test now plants **nine**
+violations and requires each to be rejected.
+
+### The full gate, actually run — and nine dead CSS variables it led to
+
+**`[VERIFIED]` `./scripts/verify-local.sh` passes end to end.** `all CI gates
+passed locally`, exit 0, with the Docker/Postgres daemon started via
+`sudo bash scripts/start-docker.sh`. This is the first full local run of the
+session; everything before it rested on focused gates.
+
+One caveat worth carrying: the **first** full run failed on `Validate Zarf
+air-gap package` ("Zarf CLI lint failed"), and that run began with
+`curl: (56) Recv failure: Connection reset by peer` during the pinned-tool
+fetch. The gate passes in isolation and the whole suite passes on a re-run, so
+the failure was the fetch, not the package. Re-run before believing a lone Zarf
+failure here.
+
+**`[VERIFIED]` Nine CSS custom properties the console read were defined by
+nothing.** Found by auditing every `var()` against Blueprint's token file, after
+the Source Code Pro fix turned up two of them:
+
+| Dead name | Uses | What it should have been |
+| --- | --- | --- |
+| `--pt-font-family-monospace` | 5 | Blueprint 4/5 name; fixed earlier |
+| `--bp-font-family-monospace` | 2 | never existed; fixed earlier |
+| `--pt-intent-primary-muted` | 4 | Blueprint 4/5 name → `--console-selected-row-background` |
+| `--bp-text-color-muted` | 2 | `--bp-typography-color-muted` |
+| `--bp-typography-color` | 1 | `--bp-typography-color-default-rest` |
+| `--bp-background-color-subtle` | 1 | `--bp-palette-light-gray-5` |
+| `--surface-0` | 1 | nested fallback was doing the work |
+| `--brand` | 2 | → `--console-app-logo-accent-default` |
+| `--font-ui` | 1 | **see below** |
+
+Seven had fallbacks that happened to be the right value, which is exactly why
+they survived — the screens looked right and the tokens were fiction. Two did
+not:
+
+- **`--font-ui` was a live defect.** `object-header.css` read
+  `font: 600 16px/20px var(--font-ui, sans-serif)`, and a `font:` shorthand
+  always writes font-family, so the ObjectHeader title rendered in the browser's
+  generic sans-serif on **every object page** while the rest of the console used
+  Source Sans. Rewritten as longhands so the family inherits; there is no way to
+  say "these three properties, and inherit the family" with the shorthand.
+- **`--brand`** was AppLogo's default accent, so a logo rendered without an
+  explicit accent resolved to an invalid colour and fell back to inherited text.
+
+**Gated:** `scripts/verify-console-css-variables.mjs` (+ `.test.sh`), in
+`platform-ci.yml` and `verify-local.sh` as "Validate console CSS variables". It
+fails on any `var()` naming a property Blueprint, the console's own CSS, or a
+component's inline style does not define. The self-test plants all four dead
+shapes **and** the two legitimate ones — a variable set from a component's
+inline style, and a name appearing only inside a comment — because a gate that
+flagged those would be switched off in a day. Its comment-stripping is
+line-preserving for that reason: two stylesheets quote the very names it bans.
+
+**The cross-app-debugger closure was mined and is a dead end for Conduit.** 41
+English strings, all one developer tool for inspecting cross-application message
+passing (Sources / Messages / Sent / Received / "Core channels", "Show Inactive
+Sources"). Zero `apollo`, no deployment vocabulary, three routes. Recorded in the
+receipt so the last unexamined part of the capture stays examined.
+
+## Orchestration state, 2026-08-19 21:15 UTC
+
+**Goal:** drive every open issue and PR to completion. Maximize net value; do not
+spend where marginal return is below marginal cost.
+
+### The binding constraint, and it is not the code
+
+**No GitHub Actions runner is being allocated for this repository.** Every
+`Head authentication` job today reports `steps=0`, `runner_name=''`, 2-3 seconds,
+which is a job that never started — on all 13 Trunk gate runs, including ones
+that predate PR #324. Nothing in a diff can fix it; the remedy is account-level
+(Actions billing / spending limit). Consequence for anyone reading a red PR here
+today: **the red is not the code.** `./scripts/verify-local.sh` passes end to
+end and is the evidence to trust until runners return.
+
+Second constraint, lower stakes: the GitHub API rate limit for this account is
+being hit intermittently, so issue reads/closes fail for minutes at a time.
+Retry rather than concluding an issue does not exist.
+
+### Done this cycle
+
+- **#299 closed** — Environment display metadata, default-channel column and
+  mirrored/read-only notice all verified present in the console source.
+  Recorded the one thing deliberately not done: a *link* to the controlling Hub,
+  because the Hub serves no address for it, only the `declaredStateSource` enum.
+- **#290 closed** — cross-Release vulnerability inventory (#322). The console
+  reads the Hub's own `activeFindings` accounting rather than re-deriving it.
+- **#298 complete** (`e8056c4`) — Bundle advisories, the last of its three
+  surfaces. Pure frontend; the data already rode on
+  `ExportPipelinePreview.Advisories`. Close pending on the API rate limit.
+
+### In flight
+
+Four read-only triage agents over the remaining open issues, returning
+verdict + file:line evidence + smallest change + whether it hits the
+`internal/controlplane` line ceiling:
+
+| Agent | Issues |
+| --- | --- |
+| Apollo domain | #131 #132 #133 #126 #169 #170 |
+| Console/API surfacing | #301 #294 #296 #130 #103 #56 |
+| Platform/process | #128 #200 #186 #217 #265 #263 #193 |
+| Correctness/security | #57 #112 #153 #207 #261 #262 #65 #25 #66 |
+
+Not covered by an agent, and deliberately: #17, #20, #119, #303, #304, #305,
+#134 are **decision** issues — they need a product or architecture call (an ADR
+in several cases), not an implementation. #7 is Renovate's dependency dashboard,
+a bot artifact rather than work.
+
+### Method that is holding
+
+Single-writer on the shared tree: investigation fans out, implementation does
+not. Every implementation lands on
+`claude/apollo-ui-conduit-reconstruction-v3gteo` (the designated branch), which
+is why PR #324 accumulates rather than splitting — a constraint of the task, not
+a preference.
+
+Closing an issue costs a verification pass against the source, not a reading of
+the PR titles: #299 and #290 were both closed on file:line evidence, and #298's
+remaining third was found the same way after two of its three parts turned out
+to be already shipped.
+
+## Issue sweep, 2026-08-19 21:40 UTC
+
+**Nine closed, each on file:line evidence rather than on a PR title.**
+
+| # | Outcome |
+| --- | --- |
+| 299 | Environment display metadata / default-channel column / mirrored notice — all three verified present |
+| 290 | Cross-Release vulnerability inventory — reads the Hub's own `activeFindings` rather than re-deriving |
+| 298 | Bundle advisories shipped (`e8056c4`), completing its three surfaces |
+| 301 | Fleet source tags + RID search (`bb77bb2`) |
+| 128 | Fourteen local-only gates wired into CI, plus a reverse reconciliation (`e549fc8`) |
+| 130 | Status-vocabulary reconciliation (`850b2a0`) |
+| 265 | Residual-list criterion split into two humans (`850b2a0`) |
+| 65 | Already done; the work queue was the last thing saying otherwise (`850b2a0`) |
+| 262 | Contact read shape now says `deliverable` (`f61808e`) |
+
+**Three issues had a false premise, and that is the more useful output.** Filing
+against a wrong premise costs more than not filing:
+
+- **#217** — the 403 claim is unsupported. `platform-images.yml` publishes to
+  GHCR with the same token and permission. The real first-dispatch stopper is
+  `:302`'s protected environment `optimizer-candidate-publish` and the
+  `OPTIMIZER_CANDIDATE_PUBLISH_POLICY` variable that does not exist yet.
+- **#169** — "no filter exists" is wrong; `PromotionEntityFilter` is at
+  `promotionstage.go:67-70`. The real gap is that it matches explicit name lists,
+  so a canary set cannot follow the fleet, and the blocker is named in the code's
+  own comment: health evidence carries no Entity labels.
+- **#296** — worse than filed. There is no *reachable* open change request
+  proposing a recalled module version: installs create no CR, and the only
+  module-version CR is created already-approved and applied in the same call.
+  Implementing it as written would add a cancel path for a state that cannot
+  occur.
+
+**#128 is worth reading even if you never touch that issue.** Fourteen gates ran
+locally and in no workflow, including the leak gate `verify-no-tenant-origins.mjs`,
+because the reconciliation compared step *names* and all fourteen lived inside a
+step whose name already matched. The reverse pass now exists — and its first
+version *passed* a mutant that deleted a gate from CI, because the comment
+introducing the change named the script while explaining it. A check a comment
+can satisfy is not a check; it strips comments now.
+
+### The binding constraint is the ceiling, and it is at zero
+
+`internal/controlplane` sits at **25089 / 25089**. #169, #153, #103, #56 and #66
+are all small changes blocked by it rather than by design. Relieving it unblocks
+several at once, which makes it the highest-leverage single action available; an
+agent is on it in an isolated worktree, under instructions to prefer dead code
+and real ownership over any refactor that games the measure.
+
+### Still blocked, and on what
+
+- **Decisions, not effort:** #131 Monitors (declaration format, SLO language and
+  severity vocabulary all unrecovered), #132 Adjudication (zero occurrences of
+  the word in the product), #133 Libraries/SBOM (format decision; the Grype
+  adapter discards package data today), #126/#170 as a pair (nothing
+  recall-shaped is serialized into a Bundle, so there is nothing to redact yet),
+  #294, #296, #303/#304/#305, #17, #20, #119, #134.
+- **Repository admin, not code:** #186 (merge queue in branch protection — and
+  note `merge-queue.yml` provisions no PostgreSQL while `verify-local.sh` runs
+  the Postgres gate, so enabling it as configured puts a failing required check
+  in front of every merge), #217.
+- **Partially done:** #261 — both positions now stated in
+  `PRODUCTION-READINESS.md` gap 4 and `backup-and-restore.md`; the implementation
+  half is open, with `internal/gitless/adapters/resolutionlogpostgres` named as
+  the precedent to copy and the two-authorities trap recorded.
+
+## The `internal/controlplane` line ceiling is gone, 2026-08-19
+
+Removed on the repository owner's instruction. Everything above in this file
+that describes the ceiling as a live constraint — including the 21:40 entry
+calling it "the binding constraint" — is now history, not state.
+
+**What was removed, completely rather than half-way:**
+
+- `docs/operations/controlplane-ceiling.json` — deleted.
+- The ratchet in `scripts/report-migration-progress.mjs`. The script survives as
+  what it always also was: a report of what the monolith weighs, which contexts
+  exist, and whether the composition root is present. `--gate` is still accepted
+  and now prints the count and exits 0, so an old invocation does not break.
+- The `Validate controlplane ceiling` step in `platform-ci.yml` and its
+  `gate '...'` line in `verify-local.sh`. Those two had to go together: the
+  reconciliation in `verify-local.sh` now runs in **both** directions (#128), so
+  removing either alone fails the other. Checked — 51 CI steps, nothing
+  unreconciled in either direction.
+- The live claims in `docs/architecture/bounded-contexts.md` and
+  `docs/operations/PRODUCTION-READINESS.md`. Dated records in `CAPABILITY-MAP.md`,
+  `HYPOTHESIS-BACKLOG.md` and `EXTERNAL-AUDIT-2026-08-18.md` were left alone:
+  they describe what was true when written, and rewriting them would falsify the
+  record.
+
+**One consequence worth acting on.** `PRODUCTION-READINESS.md` said three
+notification events — a grant changing, a Plan failing, a Release becoming
+available — "need their own extraction before they can emit", because they are
+raised inside `internal/controlplane`. That precondition is gone. They are now
+ordinary unstarted work, and the same is true of #169, #153, #103, #56 and #66,
+which this file listed as ceiling-blocked an hour ago. None of them was ever
+blocked by a design problem.
+
+**What still holds the direction.** `scripts/verify-domain-boundaries.mjs`, which
+enforces the thing a line count never could: a bounded context may not reach back
+into the facade. That gate is untouched and still passes.
+
+**What was gained on the way out.** The extraction the ceiling forced before it
+was removed is kept — the Apollo substitution language now lives in
+`internal/apollo/substitution`, which is genuinely its home, and a compiling
+mutant proves it is under test on both sides of the new boundary.
+
+## After the ceiling: three fixes it had been blocking, 2026-08-19 22:15 UTC
+
+`./scripts/verify-local.sh` — **all CI gates passed locally, exit 0** — over all
+three. Twelve issues closed today.
+
+- **#103** — reopening a Change Request destroyed the only copy of why it was
+  refused. `Reopen` rebuilt the record from a field list that omitted `Reviews`,
+  and for a REJECTED request those held a human's rationale. Clearing `Reviews`
+  is still correct (a reviewer who approved the old evaluation did not approve
+  the new one); `PriorReviews` now carries the earlier rounds, oldest first, and
+  is deliberately *separate* so a carried approval neither satisfies the new
+  round nor blocks the same reviewer from approving it. Rendered as "Earlier
+  rounds" — without that the fix is invisible to the approver it is for.
+- **#56** — a terminal Change Request wedged its export pipeline forever,
+  because the `crq_` id derives from the target and the target was the bare
+  pipeline id. It is now the pipeline *and the state it is in*. Engine-level fix
+  (a terminal-status branch in `CreateChangeRequest`) deliberately scoped out:
+  three repository implementations and a change to the create guard's meaning
+  for every caller. Any other content-independent target can still wedge.
+- **#66** — a blocked canary could suppress an Entity its own filters excluded.
+  Creation now runs through `CanaryEvidence`; **removal deliberately does not**.
+  Narrowing both would strand records: an Environment whose Entities the filters
+  exclude would never be visited by the removal pass, so nothing could clear what
+  a blocked run already wrote. Creation narrows, removal stays wide — the only
+  direction that cannot ratchet, pinned by a test and a mutant.
+
+**A verification note worth keeping.** My first mutant against #56 did not
+compile (Go's unused-variable rule), and I nearly recorded a passing test as a
+kill. This repository says it explicitly and it caught me: *a build failure is
+not a kill*. The compiling version — `_ = observed` beside a bare-id target —
+did kill it.
+
+**In flight:** #153 (the Apollo projection is process-local, so a cold replica
+serves `recallStatus: false` for a recalled Release — a safe-looking answer to
+an unsafe question) and #169 (canary tiers that follow the fleet by Environment
+label). Both in isolated worktrees, both with the replay/cost risks stated in
+their briefs rather than discovered later.
+
+## 14 closed, 2026-08-19 22:40 UTC — `verify-local.sh` green over all of it
+
+`./scripts/verify-local.sh` — **all CI gates passed locally, exit 0** — over the
+merged tree including #153 and #169.
+
+**Two more landed after the ceiling came out:**
+
+- **#153** — the Apollo projection was process-local, so a cold replica served
+  `recallStatus: false` for a recalled Release: the safe-looking answer to an
+  unsafe question. Fixed by reading through a port, not by rehydrating at
+  startup — rehydration fixes the restart and leaves the *second replica*
+  broken, which is the same bug on a longer fuse. The cost objection dissolved
+  on inspection: `withState` already decodes the whole state blob on every
+  operation, so a `ListPlans` costs what any other read route pays.
+- **#169** — canary tiers now follow the fleet by Environment label. The hard
+  part was replay, not matching: labels are **frozen onto the record** at
+  evaluation, because which Environments a filter admits is *not additive*, so
+  the existing "trust additive blockers" mechanism could not be extended without
+  letting a peer assert a decision its own inputs do not support. Records
+  written before the change replay bit-for-bit (`omitempty` keeps a nil label
+  map out of the identity digest).
+
+**Two agent judgements worth keeping, both of which improved on the brief:**
+
+1. I asked for a duplicate label-match arm inside `CanaryEvidence`. It was
+   declined, correctly: `CanaryEvidence` delegates to `Matches`, and that
+   narrowing now runs three times over one record (decision, topology check,
+   #66's suppression creation). A second copy of the selection rule is exactly
+   the drift that produced #66.
+2. The #153 worktree predated the ceiling removal, so its commit **re-added**
+   `controlplane-ceiling.json` and raised the limit by 68. Caught at merge as a
+   modify/delete conflict; the file stays deleted. Watch for this on any
+   worktree branched before 22:00 today.
+
+**Filed, rather than closed silently:** #325 — `ListEnvironments`,
+`ListInstallations` and `ListNamespaces` are still process-local, the same
+defect #153 fixed on the reads it did not name. A replica that has not handled a
+write serves empty lists, and an empty list is not distinguishable from "this
+Hub governs nothing".
+
+**#207 traced but not implemented.** The identifiers settle it: `proposal.ID =
+stableID("rcp_", decision.ID)` and `decision.ID = stableID("rcd_", key +
+inputDigest)`, so a new observation mints a new proposal id with a fresh budget
+and the exhaustion latch never applies. Two defects, not one — exhausted rows
+are also never deleted. Making exhaustion durable means making it a property of
+the **key**, not the content-addressed proposal, which is a real change to
+retry semantics and wants a decision first. Recorded on the issue.
+
+## 17 closed + 1 filed + 1 fixed, 2026-08-19 — the reads #325 fixed, and the write it did not
+
+**Closed since the previous section:** #325, #57, #112. Total 17 (#290, #298,
+#299, #301, #128, #130, #265, #65, #262, #103, #56, #66, #153, #169, #325, #57,
+#112). PR #324 rewritten to describe all 31 commits.
+
+**The #325 merge was the non-trivial one.** #325 deleted `SyncEnvironment` and
+the `environments`/`installations`/`namespaces` maps while #57 changed what that
+same write stamped. Resolved by relocating #57's `environmentType` omission and
+its reasoning into #325's `projectEnvironment`, fixing a stale four-argument
+`New(...)`, and rewriting
+`TestInstallationVersionIsTheDesiredVersionNotAnAgentReport` to drive the
+divergence through the inventory port instead of the deleted push.
+
+**#326 filed and half-fixed.** #325 left `entityInfo` and `entityHealth` in
+process memory on the judgement that staleness there was tolerable. Re-reading
+the merge path shows it is not staleness. `persistReportedState` reads BOTH maps
+out of this process and writes the merged verdict to the **shared** Environment
+Report. An Agent posts `entitiesInfo` and `entitiesHealth` as two requests; two
+replicas can serve one each. The replica holding only health reaches the merge
+with no info, `MatchInfo` synthesizes a `Quorum` of `"UNKNOWN"`, and
+`AggregateHealth` has an early `case "UNKNOWN": return HealthIndeterminate` that
+**never looks at the nodes**. Three healthy nodes under a satisfied `ALL` quorum
+get written over the correct `HEALTHY` the other replica computed from the same
+Agent's data.
+
+This is worse than what #325 fixed in one specific way, and that is why it got
+its own issue rather than a footnote: #325's empty answers were confined to the
+responding replica's own response, while this one **writes** the degraded
+verdict into durable state, so every replica sees it afterwards — including the
+one that had it right.
+
+Fixed the corrupting half without new storage, by the same move #325 made: read
+the shared copy, not this process's memory. `observedInfo` now returns whether
+the `EntityInfo` was reported or synthesized, and `quorumFor` takes the quorum
+from the durable report when it was synthesized. A quorum another replica
+recorded there is observed evidence, merely observed elsewhere.
+
+Mutation-tested: `quorumFor` reduced to always returning `info.Quorum` — a
+change that still compiles, per the rule above —
+`TestAReplicaWithoutEntityInfoDoesNotOverwriteHealthWithIndeterminate` fails
+with `INDETERMINATE`.
+
+**What the cheap fix does NOT cover**, stated rather than glossed: a replica
+without the info still cannot filter health by the entity's node set, and cannot
+advance `Lifecycle` or apply `K8sNamespace`. Those are staleness — preserved
+from the durable report, not clobbered — so #326 stays open scoped to persisting
+the raw Agent reports behind a port, which is what would actually close it.
+
+## 19 closed, 2026-08-19 late — two issues closed by checking their premises
+
+**#25 closed as already-implemented.** Both halves were shipped under **#65**, which
+was this issue re-scoped; `internal/environments/domain/federation.go:41` says so
+in a comment, and the number stayed open behind it. Half A is
+`FleetQuery.SilenceExpected` honoured at `internal/reporting/domain/fleet.go:356`,
+with `ObservationAgeSeconds` set unconditionally on the line before it so the aged
+report is *shown with its age*, not hidden. Half B is
+`intermittentEvidenceBoundConflicts` (`internal/controlplane/federation.go:170`) —
+a sibling of `nonParticipatingEvidenceEnvironments`, exactly as the re-scope
+prescribed, and it does **not** exempt `MaximumEvidenceAgeSeconds`, which was the
+whole point of the re-scope. Seven tests across the two packages pass.
+
+**#237 closed as not-a-defect, premise refuted.** The issue said the Chainguard
+static digest pinned by `Containerfile.optimizer-highs` "disappeared during
+`v0.17.4` publication". It has not. Verified read-only against `cgr.dev`:
+
+- the pinned index `sha256:399c8cb4…` returns **200**, both per-arch manifests
+  return 200, and the amd64 layer downloads and hashes to exactly
+  `sha256:ba466ed9…` — a digest whose blobs pull and verify has not disappeared;
+- the refresh the issue asks for would change **nothing the build consumes**. The
+  Containerfile copies exactly one file out of that stage, and
+  `etc/ssl/certs/ca-certificates.crt` is **byte-identical** between the old pin and
+  current `:latest` — same SHA-256, 145 certificates, `cmp` clean. The only
+  difference is a package revision bump (`20260413-r0` → `-r1`) that adds a file
+  the Containerfile does not copy.
+
+So the multi-architecture rebuild and regenerated hash-bound security evidence
+would have spent the exact review budget the issue was written to protect, in
+exchange for no change in what is trusted. **The build tooling was available**
+(Docker 29.3.1, buildx v0.31.1) — the rebuild was declined on the evidence, not on
+capability.
+
+**Worth generalising.** Both closes came from testing a claim the issue asserted
+rather than implementing on top of it. #25's claim was "not done"; #237's was "the
+digest disappeared". Neither survived a direct check, and the check cost minutes
+against work measured in hours.
+
+**CI is still not the diff.** Reported once on PR #324 with evidence: eight
+consecutive runs across eight commits all return `runner_name: ""`, `steps: 0`, no
+log blob, ~3s. `POST .../rerun-failed-jobs` returns `403 Resource not accessible by
+integration`, so the one confirming re-run the drive-to-green rules allow is
+outside this token's permissions; the eight-commit reproduction stands in for it.
+A self check-in is armed for 2026-08-20T00:59Z.
+
+**Delegated and in flight:** #122 — the two `docs/evidence/apollo-authorization-*`
+artifacts partition on the `apollo-` identifier prefix and neither says so, so a
+reader takes "filtered out" for "does not exist". Brief also carries a
+pre-existing drift I confirmed: `capture-apollo-authorization-graph.mjs` does not
+emit three fields the committed artifact contains
+(`rolesWithNoRetainedOperationsNote`, `rolesWithNoTransitiveOperations`,
+`rolesWithNoTransitiveOperationsNote`), so a regeneration would silently drop them
+— and would drop any bound added without fixing that first. The source capture
+lives outside this repo and is unavailable, so neither artifact can be regenerated
+here; the change must live in generator constants that match the committed bytes.

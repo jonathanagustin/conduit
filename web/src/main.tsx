@@ -8,6 +8,10 @@ import { loadRuntimeBootstrap } from "./runtime/bootstrap.js";
 // renders in; self-hosted via @fontsource so the embedded console loads it with
 // no network. Imported before the stylesheet that names it as the base family.
 import "@fontsource-variable/source-sans-3";
+// Source Code Pro is what the captured stylesheet renders `pre` and `code` in,
+// and what every digest, version and identifier in this console should render
+// in. Same self-hosting reason.
+import "@fontsource/source-code-pro";
 import "./styles/index.css";
 
 const container = document.getElementById("root");
