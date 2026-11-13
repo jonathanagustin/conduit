@@ -1,219 +1,239 @@
 url	section	title	words	headings	content_sha256
 https://www.palantir.com/docs/apollo/apollo-cli-deprecated/apollo-cli_publish_helm-chart/	apollo-cli-deprecated	apollo-cli publish helm-chart \[Deprecated]	627	4	84f5c0200e2447431dd1a50208ba1ddf777808308634d937d6f37484f36e066d
 https://www.palantir.com/docs/apollo/apollo-cli-deprecated/apollo-cli_publish/	apollo-cli-deprecated	apollo-cli publish \[Deprecated]	372	3	c26417ff9ac8b5ee1048f8d67423d1da476ffdf41846711768046034948c733b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_artifact-registry_list/	apollo-cli	apollo-cli artifact-registry list	360	4	c8aac28f4dbd6c9b7f23a998e006c4fe4caccdc201df94840c5a5c2946ba1d3c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_artifact-registry/	apollo-cli	apollo-cli artifact-registry	361	4	1618b83085ce75e50dc6143336afcb99ff6d9178ef82f93c3694e4e63263ca35
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_approve/	apollo-cli	apollo-cli changerequest approve	384	4	8447c410cb9d988d245f8732f6608bd4a0625d1d8d805e5cb0f1d3f2c590d904
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_cancel/	apollo-cli	apollo-cli changerequest cancel	374	4	370c4cc6fe7eee50c9bf69a9944afd92028287095d4b20ed5a2e8577b5b1d669
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_get/	apollo-cli	apollo-cli changerequest get	363	4	7ccd1c61cc730d7537e6fbd98237a8fba4eba1960dcfde82a8c93d9019519749
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_list/	apollo-cli	apollo-cli changerequest list	402	4	cee33f5a82d7476dd00850738a02d8c8167d3d0ce4876fde48e35d24d92da081
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_reject/	apollo-cli	apollo-cli changerequest reject	385	4	0f61e331445589a5fddeb1c8ee7c3ba52680e03394a8795ddd458b055ed04ac7
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_reopen/	apollo-cli	apollo-cli changerequest reopen	376	4	42879414728962587d848b756e50190265164e288548f111dd8a2ed552521ff3
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest/	apollo-cli	apollo-cli changerequest	407	4	7ab96a10513b8024fe964f178ce5b266f0d7fed9516203d71435eff90c346eea
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_configure/	apollo-cli	apollo-cli configure	421	4	98bab016bd9ce84cb8ebd761ce9cc1b3869b5587f56e06260abc337085fdf9bd
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_check/	apollo-cli	apollo-cli cve check	681	10	3ba0075690e5938ffd4185eade4e4944198b7f6241a04ec80e1b6b6c329e34a1
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_list/	apollo-cli	apollo-cli cve list	538	8	0b080ab351844cdea26f4b7c3387b7650a3a3c0303584e18022ab9ec37b4803b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve/	apollo-cli	apollo-cli cve	382	4	0bae491d061df39af7b650b2a7d60c5211918374bf0cf81bac8aa1465d46bcd3
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_aggregate/	apollo-cli	apollo-cli entity aggregate \[Experimental]	557	6	b266d31f78bc9a42a8aaf1f450c9af17d58a942da9cbd1da99ce848931873125
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_enforce/	apollo-cli	apollo-cli entity enforce \[Experimental]	479	4	e67bd624f974807bccd7f9689f98c61a7a325d68a0a2c1308c086618171162ff
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_get/	apollo-cli	apollo-cli entity get \[Experimental]	383	4	1167c57b5b3aba7f4bc6add4b93dc3ff1ee1ec6628d2ac40a344c4bd2be4d837
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_install/	apollo-cli	apollo-cli entity install \[Experimental]	416	4	466c38f264627925bc4e83d2d898a003db7bf53a7f6d0793fd0f3ac3744bfe9b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_list/	apollo-cli	apollo-cli entity list \[Experimental]	375	4	29192bc5f55824a4ed34970dc41326dd78c869d144271c931cd53fda26b18099
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity/	apollo-cli	apollo-cli entity \[Experimental]	436	4	5ca1e4991dac6e214f11a17170e6845415d98aab071829c56bbb2077cdc1c744
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_assign/	apollo-cli	apollo-cli environment artifact-registry assign	394	4	3c27655795fbcbe89e701ea1d2148d5b6a69391d29bd35d47a1f571080e51835
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_list/	apollo-cli	apollo-cli environment artifact-registry list	371	4	90cf99605f54486286df979d177c5f6686af6fffb8a421d4caff1b3b84c3f3e9
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_unassign/	apollo-cli	apollo-cli environment artifact-registry unassign	394	4	9be5f882d4420e9b4f1649907b6a5e940f58ea73dfddce914a0187599f75a2ef
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry/	apollo-cli	apollo-cli environment artifact-registry	407	4	fa5ce33fff05ee370c614d49c39a3d7b0a64d696f940773979efb84d0633a5ca
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config_apply/	apollo-cli	apollo-cli environment config apply	456	4	808e01406d04385800f173fa4c9e65339bf1a26ac75953e57e768f3c6febed6a
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config_get/	apollo-cli	apollo-cli environment config get	465	4	ee5850eeece0852e242cb02bc6ca965386d8f69303ad46c891048db408addc70
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config/	apollo-cli	apollo-cli environment config	369	4	5f3bfe34e1c620003a00d3ae14143439939d5a3f4915481d544c49e31ea6a921
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_create/	apollo-cli	apollo-cli environment create	384	4	d805c4e166f1819fd448ac466fa418c4abd04ef45d2008ea586deec37269d08c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_delete/	apollo-cli	apollo-cli environment delete	364	4	9cdf34b392a11108e40b4a0b68abf267e5d3fa9575bdd984ac3502086189833a
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_get/	apollo-cli	apollo-cli environment get	359	4	73e3267d2440356ed6acb256f0a88aed7ab2aa38a49b0dbc9ac44abad15f7b9c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_list/	apollo-cli	apollo-cli environment list	372	4	88df0e4cd313ae38e31ff950f911e65c951e5e461cc4b002794f63600b21090f
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_manifest_generate/	apollo-cli	apollo-cli environment manifest generate	387	4	a1ce39c7b427bb0ea0d3cb1645625a174a686c44edd325227e0fc49144002534
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_manifest/	apollo-cli	apollo-cli environment manifest	370	4	b6c8d409879ed6180fcbad1c5962b406bf4a85ef0b0b78ae3c8e139c17114980
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_release-channel_set/	apollo-cli	apollo-cli environment release-channel set	398	4	228276d7711b079cc4dfb2c41dd39823bab75c92b330a787ea96a7e6bc463993
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_release-channel/	apollo-cli	apollo-cli environment release-channel	374	4	e2e85f0273fc90552a8cb28fba57e6850c52fa94f9fb9dff9586e4ed1d6d09d8
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_edit/	apollo-cli	apollo-cli environment setting edit \[Experimental]	489	4	31ecd14f31978dbb18bf55adc8e513d991e45ea369fa3f172b02ba631aaab597
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_get/	apollo-cli	apollo-cli environment setting get \[Experimental]	396	4	262539fbc846a00dcef4cd959b3d043528738bc14c452e244fabe5cdf93cc3ca
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting/	apollo-cli	apollo-cli environment setting \[Experimental]	421	4	f22d6e1f4f1cc540f24fcfcfdbc27a7f7c903e85b43033d46d3c4ce3b8543ab1
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version_compare/	apollo-cli	apollo-cli environment version compare	488	7	0bb25a186fdb81f20f15fc9c32be0687262a0f545f7cb6c0ec8dec2e62108605
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version/	apollo-cli	apollo-cli environment version	368	4	3136561d7d62f4965ee75d36fcca62fd5d18e6cb4b6e94a5438e4898770e675f
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment/	apollo-cli	apollo-cli environment	447	4	aba1b313387e0da5a2dc854fd4ac3931fbe42cc13fce46a722b18949999b6a05
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart_validate/	apollo-cli	apollo-cli helm-chart validate \[Experimental]	574	4	bdf72a87dc6064879ff903372b4d1669f0f232a37723ce08be018e3eeac45a1c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart/	apollo-cli	apollo-cli helm-chart \[Experimental]	395	4	fbf231997a3fb6212096bfaa0d874f693da456137bde9f6b1d1021143c5f9024
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_delete/	apollo-cli	apollo-cli label delete \[Experimental]	499	4	48459d844c63f0f8c6ef2da3edc9aca3d4feb183dd5d7269618416fd5078e385
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_get/	apollo-cli	apollo-cli label get \[Experimental]	510	4	2b2feb02e9e538c29bba708b3edb3db0bf0b3f0a4ca91be2e722093d9ab7b027
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_list/	apollo-cli	apollo-cli label list \[Experimental]	465	4	c81b704156500dfd8e9b543d81b88b717a328a4f101b4fe73f3504dc20502c1c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_set/	apollo-cli	apollo-cli label set \[Experimental]	529	4	c97332ae8f435b174d345533245ad648586fb0d9afec0837e58664b244f0ea93
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label/	apollo-cli	apollo-cli label \[Experimental]	457	4	4af6142998ad5cb220e7c195bcae538451eb55a9f412aad5746a34f9c990f950
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_create/	apollo-cli	apollo-cli module create	418	4	eeac15f2da321beb7e10cd9428eddb9ad514783a0d6ca6926f3ca7a2e8a7a08a
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_diff/	apollo-cli	apollo-cli module diff \[Experimental]	448	4	b3dc4eb51487ff6f8018bde9be28d8c90bacdd4dc689ed5a50c37813dccf7c0f
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_evaluate/	apollo-cli	apollo-cli module evaluate \[Experimental]	434	4	d92df86da742f23079b2d51518d19e3ce92d54723f09966e52c5fceebe0b637d
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_flatten/	apollo-cli	apollo-cli module flatten \[Experimental]	392	4	3a81019ec29856881b72e34a240ba4b766cb07f4264963b9d5fb16b3e10ae538
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_get/	apollo-cli	apollo-cli module get \[Experimental]	398	4	176c40b0f40f1eeec4fc14dada56d359e21b025143316e428573f2c2f5e870a9
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_install/	apollo-cli	apollo-cli module install \[Experimental]	489	4	b1098d3b83e8651b83c5cc6cd9a24de5af8f7ec8a7260265dd18ff5a002a54c6
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_list/	apollo-cli	apollo-cli module list \[Experimental]	378	4	4f59251188724897b0e1783244621ab36a409d716295d2d6e0cc8bf0abf1b8f1
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_lock/	apollo-cli	apollo-cli module lock	417	4	3cfb09438f8897d9a24576960b0ffa4e3b3ca4e44eceacc80d4129790382aae1
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_update/	apollo-cli	apollo-cli module update	374	4	43bfed1c1ef641ab97a1df290f5342c4979c1ab6bd354d5fa91b1b3453a15586
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module/	apollo-cli	apollo-cli module	447	4	f1fce53530d51b08a4c5e7c86558311f619d58e1dd0380888d6b302c6778097b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_list/	apollo-cli	apollo-cli product list	358	4	84f228129d684d3ecdffc7088717643a608511ff93e7f372a04457e72c0d010b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_append/	apollo-cli	apollo-cli product promotion append \[Experimental]	585	8	8c49e370c66c2f71e13cd93003ebf52aaeb3493b1dd28eae8d87d29b36dd4241
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_disable/	apollo-cli	apollo-cli product promotion disable \[Experimental]	434	6	ae229bc2a85ab89c23e327b42d1763b8a2538b3c8a6f59de9bc1713df5abc1ca
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_enable/	apollo-cli	apollo-cli product promotion enable \[Experimental]	435	6	30a5f32ffce1477c1624372c8db319b8a2076703cb5201478d5c36e8f9a36d67
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_get/	apollo-cli	apollo-cli product promotion get \[Experimental]	447	6	f39eddc36d36e4a3e766abbba630edf16ef8c656a678dd3f781ef0e3bc7ebf08
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_set/	apollo-cli	apollo-cli product promotion set \[Experimental]	597	9	c8e7a85c11a5f0237a3ec223f192660f59e1f7ec999090e29864095e7f0a2c8d
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion/	apollo-cli	apollo-cli product promotion \[Experimental]	462	4	46bceed1ea64c7b8620f39a9bd2685bbb73d3fc683ddbec01b4189496d7b7bfa
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_asset_publish/	apollo-cli	apollo-cli product-release asset publish	549	4	e90a627346d4a38e5efb9f10eb5473bb0a1f34758742da9bcf3a9cbfc18623d7
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_asset/	apollo-cli	apollo-cli product-release asset	368	4	93f8b409d807318ffe23cda0a844fbf6fcc1973cf59e105c161f03a33cd81373
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_create/	apollo-cli	apollo-cli product-release create	522	4	4e85e0fd42701db8204a22df93b13ec17c5e79fe54d67b449a271ed9ed19a926
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_get/	apollo-cli	apollo-cli product-release get	433	4	a860f31daea6e4b9c54a3a044b2704a1549339fb9c2dd700c36ea20d26d707f4
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_helm-chart_init/	apollo-cli	apollo-cli product-release helm-chart init	685	4	870a970ecb72e0661aec5443809b80abe986be3eb20794b4b16bdded06e72c19
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_helm-chart/	apollo-cli	apollo-cli product-release helm-chart	372	4	6f27fa8ba0ff1772d97267916a10cb3807063593bab6ce5960a2dea33310aba6
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_init/	apollo-cli	apollo-cli product-release init	379	4	cc5018101278b9594eb2d0995b14b33a587c99e36218a94f062293e977b2bb67
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_list/	apollo-cli	apollo-cli product-release list	434	4	0182fc08b1f064977d63afd1159d39d4d50100e5d4458d9a427beed492cfda58
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_terraform_init/	apollo-cli	apollo-cli product-release terraform init	389	4	94a7c6d6d8e3456ae2a9cc317181da8e5c6d371e9db1c937f258b41da1263420
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_terraform/	apollo-cli	apollo-cli product-release terraform	364	4	0131e69448a308a885c0b455bd1221c3eef9aecf72876aaa6adaf7e778c7883d
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_verify/	apollo-cli	apollo-cli product-release verify	430	4	6e2f68f1dcfa98ac426a890764199cd5472408b863fb1ad027d4adf1bcbb163d
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release/	apollo-cli	apollo-cli product-release	440	4	51295cbd01ef4821e0ce8ec12e7c68de53d3ec189077b306392b85a55fbdd99c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product/	apollo-cli	apollo-cli product	368	4	c5c646ef8b919af92660693d1fedb9e954e13823e677c670bda0025d591fae61
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_create/	apollo-cli	apollo-cli profile create \[Experimental]	428	4	5f2457dfc4f17a0e2f418e4ec94e30ebdb78c8107f4ed528cbb0de7c510778b3
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_delete/	apollo-cli	apollo-cli profile delete \[Experimental]	414	4	8ba6cb4e4d7c0e9442084ab18eff5505002c17c0838cacda1f379acf2b781913
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_export/	apollo-cli	apollo-cli profile export \[Experimental]	438	4	4b9faa5e1284fa0ddca12c5167b880a5eeb9e2defa4addfd4f955a4368525c4f
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_import/	apollo-cli	apollo-cli profile import \[Experimental]	450	4	3360da42eae8b4d732a4787123d4cd16e4e0b0932ccb41c8d74da4b4850e3928
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_list/	apollo-cli	apollo-cli profile list \[Experimental]	394	4	87fa62ef3c424989ab4f39a3a9c8fb43dc6509318a47aae991e84e49d73c7cb3
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_rename/	apollo-cli	apollo-cli profile rename \[Experimental]	392	4	1bfa33f42375588dc5e64d77ef07f11bab79c73ba5178262249b74f3cc4a56ad
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_show/	apollo-cli	apollo-cli profile show \[Experimental]	408	4	f722183b2d1828b53424f87566bfb791fc6647b8a0daa96f4de34934699dc714
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_use/	apollo-cli	apollo-cli profile use \[Experimental]	417	4	af0ff71671a9a09f0de1d1af907283f77db82f7ddb9d02deb395210a7e68b43c
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile/	apollo-cli	apollo-cli profile \[Experimental]	510	8	d08a649b32478a9baefca412fa1d65ed0a2cef0470797f706958ddb6f09e8736
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_add/	apollo-cli	apollo-cli release-channel add \[Experimental]	548	4	4d118ec37507f06b3d67cc8e628ed38ebd3c35188446d6ab055f6d3bd750a943
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_create/	apollo-cli	apollo-cli release-channel create \[Experimental]	530	8	c83c4ac1c981e4fcb6f55046a433da39961e741981bdaa0237d095c5f24f6634
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_diff/	apollo-cli	apollo-cli release-channel diff \[Experimental]	515	7	38aba14306e296d5ad2f6ca629d0ed24194d5cedd8c9a05eeaf100c2b8ffdcfa
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_export/	apollo-cli	apollo-cli release-channel export \[Experimental]	511	7	a56fd7ee1e7bea9e8f1c0fbb1b80aee684c4b8c53d29ffe75f41a19ed68bd517
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_get/	apollo-cli	apollo-cli release-channel get \[Experimental]	427	7	8feb4c56bec572a3b20ee85aa889fa109d53137c6c92f6dd35f540fc2c219392
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_list/	apollo-cli	apollo-cli release-channel list \[Experimental]	470	9	acd371aff0e4fff90f7395c796539e4962c441df1d4cf3cbaf281028e532714b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_update/	apollo-cli	apollo-cli release-channel update \[Experimental]	591	11	49bbbee37a4ba10bd27e0caf40076577a93d919ef638499f26858f547946ece0
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel/	apollo-cli	apollo-cli release-channel \[Experimental]	461	4	d2416211530ca1a70b5cdc6c9d12a47fd908eb373082cfecd33b8b8a239b210d
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_get/	apollo-cli	apollo-cli target-hub get \[Experimental]	386	4	43374a903556c64032891f084b229bc2b293f975af8991d5aece5123e1823161
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_list/	apollo-cli	apollo-cli target-hub list \[Experimental]	382	4	375b88d6d7536c90a8a323cc22b1d1ae90798c80a707fce135695516011514be
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline_list/	apollo-cli	apollo-cli target-hub pipeline list \[Experimental]	393	4	fc48af3a323ba75825861dd79a66a32829b597fa30da7f9ecc6b81e1f5639144
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline/	apollo-cli	apollo-cli target-hub pipeline \[Experimental]	394	4	d4e5bfeeade03f801db6542dc974f5d8e49c603f54d4aca5e88e5ed795151d2a
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub/	apollo-cli	apollo-cli target-hub \[Experimental]	406	4	e2c47231b4939b9cd662834370a4480e104ac077167e360bc4dbb7ddec3c083b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant_list/	apollo-cli	apollo-cli terminal grant list \[Experimental]	425	4	92790005c1d50694a5d656f76cc0797c837bbcc995823845b2568d79a736e286
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant/	apollo-cli	apollo-cli terminal grant \[Experimental]	404	4	0fa7390133aad7687b8bb3d410879f2c40534748e5bfa33c291c416dcf73fe8f
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy_list/	apollo-cli	apollo-cli terminal policy list \[Experimental]	413	4	70d8b4751a1114505213bae680aa95fa5359ca7dcb4383caacf684f737f8ac0a
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy/	apollo-cli	apollo-cli terminal policy \[Experimental]	405	4	ee130cf012da22a4a1152ded590965f3a4c3185de6b7b47075057dbb577de7ee
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal/	apollo-cli	apollo-cli terminal \[Experimental]	514	8	0a02a86097aaa130dabc1637fa694e413ee7251d03ba1247df41718526f1162e
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli/	apollo-cli	apollo-cli	523	4	b8d2029eee7f9946e5da97b06acd65a49d8389a18746fff5683b3a9c4adda0d9
-https://www.palantir.com/docs/apollo/apollo-getting-started/apollo-cli-getting-started/	apollo-getting-started	Getting started with the Apollo CLI	2232	14	930ec8831d2da8368edbcd999fab3854f82ee00a1799dd174f8504b6902750da
-https://www.palantir.com/docs/apollo/apollo-getting-started/getting-started-with-apollo/	apollo-getting-started	Getting started with Apollo	339	7	870333a04731f1f923e835240fc688b7a5aa357d9dda45553552422a4b1fb16c
-https://www.palantir.com/docs/apollo/apollo-getting-started/glossary/	apollo-getting-started	Glossary	1432	39	5336f6cce6af2a103606bfa79a2a4f9241c6b5eb42eebb3d28195db24af1f1c1
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_artifact-registry_list/	apollo-cli	apollo-cli artifact-registry list	378	4	89e96e3924bdaae3fcc150cc705a0f007fc1f14418def7246f1b37ae0cd3a178
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_artifact-registry/	apollo-cli	apollo-cli artifact-registry	379	4	317dcd6f75da5183ea3b9a8e0960bc2663cf6fde7345bb93dcb4c7d90684664e
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_approve/	apollo-cli	apollo-cli changerequest approve	402	4	d57763f168545ab0e6d75295b19186abe47b0b89412559b36ae629d744910067
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_cancel/	apollo-cli	apollo-cli changerequest cancel	392	4	576de20af1d974224c03564c265c3bbb1b5781ba0759ceded2b906d0ef1f49be
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_comment/	apollo-cli	apollo-cli changerequest comment	390	4	4a31116a5b5a44bb17842858b0ed84695e612d528012d71bdf62cc3035f00bbc
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_get/	apollo-cli	apollo-cli changerequest get	381	4	84aa4c492160043998dcbf407d36b28b64e0ca5e1de6d99c8ca0ae6b93d4026a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label_add/	apollo-cli	apollo-cli changerequest label add	406	4	97bda17f213f600a4eb707019f80325e4e112329332544ddf58d7618080fb595
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label_remove/	apollo-cli	apollo-cli changerequest label remove	406	4	c210bda518bc327cd03d328e22ff9d30e590bf004ef435babd289f86046a4803
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label/	apollo-cli	apollo-cli changerequest label	396	4	becf7a7c747931c60d790c1bf42b0a5f39655a443c040df10f5ca329a58e9d07
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_list/	apollo-cli	apollo-cli changerequest list	420	4	c65cbebb6b707195103c1bda9670fc559ef4220aa6b4cc3950608e6be3f7b1ad
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_reject/	apollo-cli	apollo-cli changerequest reject	403	4	40d2c5b0ea2efdb593cfb1545e1ea9dc5104e8220d50b39ed4901c7d0d989abf
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_reopen/	apollo-cli	apollo-cli changerequest reopen	394	4	7271128cac12b5ab45d6b0bb9a8fd3a399817a282d99a46507f5a6044f4ef21f
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest/	apollo-cli	apollo-cli changerequest	444	4	ede8ec9d9792f3985c85edee9ab79ddd1a0cd8911bb5529aa37a48f9ce2046e4
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_configure/	apollo-cli	apollo-cli configure	439	4	b2294b5a41db4fb6d764444eeb48df58bd6b82acfb18eb7d6b2f74f5da9fc1a9
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_check/	apollo-cli	apollo-cli cve check	724	10	78ed5606ab939c94cb52f87ce25eecd7ed92802f8d6ee440dec4da396af6fd41
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_grype_scan/	apollo-cli	apollo-cli cve grype scan	587	4	ae00240c6b5a84b62c09dd9240a28027e1eed4dc8f222165731f905e216858f2
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_grype/	apollo-cli	apollo-cli cve grype	388	4	e81d2ad990b39d8a661006300992d39286957e5beab6f6e698da5c1cd7228721
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_list/	apollo-cli	apollo-cli cve list	556	8	5dee97f5c8c42a8073177289c931ecaf67c256d146f4577af2701c56ad8e25e7
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve/	apollo-cli	apollo-cli cve	408	4	29a5c9cdccfe42d45d0c8b29bf1043c55b509f7a61795c0ae34f68136e85f0e8
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_aggregate/	apollo-cli	apollo-cli entity aggregate \[Experimental]	575	6	3b041896ba1df8da49cd2658df12905e45a8297617448566f69af1302f46ecaa
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_enforce/	apollo-cli	apollo-cli entity enforce \[Experimental]	497	4	4a228b4ef0b094119258f5f7dcb1213e52d0af767febebb388ca99d988cfef68
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_get/	apollo-cli	apollo-cli entity get \[Experimental]	401	4	0350d2d0070d93314521a9273f49b52a6dfd27cf033cffea3c8de4952e1d9cf1
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_install/	apollo-cli	apollo-cli entity install \[Experimental]	434	4	c144769e37964851fc83e9fe28e29ba749652187de9a49c79d12e0c1a428e420
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_list/	apollo-cli	apollo-cli entity list \[Experimental]	393	4	685e4d13ef5bbfab5b20b42343d1020ff05cb041e3b70f3bedba5161e9ca8d69
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride_create/	apollo-cli	apollo-cli entity maintenancewindowoverride create \[Experimental]	593	5	68dd90ba43e602faaecc5eae4d4d1d921d23f1b30d9f264068ed6ce000ccb661
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride/	apollo-cli	apollo-cli entity maintenancewindowoverride \[Experimental]	408	4	9b14ec637879f80dd7bcc0fc5105861c2ad6b1c11c8d3ef9d150bc935da6f54b
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity/	apollo-cli	apollo-cli entity \[Experimental]	465	4	659e3bccd0281e80e74fa09e53f51b4692f7050caa226754e0eea43889fafc6a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_assign/	apollo-cli	apollo-cli environment artifact-registry assign	412	4	f7f51c8813e99c4e13bcb087298e45bbb9f045e24e8c81afa3dce07ce26b00a6
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_list/	apollo-cli	apollo-cli environment artifact-registry list	389	4	37dd7cb2c20bfd8566dfd6b6af77fb5a165211af1acd91f15ab2b05630b8eb0a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_unassign/	apollo-cli	apollo-cli environment artifact-registry unassign	412	4	9961a5506fe258f183a0be9358a385d5e8c08054e27fe9f69c1b2a9f0b861e90
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry/	apollo-cli	apollo-cli environment artifact-registry	425	4	ee45b7c0dc8d32da8bd1cf6a7a2d2cfbdfe102cc4e32c4e44c2efbc88f03b018
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config_apply/	apollo-cli	apollo-cli environment config apply	474	4	a97c21a0ecb2d0fecb747a3a041b35d396075c2f0f47723a01ab54ac13ce5b35
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config_get/	apollo-cli	apollo-cli environment config get	483	4	66aec5f609aae58d3d9a17a8493e306bee24f0abae97ac5e373eb8261907fc92
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config/	apollo-cli	apollo-cli environment config	387	4	0ac9baa155a2c5a8f9e0a4b8380cdc6fa442cb1b00443531d2fbd41a9e0b5ee6
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_create/	apollo-cli	apollo-cli environment create	402	4	02f53bcfc65c82f5f74e08babf5b2377b08274f56e105327bdabadc9ab72f4b4
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_delete/	apollo-cli	apollo-cli environment delete	382	4	aaaf1560dd30cbaa2b23798e0c077a817ac1db6f80775bf844653af6edd80f38
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_get/	apollo-cli	apollo-cli environment get	377	4	2023a6d0b9da6a1ee31632954a130018a713ba131726cf8d0d0172436b19fa3d
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_list/	apollo-cli	apollo-cli environment list	390	4	44d83789f6b283b3ed75906f5691e2e194ba5c45706021b0c0683eb0f0d93e42
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_manifest_generate/	apollo-cli	apollo-cli environment manifest generate	405	4	b7784f12550ab3fca92e1c30f80eefdbd8d4ac92d47f7dc206960f7a887d2233
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_manifest/	apollo-cli	apollo-cli environment manifest	388	4	5df96dcafde7de7b669e58746ad938f5e28adbde989483bd192dbe83a394d050
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_release-channel_set/	apollo-cli	apollo-cli environment release-channel set	416	4	295dd4af300421c3036744651e549c8f2289f1a8415fdaa335b11804fad82dee
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_release-channel/	apollo-cli	apollo-cli environment release-channel	392	4	fa08d10f42fd1b92a9f881814d37a64ca771e626d4de49dd79bc7657c38157f9
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_edit/	apollo-cli	apollo-cli environment setting edit \[Experimental]	507	4	6c407381151b53e3515aab08eb81f2b9686a30a14d4b7b429342896d8498ddb6
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_get/	apollo-cli	apollo-cli environment setting get \[Experimental]	414	4	7931fb9f0ffb04584d1b884e805d7e96761fc913f01e7108feb293b86926090e
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting/	apollo-cli	apollo-cli environment setting \[Experimental]	439	4	1fb23c8459e6c6d59ac1dd5f9e414d49a26b74f9a619307ac752150e6606eff1
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version_compare/	apollo-cli	apollo-cli environment version compare	506	7	a0e168caa7600dbd589d452c64e3bff782f4845408e555e1d88875b1a75c21ea
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version/	apollo-cli	apollo-cli environment version	386	4	b432a849d92eb89541ecfc3b750825aaeedc79629a1d34dff311892570f3f38a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment/	apollo-cli	apollo-cli environment	465	4	1b838b8bc3dce2d0653f481830a8678c681a8a5a54945093ccb1a542ad45182e
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart_validate/	apollo-cli	apollo-cli helm-chart validate \[Experimental]	592	4	d6fd01ec8ebbacb679429a48daecc2ee921054b7ec2fbef7e8391047a7cd1039
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart/	apollo-cli	apollo-cli helm-chart \[Experimental]	413	4	b7953e110cd445fa40b7ecdbc62cf9eb065fc26a05e48228b69f5543dfada68b
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_delete/	apollo-cli	apollo-cli label delete \[Experimental]	517	4	65ec7402f1ce64ad0870ef140545964b42ee1af62027c510e9969a7a18dce021
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_get/	apollo-cli	apollo-cli label get \[Experimental]	528	4	f331841248195c78e7abc70955a245bbc8da99a390af82ca28f5c8b7f2a49a86
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_list/	apollo-cli	apollo-cli label list \[Experimental]	483	4	a24911d0a7c634b53e4b360e5deb894179cb2321797fcac2cc592314ff5f6d96
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_set/	apollo-cli	apollo-cli label set \[Experimental]	547	4	bfc30b17ccda04faf68b010ef679ab53524a28cf3e8ebf165acb29aea1495c71
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label/	apollo-cli	apollo-cli label \[Experimental]	475	4	36a6a1960ae5c74e61cbbdd6efe42ad3cc3cfe126d5b239132f7edd149607007
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_create/	apollo-cli	apollo-cli module create	436	4	146da3e089a9bcb5caf65433d63945283cf4bc68a4c7a7e3fabd76b9c06aeac2
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_diff/	apollo-cli	apollo-cli module diff \[Experimental]	466	4	8d146b0ec9ff10c2a0ef46b08a8354e9ee500ee0349c053d8f203b94c06ee797
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_evaluate/	apollo-cli	apollo-cli module evaluate \[Experimental]	452	4	0a5c6134b5f40fef95336b2129379cc21cbb1a8261994c9c63b4afe1718ae25c
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_flatten/	apollo-cli	apollo-cli module flatten \[Experimental]	410	4	1da17d9c212dd9cee2d9d6f70a185b2a6c300407f0dc9781076bb694839c4310
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_get/	apollo-cli	apollo-cli module get \[Experimental]	416	4	e297083dd1e72dc4980952c81507464c72417622e01a63115f446cfb8759fc7f
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_install/	apollo-cli	apollo-cli module install \[Experimental]	507	4	a4a13977ecdc6542f1312fb960a619c8b27fe313ffbb8d60a177458c31ed04a5
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_list/	apollo-cli	apollo-cli module list \[Experimental]	396	4	2e6469d947a2576b363d306abe538937859ca6da40330cb759cc27d95c512d0f
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_lock/	apollo-cli	apollo-cli module lock	435	4	bb10dba5d19c5c0f2eed92b1242d5e29c5af88902d91d1e6c7f24da18aebc8d2
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_update/	apollo-cli	apollo-cli module update	392	4	616b031ff8a7a0d86be13f1b5942a2186594da9d481e04ce8dcc6d8cc0268cd5
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module/	apollo-cli	apollo-cli module	465	4	7f44c788111adb15de52567b0e53147587d83c1b6d997ea45b344521b8768c46
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_list/	apollo-cli	apollo-cli product list	376	4	7395841cec40d1a5dc48681712d7fcded22d71235aa9684804b7ad646fb17c2d
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_append/	apollo-cli	apollo-cli product promotion append \[Experimental]	603	8	9f960e7a74a8efb3cc6711ac45f4a890710595318764d2c1799a49dab10782c0
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_disable/	apollo-cli	apollo-cli product promotion disable \[Experimental]	452	6	4239a3f5cee4a02cd4b0702d1f32b0b87b201ec0b66e078824e129a1b3cafb66
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_enable/	apollo-cli	apollo-cli product promotion enable \[Experimental]	453	6	918c880bdc73c4987590ffefb0cbe7bf86f6ae6b2395a5c4a3c854b2a71baba9
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_get/	apollo-cli	apollo-cli product promotion get \[Experimental]	465	6	c8fb18bb899d661c3de2475b23c8ce77553033d205d87324c507f58d0905b35f
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_set/	apollo-cli	apollo-cli product promotion set \[Experimental]	615	9	90dc142d550013c117f1d0aa33daf49c8b581065d3f2dc4dc157b260e9bc28af
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion/	apollo-cli	apollo-cli product promotion \[Experimental]	480	4	7ec5b18ca0999cda0d7f16f1b951e07e9066ecce30dfb641d1460430fe091dbb
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_asset_publish/	apollo-cli	apollo-cli product-release asset publish	567	4	03d7002f6a76a58067f2c29d87f8f2c22dd03030798eb593fa24794897b5a7b4
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_asset/	apollo-cli	apollo-cli product-release asset	386	4	e31a64abf5818139e369fe116a3dd56e12f3d99a984bf7dbbf056c513464e82d
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_create/	apollo-cli	apollo-cli product-release create	540	4	6f041749cd39bd0553ff61c4fd6b17961f47fc36a0e354179ca2719ad9d4af8b
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_get/	apollo-cli	apollo-cli product-release get	451	4	9fba8adfbf95e97212afc5c31d2213cab96caedf11dad1b3616e8ee620b30b1a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_helm-chart_init/	apollo-cli	apollo-cli product-release helm-chart init	706	4	3897325f699ca9442571334deef7c537179e830f696c05809ba133e6e8657c62
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_helm-chart/	apollo-cli	apollo-cli product-release helm-chart	390	4	da784a9fd1a48918ffedc491d0abd467e430933386cd5adcd1c5efc4feb3b7ec
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_init/	apollo-cli	apollo-cli product-release init	397	4	3654e9cfdbd7abb3809a80d518439811346716d3a19308e7a326dae940cd9fe6
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_list/	apollo-cli	apollo-cli product-release list	452	4	9acacf655d2dec03221b0d930234fe1182c5f80bf6e507512b6c733e0ae3687f
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_release-channel_edit/	apollo-cli	apollo-cli product-release release-channel edit	481	4	fd81efc60f5fcd34b29bbd6291fb8f735d8f7aa0bb5f29a4b5bf36bf32e109b2
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_release-channel/	apollo-cli	apollo-cli product-release release-channel	384	4	b9866ed64baf7e1fa724269d55d326cf900d50d7660bd2b18bab6aaca79ab377
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_terraform_init/	apollo-cli	apollo-cli product-release terraform init	407	4	a883071955ae8a166740b9a0336864e226d7d6ae52c19fc94bb926dd01f8b03c
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_terraform/	apollo-cli	apollo-cli product-release terraform	382	4	fd1200b1ffafccc844eed2a908fa619a155d9a713f7c9a5b193b94d9a7bae366
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_verify/	apollo-cli	apollo-cli product-release verify	448	4	282697a7499bf88cb4187565fe66f3a257753c4d369144fc00282a413e164d99
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release/	apollo-cli	apollo-cli product-release	468	4	75c58bb1d9762adcd665af4e36da6724f1ec69f380a9adc2426c36b0d480ac17
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product/	apollo-cli	apollo-cli product	386	4	1901aaac35474f746b18015f2c11aca6aa01d525383a469ae371ea56657263c3
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_create/	apollo-cli	apollo-cli profile create \[Experimental]	446	4	e24d89defb37f65e8a78b512dc1041e19901964abb55309d4e3d3f2d89b83ded
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_delete/	apollo-cli	apollo-cli profile delete \[Experimental]	432	4	f602ff57c63e0bbdbef408235c4aa89c10ea06f35d7a16cbf9c40c3c6352c216
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_export/	apollo-cli	apollo-cli profile export \[Experimental]	456	4	6940a153712276e3f39fe9e8bc62686d9f3387fa87047561d0baa75656997eef
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_import/	apollo-cli	apollo-cli profile import \[Experimental]	468	4	13cb9dacb185e2a7ea79e259262af7fc55391f5318cde6ff7f05ddcf01c2ffc3
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_list/	apollo-cli	apollo-cli profile list \[Experimental]	412	4	a8747e68aca974009139f133bad7bf7635f165c5f7dba8876d7e38ab3b5bb811
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_rename/	apollo-cli	apollo-cli profile rename \[Experimental]	410	4	f5ce15bbdc6f6a653663b709e30068bcee6aeb18fb10a08cfb90dec99802733a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_show/	apollo-cli	apollo-cli profile show \[Experimental]	426	4	4b1ceac0ff8c222f9d6c5f1f1f5840e922456dca98e816bcfb56fb5501059f98
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_use/	apollo-cli	apollo-cli profile use \[Experimental]	435	4	383dc9ca85c4bd03a3394012405e1053f77114283d068bc4095f8000fb66f499
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile/	apollo-cli	apollo-cli profile \[Experimental]	528	8	a84444c5e72042d7826dce9e7bfbe6e0d54458bc3965298e31dd91e729770586
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_add/	apollo-cli	apollo-cli release-channel add \[Experimental]	573	4	185b6d2b43ef0164bc21497b08a4f2078126eda9720f729249d81a973b1c5b74
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_create/	apollo-cli	apollo-cli release-channel create \[Experimental]	548	8	8c406870466387d86d97c7f833c502d46bfefc1b7b5ed07934cf88b990490dbe
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_diff/	apollo-cli	apollo-cli release-channel diff \[Experimental]	533	7	3d506d9d7531368c738854055ce6991eab6a9af1a86f3883b4fae71a8ceba57e
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_export/	apollo-cli	apollo-cli release-channel export \[Experimental]	529	7	3f701ce256b90ec21cc6343a74487c167286eb6b1c9f12eb2453c1109a84cb88
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_get/	apollo-cli	apollo-cli release-channel get \[Experimental]	445	7	7a33c7534d44fcb12b171a5c82dd373290c37efc827d961d2d423f3a235bd184
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_list/	apollo-cli	apollo-cli release-channel list \[Experimental]	488	9	d08d35d6aefb1d5e7d2d7f3b7180aeb983f7f8af6ef1884bdf6f8a682fbd4b26
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_remove/	apollo-cli	apollo-cli release-channel remove \[Experimental]	538	4	972d3e7f2249ffe6c7497935d7456bf3499835439a5e84af2575c828324a6625
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_update/	apollo-cli	apollo-cli release-channel update \[Experimental]	609	11	0d481316010dc60fdce6579af943575d19f681a11c1b1c3e62396ef114572896
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel/	apollo-cli	apollo-cli release-channel \[Experimental]	482	4	4334990ef963959207220b5ac1ab59c1fe1b9901d718d59ea6c84d2849d4d82b
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_get/	apollo-cli	apollo-cli target-hub get \[Experimental]	404	4	1ac7d79a0cb1018afc4129365a724296000dc6d564f6f31fd32a603d037f7173
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_list/	apollo-cli	apollo-cli target-hub list \[Experimental]	400	4	c2aa9e7a58d2c8b14710b16a6ea44784dfb17db28ee34aee15e1af8031ea4b9a
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline_list/	apollo-cli	apollo-cli target-hub pipeline list \[Experimental]	411	4	d17a5f9d695e2077e6825641c58f950423cf64e05c5d00dae0e4a145d00f3b50
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline/	apollo-cli	apollo-cli target-hub pipeline \[Experimental]	412	4	d249fa16276a920d1867f52e29617ee73ec05eb5cfbc77779923dea663cd9a16
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub/	apollo-cli	apollo-cli target-hub \[Experimental]	424	4	2cb1a4feb04f9c182002777eb6edc5eb796cf5bf74cc384d614bffbf04fef854
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant_list/	apollo-cli	apollo-cli terminal grant list \[Experimental]	442	4	ebe595aff680af447d0d89e9288496c85ca5e8237d10c50e6048b0189c7beb08
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant_request/	apollo-cli	apollo-cli terminal grant request \[Experimental]	500	4	93281c4bee6ef85fa8608eae9845637dc3907651dd2acbfa1e543b7c1cfda03d
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant/	apollo-cli	apollo-cli terminal grant \[Experimental]	436	4	04982662dba5dc28d0c366bffad843805c16740d4408dc7b37dc22e50e8979db
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_node_list/	apollo-cli	apollo-cli terminal node list \[Experimental]	460	4	0eb26b3eac441e3037f3063686d7e7d1cd533055d2f42e4f76966c68ead12b05
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_node/	apollo-cli	apollo-cli terminal node \[Experimental]	426	4	dc735bdb25205baa05a6529813f4266f4e50876c1b3381a714f16c9c49c57e1f
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy_list/	apollo-cli	apollo-cli terminal policy list \[Experimental]	431	4	d5a6f1ef7ba96f7294504c5e6fc31e395d32061fa86332030ed51e1e7ad58648
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy/	apollo-cli	apollo-cli terminal policy \[Experimental]	421	4	1ab84ca527a060a33563cd46793b528132693e78e95063f35e53f47be4560dd8
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_attach/	apollo-cli	apollo-cli terminal session attach \[Experimental]	403	4	7b50bc47c74c19dc4a25d75931a60973dc074803025256bbec3e78749ec51159
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_create/	apollo-cli	apollo-cli terminal session create \[Experimental]	486	4	6cd367e8d958c02d9b0227757264455596d6733994ab36a3cb3b4b8a11ac69a3
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_list/	apollo-cli	apollo-cli terminal session list \[Experimental]	420	4	42be337f9941be30948abbcc02a29b5cbec2d28ae2a4a1cb22108caa8fd9c5df
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session/	apollo-cli	apollo-cli terminal session \[Experimental]	428	4	0af9386097d4732a83f46c18adeb1e59ec94b9bdefeb694550f89bf5d00bd477
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal/	apollo-cli	apollo-cli terminal \[Experimental]	437	4	602d257e83c162e92ee3571e77117786d313f2b0d6cd84b8d3d88818909d63eb
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli/	apollo-cli	apollo-cli	539	4	6135182ed0985e5ce56269fb3f135971143852572b6e86c506205dc68681ca21
+https://www.palantir.com/docs/apollo/apollo-getting-started/apollo-cli-getting-started/	apollo-getting-started	Getting started with the Apollo CLI	2230	14	0f0b36e5a2537babfbe6926eafdb0c5ed69acff76178439cf4b90648343ebef4
+https://www.palantir.com/docs/apollo/apollo-getting-started/getting-started-with-apollo/	apollo-getting-started	Getting started with Apollo	337	7	f8b506e1d1911e0974aba5940e7c55cc31f3fe88d7a3881615cb26b4cfb710e2
+https://www.palantir.com/docs/apollo/apollo-getting-started/glossary/	apollo-getting-started	Glossary	1391	39	4d0560f6e259f161f1e42bc61ae687f7da0cdc2955883290b7fbae6287e8c786
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-environments/	apollo-getting-started	Connect a Spoke Environment	123	1	d5b69b90a44c7295d65aacd4f5a0381776e79cfc35ad67bd5008f629c679547e
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-install/	apollo-getting-started	Install a Release into your Environment	275	1	7777aaac89a1bdbd74ad1cababa4bbb22431f1eb4738765ae2d860db132d685f
-https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-maintenance/	apollo-getting-started	Set Product and Environment maintenance windows	730	3	fe111d2a8c0beea76137de5831ce58b21df9eaa1fd496f0e78faf69e74cf03ff
+https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-maintenance/	apollo-getting-started	Set Product and Environment maintenance windows	732	3	877e2b88867f55fecef0249b8c9e6194d5d2b0e6f6de1b66b2b54571e9a491c9
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-manifest/	apollo-getting-started	Create Product Releases with additional details and constraints	726	5	3c2d84ce0fcaf67c2a96d0edb25b1897b5b2b36a339db6a61d1a4339df6f8641
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-next-steps/	apollo-getting-started	Next steps	160	1	ec67417aafcba0f1ea5e4a977fa27ff7ae840fe2ded9cfa29bb219d3c639ade9
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-products/	apollo-getting-started	Create a new Product and Product Release	437	4	412469b8cfd39cfb63e5b0a4b676fd58e1b8f60c3c8c7a7163edca59d33bb3f2
-https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-promotion/	apollo-getting-started	Create a Release promotion pipeline	1036	4	1a1518f762f1cb23f2cc2bbe10f2ec4762dfe90178fcf87f02014ff6bfe0aa30
+https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-promotion/	apollo-getting-started	Create a Release promotion pipeline	1031	4	4a43518bc7bc86857b02fed3ff79a3ec80682b1052b3cbedc69e383515fcdd96
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-recall/	apollo-getting-started	Recall a Product Release	271	1	2d82a16313faa697c953c7aae72a1cd0953575faa2a15bcdb40d510017255213
 https://www.palantir.com/docs/apollo/apollo-getting-started/introduction-welcome/	apollo-getting-started	Welcome to Apollo	389	3	eff0c83ff3bdc771be489bc10a9a28f513a3e542fcca6aa7c6209adcc8d77e6f
 https://www.palantir.com/docs/apollo/apollo-getting-started/set-up-your-apollo-hub/	apollo-getting-started	Set up your Apollo Hub	281	4	51cbc21a48f451d41e2bfbc854c71408c6114b5211fd86400d67224108022dbd
+https://www.palantir.com/docs/apollo/apollo-mcp/overview/	apollo-mcp	Apollo MCP server	496	10	ea5cd792ba76cbe02b9a5eb147faef597f03446536cb61fbb59bd8d98425ae2c
 https://www.palantir.com/docs/apollo/apollo-product-specification/annotations/	apollo-product-specification	Labels and annotations	297	9	2e34551c5a830fb4befcc9a4cd56f765497bceb53388bad2972d8ffd2e8427af
 https://www.palantir.com/docs/apollo/apollo-product-specification/apollo-product-spec-definition/	apollo-product-specification	The Apollo Product Spec and Definition	318	2	2a6a1fe4869daf697df368eb27f4be8e74421a85b5e6a3213d457663ab21b26e
 https://www.palantir.com/docs/apollo/apollo-product-specification/container-images/	apollo-product-specification	Container Image Specification	294	5	92a668d20fd794820d30e86e6aaef45c5306c91945f1ec60dd4ac06eb9822b90
-https://www.palantir.com/docs/apollo/apollo-product-specification/health/	apollo-product-specification	Health \[Beta]	1259	14	5f98b0bc64dd10911391ca68ac2a0a351783469e5b1c5d340d6ef2896b88536f
-https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_apollo-product-spec-definition-full/	apollo-product-specification	The Apollo Product Full Spec and Definition \[Beta]	3699	52	9b8d6a066538fe170da29d19f49a436595f44b53eab70f63408804904d3e3354
+https://www.palantir.com/docs/apollo/apollo-product-specification/health/	apollo-product-specification	Health \[Beta]	1257	14	8c4fc08134a76bc52915d3a92a635bdae46d6688f5af49f83a70d8e4bad1d50e
+https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_apollo-product-spec-definition-full/	apollo-product-specification	The Apollo Product Full Spec and Definition \[Beta]	3710	52	3f0e0d17336f869138bceab4450b832785ef9b78a9ccafb7dbccc9cb435f0e4b
 https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_endpoints/	apollo-product-specification	Endpoints \[Beta]	757	7	5eb864f6be3bd8e919b9c58c92f479cd1225157496abf5be2d4bf84ed7b5fede
 https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_liveness-and-readiness/	apollo-product-specification	Liveness and Readiness \[Beta]	471	4	40f3cac456599ed9303bf5f4670cd9ca467607626444087939694db765791f4a
 https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_replication/	apollo-product-specification	Replication \[Beta]	130	2	60d33c16e51275f06aeafa67c3b75a7e74507efea9ec606a167de5910fdc22da
 https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_resources/	apollo-product-specification	Resources \[Beta]	289	4	bb46c90d13e6f831b83123a555870857aa4bbcb8e2e1aa43f8f33efc8de1221d
 https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_substitution-reference/	apollo-product-specification	Apollo Product Definition: Substitution Reference Guide	1066	9	de241953f0fda2de870606a42976d7aee4491c2f294b39e9a45702da2ae14150
-https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_volumes/	apollo-product-specification	Volumes \[Beta]	500	12	ac4f4168d1ba71f40663c9197a488f708882c8b984a026c09bbdc518af87b94a
+https://www.palantir.com/docs/apollo/apollo-product-specification/hidden_volumes/	apollo-product-specification	Volumes \[Beta]	498	12	8f65f8f280039d41b33c38a70b04d0544e301a135bc0489fb25c16e191557af8
 https://www.palantir.com/docs/apollo/apollo-product-specification/manifest/	apollo-product-specification	The Product Release Manifest	171	4	a4461b2707efaaacd6c6f1ff15a346440efa93833db1492ccf041041d983854b
-https://www.palantir.com/docs/apollo/apollo-product-specification/product-dependencies/	apollo-product-specification	Product Release Dependencies Extension	874	4	c30dab37a6096d5eb5df5463b9024bc6f7884c7825743df494d17b7754f4fdf5
-https://www.palantir.com/docs/apollo/apollo-product-specification/product-incompatibilities/	apollo-product-specification	Product Release Incompatibilities Extension	572	3	e51714d070a66286a04d0f48bd62704aeea3542e6bdbf7decbf335857a1ac02d
+https://www.palantir.com/docs/apollo/apollo-product-specification/product-dependencies/	apollo-product-specification	Product Release Dependencies Extension	868	4	8540e117e6be2381d6e3969c7aa958de697278a7be7bafaa49e4ee9c60a4dbe8
+https://www.palantir.com/docs/apollo/apollo-product-specification/product-incompatibilities/	apollo-product-specification	Product Release Incompatibilities Extension	562	3	eac61f2592db31c7ec95e77adf75ed7ba478f4dc73f5a49c30b5b749c7aa01cf
 https://www.palantir.com/docs/apollo/apollo-product-specification/product-types/	apollo-product-specification	Product Types	70	4	79c5344d293cea01d62194ea97bdc711ecf0f9f16970c2758d1eb98f58bff1f3
-https://www.palantir.com/docs/apollo/apollo-product-specification/product-versions/	apollo-product-specification	Product Version Specification	838	5	cd8a5d23969312c7d740e64f1da1cbdb4bc13c53f0e01259f9ab80fa384f716a
+https://www.palantir.com/docs/apollo/apollo-product-specification/product-versions/	apollo-product-specification	Product Version Specification	836	5	af88116d83631e0e162bec8d93a67eb14e3b7aaaa94d0b05a38a02d4d8874101
 https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/	apollo-references	Apollo API Explorer	174	3	01c60627857e8d274fc44ba5fdba76ba0d93fce0b335e259856a8320c8a0879b
 https://www.palantir.com/docs/apollo/apollo-references/apollo-references/	apollo-references	Apollo Technical References	118	2	c36e016d1d967523a99e060e176bd69ea31ff5beaab0fafdb482e700744088bf
-https://www.palantir.com/docs/apollo/apollo-references/developer-api-limited-support-policies/	apollo-references	Developer API Limited Support Policies (v1.0)	603	5	da41f7f7f8197d13896d13d1bc8ecf86681be19f0461d2d78f9c259a0a851325
-https://www.palantir.com/docs/apollo/apollo-references/experimental-end-to-end-workflow/	apollo-references	End-to-end workflow \[Experimental]	516	10	005bbd967c3f56673b75a833c374a12d6b83563d2bdaa9be71953a41f7629c1f
-https://www.palantir.com/docs/apollo/cel-policies/cel-functions/	cel-policies	Response types	915	15	de80348ff0d83086ca1135993ed0a28e1ae45b13997a80bd09988e1a695c3c17
+https://www.palantir.com/docs/apollo/apollo-references/developer-api-limited-support-policies/	apollo-references	Developer API Limited Support Policies (v1.0)	595	5	dc2bd0839933c4ac47076659dc9fd09409eeacb2a4f3b8b1f95728c1ab7b52be
+https://www.palantir.com/docs/apollo/apollo-references/experimental-end-to-end-workflow/	apollo-references	End-to-end workflow \[Experimental]	518	10	1d9913073d15ddd24c43fe92405cd8ee1ea7d2e81e602324d371afdb7e956d3e
+https://www.palantir.com/docs/apollo/cel-policies/auto-approving-dev-environments/	cel-policies	Auto-approve changes in development environments	519	5	25773c2e40e94a0730586881a5e1b178e6afef5d9507d72b8af3d5362992d18b
+https://www.palantir.com/docs/apollo/cel-policies/cel-functions/	cel-policies	Response types	1045	16	cf0efd8c118a73650020e53187da40262063ecb9f91a64d7f934e0a0321fd59d
 https://www.palantir.com/docs/apollo/cel-policies/examples/	cel-policies	Examples	681	7	7cb98580621bdb5acad87993e3c8582216136b2d33d90294131d82f51940ba3f
-https://www.palantir.com/docs/apollo/cel-policies/input-types/	cel-policies	Change type API reference	3781	48	cfa4dc09d445ae1751dd728dca34d6c87c75f95972c0cb0401a545f271a72d5b
+https://www.palantir.com/docs/apollo/cel-policies/input-types/	cel-policies	Change type API reference	3552	47	06a236c93c7357078586c6fd8734a1a6d0d1335264e3cd0748a38a66c29506ba
 https://www.palantir.com/docs/apollo/cel-policies/overview/	cel-policies	CEL policies	627	5	83068d7caad59df92b6d8c5c75490ed58c16dd1c9e903341bdccae82aee0deda
-https://www.palantir.com/docs/apollo/core/agents/	core	Apollo Agents	275	3	a5dacac4cbec3b2abc40080844a733c86424415f4db0f501c8eaee4ed80a3a9f
+https://www.palantir.com/docs/apollo/core/agents/	core	Apollo Agents	274	3	6dc14809b11a7ea8a2bc3ccf209d20f253d8151b694d4d41a0e141600be4d144
 https://www.palantir.com/docs/apollo/core/authentication/	core	Authentication	92	3	840f3dd5402eb52948ee42fddd38bfd90238e16b41f5faeffd0ed4dd24e53c0c
-https://www.palantir.com/docs/apollo/core/authorization/	core	Authorization via roles	1485	14	db5b9665e27e00de3161fa6d6dc275abb98927020c648002df1d67cd94fa2d6c
+https://www.palantir.com/docs/apollo/core/authorization/	core	Authorization via roles	1485	14	c8d21f02743647caca7e5b33b03bc67c7ad8c49b300e36511a3e0a9c5dd7b2d1
 https://www.palantir.com/docs/apollo/core/ci-publish-setup/	core	Publish Products to Apollo from your CI pipeline	1218	8	9d36c4679761584585f9e302c44b2c97b11a37a8f6c348e95bcc9b4973089e4e
 https://www.palantir.com/docs/apollo/core/connect-spoke/	core	Connect a Spoke Environment	339	6	6b458394c2191e35915afcdb18c4fa72dd0ff6d805b5c2decc98ec333575c48b
-https://www.palantir.com/docs/apollo/core/entities/	core	Entities	351	4	849aa38c2b884d0c645bba709049efe5d6865a9833fd916f8eb34ee4f2e4372d
+https://www.palantir.com/docs/apollo/core/entities/	core	Entities	351	4	18f43059522ef3586212eb9c1ddfd87cb7a84735f0506b1253ddfb4cafee3869
 https://www.palantir.com/docs/apollo/core/environments/	core	Environments	282	3	636f1e4dbc1416aea26571c684905872b0eab5189ec1adec7e26e63abca5b629
-https://www.palantir.com/docs/apollo/core/helm-rollouts/	core	Helm chart rollout strategies and timeouts	713	4	f3b4889abe62cf42ce1d9e7982539bfd0347c655f4d5ed158ca984fb06f6aafc
-https://www.palantir.com/docs/apollo/core/how-apollo-works/	core	How Apollo works	502	8	6dd1e06aa66c2bc3f3676078939a30cc586907db970eb2c4ac2a8ba9c2195c1f
-https://www.palantir.com/docs/apollo/core/introduction/	core	Introduction	949	9	edb365a23710ccfe111b6b60ac48366caaae19212f1a78146f14f70165d87c0a
+https://www.palantir.com/docs/apollo/core/helm-rollouts/	core	Helm chart rollout strategies and timeouts	711	4	519dbee34acf940481f52c6b6bb112df757c938c1861d6819212b3963f5c58e4
+https://www.palantir.com/docs/apollo/core/how-apollo-works/	core	How Apollo works	494	8	c9f704efe7fabe35b658587a9ead62cf6c5727551476cbe415b99a376cab616b
+https://www.palantir.com/docs/apollo/core/introduction/	core	Introduction	945	9	9fd5b44f8e591f930a1d8702da9182c50e7a6191c7259db8c369d4b4df08b896
 https://www.palantir.com/docs/apollo/core/liveness-and-readiness/	core	Liveness and Readiness	185	4	f202d128b68e381ac482dc065739dcadbe4170002fad5e28370b5c8aef77fe68
-https://www.palantir.com/docs/apollo/core/modules/	core	Modules	317	7	0365d822d1f38b71e6ec7543e3a6c62495e7760bc3e52371d9afa2264448d95f
+https://www.palantir.com/docs/apollo/core/modules/	core	Modules	317	7	ecbb6a6ac0033bc42a24df8a6f6afbec6c30b277385cda7c09a17254dea0a659
 https://www.palantir.com/docs/apollo/core/overview/	core	Overview	421	5	afe4379b2cff1c68b8bf6b11e5d1adcb6258d970ce943f3229f0216c7b9532fa
-https://www.palantir.com/docs/apollo/core/plans-and-constraints/	core	Plans and Constraints	2207	15	47798ddaf374c041b8d7a25aee13c9be7a9824b78aa70729409974f0fb350ed5
+https://www.palantir.com/docs/apollo/core/plans-and-constraints/	core	Plans and Constraints	2198	15	afddaf02341ffdb3f2e7fc9e86683ba2e822c1bc4ef4360b994a9e750de9e840
 https://www.palantir.com/docs/apollo/core/products-releases-versions/	core	Products, Releases, and versions	687	6	1ab118325a4c1a6f5f94736c6ea941116542d9d150372c09f2d0d19f7fd6a359
-https://www.palantir.com/docs/apollo/core/publishing-versioned-helm-charts/	core	Publishing versioned Helm charts	1152	9	37e5cfd801151a7604c62c22e17c864e3210d0ec6c2afa93e32700feb66ed004
-https://www.palantir.com/docs/apollo/core/release-channels/	core	Release Channels	686	8	041a265b146246119f1807c7b3a4ac299969fa98aeb643ca14b3ff8ffd88839c
-https://www.palantir.com/docs/apollo/core/set-up-local-kubernetes-cluster/	core	Set up a local Kubernetes cluster	377	1	7742c454ee98897a8576066726eeca42c03620fb55da68a241f5bc4f10ad110f
+https://www.palantir.com/docs/apollo/core/publishing-versioned-helm-charts/	core	Publishing versioned Helm charts	1152	9	4a68ff11632ea01f380dd2c7499dad6f1e1cdc958d86426218d4de3041e2a455
+https://www.palantir.com/docs/apollo/core/release-channels/	core	Release Channels	684	8	ea93b79a43e81dbf564e64c343b7cdd6d9cd83ea80c018418b00f23f53d5cf4a
+https://www.palantir.com/docs/apollo/core/set-up-local-kubernetes-cluster/	core	Set up a local Kubernetes cluster	376	1	9ae16784609d2a93690de0cd4509eaa614178cac4671a8aa143c56cf31e29a26
 https://www.palantir.com/docs/apollo/core/spoke-control-plane/	core	Spoke Control Plane	407	7	0b60ca6527bf90e2c7e0a1edfc8626b60506011b3df207bc0c0536a120dc7d9f
 https://www.palantir.com/docs/apollo/core/supported-browsers/	core	Supported browsers	78	1	bc31fc33f7c33eaf2f9e610e582297eef9d92617606fecd847a87e8786fe16c7
 https://www.palantir.com/docs/apollo/core/teams/	core	Teams	137	1	406f395afb313271f6e5dd57c098df52b72c7601fffe2d8561221c7d1308bfff
-https://www.palantir.com/docs/apollo/core/troubleshooting-in-cluster/	core	Troubleshooting in Kubernetes clusters	1563	16	e00b8bf740a8fb4c41a1888118e3e405af03436c55c1771e0766d821e30e2e38
-https://www.palantir.com/docs/apollo/core/whats-new/	core	What's new	16255	275	59acffb3542d3eda0f91915eef7c066fde83ef03d274cc24c551ce874f522ae9
+https://www.palantir.com/docs/apollo/core/troubleshooting-in-cluster/	core	Troubleshooting in Kubernetes clusters	1561	16	acb7e970625e52c825ed41003e564998fc93604dd2c7266098b352de0bcadfa1
+https://www.palantir.com/docs/apollo/core/whats-new/	core	What's new	17899	309	49d5e4d1d8cc6f4ba7fd6ba9a293c5c34b786604bbebf688049397b521603bba
 https://www.palantir.com/docs/apollo/debugging/jit-access/	debugging	Just-in-time access	300	3	0610e1633315f8133a2afa65216b7a88d128494f8afe2992947a8f9d85958195
 https://www.palantir.com/docs/apollo/debugging/terminal-profiles/	debugging	Terminal profiles	692	7	2d18c6d04ee61cd1ded52f86470ae86bd5ae9434bdc3aac319bbf62d8b94f46f
 https://www.palantir.com/docs/apollo/debugging/terminal/	debugging	Terminal	323	3	f2b58f3be85c8fd6dce5097b2eaa028629c22b6916609faedc883af73ee53ead
-https://www.palantir.com/docs/apollo/export-import/apollo-cli-for-bundle/	export-import	Apollo CLI commands for Bundles	756	4	19c42111aa1b9cc914519d1c2bb15694618d06b16273fcc5ec015d9db74d3e07
-https://www.palantir.com/docs/apollo/export-import/bundle-chunking/	export-import	Bundle chunking	421	4	2f8c26a16f7caf67f98bc69f6a4f27482007fa538078edd9b587c1ac16339e4c
+https://www.palantir.com/docs/apollo/export-import/apollo-cli-for-bundle/	export-import	Apollo CLI commands for Bundles	754	4	a888d83a2fbeb9eb21daad3177545df67ea24814a4d28a56699b1b9150f95a44
+https://www.palantir.com/docs/apollo/export-import/bundle-chunking/	export-import	Bundle chunking	417	4	9337eb3b0f82ea5982e6522b2930c4d4da4cba7eb57a1508fd776052245a83c1
 https://www.palantir.com/docs/apollo/export-import/bundle-layer-deduplication/	export-import	Bundle layer deduplication (Experimental)	930	8	84d1c87808204bf11f362e6f5f1a4f1047874f2bec665f5517e7bb57f351ee88
 https://www.palantir.com/docs/apollo/export-import/bundle-preview/	export-import	Bundle preview	157	3	1f22482a4db0e83f9a3bdfd2bdcce0147a9d3bed88f7941d61c03a7d1792e24a
-https://www.palantir.com/docs/apollo/export-import/bundle-security/	export-import	Bundle security	1251	9	ba57543942f6eb4ce157a41e3be21f98ed873a14365eb6b0d3aae0dcb21f5f7e
-https://www.palantir.com/docs/apollo/export-import/change-requests-on-environment-import/	export-import	Change requests on Environment import	501	5	d8acec4f7256a35128faf05b7451b4a333886cd68a3e7e3a145437349dc1a34f
-https://www.palantir.com/docs/apollo/export-import/checkpoint-bundle/	export-import	Checkpoint bundle	917	4	d8c0608e3c8cc0ad483f07692cf0993c5737eec6bce9c0904e71df812a96a956
+https://www.palantir.com/docs/apollo/export-import/bundle-security/	export-import	Bundle security	1251	9	00ea105036b9b8394259343a881a66582bdbf3d582b5f5be9d9c48dfa541c574
+https://www.palantir.com/docs/apollo/export-import/change-requests-on-environment-import/	export-import	Change requests on Environment import	499	5	a0543ffcf45f5d8bd1ad2de2678c464f990f3eb3580131d2115273ee22d3bba8
+https://www.palantir.com/docs/apollo/export-import/checkpoint-bundle/	export-import	Checkpoint bundle	914	4	e0c574de1fcc2e8e6b6acdd1cad804e08a1f64773c01b093559e8ed0b91dd103
 https://www.palantir.com/docs/apollo/export-import/create-export-bundle/	export-import	Create and export a Bundle	276	4	f87b59747111cec7db6ee44604165c9406df15e2847be90994544571f0e47a8a
 https://www.palantir.com/docs/apollo/export-import/create-pipeline/	export-import	Create and modify an export pipeline	787	11	01869a3667f4156cef6aa6945bd7b0f5fb2980f8ae0371a3deda6d3971fc8eff
 https://www.palantir.com/docs/apollo/export-import/data-selection-rules/	export-import	Data selection rules	987	11	58e4f03d0298eb63490ba8693c21634a5026ad847eaa00893782329862ddd1e8
 https://www.palantir.com/docs/apollo/export-import/export-label-requirements/	export-import	Label requirements	287	1	936640d7cd497559289b1cac4d0a05f4e91dc7fafdd4e18a9c0881cef8253261
-https://www.palantir.com/docs/apollo/export-import/exporting-environments/	export-import	Exporting Environments	1016	16	9f0cc2d1957885656a7338b92c69844e25c53639125707d4b20f743d822953cc
-https://www.palantir.com/docs/apollo/export-import/guidelines-for-export-and-import/	export-import	Guidelines for exporting and importing data in Apollo	477	10	770abfe7c2a57c39ee1b57954e6471d6afb7130206003f17f4375ee3748e71f0
+https://www.palantir.com/docs/apollo/export-import/exporting-environments/	export-import	Exporting Environments	1014	16	32aea317aede6f9f01504560a4835616f8f024778a2cbb9d0264df2039b27823
+https://www.palantir.com/docs/apollo/export-import/guidelines-for-export-and-import/	export-import	Guidelines for exporting and importing data in Apollo	474	10	188e7af45cb318e906e6d07a4463e7941dc22e3d89d592bba31f1ad67518a28d
 https://www.palantir.com/docs/apollo/export-import/import-bundle/	export-import	Import a bundle	277	3	b76f82a0e649f67b99795401fc0172342c75cb7398166cd0d798126f73d0c9b7
 https://www.palantir.com/docs/apollo/export-import/overview/	export-import	Export and Import	725	6	f33c6834f9b16780eef88c7a2685dbb3aa688f359bc1cbdd6dcafa6ff40300da
 https://www.palantir.com/docs/apollo/export-import/resource-selection/	export-import	Resource selection	781	7	700d66c763eef23b73379c044d54eef13e6b12062c648b858f32bc659119da2a
 https://www.palantir.com/docs/apollo/export-import/target-hub-versions/	export-import	Target Hub versions	188	4	233e3b1697d832d9620ffca91c0476a2b7a9aeeb2c9c54f38baa32f3da25aae4
-https://www.palantir.com/docs/apollo/managing-artifact-registries/assign-artifact-registry/	managing-artifact-registries	Assign an Artifact Registry to an Environment	418	4	c72de3290b6482085bade56d2e82eaf8df8cea69377affd03a96649c832d62a0
-https://www.palantir.com/docs/apollo/managing-artifact-registries/create-artifact-registry/	managing-artifact-registries	Create a new Artifact Registry	577	6	cc48f15ff303016d26877e8081d04a43c39986a4084b778ae8f2e8db2e303101
+https://www.palantir.com/docs/apollo/managing-artifact-registries/assign-artifact-registry/	managing-artifact-registries	Assign an Artifact Registry to an Environment	416	4	81550ad8d05b3cd1be4debe527419c7d498f04c041d2fed2d90724cbf14cdcae
+https://www.palantir.com/docs/apollo/managing-artifact-registries/create-artifact-registry/	managing-artifact-registries	Create a new Artifact Registry	577	6	04892c19b7521963c40fb3f3ea52d36185210d9a1d65d3d8f553fe5725dfa7c8
 https://www.palantir.com/docs/apollo/managing-artifact-registries/mirrored-artifact-registries/	managing-artifact-registries	Mirrored Artifact Registries	288	2	e59adc439015b71eb618b0b79b14b2532a62c666847d3f570269a0ac53a2079d
 https://www.palantir.com/docs/apollo/managing-artifact-registries/overview/	managing-artifact-registries	Managing Artifact Registries	133	2	30606de3afa33221e871c75b8ce1c1c1110acfa13836c8703bcd86586fe6e3fc
 https://www.palantir.com/docs/apollo/managing-changes/change-requests/	managing-changes	Change Requests	415	1	ab6229fd0e9e2048efb62d22efc968630f460b8754327d3af37aecc63a2fff58
 https://www.palantir.com/docs/apollo/managing-changes/change-types/	managing-changes	Change Types	140	1	7af2a9cec6da11df9ad075a575be09fff1ac7003639f36199f1a2266ea91c595
 https://www.palantir.com/docs/apollo/managing-changes/overview/	managing-changes	Overview	59	1	357eb976d55e151f461bb7053eb7952d7e32f79e4684ba872a6b12396f6ba859
 https://www.palantir.com/docs/apollo/managing-changes/required-approvers/	managing-changes	Required approvers	88	1	152a2ba8be2f36be2618bd4ba855e484737bd6442188b27409cbaa384672d271
-https://www.palantir.com/docs/apollo/managing-entities/add-and-edit-entities/	managing-entities	Adding and managing Entities	853	8	cabaeac714fa4bafc0531b9271d3c0691a807de7c7117ef9eaf3619ddd3fff73
+https://www.palantir.com/docs/apollo/managing-entities/add-and-edit-entities/	managing-entities	Adding and managing Entities	851	8	8646b25ab16c3f96dc549748a81d0e30d2170409256f22c3d1d8e2a9a8eb8572
 https://www.palantir.com/docs/apollo/managing-entities/overview/	managing-entities	Overview	28	1	488f90ff3fa1b7acf29266a30e7d40b477541e6cd32eb1c2b9859b8bf6233c0a
 https://www.palantir.com/docs/apollo/managing-entities/prevent-product-release-upgrades-for-an-entity/	managing-entities	Prevent Product Release upgrades for an Entity	478	3	3494372cb01a7f3fdf302414618da18ddd207b2aa0a484aa9fc87870f1b81d0a
 https://www.palantir.com/docs/apollo/managing-entities/report-entities/	managing-entities	Reporting Entities	183	1	c6a1451e11f710ee95e6e2e4eb650e993846a946c5471cbb038d9daf3ea0af9c
-https://www.palantir.com/docs/apollo/managing-entities/set-config-overrides/	managing-entities	Setting config overrides	668	4	825a21749fcb08d176c6ed4de97d49b29389e88b9c72e2154fbe6ff782898e78
-https://www.palantir.com/docs/apollo/managing-entities/stopping-and-starting-entities/	managing-entities	Stopping and Starting Entities	138	1	552e8b6134d447e6c93d137fe1b115fe44d9411c709982dce3641d294429bcc8
-https://www.palantir.com/docs/apollo/managing-entities/uninstalling-and-unmanaging-entities/	managing-entities	Uninstalling and unmanaging Entities	529	3	2831d7c597f2e714f5f6ed566065ffd2776184904edbe63754ab890b54a4779f
+https://www.palantir.com/docs/apollo/managing-entities/set-config-overrides/	managing-entities	Setting config overrides	844	4	be4f51a432a9673f39cb917d238c04db636bb6e200e94452138a9cb3cc8a0c5e
+https://www.palantir.com/docs/apollo/managing-entities/stopping-and-starting-entities/	managing-entities	Stopping and Starting Entities	138	1	5286927c3ffc73e531a93172020534474334dc06aac7b4b771c324f202b773ad
+https://www.palantir.com/docs/apollo/managing-entities/uninstalling-and-unmanaging-entities/	managing-entities	Uninstalling and unmanaging Entities	525	3	1630eef111f2867212b3233c51d5b6b9cd3b8cd6fa3264b2691b8da742670db1
 https://www.palantir.com/docs/apollo/managing-entities/user-issued-commands/	managing-entities	Issuing commands	1380	13	6280fac39671403fd7d2fd9165ea7418bfd9995962b230aeb9f75f1454fda815
 https://www.palantir.com/docs/apollo/managing-environments/best-practices/	managing-environments	Best practices for deploying software to new Environments	601	5	4a9c6aa3e3b96717bda79502f3e63a52f61b8f52dc5d11f0592088cde9f547a6
-https://www.palantir.com/docs/apollo/managing-environments/connect-new-environment/	managing-environments	Create and connect a new Apollo Environment	928	6	30828d6e281d93c3ad0f6948c05c10bb8c691f8f17073d7bd04b4d2340413051
-https://www.palantir.com/docs/apollo/managing-environments/create-maintenance-window-overrides/	managing-environments	Create maintenance window overrides	515	4	d8e195de0c459f0c61356b2bf2962a7309ee8105d5cc8b625a00afd3d151dd35
+https://www.palantir.com/docs/apollo/managing-environments/connect-new-environment/	managing-environments	Create and connect a new Apollo Environment	845	6	79b505ad156e781658e65295a880a6b00ab3fdf1888ddb7e97bcab06096fe31e
+https://www.palantir.com/docs/apollo/managing-environments/create-maintenance-window-overrides/	managing-environments	Create maintenance window overrides	481	4	5643c0599b4bfede1b52fe713071b39fb5bddeff9bfb5c4441cbfe4a70fe4a91
 https://www.palantir.com/docs/apollo/managing-environments/delete-environment/	managing-environments	Deleting an Environment	99	1	ecbc9613ab9893c2032af7cec9a09c51bafa2c9a5a785a63b4e67545e061fe1c
-https://www.palantir.com/docs/apollo/managing-environments/editing-environment-management-settings/	managing-environments	Editing Environment management settings	439	1	be453c93a071ac10075bcb738d3dec52e9e3b21c9ab0081afd6f06d87b64f389
+https://www.palantir.com/docs/apollo/managing-environments/editing-environment-management-settings/	managing-environments	Editing Environment management settings	266	1	b48d7b5d4d759f48ece2da490c2d1c45575fbfdc1896e0f4f8b1f96d391b7450
 https://www.palantir.com/docs/apollo/managing-environments/environment-config/	managing-environments	Environment Config	373	4	1057637fdd4c4ebf56f94593c58ffa73eacf4b2debb61d7ce3259e62790674b8
 https://www.palantir.com/docs/apollo/managing-environments/environment-connection-settings/	managing-environments	Configure Environment connection settings	584	10	065a2a0c2dfd17e15ff9b95f717368bd5528317a9f73199ce69ff0bf86c46610
 https://www.palantir.com/docs/apollo/managing-environments/environment-edit-source/	managing-environments	Configure Environment edit source	600	8	0af1e3570ca1c4038e47fa07fe058de3294e03ef907ac439a4a9c2809d388160
-https://www.palantir.com/docs/apollo/managing-environments/environment-settings/	managing-environments	Configure Environment settings	1431	19	82b64523b3ad905e8d8e5803f3520f6292869dfe3ebe5b58300b95463a2f32ad
-https://www.palantir.com/docs/apollo/managing-environments/overview/	managing-environments	Managing Environments	409	1	8138642b7183dfd85f6ba0bf175ed717717c14350a68bf79c1b8c87b4d1184fd
+https://www.palantir.com/docs/apollo/managing-environments/environment-settings/	managing-environments	Configure Environment settings	1436	18	245ab38e5a66854d7746f14cf50e162ce7a0fd3fcc9d433bd09eff7384b1fa1e
+https://www.palantir.com/docs/apollo/managing-environments/overview/	managing-environments	Managing Environments	396	1	1bdf865a976754d1fc250d9c47efc67cbe499dbb26985b72be598f48788ee634
 https://www.palantir.com/docs/apollo/managing-environments/spoke-environment-prerequisites/	managing-environments	Spoke Environment prerequisites	381	6	b60776a1e2329ed3e3651b03d39f0dec978e876073ca6602c18de2da9b34ead8
-https://www.palantir.com/docs/apollo/managing-environments/suppression-windows-and-cancelling-plans/	managing-environments	Suppression windows and canceling Plans	915	7	2da98730a1dfda9f613c254a9d66475af0dd3f884d560766a2c7d01de25741c4
+https://www.palantir.com/docs/apollo/managing-environments/suppression-windows-and-cancelling-plans/	managing-environments	Suppression windows and canceling Plans	913	7	4bd73a0ecd5cd43fbbfc24b5a3e7bafe1244c9fb4059514fb9372cf2c637695b
 https://www.palantir.com/docs/apollo/managing-k8s-namespaces/create-delete-k8s-namespace/	managing-k8s-namespaces	Create and delete a Kubernetes namespace	448	3	a05b7523c9644e5b377e90999a99e656f26c4841cb14292b36b1dd76bfefd28c
 https://www.palantir.com/docs/apollo/managing-k8s-namespaces/install-entity-in-k8s-namespace/	managing-k8s-namespaces	Install an Entity in a Kubernetes namespace	96	1	15874f04911827cb7073f71d6ffd7ab51d4dd45569886027f3b59367130177d7
 https://www.palantir.com/docs/apollo/managing-k8s-namespaces/overview/	managing-k8s-namespaces	Managing Kubernetes namespaces	58	2	7aaa5720bd92dab72af707f9a7ad0b872cf7d91e7cc63d022d56a5491980d745
@@ -223,41 +243,43 @@ https://www.palantir.com/docs/apollo/managing-labels/environment-labels/	managin
 https://www.palantir.com/docs/apollo/managing-labels/overview/	managing-labels	Overview	156	1	847d68a76e5d91b7513b3fe09e4e60c8fac097eda066f2760d433c90148f1aa0
 https://www.palantir.com/docs/apollo/managing-labels/product-release-labels/	managing-labels	Product Release labels	336	3	7a11376763589fa4ead8a61bb80c73ad94ae4dc0dac1563170992d62cb385d2d
 https://www.palantir.com/docs/apollo/managing-labels/team-labels/	managing-labels	Team labels	211	2	ff0d6c55be4487d521144de3e0d1d0a34386232c2a06c0acd7af7e923679569f
-https://www.palantir.com/docs/apollo/managing-modules/composite-modules/	managing-modules	Composite Modules	1641	10	c41ef15b14a809002bcfcebaeb02f5a754ae544b41ac0e1cb8f555c4c8da6c4c
-https://www.palantir.com/docs/apollo/managing-modules/create-module/	managing-modules	Create, edit, and delete a Module	4636	31	cc6786682307762e3e66f2af4e40a09634fee013f56fe66a037b91208f7bba66
+https://www.palantir.com/docs/apollo/managing-modules/composite-modules/	managing-modules	Composite Modules	1638	10	e62dbad6c11ea600610120824a9aea8cea26b7a34a856fbda1f4f9e932c28340
+https://www.palantir.com/docs/apollo/managing-modules/create-module/	managing-modules	Create, edit, and delete a Module	5183	31	ea0cf9e40afe70300cafe05af80c3974d90bb5453a1ea3c7d569e0381ac430e7
 https://www.palantir.com/docs/apollo/managing-modules/git-module/	managing-modules	Store Module definitions in Git repositories	894	12	1b98c3fc7d9e2df2d6ce678e9de41147559b465b9e165d12c189ab54c3a6327e
 https://www.palantir.com/docs/apollo/managing-modules/install-module/	managing-modules	Install a Module	488	4	e53df821aa9b74517afa29e8dd9a496ebd7f5544eace2861ff3b5b759a53b28c
 https://www.palantir.com/docs/apollo/managing-modules/overview/	managing-modules	Overview	158	1	959dc89f9992155f6302e3a7c222abf166f1810c322ce3fca4c995f7263e7490
-https://www.palantir.com/docs/apollo/managing-modules/update-module-installation/	managing-modules	Updating a Module installation	303	3	33c217ce907aa984a1fe3ac9feb5a8cf9858d3fd23bf51ddde61e9b20262bcf9
-https://www.palantir.com/docs/apollo/managing-notifications/overview/	managing-notifications	Notifications	463	11	d6207e94f6ab19fb8272198e02f73134f10bd4b6c37c9dcccb6dfd3163192301
-https://www.palantir.com/docs/apollo/managing-notifications/team-notifications/	managing-notifications	Team notifications	184	3	6b39e0bdb2e126f914324777e23ef19221f9447c3aeb359ef5880a5d0cd00f39
+https://www.palantir.com/docs/apollo/managing-modules/update-module-installation/	managing-modules	Module installation updates	508	3	a7344f50566d5facc92326010a3187dbfe5f2269cb50af132ae461dacdb402f9
+https://www.palantir.com/docs/apollo/managing-notifications/overview/	managing-notifications	Notifications	459	11	7a6eb1d0ebf0017a5e8d1adfe483dbdf93c36390e2bb5fba2b7f085ca668e69c
+https://www.palantir.com/docs/apollo/managing-notifications/team-notifications/	managing-notifications	Team notifications	184	3	d162e864b6b6555af9b3f55ce92e66d699124587c4f6a37d6f256dd601a63ce1
 https://www.palantir.com/docs/apollo/managing-notifications/user-notifications/	managing-notifications	User notifications	242	3	bb495d96d992adc2f64d7036bd75765a92727af0eff7ccd23286d138aa091a3b
-https://www.palantir.com/docs/apollo/managing-products/create-a-new-product/	managing-products	Create a new Product	315	4	297ae588a6d8519851133763e947fc24a281cd1bc2cd4cedabd27401cdd48616
-https://www.palantir.com/docs/apollo/managing-products/delete-product-and-product-release/	managing-products	Deleting Products and Product Releases	272	3	51397171422bb599ba4232b3b63fc226cd92652ed8923fdd11329b12d3b01802
+https://www.palantir.com/docs/apollo/managing-products/create-a-new-product/	managing-products	Create a new Product	315	4	3aed80dcdcdca4d04f138c14725caa613c601cfea57f56e9b25516a27ca1289b
+https://www.palantir.com/docs/apollo/managing-products/delete-product-and-product-release/	managing-products	Deleting Products and Product Releases	279	3	238a20f79448e6840ae802913f6186d987c6de554cfaa37a430f6db479c8e071
 https://www.palantir.com/docs/apollo/managing-products/overview/	managing-products	Overview	45	1	7e85dfa2813c489afb62aed4813187aa60602bdf41c2494e5e871c152f9efa8b
 https://www.palantir.com/docs/apollo/managing-products/product-display-metadata/	managing-products	Edit Product display metadata	137	1	98adc5af4b49a55cfd900b3c768e19924b46b0366bfa625ed3953d9b89900afb
 https://www.palantir.com/docs/apollo/managing-products/product-maintenance-window/	managing-products	Product maintenance windows	134	2	f54f33c7b18b3f3def7ae76c0f5841778f617331ed6bd0f412dc4ad8a0ab6888
-https://www.palantir.com/docs/apollo/managing-products/publishing-helm-charts/	managing-products	Creating Helm chart Releases	1640	13	ca6748bad968a5a6da61f403b6b7e276289557e13305cf387b633c1875e7f743
-https://www.palantir.com/docs/apollo/managing-products/ramped-rollouts/	managing-products	Ramped rollouts	805	6	89761f661fdd21d32be2d0bc1bb1734e1f1441d5d96081fe9a4acd7270ae7a17
+https://www.palantir.com/docs/apollo/managing-products/publishing-helm-charts/	managing-products	Creating Helm chart Releases	1633	13	211f95cf23d4d27de3c12b485cf5e851e48722d7e2adadcec03ca3ca92160dc5
+https://www.palantir.com/docs/apollo/managing-products/ramped-rollouts/	managing-products	Ramped rollouts	805	6	e1727dbde8ab1e2ced6f22df6a565a88b032e891e172d88e8c1a269e015d4fc3
 https://www.palantir.com/docs/apollo/managing-products/tracking-product-releases/	managing-products	Tracking Product Releases	992	9	b092a1d08838703b2fc3b1d597e3b4d53f99e7be153eb603ae95ffa28185401b
-https://www.palantir.com/docs/apollo/managing-release-channels/configure-promotion-pipeline/	managing-release-channels	Configure a Release promotion pipeline	1682	13	35c7abd6bf9bcd6d310257422ba6638ae58ed580bb993621ff465f6195b9effc
-https://www.palantir.com/docs/apollo/managing-release-channels/create-custom-release-channel/	managing-release-channels	Create a custom Release Channel	253	3	920672c314fde2f9407b1c72705f0c8d570df84ec1f2e07c8321959580a102f1
-https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/	managing-release-channels	Manual promotion	1112	13	5d0ac2fe26b75bd4aaac13979219995f4e216422a6913b0724d35b20e9e471d5
+https://www.palantir.com/docs/apollo/managing-release-channels/configure-promotion-pipeline/	managing-release-channels	Configure a Release promotion pipeline	1678	13	6a2269543ccba12cc87b2f690dda87773edce897a6ec39cd1a0a6bdf170362ed
+https://www.palantir.com/docs/apollo/managing-release-channels/create-custom-release-channel/	managing-release-channels	Create a custom Release Channel	251	3	028d2d63f95a8596a71f89c4aa3bb81aa7a48891d8ade37b9b51b0740061f47d
+https://www.palantir.com/docs/apollo/managing-release-channels/manual-promotion/	managing-release-channels	Manual promotion	1112	13	262611be7f00f7cc07dec82dd1a9acc64a2936653eee55a3c09ea9c05cdf9025
 https://www.palantir.com/docs/apollo/managing-release-channels/overview/	managing-release-channels	Overview	42	1	018c48301ee060e14df26bcc3dc62f55720092e769001d8257a9d2b492ef4daf
-https://www.palantir.com/docs/apollo/managing-secrets/add-edit-delete-secrets/	managing-secrets	Add, edit, and delete secrets	634	5	62bb697253060b43c27d3e9caafd83aec5fe92a888df15983d50c548ff8a8baa
+https://www.palantir.com/docs/apollo/managing-secrets/add-edit-delete-secrets/	managing-secrets	Add, edit, and delete secrets	633	5	166a4547858017c167b52ecdc4314697010561d3a246d737508c45b892611db0
 https://www.palantir.com/docs/apollo/managing-secrets/overview/	managing-secrets	Overview	33	1	089c2af82a4d485d2869476fd210803b90739be8f5d0f14d7b7138835eb0ac75
 https://www.palantir.com/docs/apollo/managing-secrets/reference-and-use-secrets/	managing-secrets	Reference and use secrets	220	4	95191efe0cb8686976671217a4f94f5746fe44cea41029fe029d8710d2580b51
-https://www.palantir.com/docs/apollo/managing-teams/create-new-team/	managing-teams	Create a new team	283	1	0d6a5514ff45221cf6f9a99b7d5e6e4cc98ddbb9148960f52657e3f3b1738c4d
+https://www.palantir.com/docs/apollo/managing-teams/create-new-team/	managing-teams	Create a new team	280	1	6e4532111c88295394727aa1b634757c5fdabc9becad286c45b991674075c8d1
 https://www.palantir.com/docs/apollo/managing-teams/overview/	managing-teams	Teams	102	1	a76582000a9b56e6072e9fc2caac9b578caa5e53561638fb07eb0ec47a950d27
 https://www.palantir.com/docs/apollo/managing-teams/team-contacts/	managing-teams	Team contacts	210	3	b22c6025ebee8732d303dfaf6878e59563dfbb92a93984633c1c507eee202d8d
 https://www.palantir.com/docs/apollo/managing-teams/view-edit-existing-teams/	managing-teams	View or edit existing teams	250	3	8afb545c802f079039f7133cbab494371291cdbacb679e595d7d3baf17ca339e
+https://www.palantir.com/docs/apollo/managing-vulnerabilities/base-image-vulnerability-management/	managing-vulnerabilities	Base image vulnerability management	1303	8	5047506f6ed54ae10dc8f1558735d8eb2a9303bb5ba2c71ed35c9c0f4507168f
 https://www.palantir.com/docs/apollo/managing-vulnerabilities/cve-recalled-releases-upgrades/	managing-vulnerabilities	Upgrade Entities to CVE-recalled Releases	595	6	8e04f29ffe70df95251fb80a949d4b568dc3f62d9db592f0e86f8da99eea4659
-https://www.palantir.com/docs/apollo/managing-vulnerabilities/overview/	managing-vulnerabilities	Managing vulnerabilities	457	3	73cce0b3dff281227055a7707d03fcc4b256301f33564a3613d8bade3be95035
-https://www.palantir.com/docs/apollo/managing-vulnerabilities/promotion-evaluation-security/	managing-vulnerabilities	Add security information to promotion evaluation	376	3	510f6828fe572dc47987e2e179159105ef5b0544f5cb64b7e77e3242a2b7364c
+https://www.palantir.com/docs/apollo/managing-vulnerabilities/overview/	managing-vulnerabilities	Managing vulnerabilities	455	3	039e9fdc5f2de2a82a787b5783368a390ee87f927b9a63358a6e86a2fd90b424
+https://www.palantir.com/docs/apollo/managing-vulnerabilities/package-based-suppressions/	managing-vulnerabilities	Package-based suppressions	2875	20	01613ce7a6b06bccc194097530c176b00c661df970205cebfd68da4e7ed706da
+https://www.palantir.com/docs/apollo/managing-vulnerabilities/promotion-evaluation-security/	managing-vulnerabilities	Add security information to promotion evaluation	376	3	e4885dc80e97a9f3bcbc0f252f9ee1402adf54eb4e6fb37fae2fad0731ea3b8d
 https://www.palantir.com/docs/apollo/managing-vulnerabilities/remediating-vulnerabilities/	managing-vulnerabilities	Remediating vulnerabilities	937	6	d7d7f13a00b039793c8034d8cc085ab8fd02d679f46a2d273be5591c05621efb
-https://www.palantir.com/docs/apollo/managing-vulnerabilities/vulnerability-scanning/	managing-vulnerabilities	Vulnerability scanning	681	7	9737713843ef841aa9d49613424f4bacb76a386c75750b10986ebb2c3382ad43
-https://www.palantir.com/docs/apollo/managing-vulnerabilities/vulnerability-suppressions/	managing-vulnerabilities	Vulnerability suppressions	867	3	85728d43bd1546bbd4600800882497d64a3b7c042a00b296f455e08d99faed23
+https://www.palantir.com/docs/apollo/managing-vulnerabilities/vulnerability-scanning/	managing-vulnerabilities	Vulnerability scanning	681	7	a9791dcf2aeee66d8e59c1537aefddd3ae60f80ac8eb30ecdd4d03177d707c28
+https://www.palantir.com/docs/apollo/managing-vulnerabilities/vulnerability-suppressions/	managing-vulnerabilities	Vulnerability suppressions	865	3	cdf3d548212b7d69cba56fb6a30f18256b7272196e75076572ee854cee1fb098
 https://www.palantir.com/docs/apollo/recalling-releases/overview/	recalling-releases	Overview	314	1	3627533d397188c9bfc858844e3441918a4636738888f327a7e188ba0d6e0e91
-https://www.palantir.com/docs/apollo/recalling-releases/recall-ranges/	recalling-releases	Recall ranges	354	5	afaae962053ea139f663e313fe5c2a2d71b9155fc6c71e7405c744f38ee505d5
-https://www.palantir.com/docs/apollo/recalling-releases/recall-release/	recalling-releases	Issue, edit, and revert a recall	682	9	fedb56adddbd8420b9097f2fd72e0d27afa4b522ae3993ac128cc5537da44a1a
-https://www.palantir.com/docs/apollo/recalling-releases/roll-off-strategies/	recalling-releases	Roll-off strategies	805	6	d6f5eb849fda859b7f62bf872661e94ef426773058b83f5907044c37b368d74a
+https://www.palantir.com/docs/apollo/recalling-releases/recall-ranges/	recalling-releases	Recall ranges	354	5	020c7e533de6315e9f3dc395ddcdeea6c238037aaf62cd63a603659b715923c5
+https://www.palantir.com/docs/apollo/recalling-releases/recall-release/	recalling-releases	Issue, edit, and revert a recall	692	9	48746069430e9c4b8adaa3af9902bd54096b56167a29448a6454e14c138d2f73
+https://www.palantir.com/docs/apollo/recalling-releases/roll-off-strategies/	recalling-releases	Roll-off strategies	801	6	be2166f519fc757f4419b92a103569d2edbfe66f92acf9f3679a37bbdd94ee2f
