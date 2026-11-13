@@ -139,6 +139,13 @@
       "why": "The adopted Space grouping decision requires management of persisted native data. Existing evidence establishes Space selection and the distinction from Foundry namespaces but no private Apollo Space management wire or role family. This surface uses the existing canonical platform/root permission-management authority for creation/assignment and existing per-resource read authority for visibility; it does not fabricate Apollo Space permissions.",
       "displacedBy": "A published or sanitized Apollo Space management API establishing routes, body shapes, visibility and assignment authority.",
       "riskIfWrong": "The native routes and assignment policy require migration if recovered evidence differs. Grouping and selection grant no resource access. Creation subjects come from verified request identity, delegated callers retain their original carrier for authorization, and unrelated resource identities are filtered from rosters."
+    },
+    {
+      "id": "spaces.CLIManagement",
+      "what": "Native space create/get/list/bind/bindings commands over the typed /v1/spaces management adapter.",
+      "why": "The adopted grouping decision needs operators to inspect and assign persisted native Spaces. Captured CLI selection flags do not establish a Space management command group; these commands disclose native scope and use Hub authority rather than local claims.",
+      "displacedBy": "A published or sanitized Apollo Space management CLI contract defining command paths, arguments and mutation semantics.",
+      "riskIfWrong": "Command spelling and binding workflow may require migration. Native records retain provenance, Hub authorization filters reads and controls mutations, and membership grants no resource permissions."
     }
   ],
   "displaced": [
