@@ -11,6 +11,7 @@ import { Image } from "@/components/assistant-ui/elements/image";
 import { MarkdownText } from "@/components/assistant-ui/elements/markdown-text";
 import { SyntaxHighlighter } from "@/components/assistant-ui/elements/syntax-highlighter";
 import { MermaidDiagram } from "@/components/assistant-ui/elements/mermaid-diagram.aui";
+import { DirectiveText } from "@/components/assistant-ui/elements/directive-text.aui";
 import { Sources } from "@/components/assistant-ui/elements/sources.aui";
 import { MessageTiming } from "@/components/assistant-ui/elements/message-timing.aui";
 import {
@@ -545,6 +546,7 @@ const ThreadSuggestionItem: FC = () => {
 
 const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
   return (
+    <ComposerPrimitive.TriggerPopoverRoot>
     <ComposerPrimitive.Root className="aui-composer-root relative flex w-full flex-col">
       <ComposerPrimitive.AttachmentDropzone
         render={
@@ -567,6 +569,7 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
         <ComposerAction />
       </ComposerPrimitive.AttachmentDropzone>
     </ComposerPrimitive.Root>
+    </ComposerPrimitive.TriggerPopoverRoot>
   );
 };
 
@@ -958,7 +961,11 @@ const UserMessage: FC = () => {
       <div className="aui-user-message-content-wrapper relative col-start-2 min-w-0">
         <div className="aui-user-message-content peer bg-muted text-foreground rounded-(--composer-radius) px-4 py-2 wrap-break-word empty:hidden">
           <MessagePrimitive.Parts
-            components={{ File: UserFilePart, Image: UserImagePart }}
+            components={{
+              Text: DirectiveText,
+              File: UserFilePart,
+              Image: UserImagePart,
+            }}
           />
         </div>
         <div className="aui-user-action-bar-wrapper absolute start-0 top-1/2 -translate-x-full -translate-y-1/2 pe-2 peer-empty:hidden rtl:translate-x-full">

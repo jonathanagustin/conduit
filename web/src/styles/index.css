@@ -11,4 +11,12 @@
   --radix-collapsible-content-height: auto;
   --collapsible-panel-height: auto;
   --shimmer-duration: 1000ms;
+  /* Tailwind's @theme lines reference these with an extra leading "--". */
+  ----aui-success: var(--aui-success);
+  ----aui-warning: var(--aui-warning);
+  ----aui-panel: var(--aui-panel);
+  --aui-control-height: 2.5rem;
+  --aui-button-padding-x: 1.25rem;
+  --aui-control-font-size: 0.875rem;
+  --aui-field-padding-x: 0.875rem;
 }

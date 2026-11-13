@@ -11,6 +11,14 @@ ASSISTANT_UI_ALLOW_AGENT=1 npx --yes assistant-ui@latest add thread thread-list 
 
 The Codex ACP bridge lives in `src/server`. `app/assistant.tsx` keeps the template layout and uses `useCodexRuntime` instead of the template's AI SDK chat route. `pnpm build` is the Vite embed the Hub serves at `/console/`. `pnpm dev:template` is the template's Next dev server.
 
+The rest of the registry was added the same way, one item at a time, without overwriting files the CLI had already written:
+
+```bash
+ASSISTANT_UI_ALLOW_AGENT=1 npx --yes assistant-ui@latest add <item> --yes --use-pnpm --cwd web
+```
+
+`<item>` is every `elements-*` entry and the runtime items `voice`, `voice-conversation`, `task-card`, `agent-status`, `mcp-config`, `assistant-modal`, `assistant-sidebar`, `shiki-highlighter`, `model-selector`, `logos`, `heat-graph`, `directive-text`, and `generative-ui`. The Elements tab mounts the ones the ACP thread does not drive, with labeled demo data.
+
 
 ## Getting Started
 
