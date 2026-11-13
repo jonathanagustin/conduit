@@ -48,6 +48,12 @@ read-only; there is no packages, signing, deployment, or environment authority.
 Issue #339 explicitly requires owner approval before introducing these workflow
 permissions; the owner approved this scope before merge.
 
+Discovery uses the pull-request listing endpoint and filters pending labels
+locally. The first live run (43372770820) showed that the repository-issues
+listing endpoint requires separate issue-read authority; broadening permissions
+to fix that 403 would violate the approved scope. A CLI fixture also covers PR
+metadata larger than Node's default process-output buffer.
+
 PRs created with `GITHUB_TOKEN` do not start ordinary `pull_request` workflows.
 The handoff queries the managed PR's exact head, skips successful or active
 Trunk runs for that head, and explicitly dispatches the existing gate when it
