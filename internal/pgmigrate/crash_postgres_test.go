@@ -468,10 +468,79 @@ func runCrashChild(t *testing.T, dataSourceName, point string, delay time.Durati
 	output := <-read
 	waitErr := command.Wait()
 	applied, applyTook := crashChildCompletion(output)
+	var backendPID int
+	for _, line := range strings.Split(output, "\n") {
+		if strings.HasPrefix(line, crashChildReady+" ") {
+			backendPID, _ = strconv.Atoi(strings.TrimPrefix(line, crashChildReady+" "))
+		}
+	}
+	if backendPID <= 0 {
+		t.Fatal("crash child did not identify its database backend")
+	}
+	observer, err := sql.Open("pgx", dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer observer.Close()
+	settled, cancel := context.WithTimeout(t.Context(), 30*time.Second)
+	defer cancel()
+	if err := waitForCrashBackend(settled, observer, backendPID); err != nil {
+		t.Fatal(err)
+	}
 	if !applied && waitErr == nil {
 		t.Fatalf("the child exited without applying and without being killed: %s", output)
 	}
 	return crashOutcome{applied: applied, applyTook: applyTook, output: output}
+}
+
+// A killed client does not imply its PostgreSQL backend has stopped. In
+// particular COMMIT may finish after the client's socket closes. Observing
+// ledger and schema before that settles can compare two different committed
+// states and report a torn migration that never existed.
+func waitForCrashBackend(ctx context.Context, observer *sql.DB, backendPID int) error {
+	for {
+		var active bool
+		if err := observer.QueryRowContext(ctx, "SELECT EXISTS (SELECT 1 FROM pg_stat_activity WHERE pid = $1)", backendPID).Scan(&active); err != nil {
+			return err
+		}
+		if !active {
+			return nil
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-time.After(time.Millisecond):
+		}
+	}
+}
+
+func TestCrashObservationWaitsForTheDatabaseBackendToExit(t *testing.T) {
+	if isCrashChild() {
+		t.Skip("crash child")
+	}
+	shared := sharedDatabase(t)
+	dsn, observer := freshCrashDatabase(t, shared)
+	backend, err := sql.Open("pgx", dsn)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer backend.Close()
+	backend.SetMaxOpenConns(1)
+	var pid int
+	if err := backend.QueryRowContext(t.Context(), "SELECT pg_backend_pid()").Scan(&pid); err != nil {
+		t.Fatal(err)
+	}
+	bounded, cancel := context.WithTimeout(t.Context(), 50*time.Millisecond)
+	defer cancel()
+	if err := waitForCrashBackend(bounded, observer, pid); !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("live backend was not awaited: %v", err)
+	}
+	if err := backend.Close(); err != nil {
+		t.Fatal(err)
+	}
+	if err := waitForCrashBackend(t.Context(), observer, pid); err != nil {
+		t.Fatal(err)
+	}
 }
 
 // crashChildCompletion reads the child's completion line, which carries how
@@ -531,7 +600,14 @@ func TestTheCrashChildRunsTheMigrations(t *testing.T) {
 	if err := database.PingContext(context.Background()); err != nil {
 		t.Fatal(err)
 	}
-	fmt.Println(crashChildReady)
+	// Keep Ping, identity and Apply on the same backend so the parent can wait
+	// for PostgreSQL to finish an in-flight COMMIT or rollback after SIGKILL.
+	database.SetMaxOpenConns(1)
+	var backendPID int
+	if err := database.QueryRowContext(context.Background(), "SELECT pg_backend_pid()").Scan(&backendPID); err != nil {
+		t.Fatal(err)
+	}
+	fmt.Println(crashChildReady, backendPID)
 	started := time.Now()
 	if err := pgmigrate.Apply(context.Background(), database, crashComponent, crashProbeMigrations()); err != nil {
 		// Not a failure of the child: a parent that killed a sibling connection,
