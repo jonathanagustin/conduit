@@ -89,6 +89,13 @@ func main() {
 		}
 		return
 	}
+
+	spaces, closeSpaces, err := openSpaces(ctx, os.Getenv)
+	if err != nil {
+		slog.Error("initialize native Space component", "error", err)
+		os.Exit(1)
+	}
+	defer closeSpaces()
 	repository, closeReconciliation, reconciliationSupervisor, readStats, notifications, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
@@ -213,6 +220,7 @@ func main() {
 				slog.Error("run scheduled Export Pipeline", "error", err)
 			},
 		}, composition.Options{
+			Spaces:               spaces,
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
 			PackagingStatus:      packagingReader,

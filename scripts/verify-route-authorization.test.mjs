@@ -58,6 +58,7 @@ const bulk = Array.from({ length: 120 }, (_, index) => `GET /v1/thing-${index}`)
 const facadeRoutes = [...bulk, "GET /health/live", "POST /v1/plans"];
 const apolloRoutes = ["/api/v0/products", "/api/v0/environments/{environmentRid}"];
 const notificationRoutes = ["GET /v1/notifications/inbox"];
+const spaceRoutes = ["GET /v1/spaces"];
 const wildcardRoute = "/v1/notifications/{path...}";
 
 const facade = () =>
@@ -85,6 +86,7 @@ const register = (rows) =>
   "package composition\n\ntype Decision string\n\nconst (\n" +
   "\tDecisionPublic Decision = \"public\"\n" +
   "\tDecisionOperatorGrant Decision = \"operator-grant\"\n" +
+  "\tDecisionOperatorFiltered Decision = \"operator-filtered\"\n" +
   ")\n\nfunc HubRouteAuthorization() []RouteAuthorization {\n\treturn []RouteAuthorization{\n" +
   rows.join("") +
   "\t}\n}\n";
@@ -95,6 +97,7 @@ const baselineRows = () => [
   row("POST /v1/plans", "DecisionOperatorGrant", "requireOperatorPrincipal + requireResourceOperation"),
   ...apolloRoutes.map((path) => row(`GET ${path}`, "DecisionOperatorGrant", "requireApolloIdentity + authorizeOperator")),
   ...notificationRoutes.map((pattern) => row(pattern, "DecisionOperatorGrant", "operatorPrincipal + resourceOperation")),
+  ...spaceRoutes.map((pattern) => row(pattern, "DecisionOperatorFiltered", "caller-bound Space and resource visibility")),
   row(wildcardRoute, "DecisionPublic", "the method-not-allowed responder; it resolves nobody and reads nothing"),
 ];
 
@@ -104,6 +107,7 @@ function build() {
   write(FACADE, facade());
   write("internal/apollo/openapi.gen.go", apollo());
   write("internal/notifications/adapters/httpapi/httpapi.go", notifications());
+  write("internal/spaces/adapters/httpapi/httpapi.go", 'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("GET /v1/spaces", nil) }\n');
   write("internal/packagingworkflow/httpapi/httpapi.go", "package httpapi\n");
   // The negative control: a route mounted in a test file. It must not be
   // demanded of the register.
@@ -140,7 +144,7 @@ const expectFail = (what, needle) => {
 // --- the baseline -----------------------------------------------------------
 build();
 const baseline = expectPass("baseline");
-if (baseline && !/126 mounted routes/.test(baseline)) {
+if (baseline && !/127 mounted routes/.test(baseline)) {
   failures.push(`baseline: gate counted the wrong number of routes: ${baseline.trim()}`);
 }
 // The negative control, stated as an assertion rather than left implicit.

@@ -56,6 +56,8 @@ import (
 	governancedomain "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 	"github.com/jonathanagustin/conduit/internal/pgtest"
+	spacepostgres "github.com/jonathanagustin/conduit/internal/spaces/adapters/postgres"
+	spacedomain "github.com/jonathanagustin/conduit/internal/spaces/domain"
 )
 
 // drillEnvironment is this test's own environment name in the reconciliation
@@ -128,6 +130,8 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 // seededState is what the drill wrote before the dump and expects to read back
 // through the real repositories afterwards.
 type seededState struct {
+	space                 spacedomain.Space
+	binding               spacedomain.Binding
 	auditEvent            governancedomain.AuthorizationAuditEvent
 	auditCheckpoint       governancedomain.AuditCheckpoint
 	environment           string
@@ -224,7 +228,27 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 	}); err != nil {
 		t.Fatal(err)
 	}
+	spaces, err := spacepostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer spaces.Close()
+	space, err := spacedomain.New("space_0123456789abcdef0123456789abcdef", "Restore grouping", "durable native metadata", "restore-operator", time.Date(2026, 11, 13, 12, 0, 0, 0, time.UTC))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := spaces.CreateSpace(ctx, space); err != nil {
+		t.Fatal(err)
+	}
+	binding, err := spacedomain.NewBinding(space.ID, spacedomain.Resource{Kind: spacedomain.Environment, ID: state.Environment.ID}, "restore-operator", space.CreatedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := spaces.BindResource(ctx, binding); err != nil {
+		t.Fatal(err)
+	}
 	return seededState{
+		space: space, binding: binding,
 		auditEvent: auditEvent, auditCheckpoint: auditCheckpoint,
 		environment: state.Environment.ID, planID: record.ID,
 		blobDigest: digest, blobContents: blob, key: key, generation: "gen-seeded",
@@ -339,6 +363,7 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 		auditpostgres.Component():               auditpostgres.Migrations(),
 		reconciliationpostgres.Component():      reconciliationpostgres.Migrations(),
 		resolutionlogpostgres.Component():       resolutionlogpostgres.Migrations(),
+		spacepostgres.Component:                 spacepostgres.Migrations(),
 	} {
 		pending, err := pgmigrate.Pending(ctx, restored, component, migrations)
 		if err != nil {
@@ -439,6 +464,20 @@ WHERE NOT EXISTS (
 // repositories prove they still decode into the state they came from.
 func assertStateSurvived(t *testing.T, ctx context.Context, dataSourceName string, seeded seededState) {
 	t.Helper()
+	spaces, err := spacepostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer spaces.Close()
+	space, err := spaces.GetSpace(ctx, seeded.space.ID)
+	if err != nil || space != seeded.space {
+		t.Fatalf("restored Space differs: %#v, %v", space, err)
+	}
+	binding, err := spaces.GetBinding(ctx, seeded.binding.Resource)
+	if err != nil || binding != seeded.binding {
+		t.Fatalf("restored Space assignment differs: %#v, %v", binding, err)
+	}
+
 	repository, err := controlplane.NewPostgresRepository(ctx, dataSourceName)
 	if err != nil {
 		t.Fatalf("opening the control-plane repository on the restored database: %v", err)

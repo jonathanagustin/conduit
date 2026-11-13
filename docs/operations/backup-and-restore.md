@@ -21,6 +21,7 @@ an RPO it cannot enforce is worse than one that says who has to choose it.
 | `authorization-audit` | `conduit_authorization_audit_events`, `conduit_authorization_audit_head`, and append-only guards |
 | `reconciliation` | `conduit_reconciliation_desired`, `_observations`, `_work`, `_decisions`, `_audit`, `_proposal_outbox`, `_plan_receipts` |
 | `gitless-resolution-log` | `conduit_gitless_resolutions` (the append-only source selector, resolved digest, publisher, movement, and failure history shared by Hub replicas) |
+| `spaces` | `conduit_spaces`, `conduit_space_bindings` (native identity and immutable resource grouping) |
 | all components | `conduit_schema_migrations` — the migration ledger |
 
 **Artifact bytes are in the database.** `conduit_repository_blobs` holds
@@ -137,7 +138,8 @@ end.
 6. **Start the Hub and verify through it, not only through tables.** The drill
    reads a Plan through `ListPlans`, an artifact through `OpenBlob`, desired
    state through `CurrentDesired`, an exact Gitless resolution through its real
-   adapter, and the original authorization audit event through its repository.
+   adapter, native Space identity and assignment through their independent store,
+   and the original authorization audit event through its repository.
    Its saved audit checkpoint is checked before any repository is constructed.
 
 ### Two replicas on first start
