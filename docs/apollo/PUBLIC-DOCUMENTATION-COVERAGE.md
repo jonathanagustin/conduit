@@ -425,3 +425,18 @@ date and one candidate set, and it does not widen the OpenAPI claim.
 The root of the reviewed corpus is the official
 [Apollo documentation](https://www.palantir.com/docs/apollo/core/introduction/).
 Individual source URLs and their content hashes are in the manifest.
+
+## CLI additions review, 2026-11-13
+
+The [18-command review](cli-additions-review-2026-11-13.md) advances the reviewed
+CLI profile from 105 to 107 source pages by implementing local Grype scanning.
+The original 105 August source hashes remain unchanged; only the two Grype
+pages use November hashes. The independent live inventory remains 123 pages.
+The remaining 16 additions have scoped product issues (#363–#365, #303/#304)
+and remain outside the implementation profile. Earlier 105-page figures above
+are historical corpus measurements, not the current live inventory.
+
+| Capability | Status | Automated evidence and limits |
+| --- | --- | --- |
+| Local `cve grype scan` and group | Implemented, bounded public semantics | CLI executable-fixture and normalizer tests cover NVD/CVSS preference, output flags, JSON file/YAML stdout, nonzero exit, invalid output, and native provenance. No Hub data, authoritative artifact assessment, real-image execution, native Apollo binary, or private schema parity claim. |
+| Other November CLI additions | Reviewed, product work scoped | Source hashes and contracts recorded in the review and reference ledger; commands enter the profile only after implementation and behavioral tests. |
