@@ -1,81 +1,86 @@
-/* Blueprint is the foundation; Platform overrides live in narrowly scoped CSS
-   modules beside their components, never here. This file imports the toolkit
-   and sets only what the shell itself owns. */
-@import "normalize.css";
-@import "@blueprintjs/core/lib/css/blueprint.css";
-@import "@blueprintjs/icons/lib/css/blueprint-icons.css";
-@import "@blueprintjs/select/lib/css/blueprint-select.css";
-@import "@blueprintjs/table/lib/css/table.css";
+@import "tailwindcss";
+
+/* assistant-ui's default token set. The names are the ones its Thread classes
+ * read (`bg-background`, `text-muted-foreground`, and the rest). Values follow
+ * the library's neutral light and dark surfaces. */
+:root {
+  --background: #ffffff;
+  --foreground: #0a0a0a;
+  --card: #ffffff;
+  --card-foreground: #0a0a0a;
+  --popover: #ffffff;
+  --popover-foreground: #0a0a0a;
+  --primary: #171717;
+  --primary-foreground: #fafafa;
+  --secondary: #f5f5f5;
+  --secondary-foreground: #171717;
+  --muted: #f5f5f5;
+  --muted-foreground: #737373;
+  --accent: #f5f5f5;
+  --accent-foreground: #171717;
+  --destructive: #dc2626;
+  --border: #e5e5e5;
+  --input: #e5e5e5;
+  --ring: #a3a3a3;
+  --thread-max-width: 44rem;
+  --composer-radius: 1rem;
+  --composer-padding: 8px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --background: #0a0a0a;
+    --foreground: #fafafa;
+    --card: #0a0a0a;
+    --card-foreground: #fafafa;
+    --popover: #0a0a0a;
+    --popover-foreground: #fafafa;
+    --primary: #fafafa;
+    --primary-foreground: #171717;
+    --secondary: #262626;
+    --secondary-foreground: #fafafa;
+    --muted: #262626;
+    --muted-foreground: #a3a3a3;
+    --accent: #262626;
+    --accent-foreground: #fafafa;
+    --destructive: #ef4444;
+    --border: #262626;
+    --input: #262626;
+    --ring: #737373;
+  }
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --radius-lg: 0.5rem;
+}
 
 html,
 body,
 #root {
   height: 100%;
-  margin: 0;
 }
 
-/* Foundry renders in Source Sans; the console matches it. Source Sans 3 is the
-   current release of Source Sans Pro (SIL OFL), self-hosted via @fontsource, so
-   this needs no network and the value is the one foundry-ui's tokens.ts records
-   as "the face the captures load". The stack falls back to the system sans
-   Blueprint ships, so a failed font load degrades rather than breaks. Set on
-   body; normalize.css already makes form controls inherit it.
-
-   The captured 6.533.15 stylesheet confirms the face and adds one thing this
-   stack was missing: Foundry ends every family list with `blueprint-icons-16`,
-   as Blueprint's own default stack does, so an icon glyph rendered as text
-   still resolves. Dropping it was the only delta against the capture.
-   See docs/apollo/FRONTEND-CAS-CAPTURE.md. */
 body {
-  font-family: "Source Sans 3 Variable", "Source Sans Pro", -apple-system,
-    BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    "blueprint-icons-16", sans-serif;
-}
-
-/* Code, digests, versions and identifiers. The captured stylesheet renders them
-   in Source Code Pro:
-
-     pre,code{font-family:Source-Code-Pro,Courier New,monospace,blueprint-icons-16}
-
-   ...and repeats the same stack on `.bp6-monospace-text` with `!important`,
-   because Blueprint's own rule for `code` hard-codes bare `monospace` rather
-   than reading a token. The console reproduces both, self-hosted (SIL OFL).
-
-   This variable exists because the console did not have one that worked: five
-   files asked for `--pt-font-family-monospace` and two for
-   `--bp-font-family-monospace`, and Blueprint 6 defines neither -- the real
-   token is `--bp-typography-family-mono`, whose value is bare `monospace`. So
-   every digest and version in the console fell through to the browser default,
-   and the fallback was the only thing keeping the screens legible. */
-:root {
-  --console-font-family-monospace: "Source Code Pro", "Courier New", monospace,
-    "blueprint-icons-16";
-
-  /* The selected-row tint, and the console's own because Blueprint 6 has no
-     token for it. Four feature stylesheets asked for `--pt-intent-primary-muted`
-     -- a Blueprint 4/5 name that 6 does not define -- and each carried this
-     literal as its fallback, so the colour was right and the token was fiction.
-     Named here once instead: the primary intent at 15%, which is what those
-     four literals spelled out. */
-  --console-selected-row-background: color-mix(
-    in srgb,
-    var(--bp-intent-primary-rest) 15%,
-    transparent
-  );
-
-  /* The logo accent when a caller supplies none. Was `var(--brand)`, which
-     nothing defines, so the tile and glyph resolved to an invalid colour and
-     fell back to inherited text. The bootstrap's own default accent is
-     #2d72d2, which is exactly `--bp-intent-primary-rest`, so the undefaulted
-     case now lands where the defaulted one does. */
-  --console-app-logo-accent-default: var(--bp-intent-primary-rest);
-}
-
-pre,
-code {
-  font-family: var(--console-font-family-monospace);
-}
-
-.bp6-monospace-text {
-  font-family: var(--console-font-family-monospace) !important;
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: ui-sans-serif, system-ui, sans-serif;
 }

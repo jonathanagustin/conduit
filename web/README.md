@@ -1,61 +1,74 @@
-# Conduit console
+# Conduit assistant
 
-The console is built as static assets, embedded in the Hub binary, and served
-under `/console/` from the same origin as its APIs. The current UI contracts
-are indexed in `../docs/ui/README.md`.
+The operator console is a local packaging assistant. It is an
+[assistant-ui](https://www.assistant-ui.com/) chat, served under `/console/`
+from the Hub binary, and a Node bridge that speaks the
+[Agent Client Protocol](https://agentclientprotocol.com/) to Codex.
 
-## Decisions this scaffold makes
+The bridge is a local process. It is not a hosted Codex service, and a tool
+approval in the chat is not a Conduit deployment approval.
 
-**Blueprint 6.18.0.** The package pins `@blueprintjs/core` 6.18.0, icons
-6.13.0, select 6.3.4, and table 6.2.4.
+## Run it locally
 
-**Ported, not shared, primitives.** `packages/foundry/packages/foundry-ui` has
-the component vocabulary this console wants -- `AppFrame`, `AppHeader`,
-`SideNavigation`, `ResourceTable`, `ObjectDetails`, `DataSurface`, `FormDialog`,
-`SettingsLayout` -- but it peers Blueprint **5.19.1** and React **18.2.0**, and
-its other consumers (`workspace-app`, `gotham`) are on that major too. Those
-components are therefore ported into this package rather than depended on, and
-foundry-ui is left alone so its existing consumers keep building. Ported files
-must keep the provenance note they arrive with.
+Prerequisites:
 
-Nothing here resolves a workspace sibling. Conduit builds its own console and
-the Hub embed remains a repository-local build product.
+- Node and pnpm from `mise.toml` (`node` 24.22.0, `pnpm` 11.28.6).
+- A Codex login. The pinned adapter is `@agentclientprotocol/codex-acp` 2.6.0,
+  which starts Codex app-server itself. Authenticate with one of:
+  - `CODEX_API_KEY` or `OPENAI_API_KEY` in the environment, or
+  - an existing Codex login. By default the bridge gives the agent its own
+    `CODEX_HOME` under the workspace so it does not load your personal MCP
+    servers. Point `ASSISTANT_CODEX_HOME` at your Codex home only when you
+    accept that this also loads that home's configuration.
 
-**No client-side store.** Server state lives in the query cache, route state in
-the URL, form state local. Add a store when a workflow proves it is needed.
+```bash
+pnpm --dir web install --frozen-lockfile
+pnpm --dir web dev
+```
 
-**Polling, not sockets.** Request/response REST with bounded, visibility-aware
-polling. Server-sent events only if measurement shows polling is inadequate.
+`pnpm dev` starts the bridge on `127.0.0.1:8787` and Vite on
+`http://127.0.0.1:5173/console/`. The dev server proxies `/api/assistant` to
+the bridge. Open that URL.
 
-## The base path is load-bearing
+The Hub embed at `/console/` is the same UI. It only reaches Codex when the
+bridge is running on the same machine and something proxies `/api/assistant`
+to it. Without the bridge the page says so.
 
-`vite.config.ts` sets `base: "/console/"` and the router sets a matching
-`basename`. Both are required: with the default base the app works under
-`vite dev` and 404s on every asset once embedded in the Hub.
+## Environment
 
-There is a third statement of it -- `internal/consoleui/handler.go` refuses a
-request path that does not carry the prefix -- and
-`node scripts/verify-console-boundaries.mjs` fails when the three disagree. The
-same gate pins the console's layering, so `web/src/api` stays the only place a
-request is made and `web/src/components` cannot reach up into `web/src/features`.
-`docs/ui/foundry-frontend-architecture.md` records why those are the boundaries
-worth having here, and which parts of Foundry's much larger frontend are not.
+| Variable | Meaning |
+| --- | --- |
+| `CODEX_API_KEY` / `OPENAI_API_KEY` | API-key auth for the adapter. The key is not sent to the browser. |
+| `ASSISTANT_CODEX_HOME` | Codex home directory. Default: `<workspace>/.codex`, created on start. |
+| `ASSISTANT_WORKSPACE` | Directory passed as the ACP session `cwd`. Default: a directory under the system temp dir. |
+| `INITIAL_AGENT_MODE` | Codex mode. Default `workspace-write`. `agent-full-access` is refused. |
+| `CODEX_PATH` | Optional Codex binary. Leave unset to use the binary the adapter bundles. The `codex` pin in `mise.toml` is the developer CLI and is not what the bridge spawns. |
+| `ASSISTANT_BRIDGE_PORT` | Bridge listen port. Default `8787`. Bound to `127.0.0.1` only. |
+| `ASSISTANT_ACP_COMMAND` | Replacement agent executable. Tests point this at `src/server/fake-agent.mjs`. |
+| `ASSISTANT_ACP_ARGS` | JSON array of arguments for that executable. |
+
+The bridge does not register client filesystem or terminal methods, and it
+passes an empty MCP server list. Tool calls Codex makes are shown in the
+thread and wait for an explicit allow or reject. Disconnect, cancel, an
+unknown option, a second answer, or an answer for a different run all fail
+closed.
 
 ## Commands
 
-    pnpm install
-    pnpm dev        # http://localhost:5173/console/, proxying /v1 to the Hub
-    pnpm build      # typecheck, then emit dist/
-    pnpm typecheck
+```bash
+pnpm --dir web dev          # Vite and the ACP bridge
+pnpm --dir web bridge       # bridge only
+pnpm --dir web test:unit    # protocol and bridge tests, using the fake agent
+pnpm --dir web build        # typecheck and emit the embedded bundle
+```
 
-The Playwright suite's preview port is derived from this checkout's path rather
-than fixed, so two worktrees verifying two branches on one machine do not land
-on the same one; `CONSOLE_TEST_PORT` still overrides it. Reusing an
-already-running preview server is allowed and checked rather than assumed: the
-suite refuses to start against a server serving any build but this checkout's,
-because a run that borrows another worktree's server reports that tree's
-results as this one's. `src/test/e2e/global-setup.ts` is that check.
+`pnpm build` writes `internal/consoleui/dist`. A production Hub build has to
+regenerate that directory; `scripts/verify-console-assets.sh` rejects drift.
 
-`internal/consoleui/handler.go` owns the embed and the Hub composition mounts
-the handler. A production build must regenerate `dist/` and run the console
-gate so the embedded assets match this source.
+## What the previous console did
+
+The Blueprint console (fleet, plans, products, promotions, change requests,
+notifications, imports, exports, teams, risk) is no longer served. The Hub
+APIs those screens called are unchanged. The tenant bootstrap contract is
+unchanged: the assistant still refuses to start unless the Hub rendered
+`x-conduit-console-bootstrap`.

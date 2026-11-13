@@ -1,119 +1,171 @@
-import { ApiError } from "./errors.js";
+import type { RunSnapshot, UsageSnapshot } from "./protocol.js";
 
-/** The Hub serves the console and the API from one origin, so requests are
- * relative and credentials ride along. Identity is established by the
- * deployment -- an operator identity resolver, or client certificates -- and not
- * by anything this client sends, which is why there is no token handling here. */
-const BASE = "/v1";
+export class AssistantApiError extends Error {
+  readonly status: number;
 
-export interface RequestOptions {
-  signal?: AbortSignal;
-  query?: Record<string, string | number | undefined>;
-}
-
-function url(path: string, query?: RequestOptions["query"]): string {
-  const target = new URL(`${BASE}${path}`, window.location.origin);
-  for (const [key, value] of Object.entries(query ?? {})) {
-    if (value !== undefined && value !== "") {
-      target.searchParams.set(key, String(value));
-    }
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "AssistantApiError";
+    this.status = status;
   }
-  return `${target.pathname}${target.search}`;
 }
 
-async function failure(response: Response, requested: string): Promise<ApiError> {
-  // The Hub reports errors as {"error": "..."}; anything else is a proxy or a
-  // gateway, whose body is not worth surfacing verbatim to an operator.
-  let message = `${response.status} ${response.statusText}`;
+export type BridgeInfo = {
+  ok: boolean;
+  runtime: string;
+  fixture: boolean;
+  workspace: string;
+  mode: string;
+  adapter: string;
+};
+
+export type ThreadRecord = {
+  id: string;
+  title: string;
+  archived: boolean;
+  updatedAt: string;
+};
+
+type RunHandlers = {
+  onSnapshot: (snapshot: RunSnapshot) => void;
+  signal: AbortSignal;
+};
+
+async function readError(response: Response): Promise<string> {
   try {
-    const body: unknown = await response.json();
-    if (typeof body === "object" && body !== null && "error" in body) {
-      const detail = (body as { error: unknown }).error;
-      if (typeof detail === "string" && detail !== "") {
-        message = detail;
+    const body = (await response.json()) as { error?: string };
+    if (body.error && body.error.length > 0) return body.error;
+  } catch {
+    // The body was not the error document. The status is the fact.
+  }
+  return `assistant bridge returned ${response.status}`;
+}
+
+async function send(path: string, init: RequestInit): Promise<Response> {
+  const response = await fetch(path, {
+    ...init,
+    headers: { "content-type": "application/json", ...init.headers },
+  });
+  if (!response.ok) throw new AssistantApiError(response.status, await readError(response));
+  return response;
+}
+
+export async function bridgeInfo(signal?: AbortSignal): Promise<BridgeInfo> {
+  const response = await send("/api/assistant/health", signal ? { method: "GET", signal } : { method: "GET" });
+  return (await response.json()) as BridgeInfo;
+}
+
+export async function listThreads(): Promise<ThreadRecord[]> {
+  const response = await send("/api/assistant/threads", { method: "GET" });
+  const body = (await response.json()) as { threads: ThreadRecord[] };
+  return body.threads;
+}
+
+export async function createThread(): Promise<ThreadRecord> {
+  const response = await send("/api/assistant/threads", { method: "POST", body: "{}" });
+  return (await response.json()) as ThreadRecord;
+}
+
+export async function renameThread(id: string, title: string): Promise<void> {
+  await send(`/api/assistant/threads/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ title }),
+  });
+}
+
+export async function archiveThread(id: string, archived: boolean): Promise<void> {
+  await send(`/api/assistant/threads/${encodeURIComponent(id)}`, {
+    method: "PATCH",
+    body: JSON.stringify({ archived }),
+  });
+}
+
+export async function deleteThread(id: string): Promise<void> {
+  await send(`/api/assistant/threads/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export async function cancelRun(threadId: string, runId: string): Promise<void> {
+  await send(`/api/assistant/threads/${encodeURIComponent(threadId)}/cancel`, {
+    method: "POST",
+    body: JSON.stringify({ runId }),
+  });
+}
+
+export async function decidePermission(input: {
+  requestId: string;
+  threadId: string;
+  runId: string;
+  optionId: string;
+}): Promise<void> {
+  await send(`/api/assistant/permissions/${encodeURIComponent(input.requestId)}`, {
+    method: "POST",
+    body: JSON.stringify({
+      threadId: input.threadId,
+      runId: input.runId,
+      optionId: input.optionId,
+    }),
+  });
+}
+
+export type RunRequest = {
+  threadId: string;
+  runId: string;
+  userTexts: string[];
+  attachments: { name: string; mimeType: string; data: string }[];
+};
+
+export async function streamRun(request: RunRequest, handlers: RunHandlers): Promise<{ stopReason: string }> {
+  const response = await fetch(`/api/assistant/threads/${encodeURIComponent(request.threadId)}/runs`, {
+    method: "POST",
+    headers: { "content-type": "application/json", accept: "text/event-stream" },
+    body: JSON.stringify({
+      runId: request.runId,
+      userTexts: request.userTexts,
+      attachments: request.attachments,
+    }),
+    signal: handlers.signal,
+  });
+  if (!response.ok) throw new AssistantApiError(response.status, await readError(response));
+  if (!response.body) throw new AssistantApiError(502, "assistant bridge returned an empty stream");
+
+  const reader = response.body.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "";
+  let stopReason = "end_turn";
+  const onAbort = () => {
+    void reader.cancel().catch(() => undefined);
+  };
+  handlers.signal.addEventListener("abort", onAbort);
+  try {
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const data = frame
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .join("\n");
+        if (data.length === 0) continue;
+        const event = JSON.parse(data) as
+          | { type: "snapshot"; snapshot: RunSnapshot }
+          | { type: "done"; stopReason: string }
+          | { type: "error"; message: string };
+        if (event.type === "snapshot") handlers.onSnapshot(event.snapshot);
+        else if (event.type === "done") stopReason = event.stopReason;
+        else throw new AssistantApiError(502, event.message);
       }
     }
-  } catch {
-    // Keep the status line.
+  } finally {
+    handlers.signal.removeEventListener("abort", onAbort);
   }
-  return new ApiError(response.status, requested, message);
+  return { stopReason };
 }
 
-export async function getJSON<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const requested = url(path, options.query);
-  const response = await fetch(requested, {
-    method: "GET",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
-  if (!response.ok) {
-    throw await failure(response, requested);
-  }
-  return (await response.json()) as T;
-}
-
-/** PUT, for the one surface that has one.
- *
- * Kept separate from postJSON rather than folded into a `method` parameter,
- * because the two differ in more than a verb: POST here has to be able to send
- * no bytes at all -- requireEmptyBody (http.go) refuses even "{}" -- and a PUT
- * that inherited that branch could send an empty request to a decoder that
- * requires a document, which fails as a 400 nobody can read back to a cause. */
-export async function putJSON<T>(
-  path: string,
-  body: unknown,
-  options: RequestOptions = {},
-): Promise<T> {
-  const requested = url(path, options.query);
-  const response = await fetch(requested, {
-    method: "PUT",
-    credentials: "same-origin",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
-  if (!response.ok) {
-    throw await failure(response, requested);
-  }
-  return (await response.json()) as T;
-}
-
-export async function postJSON<T>(
-  path: string,
-  body: unknown,
-  options: RequestOptions = {},
-): Promise<T> {
-  const requested = url(path, options.query);
-  const response = await fetch(requested, {
-    method: "POST",
-    credentials: "same-origin",
-    headers: { Accept: "application/json", "Content-Type": "application/json" },
-    // requireEmptyBody (http.go) rejects any byte, including the "{}" that
-    // JSON.stringify(undefined) does not produce but JSON.stringify({}) does.
-    ...(body === undefined ? {} : { body: JSON.stringify(body) }),
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
-  if (!response.ok) {
-    throw await failure(response, requested);
-  }
-  return (await response.json()) as T;
-}
-
-/** DELETE, for the routes that identify their subject entirely in the query
- * string. The contact address book is the first: deleteContact (httpapi.go)
- * reads ownerKind/ownerId/kind from the query and takes no body, so this sends
- * none and still parses the JSON envelope the route answers with. */
-export async function deleteJSON<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const requested = url(path, options.query);
-  const response = await fetch(requested, {
-    method: "DELETE",
-    credentials: "same-origin",
-    headers: { Accept: "application/json" },
-    ...(options.signal ? { signal: options.signal } : {}),
-  });
-  if (!response.ok) {
-    throw await failure(response, requested);
-  }
-  return (await response.json()) as T;
+export function usageLabel(usage: UsageSnapshot | undefined): string | undefined {
+  if (!usage || usage.size <= 0) return undefined;
+  return `${usage.used} / ${usage.size} tokens in context`;
 }

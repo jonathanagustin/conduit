@@ -1,26 +1,26 @@
+import { AssistantRuntimeProvider } from "@assistant-ui/react";
 import type { ReactNode } from "react";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter } from "react-router-dom";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 
-// Server state lives in the query cache, route state lives in the URL, and form
-// state stays local. There is deliberately no general client-side store until a
-// workflow proves one is needed.
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: {
-      // The console polls; it does not hold a socket open. Refetching on focus
-      // is what makes a bounded poll feel live without shortening the interval.
-      refetchOnWindowFocus: true,
-      staleTime: 10_000,
-      retry: 1,
-    },
-  },
-});
+import { useCodexRuntime } from "../api/runtime.js";
+import { TooltipProvider } from "../components/ui/tooltip.js";
+
+function Runtime({ children }: { children: ReactNode }) {
+  const runtime = useCodexRuntime();
+  return <AssistantRuntimeProvider runtime={runtime}>{children}</AssistantRuntimeProvider>;
+}
 
 export function Providers({ children }: { children: ReactNode }) {
   return (
-    <QueryClientProvider client={queryClient}>
-      <BrowserRouter basename="/console">{children}</BrowserRouter>
-    </QueryClientProvider>
+    <BrowserRouter basename="/console/">
+      <TooltipProvider>
+        <Routes>
+          <Route
+            path="*"
+            element={<Runtime>{children}</Runtime>}
+          />
+        </Routes>
+      </TooltipProvider>
+    </BrowserRouter>
   );
 }
