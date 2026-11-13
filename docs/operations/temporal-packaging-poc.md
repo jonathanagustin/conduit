@@ -1,0 +1,118 @@
+# Temporal packaging proof
+
+Local demonstration of [ADR 0013](../decisions/0013-temporal-for-packaging-workflows.md).
+Temporal runs the packaging workflow. Conduit governance remains the
+approval authority. The delivery kernel remains the authority for Plans,
+leases, rollout, and observed state. This is not a production Temporal
+deployment and it is not an air-gap claim.
+
+## What you are running
+
+| Piece | Pin | License |
+| --- | --- | --- |
+| Go SDK | `go.temporal.io/sdk` v1.51.0 | MIT |
+| API module | `go.temporal.io/api` v1.64.3 | MIT |
+| CLI archive | v1.10.0, SHA-256 `521f461f3d108902763bb71e85cd0fd382dc9357b59604ae03da6ae734d16890` | MIT |
+| Embedded server | 1.32.2, printed by `temporal --version` | MIT |
+| Embedded UI | 2.56.1, printed by `temporal --version` | MIT |
+| Dev-server database file | SQLite, via `--db-filename` | Public domain |
+| Worker | `cmd/packaging-workflow` in this repository | this repository's license |
+
+The CLI is fetched by `scripts/fetch-temporal-cli.sh` into `.cache/temporal/`,
+which is not committed. After that fetch, the recovery test sets
+`ExistingPath` and does not download a server. Provisioning still needs
+GitHub for the CLI archive and the Go module proxy for the SDK. The
+running demo does not use a Temporal Cloud account. `TEMPORAL_API_KEY`
+is refused.
+
+Egress at runtime is loopback. The SDK starts the dev server with
+`frontend.enableServerVersionCheck=false`. The demo adds
+`--ui-disable-news-fetch` and binds `--ip` and `--ui-ip` to `127.0.0.1`.
+One inspected process owned only `127.0.0.1` sockets: listeners and
+established connections, including the extra local ports the dev server
+opens besides the frontend and UI. The network interface was not
+disconnected for that inspection.
+
+## Measured cost of the dev server
+
+`TestDevServerRestartRecoversWaitAndHandoff` on 2026-11-13 recorded:
+
+| Measurement | Value |
+| --- | --- |
+| Time until the dev server accepted a client | 214 ms |
+| Worker RSS | 144568 KiB |
+| SQLite file after the recovered run | 704512 bytes |
+
+Those numbers are one machine, one run. They are not a capacity plan.
+A production cluster is a different cost: several services, a database
+with upgrades and backups, authentication, TLS, namespace retention,
+and an owner. The CLI prints that the dev server is not for production
+use and that it skips HTTP security checks. Do not point a Hub at this
+process and call it deployed.
+
+## Small installs
+
+A small or disconnected Conduit install does not run this worker. The
+Hub route `GET /v1/packaging-runs/{runID}` is still there. An
+authenticated operator gets `configured: false`. Nobody should
+reimplement Temporal inside the delivery kernel to fill that gap.
+
+There is no model in this proof. A workflow that can sit on loopback
+does not mean a model is available offline.
+
+## Demo
+
+The crash drill is the test, not a tour of the UI:
+
+```sh
+scripts/fetch-temporal-cli.sh
+scripts/packaging-temporal-demo.sh
+```
+
+The test does four things in order:
+
+1. Starts the dev server with `--db-filename` and a worker. Assessment
+   blocks on a hold file. The test stops the worker, removes the hold,
+   and starts a worker again. The run reaches the review wait.
+2. Stops the worker and the server. Starts the server on the same
+   sqlite file and a new worker. The query still shows the same source
+   digest, proposal revision, and artifact digest.
+3. Writes an approval record, then signals. The handoff activity writes
+   the Plan journal and blocks. The test stops the worker before the
+   activity returns. A new worker reconciles the journal. The Plan
+   count stays 1.
+4. Replays the completed history with the same worker code and checks
+   the history text for the fixture body and for a private-key marker.
+
+`cmd/packaging-workflow` is the same loop without the kills:
+`start-server`, then `worker`, `run`, `approve`, and `status`, using
+the frontend address `start-server` prints. `approve` writes the
+stand-in governance record before it signals. The signal is not the
+approval. `status` prints packaging-run progress. Plan status, once a
+real Plan exists, is `GET /v1/plans/{planID}`.
+
+## Failure cases the unit tests cover
+
+`go test ./internal/packagingworkflow/...` does not need the CLI. It
+covers a transient propose retry, required lint failure, unknown
+security evidence, an unsupported requirement, an activity timeout, a
+review-wait timeout, cancel during the wait, cancel racing an approval,
+a review signal with no governance record, a changed artifact digest,
+an execution-control denial at handoff, a submit that is acknowledged
+only on the retry, continue-as-new carrying the assessment, and a
+credential marker refused before it becomes workflow input.
+
+## What this does not show
+
+- CI skips the dev-server test unless `CONDUIT_TEMPORAL_CLI` is set.
+- No production database, backup restore, TLS, authentication, or
+  upgrade was run.
+- The handoff journal is a stub. It does not create a Plan in the
+  delivery kernel and it does not take a lease.
+- One worker. No multi-worker race was run.
+- No model and no network call to one.
+- The machine's network interface stayed up during the socket
+  inspection.
+- History retention was not configured. The sqlite file lives until
+  it is deleted. A production namespace would set retention; seven
+  days is the value to set then, and this demo does not set it.

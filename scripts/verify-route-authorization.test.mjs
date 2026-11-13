@@ -104,6 +104,7 @@ function build() {
   write(FACADE, facade());
   write("internal/apollo/openapi.gen.go", apollo());
   write("internal/notifications/adapters/httpapi/httpapi.go", notifications());
+  write("internal/packagingworkflow/httpapi/httpapi.go", "package httpapi\n");
   // The negative control: a route mounted in a test file. It must not be
   // demanded of the register.
   write(
