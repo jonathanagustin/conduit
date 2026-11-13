@@ -88,6 +88,9 @@ func PlanPackaging(revision, primary string, docs []SourceDocument, in PlanInput
 	if in.Review.EvidenceSHA256 != out.EvidenceSHA256 {
 		out.Blockers = append(out.Blockers, "review: missing or stale evidence digest")
 	}
+	if in.Scaffold.Profile != ScaffoldProfile || in.Scaffold.ExistingClaim != nil || in.Scaffold.ExistingSecretFile != nil {
+		out.Blockers = append(out.Blockers, "profile: reviewed plan supports stateless only; resource lifecycle requires a separate reviewed contract")
+	}
 	required := []string{"persistence", "secrets", "startup-downloads", "identity"}
 	decisions := map[string]RequirementDecision{}
 	for _, d := range in.Review.Decisions {

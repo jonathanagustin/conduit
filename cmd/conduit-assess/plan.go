@@ -24,7 +24,7 @@ func plan(args []string, in io.Reader, out io.Writer) error {
 	if len(bytes.TrimSpace(b)) == 0 {
 		b = []byte("{}")
 	}
-	if err := rejectDuplicateKeys(b, "scaffold", "review", "evidenceSHA256", "decisions", "topic", "disposition", "rationale", "profile", "name", "version", "sourceRevision", "sourceSHA256", "image", "port", "uid", "cpuMilli", "memoryMiB", "zarfVersion", "udsCommit"); err != nil {
+	if err := rejectDuplicateKeys(b, "scaffold", "review", "evidenceSHA256", "decisions", "topic", "disposition", "rationale", "profile", "name", "version", "sourceRevision", "sourceSHA256", "image", "port", "uid", "cpuMilli", "memoryMiB", "zarfVersion", "udsCommit", "existingClaim", "mountPath", "existingSecretFile", "key", "env"); err != nil {
 		return err
 	}
 	var input domain.PlanInput

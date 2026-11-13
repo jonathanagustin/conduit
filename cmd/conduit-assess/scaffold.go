@@ -16,7 +16,7 @@ func scaffold(in io.Reader, out io.Writer) error {
 	if len(b) > maxInput {
 		return fmt.Errorf("scaffold input exceeds limit")
 	}
-	if err := rejectDuplicateKeys(b, "profile", "name", "version", "sourceRevision", "sourceSHA256", "image", "port", "uid", "cpuMilli", "memoryMiB", "zarfVersion", "udsCommit"); err != nil {
+	if err := rejectDuplicateKeys(b, "profile", "name", "version", "sourceRevision", "sourceSHA256", "image", "port", "uid", "cpuMilli", "memoryMiB", "zarfVersion", "udsCommit", "existingClaim", "mountPath", "existingSecretFile", "key", "env"); err != nil {
 		return err
 	}
 	var input domain.ScaffoldInput

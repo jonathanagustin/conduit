@@ -296,3 +296,46 @@ platform enforcement), plus a dedicated authorized authentication flow. Merely
 setting cwd or read-only does not prove that scope. No HTTP runtime endpoint,
 backend-owned agent session, real model response, tool bridge or UI integration
 is implemented by this probe. #342 remains open; UI availability must stay false.
+
+## Existing-resource scaffold profile
+
+`internal-existing-resources/v1` is a standalone, operator-selected scaffold
+profile, not an expansion of the reviewed-plan contract. It requires one or both:
+
+- `existingClaim: {"name":"sample-data","mountPath":"/opt/geoserver_data"}`
+- `existingSecretFile: {"name":"sample-admin","key":"password","env":"GEOSERVER_ADMIN_PASSWORD_FILE"}`
+
+Names are bounded same-namespace DNS labels. A data mount is exactly one bounded
+path component beneath `/opt/` or `/var/lib/`; traversal, nested paths, Windows
+paths and template expressions are rejected. The secret projects only the named
+key to `/run/secrets/conduit/value`, read-only and nonoptional. Its mode is 0444,
+readable to container UIDs. Only a validated uppercase `*_FILE` variable is emitted,
+with that fixed filename, never a credential value or arbitrary environment value.
+
+The output retains one replica, deny-by-default networking and the existing
+nonroot restrictions; Deployment strategy is Recreate. No PVC or Secret is
+created, fetched or adopted. No hostPath, subPath, init container, fsGroup, chown,
+root workaround, credential generation or deployment is performed. Recreate does
+not establish exclusive PVC ownership or zero downtime. References bind names,
+not immutable live resource identities. PVC access mode, binding, permissions,
+backup/rollback, mount shadowing, secret rotation and application `*_FILE` support
+remain unverified.
+
+Zarf 0.65.1 and UDS Core pins and their emitted contracts remain unchanged. The
+additional fields use Kubernetes Deployment volume/reference shapes; Helm/schema
+checks do not prove Kubernetes admission or runtime behavior. No live test is
+claimed. Existing stateless inputs retain their serialized shape and digest;
+stateless rejects resource references. The evidence-to-plan path explicitly
+rejects this profile and any resource references until a separate lifecycle-aware
+review contract exists. GeoServer bootstrap/admin lifecycle, startup downloads,
+identity and nonroot compatibility therefore remain blockers, not silently
+resolved by a Secret/PVC reference.
+
+Verified synthetic resource-profile fixture: all ten `schema-helm/v1` checks
+passed using the pinned schemas and real Helm 3.19.0 lint/render. Artifact digest:
+`55742cc066f4648e1a1844bf4c4722d0ba1b6549a28f8beb92914fdfdf03ed57`.
+The receipt remains unsigned, structural-only and deploymentAuthorized=false.
+Focused Go tests/vet and Zenith/domain gates pass; independent review checked
+path bounds, selected-key projection, reference digest changes and profile
+separation. No GeoServer deployment, credential lifecycle, PVC or admission test
+is implied by this synthetic result.
