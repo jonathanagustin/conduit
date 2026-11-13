@@ -15,6 +15,7 @@ type AgentReportInputs struct {
 	Health []apollo.EntityHealth
 }
 
+// AgentReportPatch replaces a complete snapshot when a member is non-nil.
 // A non-nil patch member replaces that complete snapshot, including an empty
 // snapshot. A nil member leaves the other request's last committed input alone.
 type AgentReportPatch struct {
