@@ -1,3 +1,5 @@
+// Package memory provides an isolated concurrent Space store for local tests
+// and explicitly ephemeral deployments.
 package memory
 
 import (

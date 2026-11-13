@@ -1,3 +1,5 @@
+// Package application owns caller-authorized creation and selection of native
+// Space identities and immutable grouping anchors.
 package application
 
 import (

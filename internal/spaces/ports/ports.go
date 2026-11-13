@@ -1,3 +1,5 @@
+// Package ports declares Space persistence and caller-bound authorization
+// without depending on identity, HTTP, or delivery implementations.
 package ports
 
 import (

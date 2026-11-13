@@ -1,3 +1,5 @@
+// Package filestore persists native Space identities and grouping intent in
+// private files installed atomically without replacing existing assignments.
 package filestore
 
 import (
