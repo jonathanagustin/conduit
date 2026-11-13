@@ -10,9 +10,7 @@
   ],
   "coverageAnalysis": "perTest",
   "mutate": [
-    "src/features/changes/order.ts",
-    "src/components/Timestamp.tsx",
-    "src/features/promotions/ReleaseChannelGraph.tsx"
+    "src/api/protocol.ts"
   ],
   "thresholds": {
     "high": 100,

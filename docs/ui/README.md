@@ -1,5 +1,11 @@
 # Console documentation
 
+The operator UI served from `/console/` is the local packaging assistant
+documented in `web/README.md`. The Blueprint screens this directory describes
+(fleet, plans, products, promotions, change requests, notifications, and the
+rest) are no longer rendered. The notes below stay as the evidence record of
+that console. The tenant bootstrap contract is still in force.
+
 The living UI contract is intentionally small:
 
 - `contracts/pagination.md` defines the shared index behavior.

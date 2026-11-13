@@ -22,6 +22,11 @@
 // a week, so the normalizer below folds notation and nothing else. A genuinely
 // different colour still fails.
 //
+// The assistant UI does not render Blueprint. @blueprintjs/core stays a
+// devDependency so this comparison can still run: the captured Foundry token
+// file is evidence, and an unnoticed edit to it would otherwise survive every
+// other gate. It is not a claim that the assistant uses these tokens.
+//
 // What this gate does NOT do: it says nothing about layout, spacing, component
 // choice or copy, and it is not evidence about the Apollo deployment console --
 // the capture is Foundry Control Panel under an Apollo skin, which

@@ -18,9 +18,10 @@
 # slower than the stubbed suite by the cost of a Hub build. Run it when the
 # transport between console and Hub is what is in question.
 #
-#   ./scripts/simulate-console.sh                      # the healthy story
-#   ./scripts/simulate-console.sh --scenario failure   # a Plan that fails to apply
-#   ./scripts/simulate-console.sh --scenario degraded  # an Entity reporting a warning
+# The scenarios still seed a Hub. The assistant no longer renders plans, fleet,
+# or change requests, so every scenario opens the same shell check: the embedded
+# bundle hydrates the tenant bootstrap and says the local Codex bridge is absent.
+#   ./scripts/simulate-console.sh                      # embedded assistant shell
 #   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
 
@@ -156,9 +157,8 @@ fi
 # Explicit rather than derived from the scenario name: the mapping is the thing
 # a reader needs, and a scenario whose specs silently did not exist would pass.
 case "${scenario}" in
-  healthy) specs=console.spec.ts ;;
-  failure) specs=failure.spec.ts ;;
-  degraded) specs=degraded.spec.ts ;;
+  healthy|failure|degraded) specs=assistant.spec.ts ;;
+  *) echo "simulate: unknown scenario '${scenario}'" >&2; exit 1 ;;
 esac
 [ -f "${repo_root}/web/src/test/live/${specs}" ] ||
   { echo "simulate: scenario '${scenario}' has no spec file ${specs}" >&2; exit 1; }

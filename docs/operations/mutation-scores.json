@@ -1,5 +1,5 @@
 {
-  "note": "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep.",
+  "note": "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep. The 2026-08-16 Stryker entries named Blueprint console files removed when the assistant replaced that UI; they are not a measurement of the assistant.",
   "capturedAt": "2026-08-16",
   "packages": {
     "internal/environments/domain": {
@@ -38,27 +38,5 @@
       "coverage": 42.30769230769231
     }
   },
-  "web": {
-    "web/src/components/Timestamp.tsx": {
-      "efficacy": 100,
-      "killed": 43,
-      "lived": 0,
-      "total": 58,
-      "coverage": 74.13793103448276
-    },
-    "web/src/components/ReleaseChannelGraph.tsx": {
-      "efficacy": 91.83673469387755,
-      "killed": 45,
-      "lived": 4,
-      "total": 94,
-      "coverage": 52.12765957446808
-    },
-    "web/src/features/changes/order.ts": {
-      "efficacy": 100,
-      "killed": 21,
-      "lived": 0,
-      "total": 21,
-      "coverage": 100
-    }
-  }
+  "web": {}
 }

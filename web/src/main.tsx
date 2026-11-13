@@ -4,14 +4,6 @@ import { createRoot } from "react-dom/client";
 import { App } from "./app/App.js";
 import { Providers } from "./app/providers.js";
 import { loadRuntimeBootstrap } from "./runtime/bootstrap.js";
-// Source Sans 3 (the current release of Source Sans Pro) is the typeface Foundry
-// renders in; self-hosted via @fontsource so the embedded console loads it with
-// no network. Imported before the stylesheet that names it as the base family.
-import "@fontsource-variable/source-sans-3";
-// Source Code Pro is what the captured stylesheet renders `pre` and `code` in,
-// and what every digest, version and identifier in this console should render
-// in. Same self-hosting reason.
-import "@fontsource/source-code-pro";
 import "./styles/index.css";
 
 const container = document.getElementById("root");
@@ -21,25 +13,21 @@ if (container === null) {
 
 const root = createRoot(container);
 
-async function start(): Promise<void> {
-	try {
-		const bootstrap = loadRuntimeBootstrap();
-		root.render(
-			<StrictMode>
-				<Providers>
-					<App bootstrap={bootstrap} />
-				</Providers>
-			</StrictMode>,
-		);
-	} catch {
-		root.render(
-			<StrictMode>
-				<main role="alert" data-testid="console-configuration-unavailable">
-					Console configuration is unavailable. Contact the Conduit operator.
-				</main>
-			</StrictMode>,
-		);
-	}
+try {
+  const bootstrap = loadRuntimeBootstrap();
+  root.render(
+    <StrictMode>
+      <Providers>
+        <App bootstrap={bootstrap} />
+      </Providers>
+    </StrictMode>,
+  );
+} catch {
+  root.render(
+    <StrictMode>
+      <main role="alert" data-testid="console-configuration-unavailable">
+        Console configuration is unavailable. Contact the Conduit operator.
+      </main>
+    </StrictMode>,
+  );
 }
-
-void start();
