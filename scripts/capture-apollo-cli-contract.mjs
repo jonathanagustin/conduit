@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import { readFile, writeFile } from "node:fs/promises";
 
 const manifestPath = process.argv[2] ?? "docs/apollo/public-documentation-manifest.tsv";
-const outputPath = process.argv[3] ?? "docs/apollo/cli-command-contract.json";
+const outputPath = process.argv[3] ?? "docs/apollo/cli-command-inventory.json";
 const captured = process.env.CAPTURE_DATE;
 if (!/^\d{4}-\d{2}-\d{2}$/.test(captured ?? "")) {
   throw new Error("CAPTURE_DATE=YYYY-MM-DD is required");

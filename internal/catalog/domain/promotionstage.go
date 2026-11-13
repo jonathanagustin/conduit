@@ -61,12 +61,24 @@ type PromotionLabelRequirement struct {
 // Entity qualifies when it matches every populated dimension of the filter, and a
 // stage's canary set is the union of its filters.
 //
-// Filtering by Entity label is not supported here: health evidence carries no
-// Entity labels, and matching on labels the evaluator cannot see would silently
-// select nothing.
+// Environments and Installations are name lists, and a canary tier built out of
+// name lists cannot follow the fleet: standing up an Environment adds it to the
+// fleet and not to the tier, nothing says so, and the stage goes on deciding on
+// the Environments somebody remembered to write down. EnvironmentLabels makes
+// membership a property of the Environment instead, so the two move together and
+// a new Environment joins the tier the moment it is labelled -- no policy edit,
+// and no promotion silently deciding on a set that no longer describes the fleet.
+//
+// Filtering by ENTITY label is still not supported, and the reason is unchanged:
+// health evidence carries no Entity labels, and matching on labels the evaluator
+// cannot see would silently select nothing. Environment labels are supported
+// precisely because the evaluator can see them -- the Hub stamps them onto the
+// evidence before it decides, and the record carries them so a replay reads the
+// same values.
 type PromotionEntityFilter struct {
-	Environments  []string `json:"environments,omitempty"`
-	Installations []string `json:"installations,omitempty"`
+	Environments      []string                    `json:"environments,omitempty"`
+	Installations     []string                    `json:"installations,omitempty"`
+	EnvironmentLabels []PromotionLabelRequirement `json:"environmentLabels,omitempty"`
 }
 
 func (filter PromotionEntityFilter) Matches(evidence PromotionHealthEvidence) bool {
@@ -75,6 +87,22 @@ func (filter PromotionEntityFilter) Matches(evidence PromotionHealthEvidence) bo
 	}
 	if len(filter.Installations) > 0 && !contains(filter.Installations, evidence.InstallationID) {
 		return false
+	}
+	// Every requirement has to hold, the same conjunction the two name lists
+	// above already use: a tier written as "tier=canary AND region=use2" that
+	// admitted an Environment satisfying either half would be a wider canary set
+	// than the operator asked for, deciding a fleet-wide promotion on it.
+	//
+	// An absent label fails the requirement rather than passing it. Evidence
+	// whose Environment the Hub could not label -- one it has never reviewed, or
+	// a record from a Hub that predates this field -- is not quietly admitted to
+	// a tier nobody confirmed it belongs to; the stage then finds no canary
+	// evidence and blocks, which is the recoverable direction.
+	for _, requirement := range filter.EnvironmentLabels {
+		value, present := evidence.EnvironmentLabels[requirement.Label]
+		if !present || !contains(requirement.Values, value) {
+			return false
+		}
 	}
 	return true
 }
@@ -183,6 +211,15 @@ func CountHeld(
 
 // CanaryEvidence narrows evidence to the Entities a stage nominated. A stage with
 // no filters treats every reporting Entity as a canary.
+//
+// Every dimension a filter selects on -- named Environments, named Installations,
+// and Environment labels -- is answered by PromotionEntityFilter.Matches and
+// nowhere else, deliberately. This narrowing runs three times over the same
+// record: once to decide the stage, once in the Hub to check the topology of the
+// Environments that vouched, and once when a blocked canary writes suppressions.
+// A second copy of the rule that drifted from this one would let a canary
+// suppress an Entity it never decided on, which is exactly the defect #66 fixed;
+// adding the label arm here as well would reintroduce the shape of it.
 func CanaryEvidence(evidence []PromotionHealthEvidence, filters []PromotionEntityFilter) []PromotionHealthEvidence {
 	if len(filters) == 0 {
 		return evidence
@@ -347,6 +384,21 @@ func ValidateStage(policy PromotionPolicy) error {
 	for index, requirement := range policy.LabelRequirements {
 		if strings.TrimSpace(requirement.Label) == "" || len(requirement.Values) == 0 {
 			return fmt.Errorf("label requirement %d needs a label and at least one value", index+1)
+		}
+	}
+	// The same rule for the filter's Environment labels, and it matters more
+	// here: an unusable Release label requirement blocks the promotion, but an
+	// unusable canary requirement only narrows a set. A requirement naming no
+	// label matches nothing, so the stage would report "no canary evidence"
+	// while the operator reads a policy that plainly nominates a tier. Refuse it
+	// at the edge instead of explaining it later.
+	for index, filter := range policy.EntityFilters {
+		for position, requirement := range filter.EnvironmentLabels {
+			if strings.TrimSpace(requirement.Label) == "" || len(requirement.Values) == 0 {
+				return fmt.Errorf(
+					"entity filter %d environment label requirement %d needs a label and at least one value",
+					index+1, position+1)
+			}
 		}
 	}
 	return nil

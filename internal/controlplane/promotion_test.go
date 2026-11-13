@@ -126,6 +126,283 @@ func TestPromotionFailureSuppressesCanaryAndRecoveryRemovesSuppression(t *testin
 	}
 }
 
+// canaryPromotionRequest is a canary stage whose filters nominate one Entity in
+// one Environment, so evidence for anything else is submitted but deliberately
+// outside the decision.
+func canaryPromotionRequest(now time.Time) PromotionEvaluationRequest {
+	request := promotionRequest(now)
+	request.Policy = PromotionPolicy{
+		Type:           PromotionCanary,
+		RequiredLabels: map[string]string{"security": "approved"},
+		EntityFilters: []PromotionEntityFilter{{
+			Environments: []string{"dev-use2"}, Installations: []string{"example-api"},
+		}},
+		Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+	}
+	return request
+}
+
+// A canary decides on the Entities its filters nominate, so it may suppress only
+// those. Suppressing an excluded Entity refuses the next Plan that touches it on
+// the strength of a decision that never looked at it, and the operator has no
+// way to read that back off the promotion: the filters say the Entity was not a
+// canary, and the suppression says it failed one.
+func TestBlockedCanaryDoesNotSuppressAnEntityItsFiltersExcluded(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
+	repository := promotionRepository(t)
+	lifecycle := NewLifecycle(repository)
+	lifecycle.now = func() time.Time { return now }
+	blocked := canaryPromotionRequest(now)
+	blocked.Evidence = []PromotionHealthEvidence{
+		{Environment: "dev-use2", InstallationID: "example-api", Health: "UNHEALTHY", ObservedAt: now},
+		{Environment: "dev-use2", InstallationID: "excluded-api", Health: "UNHEALTHY", ObservedAt: now},
+	}
+	record, err := lifecycle.EvaluatePromotion(context.Background(), blocked)
+	if err != nil || record.Status != PromotionBlocked {
+		t.Fatalf("blocked canary = %#v, %v", record, err)
+	}
+	suppressions, err := repository.ListSuppressions(context.Background(), "dev-use2")
+	if err != nil {
+		t.Fatal(err)
+	}
+	suppressed := make([]string, 0, len(suppressions))
+	for _, suppression := range suppressions {
+		if suppression.Source == SuppressionPromotion && suppression.Active(now) {
+			suppressed = append(suppressed, suppression.InstallationID)
+		}
+	}
+	if len(suppressed) != 1 || suppressed[0] != "example-api" {
+		t.Fatalf("canary suppressed %v, want only the nominated canary example-api", suppressed)
+	}
+}
+
+// The other half of the same change, and the reason creation was narrowed
+// without narrowing removal: records written before the filter existed have to
+// stay reachable. Removal is keyed on Environment plus Release, and the
+// Environment set is read from the whole submitted evidence, so a passing run
+// clears a suppression its own filters would have excluded from creation. Narrow
+// both halves and those records become permanent.
+func TestPassingCanaryStillClearsASuppressionItsFiltersWouldNotHaveCreated(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
+	repository := promotionRepository(t)
+	lifecycle := NewLifecycle(repository)
+	lifecycle.now = func() time.Time { return now }
+	passing := canaryPromotionRequest(now)
+	passing.Evidence = []PromotionHealthEvidence{
+		{
+			Environment: "dev-use2", InstallationID: "example-api", Health: "HEALTHY",
+			HealthySince: now.Add(-72 * time.Hour), ObservedAt: now,
+		},
+		{Environment: "staging-use2", InstallationID: "example-api", Health: "UNHEALTHY", ObservedAt: now},
+	}
+	stranded := SuppressionRecord{
+		Environment: "staging-use2", InstallationID: "example-api", Scope: SuppressionEntity,
+		Source:    SuppressionPromotion,
+		Reason:    "promotion health gate failed for " + passing.Release.Product + ":" + passing.Release.Version,
+		CreatedBy: "platform-delivery", Product: passing.Release.Product, Version: passing.Release.Version,
+		StartsAt: now.Add(-time.Hour), CreatedAt: now.Add(-time.Hour),
+		Threshold: defaultAutoSuppressionThreshold, Revision: 1,
+	}
+	stranded.ID = suppressionID(stranded)
+	if _, err := repository.CreateSuppression(context.Background(), stranded); err != nil {
+		t.Fatal(err)
+	}
+	record, err := lifecycle.EvaluatePromotion(context.Background(), passing)
+	if err != nil || record.Status != PromotionPassed {
+		t.Fatalf("passing canary = %#v, %v", record, err)
+	}
+	cleared, err := repository.GetSuppression(context.Background(), stranded.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cleared.Active(now) || cleared.RemovedBy != "platform-delivery" {
+		t.Fatalf("suppression outside the canary filters = %#v, want removed by the passing run", cleared)
+	}
+}
+
+// seedLabelledEnvironment gives the Hub a reviewed generation for an Environment
+// carrying labels. A canary tier selected by label reads its membership from
+// exactly this -- the same place the promotion topology is read from -- so a
+// fixture that skipped it would be testing an Environment the Hub does not hold.
+func seedLabelledEnvironment(t *testing.T, repository Repository, environment string, labels map[string]string) {
+	t.Helper()
+	state := foundation()
+	state.Environment.ID = environment
+	state.Environment.Labels = labels
+	if _, err := repository.CreatePlan(context.Background(), PlanRecord{
+		ID:           "pln_" + environment,
+		Plan:         Plan{Environment: environment, Generation: state.Environment.Generation},
+		DesiredState: &state, Status: PlanAwaitingApproval,
+		CreatedAt: time.Date(2026, time.August, 1, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("seed Environment %s: %v", environment, err)
+	}
+}
+
+// A canary tier written as a list of Environment names cannot follow the fleet.
+// The Environment stood up this morning is in the fleet and not in the tier,
+// nothing says so, and the stage keeps promoting on the Environments somebody
+// remembered to list -- which is the failure this selects on labels to prevent.
+//
+// The Hub stamps the labels on, from the Environment's reviewed generation, and
+// the record carries them. That is what makes the whole thing replayable: see
+// the sub-test below and the note in validatePromotions.
+func TestCanaryTierFollowsTheFleetByEnvironmentLabel(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)
+	repository := NewMemoryRepository()
+	seedLabelledEnvironment(t, repository, "dev-use2", map[string]string{"tier": "canary"})
+	seedLabelledEnvironment(t, repository, "prod-use2", map[string]string{"tier": "production"})
+	lifecycle := NewLifecycle(repository)
+	clock := now
+	lifecycle.now = func() time.Time { return clock }
+
+	// One policy, written once. It names no Environment.
+	tieredRequest := func(at time.Time) PromotionEvaluationRequest {
+		request := promotionRequest(at)
+		request.Policy = PromotionPolicy{
+			Type:           PromotionCanary,
+			RequiredLabels: map[string]string{"security": "approved"},
+			EntityFilters: []PromotionEntityFilter{{
+				EnvironmentLabels: []PromotionLabelRequirement{{Label: "tier", Values: []string{"canary"}}},
+			}},
+			Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+		}
+		return request
+	}
+
+	first := tieredRequest(now)
+	first.Evidence = []PromotionHealthEvidence{
+		// Never named by the policy, and a canary because it is labelled one.
+		{
+			Environment: "dev-use2", InstallationID: "example-api", Health: "HEALTHY",
+			HealthySince: now.Add(-72 * time.Hour), ObservedAt: now,
+		},
+		// Outside the tier, unhealthy, and claiming otherwise: a submitter that
+		// could declare its own Environment labels would write itself into any
+		// canary tier, so the Hub overwrites what it was sent.
+		{
+			Environment: "prod-use2", InstallationID: "example-api", Health: "UNHEALTHY", ObservedAt: now,
+			EnvironmentLabels: map[string]string{"tier": "canary"},
+		},
+	}
+	passed, err := lifecycle.EvaluatePromotion(context.Background(), first)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if passed.Status != PromotionPassed {
+		t.Fatalf("labelled canary tier = %#v, want PASSED: prod-use2 is not a canary", passed)
+	}
+
+	labelsFor := func(record PromotionRecord, environment string) map[string]string {
+		for _, entry := range record.Evidence {
+			if entry.Environment == environment {
+				return entry.EnvironmentLabels
+			}
+		}
+		return nil
+	}
+
+	t.Run("the Hub's labels replace the submitter's", func(t *testing.T) {
+		if got := labelsFor(passed, "prod-use2"); got["tier"] != "production" {
+			t.Fatalf("prod-use2 evidence labels = %v, want the Hub's tier=production", got)
+		}
+		if got := labelsFor(passed, "dev-use2"); got["tier"] != "canary" {
+			t.Fatalf("dev-use2 evidence labels = %v, want the Hub's tier=canary", got)
+		}
+	})
+
+	t.Run("the record replays from itself", func(t *testing.T) {
+		// The main correctness risk of a label filter. validatePromotions holds
+		// no repository, so if the labels were not on the record the filter
+		// would select nothing on replay and this PASSED record would fail to
+		// reproduce -- or, with the selection inverted, a record could reproduce
+		// as PASSED on a canary set that never existed.
+		var errs []ValidationError
+		validatePromotions([]PromotionRecord{passed}, []Release{first.Release}, &errs)
+		if len(errs) != 0 {
+			t.Fatalf("a label-selected canary record did not reproduce: %#v", errs)
+		}
+	})
+
+	t.Run("a relabelled Environment does not rewrite a decision already made", func(t *testing.T) {
+		// Environment labels are mutable; promotion records are not. Replay
+		// reads the labels frozen on the record, so demoting dev-use2 out of the
+		// tier today cannot retroactively invalidate yesterday's promotion.
+		seedLabelledEnvironment(t, repository, "dev-use2", map[string]string{"tier": "production"})
+		var errs []ValidationError
+		validatePromotions([]PromotionRecord{passed}, []Release{first.Release}, &errs)
+		if len(errs) != 0 {
+			t.Fatalf("relabelling an Environment invalidated an existing record: %#v", errs)
+		}
+		seedLabelledEnvironment(t, repository, "dev-use2", map[string]string{"tier": "canary"})
+	})
+
+	t.Run("a record from a Hub that predates the field still reproduces", func(t *testing.T) {
+		// A name-list filter reads no labels, so stripping them changes nothing
+		// -- which is the compatibility claim: every promotion written before
+		// this field replays exactly as it did.
+		named := tieredRequest(now.Add(time.Minute))
+		named.Policy.EntityFilters = []PromotionEntityFilter{{Environments: []string{"dev-use2"}}}
+		named.Evidence = []PromotionHealthEvidence{{
+			Environment: "dev-use2", InstallationID: "example-api", Health: "HEALTHY",
+			HealthySince: now.Add(-72 * time.Hour), ObservedAt: now,
+		}}
+		clock = now.Add(time.Minute)
+		record, err := lifecycle.EvaluatePromotion(context.Background(), named)
+		clock = now
+		if err != nil || record.Status != PromotionPassed {
+			t.Fatalf("name-list canary = %#v, %v", record, err)
+		}
+		older := cloneJSON(record)
+		for index := range older.Evidence {
+			older.Evidence[index].EnvironmentLabels = nil
+		}
+		id, err := promotionIdentity(older)
+		if err != nil {
+			t.Fatal(err)
+		}
+		older.ID = id
+		var errs []ValidationError
+		validatePromotions([]PromotionRecord{older}, []Release{named.Release}, &errs)
+		if len(errs) != 0 {
+			t.Fatalf("a record without Environment labels was rejected: %#v", errs)
+		}
+	})
+
+	t.Run("labelling a new Environment extends the tier with no policy edit", func(t *testing.T) {
+		seedLabelledEnvironment(t, repository, "canary-use3", map[string]string{"tier": "canary"})
+		clock = now.Add(2 * time.Minute)
+		grown := tieredRequest(clock)
+		grown.Evidence = []PromotionHealthEvidence{
+			{
+				Environment: "dev-use2", InstallationID: "example-api", Health: "HEALTHY",
+				HealthySince: now.Add(-72 * time.Hour), ObservedAt: clock,
+			},
+			{Environment: "canary-use3", InstallationID: "example-api", Health: "UNHEALTHY", ObservedAt: clock},
+		}
+		record, err := lifecycle.EvaluatePromotion(context.Background(), grown)
+		if err != nil {
+			t.Fatal(err)
+		}
+		// Membership that could not stop a promotion would be membership in
+		// name only: half the tier is unhealthy against a 100% threshold.
+		if record.Status != PromotionBlocked {
+			t.Fatalf("promotion = %#v, want BLOCKED: canary-use3 joined the tier by its label alone", record)
+		}
+		if labels := labelsFor(record, "canary-use3"); labels["tier"] != "canary" {
+			t.Fatalf("canary-use3 evidence labels = %v, want tier=canary", labels)
+		}
+		var errs []ValidationError
+		validatePromotions([]PromotionRecord{record}, []Release{grown.Release}, &errs)
+		if len(errs) != 0 {
+			t.Fatalf("the extended tier's record did not reproduce: %#v", errs)
+		}
+	})
+}
+
 func TestRampedRolloutConstraintAppliesOnlyToUpgrades(t *testing.T) {
 	t.Parallel()
 	now := time.Date(2026, time.August, 3, 12, 0, 0, 0, time.UTC)

@@ -1,11 +1,16 @@
 import { type FormEvent, useEffect, useMemo, useState } from "react";
-import { Button, Callout, HTMLTable, InputGroup, Spinner } from "@blueprintjs/core";
+import { Button, Callout, HTMLTable, InputGroup, Spinner, Tag } from "@blueprintjs/core";
 import { useSearchParams } from "react-router-dom";
 
 import { ApiError } from "../../api/errors.js";
 import { AccessibleNonIdealState, ObjectHeader } from "../../components/index.js";
-import { useFleet } from "../../api/fleet.js";
-import type { FleetQuery } from "../../api/types.js";
+import {
+  installationSource,
+  installationSourceLabel,
+  parseInstallationRID,
+  useFleet,
+} from "../../api/fleet.js";
+import type { FleetInstallation, FleetQuery } from "../../api/types.js";
 import { ConfigTag, HealthTag, LifecycleTag, RolloutTag } from "../../components/statusTags.js";
 import { FleetFacetRail } from "./FleetFacetRail.js";
 import { SummaryBar } from "./SummaryBar.js";
@@ -52,7 +57,23 @@ export function FleetPage() {
 
   const applySearch = (event: FormEvent) => {
     event.preventDefault();
-    setFilter("search", search.trim() === "" ? undefined : search.trim());
+    const term = search.trim();
+    // An operator copies a RID out of an audit entry or a ticket and pastes it
+    // here. The Hub's fleet search matches installationId, environment and
+    // product and knows nothing about RIDs, so the paste used to match nothing
+    // at all. Split it into the two filters the Hub does understand.
+    const rid = parseInstallationRID(term);
+    if (rid !== undefined) {
+      setSearchParams((current) => {
+        const next = new URLSearchParams(current);
+        next.set("environment", rid.environment);
+        next.set("search", rid.installationId);
+        next.delete("cursor");
+        return next;
+      });
+      return;
+    }
+    setFilter("search", term === "" ? undefined : term);
   };
 
   const moveToCursor = (cursor: string | undefined) =>
@@ -128,6 +149,7 @@ export function FleetPage() {
                   <th scope="col">Environment</th>
                   <th scope="col">Entity</th>
                   <th scope="col">Product</th>
+                  <th scope="col">Source</th>
                   <th scope="col">Desired</th>
                   <th scope="col">Observed</th>
                   <th scope="col">Health</th>
@@ -142,6 +164,9 @@ export function FleetPage() {
                     <td>{item.environment}</td>
                     <td>{item.installationId}</td>
                     <td>{item.product}</td>
+                    <td>
+                      <SourceTag item={item} />
+                    </td>
                     <td>{item.desiredVersion ?? "—"}</td>
                     <td>
                       {item.observedVersion ?? "—"}
@@ -185,5 +210,21 @@ export function FleetPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+/** Which side of the merge a row came from.
+ *
+ * `BuildFleet` folds desired state and Agent reports into one table, and the
+ * fold is invisible in the result: a declared-but-unreported installation gets
+ * `UNKNOWN / OUT_OF_DATE / INDETERMINATE / UNKNOWN`, which are placeholders,
+ * and reads exactly like an installation that reported bad news. The tag says
+ * which, and the title says why it matters. */
+function SourceTag({ item }: { item: FleetInstallation }) {
+  const { label, intent, title } = installationSourceLabel(installationSource(item));
+  return (
+    <Tag intent={intent} minimal round title={title} data-testid={`fleet-source-${item.installationId}`}>
+      {label}
+    </Tag>
   );
 }

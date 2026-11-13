@@ -22,7 +22,7 @@ export interface AppLogoProps {
 
 export function AppLogo({
   icon,
-  accent = "var(--brand)",
+  accent = "var(--console-app-logo-accent-default)",
   size = 50,
   testId = "app-logo",
 }: AppLogoProps) {

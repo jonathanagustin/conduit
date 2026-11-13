@@ -386,7 +386,32 @@ func (api *api) readContacts(writer http.ResponseWriter, request *http.Request) 
 		writeError(writer, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, map[string]any{"owner": owner, "contacts": contacts})
+	writeJSON(writer, http.StatusOK, map[string]any{"owner": owner, "contacts": readableContacts(contacts)})
+}
+
+// contactResponse is domain.Contact plus the one thing a reader cannot work out
+// from it: whether anything will ever be delivered here.
+//
+// ContactKind.Deliverable is EMAIL or SLACK; a PAGERDUTY contact is accepted by
+// Save, listed back by List, and silently receives nothing (#262). Every client
+// therefore had to carry its own copy of that predicate to say so -- the console
+// did, as contactDeliverable in web/src/api/notifications.ts, and any client
+// that did not simply showed a destination that is never used as though it were.
+//
+// Projected here rather than added to domain.Contact because it is derived, not
+// stored: putting it on the domain type would persist an answer that
+// Deliverable() already computes, and the two could then disagree.
+type contactResponse struct {
+	domain.Contact
+	Deliverable bool `json:"deliverable"`
+}
+
+func readableContacts(contacts []domain.Contact) []contactResponse {
+	readable := make([]contactResponse, 0, len(contacts))
+	for _, contact := range contacts {
+		readable = append(readable, contactResponse{Contact: contact, Deliverable: contact.Kind.Deliverable()})
+	}
+	return readable
 }
 
 // contactRequest is what a caller may set. The identifier and the timestamps

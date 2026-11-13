@@ -923,3 +923,46 @@ func TestWithNoAddressBookTheContactRoutesDoNotExist(t *testing.T) {
 		t.Errorf("the inbox answered %d with no address book", response.Code)
 	}
 }
+
+// A PagerDuty contact is accepted, stored, and listed back, and nothing is ever
+// delivered to it (#262). The read shape has to say so: without it, every
+// client either carries its own copy of ContactKind.Deliverable or shows a
+// destination that is never used as though it were live. The console carried
+// exactly such a copy.
+func TestAContactReadSaysWhetherAnythingIsDeliveredThere(t *testing.T) {
+	t.Parallel()
+	test := newHarness(t, alice())
+
+	for _, kind := range []string{"EMAIL", "PAGERDUTY"} {
+		body := fmt.Sprintf(`{"kind":%q,"address":"somewhere"}`, kind)
+		if written := test.do(http.MethodPut, "/v1/notifications/contacts", body); written.Code != http.StatusOK {
+			t.Fatalf("storing a %s contact answered %d: %s", kind, written.Code, written.Body.String())
+		}
+	}
+
+	response := test.do(http.MethodGet, "/v1/notifications/contacts", "")
+	if response.Code != http.StatusOK {
+		t.Fatalf("read answered %d: %s", response.Code, response.Body.String())
+	}
+	var read struct {
+		Contacts []struct {
+			Kind        string `json:"kind"`
+			Address     string `json:"address"`
+			Deliverable bool   `json:"deliverable"`
+		} `json:"contacts"`
+	}
+	decode(t, response, &read)
+	if len(read.Contacts) != 2 {
+		t.Fatalf("stored two contacts, read back %d: %#v", len(read.Contacts), read.Contacts)
+	}
+	for _, contact := range read.Contacts {
+		want := contact.Kind != "PAGERDUTY"
+		if contact.Deliverable != want {
+			t.Errorf("%s contact reports deliverable=%v, want %v", contact.Kind, contact.Deliverable, want)
+		}
+		// The projection must not cost the fields the route exists to serve.
+		if contact.Address == "" {
+			t.Errorf("%s contact lost its address in the read shape", contact.Kind)
+		}
+	}
+}

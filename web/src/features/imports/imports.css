@@ -3,12 +3,12 @@
 }
 
 .console-imports__table tbody tr[aria-selected="true"] {
-  background: var(--pt-intent-primary-muted, rgba(45, 114, 210, 0.15));
+  background: var(--console-selected-row-background);
 }
 
 .console-imports__bundle,
 .console-imports__digest {
-  font-family: var(--pt-font-family-monospace, monospace);
+  font-family: var(--console-font-family-monospace);
   font-size: 0.9em;
 }
 

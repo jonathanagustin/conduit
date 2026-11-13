@@ -1,0 +1,77 @@
+{
+  "schemaVersion": 1,
+  "evidenceKind": "foundry-graphql-observed-contract-completeness",
+  "claim": {
+    "complete": true,
+    "scope": "Every exact operation variant in the supplied shipped-document closure artifact",
+    "notClaimed": "Uncaptured applications, unused fields/types/arguments, resolver behavior, default values, descriptions, deprecations, or the tenant's private introspection result"
+  },
+  "summary": {
+    "operationOccurrenceCount": 24,
+    "operationVariantCount": 24,
+    "validOperationVariantCount": 24,
+    "invalidOperationVariantCount": 0,
+    "closureIncompleteCount": 0,
+    "recoveredFieldCount": 159,
+    "unresolvedFieldCount": 0,
+    "unusedFieldSignatureCount": 0,
+    "recoveredArgumentCount": 31,
+    "unresolvedArgumentCount": 0,
+    "unusedArgumentSignatureCount": 0,
+    "compositeTypeCount": 65,
+    "scalarTypeCount": 20,
+    "overlapConstraintCount": 14,
+    "syntheticOverlapTypeCount": 8,
+    "placeholderTypeCount": 3,
+    "reconciledInterfaceArgumentCount": 0
+  },
+  "projection": {
+    "objectTypeCount": 33,
+    "interfaceTypeCount": 25,
+    "unionTypeCount": 7,
+    "observedConcreteTypeCount": 25,
+    "inferredConcreteTypeCount": 0,
+    "inferredConcreteTypes": [],
+    "inferredDisjointPairs": [],
+    "syntheticTypes": [
+      "ObservedOverlap_2c65f76fa398",
+      "ObservedOverlap_43f7bc28f91d",
+      "ObservedOverlap_49cea141063d",
+      "ObservedOverlap_6052c4b65c73",
+      "ObservedOverlap_657270eabd7e",
+      "ObservedOverlap_7acbe52532fb",
+      "ObservedOverlap_8a1bd5390287",
+      "ObservedOverlap_e6c5b144ccf8"
+    ],
+    "placeholderTypes": [
+      "ObservedOverlap_6052c4b65c73",
+      "ObservedOverlap_7acbe52532fb",
+      "ObservedOverlap_8a1bd5390287"
+    ],
+    "resolvedFieldVariances": [],
+    "inferredDefaultArgumentCount": 0,
+    "inferredDefaultArguments": []
+  },
+  "missingFieldSignatures": [],
+  "unusedFieldSignatures": [],
+  "unusedArgumentSignatures": [],
+  "relationContradictions": [],
+  "conflicts": [],
+  "unknownDirectives": [],
+  "schemaBuildError": null,
+  "schemaErrors": [],
+  "documentValidation": {
+    "categories": {},
+    "failures": []
+  },
+  "inputs": {
+    "closuresSha256": "98ac13285b92fd3285f2c0a124bb487c681f9f6fcf3a4aa47cc7a6cc58428985",
+    "fieldSignaturesSha256": "c5d241b52519d7652655168ffdb81627caa2d753a1b18b89d8d54cfae4dc19b5",
+    "argumentSignaturesSha256": "7c894b9ab31b6d057a0b0110c91ccc5ff2f5452c4164bef7c107a73eb82a630c",
+    "concreteSchemaSha256": "2e5f529cf20cd31028135864797475d2a295b4eb220819338f10372e7a97b4a2",
+    "directivesSha256": "97d7c85f5cbb2310968bb04d3389c881198fb8afc5ca94b9175d8286e29c733b"
+  },
+  "output": {
+    "schemaSha256": "ff268cb125211615bd7c833e5c66a3eec032d43841c591c3da8e33f57583b67d"
+  }
+}

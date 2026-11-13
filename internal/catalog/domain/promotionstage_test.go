@@ -83,6 +83,113 @@ func TestCanaryStageOnlyCountsFilteredEntities(t *testing.T) {
 	}
 }
 
+// labelledIn returns evidence carrying the Environment labels the Hub stamps on
+// before it decides. The submitter never sets these; see stampEnvironmentLabels.
+func labelledIn(entry PromotionHealthEvidence, labels map[string]string) PromotionHealthEvidence {
+	entry.EnvironmentLabels = labels
+	return entry
+}
+
+// A canary tier named Environment by Environment cannot follow the fleet: the
+// next Environment stood up joins the fleet and not the tier, and the stage goes
+// on deciding a fleet-wide promotion on the Environments somebody remembered to
+// list. Selecting on an Environment label makes tier membership a property of the
+// Environment, so labelling a new Environment extends the tier with no edit to
+// the policy -- and un-labelling one removes it, which is the same guarantee run
+// backwards.
+func TestCanarySetSelectedByEnvironmentLabelFollowsTheFleet(t *testing.T) {
+	t.Parallel()
+	canary := map[string]string{"tier": "canary"}
+	production := map[string]string{"tier": "production"}
+	// One policy, written once, naming no Environment at all.
+	policy := PromotionPolicy{
+		Type: PromotionCanary,
+		EntityFilters: []PromotionEntityFilter{{
+			EnvironmentLabels: []PromotionLabelRequirement{{Label: "tier", Values: []string{"canary"}}},
+		}},
+		Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100, DurationSeconds: 3600}},
+	}
+	fleet := []PromotionHealthEvidence{
+		labelledIn(healthyFor("dev-use2", "api", 2*time.Hour), canary),
+		labelledIn(unhealthy("prod-use2", "api"), production),
+		// Labelled with nothing at all: an Environment the Hub holds no labels
+		// for is not admitted to a tier on the strength of reporting.
+		unhealthy("unreviewed-use2", "api"),
+	}
+
+	names := func(evidence []PromotionHealthEvidence) []string {
+		selected := make([]string, 0, len(evidence))
+		for _, entry := range evidence {
+			selected = append(selected, entry.Environment)
+		}
+		return selected
+	}
+
+	t.Run("selects a labelled Environment the policy never names", func(t *testing.T) {
+		if selected := names(CanaryEvidence(fleet, policy.EntityFilters)); len(selected) != 1 || selected[0] != "dev-use2" {
+			t.Fatalf("canary set = %v, want only the tier=canary Environment dev-use2", selected)
+		}
+		// And the unhealthy Environments outside the tier do not block it.
+		if reasons := EvaluateCanaryStage(
+			PromotionEvaluationRequest{Policy: policy, Evidence: fleet}, promotionFixtureTime(),
+		); len(reasons) != 0 {
+			t.Fatalf("an Environment outside the labelled tier decided the stage: %#v", reasons)
+		}
+	})
+
+	t.Run("a new Environment joins the tier with no policy edit", func(t *testing.T) {
+		grown := append(append([]PromotionHealthEvidence(nil), fleet...),
+			labelledIn(unhealthy("canary-use3", "api"), canary))
+		if selected := names(CanaryEvidence(grown, policy.EntityFilters)); len(selected) != 2 ||
+			selected[0] != "dev-use2" || selected[1] != "canary-use3" {
+			t.Fatalf("canary set after the fleet grew = %v, want dev-use2 and canary-use3", selected)
+		}
+		// The point of extending the tier is that the new Environment can now
+		// stop a promotion. A tier that admitted it but never let it decide
+		// would be membership in name only.
+		if reasons := EvaluateCanaryStage(
+			PromotionEvaluationRequest{Policy: policy, Evidence: grown}, promotionFixtureTime(),
+		); !blockedBy(reasons, PromotionBlockerCanaryShareBelowThreshold, "condition 1") {
+			t.Fatalf("a newly labelled unhealthy canary did not block the stage: %#v", reasons)
+		}
+	})
+
+	t.Run("every requirement has to hold", func(t *testing.T) {
+		// "tier=canary AND region=use2". An Environment satisfying one half is a
+		// wider canary set than the operator asked for.
+		both := []PromotionEntityFilter{{EnvironmentLabels: []PromotionLabelRequirement{
+			{Label: "tier", Values: []string{"canary"}}, {Label: "region", Values: []string{"use2"}},
+		}}}
+		partial := []PromotionHealthEvidence{
+			labelledIn(healthyFor("dev-use3", "api", 2*time.Hour), map[string]string{"tier": "canary", "region": "use3"}),
+		}
+		if selected := CanaryEvidence(partial, both); len(selected) != 0 {
+			t.Fatalf("canary set = %v, want nothing: region=use3 does not satisfy region=use2", names(selected))
+		}
+	})
+
+	t.Run("a set of acceptable values admits any of them", func(t *testing.T) {
+		either := []PromotionEntityFilter{{EnvironmentLabels: []PromotionLabelRequirement{
+			{Label: "tier", Values: []string{"canary", "early-access"}},
+		}}}
+		early := []PromotionHealthEvidence{
+			labelledIn(healthyFor("early-use2", "api", 2*time.Hour), map[string]string{"tier": "early-access"}),
+		}
+		if selected := CanaryEvidence(early, either); len(selected) != 1 {
+			t.Fatalf("canary set = %v, want the tier=early-access Environment", names(selected))
+		}
+	})
+
+	t.Run("a filter declaring no labels is unaffected", func(t *testing.T) {
+		// The name-list shape has to keep deciding exactly as it did, or every
+		// promotion record written before this field replays differently.
+		named := []PromotionEntityFilter{{Environments: []string{"prod-use2"}}}
+		if selected := names(CanaryEvidence(fleet, named)); len(selected) != 1 || selected[0] != "prod-use2" {
+			t.Fatalf("name-list canary set = %v, want only prod-use2", selected)
+		}
+	})
+}
+
 // Conditions are OR'd, so one satisfied promote condition passes even when a
 // stricter one does not.
 func TestCanaryConditionsUseOrSemantics(t *testing.T) {
@@ -224,6 +331,29 @@ func TestPromotionStageValidationRejectsMixedShapes(t *testing.T) {
 		"label requirement without values": {
 			policy:    PromotionPolicy{LabelRequirements: []PromotionLabelRequirement{{Label: "flavor"}}},
 			wantError: "at least one value",
+		},
+		// A canary filter whose label requirement names no values matches
+		// nothing, so the stage would report "no canary evidence" while the
+		// operator reads a policy that plainly nominates a tier.
+		"entity filter label requirement without values": {
+			policy: PromotionPolicy{
+				Type: PromotionCanary,
+				EntityFilters: []PromotionEntityFilter{{
+					EnvironmentLabels: []PromotionLabelRequirement{{Label: "tier"}},
+				}},
+				Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+			},
+			wantError: "entity filter 1 environment label requirement 1",
+		},
+		"entity filter label requirement without a label": {
+			policy: PromotionPolicy{
+				Type: PromotionCanary,
+				EntityFilters: []PromotionEntityFilter{{
+					EnvironmentLabels: []PromotionLabelRequirement{{Label: "  ", Values: []string{"canary"}}},
+				}},
+				Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100}},
+			},
+			wantError: "entity filter 1 environment label requirement 1",
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

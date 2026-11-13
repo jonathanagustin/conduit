@@ -166,6 +166,15 @@ the disaster copy rather than the primary mechanism.
 
 - **A backup schedule, a retention policy, or a CronJob to run it.** The chart
   does not own the database and cannot own its backups.
+- **Audit-record retention, and tamper-evidence at rest** (#261). Nothing here
+  prunes, expires, archives or signs audit records. They live inside the
+  single-row `jsonb` document that `withState` rewrites on every control-plane
+  write, so an unbounded audit history makes every write more expensive rather
+  than only the reads. Append-only is guaranteed through the repository's own
+  interface and not against direct database access, which makes integrity at
+  rest a property of the PostgreSQL deployment: restrict write access to the
+  Hub's role, and keep the backups above. `PRODUCTION-READINESS.md` gap 4 states
+  both positions in full.
 - **PostgreSQL HA, failover and PITR configuration.** Same reason. ADR 0002
   records node and database failover behaviour as unproved, and that is still
   true.

@@ -1,6 +1,7 @@
 package controlplane
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 
@@ -60,7 +61,7 @@ func registerApolloGraphQL(
 		// One decision is still about the request rather than a field: a reader
 		// who may see nothing at all gets Governance's status, because a
 		// document of nothing but refusals is a worse answer than the refusal.
-		projection := apolloProjectionOrNil(api)
+		projection := apolloProjectionOrNil(request.Context(), api)
 		if !authorizedprojection.AnyReadable(projection, reads) {
 			writeLifecycleError(writer, ErrForbidden)
 			return graphqlports.Sources{}, false
@@ -78,11 +79,11 @@ func registerApolloGraphQL(
 	return nil
 }
 
-func apolloProjectionOrNil(api *apolloPublicAPI) graphqlports.ApolloProjection {
+func apolloProjectionOrNil(ctx context.Context, api *apolloPublicAPI) graphqlports.ApolloProjection {
 	if api == nil || api.application == nil {
 		return nil
 	}
-	return apolloProjectionAdapter{service: api.application}
+	return apolloProjectionAdapter{ctx: ctx, service: api.application}
 }
 
 // apolloProjectionAdapter translates the Apollo application's error kinds into
@@ -98,14 +99,22 @@ func apolloProjectionOrNil(api *apolloPublicAPI) graphqlports.ApolloProjection {
 // propagates it. That is the direction that matters: before this, the resolver
 // turned every error into a null, and a store that was down was served as an
 // environment that does not exist.
-type apolloProjectionAdapter struct{ service *apolloapp.Service }
+// The request's context is carried on the struct because the GraphQL projection
+// port takes none and the resolver has none to give: the reads it fronts now
+// reach the repository, and a query the client abandoned should not outlive it.
+// The projection is already bound per request, so this is the context of the
+// request being answered and not a longer-lived one.
+type apolloProjectionAdapter struct {
+	ctx     context.Context
+	service *apolloapp.Service
+}
 
 func (adapter apolloProjectionAdapter) ListEnvironments() (apollo.ListEnvironmentsResponse, error) {
-	return adapter.service.ListEnvironments(), nil
+	return adapter.service.ListEnvironments(adapter.ctx)
 }
 
 func (adapter apolloProjectionAdapter) ListInstallations(rid string) (apollo.ListInstallationsResponse, error) {
-	return adapter.service.ListInstallations(rid), nil
+	return adapter.service.ListInstallations(adapter.ctx, rid)
 }
 
 func (adapter apolloProjectionAdapter) ListProducts() (apollo.ListProductsResponse, error) {
@@ -113,11 +122,11 @@ func (adapter apolloProjectionAdapter) ListProducts() (apollo.ListProductsRespon
 }
 
 func (adapter apolloProjectionAdapter) ListReleases(product string) (apollo.ListReleasesResponse, error) {
-	return adapter.service.ListReleases(product), nil
+	return adapter.service.ListReleases(adapter.ctx, product)
 }
 
 func (adapter apolloProjectionAdapter) GetEnvironment(rid string) (apollo.Environment, error) {
-	value, err := adapter.service.GetEnvironment(rid)
+	value, err := adapter.service.GetEnvironment(adapter.ctx, rid)
 	return value, apolloProjectionError(err)
 }
 
@@ -127,7 +136,7 @@ func (adapter apolloProjectionAdapter) GetProduct(product string) (apollo.Produc
 }
 
 func (adapter apolloProjectionAdapter) GetRelease(product, version string) (apollo.Release, error) {
-	value, err := adapter.service.GetRelease(product, version)
+	value, err := adapter.service.GetRelease(adapter.ctx, product, version)
 	return value, apolloProjectionError(err)
 }
 

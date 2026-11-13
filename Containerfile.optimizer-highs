@@ -2,7 +2,7 @@
 
 # UNADMITTED candidate only. This file deliberately has no Helm, Zarf, or
 # runtime selection wiring. Admission remains a separate decision.
-ARG GO_IMAGE=golang:1.26.6-bookworm@sha256:116d58cbd88c1297624acc6e967a060012422bacf9930927e23fb719189c6f36
+ARG GO_IMAGE=golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0
 ARG BUILDER_IMAGE=ubuntu:24.04@sha256:68ee22004a9109b44973313b02ff7b1de250f1de0f5ecb628d73f579aaff33ac
 ARG CA_BOOTSTRAP_IMAGE=cgr.dev/chainguard/static:latest@sha256:399c8cb4858f05aaa33f43f02a2e75f28d40f016c0f86e5ba6075769e3303791
 ARG SOURCE_DATE_EPOCH=1786406400
@@ -106,7 +106,7 @@ RUN mkdir -p /out/evidence /out/licenses /out/source && \
       go build -tags highs -trimpath -buildvcs=false \
         -ldflags="-buildid= -linkmode=external -extldflags '-static -static-libgcc -static-libstdc++ -Wl,--build-id=none -Wl,-Map=/out/evidence/linker.map'" \
         -o /out/platform-highs-shim ./cmd/platform-highs-shim && \
-    test "$(go env GOVERSION)" = go1.26.6 && \
+    test "$(go env GOVERSION)" = go1.26.11 && \
     case "$TARGETARCH" in \
       amd64) elf_machine='Advanced Micro Devices X86-64' ;; \
       arm64) elf_machine='AArch64' ;; \
