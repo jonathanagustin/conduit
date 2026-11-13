@@ -193,17 +193,6 @@ review_ledger() {
     ./scripts/verify-review-ledger.test.sh
 }
 
-zenith_protocol() {
-  node scripts/verify-zenith-protocol.mjs &&
-    node tools/zenith-protocol/scripts/conform.test.mjs &&
-    node tools/zenith-protocol/scripts/verify-evaluator-trial.test.mjs &&
-    node tools/zenith-protocol/skills/review-writing/scripts/review-writing.test.mjs &&
-    node tools/zenith-protocol/scripts/conform.mjs \
-      --config .zenith-protocol.json \
-      --profile structural \
-      --enforcement standard
-}
-
 gate 'Check formatting' check_formatting
 # The runnable half of CI's head-authentication step. The authenticator itself
 # reads the run's own GitHub event and asks the API about a pull request, so it
@@ -246,7 +235,6 @@ gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
 gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb
 gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
-gate 'Validate Zenith protocol ledgers' zenith_protocol
 gate 'Validate review ledger' review_ledger
 gate 'Validate Apollo frontend surface' bash -c 'node scripts/verify-apollo-frontend-surface.mjs && ./scripts/verify-apollo-frontend-surface.test.sh'
 gate 'Validate Module publication' go run ./cmd/platform-module-publisher --directory examples/modules --dry-run

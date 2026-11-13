@@ -20,12 +20,7 @@ Go checks should include the changed packages and, before promotion,
 tests and the relevant browser contract. When a UI change affects the embedded
 bundle, stage only the output that passes `scripts/test-console.sh` under Linux;
 a successful Windows build is not byte-level production evidence. Apollo-facing
-changes also need the pinned-spec validators. Run Zenith conformance at the
-commit boundary:
-
-```bash
-node tools/zenith-protocol/scripts/conform.mjs
-```
+changes also need the pinned-spec validators.
 
 Record unavailable prerequisites as unavailable. A Windows build failure in a
 Unix-specific package is not a passing result; rerun the exact gate in Linux.

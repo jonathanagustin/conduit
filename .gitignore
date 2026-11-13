@@ -7,7 +7,6 @@ dist/
 .env
 .direnv/
 web/.stryker-tmp/
-tools/zenith-protocol/node_modules/
 
 # `go build ./cmd/<name>` writes the binary to the working directory, which is
 # the repository root. ci.yml's build step does exactly that for all six, so a
