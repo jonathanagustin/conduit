@@ -216,6 +216,7 @@ func main() {
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
 			PackagingStatus:      packagingReader,
+			PackagingControls:    packagingReader,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -466,7 +467,7 @@ func configureReconciliation(
 	}, nil
 }
 
-func packagingStatusReader(ctx context.Context, getenv func(string) string) packaginghttp.Reader {
+func packagingStatusReader(ctx context.Context, getenv func(string) string) packaginghttp.Controls {
 	cfg, err := packagingconfig.FromEnv(getenv)
 	if err != nil {
 		slog.Error("read packaging Temporal configuration", "error", err)
@@ -481,7 +482,7 @@ func packagingStatusReader(ctx context.Context, getenv func(string) string) pack
 		return packagingruntime.Unavailable{Err: err}
 	}
 	slog.Info("packaging Temporal status client enabled", "namespace", cfg.Namespace, "taskQueue", cfg.TaskQueue)
-	return packagingruntime.StatusReader(temporalClient)
+	return packagingruntime.StatusReader(temporalClient, cfg.TaskQueue)
 }
 
 func openRepository(

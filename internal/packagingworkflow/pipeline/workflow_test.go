@@ -245,6 +245,17 @@ func TestCancelDuringReviewDoesNotHandoff(t *testing.T) {
 	if mustPlans(t, repository) != 0 {
 		t.Fatal("cancel submitted a plan")
 	}
+	status, err := env.QueryWorkflow(QueryStatus)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var reported domain.RunStatus
+	if err := status.Get(&reported); err != nil {
+		t.Fatal(err)
+	}
+	if reported.Phase != domain.PhaseBlocked || reported.Outcome != string(domain.OutcomeCancelled) || reported.PlanID != "" {
+		t.Fatalf("status after cancel = %#v", reported)
+	}
 }
 
 func TestCancelRacesAnApprovalAndDoesNotHandoff(t *testing.T) {

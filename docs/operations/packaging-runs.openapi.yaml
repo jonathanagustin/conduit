@@ -82,6 +82,65 @@ paths:
           description: Malformed cursor, cursor reused with different filters, or out-of-range limit.
         "502":
           description: A configured Temporal client could not answer.
+  /v1/packaging-runs/{runID}/cancel:
+    post:
+      operationId: cancelPackagingRun
+      summary: Cancel one packaging run without cancelling its Plan
+      parameters:
+        - $ref: "#/components/parameters/runID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RunDecision"}
+      responses:
+        "200":
+          description: The packaging run was cancelled. planCancelled is false.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ControlResult"}
+        "401":
+          description: Anonymous caller.
+        "403":
+          description: The caller may not operate the target environment, or the decision id belongs to someone else.
+        "404":
+          description: Unknown run while a worker is configured.
+        "409":
+          description: >
+            Duplicate decision, stale binding, run already stopped, run already
+            handed off a Plan, or no worker is configured. A handed-off run
+            includes planId and planCancelRoute. planCancelled is false.
+        "502":
+          description: The worker could not apply a decision that was already authorized.
+  /v1/packaging-runs/{runID}/rerun:
+    post:
+      operationId: rerunPackagingRun
+      summary: Start a new packaging run from a reviewed binding
+      parameters:
+        - $ref: "#/components/parameters/runID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/RunDecision"}
+      responses:
+        "201":
+          description: >
+            A new run id was started. Its proposal revision is empty, so it
+            does not carry the prior run's validation or approval.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ControlResult"}
+        "401":
+          description: Anonymous caller.
+        "403":
+          description: The caller may not operate the target environment, or the decision id belongs to someone else.
+        "404":
+          description: Unknown prior run while a worker is configured.
+        "409":
+          description: Duplicate decision, stale binding, incomplete binding, or no worker is configured.
+        "502":
+          description: The worker could not start a run that was already authorized.
 components:
   parameters:
     runID:
@@ -164,6 +223,25 @@ components:
         approvalId: {type: string}
         planId: {type: string}
         targetPlanRef: {type: string}
+    RunDecision:
+      type: object
+      required: [decisionId, sourceDigest, targetPlanRef]
+      properties:
+        decisionId: {type: string}
+        sourceDigest: {type: string}
+        proposalRevision: {type: string}
+        targetPlanRef: {type: string}
+        templateVersion: {type: string, description: Required for rerun.}
+        toolVersions: {type: string, description: Required for rerun.}
+    ControlResult:
+      allOf:
+        - $ref: "#/components/schemas/RunStatus"
+        - type: object
+          required: [planCancelled]
+          properties:
+            planCancelled: {type: boolean, enum: [false]}
+            planCancelRoute: {type: string}
+            priorRunId: {type: string}
     EventPage:
       type: object
       required: [tier, configured, authority, planAuthority, approvalAuthority, items, pageSize, limit, hasPrevious, total]

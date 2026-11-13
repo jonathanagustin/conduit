@@ -230,9 +230,23 @@ reruns, or reports Plan status. The index and the history are shown
 only to a caller who can read the target environment. The single-run
 route is unchanged.
 
+## Amendment, 2026-11-13, cancel and rerun
+
+`POST /v1/packaging-runs/{runID}/cancel` and
+`POST /v1/packaging-runs/{runID}/rerun` are Hub routes. The caller is
+authorized against the target environment and the decision is written to
+the authorization audit, including the run binding, before a worker is
+asked to cancel or to start a new run. The client does not signal
+Temporal. Cancel stops the packaging run. A run that already handed off
+a Plan is left alone, and the response names `POST /v1/plans/{planID}/cancel`
+instead of calling it. Rerun allocates a new run id and does not copy
+the prior proposal revision, so a later proposal cannot inherit the
+earlier validation or approval. A missing worker refuses the request
+after the audit and does not pretend to signal.
+
 ## More information
 
 - Supersedes: none
 - Superseded by: none
 - Operator notes: `../operations/temporal-packaging-poc.md`
-- Issues: #349, with integration notes for #341, #342, and #343. The index and history are #376 and #377.
+- Issues: #349, with integration notes for #341, #342, and #343. The index and history are #376 and #377. Cancel and rerun are #378.

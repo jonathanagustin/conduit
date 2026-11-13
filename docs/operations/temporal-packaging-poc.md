@@ -145,9 +145,14 @@ the address unset.
 
 The index and the history require `read` on the environment in the
 target-plan reference (`environment/entity`). The single-run route
-stays available to every authenticated operator. The transport
-description is `packaging-runs.openapi.yaml`. It is a Conduit document.
-It is not an Apollo contract and it generates no code.
+stays available to every authenticated operator. Cancel and rerun
+require `operate` on that environment. They are
+`POST /v1/packaging-runs/{runID}/cancel` and
+`POST /v1/packaging-runs/{runID}/rerun`. The Hub writes the
+authorization audit, then asks the worker. A cancel does not cancel a
+Plan. With no worker configured the write is refused after that audit.
+The transport description is `packaging-runs.openapi.yaml`. It is a
+Conduit document. It is not an Apollo contract and it generates no code.
 
 ## Packaging the worker
 

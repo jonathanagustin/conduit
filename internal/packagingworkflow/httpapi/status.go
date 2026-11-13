@@ -40,15 +40,19 @@ type Reader interface {
 type Authorize func(*http.Request) error
 
 // Config is the route's dependencies. Visible is the per-row check for the
-// index and the history. The single-run route stays any authenticated
-// operator, which is the decision already registered for it.
+// index and the history. Permit is the governance decision for cancel and
+// rerun. The single-run route stays any authenticated operator.
 type Config struct {
 	Reader    Reader
 	Authorize Authorize
 	Visible   Visible
+	Permit    Permit
+	Controls  Controls
+	Decisions DecisionLog
 }
 
-// Register mounts the read-only packaging-run routes. There is no write method.
+// Register mounts the packaging-run routes. Cancel and rerun do not approve
+// and do not cancel a Plan.
 func Register(mux *http.ServeMux, cfg Config) {
 	mux.HandleFunc(Route, func(writer http.ResponseWriter, request *http.Request) {
 		if !authorized(cfg, writer, request) {
@@ -70,6 +74,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, redactRun(run))
 	})
 	mountCollections(mux, cfg)
+	mountControls(mux, cfg)
 }
 
 func writeError(writer http.ResponseWriter, status int, message string) {
