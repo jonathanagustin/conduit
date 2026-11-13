@@ -105,6 +105,9 @@ jobs:
     runs-on: ubuntu-24.04
     # Two API calls and three shell verifiers; a minute is generous.
     timeout-minutes: 10
+    # Draft revisions do not bill a full Trunk gate. workflow_dispatch has no
+    # pull_request and still runs.
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
@@ -189,17 +192,104 @@ jobs:
             -f description='Trunk verification is running' \
             -f target_url="https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
 
+
+  # Classify the pull request's own paths so expensive lanes can skip work
+  # without the job itself being skipped. trunk-status requires every needed
+  # job to conclude success (not skipped); a paths-filtered job would fail
+  # the gate or leave a required check pending. Fail open: if the diff cannot
+  # be listed, every lane runs in full.
+  scope:
+    name: Changed paths
+    needs: preflight
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    outputs:
+      go: ${{ steps.scope.outputs.go }}
+      cli: ${{ steps.scope.outputs.cli }}
+      console: ${{ steps.scope.outputs.console }}
+      checks: ${{ steps.scope.outputs.checks }}
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          ref: ${{ env.GATE_SHA }}
+          fetch-depth: 0
+      - name: Classify changed paths
+        id: scope
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          PR_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: |
+          set -euo pipefail
+          fail_open() {
+            echo "scope: $1 — running every lane" >&2
+            echo "go=true" >>"$GITHUB_OUTPUT"
+            echo "cli=true" >>"$GITHUB_OUTPUT"
+            echo "console=true" >>"$GITHUB_OUTPUT"
+            echo "checks=true" >>"$GITHUB_OUTPUT"
+            exit 0
+          }
+          git fetch --no-tags --depth=50 origin main || fail_open "cannot fetch main"
+          if [ "$EVENT_NAME" = "pull_request" ] && printf '%s' "$PR_BASE_SHA" | grep -Eq '^[0-9a-fA-F]{40}$'; then
+            base="$PR_BASE_SHA"
+            range="$base...HEAD"
+          else
+            base="$(git merge-base HEAD origin/main || true)"
+            range="${base}...HEAD"
+          fi
+          if [ -z "$base" ] || ! git cat-file -e "$base^{commit}" 2>/dev/null; then
+            fail_open "no usable base ($base)"
+          fi
+          if ! changed=$(git diff --name-only --no-renames "$range"); then
+            fail_open "git diff failed for $range"
+          fi
+          echo "changed paths in $range:" >&2
+          printf '%s\n' "$changed" | sed 's/^/  /' >&2
+          matches() { printf '%s\n' "$changed" | grep -E "$1" || true; }
+          go=false; cli=false; console=false; checks=false
+          if [ -n "$(matches '\.go$|(^|/)go\.(mod|sum)$|(^|/)go\.work($|\.)|(^|/)mise\.(toml|lock)$|^scripts/|^internal/|^cmd/|^api/|^tools/|^solver/|(^|/)go\.work\.sum$|^\.github/workflows/platform-ci\.yml$')" ]; then
+            go=true
+            cli=true
+          fi
+          if [ -n "$(matches '^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$')" ]; then
+            console=true
+          fi
+          # Lint lane also holds documentation, Containerfile, renovate, and
+          # contract validators. Run it unless the change is purely Git metadata.
+          if [ -n "$changed" ]; then
+            checks=true
+          fi
+          # A workflow change other than this file still needs lint (action versions)
+          # and may need the lanes whose workflows it touches; fail open if CI
+          # itself changed.
+          if [ -n "$(matches '^\.github/')" ]; then
+            go=true
+            cli=true
+            console=true
+            checks=true
+          fi
+          echo "go=$go" >>"$GITHUB_OUTPUT"
+          echo "cli=$cli" >>"$GITHUB_OUTPUT"
+          echo "console=$console" >>"$GITHUB_OUTPUT"
+          echo "checks=$checks" >>"$GITHUB_OUTPUT"
+          echo "scope: go=$go cli=$cli console=$console checks=$checks"
+
   # The Go suite and the gates that need a compiler and a database. No Node and
   # no browser here: nothing in this lane reads either.
   go:
     name: Go suite
-    needs: preflight
+    needs: [preflight, scope]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     # Observed at about four minutes. An uncapped job runs to GitHub's six-hour
     # default, so a hang costs six hours of runner time instead of failing.
     timeout-minutes: 20
     steps:
+      - name: Skip when no Go-relevant paths changed
+        if: needs.scope.outputs.go != 'true'
+        run: echo 'No Go-relevant path changes; skipping the Go suite.'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: needs.scope.outputs.go == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree
@@ -207,6 +297,7 @@ jobs:
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: needs.scope.outputs.go == 'true'
         with:
           # uses: inputs are not covered by defaults.run.working-directory,
           # so this path is repository-root relative.
@@ -218,6 +309,7 @@ jobs:
       # Helm-version regression to be caught only by cluster acceptance, minutes
       # into a run.
       - name: Install pinned Helm
+        if: needs.scope.outputs.go == 'true'
         run: |
           curl --fail --silent --show-error --location \
             https://get.helm.sh/helm-v4.2.3-linux-amd64.tar.gz \
@@ -230,6 +322,7 @@ jobs:
       # through eighteen merges because no gate looked. This runs first because
       # it is the cheapest of them.
       - name: Check formatting
+        if: needs.scope.outputs.go == 'true'
         run: |
           unformatted="$(gofmt -l .)"
           if [[ -n "${unformatted}" ]]; then
@@ -238,6 +331,7 @@ jobs:
             exit 1
           fi
       - name: Test
+        if: needs.scope.outputs.go == 'true'
         # Turns the integration test's skip into a failure, so a missing helm is
         # reported rather than passed over.
         env:
@@ -248,12 +342,16 @@ jobs:
       # merely fail -- it reports kills it never achieved and leaves mutants
       # behind, which is worse than having no harness. This is seconds long.
       - name: Validate mutation harness
+        if: needs.scope.outputs.go == 'true'
         run: ./scripts/verify-mutant-killed.test.sh
       - name: Validate PostgreSQL repository
+        if: needs.scope.outputs.go == 'true'
         run: ./scripts/test-postgres-repository.sh
       - name: Vet
+        if: needs.scope.outputs.go == 'true'
         run: go vet ./...
       - name: Build commands
+        if: needs.scope.outputs.go == 'true'
         run: |
           go build -o /dev/null ./cmd/platform-delivery
           go build -o /dev/null ./cmd/platform-operator
@@ -262,6 +360,7 @@ jobs:
           go build -o /dev/null ./cmd/platform-grype-scanner
           go build -o /dev/null ./cmd/conduit
       - name: Validate Module publication
+        if: needs.scope.outputs.go == 'true'
         run: go run ./cmd/platform-module-publisher --directory examples/modules --dry-run >/tmp/module-publication.json
 
   # The six-target cross-compile, alone in its lane because it is the longest
@@ -271,11 +370,16 @@ jobs:
   # anything would push the floor up by exactly that thing's duration.
   cli-matrix:
     name: CLI release targets
-    needs: preflight
+    needs: [preflight, scope]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Skip when no relevant paths changed
+        if: needs.scope.outputs.cli != 'true'
+        run: echo 'No CLI-relevant path changes; skipping the cross-compile matrix.'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: needs.scope.outputs.cli == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree
@@ -283,17 +387,20 @@ jobs:
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: needs.scope.outputs.cli == 'true'
         with:
           go-version-file: go.mod
           cache: true
       - name: Validate standalone CLI release targets
+        if: needs.scope.outputs.cli == 'true'
         run: ./scripts/verify-cli-release-targets.sh
 
   # The console lane owns the browser install, which is the one piece of setup
   # expensive enough to be worth confining to the lane that needs it.
   console:
     name: Operator console
-    needs: preflight
+    needs: [preflight, scope]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     # Longer than the other lanes on purpose. The browser install below is three
     # bounded five-minute attempts, so a lane capped at twenty minutes could
@@ -301,7 +408,11 @@ jobs:
     # the console suite it exists for ever ran.
     timeout-minutes: 30
     steps:
+      - name: Skip when no relevant paths changed
+        if: needs.scope.outputs.console != 'true'
+        run: echo 'No console-relevant path changes; skipping the operator console lane.'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: needs.scope.outputs.console == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree
@@ -309,18 +420,22 @@ jobs:
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
       - name: Install pinned pnpm
+        if: needs.scope.outputs.console == 'true'
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
         with:
           version: 11.28.6
       - name: Install pinned Node
+        if: needs.scope.outputs.console == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.22.0
           cache: pnpm
           cache-dependency-path: web/pnpm-lock.yaml
       - name: Install console dependencies
+        if: needs.scope.outputs.console == 'true'
         run: pnpm --dir web install --frozen-lockfile
       - name: Install pinned console browser
+        if: needs.scope.outputs.console == 'true'
         # Bounded and retried, because an unbounded download here can consume
         # the whole job. Twice on 2026-08-18 this step hung for 19.6 minutes and
         # was cancelled by the job's 20-minute timeout, taking every gate after
@@ -347,6 +462,7 @@ jobs:
           echo "console browser install did not succeed in three bounded attempts" >&2
           exit 1
       - name: Validate operator console
+        if: needs.scope.outputs.console == 'true'
         run: ./scripts/test-console.sh
       # The console hand-writes small tables turning a Hub status into a colour.
       # Nothing tied them to the Go constants they mirror, so they drifted onto
@@ -356,6 +472,7 @@ jobs:
       # proves it rejects both an invented and a dropped value. It reads Go as
       # text, so it needs no Go toolchain and stays with the console.
       - name: Validate console contract
+        if: needs.scope.outputs.console == 'true'
         run: |
           ./scripts/verify-console-contract.test.sh
           node scripts/verify-console-contract.mjs
@@ -369,6 +486,7 @@ jobs:
       # text, with a self-test that plants each violation -- so it sits beside
       # it for the same reason.
       - name: Validate console boundaries
+        if: needs.scope.outputs.console == 'true'
         run: |
           node scripts/verify-console-boundaries.test.mjs
           node scripts/verify-console-boundaries.mjs
@@ -379,11 +497,16 @@ jobs:
   # than each paying for a runner of their own.
   checks:
     name: Lint and validators
-    needs: preflight
+    needs: [preflight, scope]
+    if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     steps:
+      - name: Skip when no relevant paths changed
+        if: needs.scope.outputs.checks != 'true'
+        run: echo 'No lint-relevant path changes; skipping validators.'
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        if: needs.scope.outputs.checks == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree
@@ -391,6 +514,7 @@ jobs:
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
       - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: needs.scope.outputs.checks == 'true'
         with:
           go-version-file: go.mod
           cache: true
@@ -399,12 +523,14 @@ jobs:
       # pinned one, because scripts/verify-trusted-supply-chain.rb requires every
       # workflow's node-version to equal the one mise.toml declares.
       - name: Install pinned Node
+        if: needs.scope.outputs.checks == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 24.22.0
       # Helm is here for the runtime-chart gate below, which templates, lints,
       # and packages both charts with it.
       - name: Install pinned Helm
+        if: needs.scope.outputs.checks == 'true'
         run: |
           curl --fail --silent --show-error --location \
             https://get.helm.sh/helm-v4.2.3-linux-amd64.tar.gz \
@@ -420,6 +546,7 @@ jobs:
       # not exit 0 after exhausting its retries, which is what it did when first
       # written and what its self-test caught.
       - name: Validate GitHub API retry
+        if: needs.scope.outputs.checks == 'true'
         run: ./scripts/test-retry-github-api.sh
       # The offline half of the mutation gate. A full sweep compiles and runs
       # the suite once per mutant, so it lives in scripts/mutation-sweep.sh and
@@ -429,6 +556,7 @@ jobs:
       # that "no regression" stopped meaning anything. The self-test proves it
       # actually rejects each of those rather than only ever passing.
       - name: Validate mutation scores
+        if: needs.scope.outputs.checks == 'true'
         run: |
           ./scripts/verify-mutation-scores.test.sh
           node scripts/verify-mutation-scores.mjs
@@ -437,16 +565,20 @@ jobs:
       # reports call-graph-reachable findings, so a toolchain or dependency
       # that drifts behind the release image fails here rather than shipping.
       - name: Scan for known vulnerabilities
+        if: needs.scope.outputs.checks == 'true'
         run: GOTOOLCHAIN=go1.25.13 go run golang.org/x/vuln/cmd/govulncheck@v1.6.0 ./...
       # vet catches a narrow set. staticcheck is what found the dead store in
       # RunDueExportPipelines and the unused coordinate check that turned out to
       # be a real hole. staticcheck.conf records the one excluded category and
       # why, so the exclusion is reviewable rather than a flag buried here.
       - name: Lint
+        if: needs.scope.outputs.checks == 'true'
         run: GOTOOLCHAIN=go1.25.13 go run honnef.co/go/tools/cmd/staticcheck@v0.7.0 ./...
       - name: Validate Renovate configuration
+        if: needs.scope.outputs.checks == 'true'
         run: jq --exit-status . renovate.json >/dev/null
       - name: Install pinned Hadolint
+        if: needs.scope.outputs.checks == 'true'
         run: |
           curl --fail --silent --show-error --location \
             https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-x86_64 \
@@ -454,22 +586,28 @@ jobs:
           echo 'c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507  /tmp/hadolint' | sha256sum --check
           chmod 0755 /tmp/hadolint
       - name: Lint Containerfiles
+        if: needs.scope.outputs.checks == 'true'
         env:
           HADOLINT_BIN: /tmp/hadolint
         run: ./scripts/verify-containerfiles.sh
       - name: Validate OCI release manifest assembly
+        if: needs.scope.outputs.checks == 'true'
         run: |
           ./scripts/assemble-oci-manifest.sh /tmp/platform-oci-manifest.json \
             testdata/oci/hub.json testdata/oci/spoke-agent.json
           jq --exit-status '.apiVersion == "platform.delivery/oci-release/v2" and .version == "1.2.3" and (.images | length == 2) and all(.images[]; (.sboms | length == 2) and (.vulnerabilityReports | length == 2))' \
             /tmp/platform-oci-manifest.json >/dev/null
       - name: Validate Gitless runtime source descriptor
+        if: needs.scope.outputs.checks == 'true'
         run: node scripts/render-runtime-source-descriptor.test.mjs
       - name: Validate version and tag agreement
+        if: needs.scope.outputs.checks == 'true'
         run: ./scripts/verify-version-matches-tag.sh
       - name: Validate controlplane ceiling
+        if: needs.scope.outputs.checks == 'true'
         run: node scripts/report-migration-progress.mjs --gate
       - name: Validate domain boundaries
+        if: needs.scope.outputs.checks == 'true'
         run: |
           node scripts/verify-domain-boundaries.mjs
           node scripts/test-domain-boundaries.mjs
@@ -481,14 +619,17 @@ jobs:
       # and contract gates: the failure mode is a regex that stopped matching,
       # which is indistinguishable from agreement.
       - name: Validate route authorization
+        if: needs.scope.outputs.checks == 'true'
         run: |
           node scripts/verify-route-authorization.test.mjs
           node scripts/verify-route-authorization.mjs
       - name: Validate trusted supply-chain policy
+        if: needs.scope.outputs.checks == 'true'
         run: |
           ruby scripts/verify-trusted-supply-chain.rb
           ./scripts/test-retry-keyless-signing.sh
       - name: Validate optimizer candidate release policy
+        if: needs.scope.outputs.checks == 'true'
         run: |
           ruby scripts/verify-optimizer-candidate-release-workflow.rb
           ./scripts/verify-optimizer-candidate-release-workflow.test.sh
@@ -501,6 +642,7 @@ jobs:
       # dispatch, and the verifier holds both workflows to the shape those
       # guards assume.
       - name: Validate release path
+        if: needs.scope.outputs.checks == 'true'
         run: |
           ruby scripts/verify-release-workflow.rb
           ./scripts/verify-release-workflow.test.sh
@@ -510,12 +652,16 @@ jobs:
       # served versions, and the spec fields the tenant recovery enumerated --
       # so a re-authoring away from the recovered schema fails rather than ships.
       - name: Validate Rubix substrate CRDs
+        if: needs.scope.outputs.checks == 'true'
         run: ruby scripts/verify-rubix-crds.rb
       - name: Validate Flux runtime source
+        if: needs.scope.outputs.checks == 'true'
         run: ruby scripts/verify-flux-runtime.rb
       - name: Validate Helm runtime chart
+        if: needs.scope.outputs.checks == 'true'
         run: ruby scripts/verify-helm-runtime.rb
       - name: Install pinned Zarf
+        if: needs.scope.outputs.checks == 'true'
         run: |
           curl --fail --silent --show-error --location \
             https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
@@ -523,10 +669,12 @@ jobs:
           echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
       - name: Validate Zarf air-gap package
+        if: needs.scope.outputs.checks == 'true'
         env:
           ZARF_BIN: /tmp/zarf
         run: ruby scripts/verify-zarf-package.rb
       - name: Validate Apollo public contract
+        if: needs.scope.outputs.checks == 'true'
         run: |
           ruby scripts/apollo-docs/validate-public-api.rb \
             docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
@@ -547,6 +695,7 @@ jobs:
       # append-only property on the metrics ledger and the PDR/hypothesis
       # gatekeeping were unenforced. It passes today.
       - name: Validate Zenith protocol ledgers
+        if: needs.scope.outputs.checks == 'true'
         run: |
           node scripts/verify-zenith-protocol.mjs
           node tools/zenith-protocol/scripts/conform.test.mjs
@@ -564,10 +713,12 @@ jobs:
       # commit sha rather than a short one no fetch can resolve. The self-test
       # plants one violation of each rule.
       - name: Validate review ledger
+        if: needs.scope.outputs.checks == 'true'
         run: |
           node scripts/verify-review-ledger.mjs
           ./scripts/verify-review-ledger.test.sh
       - name: GitOps acceptance
+        if: needs.scope.outputs.checks == 'true'
         run: ./scripts/test-gitops.sh
 
   # The single owner of the `Trunk gate` commit status, which the release path
@@ -577,8 +728,10 @@ jobs:
   # gets a verdict written about it.
   trunk-status:
     name: Trunk gate
-    needs: [preflight, go, cli-matrix, console, checks]
-    if: ${{ always() }}
+    needs: [preflight, scope, go, cli-matrix, console, checks]
+    # Still runs when a lane failed, but not for draft PRs (those jobs are skipped
+    # and must not produce a red Trunk gate).
+    if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
     runs-on: ubuntu-24.04
     timeout-minutes: 10
     steps:

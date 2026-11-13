@@ -14,7 +14,7 @@
     ]
   },
   "minimumReleaseAge": "3 days",
-  "prConcurrentLimit": 5,
+  "prConcurrentLimit": 3,
   "prHourlyLimit": 2,
   "semanticCommits": "enabled",
   "schedule": [
@@ -61,5 +61,6 @@
       ],
       "dependencyDashboardApproval": true
     }
-  ]
+  ],
+  "automerge": false
 }
