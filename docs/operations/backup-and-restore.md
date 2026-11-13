@@ -18,6 +18,7 @@ an RPO it cannot enforce is worse than one that says who has to choose it.
 | Held by | Tables |
 | --- | --- |
 | `controlplane` | `conduit_repository_state` (the versioned metadata snapshot: environments, plans, change requests, grants), `conduit_repository_blobs` |
+| `authorization-audit` | `conduit_authorization_audit_events`, `conduit_authorization_audit_head`, and append-only guards |
 | `reconciliation` | `conduit_reconciliation_desired`, `_observations`, `_work`, `_decisions`, `_audit`, `_proposal_outbox`, `_plan_receipts` |
 | `gitless-resolution-log` | `conduit_gitless_resolutions` (the append-only source selector, resolved digest, publisher, movement, and failure history shared by Hub replicas) |
 | all components | `conduit_schema_migrations` — the migration ledger |
@@ -123,14 +124,21 @@ end.
    the answer is empty for every component; anything else means the backup did
    not carry the ledger intact, and the Hub would migrate a database that is
    already migrated.
-4. **Restore the secrets**, above — the signing key first, because it is the one
-   whose absence does not stop the Hub.
-5. **Start the Hub and verify through it, not through the tables.** Row counts
-   prove the bytes arrived; only the real repositories prove they still decode.
-   The drill reads a Plan back through `ListPlans`, an artifact back through
-   `OpenBlob` and compares the bytes, desired state back through
-   `CurrentDesired`, and an exact Gitless resolution digest back through the
-   shared history table after opening its real adapter.
+4. **Restore deployment secrets**, including the database credential and
+   signing key, and supply the independently retained audit checkpoint. A
+   production Hub refuses incomplete signing configuration.
+5. **Verify the authorization audit before opening a repository.** Run
+   `platform-delivery verify-authorization-audit --checkpoint-file=/trusted/audit-checkpoint.json`
+   against the restored DSN. The command is read-only and does not adopt or
+   repair anything. A wrong prefix, missing row or unadopted legacy record is a
+   failure to investigate, not a reason to bootstrap a replacement checkpoint.
+   This order applies to post-upgrade backups; an initial legacy upgrade must
+   establish its first trusted checkpoint under `authorization-audit-integrity.md`.
+6. **Start the Hub and verify through it, not only through tables.** The drill
+   reads a Plan through `ListPlans`, an artifact through `OpenBlob`, desired
+   state through `CurrentDesired`, an exact Gitless resolution through its real
+   adapter, and the original authorization audit event through its repository.
+   Its saved audit checkpoint is checked before any repository is constructed.
 
 ### Two replicas on first start
 
@@ -166,15 +174,13 @@ the disaster copy rather than the primary mechanism.
 
 - **A backup schedule, a retention policy, or a CronJob to run it.** The chart
   does not own the database and cannot own its backups.
-- **Audit-record retention, and tamper-evidence at rest** (#261). Nothing here
-  prunes, expires, archives or signs audit records. They live inside the
-  single-row `jsonb` document that `withState` rewrites on every control-plane
-  write, so an unbounded audit history makes every write more expensive rather
-  than only the reads. Append-only is guaranteed through the repository's own
-  interface and not against direct database access, which makes integrity at
-  rest a property of the PostgreSQL deployment: restrict write access to the
-  Hub's role, and keep the backups above. `PRODUCTION-READINESS.md` gap 4 states
-  both positions in full.
+- **Independent audit-checkpoint custody and bounded archival.** Authorization
+  records now have append-only PostgreSQL storage, a verifiable chain and an
+  explicit indefinite-retention policy (#261). No automatic pruning or archive
+  deletion is provided. The deployment owns storage capacity and independently
+  retained checkpoints; a digest stored only under the same database
+  administrator cannot expose a coherent rewrite. See
+  `authorization-audit-integrity.md` for the precise prefix guarantee.
 - **PostgreSQL HA, failover and PITR configuration.** Same reason. ADR 0002
   records node and database failover behaviour as unproved, and that is still
   true.

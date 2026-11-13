@@ -1,10 +1,10 @@
 package main
 
-// The schema-drift check against the Hub's own four components.
+// The schema-drift check against the Hub's own persistence components.
 //
 // internal/pgmigrate's tests break a probe schema on purpose and prove the
 // verifier names what changed. What they cannot prove is that the Hub's real
-// DDL round-trips: that every statement in four migration sets can be replayed
+// DDL round-trips: that every statement in the migration sets can be replayed
 // into a shadow schema and produce, object for object, what Apply produced in
 // the live one. A single ordering assumption, a `public.` somewhere, or one
 // migration that is not replayable would make the operator's command report

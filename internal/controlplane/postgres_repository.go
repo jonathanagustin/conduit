@@ -13,6 +13,7 @@ import (
 	"time"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	"github.com/jonathanagustin/conduit/internal/governance/adapters/auditpostgres"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 )
 
@@ -107,7 +108,16 @@ func NewPostgresRepository(ctx context.Context, dataSourceName string) (*Postgre
 		database.Close()
 		return nil, fmt.Errorf("initialize PostgreSQL repository: %w", err)
 	}
-	return &PostgresRepository{database: database}, nil
+	if err := auditpostgres.ApplyMigrations(ctx, database); err != nil {
+		database.Close()
+		return nil, fmt.Errorf("initialize authorization audit: %w", err)
+	}
+	repository := &PostgresRepository{database: database}
+	if err := repository.withState(ctx, true, func(*MemoryRepository) error { return nil }); err != nil {
+		database.Close()
+		return nil, err
+	}
+	return repository, nil
 }
 
 func (repository *PostgresRepository) Close() error {
@@ -123,8 +133,8 @@ func (repository *PostgresRepository) Transaction(
 	if operation == nil {
 		return errors.New("repository transaction operation is required")
 	}
-	return repository.withState(ctx, true, func(memory *MemoryRepository) error {
-		view := Repository(memory)
+	return repository.withStateTransaction(ctx, true, func(memory *MemoryRepository, transaction *sql.Tx) error {
+		view := Repository(&authorizationAuditView{Repository: memory, audit: auditpostgres.New(transaction)})
 		if repository.transactionView != nil {
 			view = repository.transactionView(view)
 		}
@@ -195,6 +205,11 @@ func (repository *PostgresRepository) withStateTransaction(ctx context.Context, 
 	}
 	if err := loadPromotionLifecycles(ctx, transaction, memory); err != nil {
 		return err
+	}
+	if write {
+		if err := importLegacyAuthorizationAudit(ctx, transaction, memory); err != nil {
+			return err
+		}
 	}
 	if err := operation(memory, transaction); err != nil {
 		return err
@@ -328,7 +343,7 @@ type memoryRepositoryState struct {
 	ResourceGrants              map[string]ResourceGrant                 `json:"resourceGrants"`
 	ApprovalPolicies            map[string]ApprovalPolicy                `json:"approvalPolicies"`
 	ChangeRequests              map[string]ChangeRequest                 `json:"changeRequests"`
-	AuthorizationAudit          map[string]AuthorizationAuditEvent       `json:"authorizationAudit"`
+	AuthorizationAudit          map[string]AuthorizationAuditEvent       `json:"authorizationAudit,omitempty"`
 	ProductPublications         map[string]ProductPublication            `json:"productPublications"`
 }
 
