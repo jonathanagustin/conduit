@@ -35,6 +35,11 @@ func rejectDuplicateKeys(data []byte) error {
 				if !ok {
 					return fmt.Errorf("invalid object key")
 				}
+				switch key {
+				case "revision", "udsVersion", "findings", "topic", "summary", "basis", "evidence", "path", "line":
+				default:
+					return fmt.Errorf("unknown or noncanonical JSON key %q", key)
+				}
 				if keys[key] {
 					return fmt.Errorf("duplicate JSON key %q", key)
 				}
