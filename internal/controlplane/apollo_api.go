@@ -63,6 +63,9 @@ func (api *apolloPublicAPI) publishHelmBundle(w http.ResponseWriter, request *ht
 	if !api.authorizePublication(w, request, principal, coordinate) {
 		return
 	}
+	if !reservePublicationSpace(w, request, principal, api.configuration, bundle.Manifest.ProductGroup+":"+bundle.Manifest.ProductName) {
+		return
+	}
 	assets, err := api.storeHelmPublicationAssets(request.Context(), bundle)
 	if err != nil {
 		writeLifecycleError(w, err)

@@ -130,3 +130,35 @@ Environment, Product and Bundle and verifies all five fields, inheritance,
 value disclosure, independent read authority and sanitized storage failures.
 Namespace remains separate. This slice does not complete CLI selection or the
 guest-user publication requirement of #17.
+
+## CLI selection and publication slice
+
+`--space-id` and `CONDUIT_SPACE_ID` select a native Space for Environment listing
+and Product publication. `configure` persists the optional `spaceId` in the
+versioned profile. Explicit flags override environment/profile values; an
+explicit empty flag clears the profile selection. The Hub validates a readable
+persisted Space and filters assignment before search/pagination. Every resource
+still requires its existing canonical, carrier-aware read authority.
+
+Selected Helm publication uses the native bundle route, preserving every input;
+Terraform uses its existing native route. Existing artifact, Product-creation
+where necessary, and Release-creation authorization runs before assignment.
+The caller must also read the selected Space through an existing anchor.
+There is no inferred primary organization: an external user with explicit grants
+can select a shared Space. Space visibility grants no publication permission.
+This transport and reservation policy is registered as
+`spaces.SelectionPublication`, not claimed as private Apollo compatibility.
+
+Before publication, the service reserves immutable Product grouping intent under
+that caller's authority. This intent can survive a later publication failure and
+does not assert a resource or artifact exists. A retry preserves the first
+assignment and provenance; explicitly selecting another Space fails with a
+conflict instead of moving the Product. Without an explicit selection, legacy
+publication behavior remains and any existing assignment stays anchored.
+
+Actual CLI-to-Hub tests span more than one selected catalogue page, independently
+filter guest resource grants, publish Helm/Terraform metadata into a shared
+Space, reject inaccessible-Space and read-only callers without recording an
+assignment/publication, preserve conflicts, and reject delegated bootstrap
+inheritance. Profile tests cover persistence, override/clear precedence and
+invalid native identities. No deployment or registry publication is performed.

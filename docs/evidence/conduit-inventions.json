@@ -153,6 +153,13 @@
       "why": "The adopted #17 decision requires real Space data rather than a default constant. Evidence establishes the five names but not a private Apollo membership source or Bundle lookup implementation. ADR 0014 defines and discloses these bounded native choices.",
       "displacedBy": "A published or sanitized Apollo record establishing Space identity per Environment, Entity, Product, Release and Bundle, plus Bundle lookup semantics.",
       "riskIfWrong": "Membership inheritance and native Bundle identifiers require migration if recovered evidence differs. Read authority remains canonical and carrier-aware; missing assignment is distinct from unavailable or denied storage. All six native values disclose CONDUIT_NATIVE while coordinate provenance remains OBSERVED."
+    },
+    {
+      "id": "spaces.SelectionPublication",
+      "what": "Native spaceId query selection before Environment pagination, optional profile/global CLI selection, and immutable Product grouping reservation before selected native Helm/Terraform publication.",
+      "why": "Captured CLI notes establish explicit Space selection and guest use, but not the private transport or native assignment policy. Existing grants remain the resource authority. Conduit has no primary-organization inference: an explicit readable Space and canonical artifact/product/release permissions govern guest publication.",
+      "displacedBy": "A published or sanitized Apollo Space selection and publication contract establishing transport, caller access, grouping reservation and failure behavior.",
+      "riskIfWrong": "The query transport and reservation policy may require migration. Assignment intent may survive a later failed publication and never asserts an artifact exists. Explicit selection cannot move an immutable existing assignment. Forbidden selection and missing publication authority fail before reservation; store failure is not an empty page."
     }
   ],
   "displaced": [

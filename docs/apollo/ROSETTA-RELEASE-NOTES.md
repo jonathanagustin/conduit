@@ -135,11 +135,11 @@ again expecting 58 gaps.
 | Version | Note | Conduit |
 | --- | --- | --- |
 | `v0.463.0` | Contact team optional on `environment get` | **Divergence, recorded below** |
-| `v0.500.0` | Space ID in `configure`, preferred over inferred | Blocked on #17 |
+| `v0.500.0` | Space ID in `configure`, preferred over inferred | Native explicit profile/flag selection under ADR 0014; conflicting immutable assignments fail rather than move |
 | `v0.518.0` | `--ignore-recalls` on module install/update | **Deliberate divergence, below** |
 | `v0.519.0` | `--ignore-secret-requirements` on install/update | **Deliberate divergence, below** |
 | `v0.524.0` | Improved help text on publish commands | No contract |
-| `v0.531.0` | Space ID across commands, for guest users | Blocked on #17 |
+| `v0.531.0` | Space ID across commands, for guest users | Native Environment listing and Helm/Terraform publication use explicit selection plus existing grants; no primary-organization inference (ADR 0014) |
 
 **Contact teams. Closed 2026-08-17; the paragraph below was true when written
 and is now stale.** It read: *"Conduit's `newEnvironmentDescriptor` rejects an

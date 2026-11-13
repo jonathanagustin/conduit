@@ -19,6 +19,7 @@ import (
 var conduitProfileSchema []byte
 
 type connectionProfile struct {
+	SpaceID         string `json:"spaceId,omitempty" yaml:"spaceId,omitempty"`
 	Name            string `json:"name" yaml:"name"`
 	Server          string `json:"server" yaml:"server"`
 	Timeout         string `json:"timeout,omitempty" yaml:"timeout,omitempty"`
@@ -63,7 +64,7 @@ func (profile connectionProfile) validate(name string) error {
 		Server: profile.Server, Timeout: timeout,
 		CAFile: profile.CAFile, ClientCertFile: profile.ClientCertFile, ClientKeyFile: profile.ClientKeyFile,
 		SPIFFEEndpoint: profile.SPIFFEEndpoint, HubSPIFFEID: profile.HubSPIFFEID,
-		BearerTokenFile: profile.BearerTokenFile,
+		BearerTokenFile: profile.BearerTokenFile, SpaceID: profile.SpaceID,
 	}
 	if _, err := configuration.validate(); err != nil {
 		return fmt.Errorf("profile %q: %w", name, err)
@@ -204,6 +205,9 @@ func (state *commandState) applySelectedProfile(command *cobra.Command) error {
 	if err != nil {
 		return err
 	}
+	if state.config.SpaceID == "" && !command.Flags().Changed("space-id") {
+		state.config.SpaceID = profile.SpaceID
+	}
 	if state.config.Server == "" {
 		state.config.Server = profile.Server
 	}
@@ -243,7 +247,7 @@ func (state *commandState) profileFromFlags(name string) (connectionProfile, err
 		Name: name, Server: state.config.Server, Timeout: state.config.Timeout.String(), Output: state.output,
 		CAFile: state.config.CAFile, ClientCertFile: state.config.ClientCertFile, ClientKeyFile: state.config.ClientKeyFile,
 		SPIFFEEndpoint: state.config.SPIFFEEndpoint, HubSPIFFEID: state.config.HubSPIFFEID,
-		BearerTokenFile: state.config.BearerTokenFile,
+		BearerTokenFile: state.config.BearerTokenFile, SpaceID: state.config.SpaceID,
 	}
 	configuration := state.config
 	configuration.DevelopmentSubject = ""

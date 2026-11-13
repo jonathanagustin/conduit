@@ -141,5 +141,57 @@ func withSpaceLookup(repository controlplane.Repository, options controlplane.Ha
 		}
 		return binding.SpaceID, nil
 	}
+	bind := func() (*spaceapp.Service, error) {
+		return spaceapp.New(store, spaceAuthority{store: store, governance: service, options: authorizationOptions})
+	}
+	options.RequireSpaceSelection = func(ctx context.Context, carrier controlplane.Principal, id string) error {
+		ctx = context.WithValue(ctx, operatorCarrierKey{}, func() (governance.Principal, error) { return carrier, nil })
+		spacesService, err := bind()
+		if err != nil {
+			return spaceSelectionError(err)
+		}
+		_, err = spacesService.Get(ctx, id)
+		return spaceSelectionError(err)
+	}
+	options.ReserveProductSpace = func(ctx context.Context, carrier controlplane.Principal, id, product string) error {
+		ctx = context.WithValue(ctx, operatorCarrierKey{}, func() (governance.Principal, error) { return carrier, nil })
+		spacesService, err := bind()
+		if err != nil {
+			return spaceSelectionError(err)
+		}
+		_, err = spacesService.ReserveProductPublication(ctx, id, product)
+		return spaceSelectionError(err)
+	}
 	return options
+}
+
+func (authority spaceAuthority) RequireProductPublication(ctx context.Context, id, product string) (string, error) {
+	if _, err := authority.allow(ctx, "global/artifact", controlplane.OperationCreateArtifact); err != nil {
+		return "", err
+	}
+	subject, err := authority.allow(ctx, "product/"+product, controlplane.OperationCreateRelease)
+	if err != nil {
+		return "", err
+	}
+	if err := authority.RequireRead(ctx, id); err != nil {
+		return "", err
+	}
+	return subject, nil
+}
+
+// Native errors crossing the legacy transport boundary retain status without
+// exposing storage/provider diagnostics.
+func spaceSelectionError(err error) error {
+	switch {
+	case err == nil:
+		return nil
+	case errors.Is(err, spaces.ErrForbidden):
+		return controlplane.ErrForbidden
+	case errors.Is(err, spaces.ErrNotFound):
+		return controlplane.ErrNotFound
+	case errors.Is(err, spaces.ErrConflict):
+		return controlplane.ErrConflict
+	default:
+		return errors.New("native Space operation failed")
+	}
 }

@@ -51,6 +51,8 @@ type EntityConfigurationAdapter func(
 ) (*ManagedInstallationConfiguration, *UniversalInstallationConfiguration, []SecretRequirement, error)
 
 type HandlerOptions struct {
+	RequireSpaceSelection func(context.Context, Principal, string) error
+	ReserveProductSpace   func(context.Context, Principal, string, string) error
 	// SpaceIDLookup reads independently authorized native assignment metadata.
 	SpaceIDLookup                        func(context.Context, Principal, string, string) (string, error)
 	ConsoleHandler                       http.Handler
@@ -539,6 +541,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
+		spaceID, selected := selectedSpace(w, request, principal, configuration)
+		if !selected {
+			return
+		}
 		records, err := ListEnvironmentCatalog(request.Context(), repository)
 		if err != nil {
 			writeLifecycleError(w, err)
@@ -548,7 +554,17 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
 		for _, record := range records {
 			if administrator ||
-				governance.Authorize(request.Context(), effectivePrincipal(principal), environmentRID(record.Environment.ID), OperationReadResource) {
+				governance.AuthorizeResourceOperation(request.Context(), principal, configuration, environmentRID(record.Environment.ID), OperationReadResource) {
+				if spaceID != "" {
+					assigned, err := configuration.SpaceIDLookup(request.Context(), principal, "ENVIRONMENT", record.Environment.ID)
+					if err != nil {
+						writeJSON(w, http.StatusInternalServerError, map[string]string{"error": "native Space assignment could not be read"})
+						return
+					}
+					if assigned != spaceID {
+						continue
+					}
+				}
 				visible = append(visible, record)
 			}
 		}
@@ -753,6 +769,9 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			return
 		} else if !errors.Is(err, ErrNotFound) {
 			writeLifecycleError(w, err)
+			return
+		}
+		if !reservePublicationSpace(w, request, principal, configuration, product) {
 			return
 		}
 		encoded, _ := json.Marshal(manifest)
