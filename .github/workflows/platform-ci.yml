@@ -672,6 +672,7 @@ jobs:
         run: |
           ruby scripts/verify-release-workflow.rb
           ./scripts/verify-release-workflow.test.sh
+          ./scripts/test-release-preparation.sh
       # The Rubix Kubernetes substrate CRDs are ground truth recovered from
       # com.palantir.rubixlib, not authored here. This checks each committed CRD
       # against the manifest that records its provenance -- sha256, group, kind,

@@ -141,7 +141,7 @@ optimizer_candidate_release() {
 }
 
 release_path() {
-  ruby scripts/verify-release-workflow.rb && ./scripts/verify-release-workflow.test.sh
+  ruby scripts/verify-release-workflow.rb && ./scripts/verify-release-workflow.test.sh && ./scripts/test-release-preparation.sh
 }
 
 build_commands() {

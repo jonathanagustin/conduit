@@ -1,0 +1,7 @@
+{
+  "name": "conduit-release-preparation-tests",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test *.test.mjs"},
+  "devDependencies": {"release-please": "17.6.0"}
+}
