@@ -146,11 +146,11 @@ Pins and references:
   No upstream template source is copied into generated charts.
 
 Validation performed on the synthetic envelope:
-`python scripts/verify-packaging-scaffold.py envelope.json --schema-dir CACHE --helm PATH_TO_HELM`
+`python scripts/verify-packaging-scaffold.py envelope.json --schema-dir CACHE --helm PATH_TO_HELM --helm-sha256 VERIFIED_BINARY_SHA256`
 The cache must contain the two unmodified files above. The checker verifies their
 hashes, checks the Zarf schema and JSON-schema-compatible UDS CRD constraints,
 then runs actual Helm 3.19.0 strict lint and render on both charts in a temporary
-directory. Python jsonschema and PyYAML are prerequisites. Both charts passed.
+directory. Use an isolated Python virtual environment installed from scripts/packaging-validator-requirements.txt and invoke its interpreter with -I. Both charts passed.
 This is NOT Kubernetes admission/operator validation, Zarf package creation,
 image pull/provenance verification or live workload testing. No cluster is used.
 
@@ -201,3 +201,43 @@ unresolved startup extension downloads and missing UDS identity integration.
 The workflow returned those four blockers plus unsupported Dockerfile syntax
 and missing final numeric USER evidence. It emitted NO artifacts. This is an
 honest coverage limit, not a successful GeoServer packaging result.
+
+## Machine validation receipts (structural-only)
+
+The checker now emits one `schema-helm/v1` JSON receipt on stdout and exits 0
+only when every mandatory check passed. Failure exits 1 with the failed check's
+exception category and unexecuted checks marked `not-run`; raw schema/tool
+errors and their potentially sensitive arguments are not echoed. Inputs,
+per-file contents, source schemas, subprocess output and runtime are bounded.
+Helm receives a clean temporary configuration/plugin/cache environment and no
+inherited Kubernetes config or application tokens. This is process/environment
+isolation, NOT an OS security sandbox.
+
+Receipt bindings: exact input bytes, canonical artifact digest, checksum-pinned
+source schemas, actual validator script bytes, pinned Python dependency versions,
+Helm version and a caller-supplied previously verified binary SHA-256. The tool
+hash is checked before and after execution. Do not establish trust by hashing an
+unknown executable and treating that same hash as verification; use a trusted
+release acquisition first. Tested Windows Helm binary SHA-256:
+`a18c49a4cd16f8b162031159eff6b4d657e04ec2df0c2be5544ad11ddf8fae79`.
+The official Helm 3.19.0 archive checksum was verified before extraction.
+
+Use a fresh venv plus `pip install -r scripts/packaging-validator-requirements.txt`;
+invoke that venv's Python with `-I`. The exact installed dependency versions are
+checked and recorded. `python -I -B scripts/test-packaging-validator.py` exercises
+negative cases; its mocked tools are explicitly NOT live-validation evidence.
+
+Actual isolated execution produced all-passed structural checks for the generated
+end-to-end fixture. A separate actual CLI call with altered content returned
+exit 1, artifact-binding failed and all later checks not-run. Nine unit/process
+tests cover digest/schema/tool drift, wrong versions, malformed/template/path
+inputs, output bounds, real process timeout, failed tools and diagnostic redaction.
+
+**Authority limit:** receipts say `producer: local-process-unsigned`,
+`scope: structural-only`, `deploymentAuthorized: false`. They are local process
+observations, not independent cryptographic attestation or proof of human review.
+There is deliberately no importer that accepts arbitrary supplied `passed` JSON
+as a release gate. A future governed integration must bind the actual trusted
+producer/run, freshness/policy, exact target and artifact identities through
+existing Conduit controls. Image authenticity, package build, runtime/airgap
+behavior and deployment permission are outside this validation profile.

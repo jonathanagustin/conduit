@@ -169,6 +169,13 @@
       "riskIfWrong": "Product naming and preparation format may need migration before publication. Input metadata consistency and CLI byte hashes do not authenticate signatures or registry availability. Output says NOT_PUBLISHED and preserves those unperformed checks; no publication, subscription or deployment authority is added."
     },
     {
+      "id": "packaging.StructuralReceipt",
+      "what": "Unsigned local structural-validator receipt binding exact artifact/tool/schema/script bytes and recording dependency versions and mandatory check outcomes.",
+      "why": "Separate actual deterministic tool observations from model prose without inventing release or deployment authority.",
+      "displacedBy": "An authenticated validator-producer and freshness contract integrated with existing governance.",
+      "riskIfWrong": "JSON receipts can be forged outside their local producer; they must not be ingested as trusted approval or proof of image/runtime readiness."
+    },
+    {
       "id": "packaging.PlanPackaging",
       "what": "Versioned source-evidence-bound caller review to constrained scaffold workflow, not delivery approval.",
       "why": "Invalidate stale review inputs and keep unsupported application requirements explicit before artifact emission.",
