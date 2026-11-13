@@ -8,7 +8,14 @@ import (
 )
 
 // rejectDuplicateKeys prevents last-wins ambiguity in model-supplied evidence.
-func rejectDuplicateKeys(data []byte) error {
+func rejectDuplicateKeys(data []byte, allowed ...string) error {
+	if len(allowed) == 0 {
+		allowed = []string{"revision", "udsVersion", "findings", "topic", "summary", "basis", "evidence", "path", "line"}
+	}
+	permitted := map[string]bool{}
+	for _, key := range allowed {
+		permitted[key] = true
+	}
 	d := json.NewDecoder(bytes.NewReader(data))
 	var value func(int) error
 	value = func(depth int) error {
@@ -35,9 +42,7 @@ func rejectDuplicateKeys(data []byte) error {
 				if !ok {
 					return fmt.Errorf("invalid object key")
 				}
-				switch key {
-				case "revision", "udsVersion", "findings", "topic", "summary", "basis", "evidence", "path", "line":
-				default:
+				if !permitted[key] {
 					return fmt.Errorf("unknown or noncanonical JSON key %q", key)
 				}
 				if keys[key] {

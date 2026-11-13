@@ -2,7 +2,7 @@
 
 Conduit-native, local-only first slice of #341. This command checks a supplied
 assessment; the separate pinned-source discovery mode is described below. It does not verify assessment citations, invoke a model,
-generate a package, or authorize deployment. #342 owns the future UI/runtime.
+certify a deployable package, or authorize deployment. #342 owns the future UI/runtime.
 
 Run `go run ./cmd/conduit-assess < assessment.json` from a shell supporting stdin
 redirection. Input is limited to 128 KiB and unknown fields are rejected.
@@ -98,6 +98,58 @@ PostgreSQL dependency, nonroot startup guarantee or deployment readiness was
 invented. The synthetic GeoServer-informed acceptance test is labeled as such.
 
 Remaining: full application evidence extraction, artifact/schema version
-selection, Helm/Zarf/UDS generation, dependency/airgap/identity assessment,
+selection, production packaging profiles, dependency/airgap/identity assessment,
 Codex runtime integration and isolated live validation. No deployable package
 is produced by these commands.
+
+## Deterministic internal-only scaffold
+
+`go run ./cmd/conduit-assess scaffold < input.json` emits a JSON envelope of
+sorted artifact paths/content and a SHA-256 over their canonical JSON array.
+It does not write files, invoke Helm/Zarf, contact Kubernetes, or deploy.
+`internal/packaging/domain/testdata/scaffold-input.json` is a SYNTHETIC example;
+its reserved example.invalid image and fabricated source hashes are not usable
+release inputs. Input provenance remains operator-declared, not independently
+verified by this command. Use the earlier pinned discovery evidence to fill it.
+
+Only `internal-stateless/v1` is supported: one replica, one digest-pinned image,
+an explicit unprivileged HTTP port, UID and resource budget. It emits separate
+application and UDS config Helm charts and a Zarf package. Network is
+**deny-by-default**, with no exposure or allow rules, so a Service object does
+not mean the application is reachable. This follows the pinned core deny-all
+fixture, not a complete application integration.
+
+Unknown fields and unsupported pins fail closed. There are no secret/env inputs,
+persistent volumes, arbitrary templates/scripts, public endpoints, automatic
+Pepr code or database assumptions. GeoServer's durable data/admin-bootstrap
+requirements mean it is OUTSIDE this stateless profile; its actual source trial
+must not be marketed as a successful GeoServer package generation/deployment.
+Nonroot compatibility, probes, identity, egress, supply-chain verification,
+offline behavior and user/upgrade journeys remain required review work.
+
+Pins and references:
+- Generator profile: internal-stateless/v1. Its exact input is included in the
+  artifacts, so changing source evidence, target pins or parameters changes the
+  artifact digest. This digest is a review identifier, NOT a release signature. The verifier accepts trusted generated input, not arbitrary externally supplied templates.
+- Zarf v0.65.1 commit d15db6ddad0fc2ea7255a8aaf2b0005a8c96c09a:
+  https://raw.githubusercontent.com/zarf-dev/zarf/d15db6ddad0fc2ea7255a8aaf2b0005a8c96c09a/zarf.schema.json
+  Save as zarf-v0.65.1.json. SHA-256
+  7da2226c9c5deeed754eacd8c481f818a020b21a197ce3564705abd258b956f6.
+  This version's images field contains STRINGS, unlike newer examples.
+- UDS Core commit 9c808fd0af6bd0dca138da05f4a0d4785f109c32:
+  https://raw.githubusercontent.com/defenseunicorns/uds-core/9c808fd0af6bd0dca138da05f4a0d4785f109c32/src/pepr/uds-cluster-crds/templates/packages.uds.dev.yaml
+  Save as uds-package-v1alpha1.yaml. SHA-256
+  57e898e5a8e66c69ac64640c4b7c0e0c8edbff0cd1333d9f632573f5bcc5bc3a.
+  Precedent: src/test/app-curl-packages.yaml, curl-pkg-deny-all examples.
+- Official template layout reviewed at
+  defenseunicorns/uds-package-template@aa2668bcf0c169995a5ea361788fa3b7f3b6bfe3.
+  No upstream template source is copied into generated charts.
+
+Validation performed on the synthetic envelope:
+`python scripts/verify-packaging-scaffold.py envelope.json --schema-dir CACHE --helm PATH_TO_HELM`
+The cache must contain the two unmodified files above. The checker verifies their
+hashes, checks the Zarf schema and JSON-schema-compatible UDS CRD constraints,
+then runs actual Helm 3.19.0 strict lint and render on both charts in a temporary
+directory. Python jsonschema and PyYAML are prerequisites. Both charts passed.
+This is NOT Kubernetes admission/operator validation, Zarf package creation,
+image pull/provenance verification or live workload testing. No cluster is used.
