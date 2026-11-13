@@ -54,7 +54,8 @@ listing endpoint requires separate issue-read authority; broadening permissions
 to fix that 403 would violate the approved scope. A CLI fixture also covers PR
 metadata larger than Node's default process-output buffer.
 
-PRs created with `GITHUB_TOKEN` do not start ordinary `pull_request` workflows.
+PRs created with `GITHUB_TOKEN` cannot be relied upon to start runnable
+`pull_request` checks.
 The handoff queries the managed PR's exact head, skips successful or active
 Trunk runs for that head, and explicitly dispatches the existing gate when it
 is missing or failed. The existing head authenticator proves the dispatched
@@ -81,7 +82,8 @@ workflow mutations prove that enabling release creation, adding publication,
 broadening permissions, removing the ref/runtime guard or unpinning the action
 is refused. Existing manual release/precondition guards remain in CI.
 
-These fixtures do not claim a live bot-created PR earned Trunk until the
-workflow has run after approval. GitHub's setting allowing Actions to create
-pull requests must also be enabled; a permission error is a setup failure,
-not a reason to introduce a credential or skip the required gate.
+The owner approved the token scope and enabled GitHub's setting allowing Actions
+to create pull requests. Live creation, unchanged-run idempotency and the explicit
+exact-head Trunk handoff are recorded in `docs/operations/release-preparation.md`.
+A permission error remains a setup failure, not a reason to introduce a credential
+or skip the required gate.
