@@ -4,6 +4,44 @@ import { createInterface } from "node:readline";
 
 const sessions = new Map();
 let nextSession = 1;
+
+function configOptions(model, effort) {
+  return [
+    {
+      id: "model",
+      name: "Model",
+      description: "Model Codex uses for the session",
+      category: "model",
+      type: "select",
+      currentValue: model,
+      options: [
+        {
+          value: "codex-demo",
+          name: "Codex demo",
+          description: "Fake agent model",
+        },
+        {
+          value: "codex-fast",
+          name: "Codex fast",
+          description: "Fake agent model",
+        },
+      ],
+    },
+    {
+      id: "reasoning_effort",
+      name: "Reasoning effort",
+      description: "How much reasoning effort the model should use",
+      category: "thought_level",
+      type: "select",
+      currentValue: effort,
+      options: [
+        { value: "low", name: "Low" },
+        { value: "medium", name: "Medium" },
+        { value: "high", name: "High" },
+      ],
+    },
+  ];
+}
 let cancelRequested = false;
 let pendingPermission;
 
@@ -20,7 +58,8 @@ input.on("line", (line) => {
   if (line.trim().length === 0) return;
   const message = JSON.parse(line);
   if (message.method === undefined) {
-    if (message.id === "perm-1") pendingPermission?.(message.result?.outcome ?? { outcome: "cancelled" });
+    if (message.id === "perm-1")
+      pendingPermission?.(message.result?.outcome ?? { outcome: "cancelled" });
     return;
   }
   if (message.id === undefined) {
@@ -34,7 +73,10 @@ input.on("line", (line) => {
     send({
       jsonrpc: "2.0",
       id: message.id,
-      error: { code: -32603, message: error instanceof Error ? error.message : "fake agent failed" },
+      error: {
+        code: -32603,
+        message: error instanceof Error ? error.message : "fake agent failed",
+      },
     });
   });
 });
@@ -57,8 +99,54 @@ async function handle(message) {
   if (method === "session/new") {
     const sessionId = `fake-${nextSession}`;
     nextSession += 1;
-    sessions.set(sessionId, { cwd: params.cwd, mcpServers: params.mcpServers });
-    send({ jsonrpc: "2.0", id, result: { sessionId } });
+    const session = {
+      cwd: params.cwd,
+      mcpServers: params.mcpServers,
+      model: "codex-demo",
+      effort: "medium",
+      turns: 0,
+    };
+    sessions.set(sessionId, session);
+    send({
+      jsonrpc: "2.0",
+      id,
+      result: {
+        sessionId,
+        configOptions: configOptions(session.model, session.effort),
+      },
+    });
+    return;
+  }
+  if (method === "session/set_config_option") {
+    const session = sessions.get(params.sessionId);
+    if (!session) {
+      send({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32602, message: "unknown session" },
+      });
+      return;
+    }
+    const options = configOptions(session.model, session.effort);
+    const option = options.find((entry) => entry.id === params.configId);
+    const allowed = option?.options?.some(
+      (entry) => entry.value === params.value,
+    );
+    if (!option || !allowed) {
+      send({
+        jsonrpc: "2.0",
+        id,
+        error: { code: -32602, message: "unknown config option" },
+      });
+      return;
+    }
+    if (params.configId === "model") session.model = params.value;
+    if (params.configId === "reasoning_effort") session.effort = params.value;
+    send({
+      jsonrpc: "2.0",
+      id,
+      result: { configOptions: configOptions(session.model, session.effort) },
+    });
     return;
   }
   if (method === "session/close" || method === "session/delete") {
@@ -74,26 +162,45 @@ async function handle(message) {
     send({ jsonrpc: "2.0", id, result: {} });
     return;
   }
-  send({ jsonrpc: "2.0", id, error: { code: -32601, message: `method not found: ${method}` } });
+  send({
+    jsonrpc: "2.0",
+    id,
+    error: { code: -32601, message: `method not found: ${method}` },
+  });
 }
 
 async function prompt(id, params) {
   cancelRequested = false;
-  const text = params.prompt.map((block) => (block.type === "text" ? block.text : "")).join("");
+  const session = sessions.get(params.sessionId);
+  const toolCallId = `call-${(session?.turns ?? 0) + 1}`;
+  const text = params.prompt
+    .map((block) => (block.type === "text" ? block.text : ""))
+    .join("");
+  const sawAttachment = params.prompt.some(
+    (block) =>
+      block.type === "image" ||
+      (block.type === "text" && block.text.startsWith("Attachment ")),
+  );
   const secret = "sk-testsecretvalue";
   notify("session/update", {
     sessionId: params.sessionId,
-    update: { sessionUpdate: "agent_thought_chunk", content: { type: "text", text: `Considering ${secret}` } },
+    update: {
+      sessionUpdate: "agent_thought_chunk",
+      content: { type: "text", text: `Considering ${secret}` },
+    },
   });
   notify("session/update", {
     sessionId: params.sessionId,
-    update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Working on it. " } },
+    update: {
+      sessionUpdate: "agent_message_chunk",
+      content: { type: "text", text: "Working on it. " },
+    },
   });
   notify("session/update", {
     sessionId: params.sessionId,
     update: {
       sessionUpdate: "tool_call",
-      toolCallId: "call-1",
+      toolCallId,
       title: "read README",
       name: "read",
       kind: "read",
@@ -112,7 +219,11 @@ async function prompt(id, params) {
     });
     notify("session/update", {
       sessionId: params.sessionId,
-      update: { sessionUpdate: "tool_call_update", toolCallId: "call-1", status: "failed" },
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId,
+        status: "failed",
+      },
     });
     send({ jsonrpc: "2.0", id, result: { stopReason: "cancelled" } });
     return;
@@ -126,7 +237,12 @@ async function prompt(id, params) {
       method: "session/request_permission",
       params: {
         sessionId: params.sessionId,
-        toolCall: { toolCallId: "call-1", title: "read README", kind: "read", status: "pending" },
+        toolCall: {
+          toolCallId,
+          title: "read README",
+          kind: "read",
+          status: "pending",
+        },
         options: [
           { optionId: "allow", name: "Allow once", kind: "allow_once" },
           { optionId: "reject", name: "Reject", kind: "reject_once" },
@@ -144,7 +260,7 @@ async function prompt(id, params) {
     sessionId: params.sessionId,
     update: {
       sessionUpdate: "tool_call_update",
-      toolCallId: "call-1",
+      toolCallId,
       status: allowed ? "completed" : "failed",
       rawOutput: allowed ? { ok: true } : { error: "rejected" },
     },
@@ -156,7 +272,7 @@ async function prompt(id, params) {
       content: {
         type: "text",
         text: allowed
-          ? "Read complete.\n\n```ts\nexport function allow(tool: string) {\n  return tool !== \"deploy\";\n}\n```\n\n```mermaid\ngraph TD\n  Ask --> Read\n  Read --> Answer\n```"
+          ? `${sawAttachment ? "Attachment received.\n\n" : ""}Using ${session?.model ?? "codex-demo"} at ${session?.effort ?? "medium"} effort.\n\nRead complete.\n\n\`\`\`ts\nexport function allow(tool: string) {\n  return tool !== "deploy";\n}\n\`\`\`\n\n\`\`\`mermaid\ngraph TD\n  Ask --> Read\n  Read --> Answer\n\`\`\``
           : "The read was rejected.",
       },
     },
@@ -166,8 +282,16 @@ async function prompt(id, params) {
     update: {
       sessionUpdate: "plan",
       entries: [
-        { content: "Read the workspace", status: "completed", priority: "high" },
-        { content: "Report what is unknown", status: "pending", priority: "medium" },
+        {
+          content: "Read the workspace",
+          status: "completed",
+          priority: "high",
+        },
+        {
+          content: "Report what is unknown",
+          status: "pending",
+          priority: "medium",
+        },
       ],
     },
   });
@@ -175,15 +299,21 @@ async function prompt(id, params) {
     sessionId: params.sessionId,
     update: {
       sessionUpdate: "tool_call_update",
-      toolCallId: "call-1",
-      content: [{ type: "resource_link", uri: "https://example.com/docs", name: "Docs" }],
+      toolCallId,
+      content: [
+        {
+          type: "resource_link",
+          uri: "https://example.com/docs",
+          name: "Docs",
+        },
+      ],
     },
   });
   notify("session/update", {
     sessionId: params.sessionId,
     update: {
       sessionUpdate: "usage_update",
-      used: 12,
+      used: session ? (session.turns += 1) * 12 : 12,
       size: 100,
     },
   });
