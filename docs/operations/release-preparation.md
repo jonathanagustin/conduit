@@ -12,7 +12,7 @@ manifest together with VERSION, CHANGELOG.md and both Helm chart versions.
 ## Review and manual handoff
 
 1. Main pushes run Prepare release. A new release-relevant commit opens or
-   updates the single `release-please--branches--main` PR. Maintenance-only
+   updates the single `release-please--branches--main--components--conduit` PR. Maintenance-only
    history produces no new release. Fixes/performance bump patch; features and
    breaking changes bump minor before 1.0.
 2. Check the exact proposed VERSION, changelog and both charts. The preparation

@@ -30,7 +30,7 @@ class FixtureGitHub {
   async *pullRequestIterator(_branch, state) { if (state === "OPEN") yield* this.prs; }
   async createPullRequest(pr, _branch, message, updates) {
     this.creates++;
-    assert.equal(pr.headBranchName, "release-please--branches--main");
+    assert.equal(pr.headBranchName, "release-please--branches--main--components--conduit");
     assert.match(message, /^chore\(main\): release \d+\.\d+\.\d+$/);
     assert.equal(this.prs.length, 0, "must not open duplicate release PRs");
     this.render(updates);

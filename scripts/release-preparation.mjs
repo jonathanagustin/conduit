@@ -6,7 +6,7 @@ import { fileURLToPath } from "node:url";
 
 const pending = "autorelease: pending";
 const tagged = "autorelease: tagged";
-export const releaseBranch = "release-please--branches--main";
+export const releaseBranch = "release-please--branches--main--components--conduit";
 export function assertPreparationWrite(method, path) {
   if (method === "GET") return;
   const prefix = "repos/[\\w.-]+/[\\w.-]+/";
