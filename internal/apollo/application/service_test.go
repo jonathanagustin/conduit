@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/apollo"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
@@ -26,6 +28,34 @@ func (*catalogFixture) CoordinateRetired(context.Context, string, string) (bool,
 	return false, nil
 }
 
+// lifecycleFixture stands in for the durable desired state a Hub replica reads
+// recalls and promotions FROM. It is deliberately not reachable through any
+// write path on the Service: nothing a request pushes into one process may
+// decide these answers, because the next request may be served by the other
+// replica.
+type lifecycleFixture struct {
+	lifecycle ReleaseLifecycle
+	err       error
+}
+
+func (fixture *lifecycleFixture) ReleaseLifecycle(context.Context) (ReleaseLifecycle, error) {
+	return fixture.lifecycle, fixture.err
+}
+
+// inventoryFixture stands in for the durable desired state the Environment,
+// Installation and Namespace reads come FROM. Like lifecycleFixture it is
+// deliberately not reachable through a push: the process that accepted a
+// desired state is not the process that will be asked about it, so nothing a
+// write puts in this process's memory may decide these answers.
+type inventoryFixture struct {
+	inventory []environments.CompatibilityProjection
+	err       error
+}
+
+func (fixture *inventoryFixture) EnvironmentInventory(context.Context) ([]environments.CompatibilityProjection, error) {
+	return fixture.inventory, fixture.err
+}
+
 type reportingFixture struct{}
 
 func (reportingFixture) LatestPlan(context.Context, string) (environments.PlanProjection, error) {
@@ -40,7 +70,7 @@ func (reportingFixture) PutReport(_ context.Context, report environments.Report)
 
 func TestPublicHelmPublicationDigestRetainsThePreExtractionCanonicalShape(t *testing.T) {
 	fixture := &catalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{}, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -65,7 +95,7 @@ func TestPublicHelmPublicationDigestRetainsThePreExtractionCanonicalShape(t *tes
 
 func TestNativeHelmPublicationDigestKeepsPlatformAssetsOutOfThePublicDTO(t *testing.T) {
 	fixture := &catalogFixture{}
-	service, err := New(context.Background(), fixture, reportingFixture{})
+	service, err := New(context.Background(), fixture, reportingFixture{}, &lifecycleFixture{}, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,33 +134,72 @@ func publishRelease(t *testing.T, service *Service, product, version string) {
 }
 
 // A compatibility projection is the Environment's complete current desired
-// state. Keeping a Namespace omitted by the next projection serves stale data:
-// the list endpoint tells clients they can still access a Namespace Conduit has
-// removed.
+// state. Serving a Namespace the current projection omits is stale data: the
+// list endpoint would tell clients they can still access a Namespace Conduit
+// has removed.
+//
+// Reading the projection instead of accumulating it makes that structural, and
+// this test is what says so. It drives the inventory port rather than a push,
+// because a push is what the read no longer has.
 func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	service.SyncEnvironment(environments.CompatibilityProjection{
+	durable := &inventoryFixture{inventory: []environments.CompatibilityProjection{{
 		ID: "dev-use2",
 		Namespaces: []environments.ProjectedNamespace{{
 			RID: "ri.namespace.main.namespace.123", Name: "obsolete",
 		}},
-	})
-	before := service.ListNamespaces()
+	}}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{}, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	before, err := service.ListNamespaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if before.Namespaces == nil || len(*before.Namespaces) != 1 {
 		t.Fatalf("the first projection did not establish the Namespace: %#v", before.Namespaces)
 	}
 
-	service.SyncEnvironment(environments.CompatibilityProjection{ID: "dev-use2"})
+	durable.inventory = []environments.CompatibilityProjection{{ID: "dev-use2"}}
 
-	after := service.ListNamespaces()
+	after, err := service.ListNamespaces(context.Background())
+	if err != nil {
+		t.Fatal(err)
+	}
 	if after.Namespaces == nil {
 		t.Fatal("the Namespace list was not answered")
 	}
 	if len(*after.Namespaces) != 0 {
 		t.Fatalf("a removed Namespace was served from stale projection state: %#v", *after.Namespaces)
+	}
+}
+
+// An unreachable store must not be reported as a Hub that governs nothing. The
+// three reads answer with lists, and a list has no way to say "unavailable" --
+// so the error has to travel, or the caller acts on a false absence.
+func TestAnUnreachableInventoryIsNotServedAsAnEmptyFleet(t *testing.T) {
+	durable := &inventoryFixture{err: errors.New("desired state store unavailable")}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{}, durable)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.ListEnvironments(context.Background()); err == nil {
+		t.Error("an unreachable inventory listed zero Environments instead of failing")
+	}
+	if _, err := service.ListInstallations(context.Background(), "ri.apollo.main.environment.abc"); err == nil {
+		t.Error("an unreachable inventory listed zero Installations instead of failing")
+	}
+	if _, err := service.ListNamespaces(context.Background()); err == nil {
+		t.Error("an unreachable inventory listed zero Namespaces instead of failing")
+	}
+}
+
+// The constructor refuses a missing inventory port rather than defaulting to an
+// empty one, for the same reason: an absent port would not fail, it would serve
+// a Hub that appears to govern nothing.
+func TestAMissingInventoryPortIsRefusedAtConstruction(t *testing.T) {
+	if _, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, &lifecycleFixture{}, nil); err == nil {
+		t.Error("a Service was constructed without an Environment inventory port")
 	}
 }
 
@@ -145,22 +214,20 @@ func TestRemovedNamespaceIsNotServedFromAnOlderProjection(t *testing.T) {
 // error a client cannot recover from, because it installs on the strength of
 // it.
 func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishRelease(t, service, "app.example:api", "0.1.0")
 	publishRelease(t, service, "app.example:api", "0.2.0")
 
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Recalls: []environments.ProjectedRecall{{
-			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true,
-			Reason: "withdrawn for cause",
-		}},
-	})
+	durable.lifecycle.Recalls = []environments.ProjectedRecall{{
+		Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true,
+		Reason: "withdrawn for cause",
+	}}
 
-	recalled, err := service.GetRelease("app.example:api", "0.1.0")
+	recalled, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -180,7 +247,7 @@ func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
 
 	// The fix must stay narrow. A Release the recall does not cover is still
 	// not recalled, or the flag would mean nothing.
-	untouched, err := service.GetRelease("app.example:api", "0.2.0")
+	untouched, err := service.GetRelease(context.Background(), "app.example:api", "0.2.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -193,20 +260,19 @@ func TestARecalledReleaseIsNotServedAsNotRecalled(t *testing.T) {
 // the other direction -- a usable Release withheld on the strength of a
 // withdrawal that was taken back.
 func TestARevertedRecallDoesNotMarkAReleaseRecalled(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	publishRelease(t, service, "app.example:api", "0.1.0")
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
+	durable := &lifecycleFixture{lifecycle: ReleaseLifecycle{
 		Recalls: []environments.ProjectedRecall{{
 			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true,
 			Reason: "withdrawn then restored", Reverted: true,
 		}},
-	})
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	publishRelease(t, service, "app.example:api", "0.1.0")
 
-	release, err := service.GetRelease("app.example:api", "0.1.0")
+	release, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -220,24 +286,22 @@ func TestARevertedRecallDoesNotMarkAReleaseRecalled(t *testing.T) {
 // replaces rather than accumulates -- otherwise a recall could never be undone
 // by editing desired state, only by reverting it.
 func TestRemovingARecallFromDesiredStateStopsReportingIt(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{lifecycle: ReleaseLifecycle{
+		Recalls: []environments.ProjectedRecall{{
+			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
+		}},
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishRelease(t, service, "app.example:api", "0.1.0")
-	withRecall := environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Recalls: []environments.ProjectedRecall{{
-			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
-		}},
-	}
-	service.SyncEnvironment(withRecall)
-	if release, _ := service.GetRelease("app.example:api", "0.1.0"); !release.RecallStatus.Recalled {
+	if release, _ := service.GetRelease(context.Background(), "app.example:api", "0.1.0"); !release.RecallStatus.Recalled {
 		t.Fatal("the fixture did not establish a recall to remove")
 	}
 
-	service.SyncEnvironment(environments.CompatibilityProjection{ID: "dev-use2"})
-	release, err := service.GetRelease("app.example:api", "0.1.0")
+	durable.lifecycle.Recalls = nil
+	release, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -249,24 +313,26 @@ func TestRemovingARecallFromDesiredStateStopsReportingIt(t *testing.T) {
 // ListReleases has to agree with GetRelease. Two read paths that disagree
 // about whether a Release is recalled is worse than either answer.
 func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{lifecycle: ReleaseLifecycle{
+		Recalls: []environments.ProjectedRecall{{
+			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
+		}},
+	}}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	publishRelease(t, service, "app.example:api", "0.1.0")
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Recalls: []environments.ProjectedRecall{{
-			Product: "app.example:api", StartingVersion: "0.1.0", SingleVersion: true, Reason: "withdrawn",
-		}},
-	})
 
-	listed := service.ListReleases("app.example:api")
+	listed, err := service.ListReleases(context.Background(), "app.example:api")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if listed.Releases == nil || len(*listed.Releases) != 1 {
 		t.Fatalf("expected one Release, got %#v", listed.Releases)
 	}
 	fromList := (*listed.Releases)[0]
-	fromGet, err := service.GetRelease("app.example:api", "0.1.0")
+	fromGet, err := service.GetRelease(context.Background(), "app.example:api", "0.1.0")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -289,7 +355,8 @@ func TestListAndGetAgreeOnRecallStatus(t *testing.T) {
 // reporting a channel hides a Release from a client selecting on it, so a
 // promotion that succeeded looks like one that never happened.
 func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
-	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{})
+	durable := &lifecycleFixture{}
+	service, err := New(context.Background(), &catalogFixture{}, reportingFixture{}, durable, &inventoryFixture{})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -298,7 +365,7 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	publishRelease(t, service, "app.example:api", "1.0.0-rc1")
 	publishRelease(t, service, "app.example:api", "1.1.0-rc1")
 
-	before, err := service.GetRelease("app.example:api", "1.0.0-rc1")
+	before, err := service.GetRelease(context.Background(), "app.example:api", "1.0.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -308,15 +375,12 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 		t.Fatalf("the fixture already publishes onto RELEASE: %#v", before.ReleaseChannels)
 	}
 
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Promotions: []environments.ProjectedPromotion{{
-			Product: "app.example:api", Version: "1.0.0-rc1",
-			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
-		}},
-	})
+	durable.lifecycle.Promotions = []environments.ProjectedPromotion{{
+		Product: "app.example:api", Version: "1.0.0-rc1",
+		FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
+	}}
 
-	promoted, err := service.GetRelease("app.example:api", "1.0.0-rc1")
+	promoted, err := service.GetRelease(context.Background(), "app.example:api", "1.0.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -331,7 +395,7 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 
 	// Narrow, like the recall fix. A Release nobody promoted is unaffected, or
 	// the field would say nothing about any particular Release.
-	untouched, err := service.GetRelease("app.example:api", "1.1.0-rc1")
+	untouched, err := service.GetRelease(context.Background(), "app.example:api", "1.1.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -343,20 +407,17 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	// dangerous direction: serving a Release on a channel it was blocked from
 	// reaching tells a client selecting on that channel to install something
 	// the promotion gate refused.
-	service.SyncEnvironment(environments.CompatibilityProjection{
-		ID: "dev-use2",
-		Promotions: []environments.ProjectedPromotion{
-			{
-				Product: "app.example:api", Version: "1.0.0-rc1",
-				FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
-			},
-			{
-				Product: "app.example:api", Version: "1.1.0-rc1",
-				FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: false,
-			},
+	durable.lifecycle.Promotions = []environments.ProjectedPromotion{
+		{
+			Product: "app.example:api", Version: "1.0.0-rc1",
+			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: true,
 		},
-	})
-	blocked, err := service.GetRelease("app.example:api", "1.1.0-rc1")
+		{
+			Product: "app.example:api", Version: "1.1.0-rc1",
+			FromChannel: "RELEASE_CANDIDATE", ToChannel: "RELEASE", Passed: false,
+		},
+	}
+	blocked, err := service.GetRelease(context.Background(), "app.example:api", "1.1.0-rc1")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -367,7 +428,10 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 	// And the list route answers the same as the single-release route, since
 	// they are separate call sites and only one of them being fixed is the
 	// failure this whole class keeps producing.
-	listed := service.ListReleases("app.example:api")
+	listed, err := service.ListReleases(context.Background(), "app.example:api")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if listed.Releases == nil {
 		t.Fatal("no releases listed")
 	}
@@ -378,6 +442,182 @@ func TestAPromotedReleaseIsNotServedOnTheChannelItStartedOn(t *testing.T) {
 		if release.ReleaseChannels == nil || !containsChannel(*release.ReleaseChannels, "RELEASE") {
 			t.Errorf("ListReleases disagreed with GetRelease: %#v", release.ReleaseChannels)
 		}
+	}
+}
+
+// reportingWithVersion answers a Report whose entity is running a DIFFERENT
+// version from the one the desired state declares -- an Environment mid-upgrade,
+// or one whose upgrade failed.
+type reportingWithVersion struct {
+	reportingFixture
+	report environments.Report
+}
+
+func (fixture reportingWithVersion) GetReport(context.Context, string) (environments.Report, error) {
+	return fixture.report, nil
+}
+
+// TestInstallationVersionIsTheDesiredVersionNotAnAgentReport pins a DECLARED
+// divergence, not a fixed defect.
+//
+// The pinned snapshot describes Installation.version as "The reported version
+// from the Apollo Agent responsible for managing this Installation." Conduit
+// populates it from the reviewed DESIRED state, which is real Conduit data under
+// a contract sentence describing different data (issue #57; issue #112 finding
+// 4). A client watching an upgrade reads desired as observed.
+//
+// Reported versions do exist -- a Spoke agent finishing a Plan submits them and
+// they land in the Environments Report -- but they never flow back into this
+// projection, and joining them would need an installation identity the
+// CompatibilityProjection does not carry: it holds an Entity NAME while a
+// ReportedEntity is keyed on an installation ID. Guessing that join is the
+// mistake TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers already
+// exists to prevent, so this is declared in docs/apollo/public-api.md and
+// docs/operations/TENANT-FIDELITY.md rather than approximated.
+//
+// The test asserts the divergence rather than the fix, so that wiring reported
+// state in fails here and forces the declaration to be revisited in the same
+// change.
+func TestInstallationVersionIsTheDesiredVersionNotAnAgentReport(t *testing.T) {
+	reporting := reportingWithVersion{report: environments.Report{
+		Environment: "prod",
+		Entities: []environments.ReportedEntity{{
+			InstallationID: "checkout-api", Product: "com.example:checkout", Version: "1.0.0",
+		}},
+	}}
+	// Through the inventory port rather than a projection push: #325 deleted
+	// SyncEnvironment, because a write path nothing reads is a second, stale
+	// copy of the same facts. The divergence under test is unchanged -- what
+	// changed is where the Installation is read from.
+	inventory := &inventoryFixture{inventory: []environments.CompatibilityProjection{{
+		ID: "prod",
+		Entities: []environments.ProjectedEntity{{
+			Name: "checkout-api", Product: "com.example:checkout", Version: "2.0.0", ReleaseChannel: "RELEASE",
+		}},
+	}}}
+	service, err := New(context.Background(), &catalogFixture{}, reporting, &lifecycleFixture{}, inventory)
+	if err != nil {
+		t.Fatal(err)
+	}
+	installations, err := service.ListInstallations(context.Background(), EnvironmentRID("prod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if installations.Installations == nil || len(*installations.Installations) != 1 {
+		t.Fatalf("installations = %#v", installations)
+	}
+	installation := (*installations.Installations)[0]
+	if installation.Version == nil {
+		t.Fatal("version is absent; the divergence says it is served, just not from an Agent report")
+	}
+	if *installation.Version != "2.0.0" {
+		t.Fatalf("version = %q; if this is now %q the reported version reaches the projection, "+
+			"the declared divergence is stale, and docs/apollo/public-api.md must be corrected "+
+			"in the same change", *installation.Version, "1.0.0")
+	}
+}
+
+// sharedReporting is the durable Environment Report BOTH Hub replicas write
+// through. Unlike reportingFixture it remembers what was put, because the defect
+// under test is one replica overwriting what the other recorded there.
+type sharedReporting struct {
+	plan   environments.PlanProjection
+	report environments.Report
+}
+
+func (fixture *sharedReporting) LatestPlan(context.Context, string) (environments.PlanProjection, error) {
+	return fixture.plan, nil
+}
+
+func (fixture *sharedReporting) GetReport(context.Context, string) (environments.Report, error) {
+	return fixture.report, nil
+}
+
+func (fixture *sharedReporting) PutReport(_ context.Context, report environments.Report) (environments.Report, error) {
+	fixture.report = report
+	return report, nil
+}
+
+// TestAReplicaWithoutEntityInfoDoesNotOverwriteHealthWithIndeterminate pins
+// issue #326.
+//
+// An Apollo Agent posts entitiesInfo and entitiesHealth as two separate
+// requests. Behind two Hub replicas they can land on different processes, and
+// entityInfo/entityHealth are process-local maps -- the two that issue #325
+// deliberately left in memory when it moved Environments, Installations,
+// Namespaces, Recalls and Promotions behind durable ports.
+//
+// The replica that saw only the health report reaches the merge with an empty
+// info map, MatchInfo synthesizes an EntityInfo whose Quorum is "UNKNOWN", and
+// AggregateHealth returns INDETERMINATE from that quorum WITHOUT LOOKING AT THE
+// NODES. It then persists that verdict to the shared Report, so the degraded
+// answer is not confined to the replica that computed it: every replica and
+// every later read sees it.
+//
+// A restart between the two POSTs reproduces this on a single replica.
+func TestAReplicaWithoutEntityInfoDoesNotOverwriteHealthWithIndeterminate(t *testing.T) {
+	ctx := context.Background()
+	reporting := &sharedReporting{plan: environments.PlanProjection{
+		ID: "plan-1",
+		Steps: []environments.PlanStepProjection{{
+			InstallationID: "checkout-api", Entity: "checkout-api",
+			Product: "com.example:checkout", Version: "1.0.0", Namespace: "checkout",
+		}},
+	}}
+	replica := func() *Service {
+		service, err := New(ctx, &catalogFixture{}, reporting, &lifecycleFixture{}, &inventoryFixture{})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return service
+	}
+	replicaA, replicaB := replica(), replica()
+
+	quorum := apollo.Quorum("ALL")
+	nodes := []apollo.NodeInfo{{
+		CreationTimestamp: time.Date(2026, 1, 1, 0, 0, 0, 0, time.UTC),
+		HostId:            "host-a", NodeId: "node-a", ProductVersion: "1.0.0",
+	}}
+	info := []apollo.EntityInfo{{
+		EntityType: "SERVICE", Id: "checkout-api",
+		ProductGroup: "com.example", ProductName: "checkout",
+		Quorum:    &quorum,
+		NodesInfo: &nodes,
+	}}
+	containers := []apollo.ContainerStatus{{ContainerId: "checkout", Liveness: true, Readiness: true}}
+	health := []apollo.EntityHealth{{
+		ProductGroup: "com.example", ProductName: "checkout", ProductVersion: "1.0.0",
+		NodeId: "node-a", ContainerStatuses: &containers,
+	}}
+
+	// Replica A serves both of the Agent's requests and records the true verdict.
+	if err := replicaA.PutEntityInfo(ctx, "prod", info); err != nil {
+		t.Fatal(err)
+	}
+	if err := replicaA.PutEntityHealth(ctx, "prod", health); err != nil {
+		t.Fatal(err)
+	}
+	if got := reporting.report.Entities[0]; got.Health != environments.HealthHealthy {
+		t.Fatalf("replica that saw both reports recorded health %q, want %q; the premise of this "+
+			"test is broken before the defect it pins is reached", got.Health, environments.HealthHealthy)
+	}
+	if got := reporting.report.Entities[0].HealthDetails; got == nil || got.Quorum != "ALL" {
+		t.Fatalf("durable quorum = %#v, want ALL; the fix reads the quorum from here", got)
+	}
+
+	// The Agent's NEXT health report is load-balanced to replica B, which never
+	// saw the entitiesInfo POST.
+	if err := replicaB.PutEntityHealth(ctx, "prod", health); err != nil {
+		t.Fatal(err)
+	}
+	entity := reporting.report.Entities[0]
+	if entity.Health != environments.HealthHealthy {
+		t.Fatalf("after a replica that never saw entitiesInfo merged the same healthy node, the "+
+			"durable report says %q, want %q: the answer now depends on which process the Agent's "+
+			"request reached", entity.Health, environments.HealthHealthy)
+	}
+	if entity.HealthDetails == nil || entity.HealthDetails.Quorum != "ALL" {
+		t.Fatalf("durable quorum = %#v after the info-less merge, want ALL preserved", entity.HealthDetails)
 	}
 }
 

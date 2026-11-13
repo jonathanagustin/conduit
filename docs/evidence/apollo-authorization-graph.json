@@ -3792,5 +3792,11 @@
       }
     }
   },
+  "identifierPartition": {
+    "prefix": "apollo-",
+    "filter": "A role or category is retained only when its identifier begins with the prefix above or contains 'apollo'. Operations and workflows are retained when a retained role or category reaches them, which is why unprefixed identifiers appear here as edge targets and are counted under borrowedOperationTargets. No unprefixed identifier is ever a retention root, so a family outside the prefix can appear in this file only where an apollo- role already grants into it, and sourceTotals records how much was dropped: it is the size of each map as the endpoint returned it, against the retained sizes under counts.",
+    "bound": "Both docs/evidence/apollo-authorization-graph.json and docs/evidence/apollo-authorization-vocabulary.json partition Apollo's authorization surface on the apollo- identifier prefix, and the partition is applied before anything is written. A resource family whose identifiers do not carry that prefix is therefore absent from this file as a property of the filter, not as a finding about the tenant. Read every absence and every zero count here as 'no apollo-prefixed identifier', never as 'no such family'. Establishing which unprefixed families the same endpoint serves would need a re-capture without the filter, which neither artifact attempts.",
+    "reportedNotEstablished": "Issue #122 reports, from a live-tenant capture of the same endpoint held in a separate repository, that this product's authorization surface also carries resource families whose identifiers do not begin with apollo-. That capture is not re-verifiable from inside this repository, so the specific families and operations it names are reported, not established here. What is established here is the filter recorded above, and therefore the bound."
+  },
   "boundary": "Tenant-observed Apollo authorization configuration. It establishes the identifier graph this tenant serves. It does not establish private Hub behavior, nor that a Platform role granting the same identifier grants the same authority."
 }

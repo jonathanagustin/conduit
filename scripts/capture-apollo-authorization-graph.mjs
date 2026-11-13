@@ -166,6 +166,34 @@ const rolesWithNoOperations = Object.entries(roles)
   .map(([id]) => id)
   .sort();
 
+// The direct count above understates the damage. A role may present a full
+// operations array whose members are themselves roles, which bottom out at
+// nothing retained -- apollo-hubs:administrator is the example, absent from the
+// direct list while authorizing nothing recoverable. So follow role-to-role
+// references down to primitives and report that closure too.
+//
+// These three fields, and the note on the direct list, were hand-added to the
+// committed artifact after generation and this script emitted none of them, so a
+// regeneration would have silently dropped all four (#122).
+// scripts/verify-apollo-authorization-bounds.mjs is the gate that now makes that
+// class of drift impossible to reintroduce without declaring it.
+const transitiveOperations = (roleId) => {
+  const seen = new Set();
+  const primitives = new Set();
+  const stack = [...(roles[roleId]?.operations ?? [])];
+  while (stack.length) {
+    const target = stack.pop();
+    if (seen.has(target)) continue;
+    seen.add(target);
+    if (roles[target]) stack.push(...(roles[target].operations ?? []));
+    else primitives.add(target);
+  }
+  return primitives;
+};
+const rolesWithNoTransitiveOperations = Object.keys(roles)
+  .filter((id) => transitiveOperations(id).size === 0)
+  .sort();
+
 const evidence = {
   apiVersion: API_VERSION,
   kind: "ApolloAuthorizationGraph",
@@ -196,12 +224,60 @@ const evidence = {
     categories: Object.keys(body.categories ?? {}).length,
   },
   rolesWithNoRetainedOperations: rolesWithNoOperations,
+  rolesWithNoRetainedOperationsNote:
+    "Roles whose own operations array is empty. This is the DIRECT count and it " +
+    "understates what the capture failed to establish: a role may present operations " +
+    "that are themselves roles which bottom out at nothing. See " +
+    "rolesWithNoTransitiveOperations.",
+  rolesWithNoTransitiveOperations,
+  rolesWithNoTransitiveOperationsNote:
+    "Roles whose operation closure, followed through role-to-role references down to " +
+    "primitive operations, is empty. For these the capture establishes only that the " +
+    "identifier exists and where it sits in a tier hierarchy -- not one thing it " +
+    "authorizes. No alias, adapter or documented claim about Apollo's behaviour may be " +
+    "justified from them. Six whole families are in here (artifact-registry, " +
+    "cel-policy, webhook, base-image, hubs, notifications, template), which is why " +
+    "apollo-hubs:administrator is absent from the direct list while authorizing " +
+    "nothing recoverable.",
   unresolvedEdgeTargets: unresolved,
   unresolvedEdgeTargetCount: unresolved.length,
   graphCloses: unresolved.length === 0,
   borrowedOperationTargets: [...foreignTargets].sort(),
   borrowedOperationTargetCount: foreignTargets.size,
   graph: { roles, operations, workflows, categories },
+  // The retention rule this script applies, stated as a bound. It is the first
+  // thing project() does and it is not recoverable from the output, so a reader
+  // who greps this file for a family and finds nothing has no way to tell
+  // "filtered out" from "does not exist" unless it is declared here (#122).
+  identifierPartition: {
+    prefix: PREFIX,
+    filter:
+      "A role or category is retained only when its identifier begins with the prefix " +
+      "above or contains 'apollo'. Operations and workflows are retained when a " +
+      "retained role or category reaches them, which is why unprefixed identifiers " +
+      "appear here as edge targets and are counted under borrowedOperationTargets. No " +
+      "unprefixed identifier is ever a retention root, so a family outside the prefix " +
+      "can appear in this file only where an apollo- role already grants into it, and " +
+      "sourceTotals records how much was dropped: it is the size of each map as the " +
+      "endpoint returned it, against the retained sizes under counts.",
+    bound:
+      "Both docs/evidence/apollo-authorization-graph.json and " +
+      "docs/evidence/apollo-authorization-vocabulary.json partition Apollo's " +
+      "authorization surface on the apollo- identifier prefix, and the partition is " +
+      "applied before anything is written. A resource family whose identifiers do not " +
+      "carry that prefix is therefore absent from this file as a property of the " +
+      "filter, not as a finding about the tenant. Read every absence and every zero " +
+      "count here as 'no apollo-prefixed identifier', never as 'no such family'. " +
+      "Establishing which unprefixed families the same endpoint serves would need a " +
+      "re-capture without the filter, which neither artifact attempts.",
+    reportedNotEstablished:
+      "Issue #122 reports, from a live-tenant capture of the same endpoint held in a " +
+      "separate repository, that this product's authorization surface also carries " +
+      "resource families whose identifiers do not begin with apollo-. That capture is " +
+      "not re-verifiable from inside this repository, so the specific families and " +
+      "operations it names are reported, not established here. What is established " +
+      "here is the filter recorded above, and therefore the bound.",
+  },
   boundary:
     "Tenant-observed Apollo authorization configuration. It establishes the " +
     "identifier graph this tenant serves. It does not establish private Hub " +

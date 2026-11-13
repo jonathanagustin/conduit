@@ -476,4 +476,37 @@ test.describe("consequence of approving", () => {
 
     await expect(page.getByText(/governs no Plan/)).toBeVisible();
   });
+  test("shows why an earlier round was refused, which reopening clears", async ({ page, hub }) => {
+    hub.get("/change-requests", { changeRequests: [], total: 0, pageSize: 0, limit: 100, hasPrevious: false });
+    hub.get("/change-requests/crq_reopened", {
+      ...changeRequest(),
+      id: "crq_reopened",
+      status: "PENDING_APPROVALS",
+      // Reopening rebuilds the record against the policies in force now, so the
+      // current round has no reviews -- and the refusal that came before is the
+      // thing the approver most needs to read.
+      reviews: [],
+      priorReviews: [
+        { subject: "reviewer", decision: "REJECT", rationale: "the rollback path is untested" },
+        { subject: "reviewer", decision: "REJECT", rationale: "still untested" },
+      ],
+    });
+    await page.goto("change-requests/crq_reopened");
+
+    const prior = page.getByTestId("change-prior-reviews");
+    await expect(prior).toContainText("the rollback path is untested");
+    await expect(prior).toContainText("still untested");
+    // Oldest first, as the Hub carries them: a request refused twice reads as a
+    // history, not as a set.
+    await expect(prior.locator("li").first()).toContainText("the rollback path is untested");
+  });
+
+  test("says nothing about earlier rounds when there were none", async ({ page, hub }) => {
+    hub.get("/change-requests", { changeRequests: [], total: 0, pageSize: 0, limit: 100, hasPrevious: false });
+    hub.get("/change-requests/crq_first", { ...changeRequest(), id: "crq_first" });
+    await page.goto("change-requests/crq_first");
+
+    await expect(page.getByTestId("change-request-detail")).toBeVisible();
+    await expect(page.getByTestId("change-prior-reviews")).toHaveCount(0);
+  });
 });

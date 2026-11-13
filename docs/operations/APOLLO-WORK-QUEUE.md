@@ -15,14 +15,29 @@ this file.
 
 ## Ready to build
 
-#65 — intermittent Environment silence, the half of #25 that was not done.
-The fleet API now agrees with the console overview about an Environment whose
-gaps are expected, which was the plumbing. What remains is the half PH-5
-actually named: `ValidateEvidence` rejects evidence older than
-`MaximumEvidenceAgeSeconds` with no connection-setting exemption, so an
-intermittent Environment's "as of last connection" health is refused by any
-age-bounded policy. It is a behavioural choice rather than plumbing, and the
-operator's stated bound must not be exempted outright.
+*(Nothing. #65 sat here until 2026-08-19; see below.)*
+
+**#65 is done, and this file was the last thing saying otherwise.** Both halves
+have shipped:
+
+- The plumbing: `BuildFleetProjection` derives `SilenceExpected` itself rather
+  than taking it from the caller (`internal/controlplane/fleet.go:41-54`), so
+  the fleet API and the console overview (`overview.go:106`) agree.
+- The behavioural half PH-5 named: shipped as #104.
+  `intermittentEvidenceBoundConflicts`
+  (`internal/controlplane/federation.go:170-196`) raises
+  `ENVIRONMENT_EVIDENCE_BOUND_CONFLICT` beside the still-derived
+  `EVIDENCE_STALE`, and `federation.go:159-169` records *why* the operator's
+  bound is not exempted: the replay validator has no repository, so it can only
+  take blockers on trust while they are additive
+  (`internal/controlplane/promotion.go:266-271`).
+
+The **#65's second gap** entry below already recorded that, so this file
+asserted open work and closed work about the same issue at once. Worth naming
+rather than quietly deleting: the failure that put #65 here was #25 being closed
+on the existence of a predicate rather than on every path consulting it, and
+leaving a stale "ready to build" entry is the same error with the sign flipped
+— a queue that lists finished work sends the next contributor to re-derive it.
 
 #25 was recorded here as shipped on 2026-08-16 and it was not. The symbols
 existed and were wired on one surface of two; verifying that a predicate exists

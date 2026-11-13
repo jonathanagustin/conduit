@@ -3,7 +3,7 @@
 }
 
 .console-exports__table tbody tr[aria-selected="true"] {
-  background: var(--pt-intent-primary-muted, rgba(45, 114, 210, 0.15));
+  background: var(--console-selected-row-background);
 }
 
 /* The inline detail panel is a Blueprint Section now, so its surface, 1px
@@ -38,4 +38,39 @@
 
 .console-exports__meta dt {
   font-weight: 600;
+}
+
+/* The pre-build preview. The note explains what the button will do before it is
+   pressed, because "preview" on a POST reads as "build" to a cautious operator
+   and hesitating over an offline-transfer screen is the wrong default. */
+.console-exports__advisories-note {
+  margin: 0 0 8px;
+  color: var(--bp-typography-color-muted, #5f6b7c);
+}
+
+/* A documented refusal, not a failure: the Hub declining to compute a preview
+   is a fact about the pipeline, so it reads in the muted body colour rather
+   than in the error colour that a real fault uses. */
+.console-exports__advisories-refusal {
+  margin: 8px 0 0;
+  color: var(--bp-typography-color-muted, #5f6b7c);
+}
+
+.console-exports__advisories {
+  margin: 8px 0 0;
+  padding-left: 18px;
+}
+
+.console-exports__advisories > li + li {
+  margin-top: 6px;
+}
+
+/* The subjects an advisory names -- the Products that hold no Release, say.
+   Monospaced because they are identifiers, and identifiers are compared
+   character by character. */
+.console-exports__advisory-subjects {
+  margin: 4px 0 0;
+  padding-left: 18px;
+  font-family: var(--console-font-family-monospace);
+  font-size: 12px;
 }

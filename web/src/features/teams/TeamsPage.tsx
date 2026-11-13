@@ -283,7 +283,7 @@ function ContactRow({
         <Tag minimal round>
           {contact.kind}
         </Tag>
-        {contactDeliverable(contact.kind) ? null : (
+        {contactDeliverable(contact) ? null : (
           <Tag minimal round intent="warning" title="The Hub does not deliver to this kind of contact.">
             not delivered
           </Tag>

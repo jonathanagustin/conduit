@@ -2,6 +2,7 @@ package controlplane
 
 import (
 	"context"
+	"errors"
 
 	"fmt"
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
@@ -53,6 +54,12 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 	}
 
 	request.Release.Labels = effectiveReleaseLabels(request.Release)
+	// Before anything narrows or decides, because both the canary filter below
+	// and the record minted at the end read these labels.
+	request.Evidence, err = stampEnvironmentLabels(ctx, lifecycle.repository, request.Evidence)
+	if err != nil {
+		return PromotionRecord{}, err
+	}
 	topologyEvidence := request.Evidence
 	if stageType(request.Policy) == PromotionCanary {
 		topologyEvidence = catalog.CanaryEvidence(request.Evidence, request.Policy.EntityFilters)
@@ -100,6 +107,49 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 		return PromotionRecord{}, err
 	}
 	return created, nil
+}
+
+// stampEnvironmentLabels attaches to each piece of health evidence the labels
+// this Hub holds for the Environment that submitted it, so a canary stage can
+// nominate a tier by label rather than by name.
+//
+// It overwrites whatever the caller sent, and that is the whole guard. Evidence
+// is caller-submitted and carries no attestation -- the same reason a triggered
+// recall condition blocks rather than recalls -- so a principal free to declare
+// its own Environment labels could write itself into any canary tier, or every
+// other Environment out of one, and the stage would decide a fleet-wide
+// promotion on a set the operator never nominated.
+//
+// The labels come from the Environment's most recently reviewed generation, the
+// same place the promotion topology is read from, so a canary tier and a
+// vouching decision cannot disagree about what an Environment is. An Environment
+// the Hub has never reviewed contributes no labels and so matches no label
+// requirement; it is not admitted to a tier on the strength of a name.
+func stampEnvironmentLabels(
+	ctx context.Context, repository Repository, evidence []PromotionHealthEvidence,
+) ([]PromotionHealthEvidence, error) {
+	if len(evidence) == 0 {
+		return evidence, nil
+	}
+	// One read per distinct Environment, not per report: a fleet submits many
+	// Entities per Environment and the loop below is on the evaluation path.
+	resolved := make(map[string]map[string]string, len(evidence))
+	stamped := append([]PromotionHealthEvidence(nil), evidence...)
+	for index := range stamped {
+		environment := stamped[index].Environment
+		labels, known := resolved[environment]
+		if !known {
+			plans, err := repository.ListPlans(ctx, environment)
+			if err != nil && !errors.Is(err, ErrNotFound) {
+				return nil, err
+			}
+			state := latestDesiredStates(plans)[environment]
+			labels = cloneStringMap(state.Environment.Labels)
+			resolved[environment] = labels
+		}
+		stamped[index].EnvironmentLabels = labels
+	}
+	return stamped, nil
 }
 
 func (lifecycle *Lifecycle) SetPromotionStagePaused(
@@ -268,6 +318,18 @@ func validatePromotions(promotions []PromotionRecord, releases []Release, errs *
 		// accompanies is derivable and still has to derive, so a record cannot
 		// use this kind to claim anything it has not earned.
 		blockers = append(blockers, blockersOfKind(promotion.Blockers, PromotionBlockerEvidenceBoundConflict)...)
+		// Nothing about a label-selected canary set is trusted here, and it must
+		// not be. Both blockers above are additive -- taking them on trust can
+		// only make a promotion fail to pass -- but which Environments a filter
+		// admits is not: narrowing a canary set drops unhealthy evidence and can
+		// turn a BLOCKED decision into a PASSED one. Trusting that would let a
+		// peer claim a promotion its own inputs do not support.
+		//
+		// It does not need trusting. EvaluatePromotion stamps the Environment
+		// labels onto the evidence before it decides, and the record carries
+		// them, so the re-derivation above selects from exactly the values the
+		// original decision selected from -- with no repository, and with no
+		// dependence on what those Environments are labelled today.
 		sortBlockers(blockers)
 		expectedStatus := PromotionPassed
 		if len(blockers) > 0 {

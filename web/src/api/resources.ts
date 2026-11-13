@@ -215,6 +215,12 @@ export interface ChangeRequest {
   evaluations: PolicyEvaluation[] | null;
   requirements: ReviewerRequirement[] | null;
   reviews?: ChangeReview[];
+  /** The reviews of every earlier round, oldest first. Reopening a rejected
+   * request rebuilds it against the policies in force now, so `reviews` is
+   * necessarily cleared -- but the rationale a reviewer wrote for refusing it
+   * is a human's answer to "why not", and it used to be deleted at exactly the
+   * moment somebody decided to try again (#103). */
+  priorReviews?: ChangeReview[];
   error?: string;
   createdAt: string;
   updatedAt: string;

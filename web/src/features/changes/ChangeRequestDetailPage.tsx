@@ -218,6 +218,30 @@ export function ChangeRequestDetailPage() {
             </>
           ) : null}
 
+          {(request.priorReviews ?? []).length > 0 ? (
+            <>
+              <H4>Earlier rounds</H4>
+              {/* Reopening clears Reviews -- a reviewer who approved the old
+                  evaluation did not approve this one -- so without this the
+                  reason a request was refused before is invisible to the person
+                  deciding whether to approve it now. Oldest first, as the Hub
+                  carries them. */}
+              <ul className="console-change__reviews" data-testid="change-prior-reviews">
+                {(request.priorReviews ?? []).map((entry, index) => (
+                  <li key={`prior ${entry.subject} ${index}`}>
+                    <Tag minimal round>
+                      {entry.decision}
+                    </Tag>{" "}
+                    {entry.subject}
+                    {entry.rationale !== undefined && entry.rationale !== "" ? (
+                      <> &mdash; {entry.rationale}</>
+                    ) : null}
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : null}
+
           <H4>What happens if you approve</H4>
           <Consequence planId={request.planId} />
 

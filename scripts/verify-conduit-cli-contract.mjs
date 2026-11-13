@@ -2,8 +2,12 @@
 
 import { readFile } from "node:fs/promises";
 
-const manifestPath = "docs/apollo/public-documentation-manifest.tsv";
 const contractPath = "docs/apollo/cli-command-contract.json";
+const contract = JSON.parse(await readFile(contractPath, "utf8"));
+const manifestPath = "docs/apollo/snapshots/cli-command-sources-2026-08-15.tsv";
+if (contract.sourceManifest !== manifestPath || contract.captured !== "2026-08-15") {
+  throw new Error("Apollo CLI compatibility profile must name its reviewed source snapshot");
+}
 const manifest = await readFile(manifestPath, "utf8");
 const expected = new Map(
   manifest
@@ -13,7 +17,6 @@ const expected = new Map(
     .filter((fields) => fields[1] === "apollo-cli")
     .map((fields) => [fields[0], fields[5]]),
 );
-const contract = JSON.parse(await readFile(contractPath, "utf8"));
 if (contract.schemaVersion !== 1 || !Array.isArray(contract.commands)) {
   throw new Error("Apollo CLI command contract schema is invalid");
 }
@@ -48,4 +51,23 @@ for (const command of workflow) {
     throw new Error(`end-to-end workflow command is missing: ${command}`);
   }
 }
-console.log(`Conduit CLI source contract verified: ${contract.commands.length}/${expected.size} pages and ${workflow.length}/6 workflow commands`);
+const inventory = JSON.parse(await readFile("docs/apollo/cli-command-inventory.json", "utf8"));
+const liveManifest = await readFile("docs/apollo/public-documentation-manifest.tsv", "utf8");
+const liveSources = new Map(liveManifest.trim().split("\n").slice(1)
+  .map((line) => line.split("\t")).filter((fields) => fields[1] === "apollo-cli")
+  .map((fields) => [fields[0], fields[5]]));
+const liveSeen = new Set();
+if (inventory.schemaVersion !== 1 || inventory.sourceCount !== liveSources.size ||
+    inventory.commands.length !== liveSources.size) {
+  throw new Error("Apollo CLI current inventory does not cover the live manifest");
+}
+for (const command of inventory.commands) {
+  if (liveSeen.has(command.source) || liveSources.get(command.source) !== command.sourceSha256 ||
+      typeof command.command !== "string" || command.command === "" || !Array.isArray(command.flags)) {
+    throw new Error(`Apollo CLI current inventory source mismatch for ${command.source}`);
+  }
+  liveSeen.add(command.source);
+}
+const additions = inventory.commands.filter((command) => !seen.has(command.source));
+console.log(`Conduit CLI reviewed profile verified: ${contract.commands.length}/${expected.size} pages and ${workflow.length}/6 workflow commands`);
+console.log(`Apollo CLI current inventory verified: ${liveSeen.size}/${liveSources.size} pages; ${additions.length} outside the reviewed implementation profile`);

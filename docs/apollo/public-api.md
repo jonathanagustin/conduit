@@ -72,7 +72,9 @@ of them on the path it describes:
 | `NotEnvironmentOwner` | an agent addressing an Environment it is not bound to | `PERMISSION_DENIED` | `environmentId` |
 | `ApiUsageDenied` | any unauthenticated or unauthorized request | `PERMISSION_DENIED` | — |
 
-Two bounded divergences, declared here rather than left to be discovered.
+Two bounded divergences in the *error* surface, declared here rather than left
+to be discovered. The divergences in what resource fields *answer with* are a
+separate register, [below](#bounded-value-divergences).
 
 **Statuses.** The snapshot declares `"200"` on every path and no error status
 anywhere, so it constrains the error *body* and not the code. Conduit returns
@@ -99,6 +101,64 @@ Conduit also carries a non-schema `error` key alongside the envelope. None of
 the three schemas sets `additionalProperties: false`, so the extra key is
 contract-legal, and the contract has nowhere else to put a human-readable
 message.
+
+## Bounded value divergences
+
+The register above constrains error *shapes*. This one constrains what a
+resource field **answers with**, which is the gap issues #57 and #112 reported:
+`MAPPED-or-REFUSED` governs which coordinates answer and nothing governed what
+they answered with, so several optional properties carried plausible constants
+that no Conduit data and no publisher produced.
+
+Four of those were corrected by omission — `Environment.environmentType` and a
+Namespace's `owners`, `editors` and `viewers` are now absent rather than
+fabricated, because the pinned snapshot lists none of them among their schema's
+`required` properties and an absent key is a contract-legal way to say Conduit
+holds no answer. What remains cannot be corrected that way, and is declared.
+
+**`Environment.status` is a Conduit-supplied constant.** Every Environment
+answers `"managed"`. Conduit's Environments domain has no managed/unmanaged
+concept, so nothing derives it. Unlike `environmentType` this cannot be omitted:
+`status` is in `Environment`'s `required` set in the pinned snapshot, so an
+absent key would turn a fidelity correction into a contract break. It is the
+truthful answer to the extent the compatibility frame allows — an Environment
+only enters this projection because Conduit accepted a reviewed desired state for
+it — but it is constant, it discriminates nothing, and no Apollo Hub produced
+it. A client must not read it as a fleet-management signal.
+
+**`Installation.version` is the desired version, not an Agent report.** The
+snapshot describes the property as *"The reported version from the Apollo Agent
+responsible for managing this Installation."* Conduit populates it from the
+reviewed desired state. A client watching an upgrade therefore reads the version
+Conduit intends, not the version running, and the two differ for exactly as long
+as an upgrade or a failed upgrade lasts. The data is real; the contract's
+sentence describes different data.
+
+Reported versions do exist — a Spoke agent finishing a Plan submits them and they
+reach the Environments Report — and they are not served here because the join is
+not available: the compatibility projection carries an Entity *name* while a
+reported entity is keyed on an installation *id*. Approximating that join is the
+error `TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers` already exists
+to prevent, so this is declared rather than guessed at.
+
+**What would close each.** For `status`, a managed/unmanaged distinction in
+Conduit's own Environments domain, or a published statement of what Apollo means
+by it for a Hub that is not Apollo. For `version`, the compatibility projection
+carrying reporting's installation id, at which point the reported version can be
+served under the property whose description already promises it.
+
+**Detected by:** `TestApolloOmitsCoordinatesConduitHoldsNoAnswerFor` in
+`internal/controlplane`, which reads the snapshot's `required` sets and asserts
+the four omissions on the wire and the one constant that stays; and
+`TestInstallationVersionIsTheDesiredVersionNotAnAgentReport` in
+`internal/apollo/application`, which serves a desired version of `2.0.0` against
+a Report saying `1.0.0` and fails if the reported one ever reaches the
+projection without this register being corrected.
+
+The GraphQL surface's own value divergences — an unhonoured `pageSize`, and a
+dependency optionality no publisher can state — are recorded in
+[`../operations/TENANT-FIDELITY.md`](../operations/TENANT-FIDELITY.md) and, for
+the latter, disclosed in band as `valueTier: CONDUIT_NATIVE`.
 
 ## Current verification
 

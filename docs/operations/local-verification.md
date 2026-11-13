@@ -33,31 +33,12 @@ Do not convert a skipped integration into compatibility evidence.
 
 ## Go toolchain and the analysis tools
 
-`Lint` (staticcheck) and `Scan for known vulnerabilities` (govulncheck) both run
-and both pass. Keeping them that way constrains the `go` directive, so change it
-deliberately.
+The compiler, container build images, and analysis commands pin Go 1.26.11.
+The container manifests are resolved from the registry and pinned by digest.
+Staticcheck v0.8.2 and govulncheck v1.9.0 support the Go 1.26 module graph.
 
-`bbbb0cf chore: extract Conduit onto protected trunk` set `go 1.26.0` /
-`toolchain go1.26.6`. No release of either tool can parse the Go 1.26 standard
-library, `@latest` included, so both gates failed on every tree built with that
-toolchain — locally and in CI alike, since `platform-ci.yml` resolves its
-toolchain with `go-version-file: go.mod`. They had been red on trunk since the
-bump, unobserved because the workflow is `workflow_dispatch` and nobody had
-dispatched it.
-
-The tree never needed 1.26: it builds clean at `go 1.25.0`, so the `go`
-directive is 1.25.0 and staticcheck is pinned to `v0.7.0`, which is built with
-Go 1.25 (the previous `2025.1.1` is built with 1.24.7 and fails against a 1.25
-module). govulncheck `v1.6.0` needs no change.
-
-`toolchain` deliberately stays `go1.26.6`. Lowering it also drags the
-digest-pinned container builds off 1.26.6 — `go env GOVERSION` inside
-`golang:1.26.6-bookworm` reports the toolchain go.mod names, which would fail
-`Containerfile.optimizer-highs`'s `GOVERSION` assertion and quietly defeat the
-point of pinning that image by digest. Instead the two analysis gates set
-`GOTOOLCHAIN=go1.25.13` for themselves only, in both `verify-local.sh` and
-`platform-ci.yml`.
-
-Before raising the `go` directive again, check that both tools have a release
-built with that Go version. Raising it first silently disables the lint and
-vulnerability gates, and a dispatch-only workflow will not tell you.
+The earlier Go 1.25.13 analysis override is retired: it scanned an obsolete
+standard library and now reports reachable vulnerabilities. The November 2026
+merge recovery also updates x/net, x/text, and gRPC to patched versions in the
+Hub and the independently locked Cosign source build. Keep both module graphs,
+the container pins, mise, and the supply-chain assertions aligned when updating.

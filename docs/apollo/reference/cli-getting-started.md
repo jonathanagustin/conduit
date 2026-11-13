@@ -1,5 +1,16 @@
 # Apollo CLI public workflow contract
 
+## Versioned coverage
+
+The implemented command-tree profile remains the 105-command capture dated
+2026-08-15 in `../cli-command-contract.json`, with source hashes pinned under
+`../snapshots/cli-command-sources-2026-08-15.tsv`. The independently refreshed
+`../cli-command-inventory.json` records 123 public command pages as of 2026-11-13.
+Its 18 additions are discovered evidence, not implemented command claims.
+Both inventories have independent hash and coverage gates; see ADR 0008.
+
+## Reviewed workflow semantics
+
 Reviewed 2026-08-02 UTC from the public getting-started page, command reference,
 and 45 Apollo CLI release-note entries recovered through v0.814.0 in the APOLLO
 documentation corpus. This note records observable semantics; it does not

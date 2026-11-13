@@ -2,9 +2,22 @@
 
 The go/no-go record for running Conduit in production. Every `READY` row
 cites the executable gate or committed evidence that proves it — a row
-without a passing check does not belong here. The residual items at the
-bottom are decisions or actions only a human operator can take; nothing in
-this repository can complete them.
+without a passing check does not belong here.
+
+The residual items at the bottom are things nothing in this repository can
+complete. They are not all owed by the same person, and the list used to read as
+though they were (#265). Two distinct humans appear:
+
+- the **deploying operator**, who runs Conduit somewhere and owns the choices
+  that belong to that deployment — signing keys, backup schedule and retention,
+  tenant authorization;
+- the **repository administrator**, who owns settings on
+  `jonathanagustin/conduit` itself and whom a deployment never involves.
+
+Item 3 is the second kind. An operator standing up a Hub cannot install a GitHub
+App on somebody else's repository, and reading it as their obligation is a
+blocker they can never clear. Marked in place rather than moved, so the
+numbering the audit record cites stays stable.
 
 Status date: 2026-08-17, trunk `d8315ed`. Externally audited 2026-08-18 by two
 reviewers with no repository access; the resulting corrections to this document,
@@ -21,7 +34,7 @@ answer, and nothing here should be read as claiming it.
 
 | Area | Claim | Evidence |
 | --- | --- | --- |
-| Correctness | **Every** local gate passes at the trunk tip (tests, vet, lint, formatting, domain boundaries, controlplane ceiling, contract validation, GitOps acceptance). The count is deliberately not restated here: `verify-local.sh` reads the step names out of `.github/workflows/platform-ci.yml` and **fails when CI runs a step it does not**, so the set is reconciled by the script rather than by a number in this table. | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. Corrected on 2026-08-18: this row read "All 30 local gates" and the script ran 35 — a hand-maintained count in a row that is supposed to be checkable, drifted, which is the failure mode the closing rule of this document names. |
+| Correctness | **Every** local gate passes at the trunk tip (tests, vet, lint, formatting, domain boundaries, contract validation, GitOps acceptance). The count is deliberately not restated here: `verify-local.sh` reads the step names out of `.github/workflows/platform-ci.yml` and **fails when CI runs a step it does not**, so the set is reconciled by the script rather than by a number in this table. | `./scripts/verify-local.sh` — "all CI gates passed locally"; hosted `Trunk gate` status green at the same tree. **Qualified by #128**: the hosted Apollo step runs fewer gates than the local script, so a green Trunk gate is not yet equivalent to a green `verify-local.sh`. Corrected on 2026-08-18: this row read "All 30 local gates" and the script ran 35 — a hand-maintained count in a row that is supposed to be checkable, drifted, which is the failure mode the closing rule of this document names. |
 | Concurrency and replica correctness | The Hub runs two replicas over a transactional PostgreSQL repository, with a PodDisruptionBudget protecting one replica; concurrent lease, approval, idempotency, and crash-recovery are proven against real PostgreSQL. | A7; `scripts/test-postgres-repository.sh`; `ruby scripts/verify-helm-runtime.rb` (aborts unless replicas == 2 and the PDB exists). **Bounded by the two Missing rows in [Test types](#test-types)**: failure injection and load/soak. What is proven is that two replicas do not corrupt each other and that one dying mid-commit loses nothing. Availability *when the infrastructure underneath fails* — PostgreSQL failover, Agent disconnect mid-Plan, partition — is untested, and behaviour at depth is unmeasured. This row was titled "Availability" until the 2026-08-18 external audit; the title asserted more than the evidence carries. |
 | Identity | Production identity is OIDC for operators and mTLS or SPIFFE for Agents. Insecure identity headers exist only behind explicit `ALLOW_INSECURE_*` opt-ins; `cmd/platform-delivery` exits rather than combine them with any secure mechanism, and the chart gate aborts if any `ALLOW_INSECURE_` variable is set. | `cmd/platform-delivery/main.go` startup checks; `verify-helm-runtime.rb` ("chart enabled insecure identity"). |
 | Bundle signing | A Hub refuses to start with no `BUNDLE_SIGNING_KEY_FILE`. The ephemeral development key survives only behind an explicit `ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true`, which is itself refused in combination with a mounted key or with production identity — the fail-closed shape the insecure identity headers already have — and which no chart profile can set. Which signer a Hub came up with is on its startup line as `bundleSigner`: the base64 Ed25519 **public** key, the same encoding `BUNDLE_TRUSTED_KEYS_FILE` uses, so a changed signer is readable rather than only detectable by a target refusing a Bundle. | `checkBundleSigningPosture` in `cmd/platform-delivery/main.go`; `TestBundleSigningPostureRefusesAnUndeclaredEphemeralKey`, `TestBundleSigningKeyIdentifierPublishesThePublicKeyOnly`; `verify-helm-runtime.rb` ("Hub renders no BUNDLE_SIGNING_KEY_FILE and would refuse to start", "Hub enabled insecure opt-ins", and the render that fails closed on an empty `bundleSigningSecretName`). |
@@ -132,7 +145,9 @@ carried to the residual list as item 5.
    **Reading and editing now have an HTTP surface.** The Hub serves
    `GET /v1/notifications/inbox`, `GET /v1/notifications/events`, and `GET` and
    `PUT /v1/notifications/preferences`, mounted from `internal/hub/composition`
-   rather than from `internal/controlplane`, which is at its line ceiling. They
+   rather than from `internal/controlplane` — originally because that package was
+   at a line ceiling, and still, because composition is where a cross-context
+   HTTP surface belongs. They
    are a Conduit extension: the pinned Apollo OpenAPI publishes no notification
    operation, so no shape here is claimed to be Apollo's, and it is registered
    as `notifications.HTTPSurface` in `docs/evidence/conduit-inventions.json`.
@@ -210,8 +225,10 @@ carried to the residual list as item 5.
    security recall withdraws moved to `internal/catalog/domain`, leaving the
    package nine lines smaller. The other three events named above are still
    emitted by nobody: a grant changing, a Plan failing and a Release becoming
-   available are all raised inside `internal/controlplane`, which is at its line
-   ceiling, so each needs its own extraction before it can emit. Subscription
+   available are all raised inside `internal/controlplane`. Each needed an
+   extraction before it could emit while that package was at a line ceiling;
+   **that ceiling was removed on 2026-08-19**, so the extraction is no longer a
+   precondition and these three are ordinary unstarted work. Subscription
    grain is the Environment, for recalls as for reconciliation: a preference is
    joined by resource identifier, and the Environment is the identifier Conduit
    publishes for the thing a recall is submitted against — #126 records that
@@ -336,6 +353,37 @@ carried to the residual list as item 5.
    right to: it is a code choice, not an operator residual, and it is being
    fixed rather than documented — the citation above is stale, the behaviour now
    lives at `cmd/platform-delivery/main.go:88-100`.
+
+   **The audit trail's integrity is the trusted store's, and it has no
+   retention policy** (#261). Two properties nothing here provides, stated so a
+   deployment does not assume them:
+
+   - *No tamper-evidence at rest.* Audit records live inside the single-row
+     `jsonb` document (`internal/controlplane/postgres_repository.go:28-35`:
+     `conduit_repository_state`, `singleton boolean PRIMARY KEY`, `state jsonb`),
+     and `withState` (`:149-190`) rewrites that whole document on every
+     control-plane write. There is no hash chain and no signature over the
+     records. What the repository *does* guarantee is append-only **through its
+     own interface**: appending a duplicate returns the existing record
+     (`governance_repository.go:158-170`), and the repository exposes no update
+     or delete for audit at all (`governance.go:39-40`). Anyone with direct
+     database access is outside that boundary, so integrity at rest is the
+     PostgreSQL deployment's to provide — restrict write access to the Hub's
+     role, and keep the backups this document already requires.
+   - *No retention policy.* Nothing prunes, expires or archives audit records,
+     and the write-amplification is the reason to care rather than a footnote:
+     because `withState` re-serialises the entire document per write, an audit
+     history that grows without bound makes **every** control-plane write more
+     expensive, not just the reads. A deployment that needs bounded growth owns
+     that decision today.
+
+   Both are stated rather than built deliberately. The repository already has a
+   working append-only-table precedent to copy if this is ever taken further —
+   `internal/gitless/adapters/resolutionlogpostgres`
+   (`docs/operations/schema-migrations.md:118`) — but moving audit out of the
+   singleton row while `withState` still snapshots everything else would create
+   two authorities for the same records, so the restore ordering in
+   `backup-and-restore.md` would have to be re-derived in the same change.
 
 ### Tier 2 — blocks Apollo-parity production
 
@@ -495,9 +543,11 @@ skew** is the one a delivery platform is least entitled to get wrong.
    Nothing here generates, distributes or rotates a signing key; what the
    repository now guarantees is that a Hub missing one says so instead of
    inventing one.
-3. **Renovate activation.** `renovate.json` is committed and gated; the
+3. **Renovate activation.** *(Repository administrator, not the deploying
+   operator — see the preamble.)* `renovate.json` is committed and gated; the
    Renovate GitHub App still needs an admin install on the repository
-   before update PRs and the Dependency Dashboard appear.
+   before update PRs and the Dependency Dashboard appear. Nothing about a
+   deployment depends on it.
 4. **Tenant deployment authorization.** Deploying to any tenant requires
    its own explicit approval through the owning deployment repository;
    a successful build or upload never authorizes it.

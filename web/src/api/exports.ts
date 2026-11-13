@@ -1,6 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 
-import { getJSON } from "./client.js";
+import { getJSON, postJSON } from "./client.js";
+import { ApiError } from "./errors.js";
 
 /** Export transport. GET /v1/export-pipelines returns the configured pipelines
  * that build offline Bundles, as one named array ({"pipelines": [...]}). Fields
@@ -108,4 +109,71 @@ export function pipelineGuarantees(pipeline: ExportPipeline): string[] {
   if (pipeline.requireMalwarePass === true) gates.push("malware pass");
   if (pipeline.includeArtifacts === true) gates.push("artifacts included");
   return gates;
+}
+
+/** One thing a build did not do, on a build that otherwise succeeded, matching
+ * `domain.Advisory` (internal/artifacts/domain/envelope.go). `kind` is a closed
+ * set precisely so a reader can group and act on advisories; `message` alone is
+ * prose, and prose has to be parsed back apart to be useful. */
+export interface BundleAdvisory {
+  kind: string;
+  message: string;
+  subjects?: string[];
+}
+
+/** What a build would do if it ran now, from
+ * `controlplane.ExportPipelinePreview`. The point of a pre-build preview is to
+ * find out before building, and an omission is exactly the kind of thing worth
+ * finding out then -- which is why `advisories` rides on this and not on the
+ * pipeline record. */
+export interface ExportPipelinePreview {
+  pipelineId: string;
+  pipelineRevision: number;
+  generatedAt: string;
+  added?: string[];
+  updated?: string[];
+  removed?: string[];
+  unchanged?: string[];
+  securityOutcome: string;
+  advisories?: BundleAdvisory[];
+}
+
+/** Run the pre-build preview for a pipeline.
+ *
+ * A mutation rather than a query, and behind an explicit action rather than
+ * fired on render, for two independent reasons. The route is
+ * `POST /v1/export-pipelines/{id}/preview` -- POST is not a verb to issue
+ * because a panel opened -- and `PreviewExportPipeline` does real work:
+ * `selectResources` walks the catalog and `ListBundles` reads the lineage. It
+ * is nonetheless side-effect-free: it reads, computes and returns, and writes
+ * nothing (internal/controlplane/bundles.go:490).
+ *
+ * Two refusals are ordinary states rather than errors, and the screen says so
+ * instead of showing a failure: the Hub answers 409 when the pipeline is not
+ * active, and when the pipeline's schedule sets `disablePreBuildPreview`. */
+export function useExportPipelinePreview() {
+  return useMutation({
+    mutationFn: (pipelineId: string) =>
+      postJSON<ExportPipelinePreview>(
+        `/export-pipelines/${encodeURIComponent(pipelineId)}/preview`,
+        undefined,
+      ),
+  });
+}
+
+/** Why the Hub refused a preview, in the operator's terms, or undefined when
+ * the failure is not one of the two documented refusals and should be reported
+ * as the failure it is. Both are 409 from
+ * `PreviewExportPipeline`; the message distinguishes them. */
+export function previewRefusal(error: Error | null): string | undefined {
+  if (!(error instanceof ApiError) || error.status !== 409) {
+    return undefined;
+  }
+  if (error.message.includes("pre-build preview is disabled")) {
+    return "This pipeline's schedule disables the pre-build preview, so the Hub will not compute one.";
+  }
+  if (error.message.includes("not active")) {
+    return "This pipeline is not active, so there is no build to preview.";
+  }
+  return undefined;
 }
