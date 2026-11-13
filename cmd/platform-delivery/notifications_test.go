@@ -34,6 +34,14 @@ func TestPostgresANotificationTransportIsOffUnlessConfigured(t *testing.T) {
 			extra:    map[string]string{composition.NotificationDeliveryLogVariable: "true"},
 			expected: true,
 		},
+		"native SMTP": {
+			extra:    map[string]string{composition.NotificationSMTPAddressVariable: "mail.example.test:587", composition.NotificationSMTPFromVariable: "sender@example.test"},
+			expected: true,
+		},
+		"native Slack": {
+			extra:    map[string]string{composition.NotificationSlackTokenFileVariable: writeFile(t, "slack-token", []byte("xoxb-fixture\n"))},
+			expected: true,
+		},
 		"a webhook endpoint": {
 			extra: map[string]string{
 				composition.NotificationWebhookURLVariable: "https://hooks.example.com/conduit",
@@ -87,5 +95,20 @@ func TestPostgresAContradictoryTransportConfigurationStopsTheHub(t *testing.T) {
 	}
 	if notifications.Deliveries != nil {
 		t.Error("a refused configuration still produced a dispatcher")
+	}
+}
+
+func TestNotificationDeliveryInFileModeRefusesToPretendItHasADurableQueue(t *testing.T) {
+	for _, settings := range []map[string]string{
+		{composition.NotificationSMTPAddressVariable: "mail.example.test:587", composition.NotificationSMTPFromVariable: "sender@example.test"},
+		{composition.NotificationSlackTokenFileVariable: "not-read-without-a-queue"},
+		{composition.NotificationWebhookURLVariable: "https://hooks.example.test/"},
+	} {
+		settings["REPOSITORY_KIND"] = "file"
+		_, closeStores, _, _, notifications, err := configureReconciliation(t.Context(), func(name string) string { return settings[name] }, controlplane.NewMemoryRepository())
+		closeStores()
+		if err == nil || notifications.Deliveries != nil {
+			t.Fatal("file mode accepted a configured delivery loop without a durable queue")
+		}
 	}
 }

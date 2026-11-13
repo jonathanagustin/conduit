@@ -97,6 +97,17 @@ type DestinationResolver interface {
 	DestinationFor(ctx context.Context, recipient domain.Recipient) (domain.Destination, bool, error)
 }
 
+// PreferenceReader narrows delivery-time selection to reading preferences.
+type PreferenceReader interface {
+	PreferencesFor(context.Context, string) ([]domain.Preference, error)
+}
+
+// EntryDestinationResolver can honor the exact preference/contact selection
+// attached to a durable inbox entry. Generic relays retain Recipient resolution.
+type EntryDestinationResolver interface {
+	DestinationForEntry(context.Context, domain.InboxEntry) (domain.Destination, bool, error)
+}
+
 // Clock is the only source of now in this context, so a dispatcher's backoff
 // and lease arithmetic can be tested without sleeping.
 type Clock interface {
@@ -113,6 +124,13 @@ type Clock interface {
 // retried once too often is noise, a signal dropped once too early is the gap
 // this whole path exists to close.
 var ErrPermanentDelivery = errors.New("notification delivery cannot succeed by retrying")
+
+// RetryAfterError carries a provider's minimum retry delay without exposing its
+// protocol to the dispatcher. The ordinary attempt budget still applies.
+type RetryAfterError interface {
+	error
+	RetryAfter() time.Duration
+}
 
 // Transport hands a rendered message to the world and reports whether the
 // world took it.

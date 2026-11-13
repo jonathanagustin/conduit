@@ -84,3 +84,16 @@ func ResolveDestination(recipient Recipient, contacts []Contact) (Destination, b
 	})
 	return Destination{Kind: candidates[0].Kind, Address: candidates[0].Address}, true
 }
+
+// ResolveChannelDestination resolves only the selected channel's contact. Native
+// delivery uses this policy; the generic webhook keeps its legacy cross-kind
+// fallback so existing relay deployments retain their configured behavior.
+func ResolveChannelDestination(recipient Recipient, contacts []Contact) (Destination, bool) {
+	matching := make([]Contact, 0, len(contacts))
+	for _, contact := range contacts {
+		if string(contact.Kind) == string(recipient.Channel) {
+			matching = append(matching, contact)
+		}
+	}
+	return ResolveDestination(recipient, matching)
+}
