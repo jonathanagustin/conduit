@@ -16,7 +16,7 @@ cd "${repo_root}"
 
 gate="scripts/verify-console-css-variables.mjs"
 subject="web/src/styles/index.css"
-component="web/src/components/assistant-ui/shell.tsx"
+component="web/src/embed/main.tsx"
 
 for file in "${subject}" "${component}"; do
   if ! git diff --quiet -- "${file}" || ! git diff --cached --quiet -- "${file}"; then

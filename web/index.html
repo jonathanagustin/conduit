@@ -3,22 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Conduit assistant</title>
+    <title>assistant-ui Starter App</title>
     <!--
-      The Hub replaces this marker with the tenant bootstrap as a meta tag
-      before serving. Everything above and below is tenant-agnostic and is
-      byte-identical in every deployment, which is what lets the bundle stay
-      content-addressed and immutable.
-
-      The marker is a comment so that a build output carrying it is still valid
-      HTML, and so an unrendered document -- served by anything that is not the
-      Hub -- produces a console that refuses to start rather than one that
-      renders with invented branding.
+      The Hub replaces this marker with the tenant bootstrap before serving.
+      A document that still contains it is not a configured console.
     -->
     <!--conduit-console-bootstrap-->
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="/src/embed/main.tsx"></script>
   </body>
 </html>
