@@ -16,6 +16,7 @@ import (
 
 func cveCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "cve", Short: "Scan immutable Product Release artifacts"}
+	command.AddCommand(grypeCommand(state))
 	var file, productID, releaseChannel, environment string
 	var details bool
 	check := &cobra.Command{

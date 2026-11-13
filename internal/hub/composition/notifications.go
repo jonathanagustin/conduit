@@ -13,13 +13,15 @@ import (
 	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
 	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
+	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
 )
 
 // Options carries the Hub surfaces that are not the legacy facade's.
 //
-// A zero value mounts nothing extra, which is what every caller without a
-// notification store gets: a Hub with no durable notification component serves
-// no notification routes, rather than serving routes that answer 500.
+// A zero value mounts no notification routes: a Hub with no durable
+// notification component serves none, rather than routes that answer 500.
+// The packaging-run status route is always mounted and, with no reader,
+// answers that no worker is configured.
 type Options struct {
 	// NotificationStore is the durable notification component. Nil means this
 	// deployment has none -- REPOSITORY_KIND=file has no PostgreSQL to hold one.
@@ -32,6 +34,9 @@ type Options struct {
 	// rather than routes that answer 500 to the first person who edits their
 	// own address.
 	NotificationContacts notificationports.Contacts
+	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
+	// answers that no worker is configured. The route never accepts an approval.
+	PackagingStatus packaginghttp.Reader
 }
 
 // mountNotifications puts the notification routes in front of the legacy
