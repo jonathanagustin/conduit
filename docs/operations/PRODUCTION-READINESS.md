@@ -378,15 +378,23 @@ carried to the residual list as item 5.
    checkpoint before opening a repository, then reads the restored audit event
    through the real adapter.
 
-   **Live Hub self-upgrade remains blocking (#263).** The populated-data
+   **Application-level upgrade rehearsals now exist (#263).** The populated-data
    fixture now has a separate wire-version counterpart: previous Agent/current
    Hub and current Agent/previous Hub execute real explicitly reviewed Helm
    Plans and assert exact observed state against an isolated Kubernetes API.
    `version-skew-rehearsal.md` bounds this to the pinned ConfigMap-only fixture,
    current compiler and tools; it is not a workload scheduling or released-image
-   identity claim. Neither fixture rolls two serving Hub replicas with work in
-   flight. Until that test establishes preserved leases, atomic decisions and
-   proposals, this delivery platform has incomplete evidence for its own upgrade.
+   identity claim. A third fixture now replaces two serving Hub container images
+   one at a time while the real Agent renews the same in-flight lease for more
+   than two lease periods, then completes real Helm execution with an exact
+   report. It preserves 500 Teams, 1,000 audit events and 100 pending Plans,
+   measures replica startup/migration/adoption time, and samples decision/audit/
+   proposal/receipt invariants in single database snapshots throughout the roll.
+   `hub-rolling-upgrade-rehearsal.md` bounds this to driver-managed image
+   replacement: Kubernetes Deployment-controller behavior, Pod termination,
+   production load balancing and tenant capacity still require deployment-level
+   validation. This is application safety evidence, not an unqualified safe
+   upgrade or production-capacity claim.
 
 ### Tier 2 — blocks Apollo-parity production
 
@@ -495,7 +503,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | A published contract is not honoured | **Contract conformance** — pinned OpenAPI, CLI corpus, GraphQL provenance | Strong. 13/13 routes with named tests. |
 | A unit computes the wrong answer | **Unit** | Strong, and mutation-scored. |
 | **The control loop decides something unsafe** | **Property / invariant** — generate fleets and assert no run ever produces a forbidden Plan | **Missing.** Example-based tests sample this thinly, and it is the core risk of a control plane. |
-| **A rolling upgrade meets its own past** | **Version skew** — old Agent against new Hub, old data against new code | **Partial; live rollout blocking.** Previous-release data preservation and both Agent/Hub wire-version directions have separate executable rehearsals. The latter uses real Helm and exact reports with a ConfigMap-only Kubernetes API fixture. A two-replica live rollout remains missing (#263). See `old-data-upgrade-rehearsal.md` and `version-skew-rehearsal.md`. |
+| **A rolling upgrade meets its own past** | **Version skew** — old Agent against new Hub, old data against new code | **Rehearsed with bounds.** Separate fixtures cover previous-release data, both Agent/Hub source directions and two live Hub image replacements with real renewed execution leases, exact reports and persistence invariants. The Kubernetes API fixture is ConfigMap-only; Hub replacement is driver-managed, not a Deployment-controller or production-capacity test. See `old-data-upgrade-rehearsal.md`, `version-skew-rehearsal.md` and `hub-rolling-upgrade-rehearsal.md`. |
 | Two replicas race, or one dies mid-commit | **Concurrency and crash durability** | Present against real PostgreSQL: leases, fencing, atomic commit, crash-safe receipts. |
 | Applying the schema again destroys data | **Idempotent re-application** | Present: a source-level guard on the DDL, and a populated-database re-apply test. |
 | A caller does what they are not entitled to | **Authorization, negative path** | Present, and the default is now stated. This row used to read "nothing enumerates route × role, so a new route defaults to untested". The unasked question underneath it was what a route with *no* registered decision does, and the measured answer was **allow**: it served its body to a caller holding no credential while the route beside it answered 401. `internal/hub/composition/authorization.go` registers all 134 routes with the decision each makes, the Hub refuses to route a pattern the register does not name, and `scripts/verify-route-authorization.mjs` fails the build when a mounted route has no entry. See [route authorization](route-authorization.md). |

@@ -50,5 +50,8 @@ This addresses the populated-data part of #263. It does **not** run a Hub
 server or Agent, roll two serving replicas, renew an in-flight lease, or
 establish backward audit-reader compatibility. The separate
 [wire-version rehearsal](version-skew-rehearsal.md) runs both Agent/Hub source
-directions with real Helm. The live rollout remains a production blocker.
+directions with real Helm. The separate
+[live image replacement rehearsal](hub-rolling-upgrade-rehearsal.md) exercises
+two serving Hub replicas with work in flight, within its stated driver and
+dataset limits.
 There is no down migration or implicit rollback claim.

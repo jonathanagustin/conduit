@@ -1,0 +1,40 @@
+name: Hub rolling upgrade
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  rolling:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        with:
+          go-version-file: go.mod
+          cache: true
+      - name: Install pinned Helm and kubectl
+        run: |
+          curl --fail --silent --show-error --location \
+            https://get.helm.sh/helm-v4.2.3-linux-amd64.tar.gz --output /tmp/helm.tar.gz
+          echo 'e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c  /tmp/helm.tar.gz' | sha256sum --check
+          tar -xzf /tmp/helm.tar.gz -C /tmp
+          sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+          curl --fail --silent --show-error --location \
+            https://dl.k8s.io/release/v1.31.5/bin/linux/amd64/kubectl --output /tmp/kubectl
+          echo 'fbecbfd375b3686002c2e81d51c390172f5ffba3d6b47920d55342cb03f557af  /tmp/kubectl' | sha256sum --check
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+      - name: Rehearse live two-replica image replacement
+        run: ./scripts/test-hub-rolling-upgrade.sh "$RUNNER_TEMP/hub-upgrade-receipt.json"
+      - name: Record bounded rolling result
+        run: cat "$RUNNER_TEMP/hub-upgrade-receipt.json" >> "$GITHUB_STEP_SUMMARY"

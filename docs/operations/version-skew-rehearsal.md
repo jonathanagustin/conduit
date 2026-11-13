@@ -50,6 +50,8 @@ after both directions succeed and contains no key material or database DSNs.
 
 This addresses the wire-version portion of #263 for this pinned chart/tool
 fixture. [The old-data rehearsal](old-data-upgrade-rehearsal.md) separately
-checks populated data preservation. Neither test rolls two serving Hub images
-with work in flight; lease renewal, atomic decisions and proposal preservation
-under a live rollout remain a production blocker until that rehearsal lands.
+checks populated data preservation. The separate
+[live image replacement rehearsal](hub-rolling-upgrade-rehearsal.md) rolls two
+serving Hub images with work in flight and checks renewed leases, atomic
+decisions and preserved proposals. Its driver-managed scope does not establish
+Kubernetes Deployment-controller behavior or production capacity.
