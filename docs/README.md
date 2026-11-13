@@ -11,8 +11,9 @@ Living documentation is organized by responsibility:
   gates.
 - `apollo/` describes the bounded Apollo integration context and its pinned
   public compatibility profile.
-- `operations/` contains tenant-fidelity, verification, release, and Zenith
-  operating records.
+- `operations/` contains the orchestration doctrine, assurance and harness
+  requirements, tenant-fidelity, verification, release, and Zenith operating
+  records.
 - `security/` states the trusted-technology and authority boundaries.
 - `ui/` contains current interface contracts.
 
