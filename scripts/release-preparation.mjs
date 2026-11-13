@@ -70,10 +70,8 @@ export async function ensureTrunk(api, repository) {
   if (prs.length > 1) throw new Error("multiple pending release preparations; reconcile before dispatching");
   for (const pr of prs) {
     if (pr.state !== "open" || !/^[a-f0-9]{40}$/.test(pr.head.sha)) throw new Error("invalid release preparation head");
-    const statuses = await api("GET", `repos/${repository}/commits/${pr.head.sha}/status`);
-    if (statuses.statuses.find(status => status.context === "Trunk gate")?.state === "success") continue;
     const runs = await api("GET", `repos/${repository}/actions/workflows/platform-ci.yml/runs?head_sha=${pr.head.sha}&per_page=100`);
-    if (runs.workflow_runs.some(run => run.head_sha === pr.head.sha && run.status !== "completed")) continue;
+    if (runs.workflow_runs.some(run => run.head_sha === pr.head.sha && (run.status !== "completed" || run.conclusion === "success"))) continue;
     await api("POST", `repos/${repository}/actions/workflows/platform-ci.yml/dispatches`, { ref: pr.head.ref, inputs: { pull_request: String(pr.number) } });
     console.log(`Dispatched Trunk for release preparation #${pr.number} at ${pr.head.sha}`);
   }

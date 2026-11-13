@@ -31,7 +31,7 @@ test("bot PR explicitly dispatches only the exact-head-authenticating Trunk work
  assert.deepEqual(writes,[{method:"POST",path:`repos/${repo}/actions/workflows/platform-ci.yml/dispatches`,body:{ref:releaseBranch,inputs:{pull_request:"42"}}}]);
 });
 for (const scenario of [
- {status:[{context:"Trunk gate",state:"success"}]},
+ {runs:[{head_sha:sha,status:"completed",conclusion:"success"}]},
  {runs:[{head_sha:sha,status:"in_progress"}]},
  {pull:{...pr,head:{...pr.head,repo:{full_name:"fork/conduit"}}}},
 ]) test(`no redundant or foreign-head dispatch ${JSON.stringify(scenario)}`,async()=>{
@@ -44,7 +44,7 @@ test("failed/cancelled and stale-head runs do not strand the new release head",a
 });
 
 test("read failure fails closed rather than reporting checks scheduled",async()=>{
- const {api,writes}=apiFixture({failure:"/status"});await assert.rejects(ensureTrunk(api,repo),/injected/);assert.equal(writes.length,0);
+ const {api,writes}=apiFixture({failure:"/runs?"});await assert.rejects(ensureTrunk(api,repo),/injected/);assert.equal(writes.length,0);
 });
 
 const merged={...pr,state:"closed",merged_at:"2026-11-13T00:00:00Z",merge_commit_sha:"b".repeat(40)};

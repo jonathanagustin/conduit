@@ -1,6 +1,6 @@
 # Prepare release pull requests while keeping publication manual
 
-Status: Proposed pending owner approval of workflow token permissions
+Status: Accepted (owner approved the scoped workflow token permissions, 2026-11-13)
 
 ## Context and sibling patterns
 
@@ -46,7 +46,7 @@ The preparation job requires `contents: write` for its branch,
 dispatch the existing `platform-ci.yml`. Default workflow permissions remain
 read-only; there is no packages, signing, deployment, or environment authority.
 Issue #339 explicitly requires owner approval before introducing these workflow
-permissions. This proposal is not active until that approval and merge.
+permissions; the owner approved this scope before merge.
 
 PRs created with `GITHUB_TOKEN` do not start ordinary `pull_request` workflows.
 The handoff queries the managed PR's exact head, skips successful or active
