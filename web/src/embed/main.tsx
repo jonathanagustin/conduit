@@ -3,9 +3,11 @@ import "../styles/index.css";
 
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
+import { Route, Routes } from "react-router-dom";
 
 import { Assistant } from "../../app/assistant";
 import { Providers } from "../app/providers";
+import { PackagingRunPage } from "../features/packaging/PackagingRunPage.js";
 import { loadRuntimeBootstrap } from "../runtime/bootstrap";
 
 const container = document.getElementById("root");
@@ -20,9 +22,17 @@ try {
   root.render(
     <StrictMode>
       <Providers>
-        <div className="antialiased">
-          <Assistant />
-        </div>
+        <Routes>
+          <Route path="packaging-runs/:runId" element={<PackagingRunPage />} />
+          <Route
+            path="*"
+            element={
+              <div className="antialiased">
+                <Assistant />
+              </div>
+            }
+          />
+        </Routes>
       </Providers>
     </StrictMode>,
   );

@@ -55,7 +55,7 @@ Three surfaces are covered, and they are mounted three different ways:
 | Control-plane REST | `internal/controlplane`, patterns registered on its own mux | 113 |
 | Apollo `/api/v0` | `internal/apollo/openapi.gen.go`, generated from the pinned OpenAPI snapshot | 13 |
 | Notifications | `internal/notifications/adapters/httpapi`, mounted from `internal/hub/composition` in front of the facade | 8 |
-| Packaging runs | `internal/packagingworkflow/httpapi`, mounted from `internal/hub/composition` in front of the facade | 5 |
+| Packaging runs | `internal/packagingworkflow/httpapi`, mounted from `internal/hub/composition` in front of the facade | 6 |
 
 ## The gate
 
@@ -126,6 +126,10 @@ audit does not have to rediscover it.
 packaging run's progress, not of the governance graph. It returns no artifact
 bytes and it has no write method, so it cannot accept an approval. Plan status
 stays on `GET /v1/plans/{planID}`.
+
+`POST /conduit.packaging.v1.PackagingRunService/GetPackagingRun` is the same
+read over Connect, with the same decision. See
+[connect-packaging-run.md](connect-packaging-run.md).
 
 `GET /v1/packaging-runs` and `GET /v1/packaging-runs/{runID}/events` are not
 in this class. A list enumerates runs, and the history is the same

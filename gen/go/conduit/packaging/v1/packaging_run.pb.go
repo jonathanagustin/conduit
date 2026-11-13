@@ -1,0 +1,345 @@
+//lint:file-ignore ST1003 proto names keep their spelling
+// Regenerated from proto/conduit. DO NOT EDIT.
+// versions:
+// 	protoc-gen-go v1.36.12
+// 	protoc        (unknown)
+// source: conduit/packaging/v1/packaging_run.proto
+
+// Package conduit.packaging.v1 is the read contract for one packaging run.
+// Other Hub domains use the same proto/conduit/<domain>/v1 layout.
+
+package packagingv1
+
+import (
+	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
+	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
+	reflect "reflect"
+	sync "sync"
+	unsafe "unsafe"
+)
+
+const (
+	// Verify that this generated code is sufficiently up-to-date.
+	_ = protoimpl.EnforceVersion(20 - protoimpl.MinVersion)
+	// Verify that runtime/protoimpl is sufficiently up-to-date.
+	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
+)
+
+// GetPackagingRunRequest names the run to read.
+type GetPackagingRunRequest struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// run_id is the path value of GET /v1/packaging-runs/{run_id}.
+	RunId         string `protobuf:"bytes,1,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *GetPackagingRunRequest) Reset() {
+	*x = GetPackagingRunRequest{}
+	mi := &file_conduit_packaging_v1_packaging_run_proto_msgTypes[0]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPackagingRunRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPackagingRunRequest) ProtoMessage() {}
+
+func (x *GetPackagingRunRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_conduit_packaging_v1_packaging_run_proto_msgTypes[0]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPackagingRunRequest.ProtoReflect.Descriptor instead.
+func (*GetPackagingRunRequest) Descriptor() ([]byte, []int) {
+	return file_conduit_packaging_v1_packaging_run_proto_rawDescGZIP(), []int{0}
+}
+
+func (x *GetPackagingRunRequest) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+// GetPackagingRunResponse is the REST body of GET /v1/packaging-runs/{run_id}.
+type GetPackagingRunResponse struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// tier is the REST field tier.
+	Tier string `protobuf:"bytes,1,opt,name=tier,proto3" json:"tier,omitempty"`
+	// configured is the REST field configured.
+	Configured bool `protobuf:"varint,2,opt,name=configured,proto3" json:"configured,omitempty"`
+	// authority is the REST field authority.
+	Authority string `protobuf:"bytes,3,opt,name=authority,proto3" json:"authority,omitempty"`
+	// plan_authority is the REST field planAuthority.
+	PlanAuthority string `protobuf:"bytes,4,opt,name=plan_authority,json=planAuthority,proto3" json:"plan_authority,omitempty"`
+	// approval_authority is the REST field approvalAuthority.
+	ApprovalAuthority string `protobuf:"bytes,5,opt,name=approval_authority,json=approvalAuthority,proto3" json:"approval_authority,omitempty"`
+	// run_id is the REST field runId.
+	RunId string `protobuf:"bytes,6,opt,name=run_id,json=runId,proto3" json:"run_id,omitempty"`
+	// phase is the REST field phase.
+	Phase string `protobuf:"bytes,7,opt,name=phase,proto3" json:"phase,omitempty"`
+	// outcome is the REST field outcome.
+	Outcome string `protobuf:"bytes,8,opt,name=outcome,proto3" json:"outcome,omitempty"`
+	// reason is the REST field reason.
+	Reason string `protobuf:"bytes,9,opt,name=reason,proto3" json:"reason,omitempty"`
+	// source_digest is the REST field sourceDigest.
+	SourceDigest string `protobuf:"bytes,10,opt,name=source_digest,json=sourceDigest,proto3" json:"source_digest,omitempty"`
+	// artifact_digest is the REST field artifactDigest.
+	ArtifactDigest string `protobuf:"bytes,11,opt,name=artifact_digest,json=artifactDigest,proto3" json:"artifact_digest,omitempty"`
+	// proposal_revision is the REST field proposalRevision.
+	ProposalRevision string `protobuf:"bytes,12,opt,name=proposal_revision,json=proposalRevision,proto3" json:"proposal_revision,omitempty"`
+	// target_plan_ref is the REST field targetPlanRef.
+	TargetPlanRef string `protobuf:"bytes,13,opt,name=target_plan_ref,json=targetPlanRef,proto3" json:"target_plan_ref,omitempty"`
+	// plan_id is the REST field planId.
+	PlanId string `protobuf:"bytes,14,opt,name=plan_id,json=planId,proto3" json:"plan_id,omitempty"`
+	// handoff_reconciled is the REST field handoffReconciled.
+	HandoffReconciled bool `protobuf:"varint,15,opt,name=handoff_reconciled,json=handoffReconciled,proto3" json:"handoff_reconciled,omitempty"`
+	// last_review is the REST field lastReview.
+	LastReview string `protobuf:"bytes,16,opt,name=last_review,json=lastReview,proto3" json:"last_review,omitempty"`
+	// duplicate_reviews is the REST field duplicateReviews.
+	DuplicateReviews int32 `protobuf:"varint,17,opt,name=duplicate_reviews,json=duplicateReviews,proto3" json:"duplicate_reviews,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
+}
+
+func (x *GetPackagingRunResponse) Reset() {
+	*x = GetPackagingRunResponse{}
+	mi := &file_conduit_packaging_v1_packaging_run_proto_msgTypes[1]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *GetPackagingRunResponse) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*GetPackagingRunResponse) ProtoMessage() {}
+
+func (x *GetPackagingRunResponse) ProtoReflect() protoreflect.Message {
+	mi := &file_conduit_packaging_v1_packaging_run_proto_msgTypes[1]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use GetPackagingRunResponse.ProtoReflect.Descriptor instead.
+func (*GetPackagingRunResponse) Descriptor() ([]byte, []int) {
+	return file_conduit_packaging_v1_packaging_run_proto_rawDescGZIP(), []int{1}
+}
+
+func (x *GetPackagingRunResponse) GetTier() string {
+	if x != nil {
+		return x.Tier
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetConfigured() bool {
+	if x != nil {
+		return x.Configured
+	}
+	return false
+}
+
+func (x *GetPackagingRunResponse) GetAuthority() string {
+	if x != nil {
+		return x.Authority
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetPlanAuthority() string {
+	if x != nil {
+		return x.PlanAuthority
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetApprovalAuthority() string {
+	if x != nil {
+		return x.ApprovalAuthority
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetRunId() string {
+	if x != nil {
+		return x.RunId
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetPhase() string {
+	if x != nil {
+		return x.Phase
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetOutcome() string {
+	if x != nil {
+		return x.Outcome
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetReason() string {
+	if x != nil {
+		return x.Reason
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetSourceDigest() string {
+	if x != nil {
+		return x.SourceDigest
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetArtifactDigest() string {
+	if x != nil {
+		return x.ArtifactDigest
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetProposalRevision() string {
+	if x != nil {
+		return x.ProposalRevision
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetTargetPlanRef() string {
+	if x != nil {
+		return x.TargetPlanRef
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetPlanId() string {
+	if x != nil {
+		return x.PlanId
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetHandoffReconciled() bool {
+	if x != nil {
+		return x.HandoffReconciled
+	}
+	return false
+}
+
+func (x *GetPackagingRunResponse) GetLastReview() string {
+	if x != nil {
+		return x.LastReview
+	}
+	return ""
+}
+
+func (x *GetPackagingRunResponse) GetDuplicateReviews() int32 {
+	if x != nil {
+		return x.DuplicateReviews
+	}
+	return 0
+}
+
+var File_conduit_packaging_v1_packaging_run_proto protoreflect.FileDescriptor
+
+const file_conduit_packaging_v1_packaging_run_proto_rawDesc = "" +
+	"\n" +
+	"(conduit/packaging/v1/packaging_run.proto\x12\x14conduit.packaging.v1\"/\n" +
+	"\x16GetPackagingRunRequest\x12\x15\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\"\xd9\x04\n" +
+	"\x17GetPackagingRunResponse\x12\x12\n" +
+	"\x04tier\x18\x01 \x01(\tR\x04tier\x12\x1e\n" +
+	"\n" +
+	"configured\x18\x02 \x01(\bR\n" +
+	"configured\x12\x1c\n" +
+	"\tauthority\x18\x03 \x01(\tR\tauthority\x12%\n" +
+	"\x0eplan_authority\x18\x04 \x01(\tR\rplanAuthority\x12-\n" +
+	"\x12approval_authority\x18\x05 \x01(\tR\x11approvalAuthority\x12\x15\n" +
+	"\x06run_id\x18\x06 \x01(\tR\x05runId\x12\x14\n" +
+	"\x05phase\x18\a \x01(\tR\x05phase\x12\x18\n" +
+	"\aoutcome\x18\b \x01(\tR\aoutcome\x12\x16\n" +
+	"\x06reason\x18\t \x01(\tR\x06reason\x12#\n" +
+	"\rsource_digest\x18\n" +
+	" \x01(\tR\fsourceDigest\x12'\n" +
+	"\x0fartifact_digest\x18\v \x01(\tR\x0eartifactDigest\x12+\n" +
+	"\x11proposal_revision\x18\f \x01(\tR\x10proposalRevision\x12&\n" +
+	"\x0ftarget_plan_ref\x18\r \x01(\tR\rtargetPlanRef\x12\x17\n" +
+	"\aplan_id\x18\x0e \x01(\tR\x06planId\x12-\n" +
+	"\x12handoff_reconciled\x18\x0f \x01(\bR\x11handoffReconciled\x12\x1f\n" +
+	"\vlast_review\x18\x10 \x01(\tR\n" +
+	"lastReview\x12+\n" +
+	"\x11duplicate_reviews\x18\x11 \x01(\x05R\x10duplicateReviews2\x8a\x01\n" +
+	"\x13PackagingRunService\x12s\n" +
+	"\x0fGetPackagingRun\x12,.conduit.packaging.v1.GetPackagingRunRequest\x1a-.conduit.packaging.v1.GetPackagingRunResponse\"\x03\x90\x02\x01BLZJgithub.com/jonathanagustin/conduit/gen/go/conduit/packaging/v1;packagingv1b\x06proto3"
+
+var (
+	file_conduit_packaging_v1_packaging_run_proto_rawDescOnce sync.Once
+	file_conduit_packaging_v1_packaging_run_proto_rawDescData []byte
+)
+
+func file_conduit_packaging_v1_packaging_run_proto_rawDescGZIP() []byte {
+	file_conduit_packaging_v1_packaging_run_proto_rawDescOnce.Do(func() {
+		file_conduit_packaging_v1_packaging_run_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_conduit_packaging_v1_packaging_run_proto_rawDesc), len(file_conduit_packaging_v1_packaging_run_proto_rawDesc)))
+	})
+	return file_conduit_packaging_v1_packaging_run_proto_rawDescData
+}
+
+var file_conduit_packaging_v1_packaging_run_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_conduit_packaging_v1_packaging_run_proto_goTypes = []any{
+	(*GetPackagingRunRequest)(nil),  // 0: conduit.packaging.v1.GetPackagingRunRequest
+	(*GetPackagingRunResponse)(nil), // 1: conduit.packaging.v1.GetPackagingRunResponse
+}
+var file_conduit_packaging_v1_packaging_run_proto_depIdxs = []int32{
+	0, // 0: conduit.packaging.v1.PackagingRunService.GetPackagingRun:input_type -> conduit.packaging.v1.GetPackagingRunRequest
+	1, // 1: conduit.packaging.v1.PackagingRunService.GetPackagingRun:output_type -> conduit.packaging.v1.GetPackagingRunResponse
+	1, // [1:2] is the sub-list for method output_type
+	0, // [0:1] is the sub-list for method input_type
+	0, // [0:0] is the sub-list for extension type_name
+	0, // [0:0] is the sub-list for extension extendee
+	0, // [0:0] is the sub-list for field type_name
+}
+
+func init() { file_conduit_packaging_v1_packaging_run_proto_init() }
+func file_conduit_packaging_v1_packaging_run_proto_init() {
+	if File_conduit_packaging_v1_packaging_run_proto != nil {
+		return
+	}
+	type x struct{}
+	out := protoimpl.TypeBuilder{
+		File: protoimpl.DescBuilder{
+			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_conduit_packaging_v1_packaging_run_proto_rawDesc), len(file_conduit_packaging_v1_packaging_run_proto_rawDesc)),
+			NumEnums:      0,
+			NumMessages:   2,
+			NumExtensions: 0,
+			NumServices:   1,
+		},
+		GoTypes:           file_conduit_packaging_v1_packaging_run_proto_goTypes,
+		DependencyIndexes: file_conduit_packaging_v1_packaging_run_proto_depIdxs,
+		MessageInfos:      file_conduit_packaging_v1_packaging_run_proto_msgTypes,
+	}.Build()
+	File_conduit_packaging_v1_packaging_run_proto = out.File
+	file_conduit_packaging_v1_packaging_run_proto_goTypes = nil
+	file_conduit_packaging_v1_packaging_run_proto_depIdxs = nil
+}

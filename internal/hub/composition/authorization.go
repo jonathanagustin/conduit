@@ -272,6 +272,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionAgent, Detail: "requireApolloIdentity -> requireAgent, environment-scoped"},
 		{Pattern: "POST /api/v0/status/environments/{environmentId}/entities/info",
 			Decision: DecisionAgent, Detail: "requireApolloIdentity -> requireAgent, environment-scoped"},
+		{Pattern: "POST /conduit.packaging.v1.PackagingRunService/GetPackagingRun",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; Connect read of packaging-run progress for every authenticated operator, same decision as GET /v1/packaging-runs/{runID}"},
 		{Pattern: "POST /v1/adapted-plans/{adapter}",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "POST /v1/apollo/environment-settings/validate",
