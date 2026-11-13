@@ -355,36 +355,24 @@ carried to the residual list as item 5.
    fixed rather than documented — the citation above is stale, the behaviour now
    lives at `cmd/platform-delivery/main.go:88-100`.
 
-   **The audit trail's integrity is the trusted store's, and it has no
-   retention policy** (#261). Two properties nothing here provides, stated so a
-   deployment does not assume them:
+   **Authorization audit integrity and retention (#261).** PostgreSQL now
+   keeps audit events in governance-owned append-only tables outside the
+   metadata snapshot. A versioned SHA-256 chain binds the exact stored bytes;
+   events and metadata decisions share one transaction, including nested
+   rollback. SQL guards refuse ordinary rewrites and truncation. Records are
+   retained indefinitely without automatic pruning, so the deployment owns
+   storage capacity and backup retention.
 
-   - *No tamper-evidence at rest.* Audit records live inside the single-row
-     `jsonb` document (`internal/controlplane/postgres_repository.go:28-35`:
-     `conduit_repository_state`, `singleton boolean PRIMARY KEY`, `state jsonb`),
-     and `withState` (`:149-190`) rewrites that whole document on every
-     control-plane write. There is no hash chain and no signature over the
-     records. What the repository *does* guarantee is append-only **through its
-     own interface**: appending a duplicate returns the existing record
-     (`governance_repository.go:158-170`), and the repository exposes no update
-     or delete for audit at all (`governance.go:39-40`). Anyone with direct
-     database access is outside that boundary, so integrity at rest is the
-     PostgreSQL deployment's to provide — restrict write access to the Hub's
-     role, and keep the backups this document already requires.
-   - *No retention policy.* Nothing prunes, expires or archives audit records,
-     and the write-amplification is the reason to care rather than a footnote:
-     because `withState` re-serialises the entire document per write, an audit
-     history that grows without bound makes **every** control-plane write more
-     expensive, not just the reads. A deployment that needs bounded growth owns
-     that decision today.
-
-   Both are stated rather than built deliberately. The repository already has a
-   working append-only-table precedent to copy if this is ever taken further —
-   `internal/gitless/adapters/resolutionlogpostgres`
-   (`docs/operations/schema-migrations.md:118`) — but moving audit out of the
-   singleton row while `withState` still snapshots everything else would create
-   two authorities for the same records, so the restore ordering in
-   `backup-and-restore.md` would have to be re-derived in the same change.
+   `platform-delivery verify-authorization-audit` checks one read-only database
+   snapshot against a separately retained checkpoint. A database owner can
+   recompute an unanchored chain; independent checkpoint custody is therefore
+   required to detect coherent history rewrites or rollback. Bootstrap proves
+   consistency only, and imported legacy records attest cutover bytes rather
+   than historical authenticity. Old Hub audit readers remain incomplete during
+   a mixed-version rollout. `authorization-audit-integrity.md` records these
+   bounds and the upgrade procedure. The restore drill verifies the saved
+   checkpoint before opening a repository, then reads the restored audit event
+   through the real adapter.
 
 ### Tier 2 — blocks Apollo-parity production
 

@@ -49,6 +49,8 @@ func encodeLegacyPromotionState(memory *MemoryRepository) ([]byte, error) {
 	memory.mu.Lock()
 	defer memory.mu.Unlock()
 	state := memory.stateLocked()
+	// PostgreSQL audit events have their own transactional authority.
+	state.AuthorizationAudit = nil
 	state.Promotions = make(map[string]PromotionRecord, len(memory.promotions))
 	for id, record := range memory.promotions {
 		record.RunID, record.PreviousEvaluationID = "", ""

@@ -84,6 +84,7 @@ export CONDUIT_TEST_PG_TOOL_DSN="postgres://conduit:conduit_test@127.0.0.1:5432/
 # packages are seconds at most, so running them again costs little and removes
 # the trap. cmd/platform-delivery keeps its filter: that package's other tests
 # start listeners and are covered by the main Test gate.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/governance/adapters/auditpostgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/controlplane
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliation/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/notifications/adapters/postgres

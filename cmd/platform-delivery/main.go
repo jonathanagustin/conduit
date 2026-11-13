@@ -40,16 +40,21 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), syscall.SIGINT, syscall.SIGTERM)
 	defer stop()
-	// The one subcommand this binary answers to, and the reason it reads an
-	// argument at all: the schema check needs the Hub's DSN and every migration
-	// set that shares it, which is what this package already assembles. Running
-	// it from the Hub's own image is what makes it reachable from a `kubectl
+	// Administrative checks use the Hub's DSN and persistence components. Running
+	// them from the Hub's own image makes them reachable from a `kubectl
 	// exec` or a Job without shipping a second binary. Anything else still falls
 	// through to a normal start, so no deployment's arguments change meaning.
-	// See verify_schema.go.
+	// See verify_schema.go and verify_authorization_audit.go.
 	if len(os.Args) > 1 && os.Args[1] == verifySchemaCommand {
 		if err := verifySchema(ctx, os.Getenv, os.Stdout); err != nil {
 			fmt.Fprintln(os.Stderr, "platform-delivery "+verifySchemaCommand+":", err)
+			os.Exit(1)
+		}
+		return
+	}
+	if len(os.Args) > 1 && os.Args[1] == verifyAuthorizationAuditCommand {
+		if err := verifyAuthorizationAudit(ctx, os.Getenv, os.Args[2:], os.Stdout); err != nil {
+			fmt.Fprintln(os.Stderr, "platform-delivery "+verifyAuthorizationAuditCommand+":", err)
 			os.Exit(1)
 		}
 		return
