@@ -59,3 +59,34 @@ manifest together with VERSION, CHANGELOG.md and both Helm chart versions.
 
 Run `./scripts/test-release-preparation.sh` for isolated real-engine and helper
 fixtures. It performs no live GitHub writes and creates no real release.
+
+## Live verification (2026-11-13)
+
+The owner approved the scoped built-in-token permissions and enabled GitHub
+Actions PR creation. The approved integration and discovery correction merged
+in #345 and #346 after their exact-head Trunk runs passed.
+
+- [Prepare release run 43374353836](https://github.com/jonathanagustin/conduit/actions/runs/43374353836)
+  completed successfully and created [release PR #347](https://github.com/jonathanagustin/conduit/pull/347),
+  `chore(main): release 0.18.0`, at
+  `8aa3a6b24799ac33c1724f85b563129f4cf8366b`.
+- Exactly five files changed: VERSION, CHANGELOG.md, the release manifest and
+  both Helm charts. All version surfaces agree on `0.18.0`. The actual commit
+  and PR metadata passed the Conventional Commit and tenant-fidelity checks
+  without attribution signatures.
+- GitHub created an `action_required` pull-request workflow record
+  (43374462908). The preparation's explicit dispatch started the runnable
+  [Trunk gate 43374463205](https://github.com/jonathanagustin/conduit/actions/runs/43374463205)
+  on that exact head. It completed successfully and published `Trunk gate: success`
+  for that commit. This is why a bot-created PR record alone is insufficient
+  evidence that checks ran.
+- [Repeated preparation 43374619653](https://github.com/jonathanagustin/conduit/actions/runs/43374619653)
+  completed successfully with one release PR, the same head, and no duplicate
+  executable Trunk dispatch.
+- The latest published release remained `v0.17.5`; no `v0.18.0` tag, GitHub
+  Release, artifact publication or deployment was created. The version PR
+  remains a review proposal rather than an automatically merged release.
+
+Real publication was deliberately outside this verification. Publication
+reconciliation and rejection of tag/Release/publication writes are covered by
+the isolated tests alongside the existing manual release-path guards.
