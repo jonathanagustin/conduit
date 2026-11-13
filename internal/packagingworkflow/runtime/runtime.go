@@ -7,9 +7,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
 	"go.temporal.io/api/serviceerror"
+	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/client"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -20,6 +22,11 @@ import (
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/pipeline"
 )
+
+// maxIndexedRuns is the most workflow executions one index read will load
+// before it refuses. Past that, a short total would omit runs the caller is
+// allowed to see. The Hub authorizes and paginates the loaded set.
+const maxIndexedRuns = 1000
 
 // Dial returns a Temporal client. The caller closes it.
 func Dial(cfg config.Config) (client.Client, error) {
@@ -50,10 +57,22 @@ func StatusReader(c client.Client) packaginghttp.Reader {
 type Unavailable struct{ Err error }
 
 func (u Unavailable) Read(context.Context, string) (domain.RunStatus, error) {
+	return domain.RunStatus{}, u.err()
+}
+
+func (u Unavailable) List(context.Context) ([]domain.RunStatus, error) {
+	return nil, u.err()
+}
+
+func (u Unavailable) Events(context.Context, string) ([]domain.StepEvent, error) {
+	return nil, u.err()
+}
+
+func (u Unavailable) err() error {
 	if u.Err == nil {
-		return domain.RunStatus{}, errors.New("packaging Temporal client is unavailable")
+		return errors.New("packaging Temporal client is unavailable")
 	}
-	return domain.RunStatus{}, u.Err
+	return u.Err
 }
 
 type statusReader struct{ client client.Client }
@@ -72,6 +91,65 @@ func (r statusReader) Read(ctx context.Context, runID string) (domain.RunStatus,
 		return domain.RunStatus{}, err
 	}
 	return status, nil
+}
+
+func (r statusReader) List(ctx context.Context) ([]domain.RunStatus, error) {
+	runs := make([]domain.RunStatus, 0)
+	var token []byte
+	for {
+		response, err := r.client.ListWorkflow(ctx, &workflowservice.ListWorkflowExecutionsRequest{
+			PageSize:      200,
+			NextPageToken: token,
+			Query:         `WorkflowType = "packaging.Run"`,
+		})
+		if err != nil {
+			return nil, err
+		}
+		for _, execution := range response.GetExecutions() {
+			if len(runs) >= maxIndexedRuns {
+				return nil, errors.New("packaging run index is larger than 1000 runs")
+			}
+			workflowID := execution.GetExecution().GetWorkflowId()
+			runID := strings.TrimPrefix(workflowID, "packaging-")
+			status, err := r.Read(ctx, runID)
+			if errors.Is(err, packaginghttp.ErrNotFound) {
+				continue
+			}
+			if err != nil {
+				return nil, err
+			}
+			if status.RunID == "" {
+				status.RunID = runID
+			}
+			runs = append(runs, status)
+		}
+		token = response.GetNextPageToken()
+		if len(token) == 0 {
+			return runs, nil
+		}
+		if len(runs) >= maxIndexedRuns {
+			return nil, errors.New("packaging run index is larger than 1000 runs")
+		}
+	}
+}
+
+func (r statusReader) Events(ctx context.Context, runID string) ([]domain.StepEvent, error) {
+	value, err := r.client.QueryWorkflow(ctx, "packaging-"+runID, "", pipeline.QueryEvents)
+	if err != nil {
+		var notFound *serviceerror.NotFound
+		if errors.As(err, &notFound) {
+			return nil, packaginghttp.ErrNotFound
+		}
+		return nil, err
+	}
+	var events []domain.StepEvent
+	if err := value.Get(&events); err != nil {
+		return nil, err
+	}
+	if events == nil {
+		events = []domain.StepEvent{}
+	}
+	return events, nil
 }
 
 // RunWorker polls until ctx is cancelled. repository is the delivery kernel's

@@ -14,6 +14,8 @@ back, retry, and shared links address the same result window.
 | Fleet | `GET /v1/fleet/installations` | `environment`, `product`, `health`, `rolloutStatus`, `configStatus`, `lifecycle`, `search`, `maxAgeSeconds` | default 100, maximum 200 |
 | Change Requests | `GET /v1/change-requests` | `environment`, `status`, `search` | default 100, maximum 200 |
 | Promotions | `GET /v1/promotions` | `product`, `status`, `search` | default 100, maximum 200 |
+| Packaging runs | `GET /v1/packaging-runs` | `phase`, `outcome`, `planId`, `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20. Rows are ordered by run id. |
+| Packaging-run events | `GET /v1/packaging-runs/{runID}/events` | the run id; `view` and `limit` only | same view and limit rules. Events are ordered by sequence. A step that has not been reached is absent, not a pass. |
 
 Every page returns `pageSize`, `limit`, `hasPrevious`, and optional
 `nextCursor` and `previousCursor`. Index envelopes also return the authorized,
@@ -34,8 +36,15 @@ or an out-of-range limit returns `422`.
 - Keep the last requested URL when a read fails so retry does not widen the query.
 - Do not infer totals or previous cursors from the rows in the current page.
 
+Packaging-run pages use the same cursor shape: version, filter fingerprint,
+and seek key, capped at 2,048 bytes. The index fingerprint is `phase`,
+`outcome`, `planId`, `search`, and the resolved view. Changing `limit` does
+not invalidate a cursor. The transport description is
+`docs/operations/packaging-runs.openapi.yaml`.
+
 Source anchors: `internal/controlplane/pagination.go`,
 `internal/controlplane/catalog_projection.go`,
 `internal/controlplane/operator_index_projection.go`,
-`internal/controlplane/http.go`, and the index tests under
+`internal/controlplane/http.go`,
+`internal/packagingworkflow/httpapi/page.go`, and the index tests under
 `internal/controlplane` and `web/src/test/e2e`.

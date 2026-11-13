@@ -26,7 +26,10 @@ type Input struct {
 // It is not retried into a pass. Cancellation and continue-as-new are
 // returned as Temporal errors so the server records them as such.
 func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
-	version := workflow.GetVersion(ctx, changeID, workflow.DefaultVersion, 1)
+	// Version 2 records the step journal. A history recorded at version 1
+	// replays without those timestamps, so an older run has an empty journal
+	// rather than a rewritten command sequence.
+	version := workflow.GetVersion(ctx, changeID, workflow.DefaultVersion, 2)
 	if version < 1 {
 		return domain.Result{}, temporal.NewNonRetryableApplicationError(
 			"this worker cannot replay a packaging history from before the v1 marker",
@@ -43,8 +46,19 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 		copied := *in.Carry
 		state = &copied
 	}
+	if version >= 2 {
+		state.EnableEvents()
+	}
 	if err := workflow.SetQueryHandler(ctx, QueryStatus, func() (domain.RunStatus, error) {
 		return state.Status(), nil
+	}); err != nil {
+		return domain.Result{}, err
+	}
+	if err := workflow.SetQueryHandler(ctx, QueryEvents, func() ([]domain.StepEvent, error) {
+		if len(state.Events) == 0 {
+			return []domain.StepEvent{}, nil
+		}
+		return append([]domain.StepEvent(nil), state.Events...), nil
 	}); err != nil {
 		return domain.Result{}, err
 	}
@@ -83,49 +97,56 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 func stepAssess(ctx workflow.Context, in Input, state *domain.State) error {
 	var receipt domain.Receipt
 	if err := workflow.ExecuteActivity(activityCtx(ctx, assessTimeout), ActAssess, in.Identity).Get(ctx, &receipt); err != nil {
-		return noteActivity(ctx, state, err)
+		return noteActivity(ctx, state, domain.StepAssess, err)
 	}
 	if receipt.Outcome != domain.OutcomePass || receipt.SourceDigest != in.Identity.SourceDigest {
 		state.Block(domain.OutcomeFailRequired, firstReason(receipt.Reason, "assessment did not match the run identity"))
+		note(ctx, state, domain.StepAssess, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	state.Assessment = receipt
 	state.Phase = domain.PhasePropose
+	note(ctx, state, domain.StepAssess, string(domain.OutcomePass), receipt.Reason, "")
 	return checkpoint(ctx, in, state)
 }
 
 func stepPropose(ctx workflow.Context, in Input, state *domain.State) error {
 	var receipt domain.Receipt
 	if err := workflow.ExecuteActivity(activityCtx(ctx, proposeTimeout), ActPropose, in.Identity).Get(ctx, &receipt); err != nil {
-		return noteActivity(ctx, state, err)
+		return noteActivity(ctx, state, domain.StepPropose, err)
 	}
 	if receipt.Outcome != domain.OutcomePass {
 		state.Block(nonPass(receipt.Outcome), firstReason(receipt.Reason, "proposal failed"))
+		note(ctx, state, domain.StepPropose, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	*state = domain.ApplyProposal(*state, receipt)
 	state.TargetPlanRef = in.Identity.TargetPlanRef
 	state.Phase = domain.PhaseValidate
+	note(ctx, state, domain.StepPropose, string(domain.OutcomePass), receipt.Reason, "")
 	return checkpoint(ctx, in, state)
 }
 
 func stepValidate(ctx workflow.Context, in Input, state *domain.State) error {
 	var validation domain.Validation
 	if err := workflow.ExecuteActivity(activityCtx(ctx, validateTimeout), ActValidate, in.Identity, state.Proposal).Get(ctx, &validation); err != nil {
-		return noteActivity(ctx, state, err)
+		return noteActivity(ctx, state, domain.StepValidate, err)
 	}
 	if validation.ArtifactDigest != state.Proposal.Artifact.Digest || validation.ProposalRevision != state.Proposal.ProposalRevision {
 		state.Validation = domain.Validation{}
 		state.Approval = domain.ApprovalRecord{}
 		state.Block(domain.OutcomeFailRequired, "validation is not bound to this proposal")
+		note(ctx, state, domain.StepValidate, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	state.Validation = validation
 	if validation.BlocksHandoff() {
 		state.Block(nonPass(validation.Outcome), firstReason(validation.Reason, "validation blocked handoff"))
+		note(ctx, state, domain.StepValidate, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	state.Phase = domain.PhaseReview
+	note(ctx, state, domain.StepValidate, string(domain.OutcomePass), validation.Reason, "")
 	return checkpoint(ctx, in, state)
 }
 
@@ -134,6 +155,7 @@ func stepReview(ctx workflow.Context, in Input, state *domain.State) error {
 	if wait <= 0 {
 		wait = defaultApprovalWait
 	}
+	note(ctx, state, domain.StepReview, domain.EventWaiting, "waiting for review", "")
 	var timedOut bool
 	workflow.Go(ctx, func(ctx workflow.Context) {
 		channel := workflow.GetSignalChannel(ctx, SignalReview)
@@ -180,10 +202,12 @@ func stepReview(ctx workflow.Context, in Input, state *domain.State) error {
 	// expiring does not hand off. A race is not a grant.
 	if timedOut && state.Phase == domain.PhaseHandoff {
 		state.Block(domain.OutcomeTimedOut, "approval arrived as the wait elapsed")
+		note(ctx, state, domain.StepReview, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	if state.Phase == domain.PhaseReview && timedOut {
 		state.Block(domain.OutcomeTimedOut, "approval wait elapsed")
+		note(ctx, state, domain.StepReview, string(state.Outcome), state.Reason, "")
 	}
 	return nil
 }
@@ -194,6 +218,7 @@ func stepHandoff(ctx workflow.Context, in Input, state *domain.State) error {
 	}
 	if err := domain.HandoffPermitted(*state, in.Identity.TargetPlanRef); err != nil {
 		state.Block(domain.OutcomeStaleApproval, err.Error())
+		note(ctx, state, domain.StepHandoff, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	var receipt domain.PlanReceipt
@@ -204,16 +229,18 @@ func stepHandoff(ctx workflow.Context, in Input, state *domain.State) error {
 		TargetPlanRef:    in.Identity.TargetPlanRef,
 	}).Get(ctx, &receipt)
 	if err != nil {
-		return noteActivity(ctx, state, err)
+		return noteActivity(ctx, state, domain.StepHandoff, err)
 	}
 	if receipt.PlanID == "" {
 		state.Block(domain.OutcomeFailRequired, "handoff returned no plan id")
+		note(ctx, state, domain.StepHandoff, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	state.Plan = receipt
 	state.Phase = domain.PhaseComplete
 	state.Outcome = domain.OutcomeHandoffRecorded
 	state.Reason = "plan handoff recorded"
+	note(ctx, state, domain.StepHandoff, string(state.Outcome), state.Reason, "")
 	return nil
 }
 
@@ -222,8 +249,10 @@ func applyReview(ctx workflow.Context, state *domain.State, message domain.Revie
 		if message.ApprovalID != "" && containsID(state.SeenApprovalIDs, message.ApprovalID) {
 			state.DuplicateReviews++
 			state.LastReview = domain.ReviewDuplicate
+			note(ctx, state, domain.StepApproval, string(domain.ReviewDuplicate), "duplicate review", message.ApprovalID)
 			return domain.ReviewDuplicate, nil
 		}
+		note(ctx, state, domain.StepApproval, string(domain.ReviewRejected), "review arrived after handoff started", message.ApprovalID)
 		return domain.ReviewRejected, nil
 	}
 	if state.Phase != domain.PhaseReview {
@@ -244,7 +273,7 @@ func applyReview(ctx workflow.Context, state *domain.State, message domain.Revie
 			}
 			return "", err
 		}
-		if noteErr := noteActivity(ctx, state, err); noteErr != nil {
+		if noteErr := noteActivity(ctx, state, domain.StepApproval, err); noteErr != nil {
 			return "", noteErr
 		}
 		return domain.ReviewRejected, nil
@@ -266,6 +295,11 @@ func applyReview(ctx workflow.Context, state *domain.State, message domain.Revie
 	default:
 		state.Block(domain.OutcomeRejected, "conduit has no matching approval")
 	}
+	outcome := string(disposition)
+	if state.Outcome != "" && disposition != domain.ReviewAccepted && disposition != domain.ReviewDuplicate {
+		outcome = string(state.Outcome)
+	}
+	note(ctx, state, domain.StepApproval, outcome, state.Reason, message.ApprovalID)
 	return disposition, nil
 }
 
@@ -307,7 +341,14 @@ func activityCtx(ctx workflow.Context, startToClose time.Duration) workflow.Cont
 // error is returned only for cancellation, which the server has to record,
 // and for continue-as-new, which is not an activity failure but shares the
 // helper's call sites.
-func noteActivity(ctx workflow.Context, state *domain.State, err error) error {
+func note(ctx workflow.Context, state *domain.State, step, outcome, reason, approvalID string) {
+	if !state.EventsEnabled() || len(state.Events) >= domain.MaxStepEvents {
+		return
+	}
+	state.Note(workflow.Now(ctx), step, outcome, reason, approvalID)
+}
+
+func noteActivity(ctx workflow.Context, state *domain.State, step string, err error) error {
 	if err == nil {
 		return nil
 	}
@@ -315,6 +356,7 @@ func noteActivity(ctx workflow.Context, state *domain.State, err error) error {
 		return err
 	}
 	if temporal.IsCanceledError(err) || ctx.Err() != nil {
+		note(ctx, state, step, string(domain.OutcomeCancelled), "run cancelled", "")
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
@@ -322,14 +364,17 @@ func noteActivity(ctx workflow.Context, state *domain.State, err error) error {
 	}
 	if temporal.IsTimeoutError(err) {
 		state.Block(domain.OutcomeTimedOut, "activity timed out")
+		note(ctx, state, step, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	var app *temporal.ApplicationError
 	if errors.As(err, &app) {
 		state.Block(domain.OutcomeFailRequired, domain.TrimReason(app.Message()))
+		note(ctx, state, step, string(state.Outcome), state.Reason, "")
 		return nil
 	}
 	state.Block(domain.OutcomeFailRequired, domain.TrimReason(err.Error()))
+	note(ctx, state, step, string(state.Outcome), state.Reason, "")
 	return nil
 }
 

@@ -7,9 +7,9 @@ leases, rollout, and observed state. The worker calls `ProposePlan` and
 stops. It does not approve, lease, or execute. This is not a production
 Temporal deployment and it is not an air-gap claim.
 
-The assistant console does not render `GET /v1/packaging-runs/{runID}`.
+The assistant console does not render the packaging-run routes.
 That console is the ACP assistant, and a packaging-run panel there is
-#342. The route is already on the Hub for an authenticated operator.
+#342. The routes are already on the Hub.
 
 ## What you are running
 
@@ -58,9 +58,11 @@ process and call it deployed.
 ## Small installs
 
 A small or disconnected Conduit install does not run this worker. The
-Hub route `GET /v1/packaging-runs/{runID}` is still there. An
-authenticated operator gets `configured: false`. Nobody should
-reimplement Temporal inside the delivery kernel to fill that gap.
+The Hub routes are still there: `GET /v1/packaging-runs/{runID}`,
+`GET /v1/packaging-runs`, and `GET /v1/packaging-runs/{runID}/events`.
+An authenticated operator gets `configured: false` and an empty page.
+Nobody should reimplement Temporal inside the delivery kernel to fill
+that gap.
 
 There is no model in this proof. A workflow that can sit on loopback
 does not mean a model is available offline.
@@ -73,8 +75,10 @@ dev server on `127.0.0.1:7233` with `--db-filename` and
 `cmd/packaging-workflow worker`, which proposes Plans into
 `.packaging-state/plans` and journals their ids beside that. Point the
 Hub at the same frontend with `PACKAGING_TEMPORAL_ADDRESS=127.0.0.1:7233`
-when you want `GET /v1/packaging-runs/{runID}` to answer. Leave that
-variable unset and the Hub does not dial Temporal.
+when you want the packaging-run routes to answer with live progress.
+Leave that variable unset and the Hub does not dial Temporal. The
+index and the step history are read-only. They do not approve, cancel,
+or rerun a packaging run. Plan status stays on `GET /v1/plans/{planID}`.
 
 `platform-delivery packaging-worker` is the same worker using
 `REPOSITORY_KIND` and `DATA_DIRECTORY` or `POSTGRES_DSN_FILE`, so a
@@ -95,8 +99,10 @@ The test does four things in order:
    blocks on a hold file. The test stops the worker, removes the hold,
    and starts a worker again. The run reaches the review wait.
 2. Stops the worker and the server. Starts the server on the same
-   sqlite file and a new worker. The query still shows the same source
-   digest, proposal revision, and artifact digest.
+   sqlite file and a new worker. The status query still shows the same
+   source digest, proposal revision, and artifact digest. The step
+   history query still shows the review wait, and it does not show a
+   handoff.
 3. Writes an approval record, then signals. The handoff activity calls
    `ProposePlan`, records the Plan id, and blocks. The test stops the
    worker before the activity returns. A new worker opens the Plan
@@ -121,7 +127,27 @@ review-wait timeout, cancel during the wait, cancel racing an approval,
 a review signal with no governance record, a changed artifact digest,
 an execution-control denial at handoff, a submit that is acknowledged
 only on the retry, continue-as-new carrying the assessment, and a
-credential marker refused before it becomes workflow input.
+credential marker refused before it becomes workflow input. The index
+tests cover an empty page, several pages, a filter change that rejects
+the old cursor, a Plan id with no Plan status, and a row hidden from a
+caller who cannot read its environment. The history tests cover a
+partial journal, a blocked validation, a review wait, a handoff, an
+unknown run, an unconfigured worker, a secret-shaped reason, and a
+resume cursor that does not add a completion.
+
+`GET /v1/packaging-runs` loads at most 1000 workflow executions from
+Temporal visibility and then authorizes that set. A larger index is
+refused rather than returned short. With no worker configured the
+routes still answer: anonymous callers get 401, and an authenticated
+caller gets `configured: false` and an empty page. A configured address
+that cannot be dialed is a 502, which is a different case from leaving
+the address unset.
+
+The index and the history require `read` on the environment in the
+target-plan reference (`environment/entity`). The single-run route
+stays available to every authenticated operator. The transport
+description is `packaging-runs.openapi.yaml`. It is a Conduit document.
+It is not an Apollo contract and it generates no code.
 
 ## Packaging the worker
 

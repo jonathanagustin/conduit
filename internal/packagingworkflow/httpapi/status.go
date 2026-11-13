@@ -25,52 +25,37 @@ type StatusError struct {
 
 func (e StatusError) Error() string { return e.Message }
 
-// Reader loads one run's progress. A nil reader means this Hub has no
-// packaging worker configured; the route still exists so it can refuse
-// anonymous callers instead of disappearing.
+// Reader loads packaging-run progress. A nil reader means this Hub has no
+// packaging worker configured; the routes still exist so they can refuse
+// anonymous callers instead of disappearing. List and Events are reads.
+// Nothing on this interface approves, cancels, or submits a Plan.
 type Reader interface {
 	Read(ctx context.Context, runID string) (domain.RunStatus, error)
+	List(ctx context.Context) ([]domain.RunStatus, error)
+	Events(ctx context.Context, runID string) ([]domain.StepEvent, error)
 }
 
 // Authorize reports whether this caller may read packaging-run progress.
 // A nil authorizer refuses everyone.
 type Authorize func(*http.Request) error
 
-// Config is the route's dependencies.
+// Config is the route's dependencies. Visible is the per-row check for the
+// index and the history. The single-run route stays any authenticated
+// operator, which is the decision already registered for it.
 type Config struct {
 	Reader    Reader
 	Authorize Authorize
+	Visible   Visible
 }
 
-// Register mounts the read-only status route.
+// Register mounts the read-only packaging-run routes. There is no write method.
 func Register(mux *http.ServeMux, cfg Config) {
 	mux.HandleFunc(Route, func(writer http.ResponseWriter, request *http.Request) {
-		if cfg.Authorize == nil {
-			writeError(writer, http.StatusUnauthorized, "unauthorized")
+		if !authorized(cfg, writer, request) {
 			return
-		}
-		if err := cfg.Authorize(request); err != nil {
-			status := http.StatusUnauthorized
-			var coded StatusError
-			if errors.As(err, &coded) && coded.Status != 0 {
-				status = coded.Status
-			}
-			message := "unauthorized"
-			if err.Error() != "" {
-				message = err.Error()
-			}
-			writeError(writer, status, message)
-			return
-		}
-		status := domain.RunStatus{
-			Tier:              "CONDUIT_NATIVE",
-			Configured:        cfg.Reader != nil,
-			Authority:         "packaging-run",
-			PlanAuthority:     "conduit-plan",
-			ApprovalAuthority: "conduit-governance",
 		}
 		if cfg.Reader == nil {
-			writeJSON(writer, http.StatusOK, status)
+			writeJSON(writer, http.StatusOK, stamp(domain.RunStatus{}, false))
 			return
 		}
 		run, err := cfg.Reader.Read(request.Context(), request.PathValue("runID"))
@@ -82,13 +67,9 @@ func Register(mux *http.ServeMux, cfg Config) {
 			writeError(writer, http.StatusBadGateway, "packaging run status is unavailable")
 			return
 		}
-		run.Tier = status.Tier
-		run.Configured = true
-		run.Authority = status.Authority
-		run.PlanAuthority = status.PlanAuthority
-		run.ApprovalAuthority = status.ApprovalAuthority
-		writeJSON(writer, http.StatusOK, run)
+		writeJSON(writer, http.StatusOK, redactRun(run))
 	})
+	mountCollections(mux, cfg)
 }
 
 func writeError(writer http.ResponseWriter, status int, message string) {

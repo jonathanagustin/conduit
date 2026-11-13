@@ -6,6 +6,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -41,8 +42,16 @@ func TestHappyPathSignalsOnlyAfterConduitApproval(t *testing.T) {
 		t.Fatalf("plans = %d", mustPlans(t, repository))
 	}
 	encoded, _ := json.Marshal(result)
+	events := queryEvents(t, env)
+	encoded = append(encoded, mustEventJSON(t, events)...)
 	if jsonContains(encoded, "kind: fixture") || jsonContains(encoded, "BEGIN PRIVATE KEY") {
 		t.Fatalf("result copied fixture or credential bytes: %s", encoded)
+	}
+	if !eventRecorded(events, domain.StepHandoff, string(domain.OutcomeHandoffRecorded), result.PlanID) {
+		t.Fatalf("events = %#v", events)
+	}
+	if strings.Contains(string(mustEventJSON(t, events)), "AWAITING_APPROVAL") {
+		t.Fatal("events exposed plan status")
 	}
 }
 
@@ -131,7 +140,43 @@ func TestValidationGatesBlockHandoff(t *testing.T) {
 			if result.Outcome != tc.want || mustPlans(t, repository) != 0 {
 				t.Fatalf("result = %#v", result)
 			}
+			events := queryEvents(t, env)
+			if eventRecorded(events, domain.StepHandoff, "", "") || !eventRecorded(events, domain.StepValidate, string(tc.want), "") {
+				t.Fatalf("events = %#v", events)
+			}
 		})
+	}
+}
+
+func TestReviewWaitHistoryDoesNotImplyHandoff(t *testing.T) {
+	acts, id, repository := prepare(t)
+	env := boot(acts)
+	var events []domain.StepEvent
+	env.RegisterDelayedCallback(func() {
+		encoded, err := env.QueryWorkflow(QueryEvents)
+		if err != nil {
+			t.Errorf("query events: %v", err)
+			return
+		}
+		if err := encoded.Get(&events); err != nil {
+			t.Errorf("decode events: %v", err)
+		}
+	}, time.Second)
+	env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Minute)
+	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
+	if !env.IsWorkflowCompleted() || !temporal.IsCanceledError(env.GetWorkflowError()) {
+		t.Fatalf("completed = %v err = %v", env.IsWorkflowCompleted(), env.GetWorkflowError())
+	}
+	if mustPlans(t, repository) != 0 {
+		t.Fatal("review wait submitted a plan")
+	}
+	if !eventRecorded(events, domain.StepReview, domain.EventWaiting, "") || eventRecorded(events, domain.StepHandoff, "", "") {
+		t.Fatalf("events = %#v", events)
+	}
+	for _, event := range events {
+		if event.Step == domain.StepReview && event.Outcome == string(domain.OutcomePass) {
+			t.Fatalf("review wait recorded as pass: %#v", event)
+		}
 	}
 }
 
@@ -271,6 +316,9 @@ func TestContinueAsNewCarriesTheAssessment(t *testing.T) {
 	if next.CANCount != 1 || next.Carry == nil || next.Carry.Phase != domain.PhasePropose || next.Carry.Assessment.SourceDigest != id.SourceDigest {
 		t.Fatalf("continued input = %#v", next)
 	}
+	if len(next.Carry.Events) != 1 || next.Carry.Events[0].Step != domain.StepAssess || next.Carry.Events[0].Outcome != string(domain.OutcomePass) {
+		t.Fatalf("continued journal = %#v", next.Carry.Events)
+	}
 	if assessments.Load() != 1 {
 		t.Fatalf("assessments = %d", assessments.Load())
 	}
@@ -339,6 +387,44 @@ func approve(t *testing.T, acts *Activities, id domain.RunIdentity) domain.Revie
 		ApprovalID: record.ApprovalID, RunID: record.RunID, ProposalRevision: record.ProposalRevision,
 		ArtifactDigest: record.ArtifactDigest, TargetPlanRef: record.TargetPlanRef,
 	}
+}
+
+func queryEvents(t *testing.T, env *testsuite.TestWorkflowEnvironment) []domain.StepEvent {
+	t.Helper()
+	encoded, err := env.QueryWorkflow(QueryEvents)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var events []domain.StepEvent
+	if err := encoded.Get(&events); err != nil {
+		t.Fatal(err)
+	}
+	return events
+}
+
+func eventRecorded(events []domain.StepEvent, step, outcome, planID string) bool {
+	for _, event := range events {
+		if event.Step != step {
+			continue
+		}
+		if outcome != "" && event.Outcome != outcome {
+			continue
+		}
+		if planID != "" && event.PlanID != planID {
+			continue
+		}
+		return true
+	}
+	return false
+}
+
+func mustEventJSON(t *testing.T, events []domain.StepEvent) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(events)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return encoded
 }
 
 func mustComplete(t *testing.T, env *testsuite.TestWorkflowEnvironment) domain.Result {
