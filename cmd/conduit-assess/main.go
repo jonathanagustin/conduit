@@ -22,6 +22,10 @@ func main() {
 	var err error
 	if len(os.Args) == 1 {
 		err = run(os.Stdin, os.Stdout)
+	} else if os.Args[1] == "discover" {
+		err = discover(os.Args[2:], os.Stdout)
+	} else if os.Args[1] == "commit-evidence" {
+		err = committedEvidence(os.Args[2:], os.Stdout)
 	} else if os.Args[1] == "evidence" {
 		err = evidence(os.Args[2:], os.Stdout)
 	} else {

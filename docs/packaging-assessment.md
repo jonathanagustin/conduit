@@ -1,7 +1,7 @@
 # Packaging assessment prototype
 
 Conduit-native, local-only first slice of #341. This command checks a supplied
-assessment; it does not discover source, verify citations, invoke a model,
+assessment; the separate pinned-source discovery mode is described below. It does not verify assessment citations, invoke a model,
 generate a package, or authorize deployment. #342 owns the future UI/runtime.
 
 Run `go run ./cmd/conduit-assess < assessment.json` from a shell supporting stdin
@@ -31,7 +31,7 @@ Sources:
 - https://docs.defenseunicorns.com/core/v1-15/concepts/configuration--packaging/package-requirements/
 - https://docs.defenseunicorns.com/core/v1-14/how-to-guides/packaging-applications/create-uds-package/
 
-Next: bounded revision-pinned source reader, actual evidence extraction and
+Next: broader evidence extraction and
 isolated artifact generation. No live app-server, auth configuration, shell
 execution of upstream content, or deployment is part of this slice.
 
@@ -67,3 +67,37 @@ TAK's Pepr adapters or device-test assumptions. No GeoServer image was run, no
 cluster was created and no result is claimed here. Because these requirements
 were reviewed during development, a future run must disclose that exposure;
 it is not a fully blind benchmark.
+
+## Revision-pinned discovery milestone
+
+`go run ./cmd/conduit-assess commit-evidence ROOT COMMIT FILE...` reads regular
+Git blobs directly from an existing full commit ID. Dirty worktrees and index
+changes cannot alter the snapshot. Replacement objects, lazy fetching, global
+Git configuration and inherited Git environment overrides are disabled. No
+checkout, filters, hooks, remote acquisition or repository scripts run. Commit
+and blob IDs plus SHA-256 bind the selected bytes. Git must already be installed
+and the objects must already exist locally. Explicit file selection is still
+required and arbitrary source text is not automatically secret-redacted.
+
+`go run ./cmd/conduit-assess discover ROOT COMMIT Dockerfile` performs a narrow,
+deterministic literal pass and emits source path/line/stage facts without raw
+source text. Supported observations: literal base images, EXPOSE ports,
+JSON-array VOLUME paths and USER declarations. These are not runtime guarantees.
+Build arguments, continuation expressions, heredocs and alternate escape syntax
+are not interpreted. Stage-scoped observations are never merged into a false
+final-image claim. Status stays `needs-assessment`.
+
+Actual source trial: official `geoserver/docker` commit
+`a82a7782c670e0bb969c197aceea3549a726e0a3`, Dockerfile blob
+`2c1d2a2a901e4392e02f08e1e117b1d21fa2129b`, SHA-256
+`8908204361efe6d46648cb04ea75538191cd67ca0f80a57ca28d54027ed9ad93`.
+The CLI reported `root` at line 30 in build stage 1 and `8080` at line 345 in
+stage 2, with unresolved base-image expressions and multiline warnings. This
+was source inspection, not a container test or blind benchmark. No health path,
+PostgreSQL dependency, nonroot startup guarantee or deployment readiness was
+invented. The synthetic GeoServer-informed acceptance test is labeled as such.
+
+Remaining: full application evidence extraction, artifact/schema version
+selection, Helm/Zarf/UDS generation, dependency/airgap/identity assessment,
+Codex runtime integration and isolated live validation. No deployable package
+is produced by these commands.
