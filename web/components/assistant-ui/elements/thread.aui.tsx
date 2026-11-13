@@ -9,6 +9,14 @@ import { File, getFileHref } from "@/components/assistant-ui/elements/file";
 import { ThreadFollowupSuggestions } from "@/components/assistant-ui/elements/follow-up-suggestions.aui";
 import { Image } from "@/components/assistant-ui/elements/image";
 import { MarkdownText } from "@/components/assistant-ui/elements/markdown-text";
+import { SyntaxHighlighter } from "@/components/assistant-ui/elements/syntax-highlighter";
+import { MermaidDiagram } from "@/components/assistant-ui/elements/mermaid-diagram.aui";
+import { Sources } from "@/components/assistant-ui/elements/sources.aui";
+import { MessageTiming } from "@/components/assistant-ui/elements/message-timing.aui";
+import {
+  ComposerQuotePreview,
+  SelectionToolbar,
+} from "@/components/assistant-ui/elements/quote.aui";
 import {
   Reasoning,
   ReasoningContent,
@@ -236,6 +244,7 @@ const ThreadRoot: FC<{ isEmpty: boolean; autoFocus: boolean }> = ({
         ["--composer-padding" as string]: "8px",
       }}
     >
+      <SelectionToolbar />
       <ThreadPrimitive.Viewport
         turnAnchor="top"
         data-slot="aui_thread-viewport"
@@ -541,6 +550,7 @@ const Composer: FC<{ autoFocus: boolean }> = ({ autoFocus }) => {
           />
         }
       >
+        <ComposerQuotePreview />
         <ComposerAttachments />
         <ComposerPrimitive.Input
           placeholder="Send a message..."
@@ -774,7 +784,16 @@ const AssistantMessage: FC = () => {
                 );
               }
               case "text":
-                return <MarkdownText />;
+                return (
+                  <MarkdownText
+                    components={{ SyntaxHighlighter }}
+                    componentsByLanguage={{
+                      mermaid: { SyntaxHighlighter: MermaidDiagram },
+                    }}
+                  />
+                );
+              case "source":
+                return <Sources {...part} />;
               case "reasoning":
                 return <Reasoning {...part} />;
               case "tool-call":
@@ -815,6 +834,7 @@ const AssistantMessage: FC = () => {
         data-slot="aui_assistant-message-footer"
         className={cn("ms-2 flex items-center", ACTION_BAR_HEIGHT)}
       >
+        <MessageTiming side="top" />
         <BranchPicker />
         <AssistantActionBar />
       </div>

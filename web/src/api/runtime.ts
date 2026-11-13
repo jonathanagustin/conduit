@@ -178,12 +178,6 @@ function partsOf(snapshot: RunSnapshot): ThreadAssistantMessagePart[] {
   for (const source of snapshot.sources) {
     parts.push({ type: "source", sourceType: "url", id: source.id, url: source.url, title: source.title });
   }
-  if (snapshot.plan.length > 0) {
-    parts.push({
-      type: "text",
-      text: `\n\nPlan\n${snapshot.plan.map((entry) => `- ${entry.status} (${entry.priority}) ${entry.content}`).join("\n")}`,
-    });
-  }
   return parts;
 }
 
@@ -213,8 +207,13 @@ function answeredApproval(messages: readonly ThreadMessage[]): { requestId: stri
     const message = messages[index];
     if (!message || message.role !== "assistant") continue;
     for (const part of message.content) {
-      if (part.type !== "tool-call" || !part.approval || part.approval.approved === undefined || !part.approval.optionId) continue;
-      return { requestId: part.approval.id, optionId: part.approval.optionId };
+      if (part.type !== "tool-call" || !part.approval || part.approval.approved === undefined) continue;
+      const fallback = part.approval.options?.find((option) =>
+        part.approval?.approved ? String(option.kind).includes("allow") : String(option.kind).includes("reject"),
+      )?.id;
+      const optionId = part.approval.optionId ?? fallback;
+      if (!optionId) continue;
+      return { requestId: part.approval.id, optionId };
     }
   }
   return undefined;
@@ -228,7 +227,11 @@ type ChatYieldMetadata = {
     firstTokenTime?: number;
     totalStreamTime?: number;
   };
-  custom: { usage?: string; plan?: RunSnapshot["plan"] };
+  custom: {
+    usage?: { inputTokens: number; outputTokens: number; totalTokens: number };
+    contextWindow?: number;
+    plan?: RunSnapshot["plan"];
+  };
 };
 
 async function* queueRun({
@@ -283,19 +286,19 @@ async function* queueRun({
           if (firstToken === undefined && (snapshot.text.length > 0 || snapshot.reasoning.length > 0)) {
             firstToken = Date.now();
           }
-          notify();
+          state.notify();
         },
       },
     ).then(
       (result) => {
         finished = result;
         state.finished = result;
-        notify();
+        state.notify();
       },
       (error: unknown) => {
         failure = error instanceof Error ? error : new Error("the Codex run failed");
         state.failure = failure;
-        notify();
+        state.notify();
       },
     );
     state.pending = pending;
@@ -308,12 +311,13 @@ async function* queueRun({
 
   try {
     for (;;) {
+      const parked = parkedRuns.get(threadId);
+      finished = parked?.finished ?? finished;
+      failure = parked?.failure ?? failure;
       if (!finished && !failure && queue.length === 0) {
         await new Promise<void>((resolve) => {
-          notify = resolve;
           const current = parkedRuns.get(threadId);
-          if (current && !existing) current.notify = resolve;
-          if (current && existing) current.notify = resolve;
+          if (current) current.notify = resolve;
         });
         continue;
       }
@@ -355,7 +359,14 @@ function metadata(
   if (firstToken !== undefined) timing.firstTokenTime = firstToken - started;
   if (totalStreamTime !== undefined) timing.totalStreamTime = totalStreamTime;
   const custom: ChatYieldMetadata["custom"] = {};
-  if (snapshot.usage) custom.usage = `${snapshot.usage.used} / ${snapshot.usage.size}`;
+  if (snapshot.usage) {
+    custom.usage = {
+      inputTokens: snapshot.usage.used,
+      outputTokens: 0,
+      totalTokens: snapshot.usage.used,
+    };
+    custom.contextWindow = snapshot.usage.size;
+  }
   if (snapshot.plan.length > 0) custom.plan = snapshot.plan;
   return { timing, custom };
 }
