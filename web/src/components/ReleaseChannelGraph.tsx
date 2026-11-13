@@ -1,6 +1,7 @@
 import { Tag } from "@blueprintjs/core";
 
 import type { PromotionRecord } from "../api/catalog.js";
+import { PROMOTION_LIFECYCLE_INTENT } from "./promotionLifecycle.js";
 import "./release-channel-graph.css";
 
 /** The horizontal Release Channel graph: an ordered run of channels with a
@@ -60,15 +61,24 @@ export function ReleaseChannelGraph({
                   &rarr;
                 </span>
                 <Tag
-                  intent={outgoing.status === "PASSED" ? "success" : "warning"}
+                  intent={
+                    outgoing.lifecycle
+                      ? PROMOTION_LIFECYCLE_INTENT[outgoing.lifecycle]
+                      : outgoing.status === "PASSED"
+                        ? "success"
+                        : "warning"
+                  }
                   round
                   minimal={outgoing.status === "PASSED"}
                 >
-                  {outgoing.lifecycle ?? (outgoing.status === "PASSED"
-                    ? "can advance"
-                    : `${(outgoing.blockers ?? outgoing.reasons ?? []).length || 1} blocking`)}
+                  {outgoing.lifecycle ??
+                    (outgoing.status === "PASSED"
+                      ? "can advance"
+                      : `${(outgoing.blockers ?? outgoing.reasons ?? []).length || 1} blocking`)}
                 </Tag>
-                {outgoing.lifecycleReason ? <span>{outgoing.lifecycleReason}</span> : null}
+                {outgoing.lifecycleReason ? (
+                  <span>{outgoing.lifecycleReason}</span>
+                ) : null}
               </button>
             ) : null}
           </li>
@@ -92,8 +102,11 @@ export function latestForChannel(
       // A terminal observation cannot be replaced by its own run's older
       // in-progress evidence, even when replicas share a clock tick.
       if (latest.runId && latest.runId === candidate.runId) {
-        const latestTerminal = latest.lifecycle !== undefined && latest.lifecycle !== "RUNNING";
-        const candidateTerminal = candidate.lifecycle !== undefined && candidate.lifecycle !== "RUNNING";
+        const latestTerminal =
+          latest.lifecycle !== undefined && latest.lifecycle !== "RUNNING";
+        const candidateTerminal =
+          candidate.lifecycle !== undefined &&
+          candidate.lifecycle !== "RUNNING";
         if (latestTerminal && !candidateTerminal) return latest;
         if (candidateTerminal && !latestTerminal) return candidate;
       }
@@ -124,7 +137,9 @@ export function orderChannels(promotions: PromotionRecord[]): string[] {
   if (start === undefined) {
     // No unambiguous head: either there are no promotions, or they form a
     // cycle. Show what exists rather than nothing.
-    return [...new Set(promotions.flatMap((p) => [p.fromChannel, p.toChannel]))];
+    return [
+      ...new Set(promotions.flatMap((p) => [p.fromChannel, p.toChannel])),
+    ];
   }
   const ordered = [start];
   const limit = next.size + 1;

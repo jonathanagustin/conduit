@@ -13,16 +13,25 @@ import (
 type PromotionLifecycle string
 
 const (
-	PromotionRunning           PromotionLifecycle = "RUNNING"
-	PromotionSucceeded         PromotionLifecycle = "SUCCEEDED"
-	PromotionAborted           PromotionLifecycle = "ABORTED"
-	PromotionCancelled         PromotionLifecycle = "CANCELLED"
-	PromotionBlockerTerminated                    = "PROMOTION_TERMINATED"
+	PromotionRunning          PromotionLifecycle = "RUNNING"
+	PromotionSucceeded        PromotionLifecycle = "SUCCEEDED"
+	PromotionAborted          PromotionLifecycle = "ABORTED"
+	PromotionCancelled        PromotionLifecycle = "CANCELLED"
+	PromotionBlockerAborted                      = "PROMOTION_ABORTED"
+	PromotionBlockerCancelled                    = "PROMOTION_CANCELLED"
 )
 
 func PromotionLifecycleFor(status PromotionStatus, blockers []PromotionBlocker) (PromotionLifecycle, string) {
 	if status == PromotionPassed {
 		return PromotionSucceeded, ""
+	}
+	for _, blocker := range blockers {
+		if blocker.Kind == PromotionBlockerCancelled {
+			return PromotionCancelled, blocker.Message
+		}
+		if blocker.Kind == PromotionBlockerAborted {
+			return PromotionAborted, blocker.Message
+		}
 	}
 	for _, blocker := range blockers {
 		if blocker.Kind == PromotionBlockerEvaluationTimedOut || blocker.Kind == PromotionBlockerCanaryRecallTriggered {
@@ -39,6 +48,9 @@ func ValidatePromotionContinuation(record PromotionRecord, existing []PromotionR
 		}
 		return nil
 	} // Legacy immutable decisions predate runs.
+	if record.ValueTier != "CONDUIT_NATIVE" {
+		return fmt.Errorf("promotion lifecycle must disclose its native provenance")
+	}
 	if record.Lifecycle != PromotionRunning && record.Lifecycle != PromotionSucceeded && record.Lifecycle != PromotionAborted && record.Lifecycle != PromotionCancelled {
 		return fmt.Errorf("invalid promotion lifecycle")
 	}
@@ -49,6 +61,9 @@ func ValidatePromotionContinuation(record PromotionRecord, existing []PromotionR
 		return fmt.Errorf("terminal promotion needs a reason")
 	}
 	if record.PreviousEvaluationID == "" {
+		if record.Lifecycle == PromotionCancelled {
+			return fmt.Errorf("cancellation requires a running predecessor")
+		}
 		for _, prior := range existing {
 			if prior.RunID == record.RunID {
 				return fmt.Errorf("promotion run already exists")

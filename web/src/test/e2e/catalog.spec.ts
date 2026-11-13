@@ -419,6 +419,31 @@ test.describe("Products", () => {
     ).toBe(true);
   });
 
+  for (const lifecycle of ["RUNNING", "SUCCEEDED", "ABORTED", "CANCELLED"] as const) {
+    test(`shows ${lifecycle} in the promotion graph and selected transition`, async ({ page, hub }) => {
+      const reason = lifecycle === "CANCELLED" || lifecycle === "ABORTED" ? "Superseded by the security fix" : "";
+      const promotion = {
+        ...PRODUCT_PROMOTIONS[0], lifecycle, valueTier: "CONDUIT_NATIVE",
+        status: lifecycle === "SUCCEEDED" ? "PASSED" : "BLOCKED",
+        ...(reason ? { lifecycleReason: reason } : {}),
+      };
+      hub.get("/products/app.example:payments/releases", { releases: RELEASES });
+      hub.get("/promotions", indexPage("promotions", [promotion]));
+      await page.goto("products/app.example%3Apayments");
+      const product = new ProductDetailPom(page);
+      const transition = product.promotionTransitionById("prm_product");
+      await expect(transition).toContainText(lifecycle);
+      await transition.click();
+      const detail = product.promotionConstraintsById("prm_product");
+      await expect(detail).toContainText(lifecycle);
+      await expect(detail).toContainText("Conduit lifecycle");
+      if (reason) {
+        await expect(transition).toContainText(reason);
+        await expect(detail).toContainText(reason);
+      }
+    });
+  }
+
   test("keeps Releases usable when the Product promotion projection fails", async ({ page, hub }) => {
     hub.get("/products/app.example:payments/releases", { releases: RELEASES });
     hub.fails("/promotions", 500, "promotion store unavailable");

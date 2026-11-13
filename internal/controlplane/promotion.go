@@ -100,7 +100,11 @@ func (lifecycle *Lifecycle) EvaluatePromotion(
 	blockers := append(nonParticipating, boundConflicts...)
 	blockers = append(blockers, evaluatePromotion(request, now)...)
 	if request.Termination != "" {
-		blockers = append(blockers, catalog.PromotionBlocker{Kind: catalog.PromotionBlockerTerminated, Message: strings.TrimSpace(request.TerminationReason)})
+		kind := catalog.PromotionBlockerAborted
+		if request.Termination == catalog.PromotionCancelled {
+			kind = catalog.PromotionBlockerCancelled
+		}
+		blockers = append(blockers, catalog.PromotionBlocker{Kind: kind, Message: strings.TrimSpace(request.TerminationReason)})
 	}
 	sortBlockers(blockers)
 	status := PromotionPassed
@@ -374,9 +378,10 @@ func validatePromotions(promotions []PromotionRecord, releases []Release, errs *
 		// them, so the re-derivation above selects from exactly the values the
 		// original decision selected from -- with no repository, and with no
 		// dependence on what those Environments are labelled today.
-		if promotion.Lifecycle == catalog.PromotionCancelled || promotion.Lifecycle == catalog.PromotionAborted {
-			blockers = append(blockers, blockersOfKind(promotion.Blockers, catalog.PromotionBlockerTerminated)...)
-		}
+		// Terminal blockers only deny eligibility. Preserve their meaning even in
+		// a legacy client's projection that cannot carry the lifecycle envelope.
+		blockers = append(blockers, blockersOfKind(promotion.Blockers, catalog.PromotionBlockerAborted)...)
+		blockers = append(blockers, blockersOfKind(promotion.Blockers, catalog.PromotionBlockerCancelled)...)
 		sortBlockers(blockers)
 		expectedStatus := PromotionPassed
 		if len(blockers) > 0 {
@@ -404,10 +409,6 @@ func validatePromotions(promotions []PromotionRecord, releases []Release, errs *
 				*errs = append(*errs, ValidationError{Path: path + ".lifecycle", Message: err.Error()})
 			}
 			phase, reason := catalog.PromotionLifecycleFor(expectedStatus, blockers)
-			terminated := blockersOfKind(blockers, catalog.PromotionBlockerTerminated)
-			if len(terminated) > 0 {
-				phase, reason = promotion.Lifecycle, terminated[0].Message
-			}
 			if promotion.Lifecycle != phase || promotion.LifecycleReason != reason || promotion.ValueTier != "CONDUIT_NATIVE" {
 				*errs = append(*errs, ValidationError{Path: path + ".lifecycle", Message: "must reproduce from the recorded decision and terminal reason"})
 			}
