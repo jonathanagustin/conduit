@@ -104,6 +104,13 @@
       "why": "That freshness was optional was the residue #54 named, and closing it required choosing a number nothing establishes. What is grounded is the direction, not the value: Apollo's own material describes continuous rescanning that catches vulnerabilities discovered after a Release passed, which only means anything if a passing scan expires. Seven days was chosen for the shape of its failure modes rather than for any evidence -- exceeding it costs a rescan wherever a scanner is configured, so too tight costs latency while too loose restores the defect. A day was rejected because on a Hub with no scanner configured it fails closed daily, and a floor that reads as breakage gets switched off.",
       "displacedBy": "a published statement of the scan-freshness window Apollo applies when a security constraint names none",
       "riskIfWrong": "Low and bounded by configuration. Wrong here means Conduit rescans on a different cadence from Apollo, which any Environment can correct by stating maximumScanAgeSeconds explicitly; nothing on the wire carries the value and no stored shape depends on it. The one deployment it can disturb is a Hub running a PASS policy with no scanner and evidence older than a week, which is refused where it was previously admitted -- intended, and the reason the number is not tighter."
+    },
+    {
+      "id": "catalog.PromotionLifecycle",
+      "what": "A Conduit-native append-only promotion run with RUNNING, SUCCEEDED, ABORTED and CANCELLED phases, exact predecessor continuation and a durable terminal reason, separate from PASSED/BLOCKED eligibility.",
+      "why": "The pinned public release-channel documentation and changelog establish in-progress, succeeded and aborted promotions and cancellation reasons, but publish no lifecycle API shape or transition contract. Keeping immutable evaluations in a predecessor chain preserves existing eligibility replay and provides atomic terminal transitions without rewriting prior decisions.",
+      "displacedBy": "A published Apollo promotion lifecycle API schema and transition contract, including cancellation reasons.",
+      "riskIfWrong": "Medium. Run identifiers, phase wire tokens and continuation requests may differ from Apollo. They are served only on Conduit-native v1 routes with CONDUIT_NATIVE disclosure; published Apollo transport schemas remain unchanged."
     }
   ],
   "displaced": [

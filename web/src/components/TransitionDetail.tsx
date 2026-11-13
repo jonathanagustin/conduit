@@ -1,6 +1,10 @@
 import { Callout, Tag } from "@blueprintjs/core";
 
 import type { PromotionRecord } from "../api/catalog.js";
+import {
+  PROMOTION_LIFECYCLE_INTENT,
+  PROMOTION_LIFECYCLE_MESSAGE,
+} from "./promotionLifecycle.js";
 import "./transition-detail.css";
 
 /** What governs one transition. This is the panel capture 314 describes.
@@ -11,7 +15,11 @@ import "./transition-detail.css";
  * panel from the same `PromotionRecord`. Both callers now import it from here,
  * so `verify-console-boundaries.mjs` can forbid one feature importing another
  * without forbidding this. */
-export function TransitionDetail({ promotion }: { promotion: PromotionRecord }) {
+export function TransitionDetail({
+  promotion,
+}: {
+  promotion: PromotionRecord;
+}) {
   const blockers = promotion.blockers ?? [];
   const reasons = promotion.reasons ?? [];
   return (
@@ -23,11 +31,34 @@ export function TransitionDetail({ promotion }: { promotion: PromotionRecord }) 
     >
       <h3>
         {promotion.fromChannel} &rarr; {promotion.toChannel}{" "}
-        <Tag intent={promotion.status === "PASSED" ? "success" : "warning"} round>
-          {promotion.status}
+        <Tag
+          intent={
+            promotion.lifecycle
+              ? PROMOTION_LIFECYCLE_INTENT[promotion.lifecycle]
+              : promotion.status === "PASSED"
+                ? "success"
+                : "warning"
+          }
+          round
+        >
+          {promotion.lifecycle ?? promotion.status}
         </Tag>{" "}
         <Tag minimal>version {promotion.version}</Tag>
       </h3>
+
+      {promotion.lifecycle !== undefined ? (
+        <Callout
+          intent={PROMOTION_LIFECYCLE_INTENT[promotion.lifecycle] ?? "none"}
+          compact
+        >
+          {PROMOTION_LIFECYCLE_MESSAGE[promotion.lifecycle] ??
+            "Promotion lifecycle not recognized."}
+          {promotion.lifecycleReason ? ` ${promotion.lifecycleReason}` : ""}
+          {promotion.valueTier === "CONDUIT_NATIVE" ? (
+            <Tag minimal>Conduit lifecycle</Tag>
+          ) : null}
+        </Callout>
+      ) : null}
 
       {promotion.status === "PASSED" ? (
         <Callout intent="success" icon="tick-circle" compact>
@@ -35,8 +66,8 @@ export function TransitionDetail({ promotion }: { promotion: PromotionRecord }) 
         </Callout>
       ) : blockers.length === 0 && reasons.length === 0 ? (
         <Callout intent="warning" compact>
-          This promotion is blocked, but the Hub gave no reason. That is a Hub defect rather than a
-          constraint you can satisfy.
+          This promotion is blocked, but the Hub gave no reason. That is a Hub
+          defect rather than a constraint you can satisfy.
         </Callout>
       ) : blockers.length === 0 ? (
         // Reasons is derived from Blockers, so it is only shown when a Hub

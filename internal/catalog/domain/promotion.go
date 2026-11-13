@@ -113,12 +113,15 @@ type PromotionHealthEvidence struct {
 }
 
 type PromotionEvaluationRequest struct {
-	Release             Release                   `json:"release"`
-	FromChannel         string                    `json:"fromChannel"`
-	ToChannel           string                    `json:"toChannel"`
-	Policy              PromotionPolicy           `json:"policy"`
-	Evidence            []PromotionHealthEvidence `json:"evidence"`
-	EvaluationStartedAt time.Time                 `json:"evaluationStartedAt,omitempty"`
+	PreviousEvaluationID string                    `json:"previousEvaluationId,omitempty"`
+	Termination          PromotionLifecycle        `json:"termination,omitempty"`
+	TerminationReason    string                    `json:"terminationReason,omitempty"`
+	Release              Release                   `json:"release"`
+	FromChannel          string                    `json:"fromChannel"`
+	ToChannel            string                    `json:"toChannel"`
+	Policy               PromotionPolicy           `json:"policy"`
+	Evidence             []PromotionHealthEvidence `json:"evidence"`
+	EvaluationStartedAt  time.Time                 `json:"evaluationStartedAt,omitempty"`
 }
 
 // PromotionBlocker is one reason a Release did not pass a channel boundary.
@@ -227,15 +230,20 @@ func BlockerMessages(blockers []PromotionBlocker) []string {
 // one channel boundary at a particular instant. A later evaluation creates a
 // new record; it never edits the earlier decision.
 type PromotionRecord struct {
-	ID          string                    `json:"id"`
-	Product     string                    `json:"product"`
-	Version     string                    `json:"version"`
-	FromChannel string                    `json:"fromChannel"`
-	ToChannel   string                    `json:"toChannel"`
-	Labels      map[string]string         `json:"labels,omitempty"`
-	Policy      PromotionPolicy           `json:"policy"`
-	Evidence    []PromotionHealthEvidence `json:"evidence"`
-	Status      PromotionStatus           `json:"status"`
+	RunID                string                    `json:"runId,omitempty"`
+	PreviousEvaluationID string                    `json:"previousEvaluationId,omitempty"`
+	Lifecycle            PromotionLifecycle        `json:"lifecycle,omitempty"`
+	LifecycleReason      string                    `json:"lifecycleReason,omitempty"`
+	ValueTier            string                    `json:"valueTier,omitempty"`
+	ID                   string                    `json:"id"`
+	Product              string                    `json:"product"`
+	Version              string                    `json:"version"`
+	FromChannel          string                    `json:"fromChannel"`
+	ToChannel            string                    `json:"toChannel"`
+	Labels               map[string]string         `json:"labels,omitempty"`
+	Policy               PromotionPolicy           `json:"policy"`
+	Evidence             []PromotionHealthEvidence `json:"evidence"`
+	Status               PromotionStatus           `json:"status"`
 	// Blockers is the structured form; Reasons is derived from it and kept
 	// because it is what the record has always published on the wire.
 	Blockers            []PromotionBlocker `json:"blockers,omitempty"`
@@ -345,7 +353,12 @@ func WeekdayDuration(start, end time.Time) time.Duration {
 	return total
 }
 
+// PromotionIdentity binds the eligibility projection. Lifecycle envelope fields
+// are separately persisted and validated; excluding additive metadata keeps an
+// older client's round-trip of a decision compatible with this identifier.
 func PromotionIdentity(record PromotionRecord) (string, error) {
+	record.RunID, record.PreviousEvaluationID = "", ""
+	record.Lifecycle, record.LifecycleReason, record.ValueTier = "", "", ""
 	record.ID = ""
 	record.Revision = 0
 	contents, err := json.Marshal(record)
