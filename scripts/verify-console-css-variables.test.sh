@@ -15,8 +15,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 gate="scripts/verify-console-css-variables.mjs"
-subject="web/src/components/AppFrame/app-frame.css"
-component="web/src/components/AppFrame/AppFrame.tsx"
+subject="web/src/styles/index.css"
+component="web/src/components/assistant-ui/shell.tsx"
 
 for file in "${subject}" "${component}"; do
   if ! git diff --quiet -- "${file}" || ! git diff --cached --quiet -- "${file}"; then
