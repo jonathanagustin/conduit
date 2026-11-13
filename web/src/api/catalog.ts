@@ -204,6 +204,11 @@ export interface PromotionBlocker {
 }
 
 export interface PromotionRecord {
+  runId?: string;
+  previousEvaluationId?: string;
+  lifecycle?: "RUNNING" | "SUCCEEDED" | "ABORTED" | "CANCELLED";
+  lifecycleReason?: string;
+  valueTier?: string;
   id: string;
   product: string;
   version: string;

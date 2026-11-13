@@ -52,7 +52,7 @@ export function ReleaseChannelGraph({
                     : "console-graph__transition"
                 }
                 aria-pressed={outgoing.id === selectedId}
-                aria-label={`${outgoing.fromChannel} to ${outgoing.toChannel}: ${outgoing.status}`}
+                aria-label={`${outgoing.fromChannel} to ${outgoing.toChannel}: ${outgoing.lifecycle ?? outgoing.status}${outgoing.lifecycleReason ? `: ${outgoing.lifecycleReason}` : ""}`}
                 data-testid={`promotion-transition-${outgoing.id}`}
                 onClick={() => onSelect(outgoing.id)}
               >
@@ -64,10 +64,11 @@ export function ReleaseChannelGraph({
                   round
                   minimal={outgoing.status === "PASSED"}
                 >
-                  {outgoing.status === "PASSED"
+                  {outgoing.lifecycle ?? (outgoing.status === "PASSED"
                     ? "can advance"
-                    : `${(outgoing.blockers ?? outgoing.reasons ?? []).length || 1} blocking`}
+                    : `${(outgoing.blockers ?? outgoing.reasons ?? []).length || 1} blocking`)}
                 </Tag>
+                {outgoing.lifecycleReason ? <span>{outgoing.lifecycleReason}</span> : null}
               </button>
             ) : null}
           </li>
@@ -87,6 +88,14 @@ export function latestForChannel(
     .reduce<PromotionRecord | undefined>((latest, candidate) => {
       if (latest === undefined) {
         return candidate;
+      }
+      // A terminal observation cannot be replaced by its own run's older
+      // in-progress evidence, even when replicas share a clock tick.
+      if (latest.runId && latest.runId === candidate.runId) {
+        const latestTerminal = latest.lifecycle !== undefined && latest.lifecycle !== "RUNNING";
+        const candidateTerminal = candidate.lifecycle !== undefined && candidate.lifecycle !== "RUNNING";
+        if (latestTerminal && !candidateTerminal) return latest;
+        if (candidateTerminal && !latestTerminal) return candidate;
       }
       // Missing timestamps sort oldest, so a record that carries one always
       // wins over one that does not.

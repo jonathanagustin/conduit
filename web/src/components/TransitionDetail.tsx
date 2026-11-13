@@ -24,10 +24,18 @@ export function TransitionDetail({ promotion }: { promotion: PromotionRecord }) 
       <h3>
         {promotion.fromChannel} &rarr; {promotion.toChannel}{" "}
         <Tag intent={promotion.status === "PASSED" ? "success" : "warning"} round>
-          {promotion.status}
+          {promotion.lifecycle ?? promotion.status}
         </Tag>{" "}
         <Tag minimal>version {promotion.version}</Tag>
       </h3>
+
+      {promotion.lifecycle !== undefined ? (
+        <Callout intent={promotion.lifecycle === "SUCCEEDED" ? "success" : promotion.lifecycle === "RUNNING" ? "primary" : "warning"} compact>
+          {promotion.lifecycle === "RUNNING" ? "Promotion in progress." : promotion.lifecycle === "SUCCEEDED" ? "Promotion succeeded." : promotion.lifecycle === "ABORTED" ? "Promotion aborted." : "Promotion cancelled."}
+          {promotion.lifecycleReason ? ` ${promotion.lifecycleReason}` : ""}
+          {promotion.valueTier === "CONDUIT_NATIVE" ? <Tag minimal>Conduit lifecycle</Tag> : null}
+        </Callout>
+      ) : null}
 
       {promotion.status === "PASSED" ? (
         <Callout intent="success" icon="tick-circle" compact>
