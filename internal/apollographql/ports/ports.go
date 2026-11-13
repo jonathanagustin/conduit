@@ -74,10 +74,6 @@ type ApolloProjection interface {
 // would invite a second, differently-authorized path to the same records.
 type OverviewSource = reportingports.OverviewSource
 
-// Sources is everything the resolver reads. A nil member is a refusal to answer
-// that half of the interface rather than a panic: an interface that dies
-// because one store is absent is worse than one that says which half is
-// unavailable.
 // NativeGrouping supplies already-authorized native grouping and Bundle identity
 // reads. Empty SpaceID means a configured store observed no assignment; failures
 // must remain errors. It grants no resource authority.
@@ -86,6 +82,10 @@ type NativeGrouping interface {
 	BundleIDs(context.Context) ([]string, error)
 }
 
+// Sources is everything the resolver reads. A nil member is a refusal to answer
+// that half of the interface rather than a panic: an interface that dies
+// because one store is absent is worse than one that says which half is
+// unavailable.
 type Sources struct {
 	Grouping NativeGrouping
 	Apollo   ApolloProjection
