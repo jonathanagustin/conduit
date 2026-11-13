@@ -17,6 +17,21 @@ lockfile = true
 locked_verify_provenance = true
 minimum_release_age = "7d"
 
+[tasks.packaging-server]
+description = "Run the pinned Temporal dev server on loopback"
+run = "./scripts/packaging-temporal-server.sh"
+
+[tasks.packaging-worker]
+description = "Run the packaging worker against loopback Temporal"
+run = '''
+set -eu
+go run ./cmd/packaging-workflow worker --address 127.0.0.1:7233 --state-dir .packaging-state
+'''
+
+[tasks.packaging-drill]
+description = "Crash and restart drill through one governed Plan"
+run = "./scripts/packaging-temporal-demo.sh"
+
 [tasks.install-cursor]
 description = "Install the pinned Cursor Agent used for independent evaluation"
 run = '''

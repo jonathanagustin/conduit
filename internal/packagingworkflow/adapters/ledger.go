@@ -1,8 +1,7 @@
-// Package adapters holds the localhost stand-ins behind the packaging
-// activities. The approval file is a read model of a decision Conduit
-// governance already made. The handoff file is the idempotency journal for a
-// stubbed Plan submission. Neither file is an approval database or a lease
-// table, and neither is consulted by the delivery kernel.
+// Package adapters holds the worker-local files behind packaging activities.
+// The approval file is a read model of a decision Conduit governance already
+// made. The handoff file records the Plan id the delivery kernel returned so
+// a retry can reconcile. Neither file is an approval database or a lease table.
 package adapters
 
 import (
@@ -21,16 +20,12 @@ import (
 // retry it into a submission.
 var ErrDenied = errors.New("execution control denied the handoff")
 
-// Ledger is the worker-local store for receipts, governance read-through and
-// the stub Plan journal. The workflow history stores the receipts the
+// Ledger is the worker-local store for step receipts, the approval read model,
+// and the Plan-id journal. The workflow history stores the receipts the
 // activities return, not these files.
 type Ledger struct {
 	dir string
-
-	mu              sync.Mutex
-	DenyReason      string
-	FailAfterSubmit bool
-	submits         int
+	mu  sync.Mutex
 }
 
 func Open(dir string) (*Ledger, error) {
@@ -134,57 +129,30 @@ func (l *Ledger) Reconcile(_ context.Context, key string) (domain.PlanReceipt, b
 	return receipt, ok, nil
 }
 
-// Submit records one Plan handoff. A second call for the same key returns the
-// existing receipt and does not increment the submit count.
-func (l *Ledger) Submit(_ context.Context, key string) (domain.PlanReceipt, error) {
+// Remember records the Plan id the delivery kernel returned. A second call for
+// the same key keeps the first receipt. This journal is not the Plan store.
+func (l *Ledger) Remember(_ context.Context, key string, receipt domain.PlanReceipt) error {
+	if key == "" || receipt.PlanID == "" {
+		return errors.New("plan journal requires a key and a plan id")
+	}
 	unlock, err := l.lock()
 	if err != nil {
-		return domain.PlanReceipt{}, err
+		return err
 	}
 	defer unlock()
-	if l.DenyReason != "" {
-		return domain.PlanReceipt{}, ErrDenied
-	}
 	plans, err := readMap[domain.PlanReceipt](l.path("handoff.json"))
 	if err != nil {
-		return domain.PlanReceipt{}, err
+		return err
 	}
 	if existing, ok := plans[key]; ok {
-		existing.Reconciled = true
-		return existing, nil
+		if existing.PlanID != receipt.PlanID {
+			return errors.New("plan journal already records a different plan")
+		}
+		return nil
 	}
-	receipt := domain.PlanReceipt{PlanID: domain.PlanID(key), Key: key}
+	receipt.Key = key
 	plans[key] = receipt
-	if err := writeMap(l.path("handoff.json"), plans); err != nil {
-		return domain.PlanReceipt{}, err
-	}
-	l.submits++
-	if l.FailAfterSubmit {
-		l.FailAfterSubmit = false
-		return receipt, errors.New("worker lost the handoff acknowledgement")
-	}
-	return receipt, nil
-}
-
-func (l *Ledger) Submits() int {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	return l.submits
-}
-
-// PlanCount reads the journal. It survives a process restart, unlike Submits,
-// which only counts submissions in this process.
-func (l *Ledger) PlanCount() (int, error) {
-	unlock, err := l.lock()
-	if err != nil {
-		return 0, err
-	}
-	defer unlock()
-	plans, err := readMap[domain.PlanReceipt](l.path("handoff.json"))
-	if err != nil {
-		return 0, err
-	}
-	return len(plans), nil
+	return writeMap(l.path("handoff.json"), plans)
 }
 
 func (l *Ledger) path(name string) string {

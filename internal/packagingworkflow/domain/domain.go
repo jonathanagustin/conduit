@@ -276,6 +276,24 @@ func HandoffPermitted(state State, target string) error {
 	return nil
 }
 
+// HandoffRequest is the identity a packaging run asks the delivery kernel to
+// propose. Digests name artifacts. The kernel builds the Plan.
+type HandoffRequest struct {
+	RunID            string
+	ProposalRevision string
+	ArtifactDigest   string
+	SourceDigest     string
+	TargetPlanRef    string
+	EnvironmentID    string
+	Generation       string
+	Product          string
+	Version          string
+	Namespace        string
+	EntityName       string
+	ChartRepository  string
+	ImageRepository  string
+}
+
 // PlanReceipt is the delivery kernel's acknowledgement of one idempotent
 // handoff. Reconciled is true when this attempt found the plan already
 // recorded and did not submit again.

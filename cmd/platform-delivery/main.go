@@ -34,6 +34,9 @@ import (
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
 	httpmetrics "github.com/jonathanagustin/conduit/internal/observability/adapters/httpmetrics"
 	metricsapplication "github.com/jonathanagustin/conduit/internal/observability/application"
+	packagingconfig "github.com/jonathanagustin/conduit/internal/packagingworkflow/config"
+	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
+	packagingruntime "github.com/jonathanagustin/conduit/internal/packagingworkflow/runtime"
 	"github.com/spiffe/go-spiffe/v2/workloadapi"
 )
 
@@ -74,6 +77,18 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeRepository()
+	if len(os.Args) > 1 && os.Args[1] == "packaging-worker" {
+		cfg, cfgErr := packagingconfig.FromEnv(os.Getenv)
+		if cfgErr != nil {
+			slog.Error("read packaging Temporal configuration", "error", cfgErr)
+			os.Exit(1)
+		}
+		if err := packagingruntime.RunWorker(ctx, cfg, repository); err != nil {
+			slog.Error("packaging worker stopped", "error", err)
+			os.Exit(1)
+		}
+		return
+	}
 	repository, closeReconciliation, reconciliationSupervisor, readStats, notifications, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
@@ -177,6 +192,7 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	packagingReader := packagingStatusReader(ctx, os.Getenv)
 	server := &http.Server{
 		Addr: address,
 		Handler: composition.NewHubHandler(repository, controlplane.HandlerOptions{
@@ -199,6 +215,7 @@ func main() {
 		}, composition.Options{
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
+			PackagingStatus:      packagingReader,
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
@@ -447,6 +464,24 @@ func configureReconciliation(
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
 		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
 	}, nil
+}
+
+func packagingStatusReader(ctx context.Context, getenv func(string) string) packaginghttp.Reader {
+	cfg, err := packagingconfig.FromEnv(getenv)
+	if err != nil {
+		slog.Error("read packaging Temporal configuration", "error", err)
+		os.Exit(1)
+	}
+	if !cfg.Enabled {
+		return nil
+	}
+	temporalClient, err := packagingruntime.DialTimeout(ctx, cfg, 5*time.Second)
+	if err != nil {
+		slog.Warn("packaging Temporal is configured but the frontend did not answer; Plan serving continues", "error", err)
+		return packagingruntime.Unavailable{Err: err}
+	}
+	slog.Info("packaging Temporal status client enabled", "namespace", cfg.Namespace, "taskQueue", cfg.TaskQueue)
+	return packagingruntime.StatusReader(temporalClient)
 }
 
 func openRepository(

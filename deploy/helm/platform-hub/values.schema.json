@@ -165,7 +165,35 @@
     "resources": {"type": "object"},
     "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
     "affinity": {"type": "object"},
-    "tolerations": {"type": "array", "items": {"type": "object"}}
+    "tolerations": {"type": "array", "items": {"type": "object"}},
+    "packagingWorkflow": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["enabled", "address", "namespace", "taskQueue", "serverName", "tls", "apiKeySecretName", "worker"],
+      "properties": {
+        "enabled": {"type": "boolean"},
+        "address": {"type": "string"},
+        "namespace": {"type": "string", "minLength": 1},
+        "taskQueue": {"type": "string", "minLength": 1},
+        "serverName": {"type": "string"},
+        "tls": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["certSecretName", "caConfigMapName"],
+          "properties": {
+            "certSecretName": {"type": "string"},
+            "caConfigMapName": {"type": "string"}
+          }
+        },
+        "apiKeySecretName": {"type": "string"},
+        "worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["enabled"],
+          "properties": {"enabled": {"type": "boolean"}}
+        }
+      }
+    }
   },
   "allOf": [
     {
@@ -175,6 +203,14 @@
     {
       "if": {"properties": {"repository": {"properties": {"kind": {"const": "file"}}}}},
       "then": {"properties": {"replicaCount": {"const": 1}}}
+    },
+    {
+      "if": {"properties": {"packagingWorkflow": {"properties": {"enabled": {"const": true}}}}},
+      "then": {"properties": {"packagingWorkflow": {"properties": {"address": {"minLength": 1}}}}}
+    },
+    {
+      "if": {"properties": {"packagingWorkflow": {"properties": {"worker": {"properties": {"enabled": {"const": true}}}}}}},
+      "then": {"properties": {"repository": {"properties": {"kind": {"const": "postgres"}}}}}
     }
   ],
   "definitions": {

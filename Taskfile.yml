@@ -23,9 +23,23 @@ tasks:
     desc: Check every shipped command compiles
     cmd: |
       for command in platform-delivery platform-operator platform-spoke-agent \
-        platform-module-publisher platform-grype-scanner platform-optimizer conduit; do
+        platform-module-publisher platform-grype-scanner platform-optimizer packaging-workflow conduit; do
         go build -o /dev/null "./cmd/$command"
       done
+
+  packaging:server:
+    desc: Run the pinned Temporal dev server on loopback with a persistent sqlite file
+    cmd: ./scripts/packaging-temporal-server.sh
+
+  packaging:worker:
+    desc: Run the packaging worker against loopback Temporal and a file Plan repository
+    cmd: |
+      CONDUIT_TEMPORAL_CLI="${CONDUIT_TEMPORAL_CLI:-$PWD/.cache/temporal/temporal}" \
+        go run ./cmd/packaging-workflow worker --address 127.0.0.1:7233 --state-dir .packaging-state
+
+  packaging:drill:
+    desc: Crash and restart drill through one governed Plan. Opt-in; CI does not run it.
+    cmd: ./scripts/packaging-temporal-demo.sh
 
   e2e:
     desc: Run the ephemeral-cluster Spoke acceptance gate, which CI runs separately

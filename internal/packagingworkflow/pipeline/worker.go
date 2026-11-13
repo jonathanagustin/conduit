@@ -12,8 +12,11 @@ import (
 // RegisterWorker binds the workflow and its activities to a loopback task
 // queue. The caller supplies the client; this process does not dial Temporal
 // Cloud and does not open a listener of its own.
-func RegisterWorker(c client.Client, acts Activities) worker.Worker {
-	work := worker.New(c, TaskQueue, worker.Options{
+func RegisterWorker(c client.Client, taskQueue string, acts Activities) worker.Worker {
+	if taskQueue == "" {
+		taskQueue = TaskQueue
+	}
+	work := worker.New(c, taskQueue, worker.Options{
 		MaxConcurrentActivityExecutionSize:     MaxConcurrentActivities,
 		MaxConcurrentWorkflowTaskExecutionSize: MaxConcurrentWorkflowTasks,
 		WorkerStopTimeout:                      time.Second,

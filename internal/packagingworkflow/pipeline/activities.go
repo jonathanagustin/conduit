@@ -23,12 +23,19 @@ const (
 	heartbeatEvery  = 5 * time.Second
 )
 
+// PlanSubmitter proposes one Plan. Implementations must not approve, lease,
+// or execute it.
+type PlanSubmitter interface {
+	Submit(context.Context, domain.HandoffRequest) (domain.PlanReceipt, error)
+}
+
 // Activities are the only place packaging reads the fixture, talks to the
 // approval read model, or writes the Plan journal. The workflow calls them by
 // the names in names.go.
 type Activities struct {
 	FixtureDir           string
 	Ledger               *adapters.Ledger
+	Plans                PlanSubmitter
 	HoldFile             string
 	PauseAfterSubmitFile string
 	// Optional replacements for tests. Nil uses the pinned fixture.
@@ -42,6 +49,14 @@ type handoffInput struct {
 	ProposalRevision string `json:"proposalRevision"`
 	ArtifactDigest   string `json:"artifactDigest"`
 	TargetPlanRef    string `json:"targetPlanRef"`
+	EnvironmentID    string `json:"environmentId,omitempty"`
+	Generation       string `json:"generation,omitempty"`
+	Product          string `json:"product,omitempty"`
+	Version          string `json:"version,omitempty"`
+	Namespace        string `json:"namespace,omitempty"`
+	EntityName       string `json:"entityName,omitempty"`
+	ChartRepository  string `json:"chartRepository,omitempty"`
+	ImageRepository  string `json:"imageRepository,omitempty"`
 }
 
 func (a Activities) Assess(ctx context.Context, id domain.RunIdentity) (domain.Receipt, error) {
@@ -134,22 +149,24 @@ func (a Activities) ReadApproval(ctx context.Context, message domain.ReviewMessa
 
 func (a Activities) Handoff(ctx context.Context, in handoffInput) (domain.PlanReceipt, error) {
 	activity.RecordHeartbeat(ctx, "reconcile")
-	key := domain.HandoffKey(in.RunID, in.ProposalRevision, in.ArtifactDigest, in.TargetPlanRef)
-	if existing, ok, err := a.Ledger.Reconcile(ctx, key); err != nil {
-		return domain.PlanReceipt{}, err
-	} else if ok {
-		return existing, nil
+	if a.Plans == nil {
+		return domain.PlanReceipt{}, badInput(errors.New("packaging worker has no plan submitter"))
 	}
 	if ctx.Err() != nil {
 		return domain.PlanReceipt{}, ctx.Err()
 	}
 	activity.RecordHeartbeat(ctx, "submit")
-	receipt, err := a.Ledger.Submit(ctx, key)
-	if errors.Is(err, adapters.ErrDenied) {
+	receipt, err := a.Plans.Submit(ctx, domain.HandoffRequest{
+		RunID: in.RunID, ProposalRevision: in.ProposalRevision, ArtifactDigest: in.ArtifactDigest,
+		TargetPlanRef: in.TargetPlanRef, EnvironmentID: in.EnvironmentID, Generation: in.Generation,
+		Product: in.Product, Version: in.Version, Namespace: in.Namespace, EntityName: in.EntityName,
+		ChartRepository: in.ChartRepository, ImageRepository: in.ImageRepository,
+	})
+	if errors.Is(err, adapters.ErrDenied) || errors.Is(err, domain.ErrIdentity) {
 		return domain.PlanReceipt{}, temporal.NewNonRetryableApplicationError(err.Error(), "ExecutionControl", err)
 	}
 	if err != nil {
-		// The journal write is durable. A failure after it is an uncertain
+		// The Plan write is durable. A failure after it is an uncertain
 		// acknowledgement: the next attempt reconciles instead of submitting.
 		return domain.PlanReceipt{}, temporal.NewApplicationError(err.Error(), "Transient", err)
 	}
