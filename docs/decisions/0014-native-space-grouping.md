@@ -89,3 +89,20 @@ mode does not initialize the HTTP-only component. PostgreSQL backup/restore
 checks the Space migration ledger before constructors run, then compares the
 exact Space identity and assignment, including their provenance, after restore.
 This does not claim old-binary compatibility or complete CLI/GraphQL coverage.
+
+## Native CLI management slice
+
+`conduit space create NAME --description TEXT`, `space get SPACE_ID`, and
+`space list` manage and inspect native records. `space bind SPACE_ID
+ENVIRONMENT|PRODUCT|BUNDLE RESOURCE_ID` submits immutable grouping intent;
+`space bindings SPACE_ID` returns only anchors independently readable by the
+caller. These command paths are registered as `spaces.CLIManagement`, not
+claimed as recovered Apollo CLI paths. JSON/YAML records retain native
+provenance and the authenticated creator; the CLI cannot supply either.
+
+The normal CLI connection factory and existing identity transport send requests
+to the Hub. No local filtering substitutes for Hub authority. Transport errors,
+including forbidden reads and conflicting assignment, fail the command. An
+actual Hub round trip tests the commands, cross-tenant filtering, provenance,
+and the absence of mutations after rejected commands. Global selection,
+profile persistence and publication integration remain required follow-up work.
