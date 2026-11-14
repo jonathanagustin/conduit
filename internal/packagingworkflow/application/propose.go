@@ -32,12 +32,14 @@ type Attachments interface {
 
 // PendingChange is a proposal that passed the gate and still needs a person.
 type PendingChange struct {
-	Environment string
-	TargetID    string
-	Title       string
-	Description string
-	Author      string
-	Value       string
+	Environment    string
+	InstallationID string
+	ProductID      string
+	TargetID       string
+	Title          string
+	Description    string
+	Author         string
+	Value          string
 }
 
 // Opener stores a change request and does not approve it.
@@ -111,12 +113,13 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 		return Result{}, errors.New("change request opener is not configured")
 	}
 	id, err := service.Open.OpenPending(ctx, PendingChange{
-		Environment: environment,
-		TargetID:    input.RunID + ":" + proposal.Field,
-		Title:       "Proposed memory limit " + proposal.Value,
-		Description: proposal.Rationale,
-		Author:      author,
-		Value:       proposal.Value,
+		Environment:    environment,
+		InstallationID: input.RunID,
+		TargetID:       input.RunID + ":" + proposal.Field,
+		Title:          "Proposed memory limit " + proposal.Value,
+		Description:    proposal.Rationale,
+		Author:         author,
+		Value:          proposal.Value,
 	})
 	if err != nil {
 		return Result{}, err
