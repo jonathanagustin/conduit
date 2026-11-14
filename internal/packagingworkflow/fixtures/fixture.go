@@ -118,13 +118,17 @@ func (Suite) Propose(_ context.Context, id domain.RunIdentity, dir string) (doma
 	if err != nil {
 		return domain.Receipt{}, err
 	}
-	if err := os.MkdirAll(filepath.Join(dir, "out"), 0o755); err != nil {
+	out, err := renderedDir(dir, id.RunID)
+	if err != nil {
 		return domain.Receipt{}, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "out", "zarf.yaml"), pkg.Zarf, 0o644); err != nil {
+	if err := os.MkdirAll(out, 0o755); err != nil {
 		return domain.Receipt{}, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "out", "uds-package.yaml"), pkg.CR, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(out, "zarf.yaml"), pkg.Zarf, 0o644); err != nil {
+		return domain.Receipt{}, err
+	}
+	if err := os.WriteFile(filepath.Join(out, "uds-package.yaml"), pkg.CR, 0o644); err != nil {
 		return domain.Receipt{}, err
 	}
 	digest := pkg.Digest()
@@ -150,11 +154,15 @@ func (Suite) Validate(_ context.Context, id domain.RunIdentity, dir string, prop
 	if err := rejectCredential(body); err != nil {
 		return domain.Validation{}, err
 	}
-	zarf, err := os.ReadFile(filepath.Join(dir, "out", "zarf.yaml"))
+	out, err := renderedDir(dir, id.RunID)
 	if err != nil {
 		return domain.Validation{}, err
 	}
-	cr, err := os.ReadFile(filepath.Join(dir, "out", "uds-package.yaml"))
+	zarf, err := os.ReadFile(filepath.Join(out, "zarf.yaml"))
+	if err != nil {
+		return domain.Validation{}, err
+	}
+	cr, err := os.ReadFile(filepath.Join(out, "uds-package.yaml"))
 	if err != nil {
 		return domain.Validation{}, err
 	}
@@ -233,6 +241,13 @@ func memoryValue(source []byte) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+func renderedDir(dir, runID string) (string, error) {
+	if runID == "" || runID != filepath.Base(runID) || strings.Contains(runID, "..") || strings.ContainsAny(runID, `/\`) {
+		return "", fmt.Errorf("run id is not a file name")
+	}
+	return filepath.Join(dir, "out", runID), nil
 }
 
 func readSource(dir, runID string) ([]byte, error) {

@@ -32,10 +32,7 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 			writeError(writer, http.StatusUnprocessableEntity, domain.ErrModelUnavailable.Error())
 			return
 		}
-		var body struct {
-			ChartValues  string `json:"chartValues"`
-			CurrentLimit string `json:"currentLimit"`
-		}
+		var body struct{}
 		if request.Body != nil {
 			decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<16))
 			if err := decoder.Decode(&body); err != nil && !errors.Is(err, io.EOF) {
@@ -50,8 +47,7 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 			}
 		}
 		result, err := cfg.Model.Propose(request.Context(), domain.PackagingContext{
-			RunID: runID, ChartValues: body.ChartValues, CurrentLimit: body.CurrentLimit,
-			GateRules: "memory limit must not exceed 1Gi",
+			RunID: runID, GateRules: domain.MemoryGateRule,
 		}, "dev", author)
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())

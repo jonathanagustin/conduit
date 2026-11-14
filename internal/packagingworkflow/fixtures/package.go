@@ -147,7 +147,7 @@ func parseNeeds(source []byte) (productNeeds, error) {
 			return productNeeds{}, errNeeds
 		}
 		switch key {
-		case "kind", "requirement", "security-evidence", "lint", "proposal", "rationale", "memory":
+		case "kind", "requirement", "security-evidence", "lint", "proposal", "rationale", "memory", "memory-request", "chart-values", "resources", "image-ref", "image-digest":
 			continue
 		case "name":
 			if parsed.name != "" || !appNamePattern.MatchString(value) || reservedNames[value] {

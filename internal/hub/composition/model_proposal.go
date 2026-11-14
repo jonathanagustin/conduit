@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
@@ -10,6 +11,7 @@ import (
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/recorded"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/runfacts"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
@@ -40,11 +42,15 @@ func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, 
 func modelService(
 	repository controlplane.Repository, governanceService *controlplane.GovernanceService, proposer packagingdomain.ChangeProposer,
 ) application.Service {
-	return application.Service{
+	service := application.Service{
 		Proposer: proposer,
 		Open:     humanOpener{service: governanceService},
 		Audit:    modelAudit{repository: repository},
 	}
+	if dir := strings.TrimSpace(os.Getenv("PACKAGING_FIXTURE_DIR")); dir != "" {
+		service.Facts = runfacts.Reader{Dir: dir}
+	}
+	return service
 }
 
 type humanOpener struct {

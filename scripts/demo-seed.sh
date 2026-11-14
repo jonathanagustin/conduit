@@ -150,6 +150,7 @@ nohup env LISTEN_ADDRESS=127.0.0.1:8081 \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
   PACKAGING_TEMPORAL_ADDRESS=127.0.0.1:7233 \
+  PACKAGING_FIXTURE_DIR="${state_dir}/packaging/fixture" \
   go run ./cmd/platform-delivery >"${state_dir}/hub.log" 2>&1 &
 echo $! >>"${pid_file}"
 
@@ -179,14 +180,38 @@ if [[ ! -f "${fixture}/source.txt" ]]; then
   exit 1
 fi
 mkdir -p "${fixture}/sources"
-cat >"${fixture}/sources/sample-app-blocked.txt" <<'EOF'
+write_run_source() {
+  local path="$1" proposal="$2" rationale="$3" request="$4" limit="$5" chart="$6"
+  cat >"${path}" <<EOF
 name: sample-app
 kind: fixture
-proposal: memory limit 8Gi
-rationale: unbounded growth
-memory: 8Gi
+proposal: ${proposal}
+rationale: ${rationale}
+memory-request: ${request}
+memory: ${limit}
+chart-values: memory: ${chart}
+resources: limits.memory=${limit} requests.memory=${request}
+image-ref: 127.0.0.1:5000/sample-app:0.2.0
+image-digest: ${image_020}
 EOF
-go run ./cmd/packaging-workflow run sample-app-1 --address 127.0.0.1:7233
+}
+write_run_source "${fixture}/sources/sample-app-1.txt" \
+  "memory limit 512Mi" "the sample process is killed at 256Mi" "256Mi" "512Mi" "512Mi"
+write_run_source "${fixture}/sources/sample-app-blocked.txt" \
+  "memory limit 8Gi" "unbounded growth" "512Mi" "8Gi" "512Mi"
+go run ./cmd/packaging-workflow run sample-app-1 --address 127.0.0.1:7233 \
+  --source-file "${fixture}/sources/sample-app-1.txt"
+for _ in $(seq 1 90); do
+  phase="$(curl -fsS "${hub}/v1/packaging-runs/sample-app-1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("phase",""))' || true)"
+  if [[ "${phase}" == "review" || "${phase}" == "blocked" || "${phase}" == "complete" ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ "${phase}" != "review" && "${phase}" != "blocked" && "${phase}" != "complete" ]]; then
+  echo "packaging run sample-app-1 did not leave validation (phase ${phase})" >&2
+  exit 1
+fi
 go run ./cmd/packaging-workflow run sample-app-blocked --address 127.0.0.1:7233 \
   --source-file "${fixture}/sources/sample-app-blocked.txt"
 

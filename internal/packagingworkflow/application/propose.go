@@ -43,9 +43,15 @@ type Auditor interface {
 	Record(ctx context.Context, runID string, provenance domain.Provenance, outcome, reason string) error
 }
 
+// Facts loads the packaging run's recorded chart, memory, and image lines.
+type Facts interface {
+	Load(ctx context.Context, runID string) (domain.PackagingContext, error)
+}
+
 // Service asks the port for a proposal and then applies the packaging gate.
 type Service struct {
 	Proposer domain.ChangeProposer
+	Facts    Facts
 	Open     Opener
 	Audit    Auditor
 	Now      func() time.Time
@@ -57,6 +63,7 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 		result.Error = domain.ErrModelUnavailable.Error()
 		return result, nil
 	}
+	input = service.withFacts(ctx, input)
 	proposal, provenance, err := service.Proposer.Propose(ctx, input)
 	result.Provenance = provenance
 	if err != nil {
@@ -90,6 +97,29 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 	}
 	result.ChangeRequestID = id
 	return result, nil
+}
+
+func (service Service) withFacts(ctx context.Context, input domain.PackagingContext) domain.PackagingContext {
+	if service.Facts == nil || strings.TrimSpace(input.RunID) == "" {
+		return input
+	}
+	loaded, err := service.Facts.Load(ctx, input.RunID)
+	if err != nil {
+		return input
+	}
+	fill := func(current *string, recorded string) {
+		if strings.TrimSpace(*current) == "" {
+			*current = strings.TrimSpace(recorded)
+		}
+	}
+	fill(&input.ChartValues, loaded.ChartValues)
+	fill(&input.Resources, loaded.Resources)
+	fill(&input.MemoryRequest, loaded.MemoryRequest)
+	fill(&input.MemoryLimit, loaded.MemoryLimit)
+	fill(&input.ImageRef, loaded.ImageRef)
+	fill(&input.ImageDigest, loaded.ImageDigest)
+	fill(&input.GateRules, loaded.GateRules)
+	return input
 }
 
 func (service Service) audit(ctx context.Context, runID string, provenance domain.Provenance, outcome, reason string) error {

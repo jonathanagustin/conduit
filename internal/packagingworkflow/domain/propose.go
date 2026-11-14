@@ -15,6 +15,9 @@ import (
 
 const MemoryCeilingMiB = 1024
 
+// MemoryGateRule is the packaging ceiling a proposer is told before it answers.
+const MemoryGateRule = "memory limit must not exceed 1Gi"
+
 var (
 	ErrModelUnavailable = errors.New("local model CLI is not configured")
 	ErrModelTimeout     = errors.New("local model CLI timed out")
@@ -22,12 +25,17 @@ var (
 	ErrProposalInvalid  = errors.New("proposal is not valid")
 )
 
-// PackagingContext is the packaging fact a proposer may see.
+// PackagingContext is the packaging fact a proposer may see. Empty strings
+// are facts the run did not record.
 type PackagingContext struct {
-	RunID        string
-	ChartValues  string
-	CurrentLimit string
-	GateRules    string
+	RunID         string
+	ChartValues   string
+	Resources     string
+	MemoryRequest string
+	MemoryLimit   string
+	ImageRef      string
+	ImageDigest   string
+	GateRules     string
 }
 
 // Proposal is one field change a person can review.
@@ -57,9 +65,15 @@ The object has field, value, and rationale.
 field must be "memory". value is a size such as 512Mi. rationale is one sentence.
 Packaging run: %s
 Chart values: %s
-Current limit: %s
+Resources: %s
+Memory request: %s
+Memory limit: %s
+Image ref: %s
+Image digest: %s
 Gate rules: %s`,
-		oneLine(input.RunID), oneLine(input.ChartValues), oneLine(input.CurrentLimit), oneLine(input.GateRules)))
+		oneLine(input.RunID), oneLine(input.ChartValues), oneLine(input.Resources),
+		oneLine(input.MemoryRequest), oneLine(input.MemoryLimit),
+		oneLine(input.ImageRef), oneLine(input.ImageDigest), oneLine(input.GateRules)))
 }
 
 // ParseProposal accepts one JSON object and nothing else.
