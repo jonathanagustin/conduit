@@ -51,7 +51,7 @@ jq -e \
 
 for required in \
   'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' \
-  'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae' \
+  'actions/cache@caa296126883cff596d87d8935842f9db880ef25' \
   '--build-arg "SOURCE_DATE_EPOCH=1768232310"' \
   'ubuntu-24.04-arm' \
   'syft_1.50.0_linux_${ARCHITECTURE}.tar.gz' \
