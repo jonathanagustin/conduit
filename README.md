@@ -10,6 +10,40 @@ The repository was extracted from the former `platform/` subtree. It now owns
 its architecture, contracts, documentation, and release workflow. The exact
 source boundary is recorded in [MIGRATION.md](MIGRATION.md).
 
+## Quick start
+
+Clone the repository, install the pinned toolchain, and start the local demo:
+
+```bash
+git clone https://github.com/jonathanagustin/conduit.git
+cd conduit
+./install.sh
+mise run demo
+```
+
+`./install.sh` runs [`scripts/install.sh`](scripts/install.sh). It downloads
+the pinned mise release asset, checks the SHA-256 checksum, and runs
+`mise install` against the locked toolchain. Run it again any time; work that
+is already done is skipped. The installer does not install Docker and does
+not request administrator privileges. Source `./install.sh` instead of
+executing it when you want mise activated in the current shell. Executing it
+prints the activation command.
+
+Install Docker yourself and start its daemon before the demo. When the seed
+finishes, open <http://127.0.0.1:8081/console/>.
+
+`mise run demo` runs [`scripts/demo-reset.sh`](scripts/demo-reset.sh) and then
+[`scripts/demo-seed.sh`](scripts/demo-seed.sh). You can run those two scripts
+directly. On a Docker host that cannot publish ports because it has no
+iptables or bridge networking, set `DEMO_DOCKER_NETWORK=host`. The seed also
+switches to that mode when the default publish or image build fails for that
+reason.
+
+Optional: live model proposals. Install a local model CLI yourself and sign
+in with it, then set `CONDUIT_MODEL_CMD` to that command before starting the
+Hub. Leave the variable unset to keep the recorded proposals and make no
+model call. See [Local model CLI](docs/operations/local-model-cli.md).
+
 ## Current status
 
 Conduit has working native contexts for catalog, environments, governance,

@@ -19,8 +19,11 @@ if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   echo "Docker is required to publish the sample image and chart" >&2
   exit 1
 fi
+# shellcheck source=SCRIPTDIR/lib/demo-docker-network.sh
+source "${root}/scripts/lib/demo-docker-network.sh"
+demo_prepare_docker_network
 registry_image="registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
-docker run --detach --name conduit-seed-registry --publish 127.0.0.1:5000:5000 "${registry_image}" >/dev/null
+demo_start_registry "${registry_image}"
 for _ in $(seq 1 60); do
   if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
     break
@@ -42,7 +45,7 @@ publish_image() {
 FROM scratch
 COPY app.txt /app.txt
 EOF
-  docker build -t "127.0.0.1:5000/sample-app:${version}" "${dir}" >&2
+  demo_docker_build "127.0.0.1:5000/sample-app:${version}" "${dir}"
   docker push "127.0.0.1:5000/sample-app:${version}" >&2
   docker image inspect "127.0.0.1:5000/sample-app:${version}" --format '{{range .RepoDigests}}{{println .}}{{end}}' |
     sed -n 's/.*@\(sha256:[0-9a-f]\{64\}\)$/\1/p' | head -1
@@ -119,7 +122,6 @@ if ! "${root}/scripts/fetch-temporal-cli.sh" >/dev/null; then
   echo "Temporal CLI could not be fetched" >&2
   exit 1
 fi
-cli="${root}/.cache/temporal/temporal"
 
 nohup env PACKAGING_TEMPORAL_DB="${state_dir}/temporal.db" \
   PACKAGING_TEMPORAL_PORT=7233 \
