@@ -24,8 +24,9 @@ var ErrDenied = errors.New("execution control denied the handoff")
 // and the Plan-id journal. The workflow history stores the receipts the
 // activities return, not these files.
 type Ledger struct {
-	dir string
-	mu  sync.Mutex
+	dir    string
+	mu     sync.Mutex
+	closed bool
 }
 
 func Open(dir string) (*Ledger, error) {
@@ -33,6 +34,16 @@ func Open(dir string) (*Ledger, error) {
 		return nil, err
 	}
 	return &Ledger{dir: dir}, nil
+}
+
+// Close drains this instance's current operation and prevents later activities
+// from opening or changing its files. It does not close another Ledger instance
+// that was opened on the same directory.
+func (l *Ledger) Close() error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.closed = true
+	return nil
 }
 
 func (l *Ledger) LoadReceipt(_ context.Context, key string) (domain.Receipt, bool, error) {
@@ -161,6 +172,10 @@ func (l *Ledger) path(name string) string {
 
 func (l *Ledger) lock() (func(), error) {
 	l.mu.Lock()
+	if l.closed {
+		l.mu.Unlock()
+		return nil, os.ErrClosed
+	}
 	file, err := os.OpenFile(l.path("ledger.lock"), os.O_CREATE|os.O_RDWR, 0o600)
 	if err != nil {
 		l.mu.Unlock()

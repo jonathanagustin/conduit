@@ -222,6 +222,7 @@ func RunWorker(ctx context.Context, cfg config.Config, repository controlplane.R
 	if err != nil {
 		return err
 	}
+	defer ledger.Close()
 	work := pipeline.RegisterWorker(temporalClient, cfg.TaskQueue, pipeline.Activities{
 		FixtureDir: cfg.FixtureDir,
 		Ledger:     ledger,
