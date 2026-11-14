@@ -8,6 +8,14 @@ import (
 func TestRegistryHostBoundaryBeforeCredentials(t *testing.T) {
 	// Recognized hosts must reach this deterministic environment error. Neither
 	// branch can acquire credentials or make a token-exchange network request.
+	for _, name := range []string{
+		"AZURE_SUBSCRIPTION_ID", "AZURE_TENANT_ID", "AZURE_AUXILIARY_TENANT_IDS",
+		"AZURE_CLIENT_ID", "AZURE_CLIENT_SECRET", "AZURE_CERTIFICATE_PATH",
+		"AZURE_CERTIFICATE_PASSWORD", "AZURE_USERNAME", "AZURE_PASSWORD",
+		"AZURE_FEDERATED_TOKEN_FILE", "AZURE_FEDERATED_TOKEN", "AZURE_AUTH_LOCATION",
+	} {
+		t.Setenv(name, "")
+	}
 	t.Setenv("AZURE_ENVIRONMENT", "ConduitFixtureMissingCloud")
 	helper := NewACRCredentialsHelper()
 	for _, mode := range []string{"true", "false"} {
