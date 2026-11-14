@@ -58,6 +58,24 @@ func TestAuditChainBindsPayloadIdentityOriginAndPredecessor(t *testing.T) {
 	}
 }
 
+func TestChainAuthorizationAuditLinksEachEntryToThePrevious(t *testing.T) {
+	first := chainEvent()
+	second := chainEvent()
+	second.ID = "later-event"
+	second.CreatedAt = first.CreatedAt.Add(time.Minute)
+	second.Action = "approve"
+	entries, err := ChainAuthorizationAudit([]AuthorizationAuditEvent{second, first})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 || entries[0].ID != first.ID || entries[1].PreviousDigest != entries[0].Digest {
+		t.Fatalf("chain = %#v", entries)
+	}
+	if entries[0].PreviousDigest != EmptyAuditCheckpoint().Digest || entries[0].Actor != "operator" || entries[1].Action != "approve" {
+		t.Fatalf("chain fields = %#v", entries)
+	}
+}
+
 func TestAuditChainRefusesInvalidCheckpointAndUnknownOrigin(t *testing.T) {
 	for _, previous := range []AuditCheckpoint{{}, {Version: AuditChainVersion, Digest: "00"}, {Version: AuditChainVersion, Digest: string(bytes.Repeat([]byte("0"), 64))}} {
 		if _, err := NewAuditChainRecord(previous, chainEvent(), AuditOriginLive); err == nil {

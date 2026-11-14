@@ -14,6 +14,106 @@ mkdir -p "${state_dir}/data" "${state_dir}/packaging"
 pid_file="${state_dir}/pids"
 : >"${pid_file}"
 
+if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
+  echo "Docker is required to publish the sample image and chart" >&2
+  exit 1
+fi
+registry_image="registry@sha256:a3d8aaa63ed8681a604f1dea0aa03f100d5895b6a58ace528858a7b332415373"
+docker run --detach --name conduit-seed-registry --publish 127.0.0.1:5000:5000 "${registry_image}" >/dev/null
+for _ in $(seq 1 60); do
+  if curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
+    break
+  fi
+  sleep 1
+done
+if ! curl -fsS http://127.0.0.1:5000/v2/ >/dev/null 2>&1; then
+  echo "Registry did not answer on 127.0.0.1:5000" >&2
+  docker logs conduit-seed-registry 2>&1 | tail -20 >&2 || true
+  exit 1
+fi
+
+publish_image() {
+  local version="$1" body="$2" dir
+  dir="${state_dir}/image-${version}"
+  mkdir -p "${dir}"
+  printf '%s\n' "${body}" >"${dir}/app.txt"
+  cat >"${dir}/Dockerfile" <<'EOF'
+FROM scratch
+COPY app.txt /app.txt
+EOF
+  docker build -t "127.0.0.1:5000/sample-app:${version}" "${dir}" >&2
+  docker push "127.0.0.1:5000/sample-app:${version}" >&2
+  docker image inspect "127.0.0.1:5000/sample-app:${version}" --format '{{range .RepoDigests}}{{println .}}{{end}}' |
+    sed -n 's/.*@\(sha256:[0-9a-f]\{64\}\)$/\1/p' | head -1
+}
+
+python3 - "${state_dir}" <<'PY'
+import hashlib, io, json, sys, tarfile, urllib.request
+state, registry = sys.argv[1], "http://127.0.0.1:5000"
+
+def push_chart(name, version, memory):
+    files = {
+        f"{name}/Chart.yaml": f"apiVersion: v2\nname: {name}\nversion: {version}\n",
+        f"{name}/values.yaml": f"memory: {memory}\n",
+        f"{name}/templates/configmap.yaml": "apiVersion: v1\nkind: ConfigMap\nmetadata:\n  name: sample-app\ndata:\n  memory: {{ .Values.memory }}\n",
+    }
+    blob_file = io.BytesIO()
+    with tarfile.open(fileobj=blob_file, mode="w:gz") as archive:
+        for path, text in files.items():
+            raw = text.encode()
+            info = tarfile.TarInfo(path)
+            info.size = len(raw)
+            archive.addfile(info, io.BytesIO(raw))
+    blob = blob_file.getvalue()
+    config = json.dumps({"name": name, "version": version, "memory": memory}).encode()
+    def upload(payload, digest):
+        request = urllib.request.Request(f"{registry}/v2/{name}/blobs/uploads/", method="POST")
+        with urllib.request.urlopen(request) as response:
+            location = response.headers["Location"]
+        if location.startswith("/"):
+            location = "http://127.0.0.1:5000" + location
+        joiner = "&" if "?" in location else "?"
+        put = urllib.request.Request(location + joiner + "digest=" + digest, data=payload, method="PUT")
+        put.add_header("Content-Type", "application/octet-stream")
+        urllib.request.urlopen(put).read()
+    blob_digest = "sha256:" + hashlib.sha256(blob).hexdigest()
+    config_digest = "sha256:" + hashlib.sha256(config).hexdigest()
+    upload(blob, blob_digest)
+    upload(config, config_digest)
+    manifest = json.dumps({
+        "schemaVersion": 2,
+        "mediaType": "application/vnd.oci.image.manifest.v1+json",
+        "config": {"mediaType": "application/vnd.cncf.helm.config.v1+json", "digest": config_digest, "size": len(config)},
+        "layers": [{"mediaType": "application/vnd.cncf.helm.chart.content.v1.tar+gzip", "digest": blob_digest, "size": len(blob)}],
+    }, separators=(",", ":")).encode()
+    digest = "sha256:" + hashlib.sha256(manifest).hexdigest()
+    put = urllib.request.Request(f"{registry}/v2/{name}/manifests/{version}", data=manifest, method="PUT")
+    put.add_header("Content-Type", "application/vnd.oci.image.manifest.v1+json")
+    urllib.request.urlopen(put).read()
+    return digest
+
+charts = {
+    "0.1.0": push_chart("sample-app-chart", "0.1.0", "256Mi"),
+    "0.2.0": push_chart("sample-app-chart", "0.2.0", "512Mi"),
+}
+open(f"{state}/charts.json", "w").write(json.dumps(charts))
+print(charts)
+PY
+
+image_010="$(publish_image 0.1.0 'sample-app 0.1.0')"
+image_020="$(publish_image 0.2.0 'sample-app 0.2.0')"
+chart_010="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["0.1.0"])' "${state_dir}/charts.json")"
+chart_020="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["0.2.0"])' "${state_dir}/charts.json")"
+for digest in "${image_010}" "${image_020}" "${chart_010}" "${chart_020}"; do
+  if [[ ! "${digest}" =~ ^sha256:[0-9a-f]{64}$ ]]; then
+    echo "registry digest was not a sha256: ${digest}" >&2
+    exit 1
+  fi
+done
+printf 'image_010=%s\nimage_020=%s\nchart_010=%s\nchart_020=%s\n' \
+  "${image_010}" "${image_020}" "${chart_010}" "${chart_020}" >"${state_dir}/digests.env"
+echo "published ${image_020} ${chart_020}"
+
 if ! "${root}/scripts/fetch-temporal-cli.sh" >/dev/null; then
   echo "Temporal CLI could not be fetched" >&2
   exit 1
@@ -66,7 +166,29 @@ if ! curl -fsS "${hub}/version" >/dev/null 2>&1; then
   exit 1
 fi
 
+fixture="${state_dir}/packaging/fixture"
+for _ in $(seq 1 90); do
+  if [[ -f "${fixture}/source.txt" ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ ! -f "${fixture}/source.txt" ]]; then
+  echo "Packaging worker did not materialize its fixture" >&2
+  tail -30 "${state_dir}/worker.log" >&2 || true
+  exit 1
+fi
+mkdir -p "${fixture}/sources"
+cat >"${fixture}/sources/sample-app-blocked.txt" <<'EOF'
+name: sample-app
+kind: fixture
+proposal: memory limit 8Gi
+rationale: unbounded growth
+memory: 8Gi
+EOF
 go run ./cmd/packaging-workflow run sample-app-1 --address 127.0.0.1:7233
+go run ./cmd/packaging-workflow run sample-app-blocked --address 127.0.0.1:7233 \
+  --source-file "${fixture}/sources/sample-app-blocked.txt"
 
 api() {
   local method="$1" path="$2" body="${3:-}"
@@ -91,37 +213,38 @@ JSON
 )" >/dev/null
 
 plan_file="${state_dir}/plan.json"
-api POST /v1/plans "$(cat <<'JSON'
-{
+python3 - "${state_dir}/digests.env" "${state_dir}/plan-body.json" <<'PY'
+import json, sys
+values = {}
+for line in open(sys.argv[1]):
+    key, value = line.strip().split("=", 1)
+    values[key] = value
+def release(version, chart, image):
+    return {
+        "product": "app.example:sample-app",
+        "version": version,
+        "channels": ["DEV"],
+        "chart": {"repository": "127.0.0.1:5000/sample-app-chart", "tag": version, "digest": chart},
+        "images": [{"repository": "127.0.0.1:5000/sample-app", "tag": version, "digest": image}],
+    }
+body = {
   "apiVersion": "platform.delivery/v1alpha1",
   "kind": "EnvironmentDeployment",
   "environment": {"id": "dev", "generation": "0123456789abcdef"},
   "releaseChannels": [
     {"name": "DEV", "description": "Development"},
-    {"name": "STAGING", "description": "Staging"}
+    {"name": "STAGING", "description": "Staging"},
   ],
   "releases": [
-    {
-      "product": "app.example:sample-app",
-      "version": "0.1.0",
-      "channels": ["DEV"],
-      "chart": {"repository": "registry.example/sample-app", "tag": "0.1.0", "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"},
-      "images": [{"repository": "registry.example/sample-app", "tag": "0.1.0", "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"}]
-    },
-    {
-      "product": "app.example:sample-app",
-      "version": "0.2.0",
-      "channels": ["DEV"],
-      "chart": {"repository": "registry.example/sample-app", "tag": "0.2.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-      "images": [{"repository": "registry.example/sample-app", "tag": "0.2.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
-    }
+    release("0.1.0", values["chart_010"], values["image_010"]),
+    release("0.2.0", values["chart_020"], values["image_020"]),
   ],
   "recalls": [
     {
       "id": "rcl-sample-010",
       "product": "app.example:sample-app",
       "startingVersion": "0.1.0",
-      "singleVersion": true,
+      "singleVersion": True,
       "reason": "sample release failed its release check",
       "strategy": {"type": "ROLL_FORWARD"}
     }
@@ -130,17 +253,29 @@ api POST /v1/plans "$(cat <<'JSON'
     {
       "product": "app.example:sample-app",
       "promotionPipeline": {
-        "enabled": true,
-        "stages": [{"fromChannel": "DEV", "toChannel": "STAGING", "policy": {"noDelay": true, "minimumHealthyEntities": 0}}]
+        "enabled": True,
+        "stages": [{"fromChannel": "DEV", "toChannel": "STAGING", "policy": {"noDelay": True, "minimumHealthyEntities": 0}}]
       }
     }
   ],
   "entities": [
-    {"name": "sample-app", "product": "app.example:sample-app", "version": "0.2.0", "namespace": "sample"}
-  ]
+    {
+      "name": "sample-app",
+      "product": "app.example:sample-app",
+      "version": "0.2.0",
+      "namespace": "sample",
+      "helmValues": {"resources": {"limits": {"memory": "512Mi"}}}
+    }
+  ],
 }
-JSON
-)" >"${plan_file}"
+json.dump(body, open(sys.argv[2], "w"))
+PY
+curl -fsS -X POST "${hub}/v1/plans" \
+  -H 'content-type: application/json' \
+  -H 'accept: application/json' \
+  -H 'X-Change-Title: Raise memory limit to 512Mi' \
+  -H 'X-Change-Description: the sample process is killed at 256Mi' \
+  --data @"${state_dir}/plan-body.json" >"${plan_file}"
 
 change_id="$(python3 - <<PY
 import json
@@ -221,8 +356,8 @@ api POST /v1/promotions/evaluations "$(cat <<JSON
     "product": "app.example:sample-app",
     "version": "0.2.0",
     "channels": ["DEV"],
-    "chart": {"repository": "registry.example/sample-app", "tag": "0.2.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"},
-    "images": [{"repository": "registry.example/sample-app", "tag": "0.2.0", "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]
+    "chart": {"repository": "127.0.0.1:5000/sample-app-chart", "tag": "0.2.0", "digest": "${chart_020}"},
+    "images": [{"repository": "127.0.0.1:5000/sample-app", "tag": "0.2.0", "digest": "${image_020}"}]
   },
   "fromChannel": "DEV",
   "toChannel": "STAGING",
@@ -264,7 +399,13 @@ import json
 preview = json.load(open("${state_dir}/preview.json"))
 assert preview.get("manifestDigest"), preview
 assert preview.get("signature", {}).get("verified") is True, preview
-assert preview.get("sbom"), preview
+components = preview.get("sbom") or []
+digests = {item.get("digest") for item in components}
+values = dict(line.strip().split("=", 1) for line in open("${state_dir}/digests.env") if "=" in line)
+if values["image_020"] not in digests or values["chart_020"] not in digests:
+    raise SystemExit(f"bundle sbom does not carry the published 0.2.0 digests: {components}")
+if any(digest.endswith("a" * 16) or digest.endswith("b" * 16) for digest in digests):
+    raise SystemExit(f"bundle sbom still has a placeholder digest: {components}")
 print(preview["bundleId"], preview["manifestDigest"])
 PY
 
@@ -277,6 +418,18 @@ done
 phase="$(curl -fsS "${hub}/v1/packaging-runs/sample-app-1" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("phase",""))')"
 if [[ "${phase}" != "review" ]]; then
   echo "packaging run sample-app-1 phase is ${phase}, want review" >&2
+  exit 1
+fi
+blocked=""
+for _ in $(seq 1 60); do
+  blocked="$(curl -fsS "${hub}/v1/packaging-runs/sample-app-blocked" | python3 -c 'import json,sys; body=json.load(sys.stdin); print(body.get("phase",""), body.get("outcome",""))')"
+  if [[ "${blocked}" == blocked* ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ "${blocked}" != blocked* ]]; then
+  echo "packaging run sample-app-blocked is ${blocked}, want blocked" >&2
   exit 1
 fi
 

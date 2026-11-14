@@ -86,7 +86,8 @@ func newRoot() *cobra.Command {
 			return nil
 		},
 	})
-	root.AddCommand(&cobra.Command{
+	var sourceFile string
+	runCommand := &cobra.Command{
 		Use:   "run [run-id]",
 		Short: "Start one packaging run and return without approving it",
 		Args:  cobra.MaximumNArgs(1),
@@ -95,7 +96,17 @@ func newRoot() *cobra.Command {
 			if len(args) == 1 {
 				runID = args[0]
 			}
-			id, err := fixtures.Identity(runID)
+			var id domain.RunIdentity
+			var err error
+			if sourceFile == "" {
+				id, err = fixtures.Identity(runID)
+			} else {
+				body, readErr := os.ReadFile(sourceFile)
+				if readErr != nil {
+					return readErr
+				}
+				id, err = fixtures.IdentityFromSource(runID, body)
+			}
 			if err != nil {
 				return err
 			}
@@ -109,7 +120,9 @@ func newRoot() *cobra.Command {
 			}, pipeline.WorkflowName, pipeline.Input{Identity: id, ApprovalWait: 15 * time.Minute})
 			return err
 		},
-	})
+	}
+	runCommand.Flags().StringVar(&sourceFile, "source-file", "", "source whose digest binds this run; the worker reads sources/<run-id>.txt")
+	root.AddCommand(runCommand)
 	root.AddCommand(&cobra.Command{
 		Use:   "approve [run-id]",
 		Short: "Record a stand-in Conduit approval and then signal the waiting run",

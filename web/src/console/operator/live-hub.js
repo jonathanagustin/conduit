@@ -158,6 +158,52 @@ export function createLiveHub({ state, render }) {
   };
   let started = false;
 
+  function eventsFor(runId) {
+    const byRun = hub(state).packagingEventsByRun || {};
+    if (byRun[runId]) return byRun[runId];
+    return hub(state).packagingEvents || [];
+  }
+
+  function auditTable(entries) {
+    return `<table class="so-table"><thead><tr><th>Entry</th><th>Actor</th><th>Action</th><th>Previous hash</th><th>Hash</th></tr></thead><tbody>${entries
+      .map(
+        (entry) => `<tr>
+          <td class="code-id">${esc(entry.sequence)}. ${esc(entry.id)}</td>
+          <td>${esc(entry.actor || "")}</td>
+          <td>${esc(entry.action || "")}</td>
+          <td class="code-id break-all">${esc(entry.previousDigest || "")}</td>
+          <td class="code-id break-all">${esc(entry.digest || "")}</td>
+        </tr>`,
+      )
+      .join("")}</tbody></table>`;
+  }
+
+  function auditPanel(limit) {
+    const entries = hub(state).audit || [];
+    if (!entries.length) {
+      return panel("Audit chain", `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).auditNote || "No audit entries are recorded.")}</p>`);
+    }
+    const shown = limit ? entries.slice(0, limit) : entries;
+    const items = shown
+      .map(
+        (entry) => `<li class="space-y-1 border-b border-[#1c242c] pb-2">
+          <div class="text-[12px] text-white">${esc(entry.sequence)}. <span class="code-id">${esc(entry.id)}</span></div>
+          <div class="text-[12px] text-[#dce4ee]">${esc(entry.actor || "")} · ${esc(entry.action || "")}</div>
+          <div class="text-[11px] text-[#8b96a5]">Previous <span class="code-id break-all text-[#dce4ee]">${esc(entry.previousDigest || "")}</span></div>
+          <div class="text-[11px] text-[#8b96a5]">Hash <span class="code-id break-all text-[#dce4ee]">${esc(entry.digest || "")}</span></div>
+        </li>`,
+      )
+      .join("");
+    return panel(
+      "Audit chain",
+      `<p class="text-[12px] text-[#8b96a5]">${shown.length} of ${entries.length} recorded entries. Each hash includes the previous hash.</p><ol class="space-y-2 mt-2">${items}</ol>`,
+    );
+  }
+
+  function split(main) {
+    return `<div class="so-view-enter so-split"><div class="space-y-3 min-w-0">${main}</div>${auditPanel(6)}</div>`;
+  }
+
   function paintOperator() {
     const name = state.operatorName || "Operator";
     const chip = document.getElementById("operator-chip");
@@ -194,13 +240,22 @@ export function createLiveHub({ state, render }) {
     try {
       const body = await readJSON("/v1/packaging-runs");
       next.packaging = Array.isArray(body.items) ? body.items : [];
-      const run = next.packaging.find((item) => item.runId);
-      if (run) {
+      next.packagingEventsByRun = {};
+      for (const run of next.packaging) {
+        if (!run.runId) continue;
         const events = await readJSON(`/v1/packaging-runs/${encodeURIComponent(run.runId)}/events`);
-        next.packagingEvents = Array.isArray(events.items) ? events.items : [];
+        next.packagingEventsByRun[run.runId] = Array.isArray(events.items) ? events.items : [];
       }
+      const first = next.packaging.find((item) => item.runId);
+      next.packagingEvents = first ? next.packagingEventsByRun[first.runId] || [] : [];
     } catch {
       next.packagingNote = "Hub did not return packaging runs.";
+    }
+    try {
+      const chain = await readJSON("/v1/authorization-audit?view=chain");
+      next.audit = Array.isArray(chain.entries) ? chain.entries : [];
+    } catch {
+      next.auditNote = "Hub did not return the audit chain.";
     }
     try {
       next.changes = await readPages("/v1/change-requests", "changeRequests");
@@ -246,36 +301,36 @@ export function createLiveHub({ state, render }) {
         root.innerHTML = missing(hub(state).packagingNote || "No packaging run is recorded.");
         return;
       }
-      const run = runs[0];
-      const events = (hub(state).packagingEvents || [])
-        .map(
-          (event) => `<tr>
-            <td>${esc(event.step)}</td>
-            <td>${esc(event.outcome || "")}</td>
-            <td class="text-[#8b96a5]">${esc(event.reason || "")}</td>
-          </tr>`,
-        )
+      const cards = runs
+        .map((run) => {
+          const events = eventsFor(run.runId)
+            .map(
+              (event) => `<tr>
+                <td>${esc(event.step)}</td>
+                <td>${esc(event.outcome || "")}</td>
+                <td class="text-[#8b96a5]">${esc(event.reason || "")}</td>
+              </tr>`,
+            )
+            .join("");
+          return `${panel(
+            run.runId || "Packaging run",
+            `<dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+              <div><dt class="text-[#6d7885]">Phase</dt><dd class="text-white">${esc(run.phase || "")}</dd></div>
+              <div><dt class="text-[#6d7885]">Outcome</dt><dd class="text-white">${esc(run.outcome || "")}</dd></div>
+              <div><dt class="text-[#6d7885]">Plan</dt><dd class="code-id text-white">${esc(run.planId || run.targetPlanRef || "")}</dd></div>
+              <div><dt class="text-[#6d7885]">Template</dt><dd class="text-white">${esc(run.templateVersion || "")}</dd></div>
+              <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
+            </dl>`,
+          )}
+          ${panel(
+            "Steps",
+            events
+              ? `<table class="so-table"><thead><tr><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${events}</tbody></table>`
+              : `<p class="text-[12px] text-[#8b96a5]">No step events recorded.</p>`,
+          )}`;
+        })
         .join("");
-      root.innerHTML = `<div class="so-view-enter space-y-3">
-        ${panel(
-          "Packaging run",
-          `<dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
-            <div><dt class="text-[#6d7885]">Run</dt><dd class="code-id text-white">${esc(run.runId)}</dd></div>
-            <div><dt class="text-[#6d7885]">Phase</dt><dd class="text-white">${esc(run.phase || "")}</dd></div>
-            <div><dt class="text-[#6d7885]">Outcome</dt><dd class="text-white">${esc(run.outcome || "")}</dd></div>
-            <div><dt class="text-[#6d7885]">Plan</dt><dd class="code-id text-white">${esc(run.planId || run.targetPlanRef || "")}</dd></div>
-            <div><dt class="text-[#6d7885]">Template</dt><dd class="text-white">${esc(run.templateVersion || "")}</dd></div>
-            <div><dt class="text-[#6d7885]">Tools</dt><dd class="text-white">${esc(run.toolVersions || "")}</dd></div>
-            <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
-          </dl>`,
-        )}
-        ${panel(
-          "Steps",
-          events
-            ? `<table class="so-table"><thead><tr><th>Step</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${events}</tbody></table>`
-            : `<p class="text-[12px] text-[#8b96a5]">No step events recorded.</p>`,
-        )}
-      </div>`;
+      root.innerHTML = split(cards);
     },
     renderBundle(root) {
       const preview = hub(state).preview;
@@ -294,8 +349,7 @@ export function createLiveHub({ state, render }) {
         )
         .join("");
       const signature = preview.signature || {};
-      root.innerHTML = `<div class="so-view-enter space-y-3">
-        ${panel(
+      root.innerHTML = split(`${panel(
           "Bundle preview",
           `<dl class="space-y-2 text-[12px]">
             <div><dt class="text-[#6d7885]">Bundle</dt><dd class="code-id text-white">${esc(preview.bundleId)}</dd></div>
@@ -309,8 +363,7 @@ export function createLiveHub({ state, render }) {
           components
             ? `<table class="so-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Digest</th></tr></thead><tbody>${components}</tbody></table>`
             : `<p class="text-[12px] text-[#8b96a5]">No chart or image components in this bundle.</p>`,
-        )}
-      </div>`;
+        )}`);
     },
     renderChanges(root) {
       const rows = hub(state).changes || [];
@@ -327,7 +380,8 @@ export function createLiveHub({ state, render }) {
             .join("");
           return panel(
             request.title || request.id,
-            `<dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
+            `<p class="text-[12.5px] text-[#dce4ee]">${esc(request.description || "")}</p>
+            <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] mt-2">
               <div><dt class="text-[#6d7885]">Change request</dt><dd class="code-id text-white">${esc(request.id)}</dd></div>
               <div><dt class="text-[#6d7885]">Status</dt><dd class="text-white">${esc(request.status)}</dd></div>
               <div><dt class="text-[#6d7885]">Author</dt><dd class="text-white">${esc(request.author?.username || "")}</dd></div>
@@ -337,7 +391,7 @@ export function createLiveHub({ state, render }) {
           );
         })
         .join("");
-      root.innerHTML = `<div class="so-view-enter space-y-3">${cards}</div>`;
+      root.innerHTML = split(cards);
     },
     renderPromotion(root) {
       const edges = promotionEdges(state);
@@ -355,11 +409,11 @@ export function createLiveHub({ state, render }) {
           </tr>`,
         )
         .join("");
-      root.innerHTML = `<div class="so-view-enter">${panel(
+      root.innerHTML = split(panel(
         "Promotion",
         `<p class="text-[12px] text-[#8b96a5]">DEV to STAGING.</p>
          <table class="so-table"><thead><tr><th>Product</th><th>Version</th><th>Edge</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
-      )}</div>`;
+      ));
     },
     renderEnvironments(root) {
       const rows = hub(state).environments || [];
@@ -378,10 +432,10 @@ export function createLiveHub({ state, render }) {
           </tr>`;
         })
         .join("");
-      root.innerHTML = `<div class="so-view-enter">${panel(
+      root.innerHTML = split(panel(
         "Environments",
         `<table class="so-table"><thead><tr><th>Environment</th><th>Spoke</th><th>Liveness</th><th>Observed</th></tr></thead><tbody>${body}</tbody></table>`,
-      )}</div>`;
+      ));
     },
     renderRecall(root) {
       const pairs = recallsFrom(hub(state).plans);
@@ -414,40 +468,78 @@ export function createLiveHub({ state, render }) {
           );
         })
         .join("");
-      root.innerHTML = `<div class="so-view-enter space-y-3">${blocks}</div>`;
+      root.innerHTML = split(blocks);
+    },
+    renderAudit(root) {
+      const entries = hub(state).audit || [];
+      if (!entries.length) {
+        root.innerHTML = missing(hub(state).auditNote || "No audit entries are recorded.");
+        return;
+      }
+      root.innerHTML = `<div class="so-view-enter">${panel(
+        "Authorization audit",
+        `<p class="text-[12px] text-[#8b96a5]">Hash chain of the recorded decisions. The previous hash of each entry is the hash of the entry before it.</p>${auditTable(entries)}`,
+      )}</div>`;
     },
   };
 }
 
+export function recordedGateRows(state) {
+  const runs = hub(state).packaging || [];
+  const byRun = hub(state).packagingEventsByRun || {};
+  const rows = [];
+  for (const run of runs) {
+    for (const event of byRun[run.runId] || []) {
+      if (!event.outcome || event.outcome === "WAITING") continue;
+      rows.push({
+        run: run.runId,
+        gate: event.step,
+        outcome: event.outcome,
+        reason: event.reason || "",
+      });
+    }
+  }
+  return rows;
+}
+
 export function renderLiveProposal(root, state) {
-  const proposal = recordedProposal(state);
-  if (!proposal) return false;
-  const verdict = proposal.failed
-    ? "Deterministic checks blocked this proposal."
-    : proposal.passed
-      ? "Deterministic checks passed."
-      : "The proposal is recorded. Checks have not finished.";
-  const events = proposal.events
-    .map(
-      (event) => `<tr><td>${esc(event.step)}</td><td>${esc(event.outcome || "")}</td><td class="text-[#8b96a5]">${esc(event.reason || "")}</td></tr>`,
-    )
+  const runs = hub(state).packaging || [];
+  const byRun = hub(state).packagingEventsByRun || {};
+  const proposals = runs.filter((run) => run && run.runId);
+  if (!proposals.length) return false;
+  const cards = proposals
+    .map((run) => {
+      const events = byRun[run.runId] || [];
+      const failed = events.some((event) => /FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/.test(event.outcome || ""));
+      const passed = events.some((event) => event.outcome === "PASS") && !failed;
+      const verdict = failed
+        ? "Deterministic checks blocked this proposal."
+        : passed
+          ? "Deterministic checks passed."
+          : "The proposal is recorded. Checks have not finished.";
+      const rows = events
+        .map(
+          (event) => `<tr><td>${esc(event.step)}</td><td>${esc(event.outcome || "")}</td><td class="text-[#8b96a5]">${esc(event.reason || "")}</td></tr>`,
+        )
+        .join("");
+      return `${panel(
+        `Recorded proposal · ${run.runId}`,
+        `<p class="text-[12.5px] text-white">${esc(verdict)}</p>
+         <p class="text-[12px] text-[#8b96a5] mt-1">Recorded by the packaging assessment. No model call.</p>
+         <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] mt-2">
+           <div><dt class="text-[#6d7885]">Phase</dt><dd class="text-white">${esc(run.phase || "")}</dd></div>
+           <div><dt class="text-[#6d7885]">Outcome</dt><dd class="text-white">${esc(run.outcome || "")}</dd></div>
+           <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
+         </dl>`,
+      )}
+      ${panel(
+        "Gates",
+        rows
+          ? `<table class="so-table"><thead><tr><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>`
+          : `<p class="text-[12px] text-[#8b96a5]">No gate events recorded.</p>`,
+      )}`;
+    })
     .join("");
-  root.innerHTML = `<div class="so-view-enter space-y-3">
-    ${panel(
-      "Recorded proposal",
-      `<p class="text-[12.5px] text-white">${esc(verdict)}</p>
-       <dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px] mt-2">
-         <div><dt class="text-[#6d7885]">Run</dt><dd class="code-id text-white">${esc(proposal.run.runId)}</dd></div>
-         <div><dt class="text-[#6d7885]">Phase</dt><dd class="text-white">${esc(proposal.run.phase || "")}</dd></div>
-         <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(proposal.run.sourceDigest || "")}</dd></div>
-       </dl>`,
-    )}
-    ${panel(
-      "Checks",
-      events
-        ? `<table class="so-table"><thead><tr><th>Step</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${events}</tbody></table>`
-        : `<p class="text-[12px] text-[#8b96a5]">No check events recorded.</p>`,
-    )}
-  </div>`;
+  root.innerHTML = `<div class="so-view-enter space-y-3">${cards}</div>`;
   return true;
 }

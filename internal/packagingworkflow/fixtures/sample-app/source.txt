@@ -1,2 +1,5 @@
 name: sample-app
 kind: fixture
+proposal: memory limit 512Mi
+rationale: the sample process is killed at 256Mi
+memory: 512Mi

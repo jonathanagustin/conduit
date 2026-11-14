@@ -1,5 +1,5 @@
 /* Release-gate screens. Recalls and the proposal trace read the Hub. */
-import { renderLiveProposal } from "./live-hub.js";
+import { recordedGateRows, renderLiveProposal } from "./live-hub.js";
 
 function esc(value) {
   return String(value)
@@ -835,8 +835,19 @@ export function createReleaseGates(ctx) {
         "violet",
       ],
     ];
+    const recorded = recordedGateRows(state);
+    const recordedTable = recorded.length
+      ? `<div class="so-panel p-3 space-y-2">
+          <div class="text-[13px] font-semibold text-white">Recorded gate results</div>
+          <p class="text-[12px] text-[#8b96a5]">Recorded by the packaging assessment. No model call.</p>
+          <table class="so-table"><thead><tr><th>Run</th><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>
+            ${recorded.map((row) => `<tr><td class="code-id">${esc(row.run)}</td><td>${esc(row.gate)}</td><td>${esc(row.outcome)}</td><td class="text-[#8b96a5]">${esc(row.reason)}</td></tr>`).join("")}
+          </tbody></table>
+        </div>`
+      : "";
     root.innerHTML = `
       <div class="space-y-3 flex flex-col">
+        ${recordedTable}
         <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
         ${ctx.rmApiStrip("EXAMPLE", "Staged proposals awaiting review, and eval results", "ConduitPlan")}
         <div class="so-panel p-3 flex flex-wrap items-center justify-between gap-2">
@@ -1012,11 +1023,8 @@ export function createReleaseGates(ctx) {
         num: 31,
         short: "Proposal Trace",
         tabTitle: "Proposal Trace",
-        hasSidebar: false,
+        hasSidebar: true,
         showKpis: false,
-        appGroup: "proposals",
-        parentLabel: "Command Center",
-        parentId: "s13-fleet-overview",
         subtitle: "PROPOSAL TRACE",
       },
       {
@@ -1024,11 +1032,8 @@ export function createReleaseGates(ctx) {
         num: 32,
         short: "Proposals & Evals",
         tabTitle: "Proposals & Evals",
-        hasSidebar: false,
+        hasSidebar: true,
         showKpis: false,
-        appGroup: "proposals",
-        parentLabel: "Proposal Trace",
-        parentId: "pt01-proposal-trace",
         subtitle: "PROPOSALS & EVALS",
       },
     ],

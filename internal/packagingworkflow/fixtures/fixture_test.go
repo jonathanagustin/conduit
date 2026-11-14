@@ -71,6 +71,7 @@ func TestGatesBlockInsteadOfPassing(t *testing.T) {
 		{"requirement: unsupported\n", domain.OutcomeUnsupported},
 		{"security-evidence: unknown\n", domain.OutcomeUnknownSecurity},
 		{"lint: fail\n", domain.OutcomeFailRequired},
+		{"memory: 8Gi\n", domain.OutcomeFailRequired},
 	}
 	for _, tc := range cases {
 		marked := append(append([]byte{}, source...), tc.marker...)
@@ -78,6 +79,36 @@ func TestGatesBlockInsteadOfPassing(t *testing.T) {
 		if got.Outcome != tc.want {
 			t.Fatalf("%s outcome = %s", tc.marker, got.Outcome)
 		}
+	}
+}
+
+func TestNamedSourceBindsItsOwnDigestAndProposal(t *testing.T) {
+	dir := t.TempDir()
+	if err := Materialize(dir); err != nil {
+		t.Fatal(err)
+	}
+	body := []byte("name: sample-app\nproposal: memory limit 8Gi\nrationale: unbounded growth\nmemory: 8Gi\n")
+	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sources", "sample-app-blocked.txt"), body, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	id, err := IdentityFromSource("sample-app-blocked", body)
+	if err != nil {
+		t.Fatal(err)
+	}
+	assess, err := Suite{}.Assess(context.Background(), id, dir)
+	if err != nil || assess.SourceDigest != id.SourceDigest {
+		t.Fatalf("assess = %#v err=%v", assess, err)
+	}
+	proposal, err := Suite{}.Propose(context.Background(), id, dir)
+	if err != nil || proposal.Outcome != domain.OutcomePass || proposal.Reason != "proposed memory limit 8Gi: unbounded growth" {
+		t.Fatalf("proposal = %#v err=%v", proposal, err)
+	}
+	validation, err := Suite{}.Validate(context.Background(), id, dir, proposal)
+	if err != nil || validation.Outcome != domain.OutcomeFailRequired || validation.Reason != "memory limit 8Gi exceeds the 1Gi ceiling" {
+		t.Fatalf("validation = %#v err=%v", validation, err)
 	}
 }
 

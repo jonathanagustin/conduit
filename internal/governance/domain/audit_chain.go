@@ -8,6 +8,8 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
+	"time"
 )
 
 // AuditChainVersion identifies Conduit's audit-integrity format. It is not an
@@ -34,6 +36,47 @@ type AuditChainRecord struct {
 	Origin         string
 	Payload        []byte
 	Digest         string
+}
+
+// AuthorizationAuditChainEntry is one recorded decision bound to the hash of
+// the entry before it. The digest is the audit-chain digest of that event.
+type AuthorizationAuditChainEntry struct {
+	Sequence       uint64    `json:"sequence"`
+	ID             string    `json:"id"`
+	Actor          string    `json:"actor"`
+	Action         string    `json:"action"`
+	Decision       string    `json:"decision"`
+	PreviousDigest string    `json:"previousDigest"`
+	Digest         string    `json:"digest"`
+	CreatedAt      time.Time `json:"createdAt"`
+}
+
+// ChainAuthorizationAudit folds recorded events, oldest first, into the same
+// hash chain an append uses. Each previous digest is the digest of the entry
+// before it, and the first previous digest is the genesis checkpoint.
+func ChainAuthorizationAudit(events []AuthorizationAuditEvent) ([]AuthorizationAuditChainEntry, error) {
+	ordered := append([]AuthorizationAuditEvent(nil), events...)
+	sort.Slice(ordered, func(i, j int) bool {
+		if ordered[i].CreatedAt.Equal(ordered[j].CreatedAt) {
+			return ordered[i].ID < ordered[j].ID
+		}
+		return ordered[i].CreatedAt.Before(ordered[j].CreatedAt)
+	})
+	previous := EmptyAuditCheckpoint()
+	entries := make([]AuthorizationAuditChainEntry, 0, len(ordered))
+	for _, event := range ordered {
+		record, err := NewAuditChainRecord(previous, event, AuditOriginLive)
+		if err != nil {
+			return nil, err
+		}
+		entries = append(entries, AuthorizationAuditChainEntry{
+			Sequence: record.Sequence, ID: event.ID, Actor: event.Subject, Action: event.Action,
+			Decision: event.Decision, PreviousDigest: record.PreviousDigest, Digest: record.Digest,
+			CreatedAt: event.CreatedAt,
+		})
+		previous = AuditCheckpoint{Version: AuditChainVersion, Sequence: record.Sequence, Digest: record.Digest}
+	}
+	return entries, nil
 }
 
 func EmptyAuditCheckpoint() AuditCheckpoint {
