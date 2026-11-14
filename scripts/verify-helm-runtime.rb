@@ -1,12 +1,13 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "json"
+require_relative "lib/checked_json"
 require "digest"
 require "open3"
 require "rbconfig"
 require "tmpdir"
 require "yaml"
+require_relative "lib/safe_yaml"
 
 root = File.expand_path("..", __dir__)
 helm = ENV.fetch("HELM_BIN", "helm")
@@ -28,7 +29,7 @@ def run!(*command)
 end
 
 def render!(helm, release, chart, values, extra = [])
-  YAML.load_stream(
+  ConduitSafeYAML.stream(
     run!(helm, "template", release, chart, "--namespace", "platform-system", "--values", values, *extra)
   ).compact
 end
@@ -196,6 +197,7 @@ Dir.mktmpdir("platform-helm-verification-") do |directory|
     package_record = document.fetch("packages").fetch(0)
     abort "Helm SBOM does not describe its exact package" unless package_record.fetch("versionInfo") == version &&
       package_record.fetch("checksums").any? { |item| item == {"algorithm" => "SHA256", "checksumValue" => Digest::SHA256.file(package).hexdigest} }
+    abort "Helm SBOM invented a project license" unless %w[licenseConcluded licenseDeclared].all? { |key| package_record.fetch(key) == "NOASSERTION" }
     abort "Helm SBOM omitted chart files" if document.fetch("files").empty?
   end
 end

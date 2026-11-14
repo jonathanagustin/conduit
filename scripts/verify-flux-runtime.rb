@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "yaml"
+require_relative "lib/safe_yaml"
 
 root = File.expand_path("..", __dir__)
 runtime = File.join(root, "deploy/flux/runtime/delivery-plane.yaml")
@@ -41,11 +42,11 @@ abort "the Flux example must leave the ephemeral Bundle signing opt-in off" unle
 abort "the SPIRE production overlay must mount a Bundle signing key" unless
   File.read(spire_overlay).include?("BUNDLE_SIGNING_KEY_FILE")
 
-runtime_kinds = YAML.load_stream(runtime_text).map { |document| document.fetch("kind") }
+runtime_kinds = ConduitSafeYAML.stream(runtime_text).map { |document| document.fetch("kind") }
 expected_runtime_kinds = %w[PersistentVolumeClaim Deployment Service Deployment]
 abort "unexpected Flux runtime resources" unless runtime_kinds == expected_runtime_kinds
 
-runtime_deployments = YAML.load_stream(runtime_text).select { |document| document["kind"] == "Deployment" }
+runtime_deployments = ConduitSafeYAML.stream(runtime_text).select { |document| document["kind"] == "Deployment" }
 runtime_deployments.each do |deployment|
   pod_spec = deployment.dig("spec", "template", "spec")
   abort "production runtime must not require privileged initialization" unless (pod_spec["initContainers"] || []).empty?
@@ -56,14 +57,14 @@ runtime_deployments.each do |deployment|
   end
 end
 
-rbac_documents = YAML.load_stream(File.read(rbac))
+rbac_documents = ConduitSafeYAML.stream(File.read(rbac))
 role = rbac_documents.find { |document| document["kind"] == "Role" }
 replica_set_rule = role.fetch("rules").find do |rule|
   rule.fetch("apiGroups").include?("apps") && rule.fetch("resources").include?("replicasets")
 end
 abort "Flux health checks require read-only ReplicaSet access" unless replica_set_rule&.fetch("verbs")&.sort == %w[get list watch]
 
-source_documents = YAML.load_stream(File.read(source))
+source_documents = ConduitSafeYAML.stream(File.read(source))
 source_repository = source_documents.find { |document| document["kind"] == "OCIRepository" }
 kustomization = source_documents.find { |document| document["kind"] == "Kustomization" }
 abort "runtime source must be an OCIRepository" unless source_repository
@@ -92,7 +93,7 @@ abort "Flux runtime must wait for health" unless kustomization.dig("spec", "wait
 abort "Flux runtime must impersonate its bounded ServiceAccount" unless kustomization.dig("spec", "serviceAccountName") == "platform-runtime-reconciler"
 abort "base runtime path must be explicit" unless kustomization.dig("spec", "path") == "./runtime"
 
-spire_documents = YAML.load_stream(File.read(spire_overlay))
+spire_documents = ConduitSafeYAML.stream(File.read(spire_overlay))
 hub_patch, agent_patch = spire_documents
 abort "SPIRE overlay must patch both runtime Deployments" unless [hub_patch, agent_patch].all? { |item| item["kind"] == "Deployment" }
 hub_spec = hub_patch.dig("spec", "template", "spec")
@@ -118,7 +119,7 @@ end
 tenant_source = File.join(root, "deploy/flux/foundry-tenant.example.yaml")
 tenant_rbac = File.join(root, "deploy/flux/foundry-tenant-rbac.yaml")
 
-tenant_documents = YAML.load_stream(File.read(tenant_source))
+tenant_documents = ConduitSafeYAML.stream(File.read(tenant_source))
 tenant_repository = tenant_documents.find { |document| document["kind"] == "OCIRepository" }
 tenant_release = tenant_documents.find { |document| document["kind"] == "HelmRelease" }
 abort "tenant example must define an OCIRepository and a HelmRelease" unless tenant_repository && tenant_release
@@ -152,7 +153,7 @@ abort "tenant release must order itself after external-secrets" unless
     tenant_release.dig("spec", action, "disableWait") == true
 end
 
-tenant_rbac_documents = YAML.load_stream(File.read(tenant_rbac))
+tenant_rbac_documents = ConduitSafeYAML.stream(File.read(tenant_rbac))
 tenant_cluster_role = tenant_rbac_documents.find { |document| document["kind"] == "ClusterRole" }
 abort "tenant reconciler must declare a ClusterRole" unless tenant_cluster_role
 tenant_rules = tenant_cluster_role.fetch("rules")

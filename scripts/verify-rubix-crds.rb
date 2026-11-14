@@ -13,7 +13,7 @@
 # agreement, so drift away from the recovered schema fails here rather than
 # shipping as a quiet re-authoring.
 require "digest"
-require "json"
+require_relative "lib/checked_json"
 
 root = File.expand_path("..", __dir__)
 substrate = File.join(root, "deploy/rubix-substrate")

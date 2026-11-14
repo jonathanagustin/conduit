@@ -503,6 +503,12 @@
   min-width: 0;
   height: 28px;
   padding: 0 var(--sp-2);
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-input);
+  color: var(--c-text);
+  font-size: 12px;
+}
 
 /* Change request review */
 [data-cr-root] .so-col { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; }
@@ -558,7 +564,6 @@
 .kit-view-panel { padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-2); }
 .kit-view-head { display: flex; align-items: baseline; gap: var(--sp-2); }
 .kit-view-head h2 { font-size: 13px; font-weight: 600; color: var(--c-text); }
-}
 [data-cr-root] .so-actions,
 [data-cr-root] .so-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: 12px; }
 [data-cr-root] .so-btn:disabled { opacity: 0.5; cursor: not-allowed; }
@@ -611,7 +616,6 @@
 .kit-nonideal p { margin: 4px 0 0; }
 .kit-nonideal-actions { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
 .kit-setup { padding: 10px 14px; display: grid; gap: 4px; }
-.kit-setup .kit-view-head h2 { font-size: 13px; font-weight: 600; }
 .kit-setup-steps { list-style: none; margin: 6px 0 0; padding: 0; max-width: 520px; display: grid; gap: 6px; font-size: var(--fs-sm); color: var(--text-1); }
 .kit-setup-steps li { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
 .kit-setup-steps li.is-done { color: var(--ok-text); }
@@ -657,3 +661,15 @@ button.kit-link { background: none; border: 0; padding: 0; font: inherit; cursor
 .kit-ctag { display: inline-flex; flex-shrink: 0; font-size: 10.5px; line-height: 18px; border: 1px solid var(--info-border); border-radius: 3px; overflow: hidden; }
 .kit-ctag-k { padding: 0 6px; color: var(--c-muted); }
 .kit-ctag-v { padding: 0 6px; color: var(--c-text); border-left: 1px solid var(--info-border); }
+
+/* Header data badge: LIVE when the view is read from the Hub */
+.operator-root #example-data-badge[data-mode="live"] { color: var(--ok-text) !important; background: var(--ok-fill) !important; border-color: var(--ok-border) !important; }
+
+/* Command Center overview */
+.kit-cc { display: grid; gap: var(--gap-panel, 10px); }
+.kit-cc-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--gap-panel, 10px); }
+@media (max-width: 1100px) { .kit-cc-grid { grid-template-columns: minmax(0, 1fr); } }
+.kit-cc-panel .kit-view-head { align-items: center; }
+.kit-cc-open { margin-left: auto; }
+.kit-cc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 12px; }
+.kit-cc-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }

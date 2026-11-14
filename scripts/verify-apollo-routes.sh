@@ -26,7 +26,7 @@ sed "s#^output:.*#output: $work_dir/openapi.gen.go#" "$config" > "$work_dir/code
 diff -u "$generated" "$work_dir/openapi.gen.go"
 
 routes=$(sed -n '/^type StrictServerInterface interface {/,/^}/p' "$generated" | grep -c 'ctx context.Context')
-paths=$(ruby -ryaml -e 'puts YAML.unsafe_load_file(ARGV[0]).fetch("paths").sum { |_, item|
+paths=$(ruby -r"$repo_root/scripts/lib/safe_yaml" -e 'puts ConduitSafeYAML.file(ARGV[0]).fetch("paths").sum { |_, item|
   item.keys.count { |method| %w[get post put patch delete].include?(method) } }' "$snapshot")
 test "$routes" = "$paths"
 

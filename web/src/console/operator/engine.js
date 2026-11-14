@@ -14,7 +14,7 @@ import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
 import { facetsMarkup, envDetailMarkup } from "./env-facets.js";
-import { hubSetupMarkup } from "./empty-states.js";
+import { overviewMarkup } from "./command-center.js";
 import {
   escapeHtml as escAttr,
   filterPalette,
@@ -970,9 +970,10 @@ export function mountOperator(host, options) {
     "area-command": {
       label: "Command Center",
       tabs: [
+        { id: "command", label: "Overview", screen: "cc-overview" },
         {
-          id: "command",
-          label: "Command Center",
+          id: "example",
+          label: "Example fleet",
           screen: "s13-fleet-overview",
         },
         {
@@ -1023,9 +1024,9 @@ export function mountOperator(host, options) {
     "area-fleet": {
       label: "Fleet",
       tabs: [
-        { id: "spokes", label: "Spokes", screen: "s17-spokes-audit" },
         { id: "environments", label: "Environments", screen: "flt-environments" },
         { id: "drift", label: "Drift", screen: "s14-env-detail" },
+        { id: "spokes", label: "Example spokes", screen: "s17-spokes-audit" },
       ],
     },
     "area-audit": {
@@ -1039,6 +1040,8 @@ export function mountOperator(host, options) {
       REDIRECT[tab.screen] = { area, tab: tab.id };
     });
   });
+  // Links to the Command Center land on its live overview, not the example.
+  REDIRECT["s13-fleet-overview"] = { area: "area-command", tab: "command" };
   REDIRECT["pt02-proposals-evals"] = { area: "area-packaging", tab: "proposals" };
   REDIRECT["s09-source"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["s10-diff"] = { area: "area-packaging", tab: "workspace" };
@@ -1116,29 +1119,59 @@ export function mountOperator(host, options) {
   // =========================================================================
   // AUTHENTIC Conduit LEFT RAIL + TOP BAR + PLAIN RIGHT CHAT
   // =========================================================================
+  // Screens whose body is read from the Hub. Everything else is example data
+  // until it is wired, and says so in the header badge.
+  const LIVE_SCREENS = new Set([
+    "cc-overview",
+    "pkg-runs",
+    "s08-staged-run",
+    "s02-workspaces",
+    "rm08-bundle-preview",
+    "s14-env-detail",
+    "rel-products",
+    "rm-channels",
+    "rm-waves",
+    "rm06-promotion-pipe",
+    "rm09-recalls",
+    "rm07-change-requests",
+    "flt-environments",
+    "au01-audit",
+    "ai01-logic",
+    "ai02-evals",
+    "ai04-courses",
+    "ai03-events",
+  ]);
+  // Screens that label each section Hub or Example data themselves.
+  const SECTION_LABELLED = new Set(["adm02-org-control-panel"]);
+
+  /** The screen actually on view: an area's current tab, or the screen. */
+  function visibleScreen() {
+    const area = AREAS[state.screen];
+    if (!area) return state.screen;
+    const tab =
+      area.tabs.find((item) => item.id === state.areaTab) || area.tabs[0];
+    return tab.screen;
+  }
+
   function updateExampleBadge() {
-    const exampleBadge = document.getElementById("example-data-badge");
-    if (!exampleBadge) return;
-    const hubScreens = new Set([
-      "s08-staged-run",
-      "rm08-bundle-preview",
-      "rm07-change-requests",
-      "rm06-promotion-pipe",
-      "rm09-recalls",
-      "s14-env-detail",
-      "au01-audit",
-      "pt01-proposal-trace",
-    ]);
-    const recordedProposal =
-      state.screen === "pt01-proposal-trace" &&
-      (state.hub?.packaging || []).length > 0;
-    const ontologyFromHub =
-      state.screen === "og01-ontology-graph" &&
-      state.graphNote === "Ontology API";
-    exampleBadge.style.display =
-      hubScreens.has(state.screen) || recordedProposal || ontologyFromHub
-        ? "none"
-        : "";
+    const badge = document.getElementById("example-data-badge");
+    if (!badge) return;
+    const screen = visibleScreen();
+    const live =
+      LIVE_SCREENS.has(screen) ||
+      (screen === "pt01-proposal-trace" &&
+        (state.hub?.packaging || []).length > 0) ||
+      (screen === "og01-ontology-graph" && state.graphNote === "Ontology API");
+    if (SECTION_LABELLED.has(screen)) {
+      badge.style.display = "none";
+      return;
+    }
+    badge.style.display = "";
+    badge.dataset.mode = live ? "live" : "example";
+    badge.textContent = live ? "LIVE" : "EXAMPLE DATA";
+    badge.title = live
+      ? "This view is read from the Hub"
+      : "This view shows example data, not this Hub's records";
   }
 
   function renderKpiStrip() {
@@ -1831,7 +1864,6 @@ export function mountOperator(host, options) {
 
     root.innerHTML = `
         <div class="flex flex-col gap-3 h-full min-h-0">
-          ${hubSetupMarkup(state.hub)}
           <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
           <div class="so-compact-kpi-strip shrink-0">
             <button type="button" data-onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
@@ -5960,6 +5992,9 @@ export function mountOperator(host, options) {
           productRows(state.hub?.products, state.hub?.installations),
           { note: state.hub?.productsNote || "" },
         );
+      },
+      "cc-overview": (node) => {
+        node.innerHTML = overviewMarkup(state.hub);
       },
       "pkg-runs": (node) => {
         node.innerHTML = runsMarkup(
