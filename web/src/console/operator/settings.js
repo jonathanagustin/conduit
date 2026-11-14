@@ -50,6 +50,150 @@ const SHORTCUTS = [
   ["Run the focused command", "Enter"],
 ];
 
+const DATA_SOURCES = [
+  {
+    id: "spoke-health",
+    name: "Spoke health observations",
+    endpoint: "POST /v1/environments/{environmentID}/health-observations",
+    cadence: "Spoke HEALTH_POLL_INTERVAL, default 5s, refused below 5s",
+    updates: "Installation health on the environment report",
+    payload: {
+      observations: [
+        {
+          installationId: "install-1",
+          observedAt: "2026-11-14T00:00:00Z",
+          details: {
+            quorum: "1",
+            nodes: [
+              {
+                nodeId: "node-1",
+                productVersion: "1.2.3",
+                result: "HEALTHY",
+                containers: [
+                  {
+                    containerId: "app",
+                    liveness: true,
+                    readiness: true,
+                    result: "HEALTHY",
+                  },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  },
+  {
+    id: "spoke-info",
+    name: "Spoke entity information",
+    endpoint: "POST /api/v0/status/environments/{environmentId}/entities/info",
+    cadence: "Posted as a full snapshot; the Hub does not poll for it",
+    updates: "Reported entity identity, namespace, quorum, and nodes",
+    payload: {
+      entitiesInfo: [
+        {
+          entityType: "SERVICE",
+          id: "widget",
+          productGroup: "example",
+          productName: "widget",
+          k8sNamespace: "default",
+          quorum: "1",
+        },
+      ],
+    },
+  },
+  {
+    id: "spoke-entity-health",
+    name: "Spoke entity health",
+    endpoint: "POST /api/v0/status/environments/{environmentId}/entities/health",
+    cadence: "Posted independently of the information snapshot",
+    updates: "Reported health and product version",
+    payload: {
+      entitiesHealth: [
+        {
+          nodeId: "node-1",
+          productGroup: "example",
+          productName: "widget",
+          productVersion: "1.2.3",
+          containerStatuses: [
+            { containerId: "app", liveness: true, readiness: true },
+          ],
+        },
+      ],
+    },
+  },
+  {
+    id: "plan-finish",
+    name: "Plan completion report",
+    endpoint: "POST /v1/plans/{planID}/finish",
+    cadence: "Once, when the Spoke finishes a leased plan",
+    updates: "Plan status and the environment report",
+    payload: {
+      status: "SUCCEEDED",
+      entities: [
+        {
+          installationId: "install-1",
+          product: "widget",
+          version: "1.2.3",
+          namespace: "default",
+          health: "HEALTHY",
+          rolloutStatus: "UP_TO_DATE",
+          configStatus: "APPLIED",
+          lifecycle: "INSTALLED",
+          observedAt: "2026-11-14T00:00:00Z",
+        },
+      ],
+    },
+  },
+  {
+    id: "bundle-import",
+    name: "Bundle import",
+    endpoint: "POST /v1/bundles/import",
+    cadence: "When an operator submits a bundle",
+    updates: "Import receipt and a change request per target environment",
+    payload: {
+      bundle: {
+        manifest: {
+          apiVersion: "platform.delivery/bundle/v1alpha1",
+          id: "bundle-1",
+          pipelineId: "pipe-1",
+          pipelineRevision: 1,
+          sequence: 1,
+          kind: "SNAPSHOT",
+          createdAt: "2026-11-14T00:00:00Z",
+          resources: [
+            { type: "ENVIRONMENT", id: "dev", digest: "sha256:abc" },
+          ],
+          resourceTypes: ["ENVIRONMENT"],
+          sourceFormatNote: "<manifest provenance note>",
+        },
+        manifestDigest: "sha256:def",
+        signingKeyId: "key-1",
+        signature: "<detached signature>",
+      },
+      requireSecurityPass: false,
+      targetEnvironments: ["dev"],
+    },
+  },
+  {
+    id: "packaging-run",
+    name: "Packaging run",
+    endpoint:
+      "POST /v1/packaging-runs/{runID}/rerun; worker start uses the same run identity",
+    cadence: "Not periodic. A rerun or a worker start opens one run",
+    updates: "Packaging-run phase, then a proposed plan when the handoff succeeds",
+    payload: {
+      decisionId: "decision-1",
+      sourceDigest: "sha256:abc",
+      proposalRevision: "",
+      targetPlanRef: "environment/dev",
+      templateVersion: "1",
+      toolVersions: "helm 4",
+    },
+  },
+];
+
 async function readJSON(url) {
   const response = await fetch(url, {
     credentials: "same-origin",
@@ -126,9 +270,74 @@ export function createSettings(ctx) {
     } catch {
       state.signingLive = false;
     }
+    await loadDataSources();
     state.settingsLoaded = true;
     state.settingsLoading = false;
     ctx.render();
+  }
+
+  async function loadDataSources() {
+    state.dataSourceLive = {
+      report: "Hub did not return a report",
+      imports: "Hub did not return import receipts",
+      packaging: "Hub did not return packaging runs",
+    };
+    try {
+      const catalog = await readJSON("/v1/environments?view=summary");
+      const rows = Array.isArray(catalog.environments) ? catalog.environments : [];
+      let newest = null;
+      for (const row of rows) {
+        const seen = row.reported && row.reported.observedAt;
+        if (!seen) continue;
+        if (!newest || seen > newest.seen) {
+          newest = {
+            seen,
+            environment: row.environment && row.environment.id,
+            entities: row.reported.entityCount,
+          };
+        }
+      }
+      state.dataSourceLive.report = newest
+        ? `${newest.seen} on ${newest.environment || "an environment"} (${newest.entities} entities)`
+        : "No reported observation on the environments this caller can read";
+    } catch {
+      state.dataSourceLive.report = "Hub did not return a report";
+    }
+    try {
+      const body = await readJSON("/v1/bundle-imports");
+      const imports = Array.isArray(body.imports) ? body.imports : [];
+      if (!imports.length) {
+        state.dataSourceLive.imports = "No import receipt";
+      } else {
+        const latest = imports.reduce((best, item) =>
+          !best || String(item.requestedAt || "") > String(best.requestedAt || "")
+            ? item
+            : best,
+        );
+        state.dataSourceLive.imports = `${latest.status || "recorded"} ${latest.requestedAt || ""} ${latest.bundleId || latest.id || ""}`.trim();
+      }
+    } catch {
+      state.dataSourceLive.imports = "Hub did not return import receipts";
+    }
+    try {
+      const body = await readJSON("/v1/packaging-runs");
+      const items = Array.isArray(body.items) ? body.items : [];
+      if (!items.length) {
+        state.dataSourceLive.packaging = "No packaging run";
+      } else {
+        const latest = items[0];
+        state.dataSourceLive.packaging = `${latest.runId || "run"} phase ${latest.phase || "unknown"}${latest.outcome ? `, outcome ${latest.outcome}` : ""}`;
+      }
+    } catch {
+      state.dataSourceLive.packaging = "Hub did not return packaging runs";
+    }
+  }
+
+  function sourceLastSeen(id) {
+    const live = state.dataSourceLive || {};
+    if (id === "bundle-import") return live.imports;
+    if (id === "packaging-run") return live.packaging;
+    return live.report;
   }
 
   function applyChrome() {
@@ -391,6 +600,49 @@ export function createSettings(ctx) {
       </div>`;
   }
 
+  function renderDataSources(root) {
+    const selected =
+      DATA_SOURCES.find((source) => source.id === state.dataSourceId) ||
+      DATA_SOURCES[0];
+    const rows = DATA_SOURCES.map((source) => {
+      const on = source.id === selected.id;
+      const seen = sourceLastSeen(source.id);
+      const live = seen && !String(seen).startsWith("Hub did not");
+      return `<tr onclick="selectDataSource('${esc(source.id)}')" class="cursor-pointer${on ? " is-selected" : ""}">
+        <td data-col="Source"><span class="font-semibold text-white">${esc(source.name)}</span></td>
+        <td data-col="Endpoint" data-long="1" class="code-id text-[11px] text-[#dce4ee]">${esc(source.endpoint)}</td>
+        <td data-col="Cadence" data-long="1" class="text-[11px] text-[#8b96a5]">${esc(source.cadence)}</td>
+        <td data-col="Updates" data-long="1" class="text-[11px] text-[#dce4ee]">${esc(source.updates)}</td>
+        <td data-col="Last seen" data-long="1"><span class="so-pill ${live ? "so-pill-green" : ""}">${esc(seen || "Not reported")}</span></td>
+      </tr>`;
+    }).join("");
+    root.innerHTML = `
+      <div class="so-view-enter space-y-3">
+        <div class="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div class="text-[15px] font-bold text-white">Data sources</div>
+            <div class="text-[11.5px] text-[#8b96a5]">How this Hub receives data. Shapes are the request fields. Last seen is read from the Hub when that read succeeds.</div>
+          </div>
+          ${note(true, "Read only")}
+        </div>
+        <div class="so-panel overflow-hidden">
+          <div class="so-table-scroll">
+            <table class="so-table so-table-wide">
+              <thead><tr><th>Source</th><th>Endpoint</th><th>Cadence</th><th>Updates</th><th>Last seen</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+        <div class="so-panel p-3.5 space-y-2">
+          <div class="text-[13px] font-semibold text-white">${esc(selected.name)}</div>
+          <div class="text-[12px] text-[#8b96a5]">${esc(selected.endpoint)}. ${esc(selected.cadence)}. Updates ${esc(selected.updates).charAt(0).toLowerCase()}${esc(selected.updates).slice(1)}.</div>
+          <div class="text-[11px] text-[#8b96a5]">Example request shape. This screen does not accept a pasted document.</div>
+          <pre class="code-id text-[11px] text-[#dce4ee] whitespace-pre-wrap break-words">${esc(JSON.stringify(selected.payload, null, 2))}</pre>
+        </div>
+        <div class="text-[11.5px] text-[#8b96a5]">Bundle import is an ordinary submission of a bundle envelope. The Hub records a receipt and opens a change request for each target environment.</div>
+      </div>`;
+  }
+
   return {
     screens: [
       {
@@ -420,6 +672,15 @@ export function createSettings(ctx) {
         showKpis: false,
         subtitle: "SIGN-IN",
       },
+      {
+        id: "adm04-data-sources",
+        num: 38,
+        short: "Data sources",
+        tabTitle: "Data sources",
+        hasSidebar: true,
+        showKpis: false,
+        subtitle: "DATA SOURCES",
+      },
     ],
     navItems() {
       const items = [
@@ -429,6 +690,7 @@ export function createSettings(ctx) {
           icon: "shield",
           id: "adm02-org-control-panel",
         },
+        { label: "Data sources", icon: "cluster", id: "adm04-data-sources" },
       ];
       if (state.authEnabled)
         items.push({ label: "Sign-in", icon: "lock", id: "adm03-auth-signin" });
@@ -456,12 +718,19 @@ export function createSettings(ctx) {
         signingLive: false,
         settingsLoaded: false,
         settingsLoading: false,
+        dataSourceId: "spoke-health",
+        dataSourceLive: {
+          report: "Hub did not return a report",
+          imports: "Hub did not return import receipts",
+          packaging: "Hub did not return packaging runs",
+        },
       });
     },
     renderers: {
       "adm01-user-prefs": renderPreferences,
       "adm02-org-control-panel": renderOrganization,
       "adm03-auth-signin": renderSignIn,
+      "adm04-data-sources": renderDataSources,
     },
     applyChrome,
     ensureLoaded() {
@@ -508,6 +777,10 @@ export function createSettings(ctx) {
         state.prefTokens = state.prefTokens.map((token) =>
           token.id === id ? { ...token, status: "Revoked" } : token,
         );
+        ctx.render();
+      };
+      target.selectDataSource = (id) => {
+        state.dataSourceId = id;
         ctx.render();
       };
       target.beginOperatorSignIn = () => {
