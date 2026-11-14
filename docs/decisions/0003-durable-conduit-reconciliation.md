@@ -69,7 +69,19 @@ named compatibility adapter.
 ## More information
 
 - Supersedes: Flux or request arrival as tenant convergence owner
-- Superseded by: none
+- Superseded by: none. Refined by ADR 0015: after a Plan exists, optional
+  Temporal orchestration may sequence waves and timers. Reconciliation,
+  proposal, and the PostgreSQL record stay here. The native lifecycle
+  path remains the supported mode when no workflow worker is configured.
+
+## Amendment, 2026-11-14
+
+ADR 0015 does not move durable reconciliation onto Temporal. The
+supervisor in this record still proposes Plans through the ordinary
+lifecycle. What changes is the sentence that left all later sequencing
+implied. An approved Plan may be ordered by a workflow whose activities
+call those same lifecycle methods. Desired state, reported state,
+leases, approvals, and the audit chain stay in PostgreSQL.
 - Evidence snapshot/revision: branch commit `f86ab92` plus the documentation
   and boundary-gate commit that follows it
 - Pareto/value assessment: the context tables add one production dependency
