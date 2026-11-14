@@ -1,5 +1,5 @@
 Plain Zarf install of platform-runtime on a new k3d cluster.
-Date: 2026-11-14. Not an air-gap result. The init package and the
+Date: 2026-11-14. Not an offline-bundle result. The init package and the
 container images were pulled over the network. No private keys are in
 this log.
 

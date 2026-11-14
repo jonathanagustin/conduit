@@ -3,7 +3,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
-  blueprintVariant,
+  libraryVariant,
   GATE_PRESET,
 } from "../../console/components/base/variants.js";
 import {
@@ -14,10 +14,10 @@ import {
 } from "../../console/logic.js";
 import { CONDUIT_ACTIONS } from "../../console/ontology.js";
 
-describe("blueprint variants", () => {
-  it("maps emphasis onto Blueprint button props", () => {
+describe("UI-library variants", () => {
+  it("maps emphasis onto UI-library button props", () => {
     expect(
-      blueprintVariant({ emphasis: "outlined", intent: "warning", size: "sm" }),
+      libraryVariant({ emphasis: "outlined", intent: "warning", size: "sm" }),
     ).toEqual({
       intent: "warning",
       size: "small",
@@ -26,7 +26,7 @@ describe("blueprint variants", () => {
       outlined: true,
     });
     expect(
-      blueprintVariant({ emphasis: "filled", intent: "none" }).intent,
+      libraryVariant({ emphasis: "filled", intent: "none" }).intent,
     ).toBeUndefined();
   });
 

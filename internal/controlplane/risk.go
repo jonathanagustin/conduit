@@ -85,7 +85,7 @@ func effectiveVulnerabilityUpgradePolicy(environment Environment) VulnerabilityU
 // Palantir manages its own formula and does not publish it, so this is
 // Platform's formula, not a reproduction. What the exception actually depends on
 // is the comparison between two Releases scored the same way, which this
-// supports; absolute parity with Apollo's numbers is neither claimed nor needed.
+// supports; absolute equivalence with Apollo's numbers is neither claimed nor needed.
 func ReleaseRiskScore(assessment *VulnerabilityAssessment) float64 {
 	if assessment == nil || len(assessment.ActiveFindings) == 0 {
 		return 0

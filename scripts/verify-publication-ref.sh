@@ -36,7 +36,7 @@ Publication was dispatched against '${ref:-an empty ref}', which is not a vX.Y.Z
 
 Nothing about this run would have failed: it would have pushed
 '<component>-sha-<commit>' images and skipped the runtime source, the charts,
-the air-gap packages, the CLI and the release, then reported success having
+the offline-bundle packages, the CLI and the release, then reported success having
 published a fraction of a release.
 
 Cut releases through .github/workflows/platform-release.yml, which verifies the

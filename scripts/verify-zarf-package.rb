@@ -121,4 +121,4 @@ if zarf && !zarf.empty?
   abort "generated package lint failed" unless system(zarf, "dev", "lint", example, "--architecture", "amd64")
 end
 
-puts "Zarf air-gap package contract verified"
+puts "Zarf offline-bundle package contract verified"

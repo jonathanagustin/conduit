@@ -4,7 +4,7 @@ A composition tree for every operator-console screen, in the Foundry
 application-decomposition notation. This is the structural complement to
 `console-visual-language.md`: that note measures the console's palette, type and
 geometry; this one records, per route, which regions nest inside which, which
-Blueprint primitive draws each leaf, and where the screen's data is hydrated
+UI-library primitive draws each leaf, and where the screen's data is hydrated
 from.
 
 ## Notation
@@ -24,21 +24,21 @@ Owner labels, from outermost to innermost:
 | `[route]` | App-mount boundary — one React Router `<Route>` element | each `<Route>` in `App.tsx` |
 | `[shared]` | Shared route/resource chrome reused across ≥2 routes | anything in `web/src/components` (`AppHeader`, `ObjectHeader`, shared table bands, `IndexPagination`, `FacetRail`, the status tags, `ReleaseChannelGraph`, `TransitionDetail`) |
 | `[product]` | Product-owned layout, state and renderer for one screen | each feature composition in `web/src/features/<screen>/` |
-| `[BP]` | An actual Blueprint v6 primitive, named as imported from `@blueprintjs/core` | never a look-alike; a raw `<section>`/`<ul>`/`<dl>` is written as such |
-| `[portal]` | A leaf Blueprint renders **outside** the route subtree, into a document-level portal | collapsed-rail Applications popover, per-item tooltips, `ObjectHeader` Actions menu |
+| `[BP]` | An actual UI-library v6 primitive, named as imported from `@blueprintjs/core` | never a look-alike; a raw `<section>`/`<ul>`/`<dl>` is written as such |
+| `[portal]` | A leaf the UI library renders **outside** the route subtree, into a document-level portal | collapsed-rail Applications popover, per-item tooltips, `ObjectHeader` Actions menu |
 | `?` | Optional / conditional node — present only in a named state | e.g. a detail panel only when a row is selected; a `Callout` only on error |
 
 Two labels the Foundry vocabulary carries are, by design, **not used here**, and
 their absence is itself a finding (see *Findings*):
 
 - **`[engine]`** — a Mapbox/Canvas/Monaco/WebGL rendering surface. No console
-  screen owns one; every screen is Blueprint-over-DOM. The console has no map,
+  screen owns one; every screen is UI-library-over-DOM. The console has no map,
   code editor, or free canvas.
 
 The label rule is mechanical and file-location grounded: **shell chrome and
 anything reused from `web/src/components` is `[shared]`; anything authored under
-`web/src/features/<screen>/` is `[product]`; Blueprint imports are `[BP]`;
-Blueprint overlays that escape the subtree are `[portal]`.** The geometry in
+`web/src/features/<screen>/` is `[product]`; UI-library imports are `[BP]`;
+the UI library overlays that escape the subtree are `[portal]`.** The geometry in
 parentheses is the measured contract — widths, grid tracks, row bands, corners,
 insets — read from each screen's CSS (`web/src/**/*.css`) and `.tsx`, not
 asserted. Archetype names ("browser", "review queue", "dashboard") are the ones
@@ -118,7 +118,7 @@ Two more `[shared]` contracts every list inherits:
 
 ```
 [shared] Shared table bands (console-table.css, scoped to .console-app-frame)
-└─ [BP] HTMLTable → th 12px/600 muted ~32px (8px top/bottom pad + 16px line); td keep Blueprint 11px pad → ~40px simple / 51–60px rich; all cells left-aligned
+└─ [BP] HTMLTable → th 12px/600 muted ~32px (8px top/bottom pad + 16px line); td keep UI-library 11px pad → ~40px simple / 51–60px rich; all cells left-aligned
 
 [shared] IndexPagination (index-pagination.css)
 ├─ ControlStrip band (form.console-index-controls, pad 10px 20px, gap 8px; InputGroup min-width min(360px,70vw))
@@ -257,7 +257,7 @@ keyed by the `:product` param.
          └─ [product] VulnerabilityDetail (inline, revealed by row)  ?only when a release row is expanded  →  [BP] Section + SectionCard ("Vulnerability findings for <ver>") → HTMLTable ×2 (active findings, suppressed)
 ```
 
-The pipeline and assessment panels are real Blueprint `Section`/`SectionCard`, so
+The pipeline and assessment panels are real UI-library `Section`/`SectionCard`, so
 their 1px hairline, white surface and 4px corner come from
 `--bp-surface-border-radius`, not from `products.css` (noted at `products.css:26`).
 
@@ -507,26 +507,26 @@ vocabulary, would not predict.
    set locally.
 
 4. **~~The inline detail panels on exports, imports and risk are plain
-   `<section>` elements, not Blueprint `Section`/`SectionCard`.~~ Resolved.**
-   Those three inline detail panels are now real Blueprint `Section`/`SectionCard`
+   `<section>` elements, not UI-library `Section`/`SectionCard`.~~ Resolved.**
+   Those three inline detail panels are now real UI-library `Section`/`SectionCard`
    (compact, title via `H2`), so their white surface, 1px hairline and 4px corner
    come from the primitive (`--bp-surface-border-radius`), exactly as the products
    detail panels do. They remain correctly inline and nonmodal (never a `Dialog`
    or docked pane). Teams detail and the notifications preference metadata still
-   compose raw `<section>`/`<dl>` rather than Blueprint panels — a smaller,
+   compose raw `<section>`/`<dl>` rather than UI-library panels — a smaller,
    separate residual.
 
-5. **The `Dialog` gap is real and deliberate.** No screen renders a Blueprint
+5. **The `Dialog` gap is real and deliberate.** No screen renders a UI-library
    `Dialog`; every contextual detail (products, exports, imports, risk,
    notifications, promotions, product vulnerability findings) is revealed inline
    from data already loaded, marked `?only when a row is selected` above and
    depicted as `DetailPanel (inline, nonmodal)`, never a dialog. This matches the
    Foundry interiors taxonomy's contextual-detail-panel family.
 
-6. **There is no `[engine]` and no `[portal]` content beyond Blueprint
+6. **There is no `[engine]` and no `[portal]` content beyond the UI library
    overlays.** No console screen owns a Mapbox/Canvas/Monaco/WebGL surface — the
-   console is Blueprint-over-DOM end to end, so the `[engine]` label never
-   appears. The only `[portal]` leaves are Blueprint's own overlay families (the
+   console is UI-library-over-DOM end to end, so the `[engine]` label never
+   appears. The only `[portal]` leaves are the UI library's own overlay families (the
    collapsed-rail Applications popover, per-item tooltips, the `ObjectHeader`
    Actions menu); the console mounts no product-owned portal. Both absences are
    load-bearing: they say the console is a dense-table control plane, not a visual
@@ -568,7 +568,7 @@ decomposition stays consistent with the trees above.
    the existing tag family. Author new `web/src/features/<screen>/` composition
    only for what is genuinely screen-specific.
 6. **Leaves are real `[BP]` primitives.** Draw surfaces/borders/corners from
-   Blueprint `Section`/`SectionCard`/`Card` and its tokens
+   UI-library `Section`/`SectionCard`/`Card` and its tokens
    (`--bp-surface-border-radius`), not hand-rolled feature CSS. If you render a
    raw `<section>`/`<ul>`/`<dl>`, label it as such in the tree — do not dress raw
    HTML as a component.
@@ -582,7 +582,7 @@ decomposition stays consistent with the trees above.
    machine it is.
 9. **Introduce `[engine]`/`[portal]`/`[runtime]` only when real.** A map, code
    editor or free canvas is the console's first `[engine]`; a product-owned
-   overlay outside the subtree is its first non-Blueprint `[portal]`; a second
+   overlay outside the subtree is its first non-UI-library `[portal]`; a second
    boot seam is a new `[runtime]`. Each is a deliberate, documented departure
    from the current shape (Finding 6), not an incidental one.
 ```

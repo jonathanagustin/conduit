@@ -105,7 +105,7 @@ func ParseAllowlist(entries []string) (Allowlist, error) {
 // plaintext switch a deployment may set is about REACHING a registry that
 // terminates TLS elsewhere; it is not a statement that a credential may be
 // posted in the clear, and reading it as one is how a flag meant for an
-// air-gapped mirror ends up authorising a plaintext credential exchange.
+// disconnected mirror ends up authorising a plaintext credential exchange.
 func (allowed Allowlist) TokenEndpoint(realm, registryHost string) (*url.URL, error) {
 	trimmed := strings.TrimSpace(realm)
 	endpoint, err := url.Parse(trimmed)

@@ -6,9 +6,9 @@ The assistant-ui thread is not a base component and is not restyled.
 
 ## Variants
 
-`base/variants.ts` maps a small typed set of axes onto Blueprint props. Domain components pass those axes. They do not set colors or one-off class names for intent.
+`base/variants.ts` maps a small typed set of axes onto UI-library props. Domain components pass those axes. They do not set colors or one-off class names for intent.
 
-| Axis | Values | Blueprint |
+| Axis | Values | UI library |
 | --- | --- | --- |
 | intent | none, primary, success, warning, danger | `intent` |
 | size | sm, md, lg | `size` small / medium / large. Tag has no small size, so sm stays medium. |
@@ -18,18 +18,18 @@ The assistant-ui thread is not a base component and is not restyled.
 
 Presets: GO is success filled, CAUTION is warning outlined, NO-GO is danger filled.
 
-`StatCard` adds `trend` (up, down, flat) as a Blueprint `Tag` with an icon.
+`StatCard` adds `trend` (up, down, flat) as a UI-library `Tag` with an icon.
 
-## Which Blueprint primitive each base component wraps
+## Which UI-library primitive each base component wraps
 
-| Component | Blueprint |
+| Component | UI library |
 | --- | --- |
 | StatusTag | Tag, Icon |
 | ActionButton | Button |
 | DisabledWithReason | Tooltip, Button |
 | StatCard | Card, EntityTitle, Tag, Icon |
 | KpiStrip | layout only; children are StatCards |
-| HealthBar | a proportional bar; Blueprint has no segmented progress |
+| HealthBar | a proportional bar; the UI library has no segmented progress |
 | GateStrip, Stepper, RangeTimeline | layout over Tag and Card. No chart library |
 | SummaryBand, MetricCard, Sparkline | Card, EntityTitle, and an inline spark |
 | FacetRail, QuickFilterBand, StatusTabs, SegmentedTabs | Button, Tag |
@@ -46,10 +46,10 @@ Presets: GO is success filled, CAUTION is warning outlined, NO-GO is danger fill
 | DataTable, DenseTable | HTMLTable (`@blueprintjs/table` is not used; the dense index is HTMLTable) |
 | SidebarNav | Menu, MenuItem |
 | NavTree | Tree |
-| AppShell | Navbar plus a three-pane layout Blueprint does not ship |
+| AppShell | Navbar plus a three-pane layout the UI library does not ship |
 | Checklist | StatusTag |
 | AuditRail, ActivityTimeline, InboxList | Card, Menu, MenuItem, NonIdealState |
-| Kanban | Card, EntityTitle. No Blueprint kanban. |
+| Kanban | Card, EntityTitle. No UI-library kanban. |
 | EmptyState | NonIdealState |
 | ErrorState, ConstraintRow, OutputPane | Callout |
 | LoadingState | Spinner |
