@@ -23,6 +23,10 @@ export function attributionFooter(message) {
     }
     if (fence || /^\s*>/.test(raw)) continue;
     const line = raw.replace(/^[\s_*🤖-]+/u, "").replace(/[_*\s]+$/u, "");
+    if (/^<!--\s*CURSOR_AGENT_PR_BODY_(?:BEGIN|END)\s*-->$/i.test(line)) return true;
+    // Session entry links are attribution; artifact paths remain review evidence.
+    if (/https:\/\/cursor\.com\/agents\/[^/?#\s"'<>)]+\/?(?=[?#\s"'<>)]|$)/i.test(line)) return true;
+    if (/https:\/\/cursor\.com\/background-agent\?[^\s"'<>]*\bbcId=/i.test(line)) return true;
     if (/^(?:claude|codex|cursor)[ -]session:/i.test(line)) return true;
     if (/^(?:generated (?:by|with)|created with|made with)\b/i.test(line) && /claude|codex|copilot|cursor|openai|anthropic/i.test(line)) return true;
     const trailer = /^co-authored-by:\s*(.+)$/i.exec(line)?.[1];
