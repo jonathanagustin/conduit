@@ -1,0 +1,118 @@
+# UDS Core reconciles this Package into a Keycloak client, NetworkPolicies,
+# a tenant-gateway route, and a ServiceMonitor. It is applied only by the
+# optional `uds` Zarf component, because a cluster without the UDS CRDs
+# cannot accept it.
+#
+# The metrics monitor is declared against Service port `metrics`. On this
+# file-backed baseline the Hub does not listen there: /metrics is served only
+# when METRICS_ADDRESS is set and REPOSITORY_KIND=postgres, and exporting
+# zeroes for the file repository would report an idle fleet. The monitor
+# object can still be registered. A scrape of this baseline has no series.
+apiVersion: uds.dev/v1alpha1
+kind: Package
+metadata:
+  name: platform-runtime
+  namespace: platform-system
+spec:
+  network:
+    serviceMesh:
+      mode: ambient
+    expose:
+      - description: Hub console through the tenant gateway
+        service: platform-delivery
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        gateway: tenant
+        host: conduit
+        port: 8081
+        targetPort: 8081
+    allow:
+      - description: Ingress through the tenant gateway
+        direction: Ingress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: istio-tenant-gateway
+        remoteSelector:
+          app: tenant-ingressgateway
+        port: 8081
+      - description: Kubelet probes
+        direction: Ingress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteGenerated: KubeNodes
+        port: 8081
+      - description: Spoke to Hub
+        direction: Ingress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: platform-system
+        remoteSelector:
+          app.kubernetes.io/name: platform-spoke-agent
+        port: 8081
+      - description: Spoke to Hub
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-spoke-agent
+        remoteNamespace: platform-system
+        remoteSelector:
+          app.kubernetes.io/name: platform-delivery
+        port: 8081
+      - description: Hub to Postgres
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_POSTGRES_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_POSTGRES_NAME_LABEL###"
+        port: 5432
+      - description: Packaging worker to Postgres
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-packaging-worker
+        remoteNamespace: "###ZARF_VAR_POSTGRES_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_POSTGRES_NAME_LABEL###"
+        port: 5432
+      - description: Spoke to the Kubernetes API
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-spoke-agent
+        remoteGenerated: KubeAPI
+      - description: DNS
+        direction: Egress
+        remoteNamespace: kube-system
+        remoteSelector:
+          k8s-app: kube-dns
+        port: 53
+        remoteProtocol: UDP
+      - description: DNS over TCP
+        direction: Egress
+        remoteNamespace: kube-system
+        remoteSelector:
+          k8s-app: kube-dns
+        port: 53
+        remoteProtocol: TCP
+  sso:
+    - name: Conduit Hub console
+      clientId: conduit-hub
+      description: Console and Hub client registered with UDS Core Keycloak
+      protocol: openid-connect
+      enabled: true
+      publicClient: false
+      standardFlowEnabled: true
+      baseUrl: "###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/"
+      rootUrl: "###ZARF_VAR_CONSOLE_PUBLIC_URL###"
+      redirectUris:
+        - "###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/*"
+      webOrigins:
+        - "###ZARF_VAR_CONSOLE_PUBLIC_URL###"
+      secretConfig:
+        name: conduit-hub-sso
+  monitor:
+    - description: Hub metrics
+      kind: ServiceMonitor
+      selector:
+        app.kubernetes.io/name: platform-delivery
+      portName: metrics
+      targetPort: 9090
+      path: /metrics

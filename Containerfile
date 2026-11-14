@@ -23,6 +23,7 @@ WORKDIR /source
 COPY go.mod go.sum ./
 COPY cmd cmd
 COPY internal internal
+COPY gen gen
 RUN mkdir -p /out/state && touch /out/state/.keep && \
   CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -buildvcs=false \
     -ldflags="-s -w -X github.com/jonathanagustin/conduit/internal/buildinfo.Version=$VERSION -X github.com/jonathanagustin/conduit/internal/buildinfo.Commit=$COMMIT -X github.com/jonathanagustin/conduit/internal/buildinfo.BuildDate=$BUILD_DATE" \

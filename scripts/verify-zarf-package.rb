@@ -6,17 +6,29 @@ require "yaml"
 root = File.expand_path("..", __dir__)
 definition_path = File.join(root, "deploy/zarf/zarf.yaml")
 manifest_path = File.join(root, "deploy/zarf/manifests/runtime.yaml")
+uds_path = File.join(root, "deploy/zarf/manifests/uds-package.yaml")
+bundle_path = File.join(root, "deploy/zarf/uds-bundle.yaml")
 definition_text = File.read(definition_path)
 manifest_text = File.read(manifest_path)
+uds_text = File.read(uds_path)
 definition = YAML.safe_load(definition_text)
 manifests = YAML.load_stream(manifest_text)
+uds_package = YAML.safe_load(uds_text)
+bundle = YAML.safe_load(File.read(bundle_path))
+version = File.read(File.join(root, "VERSION")).strip
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"]] } == [["runtime", true], ["packaging-worker", false]]
+abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false]]
 worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
 abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
 abort "optional packaging worker must not be required" if worker["required"]
+uds_component = definition.fetch("components").find { |item| item["name"] == "uds" }
+abort "UDS component must stay optional and unselected by a plain install" if uds_component["required"] || uds_component["default"]
+abort "UDS component must not carry images" if uds_component["images"]
+abort "UDS component must apply only the Package CR" unless uds_component.dig("manifests", 0, "files") == ["manifests/uds-package.yaml"]
+runtime_files = definition.dig("components", 0, "manifests", 0, "files")
+abort "runtime component must not apply the UDS Package CR" if runtime_files.include?("manifests/uds-package.yaml")
 
 images = definition.dig("components", 0, "images")
 abort "Zarf package must contain exactly Hub and Agent images" unless images&.length == 2
@@ -57,6 +69,38 @@ pvc = manifests.find { |item| item["kind"] == "PersistentVolumeClaim" }
 abort "Zarf removal must retain durable Hub state" unless pvc&.dig("metadata", "annotations", "helm.sh/resource-policy") == "keep"
 health_checks = definition.dig("components", 0, "healthChecks") || []
 abort "Zarf package must health-check both runtime deployments" unless health_checks.map { |item| item["name"] }.sort == %w[platform-delivery platform-spoke-agent]
+service = manifests.find { |item| item["kind"] == "Service" && item.dig("metadata", "name") == "platform-delivery" }
+abort "Hub Service must label itself for the UDS monitor" unless service&.dig("metadata", "labels", "app.kubernetes.io/name") == "platform-delivery"
+abort "Hub Service must name the metrics port" unless service&.dig("spec", "ports")&.any? { |port| port["name"] == "metrics" && port["port"] == 9090 }
+abort "Hub container must declare the metrics port" unless hub_container&.dig("ports")&.any? { |port| port["name"] == "metrics" && port["containerPort"] == 9090 }
+
+abort "UDS Package API must be pinned" unless uds_package["apiVersion"] == "uds.dev/v1alpha1" && uds_package["kind"] == "Package"
+abort "UDS Package must live in platform-system" unless uds_package.dig("metadata", "namespace") == "platform-system"
+expose = uds_package.dig("spec", "network", "expose") || []
+abort "UDS Package must expose the Hub on the tenant gateway" unless expose.any? { |item| item["gateway"] == "tenant" && item["service"] == "platform-delivery" && item["port"] == 8081 }
+allows = uds_package.dig("spec", "network", "allow") || []
+required_allows = [
+  ["Ingress", "istio-tenant-gateway", 8081],
+  ["Ingress", "platform-system", 8081],
+  ["Egress", "###ZARF_VAR_POSTGRES_NAMESPACE###", 5432],
+  ["Egress", "platform-system", 8081]
+]
+required_allows.each do |direction, namespace, port|
+  abort "UDS Package missing #{direction} allow to #{namespace}:#{port}" unless allows.any? { |item| item["direction"] == direction && item["remoteNamespace"] == namespace && item["port"] == port }
+end
+abort "UDS Package must allow the Spoke to call the Kubernetes API" unless allows.any? { |item| item["direction"] == "Egress" && item["remoteGenerated"] == "KubeAPI" }
+sso = uds_package.dig("spec", "sso") || []
+client = sso.find { |item| item["clientId"] == "conduit-hub" }
+abort "UDS Package must register the Hub SSO client" unless client
+abort "UDS Package must set the console redirect URI" unless client["redirectUris"] == ["###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/*"]
+abort "UDS Package must not put authservice in front of the Agent mTLS port" if client["enableAuthserviceSelector"]
+monitor = uds_package.dig("spec", "monitor") || []
+abort "UDS Package must declare a ServiceMonitor for the metrics port" unless monitor.any? { |item| item["kind"] == "ServiceMonitor" && item["portName"] == "metrics" && item["targetPort"] == 9090 && item["path"] == "/metrics" }
+
+abort "UDS bundle must carry the Conduit package" unless bundle["kind"] == "UDSBundle"
+abort "UDS bundle version must track VERSION" unless bundle.dig("metadata", "version") == version
+conduit = (bundle["packages"] || []).find { |item| item["name"] == "platform-runtime" }
+abort "UDS bundle must build the local Zarf package and select the uds component" unless conduit&.dig("path") == "." && conduit["ref"] == version && conduit["optionalComponents"] == ["uds"]
 
 example = File.join(root, "internal/packagingworkflow/fixtures/example-package")
 example_definition = YAML.safe_load(File.read(File.join(example, "zarf.yaml")))

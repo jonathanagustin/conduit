@@ -1,0 +1,26 @@
+# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/v0.41.0/uds.schema.json
+# Local validation bundle for the Conduit runtime.
+#
+# UDS Core slim-dev is published as one bundle, not as package refs this file
+# can vendor. Deploy that bundle first, then create and deploy this one:
+#
+#   uds deploy oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1 --confirm
+#   uds create deploy/zarf --confirm
+#   uds deploy uds-bundle-conduit-amd64-0.17.5.tar.zst --confirm
+#
+# `uds create` reads this file because it sits next to zarf.yaml. The bundle
+# pulls nothing from a public registry itself. It is not an air-gap artifact:
+# the slim-dev bundle it pairs with is fetched from a public registry, and
+# the Conduit images are whatever `zarf package create` put in the package.
+kind: UDSBundle
+metadata:
+  name: conduit
+  description: Conduit Hub and Spoke runtime for a cluster that already has UDS Core slim-dev
+  version: 0.17.5
+
+packages:
+  - name: platform-runtime
+    path: .
+    ref: 0.17.5
+    optionalComponents:
+      - uds
