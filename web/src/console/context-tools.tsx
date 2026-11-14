@@ -68,10 +68,10 @@ function ToolCard({
   children: ReactNode;
 }) {
   return (
-    <div className="rounded-md border border-[#1f2a35] bg-[#10161c] p-2 text-[11.5px] text-[#dce4ee]">
-      <div className="mb-1 flex items-center justify-between gap-2">
+    <div className="space-y-1.5 rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] text-[#dce4ee]">
+      <div className="flex items-center justify-between gap-2">
         <span className="font-medium">{title}</span>
-        <span className="text-[10px] text-[#8b96a5]">
+        <span className="rounded border border-[#1f4737] bg-[#10241d] px-1.5 py-0.5 text-[10px] text-[#34d399] tabular-nums">
           {label || "No model call"}
         </span>
       </div>

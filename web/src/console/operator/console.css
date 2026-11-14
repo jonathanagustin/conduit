@@ -899,6 +899,20 @@
   height: 100%;
   min-height: 0;
 }
+.assistant-thread-mount [data-slot="aui_composer-shell"] {
+  background: #10161c;
+  border-color: #1f2a35;
+  border-radius: 6px;
+  color: #dce4ee;
+}
+.assistant-thread-mount .aui-composer-input {
+  color: #edf2f7;
+  font-size: 12.5px;
+}
+.assistant-thread-mount .aui-composer-send {
+  background: #1c3a2a;
+  color: #34d399;
+}
 
 .bp6-compound-tag {
   display: inline-flex;
