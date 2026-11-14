@@ -926,6 +926,17 @@ func (service *ModuleService) InstallTrackingChannel(ctx context.Context, enviro
 	if err != nil {
 		return ModuleInstallation{}, err
 	}
+	installation, err := service.prepareModuleInstallation(ctx, environment, release, channel, supplied)
+	if err != nil {
+		return ModuleInstallation{}, err
+	}
+	return service.repository.CreateModuleInstallation(ctx, installation)
+}
+
+// prepareModuleInstallation validates a read-only candidate. Selection and any
+// recall exception remain the responsibility of the admission path, not this helper.
+func (service *ModuleService) prepareModuleInstallation(ctx context.Context, environment string, release ModuleRelease, channel string, supplied map[string]string) (ModuleInstallation, error) {
+	module := release.Name
 	if release.Definition.Restrictions.NewInstallations.Allowed != nil && !*release.Definition.Restrictions.NewInstallations.Allowed {
 		return ModuleInstallation{}, fmt.Errorf("%w: Module %s does not allow new installations", ErrConflict, module)
 	}
@@ -968,7 +979,7 @@ func (service *ModuleService) InstallTrackingChannel(ctx context.Context, enviro
 		ID: "modi_" + hex.EncodeToString(identity[:16]), Environment: environment, Module: module, Version: release.Version,
 		ReleaseChannel: channel, Variables: values, Entities: entities, Status: "ACTIVE", CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}
-	return service.repository.CreateModuleInstallation(ctx, installation)
+	return installation, nil
 }
 
 // moduleInstallChannel resolves the Release Channel a Module installation tracks

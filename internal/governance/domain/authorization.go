@@ -32,17 +32,18 @@ import (
 
 // Operations are the verbs a role can convey.
 const (
-	OperationActOnBehalf       = "platform:act-on-behalf"
-	OperationProposeChange     = "change:propose"
-	OperationReadResource      = "resource:read"
-	OperationOperate           = "resource:operate"
-	OperationImportBundle      = "bundle:import"
-	OperationBulkChange        = "fleet:bulk-change"
-	OperationManagePermissions = "permissions:manage"
-	OperationApplyLabel        = "label:apply"
-	OperationCreateArtifact    = "artifact:create"
-	OperationCreateProduct     = "product:create"
-	OperationCreateRelease     = "product-release:create"
+	OperationActOnBehalf           = "platform:act-on-behalf"
+	OperationApproveModuleOverride = "module-installation:override-approve"
+	OperationProposeChange         = "change:propose"
+	OperationReadResource          = "resource:read"
+	OperationOperate               = "resource:operate"
+	OperationImportBundle          = "bundle:import"
+	OperationBulkChange            = "fleet:bulk-change"
+	OperationManagePermissions     = "permissions:manage"
+	OperationApplyLabel            = "label:apply"
+	OperationCreateArtifact        = "artifact:create"
+	OperationCreateProduct         = "product:create"
+	OperationCreateRelease         = "product-release:create"
 )
 
 // OperationVocabulary is every operation Platform itself can act on: the ones
@@ -65,17 +66,18 @@ const (
 // Ordered by the operation's own value rather than by constant name, so the
 // sortedness check has something to compare and a duplicate cannot hide.
 var OperationVocabulary = []string{
-	OperationCreateArtifact,    // artifact:create
-	OperationImportBundle,      // bundle:import
-	OperationProposeChange,     // change:propose
-	OperationBulkChange,        // fleet:bulk-change
-	OperationApplyLabel,        // label:apply
-	OperationManagePermissions, // permissions:manage
-	OperationActOnBehalf,       // platform:act-on-behalf
-	OperationCreateRelease,     // product-release:create
-	OperationCreateProduct,     // product:create
-	OperationOperate,           // resource:operate
-	OperationReadResource,      // resource:read
+	OperationCreateArtifact,        // artifact:create
+	OperationImportBundle,          // bundle:import
+	OperationProposeChange,         // change:propose
+	OperationBulkChange,            // fleet:bulk-change
+	OperationApplyLabel,            // label:apply
+	OperationApproveModuleOverride, // module-installation:override-approve
+	OperationManagePermissions,     // permissions:manage
+	OperationActOnBehalf,           // platform:act-on-behalf
+	OperationCreateRelease,         // product-release:create
+	OperationCreateProduct,         // product:create
+	OperationOperate,               // resource:operate
+	OperationReadResource,          // resource:read
 }
 
 // OperationIsKnown reports whether this is an operation Platform performs.
@@ -233,6 +235,7 @@ var CanonicalRoleOperations = map[string][]string{
 	"environment:administrator":               {OperationProposeChange, OperationReadResource, OperationOperate, OperationImportBundle, OperationBulkChange, OperationManagePermissions},
 	"environment:editor":                      {OperationProposeChange, OperationReadResource, OperationOperate, OperationImportBundle, OperationBulkChange},
 	"environment:operator":                    {OperationReadResource, OperationOperate},
+	"environment:module-override-reviewer":    {OperationApproveModuleOverride, OperationReadResource},
 	"environment:viewer":                      {OperationReadResource},
 	"entity:administrator":                    {OperationProposeChange, OperationReadResource, OperationOperate, OperationManagePermissions},
 	"entity:editor":                           {OperationProposeChange, OperationReadResource, OperationOperate},

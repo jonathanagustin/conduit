@@ -912,9 +912,13 @@ func (service *GovernanceService) approveOnce(
 		if satisfied == 0 {
 			return ErrForbidden
 		}
+		reviewedAt := service.now().UTC()
+		if err := recordModuleOverrideReviewer(request, principal, eligible, reviewedAt); err != nil {
+			return err
+		}
 		request.Reviews = append(request.Reviews, ChangeReview{
 			Subject: principal.Username, Decision: "APPROVE", Rationale: rationale,
-			Teams: append([]string(nil), principal.Teams...), CreatedAt: service.now().UTC(),
+			Teams: append([]string(nil), principal.Teams...), CreatedAt: reviewedAt,
 		})
 		request.RequirementsSatisfied = allRequirementsSatisfied(request.Requirements)
 		if request.RequirementsSatisfied && !hasDoNotMerge(request.Labels) {
@@ -997,6 +1001,9 @@ func (service *GovernanceService) Reopen(
 	request, err := service.repository.GetChangeRequest(ctx, id)
 	if err != nil {
 		return ChangeRequest{}, PlanRecord{}, err
+	}
+	if request.TargetKind == ModuleOverrideTarget {
+		return ChangeRequest{}, PlanRecord{}, fmt.Errorf("%w: create a fresh Module override proposal instead of reopening an expired binding", ErrInvalidTransition)
 	}
 	if request.Author.Username != principal.Username {
 		service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "DENY", "only the author may reopen", nil)

@@ -9,6 +9,8 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	override "github.com/jonathanagustin/conduit/internal/installoverride/domain"
+	"github.com/jonathanagustin/conduit/internal/installoverride/ports"
 	"io"
 	"os"
 	"strings"
@@ -591,6 +593,8 @@ func moduleCommand(state *commandState) *cobra.Command {
 	})
 	var environment, releaseChannel, version string
 	var variableFlags []string
+	var ignoreRecalls, ignoreSecrets bool
+	var overrideRationale string
 	install := &cobra.Command{
 		Use:   "install MODULE_PRODUCT_ID_OR_COORDINATE",
 		Short: "Install an exact or channel-tracking Module into an Environment",
@@ -612,6 +616,9 @@ func moduleCommand(state *commandState) *cobra.Command {
 			if (version == "") == (releaseChannel == "") {
 				return errors.New("select exactly one of an exact Module version or --release-channel")
 			}
+			if ignoreRecalls || ignoreSecrets {
+				return proposeModuleOverride(command, state, ports.ModuleDraft{Action: "INSTALL", Environment: environment, Module: module, Version: version, ReleaseChannel: releaseChannel, Variables: variables, Flags: override.Flags{IgnoreRecalls: ignoreRecalls, IgnoreSecretRequirements: ignoreSecrets}, Rationale: overrideRationale}, false)
+			}
 			return state.execute(command, func(service Service) (any, error) {
 				return service.InstallModule(command.Context(), environment, module, version, releaseChannel, variables)
 			})
@@ -621,9 +628,13 @@ func moduleCommand(state *commandState) *cobra.Command {
 	install.Flags().StringVarP(&releaseChannel, "release-channel", "r", "", "Release Channel to track")
 	install.Flags().StringVar(&version, "version", "", "exact Module version")
 	install.Flags().StringArrayVar(&variableFlags, "variable", nil, "Module variable as key=value; repeatable")
+	install.Flags().BoolVar(&ignoreRecalls, "ignore-recalls", false, "request independent review for the exact recalled Module release")
+	install.Flags().BoolVar(&ignoreSecrets, "ignore-secret-requirements", false, "record reviewed intent only; Module metadata has no runtime secret gate")
+	install.Flags().StringVar(&overrideRationale, "rationale", "", "reason required when requesting a reviewed override")
 	_ = install.MarkFlagRequired("environment")
 	command.AddCommand(install)
 	addModuleParityCommands(command, state)
+	addModuleOverrideCommands(command, state)
 	return command
 }
 

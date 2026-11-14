@@ -155,6 +155,17 @@ own profile model — `ContactTeams` returned the empty set and
 `validateReferences` accepted it all along. It would have surfaced as a failure
 to import rather than as a missing feature.
 
+**2026-11-14 correction (#305).** The historical refusal below is superseded
+for Module metadata admission. Install flags now create an independently
+reviewed native proposal; a separate apply checks the exact release, current
+state, authority and blockers. Installed-Module update uses the native
+`module installation update` path; `module update` still publishes definitions.
+The maintainer explicitly retained the metadata-only flow: secret overrides
+record audited `INTENT_ONLY` intent, preserve declarations, and introduce no
+runtime secret bypass. Entity Plan and Agent gates remain unchanged. See
+[reviewed installation overrides](../architecture/reviewed-installation-overrides.md).
+The historical analysis follows for provenance.
+
 **The two override flags are a genuine architectural divergence, not a gap.**
 `--ignore-recalls` and `--ignore-secret-requirements` let an operator push an
 installation past a blocking condition from the command line. Conduit's
