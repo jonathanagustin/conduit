@@ -23,6 +23,7 @@ ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 WORKDIR /cosign-source
 COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./
+COPY tools/cosign-build/compat ./compat
 # Build the reviewed Cosign 3.1.4 command from the locked dependency graph
 # under the same patched Go toolchain as Conduit. The trusted-supply-chain
 # gate holds the upstream version and dependency overrides to their reviewed pins.

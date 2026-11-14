@@ -131,7 +131,8 @@ oci_manifest() {
 }
 
 supply_chain() {
-  ruby scripts/verify-trusted-supply-chain.rb && ./scripts/test-retry-keyless-signing.sh
+  ruby scripts/verify-trusted-supply-chain.rb && ./scripts/test-retry-keyless-signing.sh &&
+    ./scripts/test-cosign-credential-helper.sh
 }
 
 optimizer_candidate_release() {

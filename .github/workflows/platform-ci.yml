@@ -682,6 +682,7 @@ jobs:
         run: |
           ruby scripts/verify-trusted-supply-chain.rb
           ./scripts/test-retry-keyless-signing.sh
+          ./scripts/test-cosign-credential-helper.sh
       - name: Validate optimizer candidate release policy
         if: needs.scope.outputs.checks == 'true'
         run: |

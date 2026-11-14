@@ -28,6 +28,8 @@ ci_workflow = read_workflow.call("ci.yml")
 hub_containerfile = File.read(File.expand_path("../Containerfile", __dir__))
 agent_containerfile = File.read(File.expand_path("../Containerfile.agent", __dir__))
 cosign_build_mod = File.read(File.expand_path("../tools/cosign-build/go.mod", __dir__))
+cosign_acr_mod = File.read(File.expand_path("../tools/cosign-build/compat/acr/go.mod", __dir__))
+cosign_acr_adapter = File.read(File.expand_path("../tools/cosign-build/compat/acr/pkg/credhelper/helper.go", __dir__))
 e2e_workflow = read_workflow.call("e2e.yml")
 docker_ignore = File.read(File.expand_path("../.dockerignore", __dir__))
 container_ignore = File.read(File.expand_path("../.containerignore", __dir__))
@@ -89,6 +91,21 @@ abort "Hub Cosign source build must pin the patched Go toolchain and dependency 
     cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.41\.0 \/\/ indirect$/) &&
     cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.43\.0 \/\/ indirect$/) &&
     cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.84\.0 \/\/ indirect$/)
+abort "Cosign must replace the vulnerable legacy Azure helper with the maintained compatibility adapter" unless
+  cosign_build_mod.include?("replace github.com/chrismellard/docker-credential-acr-env => ./compat/acr") &&
+    cosign_acr_mod.match?(/^\s*github\.com\/osscontainertools\/docker-credential-acr v1\.0\.1$/) &&
+    cosign_acr_adapter.include?("return maintained.NewACRCredentialsHelper()")
+abort "Cosign must retain the compression security update" unless
+  cosign_build_mod.match?(/^\s*github\.com\/klauspost\/compress v1\.20\.3 \/\/ indirect$/)
+abort "Hub build context must include the Azure helper compatibility source" unless
+  hub_containerfile.include?("COPY tools/cosign-build/compat ./compat") &&
+    [docker_ignore, container_ignore].all? do |ignore|
+      ignore.include?("!tools/cosign-build/compat/acr/go.mod") &&
+        ignore.include?("!tools/cosign-build/compat/acr/pkg/credhelper/*.go")
+    end
+abort "CI must exercise the actual Azure credential helper host boundary" unless
+  ci_workflow.include?("./scripts/test-cosign-credential-helper.sh") &&
+    File.executable?(File.expand_path("test-cosign-credential-helper.sh", __dir__))
 abort "Hub runtime must build and carry the locked Cosign command" unless
   hub_containerfile.include?("COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./") &&
     hub_containerfile.include?("go mod download") &&
