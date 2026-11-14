@@ -240,3 +240,56 @@ func TestMembershipRemovalMergesCoordinatesAndPreservesReviewAndArtifacts(t *tes
 		t.Fatal("stale source accepted", output, err)
 	}
 }
+
+func TestMembershipEditorRetainsFlagRationaleAndDryRunIsOffline(t *testing.T) {
+	repository, state, path, directory := membershipCLIFixture(t)
+	before, err := repository.ListPlans(t.Context(), state.Environment.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	editor := membershipEditor(t, directory, "if grep -q '^rationale:' \"$1\"; then exit 9; fi\nprintf 'releaseChannels: [STABLE, CANARY, CANARY]\\n' > \"$1\"")
+	rationale := "Ticket CAB-123\nKeep multiline context"
+	output, err := runMembershipCLI(t, "http://127.0.0.1:1", editor, "writer", "product-release", "release-channel", "edit", state.Releases[0].Product+":"+state.Releases[0].Version, "--state-file", path, "--next-generation", "reviewed-edit-preview", "--rationale", rationale, "--dry-run")
+	if err != nil {
+		t.Fatal(output, err)
+	}
+	var preview struct {
+		Submitted    bool                      `json:"submitted"`
+		DesiredState controlplane.DesiredState `json:"desiredState"`
+		Review       struct {
+			Rationale string `json:"rationale"`
+			Digest    string `json:"baseDesiredStateDigest"`
+		} `json:"review"`
+	}
+	if err := json.Unmarshal([]byte(output), &preview); err != nil {
+		t.Fatal(err)
+	}
+	if preview.Submitted || preview.Review.Rationale != rationale || preview.Review.Digest != before[0].DesiredStateDigest || !reflect.DeepEqual(preview.DesiredState.Releases[0].Channels, []string{"CANARY", "STABLE"}) {
+		t.Fatal("preview lost edited membership or rationale", output)
+	}
+	after, err := repository.ListPlans(t.Context(), state.Environment.ID)
+	if err != nil || !reflect.DeepEqual(before, after) {
+		t.Fatal("offline preview mutated", err)
+	}
+}
+
+func TestMembershipInputDocumentsAreStrictAndBounded(t *testing.T) {
+	for _, contents := range []string{"releaseChannels: []\nunknown: value\n", "releaseChannels: []\n---\nreleaseChannels: [STABLE]\n", "releaseChannels: null\n", "rationale: missing-list\n"} {
+		if _, _, empty, err := parseMembershipEdit([]byte(contents)); err == nil || empty {
+			t.Fatalf("invalid saved document accepted: %q", contents)
+		}
+	}
+	var coordinates []string
+	for _, contents := range []string{"one: coordinate\n", "- app:one:1.2.3\n---\n- app:two:1.2.3\n"} {
+		if decodeMembershipYAML([]byte(contents), &coordinates) == nil {
+			t.Fatal("invalid coordinate list accepted", contents)
+		}
+	}
+	path := filepath.Join(t.TempDir(), "large.yaml")
+	if err := os.WriteFile(path, bytes.Repeat([]byte("x"), maximumMembershipDocument+1), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := readMembershipFile(path); err == nil {
+		t.Fatal("unbounded input accepted")
+	}
+}
