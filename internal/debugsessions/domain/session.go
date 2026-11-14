@@ -38,11 +38,10 @@ type Target struct {
 	Profile     string `json:"profile"`
 }
 
-// CONDUIT-INVENTED: debugsessions.RequestLifecycle
-// Displaced-by: A published lifecycle/event schema or authorized sanitized capture that establishes the corresponding Apollo record, identity, identifier and transition semantics.
-//
 // Event is both a lifecycle transition and its audit fact. There is no READY
 // transition: a resource recorded here has no broker or execution authority.
+// CONDUIT-INVENTED: debugsessions.RequestLifecycle
+// Displaced-by: A published lifecycle/event schema or authorized sanitized capture that establishes the corresponding Apollo record, identity, identifier and transition semantics.
 type Event struct {
 	SessionID  string    `json:"sessionId"`
 	Revision   uint64    `json:"revision"`
