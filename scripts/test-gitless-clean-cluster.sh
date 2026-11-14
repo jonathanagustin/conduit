@@ -29,7 +29,7 @@ cleanup() {
 }
 trap cleanup EXIT
 
-for command in curl sha256sum tar jq base64 docker kubectl python3; do
+for command in curl sha256sum tar jq base64 docker kubectl python3 go; do
   command -v "${command}" >/dev/null || { echo "${command} is required" >&2; exit 1; }
 done
 docker info >/dev/null
@@ -49,10 +49,7 @@ fetch \
   "https://github.com/k3d-io/k3d/releases/download/v5.7.4/k3d-linux-amd64" \
   "1ac1da365236736a8df8c32107b54aca208384ab1d9a06771443c85ad698a5eb" \
   "${bin_dir}/k3d"
-fetch \
-  "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
-  "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71" \
-  "${bin_dir}/cosign"
+"${repo_root}/scripts/build-cosign.sh" "${bin_dir}/cosign"
 fetch \
   "https://github.com/project-zot/zot/releases/download/v2.1.20/zot-linux-amd64" \
   "a32e42d042d1f17b5b1317e55cc1a415a744c873dcd05c25c56b665478258bcb" \

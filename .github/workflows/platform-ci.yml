@@ -619,14 +619,14 @@ jobs:
       # that drifts behind the release image fails here rather than shipping.
       - name: Scan for known vulnerabilities
         if: needs.scope.outputs.checks == 'true'
-        run: GOTOOLCHAIN=go1.26.11 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
+        run: GOTOOLCHAIN=go1.27.4 go run golang.org/x/vuln/cmd/govulncheck@v1.9.0 ./...
       # vet catches a narrow set. staticcheck is what found the dead store in
       # RunDueExportPipelines and the unused coordinate check that turned out to
       # be a real hole. staticcheck.conf records the one excluded category and
       # why, so the exclusion is reviewable rather than a flag buried here.
       - name: Lint
         if: needs.scope.outputs.checks == 'true'
-        run: GOTOOLCHAIN=go1.26.11 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
+        run: GOTOOLCHAIN=go1.27.4 go run honnef.co/go/tools/cmd/staticcheck@v0.8.2 ./...
       - name: Validate Renovate configuration
         if: needs.scope.outputs.checks == 'true'
         run: jq --exit-status . renovate.json >/dev/null
@@ -682,6 +682,7 @@ jobs:
         run: |
           ruby scripts/verify-trusted-supply-chain.rb
           ./scripts/test-retry-keyless-signing.sh
+          ./scripts/test-cosign-credential-helper.sh
       - name: Validate optimizer candidate release policy
         if: needs.scope.outputs.checks == 'true'
         run: |

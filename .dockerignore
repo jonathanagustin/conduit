@@ -14,6 +14,12 @@ tools/*
 !tools/cosign-build/
 !tools/cosign-build/go.mod
 !tools/cosign-build/go.sum
+!tools/cosign-build/compat/
+!tools/cosign-build/compat/acr/
+!tools/cosign-build/compat/acr/go.mod
+!tools/cosign-build/compat/acr/pkg/
+!tools/cosign-build/compat/acr/pkg/credhelper/
+!tools/cosign-build/compat/acr/pkg/credhelper/*.go
 !docs/
 docs/*
 !docs/evidence/
