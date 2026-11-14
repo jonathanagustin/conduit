@@ -249,8 +249,8 @@ Gate rules: %s`, ignore, revise, oneLine(input.RunID), oneLine(input.ImageRef), 
 func packagePrompt(input PackagingContext) string {
 	return strings.TrimSpace(fmt.Sprintf(`Reply with one JSON object and no other text.
 You may call tools by replying with {"toolCalls":[{"name":"inspect_image","arguments":{"ref":"..."}},{"name":"dry_run_gates","arguments":{"source":"...","zarf":"...","cr":"...","dockerfile":"...","dockerignore":"..."}}]}.
-When the proposal is ready, reply with {"source":"...","zarf":"...","cr":"...","rationale":"..."}.
-The output is a package: write a product source, zarf.yaml, and the Package custom resource. Put network allow rules, expose, and SSO on the Package only where they are relevant. Do not treat raw Kubernetes manifests as the package. Pin images by digest. Do not open a change request.
+When the proposal is ready, reply with {"source":"...","zarf":"...","cr":"...","dockerfile":"...","dockerignore":"...","rationale":"..."}.
+The output is a package: write a product source, zarf.yaml, the Package custom resource, and the Dockerfile. Put network allow rules, expose, and SSO on the Package only where they are relevant. Do not treat raw Kubernetes manifests as the package. Pin images by digest. Do not open a change request.
 Packaging run: %s
 Image ref: %s
 Image digest: %s
@@ -269,10 +269,12 @@ type DockerfileProposal struct {
 
 // PackageProposal is a model-written product source, zarf.yaml, and Package CR.
 type PackageProposal struct {
-	Source    string `json:"source"`
-	Zarf      string `json:"zarf"`
-	CR        string `json:"cr"`
-	Rationale string `json:"rationale"`
+	Source       string `json:"source"`
+	Zarf         string `json:"zarf"`
+	CR           string `json:"cr"`
+	Dockerfile   string `json:"dockerfile,omitempty"`
+	Dockerignore string `json:"dockerignore,omitempty"`
+	Rationale    string `json:"rationale"`
 }
 
 // ParseDockerfileProposal accepts one Dockerfile JSON object.
@@ -319,6 +321,8 @@ func ParsePackageProposal(raw []byte) (PackageProposal, error) {
 	proposal.Source = strings.TrimSpace(proposal.Source)
 	proposal.Zarf = strings.TrimSpace(proposal.Zarf)
 	proposal.CR = strings.TrimSpace(proposal.CR)
+	proposal.Dockerfile = strings.TrimSpace(proposal.Dockerfile)
+	proposal.Dockerignore = strings.TrimSpace(proposal.Dockerignore)
 	proposal.Rationale = strings.TrimSpace(proposal.Rationale)
 	if proposal.Source == "" || proposal.Zarf == "" || proposal.CR == "" {
 		return PackageProposal{}, fmt.Errorf("%w: source, zarf, and cr are required", ErrProposalInvalid)
