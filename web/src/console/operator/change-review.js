@@ -114,22 +114,21 @@ function detailColumn(request, opts, esc) {
         .join("")}</ul>`
     : `<p class="so-muted">No review is recorded.</p>`;
 
-  const reasonLine = state.canReview
-    ? ""
-    : `<p class="so-muted" data-cr-reason>${esc(state.reason)}</p>`;
-
-  const dis = `${blocked ? " disabled" : ""} data-can-review="${state.canReview ? "1" : "0"}"`;
-  const form = `<form class="so-form" data-cr-form>
+  // Approve and Reject only exist while this operator can still review: a
+  // decided request, or one the operator wrote, shows why instead of buttons.
+  const dis = `${blocked ? " disabled" : ""} data-can-review="1"`;
+  const form = state.canReview
+    ? `<form class="so-form" data-cr-form>
 <label>Reason (required)<textarea data-cr-rationale required>${esc(rationale)}</textarea></label>
-${reasonLine}
 <div class="so-actions">
 <button type="button" class="so-btn so-btn-primary" data-cr-decide="approve"${dis}>Approve</button>
 <button type="button" class="so-btn so-btn-danger" data-cr-decide="reject"${dis}>Reject</button>
 </div>
-</form>`;
+</form>`
+    : `<p class="so-muted" data-cr-reason>${esc(state.reason)}</p>`;
 
   const confirm =
-    draft.decision && !pending
+    state.canReview && draft.decision && !pending
       ? `<div class="so-confirm"><span>Confirm ${esc(draft.decision)} of ${esc(request.id)}?</span> <button type="button" class="so-btn so-btn-primary" data-cr-confirm>Confirm</button> <button type="button" class="so-btn" data-cr-cancel>Cancel</button></div>`
       : "";
 
