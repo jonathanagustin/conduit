@@ -363,8 +363,7 @@ func (store *Store) DeletePod(_ context.Context, workspaceID string) error {
 	return nil
 }
 
-// Delete is the provisioner method. The catalog delete has the same name, so
-// the provisioner is exposed as Pods.
+// Pods adapts the store to the provisioner port. The catalog already owns Delete.
 func (store *Store) Pods() *podPort { return &podPort{store: store} }
 
 type podPort struct{ store *Store }

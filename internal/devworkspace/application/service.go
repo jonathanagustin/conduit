@@ -1,3 +1,4 @@
+// Package application is the developer workspace service.
 package application
 
 import (
