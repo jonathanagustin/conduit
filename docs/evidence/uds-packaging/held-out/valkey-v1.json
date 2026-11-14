@@ -1,0 +1,110 @@
+{
+  "schemaVersion": 1,
+  "id": "valkey-held-out-candidate-v1",
+  "valueTier": "CONDUIT_NATIVE",
+  "state": "PROPOSED_OPERATOR_PROFILE",
+  "application": {
+    "repository": "https://github.com/valkey-io/valkey",
+    "version": "8.1.3",
+    "revision": "d063dff523340e5a075f7ddc436e0c2a43d04061",
+    "class": "stateful key/value datastore; not a TAK/geospatial application"
+  },
+  "platform": {
+    "udsCoreVersion": "1.15.0",
+    "udsCoreRevision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9",
+    "platformUpgradeInScope": false
+  },
+  "exposure": {
+    "applicationImplementationReadBeforeFreeze": false,
+    "packagingSolutionReadBeforeFreeze": false,
+    "knownExamplesExcluded": [
+      "TAK",
+      "GeoServer"
+    ],
+    "disclosure": "The author selected this candidate and has general software knowledge; this is not an independent blind assignment. Only application tag metadata was queried before this criteria freeze. No package solution or Valkey implementation was read. Independent evaluator review and a recorded exposure declaration are required before claiming held-out results."
+  },
+  "authority": {
+    "profileApproved": false,
+    "independentEvaluatorAssigned": false,
+    "deploymentAuthorized": false,
+    "clusterOrDeviceActionsAuthorized": false,
+    "generatorMayRelaxRequiredChecks": false,
+    "approvalRequirement": "A maintainer/evaluator must approve the exact criteria digest outside the generator workspace before a trial. No such approval is recorded."
+  },
+  "requiredChecks": [
+    {
+      "id": "first-process-config",
+      "level": "integration",
+      "criterion": "Required configuration and referenced secrets are available before the first application process; an unavailable secret prevents process start.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "tls-ca-rotation",
+      "level": "integration",
+      "criterion": "TLS-only authenticated protocol succeeds without SNI; unauthorized clients and plaintext fail. Rotate server/client trust and credentials and verify both new success and revoked/old credential rejection within declared bounds.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "durable-data-restore",
+      "level": "restore",
+      "criterion": "Assert profile-owned key/value data before backup and after an explicitly authorized isolated restore. A Completed resource backup without volume or external-data coverage is insufficient.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "disconnected-dependencies",
+      "level": "integration",
+      "criterion": "Inventory and pin all install, upgrade-only, exporter, init, build and runtime dependencies. Disable external egress and exercise cold install, restart, upgrade and workload operations.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "schemas-render",
+      "level": "static",
+      "criterion": "Run pinned YAML/schema tools and Helm lint/render for install and upgrade against target UDS capabilities; reject unsupported chart capabilities and undeclared upgrade images.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "real-uds-package",
+      "level": "static",
+      "criterion": "Emit zarf.yaml and a UDS Package CR with sso, allow and monitor sections; only operator-reviewed, evidence-backed not-applicable entries may be empty. Validate with pinned UDS schema and zarf dev lint.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "package-build",
+      "level": "build",
+      "criterion": "Build exact package inputs in a separately authorized isolated environment; retain input/output digests and pinned tool versions. Export success alone is not an air-gap result.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "security-policy",
+      "level": "scan",
+      "criterion": "Scan exact built digests under explicit operator-owned vulnerability, signature, dependency and license thresholds. Missing tools, unavailable databases, malformed scans and unverified provenance block admission.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "upgrade-recovery",
+      "level": "integration",
+      "criterion": "Keep application and UDS Core versions separate. Require documented application upgrade steps and readiness; unknown migration/rollback semantics block. No platform upgrade is included in this trial.",
+      "status": "NOT_RUN"
+    },
+    {
+      "id": "authorization-freshness",
+      "level": "admission",
+      "criterion": "Reject changed artifacts/config/target/profile/template, stale or replayed approval, forged summaries, cancellation and partial execution. No deployment is attempted when any required gate is failed or unknown.",
+      "status": "NOT_RUN"
+    }
+  ],
+  "runtimeConstraints": {
+    "architecture": "operator must select and bind exact architecture before execution",
+    "credentials": "ephemeral externally provisioned test credentials; never generated into an image or committed",
+    "dataFixture": "operator-owned fixed values and expected digest; bind before trial",
+    "network": "authenticated TLS protocol; include no-SNI and denied-egress checks",
+    "deviceClaims": "none; no physical-device inference"
+  },
+  "result": {
+    "status": "NOT_RUN",
+    "correctness": null,
+    "evidenceCoverage": null,
+    "reproducibility": null,
+    "failures": []
+  }
+}
