@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 
-require "json"
+require_relative "../lib/checked_json"
 require "pathname"
 require "yaml"
 

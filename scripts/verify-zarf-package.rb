@@ -2,6 +2,7 @@
 # frozen_string_literal: true
 
 require "yaml"
+require_relative "lib/safe_yaml"
 
 root = File.expand_path("..", __dir__)
 definition_path = File.join(root, "deploy/zarf/zarf.yaml")
@@ -12,7 +13,7 @@ definition_text = File.read(definition_path)
 manifest_text = File.read(manifest_path)
 uds_text = File.read(uds_path)
 definition = YAML.safe_load(definition_text)
-manifests = YAML.load_stream(manifest_text)
+manifests = ConduitSafeYAML.stream(manifest_text)
 uds_package = YAML.safe_load(uds_text)
 bundle = YAML.safe_load(File.read(bundle_path))
 version = File.read(File.join(root, "VERSION")).strip

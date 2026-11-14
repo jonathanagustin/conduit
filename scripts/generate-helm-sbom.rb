@@ -2,7 +2,7 @@
 # frozen_string_literal: true
 
 require "digest"
-require "json"
+require_relative "lib/checked_json"
 require "rubygems/package"
 require "time"
 require "zlib"
@@ -59,8 +59,8 @@ document = {
     "filesAnalyzed" => true,
     "packageVerificationCode" => {"packageVerificationCodeValue" => verification_code},
     "checksums" => [{"algorithm" => "SHA256", "checksumValue" => archive_digest}],
-    "licenseConcluded" => "LicenseRef-Proprietary",
-    "licenseDeclared" => "LicenseRef-Proprietary",
+    "licenseConcluded" => "NOASSERTION",
+    "licenseDeclared" => "NOASSERTION",
     "copyrightText" => "NOASSERTION"
   }],
   "files" => files,

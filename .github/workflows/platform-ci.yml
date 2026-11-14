@@ -680,6 +680,7 @@ jobs:
       - name: Validate trusted supply-chain policy
         if: needs.scope.outputs.checks == 'true'
         run: |
+          ruby scripts/test-safe-yaml.rb
           ruby scripts/verify-trusted-supply-chain.rb
           ./scripts/test-retry-keyless-signing.sh
           ./scripts/test-cosign-credential-helper.sh
