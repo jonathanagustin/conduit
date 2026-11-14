@@ -635,6 +635,31 @@ func (service *GovernanceService) ProposeChanges(
 	return request, policyApproves, err
 }
 
+// PreviewChanges runs the same taxonomy check and policy evaluation as
+// ProposeChanges and does not store the request. A caller that wants the
+// record still calls ProposeChanges, which is the path that can persist one
+// and the path that does not approve it on the caller's behalf.
+func (service *GovernanceService) PreviewChanges(
+	ctx context.Context, targetKind, targetID, environment string, changes []EntityChange,
+	author Principal, title, description string,
+) (ChangeRequest, error) {
+	if strings.TrimSpace(targetKind) == "" || strings.TrimSpace(targetID) == "" ||
+		strings.TrimSpace(environment) == "" || len(changes) == 0 || strings.TrimSpace(author.Username) == "" {
+		return ChangeRequest{}, ValidationErrors{{Path: "changeRequest", Message: "target, Environment, changes, and author are required"}}
+	}
+	taxonomyErrors := ValidationErrors{}
+	for index, change := range changes {
+		taxonomyErrors = append(taxonomyErrors, validateChangeType(index, change)...)
+	}
+	if len(taxonomyErrors) > 0 {
+		return ChangeRequest{}, taxonomyErrors
+	}
+	return service.evaluateChangeRequest(ctx, ChangeRequest{
+		TargetKind: targetKind, TargetID: targetID, Environment: environment,
+		Title: title, Description: description, Author: author, Changes: cloneJSON(changes),
+	})
+}
+
 func (service *GovernanceService) evaluateChangeRequest(
 	ctx context.Context, request ChangeRequest,
 ) (ChangeRequest, error) {

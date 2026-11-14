@@ -68,6 +68,7 @@ const SOURCES = [
 { path:"internal/spaces/adapters/httpapi",surface:"spaces" },
   { path: "internal/productassets/adapters/httpapi", surface: "product assets" },
   { path: "internal/packagingworkflow/httpapi", surface: "packaging" },
+  { path: "internal/ontology/httpapi", surface: "ontology" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";
@@ -90,7 +91,16 @@ const show = (path) => relative(ROOT, path).split("\\").join("/");
 
 function goFilesBelow(path) {
   const absolute = resolve(ROOT, path);
-  if (!statSync(absolute).isDirectory()) return [absolute];
+  let info;
+  try {
+    info = statSync(absolute);
+  } catch (error) {
+    // A fixture that copies this gate does not contain every surface. A missing
+    // directory contributes no routes; a present one still has to be registered.
+    if (error && error.code === "ENOENT") return [];
+    throw error;
+  }
+  if (!info.isDirectory()) return [absolute];
   const found = [];
   for (const entry of readdirSync(absolute)) {
     const child = join(absolute, entry);
