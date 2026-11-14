@@ -1,7 +1,11 @@
-/* Text and spacing tokens. This file is the one place these values live, so a
-   new token sheet replaces it without touching component styles. Ratios are
-   against the darkest and lightest panel each theme draws text on. */
+/* Token sheet. This file is the one place colour, spacing, and type values
+   live: a new token sheet replaces the first two blocks, and the alias block
+   maps the names older styles use onto it. Contrast is WCAG 2.2 AA in both
+   themes (text >= 4.5:1, icons and control boundaries >= 3:1); the unit test
+   tokens-contrast.test.ts measures every pair. */
 .operator-root {
+  color-scheme: dark;
+
   /* 4px spacing scale */
   --sp-1: 4px;
   --sp-2: 8px;
@@ -11,29 +15,161 @@
   --sp-6: 24px;
   --sp-8: 32px;
 
-  /* Dark text ramp: 16.2, 11.8, 7.4, and 6.6:1 on #0b1015 */
-  color-scheme: dark;
-  --c-text: #e6edf3;
-  --c-text-sec: #c2cdd8;
-  --c-muted: #95a3b3;
-  --c-subtle: #8b99a8;
-  --c-dim: var(--c-subtle);
-  --so-text: var(--c-text);
-  --so-muted: var(--c-muted);
-  --so-dim: var(--c-subtle);
+  /* Type and icon scale */
+  --fs-xs: 11px;
+  --fs-sm: 12px;
+  --fs-md: 13px;
+  --fs-lg: 15px;
+  --fs-xl: 18px;
+  --lh-tight: 1.25;
+  --lh-base: 1.45;
+  --icon-sm: 16px;
+  --icon-md: 20px;
+  --icon-stroke: 1.65;
 
-  /* Solid fills for the one primary action per surface; white text 6.5:1 */
-  --c-primary-fill: #215db0;
-  --c-primary-fill-hover: #1b4f99;
-  --c-primary-border: #3875cc;
+  /* Surfaces, borders, text */
+  --bg-0: #0b1113;
+  --bg-1: #10161a;
+  --bg-2: #141c22;
+  --bg-3: #19232b;
+  --border-subtle: #1e2830;
+  --border-control: #5e7185;
+  --border-strong: #7c90a6;
+  --text-1: #e2e8f0;
+  --text-2: #9fb0c4;
+  --text-3: #5e6e82;
+
+  /* Accent: focus, selection, and the one primary action per surface */
+  --accent-fill: #255fb8;
+  --accent-hover: #2d6fd1;
+  --accent-active: #1e4e98;
+  --accent-text: #f8fafc;
+  --accent-focus: #63a4ff;
+  --accent-sel-bg: #16263d;
+  --accent-sel-border: #5392eb;
+
+  /* Status: muted fill, >= 3:1 border or icon, >= 4.5:1 text */
+  --ok-fill: #10261e;
+  --ok-border: #3ca374;
+  --ok-text: #6ee0a8;
+  --warn-fill: #281f11;
+  --warn-border: #c48a2b;
+  --warn-text: #f2be68;
+  --err-fill: #2b1619;
+  --err-border: #d45b64;
+  --err-text: #f9989f;
+  --info-fill: #132236;
+  --info-border: #4d8be0;
+  --info-text: #8cc0ff;
+  --ai-fill: #1d1933;
+  --ai-border: #8b78e6;
+  --ai-text: #c4b5fd;
+  --neutral-fill: #18202b;
+  --neutral-border: #6f829a;
+  --neutral-text: #b8c6d8;
 }
 .operator-root[data-theme="light"] {
-  /* Light text ramp: 17.9, 10.4, 7.6, and 7.6:1 on #ffffff */
   color-scheme: light;
-  --c-text: #0f172a;
-  --c-text-sec: #334155;
-  --c-muted: #475569;
-  --c-subtle: #475569;
+  --bg-0: #f1f4f8;
+  --bg-1: #ffffff;
+  --bg-2: #f6f8fb;
+  --bg-3: #eaeff5;
+  --border-subtle: #d8e0ea;
+  --border-control: #768599;
+  --border-strong: #526277;
+  --text-1: #0f172a;
+  --text-2: #435266;
+  --text-3: #8c9ab0;
+  --accent-fill: #1d4ed8;
+  --accent-hover: #1e40af;
+  --accent-active: #1e3a8a;
+  --accent-text: #ffffff;
+  --accent-focus: #1d4ed8;
+  --accent-sel-bg: #e8f0fe;
+  --accent-sel-border: #2563eb;
+  --ok-fill: #eafaf2;
+  --ok-border: #1f8254;
+  --ok-text: #0c5434;
+  --warn-fill: #fef7e6;
+  --warn-border: #a3680e;
+  --warn-text: #734406;
+  --err-fill: #fef0f1;
+  --err-border: #c43c45;
+  --err-text: #8c1921;
+  --info-fill: #edf4ff;
+  --info-border: #2b67bd;
+  --info-text: #163e7a;
+  --ai-fill: #f3f0ff;
+  --ai-border: #6d52cc;
+  --ai-text: #452799;
+  --neutral-fill: #f1f5f9;
+  --neutral-border: #64748b;
+  --neutral-text: #2d3b4e;
+}
+
+/* Aliases: names older styles use, mapped onto the sheet above. */
+.operator-root,
+.operator-root[data-theme="light"] {
+  --c-bg: var(--bg-0);
+  --c-topbar: var(--bg-1);
+  --c-rail: var(--bg-1);
+  --c-subbar: var(--bg-1);
+  --c-panel: var(--bg-1);
+  --c-card: var(--bg-2);
+  --c-card-hover: var(--bg-3);
+  --c-input: var(--bg-0);
+  --c-border: var(--border-subtle);
+  --c-border-strong: var(--border-control);
+  --c-text: var(--text-1);
+  --c-text-sec: var(--text-2);
+  --c-muted: var(--text-2);
+  --c-subtle: var(--text-2);
+  --c-dim: var(--text-2);
+  --c-primary-fill: var(--accent-fill);
+  --c-primary-fill-hover: var(--accent-hover);
+  --c-primary-border: var(--accent-sel-border);
+
+  --so-bg: var(--bg-0);
+  --so-topbar: var(--bg-1);
+  --so-sidebar: var(--bg-1);
+  --so-panel: var(--bg-1);
+  --so-card: var(--bg-2);
+  --so-card-hover: var(--bg-3);
+  --so-border: var(--border-subtle);
+  --so-border-subtle: var(--border-subtle);
+  --so-border-bright: var(--border-control);
+  --so-text: var(--text-1);
+  --so-muted: var(--text-2);
+  --so-dim: var(--text-2);
+
+  --bar-ok: var(--ok-border);
+  --bar-warn: var(--warn-border);
+  --bar-err: var(--err-border);
+  --bar-info: var(--info-border);
+  --bar-ai: var(--ai-border);
+  --bar-neutral: var(--neutral-border);
+  --tone-ok-bg: var(--ok-fill);
+  --tone-ok-fg: var(--ok-text);
+  --tone-ok-bd: var(--ok-border);
+  --tone-warn-bg: var(--warn-fill);
+  --tone-warn-fg: var(--warn-text);
+  --tone-warn-bd: var(--warn-border);
+  --tone-err-bg: var(--err-fill);
+  --tone-err-fg: var(--err-text);
+  --tone-err-bd: var(--err-border);
+  --tone-info-bg: var(--info-fill);
+  --tone-info-fg: var(--info-text);
+  --tone-info-bd: var(--info-border);
+  --tone-ai-bg: var(--ai-fill);
+  --tone-ai-fg: var(--ai-text);
+  --tone-ai-bd: var(--ai-border);
+  --tone-muted-bg: var(--neutral-fill);
+  --tone-muted-fg: var(--neutral-text);
+  --tone-muted-bd: var(--neutral-border);
+  --c-diff-del-bg: var(--err-fill);
+  --c-diff-del-fg: var(--err-text);
+  --c-diff-add-bg: var(--ok-fill);
+  --c-diff-add-fg: var(--ok-text);
 }
 
 /* Hardcoded dim grays from older views read through the ramp, so they meet AA. */
@@ -52,7 +188,7 @@
 }
 
 .operator-root :focus-visible {
-  outline: 2px solid #4c90f0;
+  outline: 2px solid var(--accent-focus);
   outline-offset: 1.5px;
 }
 
@@ -63,4 +199,43 @@
 .operator-root .so-table td { padding: var(--sp-2) var(--sp-3); }
 @media (max-width: 639px) {
   .operator-root #main-workspace { padding: var(--sp-3); }
+}
+
+/* Light theme: dark-only fills from older views read through the status tokens. */
+.operator-root[data-theme="light"] .so-warn-card {
+  background: var(--warn-fill) !important;
+  border-color: var(--warn-border) !important;
+  color: var(--warn-text) !important;
+}
+.operator-root[data-theme="light"] .so-opt-card {
+  background: var(--bg-2) !important;
+  border-color: var(--border-subtle) !important;
+}
+.operator-root[data-theme="light"] .chip-agent {
+  background: var(--info-fill) !important;
+  border-color: var(--info-border) !important;
+  color: var(--info-text) !important;
+}
+.operator-root[data-theme="light"] .chip-tool {
+  background: var(--warn-fill) !important;
+  border-color: var(--warn-border) !important;
+  color: var(--warn-text) !important;
+}
+.operator-root[data-theme="light"] .chip-ontology {
+  background: var(--ok-fill) !important;
+  border-color: var(--ok-border) !important;
+  color: var(--ok-text) !important;
+}
+.operator-root[data-theme="light"] .chip-agent *,
+.operator-root[data-theme="light"] .chip-tool *,
+.operator-root[data-theme="light"] .chip-ontology * {
+  color: inherit !important;
+}
+.operator-root[data-theme="light"] [class*="bg-[#191d32]"] {
+  background: var(--ai-fill) !important;
+  border-color: var(--ai-border) !important;
+  color: var(--ai-text) !important;
+}
+.operator-root[data-theme="light"] [class*="bg-[#0b1014]"] {
+  background: var(--bg-3) !important;
 }

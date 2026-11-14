@@ -1,85 +1,6 @@
-/* v3 tokens. Fonts stay the local Inter and JetBrains Mono already bundled. */
-.operator-root {
-  --c-bg: #0b1015;
-  --c-topbar: #0e141b;
-  --c-rail: #0d1319;
-  --c-subbar: #10171f;
-  --c-panel: #111820;
-  --c-card: #151e28;
-  --c-card-hover: #192430;
-  --c-input: #0c1218;
-  --c-border: #222e3c;
-  --c-border-strong: #2f4054;
-  --bar-ok: #10b981;
-  --bar-warn: #f59e0b;
-  --bar-err: #ef4444;
-  --bar-info: #3b82f6;
-  --bar-ai: #8b5cf6;
-  --bar-neutral: #475569;
-  --tone-ok-bg: rgba(16, 185, 129, 0.13);
-  --tone-ok-fg: #34d399;
-  --tone-ok-bd: rgba(16, 185, 129, 0.34);
-  --tone-warn-bg: rgba(245, 158, 11, 0.14);
-  --tone-warn-fg: #fbbf24;
-  --tone-warn-bd: rgba(245, 158, 11, 0.36);
-  --tone-err-bg: rgba(239, 68, 68, 0.14);
-  --tone-err-fg: #f87171;
-  --tone-err-bd: rgba(239, 68, 68, 0.38);
-  --tone-info-bg: rgba(59, 130, 246, 0.15);
-  --tone-info-fg: #60a5fa;
-  --tone-info-bd: rgba(59, 130, 246, 0.38);
-  --tone-ai-bg: rgba(139, 92, 246, 0.15);
-  --tone-ai-fg: #c4b5fd;
-  --tone-ai-bd: rgba(139, 92, 246, 0.38);
-  --tone-muted-bg: rgba(100, 116, 139, 0.16);
-  --tone-muted-fg: #94a3b8;
-  --tone-muted-bd: rgba(100, 116, 139, 0.32);
-  --c-diff-del-bg: rgba(239, 68, 68, 0.14);
-  --c-diff-del-fg: #fca5a5;
-  --c-diff-add-bg: rgba(16, 185, 129, 0.14);
-  --c-diff-add-fg: #6ee7b7;
-}
-
+/* Colour, spacing, and type tokens live in tokens.css. Fonts stay the local
+   Inter and JetBrains Mono already bundled. */
 .operator-root[data-theme="light"] {
-  --c-bg: #f1f5f9;
-  --c-topbar: #ffffff;
-  --c-rail: #f8fafc;
-  --c-subbar: #ffffff;
-  --c-panel: #ffffff;
-  --c-card: #ffffff;
-  --c-card-hover: #f1f5f9;
-  --c-input: #ffffff;
-  --c-border: #cbd5e1;
-  --c-border-strong: #94a3b8;
-  --so-bg: #f1f5f9;
-  --so-topbar: #ffffff;
-  --so-sidebar: #f8fafc;
-  --so-panel: #ffffff;
-  --so-card: #ffffff;
-  --bar-ok: #059669;
-  --bar-warn: #d97706;
-  --bar-err: #dc2626;
-  --bar-info: #2563eb;
-  --bar-ai: #7c3aed;
-  --tone-ok-bg: #ecfdf5;
-  --tone-ok-fg: #047857;
-  --tone-ok-bd: #6ee7b7;
-  --tone-warn-bg: #fffbeb;
-  --tone-warn-fg: #b45309;
-  --tone-warn-bd: #fcd34d;
-  --tone-err-bg: #fef2f2;
-  --tone-err-fg: #b91c1c;
-  --tone-err-bd: #fca5a5;
-  --tone-info-bg: #eff6ff;
-  --tone-info-fg: #1d4ed8;
-  --tone-info-bd: #93c5fd;
-  --tone-muted-bg: #f1f5f9;
-  --tone-muted-fg: #475569;
-  --tone-muted-bd: #cbd5e1;
-  --c-diff-del-bg: #fee2e2;
-  --c-diff-del-fg: #991b1b;
-  --c-diff-add-bg: #d1fae5;
-  --c-diff-add-fg: #065f46;
   background: var(--c-bg);
   color: var(--c-text);
   color-scheme: light;
@@ -289,13 +210,7 @@
    Routine actions use tinted fills; text under 18px meets WCAG AA (4.5:1)
    on the panel it sits on. Ratios are noted next to each pair.
    --------------------------------------------------------------------------- */
-.operator-root {
-  --tone-ai-fg: #c4b5fd;
-}
-.operator-root[data-theme="light"] {
-  --tone-ai-fg: #6d28d9;
-}
-/* Tinted actions: dark ok 10.5:1, err 9.3:1, info 7.3:1; light ok 5.2:1, err 5.9:1, info 6.2:1. */
+/* Tinted actions read through the status tokens; tokens-contrast.test.ts measures them. */
 .so-btn.so-btn-emerald {
   background: var(--tone-ok-bg);
   border-color: var(--tone-ok-bd);
@@ -319,11 +234,11 @@
   border-color: var(--tone-err-bd);
   color: var(--tone-err-fg);
 }
-/* The single primary action on a view keeps a solid fill: white on #2d72d2 is 4.7:1. */
+/* The single primary action on a view keeps a solid accent fill. */
 .so-btn.so-btn-primary {
   background: var(--c-primary-fill);
   border-color: var(--c-primary-border);
-  color: #ffffff;
+  color: var(--accent-text);
 }
 .so-btn.so-btn-primary:hover {
   background: var(--c-primary-fill-hover);

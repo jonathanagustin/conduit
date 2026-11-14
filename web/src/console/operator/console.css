@@ -1,14 +1,5 @@
 .operator-root {
-  /* Dark operator palette; tokens.css owns the text tones. */
-  --so-bg: #0b1113;
-  --so-topbar: #0d1317;
-  --so-sidebar: #101519;
-  --so-panel: #11171b;
-  --so-card: #151b1f;
-  --so-card-hover: #1a2228;
-  --so-border: #1e262d;
-  --so-border-subtle: #171f25;
-  --so-border-bright: #2b3742;
+  /* Accent and font names older views use; surfaces and text live in tokens.css. */
   --so-blue: #4c90f0;
   --so-blue-solid: #2d72d2;
   --so-emerald: #32a467;
