@@ -365,6 +365,13 @@ func prepare(t *testing.T) (*Activities, domain.RunIdentity, *controlplane.Memor
 	if err != nil {
 		t.Fatal(err)
 	}
+	// Temporal test cancellation may finish before the activity goroutine exits.
+	// Drain and reject late ledger operations before TempDir removes its files.
+	t.Cleanup(func() {
+		if err := ledger.Close(); err != nil {
+			t.Error(err)
+		}
+	})
 	repository := controlplane.NewMemoryRepository()
 	id, err := fixtures.Identity("sample-app-1")
 	if err != nil {

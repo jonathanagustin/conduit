@@ -22,7 +22,7 @@ def main():
             str(python), "-I", "-m", "pip", "--disable-pip-version-check", "install",
             "--requirement", str(scripts / "packaging-validator-requirements.txt"),
         ], check=True, timeout=300)
-        for name in ("test-packaging-validator.py", "test-codex-probe.py"):
+        for name in ("test-packaging-validator.py", "test-codex-probe.py", "test-packaging-reference-corpus.py"):
             subprocess.run([str(python), "-I", "-B", str(scripts / name)], check=True, timeout=120)
     return 0
 
