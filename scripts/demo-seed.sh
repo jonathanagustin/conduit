@@ -386,6 +386,34 @@ curl -fsS -X POST "${hub}/v1/plans/${plan_id}/finish" \
   -H "X-Platform-Lease-Token: ${token}" \
   --data @"${state_dir}/finish.json" >/dev/null
 
+# The seeded spoke keeps reporting after the seed finishes. The simulated
+# Agent posts health observations for the installations the Plan above put in
+# place, which moves the environment's last report forward, so the console does
+# not mark dev stale a few minutes into the demo. It also leases any later dev
+# Plan, so an approval made in the console is carried out.
+nohup env CONTROL_PLANE_URL="${hub}" \
+  ENVIRONMENT=dev \
+  AGENT_ID=spoke-dev \
+  HEALTH_POLL_INTERVAL="${DEMO_HEARTBEAT_INTERVAL:-30s}" \
+  go run ./cmd/platform-simulated-agent >"${state_dir}/spoke.log" 2>&1 &
+echo $! >>"${pid_file}"
+reported_at() {
+  curl -fsS "${hub}/v1/environments/dev/reported-state" -H 'accept: application/json' |
+    python3 -c 'import json,sys; print(json.load(sys.stdin).get("observedAt",""))' 2>/dev/null || true
+}
+seeded_report="$(reported_at)"
+for _ in $(seq 1 90); do
+  if [[ -n "$(reported_at)" && "$(reported_at)" != "${seeded_report}" ]]; then
+    break
+  fi
+  sleep 1
+done
+if [[ "$(reported_at)" == "${seeded_report}" ]]; then
+  echo "the seeded spoke did not report after the seed" >&2
+  tail -20 "${state_dir}/spoke.log" >&2 || true
+  exit 1
+fi
+
 now="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
 hour_ago="$(date -u -d '1 hour ago' +%Y-%m-%dT%H:%M:%SZ)"
 api POST /v1/promotions/evaluations "$(cat <<JSON
@@ -482,6 +510,7 @@ echo "audit ${hub}/console/#area-audit"
 echo "packaging run sample-app-1 is in review"
 echo "bundle ${bundle_id}"
 echo "change request ${change_id} approved"
+echo "spoke spoke-dev reports every ${DEMO_HEARTBEAT_INTERVAL:-30s}"
 if [[ "${DEMO_WORKSPACES:-}" == "1" ]]; then
   api POST /v1/dev-workspaces '{"profileId":"dev","environmentId":"dev","title":"Sample workspace"}' >"${state_dir}/workspace.json"
   python3 -c 'import json,sys; print("workspace", json.load(open(sys.argv[1]))["workspaceId"])' "${state_dir}/workspace.json"

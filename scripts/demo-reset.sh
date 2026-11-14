@@ -21,6 +21,7 @@ fi
 docker rm -f conduit-seed-registry >/dev/null 2>&1 || true
 pkill -f "${state_dir}/packaging" >/dev/null 2>&1 || true
 pkill -f 'platform-delivery' >/dev/null 2>&1 || true
+pkill -f 'platform-simulated-agent' >/dev/null 2>&1 || true
 # go run reparents the server after it exits, so the pid file can miss it.
 for port in 8081 7233 8233 5000; do
   while read -r pid; do
