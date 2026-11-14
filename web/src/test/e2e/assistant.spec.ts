@@ -304,8 +304,26 @@ test.describe("workbench", () => {
     );
     await hydrate(page);
     await page.goto("/console/");
-    await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
-    await expect(page.getByText("EXAMPLE DATA", { exact: true })).toBeVisible();
+    // The Command Center opens on its live overview; the example fleet is
+    // its own tab and says so.
+    const badge = page.locator("#example-data-badge");
+    await expect(badge).toHaveText("LIVE");
+    await expect(
+      page.getByRole("heading", { name: "Waiting on a decision" }),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("area-command");
+    });
+    await page.getByRole("button", { name: "Example fleet" }).click();
+    await expect(badge).toHaveText("EXAMPLE DATA");
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("area-packaging");
+    });
+    await expect(badge).toHaveText("LIVE");
     await expect(
       page.getByRole("button", { name: "Command Center" }).first(),
     ).toBeVisible();
