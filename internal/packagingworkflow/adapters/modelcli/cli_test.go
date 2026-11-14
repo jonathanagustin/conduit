@@ -120,3 +120,53 @@ esac
 	}
 	return path
 }
+
+type stubTools struct {
+	ref string
+}
+
+func (stub *stubTools) InspectImage(_ context.Context, ref string) (domain.ImageInspect, error) {
+	stub.ref = ref
+	return domain.ImageInspect{Ref: ref, User: "65532", ExposedPorts: []string{"8080/tcp"}, Env: []string{"PORT"}}, nil
+}
+func (stub *stubTools) ValidateManifests(context.Context, string) (domain.ManifestReport, error) {
+	return domain.ManifestReport{OK: true}, nil
+}
+func (stub *stubTools) DryRunGates(context.Context, domain.GateInput) (domain.Validation, error) {
+	return domain.Validation{}, nil
+}
+func (stub *stubTools) InspectRepo(context.Context) (domain.RepoInspect, error) {
+	return domain.RepoInspect{}, nil
+}
+func (stub *stubTools) ReadFile(context.Context, string) (domain.RepoFile, error) {
+	return domain.RepoFile{}, nil
+}
+func (stub *stubTools) ValidateDockerfile(context.Context, string, string) (domain.ManifestReport, error) {
+	return domain.ManifestReport{OK: true}, nil
+}
+
+func TestRunnerRecordsInspectImageToolFacts(t *testing.T) {
+	script := writeCaptureScript(t)
+	tools := &stubTools{}
+	input := domain.PackagingContext{
+		RunID: "sample-app-1", ImageRef: "127.0.0.1:15000/web@sha256:" + strings.Repeat("ab", 32),
+		GateRules: domain.MemoryGateRule,
+	}
+	_, provenance, err := (Runner{Argv: []string{script}, Timeout: 5 * time.Second, Tools: tools}).Propose(context.Background(), input)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if tools.ref != input.ImageRef {
+		t.Fatalf("inspected %q", tools.ref)
+	}
+	if len(provenance.ToolCalls) != 1 || provenance.ToolCalls[0].Name != "inspect_image" {
+		t.Fatalf("tool calls = %#v", provenance.ToolCalls)
+	}
+	body, err := os.ReadFile(filepath.Join(filepath.Dir(script), "prompt.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(body), "Tool results:") || !strings.Contains(string(body), `"user":"65532"`) || strings.Contains(string(body), "PORT=") {
+		t.Fatalf("prompt tool facts = %s", body)
+	}
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/runfacts"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
@@ -36,7 +37,7 @@ func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, 
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, Tools: packagingtools.New()}, nil
 }
 
 func modelService(
@@ -110,9 +111,21 @@ func (audit modelAudit) Record(ctx context.Context, runID string, provenance pac
 		map[string]any{
 			"adapter": provenance.Adapter, "promptSha256": provenance.PromptSHA256,
 			"responseSha256": provenance.ResponseSHA256, "skillSha256": provenance.SkillSHA256,
-			"gateResult": outcome,
+			"toolCalls": toolCallNames(provenance), "gateResult": outcome,
+			"repoUrl": provenance.RepoURL, "resolvedCommit": provenance.ResolvedCommit,
+			"dockerfileSha256": provenance.DockerfileSHA256, "imageDigest": provenance.ImageDigest,
 		},
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
+}
+
+func toolCallNames(provenance packagingdomain.Provenance) []string {
+	names := make([]string, 0, len(provenance.ToolCalls))
+	for _, call := range provenance.ToolCalls {
+		if call.Name != "" {
+			names = append(names, call.Name)
+		}
+	}
+	return names
 }
