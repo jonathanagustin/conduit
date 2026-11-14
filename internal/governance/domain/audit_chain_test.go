@@ -103,3 +103,27 @@ func TestAuditChainKnownDigestVector(t *testing.T) {
 		t.Fatal("audit chain framing changed")
 	}
 }
+
+func TestChainAuthorizationAuditSurfacesModelExchangeContext(t *testing.T) {
+	event := chainEvent()
+	event.Context = map[string]any{
+		"adapter": "codex", "promptSha256": "aa", "responseSha256": "bb",
+		"skillSha256": "cc", "toolNames": []any{"inspect_image"},
+	}
+	plain := chainEvent()
+	plain.ID = "plain-event"
+	plain.CreatedAt = event.CreatedAt.Add(time.Second)
+	entries, err := ChainAuthorizationAudit([]AuthorizationAuditEvent{event, plain})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(entries) != 2 {
+		t.Fatalf("entries = %d", len(entries))
+	}
+	if entries[0].Context["promptSha256"] != "aa" || entries[0].Context["responseSha256"] != "bb" || entries[0].Context["skillSha256"] != "cc" {
+		t.Fatalf("context dropped: %#v", entries[0].Context)
+	}
+	if entries[1].Context != nil {
+		t.Fatalf("empty context should be omitted: %#v", entries[1].Context)
+	}
+}

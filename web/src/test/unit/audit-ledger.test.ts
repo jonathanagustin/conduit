@@ -144,3 +144,40 @@ describe("ledgerMarkup", () => {
     expect(err).toContain("Entry 2");
   });
 });
+
+describe("model exchange on the ledger", () => {
+  it("shows prompt, response, skill hash and tool names when present", () => {
+    const chain = [
+      entry(1, GENESIS, "ALLOW", {
+        context: {
+          promptSha256: "abcd".repeat(16),
+          responseSha256: "ef01".repeat(16),
+          skillSha256: "2345".repeat(16),
+          toolNames: ["inspect_image", "validate_manifests"],
+        },
+      }),
+    ];
+    const html = ledgerMarkup(chain);
+    expect(html).toContain("Model exchange");
+    expect(html).toContain("prompt");
+    expect(html).toContain("response");
+    expect(html).toContain("skill");
+    expect(html).toContain("tools inspect_image, validate_manifests");
+    expect(html).toContain('title="' + "abcd".repeat(16) + '"');
+  });
+
+  it("leaves the exchange column empty when those fields are absent", () => {
+    const html = ledgerMarkup(goodChain(), {});
+    expect(html).toContain("Model exchange");
+    expect(html).toContain("—");
+    expect(html).not.toContain("prompt ");
+  });
+
+  it("matches a search against an exchange hash", () => {
+    const chain = [
+      entry(1, GENESIS, "ALLOW", { context: { promptSha256: "c66fd1e564ff" } }),
+      entry(2, "11".repeat(32)),
+    ];
+    expect(filterEntries(chain, { query: "c66fd1e564ff" }).map((e) => e.sequence)).toEqual([1]);
+  });
+});
