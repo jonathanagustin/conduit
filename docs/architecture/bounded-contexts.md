@@ -123,3 +123,12 @@ The `planreview/domain` boundary owns bounded native proposal review metadata,
 not DesiredState or approval authority. Existing control-plane adapters compose
 it with governed membership-only proposals. See
 [channel-membership-proposals.md](channel-membership-proposals.md).
+
+## Debug-session requests (lifecycle kernel only)
+
+`internal/debugsessions/domain` owns the native non-executing request lifecycle
+under [ADR 0015](../decisions/0015-brokered-debug-terminals.md). It imports no
+other context or infrastructure. Current authorization, durable transaction and
+audit adapters, Hub composition and broker execution remain outstanding; see
+[the lifecycle bounds](debug-session-lifecycle.md). Domain events are not
+credentials, approval receipts or evidence that a debug Pod exists.
