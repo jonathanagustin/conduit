@@ -1,0 +1,271 @@
+// Package domain holds the planning-session contract: intake, Needs Input,
+// the model-written plan, and the Accept binding. Accept is the control
+// point. No package or image compute happens before it.
+package domain
+
+import (
+	"errors"
+	"net/url"
+	"strings"
+	"time"
+	"unicode"
+)
+
+// ProfileOnboard is the work profile this session runs. It is the packaging
+// skill, the packaging tools, and the gates, versioned and hashed together.
+const ProfileOnboard = "onboard"
+
+// Session statuses. A session is created at started. Turns move it through
+// inspecting, needs_input, and planning. Ready means a plan is waiting for
+// Accept. Accepted means the binding is recorded.
+const (
+	StatusStarted    = "started"
+	StatusInspecting = "inspecting"
+	StatusNeedsInput = "needs_input"
+	StatusPlanning   = "planning"
+	StatusReady      = "ready"
+	StatusAccepted   = "accepted"
+)
+
+// Question types match the existing elicitation field types so the console
+// can reuse those forms. A question never asks for a secret.
+const (
+	QuestionString  = "string"
+	QuestionBoolean = "boolean"
+	QuestionSelect  = "select"
+)
+
+// Message roles on the planning transcript.
+const (
+	RoleOperator = "operator"
+	RoleModel    = "model"
+)
+
+// Stable error codes for the JSON envelope. The console branches on code.
+const (
+	CodeInvalidIntake        = "INVALID_INTAKE"
+	CodeSessionNotFound      = "SESSION_NOT_FOUND"
+	CodeModelNotConfigured   = "MODEL_NOT_CONFIGURED"
+	CodePlanRequired         = "PLAN_REQUIRED"
+	CodeNeedsInputPending    = "NEEDS_INPUT_PENDING"
+	CodeAlreadyAccepted      = "ALREADY_ACCEPTED"
+	CodeNotAccepted          = "NOT_ACCEPTED"
+	CodeComputeBeforeAccept  = "COMPUTE_BEFORE_ACCEPT"
+	CodeComputeNotConfigured = "COMPUTE_NOT_CONFIGURED"
+	CodeNoPendingQuestions   = "NO_PENDING_QUESTIONS"
+	CodeUnknownQuestion      = "UNKNOWN_QUESTION"
+	CodeInvalidAnswer        = "INVALID_ANSWER"
+)
+
+// Sentinel errors. The HTTP adapter maps these to status and code.
+var (
+	ErrNotFound             = errors.New("planning session was not found")
+	ErrModelNotConfigured   = errors.New("planning model is not configured")
+	ErrPlanRequired         = errors.New("a plan is required before Accept")
+	ErrNeedsInputPending    = errors.New("Needs Input questions are still unanswered")
+	ErrAlreadyAccepted      = errors.New("the planning session is already accepted")
+	ErrComputeBeforeAccept  = errors.New("compute is refused before Accept")
+	ErrComputeNotConfigured = errors.New("package compute is not configured")
+	ErrNoPendingQuestions   = errors.New("there are no pending Needs Input questions")
+	ErrUnknownQuestion      = errors.New("the answer does not match a pending question")
+	ErrInvalidAnswer        = errors.New("the answer is not valid for the question")
+)
+
+// Intake is the operator-supplied repository and ref. It is recorded on
+// create and copied into the Accept binding.
+type Intake struct {
+	RepoURL string `json:"repoUrl"`
+	Ref     string `json:"ref"`
+}
+
+// ProfileRef names the onboard profile and, once snapshotted, its version
+// and hash. Empty version and hash mean the snapshot has not been taken yet.
+type ProfileRef struct {
+	Name    string `json:"name"`
+	Version string `json:"version"`
+	Hash    string `json:"hash"`
+}
+
+// Inspection is a live view of the source repository. Later turns fill this
+// from the packaging inspect_repo and read_file tools.
+type Inspection struct {
+	Language       string   `json:"language"`
+	PackageManager string   `json:"packageManager"`
+	Kind           string   `json:"kind"`
+	StartCommand   string   `json:"startCommand"`
+	Ports          []int    `json:"ports"`
+	HasDockerfile  bool     `json:"hasDockerfile"`
+	Tree           []string `json:"tree"`
+	ToolCalls      []string `json:"toolCalls"`
+}
+
+// Question is one Needs Input prompt. The console renders it with the
+// existing elicitation forms. It never asks for a secret.
+type Question struct {
+	ID       string   `json:"id"`
+	Name     string   `json:"name"`
+	Label    string   `json:"label"`
+	Type     string   `json:"type"`
+	Required bool     `json:"required"`
+	Options  []string `json:"options,omitempty"`
+	Value    string   `json:"value,omitempty"`
+}
+
+// Answer is the operator's response to one Needs Input question.
+type Answer struct {
+	ID    string `json:"id"`
+	Value string `json:"value"`
+}
+
+// Plan is the model-written plan the operator accepts.
+type Plan struct {
+	Text   string `json:"text"`
+	SHA256 string `json:"sha256"`
+}
+
+// Message is one line on the planning transcript.
+type Message struct {
+	Role string `json:"role"`
+	Text string `json:"text"`
+}
+
+// Binding is recorded at Accept and never rewritten. It is the profile
+// version and hash, the intake, the source commit, the model, and the plan.
+type Binding struct {
+	Profile        ProfileRef `json:"profile"`
+	Intake         Intake     `json:"intake"`
+	ResolvedCommit string     `json:"resolvedCommit"`
+	Model          string     `json:"model"`
+	Plan           Plan       `json:"plan"`
+	AcceptedAt     time.Time  `json:"acceptedAt"`
+}
+
+// Session is the planning-session document the HTTP contract returns.
+type Session struct {
+	ID             string      `json:"id"`
+	Status         string      `json:"status"`
+	Profile        ProfileRef  `json:"profile"`
+	Intake         Intake      `json:"intake"`
+	ResolvedCommit string      `json:"resolvedCommit"`
+	Model          string      `json:"model"`
+	Inspection     *Inspection `json:"inspection"`
+	NeedsInput     []Question  `json:"needsInput"`
+	Answers        []Answer    `json:"answers"`
+	Plan           *Plan       `json:"plan"`
+	Binding        *Binding    `json:"binding"`
+	Messages       []Message   `json:"messages"`
+	CreatedAt      time.Time   `json:"createdAt"`
+	UpdatedAt      time.Time   `json:"updatedAt"`
+}
+
+// IntakeError is a rejected repository URL or ref.
+type IntakeError struct {
+	Reason string
+}
+
+func (err IntakeError) Error() string {
+	return err.Reason
+}
+
+func (err IntakeError) Code() string {
+	return CodeInvalidIntake
+}
+
+// ParseIntake checks a repository URL and ref. It accepts only http and
+// https URLs with a host and a path, and rejects credentials in the URL.
+func ParseIntake(repoURL, ref string) (Intake, error) {
+	repoURL = strings.TrimSpace(repoURL)
+	ref = strings.TrimSpace(ref)
+	if repoURL == "" {
+		return Intake{}, IntakeError{Reason: "repoUrl is required"}
+	}
+	if len(repoURL) > 2048 {
+		return Intake{}, IntakeError{Reason: "repoUrl is too long"}
+	}
+	parsed, err := url.Parse(repoURL)
+	if err != nil {
+		return Intake{}, IntakeError{Reason: "repoUrl is not a valid URL"}
+	}
+	if parsed.Scheme != "http" && parsed.Scheme != "https" {
+		return Intake{}, IntakeError{Reason: "repoUrl must be an http or https URL"}
+	}
+	if parsed.Host == "" {
+		return Intake{}, IntakeError{Reason: "repoUrl must include a host"}
+	}
+	if parsed.User != nil {
+		return Intake{}, IntakeError{Reason: "repoUrl must not include credentials"}
+	}
+	if strings.Trim(parsed.Path, "/") == "" {
+		return Intake{}, IntakeError{Reason: "repoUrl must include a repository path"}
+	}
+	if ref == "" {
+		return Intake{}, IntakeError{Reason: "ref is required"}
+	}
+	if len(ref) > 255 {
+		return Intake{}, IntakeError{Reason: "ref is too long"}
+	}
+	if strings.ContainsAny(ref, " \t\r\n") || strings.Contains(ref, "..") {
+		return Intake{}, IntakeError{Reason: "ref is not a valid git revision"}
+	}
+	for _, r := range ref {
+		if r == 0 || unicode.IsControl(r) {
+			return Intake{}, IntakeError{Reason: "ref is not a valid git revision"}
+		}
+	}
+	return Intake{RepoURL: repoURL, Ref: ref}, nil
+}
+
+// CloneSession copies a session so callers can read it without sharing
+// the store's mutable slices and pointers.
+func CloneSession(session *Session) *Session {
+	if session == nil {
+		return nil
+	}
+	out := *session
+	out.NeedsInput = append([]Question(nil), session.NeedsInput...)
+	out.Answers = append([]Answer(nil), session.Answers...)
+	out.Messages = append([]Message(nil), session.Messages...)
+	if session.Inspection != nil {
+		inspected := *session.Inspection
+		inspected.Ports = append([]int(nil), session.Inspection.Ports...)
+		inspected.Tree = append([]string(nil), session.Inspection.Tree...)
+		inspected.ToolCalls = append([]string(nil), session.Inspection.ToolCalls...)
+		out.Inspection = &inspected
+	}
+	if session.Plan != nil {
+		plan := *session.Plan
+		out.Plan = &plan
+	}
+	if session.Binding != nil {
+		binding := *session.Binding
+		out.Binding = &binding
+	}
+	if out.NeedsInput == nil {
+		out.NeedsInput = []Question{}
+	}
+	if out.Answers == nil {
+		out.Answers = []Answer{}
+	}
+	if out.Messages == nil {
+		out.Messages = []Message{}
+	}
+	return &out
+}
+
+// PendingRequired reports whether any required Needs Input question is
+// still unanswered.
+func PendingRequired(questions []Question, answers []Answer) bool {
+	answered := map[string]string{}
+	for _, answer := range answers {
+		answered[answer.ID] = answer.Value
+	}
+	for _, question := range questions {
+		if !question.Required {
+			continue
+		}
+		if strings.TrimSpace(answered[question.ID]) == "" {
+			return true
+		}
+	}
+	return false
+}
