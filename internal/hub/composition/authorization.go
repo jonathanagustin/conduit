@@ -226,6 +226,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorSelf, Detail: "operatorPrincipal + ownedBy(principal, owner)"},
 		{Pattern: "GET /v1/notifications/preferences",
 			Decision: DecisionOperatorSelf, Detail: "operatorPrincipal + ownedBy(principal, owner)"},
+		{Pattern: "GET /v1/operator-identity",
+			Decision: DecisionPublic, Detail: "whether operator sign-in is configured, and the issuer address when it is; no secret"},
 		{Pattern: "GET /v1/overview",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + BuildOverviewProjection, which projects only what the principal reads"},
 		{Pattern: "GET /v1/packaging-runs",

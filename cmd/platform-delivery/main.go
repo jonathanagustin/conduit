@@ -205,6 +205,10 @@ func main() {
 			os.Exit(1)
 		}
 	}
+	operatorSignIn := controlplane.OperatorSignIn{}
+	if operatorIdentityResolver != nil {
+		operatorSignIn = controlplane.OperatorSignInFromIssuer(ctx, os.Getenv("OPERATOR_OIDC_ISSUER"), os.Getenv("OPERATOR_OIDC_CLIENT_ID"))
+	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
 	server := &http.Server{
 		Addr: address,
@@ -216,6 +220,7 @@ func main() {
 			BootstrapAdministrators:              bootstrapAdministrators,
 			BundlePrivateKey:                     bundlePrivateKey,
 			TrustedBundleKeys:                    trustedBundleKeys,
+			OperatorSignIn:                       operatorSignIn,
 			ArtifactScanner:                      artifactScanner,
 			RecallOpenings:                       recallOpenings,
 			EntityConfigurationAdapters: map[string]controlplane.EntityConfigurationAdapter{
