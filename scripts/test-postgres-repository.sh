@@ -18,7 +18,7 @@ command -v docker >/dev/null || { echo "docker is required for the PostgreSQL re
 docker info >/dev/null
 
 cleanup() {
-  docker rm -f "${name}" >/dev/null 2>&1 || true
+  docker rm -f -v "${name}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 

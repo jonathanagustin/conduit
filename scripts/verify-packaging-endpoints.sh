@@ -23,7 +23,7 @@ cleanup() {
     kill "${temporal_pid}" >/dev/null 2>&1 || true
     wait "${temporal_pid}" >/dev/null 2>&1 || true
   fi
-  docker rm -f "${name}" >/dev/null 2>&1 || true
+  docker rm -f -v "${name}" >/dev/null 2>&1 || true
 }
 trap cleanup EXIT
 
