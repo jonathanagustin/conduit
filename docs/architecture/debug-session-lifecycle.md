@@ -55,7 +55,7 @@ revision under one lock, appends the combined transition/audit event, returns
 independent copies and bounds sorted ID enumeration to 256 per call. A 40-writer
 race test requires exactly one committed transition and 39 revision conflicts;
 invalid scope changes, replays and pre-cancelled writes leave history unchanged.
-The PostgreSQL adapter, application service and Hub wiring are outstanding.
+The application service and Hub wiring are outstanding.
 
 
 The private file adapter persists each canonical event and audit fact together
@@ -74,5 +74,21 @@ invalid immutable bindings, pre-cancelled writes, missing predecessors, malforme
 filenames, symlinks, oversized/corrupt records, private-directory permissions and
 bounded ordered ID pages. They do not simulate a power loss, malicious storage
 administrator or a live broker. Persistent records can still only represent
-non-executing requests. PostgreSQL, current authorization and production Hub
-composition remain outstanding; the local journal work is not yet merged.
+non-executing requests. Current authorization and production Hub composition
+remain outstanding; the local journal work is not yet merged.
+
+
+The PostgreSQL adapter uses the `debug-session-journal` migration component and
+one immutable row per session/revision, with bounded document size and C-collated
+native IDs. A transaction-scoped per-session advisory lock surrounds current
+history validation and append; acknowledgement follows commit with local
+`synchronous_commit=on`. PostgreSQL/storage configuration remains the database
+operator's responsibility. A revision collision or invalid history cannot be
+acknowledged as a new event.
+
+The disposable PostgreSQL gate now runs the journal tests without a name filter.
+Two independent pools and 32 competing writers produced one new transition/audit
+row and 31 conflicts. Reopen, invalid/cancelled writes and missing predecessors
+are tested. The broader migration and existing restore gate also passed, but the
+journal is not yet composed into the Hub restore fixture; journal-specific
+backup/restore integration remains outstanding alongside application authority.
