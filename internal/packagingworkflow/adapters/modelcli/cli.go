@@ -11,6 +11,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
+	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 )
 
 // DefaultArgv is the documented local command. It is not started unless
@@ -30,8 +31,9 @@ func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext)
 	if len(runner.Argv) == 0 || strings.TrimSpace(runner.Argv[0]) == "" {
 		return domain.Proposal{}, domain.Provenance{}, domain.ErrModelUnavailable
 	}
+	input = input.WithSkill(packagingskill.Source, packagingskill.SHA256())
 	prompt := []byte(domain.Prompt(input))
-	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.DigestText(prompt)}
+	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.DigestText(prompt)}.WithSkillDigest(input)
 	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.DigestText(stdout)
 	if err != nil {

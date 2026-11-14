@@ -41,6 +41,22 @@ type PackagingContext struct {
 	// Attachments is the bound, read-only text of those files. A proposer may
 	// read it and still returns one memory field change.
 	Attachments []Attachment
+	// Skill is the packaging skill text given to a proposer. SkillSHA256 is
+	// lowercase sha256 hex of those exact bytes.
+	Skill       string
+	SkillSHA256 string
+}
+
+// WithSkill fills Skill and SkillSHA256 when they are empty.
+func (input PackagingContext) WithSkill(source, digest string) PackagingContext {
+	if strings.TrimSpace(input.Skill) == "" {
+		input.Skill = source
+		input.SkillSHA256 = digest
+	}
+	if strings.TrimSpace(input.SkillSHA256) == "" && input.Skill != "" {
+		input.SkillSHA256 = DigestText([]byte(input.Skill))
+	}
+	return input
 }
 
 // Attachment is one stored intake file bound to a run. SHA256 is lowercase hex of Content.
@@ -75,6 +91,15 @@ type Provenance struct {
 	Adapter        string `json:"adapter,omitempty"`
 	PromptSHA256   string `json:"promptSha256,omitempty"`
 	ResponseSHA256 string `json:"responseSha256,omitempty"`
+	SkillSHA256    string `json:"skillSha256,omitempty"`
+}
+
+// WithSkillDigest copies the skill digest from the input when it is missing.
+func (provenance Provenance) WithSkillDigest(input PackagingContext) Provenance {
+	if provenance.SkillSHA256 == "" {
+		provenance.SkillSHA256 = input.SkillSHA256
+	}
+	return provenance
 }
 
 // ChangeProposer is the outbound port. Implementations live in adapters.
@@ -84,7 +109,18 @@ type ChangeProposer interface {
 
 // Prompt is the instruction sent to a proposer. The response must be one JSON object.
 func Prompt(input PackagingContext) string {
-	return strings.TrimSpace(basePrompt(input) + attachmentContext(input.Attachments))
+	return strings.TrimSpace(basePrompt(input) + attachmentContext(input.Attachments) + skillContext(input))
+}
+
+func skillContext(input PackagingContext) string {
+	if strings.TrimSpace(input.Skill) == "" {
+		return ""
+	}
+	digest := strings.TrimSpace(input.SkillSHA256)
+	if digest == "" {
+		digest = DigestText([]byte(input.Skill))
+	}
+	return fmt.Sprintf("\n\n--- packaging skill sha256 %s ---\n%s\n--- end packaging skill ---", digest, input.Skill)
 }
 
 func basePrompt(input PackagingContext) string {

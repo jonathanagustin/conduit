@@ -8,6 +8,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
+	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 )
 
 type memoryOpen struct{ ids []string }
@@ -23,7 +24,7 @@ func (open *memoryOpen) OpenPending(_ context.Context, change PendingChange) (st
 type memoryAudit struct{ rows []string }
 
 func (audit *memoryAudit) Record(_ context.Context, runID string, provenance domain.Provenance, outcome, reason string) error {
-	audit.rows = append(audit.rows, runID+" "+provenance.Adapter+" "+provenance.PromptSHA256+" "+provenance.ResponseSHA256+" "+outcome+" "+reason)
+	audit.rows = append(audit.rows, runID+" "+provenance.Adapter+" "+provenance.PromptSHA256+" "+provenance.ResponseSHA256+" "+provenance.SkillSHA256+" "+outcome+" "+reason)
 	return nil
 }
 
@@ -96,5 +97,25 @@ func TestUnavailableLeavesNoChangeRequest(t *testing.T) {
 	)
 	if err != nil || result.Error == "" || len(open.ids) != 0 {
 		t.Fatalf("unavailable = %#v %v", result, err)
+	}
+}
+
+func TestAuditEntryCarriesTheSkillDigest(t *testing.T) {
+	open := &memoryOpen{}
+	audit := &memoryAudit{}
+	service := Service{
+		Proposer: recorded.Fixed(domain.Proposal{Field: "memory", Value: "512Mi", Rationale: "headroom"}),
+		Open:     open, Audit: audit,
+	}
+	passed, err := service.Propose(context.Background(), domain.PackagingContext{RunID: "sample-app-1"}, "dev", "operator")
+	if err != nil || passed.Provenance.SkillSHA256 != packagingskill.SHA256() {
+		t.Fatalf("pass = %#v %v", passed, err)
+	}
+	if len(audit.rows) != 1 || !strings.Contains(audit.rows[0], packagingskill.SHA256()) {
+		t.Fatalf("audit = %#v", audit.rows)
+	}
+	prompt := domain.Prompt(domain.PackagingContext{RunID: "sample-app-1"}.WithSkill(packagingskill.Source, packagingskill.SHA256()))
+	if !strings.Contains(prompt, packagingskill.Source) || !strings.Contains(prompt, packagingskill.SHA256()) {
+		t.Fatal("bound prompt omits the skill")
 	}
 }

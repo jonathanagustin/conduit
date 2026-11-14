@@ -109,7 +109,8 @@ func (audit modelAudit) Record(ctx context.Context, runID string, provenance pac
 		time.Now().UTC(), "model-proposal", "packaging.model-proposal", "packaging-run/"+runID, decision, reason,
 		map[string]any{
 			"adapter": provenance.Adapter, "promptSha256": provenance.PromptSHA256,
-			"responseSha256": provenance.ResponseSHA256, "gateResult": outcome,
+			"responseSha256": provenance.ResponseSHA256, "skillSha256": provenance.SkillSHA256,
+			"gateResult": outcome,
 		},
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
