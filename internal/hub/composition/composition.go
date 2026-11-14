@@ -103,5 +103,9 @@ func NewHub(
 		}
 		hubOptions.ModelProposer = proposer
 	}
-	return guardUnregisteredRoutes(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions)), nil
+	assistant, err := loadAssistantModel()
+	if err != nil {
+		return nil, err
+	}
+	return guardUnregisteredRoutes(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions), repository, options, hubOptions, assistant)), nil
 }
