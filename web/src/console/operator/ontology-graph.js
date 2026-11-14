@@ -273,7 +273,7 @@ export function createOntologyGraph(ctx) {
       .map((type, index) => {
         const on = selected && selected.apiName === type.apiName;
         const color = COLORS[index % COLORS.length];
-        return `<g onclick="selectOntologyType('${esc(type.apiName)}')" style="cursor:pointer">
+        return `<g data-onclick="selectOntologyType('${esc(type.apiName)}')" style="cursor:pointer">
           <circle cx="${type.x}" cy="${type.y}" r="${on ? 28 : 24}" fill="${on ? "#17253a" : "#12181d"}" stroke="${color}" stroke-width="${on ? 2.4 : 1.4}"></circle>
           <text x="${type.x}" y="${type.y + 4}" fill="#f0f5fa" font-size="9" text-anchor="middle">${esc(type.displayName)}</text>
         </g>`;

@@ -397,7 +397,7 @@ export function createSettings(ctx) {
     return `<div role="radiogroup" class="bp6-segmented">${options
       .map(([value, label]) => {
         const on = current === value;
-        return `<button type="button" role="radio" aria-checked="${on ? "true" : "false"}" onclick="${handler}('${value}')" class="bp6-seg-btn${on ? " is-selected" : ""}">${esc(label)}</button>`;
+        return `<button type="button" role="radio" aria-checked="${on ? "true" : "false"}" data-onclick="${handler}('${value}')" class="bp6-seg-btn${on ? " is-selected" : ""}">${esc(label)}</button>`;
       })
       .join("")}</div>`;
   }
@@ -472,20 +472,20 @@ export function createSettings(ctx) {
           </div>
           <div class="flex flex-wrap gap-2 items-end">
             <label class="text-[11px] text-[#8b96a5]">Name
-              <input id="pref-token-name" class="so-input mt-1" value="${esc(state.prefTokenDraft.name)}" oninput="state.prefTokenDraft.name=this.value" />
+              <input id="pref-token-name" class="so-input mt-1" value="${esc(state.prefTokenDraft.name)}" data-oninput="state.prefTokenDraft.name=this.value" />
             </label>
             <label class="text-[11px] text-[#8b96a5]">Scope
-              <select class="so-select mt-1" onchange="state.prefTokenDraft.scope=this.value">
+              <select class="so-select mt-1" data-onchange="state.prefTokenDraft.scope=this.value">
                 <option value="read" ${state.prefTokenDraft.scope === "read" ? "selected" : ""}>read</option>
                 <option value="propose" ${state.prefTokenDraft.scope === "propose" ? "selected" : ""}>propose</option>
               </select>
             </label>
             <label class="text-[11px] text-[#8b96a5]">Expiry
-              <select class="so-select mt-1" onchange="state.prefTokenDraft.expires=this.value">
+              <select class="so-select mt-1" data-onchange="state.prefTokenDraft.expires=this.value">
                 ${["8h", "24h", "7d", "30d"].map((value) => `<option value="${value}" ${state.prefTokenDraft.expires === value ? "selected" : ""}>${value}</option>`).join("")}
               </select>
             </label>
-            <button type="button" class="so-btn so-btn-blue" onclick="createExampleToken()">Create token</button>
+            <button type="button" class="so-btn so-btn-blue" data-onclick="createExampleToken()">Create token</button>
           </div>
           <table class="so-table">
             <thead><tr><th>Name</th><th>Scope</th><th>Expiry</th><th>Status</th><th></th></tr></thead>
@@ -497,7 +497,7 @@ export function createSettings(ctx) {
                     <td>${esc(token.scope)}</td>
                     <td>${esc(token.expires)}</td>
                     <td>${esc(token.status)}</td>
-                    <td>${token.status === "Revoked" ? "" : `<button type="button" class="so-btn so-btn-sm" onclick="revokeExampleToken('${esc(token.id)}')">Revoke</button>`}</td>
+                    <td>${token.status === "Revoked" ? "" : `<button type="button" class="so-btn so-btn-sm" data-onclick="revokeExampleToken('${esc(token.id)}')">Revoke</button>`}</td>
                   </tr>`,
                 )
                 .join("")}
@@ -534,10 +534,10 @@ export function createSettings(ctx) {
             ).join("")}
           </div>
           <div class="space-y-3">
-            <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverUsers ? "checked" : ""} onchange="state.discoverUsers=this.checked" /> Let members find other people</label>
-            <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverGroups ? "checked" : ""} onchange="state.discoverGroups=this.checked" /> Let members find groups</label>
+            <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverUsers ? "checked" : ""} data-onchange="state.discoverUsers=this.checked" /> Let members find other people</label>
+            <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverGroups ? "checked" : ""} data-onchange="state.discoverGroups=this.checked" /> Let members find groups</label>
             <label class="block text-[11px] text-[#8b96a5]">Environment banner
-              <input class="so-input mt-1" value="${esc(state.environmentBanner)}" placeholder="Optional banner text" oninput="setEnvironmentBanner(this.value)" />
+              <input class="so-input mt-1" value="${esc(state.environmentBanner)}" placeholder="Optional banner text" data-oninput="setEnvironmentBanner(this.value)" />
             </label>
             <div class="text-[11px] text-[#6d7885]">The banner is plain text. It does not assert a classification.</div>
           </div>
@@ -669,13 +669,13 @@ export function createSettings(ctx) {
           <div class="text-[12px] text-[#8b96a5] mt-1">Choose a configured provider. This screen does not collect a password.</div>
         </div>
         <label class="block text-[11px] text-[#8b96a5]">Identity provider
-          <select class="so-select mt-1 w-full" onchange="state.signInIssuer=this.value">
+          <select class="so-select mt-1 w-full" data-onchange="state.signInIssuer=this.value">
             ${providers.map((provider) => `<option value="${esc(provider.issuer)}" ${selected && selected.issuer === provider.issuer ? "selected" : ""}>${esc(provider.name || provider.issuer)}</option>`).join("")}
           </select>
         </label>
         ${
           selected && selected.authorizationEndpoint
-            ? `<button type="button" class="so-btn so-btn-blue" onclick="beginOperatorSignIn()">Continue to the identity provider</button>`
+            ? `<button type="button" class="so-btn so-btn-blue" data-onclick="beginOperatorSignIn()">Continue to the identity provider</button>`
             : `<div class="text-[12px] text-[#8b96a5]">This Hub did not publish a browser sign-in address.</div>`
         }
       </div>`;
@@ -691,7 +691,7 @@ export function createSettings(ctx) {
       const live =
         Boolean(seen) &&
         !/Hub did not|No reported|No import|No packaging/.test(String(seen));
-      return `<tr onclick="selectDataSource('${esc(source.id)}')" class="cursor-pointer${on ? " is-selected" : ""}">
+      return `<tr data-onclick="selectDataSource('${esc(source.id)}')" class="cursor-pointer${on ? " is-selected" : ""}">
         <td data-col="Source"><span class="font-semibold text-white">${esc(source.name)}</span></td>
         <td data-col="Endpoint" data-long="1" class="code-id text-[11px] text-[#dce4ee]">${esc(source.endpoint)}</td>
         <td data-col="Cadence" data-long="1" class="text-[11px] text-[#8b96a5]">${esc(source.cadence)}</td>

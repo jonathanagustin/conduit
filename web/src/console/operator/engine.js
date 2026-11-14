@@ -12,6 +12,7 @@ import {
 } from "./shell.js";
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
+import { installInlineActions } from "./inline-actions.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
 import { createConduitClient } from "@conduit/ontology-client";
@@ -56,7 +57,7 @@ export function mountOperator(host, options) {
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
   host.innerHTML =
-    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button type="button" id="settings-toggle" onclick="toggleSettingsDialog()" class="so-btn !h-[28px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 224px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[224px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[#596573]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" data-onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span data-onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" data-onfocus="openCmdOmnibar()" data-oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" data-onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button type="button" id="settings-toggle" data-onclick="toggleSettingsDialog()" class="so-btn !h-[28px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button data-onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button data-onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" data-onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 224px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[224px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button data-onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[#596573]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -152,7 +153,7 @@ export function mountOperator(host, options) {
   function ontChip(typeName, rCount, wCount = 0, targetScreen = null) {
     const rw = `<span class="rw-r">R:${rCount}</span>${wCount ? `<span class="rw-w">W:${wCount}</span>` : ""}`;
     const clickAttr = targetScreen
-      ? `onclick="event.stopPropagation(); switchScreen('${targetScreen}')"`
+      ? `data-onclick="event.stopPropagation(); switchScreen('${targetScreen}')"`
       : "";
     return `<span ${clickAttr} class="chip-ontology">${ic("ontShield")}<span>${typeName}</span>${rw}</span>`;
   }
@@ -200,7 +201,7 @@ export function mountOperator(host, options) {
           "\\'",
         );
       return `
-          <span class="so-tooltip-wrap" onmouseenter="showTip(event, '${tip}')" onmouseleave="hideTip()">
+          <span class="so-tooltip-wrap" data-onmouseenter="showTip(event, '${tip}')" data-onmouseleave="hideTip()">
             <button type="button" aria-disabled="true" tabindex="-1" class="${cls} is-disabled">
               ${iconName ? ic(iconName) : ""}<span>${label}</span>
             </button>
@@ -211,8 +212,8 @@ export function mountOperator(host, options) {
       "\\'",
     );
     return `
-        <span class="so-tooltip-wrap" onmouseenter="showTip(event, '${tip}')" onmouseleave="hideTip()">
-          <button type="button" onclick="recordAudit('${auditEvent}'); ${onClickJs}" class="${cls}">
+        <span class="so-tooltip-wrap" data-onmouseenter="showTip(event, '${tip}')" data-onmouseleave="hideTip()">
+          <button type="button" data-onclick="recordAudit('${auditEvent}'); ${onClickJs}" class="${cls}">
             ${iconName ? ic(iconName) : ""}<span>${label}</span>
           </button>
         </span>`;
@@ -1273,7 +1274,7 @@ export function mountOperator(host, options) {
             .flatMap((g) => g.items)
             .map(
               (m) =>
-                `<button onclick="switchScreen('${m.id}')" title="${m.label}" aria-label="${m.label}" class="so-nav-row !w-[36px] !px-0 !justify-center ${
+                `<button data-onclick="switchScreen('${m.id}')" title="${m.label}" aria-label="${m.label}" class="so-nav-row !w-[36px] !px-0 !justify-center ${
                   state.screen === m.id ? "is-active" : ""
                 }">${ic(m.icon)}</button>`,
             )
@@ -1297,7 +1298,7 @@ export function mountOperator(host, options) {
             ${apps
               .map(
                 (a) => `
-              <button onclick="switchScreen('${a.id}')" class="so-nav-row ${state.screen === a.id ? "is-active" : ""}">
+              <button data-onclick="switchScreen('${a.id}')" class="so-nav-row ${state.screen === a.id ? "is-active" : ""}">
                 <span class="flex items-center gap-2 min-w-0 flex-1">
                   <span class="flex shrink-0 text-[#7c8794]">${ic(a.icon)}</span>
                   <span class="truncate">${a.label}</span>
@@ -1333,7 +1334,7 @@ export function mountOperator(host, options) {
                     "area-fleet": "kit-bar-info",
                   }[m.id] || "";
                 return `
-                <button onclick="switchScreen('${m.id}')" class="so-nav-row kit-nav ${tone} ${isAct ? "is-active" : ""}">
+                <button data-onclick="switchScreen('${m.id}')" class="so-nav-row kit-nav ${tone} ${isAct ? "is-active" : ""}">
                   <span class="flex items-center gap-2 min-w-0 flex-1">
                     <span class="flex shrink-0">${ic(m.icon)}</span>
                     <span class="truncate">${m.label}</span>
@@ -1427,7 +1428,7 @@ export function mountOperator(host, options) {
       "h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 flex items-center justify-between gap-3 z-30";
     bar.innerHTML = `
         <div class="flex items-center gap-2 text-[11.5px] min-w-0">
-          <button onclick="switchScreen('${activeMeta.parentId || "s13-fleet-overview"}')" class="inline-flex items-center gap-1.5 text-[#eab854] hover:underline font-medium shrink-0">
+          <button data-onclick="switchScreen('${activeMeta.parentId || "s13-fleet-overview"}')" class="inline-flex items-center gap-1.5 text-[#eab854] hover:underline font-medium shrink-0">
             ${ic("arrowLeft")} <span>${activeMeta.parentLabel || "Command Center"}</span>
           </button>
           <span class="text-[#4a5562]">&rsaquo;</span>
@@ -1438,7 +1439,7 @@ export function mountOperator(host, options) {
           ${groupPeers
             .map(
               (p) => `
-            <button type="button" data-peer-active="${state.screen === p.id ? "1" : "0"}" onclick="switchScreen('${p.id}')" class="h-[24px] px-2.5 rounded-[4px] text-[11px] font-medium shrink-0 whitespace-nowrap transition-colors ${
+            <button type="button" data-peer-active="${state.screen === p.id ? "1" : "0"}" data-onclick="switchScreen('${p.id}')" class="h-[24px] px-2.5 rounded-[4px] text-[11px] font-medium shrink-0 whitespace-nowrap transition-colors ${
               state.screen === p.id
                 ? "bg-[#17253a] text-[#7cb4ff] border border-[#2a4263]"
                 : "text-[#8b96a5] hover:text-[#f0f5fa] hover:bg-[#141c24]"
@@ -1821,23 +1822,23 @@ export function mountOperator(host, options) {
         <div class="flex flex-col gap-3 h-full min-h-0">
           <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
           <div class="so-compact-kpi-strip shrink-0">
-            <button type="button" onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
+            <button type="button" data-onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
               <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Convergence</div>
               <div class="text-[16px] font-bold text-[#34d399] tnum mt-0.5">87.5%</div>
             </button>
-            <button type="button" onclick="switchScreen('rm01-env-page')" class="so-card so-card-interactive p-2.5 text-left">
+            <button type="button" data-onclick="switchScreen('rm01-env-page')" class="so-card so-card-interactive p-2.5 text-left">
               <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Environments</div>
               <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">42 <span class="text-[10.5px] font-normal text-[#8b96a5]">/ 48</span></div>
             </button>
-            <button type="button" onclick="switchScreen('s07-pipeline')" class="so-card so-card-interactive p-2.5 text-left">
+            <button type="button" data-onclick="switchScreen('s07-pipeline')" class="so-card so-card-interactive p-2.5 text-left">
               <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Packaging</div>
               <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">3 <span class="text-[10.5px] font-normal text-[#34d399]">Active</span></div>
             </button>
-            <button type="button" onclick="switchScreen('s15-plan-detail')" class="so-card so-card-interactive p-2.5 text-left">
+            <button type="button" data-onclick="switchScreen('s15-plan-detail')" class="so-card so-card-interactive p-2.5 text-left">
               <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Release plans</div>
               <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">4 <span class="text-[10.5px] font-normal text-[#9881f3]">Gated</span></div>
             </button>
-            <button type="button" onclick="switchScreen('s14-env-detail')" class="so-card so-card-interactive p-2.5 text-left">
+            <button type="button" data-onclick="switchScreen('s14-env-detail')" class="so-card so-card-interactive p-2.5 text-left">
               <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Open drifts</div>
               <div class="text-[16px] font-bold text-[#e76a6e] tnum mt-0.5">5 <span class="text-[10.5px] font-normal text-[#e76a6e]">2 critical</span></div>
             </button>
@@ -1854,7 +1855,7 @@ export function mountOperator(host, options) {
                 ${profiles
                   .map(
                     (p) => `
-                  <div onclick="switchScreen('s12-lifecycle')" class="so-card so-card-interactive p-3 cursor-pointer space-y-1.5">
+                  <div data-onclick="switchScreen('s12-lifecycle')" class="so-card so-card-interactive p-3 cursor-pointer space-y-1.5">
                     <div class="flex items-center justify-between">
                       <span class="code-id text-[12.5px] font-semibold text-[#5c9ce6]">${p.code}</span>
                       ${pill(p.badge, p.tone)}
@@ -1893,7 +1894,7 @@ export function mountOperator(host, options) {
               <!-- High-Density NASA Black Marble 3D Orthographic Globe (Matched 1:1 to Conduit f_01_18_cc) -->
               <div id="conduit-globe-wrap" class="relative flex-1 min-h-[260px] w-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing">
                 <canvas id="conduit-globe-canvas" class="max-w-full"></canvas>
-                <div onclick="switchScreen('s14-env-detail')" class="absolute left-3.5 bottom-3 px-2.5 py-1 rounded-[5px] bg-[#11171d]/90 border border-[#242f3b] text-[11px] text-[#dce4ee] flex items-center gap-1.5 cursor-pointer hover:border-[#3b82f6] tnum">
+                <div data-onclick="switchScreen('s14-env-detail')" class="absolute left-3.5 bottom-3 px-2.5 py-1 rounded-[5px] bg-[#11171d]/90 border border-[#242f3b] text-[11px] text-[#dce4ee] flex items-center gap-1.5 cursor-pointer hover:border-[#3b82f6] tnum">
                   <span class="font-bold text-[#34d399]">48</span>
                   <span class="text-[#abb3bf]">Environments &amp; 6 Spokes</span>
                 </div>
@@ -1912,7 +1913,7 @@ export function mountOperator(host, options) {
                   <span class="px-2 py-0.5 rounded text-[10px] font-medium bg-[#191d32] text-[#9881f3] border border-[#2c3359] inline-flex items-center gap-1 whitespace-nowrap">
                     ${ic("pulse")} <span>Diagnostics</span>
                   </span>
-                  <button onclick="switchScreen('s15-plan-detail')" class="text-[11px] text-[#8b96a5] hover:text-white whitespace-nowrap shrink-0">View All &rarr;</button>
+                  <button data-onclick="switchScreen('s15-plan-detail')" class="text-[11px] text-[#8b96a5] hover:text-white whitespace-nowrap shrink-0">View All &rarr;</button>
                 </div>
               </div>
 
@@ -1929,8 +1930,8 @@ export function mountOperator(host, options) {
                     <div class="text-[10.5px] text-[#34d399] mt-1">↗ Clears 3 drifted resources across West cohort</div>
                   </div>
                   <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[#1a2520]">
-                    <span onclick="switchScreen('s15-plan-detail')" class="so-chip chip-ontology cursor-pointer whitespace-nowrap" title="ConduitPlan">${ic("checkCircle")} <span>Plan</span> <span class="rw-r">R:14</span> <span class="rw-w">W:1</span></span>
-                    <button onclick="switchScreen('s15-plan-detail')" class="so-btn so-btn-sm so-btn-emerald shrink-0">&rarr; Review</button>
+                    <span data-onclick="switchScreen('s15-plan-detail')" class="so-chip chip-ontology cursor-pointer whitespace-nowrap" title="ConduitPlan">${ic("checkCircle")} <span>Plan</span> <span class="rw-r">R:14</span> <span class="rw-w">W:1</span></span>
+                    <button data-onclick="switchScreen('s15-plan-detail')" class="so-btn so-btn-sm so-btn-emerald shrink-0">&rarr; Review</button>
                   </div>
                 </div>
 
@@ -1946,8 +1947,8 @@ export function mountOperator(host, options) {
                     <div class="text-[10.5px] text-[#34d399] mt-1">↗ -71% diode transfer time vs full archive</div>
                   </div>
                   <div class="flex items-center justify-between gap-1.5 pt-1 border-t border-[#1a2520]">
-                    <span onclick="switchScreen('s08-staged-run')" class="so-chip chip-ontology cursor-pointer whitespace-nowrap" title="ConduitPackagingRun">${ic("checkCircle")} <span>Run</span> <span class="rw-r">R:4</span></span>
-                    <button onclick="switchScreen('s08-staged-run')" class="so-btn so-btn-sm so-btn-emerald shrink-0">&rarr; Review</button>
+                    <span data-onclick="switchScreen('s08-staged-run')" class="so-chip chip-ontology cursor-pointer whitespace-nowrap" title="ConduitPackagingRun">${ic("checkCircle")} <span>Run</span> <span class="rw-r">R:4</span></span>
+                    <button data-onclick="switchScreen('s08-staged-run')" class="so-btn so-btn-sm so-btn-emerald shrink-0">&rarr; Review</button>
                   </div>
                 </div>
               </div>
@@ -2621,10 +2622,10 @@ export function mountOperator(host, options) {
                   <div class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data · sample message</div>
                   <p>Release Control,</p>
                   <p>
-                    Cluster <span onclick="switchScreen('s14-env-detail')" class="entity-span">edge-west-02</span> hit repeated <span class="entity-span-warn">ingress-gateway 768Mi OOM</span> restarts during burst replay over <span onclick="switchScreen('s17-spokes-audit')" class="entity-span">spoke-west-relay</span>.
+                    Cluster <span data-onclick="switchScreen('s14-env-detail')" class="entity-span">edge-west-02</span> hit repeated <span class="entity-span-warn">ingress-gateway 768Mi OOM</span> restarts during burst replay over <span data-onclick="switchScreen('s17-spokes-audit')" class="entity-span">spoke-west-relay</span>.
                   </p>
                   <p>
-                    I've attached the signed <span onclick="switchScreen('s08-staged-run')" class="entity-span">uds-telemetry 0.31.2 tarball</span>, the patched <span onclick="switchScreen('s10-diff')" class="entity-span">values.yaml raising memory to 1Gi</span>, and the alert screenshot. Let's stage the packaging run across all 14 environments in <span onclick="switchScreen('s12-lifecycle')" class="entity-span">wp-edge-telemetry</span>.
+                    I've attached the signed <span data-onclick="switchScreen('s08-staged-run')" class="entity-span">uds-telemetry 0.31.2 tarball</span>, the patched <span data-onclick="switchScreen('s10-diff')" class="entity-span">values.yaml raising memory to 1Gi</span>, and the alert screenshot. Let's stage the packaging run across all 14 environments in <span data-onclick="switchScreen('s12-lifecycle')" class="entity-span">wp-edge-telemetry</span>.
                   </p>
                 </div>
 
@@ -2638,7 +2639,7 @@ export function mountOperator(host, options) {
               <div class="so-panel p-2.5 flex items-center gap-2 shrink-0">
                 ${attachControl(state.attachments?.reason, "intake")}
                 <input type="text" placeholder="Add rollout wave or spoke constraint..." class="so-input flex-1" />
-                <button onclick="switchScreen('s04-scope-plan')" class="so-btn so-btn-sm so-btn-blue">Send</button>
+                <button data-onclick="switchScreen('s04-scope-plan')" class="so-btn so-btn-sm so-btn-blue">Send</button>
               </div>
             </div>
 
@@ -2691,7 +2692,7 @@ export function mountOperator(host, options) {
                 <div class="pt-2.5 border-t border-[#1c242c] flex items-center justify-between">
                   <div class="flex items-center gap-2">
                     ${governedBtn({ label: "Rollout Immediately", role: "Operator", auditEvent: "plan.execute", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "lock", blockedReason: "Plan status is Proposed (requires 2/2 Approvals)" })}
-                    <button onclick="switchScreen('s10-diff')" class="so-btn so-btn-sm">Inspect Diff</button>
+                    <button data-onclick="switchScreen('s10-diff')" class="so-btn so-btn-sm">Inspect Diff</button>
                   </div>
                   ${governedBtn({ label: "Create plan from this", role: "Operator", auditEvent: "plan.propose", onClickJs: "switchScreen('s04-scope-plan')", cls: "so-btn so-btn-emerald", iconName: "check" })}
                 </div>
@@ -2727,7 +2728,7 @@ export function mountOperator(host, options) {
               <div class="text-[11.5px] text-[#6d7885] mt-0.5">Manage pinned sidebar filters, shared team queries, and alert presets</div>
             </div>
             <div class="flex items-center gap-2">
-              <button onclick="state.savedViewsForceEmpty=!state.savedViewsForceEmpty; renderMainWorkspace()" class="so-btn so-btn-sm">
+              <button data-onclick="state.savedViewsForceEmpty=!state.savedViewsForceEmpty; renderMainWorkspace()" class="so-btn so-btn-sm">
                 ${state.savedViewsForceEmpty ? "Restore 5 Views" : "Toggle Empty State"}
               </button>
               ${governedBtn({ label: "New Saved View", role: "Operator", auditEvent: "saved_view.created", onClickJs: "switchScreen('s02-workspaces')", cls: "so-btn so-btn-blue" })}
@@ -2746,7 +2747,7 @@ export function mountOperator(host, options) {
                       (v) => `
                     <tr>
                       <td>
-                        <button onclick="v_p=state.savedViews.find(x=>x.id==='${v.id}'); v_p.pinned=!v_p.pinned; renderApp()" class="so-btn so-btn-sm ${v.pinned ? "so-btn-blue" : ""}">${ic("pin")} <span>${v.pinned ? "Pinned" : "Pin"}</span></button>
+                        <button data-onclick="toggleSavedViewPin('${v.id}')" class="so-btn so-btn-sm ${v.pinned ? "so-btn-blue" : ""}">${ic("pin")} <span>${v.pinned ? "Pinned" : "Pin"}</span></button>
                       </td>
                       <td>
                         <div class="font-semibold text-[#f0f5fa]">${v.name}</div>
@@ -2759,7 +2760,7 @@ export function mountOperator(host, options) {
                         <div class="flex items-center gap-1.5">
                           ${governedBtn({ label: "Rename", role: "Owner", auditEvent: "saved_view.renamed", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "edit", blockedReason: v.status === "System Locked" ? "Compliance preset is System Locked" : "" })}
                           ${governedBtn({ label: "Share", role: "Owner", auditEvent: "saved_view.shared", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "share" })}
-                          ${governedBtn({ label: "Delete", role: "Owner", auditEvent: "saved_view.deleted", onClickJs: `state.savedViews=state.savedViews.filter(x=>x.id!=='${v.id}'); renderApp()`, cls: "so-btn so-btn-sm so-btn-outline-danger", iconName: "trash", blockedReason: v.status === "System Locked" ? "System Locked compliance view cannot be deleted" : "" })}
+                          ${governedBtn({ label: "Delete", role: "Owner", auditEvent: "saved_view.deleted", onClickJs: `removeSavedView('${v.id}')`, cls: "so-btn so-btn-sm so-btn-outline-danger", iconName: "trash", blockedReason: v.status === "System Locked" ? "System Locked compliance view cannot be deleted" : "" })}
                         </div>
                       </td>
                     </tr>
@@ -2777,7 +2778,7 @@ export function mountOperator(host, options) {
             <div class="w-10 h-10 rounded-[6px] bg-[#151d24] border border-[#24303c] flex items-center justify-center text-[#60a5fa]">${ic("inbox")}</div>
             <div class="text-[13.5px] font-semibold text-[#ffffff]">${list.length === 0 ? "No Saved Views Configured" : "No Personal Spoke Watchlists Yet"}</div>
             <div class="text-[11.5px] text-[#8b96a5] max-w-[440px]">Save any filtered query from Workspace Inventory or Environment Health to pin live object counts in your left navigation rail.</div>
-            <button onclick="switchScreen('s02-workspaces')" class="so-btn so-btn-sm so-btn-emerald mt-1">Create View from Workspace Inventory</button>
+            <button data-onclick="switchScreen('s02-workspaces')" class="so-btn so-btn-sm so-btn-emerald mt-1">Create View from Workspace Inventory</button>
           </div>
         </div>
       `;
@@ -3031,7 +3032,7 @@ export function mountOperator(host, options) {
           <div class="flex-1 min-w-0 flex flex-col gap-2.5 overflow-y-auto">
             <div class="flex items-center justify-between">
               <span class="text-[15px] font-bold text-[#ffffff]">Delivery Backlog · wp-edge-telemetry</span>
-              <button onclick="switchScreen('s06-active-work')" class="so-btn so-btn-sm so-btn-blue">Open Active Work (STR-214) &rarr;</button>
+              <button data-onclick="switchScreen('s06-active-work')" class="so-btn so-btn-sm so-btn-blue">Open Active Work (STR-214) &rarr;</button>
             </div>
             ${[
               ["Ready", "blue"],
@@ -3050,7 +3051,7 @@ export function mountOperator(host, options) {
                     ${items
                       .map(
                         (st) => `
-                      <div onclick="state.selectedStoryId='${st.id}'; renderMainWorkspace()"
+                      <div data-onclick="state.selectedStoryId='${st.id}'; renderMainWorkspace()"
                            class="px-3 py-2 flex items-center justify-between gap-2 cursor-pointer ${st.id === sel.id ? "bg-[#152232] border-l-2 border-[#5c9ce6]" : "hover:bg-[#141c24]"}">
                         <div class="flex items-center gap-2.5 min-w-0">
                           <span class="text-[#596573] cursor-grab">${ic("grip")}</span>
@@ -3260,7 +3261,7 @@ export function mountOperator(host, options) {
             <div class="so-panel flex-1 min-w-0 flex flex-col overflow-hidden">
               <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
                 <span class="text-[13px] font-semibold text-[#ffffff]">Live Activity Feed</span>
-                <button onclick="switchScreen('s10-diff')" class="so-btn so-btn-sm">Inspect CR-308 Diff &rarr;</button>
+                <button data-onclick="switchScreen('s10-diff')" class="so-btn so-btn-sm">Inspect CR-308 Diff &rarr;</button>
               </div>
               <div class="p-3 space-y-3 overflow-y-auto flex-1">
                 ${stream
@@ -3376,7 +3377,7 @@ export function mountOperator(host, options) {
               </div>
               <div class="flex items-center gap-2">
                 ${governedBtn({ label: "Rerun from stage", role: "Operator", auditEvent: "packaging_run.rerun_from_step", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "lock", blockedReason: "Packaging run RUN-8844 is currently Running" })}
-                <button onclick="switchScreen('s08-staged-run')" class="so-btn so-btn-sm so-btn-emerald">Open Staged Run (RUN-8842) &rarr;</button>
+                <button data-onclick="switchScreen('s08-staged-run')" class="so-btn so-btn-sm so-btn-emerald">Open Staged Run (RUN-8842) &rarr;</button>
               </div>
             </div>
 
@@ -3391,7 +3392,7 @@ export function mountOperator(host, options) {
                 .map(
                   (n, i) => `
                 <div class="flex items-center">
-                  <button onclick="state.selectedPipeNode='${n.id}'; renderMainWorkspace()"
+                  <button data-onclick="state.selectedPipeNode='${n.id}'; renderMainWorkspace()"
                     class="w-full p-2.5 text-left ${n.tone === "green" ? "so-opt-card" : "so-card"} ${n.id === sel.id ? "!border-[#5c9ce6] ring-1 ring-[#5c9ce6]/50" : ""}">
                     <div class="flex items-center justify-between">
                       <span class="font-semibold text-[12px] text-[#ffffff] truncate">${n.name}</span>
@@ -3414,8 +3415,8 @@ export function mountOperator(host, options) {
                 ${pill(sel.st, sel.tone)}
               </div>
               <div class="flex items-center gap-2">
-                <input type="text" value="${state.pipeLogQuery}" oninput="state.pipeLogQuery=this.value; renderMainWorkspace()" placeholder="Search log lines..." class="so-input !h-[23px] w-[165px]" />
-                <button onclick="state.pipeFollowLogs=!state.pipeFollowLogs; renderMainWorkspace()" class="so-btn so-btn-sm ${state.pipeFollowLogs ? "so-btn-blue" : ""}">Follow: ${state.pipeFollowLogs ? "On" : "Off"}</button>
+                <input type="text" value="${state.pipeLogQuery}" data-oninput="state.pipeLogQuery=this.value; renderMainWorkspace()" placeholder="Search log lines..." class="so-input !h-[23px] w-[165px]" />
+                <button data-onclick="state.pipeFollowLogs=!state.pipeFollowLogs; renderMainWorkspace()" class="so-btn so-btn-sm ${state.pipeFollowLogs ? "so-btn-blue" : ""}">Follow: ${state.pipeFollowLogs ? "On" : "Off"}</button>
                 ${governedBtn({ label: "Download", role: "Operator", auditEvent: "step.log_downloaded", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "download" })}
               </div>
             </div>
@@ -3503,12 +3504,12 @@ export function mountOperator(host, options) {
               ${pill("Staged · 6/6 Complete", "green")}
               <div>
                 <div class="text-[14.5px] font-bold text-[#ffffff]">RUN-8842 · uds-core 0.31.2</div>
-                <div class="text-[11px] text-[#8b96a5]">Proposed <button onclick="switchScreen('s15-plan-detail')" class="text-[#5c9ce6] underline">Plan PLN-2026-0418</button> · Duration 04m 12s</div>
+                <div class="text-[11px] text-[#8b96a5]">Proposed <button data-onclick="switchScreen('s15-plan-detail')" class="text-[#5c9ce6] underline">Plan PLN-2026-0418</button> · Duration 04m 12s</div>
               </div>
             </div>
             <div class="flex items-center gap-2">
-              <button onclick="state.confirmActionType='rerun'; state.showRerunConfirm=true; renderMainWorkspace()" class="so-btn so-btn-sm">${ic("refresh")} <span>Rerun from stage...</span></button>
-              <button onclick="state.confirmActionType='cancel'; state.showRerunConfirm=true; renderMainWorkspace()" class="so-btn so-btn-sm so-btn-outline-danger">${ic("cross")} <span>Cancel</span></button>
+              <button data-onclick="state.confirmActionType='rerun'; state.showRerunConfirm=true; renderMainWorkspace()" class="so-btn so-btn-sm">${ic("refresh")} <span>Rerun from stage...</span></button>
+              <button data-onclick="state.confirmActionType='cancel'; state.showRerunConfirm=true; renderMainWorkspace()" class="so-btn so-btn-sm so-btn-outline-danger">${ic("cross")} <span>Cancel</span></button>
             </div>
           </div>
 
@@ -3551,7 +3552,7 @@ export function mountOperator(host, options) {
                     <div class="text-[11px] text-[#9aa5b4]">Re-runs package, publish, and propose plan using pinned scan digest and logs an Audit event.</div>
                   </div>
                   <div class="flex gap-1.5 shrink-0">
-                    <button onclick="state.showRerunConfirm=false; renderMainWorkspace()" class="so-btn so-btn-sm">Dismiss</button>
+                    <button data-onclick="state.showRerunConfirm=false; renderMainWorkspace()" class="so-btn so-btn-sm">Dismiss</button>
                     ${governedBtn({ label: "Confirm", role: "Operator", auditEvent: "packaging_run.rerun_from_step", onClickJs: "state.showRerunConfirm=false; renderMainWorkspace()", cls: "so-btn so-btn-sm so-btn-blue" })}
                   </div>
                 </div>
@@ -3669,7 +3670,7 @@ export function mountOperator(host, options) {
           </div>
 
           <div class="border-b border-[#1c242c] flex gap-2 shrink-0">
-            ${tabs.map((t) => `<button onclick="state.envTab='${t}'; renderMainWorkspace()" class="px-3 py-1.5 text-[12px] font-medium border-b-2 -mb-[1px] ${state.envTab === t ? "border-[#5c9ce6] text-[#ffffff]" : "border-transparent text-[#8b96a5]"}">${t}</button>`).join("")}
+            ${tabs.map((t) => `<button data-onclick="state.envTab='${t}'; renderMainWorkspace()" class="px-3 py-1.5 text-[12px] font-medium border-b-2 -mb-[1px] ${state.envTab === t ? "border-[#5c9ce6] text-[#ffffff]" : "border-transparent text-[#8b96a5]"}">${t}</button>`).join("")}
           </div>
 
           <div class="so-grid-2 gap-3 shrink-0">
@@ -3784,7 +3785,7 @@ export function mountOperator(host, options) {
                   <div class="so-card p-2.5 space-y-1">
                     <div class="flex items-center justify-between"><span class="font-medium text-[11.5px] text-[#f0f5fa]">${r.name}</span>${pill(r.st, r.tone)}</div>
                     <div class="text-[10.5px] text-[#8b96a5]">${r.desc}</div>
-                    ${r.tog ? `<button onclick="${r.tog}; renderMainWorkspace()" class="text-[10px] text-[#5c9ce6] hover:underline">Simulate unblock</button>` : ""}
+                    ${r.tog ? `<button data-onclick="${r.tog}; renderMainWorkspace()" class="text-[10px] text-[#5c9ce6] hover:underline">Simulate unblock</button>` : ""}
                   </div>
                 `,
                   )
@@ -3834,7 +3835,7 @@ export function mountOperator(host, options) {
                 ]
                   .map(
                     (w) => `
-                  <div onclick="switchScreen('s14-env-detail')" class="space-y-1 cursor-pointer">
+                  <div data-onclick="switchScreen('s14-env-detail')" class="space-y-1 cursor-pointer">
                     <div class="flex justify-between text-[11px]"><span class="text-[#dce4ee]">${w[0]}</span><span class="tnum text-[#8b96a5]">${w[4]}</span></div>
                     <div class="h-4 w-full bg-[#090e12] rounded border border-[#19222b] relative overflow-hidden">
                       <div class="h-full rounded-[2px] flex items-center justify-center text-[9.5px] font-semibold text-white" style="margin-left:${w[1]}%;width:${w[2]}%;background:${w[3]}">${w[4]}</div>
@@ -3853,10 +3854,10 @@ export function mountOperator(host, options) {
                 <div class="so-table-scroll"><table class="so-table">
                   <thead><tr><th>Cohort</th><th>Spoke</th><th>Clusters</th><th>Transfer</th><th>Status</th></tr></thead>
                   <tbody>
-                    <tr onclick="switchScreen('s14-env-detail')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 1 Canary</td><td class="code-id text-[#8b96a5]">spoke-west-relay</td><td class="tnum">2</td><td class="code-id text-[#8b96a5]">mTLS stream</td><td>${pill("Ready", "green")}</td></tr>
-                    <tr onclick="switchScreen('s14-env-detail')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 2 Regional</td><td class="code-id text-[#8b96a5]">spoke-west-relay</td><td class="tnum">6</td><td class="code-id text-[#8b96a5]">02:00Z hold</td><td>${pill("Window Hold", "amber")}</td></tr>
-                    <tr onclick="switchScreen('s08-staged-run')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 3 Diode</td><td class="code-id text-[#8b96a5]">spoke-diode-hall-b</td><td class="tnum">4</td><td class="code-id text-[#8b96a5]">63.8 MB zstd</td><td>${pill("Staged", "blue")}</td></tr>
-                    <tr onclick="switchScreen('s17-spokes-audit')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 3B Courier</td><td class="code-id text-[#8b96a5]">spoke-courier-vault</td><td class="tnum">2</td><td class="code-id text-[#8b96a5]">Media manifest</td><td>${pill("Queued", "purple")}</td></tr>
+                    <tr data-onclick="switchScreen('s14-env-detail')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 1 Canary</td><td class="code-id text-[#8b96a5]">spoke-west-relay</td><td class="tnum">2</td><td class="code-id text-[#8b96a5]">mTLS stream</td><td>${pill("Ready", "green")}</td></tr>
+                    <tr data-onclick="switchScreen('s14-env-detail')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 2 Regional</td><td class="code-id text-[#8b96a5]">spoke-west-relay</td><td class="tnum">6</td><td class="code-id text-[#8b96a5]">02:00Z hold</td><td>${pill("Window Hold", "amber")}</td></tr>
+                    <tr data-onclick="switchScreen('s08-staged-run')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 3 Diode</td><td class="code-id text-[#8b96a5]">spoke-diode-hall-b</td><td class="tnum">4</td><td class="code-id text-[#8b96a5]">63.8 MB zstd</td><td>${pill("Staged", "blue")}</td></tr>
+                    <tr data-onclick="switchScreen('s17-spokes-audit')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 3B Courier</td><td class="code-id text-[#8b96a5]">spoke-courier-vault</td><td class="tnum">2</td><td class="code-id text-[#8b96a5]">Media manifest</td><td>${pill("Queued", "purple")}</td></tr>
                   </tbody>
                 </table></div>
               </div>
@@ -3994,7 +3995,7 @@ export function mountOperator(host, options) {
                     ${items
                       .map(
                         (cd) => `
-                      <div onclick="state.selectedKanbanPlanId='${cd.id}'; renderMainWorkspace()"
+                      <div data-onclick="state.selectedKanbanPlanId='${cd.id}'; renderMainWorkspace()"
                            class="so-card so-card-interactive p-2.5 cursor-pointer space-y-1.5 ${cd.id === sel.id ? "!border-[#5c9ce6]" : ""}">
                         <div class="flex items-center justify-between">
                           <span class="font-semibold text-[11.5px] text-[#ffffff]">${cd.id}</span>
@@ -4031,7 +4032,7 @@ export function mountOperator(host, options) {
                   .map(
                     (it) => `
                   <label class="flex items-center gap-2 text-[11.5px] text-[#dce4ee] py-1 cursor-pointer">
-                    <input type="checkbox" ${state.revChecks[it[0]] ? "checked" : ""} onchange="state.revChecks['${it[0]}']=this.checked; renderMainWorkspace()" />
+                    <input type="checkbox" ${state.revChecks[it[0]] ? "checked" : ""} data-onchange="state.revChecks['${it[0]}']=this.checked; renderMainWorkspace()" />
                     <span>${it[1]}</span>
                   </label>
                 `,
@@ -4044,7 +4045,7 @@ export function mountOperator(host, options) {
                 <div class="so-stream-item so-stream-emerald text-[11px]"><div class="tnum text-[#6d7885]">08:58 PM · M. Chen</div><div class="text-[#dce4ee]">Signed Approval 1/2</div></div>
               </div>
             </div>
-            <button onclick="switchScreen('s15-plan-detail')" class="so-btn so-btn-blue w-full">Open Control Tower &rarr;</button>
+            <button data-onclick="switchScreen('s15-plan-detail')" class="so-btn so-btn-blue w-full">Open Control Tower &rarr;</button>
           </div>
         </div>
       `;
@@ -4274,7 +4275,7 @@ export function mountOperator(host, options) {
             <div class="so-table-scroll"><table class="so-table">
               <thead><tr><th>Object Type</th><th>Statuses</th><th>Links</th><th>Open</th></tr></thead>
               <tbody>
-                ${rows.map((r) => `<tr onclick="switchScreen('${r[3]}')" class="cursor-pointer"><td class="font-semibold text-[#5c9ce6]">${r[0]}</td><td class="text-[#8b96a5]">${r[1]}</td><td>${r[2]}</td><td>${pill("Inspect &rarr;", "blue")}</td></tr>`).join("")}
+                ${rows.map((r) => `<tr data-onclick="switchScreen('${r[3]}')" class="cursor-pointer"><td class="font-semibold text-[#5c9ce6]">${r[0]}</td><td class="text-[#8b96a5]">${r[1]}</td><td>${r[2]}</td><td>${pill("Inspect &rarr;", "blue")}</td></tr>`).join("")}
               </tbody>
             </table></div>
           </div>
@@ -4604,8 +4605,8 @@ export function mountOperator(host, options) {
               </div>
             </div>
             <div class="flex flex-wrap items-center gap-2">
-              <button type="button" onclick="state.rmActivitySubnav='overrides'; switchScreen('rm02-env-activity')" class="so-btn">Create Override</button>
-              <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promote Channel Release</button>
+              <button type="button" data-onclick="state.rmActivitySubnav='overrides'; switchScreen('rm02-env-activity')" class="so-btn">Create Override</button>
+              <button type="button" data-onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promote Channel Release</button>
             </div>
           </div>
 
@@ -4614,7 +4615,7 @@ export function mountOperator(host, options) {
               .map(
                 ([tid, lbl]) => `
               <button type="button" role="tab" aria-selected="${activeTab === tid ? "true" : "false"}"
-                onclick="if('${tid}'==='activity'){switchScreen('rm02-env-activity');}else if('${tid}'==='config'){switchScreen('s14-env-detail');}else if('${tid}'==='changes'){switchScreen('rm07-change-requests');}else{state.rmEnvResourceTab='${tid}';switchScreen('rm01-env-page');}"
+                data-onclick="if('${tid}'==='activity'){switchScreen('rm02-env-activity');}else if('${tid}'==='config'){switchScreen('s14-env-detail');}else if('${tid}'==='changes'){switchScreen('rm07-change-requests');}else{state.rmEnvResourceTab='${tid}';switchScreen('rm01-env-page');}"
                 class="h-[32px] px-3 text-[12px] font-medium border-b-2 transition-colors whitespace-nowrap ${
                   activeTab === tid
                     ? "border-[#5c9ce6] text-[#5c9ce6] font-semibold"
@@ -4666,8 +4667,8 @@ export function mountOperator(host, options) {
             <div class="so-opt-card p-3.5 space-y-2">
               <div class="flex items-center justify-between">
                 <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#34d399]">Release Channel Subscription</span>
-                <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Promotion Graph</button>
-                <button type="button" onclick="switchScreen('rm11-debug-terminal')" class="so-btn so-btn-sm">Debug Terminal</button>
+                <button type="button" data-onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Promotion Graph</button>
+                <button type="button" data-onclick="switchScreen('rm11-debug-terminal')" class="so-btn so-btn-sm">Debug Terminal</button>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <span class="code-id text-[15px] font-bold text-white">edge-cohorts</span>
@@ -4729,13 +4730,13 @@ export function mountOperator(host, options) {
           <div class="so-panel overflow-hidden">
             <div class="px-3.5 py-2 bg-[#0e1418] border-b border-[#1c242c] flex flex-wrap items-center justify-between gap-2">
               <span class="text-[11.5px] font-semibold text-white">Managed Installations Snapshot</span>
-              <button type="button" onclick="switchScreen('rm07-change-requests')" class="so-btn so-btn-sm">Inspect Config Changes (CR-308) &rarr;</button>
+              <button type="button" data-onclick="switchScreen('rm07-change-requests')" class="so-btn so-btn-sm">Inspect Config Changes (CR-308) &rarr;</button>
             </div>
             <div class="so-table-scroll"><table class="so-table">
               <thead><tr><th>Entity</th><th>Channel</th><th>Desired</th><th>Reported</th><th>Status</th><th>Last / Active Plan</th></tr></thead>
               <tbody>
-                <tr onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer"><td class="code-id font-semibold text-white">ingress-gateway</td><td class="code-id">edge-cohorts-hotfix</td><td class="code-id">1.23.4</td><td class="code-id text-[#eab854]">1.23.3</td><td>${pill("Degraded", "red")}</td><td class="code-id text-[#f87171]">PLN-2026-0416 (Failed)</td></tr>
-                <tr onclick="switchScreen('rm04-constraints')" class="cursor-pointer"><td class="code-id font-semibold text-white">uds-core</td><td class="code-id">edge-cohorts</td><td class="code-id">0.31.2</td><td class="code-id text-[#eab854]">0.31.1</td><td>${pill("Drift Detected", "amber")}</td><td class="code-id text-[#60a5fa]">PLN-2026-0418 (4 Constraints)</td></tr>
+                <tr data-onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer"><td class="code-id font-semibold text-white">ingress-gateway</td><td class="code-id">edge-cohorts-hotfix</td><td class="code-id">1.23.4</td><td class="code-id text-[#eab854]">1.23.3</td><td>${pill("Degraded", "red")}</td><td class="code-id text-[#f87171]">PLN-2026-0416 (Failed)</td></tr>
+                <tr data-onclick="switchScreen('rm04-constraints')" class="cursor-pointer"><td class="code-id font-semibold text-white">uds-core</td><td class="code-id">edge-cohorts</td><td class="code-id">0.31.2</td><td class="code-id text-[#eab854]">0.31.1</td><td>${pill("Drift Detected", "amber")}</td><td class="code-id text-[#60a5fa]">PLN-2026-0418 (4 Constraints)</td></tr>
                 <tr><td class="code-id font-semibold text-white">cert-manager-crds</td><td class="code-id">edge-cohorts</td><td class="code-id">1.15.2</td><td class="code-id text-[#34d399]">1.15.2</td><td>${pill("Synced", "green")}</td><td class="code-id">PLN-2026-0409</td></tr>
               </tbody>
             </table></div>
@@ -4767,7 +4768,7 @@ export function mountOperator(host, options) {
               ]
                 .map(
                   ([k, lbl, c]) => `
-                <button type="button" onclick="state.rmActivitySubnav='${k}'; renderMainWorkspace()"
+                <button type="button" data-onclick="state.rmActivitySubnav='${k}'; renderMainWorkspace()"
                   class="so-nav-row ${state.rmActivitySubnav === k ? "is-active" : ""}">
                   <span>${lbl}</span>
                   <span class="tnum text-[10.5px] px-1.5 rounded bg-[#161e26]">${c}</span>
@@ -4783,7 +4784,7 @@ export function mountOperator(host, options) {
                   ? `
                 <div class="flex flex-wrap items-center justify-between gap-2">
                   <div class="flex flex-wrap items-center gap-1.5">
-                    <input type="search" value="${state.rmPlanSearch}" oninput="state.rmPlanSearch=this.value; renderMainWorkspace()"
+                    <input type="search" value="${state.rmPlanSearch}" data-oninput="state.rmPlanSearch=this.value; renderMainWorkspace()"
                       placeholder="Filter entity or plan ID..." aria-label="Filter plans" class="so-input w-[200px]" />
                     ${[
                       "ALL",
@@ -4794,7 +4795,7 @@ export function mountOperator(host, options) {
                     ]
                       .map(
                         (st) => `
-                      <button type="button" onclick="state.rmPlanStatus='${st}'; renderMainWorkspace()"
+                      <button type="button" data-onclick="state.rmPlanStatus='${st}'; renderMainWorkspace()"
                         class="so-btn so-btn-sm ${state.rmPlanStatus === st ? "so-btn-blue" : ""}">${st}</button>
                     `,
                       )
@@ -4808,7 +4809,7 @@ export function mountOperator(host, options) {
                     ${plans
                       .map(
                         (p) => `
-                      <tr onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer">
+                      <tr data-onclick="switchScreen('rm03-plan-detail')" class="cursor-pointer">
                         <td><div class="font-semibold text-white">${p.entity}</div><div class="code-id text-[10.5px] text-[#60a5fa]">${p.planId}</div></td>
                         <td><span class="so-pill">${p.type}</span></td>
                         <td>${pill(p.status, p.tone)}</td>
@@ -4944,8 +4945,8 @@ export function mountOperator(host, options) {
               <div class="flex items-center justify-between pt-1">
                 <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Raw Agent Output</span>
                 <div class="flex gap-1.5">
-                  <button type="button" onclick="copyRmRawLog()" class="so-btn so-btn-sm">${state.rmCopiedRaw ? "&#10003; Copied" : "Copy raw output"}</button>
-                  <button type="button" onclick="switchScreen('rm07-change-requests')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Fix in CR-308</button>
+                  <button type="button" data-onclick="copyRmRawLog()" class="so-btn so-btn-sm">${state.rmCopiedRaw ? "&#10003; Copied" : "Copy raw output"}</button>
+                  <button type="button" data-onclick="switchScreen('rm07-change-requests')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Fix in CR-308</button>
                 </div>
               </div>
               <pre id="rm-raw-output" class="p-2.5 rounded bg-[#080c0f] border border-[#1c242c] code-id text-[10.5px] text-[#dce4ee] overflow-x-auto leading-relaxed">${rawLog}</pre>
@@ -5031,14 +5032,14 @@ export function mountOperator(host, options) {
                 </div>
                 <div class="flex items-center gap-2 pt-1">
                   <span class="text-[12px] text-[#8b96a5]">Action:</span>
-                  <select onchange="state.rmActionId=this.value; renderMainWorkspace()" class="so-select code-id">
+                  <select data-onchange="state.rmActionId=this.value; renderMainWorkspace()" class="so-select code-id">
                     <option value="execute_plan" ${state.rmActionId === "execute_plan" ? "selected" : ""}>execute_plan (Plan)</option>
                     <option value="promote_release_manual" ${state.rmActionId === "promote_release_manual" ? "selected" : ""}>promote_release_manual (Release channel)</option>
                   </select>
                 </div>
               </div>
               <div class="flex flex-wrap items-center gap-2">
-                <button type="button" onclick="state.rmFixWindow=true;state.rmFixApproval=true;state.rmFixUnsigned=true;state.rmFixRolling=true;renderMainWorkspace()" class="so-btn">Simulate all satisfied</button>
+                <button type="button" data-onclick="state.rmFixWindow=true;state.rmFixApproval=true;state.rmFixUnsigned=true;state.rmFixRolling=true;renderMainWorkspace()" class="so-btn">Simulate all satisfied</button>
                 ${governedBtn({ label: spec.label, role: "Release Approver", auditEvent: spec.audit, onClickJs: `state.rmExecNotice='Dispatched ${spec.actionId} and wrote ${spec.audit}'; renderMainWorkspace()`, cls: "so-btn so-btn-emerald", blockedReason: blocked > 0 ? `${blocked} constraint(s) blocking action` : "" })}
               </div>
             </div>
@@ -5060,8 +5061,8 @@ export function mountOperator(host, options) {
                     <td>${pill(r.pass ? "Pass" : "Blocked", r.pass ? "green" : "red")}</td>
                     <td><div class="font-semibold text-white">${r.title}</div><div class="code-id text-[10px] text-[#596573]">${r.clause}</div></td>
                     <td class="text-[#8b96a5] max-w-[390px]">${r.pass ? r.ok : r.bad}</td>
-                    <td><button type="button" onclick="state['${r.k}']=!state['${r.k}']; state.rmExecNotice=''; renderMainWorkspace()" class="so-btn so-btn-sm">${r.pass ? "Re-block" : "Mark fixed"}</button></td>
-                    <td style="text-align:right;white-space:nowrap"><a href="#fix" onclick="event.preventDefault(); ${r.go}" class="text-[#60a5fa] font-semibold hover:underline">${r.fix} &rarr;</a></td>
+                    <td><button type="button" data-onclick="state['${r.k}']=!state['${r.k}']; state.rmExecNotice=''; renderMainWorkspace()" class="so-btn so-btn-sm">${r.pass ? "Re-block" : "Mark fixed"}</button></td>
+                    <td style="text-align:right;white-space:nowrap"><a href="#fix" data-onclick="event.preventDefault(); ${r.go}" class="text-[#60a5fa] font-semibold hover:underline">${r.fix} &rarr;</a></td>
                   </tr>
                 `,
                   )
@@ -5170,10 +5171,10 @@ export function mountOperator(host, options) {
               <div class="code-id text-[11px] text-[#8b96a5] mt-1">digest: sha256:9c71fe08a41d8c02b9e7a11f404d12c91a0f2d44 &middot; Published 2026-11-13 20:18Z</div>
             </div>
             <div class="flex flex-wrap gap-2">
-              <button type="button" onclick="switchScreen('rm10-ramped-rollout')" class="so-btn">Ramped Rollouts</button>
-              <button type="button" onclick="switchScreen('rm09-recalls')" class="so-btn">Recalls</button>
-              <button type="button" onclick="switchScreen('rm08-bundle-preview')" class="so-btn">Offline Bundle Preview</button>
-              <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promotion Pipeline</button>
+              <button type="button" data-onclick="switchScreen('rm10-ramped-rollout')" class="so-btn">Ramped Rollouts</button>
+              <button type="button" data-onclick="switchScreen('rm09-recalls')" class="so-btn">Recalls</button>
+              <button type="button" data-onclick="switchScreen('rm08-bundle-preview')" class="so-btn">Offline Bundle Preview</button>
+              <button type="button" data-onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promotion Pipeline</button>
             </div>
           </div>
 
@@ -5206,7 +5207,7 @@ export function mountOperator(host, options) {
             ]
               .map(
                 ([w, ratio, pct, sub, col, cls]) => `
-              <div onclick="state.rmWaveFilter=(state.rmWaveFilter==='${w}'?'ALL':'${w}'); renderMainWorkspace()" class="${cls} p-3 cursor-pointer space-y-1.5">
+              <div data-onclick="state.rmWaveFilter=(state.rmWaveFilter==='${w}'?'ALL':'${w}'); renderMainWorkspace()" class="${cls} p-3 cursor-pointer space-y-1.5">
                 <div class="flex justify-between items-center"><strong class="text-[12.5px] text-white">${w}</strong><span class="code-id text-[11.5px]">${ratio}</span></div>
                 <div class="h-1.5 bg-[#090e12] rounded overflow-hidden"><div style="width:${pct}%;height:100%;background:${col}"></div></div>
                 <div class="text-[11px] text-[#8b96a5]">${sub}</div>
@@ -5219,12 +5220,12 @@ export function mountOperator(host, options) {
           <div class="so-panel overflow-hidden">
             <div class="px-3.5 py-2 bg-[#0e1418] border-b border-[#1c242c] flex justify-between items-center">
               <span class="text-[11.5px] font-semibold text-white">Environment Rollout Matrix (Desired vs. Reported &amp; Drift Count)</span>
-              ${state.rmWaveFilter !== "ALL" ? `<button type="button" onclick="state.rmWaveFilter='ALL'; renderMainWorkspace()" class="so-btn so-btn-sm">Clear filter</button>` : ""}
+              ${state.rmWaveFilter !== "ALL" ? `<button type="button" data-onclick="state.rmWaveFilter='ALL'; renderMainWorkspace()" class="so-btn so-btn-sm">Clear filter</button>` : ""}
             </div>
             <div class="so-table-scroll"><table class="so-table">
               <thead><tr><th>Environment</th><th>Wave</th><th>Channel</th><th>Connection</th><th>Desired</th><th>Reported</th><th style="text-align:right">Drift Count</th><th>Plan Status</th></tr></thead>
               <tbody>
-                ${envs.map((r) => `<tr onclick="switchScreen('rm01-env-page')" class="cursor-pointer"><td class="code-id font-semibold text-white">${r.env}</td><td>${r.wave}</td><td class="code-id"><span class="so-pill code-id">${r.ch}</span></td><td>${pill(r.mode, "blue")}</td><td class="code-id">${r.desired}</td><td class="code-id font-semibold ${r.desired === r.reported ? "text-[#34d399]" : "text-[#eab854]"}">${r.reported}</td><td class="code-id" style="text-align:right">${r.drift > 0 ? pill(r.drift + " drift", "amber") : pill("0", "green")}</td><td>${pill(r.st, r.tone)}</td></tr>`).join("")}
+                ${envs.map((r) => `<tr data-onclick="switchScreen('rm01-env-page')" class="cursor-pointer"><td class="code-id font-semibold text-white">${r.env}</td><td>${r.wave}</td><td class="code-id"><span class="so-pill code-id">${r.ch}</span></td><td>${pill(r.mode, "blue")}</td><td class="code-id">${r.desired}</td><td class="code-id font-semibold ${r.desired === r.reported ? "text-[#34d399]" : "text-[#eab854]"}">${r.reported}</td><td class="code-id" style="text-align:right">${r.drift > 0 ? pill(r.drift + " drift", "amber") : pill("0", "green")}</td><td>${pill(r.st, r.tone)}</td></tr>`).join("")}
               </tbody>
             </table></div>
           </div>
@@ -5247,7 +5248,7 @@ export function mountOperator(host, options) {
                 <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Channel-to-Channel Promotion Pipeline &middot; wp-edge-telemetry</div>
                 <div class="text-[12px] text-[#8b96a5] mt-0.5">Select any channel stage to inspect soak criteria, label gates, and manual promotion quorum.</div>
               </div>
-              <button type="button" onclick="state.rmPromoDialogOpen=true; renderConduitModals()" class="so-btn so-btn-emerald">&rarr; Manual Promote to ${sel.name}</button>
+              <button type="button" data-onclick="state.rmPromoDialogOpen=true; renderConduitModals()" class="so-btn so-btn-emerald">&rarr; Manual Promote to ${sel.name}</button>
             </div>
 
             ${state.rmPromotedNotice ? `<div class="so-opt-card p-2.5 code-id text-[11.5px] text-[#34d399]">&#10003; ${state.rmPromotedNotice}</div>` : ""}
@@ -5255,7 +5256,7 @@ export function mountOperator(host, options) {
             <div class="so-grid-4 gap-2.5">
               ${RM_CHANNELS.map(
                 (ch, idx) => `
-                <button type="button" onclick="state.rmSelectedChannel='${ch.id}'; renderMainWorkspace()"
+                <button type="button" data-onclick="state.rmSelectedChannel='${ch.id}'; renderMainWorkspace()"
                   class="${ch.state === "Upgrade Ready" ? "so-opt-card" : "so-card"} p-3 text-left cursor-pointer space-y-1.5"
                   style="box-shadow:${ch.id === sel.id ? "0 0 0 1.5px #5c9ce6" : "none"}">
                   <div class="flex justify-between items-center gap-1"><strong class="text-[13px] text-white">${idx + 1}. ${ch.name}</strong>${pill(ch.state, ch.tone)}</div>
@@ -5291,8 +5292,8 @@ export function mountOperator(host, options) {
                 </div>
               </div>
               <div class="flex justify-end gap-2">
-                <button type="button" onclick="switchScreen('rm05-release-rollout')" class="so-btn">Inspect 0.31.2 Rollout</button>
-                <button type="button" onclick="state.rmPromoDialogOpen=true; renderConduitModals()" class="so-btn so-btn-emerald">&rarr; Review Manual Promotion</button>
+                <button type="button" data-onclick="switchScreen('rm05-release-rollout')" class="so-btn">Inspect 0.31.2 Rollout</button>
+                <button type="button" data-onclick="state.rmPromoDialogOpen=true; renderConduitModals()" class="so-btn so-btn-emerald">&rarr; Review Manual Promotion</button>
               </div>
             </div>
           </div>
@@ -5398,7 +5399,7 @@ export function mountOperator(host, options) {
               ${RM_CRS.map((cr) => {
                 const isInc = state.rmIncludedCrs.includes(cr.id);
                 return `
-                  <button type="button" onclick="state.rmSelectedCrId='${cr.id}'; renderMainWorkspace()"
+                  <button type="button" data-onclick="state.rmSelectedCrId='${cr.id}'; renderMainWorkspace()"
                     class="w-full text-left so-card so-stream-item ${isInc ? "" : cr.tone === "green" ? "so-stream-emerald" : "so-stream-amber"} p-2.5 space-y-1 cursor-pointer"
                     style="box-shadow:${cr.id === sel.id ? "0 0 0 1.5px #5c9ce6" : "none"}">
                     <div class="flex justify-between items-center"><strong class="code-id text-[12px] text-white">${cr.id}</strong>${pill(isInc ? "Included in Plan" : cr.status, isInc ? "blue" : cr.tone)}</div>
@@ -5607,14 +5608,14 @@ export function mountOperator(host, options) {
 
     if (state.rmPromoDialogOpen) {
       out += `
-          <div onclick="if(event.target===this){state.rmPromoDialogOpen=false;renderConduitModals();}"
+          <div data-onclick="if(event.target===this){state.rmPromoDialogOpen=false;renderConduitModals();}"
                class="so-modal-backdrop"
                style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:85;display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 32px;">
             <div role="dialog" aria-modal="true" aria-label="Manual Promotion Review"
                  class="so-panel so-modal-card w-full max-w-[556px] overflow-hidden shadow-2xl" style="border-color:#283644;">
               <div class="px-4 py-2.5 bg-[#0d1317] border-b border-[#1e262d] flex justify-between items-center">
                 <strong class="text-[13.5px] text-white">Manual Promotion Review &middot; ${selCh.name}</strong>
-                <button type="button" onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn so-btn-sm" aria-label="Close dialog">&times;</button>
+                <button type="button" data-onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn so-btn-sm" aria-label="Close dialog">&times;</button>
               </div>
               <div class="p-4 space-y-3">
                 <div class="so-opt-card p-2.5 flex justify-between items-center">
@@ -5623,7 +5624,7 @@ export function mountOperator(host, options) {
                 </div>
                 <div class="space-y-1">
                   <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Promotion Strategy</div>
-                  <select onchange="state.rmPromoStrategy=this.value" class="so-select w-full">
+                  <select data-onchange="state.rmPromoStrategy=this.value" class="so-select w-full">
                     <option value="FAST_TRACK_TO_CHANNEL">Fast track to channel (${selCh.name})</option>
                     <option value="COPY_EXISTING">Copy release across lagging channels</option>
                     <option value="CUSTOM_CHANNELS">Custom target channel set</option>
@@ -5637,12 +5638,12 @@ export function mountOperator(host, options) {
                 </div>
                 <div class="space-y-1">
                   <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Audit Justification</div>
-                  <textarea rows="2" oninput="state.rmPromoNote=this.value" class="w-full p-2 rounded bg-[#090e12] border border-[#1f2933] text-[11.5px] text-white">${state.rmPromoNote}</textarea>
+                  <textarea rows="2" data-oninput="state.rmPromoNote=this.value" class="w-full p-2 rounded bg-[#090e12] border border-[#1f2933] text-[11.5px] text-white">${state.rmPromoNote}</textarea>
                 </div>
               </div>
               <div class="px-4 py-2.5 bg-[#0d1317] border-t border-[#1e262d] flex justify-end gap-2">
-                <button type="button" onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn">Cancel</button>
-                <button type="button" onclick="state.rmPromoDialogOpen=false; state.rmPromotedNotice='Promoted uds-core 0.31.2 to ${selCh.name} (Audit event recorded).'; renderConduitModals(); renderMainWorkspace();" class="so-btn so-btn-emerald">Approve &amp; Promote Release</button>
+                <button type="button" data-onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn">Cancel</button>
+                <button type="button" data-onclick="state.rmPromoDialogOpen=false; state.rmPromotedNotice='Promoted uds-core 0.31.2 to ${selCh.name} (Audit event recorded).'; renderConduitModals(); renderMainWorkspace();" class="so-btn so-btn-emerald">Approve &amp; Promote Release</button>
               </div>
             </div>
           </div>
@@ -5659,22 +5660,22 @@ export function mountOperator(host, options) {
           s.subtitle.toLowerCase().includes(q),
       );
       out += `
-          <div onclick="if(event.target===this){state.cmdOmnibarOpen=false;renderConduitModals();}"
+          <div data-onclick="if(event.target===this){state.cmdOmnibarOpen=false;renderConduitModals();}"
                class="so-modal-backdrop"
                style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:68px 16px 24px;">
             <div role="dialog" aria-modal="true" aria-label="View switcher" class="so-panel so-modal-card w-full max-w-[540px] overflow-hidden shadow-2xl" style="border-color:#2a3a4a;">
               <div class="p-2.5 border-b border-[#1e262d]">
                 <input id="conduit-omnibar-inp" type="search" value="${state.cmdOmnibarQuery}"
                   placeholder="Jump across all ${SCREENS.length} views"
-                  onkeydown="handleOmnibarKey(event)"
-                  oninput="state.cmdOmnibarQuery=this.value; state.cmdSelectedIdx=0; renderConduitModals(); document.getElementById('conduit-omnibar-inp').focus();"
+                  data-onkeydown="handleOmnibarKey(event)"
+                  data-oninput="state.cmdOmnibarQuery=this.value; state.cmdSelectedIdx=0; renderConduitModals(); document.getElementById('conduit-omnibar-inp').focus();"
                   class="so-input w-full !h-[32px]" />
               </div>
               <div class="max-h-[340px] overflow-y-auto p-1.5 space-y-0.5">
                 ${hits
                   .map(
                     (h, idx) => `
-                  <button type="button" onclick="state.cmdOmnibarOpen=false; switchScreen('${h.id}')"
+                  <button type="button" data-onclick="state.cmdOmnibarOpen=false; switchScreen('${h.id}')"
                     class="so-nav-row ${idx === state.cmdSelectedIdx ? "is-active" : ""}">
                     <span class="truncate min-w-0 flex-1"><strong class="code-id text-[10.5px] text-[#596573] mr-2">${String(h.num).padStart(2, "0")}</strong>${h.short}</span>
                     <span class="code-id text-[10.5px] text-[#60a5fa] shrink-0">${h.tabTitle}</span>
@@ -5898,13 +5899,24 @@ export function mountOperator(host, options) {
   window.hideTip = hideTip;
   window.recordAudit = recordAudit;
   window.copyRmRawLog = copyRmRawLog;
+  window.toggleSavedViewPin = (id) => {
+    const view = state.savedViews.find((item) => item.id === id);
+    if (view) view.pinned = !view.pinned;
+    renderApp();
+  };
+  window.removeSavedView = (id) => {
+    state.savedViews = state.savedViews.filter((item) => item.id !== id);
+    renderApp();
+  };
   window.state = state;
+  const removeInlineActions = installInlineActions(document);
   releaseGates.bind(window);
   ontologyGraph.bind(window);
   settings.bind(window);
   settingsDialog.restore();
   renderApp();
   return () => {
+    removeInlineActions();
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("hashchange", onHash);
   };
