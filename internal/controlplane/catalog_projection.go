@@ -13,9 +13,51 @@ var (
 	errInvalidProductCursor     = errors.New("invalid Product cursor")
 )
 
+const (
+	SpokeLive        = "live"
+	SpokeStale       = "stale"
+	SpokeUnreachable = "unreachable"
+	// SpokeLivenessFreshFor is three default spoke poll intervals. One missed
+	// poll stays live. A report older than this is stale. No report, no agent,
+	// or no observation time is unreachable and is still returned.
+	SpokeLivenessFreshFor = 45 * time.Second
+)
+
+type SpokeLiveness struct {
+	AgentID    string    `json:"agentId"`
+	State      string    `json:"state"`
+	ObservedAt time.Time `json:"observedAt,omitempty"`
+}
+
+func spokeLiveness(report *EnvironmentReport, now time.Time) SpokeLiveness {
+	if report == nil || report.AgentID == "" || report.ObservedAt.IsZero() {
+		agentID := ""
+		if report != nil {
+			agentID = report.AgentID
+		}
+		return SpokeLiveness{AgentID: agentID, State: SpokeUnreachable}
+	}
+	age := now.Sub(report.ObservedAt)
+	if age < 0 {
+		age = 0
+	}
+	state := SpokeStale
+	if age <= SpokeLivenessFreshFor {
+		state = SpokeLive
+	}
+	return SpokeLiveness{AgentID: report.AgentID, State: state, ObservedAt: report.ObservedAt.UTC()}
+}
+
+func attachSpokeLiveness(records []EnvironmentCatalogRecord, now time.Time) {
+	for index := range records {
+		records[index].Spoke = spokeLiveness(records[index].Reported, now)
+	}
+}
+
 type EnvironmentCatalogRecord struct {
 	Environment Environment        `json:"environment"`
 	Reported    *EnvironmentReport `json:"reported,omitempty"`
+	Spoke       SpokeLiveness      `json:"spoke"`
 }
 
 type ProductCatalogRecord struct {
@@ -46,6 +88,7 @@ type EnvironmentReportSummary struct {
 type EnvironmentCatalogSummary struct {
 	Environment Environment               `json:"environment"`
 	Reported    *EnvironmentReportSummary `json:"reported,omitempty"`
+	Spoke       SpokeLiveness             `json:"spoke"`
 }
 
 type EnvironmentCatalogSummaryPage struct {
@@ -202,7 +245,7 @@ func paginateProductCatalog(records []ProductCatalogRecord, search, cursor strin
 func summarizeEnvironmentCatalog(page EnvironmentCatalogPage) EnvironmentCatalogSummaryPage {
 	summaries := make([]EnvironmentCatalogSummary, 0, len(page.Environments))
 	for _, record := range page.Environments {
-		summary := EnvironmentCatalogSummary{Environment: record.Environment}
+		summary := EnvironmentCatalogSummary{Environment: record.Environment, Spoke: record.Spoke}
 		if record.Reported != nil {
 			summary.Reported = &EnvironmentReportSummary{
 				Environment: record.Reported.Environment, AgentID: record.Reported.AgentID,

@@ -594,6 +594,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
+		attachSpokeLiveness(page.Environments, time.Now().UTC())
 		if view == "summary" {
 			writeJSON(w, http.StatusOK, summarizeEnvironmentCatalog(page))
 			return
@@ -613,6 +614,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		for _, record := range records {
 			if record.Environment.ID == environment {
+				record.Spoke = spokeLiveness(record.Reported, time.Now().UTC())
 				writeJSON(w, http.StatusOK, record)
 				return
 			}
