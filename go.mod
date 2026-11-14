@@ -20,7 +20,7 @@ require (
 	// validator are used; execution and field resolution stay in
 	// internal/apollographql/application, which is where Conduit's own rules are.
 	github.com/vektah/gqlparser/v2 v2.5.64
-	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 )
 
 require (
@@ -32,7 +32,10 @@ require (
 	go.temporal.io/sdk v1.51.0
 )
 
-require gopkg.in/yaml.v3 v3.0.1
+require (
+	go.yaml.in/yaml/v3 v3.0.5
+	gopkg.in/yaml.v3 v3.0.1
+)
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
