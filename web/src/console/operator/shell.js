@@ -86,7 +86,10 @@ export function kpisFromHub(hub) {
       const pending = rows.filter((r) =>
         /pending|open|awaiting|review|proposed/.test(lower(r?.status)),
       ).length;
-      const drift = (installations || []).filter(isDrifted).length;
+      // Drift needs a report to differ from; never-reported is not drift.
+      const drift = (installations || []).filter(
+        (row) => row?.observedVersion && isDrifted(row),
+      ).length;
       return {
         value: pending,
         sub: `${drift} drift`,

@@ -9,7 +9,7 @@
 #   uds deploy uds-bundle-conduit-amd64-0.18.0.tar.zst --confirm
 #
 # `uds create` reads this file because it sits next to zarf.yaml. The bundle
-# pulls nothing from a public registry itself. It is not an air-gap artifact:
+# pulls nothing from a public registry itself. It is not an offline-bundle artifact:
 # the slim-dev bundle it pairs with is fetched from a public registry, and
 # the Conduit images are whatever `zarf package create` put in the package.
 kind: UDSBundle

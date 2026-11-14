@@ -58,6 +58,14 @@ describe("kpisFromHub", () => {
     for (const x of k) expect(["ok", "info", "warn", "bad"]).toContain(x.tone);
   });
 
+  it("does not count a never-reported installation as drift", () => {
+    const unreported = {
+      ...full,
+      installations: [{ desiredVersion: "0.1.0", observedVersion: "" }],
+    };
+    expect(byId(kpisFromHub(unreported), "changes").sub).toBe("0 drift");
+  });
+
   it("counts drift", () => {
     expect(byId(kpisFromHub(full), "changes").sub).toBe("1 drift");
     const none = {

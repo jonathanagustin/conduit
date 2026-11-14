@@ -35,14 +35,14 @@ a colour or a pixel off them.
 ## 1. Palette
 
 The console renders **light only**. It ships no `.bp6-dark` /
-`[data-bp-color-scheme=dark]` scope, so Blueprint's light `:root` token values
+`[data-bp-color-scheme=dark]` scope, so the UI library's light `:root` token values
 are the ones in effect everywhere. This is a deliberate divergence from
 Foundry's dark-capable surfaces and from the 2020 captures' dark tables: the
 operator console is a daylight tool and carries one theme.
 
 The rulebook's light palette and the console's use of it:
 
-| Role | Rulebook value | Blueprint token (verified in installed `blueprint.css`) | Where the console uses it |
+| Role | Rulebook value | UI-library token (verified in installed `blueprint.css`) | Where the console uses it |
 | --- | --- | --- | --- |
 | Primary text | `#1c2127` | `--bp-palette-dark-gray-1` (exact) / `--bp-typography-color-default-*` (computed) | header text `app-header.css:8`; frame text `app-frame.css:6`; skip-link bg `app-frame.css:17` |
 | Muted text / icons | `#5f6b7c` | `--bp-typography-color-muted` / `--bp-intent-default-rest` (both exact) | 15 sites, e.g. `app-header.css:45`, `object-header.css:26`, `fleet-page.css:33`, `changes.css:19` |
@@ -56,21 +56,21 @@ The rulebook's light palette and the console's use of it:
 | Rail glyph (rest) | `#abb3bf` | `--bp-palette-gray-4` (exact) | `navigation-rail.css:24` |
 | Focus ring | `#8abbff` | `--bp-palette-blue-5` (exact) | rail focus `navigation-rail.css:44` |
 
-Every value above now routes through its Blueprint variable with the hex as
+Every value above now routes through its UI-library variable with the hex as
 fallback (see section 9). The tokens chosen are ones whose value **equals** the
-hex in the installed toolkit and is **not** recomputed by Blueprint 6's
+hex in the installed toolkit and is **not** recomputed by UI library v6's
 `@supports (color: oklch(...))` block -- so the wrapped value is bit-identical to
 the literal it replaced. Section 9 records why that qualifier matters.
 
-### Bespoke values (no exact Blueprint token -- left as literals)
+### Bespoke values (no exact UI-library token -- left as literals)
 
 These are correct as bespoke and are noted so the reconstruction does not
 "tidy" them into the wrong token:
 
 - **Standard hairline `rgba(17, 20, 24, .15)`** -- the rulebook table pairs this
   with `--bp-surface-border-color-default`, but that token's value in the
-  installed Blueprint 6 is `#5f6b7c1f` (a translucent slate), *not*
-  `rgba(17,20,24,.15)` (translucent near-black, a Blueprint 5-era value). They
+  installed UI library v6 is `#5f6b7c1f` (a translucent slate), *not*
+  `rgba(17,20,24,.15)` (translucent near-black, a UI library v5-era value). They
   are different colours. The console already wraps this literal in
   `var(--bp-surface-border-color-default, rgba(17,20,24,.15))` at
   `app-header.css:11,17`, `object-header.css:11`, `summary-bar.css:8`,
@@ -79,7 +79,7 @@ These are correct as bespoke and are noted so the reconstruction does not
   untouched; it is called out because the rulebook's own table is the trap the
   reconstruction must not copy.
 - **Primary-tint row selection `rgba(45, 114, 210, .15)`** -- primary at 15%
-  alpha. Blueprint's nearest surface layer token is `#2d72d20d` (~5% alpha), a
+  alpha. the UI library's nearest surface layer token is `#2d72d20d` (~5% alpha), a
   different value, so this stays bespoke: `exports.css:6`, `risk.css:6`,
   `imports.css:6`, `notifications.css:46`.
 - **`rgba(45,114,210,.10)`** selected-transition fill `release-channel-graph.css:42`;
@@ -95,10 +95,10 @@ Rulebook: 14px/400 body; 12px/400-600 metadata and table headings (the most
 common size); 16px/600 local panel/section titles; 20-28px/600 genuine page
 headings, sparingly; 600 is the emphasis weight; muted colour for column labels.
 
-The console inherits Source Sans / body sizing from Blueprint and sets type only
+The console inherits Source Sans / body sizing from the UI library and sets type only
 where it owns a title or a label:
 
-- Body/base type is Blueprint's; no console rule overrides the 14px/400 base.
+- Body/base type is the UI library's; no console rule overrides the 14px/400 base.
 - **Module title 16px/600** `app-header.css:40-41` -- matched to the rulebook
   this PR (was 14px; see section 10).
 - **Section titles 16px/600** on panels: `products.css:9,25` (`h2` 16px),
@@ -116,7 +116,7 @@ where it owns a title or a label:
 
 ## 3. Spacing
 
-Rulebook: Blueprint's 4px control rhythm coexists with Foundry's 5/10/15/20
+Rulebook: the UI library's 4px control rhythm coexists with Foundry's 5/10/15/20
 decimal rhythm; do **not** normalise measured 5/10/15 to the nearest 8.
 
 The console runs a mostly-4px/16px ladder with 10/12 decimal accents, which is
@@ -182,12 +182,12 @@ semibold; simple row ~40px; rich two-line row 51-60px; left-align by default;
 names truncate with `min-width:0`; 1px hairlines; do not force every list into a
 `<table>`.
 
-The console composes Blueprint `HTMLTable` on every index and detail list (13
+The console composes UI-library `HTMLTable` on every index and detail list (13
 call sites, `git grep HTMLTable web/src/features`). It sets column behaviour and
-truncation but **not** row heights -- those are Blueprint `HTMLTable` defaults,
+truncation but **not** row heights -- those are UI-library `HTMLTable` defaults,
 so the rulebook's 30/40/51-60px targets are inherited, not console-controlled,
 and are marked Gap (unmeasured) in section 10 until the reconstruction measures
-them against Blueprint's rendered output.
+them against the UI library's rendered output.
 
 Console-owned table decisions that *are* faithful:
 
@@ -245,7 +245,7 @@ divergence and the primary subject of the sequenced reconstruction.
 
 ## 9. Token alignment record (this PR, deliverable 2)
 
-Scope: `web/src/**/*.css`. Every bare hex that **equals a specific Blueprint
+Scope: `web/src/**/*.css`. Every bare hex that **equals a specific UI-library
 token's value in the installed `@blueprintjs/core@6.18.0` `blueprint.css`** was
 routed through that token with the hex as fallback, matching the
 `var(--bp-…, #hex)` form already at `app-header.css:8-9`. No rendered colour
@@ -260,7 +260,7 @@ primary-tint selection (`rgba(45,114,210,.15)` != the `#2d72d20d` layer token) -
 both left bespoke (section 1).
 
 **Why palette / non-recomputed tokens, not the semantic surface tokens.**
-Blueprint 6 defines a second `:root` inside `@supports (color: oklch(...))` that
+UI library v6 defines a second `:root` inside `@supports (color: oklch(...))` that
 **recomputes** `--bp-surface-background-color-default-rest`,
 `--bp-typography-color-default-*`, and the border tokens as `oklch(from ...)`
 expressions. In a modern browser those resolve to *near*-white / *near*-`#1c2127`,
@@ -271,7 +271,7 @@ absent from the oklch block -- verified by grepping lines 211-232 of
 `blueprint.css`. This keeps the change bit-exact while still themeable.
 
 **Counts.** 11 truly bare hexes converted; 20 dead-variable wrappers repaired
-(sites that wrapped a hex in a **non-existent** Blueprint variable such as
+(sites that wrapped a hex in a **non-existent** UI-library variable such as
 `--bp-border-color`, `--bp-text-color-muted`, `--pt-intent-danger`, so they
 always rendered the fallback -- now pointed at a real, equal-value token); 6
 literal families left bespoke (the `rgba(...)` tints above). Left untouched:
@@ -292,7 +292,7 @@ deliberate console choices, marked as such.
 
 Verdicts: **Aligned** = matches the rulebook; **Divergent** = differs by a
 concrete, closeable amount; **Gap** = the rulebook names a value the console does
-not set (often inherited from Blueprint) and the reconstruction must measure or
+not set (often inherited from the UI library) and the reconstruction must measure or
 introduce it.
 
 ### Shared chrome
@@ -319,7 +319,7 @@ introduce it.
 | ObjectHeader | padding | 12px 16px `object-header.css:9` | 10px around 30px control (~50px subheader) | Divergent |
 | ObjectHeader | title | 18px/600/23 `object-header.css:34` | 16px panel / 20-28 page | Divergent (18 between) |
 | ObjectHeader | kind line | 11px uppercase `object-header.css:27` | 12px metadata | Divergent (11 vs 12) |
-| Shared table | row heights | not set; Blueprint `HTMLTable` default (13 call sites) | header 30-34 / simple ~40 / rich 51-60 | Gap (inherited, unmeasured) |
+| Shared table | row heights | not set; UI-library `HTMLTable` default (13 call sites) | header 30-34 / simple ~40 / rich 51-60 | Gap (inherited, unmeasured) |
 | Shared table | column align | left default; wrap identifiers `notifications.css:38,53` | left-align default; truncate names | Aligned |
 | IndexPagination | control band | 12px 16px `index-pagination.css:3,15` | 20-24 region framing / decimal | Divergent |
 | Dialog | modal surface | none (`grep Dialog` empty) | 550x600, hdr/body/ftr, ~20px body | Gap (deliberate: inline panels, `products.css:16-18`) |
@@ -334,13 +334,13 @@ heights fold into the shared-table Gap above and are not repeated per screen.
 | --- | --- | --- | --- | --- |
 | fleet | browser / worklist | `--console-rail:240px` `fleet-page.css:6`; grid `var(--console-rail) minmax(0,1fr)` `:46`; controls/pagination 10px 20px `:19,68` | rail+detail beside fluid work area; 20-24 gutters | Aligned (reconstructed: facet rail re-seated as the 240px fixed rail beside the fluid table; no docked detail -- the fleet route exercises no selection-detail, so none was invented) |
 | environments | browser / worklist | `--console-rail:260px` `environments.css:7`; Overview grid `var(--console-rail) minmax(0,1fr)` `:18-21`; rail collapses ≤900px `:48-50` | split summary/filter pane + dense table (2020 corroboration) | Aligned (reconstructed: the Overview's responsive summary grid is now a fixed 260px summary pane beside the dense Entities table; the 767px card reflow is kept) |
-| products | browser / worklist | `--console-rail:260px` `products.css:5`; browser grid `:13-16`; pipeline/assessment are Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `:32` | fixed resource summary + release/change feed + dense install table; 4px card corners | Aligned (reconstructed: fixed resource-summary pane beside the release/change feed and install table; squared `<section>` divs replaced by real Blueprint Sections, so 4px corners come from the primitive) |
-| plans | browser / worklist | detail 16px `plans.css:12`; timeline as `<ol>` `:29-36`; diagnostics panel a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `PlanDetailPage.tsx` | list -> detail; keep record evidence in context | Aligned (reconstructed: the squared `<details>` panel is a real Blueprint Section now, so its 4px corner comes from the primitive, not a radius rule on a raw element; native disclosure kept via the Section's collapsible) |
+| products | browser / worklist | `--console-rail:260px` `products.css:5`; browser grid `:13-16`; pipeline/assessment are UI-library `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `:32` | fixed resource summary + release/change feed + dense install table; 4px card corners | Aligned (reconstructed: fixed resource-summary pane beside the release/change feed and install table; squared `<section>` divs replaced by real UI-library Sections, so 4px corners come from the primitive) |
+| plans | browser / worklist | detail 16px `plans.css:12`; timeline as `<ol>` `:29-36`; diagnostics panel a UI-library `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `PlanDetailPage.tsx` | list -> detail; keep record evidence in context | Aligned (reconstructed: the squared `<details>` panel is a real UI-library Section now, so its 4px corner comes from the primitive, not a radius rule on a raw element; native disclosure kept via the Section's collapsible) |
 | change-requests | review queue | page 16px `changes.css:2`; decision/reopen actions `ChangeRequestDetailPage.tsx` | review queue; one primary action per group | Aligned (reconstructed: one solid fill per group -- Approve is the single principal action; Reject keeps its danger meaning but is outlined, Cancel is minimal, Reopen outlined) |
-| promotions | review queue | card 12px `promotions.css:2`; pipeline/transition panels are Blueprint `Section`/`SectionCard` | transition review; constraint evidence in context | Aligned |
-| exports | review queue (row->inline detail) | selectable rows `exports.css:1-7`; inline detail a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `ExportPage.tsx`; meta grid `minmax(256px,1fr)` `:18` | master/detail (never equal width); ~20px body; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real Blueprint Section now, so its 4px corner comes from the primitive, not a border/radius rule on raw HTML; 16px gap and 256px column min kept exact; inline detail is the contextual-detail-panel family per the interiors taxonomy, kept nonmodal, not converted to a docked pane) |
-| imports | review queue (row->inline detail) | selectable rows `imports.css:1-7`; inline detail a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `ImportPage.tsx`; danger text `:30` | master/detail; status colour = meaning; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real Blueprint Section now, so its 4px corner comes from the primitive; inline detail kept nonmodal) |
-| risk | review queue (row->inline detail) | selectable rows `risk.css:1-7`; inline detail a Blueprint `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `RiskPage.tsx`; meta `minmax(256px,1fr)` `:14` | master/detail; facet/severity in context; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real Blueprint Section now, so its 4px corner comes from the primitive; inline detail kept nonmodal) |
+| promotions | review queue | card 12px `promotions.css:2`; pipeline/transition panels are UI-library `Section`/`SectionCard` | transition review; constraint evidence in context | Aligned |
+| exports | review queue (row->inline detail) | selectable rows `exports.css:1-7`; inline detail a UI-library `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `ExportPage.tsx`; meta grid `minmax(256px,1fr)` `:18` | master/detail (never equal width); ~20px body; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real UI-library Section now, so its 4px corner comes from the primitive, not a border/radius rule on raw HTML; 16px gap and 256px column min kept exact; inline detail is the contextual-detail-panel family per the interiors taxonomy, kept nonmodal, not converted to a docked pane) |
+| imports | review queue (row->inline detail) | selectable rows `imports.css:1-7`; inline detail a UI-library `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `ImportPage.tsx`; danger text `:30` | master/detail; status colour = meaning; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real UI-library Section now, so its 4px corner comes from the primitive; inline detail kept nonmodal) |
+| risk | review queue (row->inline detail) | selectable rows `risk.css:1-7`; inline detail a UI-library `Section`/`SectionCard` (4px `--bp-surface-border-radius`) `RiskPage.tsx`; meta `minmax(256px,1fr)` `:14` | master/detail; facet/severity in context; 4px card corners | Aligned (reconstructed: the squared `<section>` detail is a real UI-library Section now, so its 4px corner comes from the primitive; inline detail kept nonmodal) |
 | notifications | review queue (row->inline detail) | fixed table tracks `notifications.css:7,12,17,29,34`; fieldset 4px corner `:87`; preference grid `:58-62` | shared column tracks; truncate names / keep coordinates | Aligned (reconstructed: preference `__meta`/`__types` grids on the decimal px ladder; fieldset grouping takes the 4px surface corner; the aligned table tracks are left in rem) |
 | teams | browser / worklist | coordinate 12px mono muted `teams.css:2-4`; meta grid `minmax(192px,1fr)` `:25-29` | list -> detail; muted identifiers | Aligned (reconstructed: coordinate on the 12px metadata type-scale; spacing on the decimal px ladder -- 24px section band, 8px cluster gap, 16px meta gap) |
 | overview | dashboard | page 16px `overview.css:1`; grid `auto-fill minmax(280px,1fr)` `:2-7`; clear=success `:14-16` | dashboard panel grid; affirmative state colour | Aligned |
@@ -359,14 +359,14 @@ and this table is its spec.
 Divergences (2) and (3) are now closed across the worklist and review-queue
 screens: the rem spacing ladder on exports, imports, risk, notifications and
 teams is reconciled onto the decimal px ladder, and the squared detail panels
-now take the 4px surface corner by becoming real Blueprint `Section`s rather than
+now take the 4px surface corner by becoming real UI-library `Section`s rather than
 by a radius rule on a raw element -- the plans diagnostics `<details>`, the
 exports/imports/risk inline detail panels, with the notifications type fieldset
 taking the same 4px surface corner. The interiors taxonomy also resolves the
 tentative "inline detail vs docked pane" note against exports/imports/risk: the
 inline row->detail is the contextual-detail-panel family (nonmodal, preserves
 the list context), a legitimate interior, so the primitive was swapped to a real
-Blueprint `Section` while the family was kept nonmodal, not converted to a docked
+UI-library `Section` while the family was kept nonmodal, not converted to a docked
 pane.
 
 Divergence (1) is now closed for the rail itself: the NavigationRail is the

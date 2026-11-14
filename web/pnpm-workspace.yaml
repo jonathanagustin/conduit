@@ -1,0 +1,2 @@
+# Keep the dependency quarantine explicit across package-manager upgrades.
+minimumReleaseAge: 1440

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Proves the design-token gate actually fails on drift.
 #
-# The gate compares the console's Blueprint tokens against the values a live
+# The gate compares the console's UI-library tokens against the values a live
 # Foundry tenant serves. It currently reports 205 of 205 matching, which is the
 # answer that makes a gate look unnecessary -- so this plants each kind of drift
 # and confirms it is rejected.
@@ -68,7 +68,7 @@ if node "${gate}" >/dev/null 2>&1; then
 fi
 echo "  rejects: a colour that differs by one hex digit"
 
-# --- a token the installed Blueprint does not define ------------------------
+# --- a token the installed UI library does not define ------------------------
 restore
 plant "--bp-invented-token" "#000000"
 if node "${gate}" >/dev/null 2>&1; then

@@ -103,7 +103,7 @@ func TestARealmThatIsNotAnAbsoluteHttpsUrlIsRefused(t *testing.T) {
 }
 
 // https is required whoever the host is, and nothing relaxes it. A deployment
-// may be configured to REACH a registry over http -- an air-gapped mirror
+// may be configured to REACH a registry over http -- a disconnected mirror
 // terminating TLS elsewhere -- but that is not a statement that a credential may
 // be posted in the clear, and there is no parameter here that could be read as
 // one.
@@ -122,7 +122,7 @@ func TestAPlaintextRealmIsAlwaysRefused(t *testing.T) {
 	}
 }
 
-// A registry carrying a port is a normal thing -- a local zot, an air-gapped
+// A registry carrying a port is a normal thing -- a local zot, a disconnected
 // mirror -- and its realm carries the same port.
 func TestAHostWithAPortMatchesOnlyItself(t *testing.T) {
 	if _, err := sameHostOnly.TokenEndpoint("https://mirror.example:5000/token", "mirror.example:5000"); err != nil {

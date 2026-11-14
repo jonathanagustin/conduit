@@ -3,8 +3,8 @@
 // tenant actually serves.
 //
 // The console is a reconstruction of a product nobody here can open. Its
-// palette, intents, type scale, surfaces and shadows come from Blueprint, and
-// the standing assumption has been that installing Blueprint is the same thing
+// palette, intents, type scale, surfaces and shadows come from the UI library, and
+// the standing assumption has been that installing the UI library is the same thing
 // as matching Foundry. That was an assumption, not a measurement: an npm bump
 // could silently restyle every screen away from the product, and every existing
 // gate would stay green, because none of them know what the product looks like.
@@ -17,7 +17,7 @@
 // It compares VALUES, normalized, because the two sides are written by
 // different builds: the tenant's minifier emits `#fff`, `.1s` and `#0000001a`
 // where the npm package emits `#ffffff`, `100ms` and `rgba(0, 0, 0, 0.1)`.
-// Blueprint 6.22 also expresses values through aliases to its own palette.
+// UI library v6.22 also expresses values through aliases to its own palette.
 // Resolve that closed graph first; cycles, undefined references and unsupported
 // var() syntax fail. The captured token set and values remain unchanged.
 // Those are the same colour and the same duration. Treating them as drift would
@@ -25,7 +25,7 @@
 // a week, so the normalizer below folds notation and nothing else. A genuinely
 // different colour still fails.
 //
-// The assistant UI does not render Blueprint. @blueprintjs/core stays a
+// The assistant UI does not render the UI library. @blueprintjs/core stays a
 // devDependency so this comparison can still run: the captured Foundry token
 // file is evidence, and an unnoticed edit to it would otherwise survive every
 // other gate. It is not a claim that the assistant uses these tokens.
@@ -100,16 +100,16 @@ const added = [...installed.keys()].filter((name) => !(name in captured));
 
 if (missing.length) {
   failures.push(
-    `the installed Blueprint is missing ${missing.length} token(s) the tenant serves: ` +
+    `the installed UI library is missing ${missing.length} token(s) the tenant serves: ` +
       `${missing.slice(0, 6).join(", ")}${missing.length > 6 ? ", ..." : ""}`,
   );
 }
 if (added.length) {
-  // Not automatically wrong -- a newer Blueprint may add tokens -- but it means
+  // Not automatically wrong -- a newer UI-library version may add tokens -- but it means
   // the console can style something the captured product had no value for, so
   // it is a deliberate decision rather than a silent one.
   failures.push(
-    `the installed Blueprint defines ${added.length} token(s) the captured product does not: ` +
+    `the installed UI library defines ${added.length} token(s) the captured product does not: ` +
       `${added.slice(0, 6).join(", ")}${added.length > 6 ? ", ..." : ""}`,
   );
 }
@@ -129,6 +129,6 @@ if (failures.length) {
   process.exit(1);
 }
 console.log(
-  `PASS design tokens: ${Object.keys(captured).length} Blueprint tokens match the values ` +
+  `PASS design tokens: ${Object.keys(captured).length} UI-library tokens match the values ` +
     `${contract.source.batch} ${contract.source.version} serves`,
 );

@@ -208,12 +208,12 @@ this spec no e2e test asserted a rendered timestamp anywhere in the console.
 ## Finding 4 — the console's design tokens are the tenant's, measured
 
 > **Correction.** The first version of this file said "the console is on
-> Blueprint 5". That was wrong, and it was inferred from the bare import path in
+> UI library v5". That was wrong, and it was inferred from the bare import path in
 > `web/src/styles/index.css` rather than read from the installed package.
 > `@blueprintjs/core` is **6.18.0**. The capture and the console are on the same
 > major, which is what makes the comparison below possible at all.
 
-The captured stylesheet defines **205** `--bp-*` tokens. The installed Blueprint
+The captured stylesheet defines **205** `--bp-*` tokens. The installed UI-library
 defines exactly the same 205 — no token in one that is absent from the other —
 and every value matches once minifier notation is folded (`#fff` vs `#ffffff`,
 `.1s` vs `100ms`, `#0000001a` vs `rgba(0, 0, 0, 0.1)`). **Sixteen** of the 205
@@ -225,7 +225,7 @@ holds the captured values, and `scripts/verify-design-tokens.mjs` compares them
 against the installed package on demand:
 
 ```
-PASS design tokens: 205 Blueprint tokens match the values
+PASS design tokens: 205 UI-library tokens match the values
      foundry-frontend-apollo-control-panel 6.533.15 serves
 ```
 
@@ -250,19 +250,19 @@ pre,code{font-family:Source-Code-Pro,Courier New,monospace,blueprint-icons-16}
 italics. Two consequences, both applied:
 
 - **Body text was right, its fallback stack was not.** Foundry ends every family
-  list with `blueprint-icons-16`, as Blueprint's own default does, so an icon
+  list with `blueprint-icons-16`, as the UI library's own default does, so an icon
   glyph rendered as text still resolves. The console's override dropped it. Now
   restored.
 - **Code text was wrong everywhere.** Foundry renders digests, versions and
   identifiers in **Source Code Pro**. The console asked for
   `var(--pt-font-family-monospace)` in five files and
-  `var(--bp-font-family-monospace)` in two — and Blueprint 6 defines *neither*
+  `var(--bp-font-family-monospace)` in two — and UI library v6 defines *neither*
   (the real token is `--bp-typography-family-mono`, whose value is bare
   `monospace`). All seven silently fell through to the browser default, and the
   `, monospace` fallback in each declaration is the only reason the screens
   looked deliberate. The console now self-hosts Source Code Pro and names one
   `--console-font-family-monospace` stack, reproducing the captured rule
-  including its `!important` on `.bp6-monospace-text`, because Blueprint's own
+  including its `!important` on `.bp6-monospace-text`, because the UI library's own
   rule for `code` hard-codes bare `monospace` rather than reading a token —
   which is exactly why Foundry had to override it too.
 

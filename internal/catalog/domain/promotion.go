@@ -355,7 +355,7 @@ func WeekdayDuration(start, end time.Time) time.Duration {
 
 // PromotionIdentity binds the eligibility projection. Lifecycle envelope fields
 // are separately persisted and validated; excluding additive metadata keeps an
-// older client's round-trip of a decision compatible with this identifier.
+// older client's round-trip of a decision working with this identifier.
 func PromotionIdentity(record PromotionRecord) (string, error) {
 	record.RunID, record.PreviousEvaluationID = "", ""
 	record.Lifecycle, record.LifecycleReason, record.ValueTier = "", "", ""

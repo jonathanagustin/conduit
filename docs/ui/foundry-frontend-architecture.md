@@ -42,7 +42,7 @@ a **host/library** split, not a duplication. Compare the two Compass manifests:
 - `packages/foundry-apps/compass/package.json` -- name `@foundry/foundry-app-compass`,
   `"type": "module"`, an `exports` map, a `typecheck` script, a `test` script
   (`tsx --test`), and **no** `build`. Its dependencies are `@foundry/foundry-ui`
-  and a vendored API package; React and Blueprint are `peerDependencies`.
+  and a vendored API package; React and the UI library are `peerDependencies`.
 - `apps/compass/package.json` -- name `compass`, scripts `dev`/`build` that are
   `rspack serve`/`rspack build`, `devDependencies` on `@rspack/*`,
   `css-loader`, `style-loader`, and a dependency on
@@ -123,13 +123,13 @@ builds `foundryReactDll`, `foundryBlueprintIconsDll`, `foundryGraphqlDll`, and
 publishes a `foundry<Name>Dll` global, plus a `DllPlugin` manifest.
 `packages/dll/dllReferences.js` exports `dllReferencePlugins()`, which each app
 spreads into its rspack `plugins` (`apps/compass/rspack.config.js` line 1 of the
-`plugins` array) so React, Blueprint and graphql resolve to those globals rather
+`plugins` array) so React, the UI library and graphql resolve to those globals rather
 than being re-bundled.
 
 The build is deliberately sequential -- `react` -> `{blueprint-icons, graphql}`
 -> `blueprint-core` -- and the file explains why at length: a DLL entry pulls its
 whole dependency graph, so `@blueprintjs/core` would bundle its own private React,
-and at runtime "Blueprint calls a hook against its bundled React whose dispatcher
+and at runtime "the UI library calls a hook against its bundled React whose dispatcher
 is null, and you get the dual-React crash". `vendorAlias()` in
 `dllReferences.js` pins producer and consumers to the same resolved vendor
 directories, because "under pnpm, a lib with peer deps resolves to a different
@@ -154,7 +154,7 @@ Two things are called "shell" and they are not the same:
   and it is 111 lines. It holds a `BODY: Record<string, ReactNode>` map from a
   surface id to an imported module (`files`, `objects`, `ontology`, `releases`,
   `compass`, `control-panel`, `quiver`, `contour`), a `useState` for the active
-  view, a Blueprint `Navbar`, and a sidebar driven by `ALL_APPS`/`PLATFORM_APPS`
+  view, a UI-library `Navbar`, and a sidebar driven by `ALL_APPS`/`PLATFORM_APPS`
   from `@foundry/application-portal-dialog`. Its own comment: "Mirrors Foundry's
   composition root -- the shell owns navigation; feature packages own their
   surfaces."
@@ -265,7 +265,7 @@ that transfers cleanly.
 - **Internal links are `workspace:*`.** e.g. `apps/compass` depends on
   `@foundry/foundry-app-compass: "workspace:*"`. Vendored first-party bytes use
   `link:` (`@palantir/compass-api: "link:../../vendor/npm/@palantir/compass-api"`).
-- **React and Blueprint are exact-pinned everywhere and appear as
+- **React and the UI library are exact-pinned everywhere and appear as
   `peerDependencies` in libraries**: `react: "18.2.0"`,
   `@blueprintjs/core: "5.19.1"`. `packages/components/shell-application` is the
   exception that proves the rule -- it widens to
@@ -309,7 +309,7 @@ primary source.
   script. The presence of `api/conjure/foundry-apollo.conjure.json` in *Conduit*
   says Conjure IR exists as an artifact; it says nothing about Foundry's frontend
   build.
-- **Which Blueprint major the vendor ships.** The DLL build defines
+- **Which UI-library major the vendor ships.** The DLL build defines
   `BLUEPRINT_NAMESPACE = "bp6"` while depending on `@blueprintjs/core: "5.19.1"`,
   citing a capture that observed `bp6` DOM. That is a namespace observation, not a
   version determination, and the two disagree.
@@ -347,7 +347,7 @@ primary source.
 not have.** Foundry's workspace split, its DLL singletons, its per-request entry
 manifest, its `build-each.mjs` sequencing, and its 31-member pnpm workspace all
 exist to make *many independently released applications* share *one* React and
-*one* Blueprint at runtime. Conduit ships one bundle. Adopting the mechanism
+*one* UI library at runtime. Conduit ships one bundle. Adopting the mechanism
 would add a second bundler, a manifest format, a sequenced build, and a class of
 failure whose own author documented it breaking "23 of 34 E2E slices while every
 static gate stayed green" -- and would buy exactly nothing, because there is no

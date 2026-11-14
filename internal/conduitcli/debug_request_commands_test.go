@@ -19,7 +19,7 @@ import (
 	debugdomain "github.com/jonathanagustin/conduit/internal/debugsessions/domain"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
 	"github.com/jonathanagustin/conduit/internal/operator"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func TestDebugRequestCLIUsesCurrentHubAuthorityAndSurvivesRestart(t *testing.T) {

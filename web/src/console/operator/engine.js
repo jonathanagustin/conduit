@@ -13,7 +13,8 @@ import {
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
-import { facetsMarkup } from "./env-facets.js";
+import { facetsMarkup, envDetailMarkup } from "./env-facets.js";
+import { dayTexture, paintDisc } from "./globe-texture.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
 import { createConduitClient } from "@conduit/ontology-client";
@@ -1893,7 +1894,7 @@ export function mountOperator(host, options) {
                 <span class="text-[11.5px] font-medium text-[#5c9ce6] border-b-2 border-[#5c9ce6] pb-0.5">Topology</span>
               </div>
 
-              <!-- High-Density NASA Black Marble 3D Orthographic Globe (Matched 1:1 to Conduit f_01_18_cc) -->
+              <!-- Orthographic fleet globe: night globe in dark theme, daytime Blue Marble in light -->
               <div id="conduit-globe-wrap" class="relative flex-1 min-h-[260px] w-full flex items-center justify-center overflow-hidden cursor-grab active:cursor-grabbing">
                 <canvas id="conduit-globe-canvas" class="max-w-full"></canvas>
                 <div data-onclick="switchScreen('s14-env-detail')" class="absolute left-3.5 bottom-3 px-2.5 py-1 rounded-[5px] bg-[#11171d]/90 border border-[#242f3b] text-[11px] text-[#dce4ee] flex items-center gap-1.5 cursor-pointer hover:border-[#3b82f6] tnum">
@@ -2065,6 +2066,15 @@ export function mountOperator(host, options) {
 
     const DEG2RAD = Math.PI / 180;
     const baseR = Math.min(width, height) * 0.465;
+    // Light theme draws the daytime Blue Marble; dark keeps the night globe.
+    const light =
+      document.querySelector(".operator-root")?.getAttribute("data-theme") ===
+      "light";
+    const day = light
+      ? dayTexture(() => {
+          if (document.getElementById("conduit-globe-canvas")) initConduitGlobe();
+        })
+      : null;
 
     function project(coord) {
       const lam = (coord[0] + conduitGlobeRot[0]) * DEG2RAD;
@@ -2327,30 +2337,43 @@ export function mountOperator(host, options) {
       ctx.ellipse(cx, cy, baseR * 1.28, baseR * 1.28, 0, 0, Math.PI * 2);
       ctx.fill();
 
-      // 2. Deep bathymetric ocean sphere
-      const ocean = ctx.createRadialGradient(
-        cx - baseR * 0.22,
-        cy - baseR * 0.22,
-        baseR * 0.08,
-        cx,
-        cy,
-        baseR,
-      );
-      ocean.addColorStop(0, "#0e2b4a");
-      ocean.addColorStop(0.62, "#07182c");
-      ocean.addColorStop(1, "#040c18");
-      ctx.fillStyle = ocean;
-      ctx.beginPath();
-      ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
-      ctx.fill();
+      if (day) {
+        drawDayDisc(cx, cy);
+      } else {
+        drawNightDisc(cx, cy);
+      }
 
-      // Subtle graticules clipped inside sphere
+      // 5. Spoke relay great-circle links
       ctx.save();
       ctx.beginPath();
       ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
       ctx.clip();
+      drawCorridors();
+      ctx.restore();
+      drawRimAndPins();
+    }
 
-      ctx.strokeStyle = "rgba(76, 144, 240, 0.08)";
+    function drawDayDisc(cx, cy) {
+      const size = Math.max(2, Math.round(baseR * 2 * dpr));
+      const off = document.createElement("canvas");
+      off.width = size;
+      off.height = size;
+      const g = off.getContext("2d");
+      if (!g) return;
+      const img = g.createImageData(size, size);
+      paintDisc(img.data, size, day, conduitGlobeRot);
+      g.putImageData(img, 0, 0);
+      ctx.drawImage(off, cx - baseR, cy - baseR, baseR * 2, baseR * 2);
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
+      ctx.clip();
+      drawGraticules("rgba(255, 255, 255, 0.14)");
+      ctx.restore();
+    }
+
+    function drawGraticules(color) {
+      ctx.strokeStyle = color;
       ctx.lineWidth = 0.6;
       for (let lat = -45; lat <= 75; lat += 20) {
         ctx.beginPath();
@@ -2380,6 +2403,33 @@ export function mountOperator(host, options) {
         }
         ctx.stroke();
       }
+    }
+
+    function drawNightDisc(cx, cy) {
+      // 2. Deep bathymetric ocean sphere
+      const ocean = ctx.createRadialGradient(
+        cx - baseR * 0.22,
+        cy - baseR * 0.22,
+        baseR * 0.08,
+        cx,
+        cy,
+        baseR,
+      );
+      ocean.addColorStop(0, "#0e2b4a");
+      ocean.addColorStop(0.62, "#07182c");
+      ocean.addColorStop(1, "#040c18");
+      ctx.fillStyle = ocean;
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Subtle graticules clipped inside sphere
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(cx, cy, baseR, baseR, 0, 0, Math.PI * 2);
+      ctx.clip();
+
+      drawGraticules("rgba(76, 144, 240, 0.08)");
 
       // 3. Dark satellite continents
       ctx.fillStyle = "#08111c";
@@ -2401,7 +2451,7 @@ export function mountOperator(host, options) {
         ctx.stroke();
       });
 
-      // 4. Golden NASA Black Marble city-light clusters
+      // 4. Golden city-light clusters
       CONDUIT_NIGHT_LIGHTS.forEach((c) => {
         if (
           geoDist([c[0], c[1]], [-conduitGlobeRot[0], -conduitGlobeRot[1]]) <
@@ -2446,7 +2496,10 @@ export function mountOperator(host, options) {
         }
       });
 
-      // 5. Spoke relay great-circle links
+      ctx.restore();
+    }
+
+    function drawCorridors() {
       corridors.forEach((cor) => {
         const pA = project([cor[0], cor[1]]);
         const pB = project([cor[2], cor[3]]);
@@ -2467,9 +2520,11 @@ export function mountOperator(host, options) {
           ctx.restore();
         }
       });
+    }
 
-      ctx.restore();
-
+    function drawRimAndPins() {
+      const cx = width / 2,
+        cy = height / 2 + 4;
       // Crisp atmospheric rim outline
       ctx.strokeStyle = "rgba(96, 165, 250, 0.35)";
       ctx.lineWidth = 1.1;
@@ -2548,6 +2603,21 @@ export function mountOperator(host, options) {
         });
       });
       window._conduitGlobeRO.observe(wrap);
+    }
+
+    // Redraw with the other texture when the theme flips.
+    if (window._conduitGlobeMO) window._conduitGlobeMO.disconnect();
+    // The operator root may not exist yet on first paint, so watch the body.
+    const themeRoot = document.body;
+    if (themeRoot && typeof MutationObserver !== "undefined") {
+      window._conduitGlobeMO = new MutationObserver(() => {
+        if (document.getElementById("conduit-globe-canvas")) initConduitGlobe();
+      });
+      window._conduitGlobeMO.observe(themeRoot, {
+        attributes: true,
+        attributeFilter: ["data-theme"],
+        subtree: true,
+      });
     }
 
     let dragging = false,
@@ -5784,6 +5854,15 @@ export function mountOperator(host, options) {
       "flt-environments": (node) => {
         const selected = state.envFacets || (state.envFacets = {});
         const paint = () => {
+          if (state.envDetailId) {
+            const row = (state.hub?.environments || []).find(
+              (item) => item?.environment?.id === state.envDetailId,
+            );
+            node.innerHTML = envDetailMarkup(row, state.hub?.installations, {
+              tab: state.envDetailTab,
+            });
+            return;
+          }
           node.innerHTML = facetsMarkup(state.hub?.environments, selected, {
             note: state.hub?.environmentsNote || "",
           });
@@ -5791,6 +5870,24 @@ export function mountOperator(host, options) {
         paint();
         node.onclick = (event) => {
           const target = event.target instanceof Element ? event.target : null;
+          const open = target?.closest("[data-env-open]");
+          if (open) {
+            state.envDetailId = open.getAttribute("data-env-open");
+            state.envDetailTab = "state";
+            paint();
+            return;
+          }
+          if (target?.closest("[data-env-back]")) {
+            state.envDetailId = "";
+            paint();
+            return;
+          }
+          const envTab = target?.closest("[data-env-tab]");
+          if (envTab) {
+            state.envDetailTab = envTab.getAttribute("data-env-tab");
+            paint();
+            return;
+          }
           if (target?.closest("[data-facet-clear]")) {
             for (const key of Object.keys(selected)) delete selected[key];
             paint();

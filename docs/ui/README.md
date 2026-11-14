@@ -1,7 +1,7 @@
 # Console documentation
 
 The operator UI served from `/console/` is the local packaging assistant
-documented in `web/README.md`. The Blueprint screens this directory describes
+documented in `web/README.md`. The UI-library screens this directory describes
 (fleet, plans, products, promotions, change requests, notifications, and the
 rest) are no longer rendered. The notes below stay as the evidence record of
 that console. The tenant bootstrap contract is still in force.
@@ -18,6 +18,7 @@ The living UI contract is intentionally small:
   particular what each of its counts is over -- the one thing about a facet that
   cannot be inferred from looking at it.
 - `console-navigation.md` names the six workbench areas and the older hashes that open the same tabs.
+- `third-party-assets.md` credits the bundled globe imagery.
 
 The files under `evidence/` and the dated inventories in this directory are
 bounded evidence records. They can support only the observation and provenance

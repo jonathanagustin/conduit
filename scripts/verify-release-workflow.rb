@@ -12,7 +12,7 @@
 #      gate never authorizes a release; an automatic trigger on either file
 #      would overturn both silently.
 #   2. Publication cannot start from a non-tag ref. platform-images.yml gates
-#      its charts, runtime source, air-gap packages and CLI on the ref being a
+#      its charts, runtime source, offline-bundle packages and CLI on the ref being a
 #      tag, and does not gate the image push, so a branch dispatch published a
 #      fraction of a release and reported success (#196). The preflight job that
 #      closes that is only a guard while every other job still needs it, which
