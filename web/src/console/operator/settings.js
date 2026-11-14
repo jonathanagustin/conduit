@@ -256,6 +256,32 @@ export function createSettings(ctx) {
       state.orgGrantsLive = false;
     }
     try {
+      const body = await readJSON("/v1/approval-policies");
+      state.approvalPolicies = Array.isArray(body.approvalPolicies)
+        ? body.approvalPolicies
+        : [];
+      state.approvalPoliciesLive = true;
+    } catch {
+      state.approvalPolicies = [];
+      state.approvalPoliciesLive = false;
+    }
+    try {
+      const ready = await readJSON("/health/ready");
+      state.hubReady = ready?.status || "unknown";
+    } catch (error) {
+      state.hubReady = `not ready (${error instanceof Error ? error.message : "no answer"})`;
+    }
+    try {
+      const session = await readJSON("/v1/session");
+      state.sessionApplications = Array.isArray(session.applications)
+        ? session.applications
+        : [];
+      state.sessionTeams = session?.effective?.teams || [];
+      state.sessionDelegated = Boolean(session?.delegated);
+    } catch {
+      state.sessionApplications = [];
+    }
+    try {
       const key = await readJSON("/v1/bundles/signing-key");
       if (key && key.id) {
         state.signingLive = true;
@@ -486,6 +512,8 @@ export function createSettings(ctx) {
     const tabs = [
       ["org", "Organizations"],
       ["teams", "Teams and roles"],
+      ["policies", "Approval policies"],
+      ["health", "Control plane"],
       ["identity", "Identity provider"],
       ["keys", "Signing keys"],
     ];
@@ -526,6 +554,55 @@ export function createSettings(ctx) {
           <thead><tr><th>Team</th><th>Resource</th><th>Roles</th><th>Operations</th></tr></thead>
           <tbody>${grants.map((grant) => `<tr><td>${esc(grant.team)}</td><td class="code-id">${esc(grant.resourceRid)}</td><td>${esc(grant.roles)}</td><td>${esc(grant.operations)}</td></tr>`).join("")}</tbody>
         </table>`;
+    } else if (tab === "policies") {
+      const policies = state.approvalPolicies || [];
+      body = policies.length
+        ? `<div class="flex justify-end mb-2">${note(state.approvalPoliciesLive, "Policy")}</div>
+          <table class="so-table">
+            <thead><tr><th>Policy</th><th>Rule</th><th>State</th><th>Revision</th><th>Updated</th></tr></thead>
+            <tbody>${policies
+              .map(
+                (policy) => `<tr>
+                  <td><div class="font-semibold">${esc(policy.displayName || policy.id)}</div><div class="code-id text-[10.5px]">${esc(policy.id)}</div></td>
+                  <td class="code-id text-[11px] break-all">${esc(policy.expression || "")}</td>
+                  <td><span class="kit-badge kit-badge-${policy.enabled ? "ok" : "info"}">${policy.enabled ? "Enabled" : "Disabled"}</span></td>
+                  <td>${esc(policy.revision ?? "")}</td>
+                  <td class="code-id text-[11px]">${esc(policy.updatedAt || "")}</td>
+                </tr>`,
+              )
+              .join("")}</tbody>
+          </table>
+          <div class="text-[11px] text-[#8b96a5] mt-2">Read only. A policy change goes through the Hub's policy API and its own review.</div>`
+        : `<div class="text-[12px] text-[#8b96a5]">${state.approvalPoliciesLive ? "No approval policy is configured." : "Hub did not return approval policies."}</div>`;
+    } else if (tab === "health") {
+      const apps = state.sessionApplications || [];
+      const ready = state.hubReady || "unknown";
+      body = `
+        <div class="grid gap-3 lg:grid-cols-2">
+          <div class="so-card p-3 space-y-1">
+            <div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5]">Hub readiness</div>
+            <div><span class="kit-badge kit-badge-${ready === "ok" ? "ok" : "warn"}">${esc(ready)}</span></div>
+            <div class="text-[11px] text-[#8b96a5]">From <span class="code-id">/health/ready</span> when this page loaded.</div>
+          </div>
+          <div class="so-card p-3 space-y-1">
+            <div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5]">Your session</div>
+            <div class="text-[12px]">Signed in as <span class="code-id">${esc(state.operatorName || "Operator")}</span>${state.sessionDelegated ? " (delegated)" : ""}</div>
+            <div class="text-[11px] text-[#8b96a5]">Teams: ${esc((state.sessionTeams || []).join(", ") || "none")}</div>
+          </div>
+        </div>
+        <table class="so-table mt-3">
+          <thead><tr><th>Application</th><th>State for this session</th></tr></thead>
+          <tbody>${
+            apps.length
+              ? apps
+                  .map(
+                    (app) =>
+                      `<tr><td class="code-id">${esc(app.id)}</td><td><span class="kit-badge kit-badge-${app.enabled ? "ok" : "info"}">${app.enabled ? "Enabled" : "Off"}</span></td></tr>`,
+                  )
+                  .join("")
+              : `<tr><td colspan="2" class="text-[#8b96a5]">Hub did not return session applications.</td></tr>`
+          }</tbody>
+        </table>`;
     } else if (tab === "identity") {
       const providers = state.identityProviders || [];
       body = state.authEnabled
@@ -564,7 +641,7 @@ export function createSettings(ctx) {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="text-[15px] font-bold text-white">Organization</div>
-            <div class="text-[11.5px] text-[#8b96a5]">Directory, roles, the configured identity provider, and signing keys.</div>
+            <div class="text-[11.5px] text-[#8b96a5]">Directory, roles, approval policies, control-plane health, the identity provider, and signing keys.</div>
           </div>
           ${segmented(tabs, tab, "setOrganizationTab")}
         </div>
