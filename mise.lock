@@ -114,43 +114,44 @@ url = "https://github.com/openai/codex/releases/download/rust-v0.148.0/codex-pac
 url_api = "https://api.github.com/repos/openai/codex/releases/assets/520046611"
 
 [[tools.direnv]]
-version = "2.37.1"
+version = "2.38.2"
 backend = "aqua:direnv/direnv"
 
 [tools.direnv."platforms.linux-arm64"]
-checksum = "sha256:2a9cef8d73521d6a3ec3f2871c4b747b8c4cc038628c1b57a7efa42b393a2d82"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.linux-arm64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610549"
+checksum = "sha256:ec2a32dbe2f19dd085bd9315a1b4ea88b55ec288aa7eabe8723490baf466cb23"
+checksum_source = "mise-versions"
+url = "https://github.com/direnv/direnv/releases/download/v2.38.2/direnv.linux-arm64"
+url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/627455481"
 
 [tools.direnv."platforms.linux-arm64-musl"]
-checksum = "sha256:2a9cef8d73521d6a3ec3f2871c4b747b8c4cc038628c1b57a7efa42b393a2d82"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.linux-arm64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610549"
+checksum = "sha256:ec2a32dbe2f19dd085bd9315a1b4ea88b55ec288aa7eabe8723490baf466cb23"
+checksum_source = "mise-versions"
+url = "https://github.com/direnv/direnv/releases/download/v2.38.2/direnv.linux-arm64"
+url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/627455481"
 
 [tools.direnv."platforms.linux-x64"]
-checksum = "sha256:1f1b93dd6f38523fde26dfac96151ef9d31a374e3005cd3345fb93555ae0c9b5"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.linux-amd64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610548"
+checksum = "sha256:148820a187930d36ca6a204504e5cdb30d8396cd1a97e64c3b3f10d793c11247"
+checksum_source = "mise-versions"
+url = "https://github.com/direnv/direnv/releases/download/v2.38.2/direnv.linux-amd64"
+url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/627455476"
 
 [tools.direnv."platforms.linux-x64-musl"]
-checksum = "sha256:1f1b93dd6f38523fde26dfac96151ef9d31a374e3005cd3345fb93555ae0c9b5"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.linux-amd64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610548"
+checksum = "sha256:148820a187930d36ca6a204504e5cdb30d8396cd1a97e64c3b3f10d793c11247"
+checksum_source = "mise-versions"
+url = "https://github.com/direnv/direnv/releases/download/v2.38.2/direnv.linux-amd64"
+url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/627455476"
 
 [tools.direnv."platforms.macos-arm64"]
-checksum = "sha256:4f569f3a36732bfd8b8fea7bfcc6ad87a59745c109022164d0ca4832451d5369"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.darwin-arm64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610544"
+checksum = "sha256:30443c413e74614a53deb90234e9c97661b1041a0f4aca601ceb482a578ae8b6"
+checksum_source = "mise-versions"
+url = "https://github.com/direnv/direnv/releases/download/v2.38.2/direnv.darwin-arm64"
+url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/627455431"
 
 [tools.direnv."platforms.macos-x64"]
-checksum = "sha256:24fb9ce48b563d7e9fbdd3a4e3e836941654a31ce3e67eba9eaafc3dcd8ae73b"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.darwin-amd64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610540"
-
-[tools.direnv."platforms.windows-x64"]
-checksum = "sha256:d96fc8b7cf020c2d4c1dbbc2ccec5fd1cab05b51c491f02c8527a7fa6c50a1cd"
-url = "https://github.com/direnv/direnv/releases/download/v2.37.1/direnv.windows-amd64"
-url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/274610569"
+checksum = "sha256:91ad9ce96e156065ba2c751a7392ee748fa8e49b063e14d7203df6e957c212f9"
+checksum_source = "mise-versions"
+url = "https://github.com/direnv/direnv/releases/download/v2.38.2/direnv.darwin-amd64"
+url_api = "https://api.github.com/repos/direnv/direnv/releases/assets/627455432"
 
 [[tools.go]]
 version = "1.26.11"
@@ -364,43 +365,50 @@ url = "https://github.com/BurntSushi/ripgrep/releases/download/15.2.0/ripgrep-15
 url_api = "https://api.github.com/repos/BurntSushi/ripgrep/releases/assets/478119643"
 
 [[tools.task]]
-version = "3.53.1"
+version = "3.54.0"
 backend = "aqua:go-task/task"
 
 [tools.task."platforms.linux-arm64"]
-checksum = "sha256:e3ad19101493a0112e1f22ae8ccc54bf03e533b1076a0ca1e6c782a09ad2e588"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645523"
+checksum = "sha256:d7189d439d4a6058e39e1b2acd7c8b27acd4856691b408f23b242e4294e1df5b"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090041"
 
 [tools.task."platforms.linux-arm64-musl"]
-checksum = "sha256:e3ad19101493a0112e1f22ae8ccc54bf03e533b1076a0ca1e6c782a09ad2e588"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_linux_arm64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645523"
+checksum = "sha256:d7189d439d4a6058e39e1b2acd7c8b27acd4856691b408f23b242e4294e1df5b"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_linux_arm64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090041"
 
 [tools.task."platforms.linux-x64"]
-checksum = "sha256:a54a408f6861ff921f6e87774180db31bacd8c1e7c944ca696db9fea49a82fc7"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645449"
+checksum = "sha256:680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090073"
 
 [tools.task."platforms.linux-x64-musl"]
-checksum = "sha256:a54a408f6861ff921f6e87774180db31bacd8c1e7c944ca696db9fea49a82fc7"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_linux_amd64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645449"
+checksum = "sha256:680859dbb4d881a9c72d4d9a8f510825450849af8567deacd7302c01124416fb"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_linux_amd64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090073"
 
 [tools.task."platforms.macos-arm64"]
-checksum = "sha256:85d2d96c2380b33d7855b07b3f7a20dc7ca0eda999a26efa0fb5f6f32b366cd7"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_darwin_arm64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645491"
+checksum = "sha256:12a69fcf37bb8d5bc9150c44f9a936775b73e59ff044c2c245232f198c135637"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_darwin_arm64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090068"
 
 [tools.task."platforms.macos-x64"]
-checksum = "sha256:7f1a702d54a789cb818a636039a83df071f4179893133afafa4eba351a7e19ef"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_darwin_amd64.tar.gz"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645492"
+checksum = "sha256:0543b0844a725814c0412d3f4bed12873ce9ed0da207b15775f63a97d734aac0"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_darwin_amd64.tar.gz"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090006"
 
 [tools.task."platforms.windows-x64"]
-checksum = "sha256:27c0cd248c12cba03d8958d954a3df981c900be885ec9ce5f6a3cdc4e9a19316"
-url = "https://github.com/go-task/task/releases/download/v3.53.1/task_windows_amd64.zip"
-url_api = "https://api.github.com/repos/go-task/task/releases/assets/519645548"
+checksum = "sha256:837f42f71899ea41d07a47acc81d4d6ea80cb41c68292345f915c656473efcb7"
+checksum_source = "mise-versions"
+url = "https://github.com/go-task/task/releases/download/v3.54.0/task_windows_amd64.zip"
+url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090005"
 
 [[tools.zarf]]
 version = "0.83.0"

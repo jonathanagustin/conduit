@@ -64,7 +64,14 @@ export function StatusTag({
       minimal={mapped.minimal}
       size={tagSize(size)}
     >
-      {gate ? <Icon icon={gate === "GO" ? "tick" : gate === "NO-GO" ? "cross" : "warning-sign"} size={12} /> : null}{" "}
+      {gate ? (
+        <Icon
+          icon={
+            gate === "GO" ? "tick" : gate === "NO-GO" ? "cross" : "warning-sign"
+          }
+          size={12}
+        />
+      ) : null}{" "}
       {children}
     </Tag>
   );
@@ -100,7 +107,13 @@ export function ActionButton({
   );
 }
 
-export function DisabledWithReason({ reason, label }: { reason: string; label: string }) {
+export function DisabledWithReason({
+  reason,
+  label,
+}: {
+  reason: string;
+  label: string;
+}) {
   return (
     <Tooltip content={reason} disabled={false}>
       <span>
@@ -125,14 +138,24 @@ export function StatCard({
 }) {
   const mapped = blueprintVariant({ size });
   return (
-    <Card compact={mapped.compact || size === "sm"} elevation={size === "lg" ? 2 : 1}>
+    <Card
+      compact={mapped.compact || size === "sm"}
+      elevation={size === "lg" ? 2 : 1}
+    >
       <EntityTitle title={label} subtitle={detail} />
       <div className="conduit-row">
         <strong>{value}</strong>
         {trend ? (
           <Tag
             minimal
-            {...(trend === "flat" ? {} : { intent: trend === "down" ? ("danger" as const) : ("success" as const) })}
+            {...(trend === "flat"
+              ? {}
+              : {
+                  intent:
+                    trend === "down"
+                      ? ("danger" as const)
+                      : ("success" as const),
+                })}
             icon={TREND_ICON[trend]}
           >
             {trend}
@@ -157,13 +180,23 @@ export function Panel({
   children: ReactNode;
 }) {
   return (
-    <Section title={title} elevation={ELEVATION[emphasis]} compact={emphasis === "minimal"}>
+    <Section
+      title={title}
+      elevation={ELEVATION[emphasis]}
+      compact={emphasis === "minimal"}
+    >
       <SectionCard>{children}</SectionCard>
     </Section>
   );
 }
 
-export function PageHeader({ title, detail }: { title: string; detail?: string }) {
+export function PageHeader({
+  title,
+  detail,
+}: {
+  title: string;
+  detail?: string;
+}) {
   return <EntityTitle title={title} subtitle={detail} />;
 }
 
@@ -184,7 +217,13 @@ export function ObjectHeader({
   );
 }
 
-export function PropertyCard({ label, value }: { label: string; value: string }) {
+export function PropertyCard({
+  label,
+  value,
+}: {
+  label: string;
+  value: string;
+}) {
   return (
     <Card compact>
       <EntityTitle title={value || "—"} subtitle={label} />
@@ -212,11 +251,20 @@ export function EntityCard({
   );
 }
 
-export function SummaryBar({ items }: { items: readonly { label: string; value: string }[] }) {
+export function SummaryBar({
+  items,
+}: {
+  items: readonly { label: string; value: string }[];
+}) {
   return (
     <KpiStrip>
       {items.map((item) => (
-        <StatCard key={item.label} label={item.label} value={item.value} size="sm" />
+        <StatCard
+          key={item.label}
+          label={item.label}
+          value={item.value}
+          size="sm"
+        />
       ))}
     </KpiStrip>
   );
@@ -232,7 +280,11 @@ export function TabBar({
   onSelect: (id: string) => void;
 }) {
   return (
-    <Tabs id="conduit-tabs" selectedTabId={current} onChange={(id) => onSelect(String(id))}>
+    <Tabs
+      id="conduit-tabs"
+      selectedTabId={current}
+      onChange={(id) => onSelect(String(id))}
+    >
       {tabs.map((tab) => (
         <Tab key={tab.id} id={tab.id} title={tab.label} />
       ))}
@@ -253,7 +305,10 @@ export function FilterBar({
 }) {
   return (
     <FormGroup label={label}>
-      <HTMLSelect value={value} onChange={(event) => onChange(event.currentTarget.value)}>
+      <HTMLSelect
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      >
         {options.map((option) => (
           <option key={option || "all"} value={option}>
             {option || "All"}
@@ -275,24 +330,24 @@ export function DataTable({
 }) {
   return (
     <div className="conduit-table-scroll">
-    <HTMLTable compact={density === "compact"} striped>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th key={column}>{column}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row, index) => (
-          <tr key={index}>
-            {row.map((cell, cellIndex) => (
-              <td key={cellIndex}>{cell}</td>
+      <HTMLTable compact={density === "compact"} striped>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </HTMLTable>
+        </thead>
+        <tbody>
+          {rows.map((row, index) => (
+            <tr key={index}>
+              {row.map((cell, cellIndex) => (
+                <td key={cellIndex}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </HTMLTable>
     </div>
   );
 }
@@ -312,24 +367,28 @@ export function DenseTable({
 }) {
   return (
     <div className="conduit-table-scroll">
-    <HTMLTable compact={density === "compact"} interactive striped>
-      <thead>
-        <tr>
-          {columns.map((column) => (
-            <th key={column}>{column}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {rows.map((row) => (
-          <tr key={row.id} aria-selected={row.id === selected} onClick={() => onSelect?.(row.id)}>
-            {row.cells.map((cell, index) => (
-              <td key={index}>{cell}</td>
+      <HTMLTable compact={density === "compact"} interactive striped>
+        <thead>
+          <tr>
+            {columns.map((column) => (
+              <th key={column}>{column}</th>
             ))}
           </tr>
-        ))}
-      </tbody>
-    </HTMLTable>
+        </thead>
+        <tbody>
+          {rows.map((row) => (
+            <tr
+              key={row.id}
+              aria-selected={row.id === selected}
+              onClick={() => onSelect?.(row.id)}
+            >
+              {row.cells.map((cell, index) => (
+                <td key={index}>{cell}</td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </HTMLTable>
     </div>
   );
 }
@@ -368,7 +427,9 @@ export function NavTree({
     id: node.id,
     label: node.label,
   }));
-  return <Tree contents={tree} onNodeClick={(node) => onSelect(String(node.id))} />;
+  return (
+    <Tree contents={tree} onNodeClick={(node) => onSelect(String(node.id))} />
+  );
 }
 
 export function AppShell({
@@ -458,7 +519,13 @@ export function AppShell({
   );
 }
 
-export function SplitListDetail({ list, detail }: { list: ReactNode; detail: ReactNode }) {
+export function SplitListDetail({
+  list,
+  detail,
+}: {
+  list: ReactNode;
+  detail: ReactNode;
+}) {
   return (
     <div className="conduit-split">
       <div>{list}</div>
@@ -467,20 +534,34 @@ export function SplitListDetail({ list, detail }: { list: ReactNode; detail: Rea
   );
 }
 
-export function SplitView({ list, detail }: { list: ReactNode; detail: ReactNode }) {
+export function SplitView({
+  list,
+  detail,
+}: {
+  list: ReactNode;
+  detail: ReactNode;
+}) {
   return <SplitListDetail list={list} detail={detail} />;
 }
 
 export function Checklist({
   items,
 }: {
-  items: readonly { id: string; label: string; passed: boolean; detail: string }[];
+  items: readonly {
+    id: string;
+    label: string;
+    passed: boolean;
+    detail: string;
+  }[];
 }) {
   return (
     <ul>
       {items.map((item) => (
         <li key={item.id}>
-          <StatusTag gate={item.passed ? "GO" : "NO-GO"} emphasis={item.passed ? "filled" : "outlined"}>
+          <StatusTag
+            gate={item.passed ? "GO" : "NO-GO"}
+            emphasis={item.passed ? "filled" : "outlined"}
+          >
             {item.passed ? "pass" : "fail"}
           </StatusTag>{" "}
           {item.label}
@@ -504,7 +585,9 @@ export function AuditRail({
   return (
     <Card>
       <EntityTitle title={title} icon="history" />
-      {ordered.length === 0 ? <NonIdealState title={empty} icon="inbox" /> : null}
+      {ordered.length === 0 ? (
+        <NonIdealState title={empty} icon="inbox" />
+      ) : null}
       <Menu>
         {ordered.map((line) => (
           <MenuItem key={line.id} text={line.text} />
@@ -514,7 +597,11 @@ export function AuditRail({
   );
 }
 
-export function ActivityTimeline({ items }: { items: readonly { id: string; text: string }[] }) {
+export function ActivityTimeline({
+  items,
+}: {
+  items: readonly { id: string; text: string }[];
+}) {
   return (
     <Menu>
       {[...items].reverse().map((item) => (
@@ -540,21 +627,39 @@ export function Kanban<T extends { id: string }>({
       {columns.map((column) => (
         <Card key={column.id} elevation={0}>
           <EntityTitle title={column.title} />
-          {cards.filter((card) => columnOf(card) === column.id).map((card) => (
-            <div key={card.id}>{renderCard(card)}</div>
-          ))}
+          {cards
+            .filter((card) => columnOf(card) === column.id)
+            .map((card) => (
+              <div key={card.id}>{renderCard(card)}</div>
+            ))}
         </Card>
       ))}
     </div>
   );
 }
 
-export function EmptyState({ title, detail }: { title: string; detail: string }) {
+export function EmptyState({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
+}) {
   return <NonIdealState title={title} description={detail} icon="inbox" />;
 }
 
-export function ErrorState({ title, detail }: { title: string; detail: string }) {
-  return <Callout intent="danger" title={title} icon="error">{detail}</Callout>;
+export function ErrorState({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
+}) {
+  return (
+    <Callout intent="danger" title={title} icon="error">
+      {detail}
+    </Callout>
+  );
 }
 
 export function LoadingState({ label }: { label: string }) {
@@ -571,9 +676,22 @@ export function Surface({
   children?: ReactNode;
 }) {
   if (state === "loading") return <LoadingState label="Loading" />;
-  if (state === "empty") return <EmptyState title="Nothing here" detail={reason ?? "No records."} />;
-  if (state === "error") return <ErrorState title="Something failed" detail={reason ?? "The request failed."} />;
-  if (state === "disabled-with-reason") return <DisabledWithReason reason={reason ?? "Unavailable"} label="Unavailable" />;
+  if (state === "empty")
+    return <EmptyState title="Nothing here" detail={reason ?? "No records."} />;
+  if (state === "error")
+    return (
+      <ErrorState
+        title="Something failed"
+        detail={reason ?? "The request failed."}
+      />
+    );
+  if (state === "disabled-with-reason")
+    return (
+      <DisabledWithReason
+        reason={reason ?? "Unavailable"}
+        label="Unavailable"
+      />
+    );
   return <>{children}</>;
 }
 
@@ -604,12 +722,21 @@ export function InboxList({
 export function ReviewChecklist({
   items,
 }: {
-  items: readonly { id: string; label: string; passed: boolean; detail: string }[];
+  items: readonly {
+    id: string;
+    label: string;
+    passed: boolean;
+    detail: string;
+  }[];
 }) {
   return <Checklist items={items} />;
 }
 
-export function ReviewHistory({ items }: { items: readonly { id: string; text: string }[] }) {
+export function ReviewHistory({
+  items,
+}: {
+  items: readonly { id: string; text: string }[];
+}) {
   return <ActivityTimeline items={items} />;
 }
 
@@ -622,9 +749,20 @@ export function DiffPane({ before, after }: { before: string; after: string }) {
   );
 }
 
-export function ConstraintRow({ label, reason, passed }: { label: string; reason: string; passed: boolean }) {
+export function ConstraintRow({
+  label,
+  reason,
+  passed,
+}: {
+  label: string;
+  reason: string;
+  passed: boolean;
+}) {
   return (
-    <Callout intent={passed ? "success" : "danger"} icon={passed ? "tick" : "cross"}>
+    <Callout
+      intent={passed ? "success" : "danger"}
+      icon={passed ? "tick" : "cross"}
+    >
       <strong>{label}</strong> {reason}
     </Callout>
   );
@@ -633,7 +771,12 @@ export function ConstraintRow({ label, reason, passed }: { label: string; reason
 export function RequirementChecklist({
   items,
 }: {
-  items: readonly { id: string; label: string; passed: boolean; detail: string }[];
+  items: readonly {
+    id: string;
+    label: string;
+    passed: boolean;
+    detail: string;
+  }[];
 }) {
   return <Checklist items={items} />;
 }
@@ -642,7 +785,9 @@ export function ImpactSummary({ lines }: { lines: readonly string[] }) {
   return (
     <Card>
       <EntityTitle title="Impact" icon="changes" />
-      {lines.length === 0 ? <NonIdealState title="No impact fields" icon="info-sign" /> : (
+      {lines.length === 0 ? (
+        <NonIdealState title="No impact fields" icon="info-sign" />
+      ) : (
         <Menu>
           {lines.map((line) => (
             <MenuItem key={line} text={line} />
@@ -664,7 +809,17 @@ export function StepTimeline({
       <ProgressBar value={steps.length === 0 ? 0 : done / steps.length} />
       <div className="conduit-row">
         {steps.map((step) => (
-          <Tag key={step.id} minimal={step.mark !== "current"} intent={step.mark === "done" ? "success" : step.mark === "current" ? "primary" : "none"}>
+          <Tag
+            key={step.id}
+            minimal={step.mark !== "current"}
+            intent={
+              step.mark === "done"
+                ? "success"
+                : step.mark === "current"
+                  ? "primary"
+                  : "none"
+            }
+          >
             {step.label}
           </Tag>
         ))}
@@ -678,7 +833,8 @@ export function TaskList({
 }: {
   tasks: readonly { id: string; label: string; status: string }[];
 }) {
-  if (tasks.length === 0) return <NonIdealState title="No tasks reported" icon="list" />;
+  if (tasks.length === 0)
+    return <NonIdealState title="No tasks reported" icon="list" />;
   return (
     <Menu>
       {tasks.map((task) => (
@@ -707,10 +863,21 @@ export function OutputPane({ text }: { text: string }) {
   );
 }
 
-export function HealthBar({ ok, bad, other }: { ok: number; bad: number; other: number }) {
+export function HealthBar({
+  ok,
+  bad,
+  other,
+}: {
+  ok: number;
+  bad: number;
+  other: number;
+}) {
   const total = Math.max(1, ok + bad + other);
   return (
-    <div className="conduit-health" aria-label={`${ok} healthy, ${bad} unhealthy, ${other} other`}>
+    <div
+      className="conduit-health"
+      aria-label={`${ok} healthy, ${bad} unhealthy, ${other} other`}
+    >
       <span data-tone="ok" style={{ width: `${(ok / total) * 100}%` }} />
       <span data-tone="bad" style={{ width: `${(bad / total) * 100}%` }} />
       <span data-tone="muted" style={{ width: `${(other / total) * 100}%` }} />
@@ -727,7 +894,8 @@ export function PipelineGraph({
   selected?: string;
   onSelect?: (id: string) => void;
 }) {
-  if (nodes.length === 0) return <NonIdealState title="No channels" icon="path-search" />;
+  if (nodes.length === 0)
+    return <NonIdealState title="No channels" icon="path-search" />;
   return (
     <div className="conduit-pipeline">
       {nodes.map((node, index) => (
@@ -746,10 +914,18 @@ export function PipelineGraph({
   );
 }
 
-export function NotePopover({ label, content }: { label: string; content: string }) {
+export function NotePopover({
+  label,
+  content,
+}: {
+  label: string;
+  content: string;
+}) {
   return (
     <Popover content={<Card>{content}</Card>}>
-      <Button minimal icon="info-sign">{label}</Button>
+      <Button minimal icon="info-sign">
+        {label}
+      </Button>
     </Popover>
   );
 }
@@ -803,7 +979,11 @@ export function TextField({
 }) {
   return (
     <FormGroup label={label} labelFor={labelFor}>
-      <InputGroup id={labelFor} value={value} onChange={(event) => onChange(event.currentTarget.value)} />
+      <InputGroup
+        id={labelFor}
+        value={value}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
     </FormGroup>
   );
 }

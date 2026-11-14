@@ -3,7 +3,13 @@ import type { ReactNode } from "react";
 
 import type { IntentName } from "./variants";
 
-export function Sparkline({ points, tone = "info" }: { points: readonly number[]; tone?: "ok" | "info" | "warn" | "bad" }) {
+export function Sparkline({
+  points,
+  tone = "info",
+}: {
+  points: readonly number[];
+  tone?: "ok" | "info" | "warn" | "bad";
+}) {
   const width = 72;
   const height = 22;
   if (points.length < 2) return null;
@@ -17,9 +23,22 @@ export function Sparkline({ points, tone = "info" }: { points: readonly number[]
       return `${x.toFixed(1)},${y.toFixed(1)}`;
     })
     .join(" ");
-  const color = tone === "ok" ? "#34d399" : tone === "warn" ? "#eab854" : tone === "bad" ? "#e76a6e" : "#4c90f0";
+  const color =
+    tone === "ok"
+      ? "#34d399"
+      : tone === "warn"
+        ? "#eab854"
+        : tone === "bad"
+          ? "#e76a6e"
+          : "#4c90f0";
   return (
-    <svg className="cd-spark" width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden="true">
+    <svg
+      className="cd-spark"
+      width={width}
+      height={height}
+      viewBox={`0 0 ${width} ${height}`}
+      aria-hidden="true"
+    >
       <polyline points={coords} fill="none" stroke={color} strokeWidth="1.6" />
     </svg>
   );
@@ -65,7 +84,14 @@ export function GateStrip({
   size?: "sm" | "lg";
 }) {
   const cells = Array.from({ length: total }, (_, index) => {
-    const mark = index < ok ? "ok" : index < ok + warn ? "warn" : index < ok + warn + bad ? "bad" : "pending";
+    const mark =
+      index < ok
+        ? "ok"
+        : index < ok + warn
+          ? "warn"
+          : index < ok + warn + bad
+            ? "bad"
+            : "pending";
     return <span key={index} className="cd-gatecell" data-mark={mark} />;
   });
   return (
@@ -78,14 +104,20 @@ export function GateStrip({
 export function Stepper({
   steps,
 }: {
-  steps: readonly { id: string; label: string; state: "done" | "current" | "waiting" }[];
+  steps: readonly {
+    id: string;
+    label: string;
+    state: "done" | "current" | "waiting";
+  }[];
 }) {
   return (
     <div className="cd-stepper" aria-label="Steps">
       {steps.map((step, index) => (
         <span key={step.id} className="cd-step" data-state={step.state}>
           {index > 0 ? <span className="cd-step-line" /> : null}
-          <span className="cd-step-index">{step.state === "done" ? "✓" : index + 1}</span>
+          <span className="cd-step-index">
+            {step.state === "done" ? "✓" : index + 1}
+          </span>
           <span>{step.label}</span>
         </span>
       ))}
@@ -99,7 +131,13 @@ export function RangeTimeline({
   rows: readonly {
     id: string;
     label: string;
-    bars: readonly { id: string; label: string; start: number; end: number; tone?: "ok" | "info" | "warn" | "bad" }[];
+    bars: readonly {
+      id: string;
+      label: string;
+      start: number;
+      end: number;
+      tone?: "ok" | "info" | "warn" | "bad";
+    }[];
   }[];
 }) {
   return (
@@ -114,7 +152,10 @@ export function RangeTimeline({
                 className="cd-timeline-bar"
                 data-tone={bar.tone ?? "info"}
                 title={bar.label}
-                style={{ left: `${bar.start * 100}%`, width: `${Math.max(2, (bar.end - bar.start) * 100)}%` }}
+                style={{
+                  left: `${bar.start * 100}%`,
+                  width: `${Math.max(2, (bar.end - bar.start) * 100)}%`,
+                }}
               />
             ))}
           </div>
@@ -129,7 +170,11 @@ export function FacetRail({
   selected,
   onToggle,
 }: {
-  groups: readonly { id: string; label: string; options: readonly { id: string; label: string; count: number }[] }[];
+  groups: readonly {
+    id: string;
+    label: string;
+    options: readonly { id: string; label: string; count: number }[];
+  }[];
   selected: readonly string[];
   onToggle: (id: string) => void;
 }) {
@@ -187,14 +232,24 @@ export function StatusTabs({
   current,
   onSelect,
 }: {
-  tabs: readonly { id: string; label: string; count: number; intent?: IntentName }[];
+  tabs: readonly {
+    id: string;
+    label: string;
+    count: number;
+    intent?: IntentName;
+  }[];
   current: string;
   onSelect: (id: string) => void;
 }) {
   return (
     <div className="cd-chips" role="tablist">
       {tabs.map((tab) => (
-        <Button key={tab.id} minimal={tab.id !== current} intent={tab.id === current ? "primary" : "none"} onClick={() => onSelect(tab.id)}>
+        <Button
+          key={tab.id}
+          minimal={tab.id !== current}
+          intent={tab.id === current ? "primary" : "none"}
+          onClick={() => onSelect(tab.id)}
+        >
           {tab.label} {tab.count}
         </Button>
       ))}
@@ -214,7 +269,13 @@ export function SegmentedTabs({
   return (
     <div className="cd-segment">
       {tabs.map((tab) => (
-        <Button key={tab.id} small outlined={tab.id !== current} intent={tab.id === current ? "primary" : "none"} onClick={() => onSelect(tab.id)}>
+        <Button
+          key={tab.id}
+          small
+          outlined={tab.id !== current}
+          intent={tab.id === current ? "primary" : "none"}
+          onClick={() => onSelect(tab.id)}
+        >
           {tab.label}
         </Button>
       ))}
@@ -222,7 +283,11 @@ export function SegmentedTabs({
   );
 }
 
-export function KeyValue({ items }: { items: readonly { label: string; value: string }[] }) {
+export function KeyValue({
+  items,
+}: {
+  items: readonly { label: string; value: string }[];
+}) {
   return (
     <dl className="cd-kv">
       {items.map((item) => (
@@ -235,7 +300,13 @@ export function KeyValue({ items }: { items: readonly { label: string; value: st
   );
 }
 
-export function StatusChip({ label, intent = "none" }: { label: string; intent?: IntentName }) {
+export function StatusChip({
+  label,
+  intent = "none",
+}: {
+  label: string;
+  intent?: IntentName;
+}) {
   return (
     <Tag minimal round intent={intent === "none" ? "none" : intent}>
       {label}
@@ -250,9 +321,20 @@ const PRIORITY_INTENT = {
   critical: "danger",
 } as const;
 
-export function PriorityTag({ priority }: { priority: keyof typeof PRIORITY_INTENT }) {
+export function PriorityTag({
+  priority,
+}: {
+  priority: keyof typeof PRIORITY_INTENT;
+}) {
   return (
-    <Tag minimal intent={PRIORITY_INTENT[priority] === "none" ? "none" : PRIORITY_INTENT[priority]}>
+    <Tag
+      minimal
+      intent={
+        PRIORITY_INTENT[priority] === "none"
+          ? "none"
+          : PRIORITY_INTENT[priority]
+      }
+    >
       {priority}
     </Tag>
   );
@@ -273,8 +355,15 @@ export function GraphView({
     <div className="cd-graph" aria-label="Graph">
       {nodes.map((node, index) => (
         <span key={node.id} className="cd-step">
-          {index > 0 && edges.some((edge) => edge.to === node.id) ? <span className="cd-step-line" /> : null}
-          <Button small minimal={node.id !== selected} intent={node.id === selected ? "primary" : "none"} onClick={() => onSelect?.(node.id)}>
+          {index > 0 && edges.some((edge) => edge.to === node.id) ? (
+            <span className="cd-step-line" />
+          ) : null}
+          <Button
+            small
+            minimal={node.id !== selected}
+            intent={node.id === selected ? "primary" : "none"}
+            onClick={() => onSelect?.(node.id)}
+          >
             {node.label}
           </Button>
         </span>
@@ -286,13 +375,20 @@ export function GraphView({
 export function TargetBoard({
   columns,
 }: {
-  columns: readonly { id: string; title: string; cards: readonly { id: string; title: string; detail: string }[] }[];
+  columns: readonly {
+    id: string;
+    title: string;
+    cards: readonly { id: string; title: string; detail: string }[];
+  }[];
 }) {
   return (
     <div className="cd-board">
       {columns.map((column) => (
         <Card key={column.id} compact>
-          <EntityTitle title={column.title} subtitle={`${column.cards.length}`} />
+          <EntityTitle
+            title={column.title}
+            subtitle={`${column.cards.length}`}
+          />
           {column.cards.map((card) => (
             <div key={card.id} className="cd-subpanel">
               <strong>{card.title}</strong>
@@ -305,10 +401,19 @@ export function TargetBoard({
   );
 }
 
-export function ToolApprovalCard({ title, detail }: { title: string; detail: string }) {
+export function ToolApprovalCard({
+  title,
+  detail,
+}: {
+  title: string;
+  detail: string;
+}) {
   return (
     <Card compact>
-      <EntityTitle title={title} subtitle="Example · the thread still owns the live permission" />
+      <EntityTitle
+        title={title}
+        subtitle="Example · the thread still owns the live permission"
+      />
       <p className="conduit-muted">{detail}</p>
       <Tooltip content="Example card. A live permission is answered on the thread.">
         <Button disabled>Allow</Button>
@@ -317,11 +422,20 @@ export function ToolApprovalCard({ title, detail }: { title: string; detail: str
   );
 }
 
-export function SubAgentCard({ name, status }: { name: string; status: string }) {
+export function SubAgentCard({
+  name,
+  status,
+}: {
+  name: string;
+  status: string;
+}) {
   return (
     <Card compact>
       <EntityTitle title={name} subtitle="Example worker" />
-      <StatusChip label={status} intent={status === "idle" ? "none" : "primary"} />
+      <StatusChip
+        label={status}
+        intent={status === "idle" ? "none" : "primary"}
+      />
     </Card>
   );
 }
@@ -339,7 +453,13 @@ export function ClassificationBanner({
     <div className="cd-banner" data-edge={edge} role="note">
       <span>{text}</span>
       {onDismiss ? (
-        <Button minimal small icon="cross" aria-label="Dismiss banner" onClick={onDismiss} />
+        <Button
+          minimal
+          small
+          icon="cross"
+          aria-label="Dismiss banner"
+          onClick={onDismiss}
+        />
       ) : null}
     </div>
   );

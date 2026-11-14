@@ -8,7 +8,11 @@ import {
 
 type Row = readonly [string, string];
 
-export function PackagingRunDetailView({ detail }: { detail: PackagingRunRecord }) {
+export function PackagingRunDetailView({
+  detail,
+}: {
+  detail: PackagingRunRecord;
+}) {
   const rows: Row[] = [
     ["Run", detail.runId],
     ["Phase", detail.phase],

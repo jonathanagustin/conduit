@@ -11,10 +11,20 @@ const hydrateForDevelopment = {
     const bootstrap = {
       schemaVersion: "conduit.console.bootstrap/v1",
       tenant: { id: "conduit", displayName: "Conduit" },
-      brand: { title: "Conduit", subtitle: "Control plane", accent: "#2d72d2", icon: "dashboard" },
-      provenance: { claimClass: "conduit-extension", evidenceRef: "conduit://console/default" },
+      brand: {
+        title: "Conduit",
+        subtitle: "Control plane",
+        accent: "#2d72d2",
+        icon: "dashboard",
+      },
+      provenance: {
+        claimClass: "conduit-extension",
+        evidenceRef: "conduit://console/default",
+      },
     };
-    const content = JSON.stringify(bootstrap).replaceAll("&", "&amp;").replaceAll('"', "&#34;");
+    const content = JSON.stringify(bootstrap)
+      .replaceAll("&", "&amp;")
+      .replaceAll('"', "&#34;");
     return html.replace(
       "<!--conduit-console-bootstrap-->",
       `<meta name="x-conduit-console-bootstrap" content="${content}" />`,
@@ -35,7 +45,8 @@ export default defineConfig({
   // The template's PostCSS config is for Next. The embed uses @tailwindcss/vite.
   css: { postcss: { plugins: [] } },
   build: {
-    outDir: process.env["PLATFORM_CONSOLE_OUT_DIR"] ?? "../internal/consoleui/dist",
+    outDir:
+      process.env["PLATFORM_CONSOLE_OUT_DIR"] ?? "../internal/consoleui/dist",
     emptyOutDir: true,
     sourcemap: false,
   },

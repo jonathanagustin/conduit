@@ -2,7 +2,11 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { describe, expect, it } from "vitest";
 
-import { fetchPackagingRunDetail, packagingRunTransport, PackagingRunError } from "../../api/packaging-run.js";
+import {
+  fetchPackagingRunDetail,
+  packagingRunTransport,
+  PackagingRunError,
+} from "../../api/packaging-run.js";
 import { PackagingRunDetailView } from "../../features/packaging/PackagingRunPage.js";
 
 const detailBody = {
@@ -28,24 +32,32 @@ const detailBody = {
 describe("packaging-run detail view", () => {
   it("loads the read through the Connect client and renders it", async () => {
     const calls: { method: string; url: string; body: string }[] = [];
-    const transport = packagingRunTransport("http://hub.local", async (input, init) => {
-      const request = input instanceof Request ? input : new Request(input, init);
-      const body = await request.text();
-      calls.push({ method: request.method, url: request.url, body });
-      return new Response(JSON.stringify(detailBody), {
-        status: 200,
-        headers: { "content-type": "application/json" },
-      });
-    });
+    const transport = packagingRunTransport(
+      "http://hub.local",
+      async (input, init) => {
+        const request =
+          input instanceof Request ? input : new Request(input, init);
+        const body = await request.text();
+        calls.push({ method: request.method, url: request.url, body });
+        return new Response(JSON.stringify(detailBody), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      },
+    );
 
     const detail = await fetchPackagingRunDetail("sample-app-1", transport);
     expect(calls).toHaveLength(1);
     expect(calls[0]?.method).toBe("POST");
-    expect(calls[0]?.url).toBe("http://hub.local/conduit.packaging.v1.PackagingRunService/GetPackagingRun");
+    expect(calls[0]?.url).toBe(
+      "http://hub.local/conduit.packaging.v1.PackagingRunService/GetPackagingRun",
+    );
     expect(calls[0]?.body).toContain("sample-app-1");
     expect(detail).toMatchObject(detailBody);
 
-    const html = renderToStaticMarkup(createElement(PackagingRunDetailView, { detail }));
+    const html = renderToStaticMarkup(
+      createElement(PackagingRunDetailView, { detail }),
+    );
     expect(html).toContain('data-testid="packaging-run-detail"');
     expect(html).toContain("sample-app-1");
     expect(html).toContain("review");
@@ -58,15 +70,22 @@ describe("packaging-run detail view", () => {
 
   it("surfaces an unauthorized Connect refusal as 401", async () => {
     const transport = packagingRunTransport("http://hub.local", async () => {
-      return new Response(JSON.stringify({ code: "unauthenticated", message: "unauthorized" }), {
-        status: 401,
-        headers: { "content-type": "application/json" },
-      });
+      return new Response(
+        JSON.stringify({ code: "unauthenticated", message: "unauthorized" }),
+        {
+          status: 401,
+          headers: { "content-type": "application/json" },
+        },
+      );
     });
-    await expect(fetchPackagingRunDetail("sample-app-1", transport)).rejects.toMatchObject({
+    await expect(
+      fetchPackagingRunDetail("sample-app-1", transport),
+    ).rejects.toMatchObject({
       name: "PackagingRunError",
       status: 401,
     });
-    await expect(fetchPackagingRunDetail("sample-app-1", transport)).rejects.toBeInstanceOf(PackagingRunError);
+    await expect(
+      fetchPackagingRunDetail("sample-app-1", transport),
+    ).rejects.toBeInstanceOf(PackagingRunError);
   });
 });

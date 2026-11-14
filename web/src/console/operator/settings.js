@@ -106,7 +106,8 @@ const DATA_SOURCES = [
   {
     id: "spoke-entity-health",
     name: "Spoke entity health",
-    endpoint: "POST /api/v0/status/environments/{environmentId}/entities/health",
+    endpoint:
+      "POST /api/v0/status/environments/{environmentId}/entities/health",
     cadence: "Posted independently of the information snapshot",
     updates: "Reported health and product version",
     payload: {
@@ -162,9 +163,7 @@ const DATA_SOURCES = [
           sequence: 1,
           kind: "SNAPSHOT",
           createdAt: "2026-11-14T00:00:00Z",
-          resources: [
-            { type: "ENVIRONMENT", id: "dev", digest: "sha256:abc" },
-          ],
+          resources: [{ type: "ENVIRONMENT", id: "dev", digest: "sha256:abc" }],
           resourceTypes: ["ENVIRONMENT"],
           sourceFormatNote: "<manifest provenance note>",
         },
@@ -182,7 +181,8 @@ const DATA_SOURCES = [
     endpoint:
       "POST /v1/packaging-runs/{runID}/rerun; worker start uses the same run identity",
     cadence: "Not periodic. A rerun or a worker start opens one run",
-    updates: "Packaging-run phase, then a proposed plan when the handoff succeeds",
+    updates:
+      "Packaging-run phase, then a proposed plan when the handoff succeeds",
     payload: {
       decisionId: "decision-1",
       sourceDigest: "sha256:abc",
@@ -284,7 +284,9 @@ export function createSettings(ctx) {
     };
     try {
       const catalog = await readJSON("/v1/environments?view=summary");
-      const rows = Array.isArray(catalog.environments) ? catalog.environments : [];
+      const rows = Array.isArray(catalog.environments)
+        ? catalog.environments
+        : [];
       let newest = null;
       for (const row of rows) {
         const seen = row.reported && row.reported.observedAt;
@@ -310,11 +312,13 @@ export function createSettings(ctx) {
         state.dataSourceLive.imports = "No import receipt";
       } else {
         const latest = imports.reduce((best, item) =>
-          !best || String(item.requestedAt || "") > String(best.requestedAt || "")
+          !best ||
+          String(item.requestedAt || "") > String(best.requestedAt || "")
             ? item
             : best,
         );
-        state.dataSourceLive.imports = `${latest.status || "recorded"} ${latest.requestedAt || ""} ${latest.bundleId || latest.id || ""}`.trim();
+        state.dataSourceLive.imports =
+          `${latest.status || "recorded"} ${latest.requestedAt || ""} ${latest.bundleId || latest.id || ""}`.trim();
       }
     } catch {
       state.dataSourceLive.imports = "Hub did not return import receipts";
@@ -607,7 +611,9 @@ export function createSettings(ctx) {
     const rows = DATA_SOURCES.map((source) => {
       const on = source.id === selected.id;
       const seen = sourceLastSeen(source.id);
-      const live = Boolean(seen) && !/Hub did not|No reported|No import|No packaging/.test(String(seen));
+      const live =
+        Boolean(seen) &&
+        !/Hub did not|No reported|No import|No packaging/.test(String(seen));
       return `<tr onclick="selectDataSource('${esc(source.id)}')" class="cursor-pointer${on ? " is-selected" : ""}">
         <td data-col="Source"><span class="font-semibold text-white">${esc(source.name)}</span></td>
         <td data-col="Endpoint" data-long="1" class="code-id text-[11px] text-[#dce4ee]">${esc(source.endpoint)}</td>

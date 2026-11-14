@@ -53,7 +53,9 @@ const THEME_KEY = "conduit-console-theme";
 
 export const Assistant = () => {
   const runtime = useCodexRuntime();
-  const [view, setView] = useState<"thread" | "elements" | "workbench">("thread");
+  const [view, setView] = useState<"thread" | "elements" | "workbench">(
+    "thread",
+  );
   const [dark, setDark] = useState(false);
 
   useEffect(() => {

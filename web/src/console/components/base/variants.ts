@@ -5,7 +5,12 @@ export type IntentName = "none" | "primary" | "success" | "warning" | "danger";
 export type SizeName = "sm" | "md" | "lg";
 export type DensityName = "compact" | "comfortable";
 export type EmphasisName = "minimal" | "outlined" | "filled";
-export type SurfaceState = "ready" | "loading" | "empty" | "error" | "disabled-with-reason";
+export type SurfaceState =
+  | "ready"
+  | "loading"
+  | "empty"
+  | "error"
+  | "disabled-with-reason";
 export type TrendName = "up" | "down" | "flat";
 
 export type VariantProps = {
@@ -32,7 +37,8 @@ const SIZE: Record<SizeName, BlueprintVariant["size"]> = {
 /** Tag has no small size and no outlined prop. sm stays medium; outlined uses minimal. */
 export function blueprintVariant(variant: VariantProps = {}): BlueprintVariant {
   const emphasis = variant.emphasis ?? "filled";
-  const intent = variant.intent && variant.intent !== "none" ? variant.intent : undefined;
+  const intent =
+    variant.intent && variant.intent !== "none" ? variant.intent : undefined;
   return {
     ...(intent ? { intent } : {}),
     size: SIZE[variant.size ?? "md"],

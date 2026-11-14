@@ -202,7 +202,11 @@ test.describe("fake ACP bridge", () => {
       const url = route.request().url();
       if (url.includes("reported-state")) {
         return route.fulfill({
-          json: { agentId: "example-spoke", observedAt: "2026-11-14T00:00:00Z", entities: [{ name: "sample" }] },
+          json: {
+            agentId: "example-spoke",
+            observedAt: "2026-11-14T00:00:00Z",
+            entities: [{ name: "sample" }],
+          },
         });
       }
       if (/\/v1\/environments\/[^/?]+/.test(url)) {
@@ -214,7 +218,9 @@ test.describe("fake ACP bridge", () => {
               connectionSetting: "spoke",
               defaultReleaseChannel: "stable",
               labels: { tier: "example" },
-              maintenance: { noDowntime: { timeZone: "UTC", intervals: ["Mon 00:00-04:00"] } },
+              maintenance: {
+                noDowntime: { timeZone: "UTC", intervals: ["Mon 00:00-04:00"] },
+              },
               config: { replicas: "2" },
             },
           },
@@ -237,20 +243,37 @@ test.describe("fake ACP bridge", () => {
         return route.fulfill({
           json: {
             products: [
-              { product: "sample-app", releases: [{ version: "1.2.0", channels: ["candidate", "stable"] }] },
+              {
+                product: "sample-app",
+                releases: [
+                  { version: "1.2.0", channels: ["candidate", "stable"] },
+                ],
+              },
             ],
             total: 1,
           },
         });
       }
-      return route.fulfill({ json: { products: [{ product: "sample-app" }], total: 1 } });
+      return route.fulfill({
+        json: { products: [{ product: "sample-app" }], total: 1 },
+      });
     });
     await page.route("**/v1/fleet/installations**", (route) =>
       route.fulfill({
         json: {
           installations: [
-            { installationId: "sample-a", environment: "lab", product: "sample-app", health: "HEALTHY" },
-            { installationId: "sample-b", environment: "lab", product: "sample-app", health: "ERROR" },
+            {
+              installationId: "sample-a",
+              environment: "lab",
+              product: "sample-app",
+              health: "HEALTHY",
+            },
+            {
+              installationId: "sample-b",
+              environment: "lab",
+              product: "sample-app",
+              health: "ERROR",
+            },
           ],
         },
       }),
@@ -319,7 +342,15 @@ test.describe("fake ACP bridge", () => {
               failure: "Example rollout stopped",
               requiredApprovals: 1,
               plan: { environment: "lab", steps: [{}] },
-              execution: { tasks: [{ phase: "apply", status: "FAILED", agentOutput: "example output" }] },
+              execution: {
+                tasks: [
+                  {
+                    phase: "apply",
+                    status: "FAILED",
+                    agentOutput: "example output",
+                  },
+                ],
+              },
             },
           ],
           total: 1,
@@ -346,7 +377,11 @@ test.describe("fake ACP bridge", () => {
         });
         return;
       }
-      if (route.request().method() === "GET" && !url.includes("sample-app-1") && !url.includes("missing")) {
+      if (
+        route.request().method() === "GET" &&
+        !url.includes("sample-app-1") &&
+        !url.includes("missing")
+      ) {
         await route.fulfill({
           json: {
             configured: true,
@@ -366,33 +401,40 @@ test.describe("fake ACP bridge", () => {
       }
       await route.fallback();
     });
-    await page.route("**/*PackagingRunService/GetPackagingRun", async (route) => {
-      const body = route.request().postDataJSON() as { runId?: string };
-      const missing = body.runId === "missing";
-      await route.fulfill({
-        json: missing
-          ? { configured: false, tier: "CONDUIT_NATIVE", runId: "missing" }
-          : {
-              configured: true,
-              phase: "review",
-              runId: "sample-app-1",
-              planId: "plan-1",
-              tier: "CONDUIT_NATIVE",
-              sourceDigest: "sha256:example",
-              artifactDigest: "sha256:artifact-example",
-              proposalRevision: "rev-1",
-              targetPlanRef: "lab/plan-1",
-            },
-      });
-    });
+    await page.route(
+      "**/*PackagingRunService/GetPackagingRun",
+      async (route) => {
+        const body = route.request().postDataJSON() as { runId?: string };
+        const missing = body.runId === "missing";
+        await route.fulfill({
+          json: missing
+            ? { configured: false, tier: "CONDUIT_NATIVE", runId: "missing" }
+            : {
+                configured: true,
+                phase: "review",
+                runId: "sample-app-1",
+                planId: "plan-1",
+                tier: "CONDUIT_NATIVE",
+                sourceDigest: "sha256:example",
+                artifactDigest: "sha256:artifact-example",
+                proposalRevision: "rev-1",
+                targetPlanRef: "lab/plan-1",
+              },
+        });
+      },
+    );
     const bridge: BridgeServer = await createBridge({ port: 8787 });
     try {
       await hydrate(page);
       await page.goto("/console/");
       await page.getByRole("button", { name: "Workbench" }).click();
       await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
-      await expect(page.getByText("EXAMPLE DATA", { exact: true })).toBeVisible();
-      await expect(page.getByRole("button", { name: "Command Center" })).toBeVisible();
+      await expect(
+        page.getByText("EXAMPLE DATA", { exact: true }),
+      ).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Command Center" }),
+      ).toBeVisible();
       await expect(page.getByText("87.5%").first()).toBeVisible();
       await page.evaluate(() => {
         const view = window as unknown as {
@@ -403,42 +445,73 @@ test.describe("fake ACP bridge", () => {
       });
       await expect(page.getByText("sample-app-1").first()).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("s16-approvals-board");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("s16-approvals-board");
       });
       await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm09-recalls");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("rm09-recalls");
       });
-      await expect(page.getByText("No recall is recorded.").first()).toBeVisible();
+      await expect(
+        page.getByText("No recall is recorded.").first(),
+      ).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm10-ramped-rollout");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("rm10-ramped-rollout");
       });
       await expect(page.getByText("Canary pacing").first()).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm11-debug-terminal");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("rm11-debug-terminal");
       });
-      await expect(page.getByText("session brokering not implemented").first()).toBeVisible();
+      await expect(
+        page.getByText("session brokering not implemented").first(),
+      ).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("pt01-proposal-trace");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("pt01-proposal-trace");
       });
       await expect(page.getByText("Recorded proposal").first()).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("og01-ontology-graph");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("og01-ontology-graph");
       });
       await expect(page.getByText("reportingSpoke").first()).toBeVisible();
-      await expect(page.locator("#main-workspace").getByText(/Example data|Ontology API/).first()).toBeVisible();
+      await expect(
+        page
+          .locator("#main-workspace")
+          .getByText(/Example data|Ontology API/)
+          .first(),
+      ).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm01-user-prefs");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("adm01-user-prefs");
       });
       await expect(page.getByText("Personal API tokens").first()).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm02-org-control-panel");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("adm02-org-control-panel");
       });
-      await expect(page.getByRole("radio", { name: "Organizations" }).first()).toBeVisible();
+      await expect(
+        page.getByRole("radio", { name: "Organizations" }).first(),
+      ).toBeVisible();
       await page.evaluate(() => {
-        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm03-auth-signin");
+        (
+          window as unknown as { switchScreen: (id: string) => void }
+        ).switchScreen("adm03-auth-signin");
       });
-      await expect(page.getByText("Sign-in is not enabled on this Hub").first()).toBeVisible();
+      await expect(
+        page.getByText("Sign-in is not enabled on this Hub").first(),
+      ).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
       });

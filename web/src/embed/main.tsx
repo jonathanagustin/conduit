@@ -30,24 +30,27 @@ if (gallery) {
   });
 } else {
   try {
-  loadRuntimeBootstrap();
-  root.render(
-    <StrictMode>
-      <Providers>
-        <Routes>
-          <Route path="packaging-runs/:runId" element={<PackagingRunPage />} />
-          <Route
-            path="*"
-            element={
-              <div className="antialiased">
-                <Assistant />
-              </div>
-            }
-          />
-        </Routes>
-      </Providers>
-    </StrictMode>,
-  );
+    loadRuntimeBootstrap();
+    root.render(
+      <StrictMode>
+        <Providers>
+          <Routes>
+            <Route
+              path="packaging-runs/:runId"
+              element={<PackagingRunPage />}
+            />
+            <Route
+              path="*"
+              element={
+                <div className="antialiased">
+                  <Assistant />
+                </div>
+              }
+            />
+          </Routes>
+        </Providers>
+      </StrictMode>,
+    );
   } catch {
     root.render(
       <StrictMode>
