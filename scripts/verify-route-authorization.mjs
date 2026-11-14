@@ -78,6 +78,7 @@ const SOURCES = [
   { path: "internal/delivery/channels/httpapi", surface: "channel subscriptions" },
   { path: "internal/delivery/driftfix/httpapi", surface: "propose fix" },
   { path: "internal/delivery/waves/httpapi", surface: "staged rollouts" },
+  { path: "internal/delivery/blackout/httpapi", surface: "blackouts" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";
