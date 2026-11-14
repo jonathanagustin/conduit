@@ -184,3 +184,68 @@ func TestCatalogSummaryPayloadDoesNotScaleWithNestedDetails(t *testing.T) {
 		}
 	}
 }
+
+func TestSpokeLivenessKeepsEverySpokeExplicit(t *testing.T) {
+	t.Parallel()
+	now := time.Date(2026, 11, 14, 12, 0, 0, 0, time.UTC)
+	live := spokeLiveness(&EnvironmentReport{AgentID: "spoke-live", ObservedAt: now.Add(-SpokeLivenessFreshFor)}, now)
+	if live.State != SpokeLive || live.AgentID != "spoke-live" {
+		t.Fatalf("fresh report = %#v", live)
+	}
+	stale := spokeLiveness(&EnvironmentReport{AgentID: "spoke-stale", ObservedAt: now.Add(-SpokeLivenessFreshFor - time.Second)}, now)
+	if stale.State != SpokeStale || stale.ObservedAt.IsZero() {
+		t.Fatalf("old report = %#v", stale)
+	}
+	unreachable := spokeLiveness(&EnvironmentReport{AgentID: "spoke-quiet"}, now)
+	if unreachable.State != SpokeUnreachable || unreachable.AgentID != "spoke-quiet" {
+		t.Fatalf("report without a time = %#v", unreachable)
+	}
+	missing := spokeLiveness(nil, now)
+	if missing.State != SpokeUnreachable || missing.AgentID != "" {
+		t.Fatalf("missing report = %#v", missing)
+	}
+
+	ctx := context.Background()
+	repository := NewMemoryRepository()
+	observed := time.Now().UTC()
+	if _, err := repository.CreatePlan(ctx, PlanRecord{
+		ID: "plan_quiet", Status: PlanAwaitingApproval,
+		Plan:         Plan{Environment: "quiet", Generation: "1"},
+		DesiredState: &DesiredState{Environment: Environment{ID: "quiet", Generation: "1"}},
+		CreatedAt:    observed, UpdatedAt: observed,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := repository.PutEnvironmentReport(ctx, EnvironmentReport{
+		Environment: "fresh", AgentID: "spoke-fresh", ObservedAt: observed, Entities: []ReportedEntity{{InstallationID: "api"}},
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandler(repository, HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"operator"},
+	})
+	response := governanceRequest(t, handler, http.MethodGet, "/v1/environments?view=summary", "operator", "", nil)
+	if response.Code != http.StatusOK {
+		t.Fatalf("catalog=%d %s", response.Code, response.Body.String())
+	}
+	var page EnvironmentCatalogSummaryPage
+	if err := json.Unmarshal(response.Body.Bytes(), &page); err != nil {
+		t.Fatal(err)
+	}
+	byID := map[string]EnvironmentCatalogSummary{}
+	for _, row := range page.Environments {
+		byID[row.Environment.ID] = row
+		if row.Spoke.State == "" {
+			t.Fatalf("environment %s omitted spoke liveness", row.Environment.ID)
+		}
+	}
+	if byID["quiet"].Spoke.State != SpokeUnreachable {
+		t.Fatalf("quiet spoke = %#v", byID["quiet"].Spoke)
+	}
+	if byID["fresh"].Spoke.State != SpokeLive || byID["fresh"].Spoke.AgentID != "spoke-fresh" {
+		t.Fatalf("fresh spoke = %#v", byID["fresh"].Spoke)
+	}
+	if !strings.Contains(response.Body.String(), `"state":"unreachable"`) {
+		t.Fatalf("unreachable spoke was not explicit: %s", response.Body.String())
+	}
+}
