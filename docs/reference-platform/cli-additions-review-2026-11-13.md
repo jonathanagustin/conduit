@@ -1,12 +1,12 @@
 # November 2026 CLI additions review
 
-Current implementation profile (2026-11-14): 111 pages after #363's discussion
-and atomic label commands. Its new immutable snapshot preserves the original
-107 rows below and adds the four reviewed Change Request pages. The public live
-inventory remains 123. Native output/transport details are documented in
-`../architecture/change-request-activity.md`; the review below records the
-original November 13 baseline.
-
+Current implementation profile (2026-11-14): 116 pages after the discussion,
+atomic label, channel membership and temporary Entity maintenance work. The
+immutable snapshots preserve prior source coordinates. The public live
+inventory remains 123; seven terminal session/grant pages remain outside the
+reviewed profile. Native bounds and behavioral evidence are documented in
+`reference/cli-additions.md`. The review below retains the original November 13
+baseline.
 
 Reviewed 2026-11-13 for #336 against the 105-command 2026-08-15 profile.
 All 18 new reference pages were read and their Markdown hashes verified against

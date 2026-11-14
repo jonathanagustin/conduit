@@ -638,6 +638,9 @@ func (lifecycle *Lifecycle) StartPlan(ctx context.Context, planID, leaseToken st
 		if record.Status != PlanLeased {
 			return fmt.Errorf("%w: cannot start plan in %s", ErrInvalidTransition, record.Status)
 		}
+		if record.Command == nil && !planWithinMaintenanceWindow(record.Plan, lifecycle.now().UTC()) {
+			return fmt.Errorf("%w: maintenance window closed before execution", ErrLeaseRejected)
+		}
 		record.Status = PlanRunning
 		return nil
 	})

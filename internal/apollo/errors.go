@@ -117,3 +117,13 @@ func HelmChartEntityName(entityID string) string {
 	}
 	return entityID[marked+len(marker):]
 }
+
+// ParseHelmChartEntityID translates the bounded Conduit AEID shape at the
+// integration boundary. It does not infer private entity kinds or syntax.
+func ParseHelmChartEntityID(id string) (environment, entity string, ok bool) {
+	parts := strings.Split(id, ":")
+	if len(parts) != 4 || parts[0] != "aeid" || parts[1] == "" || parts[2] != "helm-chart" || parts[3] == "" {
+		return "", "", false
+	}
+	return parts[1], parts[3], true
+}

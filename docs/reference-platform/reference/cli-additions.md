@@ -5,14 +5,16 @@ Sources and exact reviewed hashes are indexed in `review-ledger.tsv`; the
 records each command, capability, and product issue.
 
 Two local Grype commands and four Change Request discussion/label command
-pages (#363) and three membership editor/removal pages (#365) are implemented and behaviorally tested. The other 9 additions
-remain outside the reviewed profile: temporary entity maintenance overrides (#364) and terminal sessions/grants (#303/#304).
+pages (#363) and three membership editor/removal pages (#365), plus two temporary Entity
+maintenance pages (#364), are implemented and behaviorally tested. The other
+7 additions remain outside the reviewed profile: terminal sessions/grants
+(#303/#304).
 An existing label setter, permanent Environment bypass, or channel-definition
 operation does not establish those new command semantics. Terminal create
 starts and connects to a new debug Pod; it is not just workload exec.
 
-The reviewed profile is 114 source pages: the original 105 August rows, two
-November Grype rows and four Change Request activity rows and three membership rows. The live inventory independently remains 123. Neither
+The reviewed profile is 116 source pages: the original 105 August rows, two
+November Grype rows and four Change Request activity rows, three membership rows and two temporary maintenance rows. The live inventory independently remains 123. Neither
 count proves native binary output equivalence or an unpublished private protocol.
 No refusal-only commands were introduced for these additions.
 
@@ -59,3 +61,22 @@ See [channel-membership-proposals.md](../../architecture/channel-membership-prop
 for authority, concurrency, persistence bounds and behavioral tests. The new
 114-row immutable snapshot preserves the previous 111 rows; no upstream page
 was recaptured during this implementation.
+
+## Temporary Entity maintenance implementation
+
+The Experimental parent/create commands (also `entity mwo create`) now submit
+one normally governed request per unique Entity across Environments, with a
+common server submission interval, positive duration at most 3600h, default
+no-downtime, retained reason/ticket and partial-failure results. Approval waiting
+consumes the interval. Dry-run creates no request.
+
+The native batch transport, structured receipts and required reason are explicit
+Conduit extensions. Separate maintenance-aware Agent admission projects current
+approved windows into copies without persisting them into Plans. Ordinary/older
+Agent leases retain the base schedule. New Agents require the upgraded Hub and
+recheck window expiry immediately before forward mutation, including after Helm
+rendering. See [temporary-maintenance.md](temporary-maintenance.md).
+
+Both current public Markdown sources were re-fetched on 2026-11-14 and matched
+their existing pinned hashes. The new 116-row snapshot preserves all 114 prior
+coordinates; it does not recapture or replace the old snapshots.

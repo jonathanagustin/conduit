@@ -82,5 +82,9 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	handler, err = mountTemporaryMaintenance(handler, repository, options)
+	if err != nil {
+		return nil, err
+	}
 	return guardUnregisteredRoutes(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions)), nil
 }

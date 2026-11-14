@@ -72,6 +72,9 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	recorder := newExecutionRecorder(worker.Now)
 
 	workCtx, cancelWork := context.WithCancel(ctx)
+	if record.Command != nil {
+		workCtx = context.WithValue(workCtx, imperativeMaintenanceKey{}, true)
+	}
 	heartbeatErrors := make(chan error, 1)
 	heartbeatDone := make(chan struct{})
 	go func() {
@@ -121,6 +124,11 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 				continue
 			}
 			startedAt := recorder.now()
+			if err := maintenanceAllowsPlan(workCtx, record.Plan, recorder.now()); err != nil {
+				executionErr = err
+				recorder.add(controlplane.ExecutionPhaseSecretMutation, controlplane.ExecutionTaskFailed, "", mutation.Namespace, startedAt, err)
+				break
+			}
 			if applyErr := worker.Materials.ApplySecretMutation(workCtx, mutation); applyErr != nil {
 				assignment := mutation.Current
 				if assignment == nil {
@@ -141,6 +149,12 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	if executionErr == nil {
 		for _, step := range record.Plan.Steps {
 			startedAt := recorder.now()
+			if err := maintenanceAllowsStep(workCtx, step, recorder.now()); err != nil {
+				executionErr = err
+				failedInstallationID = step.InstallationID
+				recorder.add(controlplane.ExecutionPhaseApply, controlplane.ExecutionTaskFailed, step.InstallationID, step.Namespace, startedAt, err)
+				break
+			}
 			if step.Action != controlplane.PlanActionUnmanage {
 				receipt, applyErr := worker.Executor.Apply(workCtx, record.Plan, step)
 				if applyErr != nil {
@@ -170,6 +184,11 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 				continue
 			}
 			startedAt := recorder.now()
+			if err := maintenanceAllowsPlan(workCtx, record.Plan, recorder.now()); err != nil {
+				executionErr = err
+				recorder.add(controlplane.ExecutionPhaseSecretMutation, controlplane.ExecutionTaskFailed, "", mutation.Namespace, startedAt, err)
+				break
+			}
 			if applyErr := worker.Materials.ApplySecretMutation(workCtx, mutation); applyErr != nil {
 				name := "unknown"
 				if mutation.Previous != nil {
