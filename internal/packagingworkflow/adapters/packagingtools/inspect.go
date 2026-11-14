@@ -104,13 +104,6 @@ func isLoopbackHost(hostport string) bool {
 	return ip != nil && ip.IsLoopback()
 }
 
-func (parsed imageRef) reference() string {
-	if parsed.digest != "" {
-		return parsed.digest
-	}
-	return parsed.tag
-}
-
 func (parsed imageRef) pathRef() string {
 	if parsed.digest != "" {
 		return parsed.digest

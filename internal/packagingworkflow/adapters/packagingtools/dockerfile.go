@@ -276,10 +276,7 @@ func splitKV(args string) []string {
 	if strings.Contains(args, "=") && !strings.Contains(args, " ") {
 		return []string{args}
 	}
-	var parts []string
-	for _, field := range strings.Fields(args) {
-		parts = append(parts, field)
-	}
+	parts := strings.Fields(args)
 	if len(parts) == 2 && !strings.Contains(parts[0], "=") {
 		return []string{parts[0] + "=" + parts[1]}
 	}
