@@ -596,3 +596,7 @@
 }
 .ledger-pager { display: flex; align-items: center; gap: var(--sp-2); font-size: 11.5px; color: var(--c-muted); }
 .audit-ledger .so-table td.code-id { white-space: nowrap; }
+/* Plain view panel used by catalog-style views. */
+.kit-view-panel { padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-2); }
+.kit-view-head { display: flex; align-items: baseline; gap: var(--sp-2); }
+.kit-view-head h2 { font-size: 13px; font-weight: 600; color: var(--c-text); }
