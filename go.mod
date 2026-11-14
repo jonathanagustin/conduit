@@ -32,10 +32,7 @@ require (
 	go.temporal.io/sdk v1.51.0
 )
 
-require (
-	go.yaml.in/yaml/v3 v3.0.5
-	gopkg.in/yaml.v3 v3.0.1
-)
+require gopkg.in/yaml.v3 v3.0.1
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -67,6 +64,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

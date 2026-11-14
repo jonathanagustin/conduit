@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // ApolloProductManifest is the current CLI Product Definition boundary. It is

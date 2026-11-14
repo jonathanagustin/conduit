@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/fluxconverge"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
