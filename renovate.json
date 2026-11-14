@@ -4,7 +4,9 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
-  "dependencyDashboard": true,
+  "dependencyDashboard": {
+    "enabled": true
+  },
   "labels": [
     "dependencies"
   ],
@@ -27,6 +29,18 @@
         "docs/reference-platform/cli-fixtures/**"
       ],
       "enabled": false
+    },
+    {
+      "description": "Use the official HTTP version feed for the mise Grok tool instead of GitHub tags",
+      "matchManagers": [
+        "mise"
+      ],
+      "matchDepNames": [
+        "grok"
+      ],
+      "overrideDatasource": "custom.grok-stable",
+      "overridePackageName": "grok",
+      "versioning": "semver"
     },
     {
       "description": "Group digest-pinned GitHub Actions updates",
@@ -62,5 +76,11 @@
       "dependencyDashboardApproval": true
     }
   ],
-  "automerge": false
+  "automerge": false,
+  "customDatasources": {
+    "grok-stable": {
+      "defaultRegistryUrlTemplate": "https://x.ai/cli/stable",
+      "format": "plain"
+    }
+  }
 }
