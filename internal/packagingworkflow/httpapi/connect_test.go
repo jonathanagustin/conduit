@@ -10,7 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"connectrpc.com/connect"
+	connectv1 "connectrpc.com/connect"
+	"connectrpc.com/connect/v2"
+	"connectrpc.com/connect/v2/connecthttp"
 	packagingv1 "github.com/jonathanagustin/conduit/gen/go/conduit/packaging/v1"
 	"github.com/jonathanagustin/conduit/gen/go/conduit/packaging/v1/packagingv1connect"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -20,6 +22,100 @@ func TestConnectRouteMatchesTheGeneratedProcedure(t *testing.T) {
 	if ConnectRoute != "POST "+packagingv1connect.PackagingRunServiceGetPackagingRunProcedure {
 		t.Fatalf("ConnectRoute = %q, procedure = %q", ConnectRoute, packagingv1connect.PackagingRunServiceGetPackagingRunProcedure)
 	}
+}
+
+func TestConnectV2RefusesBeforeReadingTheRequest(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		authorize Authorize
+		status    int
+	}{
+		{name: "missing authorizer", status: http.StatusUnauthorized},
+		{name: "unauthorized", authorize: func(*http.Request) error {
+			return StatusError{Status: http.StatusUnauthorized, Message: "unauthorized"}
+		}, status: http.StatusUnauthorized},
+		{name: "forbidden", authorize: func(*http.Request) error {
+			return StatusError{Status: http.StatusForbidden, Message: "forbidden"}
+		}, status: http.StatusForbidden},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			body := &connectObservedBody{Reader: strings.NewReader(`{"runId":"sample-app-1"}`)}
+			reader := &connectObservedReader{}
+			request := httptest.NewRequest(http.MethodPost, packagingv1connect.PackagingRunServiceGetPackagingRunProcedure, body)
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Connect-Protocol-Version", "1")
+			response := httptest.NewRecorder()
+			mountBoth(Config{Authorize: tc.authorize, Reader: reader}).ServeHTTP(response, request)
+			if response.Code != tc.status || body.reads != 0 || reader.reads != 0 {
+				t.Fatalf("status=%d bodyReads=%d readerCalls=%d", response.Code, body.reads, reader.reads)
+			}
+		})
+	}
+}
+
+func TestConnectV2KeepsOnlyTheExistingPOSTProcedureExposed(t *testing.T) {
+	for _, tc := range []struct {
+		method, path string
+		status       int
+	}{
+		{http.MethodGet, packagingv1connect.PackagingRunServiceGetPackagingRunProcedure, http.StatusMethodNotAllowed},
+		{http.MethodPost, "/conduit.packaging.v1.PackagingRunService/OtherMethod", http.StatusNotFound},
+	} {
+		t.Run(tc.method+tc.path, func(t *testing.T) {
+			calls := 0
+			reader := &connectObservedReader{}
+			body := &connectObservedBody{Reader: strings.NewReader(`{"runId":"sample-app-1"}`)}
+			request := httptest.NewRequest(tc.method, tc.path, body)
+			response := httptest.NewRecorder()
+			mountBoth(Config{Reader: reader, Authorize: func(*http.Request) error { calls++; return nil }}).ServeHTTP(response, request)
+			if response.Code != tc.status || calls != 0 || body.reads != 0 || reader.reads != 0 {
+				t.Fatalf("status=%d authorizeCalls=%d bodyReads=%d readerCalls=%d", response.Code, calls, body.reads, reader.reads)
+			}
+		})
+	}
+}
+
+func TestConnectV1ClientCanReadFromTheV2Server(t *testing.T) {
+	stored := domain.RunStatus{RunID: "sample-app-1", Phase: domain.PhaseReview}
+	server := httptest.NewServer(mountBoth(Config{Reader: fixedReader{status: stored}, Authorize: func(request *http.Request) error {
+		if request.Header.Get("Authorization") != "Bearer fixture" {
+			return StatusError{Status: http.StatusUnauthorized, Message: "unauthorized"}
+		}
+		return nil
+	}}))
+	t.Cleanup(server.Close)
+	client := connectv1.NewClient[packagingv1.GetPackagingRunRequest, packagingv1.GetPackagingRunResponse](server.Client(), server.URL+packagingv1connect.PackagingRunServiceGetPackagingRunProcedure)
+	request := connectv1.NewRequest(&packagingv1.GetPackagingRunRequest{RunId: stored.RunID})
+	request.Header().Set("Authorization", "Bearer fixture")
+	response, err := client.CallUnary(t.Context(), request)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if response.Msg.GetRunId() != stored.RunID || response.Msg.GetPhase() != stored.Phase || response.Msg.GetTier() != "CONDUIT_NATIVE" || response.Msg.GetPlanAuthority() != "conduit-plan" {
+		t.Fatalf("legacy client response = %#v", response.Msg)
+	}
+}
+
+type connectObservedBody struct {
+	io.Reader
+	reads int
+}
+
+func (body *connectObservedBody) Read(value []byte) (int, error) {
+	body.reads++
+	return body.Reader.Read(value)
+}
+
+func (*connectObservedBody) Close() error { return nil }
+
+type connectObservedReader struct {
+	fixedReader
+	reads int
+}
+
+func (reader *connectObservedReader) Read(ctx context.Context, id string) (domain.RunStatus, error) {
+	reader.reads++
+	return reader.fixedReader.Read(ctx, id)
 }
 
 func TestConnectHappyPathNotFoundAndUnauthorizedMatchREST(t *testing.T) {
@@ -73,7 +169,7 @@ func TestConnectHappyPathNotFoundAndUnauthorizedMatchREST(t *testing.T) {
 	if status, _ := raw(t, http.MethodGet, missing.URL+"/v1/packaging-runs/missing", ""); status != http.StatusNotFound {
 		t.Fatalf("REST not-found status = %d", status)
 	}
-	_, err := connectClient(missing).GetPackagingRun(t.Context(), connect.NewRequest(&packagingv1.GetPackagingRunRequest{RunId: "missing"}))
+	_, err := connectClient(missing).GetPackagingRun(t.Context(), &packagingv1.GetPackagingRunRequest{RunId: "missing"})
 	if connect.CodeOf(err) != connect.CodeNotFound {
 		t.Fatalf("Connect not-found code = %v (%v)", connect.CodeOf(err), err)
 	}
@@ -92,7 +188,7 @@ func TestConnectHappyPathNotFoundAndUnauthorizedMatchREST(t *testing.T) {
 	if status, body := postConnect(t, refused.URL+procedure, `{"runId":"sample-app-1"}`); status != http.StatusUnauthorized || !strings.Contains(body, "unauthorized") {
 		t.Fatalf("Connect unauthorized = %d %s", status, body)
 	}
-	_, err = connectClient(refused).GetPackagingRun(t.Context(), connect.NewRequest(&packagingv1.GetPackagingRunRequest{RunId: "sample-app-1"}))
+	_, err = connectClient(refused).GetPackagingRun(t.Context(), &packagingv1.GetPackagingRunRequest{RunId: "sample-app-1"})
 	if connect.CodeOf(err) != connect.CodeUnauthenticated {
 		t.Fatalf("Connect unauthorized code = %v (%v)", connect.CodeOf(err), err)
 	}
@@ -145,11 +241,11 @@ func getREST(t *testing.T, baseURL, runID string) domain.RunStatus {
 
 func getConnect(t *testing.T, server *httptest.Server, runID string) domain.RunStatus {
 	t.Helper()
-	response, err := connectClient(server).GetPackagingRun(t.Context(), connect.NewRequest(&packagingv1.GetPackagingRunRequest{RunId: runID}))
+	response, err := connectClient(server).GetPackagingRun(t.Context(), &packagingv1.GetPackagingRunRequest{RunId: runID})
 	if err != nil {
 		t.Fatal(err)
 	}
-	message := response.Msg
+	message := response
 	return domain.RunStatus{
 		Tier:              message.GetTier(),
 		Configured:        message.GetConfigured(),
@@ -181,7 +277,9 @@ func assertSameRun(t *testing.T, rest, got domain.RunStatus) {
 }
 
 func connectClient(server *httptest.Server) packagingv1connect.PackagingRunServiceClient {
-	return packagingv1connect.NewPackagingRunServiceClient(server.Client(), server.URL)
+	return packagingv1connect.NewPackagingRunServiceClient(connect.NewClient(
+		connecthttp.NewTransport(server.Client(), server.URL),
+	))
 }
 
 func postConnect(t *testing.T, url, body string) (int, string) {
