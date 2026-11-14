@@ -11,13 +11,11 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
-import { AcpPanels } from "@/src/embed/acp-panels";
 
 import { mountOperator } from "./operator/engine.js";
 import "./operator/console.css";
 
 const RAIL_THREAD = {
-  ViewportHeader: AcpPanels,
   Welcome: function RailWelcome() {
     return null;
   },
