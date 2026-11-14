@@ -48,6 +48,9 @@ func TestRevocationAndDeletionKeepOwnerAndExpiry(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if _, err := revoked.Transition(Deleted, e.Owner, e.CreatedAt); !errors.Is(err, ErrInvalid) {
+		t.Fatal("clock regression accepted", err)
+	}
 	deleted, err := revoked.Transition(Deleted, "admin@example.org", e.CreatedAt.Add(2*time.Minute))
 	if err != nil {
 		t.Fatal(err)
