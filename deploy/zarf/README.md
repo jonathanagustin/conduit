@@ -1,7 +1,7 @@
 # Zarf offline-bundle package
 
 This package carries the product-agnostic Conduit Hub, Spoke Agent, and their
-runtime manifest across an air gap. It deliberately does not contain Product
+runtime manifest to a disconnected site. It deliberately does not contain Product
 catalogs, Product charts or images, Environment credentials, application
 namespaces, registry assignments, or installation configuration.
 

@@ -80,7 +80,7 @@ Both reviewers, independently. Kimi:
 
 Grok, separately:
 
-> Put recalls on the bundle / Target Hub path, or retract the Air gap READY row.
+> Put recalls on the bundle / Target Hub path, or retract the offline-bundle READY row.
 > You do not get both "disconnected installation" and "recall is source-side
 > only."
 

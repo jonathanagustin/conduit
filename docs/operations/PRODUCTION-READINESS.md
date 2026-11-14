@@ -52,7 +52,7 @@ answer, and nothing here should be read as claiming it.
 ### Offline bundles: what this claims and what it does not
 
 Two external reviewers reading only this document on 2026-08-18 found the same
-defect independently, and it was a real one. The row then titled `Air gap`
+defect independently, and it was a real one. The row then titled for offline bundles
 claimed the package "validates for disconnected installation" while gap 5 recorded that
 "a Release recalled on the source keeps running on a disconnected target with no
 roll-off instruction". Those are assertions about the same estate, and the
