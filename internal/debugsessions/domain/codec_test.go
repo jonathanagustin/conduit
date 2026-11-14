@@ -40,6 +40,7 @@ func TestJournalCodecRejectsAmbiguousAndCorruptDocuments(t *testing.T) {
 	e := request(t)
 	b, _ := EncodeEvent(e)
 	cases := [][]byte{
+		append(append([]byte{}, b...), bytes.Repeat([]byte(" "), MaximumDocumentBytes+1-len(b))...),
 		nil, []byte("null"), []byte("[]"), append(append([]byte{}, b...), b...), append([]byte(" "), bytes.Repeat([]byte(" "), MaximumDocumentBytes)...),
 		[]byte(strings.Replace(string(b), `"owner":`, `"extra":true,"owner":`, 1)),
 		[]byte(strings.Replace(string(b), `"owner":`, `"owner":"attacker","owner":`, 1)),
