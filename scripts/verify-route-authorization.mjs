@@ -83,6 +83,7 @@ const SOURCES = [
   { path: "internal/delivery/checkin/httpapi", surface: "site check-in" },
   { path: "internal/appgen/httpapi", surface: "app generation" },
   { path: "internal/delivery/offlinebundle/httpapi", surface: "offline bundles" },
+  { path: "internal/delivery/upgrades/httpapi", surface: "dependency and upgrade views" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";
