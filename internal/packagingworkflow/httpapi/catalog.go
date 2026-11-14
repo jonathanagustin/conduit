@@ -247,7 +247,8 @@ func stamp(status domain.RunStatus, configured bool) domain.RunStatus {
 func redactRun(run domain.RunStatus) domain.RunStatus {
 	if secretField(run.Reason) || secretField(run.RunID) || secretField(run.Phase) || secretField(run.Outcome) ||
 		secretField(run.SourceDigest) || secretField(run.ArtifactDigest) || secretField(run.ProposalRevision) ||
-		secretField(run.TargetPlanRef) || secretField(run.PlanID) {
+		secretField(run.TargetPlanRef) || secretField(run.PlanID) ||
+		secretField(run.TemplateVersion) || secretField(run.ToolVersions) {
 		run.Reason = "redacted"
 		if secretField(run.RunID) {
 			run.RunID = ""
@@ -266,6 +267,12 @@ func redactRun(run domain.RunStatus) domain.RunStatus {
 		}
 		if secretField(run.PlanID) {
 			run.PlanID = ""
+		}
+		if secretField(run.TemplateVersion) {
+			run.TemplateVersion = ""
+		}
+		if secretField(run.ToolVersions) {
+			run.ToolVersions = ""
 		}
 	}
 	return stamp(run, true)
