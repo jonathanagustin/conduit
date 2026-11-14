@@ -33,7 +33,7 @@ authorization behavior, or server implementation.
 - [`api/conjure/foundry-apollo.conjure.json`](../../api/conjure/foundry-apollo.conjure.json)
   is the 59-type derived IR: 29 aliases, two enums, 25 objects, and three
   unions. Its current SHA-256 is
-  `e6e012c64d45efb3644b99e19b915075504947f96097dbd8f5278b9fe8e3e5f1`.
+  `a4b6e72d4be8e2b4f8e4ad178b33681c3c51477d708dee54294387e34713a11c`.
 - [`scripts/osdk-conjure-contract.mjs`](../../scripts/osdk-conjure-contract.mjs)
   resolves TypeScript imports and discriminated unions from the pinned source.
   Unlike the earlier Factory prototype, it does not flatten the three admitted
