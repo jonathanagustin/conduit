@@ -429,7 +429,7 @@ test.describe("fake ACP bridge", () => {
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm02-org-control-panel");
       });
-      await expect(page.getByRole("button", { name: "Organizations" }).first()).toBeVisible();
+      await expect(page.getByRole("radio", { name: "Organizations" }).first()).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm03-auth-signin");
       });

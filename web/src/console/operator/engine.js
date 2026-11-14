@@ -291,7 +291,7 @@ export function mountOperator(host, options) {
     SCREENS.push(...releaseGates.screens);
     const settings = createSettings({
       state,
-      render: () => renderMainWorkspace(),
+      render: () => renderApp(),
     });
     settings.extendState();
     SCREENS.push(...settings.screens);
