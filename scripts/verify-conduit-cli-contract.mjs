@@ -4,8 +4,8 @@ import { readFile } from "node:fs/promises";
 
 const contractPath = "docs/reference-platform/cli-command-contract.json";
 const contract = JSON.parse(await readFile(contractPath, "utf8"));
-const manifestPath = "docs/reference-platform/snapshots/cli-command-sources-2026-11-13.tsv";
-if (contract.sourceManifest !== manifestPath || contract.captured !== "2026-11-13") {
+const manifestPath = "docs/reference-platform/snapshots/cli-command-sources-2026-11-14-363.tsv";
+if (contract.sourceManifest !== manifestPath || contract.captured !== "2026-11-14") {
   throw new Error("Apollo CLI compatibility profile must name its reviewed source snapshot");
 }
 const manifest = await readFile(manifestPath, "utf8");
@@ -71,3 +71,4 @@ for (const command of inventory.commands) {
 const additions = inventory.commands.filter((command) => !seen.has(command.source));
 console.log(`Conduit CLI reviewed profile verified: ${contract.commands.length}/${expected.size} pages and ${workflow.length}/6 workflow commands`);
 console.log(`Apollo CLI current inventory verified: ${liveSeen.size}/${liveSources.size} pages; ${additions.length} outside the reviewed implementation profile`);
+

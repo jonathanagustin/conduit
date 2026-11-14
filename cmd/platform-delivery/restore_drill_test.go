@@ -48,6 +48,8 @@ import (
 	"testing"
 	"time"
 
+	discussionpostgres "github.com/jonathanagustin/conduit/internal/changeactivity/adapters/postgres"
+	discussiondomain "github.com/jonathanagustin/conduit/internal/changeactivity/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
@@ -133,6 +135,7 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 // seededState is what the drill wrote before the dump and expects to read back
 // through the real repositories afterwards.
 type seededState struct {
+	discussion            discussiondomain.Comment
 	downloadAssets        assetdomain.Prepared
 	downloadPublication   controlplane.ProductPublication
 	space                 spacedomain.Space
@@ -268,7 +271,21 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 	if err != nil {
 		t.Fatal(err)
 	}
+	discussionStore, err := discussionpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer discussionStore.Close()
+	discussionRequest := controlplane.ChangeRequest{ID: "crq_restore_discussion", PlanID: record.ID, Author: controlplane.Principal{Username: "restore-operator"}, Environment: state.Environment.ID, Status: controlplane.ChangePendingApprovals, CreatedAt: space.CreatedAt, UpdatedAt: space.CreatedAt, Revision: 1}
+	if _, err := repository.CreateChangeRequest(ctx, discussionRequest); err != nil {
+		t.Fatal(err)
+	}
+	discussion := discussiondomain.Comment{ID: "cmt_" + strings.Repeat("2", 32), RequestID: discussionRequest.ID, Author: "restore-operator", Actor: "restore-operator", CreatedAt: space.CreatedAt, Text: "Durable discussion, not an approval", ValueTier: discussiondomain.ValueTier}
+	if err := discussionStore.Append(ctx, discussion); err != nil {
+		t.Fatal(err)
+	}
 	return seededState{
+		discussion:     discussion,
 		downloadAssets: downloadAssets, downloadPublication: downloadPublication,
 		space: space, binding: binding,
 		auditEvent: auditEvent, auditCheckpoint: auditCheckpoint,
@@ -387,6 +404,7 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 		resolutionlogpostgres.Component():       resolutionlogpostgres.Migrations(),
 		spacepostgres.Component:                 spacepostgres.Migrations(),
 		assetpostgres.Component:                 assetpostgres.Migrations(),
+		discussionpostgres.Component:            discussionpostgres.Migrations(),
 	} {
 		pending, err := pgmigrate.Pending(ctx, restored, component, migrations)
 		if err != nil {
@@ -518,6 +536,19 @@ func assertStateSurvived(t *testing.T, ctx context.Context, dataSourceName strin
 	publications, err := repository.ListProductPublications(ctx, seeded.downloadPublication.Product)
 	if err != nil || len(publications) != 1 || !reflect.DeepEqual(publications[0], seeded.downloadPublication) {
 		t.Fatalf("restored download publication receipt differs: %#v, %v", publications, err)
+	}
+	discussionStore, err := discussionpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer discussionStore.Close()
+	discussion, err := discussionStore.List(ctx, seeded.discussion.RequestID)
+	if err != nil || len(discussion) != 1 || discussion[0] != seeded.discussion {
+		t.Fatalf("restored discussion differs: %#v, %v", discussion, err)
+	}
+	discussionRequest, err := repository.GetChangeRequest(ctx, seeded.discussion.RequestID)
+	if err != nil || discussionRequest.Status != controlplane.ChangePendingApprovals || len(discussionRequest.Reviews) != 0 {
+		t.Fatalf("discussion acquired approval or lost its request: %#v, %v", discussionRequest, err)
 	}
 	audits, err := repository.ListAuthorizationAudit(ctx, seeded.auditEvent.ResourceRID)
 	if err != nil || len(audits) != 1 {

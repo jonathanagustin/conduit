@@ -102,6 +102,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeProductAssets()
+	discussion, closeDiscussion, err := openChangeDiscussion(ctx, os.Getenv)
+	if err != nil {
+		slog.Error("initialize Change Request discussion component", "error", err)
+		os.Exit(1)
+	}
+	defer closeDiscussion()
 	repository, closeReconciliation, reconciliationSupervisor, readStats, notifications, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
@@ -233,6 +239,7 @@ func main() {
 		}, composition.Options{
 			Spaces:               spaces,
 			ProductAssets:        productAssets,
+			ChangeDiscussion:     discussion,
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
 			PackagingStatus:      packagingReader,

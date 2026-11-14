@@ -90,6 +90,7 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/delivery/reconciliat
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/notifications/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/spaces/adapters/postgres
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/productassets/adapters/postgres
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/changeactivity/adapters/postgres
 # This package opens two independent pools and writes concurrently; the
 # cmd/platform-delivery drill below separately proves its migration and one
 # exact resolution survive the pinned-client dump/restore path.
@@ -107,3 +108,4 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/gitless/adapters/res
 # runs here.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/pgmigrate
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./cmd/platform-delivery -run '^TestPostgres'
+

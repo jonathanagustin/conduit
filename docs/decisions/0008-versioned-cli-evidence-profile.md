@@ -40,3 +40,17 @@ unchanged and adds only those two November source rows. Its date identifies the
 review migration; it does not imply that the old sources were recaptured.
 The live inventory remains 123. The other 16 additions stay outside the profile
 until their scoped implementations and behavioral tests are reviewed.
+
+## 2026-11-14 Change Request activity migration
+
+Issue #363 adds the four reviewed Change Request comment/label command pages
+after behavioral tests for durable discussion, native Hub/CLI authorization,
+atomic concurrent label edits, do-not-merge approval/Plan transitions, and
+non-mutating previews. The reviewed profile is now 111 pages; the live inventory
+remains 123, with 12 pages outside this implementation profile.
+
+`cli-command-sources-2026-11-14-363.tsv` preserves the previous 107 rows and adds
+only those four hash-pinned rows. The earlier snapshot is unchanged. Native
+comment records, the additional discussion-list command, transport routes and
+preview output are registered Conduit extensions; public command syntax does
+not establish private APIs or those unspecified result shapes.

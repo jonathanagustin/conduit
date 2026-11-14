@@ -1,5 +1,13 @@
 # November 2026 CLI additions review
 
+Current implementation profile (2026-11-14): 111 pages after #363's discussion
+and atomic label commands. Its new immutable snapshot preserves the original
+107 rows below and adds the four reviewed Change Request pages. The public live
+inventory remains 123. Native output/transport details are documented in
+`../architecture/change-request-activity.md`; the review below records the
+original November 13 baseline.
+
+
 Reviewed 2026-11-13 for #336 against the 105-command 2026-08-15 profile.
 All 18 new reference pages were read and their Markdown hashes verified against
 `cli-command-inventory.json`. This is public documentation evidence, not a
@@ -89,3 +97,4 @@ policy grants, policy-default duration, compliance metadata, dry-run, approval,
 and expiry. These requirements were added to their existing issue threads.
 The 16 unimplemented additions remain outside the profile until those product
 capabilities and behavioral tests land.
+
