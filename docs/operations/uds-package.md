@@ -176,7 +176,13 @@ uds zarf package deploy /tmp/conduit-zarf/zarf-package-platform-runtime-amd64-0.
   --confirm \
   --components uds \
   --set-variables ENVIRONMENT_ID=example \
-  --set-variables AGENT_ID=spoke-example
+  --set-variables AGENT_ID=spoke-example \
+  --set-variables BOOTSTRAP_ADMINISTRATORS=conduit-author,conduit-reviewer \
+  --set-variables OPERATOR_OIDC_ISSUER=https://sso.uds.dev/realms/uds \
+  --set-variables OPERATOR_OIDC_CLIENT_ID=conduit-hub \
+  --set-variables OPERATOR_OIDC_USERNAME_CLAIM=preferred_username \
+  --set-variables OPERATOR_OIDC_GROUPS_CLAIM=groups \
+  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem
 
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-delivery --timeout=180s
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-spoke-agent --timeout=180s
@@ -216,6 +222,40 @@ uds create deploy/zarf --confirm --output /tmp/conduit-zarf
 That archive contains the Conduit package with the `uds` component selected.
 It does not contain UDS Core. Deploy slim-dev first, then this bundle.
 
+
+
+## Operator identity on a UDS cluster
+
+The packaged Hub does not accept insecure identity headers. On a UDS
+cluster, operator identity comes from a verified token issued by the
+Keycloak realm registered in the Package CR (`conduit-hub`). The UDS
+component leaves `OPERATOR_OIDC_*` empty by default so a plain Zarf
+install, which has no Keycloak, can still start. The values above turn
+OIDC on when the package is deployed with the `uds` component.
+
+The Package CR does not set `enableAuthserviceSelector`. Authservice in
+front of the Hub pods would also sit on the Spoke's mTLS port, which
+shares the Hub process. The console uses the Hub's own OIDC sign-in, and
+the Hub maps the token's `preferred_username` and `groups` claims onto
+the operator principal.
+
+## Second-person approval users
+
+`mise run uds-keycloak-users` creates two users in the `uds` realm,
+`conduit-author` and `conduit-reviewer`, and adds both to the
+`conduit-operators` group. Their passwords are written only to
+`$HOME/.config/conduit/uds-local-users` (or `CONDUIT_UDS_USERS_FILE`)
+with mode 0600, outside the repository. The command does not print the
+passwords. A second run reuses the file unless `--rotate` is passed.
+
+Set `PLATFORM_BOOTSTRAP_ADMINISTRATORS` to those usernames, as in the
+deploy command above, so each user can establish initial governance. A
+change request still needs a second person: the author cannot approve
+their own request.
+
+The admin password is read from the `keycloak-admin-password` Secret in
+the `keycloak` namespace and is never copied into the users file or into
+a document. If that Secret is absent, bootstrap a Keycloak admin first.
 
 ## Portal tiles
 

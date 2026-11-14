@@ -44,6 +44,11 @@ abort "Zarf runtime escaped platform-system" unless namespaces == ["platform-sys
 created_namespaces = manifests.select { |item| item["kind"] == "Namespace" }.map { |item| item.dig("metadata", "name") }
 abort "Zarf must create only its runtime namespace" unless created_namespaces == ["platform-system"]
 abort "Zarf package must not enable insecure identity" if manifest_text.match?(/ALLOW_INSECURE_.*true/)
+%w[OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE].each do |name|
+  abort "Hub must accept #{name} from a Zarf variable" unless manifest_text.include?("name: #{name}") && manifest_text.include?("###ZARF_VAR_#{name}###")
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
+end
 abort "Zarf package must require the persistent Bundle signing key" unless manifest_text.include?("BUNDLE_SIGNING_KEY_FILE")
 abort "Zarf package must use static mTLS in the disconnected baseline" unless %w[
   AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE
@@ -74,11 +79,17 @@ service = manifests.find { |item| item["kind"] == "Service" && item.dig("metadat
 abort "Hub Service must label itself for the UDS monitor" unless service&.dig("metadata", "labels", "app.kubernetes.io/name") == "platform-delivery"
 abort "Hub Service must name the metrics port" unless service&.dig("spec", "ports")&.any? { |port| port["name"] == "metrics" && port["port"] == 9090 }
 abort "Hub container must declare the metrics port" unless hub_container&.dig("ports")&.any? { |port| port["name"] == "metrics" && port["containerPort"] == 9090 }
+oidc_ca = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "oidc-ca" }
+abort "Hub must mount the issuer CA bundle as an optional ConfigMap" unless oidc_ca&.dig("configMap", "name") == "uds-trust-bundle" && oidc_ca.dig("configMap", "optional")
 
 abort "UDS Package API must be pinned" unless uds_package["apiVersion"] == "uds.dev/v1alpha1" && uds_package["kind"] == "Package"
 abort "UDS Package must live in platform-system" unless uds_package.dig("metadata", "namespace") == "platform-system"
 expose = uds_package.dig("spec", "network", "expose") || []
-abort "UDS Package must expose the Hub on the tenant gateway" unless expose.any? { |item| item["gateway"] == "tenant" && item["service"] == "platform-delivery" && item["port"] == 8081 }
+hub_expose = expose.find { |item| item["gateway"] == "tenant" && item["service"] == "platform-delivery" && item["port"] == 8081 }
+abort "UDS Package must expose the Hub on the tenant gateway" unless hub_expose
+abort "UDS Package must use sidecar mesh mode when ambient is off" unless uds_package.dig("spec", "network", "serviceMesh", "mode") == "sidecar"
+abort "UDS Package must set the portal tile title on the Hub expose entry" unless hub_expose.dig("annotations", "uds.dev/title") == "Conduit"
+abort "Zarf package must set the portal tile title" unless definition.dig("metadata", "annotations", "dev.uds.title") == "Conduit"
 allows = uds_package.dig("spec", "network", "allow") || []
 required_allows = [
   ["Ingress", "istio-tenant-gateway", 8081],
@@ -95,6 +106,9 @@ client = sso.find { |item| item["clientId"] == "conduit-hub" }
 abort "UDS Package must register the Hub SSO client" unless client
 abort "UDS Package must set the console redirect URI" unless client["redirectUris"] == ["###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/*"]
 abort "UDS Package must not put authservice in front of the Agent mTLS port" if client["enableAuthserviceSelector"]
+groups_mapper = (client["protocolMappers"] || []).find { |item| item["protocolMapper"] == "oidc-group-membership-mapper" && item.dig("config", "claim.name") == "groups" }
+abort "UDS Package must map Keycloak groups into the token" unless groups_mapper
+abort "UDS Package must write the issuer CA bundle for operator OIDC" unless uds_package.dig("spec", "caBundle", "configMap", "name") == "uds-trust-bundle"
 monitor = uds_package.dig("spec", "monitor") || []
 abort "UDS Package must declare a ServiceMonitor for the metrics port" unless monitor.any? { |item| item["kind"] == "ServiceMonitor" && item["portName"] == "metrics" && item["targetPort"] == 9090 && item["path"] == "/metrics" }
 

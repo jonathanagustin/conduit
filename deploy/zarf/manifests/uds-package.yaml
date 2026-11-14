@@ -16,7 +16,7 @@ metadata:
 spec:
   network:
     serviceMesh:
-      mode: ambient
+      mode: sidecar
     expose:
       - description: Hub console through the tenant gateway
         service: platform-delivery
@@ -26,6 +26,8 @@ spec:
         host: conduit
         port: 8081
         targetPort: 8081
+        annotations:
+          uds.dev/title: Conduit
     allow:
       - description: Ingress through the tenant gateway
         direction: Ingress
@@ -108,6 +110,16 @@ spec:
         - "###ZARF_VAR_CONSOLE_PUBLIC_URL###"
       secretConfig:
         name: conduit-hub-sso
+      protocolMappers:
+        - name: groups
+          protocol: openid-connect
+          protocolMapper: oidc-group-membership-mapper
+          config:
+            full.path: "true"
+            claim.name: groups
+            id.token.claim: "true"
+            access.token.claim: "true"
+            userinfo.token.claim: "true"
   monitor:
     - description: Hub metrics
       kind: ServiceMonitor
@@ -116,3 +128,8 @@ spec:
       portName: metrics
       targetPort: 9090
       path: /metrics
+  caBundle:
+    configMap:
+      name: uds-trust-bundle
+      key: ca-bundle.pem
+
