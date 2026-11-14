@@ -1,4 +1,5 @@
 /* Hub-backed workbench rows. Empty when the Hub does not answer. */
+import { channelTable } from "./channel-board.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -322,6 +323,7 @@ export function createLiveHub({ state, render }) {
       plans: [],
       environments: [],
       installations: [],
+      channels: null,
       preview: null,
       note: "",
     };
@@ -345,6 +347,11 @@ export function createLiveHub({ state, render }) {
       );
     } catch {
       next.installationNote = "Hub did not return reported installations.";
+    }
+    try {
+      next.channels = await readJSON("/v1/channel-subscriptions");
+    } catch {
+      next.channelNote = "Hub did not return channel subscriptions.";
     }
     try {
       const body = await readJSON("/v1/packaging-runs");
@@ -636,6 +643,20 @@ export function createLiveHub({ state, render }) {
           `<p class="text-[12px] text-[#8b96a5] mb-2">Recorded promotion edges.</p><div class="space-y-2">${pipe}</div>`,
         ),
       );
+    },
+    renderChannels(root) {
+      const view = hub(state).channels;
+      const table = channelTable(view);
+      if (!table) {
+        root.innerHTML = missing(
+          hub(state).channelNote || "No channel subscription is recorded.",
+        );
+        return;
+      }
+      root.innerHTML = `<div class="so-view-enter">${panel(
+        "Channel subscriptions",
+        `<p class="text-[12px] text-[#8b96a5]">The version on dev, candidate, and stable, and the channel this environment subscribes to. Running is the version the environment last reported.</p>${table}`,
+      )}</div>`;
     },
     renderEnvironments(root) {
       const rows = hub(state).environments || [];
