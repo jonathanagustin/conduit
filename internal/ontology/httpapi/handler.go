@@ -4,6 +4,7 @@
 package httpapi
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/json"
 	"errors"
@@ -53,6 +54,12 @@ type Config struct {
 	Allow     func(*http.Request, string) bool
 	Caller    func(*http.Request) (ports.Caller, error)
 	Permit    func(*http.Request, string) error
+	// Audit records an allow or deny on the authorization hash chain. Nil
+	// refuses the governed action instead of skipping the record.
+	Audit func(ctx context.Context, subject, action, resource, decision, reason string) error
+	// Facts loads server-side observations for an action. The caller cannot
+	// supply them. Nil facts fail closed.
+	Facts func(ctx context.Context, action, resource string) (domain.ActionFacts, error)
 }
 
 // Register mounts the ontology routes.
@@ -237,12 +244,73 @@ func loadObjects(cfg Config, w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, payload)
 }
 
+func enforceAction(cfg Config, w http.ResponseWriter, r *http.Request, actionName string) {
+	if cfg.Caller == nil || cfg.Audit == nil {
+		writeError(w, http.StatusBadGateway, "ontology actions are unavailable")
+		return
+	}
+	caller, err := cfg.Caller(r)
+	if err != nil {
+		status, message := refusal(err)
+		writeError(w, status, message)
+		return
+	}
+	var body struct {
+		Parameters map[string]json.RawMessage `json:"parameters"`
+	}
+	if err := decode(r, &body); err != nil {
+		writeError(w, http.StatusBadRequest, "request body is not valid JSON")
+		return
+	}
+	resource := strings.TrimSpace(scalarOrEmpty(body.Parameters["resource"]))
+	if resource == "" {
+		resource = "action/" + actionName
+	}
+	facts := domain.ActionFacts{Roles: append([]string{}, caller.Teams...)}
+	facts.Roles = append(facts.Roles, caller.Groups...)
+	if cfg.Facts != nil {
+		observed, err := cfg.Facts(r.Context(), actionName, resource)
+		if err != nil {
+			writeError(w, http.StatusBadGateway, "action facts are unavailable")
+			return
+		}
+		observed.Roles = facts.Roles
+		facts = observed
+	}
+	decision := domain.Decide(actionName, facts)
+	verdict := "DENY"
+	if decision.Allowed {
+		verdict = "ALLOW"
+	}
+	if err := cfg.Audit(r.Context(), caller.Username, decision.AuditEvent, resource, verdict, decision.Reason); err != nil {
+		writeError(w, http.StatusBadGateway, "the audit record could not be written")
+		return
+	}
+	if !decision.Allowed {
+		writeValidation(w, domain.ApplyResult{SubmissionMessage: decision.Reason})
+		return
+	}
+	writeValidation(w, domain.ApplyResult{Valid: true})
+}
+
+func scalarOrEmpty(raw json.RawMessage) string {
+	value, ok := scalar(raw)
+	if !ok {
+		return ""
+	}
+	return value
+}
+
 func applyAction(cfg Config, w http.ResponseWriter, r *http.Request) {
 	if cfg.Source == nil || cfg.Caller == nil {
 		writeError(w, http.StatusBadGateway, "ontology actions are unavailable")
 		return
 	}
 	actionName := r.PathValue("action")
+	if _, governed := domain.LookupAction(actionName); governed {
+		enforceAction(cfg, w, r, actionName)
+		return
+	}
 	if _, ok := domain.ActionByName(actionName); !ok {
 		writeError(w, http.StatusNotFound, "action type not found")
 		return

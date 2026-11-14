@@ -140,6 +140,50 @@ func TestApplyReturnsValidationAndDoesNotInventApproval(t *testing.T) {
 	}
 }
 
+func TestGovernedActionRejectsTheRoleAndRecordsTheAudit(t *testing.T) {
+	t.Parallel()
+	var recorded []string
+	handler := mux(Config{
+		Source:    &fakeSource{},
+		Authorize: allowAll,
+		Caller: func(*http.Request) (ports.Caller, error) {
+			return ports.Caller{Username: "dev", Teams: []string{"Release Approver"}}, nil
+		},
+		Audit: func(_ context.Context, subject, action, _, decision, _ string) error {
+			recorded = append(recorded, subject+" "+action+" "+decision)
+			return nil
+		},
+		Facts: func(context.Context, string, string) (domain.ActionFacts, error) {
+			return domain.ActionFacts{RunKnown: true, RunPhase: "QUEUED"}, nil
+		},
+	})
+	denied := request(handler, http.MethodPost, "/api/v2/ontologies/conduit/actions/cancel_packaging_run/apply", `{"parameters":{"resource":"packaging-run/run-1"}}`, true)
+	if denied.Code != http.StatusOK || !strings.Contains(denied.Body.String(), "caller does not have a role") {
+		t.Fatalf("denied %d %s", denied.Code, denied.Body.String())
+	}
+	allowed := mux(Config{
+		Source:    &fakeSource{},
+		Authorize: allowAll,
+		Caller: func(*http.Request) (ports.Caller, error) {
+			return ports.Caller{Username: "ops", Teams: []string{"Operator"}}, nil
+		},
+		Audit: func(_ context.Context, subject, action, _, decision, _ string) error {
+			recorded = append(recorded, subject+" "+action+" "+decision)
+			return nil
+		},
+		Facts: func(context.Context, string, string) (domain.ActionFacts, error) {
+			return domain.ActionFacts{RunKnown: true, RunPhase: "QUEUED"}, nil
+		},
+	})
+	ok := request(allowed, http.MethodPost, "/api/v2/ontologies/conduit/actions/cancel_packaging_run/apply", `{"parameters":{"resource":"packaging-run/run-1"}}`, true)
+	if ok.Code != http.StatusOK || !strings.Contains(ok.Body.String(), `"result":"VALID"`) {
+		t.Fatalf("allowed %d %s", ok.Code, ok.Body.String())
+	}
+	if len(recorded) != 2 || !strings.Contains(recorded[0], "DENY") || !strings.Contains(recorded[1], "ALLOW") || !strings.Contains(recorded[1], "packaging_run.canceled") {
+		t.Fatalf("audit = %#v", recorded)
+	}
+}
+
 func mux(cfg Config) http.Handler {
 	router := http.NewServeMux()
 	Register(router, cfg)
