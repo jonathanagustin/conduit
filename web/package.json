@@ -21,7 +21,7 @@
   },
   "dependencies": {
     "@agentclientprotocol/codex-acp": "2.6.0",
-    "@agentclientprotocol/sdk": "2.5.0",
+    "@agentclientprotocol/sdk": "2.6.0",
     "@ai-sdk/openai": "^4.0.102",
     "@assistant-ui/ai-sdk": "^0.0.18",
     "@assistant-ui/generative-ui": "^0.0.11",
