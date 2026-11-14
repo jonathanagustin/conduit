@@ -20,6 +20,7 @@ import {
   ontologyRef,
   validateFor,
 } from "./object-inspector.js";
+import { createAuditLedger } from "./audit-ledger.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
 import { createIntelligence } from "./intelligence.js";
@@ -1579,6 +1580,30 @@ export function mountOperator(host, options) {
       return true;
     }
     return false;
+  }
+
+  // Audit ledger: the recorded authorization chain with search, decision
+  // filter, paging, and a client-side check of the hash links.
+  let ledgerRoot = null;
+  const auditLedger = createAuditLedger({
+    getEntries: () => (Array.isArray(state.hub?.audit) ? state.hub.audit : []),
+    rerender: () => {
+      if (ledgerRoot && ledgerRoot.isConnected) auditLedger.render(ledgerRoot);
+    },
+  });
+  function renderAuditLedger(node) {
+    if (!node) return;
+    const entries = Array.isArray(state.hub?.audit) ? state.hub.audit : [];
+    if (!entries.length) {
+      liveHub.renderAudit(node);
+      return;
+    }
+    node.innerHTML = `<div class="so-view-enter so-panel kit-ledger-panel">
+      <div class="kit-ledger-head"><h2>Authorization audit</h2><span class="kit-muted">${entries.length} recorded decisions</span></div>
+      <div data-ledger-root></div></div>`;
+    ledgerRoot = node.querySelector("[data-ledger-root]");
+    auditLedger.render(ledgerRoot);
+    auditLedger.bind(ledgerRoot);
   }
 
   function escHtml(v) {
@@ -5612,7 +5637,7 @@ export function mountOperator(host, options) {
       "s06-active-work": renderS06ActiveWork,
       "s07-pipeline": renderS07Pipeline,
       "s08-staged-run": renderS08StagedRun,
-      "au01-audit": (root) => liveHub.renderAudit(root),
+      "au01-audit": renderAuditLedger,
       "s09-source": renderS09Source,
       "s10-diff": renderS10Diff,
       "s11-preview": renderS11Preview,
@@ -5689,7 +5714,7 @@ export function mountOperator(host, options) {
       "s13-fleet-overview": renderS13FleetOverview,
       "s15-plan-detail": renderS15PlanDetail,
       "s17-spokes-audit": renderS17SpokesAudit,
-      "au01-audit": (node) => liveHub.renderAudit(node),
+      "au01-audit": renderAuditLedger,
     }[current.screen];
     if (renderer) renderer(root.querySelector("#area-body"));
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
