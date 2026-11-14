@@ -52,6 +52,7 @@ func TestPermitBindsExactTargetBlockersAndLifetime(t *testing.T) {
 	if permit.Allows(now, other, current.Blockers[0]) {
 		t.Fatal("foreign target allowed")
 	}
+	//lint:ignore SA9005 The test verifies that an opaque permit cannot become transport authority.
 	encoded, err := json.Marshal(permit)
 	if err != nil || string(encoded) != "{}" {
 		t.Fatal("permit became transport authority", string(encoded), err)
@@ -233,5 +234,20 @@ func TestOneFlagCannotWaiveTheOtherConstraint(t *testing.T) {
 	a.ProposalID = blocked.ID
 	if _, err := Revalidate(blocked, a, current, now); !errors.Is(err, ErrBlocked) {
 		t.Fatal("review waived a non-override constraint", err)
+	}
+}
+
+func TestMutableVersionSelectorIsNotAnImmutableTarget(t *testing.T) {
+	_, _, s, _ := reviewFixture(t)
+	for _, version := range []string{"latest", "LATEST", "*"} {
+		s.Target.Version = version
+		if s.Validate() == nil {
+			t.Fatal("mutable version selector admitted", version)
+		}
+	}
+	s.Target.Version = "1.2.3"
+	s.Blockers[0].Kind = OtherConstraint
+	if s.Validate() == nil {
+		t.Fatal("unrelated constraint declared waivable")
 	}
 }

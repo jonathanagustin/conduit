@@ -59,7 +59,7 @@ type Selector struct {
 }
 
 func (s Selector) Validate() error {
-	if (s.Kind != "ENTITY" && s.Kind != "MODULE") || (s.Action != "INSTALL" && s.Action != "UPDATE") {
+	if (s.Kind != "ENTITY" && s.Kind != "MODULE") || (s.Action != "INSTALL" && s.Action != "UPDATE") || strings.EqualFold(s.Version, "latest") {
 		return ErrInvalid
 	}
 	for _, value := range []string{s.Environment, s.InstallationID, s.Resource, s.Version} {
@@ -136,7 +136,7 @@ func (s Snapshot) Validate() error {
 	}
 	seen := map[string]bool{}
 	for _, b := range s.Blockers {
-		if (b.Kind != Recall && b.Kind != SecretRequirement && b.Kind != OtherConstraint) || !ValidID(b.ID) || !digestPattern.MatchString(b.Digest) || seen[b.key()] {
+		if (b.Kind != Recall && b.Kind != SecretRequirement && b.Kind != OtherConstraint) || !ValidID(b.ID) || !digestPattern.MatchString(b.Digest) || seen[b.key()] || (b.Kind == OtherConstraint && b.Overridable) {
 			return ErrInvalid
 		}
 		seen[b.key()] = true
