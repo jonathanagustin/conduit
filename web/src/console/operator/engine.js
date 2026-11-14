@@ -21,6 +21,7 @@ import {
   validateFor,
 } from "./object-inspector.js";
 import { createAuditLedger } from "./audit-ledger.js";
+import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
 import { createIntelligence } from "./intelligence.js";
@@ -975,6 +976,7 @@ export function mountOperator(host, options) {
       label: "Releases",
       tabs: [
         { id: "environments", label: "Environments", screen: "s14-env-detail" },
+        { id: "products", label: "Products", screen: "rel-products" },
         { id: "channels", label: "Channels", screen: "rm-channels" },
         { id: "waves", label: "Waves", screen: "rm-waves" },
         { id: "activity", label: "Activity", screen: "rm02-env-activity" },
@@ -5701,6 +5703,12 @@ export function mountOperator(host, options) {
       "pt01-proposal-trace": releaseGates.renderers["pt01-proposal-trace"],
       "s14-env-detail": renderS14EnvDetail,
       "rm-channels": (node) => liveHub.renderChannels(node),
+      "rel-products": (node) => {
+        node.innerHTML = productsMarkup(
+          productRows(state.hub?.products, state.hub?.installations),
+          { note: state.hub?.productsNote || "" },
+        );
+      },
       "rm-waves": (node) => liveHub.renderWaves(node),
       "rm02-env-activity": renderRM02EnvActivity,
       "rm06-promotion-pipe": renderRM06PromotionPipe,

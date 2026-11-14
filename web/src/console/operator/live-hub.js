@@ -349,6 +349,11 @@ export function createLiveHub({ state, render }) {
       next.installationNote = "Hub did not return reported installations.";
     }
     try {
+      next.products = await readPages("/v1/products?limit=20", "products");
+    } catch {
+      next.productsNote = "Hub did not return the product catalog.";
+    }
+    try {
       next.channels = await readJSON("/v1/channel-subscriptions");
     } catch {
       next.channelNote = "Hub did not return channel subscriptions.";
