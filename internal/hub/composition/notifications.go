@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	activityports "github.com/jonathanagustin/conduit/internal/changeactivity/ports"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
@@ -25,6 +26,8 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// ChangeDiscussion persists native discussion separately from review records.
+	ChangeDiscussion activityports.Store
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.
 	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.

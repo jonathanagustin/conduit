@@ -36,6 +36,7 @@ type GovernanceRepository interface {
 	GetChangeRequest(context.Context, string) (ChangeRequest, error)
 	ListChangeRequests(context.Context, string) ([]ChangeRequest, error)
 	UpdateChangeRequest(context.Context, string, func(*ChangeRequest) error) (ChangeRequest, error)
+	UpdateChangeRequestAndPlan(context.Context, string, bool, func(*ChangeRequest, *PlanRecord) error) (ChangeRequest, PlanRecord, error)
 	AppendAuthorizationAudit(context.Context, AuthorizationAuditEvent) (AuthorizationAuditEvent, error)
 	ListAuthorizationAudit(context.Context, string) ([]AuthorizationAuditEvent, error)
 }
@@ -425,6 +426,12 @@ func (service *GovernanceService) ProposePlan(
 func (service *GovernanceService) proposePlan(
 	ctx context.Context, state DesiredState, author Principal, title, description string, optimizer *OptimizerPlanProvenance,
 ) (PlanRecord, ChangeRequest, error) {
+	return service.proposePlanWithAdditionalChanges(ctx, state, author, title, description, optimizer, nil)
+}
+
+func (service *GovernanceService) proposePlanWithAdditionalChanges(
+	ctx context.Context, state DesiredState, author Principal, title, description string, optimizer *OptimizerPlanProvenance, additional []EntityChange,
+) (PlanRecord, ChangeRequest, error) {
 	if strings.TrimSpace(author.Username) == "" {
 		return PlanRecord{}, ChangeRequest{}, ErrUnauthorized
 	}
@@ -435,7 +442,7 @@ func (service *GovernanceService) proposePlan(
 	if err != nil {
 		return PlanRecord{}, ChangeRequest{}, err
 	}
-	request, err := service.evaluatePlan(ctx, record, author, title, description)
+	request, err := service.evaluatePlanWithAdditionalChanges(ctx, record, author, title, description, additional)
 	if err != nil {
 		return PlanRecord{}, ChangeRequest{}, err
 	}
@@ -542,13 +549,14 @@ func (service *GovernanceService) validateLabelContributions(ctx context.Context
 	return nil
 }
 
-func (service *GovernanceService) evaluatePlan(
-	ctx context.Context, record PlanRecord, author Principal, title, description string,
+func (service *GovernanceService) evaluatePlanWithAdditionalChanges(
+	ctx context.Context, record PlanRecord, author Principal, title, description string, additional []EntityChange,
 ) (ChangeRequest, error) {
 	changes, err := service.planChanges(ctx, record.Plan, author)
 	if err != nil {
 		return ChangeRequest{}, err
 	}
+	changes = append(changes, cloneJSON(additional)...)
 	if record.Optimizer != nil && len(changes) == 0 {
 		return ChangeRequest{}, fmt.Errorf("%w: optimizer proposal produced no reviewable changes", ErrInvalidTransition)
 	}
@@ -1092,81 +1100,61 @@ func (service *GovernanceService) Cancel(
 func (service *GovernanceService) SetLabels(
 	ctx context.Context, id string, principal Principal, labels []string,
 ) (ChangeRequest, PlanRecord, bool, error) {
-	request, err := service.repository.GetChangeRequest(ctx, id)
-	if err != nil {
-		return ChangeRequest{}, PlanRecord{}, false, err
-	}
-	if request.Author.Username != principal.Username && !principalCanReview(ctx, service.repository, request.Requirements, principal) {
-		return ChangeRequest{}, PlanRecord{}, false, ErrForbidden
-	}
-	approvedByThisCall := false
-	request, err = service.repository.UpdateChangeRequest(ctx, id, func(request *ChangeRequest) error {
-		if request.Status == ChangeRejected || request.Status == ChangeCancelled || request.Status == ChangeError {
-			return ErrInvalidTransition
-		}
-		// Read from the serialized record rather than from the copy above, so
-		// that the answer describes the write that actually happened.
-		wasApproved := request.Status == ChangeApproved
-		request.Labels = normalizedStrings(labels)
-		if request.RequirementsSatisfied && !hasDoNotMerge(request.Labels) {
-			request.Status = ChangeApproved
-		} else {
-			request.Status = ChangePendingApprovals
-		}
-		approvedByThisCall = !wasApproved && request.Status == ChangeApproved
-		request.UpdatedAt = service.now().UTC()
-		return nil
-	})
-	if err != nil {
-		return ChangeRequest{}, PlanRecord{}, false, err
-	}
-	service.audit(ctx, principal.Username, "CHANGE_REQUEST_LABELS", id, "ALLOW", "labels updated", map[string]any{"labels": labels})
-	plan, err := service.syncPlan(ctx, request)
-	return request, plan, approvedByThisCall, err
+	return service.transformLabels(ctx, id, principal, func([]string) []string { return labels }, false)
 }
 
 func (service *GovernanceService) syncPlan(ctx context.Context, request ChangeRequest) (PlanRecord, error) {
-	return service.syncPlanAs(ctx, request, request.Status)
+	if request.PlanID == "" {
+		return PlanRecord{}, nil
+	}
+	_, plan, err := service.repository.UpdateChangeRequestAndPlan(ctx, request.ID, false, func(current *ChangeRequest, plan *PlanRecord) error {
+		if plan == nil {
+			return ErrNotFound
+		}
+		return projectChangeRequestPlan(plan, *current, current.Status)
+	})
+	return plan, err
 }
 
-// syncPlanAs projects a Change Request onto its Plan under a stated verdict.
-// Every review route passes the record's own status, because there the status
-// is the outcome of the decision that route just took. Proposal is the one
-// caller that must pass something else: the record it holds may have been
-// decided under a policy that is no longer in force.
+// syncPlanAs projects a proposal under its explicitly evaluated verdict. An
+// existing stored request may reflect a different policy round, so proposal
+// cannot simply inherit its status. Ordinary reviews use syncPlan, which reads
+// the current stored request atomically with the Plan update.
 func (service *GovernanceService) syncPlanAs(ctx context.Context, request ChangeRequest, verdict string) (PlanRecord, error) {
 	if request.PlanID == "" {
 		return PlanRecord{}, nil
 	}
-	return service.repository.UpdatePlan(ctx, request.PlanID, func(plan *PlanRecord) error {
-		plan.ChangeRequestID = request.ID
-		plan.RequiredApprovals = len(request.Requirements)
-		plan.Approvals = plan.Approvals[:0]
-		for _, review := range request.Reviews {
-			if review.Decision == "APPROVE" {
-				plan.Approvals = append(plan.Approvals, Approval{Subject: review.Subject, Rationale: review.Rationale, CreatedAt: review.CreatedAt})
-			}
+	return service.repository.UpdatePlan(ctx, request.PlanID, func(plan *PlanRecord) error { return projectChangeRequestPlan(plan, request, verdict) })
+}
+
+func projectChangeRequestPlan(plan *PlanRecord, request ChangeRequest, verdict string) error {
+	plan.ChangeRequestID = request.ID
+	plan.RequiredApprovals = len(request.Requirements)
+	plan.Approvals = plan.Approvals[:0]
+	for _, review := range request.Reviews {
+		if review.Decision == "APPROVE" {
+			plan.Approvals = append(plan.Approvals, Approval{Subject: review.Subject, Rationale: review.Rationale, CreatedAt: review.CreatedAt})
 		}
-		switch verdict {
-		case ChangeApproved:
-			if plan.Optimizer != nil && plan.Optimizer.ApprovalRevalidationID == "" {
-				plan.Status = PlanAwaitingApproval
-				return nil
-			}
-			if plan.Status == PlanAwaitingApproval || plan.Status == PlanApproved || plan.Status == PlanCancelled {
-				plan.Status = PlanApproved
+	}
+	switch verdict {
+	case ChangeApproved:
+		if plan.Optimizer != nil && plan.Optimizer.ApprovalRevalidationID == "" {
+			plan.Status = PlanAwaitingApproval
+			return nil
+		}
+		if plan.Status == PlanAwaitingApproval || plan.Status == PlanApproved || plan.Status == PlanCancelled {
+			plan.Status = PlanApproved
+			plan.Cancellation = nil
+		}
+	case ChangePendingApprovals, ChangeRejected, ChangeCancelled, ChangeError:
+		if plan.Status == PlanAwaitingApproval || plan.Status == PlanApproved || (plan.Status == PlanCancelled && verdict == ChangePendingApprovals) {
+			plan.Status = PlanAwaitingApproval
+			if verdict == ChangePendingApprovals {
 				plan.Cancellation = nil
 			}
-		case ChangePendingApprovals, ChangeRejected, ChangeCancelled, ChangeError:
-			if plan.Status == PlanAwaitingApproval || plan.Status == PlanApproved || (plan.Status == PlanCancelled && verdict == ChangePendingApprovals) {
-				plan.Status = PlanAwaitingApproval
-				if verdict == ChangePendingApprovals {
-					plan.Cancellation = nil
-				}
-			}
 		}
-		return nil
-	})
+	}
+	return nil
 }
 
 func (service *GovernanceService) planChanges(ctx context.Context, plan Plan, author Principal) ([]EntityChange, error) {

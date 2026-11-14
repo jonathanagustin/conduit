@@ -222,7 +222,7 @@
       "what": "Native download-asset publication, release metadata and per-Product release listing routes, optionally composed with an immutable declaration store.",
       "why": "The native download-asset declaration has no recovered public transport. Composition reuses original-carrier publication/resource-read decisions and catalogue receipts without creating executable Release definitions.",
       "displacedBy": "A published or owner-approved download-asset publication API establishing routes, payloads, authority and failure semantics.",
-      "riskIfWrong": "Route and document spellings may need replacement. They are native surfaces, not private Apollo interoperability; declared asset URLs and hashes remain unverified, and no Agent execution path is created."
+      "riskIfWrong": "Route and document spellings may need replacement. They are native surfaces, not unpublished private interoperability; declared asset URLs and hashes remain unverified, and no Agent execution path is created."
     },
     {
       "id": "productassets.CLICatalogue",
@@ -230,6 +230,48 @@
       "why": "A native asset Product needs an operator path distinct from Helm execution. Existing optional operator transport ports carry the declaration and receipt-bound reads, preserving explicit Space selection on publication.",
       "displacedBy": "A published or owner-approved download-asset CLI contract establishing command paths, declarations, dry-run and catalogue read semantics.",
       "riskIfWrong": "The command grammar may need replacement. Metadata is publisher-declared, native and non-executable; local preparation and dry run grant no Hub publication authority and verify no signatures."
+    },
+    {
+      "id": "changeactivity.Discussion",
+      "what": "Native append-only discussion records with request-scoped comment IDs, effective author, original carrier, server UTC time and bounded untrimmed text; independently stored and read under existing request visibility.",
+      "why": "The reviewed CLI comment page establishes one request argument and required text, not a backing transport or output model. Annotation reuses the existing author/reviewer mutation authority; reading reuses the existing request-read policy. Comments cannot update reviews, approval or Plans. Eight-record cursor pages bound the operator response even for maximal JSON-escaped text.",
+      "displacedBy": "A published or sanitized Change Request discussion contract establishing record fields, comment authority, transport routes and pagination semantics.",
+      "riskIfWrong": "Record names, authority, cursor and route choices may need replacement. CONDUIT_NATIVE identifies them; they do not establish unpublished private interoperability or an approval event. Independent component storage prevents legacy snapshot writers from erasing comments."
+    },
+    {
+      "id": "changeactivity.LabelMutations",
+      "what": "A native add/remove endpoint and explicit APPLIED/PREVIEW result, using serialized Change Request/Plan updates and the existing author/reviewer label authority.",
+      "why": "The CLI pages establish named-label add/remove and dry run but no transport or result shape. Newly attached normal names resolve active label-definition IDs; the existing Do not merge tag is built in and attached legacy tags remain removable. Preview computes prospective state without repository or audit writes.",
+      "displacedBy": "A published or sanitized Change Request label mutation API establishing atomic update, preview, authorization and result semantics.",
+      "riskIfWrong": "Name resolution and output may differ from the published pages. Existing legacy set-label semantics, approval transitions and audits remain in Governance; native add/remove preserves unrelated concurrent labels and does not infer a label value or grant permission."
+    },
+    {
+      "id": "changeactivity.CLIProjection",
+      "what": "Projection of reviewed Change Request comment/label CLI operations onto native request IDs and result records, plus the explicitly native comments reader.",
+      "why": "Published paths and flags are pinned, while their private transport and unspecified output are unknown. The native reader follows bounded cursor pages; comment text is discussion, not approval rationale. Mutation output formats are checked before requests can mutate state.",
+      "displacedBy": "A published or sanitized CLI discussion/label result contract establishing native-ID projection, preview output and a discussion-list operation.",
+      "riskIfWrong": "Native output or the added reader command may need replacement. Four published command pages join the reviewed profile only with real Hub/CLI tests; native-only commands do not count as recovered public commands."
+    },
+    {
+      "id": "planreview.ProposalEnvelope",
+      "what": "A bounded native media type on the existing Plan proposal route carrying title, rationale, baseline desired-state digest and provenance tier.",
+      "why": "The CLI must retain rationale in the persisted Change Request; the ordinary DesiredState request body has no review context. Native media type distinguishes the envelope without changing the existing JSON body contract.",
+      "displacedBy": "A published or sanitized proposal contract establishing transport and persistence of review context.",
+      "riskIfWrong": "Media type or envelope names may need replacement. CONDUIT_NATIVE marks the transport; no private Apollo API or new publication authority is claimed."
+    },
+    {
+      "id": "channelmembership.GovernedProposal",
+      "what": "Serialized membership-only desired-state proposals with an explicit new Git generation, current source digest and native membership Change Type.",
+      "why": "Whole-state proposals otherwise cannot distinguish a stale membership edit or ensure membership-only changes receive a policy decision. The server preserves immutable artifact coordinates and definitions, and reuses existing contribution authority.",
+      "displacedBy": "A published or sanitized channel-membership proposal, concurrency, authorization and Change Type contract.",
+      "riskIfWrong": "The native review type and state-loading requirements may need replacement. Existing policies must decide the new type. File writes have a process visibility boundary, not crash-atomic multi-file durability."
+    },
+    {
+      "id": "channelmembership.CLIProjection",
+      "what": "Native YAML releaseChannels/rationale editor schema, explicit state-file/next-generation inputs, structured previews/results and offline dry run for the reviewed membership commands.",
+      "why": "Public command semantics do not establish private editor/output schema or Git-owned state projection. Saved empty lists differ from empty documents; cancellation submits nothing.",
+      "displacedBy": "A published or sanitized channel-membership editor schema, state-loading and submission/result contract.",
+      "riskIfWrong": "Schema and extra Git-oriented flags may need replacement. A dry run is not server authorization or freshness. Existing desired-state validity still applies to channel-referencing Entities."
     }
   ],
   "displaced": [

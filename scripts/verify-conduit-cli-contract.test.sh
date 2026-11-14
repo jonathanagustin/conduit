@@ -10,7 +10,7 @@ stage() {
   for file in cli-command-contract.json cli-command-inventory.json public-documentation-manifest.tsv; do
     cp "$repo_root/docs/reference-platform/$file" "$work/tree/docs/reference-platform/"
   done
-  cp "$repo_root/docs/reference-platform/snapshots/cli-command-sources-2026-11-13.tsv" "$work/tree/docs/reference-platform/snapshots/"
+  cp "$repo_root/docs/reference-platform/snapshots/cli-command-sources-2026-11-14-365.tsv" "$work/tree/docs/reference-platform/snapshots/"
 }
 run() { (cd "$work/tree" && node scripts/verify-conduit-cli-contract.mjs); }
 reject() {
@@ -35,3 +35,4 @@ stage
 node -e 'const fs=require("fs"),p=process.argv[1],d=JSON.parse(fs.readFileSync(p)); d.sourceManifest="docs/reference-platform/public-documentation-manifest.tsv";fs.writeFileSync(p,JSON.stringify(d))' "$work/tree/docs/reference-platform/cli-command-contract.json"
 reject 'Apollo CLI compatibility profile must name its reviewed source snapshot'
 echo 'PASS CLI evidence gate: profile and current inventory reject independent drift'
+

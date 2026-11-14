@@ -433,6 +433,10 @@ func (adapter *HTTPControlPlane) RemoveSuppression(ctx context.Context, id strin
 }
 
 func (adapter *HTTPControlPlane) request(ctx context.Context, method, path string, body, output any) error {
+	return adapter.requestWithMediaType(ctx, method, path, body, output, "application/json")
+}
+
+func (adapter *HTTPControlPlane) requestWithMediaType(ctx context.Context, method, path string, body, output any, mediaType string) error {
 	var reader io.Reader
 	if body != nil {
 		encoded, err := json.Marshal(body)
@@ -451,7 +455,7 @@ func (adapter *HTTPControlPlane) request(ctx context.Context, method, path strin
 		return fmt.Errorf("create operator request: %w", err)
 	}
 	if body != nil {
-		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Content-Type", mediaType)
 	}
 	response, err := adapter.client.Do(request)
 	if err != nil {

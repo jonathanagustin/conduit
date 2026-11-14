@@ -53,6 +53,14 @@ func NewHub(
 	if len(hub) > 0 {
 		hubOptions = hub[0]
 	}
+	// Share the same configured signing identity with native review handoffs.
+	if len(options.BundlePrivateKey) == 0 {
+		key, err := controlplane.GenerateBundleSigningKey()
+		if err != nil {
+			return nil, err
+		}
+		options.BundlePrivateKey = key
+	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
 	handler, err := mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
 	if err != nil {
@@ -63,6 +71,10 @@ func NewHub(
 		return nil, err
 	}
 	handler, err = mountProductAssets(handler, repository, options, hubOptions.ProductAssets)
+	if err != nil {
+		return nil, err
+	}
+	handler, err = mountChangeActivity(handler, repository, options, hubOptions.ChangeDiscussion)
 	if err != nil {
 		return nil, err
 	}

@@ -67,6 +67,7 @@ const SOURCES = [
   { path: "internal/notifications/adapters/httpapi", surface: "notifications" },
 { path:"internal/spaces/adapters/httpapi",surface:"spaces" },
   { path: "internal/productassets/adapters/httpapi", surface: "product assets" },
+ {path:"internal/changeactivity/adapters/httpapi",surface:"request activity"},
   { path: "internal/packagingworkflow/httpapi", surface: "packaging" },
   { path: "internal/ontology/httpapi", surface: "ontology" },
 ];
@@ -212,3 +213,4 @@ const summary = [...byDecision]
 console.log(
   `PASS Hub route authorization: ${mounted.size} mounted routes, every one with a registered decision (${summary})`,
 );
+
