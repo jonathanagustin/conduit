@@ -18,12 +18,16 @@ describe("packaging runs", () => {
       "failed",
     );
     expect(runState({ phase: "validate", outcome: "" })).toBe("running");
+    expect(runState({ phase: "review", outcome: "" })).toBe("review");
+    expect(runState({ phase: "review", outcome: "WAITING" })).toBe("review");
+    expect(runState({ phase: "review", outcome: "TIMED_OUT" })).toBe("failed");
     expect(
       runCounts([
         { phase: "succeeded", outcome: "PASS" },
         { phase: "blocked", outcome: "WAITING" },
+        { phase: "review", outcome: "" },
       ]),
-    ).toEqual({ succeeded: 1, running: 0, blocked: 1, failed: 0 });
+    ).toEqual({ succeeded: 1, review: 1, running: 0, blocked: 1, failed: 0 });
   });
 
   it("keeps the latest outcome per step in first-seen order", () => {
