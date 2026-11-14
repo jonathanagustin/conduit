@@ -354,6 +354,12 @@ export function createLiveHub({ state, render }) {
       next.channelNote = "Hub did not return channel subscriptions.";
     }
     try {
+      const checkin = await postJSON("/v1/sites/check-in", { site: "north", environment: "north", reportOld: false });
+      next.connectivity = `${checkin.state || ""} ${checkin.lastCheckIn || ""}`.trim();
+    } catch {
+      next.connectivity = "";
+    }
+    try {
       const blackout = await readJSON("/v1/blackouts?environment=dev");
       next.blackoutReason = blackout.blocked ? blackout.reason : "";
     } catch {
@@ -733,6 +739,7 @@ export function createLiveHub({ state, render }) {
             </div>
             <div class="mt-2 text-[12px] text-[#8b96a5]">Spoke <span class="text-white">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Latest report <span class="text-white">${esc(reportedAt || "no report")}</span></div>
+            <div class="text-[12px] text-[#8b96a5]">Connectivity <span class="text-white">${esc(hub(state).connectivity || "no check-in")}</span></div>
           </div>`;
         })
         .join("");
