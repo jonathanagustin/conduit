@@ -1,0 +1,212 @@
+{
+  "apiVersion": "conduit.delivery/self-product-preparation/v1",
+  "kind": "SelfProductPreparation",
+  "valueTier": "CONDUIT_NATIVE",
+  "publicationState": "NOT_PUBLISHED",
+  "source": {
+    "repository": "jonathanagustin/conduit",
+    "version": "0.17.5",
+    "commit": "1111111111111111111111111111111111111111"
+  },
+  "verification": {
+    "scope": "INPUT_METADATA_AND_CLI_CHECKSUMS",
+    "signatures": "NOT_VERIFIED",
+    "registryAvailability": "NOT_CHECKED",
+    "deployment": "NOT_PERFORMED"
+  },
+  "products": [
+    {
+      "component": "hub",
+      "mavenCoordinate": "io.github.jonathanagustin.conduit:hub:0.17.5",
+      "channels": [
+        "DEV",
+        "RELEASE_CANDIDATE",
+        "RELEASE"
+      ],
+      "publication": {
+        "method": "POST",
+        "path": "/v1/product-publications/helm-chart",
+        "body": {
+          "manifest": {
+            "manifestVersion": "1.0",
+            "productGroup": "io.github.jonathanagustin.conduit",
+            "productName": "hub",
+            "productVersion": "0.17.5",
+            "productType": "helm-chart.v1",
+            "extensions": {
+              "helmChart": {
+                "helmChartName": "platform-hub",
+                "helmChartVersion": "0.17.5",
+                "helmRepositoryUrl": "oci://ghcr.io/jonathanagustin/conduit/platform-hub:0.17.5@sha256:5555555555555555555555555555555555555555555555555555555555555555"
+              },
+              "artifacts": [
+                {
+                  "type": "oci",
+                  "uri": "ghcr.io/jonathanagustin/conduit:hub-0.17.5@sha256:2222222222222222222222222222222222222222222222222222222222222222"
+                }
+              ]
+            }
+          },
+          "defaultConfig": "eyJpbWFnZSI6ImdoY3IuaW8vam9uYXRoYW5hZ3VzdGluL2NvbmR1aXQ6aHViLTAuMTcuNUBzaGEyNTY6MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMiJ9",
+          "configSchema": "eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJpbWFnZSI6eyJjb25zdCI6ImdoY3IuaW8vam9uYXRoYW5hZ3VzdGluL2NvbmR1aXQ6aHViLTAuMTcuNUBzaGEyNTY6MjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMjIyMiJ9fSwicmVxdWlyZWQiOlsiaW1hZ2UiXX0="
+        }
+      },
+      "sourceImage": {
+        "image": "ghcr.io/jonathanagustin/conduit",
+        "digest": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "reference": "ghcr.io/jonathanagustin/conduit@sha256:2222222222222222222222222222222222222222222222222222222222222222",
+        "sboms": [
+          {
+            "architecture": "amd64",
+            "file": "hub-amd64.spdx.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          },
+          {
+            "architecture": "arm64",
+            "file": "hub-arm64.spdx.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ],
+        "vulnerabilityReports": [
+          {
+            "architecture": "amd64",
+            "file": "hub-amd64.grype.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          },
+          {
+            "architecture": "arm64",
+            "file": "hub-arm64.grype.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ]
+      },
+      "consumerConfigurationResponsibilities": [
+        "repository.postgres.secretName",
+        "tls.serverSecretName",
+        "bundleSigningSecretName",
+        "bootstrapAdministrators"
+      ]
+    },
+    {
+      "component": "spoke-agent",
+      "mavenCoordinate": "io.github.jonathanagustin.conduit:spoke-agent:0.17.5",
+      "channels": [
+        "DEV",
+        "RELEASE_CANDIDATE",
+        "RELEASE"
+      ],
+      "publication": {
+        "method": "POST",
+        "path": "/v1/product-publications/helm-chart",
+        "body": {
+          "manifest": {
+            "manifestVersion": "1.0",
+            "productGroup": "io.github.jonathanagustin.conduit",
+            "productName": "spoke-agent",
+            "productVersion": "0.17.5",
+            "productType": "helm-chart.v1",
+            "extensions": {
+              "helmChart": {
+                "helmChartName": "platform-spoke",
+                "helmChartVersion": "0.17.5",
+                "helmRepositoryUrl": "oci://ghcr.io/jonathanagustin/conduit/platform-spoke:0.17.5@sha256:6666666666666666666666666666666666666666666666666666666666666666"
+              },
+              "artifacts": [
+                {
+                  "type": "oci",
+                  "uri": "ghcr.io/jonathanagustin/conduit:spoke-agent-0.17.5@sha256:3333333333333333333333333333333333333333333333333333333333333333"
+                }
+              ]
+            }
+          },
+          "defaultConfig": "eyJpbWFnZSI6ImdoY3IuaW8vam9uYXRoYW5hZ3VzdGluL2NvbmR1aXQ6c3Bva2UtYWdlbnQtMC4xNy41QHNoYTI1NjozMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzIn0=",
+          "configSchema": "eyJ0eXBlIjoib2JqZWN0IiwicHJvcGVydGllcyI6eyJpbWFnZSI6eyJjb25zdCI6ImdoY3IuaW8vam9uYXRoYW5hZ3VzdGluL2NvbmR1aXQ6c3Bva2UtYWdlbnQtMC4xNy41QHNoYTI1NjozMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzIn19LCJyZXF1aXJlZCI6WyJpbWFnZSJdfQ=="
+        }
+      },
+      "sourceImage": {
+        "image": "ghcr.io/jonathanagustin/conduit",
+        "digest": "sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "reference": "ghcr.io/jonathanagustin/conduit@sha256:3333333333333333333333333333333333333333333333333333333333333333",
+        "sboms": [
+          {
+            "architecture": "amd64",
+            "file": "spoke-agent-amd64.spdx.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          },
+          {
+            "architecture": "arm64",
+            "file": "spoke-agent-arm64.spdx.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ],
+        "vulnerabilityReports": [
+          {
+            "architecture": "amd64",
+            "file": "spoke-agent-amd64.grype.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          },
+          {
+            "architecture": "arm64",
+            "file": "spoke-agent-arm64.grype.json",
+            "sha256": "4444444444444444444444444444444444444444444444444444444444444444"
+          }
+        ]
+      },
+      "consumerConfigurationResponsibilities": [
+        "environmentId",
+        "agentId",
+        "controlPlaneURL",
+        "tls.clientSecretName",
+        "rbac.managedNamespaces"
+      ]
+    }
+  ],
+  "cli": {
+    "disposition": "DOWNLOAD_INVENTORY_ONLY",
+    "cataloguePublication": "UNSUPPORTED_BY_CURRENT_SERVICE_PRODUCT_API",
+    "assets": [
+      {
+        "target": "darwin/amd64",
+        "file": "conduit_0.17.5_darwin_amd64.tar.gz",
+        "sha256": "839a6a1ba8b7f4cf4a379bbe437f01d87744e8b5979bd4eb25ed92cdf9dce27c",
+        "url": "https://github.com/jonathanagustin/conduit/releases/download/v0.17.5/conduit_0.17.5_darwin_amd64.tar.gz",
+        "provenanceFile": "conduit_0.17.5_darwin_amd64.slsa.json"
+      },
+      {
+        "target": "darwin/arm64",
+        "file": "conduit_0.17.5_darwin_arm64.tar.gz",
+        "sha256": "4354f8efcbf7b7c15eaac6d60882f7e93beb769237a996ee5abfb2085708b137",
+        "url": "https://github.com/jonathanagustin/conduit/releases/download/v0.17.5/conduit_0.17.5_darwin_arm64.tar.gz",
+        "provenanceFile": "conduit_0.17.5_darwin_arm64.slsa.json"
+      },
+      {
+        "target": "linux/amd64",
+        "file": "conduit_0.17.5_linux_amd64.tar.gz",
+        "sha256": "d70377d4654000624040ba0c72d05bac7d0b3409d1f5a1b23e16a3abc4b1aef1",
+        "url": "https://github.com/jonathanagustin/conduit/releases/download/v0.17.5/conduit_0.17.5_linux_amd64.tar.gz",
+        "provenanceFile": "conduit_0.17.5_linux_amd64.slsa.json"
+      },
+      {
+        "target": "linux/arm64",
+        "file": "conduit_0.17.5_linux_arm64.tar.gz",
+        "sha256": "4a8a2289f898d51780afb06ee84e0a75d74167437104c68d72552a18004f507b",
+        "url": "https://github.com/jonathanagustin/conduit/releases/download/v0.17.5/conduit_0.17.5_linux_arm64.tar.gz",
+        "provenanceFile": "conduit_0.17.5_linux_arm64.slsa.json"
+      },
+      {
+        "target": "windows/amd64",
+        "file": "conduit_0.17.5_windows_amd64.zip",
+        "sha256": "976707b564314c3577af2a9bc0dd4fd8b8cd90f44366bb328fe00ac4f26fa1b0",
+        "url": "https://github.com/jonathanagustin/conduit/releases/download/v0.17.5/conduit_0.17.5_windows_amd64.zip",
+        "provenanceFile": "conduit_0.17.5_windows_amd64.slsa.json"
+      },
+      {
+        "target": "windows/arm64",
+        "file": "conduit_0.17.5_windows_arm64.zip",
+        "sha256": "cf0d2f97a4d86313b96915a147c2b518f1af187648e9bc879dc1e08ee13b57fe",
+        "url": "https://github.com/jonathanagustin/conduit/releases/download/v0.17.5/conduit_0.17.5_windows_arm64.zip",
+        "provenanceFile": "conduit_0.17.5_windows_arm64.slsa.json"
+      }
+    ]
+  }
+}

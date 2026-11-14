@@ -1,0 +1,66 @@
+{
+  "apiVersion": "evidence.conduit.dev/self-product-preparation/v1",
+  "checkedAt": "2026-11-14T00:45:42+00:00",
+  "release": "https://github.com/jonathanagustin/conduit/releases/tag/v0.17.5",
+  "preparedWithCommit": "074261f578a566e8c66fa9ec7ec27a5a89a09093",
+  "originalReleaseSourceCommit": "44e1e8845fe01c2a461061f6557a128ebf716af6",
+  "correctedTagCommit": "92e0c6f6258b68f7bebf5da04978ac54ec337844",
+  "historyCorrectionMap": "docs/evidence/git-history-sha-map-2026-11-13.tsv",
+  "inputMetadata": [
+    {
+      "file": "platform-oci-manifest.json",
+      "sha256": "d5fc395faabee4f8f6fe809c2772201744118266c8632d9bcfde88a680cf71b5"
+    },
+    {
+      "file": "platform-helm-charts.json",
+      "sha256": "91b9f0caaa8676cf95572df5a3807d93c2347ae6432a7086bf0cdf40ff96fa0e"
+    },
+    {
+      "file": "SHA256SUMS",
+      "sha256": "8bcf43e1aa3f78a8c3a8a591784d208d3c4d2027652111227c97e41c4a30afb3"
+    },
+    {
+      "file": "conduit_0.17.5_darwin_amd64.slsa.json",
+      "sha256": "899d0b24e59a1561dc09579ca2d099bd610dec22b20fe88142360e10ef7a626b"
+    },
+    {
+      "file": "conduit_0.17.5_darwin_arm64.slsa.json",
+      "sha256": "df8d61cd6cd84d8607252644d9589ed17d86ec9dc3f3d46251540f1fd7c53062"
+    },
+    {
+      "file": "conduit_0.17.5_linux_amd64.slsa.json",
+      "sha256": "cd2afa984da36115605aef5672a314a2062092278fd57167357f090a21294c26"
+    },
+    {
+      "file": "conduit_0.17.5_linux_arm64.slsa.json",
+      "sha256": "29d8aa67fdfe486d3a140b28ecc1e466a369bd1a9a923efd62cc592fc8f1cad2"
+    },
+    {
+      "file": "conduit_0.17.5_windows_amd64.slsa.json",
+      "sha256": "4c829141c83e06b07ed325f7b7a206cf431a111ccffb8406f8d96b293d3d7dc7"
+    },
+    {
+      "file": "conduit_0.17.5_windows_arm64.slsa.json",
+      "sha256": "82ab90109142b81e0d8c732507d3612d14504a9d33e44362ff858edbdd56e284"
+    }
+  ],
+  "preparedDescriptor": {
+    "file": "docs/evidence/self-product-preparation-v0.17.5.json",
+    "sha256": "7bc9e9b855948eb2f987591f6f06594c75e56eb2cc080dece333b1d1eece2439"
+  },
+  "checksPerformed": [
+    "Release metadata read from authenticated GitHub release assets.",
+    "Image/chart version and original source commit agree.",
+    "Two native executable Product preparation bodies produced.",
+    "All six downloaded CLI archive bytes match SHA256SUMS.",
+    "All six CLI provenance metadata records agree on source commit, target, version and builder."
+  ],
+  "notPerformed": [
+    "Signature or attestation authentication",
+    "Registry image/chart availability or tag lookup",
+    "Vulnerability reassessment",
+    "Live Hub publication",
+    "Subscription or deployment"
+  ],
+  "scope": "Actual release asset metadata and CLI byte checks only; not a publication or runtime-upgrade receipt."
+}

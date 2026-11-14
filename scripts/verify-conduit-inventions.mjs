@@ -43,7 +43,7 @@ const entries = register.inventions ?? [];
 // disappear with it.
 const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8" })
   .split("\0")
-  .filter((path) => path.endsWith(".go") && !path.endsWith("_test.go"));
+  .filter((path) => (path.endsWith(".go") && !path.endsWith("_test.go")) || (path.endsWith(".mjs") && !path.endsWith(".test.mjs")));
 
 const found = new Map();
 for (const path of tracked) {

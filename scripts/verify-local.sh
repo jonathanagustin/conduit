@@ -224,6 +224,10 @@ gate 'Validate Renovate configuration' jq --exit-status . renovate.json
 gate 'Lint Containerfiles' env HADOLINT_BIN="${hadolint_bin}" ./scripts/verify-containerfiles.sh
 gate 'Validate OCI release manifest assembly' oci_manifest
 gate 'Validate Gitless runtime source descriptor' node scripts/render-runtime-source-descriptor.test.mjs
+self_product_preparation() {
+  node scripts/prepare-self-products.test.mjs && node scripts/verify-conduit-inventions.test.mjs
+}
+gate 'Validate self Product preparation' self_product_preparation
 gate 'Validate version and tag agreement' ./scripts/verify-version-matches-tag.sh
 gate 'Validate domain boundaries' bash -c 'node scripts/verify-domain-boundaries.mjs && node scripts/test-domain-boundaries.mjs'
 gate 'Validate route authorization' bash -c 'node scripts/verify-route-authorization.test.mjs && node scripts/verify-route-authorization.mjs'
