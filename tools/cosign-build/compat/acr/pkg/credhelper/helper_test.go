@@ -38,7 +38,7 @@ func TestRegistryHostBoundaryBeforeCredentials(t *testing.T) {
 			} {
 				t.Run("recognize_"+host, func(t *testing.T) {
 					username, password, err := helper.Get(host)
-					if username != "" || password != "" || err == nil || !strings.Contains(err.Error(), "ConduitFixtureMissingCloud") {
+					if username != "" || password != "" || err == nil || !strings.Contains(strings.ToLower(err.Error()), "conduitfixturemissingcloud") {
 						t.Fatalf("recognized host did not reach the controlled pre-network environment check: credentialPresent=%v err=%v", password != "", err)
 					}
 				})
