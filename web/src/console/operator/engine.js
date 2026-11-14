@@ -12,6 +12,14 @@ import {
 } from "./shell.js";
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
+import { createConduitClient } from "@conduit/ontology-client";
+import { createSettingsDialog, THEME_KEY } from "./settings-dialog.js";
+import {
+  inspectorMarkup,
+  loadInspector,
+  ontologyRef,
+  validateFor,
+} from "./object-inspector.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
 import { createIntelligence } from "./intelligence.js";
@@ -38,7 +46,7 @@ export function mountOperator(host, options) {
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
   host.innerHTML =
-    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 224px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[224px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[#596573]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button type="button" id="settings-toggle" onclick="toggleSettingsDialog()" class="so-btn !h-[28px] !px-2" title="Settings (Ctrl/Cmd + ,)" aria-label="Settings">&#9881;</button>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 224px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[224px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[#596573]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -1481,7 +1489,10 @@ export function mountOperator(host, options) {
           objectHeader,
           esc: escHtml,
         });
-        otherPane.innerHTML = markup[surface] || "";
+        otherPane.innerHTML =
+          surface === "inspector"
+            ? inspectorPane(markup.inspector)
+            : markup[surface] || "";
       }
     }
     const strip = rail.querySelector("[data-dock-strip]");
@@ -1495,6 +1506,79 @@ export function mountOperator(host, options) {
     const results = rail.querySelector("[data-assistant-results]");
     if (results) results.innerHTML = resultsMarkup(state);
     if (typeof notifyOperator === "function") notifyOperator();
+  }
+
+  // Dock inspector: the selected ontology object, its links, governed
+  // actions (validate only), audit timeline, and raw record.
+  const ontologyClient = createConduitClient();
+  const inspector = { key: "", ref: null, model: null, tab: "props" };
+
+  function currentInspectRef() {
+    return state.inspectRef || ontologyRef(areaObject(state.hub, state.screen));
+  }
+
+  function inspectorPane(headerMarkup) {
+    const ref = currentInspectRef();
+    if (!ref) return headerMarkup;
+    const key = `${ref.objectType}/${ref.primaryKey}`;
+    if (inspector.key !== key) {
+      inspector.key = key;
+      inspector.ref = ref;
+      inspector.model = { ref, loading: true, links: [] };
+      loadInspector(ontologyClient, ref).then((model) => {
+        if (inspector.key !== key) return;
+        inspector.model = model;
+        if (state.dockSurface === "inspector") renderChatRail();
+      });
+    }
+    const header = state.inspectRef ? "" : headerMarkup;
+    return `${header}<div class="kit-inspector mt-2">${inspectorMarkup(
+      inspector.model,
+      {
+        tab: inspector.tab,
+        esc: escHtml,
+        audit: Array.isArray(state.hub?.audit) ? state.hub.audit : [],
+      },
+    )}</div>`;
+  }
+
+  function inspectObject(objectType, primaryKey) {
+    state.inspectRef = objectType && primaryKey ? { objectType, primaryKey } : null;
+    state.dockSurface = "inspector";
+    state.chatCollapsed = false;
+    renderChatRail();
+  }
+  window.inspectObject = inspectObject;
+
+  function handleInspectorClick(target) {
+    const tab = target.closest("[data-inspector-tab]");
+    if (tab) {
+      inspector.tab = tab.getAttribute("data-inspector-tab") || "props";
+      renderChatRail();
+      return true;
+    }
+    const link = target.closest("[data-inspect-type]");
+    if (link) {
+      inspectObject(
+        link.getAttribute("data-inspect-type"),
+        link.getAttribute("data-inspect-key"),
+      );
+      return true;
+    }
+    const check = target.closest("[data-inspector-validate]");
+    if (check && inspector.ref && inspector.model) {
+      const name = check.getAttribute("data-inspector-validate");
+      const key = inspector.key;
+      validateFor(ontologyClient, inspector.ref, name, inspector.model.object).then(
+        (outcome) => {
+          if (inspector.key !== key || !inspector.model) return;
+          inspector.model = { ...inspector.model, outcome };
+          renderChatRail();
+        },
+      );
+      return true;
+    }
+    return false;
   }
 
   function escHtml(v) {
@@ -1516,9 +1600,11 @@ export function mountOperator(host, options) {
     rail.dataset.dockBound = "1";
     rail.addEventListener("click", (event) => {
       const target = event.target instanceof Element ? event.target : null;
+      if (target && handleInspectorClick(target)) return;
       const btn = target && target.closest("[data-dock-surface]");
       if (!btn) return;
       state.dockSurface = btn.getAttribute("data-dock-surface");
+      if (state.dockSurface === "inspector") state.inspectRef = null;
       renderChatRail();
     });
     let drag = null;
@@ -5631,7 +5717,15 @@ export function mountOperator(host, options) {
     if (typeof notifyOperator === "function") notifyOperator();
   }
 
+  const settingsDialog = createSettingsDialog({
+    getRoot: () => document.querySelector(".operator-root"),
+    getOperatorName: () => state.operatorName,
+    onDockReset: () => renderChatRail(),
+  });
+  window.toggleSettingsDialog = () => settingsDialog.toggle();
+
   const onKey = (ev) => {
+    if (settingsDialog.onKey(ev)) return;
     if (releaseGates.onKey(ev)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
       ev.preventDefault();
@@ -5673,6 +5767,7 @@ export function mountOperator(host, options) {
     if (!root) return;
     const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
     root.setAttribute("data-theme", next);
+    writePref(THEME_KEY, next);
     const button = document.getElementById("theme-toggle");
     if (button) button.textContent = next === "light" ? "Dark" : "Light";
   };
@@ -5689,6 +5784,7 @@ export function mountOperator(host, options) {
   releaseGates.bind(window);
   ontologyGraph.bind(window);
   settings.bind(window);
+  settingsDialog.restore();
   renderApp();
   return () => {
     window.removeEventListener("keydown", onKey);
