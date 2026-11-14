@@ -921,6 +921,7 @@ export function mountOperator(host, options) {
       tabs: [
         { id: "environments", label: "Environments", screen: "s14-env-detail" },
         { id: "channels", label: "Channels", screen: "rm-channels" },
+        { id: "waves", label: "Waves", screen: "rm-waves" },
         { id: "activity", label: "Activity", screen: "rm02-env-activity" },
         { id: "promotion", label: "Promotion", screen: "rm06-promotion-pipe" },
         { id: "recall", label: "Recall", screen: "rm09-recalls" },
@@ -5958,6 +5959,7 @@ export function mountOperator(host, options) {
       "pt01-proposal-trace": releaseGates.renderers["pt01-proposal-trace"],
       "s14-env-detail": renderS14EnvDetail,
       "rm-channels": (node) => liveHub.renderChannels(node),
+      "rm-waves": (node) => liveHub.renderWaves(node),
       "rm02-env-activity": renderRM02EnvActivity,
       "rm06-promotion-pipe": renderRM06PromotionPipe,
       "rm09-recalls": releaseGates.renderers["rm09-recalls"],
