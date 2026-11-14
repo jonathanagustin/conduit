@@ -17,8 +17,11 @@ if [[ -f "${state_dir}/pids" ]]; then
     kill -9 "${pid}" >/dev/null 2>&1 || true
   done <"${state_dir}/pids"
 fi
+docker rm -f conduit-seed-registry >/dev/null 2>&1 || true
+pkill -f "${state_dir}/packaging" >/dev/null 2>&1 || true
+pkill -f 'platform-delivery' >/dev/null 2>&1 || true
 # go run reparents the server after it exits, so the pid file can miss it.
-for port in 8081 7233 8233; do
+for port in 8081 7233 8233 5000; do
   while read -r pid; do
     [[ "${pid}" =~ ^[0-9]+$ ]] || continue
     kill "${pid}" >/dev/null 2>&1 || true

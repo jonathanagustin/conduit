@@ -120,7 +120,7 @@ export function mountOperator(host, options) {
       { id: "s05-backlog", num: 5, short: "Story Backlog", tabTitle: "Delivery Backlog", hasSidebar: false, showKpis: true, appGroup: "delivery", parentLabel: "Command Center", parentId: "s13-fleet-overview", subtitle: "DELIVERY STORY BACKLOG" },
       { id: "s06-active-work", num: 6, short: "Active Work", tabTitle: "STR-214 · Live Runner", hasSidebar: false, showKpis: false, appGroup: "delivery", parentLabel: "Story Backlog", parentId: "s05-backlog", subtitle: "ACTIVE WORK PROCESSOR" },
       { id: "s07-pipeline", num: 7, short: "Pipeline Graph", tabTitle: "RUN-8844 · Pipeline", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Command Center", parentId: "s13-fleet-overview", subtitle: "PACKAGING PIPELINE MANAGER" },
-      { id: "s08-staged-run", num: 8, short: "Staged Run", tabTitle: "Packaging run", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Pipeline", parentId: "s07-pipeline", subtitle: "PACKAGING RUN MANAGER" },
+      { id: "s08-staged-run", num: 8, short: "Staged Run", tabTitle: "Packaging run", hasSidebar: true, showKpis: false, subtitle: "PACKAGING RUN MANAGER" },
       // Dedicated Developer Studio Apps (No sidebar — full-bleed code/diff/runtime/lifecycle!)
       { id: "s09-source", num: 9, short: "Source", tabTitle: "values.yaml", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "WORKSPACE STUDIO" },
       { id: "s10-diff", num: 10, short: "Diff", tabTitle: "CR-308 · Diff", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "CHANGE REQUEST MANAGER" },
@@ -144,8 +144,9 @@ export function mountOperator(host, options) {
       { id: "rm04-constraints", num: 23, short: "Constraint Gate", tabTitle: "Action Constraints", hasSidebar: false, showKpis: false, appGroup: "plans_gov", parentLabel: "Environment Hub", parentId: "rm01-env-page", subtitle: "ACTION CONSTRAINT GATE" },
       { id: "rm05-release-rollout", num: 24, short: "Release Rollout", tabTitle: "Release · uds-core 0.31.2", hasSidebar: true, showKpis: true, subtitle: "FLEET RELEASE CONVERGENCE" },
       { id: "rm06-promotion-pipe", num: 25, short: "Promotion Pipeline", tabTitle: "Channel Promotion", hasSidebar: true, showKpis: false, subtitle: "CHANNEL PROMOTION PIPELINE" },
-      { id: "rm07-change-requests", num: 26, short: "Change Requests", tabTitle: "Change requests", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "CONFIG CHANGE REQUESTS" },
-      { id: "rm08-bundle-preview", num: 27, short: "Bundle Preview", tabTitle: "Bundle preview", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Release Rollout", parentId: "rm05-release-rollout", subtitle: "BUNDLE PREVIEW" }
+      { id: "rm07-change-requests", num: 26, short: "Change Requests", tabTitle: "Change requests", hasSidebar: true, showKpis: false, subtitle: "CONFIG CHANGE REQUESTS" },
+      { id: "rm08-bundle-preview", num: 27, short: "Bundle Preview", tabTitle: "Bundle preview", hasSidebar: true, showKpis: false, subtitle: "BUNDLE PREVIEW" },
+      { id: "au01-audit", num: 37, short: "Audit", tabTitle: "Audit chain", hasSidebar: true, showKpis: false, subtitle: "AUTHORIZATION AUDIT" }
     ];
 
     const TREE_GROUPS = [
@@ -389,6 +390,8 @@ export function mountOperator(host, options) {
         "rm06-promotion-pipe",
         "rm09-recalls",
         "s14-env-detail",
+        "au01-audit",
+        "pt01-proposal-trace",
       ]);
       const recordedProposal = state.screen === "pt01-proposal-trace" && (state.hub?.packaging || []).length > 0;
       const ontologyFromHub = state.screen === "og01-ontology-graph" && state.graphNote === "Ontology API";
@@ -441,6 +444,9 @@ export function mountOperator(host, options) {
         { label: "Environments", icon: "cluster", id: "rm01-env-page" },
         { label: "Release Rollout", icon: "cube", id: "rm05-release-rollout" },
         { label: "Promotion Pipeline", icon: "delivery", id: "rm06-promotion-pipe" },
+        { label: "Change Requests", icon: "approvals", id: "rm07-change-requests" },
+        { label: "Bundle Preview", icon: "cube", id: "rm08-bundle-preview" },
+        { label: "Audit", icon: "audit", id: "au01-audit" },
         ...releaseGates.navItems,
         ...ontologyGraph.navItems,
         { label: "Control Tower", icon: "approvals", id: "s15-plan-detail" },
@@ -3456,6 +3462,7 @@ export function mountOperator(host, options) {
         "s06-active-work": renderS06ActiveWork,
         "s07-pipeline": renderS07Pipeline,
         "s08-staged-run": renderS08StagedRun,
+        "au01-audit": (root) => liveHub.renderAudit(root),
         "s09-source": renderS09Source,
         "s10-diff": renderS10Diff,
         "s11-preview": renderS11Preview,

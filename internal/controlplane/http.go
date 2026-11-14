@@ -1920,6 +1920,15 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeLifecycleError(w, err)
 			return
 		}
+		if request.URL.Query().Get("view") == "chain" {
+			entries, chainErr := ChainAuthorizationAudit(events)
+			if chainErr != nil {
+				writeLifecycleError(w, chainErr)
+				return
+			}
+			writeJSON(w, http.StatusOK, map[string]any{"entries": entries})
+			return
+		}
 		writeJSON(w, http.StatusOK, map[string]any{"events": events})
 	})
 	registerPromotionStageControl := func(pattern string, paused bool) {

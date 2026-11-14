@@ -346,6 +346,7 @@
        TRUE MULTI-BREAKPOINT RESPONSIVE ARCHITECTURE
        390px Mobile · 768px Tablet · 1024px Split-Canvas · 1440px Desktop
        ===================================================================== */
+    .so-split { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(280px, 0.9fr); gap: 12px; align-items: start; }
     .so-grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .so-grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
     .so-grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
@@ -588,7 +589,7 @@
 
     /* Mobile (< 720px): clean single-column cards, compact header & breadcrumbs */
     @media (max-width: 719px) {
-      .so-grid-2, .so-opt-grid { grid-template-columns: 1fr !important; }
+      .so-split, .so-grid-2, .so-opt-grid { grid-template-columns: 1fr !important; }
       .so-grid-3 { grid-template-columns: 1fr !important; }
       .so-grid-4 { grid-template-columns: 1fr !important; }
       .so-grid-6 { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; }

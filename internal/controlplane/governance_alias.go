@@ -20,14 +20,15 @@ import (
 // package keeps the Change Request lifecycle that *asks* those questions, and
 // asks them through the service rather than answering them itself.
 type (
-	Principal               = governance.Principal
-	Team                    = governance.Team
-	ResourceGrant           = governance.ResourceGrant
-	PolicyVariable          = governance.PolicyVariable
-	ApprovalPolicy          = governance.ApprovalPolicy
-	ReviewerRequirement     = governance.ReviewerRequirement
-	PolicyEvaluation        = governance.PolicyEvaluation
-	AuthorizationAuditEvent = governance.AuthorizationAuditEvent
+	Principal                    = governance.Principal
+	Team                         = governance.Team
+	ResourceGrant                = governance.ResourceGrant
+	PolicyVariable               = governance.PolicyVariable
+	ApprovalPolicy               = governance.ApprovalPolicy
+	ReviewerRequirement          = governance.ReviewerRequirement
+	PolicyEvaluation             = governance.PolicyEvaluation
+	AuthorizationAuditEvent      = governance.AuthorizationAuditEvent
+	AuthorizationAuditChainEntry = governance.AuthorizationAuditChainEntry
 
 	ChangeDiffEntry    = governance.ChangeDiffEntry
 	ReferencedResource = governance.ReferencedResource
@@ -187,6 +188,10 @@ func requirementSatisfied(
 func annotateSatisfiability(ctx context.Context, repository Repository, request ChangeRequest) ChangeRequest {
 	request.Requirements = governanceAuthorizer(repository).AnnotateSatisfiability(ctx, request.Requirements)
 	return request
+}
+
+func ChainAuthorizationAudit(events []AuthorizationAuditEvent) ([]AuthorizationAuditChainEntry, error) {
+	return governance.ChainAuthorizationAudit(events)
 }
 
 func principalCanReview(

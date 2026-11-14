@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 
 	_ "embed"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -38,19 +39,54 @@ func SourceDigest() string {
 }
 
 func Identity(runID string) (domain.RunIdentity, error) {
+	return identity(runID, SourceDigest()), nil
+}
+
+// IdentityFromSource binds a run to the digest of an explicit source. The
+// worker reads that source from sources/<runID>.txt when the file is present.
+func IdentityFromSource(runID string, source []byte) (domain.RunIdentity, error) {
+	if len(source) == 0 {
+		return domain.RunIdentity{}, fmt.Errorf("%w: source is empty", domain.ErrIdentity)
+	}
+	return identity(runID, domain.DigestBytes(source)), nil
+}
+
+func identity(runID, sourceDigest string) domain.RunIdentity {
 	return domain.RunIdentity{
 		RunID:           runID,
-		SourceDigest:    SourceDigest(),
+		SourceDigest:    sourceDigest,
 		TemplateVersion: TemplateVersion,
 		ToolVersions:    ToolVersions,
 		TargetPlanRef:   TargetPlanRef,
-	}, nil
+	}
+}
+
+func proposalReason(body []byte) string {
+	proposal := lineValue(body, "proposal:")
+	rationale := lineValue(body, "rationale:")
+	if proposal == "" {
+		return "uds package rendered"
+	}
+	if rationale == "" {
+		return "proposed " + proposal
+	}
+	return "proposed " + proposal + ": " + rationale
+}
+
+func lineValue(body []byte, prefix string) string {
+	for _, line := range bytes.Split(body, []byte("\n")) {
+		text := strings.TrimSpace(string(line))
+		if strings.HasPrefix(text, prefix) {
+			return strings.TrimSpace(strings.TrimPrefix(text, prefix))
+		}
+	}
+	return ""
 }
 
 type Suite struct{}
 
 func (Suite) Assess(_ context.Context, id domain.RunIdentity, dir string) (domain.Receipt, error) {
-	body, err := readSource(dir)
+	body, err := readSource(dir, id.RunID)
 	if err != nil {
 		return domain.Receipt{}, err
 	}
@@ -70,7 +106,7 @@ func (Suite) Assess(_ context.Context, id domain.RunIdentity, dir string) (domai
 }
 
 func (Suite) Propose(_ context.Context, id domain.RunIdentity, dir string) (domain.Receipt, error) {
-	body, err := readSource(dir)
+	body, err := readSource(dir, id.RunID)
 	if err != nil {
 		return domain.Receipt{}, err
 	}
@@ -100,14 +136,14 @@ func (Suite) Propose(_ context.Context, id domain.RunIdentity, dir string) (doma
 		SourceDigest:     sourceDigest,
 		TargetPlanRef:    id.TargetPlanRef,
 		Outcome:          domain.OutcomePass,
-		Reason:           "uds package rendered",
+		Reason:           proposalReason(body),
 		Artifact:         domain.ArtifactRef{Digest: digest, ByteSize: pkg.Size(), Media: "uds-package"},
 	}
 	return receipt, receipt.Bound()
 }
 
 func (Suite) Validate(_ context.Context, id domain.RunIdentity, dir string, proposal domain.Receipt) (domain.Validation, error) {
-	body, err := readSource(dir)
+	body, err := readSource(dir, id.RunID)
 	if err != nil {
 		return domain.Validation{}, err
 	}
@@ -157,6 +193,9 @@ func Gate(source, zarf, cr []byte, sourceDigest, templateVersion, toolVersions s
 	case bytes.Contains(source, []byte("lint: fail")):
 		validation.Outcome = domain.OutcomeFailRequired
 		validation.Reason = "required lint failed"
+	case bytes.Contains(source, []byte("memory: 8Gi")):
+		validation.Outcome = domain.OutcomeFailRequired
+		validation.Reason = "memory limit 8Gi exceeds the 1Gi ceiling"
 	default:
 		want, err := Render(source, sourceDigest, templateVersion, toolVersions)
 		switch {
@@ -174,7 +213,17 @@ func Gate(source, zarf, cr []byte, sourceDigest, templateVersion, toolVersions s
 	return validation
 }
 
-func readSource(dir string) ([]byte, error) {
+func readSource(dir, runID string) ([]byte, error) {
+	if dir != "" && runID != "" {
+		named := filepath.Join(dir, "sources", runID+".txt")
+		body, err := os.ReadFile(named)
+		if err == nil {
+			return body, nil
+		}
+		if !os.IsNotExist(err) {
+			return nil, fmt.Errorf("read fixture source: %w", err)
+		}
+	}
 	if dir == "" {
 		return append([]byte(nil), Source...), nil
 	}

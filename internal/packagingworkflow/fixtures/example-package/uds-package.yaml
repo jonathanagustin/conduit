@@ -4,7 +4,7 @@ metadata:
   name: "sample-app"
   namespace: "sample-app"
   annotations:
-    packaging.conduit.dev/source-digest: "sha256:ef46b63ef0d27c6163dadfd5851fee0dc1dee7063f4995031c43aee12ffe928b"
+    packaging.conduit.dev/source-digest: "sha256:f882abbc816eb2a1f733e5f0852f6e5282f58c366d046306edad83bf53665e59"
     packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
 spec:
   network:
