@@ -79,6 +79,28 @@ func TestBundleHTTPWorkflow(t *testing.T) {
 	if previewResponse.Code != http.StatusOK {
 		t.Fatalf("preview = %d %s", previewResponse.Code, previewResponse.Body.String())
 	}
+	var shown BundlePreview
+	if err := json.Unmarshal(previewResponse.Body.Bytes(), &shown); err != nil {
+		t.Fatal(err)
+	}
+	if shown.ManifestDigest != result.Bundles[0].ManifestDigest || !shown.Signature.Verified || shown.Signature.KeyID == "" {
+		t.Fatalf("preview evidence = %#v", shown)
+	}
+	if len(shown.SBOM) == 0 {
+		t.Fatal("preview SBOM is empty")
+	}
+	for _, component := range shown.SBOM {
+		if component.Digest == "" || component.Kind == "" {
+			t.Fatalf("sbom component = %#v", component)
+		}
+	}
+	anonymous := httptest.NewRequest(http.MethodPost, "/v1/bundles/preview", bytes.NewReader(previewBody))
+	anonymous.Header.Set("Content-Type", "application/json")
+	anonymousResponse := httptest.NewRecorder()
+	NewHandler(repository, HandlerOptions{BundlePrivateKey: mustBundleKey(t)}).ServeHTTP(anonymousResponse, anonymous)
+	if anonymousResponse.Code != http.StatusUnauthorized {
+		t.Fatalf("anonymous preview = %d %s", anonymousResponse.Code, anonymousResponse.Body.String())
+	}
 }
 
 func TestExportPipelineRevisionedLifecycleAndAlternateHTTPBuild(t *testing.T) {

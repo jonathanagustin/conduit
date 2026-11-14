@@ -329,7 +329,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/bundles/import",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "POST /v1/bundles/preview",
-			Decision: DecisionBundleSignature, Detail: "artifacts.VerifyEnvelope against the trusted Bundle keys"},
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation; Preview still verifies the envelope before reporting the signature as verified"},
 		{Pattern: "POST /v1/bundles/{bundleID}/transfer-confirmations",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
 		{Pattern: "POST /v1/change-requests/{changeRequestID}/approve",

@@ -1054,6 +1054,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		writeJSON(w, http.StatusOK, bundle)
 	})
 	mux.HandleFunc("POST /v1/bundles/preview", func(w http.ResponseWriter, request *http.Request) {
+		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
+		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
+			return
+		}
 		envelope, ok := decodeJSON[BundleEnvelope](w, request)
 		if !ok {
 			return
