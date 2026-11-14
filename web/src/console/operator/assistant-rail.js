@@ -136,36 +136,37 @@ export function assistantChrome(state) {
     ? chips
         .map(
           (chip) =>
-            `<button type="button" data-remove-chip="${esc(keyOf(chip))}" class="h-[22px] px-1.5 rounded bg-[#14202e] border border-[#28405c] text-[10.5px] text-[#7cb4ff]" title="Remove ${esc(chip.objectType)} ${esc(chip.id)}">${esc(chip.objectType)} ${esc(chip.label || chip.id)} ×</button>`,
+            `<button type="button" data-remove-chip="${esc(keyOf(chip))}" class="px-2 py-0.5 rounded bg-[#14202e] border border-[#28405c] text-[10.5px] text-[#7cb4ff] hover:border-[#4c90f0]" title="Remove ${esc(chip.objectType)} ${esc(chip.id)}">${esc(chip.objectType)} · ${esc(chip.label || chip.id)} ×</button>`,
         )
         .join("")
     : `<span class="text-[10.5px] text-[#6d7885]">No object on this screen.</span>`;
+  const modes = MODES.map((item) => {
+    const on = item.id === mode;
+    return `<button type="button" data-set-mode="${item.id}" class="h-[23px] px-2 rounded text-[10.5px] border ${on ? "bg-[#162536] border-[#355982] text-[#dce8f6]" : "bg-[#12181e] border-[#222c36] text-[#8b96a5]"}">${esc(item.label)}</button>`;
+  }).join("");
   const actions = chips
     .flatMap((chip) => actionsFor(state, chip))
     .map(
       (action) =>
-        `<button type="button" data-assistant-action="${esc(action.kind)}" data-chip-key="${esc(action.key)}" class="h-[22px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[10.5px] text-[#dce4ee]">${esc(action.label)}</button>`,
+        `<button type="button" data-assistant-action="${esc(action.kind)}" data-chip-key="${esc(action.key)}" class="h-[23px] px-2 rounded bg-[#12181e] border border-[#222c36] text-[10.5px] text-[#dce4ee] hover:text-white">${esc(action.label)}</button>`,
     )
     .join("");
   return `
-    <div class="shrink-0 space-y-2">
-      <div class="flex items-center justify-between gap-1">
-        <div class="flex items-center gap-1.5 min-w-0">
-          <span class="w-1.5 h-1.5 rounded-full bg-[#34d399]"></span>
-          <span class="text-[12px] font-semibold text-white">Assistant</span>
-        </div>
-        <button type="button" onclick="toggleChatRail()" class="so-btn so-btn-sm !px-1.5" aria-label="Close assistant panel">×</button>
+    <header class="h-[38px] -mx-2.5 -mt-2.5 px-3 border-b border-[#1c242c] bg-[#0d1317] flex items-center justify-between gap-2 shrink-0">
+      <div class="flex items-center gap-2 min-w-0">
+        <span class="w-2 h-2 rounded-full bg-[#34d399]"></span>
+        <span class="text-[12.5px] font-semibold text-white truncate">Assistant</span>
       </div>
-      <div class="code-id text-[10px] text-[#738091]">scope: ${esc(state.screen || "")}</div>
-      <label class="block text-[10px] uppercase tracking-[0.08em] text-[#6d7885]">Mode
-        <select data-assistant-mode class="so-input mt-1 w-full text-[11px]">
-          ${MODES.map((item) => `<option value="${item.id}" ${item.id === mode ? "selected" : ""}>${item.label}</option>`).join("")}
-        </select>
-      </label>
+      <button type="button" onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
+    </header>
+    <div class="shrink-0 space-y-2">
+      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Mode · ${esc(state.screen || "")}</div>
+      <div class="flex flex-wrap gap-1" data-assistant-modes>${modes}</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Context</div>
       <div class="flex flex-wrap gap-1" data-assistant-chips>${chipHtml}</div>
       <div class="flex flex-wrap gap-1" data-assistant-actions>${actions}</div>
     </div>
-    <div data-assistant-results class="shrink-0 max-h-[38%] overflow-y-auto space-y-2"></div>
+    <div data-assistant-results class="shrink-0 max-h-[42%] overflow-y-auto space-y-2"></div>
   `;
 }
 
@@ -226,8 +227,17 @@ export function resultCard(result) {
         `<div class="font-mono text-[10.5px]"><div class="text-[#f5a3a6]">- ${esc(hunk.path)}: ${esc(hunk.before)}</div><div class="text-[#34d399]">+ ${esc(hunk.path)}: ${esc(hunk.after)}</div></div>`,
     )
     .join("");
-  return `<article class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2 text-[11px] space-y-1">
-    <div class="flex items-center justify-between gap-2"><span class="text-[#dce4ee]">${esc(result.tool || "tool")}</span><span class="text-[10px] text-[#8b96a5]">${esc(label)} · R:${esc(result.readOps ?? 0)} W:${esc(result.writeOps ?? 0)}</span></div>
+  const ops = `R:${esc(result.readOps ?? 0)} W:${esc(result.writeOps ?? 0)}`;
+  const opsTone =
+    Number(result.writeOps) > 0
+      ? "bg-[#2a2012] border-[#4f391b] text-[#eab854]"
+      : "bg-[#10241d] border-[#1f4737] text-[#34d399]";
+  return `<article class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] space-y-1.5">
+    <div class="flex items-center justify-between gap-2">
+      <span class="font-medium text-[#dce4ee]">${esc(result.tool || "tool")}</span>
+      <span class="text-[10px] px-1.5 py-0.5 rounded border tabular-nums ${opsTone}">${ops}</span>
+    </div>
+    <div class="text-[10px] text-[#8b96a5]">${esc(label)}</div>
     ${result.error ? `<div class="text-[#f5a3a6]">${esc(result.error)}</div>` : ""}
     ${result.reason ? `<div class="${tone}">${esc(result.reason)}</div>` : ""}
     ${constraints}

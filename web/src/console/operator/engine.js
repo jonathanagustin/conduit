@@ -1160,7 +1160,7 @@ export function mountOperator(host, options) {
       return;
     }
     const openClass =
-      "w-[300px] shrink-0 bg-[#0e1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5 gap-2";
+      "w-[332px] shrink-0 bg-[#0e1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5 gap-2";
     if (rail.className !== openClass) rail.className = openClass;
     if (!rail.querySelector("#assistant-thread-mount")) {
       rail.innerHTML = `
@@ -1194,6 +1194,12 @@ export function mountOperator(host, options) {
     rail.addEventListener("click", async (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target) return;
+      const modeButton = target.closest("[data-set-mode]");
+      if (modeButton) {
+        state.assistantMode = modeButton.getAttribute("data-set-mode");
+        renderChatRail();
+        return;
+      }
       const remove = target.closest("[data-remove-chip]");
       if (remove) {
         const key = remove.getAttribute("data-remove-chip");
