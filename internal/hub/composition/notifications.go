@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	appdomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
+	attachapp "github.com/jonathanagustin/conduit/internal/attachments/application"
 	activityports "github.com/jonathanagustin/conduit/internal/changeactivity/ports"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
@@ -66,6 +67,9 @@ type Options struct {
 	// allows it. Nil keeps the write routes and refuses them. Cancel does not
 	// cancel a Plan.
 	PackagingControls packaginghttp.Controls
+	// Attachments stores intake files by sha256. Nil makes NewHub use the
+	// process-local store. Stored bytes are bound, read-only context.
+	Attachments *attachapp.Service
 }
 
 // mountNotifications puts the notification routes in front of the legacy

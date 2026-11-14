@@ -31,6 +31,16 @@ var (
 type Request struct {
 	Name        string
 	Description string
+	// Attachments are bound, read-only context the operator attached to the
+	// intake request. The generator may read them. It still returns a spec only.
+	Attachments []Attachment
+}
+
+// Attachment is one stored intake file. SHA256 is lowercase hex of Content.
+type Attachment struct {
+	Name    string `json:"name"`
+	SHA256  string `json:"sha256"`
+	Content string `json:"-"`
 }
 
 // Provenance records who produced a spec and the digests of the exchange.

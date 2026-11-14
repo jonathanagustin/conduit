@@ -486,6 +486,10 @@ if [[ "${DEMO_WORKSPACES:-}" == "1" ]]; then
   api POST /v1/dev-workspaces '{"profileId":"dev","environmentId":"dev","title":"Sample workspace"}' >"${state_dir}/workspace.json"
   python3 -c 'import json,sys; print("workspace", json.load(open(sys.argv[1]))["workspaceId"])' "${state_dir}/workspace.json"
 fi
+if [[ "${DEMO_ATTACHMENTS:-}" == "1" ]]; then
+  api POST /v1/intake-attachments '{"filename":"values.yaml","content":"replicas: 2\nresources:\n  limits:\n    memory: 512Mi\n"}' >"${state_dir}/attachment.json"
+  python3 -c 'import json,sys; print("attachment", json.load(open(sys.argv[1]))["sha256"])' "${state_dir}/attachment.json"
+fi
 if [[ "${DEMO_GENERATE:-}" == "1" ]]; then
   "${root}/scripts/demo-generate.sh"
 fi

@@ -54,6 +54,12 @@ func Parse(runID string, body []byte) domain.PackagingContext {
 		ImageRef:      values["image-ref"],
 		ImageDigest:   values["image-digest"],
 	}
+	for _, digest := range strings.Split(values["attachments"], ",") {
+		digest = strings.TrimSpace(digest)
+		if len(digest) == 64 && strings.Trim(digest, "0123456789abcdef") == "" {
+			parsed.AttachmentSHA256 = append(parsed.AttachmentSHA256, digest)
+		}
+	}
 	if ref, digest, ok := splitImage(values["image"]); ok {
 		if parsed.ImageRef == "" {
 			parsed.ImageRef = ref

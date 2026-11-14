@@ -47,14 +47,24 @@ type Result struct {
 	ChartDigest     string            `json:"chartDigest,omitempty"`
 	RunID           string            `json:"runId,omitempty"`
 	PackagingSource string            `json:"packagingSource,omitempty"`
-	Error           string            `json:"error,omitempty"`
+	// AttachmentSHA256 lists the bound intake files, as lowercase sha256 hex.
+	AttachmentSHA256 []string `json:"attachmentSha256,omitempty"`
+	Error            string   `json:"error,omitempty"`
 }
 
 // Input is one operator request. Confirm is the governed write.
+// AttachmentSHA256 names stored intake files to bind as read-only context.
 type Input struct {
-	Name        string
-	Description string
-	Confirm     bool
+	Name             string
+	Description      string
+	Confirm          bool
+	AttachmentSHA256 []string
+}
+
+// Attachments loads stored intake files by digest. A malformed or unknown
+// digest is an error carrying a reason for the operator.
+type Attachments interface {
+	Resolve(ctx context.Context, digests []string) ([]domain.Attachment, error)
 }
 
 // BuildRequest is the sandboxed build input.
@@ -100,12 +110,14 @@ type Audit struct {
 	PromptSHA256   string
 	ResponseSHA256 string
 	Files          map[string]string
-	BuildPassed    bool
-	BuildReason    string
-	HealthPassed   bool
-	HealthReason   string
-	Outcome        string
-	Reason         string
+	// AttachmentSHA256 is the bound intake file digests, as lowercase hex.
+	AttachmentSHA256 []string
+	BuildPassed      bool
+	BuildReason      string
+	HealthPassed     bool
+	HealthReason     string
+	Outcome          string
+	Reason           string
 }
 
 // Auditor writes one audit record.
@@ -128,7 +140,9 @@ type Service struct {
 	Handoff   Handoff
 	Audit     Auditor
 	Store     Store
-	Now       func() time.Time
+	// Attachments supplies bound, read-only context for the generator.
+	Attachments Attachments
+	Now         func() time.Time
 }
 
 func (service Service) Generate(ctx context.Context, input Input) (Result, error) {
@@ -150,10 +164,25 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	if service.Generator == nil {
 		return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: domain.ErrModelUnavailable.Error()}, nil
 	}
-	spec, provenance, err := service.Generator.Generate(ctx, domain.Request{Name: name, Description: description})
+	var bound []domain.Attachment
+	if len(input.AttachmentSHA256) > 0 {
+		if service.Attachments == nil {
+			return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: "attachments are not configured"}, nil
+		}
+		loaded, err := service.Attachments.Resolve(ctx, input.AttachmentSHA256)
+		if err != nil {
+			return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: err.Error()}, nil
+		}
+		bound = loaded
+	}
+	digests := make([]string, 0, len(bound))
+	for _, item := range bound {
+		digests = append(digests, item.SHA256)
+	}
+	spec, provenance, err := service.Generator.Generate(ctx, domain.Request{Name: name, Description: description, Attachments: bound})
 	result := Result{
 		ID: service.identity(name, provenance.PromptSHA256), Label: domain.Label(provenance),
-		Name: name, Description: description, Provenance: provenance,
+		Name: name, Description: description, Provenance: provenance, AttachmentSHA256: digests,
 	}
 	if err != nil {
 		result.Error = err.Error()
@@ -248,6 +277,9 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	}
 	result.RunID = spec.Name + "-1"
 	source := domain.PackagingSource(spec, result.ImageRef, result.ImageDigest, description)
+	if len(digests) > 0 {
+		source = append(source, []byte("attachments: "+strings.Join(digests, ",")+"\n")...)
+	}
 	result.PackagingSource = string(source)
 	if service.Handoff != nil {
 		if err := service.Handoff.Prepare(ctx, result.RunID, source); err != nil {
@@ -274,6 +306,7 @@ func (service Service) List(ctx context.Context) ([]Result, error) {
 
 func (service Service) finish(ctx context.Context, result Result, event Audit) (Result, error) {
 	event.ID = result.ID
+	event.AttachmentSHA256 = result.AttachmentSHA256
 	event.Files = map[string]string{}
 	for _, file := range result.Files {
 		event.Files[file.Path] = file.SHA256

@@ -92,9 +92,20 @@ type RunIdentity struct {
 	TemplateVersion  string `json:"templateVersion"`
 	ToolVersions     string `json:"toolVersions"`
 	TargetPlanRef    string `json:"targetPlanRef"`
+	// AttachmentSHA256 names intake files bound to the run. It is empty for a run without any.
+	AttachmentSHA256 []string `json:"attachmentSha256,omitempty"`
 }
 
 func (id RunIdentity) Validate() error {
+	for _, digest := range id.AttachmentSHA256 {
+		if len(digest) != 64 || strings.Trim(digest, "0123456789abcdef") != "" {
+			return fmt.Errorf("%w: attachment digest must be lowercase sha256 hex", ErrIdentity)
+		}
+	}
+	return id.validateFields()
+}
+
+func (id RunIdentity) validateFields() error {
 	if id.RunID == "" || id.SourceDigest == "" || id.TemplateVersion == "" || id.ToolVersions == "" || id.TargetPlanRef == "" {
 		return ErrIdentity
 	}
@@ -348,6 +359,7 @@ type State struct {
 	TargetPlanRef    string            `json:"targetPlanRef,omitempty"`
 	TemplateVersion  string            `json:"templateVersion,omitempty"`
 	ToolVersions     string            `json:"toolVersions,omitempty"`
+	AttachmentSHA256 []string          `json:"attachmentSha256,omitempty"`
 	Events           []StepEvent       `json:"events,omitempty"`
 	eventsEnabled    bool
 }
@@ -406,6 +418,7 @@ func (s State) Status() RunStatus {
 		HandoffReconciled: s.Plan.Reconciled,
 		LastReview:        string(s.LastReview),
 		DuplicateReviews:  s.DuplicateReviews,
+		AttachmentSHA256:  s.AttachmentSHA256,
 	}
 	return status
 }
@@ -433,6 +446,8 @@ type RunStatus struct {
 	HandoffReconciled bool   `json:"handoffReconciled,omitempty"`
 	LastReview        string `json:"lastReview,omitempty"`
 	DuplicateReviews  int    `json:"duplicateReviews,omitempty"`
+	// AttachmentSHA256 lists the intake files bound to the run, as lowercase sha256 hex.
+	AttachmentSHA256 []string `json:"attachmentSha256,omitempty"`
 }
 
 type Result struct {

@@ -116,7 +116,11 @@ func NewHub(
 		}
 		hubOptions.AppGenerator = generator
 	}
-	handler = mountAppGeneration(handler, repository, options, hubOptions.AppGenerator)
+	if hubOptions.Attachments == nil {
+		hubOptions.Attachments = newAttachmentService(repository)
+	}
+	handler = mountAttachments(handler, options, hubOptions.Attachments)
+	handler = mountAppGeneration(handler, repository, options, hubOptions.AppGenerator, hubOptions.Attachments)
 	intelService := newIntelligenceService(repository)
 	return guardUnregisteredRoutes(mountTimeline(mountUpgrades(mountOfflineBundles(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options), repository, options), repository, options), repository, options)), nil
 }

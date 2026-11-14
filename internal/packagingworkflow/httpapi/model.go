@@ -32,7 +32,10 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 			writeError(writer, http.StatusUnprocessableEntity, domain.ErrModelUnavailable.Error())
 			return
 		}
-		var body struct{}
+		var body struct {
+			// AttachmentSHA256 binds stored intake files as read-only context.
+			AttachmentSHA256 []string `json:"attachmentSha256"`
+		}
 		if request.Body != nil {
 			decoder := json.NewDecoder(io.LimitReader(request.Body, 1<<16))
 			if err := decoder.Decode(&body); err != nil && !errors.Is(err, io.EOF) {
@@ -47,7 +50,7 @@ func mountModel(mux *http.ServeMux, cfg Config) {
 			}
 		}
 		result, err := cfg.Model.Propose(request.Context(), domain.PackagingContext{
-			RunID: runID, GateRules: domain.MemoryGateRule,
+			RunID: runID, GateRules: domain.MemoryGateRule, AttachmentSHA256: body.AttachmentSHA256,
 		}, "dev", author)
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())

@@ -370,6 +370,13 @@
       "why": "No captured packaging profile states the fields a generated HTTP application must carry. One template family keeps the rendered documents deterministic, and the generator cannot write the package configuration.",
       "displacedBy": "a reviewed packaging profile that states the image definition, chart values, and package document fields for a generated HTTP application.",
       "riskIfWrong": "The rendered documents may differ from a later profile. They are marked CONDUIT_NATIVE, are produced only after the spec gates pass, and do not approve a change or publish a release."
+    },
+    {
+      "id": "intake.AttachmentStore",
+      "what": "A native store of intake attachments. Each text-like file is named by the lowercase sha256 of its bytes, checked for type, size, and secret material before storage, and bound as read-only context to app generation and packaging proposals.",
+      "why": "No published object schema in this repository states which files an intake request may carry, their limits, or how they are named. The record, the allowlist, and the limits are marked CONDUIT_NATIVE. The store never approves a change or publishes a release, and a generator still cannot write package documents.",
+      "displacedBy": "a published intake object schema that states which files an intake request may carry, their limits, and how they are named.",
+      "riskIfWrong": "The allowed types, size caps, and naming may differ from a later schema. Storage is process-local, a rejected file is never kept, and the digests on the audit chain remain checkable against the bytes."
     }
   ],
   "displaced": [

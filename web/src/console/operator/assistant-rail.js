@@ -1,5 +1,6 @@
 // Context chips and tool cards for the workbench assistant rail.
 // Tool results come from the Hub. This file does not invent them.
+import { attachControl, attachmentList } from "./attachments.js";
 
 const MODES = [
   { id: "explore", label: "Explore" },
@@ -166,6 +167,9 @@ export function assistantChrome(state) {
       <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Context</div>
       <div class="flex flex-wrap gap-1" data-assistant-chips>${chipHtml}</div>
       <div class="flex flex-wrap gap-1" data-assistant-actions>${actions}</div>
+      <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Attachments (${(state.attachments?.items || []).length}) · read only</div>
+      <div class="max-h-[120px] overflow-y-auto">${attachmentList(state.attachments?.items)}</div>
+      ${attachControl(state.attachments?.reason, "assistant")}
     </div>
     <div data-assistant-results class="shrink-0 max-h-[42%] overflow-y-auto space-y-2"></div>
   `;

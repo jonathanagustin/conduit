@@ -7,6 +7,23 @@ import (
 
 // Prompt is the instruction sent to a generator. The response must be one JSON object.
 func Prompt(request Request) string {
+	return strings.TrimSpace(base(request) + attachmentContext(request.Attachments))
+}
+
+// attachmentContext lists the bound files as read-only reference text.
+func attachmentContext(items []Attachment) string {
+	if len(items) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	out.WriteString("\nAttached files are read-only context. Use them to choose the spec. Do not copy them into a package document and do not return a Dockerfile or chart.")
+	for _, item := range items {
+		fmt.Fprintf(&out, "\n--- attachment %s sha256 %s ---\n%s\n--- end attachment ---", oneLine(item.Name), item.SHA256, item.Content)
+	}
+	return out.String()
+}
+
+func base(request Request) string {
 	return strings.TrimSpace(fmt.Sprintf(`Reply with one JSON object and no other text.
 The object has name, port, routes, page, resources, and files.
 name is %s. port is an integer from 1024 to 65535.

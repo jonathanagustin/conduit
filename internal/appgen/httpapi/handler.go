@@ -42,6 +42,8 @@ func Register(mux *http.ServeMux, cfg Config) {
 			Name        string `json:"name"`
 			Description string `json:"description"`
 			Confirm     bool   `json:"confirm"`
+			// AttachmentSHA256 binds stored intake files as read-only context.
+			AttachmentSHA256 []string `json:"attachmentSha256"`
 		}
 		if err := json.NewDecoder(io.LimitReader(request.Body, 1<<16)).Decode(&body); err != nil {
 			writeError(writer, http.StatusBadRequest, "request body must be a JSON object")
@@ -53,6 +55,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		result, err := cfg.Service.Generate(request.Context(), application.Input{
 			Name: body.Name, Description: body.Description, Confirm: body.Confirm,
+			AttachmentSHA256: body.AttachmentSHA256,
 		})
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())

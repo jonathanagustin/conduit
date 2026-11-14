@@ -44,6 +44,7 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 	state := &domain.State{
 		Phase: domain.PhaseAssess, TargetPlanRef: in.Identity.TargetPlanRef,
 		TemplateVersion: in.Identity.TemplateVersion, ToolVersions: in.Identity.ToolVersions,
+		AttachmentSHA256: in.Identity.AttachmentSHA256,
 	}
 	if in.Carry != nil {
 		copied := *in.Carry

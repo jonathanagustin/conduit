@@ -52,7 +52,7 @@ func mountPackaging(
 		Controls:  hub.PackagingControls,
 		Decisions: packagingDecisions{repository: repository},
 		Feedback:  packaginghttp.NewMemoryFeedback(),
-		Model:     modelService(repository, service, hub.ModelProposer),
+		Model:     modelWithAttachments(modelService(repository, service, hub.ModelProposer), hub.Attachments),
 		OperatorName: func(request *http.Request) string {
 			principal, ok := packagingPrincipal(request, service, options)
 			if !ok || principal.Username == "" {
