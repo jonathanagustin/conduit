@@ -106,7 +106,7 @@ export function productsMarkup(rows, { esc = defaultEsc, note = "" } = {}) {
     })
     .join("");
   return `<div class="so-panel kit-view-panel">
-    <div class="kit-view-head"><h2>Products and versions</h2><span class="kit-muted">${rows.length} in the catalog</span></div>
+    <div class="kit-view-head"><h2>Products and versions</h2><span class="kit-count" title="${rows.length} in the catalog">${rows.length}</span></div>
     <p class="kit-muted">Newest release per channel. The last column counts reported installations that run the newest release.</p>
     <div class="overflow-x-auto"><table class="so-table">
       <thead><tr><th>Product</th><th>Newest</th>${head}<th>Releases</th><th>On newest</th></tr></thead>

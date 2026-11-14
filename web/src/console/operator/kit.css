@@ -673,3 +673,57 @@ button.kit-link { background: none; border: 0; padding: 0; font: inherit; cursor
 .kit-cc-open { margin-left: auto; }
 .kit-cc-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; font-size: 12px; }
 .kit-cc-list li { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+
+/* Omnibar trigger: a visible search glyph at the left of the input. */
+.operator-root .omnibar-trigger { width: 168px; }
+.operator-root .omnibar-icon {
+  position: absolute;
+  left: 9px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  pointer-events: none;
+  color: var(--c-text-sec);
+}
+.operator-root .omnibar-icon svg { width: 13px; height: 13px; }
+
+/* Header KPIs: value, then the label, then the helper text on its own line. */
+.operator-root .topbar-kpi-strip { align-items: center; }
+.operator-root .kpi-cell { display: flex; flex-direction: column; justify-content: center; min-width: 0; line-height: 1; }
+.operator-root .kpi-value { display: flex; align-items: center; gap: 6px; font-size: 16px; font-weight: 700; line-height: 1; }
+.operator-root .kpi-label {
+  margin-top: 3px;
+  font-size: 9px;
+  line-height: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-text-sec);
+  white-space: nowrap;
+}
+.operator-root .kpi-sub {
+  font-size: 9.5px;
+  line-height: 11px;
+  color: var(--c-muted);
+  white-space: nowrap;
+}
+@media (max-width: 1340px) {
+  .operator-root .kpi-sub { font-size: 9px; }
+}
+
+/* Round count badge beside a live panel heading. */
+.operator-root .kit-count {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 18px;
+  height: 18px;
+  padding: 0 6px;
+  border-radius: 9999px;
+  border: 1px solid var(--c-border-strong);
+  background: var(--c-card);
+  color: var(--c-text);
+  font-size: 10.5px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}

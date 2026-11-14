@@ -710,8 +710,7 @@
 
 /* Split-Canvas & Compact Laptop (1024px .. 1239px): prevent 3-column & 4/5-column squeeze! */
 @media (max-width: 1340px) {
-  #topbar-subtitle,
-  .kpi-sub-extra {
+  #topbar-subtitle {
     display: none !important;
   }
   .topbar-kpi-strip {
