@@ -133,8 +133,10 @@ ready.
 
 ## Confirmation
 
-The native driver is covered by `go test ./internal/controlplane/` once
-the port lands. The workflow's timers and failure path are covered by
+The native driver is `NativePlanOrchestrator` in
+`internal/controlplane`. `PlanOrchestratorFromEnv` selects it unless
+`PLAN_ORCHESTRATOR=temporal`, which returns the unwired skeleton and
+does not start a workflow. The workflow's timers and failure path are covered by
 `go test ./internal/planorchestration/` using the Temporal Go test suite,
 which skips workflow time without sleeping the wall clock. Neither test
 is a production drill.
