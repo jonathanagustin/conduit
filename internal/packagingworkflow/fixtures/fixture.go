@@ -193,9 +193,7 @@ func Gate(source, zarf, cr []byte, sourceDigest, templateVersion, toolVersions s
 	case bytes.Contains(source, []byte("lint: fail")):
 		validation.Outcome = domain.OutcomeFailRequired
 		validation.Reason = "required lint failed"
-	case bytes.Contains(source, []byte("memory: 8Gi")):
-		validation.Outcome = domain.OutcomeFailRequired
-		validation.Reason = "memory limit 8Gi exceeds the 1Gi ceiling"
+	case memoryOverCeiling(source, &validation):
 	default:
 		want, err := Render(source, sourceDigest, templateVersion, toolVersions)
 		switch {
@@ -211,6 +209,30 @@ func Gate(source, zarf, cr []byte, sourceDigest, templateVersion, toolVersions s
 		}
 	}
 	return validation
+}
+
+func memoryOverCeiling(source []byte, validation *domain.Validation) bool {
+	value, ok := memoryValue(source)
+	if !ok {
+		return false
+	}
+	outcome, reason, blocked := domain.AssessMemory(value)
+	if !blocked {
+		return false
+	}
+	validation.Outcome = outcome
+	validation.Reason = reason
+	return true
+}
+
+func memoryValue(source []byte) (string, bool) {
+	for _, line := range bytes.Split(source, []byte("\n")) {
+		line = bytes.TrimSpace(line)
+		if bytes.HasPrefix(line, []byte("memory:")) {
+			return strings.TrimSpace(string(bytes.TrimPrefix(line, []byte("memory:")))), true
+		}
+	}
+	return "", false
 }
 
 func readSource(dir, runID string) ([]byte, error) {

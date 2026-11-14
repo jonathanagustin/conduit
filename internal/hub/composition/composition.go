@@ -96,5 +96,12 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	if hubOptions.ModelProposer == nil {
+		proposer, err := modelProposer(os.Getenv)
+		if err != nil {
+			return nil, err
+		}
+		hubOptions.ModelProposer = proposer
+	}
 	return guardUnregisteredRoutes(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions)), nil
 }

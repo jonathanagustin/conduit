@@ -51,6 +51,7 @@ type Config struct {
 	Decisions    DecisionLog
 	Feedback     FeedbackStore
 	OperatorName func(*http.Request) string
+	Model        ModelProposal
 }
 
 // Register mounts the packaging-run routes. Cancel and rerun do not approve
@@ -74,6 +75,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 	mountCollections(mux, cfg)
 	mountControls(mux, cfg)
 	mountFeedback(mux, cfg)
+	mountModel(mux, cfg)
 }
 
 // authorize applies the route's caller check. A nil authorizer refuses
