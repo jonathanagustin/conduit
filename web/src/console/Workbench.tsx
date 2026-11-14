@@ -1,6 +1,6 @@
 "use client";
 
-import { InputGroup, Tag } from "@blueprintjs/core";
+import { InputGroup } from "@blueprintjs/core";
 import { useAui } from "@assistant-ui/react";
 import { useMemo, useState } from "react";
 import "@fontsource/ibm-plex-mono/400.css";
@@ -30,6 +30,7 @@ import { useConsoleData } from "./data/useConsoleData";
 import { EXAMPLE, EXAMPLE_ENVIRONMENTS, EXAMPLE_PROFILES, EXAMPLE_SAVED_VIEWS, EXAMPLE_SPOKES } from "./examples";
 import { runGate } from "./logic";
 import "./theme/tokens.css";
+import "./theme/conduit-theme.css";
 
 function RailWelcome() {
   return <p className="conduit-muted">Ask about the record open in the center.</p>;
@@ -97,10 +98,22 @@ export function Workbench({ dark }: { dark: boolean }) {
     <AppShell
       kpi={
         <>
-          <span><strong className="conduit-mono">{inSync}/{data.environments.length}</strong> in sync</span>
-          <span><strong className="conduit-mono">{inFlight}</strong> runs</span>
-          <span><strong className="conduit-mono">{pending}</strong> approvals</span>
-          <Tag round intent={data.live ? "success" : "danger"} minimal>{data.live ? "LIVE" : data.live === false ? "Down" : "…"}</Tag>
+          <div>
+            <div className="cd-kpi-value cd-num" data-tone="ok">{inSync}/{data.environments.length}</div>
+            <div className="cd-kpi-label">In sync</div>
+          </div>
+          <div>
+            <div className="cd-kpi-value cd-num" data-tone="info">{inFlight}</div>
+            <div className="cd-kpi-label">Packaging runs</div>
+          </div>
+          <div>
+            <div className="cd-kpi-value cd-num">{pending}</div>
+            <div className="cd-kpi-label">Approvals</div>
+          </div>
+          <div className="cd-live" data-down={data.live === false ? "true" : "false"}>
+            <span className="cd-live-dot" />
+            {data.live ? "LIVE" : data.live === false ? "DOWN" : "…"}
+          </div>
         </>
       }
       toolbar={
@@ -114,11 +127,11 @@ export function Workbench({ dark }: { dark: boolean }) {
       }
       sidebar={
         <>
-          <p className="conduit-sec">Navigation</p>
+          <p className="cd-sec-label">Navigation</p>
           <SidebarNav items={NAV} current={view} onSelect={(id) => openView(id as ViewId)} />
-          <p className="conduit-sec">Work profiles</p>
+          <p className="cd-sec-label">Work profiles</p>
           <NavTree nodes={EXAMPLE_PROFILES.map((row) => ({ id: row.id, label: `${row.label} · ${EXAMPLE}` }))} onSelect={() => openView("overview")} />
-          <p className="conduit-sec">Environments</p>
+          <p className="cd-sec-label">Environments</p>
           <NavTree
             nodes={[
               ...visibleEnvironments.map((row) => ({ id: row.id, label: row.id })),
@@ -132,9 +145,9 @@ export function Workbench({ dark }: { dark: boolean }) {
               }
             }}
           />
-          <p className="conduit-sec">Spokes</p>
+          <p className="cd-sec-label">Spokes</p>
           <NavTree nodes={EXAMPLE_SPOKES.map((row) => ({ id: row.id, label: `${row.label} · ${EXAMPLE}` }))} onSelect={() => openView("fleet")} />
-          <p className="conduit-sec">Saved views</p>
+          <p className="cd-sec-label">Saved views</p>
           {EXAMPLE_SAVED_VIEWS.map((row) => (
             <button key={row.id} type="button" onClick={() => openView(row.view)}>
               {row.label}

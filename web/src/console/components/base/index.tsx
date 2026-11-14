@@ -401,7 +401,7 @@ export function AppShell({
     .join(" ");
   return (
     <div className={shellClass} data-theme="dark">
-      <header className="conduit-topbar">
+      <header className="cd-topbar">
         <Button
           className="conduit-nav-toggle"
           icon="menu"
@@ -416,8 +416,8 @@ export function AppShell({
           aria-label="Collapse sidebar"
           onClick={() => setRailCollapsed((collapsed) => !collapsed)}
         />
-        <span className="conduit-wordmark">Conduit</span>
-        <div className="conduit-top-kpis">{kpi}</div>
+        <span className="cd-wordmark">Conduit</span>
+        <div className="cd-kpi-strip">{kpi}</div>
         <div className="conduit-top-tools">{toolbar}</div>
         <Button
           className="conduit-chat-toggle"
