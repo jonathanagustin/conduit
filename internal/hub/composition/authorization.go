@@ -430,6 +430,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
 		{Pattern: "POST /v1/export-pipelines/{pipelineID}/unarchive",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
+		{Pattern: "GET /v1/environments/{environmentID}/timeline",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; one environment timeline citing the audit chain"},
 		{Pattern: "GET /v1/products/{product}/dependencies/{version}",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; reads the dependencies stored on a release"},
 		{Pattern: "GET /v1/fleet/upgrades",
