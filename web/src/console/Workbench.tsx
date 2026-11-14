@@ -7,7 +7,7 @@ import "@fontsource/ibm-plex-mono/400.css";
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { AcpPanels } from "@/src/embed/acp-panels";
-import { ActionButton, AppShell, DataTable, DisabledWithReason, EmptyState, ErrorState, NavTree, PageHeader, SidebarNav, SplitListDetail, StatusTag } from "./components/base";
+import { ActionButton, AppShell, ClassificationBanner, DataTable, DisabledWithReason, EmptyState, ErrorState, FacetRail, MetricCard, NavTree, PageHeader, QuickFilterBand, RangeTimeline, SidebarNav, SplitListDetail, StatusTag, Stepper, SummaryBand } from "./components/base";
 import {
   ApprovalDetail,
   ApprovalInbox,
@@ -22,6 +22,7 @@ import {
   PackagingRunList,
   PlanBoard,
   PromotionReview,
+  ReleaseDetail,
   ReleaseRollout,
   PlanDetail,
   PlanTable,
@@ -61,6 +62,9 @@ export function Workbench({ dark }: { dark: boolean }) {
   const [view, setView] = useState<ViewId>("overview");
   const [openTabs, setOpenTabs] = useState<ViewId[]>(["overview"]);
   const [filterText, setFilterText] = useState("");
+  const [showBanner, setShowBanner] = useState(true);
+  const [facet, setFacet] = useState<string[]>([]);
+  const [quick, setQuick] = useState("all");
   const [runId, setRunId] = useState("sample-app-1");
   const [planId, setPlanId] = useState("");
   const [environmentId, setEnvironmentId] = useState("");
@@ -96,6 +100,8 @@ export function Workbench({ dark }: { dark: boolean }) {
 
   return (
     <AppShell
+      banner={showBanner ? <ClassificationBanner edge="top" text="Example banner · not a Hub record" onDismiss={() => setShowBanner(false)} /> : null}
+      footer={<ClassificationBanner edge="bottom" text="Example banner · demonstration only" />}
       kpi={
         <>
           <div>
@@ -186,6 +192,12 @@ export function Workbench({ dark }: { dark: boolean }) {
       {data.error ? <ErrorState title="Hub is not answering" detail={data.error} /> : null}
       {view === "overview" ? (
         <div>
+          <SummaryBand>
+            <MetricCard label="In sync" value={`${inSync}/${data.environments.length}`} tone="ok" points={[1, 1, 2, 2, inSync || 1]} detail="Example trend" />
+            <MetricCard label="Runs" value={String(inFlight)} tone="info" points={[0, 1, 1, inFlight || 0]} detail="Example trend" />
+            <MetricCard label="Approvals" value={String(pending)} tone="warn" points={[pending || 0, pending || 1]} detail="Example trend" />
+            <MetricCard label="Hub" value={data.live ? "Up" : "…"} tone={data.live ? "ok" : "bad"} />
+          </SummaryBand>
           <PageHeader title="Overview" detail="Hub catalog rows, plus rows marked Example." />
           <StatusTag gate={data.run ? runGate(data.run) : "CAUTION"}>{data.run ? runGate(data.run) : "CAUTION"}</StatusTag>
           <DataTable
@@ -210,6 +222,16 @@ export function Workbench({ dark }: { dark: boolean }) {
       {view === "environments" ? (
         <div>
           <PageHeader title="Environments" detail="GET /v1/environments" />
+          <QuickFilterBand
+            options={[{ id: "all", label: "All" }, { id: "reported", label: "Reported" }]}
+            selected={quick}
+            onSelect={setQuick}
+          />
+          <FacetRail
+            groups={[{ id: "source", label: "Source", options: [{ id: "hub", label: "Hub", count: data.environments.length }, { id: "example", label: "Example", count: EXAMPLE_ENVIRONMENTS.length }] }]}
+            selected={facet}
+            onToggle={(id) => setFacet((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])}
+          />
           {data.environments.length === 0 ? <EmptyState title="No environments" detail="The catalog is empty or the Hub refused the read." /> : null}
           {data.environments.map((row) => (
             <button
@@ -252,6 +274,13 @@ export function Workbench({ dark }: { dark: boolean }) {
               <li key={product.name}>{product.name}</li>
             ))}
           </ul>
+          {data.releases.map((release) => (
+            <ReleaseDetail
+              key={`${release.product}-${release.version}`}
+              release={release}
+              installations={data.fleet.filter((row) => row.product === release.product).length}
+            />
+          ))}
           <ReleaseRollout releases={data.releases} fleet={data.fleet} />
           <PromotionReview promotions={data.promotions} />
         </div>
@@ -259,6 +288,25 @@ export function Workbench({ dark }: { dark: boolean }) {
       {view === "packaging" ? (
         <div>
           <PageHeader title="Packaging run" detail="Index is GET /v1/packaging-runs. The selected run is Connect GetPackagingRun. Events, cancel, and rerun use the matching REST routes." />
+          <Stepper
+            steps={["fetch", "scan", "sign", "package", "publish", "propose plan"].map((label, index) => ({
+              id: label,
+              label,
+              state: data.run?.phase === "complete" ? "done" : index < 3 ? "done" : index === 3 ? "current" : "waiting",
+            }))}
+          />
+          <RangeTimeline
+            rows={[{
+              id: "example-steps",
+              label: "Example durations",
+              bars: [
+                { id: "fetch", label: "Example fetch", start: 0, end: 0.12, tone: "ok" },
+                { id: "scan", label: "Example scan", start: 0.14, end: 0.3, tone: "info" },
+                { id: "sign", label: "Example sign", start: 0.32, end: 0.48, tone: "warn" },
+                { id: "package", label: "Example package", start: 0.5, end: 0.78, tone: "info" },
+              ],
+            }]}
+          />
           <label>
             Run id
             <input aria-label="Packaging run id" value={runId} onChange={(event) => setRunId(event.target.value)} />

@@ -376,6 +376,8 @@ export function AppShell({
   toolbar,
   sidebar,
   tabs,
+  banner,
+  footer,
   children,
   rail,
 }: {
@@ -383,6 +385,8 @@ export function AppShell({
   toolbar?: ReactNode;
   sidebar: ReactNode;
   tabs?: ReactNode;
+  banner?: ReactNode;
+  footer?: ReactNode;
   children: ReactNode;
   rail: ReactNode;
 }) {
@@ -401,6 +405,7 @@ export function AppShell({
     .join(" ");
   return (
     <div className={shellClass} data-theme="dark">
+      {banner}
       <header className="cd-topbar">
         <Button
           className="conduit-nav-toggle"
@@ -448,6 +453,7 @@ export function AppShell({
           {rail}
         </aside>
       </div>
+      {footer}
     </div>
   );
 }
@@ -803,3 +809,21 @@ export function TextField({
 }
 
 export type { IntentName };
+export {
+  ClassificationBanner,
+  FacetRail,
+  GateStrip,
+  GraphView,
+  KeyValue,
+  MetricCard,
+  PriorityTag,
+  QuickFilterBand,
+  RangeTimeline,
+  SegmentedTabs,
+  Sparkline,
+  StatusChip,
+  StatusTabs,
+  Stepper,
+  SummaryBand,
+  TargetBoard,
+} from "./patterns";

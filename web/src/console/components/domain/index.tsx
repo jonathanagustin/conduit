@@ -24,6 +24,7 @@ import {
   DisabledWithReason,
   EmptyState,
   EntityCard,
+  GateStrip,
   ErrorState,
   FilterBar,
   ImpactSummary,
@@ -234,6 +235,7 @@ export function PlanDetail({ plan }: { plan: PlanCard | null }) {
   return (
     <div>
       <PageHeader title={plan.id} detail={plan.environment || "no environment"} />
+      <GateStrip total={Math.max(plan.requiredApprovals, 1)} ok={plan.approvalCount} bad={plan.status === "FAILED" ? 1 : 0} size="lg" />
       <PlanCardView plan={plan} />
       {plan.lease ? <p>Lease attempt {plan.lease.attempt ?? "?"}{plan.lease.expiresAt ? ` until ${plan.lease.expiresAt}` : ""}</p> : null}
       <TaskList
@@ -339,7 +341,7 @@ export function ApprovalDetail({
   );
 }
 
-export { BundlePreview, ChangeRequestReview, EnvironmentPage, FailedPlanDetail, PromotionReview, ReleaseRollout } from "./release";
+export { BundlePreview, ChangeRequestReview, EnvironmentPage, FailedPlanDetail, PromotionReview, ReleaseDetail, ReleasePacket, ReleaseRollout } from "./release";
 
 export function PlanBoard({
   plans,

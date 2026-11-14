@@ -10,15 +10,21 @@ import {
   DiffPane,
   DisabledWithReason,
   EmptyState,
+  EntityCard,
+  GraphView,
+  KeyValue,
   HealthBar,
   ObjectHeader,
   OutputPane,
   PageHeader,
   PipelineGraph,
   PropertyCard,
+  RangeTimeline,
   ReviewHistory,
+  StatusChip,
   StatusTag,
   TabBar,
+  TargetBoard,
   TaskList,
 } from "../base";
 
@@ -78,6 +84,20 @@ export function EnvironmentPage({
             label="Maintenance window"
             passed={!maintenanceBlocked}
             reason={maintenanceBlocked ? "No maintenance window is recorded, so a rollout that requires one stays blocked." : detail.maintenance}
+          />
+          <RangeTimeline
+            rows={[
+              {
+                id: detail.id,
+                label: detail.maintenance ? "Recorded window" : "Example window",
+                bars: [{ id: "window", label: detail.maintenance || "Example", start: 0.15, end: 0.4, tone: maintenanceBlocked ? "warn" : "ok" }],
+              },
+              ...localPlans.map((plan, index) => ({
+                id: plan.id,
+                label: plan.id,
+                bars: [{ id: plan.id, label: plan.status, start: 0.05 + index * 0.08, end: 0.35 + index * 0.08, tone: plan.status === "FAILED" ? "bad" as const : "info" as const }],
+              })),
+            ]}
           />
           <DataTable
             columns={["Plan", "Status"]}
@@ -158,6 +178,46 @@ export function ChangeRequestReview({ request }: { request: ChangeRequestCard })
   );
 }
 
+export function ReleasePacket({
+  product,
+  version,
+  channels,
+  installations,
+}: {
+  product: string;
+  version: string;
+  channels: readonly string[];
+  installations: number;
+}) {
+  return (
+    <EntityCard title={`${product} ${version}`} meta={<StatusChip label={`${installations} installations`} intent="primary" />}>
+      <p className="conduit-muted">{channels.join(", ") || "no channel recorded"}</p>
+    </EntityCard>
+  );
+}
+
+export function ReleaseDetail({
+  release,
+  installations,
+}: {
+  release: ProductRelease;
+  installations: number;
+}) {
+  return (
+    <div>
+      <ReleasePacket product={release.product} version={release.version} channels={release.channels} installations={installations} />
+      <KeyValue
+        items={[
+          { label: "Product", value: release.product },
+          { label: "Version", value: release.version },
+          { label: "Channels", value: release.channels.join(", ") },
+          { label: "Installations", value: String(installations) },
+        ]}
+      />
+    </div>
+  );
+}
+
 export function ReleaseRollout({
   releases,
   fleet,
@@ -188,8 +248,22 @@ export function PromotionReview({ promotions }: { promotions: readonly Promotion
   if (promotions.length === 0) {
     return <EmptyState title="No promotions" detail="GET /v1/promotions returned none." />;
   }
+  const columns = [
+    { id: "from", title: "From", cards: promotions.map((edge) => ({ id: `${edge.id}-from`, title: edge.fromChannel, detail: edge.product })) },
+    { id: "to", title: "To", cards: promotions.map((edge) => ({ id: `${edge.id}-to`, title: edge.toChannel, detail: edge.status || "recorded" })) },
+  ];
   return (
     <div>
+      <GraphView
+        nodes={promotions.flatMap((edge) => [
+          { id: `${edge.id}-from`, label: edge.fromChannel },
+          { id: `${edge.id}-to`, label: edge.toChannel },
+        ])}
+        edges={promotions.map((edge) => ({ from: `${edge.id}-from`, to: `${edge.id}-to` }))}
+        selected={selected}
+        onSelect={setSelected}
+      />
+      <TargetBoard columns={columns} />
       <PipelineGraph nodes={nodes} selected={selected} onSelect={setSelected} />
       {current ? (
         <div>

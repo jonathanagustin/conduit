@@ -10,9 +10,19 @@ import {
   DisabledWithReason,
   EmptyState,
   ErrorState,
+  FacetRail,
   FilterBar,
+  GateStrip,
   HealthBar,
+  MetricCard,
   PipelineGraph,
+  PriorityTag,
+  QuickFilterBand,
+  RangeTimeline,
+  Sparkline,
+  StatusChip,
+  Stepper,
+  SummaryBand,
   Kanban,
   KpiStrip,
   NotePopover,
@@ -79,6 +89,20 @@ export function ComponentGallery() {
           ))}
           <DisabledWithReason reason="Disabled until the binding is complete." label="Retry" />
         </div>
+      </section>
+      <section>
+        <h2>Timeline, stepper, and gates</h2>
+        <SummaryBand>
+          <MetricCard label="Example" value="4" tone="ok" points={[1, 2, 3, 4]} detail="Example trend" />
+        </SummaryBand>
+        <Sparkline points={[1, 3, 2, 5]} />
+        <GateStrip total={6} ok={3} warn={1} bad={1} size="lg" />
+        <Stepper steps={[{ id: "a", label: "Fetch", state: "done" }, { id: "b", label: "Scan", state: "current" }, { id: "c", label: "Sign", state: "waiting" }]} />
+        <RangeTimeline rows={[{ id: "row", label: "Example", bars: [{ id: "bar", label: "Example", start: 0.1, end: 0.5, tone: "ok" }] }]} />
+        <QuickFilterBand options={[{ id: "all", label: "All" }, { id: "open", label: "Open" }]} selected="all" onSelect={() => undefined} />
+        <FacetRail groups={[{ id: "source", label: "Source", options: [{ id: "example", label: "Example", count: 1 }] }]} selected={[]} onToggle={() => undefined} />
+        <StatusChip label="recorded" intent="success" />
+        <PriorityTag priority="high" />
       </section>
       <section>
         <h2>Health and channels</h2>

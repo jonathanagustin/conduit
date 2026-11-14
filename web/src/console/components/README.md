@@ -30,6 +30,13 @@ Presets: GO is success filled, CAUTION is warning outlined, NO-GO is danger fill
 | StatCard | Card, EntityTitle, Tag, Icon |
 | KpiStrip | layout only; children are StatCards |
 | HealthBar | a proportional bar; Blueprint has no segmented progress |
+| GateStrip, Stepper, RangeTimeline | layout over Tag and Card. No chart library |
+| SummaryBand, MetricCard, Sparkline | Card, EntityTitle, and an inline spark |
+| FacetRail, QuickFilterBand, StatusTabs, SegmentedTabs | Button, Tag |
+| StatusChip, PriorityTag | Tag |
+| KeyValue | a definition list |
+| GraphView, TargetBoard | Button, Card |
+| ClassificationBanner | a marking strip with example text |
 | PipelineGraph | Button, Icon |
 | Panel | Section, SectionCard |
 | PageHeader, ObjectHeader, PropertyCard, EntityCard | EntityTitle, Card |

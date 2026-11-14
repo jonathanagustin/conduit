@@ -391,9 +391,9 @@ test.describe("fake ACP bridge", () => {
       await hydrate(page);
       await page.goto("/console/");
       await page.getByRole("button", { name: "Workbench" }).click();
-      await expect(page.getByText("LIVE", { exact: true })).toBeVisible();
+      await expect(page.getByText("LIVE", { exact: true }).first()).toBeVisible();
       await expect(page.getByRole("button", { name: "sample-app" })).toBeVisible();
-      await expect(page.getByText("1/1")).toBeVisible();
+      await expect(page.getByText("1/1").first()).toBeVisible();
       await page.getByRole("menuitem", { name: "Packaging run" }).click();
       await expect(page.getByText("Review wait").first()).toBeVisible();
       await expect(page.getByText("Phase review").first()).toBeVisible();
@@ -419,7 +419,7 @@ test.describe("fake ACP bridge", () => {
         await expect(page.getByText("Release channel")).toBeVisible();
         await shot("environment-1440");
         await page.getByRole("menuitem", { name: "Software catalog" }).click();
-        await expect(page.getByText("1.2.0", { exact: true })).toBeVisible();
+        await expect(page.getByText("1.2.0", { exact: true }).first()).toBeVisible();
         await shot("releases-1440");
         await page.getByRole("menuitem", { name: "Packaging run" }).click();
         await page.getByLabel("Packaging run id").fill("sample-app-1");
