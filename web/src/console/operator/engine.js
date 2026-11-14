@@ -1929,7 +1929,7 @@ export function mountOperator(host, options) {
                 <div class="so-opt-card p-2.5 flex flex-col justify-between gap-2 min-w-0">
                   <div class="min-w-0">
                     <div class="flex items-center justify-between text-[10.5px] gap-1">
-                      <span class="truncate"><span class="text-[#60a5fa] font-medium">Air-Gap Spool</span> <span class="text-[#34d399] ml-1 tnum">91%</span></span>
+                      <span class="truncate"><span class="text-[#60a5fa] font-medium">Offline bundle spool</span> <span class="text-[#34d399] ml-1 tnum">91%</span></span>
                       <span class="text-[#6d7885] tnum shrink-0">63.8 MB</span>
                     </div>
                     <div class="text-[12px] font-semibold text-[#ffffff] mt-1 leading-snug">
@@ -4451,7 +4451,7 @@ export function mountOperator(host, options) {
       soakReq: 6.0,
       health: "96.0%",
       healthReq: "95%",
-      labels: ["sbom=spdx-2.3", "cve-critical=0", "fips=140-3"],
+      labels: ["sbom=spdx-2.3", "cve-critical=0", "signature=required"],
       state: "Active",
       tone: "green",
     },
@@ -4470,7 +4470,7 @@ export function mountOperator(host, options) {
       labels: [
         "sbom=spdx-2.3",
         "cve-critical=0",
-        "fips=140-3",
+        "signature=required",
         "offline-bundle=signed",
       ],
       state: "Upgrade Ready",
@@ -4695,7 +4695,7 @@ export function mountOperator(host, options) {
               <div class="flex flex-wrap gap-1.5 pt-1">
                 <span class="so-pill code-id">region=us-west-2</span>
                 <span class="so-pill code-id">cohort=wave-2-regional</span>
-                ${pill("fips=140-3-enforced", "blue")}
+                ${pill("signature=required", "blue")}
                 <span class="so-pill code-id">mode=store-and-forward</span>
                 <span class="so-pill code-id">k8s=1.30</span>
                 ${pill("sbom=spdx-2.3", "green")}

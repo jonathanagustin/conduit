@@ -30,6 +30,23 @@ async function readJSON(path) {
   return response.json();
 }
 
+/**
+ * POST routes that refresh may call. Both are read operations on the Hub
+ * (they compute a preview from a stored bundle and record nothing). Any other
+ * POST belongs to an explicit operator action, never to a refresh.
+ */
+export const REFRESH_READ_POSTS = Object.freeze([
+  "/v1/bundles/preview",
+  "/v1/bundles/verification",
+]);
+
+async function readPost(path, body) {
+  if (!REFRESH_READ_POSTS.includes(path)) {
+    throw new Error(`${path} is not a read route`);
+  }
+  return postJSON(path, body);
+}
+
 async function postJSON(path, body) {
   const response = await fetch(path, {
     method: "POST",
@@ -373,12 +390,6 @@ export function createLiveHub({ state, render }) {
       next.behind = "";
     }
     try {
-      const checkin = await postJSON("/v1/sites/check-in", { site: "north", environment: "north", reportOld: false });
-      next.connectivity = `${checkin.state || ""} ${checkin.lastCheckIn || ""}`.trim();
-    } catch {
-      next.connectivity = "";
-    }
-    try {
       const blackout = await readJSON("/v1/blackouts?environment=dev");
       next.blackoutReason = blackout.blocked ? blackout.reason : "";
     } catch {
@@ -451,9 +462,9 @@ export function createLiveHub({ state, render }) {
           `/v1/bundles/${encodeURIComponent(newest.id)}`,
         );
         try {
-          next.preview = await postJSON("/v1/bundles/preview", envelope);
+          next.preview = await readPost("/v1/bundles/preview", envelope);
         } catch {
-          next.preview = await postJSON("/v1/bundles/verification", envelope);
+          next.preview = await readPost("/v1/bundles/verification", envelope);
         }
       }
     } catch {
@@ -524,6 +535,8 @@ export function createLiveHub({ state, render }) {
   }
 
   return {
+    /** Reloads Hub state. Read-only: it never records anything on the Hub. */
+    refresh,
     /** Approves or rejects a change request as the signed-in operator. */
     async reviewChange(id, decision, rationale) {
       if (decision !== "approve" && decision !== "reject") {
@@ -781,7 +794,6 @@ export function createLiveHub({ state, render }) {
             </div>
             <div class="mt-2 text-[12px] text-[#8b96a5]">Spoke <span class="text-white">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Latest report <span class="text-white">${esc(reportedAt || "no report")}</span></div>
-            <div class="text-[12px] text-[#8b96a5]">Connectivity <span class="text-white">${esc(hub(state).connectivity || "no check-in")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Offline bundle <span class="text-white">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Behind <span class="text-white">${esc(hub(state).behind || "none")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Timeline <span class="text-white">${esc(hub(state).timeline || "no entries")}</span></div>
