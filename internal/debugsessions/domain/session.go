@@ -56,7 +56,7 @@ type Event struct {
 }
 
 func (i Identity) Validate() error {
-	if !coordinate.MatchString(i.Actor) || !coordinate.MatchString(i.Owner) {
+	if !validIdentity(i.Actor) || !validIdentity(i.Owner) {
 		return ErrInvalid
 	}
 	return nil
@@ -76,7 +76,7 @@ func New(id string, target Target, identity Identity, now time.Time, lifetime ti
 	return e, e.Validate()
 }
 func (e Event) Validate() error {
-	if !ValidID(e.SessionID) || e.Target.Validate() != nil || !coordinate.MatchString(e.Owner) || !coordinate.MatchString(e.Actor) || e.ValueTier != ValueTier || e.Revision == 0 || e.Revision > 4 || e.CreatedAt.IsZero() || !e.ExpiresAt.After(e.CreatedAt) || e.ExpiresAt.Sub(e.CreatedAt) > MaximumLifetime || e.RecordedAt.Before(e.CreatedAt) {
+	if !ValidID(e.SessionID) || e.Target.Validate() != nil || !validIdentity(e.Owner) || !validIdentity(e.Actor) || e.ValueTier != ValueTier || e.Revision == 0 || e.Revision > 4 || e.CreatedAt.IsZero() || !e.ExpiresAt.After(e.CreatedAt) || e.ExpiresAt.Sub(e.CreatedAt) > MaximumLifetime || e.RecordedAt.Before(e.CreatedAt) {
 		return ErrInvalid
 	}
 	switch e.State {
@@ -105,7 +105,7 @@ func (e Event) Validate() error {
 // Transition never extends expiry or changes scope/owner. The caller must
 // persist the returned event atomically with its audit before acknowledging it.
 func (e Event) Transition(state, actor string, now time.Time) (Event, error) {
-	if e.Validate() != nil || !coordinate.MatchString(actor) || now.Before(e.RecordedAt) {
+	if e.Validate() != nil || !validIdentity(actor) || now.Before(e.RecordedAt) {
 		return Event{}, ErrInvalid
 	}
 	switch state {

@@ -92,3 +92,43 @@ row and 31 conflicts. Reopen, invalid/cancelled writes and missing predecessors
 are tested. The broader migration and existing restore gate also passed, but the
 journal is not yet composed into the Hub restore fixture; journal-specific
 backup/restore integration remains outstanding alongside application authority.
+
+
+## Application authority (production bridge outstanding)
+
+The application service requires current trusted authority for create, read and
+owner cleanup, and repeats it immediately before a journal append. Original
+actor and effective owner come only from that port. Opaque UTF-8 subjects up to
+256 bytes are preserved exactly, including plus-addressed email and issuer IDs
+containing a pipe; controls and surrounding whitespace are rejected. They never
+become filenames or resource paths. Resource-coordinate grammar stays separate.
+
+Creation requires a caller-retained native request ID. Reusing a key with the
+same owner, target and lifetime returns the existing request without extending
+expiry or changing original actor; a conflicting target/lifetime fails. A key
+belonging to another owner grants no access. No actor, owner or management flag
+can be supplied in a Draft. A trusted scope decision can explicitly authorize
+management of another owner's metadata. Production authorization is not wired.
+
+Current reads reconcile past-deadline REQUESTED records into a persisted EXPIRED
+transition before reporting that state. The EXPIRED state denotes automatic
+clock expiry; its system actor label is not a human identity assertion. Deleted
+requests remain available in authorized immutable history and cannot be revived
+by replay. Revoke/delete retries are idempotent. Failed journal acknowledgement
+never produces a successful lifecycle response; callers retain the original ID
+to resolve an ambiguous commit.
+
+List results are filtered by exact Environment/namespace, owner (or explicitly
+trusted management permission), and deletion state. A continuation cursor comes
+only from a returned visible ID. A 10000-record scan ceiling fails unavailable
+rather than reporting a false empty/complete list. The current scope authority
+is checked again before a page is returned. This is bounded native paging, not
+a recovered Apollo wire contract or a cross-record snapshot transaction.
+
+Identity/grant decisions and the journal are separate boundaries. Checking
+current authority before an append is not a transaction with concurrent grant
+administration. A stored request is never lasting authority; every subsequent
+operation, and especially future broker admission/attachment, must reauthorize.
+The service currently has no production authority bridge, HTTP route, CLI
+request command or broker integration. Profile is requested metadata, not an
+assertion that an image, registry or execution preflight has been verified.
