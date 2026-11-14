@@ -20,6 +20,7 @@ if [[ -n "$(git -C "${runner_root}" status --porcelain --untracked-files=normal)
   echo 'local CI tooling must also be committed and clean' >&2
   exit 1
 fi
+expected_tooling_sha="$(git -C "${runner_root}" rev-parse HEAD)"
 expected_sha="${1:-$(git rev-parse HEAD)}"
 if [[ ! "${expected_sha}" =~ ^[a-f0-9]{40}$ ]] || [[ "$(git rev-parse HEAD)" != "${expected_sha}" ]]; then
   echo 'expected SHA must be the exact checked-out commit' >&2
@@ -36,10 +37,11 @@ env -u GH_TOKEN -u GITHUB_TOKEN "${act_bin}" workflow_dispatch \
   --job verify --platform conduit-local=-self-hosted \
   --env "CONDUIT_LOCAL_CI_WORKTREE=${root}" \
   --env-file /dev/null --secret-file /dev/null \
-  --artifact-server-path "${report_dir}/artifacts" \
   2>&1 | tee "${report_dir}/act.log"
-if [[ "$(git rev-parse HEAD)" != "${expected_sha}" ]] || [[ -n "$(git status --porcelain --untracked-files=normal)" ]]; then
-  echo 'checkout changed during local CI; no success receipt was written' >&2
+if [[ "$(git rev-parse HEAD)" != "${expected_sha}" ]] || [[ -n "$(git status --porcelain --untracked-files=normal)" ]] ||
+   [[ "$(git -C "${runner_root}" rev-parse HEAD)" != "${expected_tooling_sha}" ]] ||
+   [[ -n "$(git -C "${runner_root}" status --porcelain --untracked-files=normal)" ]]; then
+  echo 'candidate or tooling checkout changed during local CI; no success receipt was written' >&2
   exit 1
 fi
 node --input-type=module - "${expected_sha}" "${report_dir}" "${runner_root}" <<'JS'
