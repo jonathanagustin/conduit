@@ -1098,6 +1098,22 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		writeJSON(w, http.StatusOK, preview)
 	})
+	mux.HandleFunc("POST /v1/bundles/verification", func(w http.ResponseWriter, request *http.Request) {
+		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
+		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
+			return
+		}
+		envelope, ok := decodeJSON[BundleEnvelope](w, request)
+		if !ok {
+			return
+		}
+		evidence, err := bundles.Verification(request.Context(), envelope)
+		if err != nil {
+			writeLifecycleError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, evidence)
+	})
 	mux.HandleFunc("POST /v1/bundles/import", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
 		if !ok {

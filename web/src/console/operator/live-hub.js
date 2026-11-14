@@ -339,7 +339,11 @@ export function createLiveHub({ state, render }) {
         const envelope = await readJSON(
           `/v1/bundles/${encodeURIComponent(newest.id)}`,
         );
-        next.preview = await postJSON("/v1/bundles/preview", envelope);
+        try {
+          next.preview = await postJSON("/v1/bundles/preview", envelope);
+        } catch {
+          next.preview = await postJSON("/v1/bundles/verification", envelope);
+        }
       }
     } catch {
       next.bundleNote = "Hub did not return a signed bundle.";
@@ -414,20 +418,46 @@ export function createLiveHub({ state, render }) {
         )
         .join("");
       const signature = preview.signature || {};
+      const status =
+        signature.status || (signature.verified ? "verified" : "unknown");
+      const scans = (preview.assessments || [])
+        .map(
+          (item) => `<tr>
+            <td>${esc(item.release || "")}</td>
+            <td class="code-id break-all">${esc(item.artifactDigest || "")}</td>
+            <td>${esc(item.vulnerabilityStatus || "")}</td>
+            <td>${esc(item.virusStatus || "")}</td>
+          </tr>`,
+        )
+        .join("");
+      const contents =
+        status === "verified"
+          ? panel(
+              "SBOM",
+              components
+                ? `<table class="so-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Digest</th></tr></thead><tbody>${components}</tbody></table>`
+                : `<p class="text-[12px] text-[#8b96a5]">No chart or image components in this bundle.</p>`,
+            )
+          : panel(
+              "SBOM",
+              `<p class="text-[12px] text-[#8b96a5]">Contents stay hidden until signature verification succeeds.</p>`,
+            );
       root.innerHTML = split(`${panel(
         "Bundle preview",
         `<dl class="space-y-2 text-[12px]">
             <div><dt class="text-[#6d7885]">Bundle</dt><dd class="code-id text-white">${esc(preview.bundleId)}</dd></div>
             <div><dt class="text-[#6d7885]">Manifest digest</dt><dd class="code-id text-white break-all">${esc(preview.manifestDigest)}</dd></div>
             <div><dt class="text-[#6d7885]">Signature key</dt><dd class="code-id text-white break-all">${esc(signature.keyId || "")}</dd></div>
-            <div><dt class="text-[#6d7885]">Signature verified</dt><dd class="text-white">${signature.verified ? "yes" : "no"}</dd></div>
+            <div><dt class="text-[#6d7885]">Signature status</dt><dd class="text-white">${esc(status)}</dd></div>
+            <div><dt class="text-[#6d7885]">Scan outcome</dt><dd class="text-white">${esc(preview.securityOutcome || "not recorded")}</dd></div>
           </dl>`,
       )}
+        ${contents}
         ${panel(
-          "SBOM",
-          components
-            ? `<table class="so-table"><thead><tr><th>Kind</th><th>Name</th><th>Version</th><th>Digest</th></tr></thead><tbody>${components}</tbody></table>`
-            : `<p class="text-[12px] text-[#8b96a5]">No chart or image components in this bundle.</p>`,
+          "Scan results",
+          scans
+            ? `<table class="so-table"><thead><tr><th>Release</th><th>Digest</th><th>Vulnerabilities</th><th>Malware</th></tr></thead><tbody>${scans}</tbody></table>`
+            : `<p class="text-[12px] text-[#8b96a5]">No scan result is recorded on this bundle.</p>`,
         )}`);
     },
     renderChanges(root) {
