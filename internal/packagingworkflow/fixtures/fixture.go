@@ -78,14 +78,20 @@ func (Suite) Propose(_ context.Context, id domain.RunIdentity, dir string) (doma
 		return domain.Receipt{}, err
 	}
 	sourceDigest := domain.DigestBytes(body)
-	manifest := Render(sourceDigest, id.TemplateVersion, id.ToolVersions)
+	pkg, err := Render(body, sourceDigest, id.TemplateVersion, id.ToolVersions)
+	if err != nil {
+		return domain.Receipt{}, err
+	}
 	if err := os.MkdirAll(filepath.Join(dir, "out"), 0o755); err != nil {
 		return domain.Receipt{}, err
 	}
-	if err := os.WriteFile(filepath.Join(dir, "out", "manifest.txt"), manifest, 0o644); err != nil {
+	if err := os.WriteFile(filepath.Join(dir, "out", "zarf.yaml"), pkg.Zarf, 0o644); err != nil {
 		return domain.Receipt{}, err
 	}
-	digest := domain.DigestBytes(manifest)
+	if err := os.WriteFile(filepath.Join(dir, "out", "uds-package.yaml"), pkg.CR, 0o644); err != nil {
+		return domain.Receipt{}, err
+	}
+	digest := pkg.Digest()
 	revision := Revision(sourceDigest, id.TemplateVersion, id.ToolVersions, digest)
 	receipt := domain.Receipt{
 		Step:             "propose",
@@ -94,8 +100,8 @@ func (Suite) Propose(_ context.Context, id domain.RunIdentity, dir string) (doma
 		SourceDigest:     sourceDigest,
 		TargetPlanRef:    id.TargetPlanRef,
 		Outcome:          domain.OutcomePass,
-		Reason:           "manifest rendered",
-		Artifact:         domain.ArtifactRef{Digest: digest, ByteSize: len(manifest), Media: "generated-file"},
+		Reason:           "uds package rendered",
+		Artifact:         domain.ArtifactRef{Digest: digest, ByteSize: pkg.Size(), Media: "uds-package"},
 	}
 	return receipt, receipt.Bound()
 }
@@ -108,11 +114,15 @@ func (Suite) Validate(_ context.Context, id domain.RunIdentity, dir string, prop
 	if err := rejectCredential(body); err != nil {
 		return domain.Validation{}, err
 	}
-	manifest, err := os.ReadFile(filepath.Join(dir, "out", "manifest.txt"))
+	zarf, err := os.ReadFile(filepath.Join(dir, "out", "zarf.yaml"))
 	if err != nil {
 		return domain.Validation{}, err
 	}
-	validation := Gate(body, manifest, domain.DigestBytes(body), id.TemplateVersion, id.ToolVersions)
+	cr, err := os.ReadFile(filepath.Join(dir, "out", "uds-package.yaml"))
+	if err != nil {
+		return domain.Validation{}, err
+	}
+	validation := Gate(body, zarf, cr, domain.DigestBytes(body), id.TemplateVersion, id.ToolVersions)
 	if validation.ArtifactDigest != proposal.Artifact.Digest || validation.ProposalRevision != proposal.ProposalRevision {
 		validation.Outcome = domain.OutcomeFailRequired
 		validation.Reason = "validation digest does not match the proposal"
@@ -123,15 +133,6 @@ func (Suite) Validate(_ context.Context, id domain.RunIdentity, dir string, prop
 	return validation, nil
 }
 
-// Render is the deterministic generated file. Callers persist it outside
-// workflow history and return only its digest.
-func Render(sourceDigest, templateVersion, toolVersions string) []byte {
-	return []byte(fmt.Sprintf(
-		"apiVersion: packaging.conduit.dev/v0\nname: sample-app\nsourceDigest: %s\ntemplateVersion: %s\ntoolVersions: %s\n",
-		sourceDigest, templateVersion, toolVersions,
-	))
-}
-
 func Revision(sourceDigest, templateVersion, toolVersions, manifestDigest string) string {
 	sum := sha256.Sum256([]byte(sourceDigest + "\x00" + templateVersion + "\x00" + toolVersions + "\x00" + manifestDigest))
 	return "rev-" + hex.EncodeToString(sum[:6])
@@ -140,9 +141,8 @@ func Revision(sourceDigest, templateVersion, toolVersions, manifestDigest string
 // Gate is the deterministic lint and render check. Unknown security evidence
 // and unsupported requirements are terminal failures, not passes and not
 // retries.
-func Gate(source, manifest []byte, sourceDigest, templateVersion, toolVersions string) domain.Validation {
-	want := Render(sourceDigest, templateVersion, toolVersions)
-	digest := domain.DigestBytes(manifest)
+func Gate(source, zarf, cr []byte, sourceDigest, templateVersion, toolVersions string) domain.Validation {
+	digest := domain.DigestBytes(PackageFiles{Zarf: zarf, CR: cr}.canonical())
 	validation := domain.Validation{
 		ArtifactDigest:   digest,
 		ProposalRevision: Revision(sourceDigest, templateVersion, toolVersions, digest),
@@ -157,12 +157,19 @@ func Gate(source, manifest []byte, sourceDigest, templateVersion, toolVersions s
 	case bytes.Contains(source, []byte("lint: fail")):
 		validation.Outcome = domain.OutcomeFailRequired
 		validation.Reason = "required lint failed"
-	case !bytes.Equal(manifest, want):
-		validation.Outcome = domain.OutcomeFailRequired
-		validation.Reason = "rendered manifest failed lint"
 	default:
-		validation.Outcome = domain.OutcomePass
-		validation.Reason = "lint and render passed"
+		want, err := Render(source, sourceDigest, templateVersion, toolVersions)
+		switch {
+		case err != nil:
+			validation.Outcome = domain.OutcomeFailRequired
+			validation.Reason = "declared needs are invalid"
+		case !bytes.Equal(zarf, want.Zarf) || !bytes.Equal(cr, want.CR):
+			validation.Outcome = domain.OutcomeFailRequired
+			validation.Reason = "rendered package failed check"
+		default:
+			validation.Outcome = domain.OutcomePass
+			validation.Reason = "lint and render passed"
+		}
 	}
 	return validation
 }

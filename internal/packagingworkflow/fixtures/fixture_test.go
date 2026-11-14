@@ -30,12 +30,24 @@ func TestPinnedFixturePassesLintAndOmitsSourceBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	manifest, err := os.ReadFile(filepath.Join(dir, "out", "manifest.txt"))
+	zarf, err := os.ReadFile(filepath.Join(dir, "out", "zarf.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if bytes.Contains(manifest, []byte("kind: fixture")) {
-		t.Fatal("rendered manifest copied the source body")
+	cr, err := os.ReadFile(filepath.Join(dir, "out", "uds-package.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if bytes.Contains(zarf, []byte("kind: fixture")) || bytes.Contains(cr, []byte("kind: fixture")) {
+		t.Fatal("rendered package copied the source body")
+	}
+	if !bytes.Contains(zarf, []byte("apiVersion: zarf.dev/v1alpha1")) || !bytes.Contains(zarf, []byte("kind: ZarfPackageConfig")) {
+		t.Fatalf("zarf.yaml = %s", zarf)
+	}
+	for _, section := range []string{"apiVersion: uds.dev/v1alpha1", "kind: Package", "sso:", "allow:", "monitor:"} {
+		if !bytes.Contains(cr, []byte(section)) {
+			t.Fatalf("package missing %s\n%s", section, cr)
+		}
 	}
 	validation, err := Suite{}.Validate(context.Background(), id, dir, proposal)
 	if err != nil {
@@ -48,7 +60,10 @@ func TestPinnedFixturePassesLintAndOmitsSourceBody(t *testing.T) {
 
 func TestGatesBlockInsteadOfPassing(t *testing.T) {
 	source := []byte("name: sample-app\n")
-	manifest := Render(domain.DigestBytes(source), TemplateVersion, ToolVersions)
+	files, err := Render(source, domain.DigestBytes(source), TemplateVersion, ToolVersions)
+	if err != nil {
+		t.Fatal(err)
+	}
 	cases := []struct {
 		marker string
 		want   domain.Outcome
@@ -58,7 +73,8 @@ func TestGatesBlockInsteadOfPassing(t *testing.T) {
 		{"lint: fail\n", domain.OutcomeFailRequired},
 	}
 	for _, tc := range cases {
-		got := Gate(append(source, tc.marker...), manifest, domain.DigestBytes(append(source, tc.marker...)), TemplateVersion, ToolVersions)
+		marked := append(append([]byte{}, source...), tc.marker...)
+		got := Gate(marked, files.Zarf, files.CR, domain.DigestBytes(marked), TemplateVersion, ToolVersions)
 		if got.Outcome != tc.want {
 			t.Fatalf("%s outcome = %s", tc.marker, got.Outcome)
 		}

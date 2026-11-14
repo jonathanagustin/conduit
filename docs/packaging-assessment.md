@@ -350,3 +350,15 @@ Focused Go tests/vet and Zenith/domain gates pass; independent review checked
 path bounds, selected-key projection, reference digest changes and profile
 separation. No GeoServer deployment, credential lifecycle, PVC or admission test
 is implied by this synthetic result.
+
+## Packaging run output
+
+A packaging run propose step writes `zarf.yaml` (`zarf.dev/v1alpha1`) and
+`uds-package.yaml` (`uds.dev/v1alpha1` Package). SSO, network allow and monitor
+come from lines in the product source. A missing section uses the defaults
+registered as `packaging.UndeclaredNeeds`. `sso: none`, `network: none` and
+`monitor: none` keep the section and emit an empty list. The checked-in example
+is `internal/packagingworkflow/fixtures/example-package/`. When the pinned zarf
+binary is present, `scripts/verify-zarf-package.rb` runs `zarf dev lint` on that
+directory. This output is not deployment authorization. The assessment scaffold
+above remains a separate JSON profile and is not this run output.

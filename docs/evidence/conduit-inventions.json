@@ -202,6 +202,13 @@
       "why": "Separates missing or inferred evidence from source-cited claims before generating UDS artifacts, without treating a model assertion as validation.",
       "displacedBy": "A reviewed replacement packaging-assessment contract.",
       "riskIfWrong": "Overly narrow checklist may miss requirements; reports explicitly remain unvalidated and do not authorize execution."
+    },
+    {
+      "id": "packaging.UndeclaredNeeds",
+      "what": "When a product does not declare a section, a packaging run emits one OpenID client named for the product with redirect https://<name>.example/callback and secret <name>-sso, egress TCP and UDP 53 to kube-system pods labeled k8s-app=kube-dns, and a monitor named http on the product port at /metrics. Explicit lines replace that section. The word none keeps the section and emits an empty list.",
+      "why": "The Package custom resource requires monitor port name, selector and target port, and its network allow list is deny-by-default. No published package profile states what to write when the product is silent. Name resolution is the allow list that does not publish the workload, and the client and monitor names follow the product name so two runs of the same source agree.",
+      "displacedBy": "a reviewed packaging profile that states the SSO client, network allow and monitor values to emit when a product declares none.",
+      "riskIfWrong": "A product that needed no name resolution, a different client, or no metrics scrape receives those defaults until it declares otherwise. Empty lists are available with none. The output is not deployment authorization, and the value tier annotation says the choice is native."
     }
   ],
   "displaced": [
