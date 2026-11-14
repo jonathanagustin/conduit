@@ -423,6 +423,11 @@ test.describe("fake ACP bridge", () => {
       });
       await expect(page.getByText("Guardrail check").first()).toBeVisible();
       await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("og01-ontology-graph");
+      });
+      await expect(page.getByText("reportingSpoke").first()).toBeVisible();
+      await expect(page.getByText("Example data", { exact: true }).first()).toBeVisible();
+      await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm01-user-prefs");
       });
       await expect(page.getByText("Personal API tokens").first()).toBeVisible();
