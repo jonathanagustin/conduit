@@ -7,6 +7,7 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root}"
+"${root}/scripts/build-console.sh"
 state_dir="${CONDUIT_SEED_DIR:-/tmp/conduit-seed}"
 "${root}/scripts/demo-reset.sh"
 

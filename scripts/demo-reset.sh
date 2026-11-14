@@ -3,6 +3,7 @@
 # demo-seed.sh, and delete their state directory.
 set -euo pipefail
 
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 state_dir="${CONDUIT_SEED_DIR:-/tmp/conduit-seed}"
 if [[ -f "${state_dir}/pids" ]]; then
   while read -r pid; do
@@ -30,3 +31,4 @@ done
 sleep 1
 rm -rf "${state_dir}"
 echo "cleared ${state_dir}"
+"${root}/scripts/build-console.sh"

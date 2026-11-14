@@ -3,7 +3,8 @@ ui-ref/
 coverage.out
 dist/
 !internal/consoleui/dist/
-!internal/consoleui/dist/**
+internal/consoleui/dist/**
+!internal/consoleui/dist/README.txt
 *.tmp
 .env
 .direnv/

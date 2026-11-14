@@ -93,6 +93,8 @@ if curl -sf --noproxy '*' -o /dev/null --max-time 2 "${hub_url}/console/" 2>/dev
   exit 1
 fi
 
+echo "simulate: building the console"
+"${repo_root}/scripts/build-console.sh"
 echo "simulate: building the Hub"
 go build -o "${work}/hub" "${repo_root}/cmd/platform-delivery"
 

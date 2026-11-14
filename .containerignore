@@ -19,3 +19,13 @@ docs/*
 !docs/evidence/
 docs/evidence/*
 !docs/evidence/highs-1.15.1-release.json
+internal/consoleui/dist/**
+!internal/consoleui/dist/README.txt
+!mise.toml
+!scripts/
+scripts/**
+!scripts/build-console.sh
+!web/
+!web/**
+web/node_modules/
+web/.stryker-tmp/

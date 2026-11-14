@@ -5,7 +5,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 test_build="$(mktemp -d)"
 trap 'rm -rf "${test_build}"' EXIT
 
-pnpm --dir "${repo_root}/web" install --frozen-lockfile
+"${repo_root}/scripts/build-console.sh"
 # `verify-local.sh` deliberately points XDG_CACHE_HOME at a repository-owned,
 # restart-safe cache. A browser present in the ambient Codespace cache is not
 # evidence that this isolated gate can bootstrap itself, so install the exact
@@ -14,3 +14,4 @@ pnpm --dir "${repo_root}/web" install --frozen-lockfile
 pnpm --dir "${repo_root}/web" exec playwright install chromium
 PLATFORM_CONSOLE_OUT_DIR="${test_build}" pnpm --dir "${repo_root}/web" test
 "${repo_root}/scripts/verify-console-assets.sh"
+(cd "${repo_root}" && go test -race ./internal/consoleui)

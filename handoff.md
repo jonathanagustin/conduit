@@ -518,10 +518,9 @@ because each `GOOS/GOARCH` pair has its own entries.
   workstreams tried the better fix — a shared constant, a review-context field —
   measured the ratchet, and correctly chose a weaker-looking design over raising
   a ceiling that may only move down. Expect to do the same.
-- **`internal/consoleui/dist` serialises all console work** (#200). It is a
-  committed build artifact with content-hashed filenames, so any two console PRs
-  conflict by construction even when their sources do not. Resolution is never a
-  merge: delete the tree, `pnpm --dir web build`, re-verify. Observed twice.
+- **`internal/consoleui/dist` is build output** (#200). Git tracks
+  `README.txt` there and ignores the rest. `scripts/build-console.sh` writes
+  the bundle. Do not commit the generated files.
 - **`.claude/worktrees/` is now gitignored** — agent worktrees are full second
   copies of the tree and were making `git status` dirty.
 
@@ -818,9 +817,9 @@ after a restore. Adding one is now a two-line change to
   pass.** The console's browser tests mock the Hub, so a fixture using an
   invented status passes while lying. The contract gate guards the status
   vocabularies; the discipline still applies to any new reader field.
-- **The embedded console bundle** (`internal/consoleui/dist`) is committed and
-  checked byte-for-byte. After any `web/src` change run `pnpm --dir web build`
-  and commit the regenerated bundle.
+- **The embedded console bundle** (`internal/consoleui/dist`) is produced by
+  `scripts/build-console.sh` and is not committed. After any `web/src` change,
+  run that script. The console gate rebuilds into a temp directory and diffs.
 - **Local verification:** `./scripts/verify-local.sh` runs every gate the Trunk
   gate runs (it reads `.github/workflows/platform-ci.yml` so the two cannot
   drift). CI is manual (`workflow_dispatch`); dispatch per
@@ -879,8 +878,8 @@ Adopt these working rules for this repo:
 - Registered invention (ADR 0007): serve every coordinate, from real data or
   from an invention that discloses itself. Never null.
 - internal/controlplane has a line ceiling that only moves down.
-- After any web/src change, run `pnpm --dir web build` and commit the
-  regenerated internal/consoleui/dist bundle.
+- After any web/src change, run `scripts/build-console.sh`. Do not commit
+  `internal/consoleui/dist` apart from its README.txt placeholder.
 - Put design decisions and premise-reversals through an adversarial review
   before implementing. It has now overturned a central design claim twice --
   most recently the migration ledger's locking, which was false as written.
@@ -967,8 +966,9 @@ residual was filed.
   first.
 - #294 (promotion lifecycle states) and #290 (risk vuln inventory) are the two
   largest — new state model / new aggregate API + console, respectively.
-- Bucket B console issues avoid the ceiling but each needs `pnpm --dir web build`
-  (CI=true) + a regenerated `internal/consoleui/dist` commit + the console gate.
+- Bucket B console issues avoid the ceiling but each needs
+  `scripts/build-console.sh` and the console gate. Do not commit the generated
+  bundle.
   Verify per issue whether the console API already returns the data (pure
   frontend) or needs an API addition (back to the ceiling).
 - Bucket C reversals (#303/#304, and #17/#119) are architecture-scale and want an
