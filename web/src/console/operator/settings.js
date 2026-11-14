@@ -1,4 +1,4 @@
-/* Settings screens. Live rows come from the Hub; tokens stay example data. */
+/* Settings screens. Directory rows come from the Hub. Tokens and request shapes are examples. */
 
 function esc(value) {
   return String(value ?? "")
@@ -607,13 +607,13 @@ export function createSettings(ctx) {
     const rows = DATA_SOURCES.map((source) => {
       const on = source.id === selected.id;
       const seen = sourceLastSeen(source.id);
-      const live = seen && !String(seen).startsWith("Hub did not");
+      const live = Boolean(seen) && !/Hub did not|No reported|No import|No packaging/.test(String(seen));
       return `<tr onclick="selectDataSource('${esc(source.id)}')" class="cursor-pointer${on ? " is-selected" : ""}">
         <td data-col="Source"><span class="font-semibold text-white">${esc(source.name)}</span></td>
         <td data-col="Endpoint" data-long="1" class="code-id text-[11px] text-[#dce4ee]">${esc(source.endpoint)}</td>
         <td data-col="Cadence" data-long="1" class="text-[11px] text-[#8b96a5]">${esc(source.cadence)}</td>
         <td data-col="Updates" data-long="1" class="text-[11px] text-[#dce4ee]">${esc(source.updates)}</td>
-        <td data-col="Last seen" data-long="1"><span class="so-pill ${live ? "so-pill-green" : ""}">${esc(seen || "Not reported")}</span></td>
+        <td data-col="Last seen" data-long="1">${live ? "" : `<span class="so-pill so-pill-amber">Example data</span> `}<span class="so-pill ${live ? "so-pill-green" : ""}">${esc(seen || "Not reported")}</span></td>
       </tr>`;
     }).join("");
     root.innerHTML = `
@@ -621,9 +621,9 @@ export function createSettings(ctx) {
         <div class="flex flex-wrap items-center justify-between gap-3">
           <div>
             <div class="text-[15px] font-bold text-white">Data sources</div>
-            <div class="text-[11.5px] text-[#8b96a5]">How this Hub receives data. Shapes are the request fields. Last seen is read from the Hub when that read succeeds.</div>
+            <div class="text-[11.5px] text-[#8b96a5]">How this Hub receives data. Request shapes below are examples. Last seen is a Hub observation only when that read succeeds.</div>
           </div>
-          ${note(true, "Read only")}
+          ${note(false, "Request shape")}
         </div>
         <div class="so-panel overflow-hidden">
           <div class="so-table-scroll">
@@ -636,7 +636,7 @@ export function createSettings(ctx) {
         <div class="so-panel p-3.5 space-y-2">
           <div class="text-[13px] font-semibold text-white">${esc(selected.name)}</div>
           <div class="text-[12px] text-[#8b96a5]">${esc(selected.endpoint)}. ${esc(selected.cadence)}. Updates ${esc(selected.updates).charAt(0).toLowerCase()}${esc(selected.updates).slice(1)}.</div>
-          <div class="text-[11px] text-[#8b96a5]">Example request shape. This screen does not accept a pasted document.</div>
+          <div class="text-[11px] text-[#eab854]">Example data. This screen does not accept a pasted document.</div>
           <pre class="code-id text-[11px] text-[#dce4ee] whitespace-pre-wrap break-words">${esc(JSON.stringify(selected.payload, null, 2))}</pre>
         </div>
         <div class="text-[11.5px] text-[#8b96a5]">Bundle import is an ordinary submission of a bundle envelope. The Hub records a receipt and opens a change request for each target environment.</div>

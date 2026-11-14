@@ -186,6 +186,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireGovernanceAdministrator"},
 		{Pattern: "GET /v1/bundle-imports",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
+		{Pattern: "GET /v1/bundles",
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation; bundle id, pipeline, and manifest digest only"},
 		{Pattern: "GET /v1/bundles/signing-key",
 			Decision: DecisionPublic, Detail: "the Hub's Ed25519 public key, which an air-gapped verifier needs"},
 		{Pattern: "GET /v1/bundles/{bundleID}",
