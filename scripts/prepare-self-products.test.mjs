@@ -50,5 +50,12 @@ try {
   const cli=spawnSync(process.execPath,args,{encoding:"utf8"});assert.equal(cli.status,0,cli.stderr);assert.deepEqual(JSON.parse(cli.stdout),result);
   writeFileSync(join(directory,"SHA256SUMS"),"invalid");
   const failed=spawnSync(process.execPath,args,{encoding:"utf8"});assert.notEqual(failed.status,0);assert.equal(failed.stdout,"","failed preparation must not emit partial publication inputs");
+  writeFileSync(join(directory,"SHA256SUMS"),fixture.checksums);
+  writeFileSync(join(directory,"oci.json"),"PVT193");
+  const invalid=spawnSync(process.execPath,args,{encoding:"utf8"});assert.notEqual(invalid.status,0);assert.equal(invalid.stdout,"");assert.ok(!invalid.stderr.includes("PVT193"));assert.match(invalid.stderr,/invalid OCI manifest JSON input/);
+  writeFileSync(join(directory,"oci.json"),JSON.stringify(fixture.oci));
+  writeFileSync(join(directory,"provenance",fixture.provenance.keys().next().value),"PVTCLI");
+  const invalidProvenance=spawnSync(process.execPath,args,{encoding:"utf8"});assert.notEqual(invalidProvenance.status,0);assert.equal(invalidProvenance.stdout,"");assert.ok(!invalidProvenance.stderr.includes("PVTCLI"));assert.match(invalidProvenance.stderr,/invalid CLI provenance JSON input/);
+
 } finally {rmSync(directory,{recursive:true,force:true});}
 console.log("PASS self-Product preparation: exact inputs, six CLI byte checks, metadata binding, native output and no partial output");

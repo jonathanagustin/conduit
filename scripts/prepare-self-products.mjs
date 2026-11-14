@@ -90,6 +90,11 @@ export function prepareSelfProducts({ repository, version, oci, helm, checksums,
   };
 }
 
+function parseJSON(bytes, label) {
+  try { return JSON.parse(bytes.toString("utf8")); }
+  catch { throw new Error(`invalid ${label} JSON input`); }
+}
+
 export function main(args = process.argv.slice(2)) {
   const allowed = ["repository", "version", "oci-manifest", "helm-manifest", "cli-checksums", "cli-archives", "cli-provenance"];
   const options = {};
@@ -106,9 +111,9 @@ export function main(args = process.argv.slice(2)) {
     return readFileSync(path);
   };
   const result = prepareSelfProducts({ repository: options.repository, version: options.version,
-    oci: JSON.parse(readFileSync(options["oci-manifest"], "utf8")), helm: JSON.parse(readFileSync(options["helm-manifest"], "utf8")),
+    oci: parseJSON(readFileSync(options["oci-manifest"]), "OCI manifest"), helm: parseJSON(readFileSync(options["helm-manifest"]), "Helm manifest"),
     checksums: readFileSync(options["cli-checksums"], "utf8"), readCLI: file => readRegular(options["cli-archives"], file),
-    readProvenance: file => JSON.parse(readRegular(options["cli-provenance"], file)),
+    readProvenance: file => parseJSON(readRegular(options["cli-provenance"], file), "CLI provenance"),
   });
   process.stdout.write(`${JSON.stringify(result, null, 2)}\n`);
 }
