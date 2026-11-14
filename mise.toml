@@ -70,3 +70,12 @@ set -eu
 ./scripts/demo-reset.sh
 ./scripts/demo-seed.sh
 '''
+
+[tasks.uds-up]
+description = "Create the user-defined Docker network and deploy UDS Core slim-dev on k3d"
+run = "./scripts/uds-up.sh"
+
+[tasks.uds-down]
+description = "Delete the local UDS Core k3d cluster"
+run = "./scripts/uds-down.sh"
+

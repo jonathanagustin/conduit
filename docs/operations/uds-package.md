@@ -44,6 +44,11 @@ cluster operating after the images are already present.
   `uds-k3d` 0.21.4 (its offline variant), which the slim-dev bundle pins.
 - Slim-dev bundle
   `oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1`.
+  Bring it up with `mise run uds-up`. That task creates a user-defined Docker
+  network named `uds-k3d` first, which is required when the Docker daemon has
+  no default bridge, and passes `--network uds-k3d` plus flannel `host-gw`
+  through `K3D_EXTRA_ARGS`. Some kernels cannot create a vxlan device.
+  Tear the cluster down with `mise run uds-down`.
 
 `deploy/zarf/uds-bundle.yaml` is the Conduit half of that pair. Slim-dev
 embeds its Core packages inside the published bundle, so this file does not
@@ -159,10 +164,11 @@ when the check is done: `k3d cluster delete conduit-zarf`.
 ## UDS Core slim-dev, then the Package CR
 
 Run this only after the plain cluster is gone. Slim-dev creates its own k3d
-cluster, initializes Zarf, and installs Istio, Keycloak, and Pepr.
+cluster, initializes Zarf, and installs Istio, Keycloak, and Pepr. It does
+not install the Portal layer. See [Portal tiles](#portal-tiles).
 
 ```sh
-uds deploy oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1 --confirm
+mise run uds-up
 
 uds zarf package deploy /tmp/conduit-zarf/zarf-package-platform-runtime-amd64-0.17.5.tar.zst \
   --confirm \
@@ -207,6 +213,27 @@ uds create deploy/zarf --confirm --output /tmp/conduit-zarf
 
 That archive contains the Conduit package with the `uds` component selected.
 It does not contain UDS Core. Deploy slim-dev first, then this bundle.
+
+
+## Portal tiles
+
+UDS Core 1.17.1, the slim-dev version this package pairs with, defines
+per-endpoint tile metadata on the Package CR at
+`spec.network.expose[].annotations`. The keys the Portal reads are
+`uds.dev/title`, `uds.dev/icon`, and `uds.dev/visible`, with
+`portal.uds.dev/*` variants taking precedence. A package-level default can
+also be set in `zarf.yaml` as `metadata.annotations.dev.uds.title` and
+`dev.uds.icon`. This matches the Package CRD schema for v1.17.1 and the
+UDS Core guide "Customize UDS Portal app tiles".
+
+The Portal builds one tile per `network.expose` entry, and only when the
+Package also has an `sso` section. Wildcard hosts are omitted. A quoted
+`"false"` on `uds.dev/visible` hides that endpoint.
+
+Slim-dev does not ship the Portal layer (`core-portal`). Tiles appear only
+after that layer is deployed, on the `upstream` or `unicorn` flavor, at
+`https://portal.<domain>`. Do not invent another field for onboarded
+application Package CRs; use `spec.network.expose[].annotations`.
 
 ## Evidence
 
