@@ -26,7 +26,7 @@ func TestTurnInspectsALocalFixtureAndRecordsAudit(t *testing.T) {
 	}
 	fixture, sha := makeFixture(t)
 	server := serveGit(t, fixture)
-	script := writeModelScript(t)
+	script := writeModelScript(t, inspectReplies(askOne)...)
 	audit := &memoryAudit{}
 	planner := Planner{Argv: []string{script}, Timeout: 0, Audit: audit}
 	service := application.NewService(planner)
@@ -41,7 +41,7 @@ func TestTurnInspectsALocalFixtureAndRecordsAudit(t *testing.T) {
 	if session.ResolvedCommit != sha {
 		t.Fatalf("resolved = %q, want %q", session.ResolvedCommit, sha)
 	}
-	if session.Status != domain.StatusPlanning || session.Plan != nil {
+	if session.Status != domain.StatusNeedsInput || session.Plan != nil {
 		t.Fatalf("status/plan = %s %+v", session.Status, session.Plan)
 	}
 	if session.Inspection == nil || session.Inspection.Language == "" {
@@ -59,7 +59,7 @@ func TestTurnInspectsALocalFixtureAndRecordsAudit(t *testing.T) {
 	if inspections != 2 {
 		t.Fatalf("inspection events = %d, events=%+v", inspections, session.Events)
 	}
-	if len(audit.rows) != 1 || audit.rows[0].PromptSHA256 == "" || audit.rows[0].ResponseSHA256 == "" {
+	if len(audit.rows) != 2 || audit.rows[0].PromptSHA256 == "" || audit.rows[0].ResponseSHA256 == "" {
 		t.Fatalf("audit = %+v", audit.rows)
 	}
 	if strings.Join(audit.rows[0].ToolCalls, ",") != "inspect_repo,read_file" {
@@ -137,9 +137,16 @@ func (audit *memoryAudit) Record(_ context.Context, record Record) error {
 	return nil
 }
 
-func writeModelScript(t *testing.T) string {
+// writeModelScript is a scripted fake model. Call n prints reply-n, and the
+// last reply repeats. Each prompt is kept as prompt-n.txt beside the script.
+func writeModelScript(t *testing.T, replies ...string) string {
 	t.Helper()
 	dir := t.TempDir()
+	for i, reply := range replies {
+		if err := os.WriteFile(filepath.Join(dir, "reply-"+strconv.Itoa(i+1)), []byte(reply+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
 	path := filepath.Join(dir, "model")
 	body := `#!/bin/sh
 dir=$(dirname "$0")
@@ -148,16 +155,34 @@ if [ -f "$dir/n" ]; then n=$(cat "$dir/n"); fi
 n=$((n+1))
 echo "$n" > "$dir/n"
 cat > "$dir/prompt-$n.txt"
-case "$n" in
-  1) printf '%s\n' '{"toolCalls":[{"name":"inspect_repo","arguments":{}}]}' ;;
-  2) printf '%s\n' '{"toolCalls":[{"name":"read_file","arguments":{"path":"README.md"}}]}' ;;
-  *) printf '%s\n' 'The fixture is a small JavaScript site with an npm start script.' ;;
-esac
+total=` + strconv.Itoa(len(replies)) + `
+if [ "$n" -gt "$total" ]; then n=$total; fi
+cat "$dir/reply-$n"
 `
 	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
 		t.Fatal(err)
 	}
 	return path
+}
+
+const (
+	toolInspect = `{"toolCalls":[{"name":"inspect_repo","arguments":{}}]}`
+	toolRead    = `{"toolCalls":[{"name":"read_file","arguments":{"path":"README.md"}},{"name":"read_file","arguments":{"path":"package.json"}}]}`
+	askOne      = `{"questions":[{"id":"node_version","prompt":"Which Node version?","choices":["18","20"]}]}`
+	askNone     = `{"questions":[]}`
+	planJSON    = `{"summary":"A small Node site.","baseImage":"node:20-slim","buildSteps":["npm ci","npm run build"],"ports":[8080,3000],"networkAllow":["registry.npmjs.org:443"],"sso":{"required":true,"notes":"operator login"},"risks":["no lockfile"]}`
+)
+
+// inspectReplies is the scripted exchange for the inspection turn: inspect,
+// read, summary, then the questions phase (read, then final).
+func inspectReplies(questions string) []string {
+	return []string{
+		toolInspect,
+		`{"toolCalls":[{"name":"read_file","arguments":{"path":"README.md"}}]}`,
+		"The fixture is a small JavaScript site with an npm start script.",
+		toolRead,
+		questions,
+	}
 }
 
 func makeFixture(t *testing.T) (string, string) {

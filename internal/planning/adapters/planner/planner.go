@@ -30,6 +30,8 @@ type Auditor interface {
 
 // Record is the digest and tool list written to the audit log.
 type Record struct {
+	// Action is the audit action. Empty means planning.inspect.
+	Action         string
 	SessionID      string
 	Adapter        string
 	PromptSHA256   string
@@ -65,6 +67,10 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 	if len(planner.Argv) == 0 || strings.TrimSpace(planner.Argv[0]) == "" {
 		return nil, domain.ErrModelNotConfigured
 	}
+	if session.Inspection != nil && domain.PendingRequired(session.NeedsInput, session.Answers) {
+		// Required questions are still open; the plan waits for the answers.
+		return &application.TurnResult{}, nil
+	}
 	cloneFn := planner.Clone
 	if cloneFn == nil {
 		cloneFn = repoclone.Clone
@@ -75,6 +81,9 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 		return nil, err
 	}
 	tools := packagingtools.New(packagingtools.WithRepoRoot(checkout.Dir))
+	if session.Inspection != nil {
+		return planner.planTurn(ctx, session, message, checkout, tools)
+	}
 	adapter := localcmd.CommandName(planner.Argv[0])
 	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: adapter}
 	prompt := inspectionPrompt(session, message)
@@ -159,7 +168,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 	if inspection == nil {
 		return result, fmt.Errorf("the model did not call inspect_repo")
 	}
-	return result, nil
+	return planner.afterInspection(ctx, session, message, checkout, tools, result)
 }
 
 func (planner Planner) record(ctx context.Context, record Record) error {

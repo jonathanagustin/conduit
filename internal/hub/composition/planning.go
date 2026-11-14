@@ -71,9 +71,13 @@ func (audit planningAudit) Record(ctx context.Context, record planner.Record) er
 	if record.Outcome == "pass" {
 		decision = governance.DecisionAllow
 	}
+	action := record.Action
+	if action == "" {
+		action = planner.ActionInspect
+	}
 	resource := "planning-session/" + record.SessionID
 	event := governance.NewAuthorizationCheckEvent(
-		time.Now().UTC(), "planning-inspect", "planning.inspect", resource, decision, record.Reason,
+		time.Now().UTC(), "planning-"+strings.TrimPrefix(action, "planning."), action, resource, decision, record.Reason,
 		map[string]any{
 			"adapter": record.Adapter, "promptSha256": record.PromptSHA256,
 			"responseSha256": record.ResponseSHA256, "toolCalls": record.ToolCalls,
