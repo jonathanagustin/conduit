@@ -4,8 +4,8 @@ set -euo pipefail
 EXPECTED_VERSION='9.15.6755-unadmitted.1'
 EXPECTED_SOURCE_SHA='599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311'
 EXPECTED_UPSTREAM_COMMIT='551ad10d94835c99e5e1e684500d3db398c0e345'
-EXPECTED_BUILDER_DIGEST='8fa55b2f3ddf97471ab6a767bfa3f37e6bad0986ba823e75fea57e2a2a5c3073'
-EXPECTED_RUNTIME_DIGEST='1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a'
+EXPECTED_BUILDER_DIGEST='e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c'
+EXPECTED_RUNTIME_DIGEST='afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab'
 EXPECTED_BAZELISK_AMD64_SHA='5a408715e932c0250d28bd84555f12edbf70117de42f9181691c736eacc4a992'
 EXPECTED_BAZELISK_ARM64_SHA='e20e8b0f4f240091b7a55bf17b9398bd4f40ee70ae0208dff95dd4c445fb4010'
 MAXIMUM_BINARY_BYTES=67108864
@@ -35,13 +35,13 @@ verify_containerfile() {
   local path="$1"
   local final_from
   [[ -f "$path" ]] || fail "Containerfile does not exist: $path"
-  require_text "$path" "rust:1.97.0-bookworm@sha256:${EXPECTED_BUILDER_DIGEST}"
+  require_text "$path" "rust:1.99.1-bookworm@sha256:${EXPECTED_BUILDER_DIGEST}"
   require_text "$path" "gcr.io/distroless/static-debian12:nonroot@sha256:${EXPECTED_RUNTIME_DIGEST}"
   require_text "$path" "ADD --checksum=sha256:${EXPECTED_SOURCE_SHA}"
   require_text "$path" "bazelisk_sha='${EXPECTED_BAZELISK_AMD64_SHA}'"
   require_text "$path" "bazelisk_sha='${EXPECTED_BAZELISK_ARM64_SHA}'"
   require_text "$path" 'test "$BUILDARCH" = "$TARGETARCH"'
-  require_text "$path" "test \"\$(rustc --version)\" = 'rustc 1.97.0 (2d8144b78 2026-07-07)'"
+  require_text "$path" "test \"\$(rustc --version)\" = 'rustc 1.99.1 (58cf8f9c3 2026-10-13)'"
   require_text "$path" 'USE_BAZEL_VERSION=8.7.0'
   require_text "$path" 'id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,sharing=locked'
   require_text "$path" 'id=platform-cpsat-rust-target,target=/tmp/platform-cpsat-target,sharing=locked'
@@ -60,6 +60,7 @@ verify_containerfile() {
   require_text "$path" "grep -Fq 'statically linked'"
   require_text "$path" "io.palantir.platform.optimizer.upstream.commit=\"${EXPECTED_UPSTREAM_COMMIT}\""
   require_text "$path" 'io.palantir.platform.optimizer.admission="UNADMITTED"'
+  require_text "$path" 'io.palantir.platform.optimizer.project.license.status="NOASSERTION"'
   require_text "$path" 'USER 65532:65532'
   require_text "$path" 'ENTRYPOINT ["/platform-cpsat-adapter"]'
   require_text "$path" "if grep -Eq 'NEEDED|libstdc\\+\\+|libgcc_s'"
@@ -172,9 +173,11 @@ jq -e \
     .[0].Config.Labels["io.palantir.platform.optimizer.architecture"] == $arch and
     .[0].Config.Labels["io.palantir.platform.optimizer.upstream.source.sha256"] == $source and
     .[0].Config.Labels["io.palantir.platform.optimizer.upstream.commit"] == $commit and
-    .[0].Config.Labels["io.palantir.platform.optimizer.runtime.base.digest"] == ("sha256:" + "1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a") and
+    .[0].Config.Labels["io.palantir.platform.optimizer.runtime.base.digest"] == ("sha256:" + "afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab") and
     .[0].Config.Labels["org.opencontainers.image.licenses"] == "NOASSERTION" and
-    .[0].Config.Labels["io.palantir.platform.optimizer.rust.version"] == "1.97.0" and
+    .[0].Config.Labels["io.palantir.platform.optimizer.application.licenses"] == "NOASSERTION" and
+    .[0].Config.Labels["io.palantir.platform.optimizer.project.license.status"] == "NOASSERTION" and
+    .[0].Config.Labels["io.palantir.platform.optimizer.rust.version"] == "1.99.1" and
     .[0].Config.Labels["io.palantir.platform.optimizer.bazel.version"] == "8.7.0"
   ' "$tmp_dir/inspect.json" >/dev/null || fail 'candidate image config or labels differ from the contract'
 jq -e -s '
@@ -325,7 +328,7 @@ jq --null-input \
   --argjson semanticRuns "$NATIVE_RUNS" \
   --argjson staticClosureEntries "$static_closure_entries" \
   --argjson licenseFiles "$license_files" \
-  '{schemaVersion: 1, admission: "UNADMITTED", architecture: $architecture,
+  '{schemaVersion: 1, admission: "UNADMITTED", projectLicenseStatus: "NOASSERTION", architecture: $architecture,
     platformRevision: $platformRevision, imageId: $imageId,
     imageSizeBytes: $imageSizeBytes, binarySizeBytes: $binarySizeBytes,
     binarySha256: $binarySha256,

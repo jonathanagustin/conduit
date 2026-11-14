@@ -11,12 +11,14 @@ platform_dir="$(CDPATH= cd -- "$script_dir/.." && pwd)"
 verifier="$script_dir/verify-cpsat-candidate.sh"
 scanner="$script_dir/scan-cpsat-candidate.sh"
 containerfile="$platform_dir/Containerfile.optimizer-cpsat"
-evidence="$platform_dir/docs/evidence/or-tools-9.15-cpsat-candidate-amd64.json"
+evidence="$platform_dir/docs/evidence/or-tools-9.15-cpsat-rust-1.99.1-amd64.json"
 # Repository root, not one above it. The `../.github` this carried is left over
 # from the monorepo subdirectory this code was extracted from; here it resolves
 # outside the checkout, so the hash below failed and took the candidate
 # workflow's contract job with it.
 workflow="$platform_dir/.github/workflows/platform-cpsat-candidate.yml"
+
+printf '%s  %s\n' '8f36578298d697519779b2fd4f867647333dca1c38e5788a74a4aaa7e379e9bf' "$platform_dir/docs/evidence/or-tools-9.15-cpsat-candidate-amd64.json" | sha256sum --check --status || fail 'historical evidence changed'
 
 bash -n "$verifier"
 bash -n "$scanner"
@@ -28,30 +30,30 @@ jq -e \
   --arg fixture "$(sha256sum "${BASH_SOURCE[0]}" | cut -d' ' -f1)" \
   --arg scanner "$(sha256sum "$scanner" | cut -d' ' -f1)" \
   --arg workflow "$(sha256sum "$workflow" | cut -d' ' -f1)" '
-    .schemaVersion == 1 and .admission == "UNADMITTED" and .architecture == "amd64" and
+    .schemaVersion == 1 and .admission == "UNADMITTED" and .projectLicenseStatus == "NOASSERTION" and .architecture == "amd64" and
     .source.containerfileSha256 == $containerfile and .source.verifierSha256 == $verifier and
     .source.verifierFixtureSha256 == $fixture and .source.scannerSha256 == $scanner and
     .source.workflowSha256 == $workflow and
     .candidate.kind == "LOCAL_UNADMITTED_OCI" and .candidate.semanticNativeRuns == 5 and
     .candidate.runtimeUser == "65532:65532" and .candidate.dynamicNeededEntries == 0 and
-    .candidate.staticClosureEntries == 10 and .candidate.binarySizeBytes == 37713640 and
-    .candidate.binarySha256 == "55dfb3ca7fc4ad48916b0ee0ccfb864ab06eb8a783dd3b4e8f3a8fa41f302796" and
+    .candidate.staticClosureEntries == 10 and .candidate.binarySizeBytes == 37713792 and
+    .candidate.binarySha256 == "b2e24f21e136c5f652ba5a9c1589b4a743866ce515822a08a0d980a51b0038ed" and
     .candidate.semanticResponseSha256 == "5ffbb0e0e427b4d917dafd072d0b0c001ef49c5150377a20957d8704e46f1065" and
     (.candidate.imageId | test("^sha256:[0-9a-f]{64}$")) and
     .toolchain.syft == "1.50.0" and .toolchain.grype == "0.116.1" and
-    .security.syftDiscoveredPackages == 4 and
+    .security.syftDiscoveredPackages == 5 and
     .security.staticClosureEntries == 10 and .security.vulnerabilityMatches == 0 and
     .security.failThreshold == "high" and .security.databaseValid == true and
     (.security.metadataSha256 | test("^[0-9a-f]{64}$")) and
     (.security.syftJsonSha256 | test("^[0-9a-f]{64}$")) and
     (.security.spdxJsonSha256 | test("^[0-9a-f]{64}$")) and
     (.security.grypeJsonSha256 | test("^[0-9a-f]{64}$")) and
-    (.verifiedGates | length) == 12 and (.openAdmissionGates | length) == 5
+    (.verifiedGates | length) == 11 and (.openAdmissionGates | length) == 6
   ' "$evidence" >/dev/null || fail 'committed amd64 candidate evidence is stale or malformed'
 
 for required in \
   'actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16' \
-  'actions/cache@27d5ce7f107fe9357f9df03efb73ab90386fccae' \
+  'actions/cache@caa296126883cff596d87d8935842f9db880ef25' \
   '--build-arg "SOURCE_DATE_EPOCH=1768232310"' \
   'ubuntu-24.04-arm' \
   'syft_1.50.0_linux_${ARCHITECTURE}.tar.gz' \

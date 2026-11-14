@@ -1,7 +1,28 @@
-# syntax=docker/dockerfile:1.26@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
+# syntax=docker/dockerfile:1.28@sha256:bb22d9815c728170f72750f4e5b0d672e06176142e1d602c7e66c050100b7e5b
 
-ARG BUILDER_IMAGE=rust:1.97.1-bookworm@sha256:0e2bcaef56d041a486784e54104a81aebe0da44bd03019bd70bc0401e42e4a97
+ARG BUILDER_IMAGE=rust:1.99.1-bookworm@sha256:e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c
 ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
+
+FROM scratch AS inputs
+
+ADD --checksum=sha256:599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311 \
+    https://github.com/google/or-tools/releases/download/v9.15/or-tools-9.15.tar.gz \
+    /native-build-inputs/tmp/or-tools-9.15.tar.gz
+ADD --checksum=sha256:62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a \
+    https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/LICENSE-APACHE \
+    /native-build-inputs/tmp/rust-LICENSE-APACHE
+ADD --checksum=sha256:b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1 \
+    https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/LICENSE-MIT \
+    /native-build-inputs/tmp/rust-LICENSE-MIT
+ADD --checksum=sha256:172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af \
+    https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/COPYRIGHT \
+    /native-build-inputs/tmp/rust-COPYRIGHT
+
+COPY solver/cpsat-adapter /native-build-inputs/src/adapter
+COPY Containerfile.optimizer-cpsat /native-build-inputs/src/platform/
+COPY docs/security/PROJECT-LICENSE-STATUS.md /native-build-inputs/src/platform/docs/security/PROJECT-LICENSE-STATUS.md
+COPY scripts/scan-cpsat-candidate.sh scripts/verify-cpsat-candidate.sh scripts/verify-cpsat-candidate.test.sh /native-build-inputs/src/platform/scripts/
+COPY internal/optimization /native-build-inputs/src/platform/internal/optimization
 
 FROM ${BUILDER_IMAGE} AS build
 
@@ -16,30 +37,32 @@ ENV CARGO_HOME=/tmp/platform-cpsat-cargo \
     SOURCE_DATE_EPOCH=1768232310 \
     USE_BAZEL_VERSION=8.7.0
 
-ADD --checksum=sha256:599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311 \
-    https://github.com/google/or-tools/releases/download/v9.15/or-tools-9.15.tar.gz \
-    /tmp/or-tools-9.15.tar.gz
-ADD --checksum=sha256:62c7a1e35f56406896d7aa7ca52d0cc0d272ac022b5d2796e7d6905db8a3636a \
-    https://raw.githubusercontent.com/rust-lang/rust/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/LICENSE-APACHE \
-    /tmp/rust-LICENSE-APACHE
-ADD --checksum=sha256:b71bd43a069ca0641a9ecfe585ca7b3c53b5cc1608f8b68321168698e28b5ea1 \
-    https://raw.githubusercontent.com/rust-lang/rust/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/LICENSE-MIT \
-    /tmp/rust-LICENSE-MIT
-ADD --checksum=sha256:172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a8450782c4af \
-    https://raw.githubusercontent.com/rust-lang/rust/2d8144b7880597b6e6d3dfd63a9a9efae3f533d3/COPYRIGHT \
-    /tmp/rust-COPYRIGHT
+COPY --from=inputs /native-build-inputs/ /
 
-WORKDIR /src
-COPY solver/cpsat-adapter /src/adapter
-COPY LICENSE NOTICE Containerfile.optimizer-cpsat /src/platform/
-COPY scripts/scan-cpsat-candidate.sh scripts/verify-cpsat-candidate.sh scripts/verify-cpsat-candidate.test.sh /src/platform/scripts/
-COPY internal/optimization /src/platform/internal/optimization
-
+# WORKDIR would duplicate the large Rust root on vfs; keep this bounded build in one step.
+# hadolint ignore=DL3003
 RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,sharing=locked \
     --mount=type=cache,id=platform-cpsat-rust-target,target=/tmp/platform-cpsat-target,sharing=locked \
+    --mount=type=cache,id=platform-cpsat-bazel,target=/tmp/platform-cpsat-bazel,sharing=locked \
+    --mount=type=cache,id=platform-cpsat-bazelisk,target=/root/.cache/bazelisk,sharing=locked \
+    --mount=type=secret,id=platform-build-ca \
+    --mount=type=secret,id=platform-build-java-cacerts \
     set -eux; \
+    if [ -r /run/secrets/platform-build-ca ]; then \
+      export SSL_CERT_FILE=/run/secrets/platform-build-ca; \
+      export CURL_CA_BUNDLE="$SSL_CERT_FILE" CARGO_HTTP_CAINFO="$SSL_CERT_FILE" GIT_SSL_CAINFO="$SSL_CERT_FILE"; \
+    fi; \
+    native_bazel() { \
+      if [ -r /run/secrets/platform-build-java-cacerts ]; then \
+        bazelisk --host_jvm_args=-Djavax.net.ssl.trustStore=/run/secrets/platform-build-java-cacerts \
+          --host_jvm_args=-Djavax.net.ssl.trustStorePassword=changeit \
+          --output_base=/tmp/platform-cpsat-bazel "$@"; \
+      else \
+        bazelisk --output_base=/tmp/platform-cpsat-bazel "$@"; \
+      fi; \
+    }; \
     test "$BUILDARCH" = "$TARGETARCH"; \
-    test "$(rustc --version)" = 'rustc 1.97.0 (2d8144b78 2026-07-07)'; \
+    test "$(rustc --version)" = 'rustc 1.99.1 (58cf8f9c3 2026-10-13)'; \
     case "$TARGETARCH" in \
       amd64) bazelisk_sha='5a408715e932c0250d28bd84555f12edbf70117de42f9181691c736eacc4a992' ;; \
       arm64) bazelisk_sha='e20e8b0f4f240091b7a55bf17b9398bd4f40ee70ae0208dff95dd4c445fb4010' ;; \
@@ -58,22 +81,16 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     install -m 0644 /src/adapter/native/platform_cpsat_bridge.cc /src/ortools/ortools/sat/c_api/; \
     install -m 0644 /src/adapter/native/platform_cpsat_bridge.h /src/ortools/ortools/sat/c_api/; \
     install -m 0644 /src/adapter/native/platform_cpsat_main.cc /src/ortools/ortools/sat/c_api/; \
-    install -m 0644 /src/adapter/native/platform_targets.BUILD.bazel /src/ortools/ortools/sat/c_api/BUILD.bazel
-
-WORKDIR /src/ortools
-
-RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,sharing=locked \
-    --mount=type=cache,id=platform-cpsat-bazel,target=/tmp/platform-cpsat-bazel,sharing=locked \
-    --mount=type=cache,id=platform-cpsat-bazelisk,target=/root/.cache/bazelisk,sharing=locked \
-    set -eux; \
+    install -m 0644 /src/adapter/native/platform_targets.BUILD.bazel /src/ortools/ortools/sat/c_api/BUILD.bazel; \
+    cd /src/ortools; \
     mkdir -p /out; \
-    bazelisk --output_base=/tmp/platform-cpsat-bazel build \
+    native_bazel build --repo_env=GIT_SSL_CAINFO \
       --announce_rc \
       --jobs=2 \
       --stamp=no \
       --strip=always \
       //ortools/sat/c_api:platform-cpsat-adapter; \
-    bazelisk --output_base=/tmp/platform-cpsat-bazel aquery \
+    native_bazel aquery --repo_env=GIT_SSL_CAINFO \
       'mnemonic("CppLink", //ortools/sat/c_api:platform-cpsat-adapter)' \
       --output=textproto > /out/link-action.textproto; \
     install -m 0755 bazel-bin/ortools/sat/c_api/platform-cpsat-adapter /out/platform-cpsat-adapter; \
@@ -85,7 +102,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     if grep -Eq 'NEEDED|libstdc\+\+|libgcc_s' /out/dynamic-section.txt; then exit 1; fi; \
     sha256sum /out/platform-cpsat-adapter | \
       sed 's#  /out/#  #' > /out/platform-cpsat-adapter.sha256; \
-    bazel_external="$(bazelisk --output_base=/tmp/platform-cpsat-bazel info output_base)/external"; \
+    bazel_external="$(native_bazel info --repo_env=GIT_SSL_CAINFO output_base)/external"; \
     mkdir -p /out/licenses/cargo; \
     install -m 0444 /src/ortools/LICENSE /out/licenses/OR-TOOLS-LICENSE; \
     install -m 0444 "$bazel_external/abseil-cpp+/LICENSE" /out/licenses/ABSEIL-LICENSE; \
@@ -96,8 +113,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     install -m 0444 /tmp/rust-COPYRIGHT /out/licenses/RUST-COPYRIGHT; \
     install -m 0444 /usr/share/doc/libc6/copyright /out/licenses/GLIBC-COPYRIGHT; \
     install -m 0444 /usr/share/doc/gcc-12-base/copyright /out/licenses/GCC-RUNTIME-COPYRIGHT; \
-    install -m 0444 /src/platform/LICENSE /out/licenses/PLATFORM-LICENSE; \
-    install -m 0444 /src/platform/NOTICE /out/licenses/PLATFORM-NOTICE; \
+    install -m 0444 /src/platform/docs/security/PROJECT-LICENSE-STATUS.md /out/licenses/PLATFORM-LICENSE-STATUS; \
     cargo tree --manifest-path /src/adapter/Cargo.toml --locked --edges normal \
       --prefix none --format '{p}|{l}' | \
       sed 's# (/src/adapter)##' | LC_ALL=C sort -u > /out/cargo-closure.tsv; \
@@ -113,8 +129,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
         sed 's#  /src/adapter/#  solver/cpsat-adapter/#'; \
       sha256sum \
         /src/platform/Containerfile.optimizer-cpsat \
-        /src/platform/LICENSE \
-        /src/platform/NOTICE \
+        /src/platform/docs/security/PROJECT-LICENSE-STATUS.md \
         /src/platform/scripts/scan-cpsat-candidate.sh \
         /src/platform/scripts/verify-cpsat-candidate.sh \
         /src/platform/scripts/verify-cpsat-candidate.test.sh | \
@@ -137,18 +152,18 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
       'Abseil\t20250814.1\tlicenses/ABSEIL-LICENSE' \
       'Protobuf\t32.0\tlicenses/PROTOBUF-LICENSE' \
       'zlib\t1.3.1.bcr.7\tlicenses/ZLIB-LICENSE' \
-      'Rust\t1.97.0\tlicenses/RUST-LICENSE-APACHE,licenses/RUST-LICENSE-MIT,licenses/RUST-COPYRIGHT' \
+      'Rust\t1.99.1\tlicenses/RUST-LICENSE-APACHE,licenses/RUST-LICENSE-MIT,licenses/RUST-COPYRIGHT' \
       "glibc\t$(dpkg-query -W -f='${Version}' libc6)\tlicenses/GLIBC-COPYRIGHT" \
       "GCC-runtime\t$(dpkg-query -W -f='${Version}' gcc-12-base)\tlicenses/GCC-RUNTIME-COPYRIGHT" \
       'Cargo-normal-closure\tCargo.lock\tcargo-closure.tsv,licenses/cargo/' \
-      'Distroless-static-debian12\tsha256:1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a\t/usr/share/doc/,/usr/share/common-licenses/' \
-      "Platform-adapter\t${REVISION}\tlicenses/PLATFORM-LICENSE,licenses/PLATFORM-NOTICE" \
+      'Distroless-static-debian12\tsha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab\t/usr/share/doc/,/usr/share/common-licenses/' \
+      "Platform-adapter\t${REVISION}\tlicenses/PLATFORM-LICENSE-STATUS" \
       > /out/static-closure.tsv; \
     find /out/licenses -type f -print0 | LC_ALL=C sort -z | \
       xargs -0 sha256sum | sed 's#  /out/#  #' > /out/license-hashes.sha256; \
     printf '%s\n' \
       'OR-Tools=9.15.6755 source=sha256:599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311' \
-      'Rust=1.97.0 commit=2d8144b7880597b6e6d3dfd63a9a9efae3f533d3' \
+      'Rust=1.99.1 commit=58cf8f9c35b355199727627d07ae34a4e2846d67' \
       'Bazelisk=1.29.0 Bazel=8.7.0 jobs=2' \
       "PlatformRevision=${REVISION}" > /out/build-inputs.txt; \
     find /out -depth -exec touch --no-dereference --date="@${SOURCE_DATE_EPOCH}" {} +; \
@@ -176,16 +191,17 @@ LABEL org.opencontainers.image.title="Platform CP-SAT adapter candidate" \
       org.opencontainers.image.version="9.15.6755-unadmitted.1" \
       org.opencontainers.image.revision="$REVISION" \
       org.opencontainers.image.licenses="NOASSERTION" \
-      io.palantir.platform.optimizer.application.licenses="LicenseRef-Proprietary AND MIT AND BSD-3-Clause AND Zlib AND LGPL-2.1-or-later AND GPL-3.0-with-GCC-exception-3.1 AND Unicode-3.0" \
+      io.palantir.platform.optimizer.application.licenses="NOASSERTION" \
+      io.palantir.platform.optimizer.project.license.status="NOASSERTION" \
       io.palantir.platform.optimizer.admission="UNADMITTED" \
       io.palantir.platform.optimizer.architecture="$TARGETARCH" \
       io.palantir.platform.optimizer.protocol="optimization.platform.example/external-discrete-solver-process/v1alpha1" \
       io.palantir.platform.optimizer.upstream.version="9.15.6755" \
       io.palantir.platform.optimizer.upstream.commit="551ad10d94835c99e5e1e684500d3db398c0e345" \
       io.palantir.platform.optimizer.upstream.source.sha256="599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311" \
-      io.palantir.platform.optimizer.rust.version="1.97.0" \
+      io.palantir.platform.optimizer.rust.version="1.99.1" \
       io.palantir.platform.optimizer.bazel.version="8.7.0" \
-      io.palantir.platform.optimizer.runtime.base.digest="sha256:1b7b9f0f0e0a1d2155f531db587cc48ec26aaf97ab64364225f5bf18a054e66a"
+      io.palantir.platform.optimizer.runtime.base.digest="sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab"
 
 COPY --from=build --chown=65532:65532 /runtime/ /
 
