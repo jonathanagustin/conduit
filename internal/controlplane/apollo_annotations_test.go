@@ -4,7 +4,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // TestApolloEntityIDGrammar holds the documented identifier format and its

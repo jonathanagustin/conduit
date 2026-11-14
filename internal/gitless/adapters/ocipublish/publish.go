@@ -31,7 +31,7 @@ import (
 	"strings"
 	"time"
 
-	yaml "go.yaml.in/yaml/v3"
+	yaml "go.yaml.in/yaml/v4"
 
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/registrychallenge"
 )

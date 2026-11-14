@@ -6,7 +6,7 @@ import (
 	"sort"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Apollo's Environment settings are a single YAML document. It is the surface an
