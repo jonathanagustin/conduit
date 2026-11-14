@@ -49,6 +49,7 @@ drop() {
 }
 
 echo "verify-design-tokens: the gate must reject drift, not just pass"
+node --test scripts/lib/resolve-design-token-aliases.test.mjs
 
 # --- a clean tree passes ----------------------------------------------------
 if ! node "${gate}" >/dev/null 2>&1; then
