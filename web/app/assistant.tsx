@@ -6,6 +6,7 @@ import { McpManagerResource } from "@assistant-ui/react-mcp";
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { ConversationMapAui } from "@/components/assistant-ui/elements/conversation-map.aui";
 import { useCodexRuntime } from "@/src/api/runtime";
+import { useWorkbenchRuntime } from "@/src/console/assistant-runtime";
 import { AcpPanels } from "@/src/embed/acp-panels";
 import { ComposerCommands } from "@/src/embed/composer-commands";
 import { ThreadWelcome } from "@/src/embed/thread-welcome";
@@ -52,11 +53,13 @@ const ASSISTANT_CONFIG = AuiConfig({
 const THEME_KEY = "conduit-console-theme";
 
 export const Assistant = () => {
-  const runtime = useCodexRuntime();
   const [view, setView] = useState<"thread" | "elements" | "workbench">(
     "thread",
   );
   const [dark, setDark] = useState(false);
+  const codexRuntime = useCodexRuntime();
+  const workbenchRuntime = useWorkbenchRuntime();
+  const runtime = view === "workbench" ? workbenchRuntime : codexRuntime;
 
   useEffect(() => {
     const stored = window.localStorage.getItem(THEME_KEY);

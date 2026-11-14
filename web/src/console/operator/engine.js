@@ -3,6 +3,13 @@ import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
+import {
+  assistantChrome,
+  publishAssistantContext,
+  rememberResult,
+  resultsMarkup,
+  runAssistantAction,
+} from "./assistant-rail.js";
 
 export function mountOperator(host, options) {
   const notifyOperator = () => {
@@ -608,6 +615,10 @@ export function mountOperator(host, options) {
     rmIncludedCrs: ["CR-307"],
     rmBundleDownloaded: "",
     chatModel: "ops-standard-32k",
+    assistantMode: "explore",
+    assistantRemoved: [],
+    assistantAdded: [],
+    assistantResults: [],
     globalQuery: "",
 
     wsStatusFacet: "ALL",
@@ -1138,56 +1149,80 @@ export function mountOperator(host, options) {
     }
   }
 
-  function assistantMeta(activeMeta) {
-    return `
-        <div>mount: <span class="text-[#ffffff]">#conduit-assistant-slot</span></div>
-        <div>view: <span class="text-[#34d399]">${activeMeta.short}</span></div>
-        <div>screenId: <span class="text-[#60a5fa]">${activeMeta.id}</span></div>
-      `;
-  }
   function renderChatRail() {
     const rail = document.getElementById("right-chat-rail");
     if (!rail) return;
+    publishAssistantContext(state);
     if (state.chatCollapsed) {
       rail.className = "hidden";
       rail.innerHTML = "";
       if (typeof notifyOperator === "function") notifyOperator();
       return;
     }
-    const activeMeta = SCREENS.find((s) => s.id === state.screen) || SCREENS[0];
-    const modeBadge =
-      typeof window !== "undefined" && window.innerWidth <= 1024
-        ? "DRAWER"
-        : "INLINE SLOT";
     const openClass =
-      "w-[252px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5";
+      "w-[300px] shrink-0 bg-[#0e1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5 gap-2";
     if (rail.className !== openClass) rail.className = openClass;
     if (!rail.querySelector("#assistant-thread-mount")) {
       rail.innerHTML = `
-          <div data-slot="assistant-ui-root" class="flex-1 min-h-0 border border-dashed border-[#263340] rounded-[6px] bg-[#12181d] p-3 flex flex-col gap-3">
-            <div>
-              <div class="flex items-center justify-between gap-1.5">
-                <span class="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#8b96a5]">Assistant Slot</span>
-                <div class="flex items-center gap-1.5">
-                  <span data-mode-badge>${pill(modeBadge, "blue")}</span>
-                  <button type="button" onclick="toggleChatRail()" class="so-btn so-btn-sm !px-1.5" aria-label="Close assistant slot">${ic("cross")}</button>
-                </div>
-              </div>
-              <div data-assistant-meta class="so-card p-2.5 mt-3 code-id text-[10.5px] text-[#8b96a5] space-y-1">
-                ${assistantMeta(activeMeta)}
-              </div>
-            </div>
-            <div id="assistant-thread-mount" class="assistant-thread-mount"></div>
-          </div>
+          <div data-assistant-chrome>${assistantChrome(state)}</div>
+          <div id="assistant-thread-mount" class="assistant-thread-mount"></div>
         `;
+      bindAssistantRail(rail);
       if (typeof notifyOperator === "function") notifyOperator();
       return;
     }
-    const badge = rail.querySelector("[data-mode-badge]");
-    if (badge) badge.innerHTML = pill(modeBadge, "blue");
-    const meta = rail.querySelector("[data-assistant-meta]");
-    if (meta) meta.innerHTML = assistantMeta(activeMeta);
+    const chrome = rail.querySelector("[data-assistant-chrome]");
+    if (chrome) chrome.innerHTML = assistantChrome(state);
+    const results = rail.querySelector("[data-assistant-results]");
+    if (results) results.innerHTML = resultsMarkup(state);
     if (typeof notifyOperator === "function") notifyOperator();
+  }
+
+  function bindAssistantRail(rail) {
+    if (rail.dataset.bound === "1") return;
+    rail.dataset.bound = "1";
+    rail.addEventListener("change", (event) => {
+      const target = event.target;
+      if (
+        !(target instanceof HTMLSelectElement) ||
+        !target.matches("[data-assistant-mode]")
+      )
+        return;
+      state.assistantMode = target.value;
+      renderChatRail();
+    });
+    rail.addEventListener("click", async (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      const remove = target.closest("[data-remove-chip]");
+      if (remove) {
+        const key = remove.getAttribute("data-remove-chip");
+        state.assistantRemoved = [...(state.assistantRemoved || []), key];
+        state.assistantAdded = (state.assistantAdded || []).filter(
+          (chip) => `${chip.objectType}:${chip.id}` !== key,
+        );
+        renderChatRail();
+        return;
+      }
+      const open = target.closest("[data-open-screen]");
+      if (open) {
+        switchScreen(open.getAttribute("data-open-screen"));
+        return;
+      }
+      const action = target.closest("[data-assistant-action]");
+      if (!action) return;
+      const result = await runAssistantAction(
+        state,
+        action.getAttribute("data-assistant-action"),
+        action.getAttribute("data-chip-key"),
+      );
+      rememberResult(state, result);
+      renderChatRail();
+    });
+    window.addEventListener("conduit-assistant-result", (event) => {
+      rememberResult(state, event.detail || {});
+      renderChatRail();
+    });
   }
 
   function renderS13FleetOverview(root) {

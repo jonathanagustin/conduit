@@ -73,6 +73,7 @@ const SOURCES = [
  {path:"internal/changeactivity/adapters/httpapi",surface:"request activity"},
   { path: "internal/packagingworkflow/httpapi", surface: "packaging" },
   { path: "internal/ontology/httpapi", surface: "ontology" },
+  { path: "internal/assistant/httpapi", surface: "assistant" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";
