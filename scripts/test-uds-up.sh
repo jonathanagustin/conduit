@@ -22,6 +22,9 @@ printf '%s\n' "${plan}" | grep -qx -- 'bundle=oci://ghcr.io/defenseunicorns/pack
 printf '%s\n' "${plan}" | grep -qx -- 'k3d_extra_args=--network uds-k3d --k3s-arg --flannel-backend=host-gw@server:0' ||
   fail "default k3d arguments must use the user-defined network and flannel host-gw"
 
+printf '%s\n' "${plan}" | grep -qx -- 'host_adaptations=clear-nginx-hostports,ambient-off' ||
+  fail "plan must include the nginx hostPort and ambient-off adaptations"
+
 override="$(UDS_K3D_NETWORK=custom-net UDS_CORE_VERSION=1.16.0 "${up}" --print-plan)"
 printf '%s\n' "${override}" | grep -qx -- 'network=custom-net' || fail "UDS_K3D_NETWORK must change the network"
 printf '%s\n' "${override}" | grep -qx -- 'bundle=oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.16.0' ||

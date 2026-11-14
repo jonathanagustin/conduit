@@ -13,6 +13,12 @@
 # Slim-dev installs Istio, Keycloak, and Pepr. It does not install the
 # Portal layer. Adding tiles requires a later core-portal deploy on a host
 # that has the memory for it.
+#
+# After the bundle is deployed, the script applies two host adaptations
+# that this kernel has required before: it clears hostPorts on the nginx
+# DaemonSet (iptables multiport is missing on some hosts) and sets
+# AMBIENT_ENABLED=false on Istio CNI (ambient has failed to initialize
+# the host address set here).
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -55,6 +61,7 @@ print_plan_lines() {
   printf 'cluster=%s\n' "${cluster_name}"
   printf 'bundle=%s\n' "${core_ref}"
   printf 'k3d_extra_args=%s\n' "$(k3d_extra_args)"
+  printf 'host_adaptations=clear-nginx-hostports,ambient-off\n'
 }
 
 while [[ $# -gt 0 ]]; do
@@ -76,6 +83,89 @@ if "${print_plan}"; then
   exit 0
 fi
 
+kubectl_bin() {
+  if command -v kubectl >/dev/null 2>&1; then
+    printf '%s' kubectl
+  else
+    printf '%s' "uds zarf tools kubectl"
+  fi
+}
+
+wait_for_api() {
+  local k tries=0
+  k="$(kubectl_bin)"
+  if command -v k3d >/dev/null 2>&1; then
+    k3d kubeconfig merge "${cluster_name}" --kubeconfig-merge-default >/dev/null || true
+  fi
+  while ! $k get ns >/dev/null 2>&1; do
+    tries=$((tries + 1))
+    if ((tries > 60)); then
+      echo "the cluster API was not reachable after waiting" >&2
+      return 1
+    fi
+    sleep 2
+  done
+}
+
+clear_nginx_hostports() {
+  local k json ns
+  k="$(kubectl_bin)"
+  ns=""
+  if $k -n uds-dev-stack get ds nginx >/dev/null 2>&1; then
+    ns=uds-dev-stack
+  else
+    ns="$($k get ds -A -o jsonpath='{range .items[?(@.metadata.name=="nginx")]}{.metadata.namespace}{"\n"}{end}' | head -1 || true)"
+  fi
+  if [[ -z "${ns}" ]]; then
+    echo "nginx DaemonSet not found; skipping hostPort clear"
+    return 0
+  fi
+  json="$($k -n "${ns}" get ds nginx -o json)"
+  printf '%s' "${json}" | python3 -c '
+import json, sys
+doc = json.load(sys.stdin)
+doc.pop("status", None)
+doc.get("metadata", {}).pop("managedFields", None)
+spec = doc.get("spec", {}).get("template", {}).get("spec", {})
+for key in ("containers", "initContainers"):
+    for container in spec.get(key) or []:
+        for port in container.get("ports") or []:
+            port.pop("hostPort", None)
+json.dump(doc, sys.stdout)
+' | $k apply -f -
+  echo "Cleared hostPorts on daemonset/nginx in ${ns}"
+}
+
+disable_ambient() {
+  local k
+  k="$(kubectl_bin)"
+  if $k -n istio-system get cm istio-cni-config >/dev/null 2>&1; then
+    $k -n istio-system get cm istio-cni-config -o json | python3 -c '
+import json, sys
+doc = json.load(sys.stdin)
+data = doc.setdefault("data", {})
+# The ConfigMap may carry the flag as its own key or inside a file.
+data["AMBIENT_ENABLED"] = "false"
+for name, value in list(data.items()):
+    if isinstance(value, str) and "AMBIENT_ENABLED" in value:
+        data[name] = value.replace("AMBIENT_ENABLED=true", "AMBIENT_ENABLED=false")
+json.dump(doc, sys.stdout)
+' | $k apply -f -
+    echo "Set AMBIENT_ENABLED=false on configmap/istio-cni-config"
+  fi
+  if $k -n istio-system get ds istio-cni >/dev/null 2>&1; then
+    $k -n istio-system set env ds/istio-cni AMBIENT_ENABLED=false >/dev/null
+    echo "Set AMBIENT_ENABLED=false on daemonset/istio-cni"
+  fi
+}
+
+apply_host_adaptations() {
+  wait_for_api
+  clear_nginx_hostports
+  disable_ambient
+}
+
+
 require_cmd() {
   if ! command -v "$1" >/dev/null 2>&1; then
     echo "$1 is required. Install the version pinned in docs/operations/uds-package.md." >&2
@@ -87,6 +177,7 @@ if "${dry_run}"; then
   print_plan_lines
   printf 'docker network inspect %s || docker network create %s\n' "${network_name}" "${network_name}"
   printf 'uds deploy %s --confirm --set K3D_EXTRA_ARGS=%s\n' "${core_ref}" "$(k3d_extra_args)"
+  printf 'apply host_adaptations=clear-nginx-hostports,ambient-off\n'
   exit 0
 fi
 
@@ -105,3 +196,4 @@ fi
 echo "Deploying ${core_ref}"
 echo "K3D_EXTRA_ARGS=$(k3d_extra_args)"
 uds deploy "${core_ref}" --confirm --set "K3D_EXTRA_ARGS=$(k3d_extra_args)"
+apply_host_adaptations

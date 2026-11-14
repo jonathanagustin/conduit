@@ -48,6 +48,8 @@ cluster operating after the images are already present.
   network named `uds-k3d` first, which is required when the Docker daemon has
   no default bridge, and passes `--network uds-k3d` plus flannel `host-gw`
   through `K3D_EXTRA_ARGS`. Some kernels cannot create a vxlan device.
+  After deploy, the task clears hostPorts on the nginx DaemonSet and sets
+  Istio CNI `AMBIENT_ENABLED=false`, which this kernel has required.
   Tear the cluster down with `mise run uds-down`.
 
 `deploy/zarf/uds-bundle.yaml` is the Conduit half of that pair. Slim-dev
