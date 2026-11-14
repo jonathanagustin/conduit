@@ -9,7 +9,7 @@ ASSISTANT_UI_ALLOW_AGENT=1 npx --yes assistant-ui@latest add thread thread-list 
 
 `create` installed `@assistant-ui/utils`, `tooltip`, `sidebar`, `separator`, `breadcrumb`, `@assistant-ui/thread`, and `@assistant-ui/threadlist-sidebar`. The `add` command found those files already present and did not overwrite them.
 
-The Codex ACP bridge lives in `src/server`. `app/assistant.tsx` keeps the template layout and uses `useCodexRuntime` instead of the template's AI SDK chat route. `pnpm build` is the Vite embed the Hub serves at `/console/`. `pnpm dev:template` is the template's Next dev server.
+`pnpm build` is the Vite embed the Hub serves at `/console/`. It opens straight to the operator workbench (`src/console/Workbench.tsx`); the assistant sits in the workbench rail and sends turns to the Hub at `POST /v1/assistant/turns`. The starter chat page, thread-list sidebar, element catalog and Codex bridge status UI are not part of the console. The Codex ACP bridge server still lives in `src/server` for local use. `pnpm dev:template` is the template's Next dev server and renders the same workbench.
 
 The rest of the registry was added the same way, one item at a time, without overwriting files the CLI had already written:
 
@@ -17,9 +17,9 @@ The rest of the registry was added the same way, one item at a time, without ove
 ASSISTANT_UI_ALLOW_AGENT=1 npx --yes assistant-ui@latest add <item> --yes --use-pnpm --cwd web
 ```
 
-`<item>` is every `elements-*` entry and the runtime items `voice`, `voice-conversation`, `task-card`, `agent-status`, `mcp-config`, `assistant-modal`, `assistant-sidebar`, `shiki-highlighter`, `model-selector`, `logos`, `heat-graph`, `directive-text`, and `generative-ui`. The Elements tab mounts the ones the ACP thread does not drive, with labeled demo data.
+`<item>` is every `elements-*` entry and the runtime items `voice`, `voice-conversation`, `task-card`, `agent-status`, `mcp-config`, `assistant-modal`, `assistant-sidebar`, `shiki-highlighter`, `model-selector`, `logos`, `heat-graph`, `directive-text`, and `generative-ui`.
 
-The thread itself is the chat. Enter sends the composer. Esc stops the running turn. Ctrl+Shift+O or ⌘⇧O starts a new chat. Ctrl+K opens the command palette. Ctrl+Shift+F searches the thread list. Codex ACP advertises the model and reasoning effort as session config options `model` and `reasoning_effort`; the composer selector and Settings call `session/set_config_option`. When an agent omits one of those options, the control stays read-only or hidden and the thread says why. Settings, the prompt library, and the first-run onboarding state live in this browser's local storage. The system prompt and temperature fields are stored there and are not sent: Codex ACP does not expose them as session config. The bridge status in Settings is read-only and names `127.0.0.1` and `/api/assistant`. The bridge accepts image attachments and inlines other files as text. The Dark/Light control toggles the `dark` class on the document. The Workbench view reads Hub `GET /v1/plans`, `GET /v1/environments`, `GET /v1/products`, `GET /health/live`, and `GET /v1/packaging-runs/{runID}`. Approve uses `POST /v1/plans/{planID}/approvals`. Reject uses `POST /v1/change-requests/{changeRequestID}/reject` when the plan has a change request, and `POST /v1/plans/{planID}/cancel` otherwise. Artifacts and History are labeled planned and do not call the Hub.
+The Workbench view reads Hub `GET /v1/plans`, `GET /v1/environments`, `GET /v1/products`, `GET /health/live`, and `GET /v1/packaging-runs/{runID}`. Approve uses `POST /v1/plans/{planID}/approvals`. Reject uses `POST /v1/change-requests/{changeRequestID}/reject` when the plan has a change request, and `POST /v1/plans/{planID}/cancel` otherwise.
 
 
 ## Getting Started

@@ -11,7 +11,6 @@ test.describe.configure({ mode: "serial" });
 
 async function openWorkbench(page: Page) {
   await page.goto("./");
-  await page.getByRole("button", { name: "Workbench" }).first().click();
   await expect(page.locator("#left-nav")).toBeVisible();
 }
 
