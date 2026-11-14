@@ -24,6 +24,11 @@ import {
 import { dayTexture, paintDisc } from "./globe-texture.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
+import {
+  bindPlanning,
+  emptyPlanning,
+  planningMarkup,
+} from "./planning-flow.js";
 import { createConduitClient } from "@conduit/ontology-client";
 import { createSettingsDialog, THEME_KEY } from "./settings-dialog.js";
 import {
@@ -47,8 +52,6 @@ import {
   runAssistantAction,
 } from "./assistant-rail.js";
 import {
-  attachControl,
-  attachmentList,
   bindAttach,
   ensureLoaded as ensureAttachments,
 } from "./attachments.js";
@@ -234,7 +237,7 @@ export function mountOperator(host, options) {
       id: "s01-intake",
       num: 1,
       short: "Work Intake",
-      tabTitle: "Intake · wp-edge-telemetry",
+      tabTitle: "Work Intake",
       hasSidebar: false,
       showKpis: true,
       appGroup: "intake",
@@ -1122,6 +1125,7 @@ export function mountOperator(host, options) {
   // Screens whose body is read from the Hub. Everything else is example data
   // until it is wired, and says so in the header badge.
   const LIVE_SCREENS = new Set([
+    "s01-intake",
     "cc-overview",
     "pkg-runs",
     "s08-staged-run",
@@ -2705,118 +2709,12 @@ export function mountOperator(host, options) {
   // SCREEN 1: CHAT-FIRST INTAKE (Matched 1:1 to Conduit f_05_08_comms_det.png!)
   // =========================================================================
   function renderS01Intake(root) {
-    const stored = state.attachments?.items || [];
-
-    root.innerHTML = `
-        <div class="space-y-3 h-full flex flex-col">
-          <!-- Top Conduit Striped Resolution Bar -->
-          <div class="so-panel px-3.5 py-2 flex items-center gap-3 shrink-0">
-            <span class="text-[#eab854] flex">${ic("inbox")}</span>
-            <span class="text-[12px] font-medium text-[#f0f5fa] shrink-0">New-Work Intake</span>
-            <div class="flex-1 h-2 bg-[#090e12] rounded-full overflow-hidden">
-              <div class="h-full so-striped-bar" style="width:100%"></div>
-            </div>
-            <span class="tnum text-[11.5px] font-semibold text-[#34d399]">3 Context Cards Ready</span>
-          </div>
-
-          <!-- Split Layout Matched to f_05_08_comms_det.png -->
-          <div class="so-resp-stack flex-1 min-h-0 flex gap-3 items-stretch">
-            <!-- Left: Operator Message with Inline Highlighted Entities & Attachment Chips -->
-            <div class="so-resp-full w-[42%] flex flex-col gap-3 min-h-0">
-              <div class="so-panel p-4 space-y-3 flex-1 overflow-y-auto">
-                <div class="flex items-center gap-2.5 pb-2.5 border-b border-[#1c242c]">
-                  <div class="w-8 h-8 rounded-full bg-[#243447] text-[#7cb4ff] font-semibold text-[12px] flex items-center justify-center">JA</div>
-                  <div>
-                    <div class="text-[12.5px] font-semibold text-[#ffffff]">J. Alvarez</div>
-                    <div class="text-[11px] text-[#6d7885]">Platform Operator · Fleet Delivery</div>
-                  </div>
-                </div>
-
-                <div class="text-[12.5px] text-[#dce4ee] leading-relaxed space-y-2.5">
-                  <div class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data · sample message</div>
-                  <p>Release Control,</p>
-                  <p>
-                    Cluster <span data-onclick="switchScreen('s14-env-detail')" class="entity-span">edge-west-02</span> hit repeated <span class="entity-span-warn">ingress-gateway 768Mi OOM</span> restarts during burst replay over <span data-onclick="switchScreen('s17-spokes-audit')" class="entity-span">spoke-west-relay</span>.
-                  </p>
-                  <p>
-                    I've attached the signed <span data-onclick="switchScreen('s08-staged-run')" class="entity-span">uds-telemetry 0.31.2 tarball</span>, the patched <span data-onclick="switchScreen('s10-diff')" class="entity-span">values.yaml raising memory to 1Gi</span>, and the alert screenshot. Let's stage the packaging run across all 14 environments in <span data-onclick="switchScreen('s12-lifecycle')" class="entity-span">wp-edge-telemetry</span>.
-                  </p>
-                </div>
-
-                <div class="pt-2 border-t border-[#1c242c] space-y-1.5">
-                  <div class="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#6d7885]">ATTACHMENTS (${stored.length}) · stored on the Hub, read-only</div>
-                  ${attachmentList(stored)}
-                </div>
-              </div>
-
-              <!-- Intake Follow-up Input -->
-              <div class="so-panel p-2.5 flex items-center gap-2 shrink-0">
-                ${attachControl(state.attachments?.reason, "intake")}
-                <input type="text" placeholder="Add rollout wave or spoke constraint..." class="so-input flex-1" />
-                <button data-onclick="switchScreen('s04-scope-plan')" class="so-btn so-btn-sm so-btn-blue">Send</button>
-              </div>
-            </div>
-
-            <!-- Right: 3 Conduit Context Resolution Cards (Work profile, Packaging run, Proposed Plan) + Action Footer -->
-            <div class="flex-1 min-w-0 flex flex-col justify-between gap-2.5 min-h-0 overflow-y-auto">
-              <div class="so-grid-2 gap-2.5">
-                <!-- Context Card 1: Work profile -->
-                <div class="so-opt-card p-3 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <span class="flex items-center gap-1.5 font-semibold text-[12.5px] text-[#ffffff]"><span class="text-[#34d399]">${ic("checkCircle")}</span><span>Work profile · wp-edge-telemetry</span></span>
-                    <span class="tnum text-[11px] text-[#34d399]">98%</span>
-                  </div>
-                  <div class="text-[11px] text-[#34d399]">&rarr; Status: Upgrade Available · 14 bound Environments</div>
-                  <div class="space-y-1.5 pt-1 text-[11px]">
-                    <div class="flex gap-2"><span class="w-4 h-4 rounded-full bg-[#192430] text-[#8b96a5] text-[10px] flex items-center justify-center shrink-0">1</span><div><div class="font-medium text-[#e6edf3]">Resolve fleet cohort</div><div class="text-[#6d7885]">14 clusters across 3 Spokes (3 drifted)</div><div class="mt-1">${ontChip("ConduitWorkProfile", 1, 0, "s12-lifecycle")}</div></div></div>
-                    <div class="flex gap-2"><span class="w-4 h-4 rounded-full bg-[#192430] text-[#8b96a5] text-[10px] flex items-center justify-center shrink-0">2</span><div><div class="font-medium text-[#e6edf3]">Verify values.yaml diff</div><div class="text-[#6d7885]">Memory limit 768Mi &rarr; 1Gi (+12 -4 lines)</div><div class="mt-1">${ontChip("ConduitChangeRequest", 3, 1, "s10-diff")}</div></div></div>
-                  </div>
-                </div>
-
-                <!-- Context Card 2: Packaging run -->
-                <div class="so-opt-card p-3 space-y-2">
-                  <div class="flex items-center justify-between">
-                    <span class="flex items-center gap-1.5 font-semibold text-[12.5px] text-[#ffffff]"><span class="text-[#34d399]">${ic("checkCircle")}</span><span>Packaging run · RUN-8844</span></span>
-                    <span class="tnum text-[11px] text-[#34d399]">95%</span>
-                  </div>
-                  <div class="text-[11px] text-[#34d399]">&rarr; Status: Queued · 6-step deterministic pipeline</div>
-                  <div class="space-y-1.5 pt-1 text-[11px]">
-                    <div class="flex gap-2"><span class="w-4 h-4 rounded-full bg-[#192430] text-[#8b96a5] text-[10px] flex items-center justify-center shrink-0">1</span><div><div class="font-medium text-[#e6edf3]">SPDX &amp; vulnerability scan</div><div class="text-[#6d7885]">418 packages · 0 critical / 0 high CVEs</div><div class="mt-1">${toolChip("SPDX Scanner", 418, 0)}</div></div></div>
-                    <div class="flex gap-2"><span class="w-4 h-4 rounded-full bg-[#192430] text-[#8b96a5] text-[10px] flex items-center justify-center shrink-0">2</span><div><div class="font-medium text-[#e6edf3]">Build signed diode delta</div><div class="text-[#6d7885]">41.2 MB zstd delta · key prod-root-2026</div><div class="mt-1">${ontChip("ConduitPackagingRun", 6, 1, "s07-pipeline")}</div></div></div>
-                  </div>
-                </div>
-              </div>
-
-              <!-- Context Card 3: Proposed Plan + Create Plan CTA (Matched to f_05_08 bottom-right card) -->
-              <div class="so-panel p-3.5 space-y-2.5 flex-1 flex flex-col justify-between">
-                <div class="space-y-2">
-                  <div class="flex items-center justify-between border-b border-[#1c242c] pb-2">
-                    <div class="flex items-center gap-2">
-                      <span class="text-[#34d399] flex">${ic("shield")}</span>
-                      <span class="font-semibold text-[13px] text-[#ffffff]">Proposed Plan · PLN-2026-0421</span>
-                      ${pill("Proposed · 3 Waves", "blue")}
-                    </div>
-                    ${ontChip("ConduitPlan", 14, 1, "s15-plan-detail")}
-                  </div>
-                  <div class="text-[12px] text-[#b6c2cf] leading-relaxed">
-                    Stages <strong>Wave 1 Canary</strong> (2 online clusters), <strong>Wave 2 Regional Edge</strong> (6 clusters in <span class="code-id text-[#e6edf3]">02:00–05:00 UTC</span> window), and <strong>Wave 3 Disconnected Spokes</strong> (6 diode/courier exports). Requires 2/2 <span class="code-id text-[#e6edf3]">@fleet-approvers</span> signatures before execution.
-                  </div>
-                </div>
-
-                <div class="pt-2.5 border-t border-[#1c242c] flex items-center justify-between">
-                  <div class="flex items-center gap-2">
-                    ${governedBtn({ label: "Rollout Immediately", role: "Operator", auditEvent: "plan.execute", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "lock", blockedReason: "Plan status is Proposed (requires 2/2 Approvals)" })}
-                    <button data-onclick="switchScreen('s10-diff')" class="so-btn so-btn-sm">Inspect Diff</button>
-                  </div>
-                  ${governedBtn({ label: "Create plan from this", role: "Operator", auditEvent: "plan.propose", onClickJs: "switchScreen('s04-scope-plan')", cls: "so-btn so-btn-emerald", iconName: "check" })}
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
-    bindAttach(root, state, renderApp);
-    ensureAttachments(state, renderApp);
+    if (!state.planning) state.planning = emptyPlanning();
+    root.innerHTML = planningMarkup(state.planning);
+    if (root.dataset.planningBound !== "1") {
+      root.dataset.planningBound = "1";
+      bindPlanning(root, state, renderApp);
+    }
   }
 
   // =========================================================================
