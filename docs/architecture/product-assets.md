@@ -31,8 +31,49 @@ immutable anchor before catalogue commit and grants no publication permission.
 Read authority is required independently; a write-only retry returns a minimal
 acknowledgement without exposing the first publisher's identity.
 
-This foundation has no production composition, HTTP route or CLI command yet.
-It does not publish Conduit, download artifacts, authorize Agent execution,
-verify signatures or create a deployment. Issue #193 remains open for those
-separate catalogue and client integrations and the explicitly authorized
+The optional Hub `ProductAssets` store mounts three native operations:
+
+- `POST /v1/product-publications/download-assets` accepts one strict declaration.
+- `GET /v1/products/{productID}/releases/{version}/download-assets` reads its receipt-bound metadata.
+- `GET /v1/products/{productID}/download-releases` lists published metadata.
+
+Publication requires artifact creation, Product creation when the Product is
+new, and Release creation. Reads require the Product resource-read operation.
+Both use the original credential carrier, including delegation restrictions.
+An optional publication `spaceId` must identify a readable persisted Space and
+reserves immutable Product grouping before catalogue commit. It grants no
+publication permission. The native catalogue receipt retains ordinary stable
+version channels and has no executable Release definition. Existing retirement
+tombstones hide matching records and prevent republication.
+
+Publication-only catalogue receipts establish Product and Release identity for
+the existing governed retirement command, including download and Terraform
+publications that have no executable Release. The preconditions still check
+live Entities, Plans, dependencies and Module references. Retirement preserves
+publication metadata and history; it does not grant permission to publish a
+replacement at that coordinate. Retirement map keys use the validated Maven
+coordinate grammar; the previous NUL separator could not be persisted in
+PostgreSQL JSONB. Existing file record names remain unchanged.
+Older PostgreSQL Hub binaries use the former map key and cannot enforce newly
+persisted retirement entries. Upgrade every Hub writer sharing that database
+before using this newly working retirement operation. Independent download
+metadata survives legacy snapshot writes; that data-preservation guarantee does
+not establish old-runtime retirement enforcement.
+
+Production startup opens a separate `product-assets` component after the
+packaging-worker early return, matching the configured file or PostgreSQL
+repository mode. PostgreSQL errors are sanitized before startup diagnostics.
+The restore drill includes both the declaration and its catalogue receipt and
+checks the migration ledger before constructing the restored component.
+The native CLI group is `product-release download-assets`, with `publish`,
+`get` and `list`. Publish accepts strict JSON and supports an offline `--dry-run`
+that never creates a client or contacts the Hub. Unsupported output formats
+are rejected before publication. Space selection is forwarded only on publish.
+The self-Product preparer emits a version-2 CLI declaration after checking all
+six archive bytes and their source/target/version/builder metadata. Signature
+and provenance bundle URLs are declared coordinates, not verification results.
+
+The context does not publish Conduit automatically, download artifacts,
+authorize Agent execution, verify signatures or create a deployment. Issue #193
+remains open for the remaining integration and explicitly authorized
 operational steps.

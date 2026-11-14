@@ -41,6 +41,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"regexp"
 	"strconv"
 	"strings"
@@ -56,6 +57,8 @@ import (
 	governancedomain "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/pgmigrate"
 	"github.com/jonathanagustin/conduit/internal/pgtest"
+	assetpostgres "github.com/jonathanagustin/conduit/internal/productassets/adapters/postgres"
+	assetdomain "github.com/jonathanagustin/conduit/internal/productassets/domain"
 	spacepostgres "github.com/jonathanagustin/conduit/internal/spaces/adapters/postgres"
 	spacedomain "github.com/jonathanagustin/conduit/internal/spaces/domain"
 )
@@ -130,6 +133,8 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 // seededState is what the drill wrote before the dump and expects to read back
 // through the real repositories afterwards.
 type seededState struct {
+	downloadAssets        assetdomain.Prepared
+	downloadPublication   controlplane.ProductPublication
 	space                 spacedomain.Space
 	binding               spacedomain.Binding
 	auditEvent            governancedomain.AuthorizationAuditEvent
@@ -247,7 +252,24 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 	if _, err := spaces.BindResource(ctx, binding); err != nil {
 		t.Fatal(err)
 	}
+	downloads, err := assetpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer downloads.Close()
+	downloadAssets, err := assetdomain.NewPrepared(assetdomain.Manifest{APIVersion: assetdomain.SchemaVersion, ProductGroup: "io.conduit", ProductName: "restore-cli", Version: "1.2.3", Assets: []assetdomain.Asset{{Name: "cli.tar.gz", URI: "https://example.org/cli.tar.gz", SHA256: strings.Repeat("a", 64)}}}, "restore-publisher", space.CreatedAt)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := downloads.Prepare(ctx, downloadAssets); err != nil {
+		t.Fatal(err)
+	}
+	downloadPublication, err := repository.CreateProductPublication(ctx, controlplane.ProductPublication{MavenCoordinate: downloadAssets.Manifest.Coordinate(), Product: downloadAssets.Manifest.Product(), Version: downloadAssets.Manifest.Version, Kind: assetdomain.Kind, PublicationDigest: downloadAssets.Digest, ReleaseChannels: []string{"DEV", "RELEASE_CANDIDATE", "RELEASE"}, CreatedAt: space.CreatedAt})
+	if err != nil {
+		t.Fatal(err)
+	}
 	return seededState{
+		downloadAssets: downloadAssets, downloadPublication: downloadPublication,
 		space: space, binding: binding,
 		auditEvent: auditEvent, auditCheckpoint: auditCheckpoint,
 		environment: state.Environment.ID, planID: record.ID,
@@ -364,6 +386,7 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 		reconciliationpostgres.Component():      reconciliationpostgres.Migrations(),
 		resolutionlogpostgres.Component():       resolutionlogpostgres.Migrations(),
 		spacepostgres.Component:                 spacepostgres.Migrations(),
+		assetpostgres.Component:                 assetpostgres.Migrations(),
 	} {
 		pending, err := pgmigrate.Pending(ctx, restored, component, migrations)
 		if err != nil {
@@ -483,6 +506,19 @@ func assertStateSurvived(t *testing.T, ctx context.Context, dataSourceName strin
 		t.Fatalf("opening the control-plane repository on the restored database: %v", err)
 	}
 	defer repository.Close()
+	downloads, err := assetpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer downloads.Close()
+	metadata, err := downloads.Get(ctx, seeded.downloadAssets.Manifest.Coordinate())
+	if err != nil || !reflect.DeepEqual(metadata, seeded.downloadAssets) {
+		t.Fatalf("restored download declaration differs: %#v, %v", metadata, err)
+	}
+	publications, err := repository.ListProductPublications(ctx, seeded.downloadPublication.Product)
+	if err != nil || len(publications) != 1 || !reflect.DeepEqual(publications[0], seeded.downloadPublication) {
+		t.Fatalf("restored download publication receipt differs: %#v, %v", publications, err)
+	}
 	audits, err := repository.ListAuthorizationAudit(ctx, seeded.auditEvent.ResourceRID)
 	if err != nil || len(audits) != 1 {
 		t.Fatalf("restored authorization audit=%#v, error=%v", audits, err)

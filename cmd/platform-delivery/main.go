@@ -96,6 +96,12 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeSpaces()
+	productAssets, closeProductAssets, err := openProductAssets(ctx, os.Getenv)
+	if err != nil {
+		slog.Error("initialize native download-asset component", "error", err)
+		os.Exit(1)
+	}
+	defer closeProductAssets()
 	repository, closeReconciliation, reconciliationSupervisor, readStats, notifications, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
@@ -221,6 +227,7 @@ func main() {
 			},
 		}, composition.Options{
 			Spaces:               spaces,
+			ProductAssets:        productAssets,
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
 			PackagingStatus:      packagingReader,

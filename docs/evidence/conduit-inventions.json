@@ -163,8 +163,8 @@
     },
     {
       "id": "releaseprep.SelfProductDescriptors",
-      "what": "Offline native preparation of Hub/Spoke Product publication inputs with exact chart/image digests, pinned default image configuration, producer display tags, and a separate six-target CLI download inventory.",
-      "why": "Issue #193 authorizes preparation without publication. Conduit owns these Product coordinates and metadata format. The native Helm input can represent executable Hub/Spoke Releases; the current service-Product API cannot carry CLI archive assets, so CLI inventory is explicitly not a published or executable catalogue Product.",
+      "what": "Offline native preparation of Hub/Spoke Product publication inputs with exact chart/image digests, pinned default image configuration and producer display tags, plus a six-target CLI download-asset declaration.",
+      "why": "Issue #193 authorizes preparation without live publication. Conduit owns these Product coordinates and metadata format. Version 2 uses the native download-assets API for CLI archive metadata while keeping CLI Releases non-executable and preserving version-1 inventory evidence as historical preparation.",
       "displacedBy": "an owner-approved self-Product publication contract defining coordinates, artifact inputs and the supported CLI asset catalogue.",
       "riskIfWrong": "Product naming and preparation format may need migration before publication. Input metadata consistency and CLI byte hashes do not authenticate signatures or registry availability. Output says NOT_PUBLISHED and preserves those unperformed checks; no publication, subscription or deployment authority is added."
     },
@@ -216,6 +216,20 @@
       "why": "Conduit self-delivery requires a CLI asset catalogue. Existing Helm and Terraform publication bodies do not describe downloadable binaries, and no recovered Apollo contract establishes this shape. Prepared metadata becomes published only through a matching catalogue receipt; it grants no execution or verification authority.",
       "displacedBy": "A published or owner-approved download-asset Product contract establishing manifest shape, catalogue authority and execution eligibility.",
       "riskIfWrong": "The native declaration shape may need replacement. CONDUIT_NATIVE and PUBLISHER_DECLARED distinguish it from recovered contracts and verified artifacts. Storage and application foundations alone expose no route or production publication capability."
+    },
+    {
+      "id": "productassets.HTTPSurface",
+      "what": "Native download-asset publication, release metadata and per-Product release listing routes, optionally composed with an immutable declaration store.",
+      "why": "The native download-asset declaration has no recovered public transport. Composition reuses original-carrier publication/resource-read decisions and catalogue receipts without creating executable Release definitions.",
+      "displacedBy": "A published or owner-approved download-asset publication API establishing routes, payloads, authority and failure semantics.",
+      "riskIfWrong": "Route and document spellings may need replacement. They are native surfaces, not private Apollo interoperability; declared asset URLs and hashes remain unverified, and no Agent execution path is created."
+    },
+    {
+      "id": "productassets.CLICatalogue",
+      "what": "The native product-release download-assets publish/get/list CLI, strict JSON declarations and an offline dry run that does not contact the Hub.",
+      "why": "A native asset Product needs an operator path distinct from Helm execution. Existing optional operator transport ports carry the declaration and receipt-bound reads, preserving explicit Space selection on publication.",
+      "displacedBy": "A published or owner-approved download-asset CLI contract establishing command paths, declarations, dry-run and catalogue read semantics.",
+      "riskIfWrong": "The command grammar may need replacement. Metadata is publisher-declared, native and non-executable; local preparation and dry run grant no Hub publication authority and verify no signatures."
     }
   ],
   "displaced": [

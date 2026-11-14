@@ -72,6 +72,10 @@ func (repository *FileRepository) CreateProductPublication(_ context.Context, pu
 func (repository *FileRepository) ListProductPublications(_ context.Context, product string) ([]ProductPublication, error) {
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
+	return repository.listProductPublicationsUnlocked(product)
+}
+
+func (repository *FileRepository) listProductPublicationsUnlocked(product string) ([]ProductPublication, error) {
 	return listJSON[ProductPublication](repository.productPublicationDirectory(), func(value ProductPublication) bool {
 		return product == "" || value.Product == product
 	}, func(left, right ProductPublication) bool {
