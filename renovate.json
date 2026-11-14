@@ -28,6 +28,19 @@
       "enabled": false
     },
     {
+      "description": "Keep the HiGHS builder on its audited base until the frozen native compiler closure is requalified (#590)",
+      "matchDatasources": [
+        "docker"
+      ],
+      "matchFileNames": [
+        "Containerfile.optimizer-highs"
+      ],
+      "matchPackageNames": [
+        "ubuntu"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Use the official HTTP version feed for the mise Grok tool instead of GitHub tags",
       "matchManagers": [
         "mise"
