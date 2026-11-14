@@ -18,6 +18,7 @@ The living UI contract is intentionally small:
   particular what each of its counts is over -- the one thing about a facet that
   cannot be inferred from looking at it.
 - `console-navigation.md` names the six workbench areas and the older hashes that open the same tabs.
+- `third-party-assets.md` credits the bundled globe imagery.
 
 The files under `evidence/` and the dated inventories in this directory are
 bounded evidence records. They can support only the observation and provenance
