@@ -142,7 +142,7 @@ export function runsMarkup(
     })
     .join("");
   return `<div class="so-panel kit-view-panel">
-    <div class="kit-view-head"><h2>Packaging runs</h2><span class="kit-muted">${list.length} recorded</span></div>
+    <div class="kit-view-head"><h2>Packaging runs</h2><span class="kit-count" title="${list.length} recorded">${list.length}</span></div>
     <div class="kit-run-tiles">${tiles}</div>
     <div class="overflow-x-auto"><table class="so-table">
       <thead><tr><th>Run</th><th>State</th><th>Outcome</th><th>Gates</th><th>Source</th><th>Target plan</th><th>Template</th></tr></thead>

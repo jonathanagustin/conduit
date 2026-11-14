@@ -23,7 +23,7 @@ const ATTENTION = new Set(["blocked", "review", "failed"]);
 
 function panel(title, count, screen, body, esc) {
   return `<section class="so-panel kit-view-panel kit-cc-panel">
-    <div class="kit-view-head"><h2>${esc(title)}</h2><span class="kit-muted">${esc(count)}</span>
+    <div class="kit-view-head"><h2>${esc(title)}</h2><span class="kit-count" title="${esc(count)} ${esc(title.toLowerCase())}">${esc(count)}</span>
       <button type="button" class="so-btn so-btn-sm kit-cc-open" data-onclick="switchScreen('${esc(screen)}')">Open</button></div>
     ${body}
   </section>`;
@@ -126,7 +126,7 @@ export function overviewMarkup(
       ${panel("Waiting on a decision", `${decisionRows.length}`, "rm07-change-requests", decisionBody, esc)}
       ${panel("Packaging runs needing attention", `${runs.length}`, "pkg-runs", runBody, esc)}
       ${panel("Environments", `${envs.length}`, "flt-environments", envBody, esc)}
-      ${panel("Recent audit", `${audit.length} recorded`, "au01-audit", auditBody, esc)}
+      ${panel("Recent audit", `${audit.length}`, "au01-audit", auditBody, esc)}
     </div>
   </div>`;
 }
