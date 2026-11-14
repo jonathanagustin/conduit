@@ -33,3 +33,19 @@ Tests constrain lifetime bounds including one nanosecond, exact-expiry behavior,
 revocation/deletion, immutable target/owner/time bindings, broken event histories
 and unsupported execution states. They are domain tests; no runtime trial or
 broker behavior has been exercised.
+
+## Private journal boundary (adapter implementation outstanding)
+
+`debugsessions/ports.Journal` requires atomic revision comparison and persistence
+of the full validated transition/audit event before successful acknowledgement.
+Its internal ID enumeration is bounded and grants no access. Failure after a
+storage commit can be ambiguous; a caller must inspect the original history,
+rather than minting a new request identity and assuming the first write failed.
+
+The private event codec is bounded to 8192 bytes. It rejects duplicate keys,
+case aliases, unknown fields, trailing documents, invalid native state and
+external session-ID/revision mismatch. Stored times normalize to UTC. Whitespace
+and object key ordering have no authority. Decoding one event still does not
+validate the history or authorize an operator. This boundary currently has no
+storage adapter, application service, authenticated Hub route or production
+composition.
