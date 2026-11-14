@@ -19,6 +19,10 @@ tasks:
     desc: Run go vet
     cmd: go vet ./...
 
+  console:
+    desc: Build the operator console into internal/consoleui/dist
+    cmd: ./scripts/build-console.sh
+
   build:
     desc: Check every shipped command compiles
     cmd: |

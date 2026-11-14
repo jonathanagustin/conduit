@@ -261,7 +261,7 @@ jobs:
             go=true
             cli=true
           fi
-          if [ -n "$(matches '^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$')" ]; then
+          if [ -n "$(matches '^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|^scripts/(build-console|test-console|verify-console-assets)\.sh$|^Containerfile$')" ]; then
             console=true
           fi
           # Lint lane also holds documentation, Containerfile, renovate, and
@@ -450,6 +450,9 @@ jobs:
       - name: Install console dependencies
         if: needs.scope.outputs.console == 'true'
         run: pnpm --dir web install --frozen-lockfile
+      - name: Build operator console
+        if: needs.scope.outputs.console == 'true'
+        run: ./scripts/build-console.sh
       - name: Install pinned console browser
         if: needs.scope.outputs.console == 'true'
         # Bounded and retried, because an unbounded download here can consume
@@ -477,6 +480,11 @@ jobs:
           done
           echo "console browser install did not succeed in three bounded attempts" >&2
           exit 1
+      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+        if: needs.scope.outputs.console == 'true'
+        with:
+          go-version-file: go.mod
+          cache: true
       - name: Validate operator console
         if: needs.scope.outputs.console == 'true'
         run: ./scripts/test-console.sh

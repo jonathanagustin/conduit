@@ -29,7 +29,7 @@
 // out of the first version of this file, because four such imports existed
 // (products -> promotions twice, environments -> fleet, environments -> plans)
 // and forbidding them meant a refactor of `web/src`, which regenerates the
-// committed bundle in `internal/consoleui/dist`. Stage 2 of
+// bundle in `internal/consoleui/dist`. Stage 2 of
 // docs/ui/foundry-frontend-architecture.md did that refactor: `statusTags`,
 // `PlanStatusTag`, `ReleaseChannelGraph` and `TransitionDetail` are now in
 // `web/src/components/`, and the rule can be enforced.

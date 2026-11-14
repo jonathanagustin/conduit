@@ -47,7 +47,11 @@ governance, execution, or persistence models.
   temporary `controlplane` facade.
 - `api/` contains pinned generated-contract inputs that are owned by this
   repository.
-- `web/` contains the operator console.
+- `web/` contains the operator console. `./scripts/build-console.sh`
+  writes it into `internal/consoleui/dist` using the Node and pnpm pins in
+  `mise.toml`. `scripts/demo-reset.sh` and `scripts/demo-seed.sh` run that
+  build and skip it when the output is already current. Before the build, the
+  Hub still starts and `/console/` names the command.
 - `deploy/` contains reusable Helm, Flux, AWS, local, and Zarf assets. Tenant
   inventories, credentials, namespaces, and installations belong to their
   deployment repositories.

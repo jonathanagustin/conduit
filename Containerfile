@@ -1,5 +1,18 @@
 # syntax=docker/dockerfile:1.26@sha256:ecfaec9ed6d810b56388c508f4121597bfbba70d41a6dfeee4d8cad5f295fc32
 
+# Node and pnpm match mise.toml. The console bundle is platform-independent,
+# so this stage runs on the build machine and the Go stage embeds the result.
+FROM --platform=$BUILDPLATFORM node:24.22.3-bookworm@sha256:9d266751ca3d7fdbe651c878ffd5ad0a42fed49a18c283509267c97f025b7496 AS console
+WORKDIR /src
+COPY mise.toml mise.toml
+COPY scripts/build-console.sh scripts/build-console.sh
+COPY internal/consoleui/dist/README.txt internal/consoleui/dist/README.txt
+COPY web/ web/
+ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+RUN corepack enable \
+ && corepack prepare pnpm@11.28.11 --activate \
+ && ./scripts/build-console.sh
+
 FROM cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9 AS runtime-base
 
 FROM --platform=$BUILDPLATFORM golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0 AS build
@@ -24,6 +37,8 @@ COPY go.mod go.sum ./
 COPY cmd cmd
 COPY internal internal
 COPY gen gen
+RUN rm -rf internal/consoleui/dist
+COPY --from=console /src/internal/consoleui/dist/ internal/consoleui/dist/
 RUN mkdir -p /out/state && touch /out/state/.keep && \
   CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -buildvcs=false \
     -ldflags="-s -w -X github.com/jonathanagustin/conduit/internal/buildinfo.Version=$VERSION -X github.com/jonathanagustin/conduit/internal/buildinfo.Commit=$COMMIT -X github.com/jonathanagustin/conduit/internal/buildinfo.BuildDate=$BUILD_DATE" \

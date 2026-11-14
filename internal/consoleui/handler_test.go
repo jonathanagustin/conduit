@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"testing/fstest"
 )
 
 func TestHandlerServesValidatedBootstrapWithoutSecurityOverrides(t *testing.T) {
@@ -101,6 +102,9 @@ func TestATenantNameContainingAQuoteSurvivesInjection(t *testing.T) {
 }
 
 func TestHandlerServesShellRouteAndImmutableAsset(t *testing.T) {
+	if !productionConsoleEmbedded() {
+		t.Skip("console assets are not built; run scripts/build-console.sh")
+	}
 	handler := Handler()
 	shell := request(t, handler, "/console/")
 	if shell.Code != http.StatusOK || !strings.Contains(shell.Body.String(), `<div id="root"></div>`) {
@@ -149,6 +153,9 @@ func TestHandlerFailsClosedForMissingAssetsAndNonCanonicalPaths(t *testing.T) {
 }
 
 func TestHandlerHonorsConditionalAssetRead(t *testing.T) {
+	if !productionConsoleEmbedded() {
+		t.Skip("console assets are not built; run scripts/build-console.sh")
+	}
 	handler := Handler()
 	shell := request(t, handler, "/console/")
 	match := regexp.MustCompile(`/console/assets/[^"']+\.js`).FindString(shell.Body.String())
@@ -178,6 +185,42 @@ func request(t *testing.T, handler http.Handler, target string) *httptest.Respon
 //
 // Asserted against a shell that has no marker rather than by deleting the real
 // one, because the real one is what verify-console-assets.sh pins.
+func TestUnbuiltConsoleServesThePlaceholder(t *testing.T) {
+	bootstrap := DefaultBootstrap()
+	handler := handler(fstest.MapFS{
+		"README.txt": &fstest.MapFile{Data: []byte("anchor")},
+	}, mustBootstrapJSON(t, bootstrap))
+	response := request(t, handler, "/console/")
+	if response.Code != http.StatusOK {
+		t.Fatalf("placeholder = %d %q", response.Code, response.Body.String())
+	}
+	if strings.Contains(response.Body.String(), bootstrapMarker) {
+		t.Fatal("the placeholder was served with its bootstrap marker unrendered")
+	}
+	if !strings.Contains(response.Body.String(), "scripts/build-console.sh") {
+		t.Fatalf("placeholder does not name the build command: %q", response.Body.String())
+	}
+	if served := servedBootstrap(t, response.Body.String()); served != bootstrap {
+		t.Fatalf("placeholder bootstrap = %#v, want %#v", served, bootstrap)
+	}
+	route := request(t, handler, "/console/plans/pln_example")
+	if route.Code != http.StatusOK || route.Body.String() != response.Body.String() {
+		t.Fatalf("placeholder route = %d, same shell = %t", route.Code, route.Body.String() == response.Body.String())
+	}
+	if missing := request(t, handler, "/console/assets/missing.js"); missing.Code != http.StatusNotFound {
+		t.Fatalf("missing asset = %d, want 404", missing.Code)
+	}
+}
+
+func mustBootstrapJSON(t *testing.T, bootstrap Bootstrap) []byte {
+	t.Helper()
+	encoded, err := json.Marshal(bootstrap)
+	if err != nil {
+		t.Fatalf("encode bootstrap: %v", err)
+	}
+	return encoded
+}
+
 func TestHydrationRefusesAShellWithNoMarker(t *testing.T) {
 	if _, err := hydrateShellDocument([]byte(`<html><head></head></html>`), []byte(`{}`)); err == nil {
 		t.Fatal("a shell with no bootstrap marker was accepted")

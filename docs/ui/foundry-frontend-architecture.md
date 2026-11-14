@@ -330,11 +330,13 @@ primary source.
 
 1. **Conduit has one console.** `web/` is a single Vite app; `web/README.md`
    says "Nothing here resolves a workspace sibling."
-2. **The build output is committed and embedded.** `web/vite.config.ts` writes to
-   `../internal/consoleui/dist`; `internal/consoleui/handler.go` has
-   `//go:embed dist`; `scripts/verify-console-assets.sh` rebuilds into a temp
-   directory and `diff --recursive`s it against the committed tree. Any change
-   under `web/src` is a change to a committed binary artifact.
+2. **The build output is embedded, and Git tracks only a placeholder.**
+   `web/vite.config.ts` writes to `../internal/consoleui/dist`;
+   `internal/consoleui/handler.go` has `//go:embed dist`.
+   `scripts/build-console.sh` produces the bundle.
+   `scripts/verify-console-assets.sh` rebuilds into a temp directory and
+   `diff --recursive`s it against that output. A change under `web/src` does
+   not commit a binary artifact.
 3. **`internal/controlplane` may not grow**, and it is gated
    (`node scripts/report-migration-progress.mjs --gate` in
    `scripts/verify-local.sh`). Nothing in this plan may push work into it.
@@ -439,14 +441,14 @@ status-tag tables reachable from one place, which matters because
 `scripts/verify-console-contract.mjs` already reads
 `web/src/features/fleet/statusTags.tsx` by path.
 
-**What it costs.** It edits `web/src`, so it requires `pnpm --dir web build` and
-a committed regeneration of `internal/consoleui/dist`. The contract gate's file
-paths must move with the file, in the same commit.
+**What it costs.** It edits `web/src`, so it requires `scripts/build-console.sh`
+before the console gate. The contract gate's file paths must move with the
+file, in the same commit.
 
 **What could break.** `scripts/verify-console-contract.mjs` hard-codes
 `web/src/features/fleet/statusTags.tsx` and `web/src/features/plans/PlansPage.tsx`;
-either must be updated or the move must stop short of them. The embedded bundle
-diff will be large and must be reviewed as a build artifact, not as source.
+either must be updated or the move must stop short of them. The console gate
+rebuilds the bundle and diffs it against a second clean build.
 
 **How it is verified.** `./scripts/test-console.sh` (which runs
 `verify-console-assets.sh` and so proves the committed bundle matches a clean

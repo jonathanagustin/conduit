@@ -22,6 +22,9 @@ import (
 //go:embed dist
 var embedded embed.FS
 
+//go:embed placeholder.html
+var placeholder []byte
+
 var assets = mustAssets()
 
 func mustAssets() fs.FS {
@@ -49,7 +52,14 @@ func Handler(config ...Bootstrap) http.Handler {
 	if err != nil {
 		panic("encode console bootstrap: " + err.Error())
 	}
-	shell, err := hydratedShell(bootstrapJSON)
+	return handler(assets, bootstrapJSON)
+}
+
+// handler serves assets from one filesystem. index.html is the built console
+// when the build has run. When it is absent, requests for the shell receive
+// placeholder.html instead of a failed process.
+func handler(assets fs.FS, bootstrapJSON []byte) http.Handler {
+	shell, err := hydratedShell(assets, bootstrapJSON)
 	if err != nil {
 		panic("hydrate console shell: " + err.Error())
 	}
@@ -61,9 +71,13 @@ func Handler(config ...Bootstrap) http.Handler {
 			return
 		}
 		contents, err := fs.ReadFile(assets, name)
-		if err != nil && shouldUseApplicationShell(name) {
+		if err != nil && (name == "index.html" || shouldUseApplicationShell(name)) {
 			name = "index.html"
 			contents, err = fs.ReadFile(assets, name)
+			if errors.Is(err, fs.ErrNotExist) {
+				contents = shell
+				err = nil
+			}
 		}
 		if err == nil && name == "index.html" {
 			contents = shell
@@ -84,6 +98,11 @@ func Handler(config ...Bootstrap) http.Handler {
 // a refusal rather than rendering with invented branding.
 const bootstrapMarker = "<!--conduit-console-bootstrap-->"
 
+func productionConsoleEmbedded() bool {
+	_, err := fs.Stat(assets, "index.html")
+	return err == nil
+}
+
 // hydratedShell renders the tenant bootstrap into the application shell, once,
 // at handler construction.
 //
@@ -101,8 +120,12 @@ const bootstrapMarker = "<!--conduit-console-bootstrap-->"
 // Alpha "Ops -- legal today -- would otherwise close the attribute early. This
 // is a bug class the previous fetch-a-JSON-document design structurally could
 // not have, and it is bought back here with escaping rather than with hope.
-func hydratedShell(bootstrapJSON []byte) ([]byte, error) {
+func hydratedShell(assets fs.FS, bootstrapJSON []byte) ([]byte, error) {
 	shell, err := fs.ReadFile(assets, "index.html")
+	if errors.Is(err, fs.ErrNotExist) {
+		shell = placeholder
+		err = nil
+	}
 	if err != nil {
 		return nil, err
 	}

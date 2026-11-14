@@ -206,6 +206,7 @@ gate 'Validate tenant fidelity policy' ./scripts/verify-pr-fidelity.test.sh
 # is about the pull request body.
 gate 'Read pull request body' ./scripts/read-pull-request-body.test.sh
 gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
+gate 'Build operator console' ./scripts/build-console.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py
