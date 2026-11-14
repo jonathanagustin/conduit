@@ -43,7 +43,18 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     --mount=type=cache,id=platform-cpsat-rust-target,target=/tmp/platform-cpsat-target,sharing=locked \
     --mount=type=cache,id=platform-cpsat-bazel,target=/tmp/platform-cpsat-bazel,sharing=locked \
     --mount=type=cache,id=platform-cpsat-bazelisk,target=/root/.cache/bazelisk,sharing=locked \
+    --mount=type=secret,id=platform-build-ca \
+    --mount=type=secret,id=platform-build-java-cacerts \
     set -eux; \
+    if [[ -r /run/secrets/platform-build-ca ]]; then \
+      export SSL_CERT_FILE=/run/secrets/platform-build-ca; \
+      export CURL_CA_BUNDLE="$SSL_CERT_FILE" CARGO_HTTP_CAINFO="$SSL_CERT_FILE"; \
+    fi; \
+    bazel_startup=(); \
+    if [[ -r /run/secrets/platform-build-java-cacerts ]]; then \
+      bazel_startup+=(--host_jvm_args=-Djavax.net.ssl.trustStore=/run/secrets/platform-build-java-cacerts); \
+      bazel_startup+=(--host_jvm_args=-Djavax.net.ssl.trustStorePassword=changeit); \
+    fi; \
     test "$BUILDARCH" = "$TARGETARCH"; \
     test "$(rustc --version)" = 'rustc 1.99.1 (58cf8f9c3 2026-10-13)'; \
     case "$TARGETARCH" in \
@@ -67,13 +78,13 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     install -m 0644 /src/adapter/native/platform_targets.BUILD.bazel /src/ortools/ortools/sat/c_api/BUILD.bazel; \
     cd /src/ortools; \
     mkdir -p /out; \
-    bazelisk --output_base=/tmp/platform-cpsat-bazel build \
+    bazelisk "${bazel_startup[@]}" --output_base=/tmp/platform-cpsat-bazel build \
       --announce_rc \
       --jobs=2 \
       --stamp=no \
       --strip=always \
       //ortools/sat/c_api:platform-cpsat-adapter; \
-    bazelisk --output_base=/tmp/platform-cpsat-bazel aquery \
+    bazelisk "${bazel_startup[@]}" --output_base=/tmp/platform-cpsat-bazel aquery \
       'mnemonic("CppLink", //ortools/sat/c_api:platform-cpsat-adapter)' \
       --output=textproto > /out/link-action.textproto; \
     install -m 0755 bazel-bin/ortools/sat/c_api/platform-cpsat-adapter /out/platform-cpsat-adapter; \
@@ -85,7 +96,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     if grep -Eq 'NEEDED|libstdc\+\+|libgcc_s' /out/dynamic-section.txt; then exit 1; fi; \
     sha256sum /out/platform-cpsat-adapter | \
       sed 's#  /out/#  #' > /out/platform-cpsat-adapter.sha256; \
-    bazel_external="$(bazelisk --output_base=/tmp/platform-cpsat-bazel info output_base)/external"; \
+    bazel_external="$(bazelisk "${bazel_startup[@]}" --output_base=/tmp/platform-cpsat-bazel info output_base)/external"; \
     mkdir -p /out/licenses/cargo; \
     install -m 0444 /src/ortools/LICENSE /out/licenses/OR-TOOLS-LICENSE; \
     install -m 0444 "$bazel_external/abseil-cpp+/LICENSE" /out/licenses/ABSEIL-LICENSE; \
