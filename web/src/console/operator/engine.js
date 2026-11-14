@@ -12,6 +12,7 @@ import {
 } from "./shell.js";
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
+import { reviewMarkup } from "./change-review.js";
 import { createConduitClient } from "@conduit/ontology-client";
 import { createSettingsDialog, THEME_KEY } from "./settings-dialog.js";
 import {
@@ -5306,8 +5307,89 @@ export function mountOperator(host, options) {
       `;
   }
 
+  // Change request review: queue, detail, and a governed approve/reject.
+  // The decision needs a reason and a confirm; the author cannot review
+  // their own request, and the Hub enforces the same rule.
+  function renderChangeReview(root) {
+    if (!root) return;
+    const review = (state.crReview ||= {
+      filter: "all",
+      selectedId: "",
+      draft: { decision: "", rationale: "" },
+      pending: false,
+      error: "",
+    });
+    const rows = Array.isArray(state.hub?.changes) ? state.hub.changes : [];
+    root.innerHTML = `<div data-cr-root>${reviewMarkup(rows, {
+      ...review,
+      operatorName: state.operatorName,
+    })}</div>`;
+    const host = root.querySelector("[data-cr-root]");
+    if (!host) return;
+    const rerender = () => renderChangeReview(root);
+    const selected = () =>
+      review.selectedId ||
+      host.querySelector("[data-cr-select]")?.getAttribute("data-cr-select") ||
+      "";
+    host.addEventListener("input", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target || !target.matches("[data-cr-rationale]")) return;
+      review.draft = { decision: "", rationale: target.value };
+      const ok = target.value.trim() !== "" && !review.pending;
+      host.querySelectorAll("[data-cr-decide]").forEach((button) => {
+        if (button.getAttribute("data-can-review") !== "0") button.disabled = !ok;
+      });
+    });
+    host.addEventListener("click", async (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      const filter = target.closest("[data-cr-filter]");
+      if (filter) {
+        review.filter = filter.getAttribute("data-cr-filter") || "all";
+        review.selectedId = "";
+        return rerender();
+      }
+      const pick = target.closest("[data-cr-select]");
+      if (pick) {
+        review.selectedId = pick.getAttribute("data-cr-select") || "";
+        review.draft = { decision: "", rationale: "" };
+        review.error = "";
+        return rerender();
+      }
+      const decide = target.closest("[data-cr-decide]");
+      if (decide && !decide.disabled) {
+        review.selectedId = selected();
+        review.draft = {
+          ...review.draft,
+          decision: decide.getAttribute("data-cr-decide") || "",
+        };
+        return rerender();
+      }
+      if (target.closest("[data-cr-cancel]")) {
+        review.draft = { ...review.draft, decision: "" };
+        return rerender();
+      }
+      if (target.closest("[data-cr-confirm]")) {
+        const id = selected();
+        const { decision, rationale } = review.draft;
+        if (!id || !decision || !rationale.trim()) return;
+        review.pending = true;
+        review.error = "";
+        rerender();
+        try {
+          await liveHub.reviewChange(id, decision, rationale.trim());
+          review.draft = { decision: "", rationale: "" };
+        } catch (error) {
+          review.error = error instanceof Error ? error.message : String(error);
+        }
+        review.pending = false;
+        rerender();
+      }
+    });
+  }
+
   function renderRM07ChangeRequests(root) {
-    liveHub.renderChanges(root);
+    renderChangeReview(root);
     return;
     const sel = RM_CRS.find((c) => c.id === state.rmSelectedCrId) || RM_CRS[0];
     const inc = state.rmIncludedCrs.includes(sel.id);

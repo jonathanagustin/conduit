@@ -524,6 +524,29 @@ export function createLiveHub({ state, render }) {
   }
 
   return {
+    /** Approves or rejects a change request as the signed-in operator. */
+    async reviewChange(id, decision, rationale) {
+      if (decision !== "approve" && decision !== "reject") {
+        throw new Error("unknown review decision");
+      }
+      const response = await fetch(
+        `/v1/change-requests/${encodeURIComponent(id)}/${decision}`,
+        {
+          method: "POST",
+          headers: {
+            "content-type": "application/json",
+            accept: "application/json",
+          },
+          body: JSON.stringify({ rationale }),
+        },
+      );
+      const body = await response.json().catch(() => ({}));
+      if (!response.ok) {
+        throw new Error(body?.error || `the Hub returned ${response.status}`);
+      }
+      await refresh();
+      return body;
+    },
     ensure() {
       paintOperator();
       if (started) return;
