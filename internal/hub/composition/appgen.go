@@ -16,6 +16,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/appgen/application"
 	appdomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
 	apphttp "github.com/jonathanagustin/conduit/internal/appgen/httpapi"
+	attachapp "github.com/jonathanagustin/conduit/internal/attachments/application"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
@@ -46,6 +47,7 @@ func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 
 func mountAppGeneration(
 	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, generator appdomain.AppGenerator,
+	stored *attachapp.Service,
 ) http.Handler {
 	registryAddress := strings.TrimSpace(os.Getenv("CONDUIT_LOCAL_REGISTRY"))
 	if registryAddress == "" {
@@ -58,6 +60,9 @@ func mountAppGeneration(
 		Handoff:   sourcefile.Writer{Dir: strings.TrimSpace(os.Getenv("PACKAGING_FIXTURE_DIR"))},
 		Audit:     appAudit{repository: repository},
 		Store:     &application.Memory{},
+	}
+	if stored != nil {
+		service.Attachments = appAttachments{stored: stored}
 	}
 	mux := http.NewServeMux()
 	apphttp.Register(mux, apphttp.Config{
@@ -88,6 +93,7 @@ func (audit appAudit) Record(ctx context.Context, event application.Audit) error
 			"adapter": event.Adapter, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
 			"files": event.Files, "buildPassed": event.BuildPassed, "buildReason": event.BuildReason,
 			"healthPassed": event.HealthPassed, "healthReason": event.HealthReason,
+				"attachmentSha256": event.AttachmentSHA256,
 		},
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, record)

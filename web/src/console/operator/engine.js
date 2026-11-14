@@ -37,6 +37,12 @@ import {
   runAssistantAction,
 } from "./assistant-rail.js";
 import {
+  attachControl,
+  attachmentList,
+  bindAttach,
+  ensureLoaded as ensureAttachments,
+} from "./attachments.js";
+import {
   areaObject,
   areaSupplement,
   bindKit,
@@ -1509,6 +1515,8 @@ export function mountOperator(host, options) {
       ).join("");
     const chrome = rail.querySelector("[data-assistant-chrome]");
     if (chrome) chrome.innerHTML = assistantChrome(state);
+    bindAttach(rail, state, renderChatRail);
+    ensureAttachments(state, renderChatRail);
     const results = rail.querySelector("[data-assistant-results]");
     if (results) results.innerHTML = resultsMarkup(state);
     if (typeof notifyOperator === "function") notifyOperator();
@@ -2582,15 +2590,7 @@ export function mountOperator(host, options) {
   // SCREEN 1: CHAT-FIRST INTAKE (Matched 1:1 to Conduit f_05_08_comms_det.png!)
   // =========================================================================
   function renderS01Intake(root) {
-    const attachments = [
-      {
-        name: "uds-telemetry-0.31.2.tar.zst",
-        type: "Tarball",
-        size: "148.4 MB",
-      },
-      { name: "values.yaml", type: "Config", size: "4.2 KB" },
-      { name: "ingress-oom-capture.png", type: "Screenshot", size: "312 KB" },
-    ];
+    const stored = state.attachments?.items || [];
 
     root.innerHTML = `
         <div class="space-y-3 h-full flex flex-col">
@@ -2618,6 +2618,7 @@ export function mountOperator(host, options) {
                 </div>
 
                 <div class="text-[12.5px] text-[#dce4ee] leading-relaxed space-y-2.5">
+                  <div class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data · sample message</div>
                   <p>Release Control,</p>
                   <p>
                     Cluster <span onclick="switchScreen('s14-env-detail')" class="entity-span">edge-west-02</span> hit repeated <span class="entity-span-warn">ingress-gateway 768Mi OOM</span> restarts during burst replay over <span onclick="switchScreen('s17-spokes-audit')" class="entity-span">spoke-west-relay</span>.
@@ -2628,26 +2629,14 @@ export function mountOperator(host, options) {
                 </div>
 
                 <div class="pt-2 border-t border-[#1c242c] space-y-1.5">
-                  <div class="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#6d7885]">ATTACHMENTS (3)</div>
-                  <div class="flex flex-wrap gap-1.5">
-                    ${attachments
-                      .map(
-                        (a) => `
-                      <span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-[5px] bg-[#0c1217] border border-[#222e3a] text-[11px]">
-                        <span class="text-[#60a5fa] flex">${ic("paperclip")}</span>
-                        <span class="code-id text-[#f0f5fa]">${a.name}</span>
-                        <span class="text-[10px] text-[#6d7885]">(${a.type} · ${a.size})</span>
-                      </span>
-                    `,
-                      )
-                      .join("")}
-                  </div>
+                  <div class="text-[10px] font-semibold uppercase tracking-[0.09em] text-[#6d7885]">ATTACHMENTS (${stored.length}) · stored on the Hub, read-only</div>
+                  ${attachmentList(stored)}
                 </div>
               </div>
 
               <!-- Intake Follow-up Input -->
               <div class="so-panel p-2.5 flex items-center gap-2 shrink-0">
-                <button class="so-btn so-btn-sm">${ic("paperclip")} <span>Attach</span></button>
+                ${attachControl(state.attachments?.reason, "intake")}
                 <input type="text" placeholder="Add rollout wave or spoke constraint..." class="so-input flex-1" />
                 <button onclick="switchScreen('s04-scope-plan')" class="so-btn so-btn-sm so-btn-blue">Send</button>
               </div>
@@ -2711,6 +2700,8 @@ export function mountOperator(host, options) {
           </div>
         </div>
       `;
+    bindAttach(root, state, renderApp);
+    ensureAttachments(state, renderApp);
   }
 
   // =========================================================================

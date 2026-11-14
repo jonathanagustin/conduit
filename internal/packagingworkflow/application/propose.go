@@ -20,7 +20,14 @@ type Result struct {
 	Proposal        domain.Proposal   `json:"proposal"`
 	Provenance      domain.Provenance `json:"provenance"`
 	ChangeRequestID string            `json:"changeRequestId,omitempty"`
-	Error           string            `json:"error,omitempty"`
+	// AttachmentSHA256 lists the bound intake files, as lowercase sha256 hex.
+	AttachmentSHA256 []string `json:"attachmentSha256,omitempty"`
+	Error            string   `json:"error,omitempty"`
+}
+
+// Attachments loads stored intake files by digest as bound, read-only context.
+type Attachments interface {
+	Resolve(ctx context.Context, digests []string) ([]domain.Attachment, error)
 }
 
 // PendingChange is a proposal that passed the gate and still needs a person.
@@ -54,7 +61,9 @@ type Service struct {
 	Facts    Facts
 	Open     Opener
 	Audit    Auditor
-	Now      func() time.Time
+	// Attachments binds intake files named by digest. Nil refuses a request that names any.
+	Attachments Attachments
+	Now         func() time.Time
 }
 
 func (service Service) Propose(ctx context.Context, input domain.PackagingContext, environment, author string) (Result, error) {
@@ -64,6 +73,23 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 		return result, nil
 	}
 	input = service.withFacts(ctx, input)
+	if len(input.AttachmentSHA256) > 0 {
+		if service.Attachments == nil {
+			result.Error = "attachments are not configured"
+			return result, nil
+		}
+		bound, err := service.Attachments.Resolve(ctx, input.AttachmentSHA256)
+		if err != nil {
+			result.Error = err.Error()
+			return result, nil
+		}
+		input.Attachments = bound
+		input.AttachmentSHA256 = input.AttachmentSHA256[:0:0]
+		for _, item := range bound {
+			input.AttachmentSHA256 = append(input.AttachmentSHA256, item.SHA256)
+		}
+		result.AttachmentSHA256 = input.AttachmentSHA256
+	}
 	proposal, provenance, err := service.Proposer.Propose(ctx, input)
 	result.Provenance = provenance
 	if err != nil {
@@ -119,6 +145,9 @@ func (service Service) withFacts(ctx context.Context, input domain.PackagingCont
 	fill(&input.ImageRef, loaded.ImageRef)
 	fill(&input.ImageDigest, loaded.ImageDigest)
 	fill(&input.GateRules, loaded.GateRules)
+	if len(input.AttachmentSHA256) == 0 {
+		input.AttachmentSHA256 = loaded.AttachmentSHA256
+	}
 	return input
 }
 

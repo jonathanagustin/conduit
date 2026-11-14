@@ -146,6 +146,19 @@ before a worker is told. Cancel stops the packaging run only. A run that
 already handed off a Plan is not cancelled here, and this route does not
 call `POST /v1/plans/{planID}/cancel`.
 
+Intake attachment routes under `/v1/intake-attachments` are `operator-any`.
+`POST` takes one JSON object with `filename` and `content`, not a multipart
+stream. It accepts text-like files only: `Dockerfile`, `.yaml`, `.yml`, `.json`,
+`.txt`, and a short `.md` spec. Images, archives, and other binaries are
+refused, as is a file over 256 KiB, a set of more than 8 files or 1 MiB, or
+content that carries key material or a credential assignment. A refused upload
+returns its reason and is not stored. A stored file is named by the lowercase
+sha256 of its bytes, and that digest is recorded on the audit chain. `GET`
+returns the stored name, type, size, and digest, and the file text by digest.
+The routes cannot approve a change or publish a release. A confirmed app
+generation or a packaging model proposal may name stored digests, which bind
+the bytes as read-only context.
+
 Developer workspace routes under `/v1/dev-workspaces` are a separate surface.
 Reads require an operator and then the owner or an environment read. Writes
 require standing and then the owner. Submit opens a change request through

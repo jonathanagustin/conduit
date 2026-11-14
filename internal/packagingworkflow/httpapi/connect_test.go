@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -174,7 +175,7 @@ func getConnect(t *testing.T, server *httptest.Server, runID string) domain.RunS
 
 func assertSameRun(t *testing.T, rest, got domain.RunStatus) {
 	t.Helper()
-	if rest != got {
+	if !reflect.DeepEqual(rest, got) {
 		t.Fatalf("REST = %#v\nConnect = %#v", rest, got)
 	}
 }
