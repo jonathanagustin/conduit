@@ -20,7 +20,9 @@ function initials(name) {
 }
 
 async function readJSON(path) {
-  const response = await fetch(path, { headers: { accept: "application/json" } });
+  const response = await fetch(path, {
+    headers: { accept: "application/json" },
+  });
   if (!response.ok) {
     throw new Error(`${path} returned ${response.status}`);
   }
@@ -41,7 +43,9 @@ async function readPages(path, key) {
   const rows = [];
   let cursor = "";
   for (let page = 0; page < 5; page += 1) {
-    const url = cursor ? `${path}${path.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}` : path;
+    const url = cursor
+      ? `${path}${path.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`
+      : path;
     const body = await readJSON(url);
     const items = Array.isArray(body[key]) ? body[key] : [];
     rows.push(...items);
@@ -67,7 +71,9 @@ function hub(state) {
 }
 
 function latestPlan(plans, environment) {
-  const rows = (plans || []).filter((plan) => !environment || plan?.plan?.environment === environment);
+  const rows = (plans || []).filter(
+    (plan) => !environment || plan?.plan?.environment === environment,
+  );
   return rows[rows.length - 1] || null;
 }
 
@@ -82,13 +88,42 @@ function recallsFrom(plans) {
   return rows;
 }
 
+// reportedDrift reads only fields a spoke report can supply. A desired
+// installation with no observation is unknown, including when the fleet marks
+// that gap stale or out of date. Drift requires an observed digest or version
+// that differs, or a reported config status of DRIFTED.
+export function reportedDrift(row) {
+  const observedAt = row?.observedAt || "";
+  const observedVersion = row?.observedVersion || "";
+  const observedDigest = row?.observedReleaseDigest || "";
+  const observedConfig = row?.observedConfigDigest || "";
+  if (!observedAt && !observedVersion && !observedDigest && !observedConfig)
+    return "unknown";
+  if (row?.configStatus === "DRIFTED") return "drifted";
+  const desiredDigest = row?.desiredReleaseDigest || "";
+  if (desiredDigest && observedDigest && desiredDigest !== observedDigest)
+    return "drifted";
+  const desiredVersion = row?.desiredVersion || "";
+  if (desiredVersion && observedVersion && desiredVersion !== observedVersion)
+    return "drifted";
+  if (row?.stale) return "stale";
+  if (
+    row?.configStatus === "APPLIED" ||
+    row?.configStatus === "INDETERMINATE"
+  ) {
+    return row.configStatus === "APPLIED" ? "in sync" : "unknown";
+  }
+  return "unknown";
+}
+
 function digestRows(plan, environments) {
   const steps = plan?.plan?.steps || [];
   const rows = [];
   for (const environment of environments || []) {
     const reported = environment?.reported?.entities || [];
     for (const entity of reported) {
-      const step = steps.find((item) => item.installationId === entity.installationId) ||
+      const step =
+        steps.find((item) => item.installationId === entity.installationId) ||
         steps.find((item) => item.product === entity.product);
       const desired = step?.releaseDigest || "";
       const observed = entity.releaseDigest || "";
@@ -96,7 +131,10 @@ function digestRows(plan, environments) {
       if (desired && observed && desired === observed) status = "converged";
       else if (desired && observed) status = "spoke digest differs";
       rows.push({
-        environment: environment?.environment?.id || environment?.reported?.environment || "",
+        environment:
+          environment?.environment?.id ||
+          environment?.reported?.environment ||
+          "",
         installation: entity.installationId || "",
         desired,
         observed,
@@ -139,7 +177,9 @@ export function recordedProposal(state) {
   const run = runs.find((item) => item && item.runId) || null;
   if (!run) return null;
   const events = hub(state).packagingEvents || [];
-  const failed = events.some((event) => /FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/i.test(event.outcome || ""));
+  const failed = events.some((event) =>
+    /FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/i.test(event.outcome || ""),
+  );
   const passed = events.some((event) => event.outcome === "PASS");
   return { run, events, failed, passed };
 }
@@ -181,7 +221,10 @@ export function createLiveHub({ state, render }) {
   function auditPanel(limit) {
     const entries = hub(state).audit || [];
     if (!entries.length) {
-      return panel("Audit chain", `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).auditNote || "No audit entries are recorded.")}</p>`);
+      return panel(
+        "Audit chain",
+        `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).auditNote || "No audit entries are recorded.")}</p>`,
+      );
     }
     const shown = limit ? entries.slice(0, limit) : entries;
     const items = shown
@@ -222,12 +265,14 @@ export function createLiveHub({ state, render }) {
       promotions: [],
       plans: [],
       environments: [],
+      installations: [],
       preview: null,
       note: "",
     };
     try {
       const session = await readJSON("/v1/session");
-      const name = session?.effective?.username || session?.actor?.username || "";
+      const name =
+        session?.effective?.username || session?.actor?.username || "";
       state.operatorName = name || "Operator";
     } catch {
       state.operatorName = "Operator";
@@ -238,16 +283,30 @@ export function createLiveHub({ state, render }) {
       next.note = "Hub did not return environments.";
     }
     try {
+      next.installations = await readPages(
+        "/v1/fleet/installations",
+        "installations",
+      );
+    } catch {
+      next.installationNote = "Hub did not return reported installations.";
+    }
+    try {
       const body = await readJSON("/v1/packaging-runs");
       next.packaging = Array.isArray(body.items) ? body.items : [];
       next.packagingEventsByRun = {};
       for (const run of next.packaging) {
         if (!run.runId) continue;
-        const events = await readJSON(`/v1/packaging-runs/${encodeURIComponent(run.runId)}/events`);
-        next.packagingEventsByRun[run.runId] = Array.isArray(events.items) ? events.items : [];
+        const events = await readJSON(
+          `/v1/packaging-runs/${encodeURIComponent(run.runId)}/events`,
+        );
+        next.packagingEventsByRun[run.runId] = Array.isArray(events.items)
+          ? events.items
+          : [];
       }
       const first = next.packaging.find((item) => item.runId);
-      next.packagingEvents = first ? next.packagingEventsByRun[first.runId] || [] : [];
+      next.packagingEvents = first
+        ? next.packagingEventsByRun[first.runId] || []
+        : [];
     } catch {
       next.packagingNote = "Hub did not return packaging runs.";
     }
@@ -277,7 +336,9 @@ export function createLiveHub({ state, render }) {
       const bundles = Array.isArray(listed.bundles) ? listed.bundles : [];
       const newest = bundles[bundles.length - 1];
       if (newest?.id) {
-        const envelope = await readJSON(`/v1/bundles/${encodeURIComponent(newest.id)}`);
+        const envelope = await readJSON(
+          `/v1/bundles/${encodeURIComponent(newest.id)}`,
+        );
         next.preview = await postJSON("/v1/bundles/preview", envelope);
       }
     } catch {
@@ -298,7 +359,9 @@ export function createLiveHub({ state, render }) {
     renderPackaging(root) {
       const runs = hub(state).packaging || [];
       if (!runs.length) {
-        root.innerHTML = missing(hub(state).packagingNote || "No packaging run is recorded.");
+        root.innerHTML = missing(
+          hub(state).packagingNote || "No packaging run is recorded.",
+        );
         return;
       }
       const cards = runs
@@ -335,7 +398,9 @@ export function createLiveHub({ state, render }) {
     renderBundle(root) {
       const preview = hub(state).preview;
       if (!preview) {
-        root.innerHTML = missing(hub(state).bundleNote || "No signed bundle is recorded.");
+        root.innerHTML = missing(
+          hub(state).bundleNote || "No signed bundle is recorded.",
+        );
         return;
       }
       const components = (preview.sbom || [])
@@ -350,14 +415,14 @@ export function createLiveHub({ state, render }) {
         .join("");
       const signature = preview.signature || {};
       root.innerHTML = split(`${panel(
-          "Bundle preview",
-          `<dl class="space-y-2 text-[12px]">
+        "Bundle preview",
+        `<dl class="space-y-2 text-[12px]">
             <div><dt class="text-[#6d7885]">Bundle</dt><dd class="code-id text-white">${esc(preview.bundleId)}</dd></div>
             <div><dt class="text-[#6d7885]">Manifest digest</dt><dd class="code-id text-white break-all">${esc(preview.manifestDigest)}</dd></div>
             <div><dt class="text-[#6d7885]">Signature key</dt><dd class="code-id text-white break-all">${esc(signature.keyId || "")}</dd></div>
             <div><dt class="text-[#6d7885]">Signature verified</dt><dd class="text-white">${signature.verified ? "yes" : "no"}</dd></div>
           </dl>`,
-        )}
+      )}
         ${panel(
           "SBOM",
           components
@@ -368,14 +433,17 @@ export function createLiveHub({ state, render }) {
     renderChanges(root) {
       const rows = hub(state).changes || [];
       if (!rows.length) {
-        root.innerHTML = missing(hub(state).changeNote || "No change request is recorded.");
+        root.innerHTML = missing(
+          hub(state).changeNote || "No change request is recorded.",
+        );
         return;
       }
       const cards = rows
         .map((request) => {
           const reviews = (request.reviews || [])
             .map(
-              (review) => `<li class="text-[12px] text-[#dce4ee]">${esc(review.decision)} by ${esc(review.subject)} — ${esc(review.rationale || "")}</li>`,
+              (review) =>
+                `<li class="text-[12px] text-[#dce4ee]">${esc(review.decision)} by ${esc(review.subject)} — ${esc(review.rationale || "")}</li>`,
             )
             .join("");
           return panel(
@@ -396,7 +464,10 @@ export function createLiveHub({ state, render }) {
     renderPromotion(root) {
       const edges = promotionEdges(state);
       if (!edges.length) {
-        root.innerHTML = missing(hub(state).promotionNote || "No promotion from dev to staging is recorded.");
+        root.innerHTML = missing(
+          hub(state).promotionNote ||
+            "No promotion from dev to staging is recorded.",
+        );
         return;
       }
       const rows = edges
@@ -409,38 +480,71 @@ export function createLiveHub({ state, render }) {
           </tr>`,
         )
         .join("");
-      root.innerHTML = split(panel(
-        "Promotion",
-        `<p class="text-[12px] text-[#8b96a5]">DEV to STAGING.</p>
+      root.innerHTML = split(
+        panel(
+          "Promotion",
+          `<p class="text-[12px] text-[#8b96a5]">DEV to STAGING.</p>
          <table class="so-table"><thead><tr><th>Product</th><th>Version</th><th>Edge</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
-      ));
+        ),
+      );
     },
     renderEnvironments(root) {
       const rows = hub(state).environments || [];
-      if (!rows.length) {
-        root.innerHTML = missing(hub(state).note || "No environment is recorded.");
+      const installations = hub(state).installations || [];
+      if (!rows.length && !installations.length) {
+        root.innerHTML = missing(
+          hub(state).note || "No environment is recorded.",
+        );
         return;
       }
       const body = rows
         .map((row) => {
           const spoke = row.spoke || {};
+          const reportedAt = row.reported?.observedAt || spoke.observedAt || "";
           return `<tr>
             <td class="text-white">${esc(row.environment?.id || "")}</td>
-            <td class="code-id">${esc(spoke.agentId || "")}</td>
+            <td class="code-id">${esc(spoke.agentId || row.reported?.agentId || "")}</td>
             <td>${esc(spoke.state || "")}</td>
-            <td class="text-[#8b96a5]">${esc(spoke.observedAt || "")}</td>
+            <td class="text-[#8b96a5]">${esc(reportedAt || "no report")}</td>
           </tr>`;
         })
         .join("");
-      root.innerHTML = split(panel(
-        "Environments",
-        `<table class="so-table"><thead><tr><th>Environment</th><th>Spoke</th><th>Liveness</th><th>Observed</th></tr></thead><tbody>${body}</tbody></table>`,
-      ));
+      const installs = installations
+        .map(
+          (row) => `<tr>
+            <td class="text-white">${esc(row.product || "")}</td>
+            <td>${esc(row.environment || "")}</td>
+            <td>${esc(row.desiredVersion || "")}</td>
+            <td>${esc(row.observedVersion || "")}</td>
+            <td>${esc(reportedDrift(row))}</td>
+            <td class="text-[#8b96a5]">${esc(row.observedAt || "no report")}</td>
+          </tr>`,
+        )
+        .join("");
+      const spokeTable = rows.length
+        ? panel(
+            "Spokes",
+            `<table class="so-table"><thead><tr><th>Environment</th><th>Spoke</th><th>Liveness</th><th>Latest report</th></tr></thead><tbody>${body}</tbody></table>`,
+          )
+        : missing(hub(state).note || "No environment is recorded.");
+      const installTable = installations.length
+        ? panel(
+            "Reported installations",
+            `<p class="text-[12px] text-[#8b96a5]">Desired and observed versions. Drift is shown only when a spoke reported a differing digest, version, or config status. A missing report stays unknown.</p>
+             <table class="so-table"><thead><tr><th>Product</th><th>Environment</th><th>Desired</th><th>Observed</th><th>Drift</th><th>Report</th></tr></thead><tbody>${installs}</tbody></table>`,
+          )
+        : panel(
+            "Reported installations",
+            `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).installationNote || "No installation report is recorded.")}</p>`,
+          );
+      root.innerHTML = split(`${spokeTable}${installTable}`);
     },
     renderRecall(root) {
       const pairs = recallsFrom(hub(state).plans);
       if (!pairs.length) {
-        root.innerHTML = missing(hub(state).planNote || "No recall is recorded.");
+        root.innerHTML = missing(
+          hub(state).planNote || "No recall is recorded.",
+        );
         return;
       }
       const blocks = pairs
@@ -473,7 +577,9 @@ export function createLiveHub({ state, render }) {
     renderAudit(root) {
       const entries = hub(state).audit || [];
       if (!entries.length) {
-        root.innerHTML = missing(hub(state).auditNote || "No audit entries are recorded.");
+        root.innerHTML = missing(
+          hub(state).auditNote || "No audit entries are recorded.",
+        );
         return;
       }
       root.innerHTML = `<div class="so-view-enter">${panel(
@@ -510,8 +616,11 @@ export function renderLiveProposal(root, state) {
   const cards = proposals
     .map((run) => {
       const events = byRun[run.runId] || [];
-      const failed = events.some((event) => /FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/.test(event.outcome || ""));
-      const passed = events.some((event) => event.outcome === "PASS") && !failed;
+      const failed = events.some((event) =>
+        /FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/.test(event.outcome || ""),
+      );
+      const passed =
+        events.some((event) => event.outcome === "PASS") && !failed;
       const verdict = failed
         ? "Deterministic checks blocked this proposal."
         : passed
@@ -519,7 +628,8 @@ export function renderLiveProposal(root, state) {
           : "The proposal is recorded. Checks have not finished.";
       const rows = events
         .map(
-          (event) => `<tr><td>${esc(event.step)}</td><td>${esc(event.outcome || "")}</td><td class="text-[#8b96a5]">${esc(event.reason || "")}</td></tr>`,
+          (event) =>
+            `<tr><td>${esc(event.step)}</td><td>${esc(event.outcome || "")}</td><td class="text-[#8b96a5]">${esc(event.reason || "")}</td></tr>`,
         )
         .join("");
       return `${panel(
