@@ -3,6 +3,7 @@ import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
+import { createIntelligence } from "./intelligence.js";
 import {
   assistantChrome,
   publishAssistantContext,
@@ -475,6 +476,42 @@ export function mountOperator(host, options) {
       subtitle: "BUNDLE PREVIEW",
     },
     {
+      id: "ai01-logic",
+      num: 38,
+      short: "Logic",
+      tabTitle: "Logic workbench",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "PROPOSAL PIPELINE",
+    },
+    {
+      id: "ai02-evals",
+      num: 39,
+      short: "Evals",
+      tabTitle: "Eval cases",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "GATE CASES",
+    },
+    {
+      id: "ai03-events",
+      num: 40,
+      short: "Automations",
+      tabTitle: "Event automations",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "EXAMPLE AUTOMATIONS",
+    },
+    {
+      id: "ai04-courses",
+      num: 41,
+      short: "Courses",
+      tabTitle: "Courses of action",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "SCORED OPTIONS",
+    },
+    {
       id: "au01-audit",
       num: 37,
       short: "Audit",
@@ -793,6 +830,7 @@ export function mountOperator(host, options) {
     render: () => renderApp(),
   });
   state.liveHub = liveHub;
+  const intelligence = createIntelligence();
 
   function recordAudit(evt) {
     state.auditCount += 1;
@@ -948,6 +986,10 @@ export function mountOperator(host, options) {
         id: "rm07-change-requests",
       },
       { label: "Bundle Preview", icon: "cube", id: "rm08-bundle-preview" },
+      { label: "Logic", icon: "bolt", id: "ai01-logic" },
+      { label: "Eval cases", icon: "shield", id: "ai02-evals" },
+      { label: "Automations", icon: "audit", id: "ai03-events" },
+      { label: "Courses", icon: "delivery", id: "ai04-courses" },
       { label: "Audit", icon: "audit", id: "au01-audit" },
       ...releaseGates.navItems,
       ...ontologyGraph.navItems,
@@ -5747,6 +5789,10 @@ export function mountOperator(host, options) {
       "rm06-promotion-pipe": renderRM06PromotionPipe,
       "rm07-change-requests": renderRM07ChangeRequests,
       "rm08-bundle-preview": renderRM08BundlePreview,
+      "ai01-logic": (root) => intelligence.renderLogic(root),
+      "ai02-evals": (root) => intelligence.renderEvals(root),
+      "ai03-events": (root) => intelligence.renderEvents(root),
+      "ai04-courses": (root) => intelligence.renderCourses(root),
       ...releaseGates.renderers,
       ...ontologyGraph.renderers,
       ...settings.renderers,
