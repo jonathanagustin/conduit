@@ -1317,8 +1317,6 @@ export function mountOperator(host, options) {
           <div id="assistant-thread-mount" class="assistant-thread-mount"></div>
         `;
       bindAssistantRail(rail);
-      if (typeof notifyOperator === "function") notifyOperator();
-      return;
     }
     const chrome = rail.querySelector("[data-assistant-chrome]");
     if (chrome) chrome.innerHTML = assistantChrome(state);
