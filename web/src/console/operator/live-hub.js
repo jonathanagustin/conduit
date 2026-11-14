@@ -354,6 +354,12 @@ export function createLiveHub({ state, render }) {
       next.channelNote = "Hub did not return channel subscriptions.";
     }
     try {
+      const rollouts = await readJSON("/v1/rollouts");
+      next.rollouts = Array.isArray(rollouts.rollouts) ? rollouts.rollouts : [];
+    } catch {
+      next.rolloutNote = "Hub did not return staged rollouts.";
+    }
+    try {
       const body = await readJSON("/v1/packaging-runs");
       next.packaging = Array.isArray(body.items) ? body.items : [];
       next.packagingEventsByRun = {};
@@ -643,6 +649,22 @@ export function createLiveHub({ state, render }) {
           `<p class="text-[12px] text-[#8b96a5] mb-2">Recorded promotion edges.</p><div class="space-y-2">${pipe}</div>`,
         ),
       );
+    },
+    renderWaves(root) {
+      const rollouts = hub(state).rollouts || [];
+      const note = hub(state).rolloutNote || "No staged rollout is recorded.";
+      const body = rollouts.length
+        ? `<ul class="space-y-2">${rollouts
+            .map(
+              (rollout) =>
+                `<li class="text-[12px] text-white">${esc(rollout.id)} · ${esc(rollout.product)} ${esc(rollout.version)} · ${esc(rollout.status)}</li>`,
+            )
+            .join("")}</ul>`
+        : `<p class="text-[12px] text-[#8b96a5]">${esc(note)}</p>`;
+      root.innerHTML = `<div class="so-view-enter">${panel(
+        "Staged waves",
+        `<p class="text-[12px] text-[#8b96a5]">Each wave waits on health, an approval, or a time window. Pause confirms. Start, resume, and roll back open a change request.</p>${body}`,
+      )}</div>`;
     },
     renderChannels(root) {
       const view = hub(state).channels;
