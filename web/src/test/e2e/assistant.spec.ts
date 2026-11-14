@@ -407,6 +407,22 @@ test.describe("fake ACP bridge", () => {
       });
       await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
       await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm09-recalls");
+      });
+      await expect(page.getByText("RCL-2026-019").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm10-ramped-rollout");
+      });
+      await expect(page.getByText("Canary pacing").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm11-debug-terminal");
+      });
+      await expect(page.getByText("JITA-204").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("pt01-proposal-trace");
+      });
+      await expect(page.getByText("Guardrail check").first()).toBeVisible();
+      await page.evaluate(() => {
         (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
       });
       await expect(page.getByLabel("Message input")).toBeVisible();

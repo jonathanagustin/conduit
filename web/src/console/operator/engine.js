@@ -1,10 +1,12 @@
 /* Ported from the release console. Example rows stay labeled in the top bar. */
+import { createReleaseGates } from "./release-gates.js";
+
 export function mountOperator(host, options) {
   const notifyOperator = () => {
     const mount = host.querySelector("#assistant-thread-mount");
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
-  host.innerHTML = '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" title="Offline example fixtures from src/mocks/exampleReleaseData.ts">EXAMPLE DATA</span>\n      <div class="hidden sm:inline-flex items-center gap-1.5 h-[28px] px-2.5 rounded-[5px] bg-[#241317] border border-[#4a2026] text-[10px] font-semibold tracking-[0.08em] text-[#f28b8f]">\n        <span class="w-2 h-2 rounded-full bg-[#e76a6e] inline-block"></span>\n        <span>LIVE</span>\n      </div>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" title="Operator: J. Alvarez">\n        <span class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">JA</span>\n        <span class="hidden 2xl:inline">J. Alvarez</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+  host.innerHTML = '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" title="Offline example fixtures from src/mocks/exampleReleaseData.ts">EXAMPLE DATA</span>\n      <div class="hidden sm:inline-flex items-center gap-1.5 h-[28px] px-2.5 rounded-[5px] bg-[#241317] border border-[#4a2026] text-[10px] font-semibold tracking-[0.08em] text-[#f28b8f]">\n        <span class="so-live-dot w-2 h-2 rounded-full bg-[#e76a6e] inline-block"></span>\n        <span>LIVE</span>\n      </div>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" title="Operator: J. Alvarez">\n        <span class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">JA</span>\n        <span class="hidden 2xl:inline">J. Alvarez</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
   
     const ICONS = {
       extLink: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.5 2.5h4v4M13.5 2.5L7.5 8.5M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/></svg>',
@@ -50,7 +52,11 @@ export function mountOperator(host, options) {
       inbox: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 3h11l1 6v4h-13V9l1-6z"/><path d="M1.5 9h4l1 1.8h3L10.5 9h4"/></svg>',
       share: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="3.5" r="1.8"/><circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="12.5" r="1.8"/><path d="M5.6 7.1l4.8-2.7M5.6 8.9l4.8 2.7"/></svg>',
       edit: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.8 2.5l2.7 2.7-8 8H2.8v-2.7l8-8z"/></svg>',
-      trash: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.6 9h5.8l.6-9"/></svg>'
+      trash: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.6 9h5.8l.6-9"/></svg>',
+      sparkle: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8l1.6 3.9L13.5 7.3l-3.9 1.6L8 12.8 6.4 8.9 2.5 7.3l3.9-1.6L8 1.8z"/></svg>',
+      flask: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2.5h4M6.8 2.5v3.3L3.3 12a1.2 1.2 0 0 0 1.1 1.8h7.2A1.2 1.2 0 0 0 12.7 12L9.2 5.8V2.5"/><path d="M4.8 10h6.4"/></svg>',
+      recall: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"/></svg>',
+      terminal: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5"/><path d="M4.5 6l2.5 2-2.5 2M8.2 10h3.2"/></svg>'
     };
     function ic(n) { return ICONS[n] || ICONS.file; }
 
@@ -178,6 +184,7 @@ export function mountOperator(host, options) {
       chatCollapsed: true,
       cmdOmnibarOpen: false,
       cmdOmnibarQuery: "",
+      cmdSelectedIdx: 0,
       rmEnvResourceTab: "overview",
       rmActivitySubnav: "plans",
       rmPlanSearch: "",
@@ -265,6 +272,22 @@ export function mountOperator(host, options) {
         }
       ]
     };
+
+    const releaseGates = createReleaseGates({
+      state,
+      ic,
+      pill,
+      ontChip,
+      toolChip,
+      agentChip,
+      governedBtn,
+      rmApiStrip,
+      recordAudit,
+      render: () => renderMainWorkspace(),
+      switchScreen: (id) => switchScreen(id),
+    });
+    releaseGates.extendState();
+    SCREENS.push(...releaseGates.screens);
 
     function recordAudit(evt) {
       state.auditCount += 1;
@@ -368,6 +391,7 @@ export function mountOperator(host, options) {
         { label: "Environments", icon: "cluster", id: "rm01-env-page" },
         { label: "Release Rollout", icon: "cube", id: "rm05-release-rollout" },
         { label: "Promotion Pipeline", icon: "delivery", id: "rm06-promotion-pipe" },
+        ...releaseGates.navItems,
         { label: "Control Tower", icon: "approvals", id: "s15-plan-detail" },
         { label: "Workspaces", icon: "pin", id: "s02-workspaces" }
       ];
@@ -391,8 +415,8 @@ export function mountOperator(host, options) {
         aside.className = "is-rail-collapsed w-[56px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between items-center py-2.5 select-none" + hubHiddenCls;
         sectionsEl.className = "flex flex-col items-center gap-1.5 pt-1";
         sectionsEl.innerHTML = navItems.map(m => `
-          <button onclick="switchScreen('${m.id}')" title="${m.label}" class="w-[36px] h-[34px] rounded-[6px] flex items-center justify-center ${
-            state.screen === m.id ? 'bg-[#17253a] border-l-2 border-[#5c96e6] text-[#5c9ce6]' : 'text-[#8b96a5] hover:text-white'
+          <button onclick="switchScreen('${m.id}')" title="${m.label}" class="w-[36px] h-[32px] rounded-[6px] flex items-center justify-center transition-colors ${
+            state.screen === m.id ? 'bg-[#17253a] border-l-2 border-[#5c96e6] text-[#5c9ce6]' : 'text-[#8b96a5] hover:text-white hover:bg-[#161e26]'
           }">${ic(m.icon)}</button>
         `).join("");
         return;
@@ -406,12 +430,12 @@ export function mountOperator(host, options) {
           <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[#596573]">${title}</div>
           <div class="space-y-0.5">
             ${apps.map(a => `
-              <button onclick="switchScreen('${a.id}')" class="so-nav-row">
-                <span class="flex items-center gap-2.5">
-                  <span class="flex text-[#7c8794]">${ic(a.icon)}</span>
-                  <span>${a.label}</span>
+              <button onclick="switchScreen('${a.id}')" class="so-nav-row ${state.screen === a.id ? "is-active" : ""}">
+                <span class="flex items-center gap-2 min-w-0 flex-1">
+                  <span class="flex shrink-0 text-[#7c8794]">${ic(a.icon)}</span>
+                  <span class="truncate">${a.label}</span>
                 </span>
-                <span class="text-[#4a5562] flex">${ic("extLink")}</span>
+                <span class="text-[#4a5562] flex shrink-0">${ic("extLink")}</span>
               </button>
             `).join("")}
           </div>
@@ -426,16 +450,17 @@ export function mountOperator(host, options) {
               const isAct = state.screen === m.id || (m.id === 'rm01-env-page' && (state.screen === 'rm02-env-activity' || state.screen === 's14-env-detail')) || (m.id === 's02-workspaces' && state.screen === 's03-saved-views');
               return `
                 <button onclick="switchScreen('${m.id}')" class="so-nav-row ${isAct ? 'is-active' : ''}">
-                  <span class="flex items-center gap-2.5">
-                    <span class="flex">${ic(m.icon)}</span>
-                    <span>${m.label}</span>
+                  <span class="flex items-center gap-2 min-w-0 flex-1">
+                    <span class="flex shrink-0">${ic(m.icon)}</span>
+                    <span class="truncate">${m.label}</span>
                   </span>
-                  ${isAct ? '<span class="text-[13px] text-[#5c9ce6]">&rsaquo;</span>' : ''}
+                  ${isAct ? '<span class="text-[13px] text-[#5c9ce6] shrink-0">&rsaquo;</span>' : ''}
                 </button>
               `;
             }).join("")}
           </div>
         </div>
+        ${renderAppGroup("OPERATOR TOOLS", releaseGates.toolApps)}
         ${renderAppGroup("DELIVERY APPS", deliveryApps)}
         ${renderAppGroup("DEVELOPER APPS", developerApps)}
       `;
@@ -472,8 +497,10 @@ export function mountOperator(host, options) {
         plans_gov: [
           { id: "rm03-plan-detail", label: "Plan Inspector (Failed)" },
           { id: "rm04-constraints", label: "Constraint Gate" },
+          { id: "rm11-debug-terminal", label: "Debug Terminal" },
           { id: "s15-plan-detail", label: "Control Tower" }
         ],
+        proposals: releaseGates.proposalPeers,
         studio: [
           { id: "s09-source", label: "Source" },
           { id: "rm07-change-requests", label: "Change Requests" },
@@ -502,9 +529,9 @@ export function mountOperator(host, options) {
           <span class="text-[#f0f5fa] font-medium truncate">${activeMeta.tabTitle}</span>
         </div>
 
-        <div class="flex items-center gap-1 max-w-full overflow-x-auto no-scrollbar">
+        <div class="so-peer-scroll flex items-center gap-1 max-w-full overflow-x-auto no-scrollbar">
           ${groupPeers.map(p => `
-            <button onclick="switchScreen('${p.id}')" class="h-[23px] px-2.5 rounded-[4px] text-[11px] font-medium transition-colors ${
+            <button type="button" data-peer-active="${state.screen === p.id ? "1" : "0"}" onclick="switchScreen('${p.id}')" class="h-[24px] px-2.5 rounded-[4px] text-[11px] font-medium shrink-0 whitespace-nowrap transition-colors ${
               state.screen === p.id
                 ? 'bg-[#17253a] text-[#7cb4ff] border border-[#2a4263]'
                 : 'text-[#8b96a5] hover:text-[#f0f5fa] hover:bg-[#141c24]'
@@ -512,6 +539,10 @@ export function mountOperator(host, options) {
           `).join("")}
         </div>
       `;
+      const activePeer = bar.querySelector("[data-peer-active='1']");
+      if (activePeer && activePeer.scrollIntoView) {
+        try { activePeer.scrollIntoView({ block: "nearest", inline: "center" }); } catch { /* the peer strip can be detached */ }
+      }
     }
 
     function assistantMeta(activeMeta) {
@@ -532,7 +563,8 @@ export function mountOperator(host, options) {
       }
       const activeMeta = SCREENS.find(s => s.id === state.screen) || SCREENS[0];
       const modeBadge = (typeof window !== "undefined" && window.innerWidth <= 1024) ? "DRAWER" : "INLINE SLOT";
-      rail.className = "w-[252px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5";
+      const openClass = "w-[252px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5";
+      if (rail.className !== openClass) rail.className = openClass;
       if (!rail.querySelector("#assistant-thread-mount")) {
         rail.innerHTML = `
           <div data-slot="assistant-ui-root" class="flex-1 min-h-0 border border-dashed border-[#263340] rounded-[6px] bg-[#12181d] p-3 flex flex-col gap-3">
@@ -576,7 +608,30 @@ export function mountOperator(host, options) {
       ];
 
       root.innerHTML = `
-        <div class="so-tri-layout so-resp-stack flex gap-3 h-full min-h-0 items-stretch">
+        <div class="flex flex-col gap-3 h-full min-h-0">
+          <div class="so-compact-kpi-strip shrink-0">
+            <button type="button" onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Convergence</div>
+              <div class="text-[16px] font-bold text-[#34d399] tnum mt-0.5">87.5%</div>
+            </button>
+            <button type="button" onclick="switchScreen('rm01-env-page')" class="so-card so-card-interactive p-2.5 text-left">
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Environments</div>
+              <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">42 <span class="text-[10.5px] font-normal text-[#8b96a5]">/ 48</span></div>
+            </button>
+            <button type="button" onclick="switchScreen('s07-pipeline')" class="so-card so-card-interactive p-2.5 text-left">
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Packaging</div>
+              <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">3 <span class="text-[10.5px] font-normal text-[#34d399]">Active</span></div>
+            </button>
+            <button type="button" onclick="switchScreen('s15-plan-detail')" class="so-card so-card-interactive p-2.5 text-left">
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Release plans</div>
+              <div class="text-[16px] font-bold text-[#f0f5fa] tnum mt-0.5">4 <span class="text-[10.5px] font-normal text-[#9881f3]">Gated</span></div>
+            </button>
+            <button type="button" onclick="switchScreen('s14-env-detail')" class="so-card so-card-interactive p-2.5 text-left">
+              <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Open drifts</div>
+              <div class="text-[16px] font-bold text-[#e76a6e] tnum mt-0.5">5 <span class="text-[10.5px] font-normal text-[#e76a6e]">2 critical</span></div>
+            </button>
+          </div>
+          <div class="so-tri-layout so-resp-stack flex gap-3 flex-1 min-h-0 items-stretch">
           <!-- Left Column (256px): Active Work Profiles & Spokes (Matched to f_01_18_cc Active New Builds) -->
           <div class="so-resp-full w-[216px] xl:w-[248px] shrink-0 flex flex-col gap-3 min-h-0 overflow-y-auto">
             <div class="so-panel p-3 space-y-2.5 flex-1">
@@ -687,7 +742,7 @@ export function mountOperator(host, options) {
           <!-- Right Column (286px): Conduit Live Operations Stream (Matched 1:1 to f_01_18_cc Right Column!) -->
           <div class="so-resp-full so-panel w-[286px] shrink-0 flex flex-col min-h-0 overflow-hidden">
             <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
-              <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[#ffffff]">${ic("delivery")} <span>Live Operations</span> <i class="w-2 h-2 rounded-full bg-[#e76a6e] inline-block"></i></span>
+              <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[#ffffff]">${ic("delivery")} <span>Live Operations</span> <i class="so-live-dot w-2 h-2 rounded-full bg-[#e76a6e] inline-block"></i></span>
             </div>
 
             <!-- 4-Count Sub-Header Strip (HUMAN / AGENT / RUNNERS / CONVERGED) -->
@@ -715,6 +770,7 @@ export function mountOperator(host, options) {
               `).join("")}
             </div>
           </div>
+        </div>
         </div>
       `;
       initConduitGlobe();
@@ -2464,6 +2520,7 @@ export function mountOperator(host, options) {
               </div>
             </div>
           </div>
+          ${releaseGates.showcase()}
         </div>
       `;
     }
@@ -2654,6 +2711,7 @@ export function mountOperator(host, options) {
               <div class="flex items-center justify-between">
                 <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#34d399]">Release Channel Subscription</span>
                 <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Promotion Graph</button>
+                <button type="button" onclick="switchScreen('rm11-debug-terminal')" class="so-btn so-btn-sm">Debug Terminal</button>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <span class="code-id text-[15px] font-bold text-white">edge-cohorts</span>
@@ -2971,7 +3029,9 @@ export function mountOperator(host, options) {
               </div>
               <div class="code-id text-[11px] text-[#8b96a5] mt-1">digest: sha256:9c71fe08a41d8c02b9e7a11f404d12c91a0f2d44 &middot; Published 2026-11-13 20:18Z</div>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="switchScreen('rm10-ramped-rollout')" class="so-btn">Ramped Rollouts</button>
+              <button type="button" onclick="switchScreen('rm09-recalls')" class="so-btn">Recalls</button>
               <button type="button" onclick="switchScreen('rm08-bundle-preview')" class="so-btn">Offline Bundle Preview</button>
               <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promotion Pipeline</button>
             </div>
@@ -3200,6 +3260,26 @@ export function mountOperator(host, options) {
       `;
     }
 
+    function handleOmnibarKey(ev) {
+      const q = state.cmdOmnibarQuery.toLowerCase();
+      const hits = SCREENS.filter(s => !q || s.short.toLowerCase().includes(q) || s.tabTitle.toLowerCase().includes(q) || s.subtitle.toLowerCase().includes(q));
+      if (!hits.length) return;
+      if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
+        ev.preventDefault();
+        const step = ev.key === "ArrowDown" ? 1 : -1;
+        state.cmdSelectedIdx = (state.cmdSelectedIdx + step + hits.length) % hits.length;
+        renderConduitModals();
+        const input = document.getElementById("conduit-omnibar-inp");
+        if (input) input.focus();
+      } else if (ev.key === "Enter") {
+        ev.preventDefault();
+        const target = hits[Math.min(state.cmdSelectedIdx, hits.length - 1)];
+        if (!target) return;
+        state.cmdOmnibarOpen = false;
+        switchScreen(target.id);
+      }
+    }
+
     function openCmdOmnibar() {
       state.cmdOmnibarOpen = true;
       state.cmdOmnibarQuery = "";
@@ -3219,12 +3299,13 @@ export function mountOperator(host, options) {
       if (state.rmPromoDialogOpen) {
         out += `
           <div onclick="if(event.target===this){state.rmPromoDialogOpen=false;renderConduitModals();}"
-               style="position:fixed;inset:0;background:rgba(6,10,13,0.48);z-index:85;display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 32px;">
+               class="so-modal-backdrop"
+               style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:85;display:flex;align-items:flex-end;justify-content:center;padding:24px 16px 32px;">
             <div role="dialog" aria-modal="true" aria-label="Manual Promotion Review"
-                 class="so-panel w-full max-w-[556px] overflow-hidden shadow-2xl" style="border-color:#283644;">
+                 class="so-panel so-modal-card w-full max-w-[556px] overflow-hidden shadow-2xl" style="border-color:#283644;">
               <div class="px-4 py-2.5 bg-[#0d1317] border-b border-[#1e262d] flex justify-between items-center">
                 <strong class="text-[13.5px] text-white">Manual Promotion Review &middot; ${selCh.name}</strong>
-                <button type="button" onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn so-btn-sm">&times;</button>
+                <button type="button" onclick="state.rmPromoDialogOpen=false;renderConduitModals()" class="so-btn so-btn-sm" aria-label="Close dialog">&times;</button>
               </div>
               <div class="p-4 space-y-3">
                 <div class="so-opt-card p-2.5 flex justify-between items-center">
@@ -3264,20 +3345,22 @@ export function mountOperator(host, options) {
         const hits = SCREENS.filter(s => !q || s.short.toLowerCase().includes(q) || s.tabTitle.toLowerCase().includes(q) || s.subtitle.toLowerCase().includes(q));
         out += `
           <div onclick="if(event.target===this){state.cmdOmnibarOpen=false;renderConduitModals();}"
-               style="position:fixed;inset:0;background:rgba(6,10,13,0.56);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:68px 16px 24px;">
-            <div role="dialog" aria-modal="true" aria-label="View switcher" class="so-panel w-full max-w-[540px] overflow-hidden shadow-2xl" style="border-color:#2a3a4a;">
+               class="so-modal-backdrop"
+               style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:68px 16px 24px;">
+            <div role="dialog" aria-modal="true" aria-label="View switcher" class="so-panel so-modal-card w-full max-w-[540px] overflow-hidden shadow-2xl" style="border-color:#2a3a4a;">
               <div class="p-2.5 border-b border-[#1e262d]">
                 <input id="conduit-omnibar-inp" type="search" value="${state.cmdOmnibarQuery}"
-                  placeholder="Jump across all 27 views (Command Center, Promotion Pipeline, Plan Inspector, Source...)"
-                  oninput="state.cmdOmnibarQuery=this.value; renderConduitModals(); document.getElementById('conduit-omnibar-inp').focus();"
+                  placeholder="Jump across all ${SCREENS.length} views"
+                  onkeydown="handleOmnibarKey(event)"
+                  oninput="state.cmdOmnibarQuery=this.value; state.cmdSelectedIdx=0; renderConduitModals(); document.getElementById('conduit-omnibar-inp').focus();"
                   class="so-input w-full !h-[32px]" />
               </div>
               <div class="max-h-[340px] overflow-y-auto p-1.5 space-y-0.5">
-                ${hits.map(h => `
+                ${hits.map((h, idx) => `
                   <button type="button" onclick="state.cmdOmnibarOpen=false; switchScreen('${h.id}')"
-                    class="so-nav-row ${state.screen === h.id ? 'is-active' : ''}">
-                    <span><strong class="code-id text-[10.5px] text-[#596573] mr-2">${String(h.num).padStart(2,'0')}</strong>${h.short}</span>
-                    <span class="code-id text-[10.5px] text-[#60a5fa]">${h.tabTitle}</span>
+                    class="so-nav-row ${idx === state.cmdSelectedIdx ? 'is-active' : ''}">
+                    <span class="truncate min-w-0 flex-1"><strong class="code-id text-[10.5px] text-[#596573] mr-2">${String(h.num).padStart(2,'0')}</strong>${h.short}</span>
+                    <span class="code-id text-[10.5px] text-[#60a5fa] shrink-0">${h.tabTitle}</span>
                   </button>
                 `).join("")}
               </div>
@@ -3289,9 +3372,12 @@ export function mountOperator(host, options) {
       root.innerHTML = out;
     }
 
+    let previousScreen = "";
     function renderMainWorkspace() {
       const root = document.getElementById("main-workspace");
       if (!root) return;
+      const screenChanged = previousScreen !== "" && previousScreen !== state.screen;
+      previousScreen = state.screen;
       const m = {
         "s01-intake": renderS01Intake,
         "s02-workspaces": renderS02Workspaces,
@@ -3319,9 +3405,14 @@ export function mountOperator(host, options) {
         "rm05-release-rollout": renderRM05ReleaseRollout,
         "rm06-promotion-pipe": renderRM06PromotionPipe,
         "rm07-change-requests": renderRM07ChangeRequests,
-        "rm08-bundle-preview": renderRM08BundlePreview
+        "rm08-bundle-preview": renderRM08BundlePreview,
+        ...releaseGates.renderers
       };
       (m[state.screen] || renderS13FleetOverview)(root);
+      if (screenChanged && root.firstElementChild) {
+        root.scrollTop = 0;
+        root.firstElementChild.classList.add("so-view-enter");
+      }
     }
 
     function renderApp() {
@@ -3334,6 +3425,7 @@ export function mountOperator(host, options) {
     }
 
     const onKey = (ev) => {
+      if (releaseGates.onKey(ev)) return;
       if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
         ev.preventDefault();
         openCmdOmnibar();
@@ -3362,6 +3454,7 @@ export function mountOperator(host, options) {
     window.toggleChatRail = toggleChatRail;
     window.handleGlobalSearch = handleGlobalSearch;
     window.openCmdOmnibar = openCmdOmnibar;
+    window.handleOmnibarKey = handleOmnibarKey;
     window.renderConduitModals = renderConduitModals;
     window.renderMainWorkspace = renderMainWorkspace;
     window.showTip = showTip;
@@ -3369,6 +3462,7 @@ export function mountOperator(host, options) {
     window.recordAudit = recordAudit;
     window.copyRmRawLog = copyRmRawLog;
     window.state = state;
+    releaseGates.bind(window);
     renderApp();
     return () => {
       window.removeEventListener("keydown", onKey);
