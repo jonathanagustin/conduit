@@ -68,7 +68,7 @@ export function filterEntries(entries, { query = "", decision = "all" } = {}) {
       if (String(entry.decision).toLowerCase() !== want) return false;
     }
     if (!q) return true;
-    return [entry.actor, entry.action, entry.id].some((field) =>
+    return [entry.actor, entry.action, entry.id, ...exchangeSearchFields(entry)].some((field) =>
       String(field ?? "").toLowerCase().includes(q),
     );
   });
@@ -77,6 +77,65 @@ export function filterEntries(entries, { query = "", decision = "all" } = {}) {
 function shortHash(value, escape) {
   const full = String(value ?? "");
   return `<code class="code-id" title="${escape(full)}">${escape(full.slice(0, 12))}</code>`;
+}
+
+
+function contextOf(entry) {
+  const ctx = entry && entry.context && typeof entry.context === "object" ? entry.context : {};
+  return ctx;
+}
+
+function firstPresent(ctx, keys) {
+  for (const key of keys) {
+    const value = ctx[key];
+    if (value === undefined || value === null || value === "") continue;
+    return value;
+  }
+  return "";
+}
+
+/** Prompt, response, skill hash, and tool names recorded on the event, if any. */
+export function exchangeFields(entry) {
+  const ctx = contextOf(entry);
+  const tools = firstPresent(ctx, ["toolNames", "mcpTools", "tools"]);
+  let toolText = "";
+  if (Array.isArray(tools)) {
+    toolText = tools.map((item) => (item && typeof item === "object" ? item.name || item.id || "" : String(item))).filter(Boolean).join(", ");
+  } else if (tools) {
+    toolText = String(tools);
+  }
+  return {
+    promptSha256: String(firstPresent(ctx, ["promptSha256"]) || ""),
+    responseSha256: String(firstPresent(ctx, ["responseSha256"]) || ""),
+    skillSha256: String(firstPresent(ctx, ["skillSha256", "skillHash", "packagingSkillSha256"]) || ""),
+    tools: toolText,
+  };
+}
+
+function exchangeSearchFields(entry) {
+  const fields = exchangeFields(entry);
+  return [fields.promptSha256, fields.responseSha256, fields.skillSha256, fields.tools];
+}
+
+function exchangeMarkup(entry, escape) {
+  const fields = exchangeFields(entry);
+  const parts = [];
+  if (fields.promptSha256) {
+    parts.push(`<span>prompt ${shortHash(fields.promptSha256, escape)}</span>`);
+  }
+  if (fields.responseSha256) {
+    parts.push(`<span>response ${shortHash(fields.responseSha256, escape)}</span>`);
+  }
+  if (fields.skillSha256) {
+    parts.push(`<span>skill ${shortHash(fields.skillSha256, escape)}</span>`);
+  }
+  if (fields.tools) {
+    parts.push(`<span>tools ${escape(fields.tools)}</span>`);
+  }
+  if (!parts.length) {
+    return `<span class="so-muted">—</span>`;
+  }
+  return `<div class="ledger-exchange">${parts.join(" ")}</div>`;
 }
 
 function checkMarkup(check, entries, escape) {
@@ -146,6 +205,7 @@ export function ledgerMarkup(
         `<td>${badge}</td>` +
         `<td>${shortHash(e.previousDigest, escape)}</td>` +
         `<td>${shortHash(e.digest, escape)}</td>` +
+        `<td>${exchangeMarkup(e, escape)}</td>` +
         `</tr>`
       );
     })
@@ -153,7 +213,7 @@ export function ledgerMarkup(
 
   const table =
     `<table class="so-table"><thead><tr>` +
-    `<th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Decision</th><th>Previous</th><th>Hash</th>` +
+    `<th>#</th><th>Time</th><th>Actor</th><th>Action</th><th>Decision</th><th>Previous</th><th>Hash</th><th>Model exchange</th>` +
     `</tr></thead><tbody>${rows}</tbody></table>`;
 
   const from = start + 1;

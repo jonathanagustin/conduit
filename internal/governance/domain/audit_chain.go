@@ -49,6 +49,10 @@ type AuthorizationAuditChainEntry struct {
 	PreviousDigest string    `json:"previousDigest"`
 	Digest         string    `json:"digest"`
 	CreatedAt      time.Time `json:"createdAt"`
+	// Context carries recorded model-exchange fields when present, including
+	// promptSha256, responseSha256, a packaging skill hash, and tool names.
+	// It is display data; it is not an input to the chain digest.
+	Context map[string]any `json:"context,omitempty"`
 }
 
 // ChainAuthorizationAudit folds recorded events, oldest first, into the same
@@ -72,7 +76,7 @@ func ChainAuthorizationAudit(events []AuthorizationAuditEvent) ([]AuthorizationA
 		entries = append(entries, AuthorizationAuditChainEntry{
 			Sequence: record.Sequence, ID: event.ID, Actor: event.Subject, Action: event.Action,
 			Decision: event.Decision, PreviousDigest: record.PreviousDigest, Digest: record.Digest,
-			CreatedAt: event.CreatedAt,
+			CreatedAt: event.CreatedAt, Context: event.Context,
 		})
 		previous = AuditCheckpoint{Version: AuditChainVersion, Sequence: record.Sequence, Digest: record.Digest}
 	}
