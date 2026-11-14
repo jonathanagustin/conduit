@@ -1,0 +1,331 @@
+{
+  "schemaVersion": 1,
+  "id": "uds-packaging-reference-corpus/v1",
+  "valueTier": "CONDUIT_NATIVE",
+  "platform": {
+    "version": "1.15.0",
+    "revision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9"
+  },
+  "knownExamplePlatform": {
+    "application": "TAK",
+    "udsCoreVersion": "1.16.0",
+    "zarfVersion": "0.89.0",
+    "source": "tak-decision",
+    "normativeForTarget": false
+  },
+  "licensePolicy": "Sources are references and original factual paraphrases; no GPL/AGPL application or template implementation is copied into runtime code. Check exact artifact licenses independently; these root-license observations are not legal approval. Epinio documentation attribution: Epinio documentation contributors, CC-BY-4.0, pinned source link below.",
+  "sources": [
+    {
+      "id": "tak-decision",
+      "repository": "jonathanagustin/uds-takserver",
+      "revision": "b17c4f4d684121f47d7de07a7c974b550e1597f0",
+      "path": "adr/0023-adapt-the-upstream-chart-with-pepr.md",
+      "url": "https://github.com/jonathanagustin/uds-takserver/blob/b17c4f4d684121f47d7de07a7c974b550e1597f0/adr/0023-adapt-the-upstream-chart-with-pepr.md",
+      "sha256": "e40699bc7791cc0c8c0a91935c3534894ba0c66048512e99a344140c227d2605",
+      "lineCount": 85,
+      "retrievedAt": "2026-11-14",
+      "kind": "retrospective-decision",
+      "licenseObserved": "GPL-3.0 root license",
+      "scope": "Written 2026-11-03 after the cited decisions; its V/R labels are source assertions, not execution receipts independently verified here. TAK example uses UDS Core 1.16.0 and Zarf 0.89.0.",
+      "implementationCopied": false
+    },
+    {
+      "id": "tak-device",
+      "repository": "jonathanagustin/uds-takserver",
+      "revision": "b17c4f4d684121f47d7de07a7c974b550e1597f0",
+      "path": "adr/0014-atak-test-device-in-kubevirt.md",
+      "url": "https://github.com/jonathanagustin/uds-takserver/blob/b17c4f4d684121f47d7de07a7c974b550e1597f0/adr/0014-atak-test-device-in-kubevirt.md",
+      "sha256": "4a8be462979fda675eb8ead0499f6cb38fb279ada5172157a3d43f6303189fb3",
+      "lineCount": 39,
+      "retrievedAt": "2026-11-14",
+      "kind": "decision-and-limitations",
+      "licenseObserved": "GPL-3.0 root license",
+      "scope": "Virtual Android-x86/KubeVirt test scope; not physical-device evidence.",
+      "implementationCopied": false
+    },
+    {
+      "id": "tak-integration",
+      "repository": "jonathanagustin/uds-takserver",
+      "revision": "b17c4f4d684121f47d7de07a7c974b550e1597f0",
+      "path": "charts/takserver/templates/uds-package.yaml",
+      "url": "https://github.com/jonathanagustin/uds-takserver/blob/b17c4f4d684121f47d7de07a7c974b550e1597f0/charts/takserver/templates/uds-package.yaml",
+      "sha256": "203f1c4eca79f027dfc2e15dff4b9f1789743d888bfbdf5d50ea793595ad5766",
+      "lineCount": 424,
+      "retrievedAt": "2026-11-14",
+      "kind": "static-source",
+      "licenseObserved": "GPL-3.0-only file header",
+      "scope": "Operator-managed CA and SSO declarations; monitor output depends on installed monitoring capabilities. No template implementation is vendored.",
+      "implementationCopied": false
+    },
+    {
+      "id": "tak-smoke-source",
+      "repository": "jonathanagustin/uds-takserver",
+      "revision": "b17c4f4d684121f47d7de07a7c974b550e1597f0",
+      "path": "tests/api-smoke.sh",
+      "url": "https://github.com/jonathanagustin/uds-takserver/blob/b17c4f4d684121f47d7de07a7c974b550e1597f0/tests/api-smoke.sh",
+      "sha256": "12e10dfa306f472d742f02e9207238f8fe917cdc60edd369711592b7de5756cf",
+      "lineCount": 630,
+      "retrievedAt": "2026-11-14",
+      "kind": "test-source-not-executed",
+      "licenseObserved": "GPL-3.0-only file header",
+      "scope": "The no-SNI/TLS test exists in source. It was not executed by this review.",
+      "implementationCopied": false
+    },
+    {
+      "id": "uds-requirements",
+      "repository": "defenseunicorns/uds-core",
+      "revision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9",
+      "path": "docs/concepts/configuration-and-packaging/package-requirements.mdx",
+      "url": "https://github.com/defenseunicorns/uds-core/blob/338b8dde2081b3e7aab12acbff225c3f2a0865b9/docs/concepts/configuration-and-packaging/package-requirements.mdx",
+      "sha256": "7663d30a8fe37157f1513c4e3877bf6ed470e915d58779c47e3be7009ef7284e",
+      "lineCount": 98,
+      "retrievedAt": "2026-11-14",
+      "kind": "versioned-platform-guidance",
+      "licenseObserved": "AGPL-3.0 root license; per-file applicability not adjudicated",
+      "scope": "UDS Core v1.15.0 guidance. Platform requirements are not universal application upgrade/rollback semantics. References and original paraphrased lessons only. Upstream states MUST requirements are mandatory for Defense Unicorns engineers and strongly recommended to external maintainers; this acceptance plan selects them as its target standard.",
+      "implementationCopied": false
+    },
+    {
+      "id": "uds-upgrades",
+      "repository": "defenseunicorns/uds-core",
+      "revision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9",
+      "path": "docs/operations/upgrades/overview.mdx",
+      "url": "https://github.com/defenseunicorns/uds-core/blob/338b8dde2081b3e7aab12acbff225c3f2a0865b9/docs/operations/upgrades/overview.mdx",
+      "sha256": "a5319ab2f0be5cb16c949fb3e12b4206fa595ee7de2e7b64ee622a36186a180e",
+      "lineCount": 198,
+      "retrievedAt": "2026-11-14",
+      "kind": "versioned-platform-guidance",
+      "licenseObserved": "AGPL-3.0 root license; per-file applicability not adjudicated",
+      "scope": "UDS Core v1.15.0 guidance. Platform requirements are not universal application upgrade/rollback semantics. References and original paraphrased lessons only.",
+      "implementationCopied": false
+    },
+    {
+      "id": "uds-backup",
+      "repository": "defenseunicorns/uds-core",
+      "revision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9",
+      "path": "docs/how-to-guides/backup-and-restore/perform-backup.mdx",
+      "url": "https://github.com/defenseunicorns/uds-core/blob/338b8dde2081b3e7aab12acbff225c3f2a0865b9/docs/how-to-guides/backup-and-restore/perform-backup.mdx",
+      "sha256": "f49f869f4570f20c032ba46da6d4c758eabc00c6c9bbbdecce3119d293b8887d",
+      "lineCount": 135,
+      "retrievedAt": "2026-11-14",
+      "kind": "versioned-platform-guidance",
+      "licenseObserved": "AGPL-3.0 root license; per-file applicability not adjudicated",
+      "scope": "UDS Core v1.15.0 guidance. Platform requirements are not universal application upgrade/rollback semantics. References and original paraphrased lessons only.",
+      "implementationCopied": false
+    },
+    {
+      "id": "uds-restore",
+      "repository": "defenseunicorns/uds-core",
+      "revision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9",
+      "path": "docs/how-to-guides/backup-and-restore/perform-restore.mdx",
+      "url": "https://github.com/defenseunicorns/uds-core/blob/338b8dde2081b3e7aab12acbff225c3f2a0865b9/docs/how-to-guides/backup-and-restore/perform-restore.mdx",
+      "sha256": "fd5dfd7e5cc4d584626b2cc321d291ca7785d8d0c8aec100faf3e89ef4a51bd6",
+      "lineCount": 127,
+      "retrievedAt": "2026-11-14",
+      "kind": "versioned-platform-guidance",
+      "licenseObserved": "AGPL-3.0 root license; per-file applicability not adjudicated",
+      "scope": "UDS Core v1.15.0 guidance. Platform requirements are not universal application upgrade/rollback semantics. References and original paraphrased lessons only.",
+      "implementationCopied": false
+    },
+    {
+      "id": "epinio-baseline",
+      "repository": "epinio/docs",
+      "revision": "fabe797e16168adf0133076a4d71836e13f3f525",
+      "path": "versioned_docs/version-1.14.3/reference/mcp.md",
+      "url": "https://github.com/epinio/docs/blob/fabe797e16168adf0133076a4d71836e13f3f525/versioned_docs/version-1.14.3/reference/mcp.md",
+      "sha256": "8406655ee95b813eb1d923dbc6bef4ff7a6c307ede69d7b84cd69ea1f91d038d",
+      "lineCount": 245,
+      "retrievedAt": "2026-11-14",
+      "kind": "reference-workflow",
+      "licenseObserved": "CC-BY-4.0 root license",
+      "scope": "Epinio documentation contributors; agent-facing MCP/API workflows already exist. Reference baseline, not a required backend or a new deployment.",
+      "implementationCopied": false
+    }
+  ],
+  "lessons": [
+    {
+      "id": "configuration-before-start",
+      "sources": [
+        "tak-decision"
+      ],
+      "checks": [
+        "first-process-config"
+      ],
+      "lesson": "The post-install deployment patch described by ADR 0023 raced first process start. Gate process start on complete configuration rather than treating a later patch as initialization.",
+      "evidenceLimit": "ADR narrative is retrospective failure evidence; no contemporaneous run log was collected.",
+      "alternativesAndRejections": [
+        "Post-install patching was rejected for the observed timing race.",
+        "Chart values/init containers, upstream changes and rendering adaptations must be assessed before workload-specific admission."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "adaptation-is-conditional",
+      "sources": [
+        "tak-decision",
+        "uds-requirements"
+      ],
+      "checks": [
+        "schemas-render",
+        "real-uds-package"
+      ],
+      "lesson": "Prefer a suitable upstream chart and isolate UDS configuration. TAK-specific Pepr watching is not a universal packaging default.",
+      "evidenceLimit": "Alternatives marked R in the ADR are retrospective reasoning, not tested comparative results.",
+      "alternativesAndRejections": [
+        "A fork increases drift but can be justified if upstream is unsuitable.",
+        "A renderer can handle manifests but not later cluster-state reconciliation.",
+        "The ADR names a Zarf 0.89.0 post-renderer limitation; it is not assumed for other tool versions."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "rotation-and-failure-closed",
+      "sources": [
+        "tak-integration",
+        "tak-decision"
+      ],
+      "checks": [
+        "tls-ca-rotation",
+        "first-process-config"
+      ],
+      "lesson": "Review secret/CA rotation and missing-input failure behavior independently from static declaration presence.",
+      "evidenceLimit": "Inspected declarations and documentary claims do not establish a rotation result.",
+      "alternativesAndRejections": [
+        "Static secret references do not prove reload behavior.",
+        "An admission controller needs narrowly bounded selectors and explicit outage behavior."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "non-http-no-sni",
+      "sources": [
+        "tak-device",
+        "tak-smoke-source"
+      ],
+      "checks": [
+        "tls-ca-rotation"
+      ],
+      "lesson": "Test the actual authenticated non-HTTP transport without assuming TLS clients send SNI.",
+      "evidenceLimit": "Test source was inspected; no network handshake was run.",
+      "alternativesAndRejections": [
+        "A browser/OIDC success does not establish streaming transport success."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "bounded-exemptions-and-devices",
+      "sources": [
+        "tak-device",
+        "uds-requirements"
+      ],
+      "checks": [
+        "security-policy"
+      ],
+      "lesson": "Record exact privilege, architecture, mesh and network exceptions with rationale and narrow scope. Virtual-device evidence cannot stand in for physical-device behavior.",
+      "evidenceLimit": "ADR limitations are source-reported; no KubeVirt/physical device was deployed.",
+      "alternativesAndRejections": [
+        "Do not apply privileged KubeVirt or ambient-mesh exceptions to unrelated workloads."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "dependency-closure",
+      "sources": [
+        "uds-requirements",
+        "tak-device"
+      ],
+      "checks": [
+        "disconnected-dependencies",
+        "package-build"
+      ],
+      "lesson": "Inventory images/charts, build inputs, init/exporter/upgrade-only images and runtime external calls. Test with disconnected egress; export is not proof.",
+      "evidenceLimit": "No package build or disconnected execution was run.",
+      "alternativesAndRejections": [
+        "An exported package alone cannot demonstrate offline application operation."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "platform-application-recovery",
+      "sources": [
+        "uds-upgrades",
+        "uds-backup",
+        "uds-restore"
+      ],
+      "checks": [
+        "upgrade-recovery",
+        "durable-data-restore"
+      ],
+      "lesson": "Keep platform/application versions separate. Platform guidance recommends intermediate validation, pre-upgrade backup and staging; platform rollback is not officially supported. A Completed object backup with snapshotVolumes false does not establish volume-data protection.",
+      "evidenceLimit": "Version-pinned guidance was inspected; no upgrade, backup or restore was performed.",
+      "alternativesAndRejections": [
+        "Do not infer application downgrade safety from platform guidance.",
+        "Do not equate restored objects with restored application data."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "workflow-baseline",
+      "sources": [
+        "epinio-baseline"
+      ],
+      "checks": [
+        "authorization-freshness"
+      ],
+      "lesson": "Compare packaging workflows with existing agent-facing MCP/API tools. The presence of MCP alone is not novelty or deployment authority.",
+      "evidenceLimit": "Reference documentation inspected; no Epinio instance was started.",
+      "alternativesAndRejections": [
+        "Epinio is a comparison baseline, not a required backend."
+      ],
+      "claimClass": "source-derived-lesson-not-a-run-result"
+    },
+    {
+      "id": "receipt-trust-is-separate",
+      "sources": [
+        "uds-requirements"
+      ],
+      "checks": [
+        "security-policy",
+        "authorization-freshness"
+      ],
+      "lesson": "Bind validation to exact inputs/tools/profile and verify producer identity, approval freshness and execution authority separately from structural receipt shape.",
+      "evidenceLimit": "Conduit-native validation requirement; normative packaging text does not establish a receipt protocol.",
+      "alternativesAndRejections": [
+        "An unsigned shape-valid report cannot self-issue approval or be promoted into a trusted integration result."
+      ],
+      "claimClass": "conduit-native-validation-requirement"
+    }
+  ],
+  "execution": {
+    "clusterCreated": false,
+    "deviceDeployed": false,
+    "applicationStarted": false,
+    "packageBuilt": false,
+    "restorePerformed": false,
+    "independentTrialRun": false,
+    "status": "NOT_RUN"
+  },
+  "licenseReferences": [
+    {
+      "repository": "jonathanagustin/uds-takserver",
+      "revision": "b17c4f4d684121f47d7de07a7c974b550e1597f0",
+      "path": "LICENSE",
+      "gitBlob": "f288702d2fa16d3cdf0035b15a9fcbc552cd88e7",
+      "observed": "GPL-3.0 repository license; the inspected template and smoke test explicitly say GPL-3.0-only."
+    },
+    {
+      "repository": "defenseunicorns/uds-core",
+      "revision": "338b8dde2081b3e7aab12acbff225c3f2a0865b9",
+      "path": "LICENSE.md",
+      "sha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "observed": "GNU Affero General Public License v3 root text; per-file applicability unadjudicated."
+    },
+    {
+      "repository": "epinio/docs",
+      "revision": "fabe797e16168adf0133076a4d71836e13f3f525",
+      "path": "LICENSE.txt",
+      "gitBlob": "10fabd90118f7ce38bb2e4753e105e744442a429",
+      "observed": "CC-BY-4.0; attribution retained in the corpus license policy and source URL."
+    }
+  ]
+}

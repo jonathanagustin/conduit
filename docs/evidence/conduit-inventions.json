@@ -314,6 +314,13 @@
       "why": "Public command semantics do not specify transport or output schema. The CLI translates the bounded AEID shape into native Environment/Entity coordinates, requires a reason and structured output before mutation, and prints created requests before reporting partial failure.",
       "displacedBy": "A published or sanitized temporary Entity maintenance override submission and partial-result CLI output contract.",
       "riskIfWrong": "Native JSON/YAML fields, the reason requirement and request identities may differ. Deduplication, common interval, downtime selection and stop-on-failure behavior are covered by real CLI/Hub tests."
+    },
+    {
+      "id": "packaging.ReferenceValidationMatrix",
+      "what": "Native revision-pinned source corpus, proposed frozen held-out acceptance candidate and static dataset/negative-contract verifier.",
+      "why": "The normative/versioned sources and TAK examples establish bounded requirements and lessons, not a private evidence schema, independent trial result or receipt authority protocol.",
+      "displacedBy": "A reviewed replacement reference-corpus, independent evaluation and operator-owned validation-profile contract.",
+      "riskIfWrong": "The metadata/profile format may need replacement. Dataset PASS means only its static contract is well formed; runtime checks remain NOT_RUN, unsigned structural receipts remain non-authoritative, and no deployment or independent trial is authorized."
     }
   ],
   "displaced": [

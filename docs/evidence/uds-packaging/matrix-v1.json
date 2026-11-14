@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 1,
+  "id": "uds-packaging-validation-matrix/v1",
+  "valueTier": "CONDUIT_NATIVE",
+  "purpose": "A versioned acceptance plan, not executed application validation or deployment authority.",
+  "profile": "held-out/valkey-v1.json",
+  "knownExamplesExcludedFromBlindEvaluation": [
+    "TAK",
+    "GeoServer"
+  ],
+  "checks": [
+    {
+      "id": "first-process-config",
+      "level": "integration",
+      "criterion": "Required configuration and referenced secrets are available before the first application process; an unavailable secret prevents process start.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": true
+    },
+    {
+      "id": "tls-ca-rotation",
+      "level": "integration",
+      "criterion": "TLS-only authenticated protocol succeeds without SNI; unauthorized clients and plaintext fail. Rotate server/client trust and credentials and verify both new success and revoked/old credential rejection within declared bounds.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": true
+    },
+    {
+      "id": "durable-data-restore",
+      "level": "restore",
+      "criterion": "Assert profile-owned key/value data before backup and after an explicitly authorized isolated restore. A Completed resource backup without volume or external-data coverage is insufficient.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": true
+    },
+    {
+      "id": "disconnected-dependencies",
+      "level": "integration",
+      "criterion": "Inventory and pin all install, upgrade-only, exporter, init, build and runtime dependencies. Disable external egress and exercise cold install, restart, upgrade and workload operations.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": true
+    },
+    {
+      "id": "schemas-render",
+      "level": "static",
+      "criterion": "Run pinned YAML/schema tools and Helm lint/render for install and upgrade against target UDS capabilities; reject unsupported chart capabilities and undeclared upgrade images.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": false
+    },
+    {
+      "id": "real-uds-package",
+      "level": "static",
+      "criterion": "Emit zarf.yaml and a UDS Package CR with sso, allow and monitor sections; only operator-reviewed, evidence-backed not-applicable entries may be empty. Validate with pinned UDS schema and zarf dev lint.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": false
+    },
+    {
+      "id": "package-build",
+      "level": "build",
+      "criterion": "Build exact package inputs in a separately authorized isolated environment; retain input/output digests and pinned tool versions. Export success alone is not an air-gap result.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": true
+    },
+    {
+      "id": "security-policy",
+      "level": "scan",
+      "criterion": "Scan exact built digests under explicit operator-owned vulnerability, signature, dependency and license thresholds. Missing tools, unavailable databases, malformed scans and unverified provenance block admission.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": false
+    },
+    {
+      "id": "upgrade-recovery",
+      "level": "integration",
+      "criterion": "Keep application and UDS Core versions separate. Require documented application upgrade steps and readiness; unknown migration/rollback semantics block. No platform upgrade is included in this trial.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": true
+    },
+    {
+      "id": "authorization-freshness",
+      "level": "admission",
+      "criterion": "Reject changed artifacts/config/target/profile/template, stale or replayed approval, forged summaries, cancellation and partial execution. No deployment is attempted when any required gate is failed or unknown.",
+      "status": "NOT_RUN",
+      "receipts": [],
+      "requiresSeparateRuntimeAuthorization": false
+    }
+  ],
+  "existingEvidence": [
+    {
+      "path": "scripts/verify-packaging-scaffold.py",
+      "scope": "Unsigned structural schema/Helm receipt for the narrow internal-stateless/v1 prototype. Its UDS schema pin is 9c808fd0af6bd0dca138da05f4a0d4785f109c32 and Zarf is v0.65.1; neither is silently substituted for the v1.15.0 held-out target.",
+      "trustedProducerVerified": false,
+      "runtimeValidation": false
+    },
+    {
+      "path": "scripts/test-packaging-validator.py",
+      "scope": "Protocol/negative tests with explicit tool mocks; timeout/output bounds also exercise local processes. Not workload, cluster or air-gap receipts.",
+      "trustedProducerVerified": false,
+      "runtimeValidation": false
+    },
+    {
+      "path": "internal/packaging/domain/plan_test.go",
+      "scope": "Evidence/configuration binding and fail-closed unsupported stateful capability tests. Valkey is outside the current internal-stateless/v1 generator.",
+      "trustedProducerVerified": false,
+      "runtimeValidation": false
+    },
+    {
+      "path": "internal/agent/postrender_helm_test.go",
+      "scope": "Real Helm install/upgrade render boundary, including undeclared upgrade images. Does not establish generated application runtime correctness.",
+      "trustedProducerVerified": false,
+      "runtimeValidation": false
+    }
+  ],
+  "negativeCases": [
+    "unresolvable-dependency",
+    "unsupported-chart-capability",
+    "unknown-migration",
+    "unsigned-or-mutable-input",
+    "unauthorized-action",
+    "artifact-changed-after-validation",
+    "chart-digest-mismatch",
+    "undeclared-upgrade-only-image",
+    "source-or-template-drift",
+    "stale-or-replayed-approval",
+    "changed-target-or-configuration",
+    "scanner-timeout",
+    "scanner-malformed-output",
+    "forged-summary",
+    "cancelled-run",
+    "partial-execution"
+  ],
+  "ownership": {
+    "requiredTests": "operator/profile-owned; generated artifacts cannot relax them",
+    "libraryInventoryIssue": 133,
+    "migrationRollbackIssue": 134,
+    "assessmentContractIssue": 341,
+    "generatorIsApprovalAuthority": false,
+    "liveTrialAuthorized": false
+  },
+  "measurement": {
+    "applicationCorrectness": "NOT_RUN",
+    "runtimeEvidenceCoverage": 0,
+    "runtimeReproducibility": "NOT_RUN",
+    "explicitUnrunChecks": 10,
+    "failures": [
+      "No independent evaluator approval or authorized isolated trial is recorded.",
+      "Current internal-stateless/v1 generation does not support the held-out stateful application.",
+      "Unsigned structural receipts do not authenticate the producer or authorize deployment."
+    ]
+  }
+}
