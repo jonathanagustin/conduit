@@ -71,6 +71,9 @@ export function objectHeader(header) {
   </header>`;
 }
 
+/**
+ * @param {{ state: string, title: string, detail?: string, operator?: string }} args
+ */
 export function viewState({ state, title, detail, operator }) {
   const copy = {
     loading: "Reading the Hub.",
