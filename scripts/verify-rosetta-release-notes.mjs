@@ -17,7 +17,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const REGISTRY = resolve(ROOT, "docs/apollo/observed/apollo-rosetta-release-notes.json");
+const REGISTRY = resolve(ROOT, "docs/reference-platform/observed/reference-rosetta-release-notes.json");
 
 const failures = [];
 const fail = (message) => failures.push(message);

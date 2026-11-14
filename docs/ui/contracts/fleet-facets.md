@@ -14,7 +14,7 @@ supports: composition, and nothing about navigation, labels, routes, palette or
 table semantics. Nothing here is a claim about Apollo's wire format.
 
 The response shape is a **Conduit extension**. The pinned Apollo OpenAPI under
-`docs/apollo/snapshots/` publishes no fleet-installation filter-count operation,
+`docs/reference-platform/snapshots/` publishes no fleet-installation filter-count operation,
 so `facets` is registered as `reporting.FleetFacets` in
 `docs/evidence/conduit-inventions.json` and marked at
 `internal/reporting/domain/fleet.go`.

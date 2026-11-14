@@ -1,7 +1,7 @@
 ---
 status: accepted
 date: 2026-08-17
-supersedes: 0005-apollo-coordinates-that-stay-refused
+supersedes: 0005-reference-platform-coordinates-that-stay-refused
 decision-makers:
   - repository owner
 consulted: []
@@ -12,7 +12,7 @@ informed: []
 
 ## Context and problem statement
 
-[ADR 0005](0005-apollo-coordinates-that-stay-refused.md) decided that twelve
+[ADR 0005](0005-reference-platform-coordinates-that-stay-refused.md) decided that twelve
 recovered Apollo coordinates would refuse at request time rather than resolve,
 because Conduit holds no data behind them and a GraphQL null is itself a claim.
 It also decided, in its third driver, that serving Conduit's nearest equivalent
@@ -294,7 +294,7 @@ whether it corresponds to a Kubernetes namespace.
 
 ## More information
 
-- [ADR 0005](0005-apollo-coordinates-that-stay-refused.md) — the superseded
+- [ADR 0005](0005-reference-platform-coordinates-that-stay-refused.md) — the superseded
   record, including why a null is worse than a refusal, which this record keeps.
 - [`../evidence/conduit-inventions.json`](../evidence/conduit-inventions.json) —
   the register, its displacement procedure, and what the first three displaced
@@ -302,7 +302,7 @@ whether it corresponds to a Kubernetes namespace.
 - [`../evidence/apollo-identifier-grammar.json`](../evidence/apollo-identifier-grammar.json)
   — the AEID grammar Conduit already mints against, the Plan RID locator fact
   that bounds group 1, and the `ApolloSpaceId` origin that bounds group 2.
-- [`../apollo/reference/graphql-api.md`](../apollo/reference/graphql-api.md) —
+- [`../reference-platform/reference/graphql-api.md`](../reference-platform/reference/graphql-api.md) —
   the recovered interface, its provenance tiers, and its bounds.
 - `internal/apollographql/domain/refusal.go` — the refusal text, now reduced to
   the defect case.

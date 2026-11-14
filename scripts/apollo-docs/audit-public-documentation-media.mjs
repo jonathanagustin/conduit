@@ -3,7 +3,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 
 const manifestPath = process.argv[2] ??
-  new URL("../../docs/apollo/public-documentation-manifest.tsv", import.meta.url).pathname;
+  new URL("../../docs/reference-platform/public-documentation-manifest.tsv", import.meta.url).pathname;
 const outputPath = process.argv[3];
 if (!outputPath) {
   throw new Error("usage: node audit-public-documentation-media.mjs MANIFEST OUTPUT_JSON");

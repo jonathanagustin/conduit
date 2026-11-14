@@ -28,8 +28,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
-const CAPTURE = resolve(ROOT, "docs/apollo/public-documentation-capture.json");
+const MANIFEST = resolve(ROOT, "docs/reference-platform/public-documentation-manifest.tsv");
+const CAPTURE = resolve(ROOT, "docs/reference-platform/public-documentation-capture.json");
 
 const base = "https://www.palantir.com";
 const seeds = [

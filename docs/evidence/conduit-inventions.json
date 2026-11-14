@@ -8,7 +8,7 @@
     "note": "The id is <context>.<Symbol>. It is not a package path, so moving a file does not silently unregister an invention -- renaming the symbol does, which is when someone should be looking at this anyway."
   },
   "displacementProcedure": [
-    "When the named evidence lands, record it under docs/evidence/ or docs/apollo/ as a normal capture first. An invention displaced by nothing citable is just a different guess.",
+    "When the named evidence lands, record it under docs/evidence/ or docs/reference-platform/ as a normal capture first. An invention displaced by nothing citable is just a different guess.",
     "Reimplement against the evidence. Do not adapt the invented shape to fit -- the invented shape was chosen without constraint and will bend into agreement, which is how a guess becomes an unfalsifiable claim.",
     "Delete the CONDUIT-INVENTED marker and this entry in the same change as the reimplementation, so the register never describes code that no longer exists.",
     "State in the change what the invention got wrong. That is the only feedback anyone gets about how good these guesses are, and without it the next invention is made no better informed than this one."
@@ -73,7 +73,7 @@
     {
       "id": "notifications.HTTPSurface",
       "what": "The Hub's authenticated notification routes and their request and response shapes: GET /v1/notifications/inbox, GET /v1/notifications/events, GET and PUT /v1/notifications/preferences keyed on the (resource, owner, channel) tuple the store already holds one row for, and GET, PUT and DELETE /v1/notifications/contacts keyed on the (owner, kind) tuple the address book holds one row for.",
-      "why": "The pinned Apollo OpenAPI under docs/apollo/snapshots/ publishes no notification operation -- the string does not occur in api-definition.yml -- so there was no published shape to be faithful to. The settings pages captured in docs/evidence/apollo-notification-types.json establish the grain being edited (a per-resource, per-channel preference list, For User or For Team) and nothing else about a wire format, so the routes carry that grain and invent only the spelling. Declining to build it was the alternative, and it leaves the Tier 1 readiness gap open: a preference editable only through the store is not editable.",
+      "why": "The pinned Apollo OpenAPI under docs/reference-platform/snapshots/ publishes no notification operation -- the string does not occur in api-definition.yml -- so there was no published shape to be faithful to. The settings pages captured in docs/evidence/apollo-notification-types.json establish the grain being edited (a per-resource, per-channel preference list, For User or For Team) and nothing else about a wire format, so the routes carry that grain and invent only the spelling. Declining to build it was the alternative, and it leaves the Tier 1 readiness gap open: a preference editable only through the store is not editable.",
       "displacedBy": "A capture of Apollo's notification Hub API -- its route paths, its request and response shapes, and how it scopes an inbox read to a caller.",
       "riskIfWrong": "Low outside Conduit, moderate inside it. Nothing round-trips these shapes into Apollo, and the routes sit under /v1/notifications where no Apollo-shaped route lives, so a wrong guess cannot collide with a real operation. What a wrong guess costs is a console and any client written against it, which would have to be rewritten when the real shape arrives."
     },
@@ -173,7 +173,7 @@
     {
       "id": "apollo.EntityIDSpaceSegment",
       "displacedOn": "2026-08-17",
-      "by": "docs/apollo/snapshots/apollo-openapi-.../api-definition.yml, via docs/evidence/apollo-identifier-grammar.json",
+      "by": "docs/reference-platform/snapshots/reference-openapi-.../api-definition.yml, via docs/evidence/apollo-identifier-grammar.json",
       "whatTheInventionGotWrong": "Its premise. The entry said Conduit 'carries the Environment where Apollo's documented example carries a Space'. Apollo's documented example carries no Space: the pinned OpenAPI publishes aeid:apollo-environment-demo:helm-chart:wordpress twice, beside environmentRid, and that second segment is an environment name. Conduit's aeid:<environment>:helm-chart:<entity> matches the published example in segment count, in the helm-chart product-type token, and in the meaning of the second segment. Nothing was invented; the construction was recovered and then filed as a guess.",
       "howThisWentWrong": "The grammar record's own conduitBearing already said the space-or-environment question was NOT established, and the invention entry -- written after reading it -- asserted it was a Space anyway. That is an inference hardening into a fact across two files in one day. The answer was in a snapshot this repository has held since the OpenAPI was pinned; nobody had compared the OSDK example against the OpenAPI example. The OSDK's 'mojito' says nothing about what it is, which is exactly why it should not have been read as saying 'Space'.",
       "note": "ApolloEntity.id still discloses valueTier: CONDUIT_NATIVE, and that is unchanged and correct: no Apollo Hub answered with the string, Conduit composed it from its own environment and entity names. Serving a value built to a published shape is still serving a value Conduit built."
@@ -201,11 +201,11 @@
   "howThisWentWrong": {
     "note": "All three displacements landed the day after the register was written, from evidence that was already in reach. This is recorded because the register's value depends on its guesses being honest ones, and these were not -- they were made without looking.",
     "whatWasAvailable": [
-      "Three public Palantir documentation pages under managing-notifications, already listed in docs/apollo/public-documentation-manifest.tsv with their content digests.",
-      "Five screenshots on those pages, already counted by docs/apollo/IMAGE-DERIVED-GAPS.md, which dispositioned the section 'Boundary' without opening them -- in a document whose own thesis is that screenshots are where a UI-first product states its enum values.",
+      "Three public Palantir documentation pages under managing-notifications, already listed in docs/reference-platform/public-documentation-manifest.tsv with their content digests.",
+      "Five screenshots on those pages, already counted by docs/reference-platform/IMAGE-DERIVED-GAPS.md, which dispositioned the section 'Boundary' without opening them -- in a document whose own thesis is that screenshots are where a UI-first product states its enum values.",
       "docs/ui/evidence/legacy-apollo-2020/environment-events.webp, committed in this repository, showing the Events severity and category facets."
     ],
-    "whyItWasNotSeen": "docs/apollo/reference/notifications.md opened with 'No public Palantir docs page was captured for this capability'. That sentence was false against this repository's own manifest, had never been checked against it, and was taken at face value. The gate added in scripts/verify-documentation-claims.mjs now checks exactly this class of claim, because it is the cheapest possible check and nothing was doing it.",
+    "whyItWasNotSeen": "docs/reference-platform/reference/notifications.md opened with 'No public Palantir docs page was captured for this capability'. That sentence was false against this repository's own manifest, had never been checked against it, and was taken at face value. The gate added in scripts/verify-documentation-claims.mjs now checks exactly this class of claim, because it is the cheapest possible check and nothing was doing it.",
     "lesson": "The register asks whether an invention is marked and whether it names what would displace it. It does not ask whether the invention was necessary. A guess made without exhausting the sources already in the repository is not an educated guess, and marking it does not make it one."
   }
 }

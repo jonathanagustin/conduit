@@ -39,7 +39,7 @@ web/.stryker-tmp/
 # The review-ledger self-test writes throwaway ledger copies beside the real
 # one, because `topic` resolves relative to the ledger directory. The EXIT trap
 # removes them; this covers a SIGKILL.
-docs/apollo/reference/.review-ledger-selftest.*
+docs/reference-platform/reference/.review-ledger-selftest.*
 
 # Isolated Release Please contract-test dependencies.
 tools/release-please/node_modules/

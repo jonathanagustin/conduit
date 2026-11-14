@@ -13,7 +13,7 @@ const seeds = [
 const expectedMinimumPages = 200;
 
 const outputPath = process.argv[2] ??
-  new URL("../../docs/apollo/public-documentation-manifest.tsv", import.meta.url).pathname;
+  new URL("../../docs/reference-platform/public-documentation-manifest.tsv", import.meta.url).pathname;
 
 function normalizePath(path) {
   const withoutQuery = path.split(/[?#]/, 1)[0];

@@ -1,5 +1,5 @@
 {
-  "note": "Candidate vocabulary for the Apollo Hub GraphQL recovery probe. These are hypotheses, not recovered facts: the prober asks the Hub whether each name exists and records only the answer. The bulk is derived mechanically from two published Apollo vocabularies -- the 91 command names in docs/apollo/cli-command-contract.json and the 65 schema names in the pinned public OpenAPI snapshot -- so the candidate set is itself grounded rather than guessed. Adding a name here cannot invent a field: an absent field is reported undefined and never reaches the observed schema.",
+  "note": "Candidate vocabulary for the Apollo Hub GraphQL recovery probe. These are hypotheses, not recovered facts: the prober asks the Hub whether each name exists and records only the answer. The bulk is derived mechanically from two published Apollo vocabularies -- the 91 command names in docs/reference-platform/cli-command-contract.json and the 65 schema names in the pinned public OpenAPI snapshot -- so the candidate set is itself grounded rather than guessed. Adding a name here cannot invent a field: an absent field is reported undefined and never reaches the observed schema.",
   "rootField": "apollo",
   "rootType": "ApolloQuery",
   "fieldCandidates": [
@@ -526,7 +526,7 @@
     "after"
   ],
   "derivedFrom": [
-    "docs/apollo/cli-command-contract.json (91 commands)",
-    "docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml (65 schemas)"
+    "docs/reference-platform/cli-command-contract.json (91 commands)",
+    "docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml (65 schemas)"
   ]
 }

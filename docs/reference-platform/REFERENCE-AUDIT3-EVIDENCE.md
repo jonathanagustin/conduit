@@ -69,7 +69,7 @@ pseudonymized. Operation names are retained only with the explicit
 ```sh
 node scripts/normalize-foundry-audit3.mjs \
   --input authorized-audit3.jsonl \
-  --output docs/apollo/evidence/tenant-audit3-shapes.json \
+  --output docs/reference-platform/evidence/tenant-audit3-shapes.json \
   --captured-at 2026-08-03T00:00:00Z
 ```
 
@@ -92,7 +92,7 @@ FOUNDRY_TOKEN='...' node scripts/capture-foundry-audit3.mjs \
 
 Review and normalize each returned body, then destroy or retain the raw capture
 according to the organization's evidence-handling policy. Never place raw
-audit files in `docs/apollo/evidence` directly.
+audit files in `docs/reference-platform/evidence` directly.
 
 ## Conduit mapping
 

@@ -491,7 +491,7 @@ jobs:
       # product" without anything measuring it -- so a version bump could
       # restyle every screen away from Foundry with every gate still green.
       # This compares the installed tokens against the 205 values captured from
-      # a live tenant (docs/apollo/FRONTEND-CAS-CAPTURE.md), folding the two
+      # a live tenant (docs/reference-platform/FRONTEND-CAS-CAPTURE.md), folding the two
       # builds' notation so #fff and #ffffff are not reported as drift. Its
       # self-test plants a one-hex-digit difference to prove the folding does
       # not swallow a real one. Needs the console's node_modules, so it runs in
@@ -718,7 +718,7 @@ jobs:
         if: needs.scope.outputs.checks == 'true'
         run: |
           ruby scripts/apollo-docs/validate-public-api.rb \
-            docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
+            docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
           ./scripts/verify-apollo-routes.sh
           ruby scripts/apollo-docs/verify-public-api-adapter.rb
           ruby scripts/apollo-docs/validate-cli-fixtures.rb
@@ -741,7 +741,7 @@ jobs:
           # reconciliation saw no gap while fourteen gates were local-only --
           # including verify-no-tenant-origins.mjs, which is a leak gate, and
           # the two GraphQL verifiers that hold the observed-schema and
-          # served-interface claims in docs/apollo/conformance.md.
+          # served-interface claims in docs/reference-platform/conformance.md.
           #
           # verify-local.sh now also reconciles in this direction: every
           # scripts/* file its gate bodies invoke must appear in this workflow,

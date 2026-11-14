@@ -206,7 +206,7 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 	if unserved != 1 {
 		t.Errorf(
 			"%d recovered coordinate(s) are declared and unanswerable by Conduit; the pinned count is 1. "+
-				"If this moved on purpose, update the count and docs/apollo/reference/graphql-api.md",
+				"If this moved on purpose, update the count and docs/reference-platform/reference/graphql-api.md",
 			unserved,
 		)
 	}
@@ -582,7 +582,7 @@ func TestEnvironmentIdAnswersWithTheIdentifierApollosStatusRoutesAccept(t *testi
 }
 
 // Apollo's own published example, quoted at the top of
-// docs/apollo/reference/graphql-api.md as proof the shape is real. It refused
+// docs/reference-platform/reference/graphql-api.md as proof the shape is real. It refused
 // until now: validation probing cannot see through a list type, so no recovered
 // field declared one and every page collection was navigable only in principle.
 //

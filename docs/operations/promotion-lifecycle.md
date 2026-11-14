@@ -11,7 +11,7 @@ The public Apollo changelog describes in-progress, succeeded and aborted
 promotions and cancellation reasons. Its current pinned documentation row is
 `core/whats-new`, SHA-256
 `49d5e4d1d8cc6f4ba7fd6ba9a293c5c34b786604bbebf688049397b521603bba`
-in `docs/apollo/public-documentation-manifest.tsv`; #294 records the specific
+in `docs/reference-platform/public-documentation-manifest.tsv`; #294 records the specific
 capability references. It does not establish a private lifecycle API or wire
 vocabulary. Conduit's run identifiers, phases, continuation request and storage
 are a registered extension (`catalog.PromotionLifecycle`), disclosed as

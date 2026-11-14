@@ -67,7 +67,7 @@
   "finding_apolloIsAKnownWebhookSource": {
     "claim": "A known-system inbound webhook handler named Apollo exists in Foundry's gateway. WHICH Apollo it names is not established by the type name alone.",
     "evidence": "ApolloInboundMessageListenerHttpsTargetHandler is one member of InboundMessageListenerHttpsTargetKnownSystemHandlerType, a 32-member union in schema.enriched.graphql whose other members are Airtable, AzureCommunicationServicesEvent, AzureEventGrid, BasicAuthentication, Bitbucket, Dialpad, FedEx, Github, Gitlab, GoogleCloudPubSub, IonFactoryOs, JiraCloud, Jira, Jotform, Meraki, Meta, MicrosoftBotFramework, PagerDuty, PandaDoc, Project44, RevelocPlus, ShipStation, Shopify, Skydio, Slack, Sns, Stripe, Twilio, TwilioSendGrid, VonageEvent and Zendesk.",
-    "whyItMatters": "If it is Palantir Apollo, it establishes that Apollo emits outbound HTTPS webhooks identifiable as its own -- which would move Webhooks in docs/apollo/reference/notifications.md from unknown to bounded, since the Demo Day capture shows a Webhooks section in Hub Settings with no contract behind it. That consequence is held pending the disambiguation above rather than claimed.",
+    "whyItMatters": "If it is Palantir Apollo, it establishes that Apollo emits outbound HTTPS webhooks identifiable as its own -- which would move Webhooks in docs/reference-platform/reference/notifications.md from unknown to bounded, since the Demo Day capture shows a Webhooks section in Hub Settings with no contract behind it. That consequence is held pending the disambiguation above rather than claimed.",
     "notEstablished": [
       "Which Apollo the handler names. See whichApollo.",
       "The payload shape. The union member resolves to a synthetic overlap in the observed schema and to a single _id: JSON field in the enriched one, so no field was recovered.",
@@ -95,7 +95,7 @@
     "whatThisIsNotEvidenceOf": "That Apollo lacks a deployment GraphQL API. The Apollo Hub serves its own GraphiQL from a different origin for which no session has been authorized. This bound is stated in the source manifest and is repeated here verbatim in intent, because reading a source-scoped absence as a general one is the error this repository has now made three times -- see the correction in ADR 0007 and the displacement of apollo.EntityIDSpaceSegment."
   },
   "corroboratingPaths": [
-    "REST: /data-health/api/monitoring/v2/monitoring-view/apollo-event-receivers -- already recorded in docs/apollo/reference/notifications.md",
+    "REST: /data-health/api/monitoring/v2/monitoring-view/apollo-event-receivers -- already recorded in docs/reference-platform/reference/notifications.md",
     "REST: /control-panel/api/admin/enrollment/{enrollmentRid}/organization/{organizationRid}/create-apollo-space -- already recorded in docs/evidence/apollo-control-panel-seam.json",
     "Authorization: marketplace:read-block-set-apollo-publishing-status",
     "Authorization: secure-development-space-manager:view-enrollment-apollo-connection"

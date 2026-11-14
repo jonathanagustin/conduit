@@ -13,7 +13,7 @@
 //
 //   1. Self-consistency. Each extract records its own counts; they must match
 //      what it actually contains, or the headline numbers quoted in
-//      docs/apollo/FRONTEND-CAS-CAPTURE.md are decoration.
+//      docs/reference-platform/FRONTEND-CAS-CAPTURE.md are decoration.
 //   2. Disclosure boundary. Templated paths only -- no RID literal, hostname,
 //      JWT, UUID or absolute URL. Same boundary the seam gate keeps, for the
 //      same reason: it is the part that erodes when someone makes provenance
@@ -39,10 +39,10 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const REST = resolve(ROOT, "docs/apollo/apollo-control-panel-rest-endpoints-6.533.15.json");
-const GRAPHQL = resolve(ROOT, "docs/apollo/apollo-control-panel-graphql-operations-6.533.15.json");
+const REST = resolve(ROOT, "docs/reference-platform/reference-control-panel-rest-endpoints-6.533.15.json");
+const GRAPHQL = resolve(ROOT, "docs/reference-platform/reference-control-panel-graphql-operations-6.533.15.json");
 const SEAM = resolve(ROOT, "docs/evidence/apollo-control-panel-seam.json");
-const SCHEMA = resolve(ROOT, "docs/apollo/foundry-gateway-observed-schema-6.533.15.graphql");
+const SCHEMA = resolve(ROOT, "docs/reference-platform/reference-gateway-observed-schema-6.533.15.graphql");
 
 /** The base the generated IHttpApiBridge supplies and the bundle therefore
  * never carries. Established by the three-way agreement below, not assumed. */

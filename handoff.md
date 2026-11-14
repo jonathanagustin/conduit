@@ -63,7 +63,7 @@ earlier session's claim is made where the claim is, and marked.
   Matters because the hydration direction was chosen as "however Apollo Hub does
   it", and this repository forbids inferring Apollo behavior. Cheapest probe:
   search the pinned snapshot at
-  `docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c`
+  `docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c`
   for a config or session-projection operation; expect the answer to be
   "not established", which is a valid answer.
 
@@ -917,9 +917,9 @@ boundaries too.
 
 **Method that held.** All 192 `core/whats-new` items were audited against the Go
 source (eight parallel Explore surveys), then reconciled against the repo's own
-prior disposition — `docs/apollo/ROSETTA-RELEASE-NOTES.md` (the maintainers had
-already mined this exact page on 2026-08-15), `docs/apollo/IMAGE-DERIVED-GAPS.md`,
-`docs/apollo/conformance.md`. Finding: the large majority are already
+prior disposition — `docs/reference-platform/ROSETTA-RELEASE-NOTES.md` (the maintainers had
+already mined this exact page on 2026-08-15), `docs/reference-platform/IMAGE-DERIVED-GAPS.md`,
+`docs/reference-platform/conformance.md`. Finding: the large majority are already
 implemented, already tracked (#15/#17/#54/#65/#126/#150/#169/#170/#173/#175/#241),
 or documented deliberate boundaries. Only the genuine, unfiled, non-duplicate
 residual was filed.
@@ -933,7 +933,7 @@ residual was filed.
   #299 (env console), #300 (teams tabs), #301 (entity source pills + RID search),
   #302 (notification deep-links).
 - Bucket C — undecline & implement boundaries: #303 / #304 (debug terminals /
-  JIT — reverse the H30 boundary in `docs/apollo/reference/debug-access.md`,
+  JIT — reverse the H30 boundary in `docs/reference-platform/reference/debug-access.md`,
   needs a superseding ADR before code), #305 (`--ignore-recalls` /
   `--ignore-secret-requirements` as a *reviewed* change-request field, not a CLI
   bypass). Plus undecline comments on #17 (adopt Space tenancy) and #119 (native
@@ -988,7 +988,7 @@ act-gate four lanes → PR → merge.
 zstd layer), not a runnable image. Pulled through the ghcr HTTP API with `curl`;
 no Docker daemon is running in a fresh session and none is needed. The layer
 digest was checked against the manifest before anything was read from it. Full
-receipt: [`docs/apollo/FRONTEND-CAS-CAPTURE.md`](docs/apollo/FRONTEND-CAS-CAPTURE.md).
+receipt: [`docs/reference-platform/FRONTEND-CAS-CAPTURE.md`](docs/reference-platform/FRONTEND-CAS-CAPTURE.md).
 
 **`[VERIFIED]` The capture is Foundry Control Panel, not the Apollo deployment
 console.** Its own title string is `{platform, select, apollo {Apollo} foundry
@@ -997,7 +997,7 @@ skin, "Control Panel" is the product. All 1,037 English `defaultMessage` strings
 are enrollment administration (auth/SAML, email, network ingress, deletion
 queue, markings, extensions). No Release, Product, Plan, Change Request, Recall,
 Promotion, Spoke or Environment-deployment screen vocabulary. This is the same
-name collision `APOLLO-CLIENT-DLL-EVIDENCE.md` records for the GraphQL client:
+name collision `REFERENCE-CLIENT-DLL-EVIDENCE.md` records for the GraphQL client:
 **an artifact named `apollo-*` is not evidence about the deployment product.**
 Do not cite this capture for anything on Products, Releases, Environments,
 Plans, Change Requests, Promotions, Fleet, Risk, Export or Import.
@@ -1067,7 +1067,7 @@ when that backend recovers if the debugger ever matters.
 **`[VERIFIED]` The console's design tokens ARE the tenant's.** 205 `--bp-*`
 tokens on both sides, same set, every value equal once the two builds' notation
 is folded. Now a gate — `scripts/verify-design-tokens.mjs` against
-`docs/apollo/contracts/foundry-design-tokens.json`, in `platform-ci.yml` and
+`docs/reference-platform/contracts/reference-design-tokens.json`, in `platform-ci.yml` and
 `verify-local.sh`, with the repo's `.test.sh` self-test proving it rejects a
 one-hex-digit difference and *accepts* `#FFF` for `#ffffff`.
 
@@ -1113,7 +1113,7 @@ other branch: `sha256:35159ccf90ad…`, matching what ghcr returns.
 (`9519522`) carries an API-surface extraction from the same bundles: **438
 Conjure REST endpoints across 34 services** and **24 complete GraphQL operations
 with 30 fragments**, both mined statically with no live call. Both are now
-committed here (`docs/apollo/apollo-control-panel-{rest-endpoints,graphql-operations}-6.533.15.json`)
+committed here (`docs/reference-platform/apollo-control-panel-{rest-endpoints,graphql-operations}-6.533.15.json`)
 rather than referenced, because a `claude/*` branch may be rebased or deleted.
 It also names a second artifact nobody here has pulled:
 `ghcr.io/jonathanagustin/apollo-ui/apollo-control-panel-frontend:6.533.15`.

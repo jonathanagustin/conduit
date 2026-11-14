@@ -648,7 +648,7 @@ func projectEnvironment(projection environments.CompatibilityProjection) (
 	// status has no such option. The same snapshot lists it in Environment's
 	// required set, so omitting it would break the contract to make a point
 	// about provenance. It stays "managed" and is DECLARED as a Conduit-supplied
-	// constant in docs/apollo/public-api.md and docs/operations/TENANT-FIDELITY.md
+	// constant in docs/reference-platform/public-api.md and docs/operations/TENANT-FIDELITY.md
 	// rather than left to be discovered.
 	environment := apollo.Environment{
 		Rid: rid, Name: projection.ID, Status: apollo.ManagementStatus("managed"),

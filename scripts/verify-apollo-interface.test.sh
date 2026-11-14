@@ -12,16 +12,16 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-observed="docs/apollo/observed/apollo-graphql-observed.json"
+observed="docs/reference-platform/observed/reference-graphql-observed.json"
 schema="api/graphql/apollo.interface.graphql"
-report="docs/apollo/observed/apollo-interface-provenance.json"
+report="docs/reference-platform/observed/reference-interface-provenance.json"
 native="scripts/apollo-graphql/conduit-native.json"
-manifest="docs/apollo/public-documentation-manifest.tsv"
-cli="docs/apollo/cli-command-contract.json"
+manifest="docs/reference-platform/public-documentation-manifest.tsv"
+cli="docs/reference-platform/cli-command-contract.json"
 # The pinned OpenAPI snapshot every `apollo-openapi X.y` citation resolves
 # against. Found rather than hard-coded, so pinning a newer capture does not
 # silently stage an empty file and turn every citation check into a no-op.
-openapi="$(cd "$repo_root" && ls -d docs/apollo/snapshots/apollo-openapi-*/api-definition.yml | head -1)"
+openapi="$(cd "$repo_root" && ls -d docs/reference-platform/snapshots/reference-openapi-*/api-definition.yml | head -1)"
 if [[ -z "$openapi" ]]; then
   echo "FAIL: no pinned OpenAPI snapshot found; the citation checks cannot run" >&2
   exit 1
@@ -29,7 +29,7 @@ fi
 
 stage() {
   rm -rf "$work/tree"
-  mkdir -p "$work/tree/scripts" "$work/tree/docs/apollo/observed" "$work/tree/api/graphql" \
+  mkdir -p "$work/tree/scripts" "$work/tree/docs/reference-platform/observed" "$work/tree/api/graphql" \
     "$work/tree/$(dirname "$openapi")"
   cp -r "$repo_root/scripts/apollo-graphql" "$work/tree/scripts/apollo-graphql"
   # The manifest and the OpenAPI snapshot are staged because the gate verifies

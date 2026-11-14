@@ -3,7 +3,7 @@
 A read-only projection that presents Conduit's delivery data in the shape of
 [Knative Serving v1](https://knative.dev/docs/serving/reference/serving-api/), so
 a client that speaks Knative can read Conduit's Products and Releases as Knative
-resources. It is the sibling of the [Apollo GraphQL interface](../apollo/reference/graphql-api.md)
+resources. It is the sibling of the [Apollo GraphQL interface](../reference-platform/reference/graphql-api.md)
 and follows the same discipline, with one deliberate difference in where the
 authority comes from.
 
@@ -113,5 +113,5 @@ model, and it should not anchor the decision in
 to the one part that does belong here -- whether Conduit should publish a
 per-binding portability matrix, applying the MAPPED-or-REFUSED discipline to
 workload bindings per target the way
-[`docs/decisions/0005`](../decisions/0005-apollo-coordinates-that-stay-refused.md)
+[`docs/decisions/0005`](../decisions/0005-reference-platform-coordinates-that-stay-refused.md)
 applies it to coordinates.

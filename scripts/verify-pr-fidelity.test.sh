@@ -317,7 +317,7 @@ Generate the pinned public API transport interface.
 
 | Claim or behavior | Class: Public contract / Tenant observation / Corroborating / Conduit extension / Unknown | Immutable source or sanitized evidence | Scope not established |
 | --- | --- | --- | --- |
-| Public operation shape | Public contract | docs/apollo/snapshots/example/openapi.yml at sha256:abc | Private Hub behavior |
+| Public operation shape | Public contract | docs/reference-platform/snapshots/example/openapi.yml at sha256:abc | Private Hub behavior |
 
 ### Deliberate divergences
 

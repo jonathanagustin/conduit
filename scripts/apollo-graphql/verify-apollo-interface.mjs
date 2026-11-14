@@ -29,12 +29,12 @@ import { buildInterfaceSchema } from "./build-interface-schema.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
 
-const OBSERVED = resolve(ROOT, "docs/apollo/observed/apollo-graphql-observed.json");
-const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
-const CLI = resolve(ROOT, "docs/apollo/cli-command-contract.json");
+const OBSERVED = resolve(ROOT, "docs/reference-platform/observed/reference-graphql-observed.json");
+const MANIFEST = resolve(ROOT, "docs/reference-platform/public-documentation-manifest.tsv");
+const CLI = resolve(ROOT, "docs/reference-platform/cli-command-contract.json");
 const OPENAPI = resolve(
   ROOT,
-  "docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml",
+  "docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml",
 );
 const NATIVE = resolve(HERE, "conduit-native.json");
 const CARDINALITY = resolve(HERE, "documented-cardinality.json");
@@ -44,7 +44,7 @@ const CARDINALITY = resolve(HERE, "documented-cardinality.json");
 // hand-edited.
 const MINTED = resolve(HERE, "conduit-minted-values.json");
 const SCHEMA = resolve(ROOT, "api/graphql/apollo.interface.graphql");
-const REPORT = resolve(ROOT, "docs/apollo/observed/apollo-interface-provenance.json");
+const REPORT = resolve(ROOT, "docs/reference-platform/observed/reference-interface-provenance.json");
 
 const failures = [];
 const fail = (message) => failures.push(message);
@@ -242,7 +242,7 @@ for (const [typeName, declaration] of Object.entries(native.types ?? {})) {
     if (field.documentedBy && !manifestUrls.has(field.documentedBy)) {
       fail(
         `${where} cites documentation at ${field.documentedBy}, which is not in ` +
-          "docs/apollo/public-documentation-manifest.tsv. A citation nobody can follow is not evidence.",
+          "docs/reference-platform/public-documentation-manifest.tsv. A citation nobody can follow is not evidence.",
       );
     }
     for (const cited of (field.publishedAs ?? "").matchAll(/apollo-openapi ([A-Za-z][A-Za-z0-9_]*)\.([a-zA-Z][a-zA-Z0-9_]*)/g)) {
@@ -267,7 +267,7 @@ for (const [typeName, declaration] of Object.entries(native.types ?? {})) {
       const flags = cliFlags.get(`apollo-cli ${command}`);
       if (!flags) {
         fail(
-          `${where} cites ${citation}, but docs/apollo/cli-command-contract.json records no command ` +
+          `${where} cites ${citation}, but docs/reference-platform/cli-command-contract.json records no command ` +
             `"apollo-cli ${command}". Cite a command the captured CLI contract carries.`,
         );
         continue;

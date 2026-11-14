@@ -3,7 +3,7 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const evidenceDirectory = join(root, "docs", "apollo", "third-party");
+const evidenceDirectory = join(root, "docs", "reference-platform", "third-party");
 const manifest = JSON.parse(readFileSync(join(evidenceDirectory, "evidence-manifest.json"), "utf8"));
 if (manifest.schemaVersion !== 1 || !Array.isArray(manifest.sources) || manifest.sources.length === 0) {
   throw new Error("secondary Apollo evidence manifest must contain versioned sources");

@@ -7,7 +7,7 @@ import (
 )
 
 func TestDecodeReconstructedApolloCLIManifest(t *testing.T) {
-	file, err := os.Open("../../docs/apollo/cli-fixtures/reconstructed/0.814.0/deployment/manifest.yml")
+	file, err := os.Open("../../docs/reference-platform/cli-fixtures/reconstructed/0.814.0/deployment/manifest.yml")
 	if err != nil {
 		t.Fatal(err)
 	}

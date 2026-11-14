@@ -61,6 +61,6 @@ different Kubernetes namespaces.
 - `configuration_test.go` covers most-specific selection, typed preprocessing,
   authoritative-block anti-spoofing, missing/major-bounded support, invalid
   Environment keys, unknown fields, and multiple-document rejection.
-- `apollo_environment_settings_test.go` covers the documented YAML vocabulary,
+- `environment_settings_reference_test.go` covers the documented YAML vocabulary,
   HTTP validation, semantic unknown-field diffs, locator uniqueness, partial
   application, and round-trip preservation.

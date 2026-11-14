@@ -254,4 +254,4 @@ Evidence reviewed 2026-08-02:
 - Palantir Cloud Pak CASE/operator commit
   `4d087b0b78e0cbd1bc9856d3d830186acac51c6f`;
 - bounded Maven inventory observations in
-  [`APOLLO-MAVEN-INVENTORY-EVIDENCE.md`](../../docs/apollo/APOLLO-MAVEN-INVENTORY-EVIDENCE.md).
+  [`REFERENCE-MAVEN-INVENTORY-EVIDENCE.md`](../../docs/reference-platform/REFERENCE-MAVEN-INVENTORY-EVIDENCE.md).

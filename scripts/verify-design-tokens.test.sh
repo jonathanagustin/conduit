@@ -17,7 +17,7 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 gate="scripts/verify-design-tokens.mjs"
-subject="docs/apollo/contracts/foundry-design-tokens.json"
+subject="docs/reference-platform/contracts/reference-design-tokens.json"
 
 if ! git diff --quiet -- "${subject}" || ! git diff --cached --quiet -- "${subject}"; then
   echo "verify-design-tokens self-test: SKIP (${subject} has uncommitted changes)" >&2

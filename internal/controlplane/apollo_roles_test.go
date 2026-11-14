@@ -92,7 +92,7 @@ func TestApolloRoleTableMatchesCapturedEvidence(t *testing.T) {
 // administrator, editor, and viewer, the administrator transitively grants both
 // lower tiers. This held for every family with multiple tiers in the capture, so
 // it is a structural regularity of a faithful capture, and the reconstruction
-// specs (docs/apollo/reference/notifications.md) lean on it. Gate it: a future
+// specs (docs/reference-platform/reference/notifications.md) lean on it. Gate it: a future
 // capture where a higher tier stops covering a lower one is either a capture
 // defect or an Apollo change, and either way is worth a loud failure rather than
 // a silent one.

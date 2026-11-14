@@ -9,7 +9,7 @@ Living documentation is organized by responsibility:
   direction, and explicitly named gaps.
 - `decisions/` records accepted architectural choices and their confirmation
   gates.
-- `apollo/` describes the bounded Apollo integration context and its pinned
+- `reference-platform/` describes the bounded Apollo integration context and its pinned
   public compatibility profile.
 - `operations/` contains the orchestration doctrine, assurance and harness
   requirements, tenant-fidelity, verification, and release guidance.

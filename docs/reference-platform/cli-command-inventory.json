@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "captured": "2026-11-13",
-  "sourceManifest": "docs/apollo/snapshots/cli-command-sources-2026-11-13.tsv",
-  "sourceCount": 107,
+  "sourceManifest": "docs/reference-platform/public-documentation-manifest.tsv",
+  "sourceCount": 123,
   "commands": [
     {
       "command": "apollo-cli artifact-registry list",
@@ -27,10 +27,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_artifact-registry_list/",
-      "sourceSha256": "c8aac28f4dbd6c9b7f23a998e006c4fe4caccdc201df94840c5a5c2946ba1d3c"
+      "sourceSha256": "89e96e3924bdaae3fcc150cc705a0f007fc1f14418def7246f1b37ae0cd3a178"
     },
     {
       "command": "apollo-cli artifact-registry",
@@ -55,10 +56,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_artifact-registry/",
-      "sourceSha256": "1618b83085ce75e50dc6143336afcb99ff6d9178ef82f93c3694e4e63263ca35"
+      "sourceSha256": "317dcd6f75da5183ea3b9a8e0960bc2663cf6fde7345bb93dcb4c7d90684664e"
     },
     {
       "command": "apollo-cli changerequest approve",
@@ -86,10 +88,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_approve/",
-      "sourceSha256": "8447c410cb9d988d245f8732f6608bd4a0625d1d8d805e5cb0f1d3f2c590d904"
+      "sourceSha256": "d57763f168545ab0e6d75295b19186abe47b0b89412559b36ae629d744910067"
     },
     {
       "command": "apollo-cli changerequest cancel",
@@ -115,10 +118,42 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_cancel/",
-      "sourceSha256": "370c4cc6fe7eee50c9bf69a9944afd92028287095d4b20ed5a2e8577b5b1d669"
+      "sourceSha256": "576de20af1d974224c03564c265c3bbb1b5781ba0759ceded2b906d0ef1f49be"
+    },
+    {
+      "command": "apollo-cli changerequest comment",
+      "synopsis": "apollo-cli changerequest comment <request-rid> [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-c",
+        "--comment",
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_comment/",
+      "sourceSha256": "4a31116a5b5a44bb17842858b0ed84695e612d528012d71bdf62cc3035f00bbc"
     },
     {
       "command": "apollo-cli changerequest get",
@@ -143,10 +178,102 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_get/",
-      "sourceSha256": "7ccd1c61cc730d7537e6fbd98237a8fba4eba1960dcfde82a8c93d9019519749"
+      "sourceSha256": "84aa4c492160043998dcbf407d36b28b64e0ca5e1de6d99c8ca0ae6b93d4026a"
+    },
+    {
+      "command": "apollo-cli changerequest label add",
+      "synopsis": "apollo-cli changerequest label add <request-rid> [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "--dry-run",
+        "-h",
+        "--help",
+        "--label-name",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label_add/",
+      "sourceSha256": "97bda17f213f600a4eb707019f80325e4e112329332544ddf58d7618080fb595"
+    },
+    {
+      "command": "apollo-cli changerequest label remove",
+      "synopsis": "apollo-cli changerequest label remove <request-rid> [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "--dry-run",
+        "-h",
+        "--help",
+        "--label-name",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label_remove/",
+      "sourceSha256": "c210bda518bc327cd03d328e22ff9d30e590bf004ef435babd289f86046a4803"
+    },
+    {
+      "command": "apollo-cli changerequest label",
+      "synopsis": "",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label/",
+      "sourceSha256": "becf7a7c747931c60d790c1bf42b0a5f39655a443c040df10f5ca329a58e9d07"
     },
     {
       "command": "apollo-cli changerequest list",
@@ -174,10 +301,11 @@
         "-o",
         "--output",
         "--profile",
-        "--quiet"
+        "--quiet",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_list/",
-      "sourceSha256": "cee33f5a82d7476dd00850738a02d8c8167d3d0ce4876fde48e35d24d92da081"
+      "sourceSha256": "c65cbebb6b707195103c1bda9670fc559ef4220aa6b4cc3950608e6be3f7b1ad"
     },
     {
       "command": "apollo-cli changerequest reject",
@@ -205,10 +333,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_reject/",
-      "sourceSha256": "0f61e331445589a5fddeb1c8ee7c3ba52680e03394a8795ddd458b055ed04ac7"
+      "sourceSha256": "40d2c5b0ea2efdb593cfb1545e1ea9dc5104e8220d50b39ed4901c7d0d989abf"
     },
     {
       "command": "apollo-cli changerequest reopen",
@@ -234,10 +363,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_reopen/",
-      "sourceSha256": "42879414728962587d848b756e50190265164e288548f111dd8a2ed552521ff3"
+      "sourceSha256": "7271128cac12b5ab45d6b0bb9a8fd3a399817a282d99a46507f5a6044f4ef21f"
     },
     {
       "command": "apollo-cli changerequest",
@@ -262,10 +392,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest/",
-      "sourceSha256": "7ab96a10513b8024fe964f178ce5b266f0d7fed9516203d71435eff90c346eea"
+      "sourceSha256": "ede8ec9d9792f3985c85edee9ab79ddd1a0cd8911bb5529aa37a48f9ce2046e4"
     },
     {
       "command": "apollo-cli configure",
@@ -290,10 +421,11 @@
         "-o",
         "--output",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_configure/",
-      "sourceSha256": "98bab016bd9ce84cb8ebd761ce9cc1b3869b5587f56e06260abc337085fdf9bd"
+      "sourceSha256": "b2294b5a41db4fb6d764444eeb48df58bd6b82acfb18eb7d6b2f74f5da9fc1a9"
     },
     {
       "command": "apollo-cli cve check",
@@ -304,6 +436,7 @@
         "--details",
         "-e",
         "--environment",
+        "--force",
         "-h",
         "--help",
         "-f",
@@ -326,70 +459,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_check/",
-      "sourceSha256": "3ba0075690e5938ffd4185eade4e4944198b7f6241a04ec80e1b6b6c329e34a1"
-    },
-    {
-      "command": "apollo-cli cve list",
-      "synopsis": "apollo-cli cve list [flags]",
-      "experimental": false,
-      "deprecated": false,
-      "flags": [
-        "-e",
-        "--environment",
-        "-h",
-        "--help",
-        "-f",
-        "--maven-coordinates-file",
-        "-p",
-        "--product-id",
-        "--apollo-client-id",
-        "--apollo-client-secret",
-        "--apollo-token",
-        "--apollo-token-provider",
-        "--apollo-url",
-        "--debug",
-        "--http-timeout",
-        "-k",
-        "--insecure-skip-verify",
-        "-o",
-        "--output",
-        "--profile",
-        "--quiet",
-        "--space-id"
-      ],
-      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_list/",
-      "sourceSha256": "0b080ab351844cdea26f4b7c3387b7650a3a3c0303584e18022ab9ec37b4803b"
-    },
-    {
-      "command": "apollo-cli cve",
-      "synopsis": "",
-      "experimental": false,
-      "deprecated": false,
-      "flags": [
-        "-h",
-        "--help",
-        "--apollo-client-id",
-        "--apollo-client-secret",
-        "--apollo-token",
-        "--apollo-token-provider",
-        "--apollo-url",
-        "--debug",
-        "-e",
-        "--environment",
-        "--http-timeout",
-        "-k",
-        "--insecure-skip-verify",
-        "-o",
-        "--output",
-        "--profile",
-        "--quiet",
-        "--space-id"
-      ],
-      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve/",
-      "sourceSha256": "0bae491d061df39af7b650b2a7d60c5211918374bf0cf81bac8aa1465d46bcd3"
+      "sourceSha256": "78ed5606ab939c94cb52f87ce25eecd7ed92802f8d6ee440dec4da396af6fd41"
     },
     {
       "command": "apollo-cli cve grype scan",
@@ -451,6 +525,68 @@
       "sourceSha256": "e81d2ad990b39d8a661006300992d39286957e5beab6f6e698da5c1cd7228721"
     },
     {
+      "command": "apollo-cli cve list",
+      "synopsis": "apollo-cli cve list [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-e",
+        "--environment",
+        "-h",
+        "--help",
+        "-f",
+        "--maven-coordinates-file",
+        "-p",
+        "--product-id",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve_list/",
+      "sourceSha256": "5dee97f5c8c42a8073177289c931ecaf67c256d146f4577af2701c56ad8e25e7"
+    },
+    {
+      "command": "apollo-cli cve",
+      "synopsis": "",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_cve/",
+      "sourceSha256": "29a5c9cdccfe42d45d0c8b29bf1043c55b509f7a61795c0ae34f68136e85f0e8"
+    },
+    {
       "command": "apollo-cli entity aggregate [Experimental]",
       "synopsis": "apollo-cli entity aggregate [flags]",
       "experimental": true,
@@ -478,10 +614,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_aggregate/",
-      "sourceSha256": "b266d31f78bc9a42a8aaf1f450c9af17d58a942da9cbd1da99ce848931873125"
+      "sourceSha256": "3b041896ba1df8da49cd2658df12905e45a8297617448566f69af1302f46ecaa"
     },
     {
       "command": "apollo-cli entity enforce [Experimental]",
@@ -510,10 +647,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_enforce/",
-      "sourceSha256": "e67bd624f974807bccd7f9689f98c61a7a325d68a0a2c1308c086618171162ff"
+      "sourceSha256": "4a228b4ef0b094119258f5f7dcb1213e52d0af767febebb388ca99d988cfef68"
     },
     {
       "command": "apollo-cli entity get [Experimental]",
@@ -538,10 +676,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_get/",
-      "sourceSha256": "1167c57b5b3aba7f4bc6add4b93dc3ff1ee1ec6628d2ac40a344c4bd2be4d837"
+      "sourceSha256": "0350d2d0070d93314521a9273f49b52a6dfd27cf033cffea3c8de4952e1d9cf1"
     },
     {
       "command": "apollo-cli entity install [Experimental]",
@@ -570,10 +709,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_install/",
-      "sourceSha256": "466c38f264627925bc4e83d2d898a003db7bf53a7f6d0793fd0f3ac3744bfe9b"
+      "sourceSha256": "c144769e37964851fc83e9fe28e29ba749652187de9a49c79d12e0c1a428e420"
     },
     {
       "command": "apollo-cli entity list [Experimental]",
@@ -598,10 +738,74 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_list/",
-      "sourceSha256": "29192bc5f55824a4ed34970dc41326dd78c869d144271c931cd53fda26b18099"
+      "sourceSha256": "685e4d13ef5bbfab5b20b42343d1020ff05cb041e3b70f3bedba5161e9ca8d69"
+    },
+    {
+      "command": "apollo-cli entity maintenancewindowoverride create [Experimental]",
+      "synopsis": "apollo-cli entity maintenancewindowoverride create <aeid> [<aeid>...] [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "--compliance-ticket",
+        "--downtime",
+        "--dry-run",
+        "--duration",
+        "-h",
+        "--help",
+        "--reason",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride_create/",
+      "sourceSha256": "68dd90ba43e602faaecc5eae4d4d1d921d23f1b30d9f264068ed6ce000ccb661"
+    },
+    {
+      "command": "apollo-cli entity maintenancewindowoverride [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride/",
+      "sourceSha256": "9b14ec637879f80dd7bcc0fc5105861c2ad6b1c11c8d3ef9d150bc935da6f54b"
     },
     {
       "command": "apollo-cli entity [Experimental]",
@@ -626,10 +830,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity/",
-      "sourceSha256": "5ca1e4991dac6e214f11a17170e6845415d98aab071829c56bbb2077cdc1c744"
+      "sourceSha256": "659e3bccd0281e80e74fa09e53f51b4692f7050caa226754e0eea43889fafc6a"
     },
     {
       "command": "apollo-cli environment artifact-registry assign",
@@ -655,10 +860,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_assign/",
-      "sourceSha256": "3c27655795fbcbe89e701ea1d2148d5b6a69391d29bd35d47a1f571080e51835"
+      "sourceSha256": "f7f51c8813e99c4e13bcb087298e45bbb9f045e24e8c81afa3dce07ce26b00a6"
     },
     {
       "command": "apollo-cli environment artifact-registry list",
@@ -683,10 +889,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_list/",
-      "sourceSha256": "90cf99605f54486286df979d177c5f6686af6fffb8a421d4caff1b3b84c3f3e9"
+      "sourceSha256": "37dd7cb2c20bfd8566dfd6b6af77fb5a165211af1acd91f15ab2b05630b8eb0a"
     },
     {
       "command": "apollo-cli environment artifact-registry unassign",
@@ -712,10 +919,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry_unassign/",
-      "sourceSha256": "9be5f882d4420e9b4f1649907b6a5e940f58ea73dfddce914a0187599f75a2ef"
+      "sourceSha256": "9961a5506fe258f183a0be9358a385d5e8c08054e27fe9f69c1b2a9f0b861e90"
     },
     {
       "command": "apollo-cli environment artifact-registry",
@@ -740,10 +948,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_artifact-registry/",
-      "sourceSha256": "fa5ce33fff05ee370c614d49c39a3d7b0a64d696f940773979efb84d0633a5ca"
+      "sourceSha256": "ee45b7c0dc8d32da8bd1cf6a7a2d2cfbdfe102cc4e32c4e44c2efbc88f03b018"
     },
     {
       "command": "apollo-cli environment config apply",
@@ -772,10 +981,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config_apply/",
-      "sourceSha256": "808e01406d04385800f173fa4c9e65339bf1a26ac75953e57e768f3c6febed6a"
+      "sourceSha256": "a97c21a0ecb2d0fecb747a3a041b35d396075c2f0f47723a01ab54ac13ce5b35"
     },
     {
       "command": "apollo-cli environment config get",
@@ -801,10 +1011,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config_get/",
-      "sourceSha256": "ee5850eeece0852e242cb02bc6ca965386d8f69303ad46c891048db408addc70"
+      "sourceSha256": "66aec5f609aae58d3d9a17a8493e306bee24f0abae97ac5e373eb8261907fc92"
     },
     {
       "command": "apollo-cli environment config",
@@ -829,10 +1040,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_config/",
-      "sourceSha256": "5f3bfe34e1c620003a00d3ae14143439939d5a3f4915481d544c49e31ea6a921"
+      "sourceSha256": "0ac9baa155a2c5a8f9e0a4b8380cdc6fa442cb1b00443531d2fbd41a9e0b5ee6"
     },
     {
       "command": "apollo-cli environment create",
@@ -858,10 +1070,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_create/",
-      "sourceSha256": "d805c4e166f1819fd448ac466fa418c4abd04ef45d2008ea586deec37269d08c"
+      "sourceSha256": "02f53bcfc65c82f5f74e08babf5b2377b08274f56e105327bdabadc9ab72f4b4"
     },
     {
       "command": "apollo-cli environment delete",
@@ -886,10 +1099,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_delete/",
-      "sourceSha256": "9cdf34b392a11108e40b4a0b68abf267e5d3fa9575bdd984ac3502086189833a"
+      "sourceSha256": "aaaf1560dd30cbaa2b23798e0c077a817ac1db6f80775bf844653af6edd80f38"
     },
     {
       "command": "apollo-cli environment get",
@@ -914,10 +1128,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_get/",
-      "sourceSha256": "73e3267d2440356ed6acb256f0a88aed7ab2aa38a49b0dbc9ac44abad15f7b9c"
+      "sourceSha256": "2023a6d0b9da6a1ee31632954a130018a713ba131726cf8d0d0172436b19fa3d"
     },
     {
       "command": "apollo-cli environment list",
@@ -942,10 +1157,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_list/",
-      "sourceSha256": "88df0e4cd313ae38e31ff950f911e65c951e5e461cc4b002794f63600b21090f"
+      "sourceSha256": "44d83789f6b283b3ed75906f5691e2e194ba5c45706021b0c0683eb0f0d93e42"
     },
     {
       "command": "apollo-cli environment manifest generate",
@@ -971,10 +1187,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_manifest_generate/",
-      "sourceSha256": "a1ce39c7b427bb0ea0d3cb1645625a174a686c44edd325227e0fc49144002534"
+      "sourceSha256": "b7784f12550ab3fca92e1c30f80eefdbd8d4ac92d47f7dc206960f7a887d2233"
     },
     {
       "command": "apollo-cli environment manifest",
@@ -999,10 +1216,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_manifest/",
-      "sourceSha256": "b6c8d409879ed6180fcbad1c5962b406bf4a85ef0b0b78ae3c8e139c17114980"
+      "sourceSha256": "5df96dcafde7de7b669e58746ad938f5e28adbde989483bd192dbe83a394d050"
     },
     {
       "command": "apollo-cli environment release-channel set",
@@ -1030,10 +1248,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_release-channel_set/",
-      "sourceSha256": "228276d7711b079cc4dfb2c41dd39823bab75c92b330a787ea96a7e6bc463993"
+      "sourceSha256": "295dd4af300421c3036744651e549c8f2289f1a8415fdaa335b11804fad82dee"
     },
     {
       "command": "apollo-cli environment release-channel",
@@ -1058,10 +1277,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_release-channel/",
-      "sourceSha256": "e2e85f0273fc90552a8cb28fba57e6850c52fa94f9fb9dff9586e4ed1d6d09d8"
+      "sourceSha256": "fa08d10f42fd1b92a9f881814d37a64ca771e626d4de49dd79bc7657c38157f9"
     },
     {
       "command": "apollo-cli environment setting edit [Experimental]",
@@ -1089,10 +1309,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_edit/",
-      "sourceSha256": "31ecd14f31978dbb18bf55adc8e513d991e45ea369fa3f172b02ba631aaab597"
+      "sourceSha256": "6c407381151b53e3515aab08eb81f2b9686a30a14d4b7b429342896d8498ddb6"
     },
     {
       "command": "apollo-cli environment setting get [Experimental]",
@@ -1117,10 +1338,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting_get/",
-      "sourceSha256": "262539fbc846a00dcef4cd959b3d043528738bc14c452e244fabe5cdf93cc3ca"
+      "sourceSha256": "7931fb9f0ffb04584d1b884e805d7e96761fc913f01e7108feb293b86926090e"
     },
     {
       "command": "apollo-cli environment setting [Experimental]",
@@ -1145,10 +1367,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_setting/",
-      "sourceSha256": "f22d6e1f4f1cc540f24fcfcfdbc27a7f7c903e85b43033d46d3c4ce3b8543ab1"
+      "sourceSha256": "1fb23c8459e6c6d59ac1dd5f9e414d49a26b74f9a619307ac752150e6606eff1"
     },
     {
       "command": "apollo-cli environment version compare",
@@ -1176,10 +1399,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version_compare/",
-      "sourceSha256": "0bb25a186fdb81f20f15fc9c32be0687262a0f545f7cb6c0ec8dec2e62108605"
+      "sourceSha256": "a0e168caa7600dbd589d452c64e3bff782f4845408e555e1d88875b1a75c21ea"
     },
     {
       "command": "apollo-cli environment version",
@@ -1204,10 +1428,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version/",
-      "sourceSha256": "3136561d7d62f4965ee75d36fcca62fd5d18e6cb4b6e94a5438e4898770e675f"
+      "sourceSha256": "b432a849d92eb89541ecfc3b750825aaeedc79629a1d34dff311892570f3f38a"
     },
     {
       "command": "apollo-cli environment",
@@ -1232,10 +1457,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment/",
-      "sourceSha256": "aba1b313387e0da5a2dc854fd4ac3931fbe42cc13fce46a722b18949999b6a05"
+      "sourceSha256": "1b838b8bc3dce2d0653f481830a8678c681a8a5a54945093ccb1a542ad45182e"
     },
     {
       "command": "apollo-cli helm-chart validate [Experimental]",
@@ -1271,10 +1497,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart_validate/",
-      "sourceSha256": "bdf72a87dc6064879ff903372b4d1669f0f232a37723ce08be018e3eeac45a1c"
+      "sourceSha256": "d6fd01ec8ebbacb679429a48daecc2ee921054b7ec2fbef7e8391047a7cd1039"
     },
     {
       "command": "apollo-cli helm-chart [Experimental]",
@@ -1299,10 +1526,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart/",
-      "sourceSha256": "fbf231997a3fb6212096bfaa0d874f693da456137bde9f6b1d1021143c5f9024"
+      "sourceSha256": "b7953e110cd445fa40b7ecdbc62cf9eb065fc26a05e48228b69f5543dfada68b"
     },
     {
       "command": "apollo-cli label delete [Experimental]",
@@ -1329,10 +1557,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_delete/",
-      "sourceSha256": "48459d844c63f0f8c6ef2da3edc9aca3d4feb183dd5d7269618416fd5078e385"
+      "sourceSha256": "65ec7402f1ce64ad0870ef140545964b42ee1af62027c510e9969a7a18dce021"
     },
     {
       "command": "apollo-cli label get [Experimental]",
@@ -1358,10 +1587,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_get/",
-      "sourceSha256": "2b2feb02e9e538c29bba708b3edb3db0bf0b3f0a4ca91be2e722093d9ab7b027"
+      "sourceSha256": "f331841248195c78e7abc70955a245bbc8da99a390af82ca28f5c8b7f2a49a86"
     },
     {
       "command": "apollo-cli label list [Experimental]",
@@ -1386,10 +1616,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_list/",
-      "sourceSha256": "c81b704156500dfd8e9b543d81b88b717a328a4f101b4fe73f3504dc20502c1c"
+      "sourceSha256": "a24911d0a7c634b53e4b360e5deb894179cb2321797fcac2cc592314ff5f6d96"
     },
     {
       "command": "apollo-cli label set [Experimental]",
@@ -1417,10 +1648,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_set/",
-      "sourceSha256": "c97332ae8f435b174d345533245ad648586fb0d9afec0837e58664b244f0ea93"
+      "sourceSha256": "bfc30b17ccda04faf68b010ef679ab53524a28cf3e8ebf165acb29aea1495c71"
     },
     {
       "command": "apollo-cli label [Experimental]",
@@ -1445,10 +1677,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label/",
-      "sourceSha256": "4af6142998ad5cb220e7c195bcae538451eb55a9f412aad5746a34f9c990f950"
+      "sourceSha256": "36a6a1960ae5c74e61cbbdd6efe42ad3cc3cfe126d5b239132f7edd149607007"
     },
     {
       "command": "apollo-cli module create",
@@ -1477,10 +1710,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_create/",
-      "sourceSha256": "eeac15f2da321beb7e10cd9428eddb9ad514783a0d6ca6926f3ca7a2e8a7a08a"
+      "sourceSha256": "146da3e089a9bcb5caf65433d63945283cf4bc68a4c7a7e3fabd76b9c06aeac2"
     },
     {
       "command": "apollo-cli module diff [Experimental]",
@@ -1507,10 +1741,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_diff/",
-      "sourceSha256": "b3dc4eb51487ff6f8018bde9be28d8c90bacdd4dc689ed5a50c37813dccf7c0f"
+      "sourceSha256": "8d146b0ec9ff10c2a0ef46b08a8354e9ee500ee0349c053d8f203b94c06ee797"
     },
     {
       "command": "apollo-cli module evaluate [Experimental]",
@@ -1538,10 +1773,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_evaluate/",
-      "sourceSha256": "d92df86da742f23079b2d51518d19e3ce92d54723f09966e52c5fceebe0b637d"
+      "sourceSha256": "0a5c6134b5f40fef95336b2129379cc21cbb1a8261994c9c63b4afe1718ae25c"
     },
     {
       "command": "apollo-cli module flatten [Experimental]",
@@ -1568,10 +1804,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_flatten/",
-      "sourceSha256": "3a81019ec29856881b72e34a240ba4b766cb07f4264963b9d5fb16b3e10ae538"
+      "sourceSha256": "1da17d9c212dd9cee2d9d6f70a185b2a6c300407f0dc9781076bb694839c4310"
     },
     {
       "command": "apollo-cli module get [Experimental]",
@@ -1596,10 +1833,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_get/",
-      "sourceSha256": "176c40b0f40f1eeec4fc14dada56d359e21b025143316e428573f2c2f5e870a9"
+      "sourceSha256": "e297083dd1e72dc4980952c81507464c72417622e01a63115f446cfb8759fc7f"
     },
     {
       "command": "apollo-cli module install [Experimental]",
@@ -1629,10 +1867,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_install/",
-      "sourceSha256": "b1098d3b83e8651b83c5cc6cd9a24de5af8f7ec8a7260265dd18ff5a002a54c6"
+      "sourceSha256": "a4a13977ecdc6542f1312fb960a619c8b27fe313ffbb8d60a177458c31ed04a5"
     },
     {
       "command": "apollo-cli module list [Experimental]",
@@ -1657,10 +1896,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_list/",
-      "sourceSha256": "4f59251188724897b0e1783244621ab36a409d716295d2d6e0cc8bf0abf1b8f1"
+      "sourceSha256": "2e6469d947a2576b363d306abe538937859ca6da40330cb759cc27d95c512d0f"
     },
     {
       "command": "apollo-cli module lock",
@@ -1689,10 +1929,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_lock/",
-      "sourceSha256": "3cfb09438f8897d9a24576960b0ffa4e3b3ca4e44eceacc80d4129790382aae1"
+      "sourceSha256": "bb10dba5d19c5c0f2eed92b1242d5e29c5af88902d91d1e6c7f24da18aebc8d2"
     },
     {
       "command": "apollo-cli module update",
@@ -1719,10 +1960,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_update/",
-      "sourceSha256": "43bfed1c1ef641ab97a1df290f5342c4979c1ab6bd354d5fa91b1b3453a15586"
+      "sourceSha256": "616b031ff8a7a0d86be13f1b5942a2186594da9d481e04ce8dcc6d8cc0268cd5"
     },
     {
       "command": "apollo-cli module",
@@ -1747,10 +1989,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module/",
-      "sourceSha256": "f1fce53530d51b08a4c5e7c86558311f619d58e1dd0380888d6b302c6778097b"
+      "sourceSha256": "7f44c788111adb15de52567b0e53147587d83c1b6d997ea45b344521b8768c46"
     },
     {
       "command": "apollo-cli product list",
@@ -1775,10 +2018,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_list/",
-      "sourceSha256": "84f228129d684d3ecdffc7088717643a608511ff93e7f372a04457e72c0d010b"
+      "sourceSha256": "7395841cec40d1a5dc48681712d7fcded22d71235aa9684804b7ad646fb17c2d"
     },
     {
       "command": "apollo-cli product promotion append [Experimental]",
@@ -1807,10 +2051,11 @@
         "-o",
         "--output",
         "--profile",
-        "--quiet"
+        "--quiet",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_append/",
-      "sourceSha256": "8c49e370c66c2f71e13cd93003ebf52aaeb3493b1dd28eae8d87d29b36dd4241"
+      "sourceSha256": "9f960e7a74a8efb3cc6711ac45f4a890710595318764d2c1799a49dab10782c0"
     },
     {
       "command": "apollo-cli product promotion disable [Experimental]",
@@ -1835,10 +2080,11 @@
         "-o",
         "--output",
         "--profile",
-        "--quiet"
+        "--quiet",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_disable/",
-      "sourceSha256": "ae229bc2a85ab89c23e327b42d1763b8a2538b3c8a6f59de9bc1713df5abc1ca"
+      "sourceSha256": "4239a3f5cee4a02cd4b0702d1f32b0b87b201ec0b66e078824e129a1b3cafb66"
     },
     {
       "command": "apollo-cli product promotion enable [Experimental]",
@@ -1863,10 +2109,11 @@
         "-o",
         "--output",
         "--profile",
-        "--quiet"
+        "--quiet",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_enable/",
-      "sourceSha256": "30a5f32ffce1477c1624372c8db319b8a2076703cb5201478d5c36e8f9a36d67"
+      "sourceSha256": "918c880bdc73c4987590ffefb0cbe7bf86f6ae6b2395a5c4a3c854b2a71baba9"
     },
     {
       "command": "apollo-cli product promotion get [Experimental]",
@@ -1891,10 +2138,11 @@
         "-o",
         "--output",
         "--profile",
-        "--quiet"
+        "--quiet",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_get/",
-      "sourceSha256": "f39eddc36d36e4a3e766abbba630edf16ef8c656a678dd3f781ef0e3bc7ebf08"
+      "sourceSha256": "c8fb18bb899d661c3de2475b23c8ce77553033d205d87324c507f58d0905b35f"
     },
     {
       "command": "apollo-cli product promotion set [Experimental]",
@@ -1923,10 +2171,11 @@
         "-o",
         "--output",
         "--profile",
-        "--quiet"
+        "--quiet",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion_set/",
-      "sourceSha256": "c8e7a85c11a5f0237a3ec223f192660f59e1f7ec999090e29864095e7f0a2c8d"
+      "sourceSha256": "90dc142d550013c117f1d0aa33daf49c8b581065d3f2dc4dc157b260e9bc28af"
     },
     {
       "command": "apollo-cli product promotion [Experimental]",
@@ -1951,10 +2200,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product_promotion/",
-      "sourceSha256": "46bceed1ea64c7b8620f39a9bd2685bbb73d3fc683ddbec01b4189496d7b7bfa"
+      "sourceSha256": "7ec5b18ca0999cda0d7f16f1b951e07e9066ecce30dfb641d1460430fe091dbb"
     },
     {
       "command": "apollo-cli product-release asset publish",
@@ -1988,10 +2238,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_asset_publish/",
-      "sourceSha256": "e90a627346d4a38e5efb9f10eb5473bb0a1f34758742da9bcf3a9cbfc18623d7"
+      "sourceSha256": "03d7002f6a76a58067f2c29d87f8f2c22dd03030798eb593fa24794897b5a7b4"
     },
     {
       "command": "apollo-cli product-release asset",
@@ -2016,10 +2267,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_asset/",
-      "sourceSha256": "93f8b409d807318ffe23cda0a844fbf6fcc1973cf59e105c161f03a33cd81373"
+      "sourceSha256": "e31a64abf5818139e369fe116a3dd56e12f3d99a984bf7dbbf056c513464e82d"
     },
     {
       "command": "apollo-cli product-release create",
@@ -2048,10 +2300,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_create/",
-      "sourceSha256": "4e85e0fd42701db8204a22df93b13ec17c5e79fe54d67b449a271ed9ed19a926"
+      "sourceSha256": "6f041749cd39bd0553ff61c4fd6b17961f47fc36a0e354179ca2719ad9d4af8b"
     },
     {
       "command": "apollo-cli product-release get",
@@ -2076,10 +2329,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_get/",
-      "sourceSha256": "a860f31daea6e4b9c54a3a044b2704a1549339fb9c2dd700c36ea20d26d707f4"
+      "sourceSha256": "9fba8adfbf95e97212afc5c31d2213cab96caedf11dad1b3616e8ee620b30b1a"
     },
     {
       "command": "apollo-cli product-release helm-chart init",
@@ -2121,10 +2375,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_helm-chart_init/",
-      "sourceSha256": "870a970ecb72e0661aec5443809b80abe986be3eb20794b4b16bdded06e72c19"
+      "sourceSha256": "3897325f699ca9442571334deef7c537179e830f696c05809ba133e6e8657c62"
     },
     {
       "command": "apollo-cli product-release helm-chart",
@@ -2149,10 +2404,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_helm-chart/",
-      "sourceSha256": "6f27fa8ba0ff1772d97267916a10cb3807063593bab6ce5960a2dea33310aba6"
+      "sourceSha256": "da784a9fd1a48918ffedc491d0abd467e430933386cd5adcd1c5efc4feb3b7ec"
     },
     {
       "command": "apollo-cli product-release init",
@@ -2179,10 +2435,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_init/",
-      "sourceSha256": "cc5018101278b9594eb2d0995b14b33a587c99e36218a94f062293e977b2bb67"
+      "sourceSha256": "3654e9cfdbd7abb3809a80d518439811346716d3a19308e7a326dae940cd9fe6"
     },
     {
       "command": "apollo-cli product-release list",
@@ -2211,10 +2468,71 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_list/",
-      "sourceSha256": "0182fc08b1f064977d63afd1159d39d4d50100e5d4458d9a427beed492cfda58"
+      "sourceSha256": "9acacf655d2dec03221b0d930234fe1182c5f80bf6e507512b6c733e0ae3687f"
+    },
+    {
+      "command": "apollo-cli product-release release-channel edit",
+      "synopsis": "apollo-cli product-release release-channel edit <maven-coordinate> [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "--dry-run",
+        "-h",
+        "--help",
+        "--rationale",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_release-channel_edit/",
+      "sourceSha256": "fd81efc60f5fcd34b29bbd6291fb8f735d8f7aa0bb5f29a4b5bf36bf32e109b2"
+    },
+    {
+      "command": "apollo-cli product-release release-channel",
+      "synopsis": "",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_release-channel/",
+      "sourceSha256": "b9866ed64baf7e1fa724269d55d326cf900d50d7660bd2b18bab6aaca79ab377"
     },
     {
       "command": "apollo-cli product-release terraform init",
@@ -2242,10 +2560,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_terraform_init/",
-      "sourceSha256": "94a7c6d6d8e3456ae2a9cc317181da8e5c6d371e9db1c937f258b41da1263420"
+      "sourceSha256": "a883071955ae8a166740b9a0336864e226d7d6ae52c19fc94bb926dd01f8b03c"
     },
     {
       "command": "apollo-cli product-release terraform",
@@ -2270,10 +2589,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_terraform/",
-      "sourceSha256": "0131e69448a308a885c0b455bd1221c3eef9aecf72876aaa6adaf7e778c7883d"
+      "sourceSha256": "fd1200b1ffafccc844eed2a908fa619a155d9a713f7c9a5b193b94d9a7bae366"
     },
     {
       "command": "apollo-cli product-release verify",
@@ -2301,10 +2621,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_verify/",
-      "sourceSha256": "6e2f68f1dcfa98ac426a890764199cd5472408b863fb1ad027d4adf1bcbb163d"
+      "sourceSha256": "282697a7499bf88cb4187565fe66f3a257753c4d369144fc00282a413e164d99"
     },
     {
       "command": "apollo-cli product-release",
@@ -2329,10 +2650,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release/",
-      "sourceSha256": "51295cbd01ef4821e0ce8ec12e7c68de53d3ec189077b306392b85a55fbdd99c"
+      "sourceSha256": "75c58bb1d9762adcd665af4e36da6724f1ec69f380a9adc2426c36b0d480ac17"
     },
     {
       "command": "apollo-cli product",
@@ -2357,10 +2679,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product/",
-      "sourceSha256": "c5c646ef8b919af92660693d1fedb9e954e13823e677c670bda0025d591fae61"
+      "sourceSha256": "1901aaac35474f746b18015f2c11aca6aa01d525383a469ae371ea56657263c3"
     },
     {
       "command": "apollo-cli profile create [Experimental]",
@@ -2387,10 +2710,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_create/",
-      "sourceSha256": "5f2457dfc4f17a0e2f418e4ec94e30ebdb78c8107f4ed528cbb0de7c510778b3"
+      "sourceSha256": "e24d89defb37f65e8a78b512dc1041e19901964abb55309d4e3d3f2d89b83ded"
     },
     {
       "command": "apollo-cli profile delete [Experimental]",
@@ -2416,10 +2740,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_delete/",
-      "sourceSha256": "8ba6cb4e4d7c0e9442084ab18eff5505002c17c0838cacda1f379acf2b781913"
+      "sourceSha256": "f602ff57c63e0bbdbef408235c4aa89c10ea06f35d7a16cbf9c40c3c6352c216"
     },
     {
       "command": "apollo-cli profile export [Experimental]",
@@ -2446,10 +2771,11 @@
         "--insecure-skip-verify",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_export/",
-      "sourceSha256": "4b9faa5e1284fa0ddca12c5167b880a5eeb9e2defa4addfd4f955a4368525c4f"
+      "sourceSha256": "6940a153712276e3f39fe9e8bc62686d9f3387fa87047561d0baa75656997eef"
     },
     {
       "command": "apollo-cli profile import [Experimental]",
@@ -2477,10 +2803,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_import/",
-      "sourceSha256": "3360da42eae8b4d732a4787123d4cd16e4e0b0932ccb41c8d74da4b4850e3928"
+      "sourceSha256": "13cb9dacb185e2a7ea79e259262af7fc55391f5318cde6ff7f05ddcf01c2ffc3"
     },
     {
       "command": "apollo-cli profile list [Experimental]",
@@ -2505,10 +2832,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_list/",
-      "sourceSha256": "87fa62ef3c424989ab4f39a3a9c8fb43dc6509318a47aae991e84e49d73c7cb3"
+      "sourceSha256": "a8747e68aca974009139f133bad7bf7635f165c5f7dba8876d7e38ab3b5bb811"
     },
     {
       "command": "apollo-cli profile rename [Experimental]",
@@ -2533,10 +2861,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_rename/",
-      "sourceSha256": "1bfa33f42375588dc5e64d77ef07f11bab79c73ba5178262249b74f3cc4a56ad"
+      "sourceSha256": "f5ce15bbdc6f6a653663b709e30068bcee6aeb18fb10a08cfb90dec99802733a"
     },
     {
       "command": "apollo-cli profile show [Experimental]",
@@ -2563,10 +2892,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_show/",
-      "sourceSha256": "f722183b2d1828b53424f87566bfb791fc6647b8a0daa96f4de34934699dc714"
+      "sourceSha256": "4b1ceac0ff8c222f9d6c5f1f1f5840e922456dca98e816bcfb56fb5501059f98"
     },
     {
       "command": "apollo-cli profile use [Experimental]",
@@ -2591,10 +2921,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile_use/",
-      "sourceSha256": "af0ff71671a9a09f0de1d1af907283f77db82f7ddb9d02deb395210a7e68b43c"
+      "sourceSha256": "383dc9ca85c4bd03a3394012405e1053f77114283d068bc4095f8000fb66f499"
     },
     {
       "command": "apollo-cli profile [Experimental]",
@@ -2619,27 +2950,28 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_profile/",
-      "sourceSha256": "d08a649b32478a9baefca412fa1d65ed0a2cef0470797f706958ddb6f09e8736"
+      "sourceSha256": "a84444c5e72042d7826dce9e7bfbe6e0d54458bc3965298e31dd91e729770586"
     },
     {
       "command": "apollo-cli release-channel add [Experimental]",
-      "synopsis": "apollo-cli release-channel add [flags]",
+      "synopsis": "apollo-cli release-channel add <channel-name> [flags]",
       "experimental": true,
       "deprecated": false,
       "flags": [
         "--bundle-rid",
+        "--dry-run",
         "-e",
         "--environment",
         "-h",
         "--help",
+        "--maven-coordinate",
         "-f",
         "--maven-coordinates-file",
-        "--payload-bundler-base-url",
-        "-r",
-        "--release-channel",
+        "--rationale",
         "-y",
         "--yes",
         "--apollo-client-id",
@@ -2655,10 +2987,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_add/",
-      "sourceSha256": "4d118ec37507f06b3d67cc8e628ed38ebd3c35188446d6ab055f6d3bd750a943"
+      "sourceSha256": "185b6d2b43ef0164bc21497b08a4f2078126eda9720f729249d81a973b1c5b74"
     },
     {
       "command": "apollo-cli release-channel create [Experimental]",
@@ -2687,10 +3020,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_create/",
-      "sourceSha256": "c83c4ac1c981e4fcb6f55046a433da39961e741981bdaa0237d095c5f24f6634"
+      "sourceSha256": "8c406870466387d86d97c7f833c502d46bfefc1b7b5ed07934cf88b990490dbe"
     },
     {
       "command": "apollo-cli release-channel diff [Experimental]",
@@ -2720,10 +3054,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_diff/",
-      "sourceSha256": "38aba14306e296d5ad2f6ca629d0ed24194d5cedd8c9a05eeaf100c2b8ffdcfa"
+      "sourceSha256": "3d506d9d7531368c738854055ce6991eab6a9af1a86f3883b4fae71a8ceba57e"
     },
     {
       "command": "apollo-cli release-channel export [Experimental]",
@@ -2750,10 +3085,11 @@
         "--insecure-skip-verify",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_export/",
-      "sourceSha256": "a56fd7ee1e7bea9e8f1c0fbb1b80aee684c4b8c53d29ffe75f41a19ed68bd517"
+      "sourceSha256": "3f701ce256b90ec21cc6343a74487c167286eb6b1c9f12eb2453c1109a84cb88"
     },
     {
       "command": "apollo-cli release-channel get [Experimental]",
@@ -2778,10 +3114,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_get/",
-      "sourceSha256": "8feb4c56bec572a3b20ee85aa889fa109d53137c6c92f6dd35f540fc2c219392"
+      "sourceSha256": "7a33c7534d44fcb12b171a5c82dd373290c37efc827d961d2d423f3a235bd184"
     },
     {
       "command": "apollo-cli release-channel list [Experimental]",
@@ -2808,10 +3145,45 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_list/",
-      "sourceSha256": "acd371aff0e4fff90f7395c796539e4962c441df1d4cf3cbaf281028e532714b"
+      "sourceSha256": "d08d35d6aefb1d5e7d2d7f3b7180aeb983f7f8af6ef1884bdf6f8a682fbd4b26"
+    },
+    {
+      "command": "apollo-cli release-channel remove [Experimental]",
+      "synopsis": "apollo-cli release-channel remove <channel-name> [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "--dry-run",
+        "-h",
+        "--help",
+        "--maven-coordinate",
+        "-f",
+        "--maven-coordinates-file",
+        "--rationale",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_remove/",
+      "sourceSha256": "972d3e7f2249ffe6c7497935d7456bf3499835439a5e84af2575c828324a6625"
     },
     {
       "command": "apollo-cli release-channel update [Experimental]",
@@ -2844,10 +3216,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_update/",
-      "sourceSha256": "49bbbee37a4ba10bd27e0caf40076577a93d919ef638499f26858f547946ece0"
+      "sourceSha256": "0d481316010dc60fdce6579af943575d19f681a11c1b1c3e62396ef114572896"
     },
     {
       "command": "apollo-cli release-channel [Experimental]",
@@ -2872,10 +3245,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel/",
-      "sourceSha256": "d2416211530ca1a70b5cdc6c9d12a47fd908eb373082cfecd33b8b8a239b210d"
+      "sourceSha256": "4334990ef963959207220b5ac1ab59c1fe1b9901d718d59ea6c84d2849d4d82b"
     },
     {
       "command": "apollo-cli target-hub get [Experimental]",
@@ -2900,10 +3274,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_get/",
-      "sourceSha256": "43374a903556c64032891f084b229bc2b293f975af8991d5aece5123e1823161"
+      "sourceSha256": "1ac7d79a0cb1018afc4129365a724296000dc6d564f6f31fd32a603d037f7173"
     },
     {
       "command": "apollo-cli target-hub list [Experimental]",
@@ -2928,10 +3303,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_list/",
-      "sourceSha256": "375b88d6d7536c90a8a323cc22b1d1ae90798c80a707fce135695516011514be"
+      "sourceSha256": "c2aa9e7a58d2c8b14710b16a6ea44784dfb17db28ee34aee15e1af8031ea4b9a"
     },
     {
       "command": "apollo-cli target-hub pipeline list [Experimental]",
@@ -2956,10 +3332,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline_list/",
-      "sourceSha256": "fc48af3a323ba75825861dd79a66a32829b597fa30da7f9ecc6b81e1f5639144"
+      "sourceSha256": "d17a5f9d695e2077e6825641c58f950423cf64e05c5d00dae0e4a145d00f3b50"
     },
     {
       "command": "apollo-cli target-hub pipeline [Experimental]",
@@ -2984,10 +3361,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub_pipeline/",
-      "sourceSha256": "d4e5bfeeade03f801db6542dc974f5d8e49c603f54d4aca5e88e5ed795151d2a"
+      "sourceSha256": "d249fa16276a920d1867f52e29617ee73ec05eb5cfbc77779923dea663cd9a16"
     },
     {
       "command": "apollo-cli target-hub [Experimental]",
@@ -3012,10 +3390,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_target-hub/",
-      "sourceSha256": "e2c47231b4939b9cd662834370a4480e104ac077167e360bc4dbb7ddec3c083b"
+      "sourceSha256": "2cb1a4feb04f9c182002777eb6edc5eb796cf5bf74cc384d614bffbf04fef854"
     },
     {
       "command": "apollo-cli terminal grant list [Experimental]",
@@ -3040,10 +3419,43 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant_list/",
-      "sourceSha256": "92790005c1d50694a5d656f76cc0797c837bbcc995823845b2568d79a736e286"
+      "sourceSha256": "ebe595aff680af447d0d89e9288496c85ca5e8237d10c50e6048b0189c7beb08"
+    },
+    {
+      "command": "apollo-cli terminal grant request [Experimental]",
+      "synopsis": "apollo-cli terminal grant request <policy-name> [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "--compliance-ticket",
+        "--dry-run",
+        "--duration",
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant_request/",
+      "sourceSha256": "93281c4bee6ef85fa8608eae9845637dc3907651dd2acbfa1e543b7c1cfda03d"
     },
     {
       "command": "apollo-cli terminal grant [Experimental]",
@@ -3068,10 +3480,69 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_grant/",
-      "sourceSha256": "0fa7390133aad7687b8bb3d410879f2c40534748e5bfa33c291c416dcf73fe8f"
+      "sourceSha256": "04982662dba5dc28d0c366bffad843805c16740d4408dc7b37dc22e50e8979db"
+    },
+    {
+      "command": "apollo-cli terminal node list [Experimental]",
+      "synopsis": "apollo-cli terminal node list [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_node_list/",
+      "sourceSha256": "0eb26b3eac441e3037f3063686d7e7d1cd533055d2f42e4f76966c68ead12b05"
+    },
+    {
+      "command": "apollo-cli terminal node [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_node/",
+      "sourceSha256": "dc735bdb25205baa05a6529813f4266f4e50876c1b3381a714f16c9c49c57e1f"
     },
     {
       "command": "apollo-cli terminal policy list [Experimental]",
@@ -3096,10 +3567,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy_list/",
-      "sourceSha256": "70d8b4751a1114505213bae680aa95fa5359ca7dcb4383caacf684f737f8ac0a"
+      "sourceSha256": "d5a6f1ef7ba96f7294504c5e6fc31e395d32061fa86332030ed51e1e7ad58648"
     },
     {
       "command": "apollo-cli terminal policy [Experimental]",
@@ -3124,21 +3596,20 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_policy/",
-      "sourceSha256": "ee130cf012da22a4a1152ded590965f3a4c3185de6b7b47075057dbb577de7ee"
+      "sourceSha256": "1ab84ca527a060a33563cd46793b528132693e78e95063f35e53f47be4560dd8"
     },
     {
-      "command": "apollo-cli terminal [Experimental]",
-      "synopsis": "apollo-cli terminal [flags]",
+      "command": "apollo-cli terminal session attach [Experimental]",
+      "synopsis": "apollo-cli terminal session attach <session-id> [flags]",
       "experimental": true,
       "deprecated": false,
       "flags": [
         "-h",
         "--help",
-        "--profile",
-        "--session-id",
         "--apollo-client-id",
         "--apollo-client-secret",
         "--apollo-token",
@@ -3152,11 +3623,132 @@
         "--insecure-skip-verify",
         "-o",
         "--output",
+        "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_attach/",
+      "sourceSha256": "7b50bc47c74c19dc4a25d75931a60973dc074803025256bbec3e78749ec51159"
+    },
+    {
+      "command": "apollo-cli terminal session create [Experimental]",
+      "synopsis": "apollo-cli terminal session create [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--node-name",
+        "--session-mode",
+        "--terminal-profile",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_create/",
+      "sourceSha256": "6cd367e8d958c02d9b0227757264455596d6733994ab36a3cb3b4b8a11ac69a3"
+    },
+    {
+      "command": "apollo-cli terminal session list [Experimental]",
+      "synopsis": "apollo-cli terminal session list [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_list/",
+      "sourceSha256": "42be337f9941be30948abbcc02a29b5cbec2d28ae2a4a1cb22108caa8fd9c5df"
+    },
+    {
+      "command": "apollo-cli terminal session [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session/",
+      "sourceSha256": "0af9386097d4732a83f46c18adeb1e59ec94b9bdefeb694550f89bf5d00bd477"
+    },
+    {
+      "command": "apollo-cli terminal [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal/",
-      "sourceSha256": "0a02a86097aaa130dabc1637fa694e413ee7251d03ba1247df41718526f1162e"
+      "sourceSha256": "602d257e83c162e92ee3571e77117786d313f2b0d6cd84b8d3d88818909d63eb"
     },
     {
       "command": "apollo-cli",
@@ -3181,10 +3773,11 @@
         "--output",
         "--profile",
         "--quiet",
-        "--space-id"
+        "--space-id",
+        "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli/",
-      "sourceSha256": "b8d2029eee7f9946e5da97b06acd65a49d8389a18746fff5683b3a9c4adda0d9"
+      "sourceSha256": "6135182ed0985e5ce56269fb3f135971143852572b6e86c506205dc68681ca21"
     }
   ]
 }

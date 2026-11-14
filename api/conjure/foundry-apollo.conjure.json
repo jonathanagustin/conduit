@@ -1810,7 +1810,7 @@
         "irPath": "api/conjure/foundry-apollo.conjure.json",
         "goOutput": "internal/foundryinterop/wire",
         "goPackage": "wire",
-        "evidencePath": "docs/apollo/osdk-client-unstable-2.43.0-conjure-evidence.json"
+        "evidencePath": "docs/reference-platform/osdk-client-unstable-2.43.0-conjure-evidence.json"
       },
       "source": {
         "repository": "https://github.com/palantir/osdk-ts",

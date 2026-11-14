@@ -41,7 +41,7 @@ The output is explicitly `CONDUIT_NATIVE` and `NOT_PUBLISHED`, registered as
 `io.github.jonathanagustin.conduit:hub:VERSION` and
 `io.github.jonathanagustin.conduit:spoke-agent:VERSION`. These are Conduit choices.
 The bodies use the existing `/v1/product-publications/helm-chart` transport;
-generated public Apollo interfaces are unchanged.
+generated public interfaces are unchanged.
 
 Chart digests and image digests come from the supplied release descriptors.
 Conduit's executable Artifact type also needs a display tag, so the preparer

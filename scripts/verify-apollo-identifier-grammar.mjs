@@ -24,7 +24,7 @@ import { fileURLToPath } from "node:url";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
 const EVIDENCE = resolve(ROOT, "docs/evidence/apollo-identifier-grammar.json");
-const PIN = resolve(ROOT, "docs/apollo/osdk-client-unstable-2.43.0-conjure-evidence.json");
+const PIN = resolve(ROOT, "docs/reference-platform/osdk-client-unstable-2.43.0-conjure-evidence.json");
 const MINTER = resolve(ROOT, "internal/apollo/application/service.go");
 
 const failures = [];

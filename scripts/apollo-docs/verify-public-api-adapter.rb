@@ -5,7 +5,7 @@ require "pathname"
 require "yaml"
 
 root = Pathname.new(__dir__).join("../..").expand_path
-snapshot = root.join("docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml")
+snapshot = root.join("docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml")
 adapter = root.join("internal/controlplane/apollo_openapi_adapter.go")
 application = root.join("internal/apollo/application/service.go")
 tests = root.join("internal/controlplane/apollo_api_test.go")

@@ -9,7 +9,7 @@
 set -euo pipefail
 
 repo_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
-snapshot="$repo_root/docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml"
+snapshot="$repo_root/docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml"
 config="$repo_root/api/apollo-public.codegen.yaml"
 generated="$repo_root/internal/apollo/openapi.gen.go"
 work_dir=$(mktemp -d)

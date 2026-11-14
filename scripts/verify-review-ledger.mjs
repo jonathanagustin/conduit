@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Keeps docs/apollo/reference/review-ledger.tsv well formed and its GitHub rows
+// Keeps docs/reference-platform/reference/review-ledger.tsv well formed and its GitHub rows
 // pinned.
 //
 // The ledger is the source of identity for the Apollo reference notes -- 19 of
@@ -42,7 +42,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
-const LEDGER = process.argv[2] ?? "docs/apollo/reference/review-ledger.tsv";
+const LEDGER = process.argv[2] ?? "docs/reference-platform/reference/review-ledger.tsv";
 const LEDGER_PATH = resolve(ROOT, LEDGER);
 const COLUMNS = ["url", "reviewed_at_utc", "snapshot_sha256", "topic", "disposition"];
 

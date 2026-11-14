@@ -28,8 +28,8 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 gate="scripts/verify-review-ledger.mjs"
-ledger="docs/apollo/reference/review-ledger.tsv"
-work="$(mktemp "docs/apollo/reference/.review-ledger-selftest.XXXXXX")"
+ledger="docs/reference-platform/reference/review-ledger.tsv"
+work="$(mktemp "docs/reference-platform/reference/.review-ledger-selftest.XXXXXX")"
 cleanup() { rm -f "${work}"; }
 trap cleanup EXIT
 

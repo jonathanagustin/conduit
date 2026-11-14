@@ -3,7 +3,7 @@
 The console's `/console/notifications` screen reads what the Hub recorded for
 the calling principal and edits the preference that decides what it records
 next. It is a **Conduit extension**: the pinned Apollo OpenAPI under
-`docs/apollo/snapshots/` publishes no notification operation — the word does not
+`docs/reference-platform/snapshots/` publishes no notification operation — the word does not
 appear in it — so no shape on this screen is claimed to be Apollo's. The routes
 are registered as `notifications.HTTPSurface` in
 `docs/evidence/conduit-inventions.json`.

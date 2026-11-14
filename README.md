@@ -21,7 +21,7 @@ Apollo is a bounded integration context. Conduit targets compatibility with a
 pinned public Apollo API profile and keeps public contracts, sanitized tenant
 observations, Conduit extensions, and unknown behavior distinct. It does not
 claim Palantir's private Hub-to-Agent protocol or an unqualified Apollo
-superset. See [Apollo conformance](docs/apollo/conformance.md).
+superset. See [Apollo conformance](docs/reference-platform/conformance.md).
 
 The contract-first API migration is also incomplete. The current Apollo path
 generates route metadata, while request and response DTOs and much of the

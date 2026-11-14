@@ -37,7 +37,7 @@ import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const OUT = resolve(HERE, "../docs/apollo/observed/apollo-rosetta-release-notes.json");
+const OUT = resolve(HERE, "../docs/reference-platform/observed/reference-rosetta-release-notes.json");
 
 const host = (process.env.FOUNDRY_HOST || process.env.FOUNDRY_ORIGIN || "").replace(/\/$/, "");
 const token = process.env.PALANTIR_TOKEN || process.env.FOUNDRY_TOKEN || "";

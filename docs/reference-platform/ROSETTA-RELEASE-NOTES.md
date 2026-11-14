@@ -81,7 +81,7 @@ repository cannot say what they are. `apollo-build-factory-app` and
 authorization capture (`internal/apollo/roles.gen.go`) and by nothing else.
 `noc-inbox` is a shipping notification inbox, a product the public Apollo
 documentation corpus does not document at all — see
-`docs/apollo/reference/notifications.md`, which records that no public page was
+`docs/reference-platform/reference/notifications.md`, which records that no public page was
 captured for it.
 
 The `byApplication` summary field says `{core: 120}` while the file carries 178
@@ -182,7 +182,7 @@ does, and none of these notes answers it.
 
 ## What is committed, and what is not
 
-`observed/apollo-rosetta-release-notes.json` is a facts-only registry: note id,
+`observed/reference-rosetta-release-notes.json` is a facts-only registry: note id,
 date, type, release version, application identity, media count, and a SHA-256
 over the whole record.
 

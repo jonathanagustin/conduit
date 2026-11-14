@@ -24,7 +24,7 @@
     {
       "description": "Keep captured Apollo CLI conformance fixtures immutable",
       "matchFileNames": [
-        "docs/apollo/cli-fixtures/**"
+        "docs/reference-platform/cli-fixtures/**"
       ],
       "enabled": false
     },

@@ -29,8 +29,8 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const CAPTURE = resolve(ROOT, "docs/apollo/public-documentation-capture.json");
-const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
+const CAPTURE = resolve(ROOT, "docs/reference-platform/public-documentation-capture.json");
+const MANIFEST = resolve(ROOT, "docs/reference-platform/public-documentation-manifest.tsv");
 
 const DAY = 24 * 60 * 60 * 1000;
 const failures = [];

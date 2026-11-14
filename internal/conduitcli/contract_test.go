@@ -11,7 +11,7 @@ import (
 
 func TestCommandTreeCoversPinnedOfficialInventory(t *testing.T) {
 	t.Parallel()
-	contents, err := os.ReadFile("../../docs/apollo/cli-command-contract.json")
+	contents, err := os.ReadFile("../../docs/reference-platform/cli-command-contract.json")
 	if err != nil {
 		t.Fatal(err)
 	}

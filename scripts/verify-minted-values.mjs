@@ -35,7 +35,7 @@ const ROOT = resolve(HERE, "..");
 const SDL = resolve(ROOT, "internal/apollographql/schema/apollo.interface.graphql");
 const MINTED = resolve(ROOT, "scripts/apollo-graphql/conduit-minted-values.json");
 const REGISTER = resolve(ROOT, "docs/evidence/conduit-inventions.json");
-const OBSERVED = resolve(ROOT, "docs/apollo/observed/apollo-graphql-observed.json");
+const OBSERVED = resolve(ROOT, "docs/reference-platform/observed/reference-graphql-observed.json");
 
 const failures = [];
 const fail = (message) => failures.push(message);

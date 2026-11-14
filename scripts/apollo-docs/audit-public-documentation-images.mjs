@@ -5,7 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { extname, join } from "node:path";
 
 const manifestPath = process.argv[2] ??
-  new URL("../../docs/apollo/public-documentation-manifest.tsv", import.meta.url).pathname;
+  new URL("../../docs/reference-platform/public-documentation-manifest.tsv", import.meta.url).pathname;
 const outputDirectory = process.argv[3];
 if (!outputDirectory) {
   throw new Error("usage: node audit-public-documentation-images.mjs MANIFEST OUTPUT_DIRECTORY");
