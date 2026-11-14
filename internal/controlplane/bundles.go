@@ -236,15 +236,35 @@ type BundleSelectionRule struct {
 // prose has to be parsed back apart to be useful.
 
 type BundlePreview struct {
-	BundleID        string   `json:"bundleId"`
-	PipelineID      string   `json:"pipelineId"`
-	Kind            string   `json:"kind"`
-	DependsOn       string   `json:"dependsOn,omitempty"`
-	Added           []string `json:"added,omitempty"`
-	Updated         []string `json:"updated,omitempty"`
-	Removed         []string `json:"removed,omitempty"`
-	Unchanged       []string `json:"unchanged,omitempty"`
-	SecurityOutcome string   `json:"securityOutcome"`
+	BundleID        string                  `json:"bundleId"`
+	PipelineID      string                  `json:"pipelineId"`
+	Kind            string                  `json:"kind"`
+	DependsOn       string                  `json:"dependsOn,omitempty"`
+	Added           []string                `json:"added,omitempty"`
+	Updated         []string                `json:"updated,omitempty"`
+	Removed         []string                `json:"removed,omitempty"`
+	Unchanged       []string                `json:"unchanged,omitempty"`
+	SecurityOutcome string                  `json:"securityOutcome"`
+	ManifestDigest  string                  `json:"manifestDigest"`
+	Signature       BundleSignatureEvidence `json:"signature"`
+	SBOM            []BundleSBOMComponent   `json:"sbom"`
+}
+
+// BundleSignatureEvidence reports whether the envelope signature verified.
+// Verified is true only after the trusted-key check succeeds. A present
+// signature string is not itself evidence that the signature is valid.
+type BundleSignatureEvidence struct {
+	KeyID    string `json:"keyId"`
+	Verified bool   `json:"verified"`
+}
+
+// BundleSBOMComponent is one chart or image named by a product release in the
+// bundle. It is the contents the bundle actually carries, not a live scan.
+type BundleSBOMComponent struct {
+	Name    string `json:"name"`
+	Kind    string `json:"kind"`
+	Digest  string `json:"digest"`
+	Version string `json:"version,omitempty"`
 }
 
 type BundleImport struct {
@@ -1464,6 +1484,33 @@ func artifactDigestsCoverRelease(digests []string, release Release) bool {
 	return strings.Join(want, "\x00") == strings.Join(got, "\x00")
 }
 
+func bundleSBOM(resources []BundleResource) []BundleSBOMComponent {
+	components := []BundleSBOMComponent{}
+	for _, resource := range resources {
+		if resource.Type != "PRODUCT_RELEASE" || len(resource.Payload) == 0 || resource.Deleted {
+			continue
+		}
+		var release Release
+		if err := json.Unmarshal(resource.Payload, &release); err != nil {
+			continue
+		}
+		if release.Chart.Digest != "" {
+			components = append(components, BundleSBOMComponent{
+				Name: release.Chart.Repository, Kind: "chart", Digest: release.Chart.Digest, Version: release.Version,
+			})
+		}
+		for _, image := range release.Images {
+			if image.Digest == "" {
+				continue
+			}
+			components = append(components, BundleSBOMComponent{
+				Name: image.Repository, Kind: "image", Digest: image.Digest, Version: image.Tag,
+			})
+		}
+	}
+	return components
+}
+
 func malwareAssessmentTime(assessment *MalwareAssessment) time.Time {
 	if assessment == nil {
 		return time.Time{}
@@ -1529,6 +1576,9 @@ func (service *BundleService) PreviewForEnvironment(
 		BundleID: envelope.Manifest.ID, PipelineID: envelope.Manifest.PipelineID,
 		Kind: envelope.Manifest.Kind, DependsOn: envelope.Manifest.DependsOn,
 		SecurityOutcome: envelope.Manifest.SecurityReport.Outcome,
+		ManifestDigest:  envelope.ManifestDigest,
+		Signature:       BundleSignatureEvidence{KeyID: envelope.SigningKeyID, Verified: true},
+		SBOM:            bundleSBOM(envelope.Manifest.Resources),
 	}
 	for _, resource := range envelope.Manifest.Resources {
 		key := resource.Type + ":" + resource.ID
