@@ -3,6 +3,7 @@ package application
 import (
 	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/recorded"
@@ -45,6 +46,46 @@ func TestPassOpensAChangeRequestAndBlockedDoesNot(t *testing.T) {
 	}
 	if len(audit.rows) != 2 || audit.rows[0] == "" {
 		t.Fatalf("audit = %#v", audit.rows)
+	}
+}
+
+type recordedFacts struct{ facts domain.PackagingContext }
+
+func (facts recordedFacts) Load(context.Context, string) (domain.PackagingContext, error) {
+	return facts.facts, nil
+}
+
+type captureProposer struct{ got domain.PackagingContext }
+
+func (capture *captureProposer) Propose(_ context.Context, input domain.PackagingContext) (domain.Proposal, domain.Provenance, error) {
+	capture.got = input
+	return domain.Proposal{Field: "memory", Value: "512Mi", Rationale: "the chart memory is 512Mi and the current limit is 512Mi"}, domain.Provenance{Adapter: "capture"}, nil
+}
+
+func TestRecordedFactsReachTheProposer(t *testing.T) {
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	capture := &captureProposer{}
+	service := Service{
+		Proposer: capture,
+		Facts: recordedFacts{facts: domain.PackagingContext{
+			ChartValues: "memory: 512Mi", Resources: "limits.memory=512Mi requests.memory=256Mi",
+			MemoryRequest: "256Mi", MemoryLimit: "512Mi",
+			ImageRef: "127.0.0.1:5000/sample-app:0.2.0", ImageDigest: digest,
+		}},
+		Open: &memoryOpen{}, Audit: &memoryAudit{},
+	}
+	_, err := service.Propose(context.Background(), domain.PackagingContext{
+		RunID: "sample-app-1", GateRules: domain.MemoryGateRule,
+	}, "dev", "operator")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := capture.got
+	if got.ChartValues != "memory: 512Mi" || got.Resources != "limits.memory=512Mi requests.memory=256Mi" ||
+		got.MemoryRequest != "256Mi" || got.MemoryLimit != "512Mi" ||
+		got.ImageRef != "127.0.0.1:5000/sample-app:0.2.0" || got.ImageDigest != digest ||
+		got.GateRules != domain.MemoryGateRule {
+		t.Fatalf("adapter input = %#v", got)
 	}
 }
 

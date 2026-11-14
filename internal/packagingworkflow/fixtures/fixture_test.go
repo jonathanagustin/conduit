@@ -5,6 +5,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"sync"
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -30,11 +31,11 @@ func TestPinnedFixturePassesLintAndOmitsSourceBody(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	zarf, err := os.ReadFile(filepath.Join(dir, "out", "zarf.yaml"))
+	zarf, err := os.ReadFile(filepath.Join(dir, "out", "sample-app-1", "zarf.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	cr, err := os.ReadFile(filepath.Join(dir, "out", "uds-package.yaml"))
+	cr, err := os.ReadFile(filepath.Join(dir, "out", "sample-app-1", "uds-package.yaml"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -109,6 +110,67 @@ func TestNamedSourceBindsItsOwnDigestAndProposal(t *testing.T) {
 	validation, err := Suite{}.Validate(context.Background(), id, dir, proposal)
 	if err != nil || validation.Outcome != domain.OutcomeFailRequired || validation.Reason != "memory limit 8Gi exceeds the 1Gi ceiling" {
 		t.Fatalf("validation = %#v err=%v", validation, err)
+	}
+}
+
+func TestConcurrentRunsValidateTheirOwnRender(t *testing.T) {
+	dir := t.TempDir()
+	if err := Materialize(dir); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(filepath.Join(dir, "sources"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	write := func(runID, memory string) domain.RunIdentity {
+		t.Helper()
+		body := []byte("name: sample-app\nproposal: memory limit " + memory + "\nrationale: recorded\nmemory: " + memory + "\n")
+		if err := os.WriteFile(filepath.Join(dir, "sources", runID+".txt"), body, 0o644); err != nil {
+			t.Fatal(err)
+		}
+		id, err := IdentityFromSource(runID, body)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return id
+	}
+	passing := write("sample-app-1", "512Mi")
+	blocked := write("sample-app-blocked", "8Gi")
+	var failures []string
+	check := func(id domain.RunIdentity, want domain.Outcome, reasonPart string) string {
+		proposal, err := Suite{}.Propose(context.Background(), id, dir)
+		if err != nil {
+			return id.RunID + " propose " + err.Error()
+		}
+		validation, err := Suite{}.Validate(context.Background(), id, dir, proposal)
+		if err != nil || validation.Outcome != want || validation.ArtifactDigest != proposal.Artifact.Digest || !bytes.Contains([]byte(validation.Reason), []byte(reasonPart)) {
+			return id.RunID + " " + validation.Reason
+		}
+		return ""
+	}
+	for range 25 {
+		var wg sync.WaitGroup
+		var mu sync.Mutex
+		wg.Add(2)
+		go func() {
+			defer wg.Done()
+			if failure := check(passing, domain.OutcomePass, "lint and render passed"); failure != "" {
+				mu.Lock()
+				failures = append(failures, failure)
+				mu.Unlock()
+			}
+		}()
+		go func() {
+			defer wg.Done()
+			if failure := check(blocked, domain.OutcomeFailRequired, "8Gi"); failure != "" {
+				mu.Lock()
+				failures = append(failures, failure)
+				mu.Unlock()
+			}
+		}()
+		wg.Wait()
+	}
+	if len(failures) != 0 {
+		t.Fatalf("shared render leaked across runs: %v", failures)
 	}
 }
 

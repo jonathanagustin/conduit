@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -45,6 +46,52 @@ func TestRunnerPassBlockedTimeoutMalformedAndExit(t *testing.T) {
 	if !errors.Is(err, domain.ErrModelFailed) {
 		t.Fatalf("exit = %v", err)
 	}
+}
+
+func TestRunnerPromptCarriesPackagingFacts(t *testing.T) {
+	script := writeCaptureScript(t)
+	digest := "sha256:" + strings.Repeat("ab", 32)
+	input := domain.PackagingContext{
+		RunID: "sample-app-1", ChartValues: "memory: 512Mi",
+		Resources:     "limits.memory=512Mi requests.memory=256Mi",
+		MemoryRequest: "256Mi", MemoryLimit: "512Mi",
+		ImageRef: "127.0.0.1:5000/sample-app:0.2.0", ImageDigest: digest,
+		GateRules: domain.MemoryGateRule,
+	}
+	if _, _, err := (Runner{Argv: []string{script}, Timeout: 5 * time.Second}).Propose(context.Background(), input); err != nil {
+		t.Fatal(err)
+	}
+	body, err := os.ReadFile(filepath.Join(filepath.Dir(script), "prompt.txt"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"Chart values: memory: 512Mi",
+		"Resources: limits.memory=512Mi requests.memory=256Mi",
+		"Memory request: 256Mi",
+		"Memory limit: 512Mi",
+		"Image ref: 127.0.0.1:5000/sample-app:0.2.0",
+		"Image digest: " + digest,
+		"Gate rules: " + domain.MemoryGateRule,
+	} {
+		if !strings.Contains(string(body), want) {
+			t.Fatalf("prompt missing %q\n%s", want, body)
+		}
+	}
+}
+
+func writeCaptureScript(t *testing.T) string {
+	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("script fixture is a shell")
+	}
+	dir := t.TempDir()
+	path := filepath.Join(dir, "model")
+	body := "#!/bin/sh\ncat > \"$(dirname \"$0\")/prompt.txt\"\nprintf '%s\\n' '{\"field\":\"memory\",\"value\":\"512Mi\",\"rationale\":\"chart memory is 512Mi\"}'\n"
+	if err := os.WriteFile(path, []byte(body), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
 }
 
 func writeScript(t *testing.T) string {
