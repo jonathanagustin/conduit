@@ -567,7 +567,7 @@ Recorded here rather than acted on, because the finding is the deliverable.
 site under `web/src/api/`; `web/src/api/client.ts:7` sets `const BASE = "/v1"`,
 so every one of them is a `/v1` path and no console file mentions `/api/v0` at
 all. The contract's operations are the 13 paths in
-`docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`,
+`docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`,
 which is what `api/apollo-public.codegen.yaml` generates
 `internal/apollo/openapi.gen.go` from.
 

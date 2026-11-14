@@ -19,7 +19,7 @@ The inventory is reproducible with:
 
 ```text
 node scripts/apollo-docs/audit-public-documentation-media.mjs \
-  docs/apollo/public-documentation-manifest.tsv OUTPUT_JSON
+  docs/reference-platform/public-documentation-manifest.tsv OUTPUT_JSON
 ```
 
 The output contains source URLs and metadata only. Video, audio, captions, and

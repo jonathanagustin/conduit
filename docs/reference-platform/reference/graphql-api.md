@@ -80,7 +80,7 @@ Palantir Apollo compatibility.
 
 An authorized Hub was reached and the method above was run. The result is
 committed as `api/graphql/apollo.observed.graphql` with its recovery record and
-completeness report under `docs/apollo/observed/`.
+completeness report under `docs/reference-platform/observed/`.
 
 What the Hub established:
 
@@ -186,7 +186,7 @@ The captured `apollo-control-panel` 6.533.15 frontend closure — receipt in
 [`../FRONTEND-CAS-CAPTURE.md`](../FRONTEND-CAS-CAPTURE.md) — yields the client's
 **own** GraphQL operations, mined statically from the shipped bundles with no
 live call: 24 complete operations and 30 fragments, committed as
-[`../apollo-control-panel-graphql-operations-6.533.15.json`](../apollo-control-panel-graphql-operations-6.533.15.json).
+[`../reference-control-panel-graphql-operations-6.533.15.json`](../reference-control-panel-graphql-operations-6.533.15.json).
 
 It is a genuinely independent observation. Different date, different tenant
 surface, and a method with no probe in it at all: these are the documents the
@@ -228,9 +228,9 @@ needs a fresh capture that records origin *and* path.
 #### The same surface, projected as a schema
 
 The operations above were later projected into SDL and committed here as
-[`../foundry-gateway-observed-schema-6.533.15.graphql`](../foundry-gateway-observed-schema-6.533.15.graphql),
+[`../reference-gateway-observed-schema-6.533.15.graphql`](../reference-gateway-observed-schema-6.533.15.graphql),
 with its completeness report at
-[`../foundry-gateway-observed-schema-completeness-6.533.15.json`](../foundry-gateway-observed-schema-completeness-6.533.15.json).
+[`../reference-gateway-observed-schema-completeness-6.533.15.json`](../reference-gateway-observed-schema-completeness-6.533.15.json).
 Its own header calls it a *Foundry GraphQL Gateway observed-contract schema
 projection*, generated from the exact shipped document closures **plus live
 validation-only field and argument signatures** — so unlike the operation
@@ -421,7 +421,7 @@ different one fails the gate.
 Every citation is verified rather than trusted, because a citation nobody checks
 is decoration — it reads as evidence and constrains nothing, which is worse than
 an honest `CONDUIT_NATIVE`. `documentedBy` must resolve in
-`docs/apollo/public-documentation-manifest.tsv`; `apollo-openapi X.y` must name a
+`docs/reference-platform/public-documentation-manifest.tsv`; `apollo-openapi X.y` must name a
 property the pinned snapshot declares; `apollo-graphql Type.field` must appear in
 the recovery record. `scripts/verify-apollo-interface.test.sh` plants fifteen
 violations — including declaring an already-recovered coordinate as native on

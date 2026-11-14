@@ -6,7 +6,7 @@ require "pathname"
 require "yaml"
 
 ROOT = Pathname.new(__dir__).join("../..").expand_path
-FIXTURES = ROOT.join("docs/apollo/cli-fixtures")
+FIXTURES = ROOT.join("docs/reference-platform/cli-fixtures")
 RECONSTRUCTED = FIXTURES.join("reconstructed/0.814.0")
 MANIFEST_KEYS = %w[manifest-version product-group product-name product-version product-type extensions].freeze
 HELM_KEYS = %w[helm-chart-name helm-chart-version helm-repository-url].freeze

@@ -167,4 +167,4 @@ invented by the TypeScript generator. It does not raise confidence about
 behavior: the flattened JSON retains no dependency edges or per-coordinate
 artifact receipt, the later authenticated trace found the Apollo values only
 under dependency management, and the exact Apollo POM/JAR probes returned 404.
-See [`APOLLO-MAVEN-INVENTORY-EVIDENCE.md`](APOLLO-MAVEN-INVENTORY-EVIDENCE.md).
+See [`REFERENCE-MAVEN-INVENTORY-EVIDENCE.md`](REFERENCE-MAVEN-INVENTORY-EVIDENCE.md).

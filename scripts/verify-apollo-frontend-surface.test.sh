@@ -18,9 +18,9 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 gate="scripts/verify-apollo-frontend-surface.mjs"
-rest="docs/apollo/apollo-control-panel-rest-endpoints-6.533.15.json"
-graphql="docs/apollo/apollo-control-panel-graphql-operations-6.533.15.json"
-schema="docs/apollo/foundry-gateway-observed-schema-6.533.15.graphql"
+rest="docs/reference-platform/reference-control-panel-rest-endpoints-6.533.15.json"
+graphql="docs/reference-platform/reference-control-panel-graphql-operations-6.533.15.json"
+schema="docs/reference-platform/reference-gateway-observed-schema-6.533.15.graphql"
 
 for subject in "${rest}" "${graphql}" "${schema}"; do
   if ! git diff --quiet -- "${subject}" || ! git diff --cached --quiet -- "${subject}"; then

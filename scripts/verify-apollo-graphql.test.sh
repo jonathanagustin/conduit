@@ -12,15 +12,15 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-observed="docs/apollo/observed/apollo-graphql-observed.json"
+observed="docs/reference-platform/observed/reference-graphql-observed.json"
 schema="api/graphql/apollo.observed.graphql"
-report="docs/apollo/observed/apollo-graphql-completeness.json"
+report="docs/reference-platform/observed/reference-graphql-completeness.json"
 
 # A copy of the repository's evidence, so a planted violation never touches the
 # working tree. git checkout would restore the source; this cannot reach it.
 stage() {
   rm -rf "$work/tree"
-  mkdir -p "$work/tree/scripts" "$work/tree/docs/apollo/observed" "$work/tree/api/graphql"
+  mkdir -p "$work/tree/scripts" "$work/tree/docs/reference-platform/observed" "$work/tree/api/graphql"
   cp -r "$repo_root/scripts/apollo-graphql" "$work/tree/scripts/apollo-graphql"
   cp "$repo_root/$observed" "$work/tree/$observed"
   cp "$repo_root/$schema" "$work/tree/$schema"

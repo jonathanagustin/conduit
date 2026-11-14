@@ -317,7 +317,7 @@ Generate the pinned public API transport interface.
 
 | Claim or behavior | Class: Public contract / Tenant observation / Corroborating / Conduit extension / Unknown | Immutable source or sanitized evidence | Scope not established |
 | --- | --- | --- | --- |
-| Public operation shape | Public contract | docs/apollo/snapshots/example/openapi.yml at sha256:abc | Private Hub behavior |
+| Public operation shape | Public contract | docs/reference-platform/snapshots/example/openapi.yml at sha256:abc | Private Hub behavior |
 
 ### Deliberate divergences
 
@@ -334,7 +334,7 @@ expect_failure() {
   fi
 }
 
-expect_failure missing_row "${valid/Public operation shape | Public contract | docs\/apollo\/snapshots\/example\/openapi.yml at sha256:abc | Private Hub behavior/ | Public contract | | Private Hub behavior}"
+expect_failure missing_row "${valid/Public operation shape | Public contract | docs\/reference-platform\/snapshots\/example\/openapi.yml at sha256:abc | Private Hub behavior/ | Public contract | | Private Hub behavior}"
 expect_failure empty_divergence "${valid/None; the adapter exposes only the pinned profile./}"
 expect_failure unfilled_marker "${valid/Generate the pinned public API transport interface./TODO}"
 

@@ -301,7 +301,7 @@ describe, and exporting zeroes would say the fleet is idle.
 **A Plan fails.** `conduit plan get PLAN_ID` carries the structured execution
 record: per-attempt tasks with phase/status, timestamps, installation and
 namespace, rollback outcomes and typed Kubernetes/Helm diagnostics. Per
-`docs/apollo/reference/plans.md`, that output is **bounded and redacted at the
+`docs/reference-platform/reference/plans.md`, that output is **bounded and redacted at the
 Hub boundary** — per task, per attempt and in total — so a long provider log
 will be truncated; that is the contract, not a bug. There is no separate
 unaudited log channel: the authenticated Plan `GET` projects the same durable

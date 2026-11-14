@@ -291,7 +291,7 @@ func terminalBoundaryGroup(name, subject string) *cobra.Command {
 		return fmt.Errorf(
 			"terminal %s is intentionally unavailable: Conduit has no SSH, kubectl exec, host API, or "+
 				"cluster-admin execution path, so it neither issues nor records %s. Use the audited "+
-				"break-glass tooling owned by the Environment; see docs/apollo/reference/debug-access.md",
+				"break-glass tooling owned by the Environment; see docs/reference-platform/reference/debug-access.md",
 			name, subject,
 		)
 	}

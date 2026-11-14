@@ -88,7 +88,7 @@ way to serve a value and disclose it as Conduit's.
 is **not** omitted, and could not be: it is in the snapshot's required set, so
 omitting it to be honest about provenance would break the contract instead. It
 stays the constant `"managed"`, and is declared in
-[`../apollo/public-api.md`](../apollo/public-api.md) as a Conduit-supplied
+[`../reference-platform/public-api.md`](../reference-platform/public-api.md) as a Conduit-supplied
 constant that discriminates nothing. Being unable to fix it honestly is not a
 licence to stop saying so.
 
@@ -321,7 +321,7 @@ overwrite, the replay, and the tier extending without a policy edit.
 command contract). **Divergence:** Conduit registers a published flag only
 where it reaches a decision.
 
-`docs/apollo/cli-command-contract.json` records the flags each published
+`docs/reference-platform/cli-command-contract.json` records the flags each published
 command accepts, and Conduit registered six it never read: `release-channel
 export --latest/-l`, `environment version compare --all`, `product promotion
 set --override`, `cve check --rescan`, `product-release verify --dry-run`, and
@@ -359,7 +359,7 @@ would give `--latest` something to fetch; a cached scan result would give
 `environment artifact-registry assign|unassign` and
 `environment release-channel set`, `--archive-rationale` on
 `release-channel update`, all recorded in
-[`../apollo/cli-command-contract.json`](../apollo/cli-command-contract.json)).
+[`../reference-platform/cli-command-contract.json`](../reference-platform/cli-command-contract.json)).
 **Divergence:** Conduit does not offer them at all.
 
 Every one of those commands ends in a Plan proposal, and `POST /v1/plans`

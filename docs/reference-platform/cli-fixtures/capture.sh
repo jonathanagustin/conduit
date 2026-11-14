@@ -2,7 +2,7 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "$0")/../../.." && pwd)"
-fixture_root="${repo_root}/docs/apollo/cli-fixtures"
+fixture_root="${repo_root}/docs/reference-platform/cli-fixtures"
 cli="${APOLLO_CLI:-}"
 
 if [[ -z "${cli}" || ! -x "${cli}" || "${cli}" != /* ]]; then

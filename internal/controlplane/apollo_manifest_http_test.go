@@ -10,7 +10,7 @@ import (
 )
 
 func TestValidateApolloProductManifestEndpointWithReconstructedFixture(t *testing.T) {
-	body, err := os.ReadFile("../../docs/apollo/cli-fixtures/reconstructed/0.814.0/deployment/manifest.yml")
+	body, err := os.ReadFile("../../docs/reference-platform/cli-fixtures/reconstructed/0.814.0/deployment/manifest.yml")
 	if err != nil {
 		t.Fatal(err)
 	}

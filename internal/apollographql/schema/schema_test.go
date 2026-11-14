@@ -34,7 +34,7 @@ func TestEmbeddedSchemaMatchesTheGovernedArtifact(t *testing.T) {
 // counts ever disagreed, one of the two published numbers would be wrong and
 // nothing would say which -- so they are compared rather than trusted.
 func TestTheProvenanceReportCountsWhatTheServerReads(t *testing.T) {
-	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "docs/apollo/observed/apollo-interface-provenance.json"))
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "docs/reference-platform/observed/reference-interface-provenance.json"))
 	if err != nil {
 		t.Fatalf("read the provenance report: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestNoServedFieldIsWithoutAnApolloSource(t *testing.T) {
 	if _, _, native := declared.Count(); native != 0 {
 		t.Errorf(
 			"%d served field(s) carry no Apollo source of any kind; the pinned count is 0. If Conduit "+
-				"invented a coordinate on purpose, update this count and docs/apollo/conformance.md",
+				"invented a coordinate on purpose, update this count and docs/reference-platform/conformance.md",
 			native,
 		)
 	}

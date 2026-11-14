@@ -9,7 +9,7 @@
 // easiest claim in the repository to check, because the corpus it is a claim
 // about is a TSV sitting in the same directory.
 //
-// Nothing was checking it. docs/apollo/reference/notifications.md carried that
+// Nothing was checking it. docs/reference-platform/reference/notifications.md carried that
 // sentence while three managing-notifications pages sat in the manifest with
 // their content digests, and five screenshots on those pages carried the
 // capability's entire enum vocabulary. A notification domain was invented on
@@ -28,7 +28,7 @@ import { fileURLToPath } from "node:url";
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "..");
-const MANIFEST = resolve(ROOT, "docs/apollo/public-documentation-manifest.tsv");
+const MANIFEST = resolve(ROOT, "docs/reference-platform/public-documentation-manifest.tsv");
 
 const failures = [];
 
@@ -101,7 +101,7 @@ for (const path of tracked) {
           `${relative(ROOT, MANIFEST)} lists ${hit.urls.length} page(s) in section "${hit.section}":\n` +
           hit.urls.map((url) => `    ${url}`).join("\n") +
           `\n  Read them before treating this capability as ungrounded. Screenshots on those pages count: ` +
-          `docs/apollo/IMAGE-DERIVED-GAPS.md records that a UI-first product states its enum values in images, not prose`,
+          `docs/reference-platform/IMAGE-DERIVED-GAPS.md records that a UI-first product states its enum values in images, not prose`,
       );
     }
   }

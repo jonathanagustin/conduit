@@ -12,13 +12,13 @@ ROOT="$(cd "${HERE}/.." && pwd)"
 STAGE="$(mktemp -d)"
 trap 'rm -rf "${STAGE}"' EXIT
 
-mkdir -p "${STAGE}/scripts" "${STAGE}/docs/apollo"
+mkdir -p "${STAGE}/scripts" "${STAGE}/docs/reference-platform"
 cp "${ROOT}/scripts/verify-documentation-freshness.mjs" "${STAGE}/scripts/"
-cp "${ROOT}/docs/apollo/public-documentation-capture.json" "${STAGE}/docs/apollo/"
-cp "${ROOT}/docs/apollo/public-documentation-manifest.tsv" "${STAGE}/docs/apollo/"
+cp "${ROOT}/docs/reference-platform/public-documentation-capture.json" "${STAGE}/docs/reference-platform/"
+cp "${ROOT}/docs/reference-platform/public-documentation-manifest.tsv" "${STAGE}/docs/reference-platform/"
 
-CAPTURE="${STAGE}/docs/apollo/public-documentation-capture.json"
-MANIFEST="${STAGE}/docs/apollo/public-documentation-manifest.tsv"
+CAPTURE="${STAGE}/docs/reference-platform/public-documentation-capture.json"
+MANIFEST="${STAGE}/docs/reference-platform/public-documentation-manifest.tsv"
 PRISTINE="$(cat "${CAPTURE}")"
 PRISTINE_MANIFEST="$(cat "${MANIFEST}")"
 

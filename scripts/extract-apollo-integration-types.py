@@ -132,7 +132,7 @@ def main() -> int:
             "space-provisioning": "H56 — enrollment Apollo-space provisioning, previously opaque ConjureBean; now typed.",
             "agent": "H18 — the Hub/Agent surface: ApolloAgentEntityInfo, ApolloAgentSecretType, ApolloHostUri.",
             "installation": "H16 — managed and universal installation configuration.",
-            "notification": "docs/apollo/reference/notifications.md — ApolloEventReceiverInfo is fuller than the GraphQL {id,name}.",
+            "notification": "docs/reference-platform/reference/notifications.md — ApolloEventReceiverInfo is fuller than the GraphQL {id,name}.",
         },
     }
 

@@ -199,7 +199,7 @@ session identifier, which Conduit records and never executes.
 
 ### `/api/v0` — the pinned public Apollo contract, 13 operations
 
-Regenerated from `docs/apollo/snapshots/apollo-openapi-…/api-definition.yml` and
+Regenerated from `docs/reference-platform/snapshots/reference-openapi-…/api-definition.yml` and
 diffed against the committed router by `scripts/verify-apollo-routes.sh`, so the
 list cannot drift silently.
 
@@ -378,7 +378,7 @@ profiles:
 | Question | Read |
 | --- | --- |
 | Does this command exist? | `conduit <command> --help` on your build |
-| What does `/api/v0` publish? | `docs/apollo/snapshots/apollo-openapi-…/api-definition.yml` |
+| What does `/api/v0` publish? | `docs/reference-platform/snapshots/reference-openapi-…/api-definition.yml` |
 | Which shapes are guesses? | `docs/evidence/conduit-inventions.json` |
 | Where does Conduit deliberately differ from Apollo? | `docs/operations/TENANT-FIDELITY.md`, "Declared divergences" |
 | What is not production-ready? | `docs/operations/PRODUCTION-READINESS.md`, blocking gaps and residual items |

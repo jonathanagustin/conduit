@@ -25,7 +25,7 @@ produces closure SHA-256
 The 30 name-prefixed files alone produce
 `7ac2a58caa8bad8003b9839799b9a992a399f2952f7b5fa9c04bdafe8d2955b6`.
 The exact 42 filenames are retained in
-[`apollo-java-object-closure-2026-08-02.json`](apollo-java-object-closure-2026-08-02.json).
+[`reference-java-object-closure-2026-08-02.json`](reference-java-object-closure-2026-08-02.json).
 
 This direct-reference closure is distinct from the generic BlockSet input
 catalog. `ResolvedInputShape` has 107 tagged variants plus its root wrapper,

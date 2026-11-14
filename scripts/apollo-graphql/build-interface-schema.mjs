@@ -38,7 +38,7 @@ const BUILT_IN = new Set(["Int", "Float", "String", "Boolean", "ID"]);
 
 function parseArgs(argv) {
   const options = {
-    observed: resolve(HERE, "../../docs/apollo/observed/apollo-graphql-observed.json"),
+    observed: resolve(HERE, "../../docs/reference-platform/observed/reference-graphql-observed.json"),
     native: resolve(HERE, "conduit-native.json"),
   };
   for (let index = 0; index < argv.length; index += 1) {

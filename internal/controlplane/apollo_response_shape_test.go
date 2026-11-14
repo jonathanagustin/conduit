@@ -44,8 +44,8 @@ import (
 // provenance question, not a shape question, and shape is all a schema can
 // answer.
 
-const apolloSnapshot = "../../docs/apollo/snapshots/" +
-	"apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml"
+const apolloSnapshot = "../../docs/reference-platform/snapshots/" +
+	"reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml"
 
 var (
 	// A named schema in components, at four spaces, e.g. "    UpgradeStrategy:".

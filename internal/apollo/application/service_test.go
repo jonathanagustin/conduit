@@ -472,7 +472,7 @@ func (fixture reportingWithVersion) GetReport(context.Context, string) (environm
 // CompatibilityProjection does not carry: it holds an Entity NAME while a
 // ReportedEntity is keyed on an installation ID. Guessing that join is the
 // mistake TestHealthJoinsOnReportingVocabularyNotMintedIdentifiers already
-// exists to prevent, so this is declared in docs/apollo/public-api.md and
+// exists to prevent, so this is declared in docs/reference-platform/public-api.md and
 // docs/operations/TENANT-FIDELITY.md rather than approximated.
 //
 // The test asserts the divergence rather than the fix, so that wiring reported
@@ -512,7 +512,7 @@ func TestInstallationVersionIsTheDesiredVersionNotAnAgentReport(t *testing.T) {
 	}
 	if *installation.Version != "2.0.0" {
 		t.Fatalf("version = %q; if this is now %q the reported version reaches the projection, "+
-			"the declared divergence is stale, and docs/apollo/public-api.md must be corrected "+
+			"the declared divergence is stale, and docs/reference-platform/public-api.md must be corrected "+
 			"in the same change", *installation.Version, "1.0.0")
 	}
 }

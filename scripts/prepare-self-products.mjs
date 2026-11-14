@@ -27,7 +27,7 @@ export function prepareSelfProducts({ repository, version, oci, helm, checksums,
   requireValue(typeof readCLI === "function" && typeof readProvenance === "function", "CLI archives and provenance readers are required");
   const imageRepository = `ghcr.io/${repository}`;
   const group = "io.github.jonathanagustin.conduit";
-  // Product names are an explicit native first slice, not recovered Apollo names.
+  // Product names are an explicit native first slice, not names recovered from another platform.
   requireValue(repository === "jonathanagustin/conduit", "this preparer is scoped to the Conduit release producer");
   const products = ["hub", "spoke-agent"].map(component => {
     const image = oci.images[component];

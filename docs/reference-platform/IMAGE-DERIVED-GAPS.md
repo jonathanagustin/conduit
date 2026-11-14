@@ -320,7 +320,7 @@ than a shortfall.
 Findings were established from all 391 screenshot/diagram bodies plus the surrounding
 documentation text, then checked against the implementation by searching for each
 concept before implementing. The reproducible capture command is
-`node scripts/apollo-docs/audit-public-documentation-images.mjs docs/apollo/public-documentation-manifest.tsv OUTPUT_DIR`.
+`node scripts/apollo-docs/audit-public-documentation-images.mjs docs/reference-platform/public-documentation-manifest.tsv OUTPUT_DIR`.
 It writes image bodies and a URL/page/alt/content-hash inventory only to the
 operator-selected output directory; copyrighted image bodies are not committed.
 Code comments that depend on a public contract now carry a canonical source URL

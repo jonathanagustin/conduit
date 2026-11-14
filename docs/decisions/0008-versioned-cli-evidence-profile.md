@@ -32,7 +32,7 @@ Neither inventory proves byte-equivalence with a native Apollo executable.
 
 ## 2026-11-13 migration
 
-The [18-command review](../apollo/cli-additions-review-2026-11-13.md) classifies
+The [18-command review](../reference-platform/cli-additions-review-2026-11-13.md) classifies
 every addition and links product work. The reviewed profile advances to 107
 pages by adding the implemented local Grype group and scan operation. The new
 `cli-command-sources-2026-11-13.tsv` snapshot retains the original 105 rows

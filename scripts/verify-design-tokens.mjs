@@ -9,7 +9,7 @@
 // could silently restyle every screen away from the product, and every existing
 // gate would stay green, because none of them know what the product looks like.
 //
-// This gate knows. docs/apollo/contracts/foundry-design-tokens.json holds the
+// This gate knows. docs/reference-platform/contracts/reference-design-tokens.json holds the
 // 205 `--bp-*` declarations cut from the captured apollo-control-panel 6.533.15
 // stylesheet -- the bytes the tenant served -- and this script compares them
 // against the tokens in the installed @blueprintjs/core.
@@ -30,7 +30,7 @@
 // What this gate does NOT do: it says nothing about layout, spacing, component
 // choice or copy, and it is not evidence about the Apollo deployment console --
 // the capture is Foundry Control Panel under an Apollo skin, which
-// docs/apollo/FRONTEND-CAS-CAPTURE.md explains at length. Tokens are shared
+// docs/reference-platform/FRONTEND-CAS-CAPTURE.md explains at length. Tokens are shared
 // platform styling, which is exactly why they transfer and why the screens
 // built on them do not.
 import { readFileSync } from "node:fs";
@@ -38,7 +38,7 @@ import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const CONTRACT = join(root, "docs/apollo/contracts/foundry-design-tokens.json");
+const CONTRACT = join(root, "docs/reference-platform/contracts/reference-design-tokens.json");
 const INSTALLED = join(root, "web/node_modules/@blueprintjs/core/lib/css/blueprint-design-tokens.css");
 
 /** Fold the differences between two minifiers, and only those.

@@ -47,7 +47,7 @@ answer, and nothing here should be read as claiming it.
 | Metrics exposition | The Hub exports queue depth, lease occupancy, exhaustion and reconciliation lag on an opt-in listener, with no tenant identifier in any label — enforced on the publishing path rather than by convention. | `internal/observability`; `TestALabelNamingATenantResourceIsRefused`; `TestAWedgedHubIsDistinguishableFromABusyOne`. **Bounded by gap 2**, which owns everything this row does not claim: no tracing, nothing exported under `REPOSITORY_KIND=file`, the listener off until `METRICS_ADDRESS` is set, and no alerting rules. This row was titled "Observability" until the 2026-08-18 external audit, which read the title as contradicting gap 2; the claim never did, but the title invited the reading. |
 | Frontend | The operator console ships one tenant-neutral bundle; tenant runtime overrides pass two independent closed validators that reject executable content and policy weakening; browser tests cover URL-owned pagination state. | A3; `Validate operator console` gate; `docs/ui/contracts/runtime-bootstrap.md`. |
 | Disaster recovery | A `pg_dump` taken while decisions are committing restores into an empty database with the migration ledger intact, state readable through the real repositories including artifact bytes, and no decision, audit record or queued proposal torn from the transaction that wrote all three. | `docs/operations/backup-and-restore.md`; `TestPostgresBackupAndRestoreDrill` (`scripts/test-postgres-repository.sh`). **Bounded by gap 4**: the schedule, retention, PITR and secrets backup belong to the deployment that owns the database. |
-| Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/apollo/conformance.md`. |
+| Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/reference-platform/conformance.md`. |
 
 ### Air gap: what this claims and what it does not
 
@@ -468,7 +468,7 @@ carried to the residual list as item 5.
    gate reports a pass it did not derive. Suppression provenance has the same
    shape at a smaller scale: `approvedBy` and `changeRequestId` are checked for
    being present and ordered, never resolved against an approver's authority —
-   `docs/apollo/reference/security-scanning.md` now says so in those words.
+   `docs/reference-platform/reference/security-scanning.md` now says so in those words.
 
    **Narrowed, not closed.** The freshness half is fixed: a policy stating no
    `maximumScanAgeSeconds` used to accept evidence of unbounded age and now

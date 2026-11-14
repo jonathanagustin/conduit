@@ -18,9 +18,9 @@ import { buildObservedSchema } from "./build-observed-schema.mjs";
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ROOT = resolve(HERE, "../..");
 
-const OBSERVED = resolve(ROOT, "docs/apollo/observed/apollo-graphql-observed.json");
+const OBSERVED = resolve(ROOT, "docs/reference-platform/observed/reference-graphql-observed.json");
 const SCHEMA = resolve(ROOT, "api/graphql/apollo.observed.graphql");
-const REPORT = resolve(ROOT, "docs/apollo/observed/apollo-graphql-completeness.json");
+const REPORT = resolve(ROOT, "docs/reference-platform/observed/reference-graphql-completeness.json");
 
 // Shapes that must never appear in committed evidence.
 const FORBIDDEN = [

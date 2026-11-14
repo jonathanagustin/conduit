@@ -91,7 +91,7 @@ var coverage = domain.NewCoverage(map[domain.Coordinate]string{
 	// projection (issues #57, #112). The value is real Conduit data under a
 	// contract sentence that describes different data, so the coverage table
 	// states which data it actually is; the divergence is declared in
-	// docs/apollo/public-api.md and docs/operations/TENANT-FIDELITY.md.
+	// docs/reference-platform/public-api.md and docs/operations/TENANT-FIDELITY.md.
 	at("ApolloEntity", "version"):                   "apollo: Installation.Version, the reviewed desired version, NOT an Agent report",
 	at("ApolloPlan", "rid"):                         "reporting: PlanSummary.ID",
 	at("ApolloPlan", "environmentRid"):              "reporting: PlanSummary.Environment",

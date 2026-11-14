@@ -10,7 +10,7 @@
     "file": "build/types/generated/marketplace/api/__components.d.ts",
     "fileSha256": "92b713420949964b905753ca9bdc00d6a6a50815facfc9d6389e3d24d5b9c8c7",
     "capturedAt": "2026-08-17",
-    "note": "This is the SAME package, version and tarball digest already pinned by docs/apollo/osdk-client-unstable-2.43.0-conjure-evidence.json, whose npmTarballSha256 matches byte for byte. That record captured the .ts sources by digest and never read their documentation, so these facts have been inside this repository's own evidence set since 2026-08-02 and went unread. Nothing new was fetched to establish them beyond re-reading a pin already held."
+    "note": "This is the SAME package, version and tarball digest already pinned by docs/reference-platform/osdk-client-unstable-2.43.0-conjure-evidence.json, whose npmTarballSha256 matches byte for byte. That record captured the .ts sources by digest and never read their documentation, so these facts have been inside this repository's own evidence set since 2026-08-02 and went unread. Nothing new was fetched to establish them beyond re-reading a pin already held."
   },
   "fidelity": {
     "identifierFormats": "Primary -- Palantir's authored documentation on Palantir's own generated types",

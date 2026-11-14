@@ -105,32 +105,32 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 		want:    []int{counts.observed, counts.observedServed, counts.refused},
 		says:    "the ADR's consequences",
 	}, {
-		path:    "../../../docs/apollo/reference/graphql-api.md",
+		path:    "../../../docs/reference-platform/reference/graphql-api.md",
 		pattern: `\| Recovered coordinates declared \| (\d+) \| \| — of which served \| (\d+) \| \| — of which declared but unanswerable \| (\d+) \|`,
 		want:    []int{counts.observed, counts.observedServed, counts.refused},
 		says:    "the published property table",
 	}, {
-		path:    "../../../docs/apollo/reference/graphql-api.md",
+		path:    "../../../docs/reference-platform/reference/graphql-api.md",
 		pattern: `\| Coordinates served, total \| (\d+) \((\d+) .OBSERVED. \+ (\d+) .DOCUMENTED.\) \|`,
 		want:    []int{counts.served, counts.observedServed, counts.documented},
 		says:    "the served total and its decomposition",
 	}, {
-		path:    "../../../docs/apollo/reference/graphql-api.md",
+		path:    "../../../docs/reference-platform/reference/graphql-api.md",
 		pattern: `(\d+) \(35% of the (\d+) declared; 35% of the (\d+) served\)`,
 		want:    []int{counts.documented, counts.declared, counts.served},
 		says:    "the uncaptured share and both of its denominators",
 	}, {
-		path:    "../../../docs/apollo/conformance.md",
+		path:    "../../../docs/reference-platform/conformance.md",
 		pattern: `(\d+) recovered coordinates? (?:are|is) declared and refused`,
 		want:    []int{counts.refused},
 		says:    "the conformance summary's refusal count",
 	}, {
-		path:    "../../../docs/apollo/conformance.md",
+		path:    "../../../docs/reference-platform/conformance.md",
 		pattern: `declares\*\* (\d+) .OBSERVED. coordinates plus (\d+) .DOCUMENTED. ones`,
 		want:    []int{counts.observed, counts.documented},
 		says:    "the conformance row's tier counts",
 	}, {
-		path:    "../../../docs/apollo/conformance.md",
+		path:    "../../../docs/reference-platform/conformance.md",
 		pattern: `(\d+) of the (\d+) are served, the other (\d+) refuse`,
 		want:    []int{counts.served, counts.declared, counts.refused},
 		says:    "the conformance row's served split",

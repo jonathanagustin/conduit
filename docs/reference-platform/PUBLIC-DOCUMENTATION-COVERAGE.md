@@ -153,7 +153,7 @@ contract.
 
 The largest of them was never raised. **Apollo Notifications**, announced
 2025-06-16 with four dependent entries after it, has no implementation:
-`docs/apollo/reference/notifications.md` reconstructs the model and states its
+`docs/reference-platform/reference/notifications.md` reconstructs the model and states its
 bounds, and the console rail records the omission as "external integration until
 implemented" -- a deferral, not a decision. Nothing delivers anything. A Plan
 fails, a recall opens, a grant changes, and nobody learns unless they were
@@ -173,7 +173,7 @@ count headings offline rather than asking a model to count.
 What does corroborate work already done: the 0.813.0/0.814.0 entries describe
 the Product Release TGZ carrying `deployment/values.yaml` and
 `deployment/values.schema.json`, and
-`docs/apollo/cli-fixtures/reconstructed/0.814.0/deployment/` holds exactly those
+`docs/reference-platform/cli-fixtures/reconstructed/0.814.0/deployment/` holds exactly those
 files -- the fixture is pinned to the newest version the changelog names.
 
 **A bound the changelog exposed.** It names commands that have no reference

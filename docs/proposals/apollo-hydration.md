@@ -15,7 +15,7 @@ the search that produced it is legible enough to be re-run.
 ## What was searched, and what it returned
 
 The pinned public contract is
-`docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`,
+`docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`,
 SHA-256 `9e52d7fe6edb29c2f8020ac1179c582cdc89163ccb83a8c17dd803c4f651ed80`,
 upstream commit `c663874bd7467a01e719d039509b0f206d05fe2c` of
 `palantir/apollo-openapi`. It declares thirteen paths and every one of them is
@@ -42,27 +42,27 @@ an authenticated `OAuth2`/`BearerAuth` API call returning namespace ownership
 groups, and nothing in the snapshot connects it to a browser shell. Treating it
 as evidence of hydration would be the inference this repository forbids.
 
-The wider Apollo corpus under `docs/apollo/` was searched the same way. The
+The wider Apollo corpus under `docs/reference-platform/` was searched the same way. The
 string `hydrat` does not occur anywhere in it. `index.html`, `meta tag`,
 `single-page`, `web app`, `whoami`, `login page`, `branding`, `white-label`,
 and `favicon` do not occur either. Every occurrence of `bootstrap` in that
 corpus refers to something else entirely — Flux and namespace reconciliation in
-`docs/apollo/reference/namespaces.md`, permission-administrator bootstrap in
-`docs/apollo/reference/identity-access.md`, and a bootstrap gate on unknown
-Environment state in `docs/apollo/IMAGE-DERIVED-GAPS.md`. None of them is a
+`docs/reference-platform/reference/namespaces.md`, permission-administrator bootstrap in
+`docs/reference-platform/reference/identity-access.md`, and a bootstrap gate on unknown
+Environment state in `docs/reference-platform/IMAGE-DERIVED-GAPS.md`. None of them is a
 frontend.
 
 Two findings are genuinely about Apollo's frontend, and both are worth stating
 precisely because both stop short of hydration.
 
-`docs/apollo/ROSETTA-RELEASE-NOTES.md` establishes that Apollo's web console is
+`docs/reference-platform/ROSETTA-RELEASE-NOTES.md` establishes that Apollo's web console is
 the surface named `autopilot`, that `apollo-build-factory-app` carries console
 panels and Hub settings tabs, and that 49 of 55 observed release notes are
 UI-surface notes carrying no contract Conduit could conform to. This tells us
 the console exists and what it is called. It says nothing about how it is
 configured at boot.
 
-`docs/apollo/reference/graphql-api.md` is the closest the corpus comes, and it
+`docs/reference-platform/reference/graphql-api.md` is the closest the corpus comes, and it
 is the most important document here. It records, against the official Apollo
 API Explorer documentation reviewed 2026-08-03, that Palantir publishes this
 example selection:
@@ -93,7 +93,7 @@ below is `Unknown` rather than "Apollo has no hydration."
 
 There is one more trap in this corpus that this note repeats deliberately,
 because it is the failure mode a future reader is most likely to walk into.
-`docs/apollo/APOLLO-CLIENT-DLL-EVIDENCE.md` records a frontend asset literally
+`docs/reference-platform/REFERENCE-CLIENT-DLL-EVIDENCE.md` records a frontend asset literally
 named `apollo-client-dll`, captured from an authenticated tenant's
 content-addressable store at SHA-256
 `2804ee8a6a0c9f5cc6b711cc345421adfaac324cb89a69f7a2648583e9f0026c`. It is the
@@ -107,14 +107,14 @@ establishes nothing about Palantir Apollo's console.
 
 | Claim | Class | Immutable source | Scope not established |
 | --- | --- | --- | --- |
-| The public Apollo API declares 13 paths, all under `/api/v0`, and none is a configuration, bootstrap, session, or discovery endpoint | Public contract | `docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`, API SHA-256 `9e52d7fe6edb29c2f8020ac1179c582cdc89163ccb83a8c17dd803c4f651ed80` | Whether private, undocumented Hub routes serve a frontend. The snapshot is the *public* API and says so. |
+| The public Apollo API declares 13 paths, all under `/api/v0`, and none is a configuration, bootstrap, session, or discovery endpoint | Public contract | `docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`, API SHA-256 `9e52d7fe6edb29c2f8020ac1179c582cdc89163ccb83a8c17dd803c4f651ed80` | Whether private, undocumented Hub routes serve a frontend. The snapshot is the *public* API and says so. |
 | `GET /api/v0/namespaces` (`listNamespaces`) returns the namespaces the calling user can access | Public contract | Same snapshot, path `/api/v0/namespaces` | That any frontend reads it at boot. Nothing connects this operation to a browser shell. |
-| Apollo documents a `me { id fullName }` GraphQL query as the published way a client learns the current user | Public contract | `docs/apollo/reference/graphql-api.md`, reviewed 2026-08-03 against Palantir's Apollo API documentation | The endpoint path, transport, SDL, auth fixture, or whether this is read during frontend boot. The source states none is published. |
-| Apollo's web console is the surface `autopilot`; 49 of 55 observed release notes are UI-surface only and carry no conformable contract | Tenant observation | `docs/apollo/ROSETTA-RELEASE-NOTES.md`; registry `docs/apollo/observed/apollo-rosetta-release-notes.json` | How `autopilot` is configured at boot. No note in the registry describes console configuration, branding, or tenant loading. |
-| An authorized capture of a live tenant's Connected Hubs route exposed no Apollo Hub origin and no API Explorer; the plan gate blocked the extension | Tenant observation | `docs/apollo/reference/graphql-api.md`, capture manifest SHA-256 `8bef34e33677617ff6a922594a91a1b0b7249be892f6b993faff8d3e37ac99ee`, accessibility tree SHA-256 `1e3c7a8f9df6bdcb916880c4360ee6c760116b5d5f502040e9ee6e31dc0ad8b6`, 2026-08-03T04:43:08.453Z | Anything about Apollo Hub hydration. This is a blocked discovery path and must not be read as an absence result. |
+| Apollo documents a `me { id fullName }` GraphQL query as the published way a client learns the current user | Public contract | `docs/reference-platform/reference/graphql-api.md`, reviewed 2026-08-03 against Palantir's Apollo API documentation | The endpoint path, transport, SDL, auth fixture, or whether this is read during frontend boot. The source states none is published. |
+| Apollo's web console is the surface `autopilot`; 49 of 55 observed release notes are UI-surface only and carry no conformable contract | Tenant observation | `docs/reference-platform/ROSETTA-RELEASE-NOTES.md`; registry `docs/reference-platform/observed/reference-rosetta-release-notes.json` | How `autopilot` is configured at boot. No note in the registry describes console configuration, branding, or tenant loading. |
+| An authorized capture of a live tenant's Connected Hubs route exposed no Apollo Hub origin and no API Explorer; the plan gate blocked the extension | Tenant observation | `docs/reference-platform/reference/graphql-api.md`, capture manifest SHA-256 `8bef34e33677617ff6a922594a91a1b0b7249be892f6b993faff8d3e37ac99ee`, accessibility tree SHA-256 `1e3c7a8f9df6bdcb916880c4360ee6c760116b5d5f502040e9ee6e31dc0ad8b6`, 2026-08-03T04:43:08.453Z | Anything about Apollo Hub hydration. This is a blocked discovery path and must not be read as an absence result. |
 | **How Apollo Hub supplies runtime or tenant configuration to its frontend** | **Unknown** | No source in this repository. The pinned snapshot, the reference contracts, the observed registries, and the media audit are all silent. | Everything. There is no public contract, no authorized observation, and no corroborating capture of an Apollo Hub console boot. |
-| The `apollo-client-dll` frontend asset is the open-source `@apollo/client` GraphQL library, not a Palantir Apollo delivery client | Tenant observation | `docs/apollo/APOLLO-CLIENT-DLL-EVIDENCE.md`, download SHA-256 `2804ee8a6a0c9f5cc6b711cc345421adfaac324cb89a69f7a2648583e9f0026c` | Anything about Palantir Apollo. Recorded here only to stop a name collision from being mistaken for evidence. |
-| Apollo injects an authoritative `apollo` value block into Helm values that user configuration cannot replace | Public contract | `docs/apollo/reference/configuration.md`, sources indexed in `docs/apollo/reference/review-ledger.tsv` | That this pattern extends to browser configuration. It governs workload config, not a frontend. It is cited below only as an argument by analogy, and is labelled as such. |
+| The `apollo-client-dll` frontend asset is the open-source `@apollo/client` GraphQL library, not a Palantir Apollo delivery client | Tenant observation | `docs/reference-platform/REFERENCE-CLIENT-DLL-EVIDENCE.md`, download SHA-256 `2804ee8a6a0c9f5cc6b711cc345421adfaac324cb89a69f7a2648583e9f0026c` | Anything about Palantir Apollo. Recorded here only to stop a name collision from being mistaken for evidence. |
+| Apollo injects an authoritative `apollo` value block into Helm values that user configuration cannot replace | Public contract | `docs/reference-platform/reference/configuration.md`, sources indexed in `docs/reference-platform/reference/review-ledger.tsv` | That this pattern extends to browser configuration. It governs workload config, not a frontend. It is cited below only as an argument by analogy, and is labelled as such. |
 | Foundry (a different product) hydrates a browser shell through `<meta name="x-workspace-page-environment-data">` carrying ~40 service endpoint URLs, of which the Compass bundle consumes two | Corroborating | `/workspace/foundry/apps/compass/src/runtime-config.ts`; evidence receipt named in that file as `evidence/artifacts/tenant-hydration-mechanism-2026-07-31.json` (H42) | Anything about Apollo. Foundry is a different Palantir product and its practice is not an Apollo contract. |
 | Foundry's *pre-authentication* hydration carries only `instructions`, `logoUri`, `tabIconUri`, `tabTitle`, plus a `userDirectoryId` route parameter; every property optional and nullable | Corroborating | `/workspace/foundry/tenant/example/config/login-configuration.schema.json` and `hydration.schema.json` | Anything about Apollo. Also note the containing repository is a *reconstruction* of Foundry, not Palantir source, as `docs/ui/foundry-frontend-architecture.md` states. |
 | Foundry keeps feature flags in a separate, opt-in file contract deliberately omitted from the canonical document, so nothing is enabled by default | Corroborating | `/workspace/foundry/tenant/example/config/README.md` | Anything about Apollo. |
@@ -244,7 +244,7 @@ validator is the same fix applied to a document instead of a route, and
 widening it would be undoing it.
 
 There is a supporting argument by analogy from Apollo's own contract, offered as
-analogy and not as evidence, since `docs/apollo/reference/configuration.md`
+analogy and not as evidence, since `docs/reference-platform/reference/configuration.md`
 governs workload configuration rather than a frontend. Apollo injects an
 authoritative `apollo` block into Helm values and, in that document's words,
 "User configuration cannot replace this authoritative block." The shape of that

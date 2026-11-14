@@ -106,7 +106,7 @@ application" — a row in a list of installable Foundry applications, not a
 screen.
 
 This is the same name collision
-[`APOLLO-CLIENT-DLL-EVIDENCE.md`](APOLLO-CLIENT-DLL-EVIDENCE.md) records for the
+[`REFERENCE-CLIENT-DLL-EVIDENCE.md`](REFERENCE-CLIENT-DLL-EVIDENCE.md) records for the
 GraphQL client, in a second place: an artifact named `apollo-*` is not evidence
 about Palantir Apollo's deployment product. **The Apollo deployment console is a
 different frontend app and is not in this capture.** Nothing in Conduit's
@@ -220,7 +220,7 @@ and every value matches once minifier notation is folded (`#fff` vs `#ffffff`,
 differ textually; **zero** differ semantically.
 
 That is now a gate rather than a one-off reading.
-[`contracts/foundry-design-tokens.json`](contracts/foundry-design-tokens.json)
+[`contracts/reference-design-tokens.json`](contracts/reference-design-tokens.json)
 holds the captured values, and `scripts/verify-design-tokens.mjs` compares them
 against the installed package on demand:
 
@@ -316,8 +316,8 @@ deleted:
 
 | Artifact | Recovered |
 | --- | --- |
-| [`apollo-control-panel-rest-endpoints-6.533.15.json`](apollo-control-panel-rest-endpoints-6.533.15.json) | 438 Conjure REST endpoints across 34 services |
-| [`apollo-control-panel-graphql-operations-6.533.15.json`](apollo-control-panel-graphql-operations-6.533.15.json) | 24 complete GraphQL operations, 30 fragments, 54 definitions |
+| [`reference-control-panel-rest-endpoints-6.533.15.json`](reference-control-panel-rest-endpoints-6.533.15.json) | 438 Conjure REST endpoints across 34 services |
+| [`reference-control-panel-graphql-operations-6.533.15.json`](reference-control-panel-graphql-operations-6.533.15.json) | 24 complete GraphQL operations, 30 fragments, 54 definitions |
 
 Provenance: `jonathanagustin/apollo-ui`, files
 `contracts/rest-conjure-endpoints.json` and `contracts/graphql-operations.json`,

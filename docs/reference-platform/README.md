@@ -27,7 +27,7 @@ to the generated surface and payload behavior covered by the current tests.
 | [Evidence index](evidence.md) | Pinned public inputs, sanitized observations, and immutable receipts |
 
 The source-derived topic notes under [reference](reference/README.md), the
-[OpenAPI snapshot](snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/README.md),
+[OpenAPI snapshot](snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/README.md),
 the [CLI fixtures](cli-fixtures/README.md), and the immutable evidence records
 remain inputs. They are not product architecture documents.
 
@@ -37,7 +37,7 @@ Run these from the repository root:
 
 ```bash
 ruby scripts/apollo-docs/validate-public-api.rb \
-  docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
+  docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
 scripts/verify-apollo-routes.sh
 ruby scripts/apollo-docs/verify-public-api-adapter.rb
 ruby scripts/apollo-docs/validate-cli-fixtures.rb

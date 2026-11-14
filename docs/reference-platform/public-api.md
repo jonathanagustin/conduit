@@ -3,7 +3,7 @@
 ## Authority
 
 The transport authority is the Apache-2.0-licensed snapshot at
-[`snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`](snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml).
+[`snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml`](snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml).
 The directory name records upstream commit
 `c663874bd7467a01e719d039509b0f206d05fe2c`. A fresh upstream checkout is drift
 input, not authority, until it is reviewed and pinned.
@@ -164,7 +164,7 @@ the latter, disclosed in band as `valueTier: CONDUIT_NATIVE`.
 
 ```bash
 ruby scripts/apollo-docs/validate-public-api.rb \
-  docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
+  docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml
 scripts/verify-apollo-routes.sh
 ruby scripts/apollo-docs/verify-public-api-adapter.rb
 go test ./internal/controlplane -run TestApolloPublicAPI

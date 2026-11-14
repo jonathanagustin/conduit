@@ -12,7 +12,7 @@
 // leak somebody's mail, it would redirect it.
 //
 // The routes are a Conduit extension. The pinned Apollo OpenAPI under
-// docs/apollo/snapshots/ publishes no notification operation at all -- the word
+// docs/reference-platform/snapshots/ publishes no notification operation at all -- the word
 // does not appear in it -- so there is no shape here to be faithful to, and
 // pretending otherwise by modelling one on a neighbouring Apollo response would
 // manufacture a resemblance nothing supports.

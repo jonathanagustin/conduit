@@ -334,7 +334,7 @@ async function main() {
     // gateway schema showed why that matters: the two describe different
     // surfaces, and an origin-only fingerprint cannot say whether they were
     // even the same endpoint. Records written before this field exist carry no
-    // answer to that question; see docs/apollo/reference/graphql-api.md.
+    // answer to that question; see docs/reference-platform/reference/graphql-api.md.
     endpointFingerprint: createHash("sha256")
       .update(`conduit-apollo-endpoint ${new URL(endpoint).origin}${new URL(endpoint).pathname}`)
       .digest("hex"),

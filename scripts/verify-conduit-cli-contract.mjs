@@ -2,9 +2,9 @@
 
 import { readFile } from "node:fs/promises";
 
-const contractPath = "docs/apollo/cli-command-contract.json";
+const contractPath = "docs/reference-platform/cli-command-contract.json";
 const contract = JSON.parse(await readFile(contractPath, "utf8"));
-const manifestPath = "docs/apollo/snapshots/cli-command-sources-2026-11-13.tsv";
+const manifestPath = "docs/reference-platform/snapshots/cli-command-sources-2026-11-13.tsv";
 if (contract.sourceManifest !== manifestPath || contract.captured !== "2026-11-13") {
   throw new Error("Apollo CLI compatibility profile must name its reviewed source snapshot");
 }
@@ -51,8 +51,8 @@ for (const command of workflow) {
     throw new Error(`end-to-end workflow command is missing: ${command}`);
   }
 }
-const inventory = JSON.parse(await readFile("docs/apollo/cli-command-inventory.json", "utf8"));
-const liveManifest = await readFile("docs/apollo/public-documentation-manifest.tsv", "utf8");
+const inventory = JSON.parse(await readFile("docs/reference-platform/cli-command-inventory.json", "utf8"));
+const liveManifest = await readFile("docs/reference-platform/public-documentation-manifest.tsv", "utf8");
 const liveSources = new Map(liveManifest.trim().split("\n").slice(1)
   .map((line) => line.split("\t")).filter((fields) => fields[1] === "apollo-cli")
   .map((fields) => [fields[0], fields[5]]));

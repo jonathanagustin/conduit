@@ -187,7 +187,7 @@ cannot delete — and nothing on that read path marks the contact as
 undeliverable. The stored value is accepted, echoed back, and silently inert.
 
 The fidelity reasoning behind it is real and is recorded in
-`docs/apollo/reference/notifications.md`: Apollo's own surface both offers a
+`docs/reference-platform/reference/notifications.md`: Apollo's own surface both offers a
 PagerDuty contact and says PagerDuty is not supported. The audit's point is that
 fidelity to a contradiction is a defensible archival choice and an indefensible
 operational one, and that is correct.

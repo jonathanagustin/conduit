@@ -5,7 +5,7 @@
 // nothing here is part of Platform's own model; foundryinterop adapts these to it.
 package wire
 
-const ContractSHA256 = "e6e012c64d45efb3644b99e19b915075504947f96097dbd8f5278b9fe8e3e5f1"
+const ContractSHA256 = "a4b6e72d4be8e2b4f8e4ad178b33681c3c51477d708dee54294387e34713a11c"
 const ContractVersion = "0.1.0"
 const AdapterID = "foundry-apollo-v0"
 const ManagedMode = "managed-v0"

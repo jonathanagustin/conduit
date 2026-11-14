@@ -4,7 +4,7 @@
     "captured apollo-control-panel 6.533.15 stylesheet. Ground truth for the console's",
     "palette, intents, typography scale, surfaces and shadows.",
     "Provenance and the standing warning about what this capture does NOT authorize:",
-    "docs/apollo/FRONTEND-CAS-CAPTURE.md.",
+    "docs/reference-platform/FRONTEND-CAS-CAPTURE.md.",
     "Values are as minified by the tenant's build (#fff, .1s, #0000001a); the gate",
     "normalizes both sides before comparing, so notation is not drift.",
     "Checked by scripts/verify-design-tokens.mjs against the installed @blueprintjs/core."

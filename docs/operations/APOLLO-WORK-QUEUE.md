@@ -5,7 +5,7 @@ the repository carries a map of what is outstanding without becoming a second
 place to update it.
 
 The split is deliberate. Issues track *what is open*; the documents under
-`docs/apollo/` and `docs/operations/` remain the *evidence record* — what was
+`docs/reference-platform/` and `docs/operations/` remain the *evidence record* — what was
 found, when, from which source, and why a decision went the way it did. A closed
 issue disappears from a board; the reasoning behind it should not disappear from
 the repository.
@@ -168,7 +168,7 @@ The work is on `main`; the issue has not been closed.
 | [#15](https://github.com/jonathanagustin/conduit/issues/15) | **Intermittent agents recognised.** Re-reading the published page turned a decision back into conformance: it is operationally identical to Connected. Wired through a shared `ExpectsDirectAgents` so no path can omit it; the one difference is `ExpectsContinuousReporting`, consumed by #25. |
 | [#18](https://github.com/jonathanagustin/conduit/issues/18) | The Rosetta-only notes read one by one. 55, not 58 — the public page moved. 49 are console notes with no contract here; of the 6 CLI notes, two are Space, two are deliberate divergences, one carries no contract, and one became #24. |
 | [#22](https://github.com/jonathanagustin/conduit/issues/22) | **Implemented.** The deferred trigger fired when the Ironcase adoption selected the production chart's two-replica Hub. The PostgreSQL adapter gives all replicas one append-only resolution history, refuses a split repository profile, and is covered by concurrent independent-store tests plus the real backup/restore drill. |
-| [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-apollo-coordinates-that-stay-refused.md): all twelve refused coordinates, split by what would close each, pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
+| [#23](https://github.com/jonathanagustin/conduit/issues/23) | [ADR 0005](../decisions/0005-reference-platform-coordinates-that-stay-refused.md): all twelve refused coordinates, split by what would close each, pinned to the resolver by `TestRefusedCoordinatesMatchTheDecisionRecord`. |
 | [#27](https://github.com/jonathanagustin/conduit/issues/27) | **Won't do.** A per-binding portability matrix validates nothing until a workload class declares bindings, and the matrix actually needed belongs to the adopting project's runtime ADR. Re-file inside whichever future issue introduces a binding-declaring workload class. Its closure ends the Knative / `function.v1` / shared-runtime thread. |
 | [#24](https://github.com/jonathanagustin/conduit/issues/24) | **Contact team optional.** The decision answered itself in the code: the profile model already permits an ownerless Environment, so the requirement was incidental to the CLI, not policy. Removed an invented constraint rather than relaxing a real one. |
 | [#19](https://github.com/jonathanagustin/conduit/issues/19) | **A schedule is justified.** Answered by ADR 0006 along with #20, since both turned on A4. The crawl now runs weekly in `.github/workflows/documentation-drift.yml`; the offline 45-day freshness gate it complements is unchanged, so drift surfaces long before it can block a candidate. |
@@ -184,7 +184,7 @@ decided them, or were conflated with a different question. The evidence used to
 tell the two apart, in descending force:
 
 1. **The captured tenant authorization graph** (`docs/evidence/apollo-authorization-graph.json`) — Apollo's live RBAC. It proved `namespace` and `space` are distinct concepts (Namespace has a full role family; space does not), which split #17 from #26.
-2. **The pinned Conjure interop IR and OpenAPI** (`api/conjure/`, `docs/apollo/snapshots/`) — the wire types and the `Namespace{id,owners,editors,viewers}` shape.
+2. **The pinned Conjure interop IR and OpenAPI** (`api/conjure/`, `docs/reference-platform/snapshots/`) — the wire types and the `Namespace{id,owners,editors,viewers}` shape.
 3. **Foundry's own published docs** — the Space concept Apollo inherits but does not document.
 4. **The live Apollo documentation pages** — which fully specify Intermittent agents (#15) and the optional contact team (#24).
 
@@ -259,6 +259,6 @@ it is a fact about the tooling rather than work on the product.
 
 ## Where the evidence lives
 
-- [`apollo/PUBLIC-DOCUMENTATION-COVERAGE.md`](../apollo/PUBLIC-DOCUMENTATION-COVERAGE.md) — the 262-page corpus, its maturity markers, the image audit, and what the 2026-08-15 re-crawl found
-- [`apollo/ROSETTA-RELEASE-NOTES.md`](../apollo/ROSETTA-RELEASE-NOTES.md) — the tenant release-note record and how it differs from the public one
-- [`apollo/reference/graphql-api.md`](../apollo/reference/graphql-api.md) — the recovered interface, its provenance tiers, and its bounds
+- [`reference-platform/PUBLIC-DOCUMENTATION-COVERAGE.md`](../reference-platform/PUBLIC-DOCUMENTATION-COVERAGE.md) — the 262-page corpus, its maturity markers, the image audit, and what the 2026-08-15 re-crawl found
+- [`reference-platform/ROSETTA-RELEASE-NOTES.md`](../reference-platform/ROSETTA-RELEASE-NOTES.md) — the tenant release-note record and how it differs from the public one
+- [`reference-platform/reference/graphql-api.md`](../reference-platform/reference/graphql-api.md) — the recovered interface, its provenance tiers, and its bounds

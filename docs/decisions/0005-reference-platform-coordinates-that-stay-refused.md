@@ -183,7 +183,7 @@ rather than by a settled one.
 
 ## More information
 
-- `docs/apollo/reference/graphql-api.md` — the recovered interface, its
+- `docs/reference-platform/reference/graphql-api.md` — the recovered interface, its
   provenance tiers, and its bounds.
 - `internal/apollographql/domain/refusal.go` — the refusal text and why a null
   would be worse.

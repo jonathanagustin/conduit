@@ -9,7 +9,7 @@ Run the capture script with a tenant-downloaded binary:
 
 ```bash
 APOLLO_CLI=/absolute/path/to/apollo-cli \
-  docs/apollo/cli-fixtures/capture.sh
+  docs/reference-platform/cli-fixtures/capture.sh
 ```
 
 The script deliberately uses an empty temporary `HOME`, invokes only local
@@ -33,7 +33,7 @@ does not retain the executable. To test a candidate implementation without
 normalizing YAML, ordering, gzip headers, tar metadata, or terminal output:
 
 ```bash
-docs/apollo/cli-fixtures/verify-byte-equivalence.sh \
+docs/reference-platform/cli-fixtures/verify-byte-equivalence.sh \
   /absolute/path/to/captured/<cli-version> \
   /absolute/path/to/candidate-cli
 ```

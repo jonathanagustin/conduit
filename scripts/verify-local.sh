@@ -158,7 +158,7 @@ apollo_contract() {
   # It drives the read operations and validates what they answer with.
   go test ./internal/controlplane -run TestApolloResponsesMatchThePinnedSchemas &&
     ruby scripts/apollo-docs/validate-public-api.rb \
-      docs/apollo/snapshots/apollo-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml &&
+      docs/reference-platform/snapshots/reference-openapi-c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml &&
     ./scripts/verify-apollo-routes.sh &&
     ruby scripts/apollo-docs/verify-public-api-adapter.rb &&
     ruby scripts/apollo-docs/validate-cli-fixtures.rb &&
