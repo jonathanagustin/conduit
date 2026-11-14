@@ -55,14 +55,13 @@ describe("reviewState", () => {
 });
 
 describe("reviewMarkup", () => {
-  it("disables both buttons for the author and shows the reason", () => {
+  it("hides both buttons for the author and shows the reason", () => {
     const html = reviewMarkup(rows, {
       operatorName: "alice",
       draft: { decision: "", rationale: "looks fine" },
     });
-    const buttons = decideButtons(html);
-    expect(buttons).toHaveLength(2);
-    for (const b of buttons) expect(b).toContain("disabled");
+    expect(decideButtons(html)).toHaveLength(0);
+    expect(html).not.toContain("data-cr-rationale");
     expect(html).toContain("You wrote this request. Another person must approve or reject it.");
     expect(html).toContain("Two-person rule: the author cannot approve their own request.");
   });
@@ -109,13 +108,27 @@ describe("reviewMarkup", () => {
     expect(html).toContain("&lt;img");
   });
 
-  it("never renders an enabled decide button for the author", () => {
+  it("never renders a decide or confirm button for the author", () => {
     for (const draft of [
       { decision: "", rationale: "" },
       { decision: "approve", rationale: "self" },
     ]) {
       const html = reviewMarkup(rows, { operatorName: "alice", draft });
-      for (const b of decideButtons(html)) expect(b).toContain("disabled");
+      expect(decideButtons(html)).toHaveLength(0);
+      expect(html).not.toContain("data-cr-confirm");
+    }
+  });
+
+  it("hides the buttons once a request is decided", () => {
+    for (const status of ["APPROVED", "REJECTED"]) {
+      const decided = [{ ...rows[0], status }];
+      const html = reviewMarkup(decided, {
+        operatorName: "carol",
+        draft: { decision: "approve", rationale: "ok" },
+      });
+      expect(decideButtons(html)).toHaveLength(0);
+      expect(html).not.toContain("data-cr-confirm");
+      expect(html).toContain(`This request is ${status}`);
     }
   });
 

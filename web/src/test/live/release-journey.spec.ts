@@ -102,6 +102,8 @@ test("release journey runs end to end on the Hub's own data", async ({
       return after.changeRequests.find((item) => item.id === requestId)?.status;
     })
     .toMatch(/approved/i);
+  // A decided request offers no further Approve or Reject.
+  await expect(main.locator("[data-cr-decide]")).toHaveCount(0);
 
   // 4. Rollout: the plan the request governs is no longer waiting on approval.
   if (request!.planId) {
