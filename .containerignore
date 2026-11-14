@@ -44,3 +44,5 @@ solver/*
 !solver/cpsat-adapter/native/*.cc
 !solver/cpsat-adapter/native/*.h
 !solver/cpsat-adapter/native/*.bazel
+!docs/security/
+!docs/security/PROJECT-LICENSE-STATUS.md

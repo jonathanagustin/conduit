@@ -60,6 +60,7 @@ verify_containerfile() {
   require_text "$path" "grep -Fq 'statically linked'"
   require_text "$path" "io.palantir.platform.optimizer.upstream.commit=\"${EXPECTED_UPSTREAM_COMMIT}\""
   require_text "$path" 'io.palantir.platform.optimizer.admission="UNADMITTED"'
+  require_text "$path" 'io.palantir.platform.optimizer.project.license.status="NOASSERTION"'
   require_text "$path" 'USER 65532:65532'
   require_text "$path" 'ENTRYPOINT ["/platform-cpsat-adapter"]'
   require_text "$path" "if grep -Eq 'NEEDED|libstdc\\+\\+|libgcc_s'"
@@ -174,6 +175,8 @@ jq -e \
     .[0].Config.Labels["io.palantir.platform.optimizer.upstream.commit"] == $commit and
     .[0].Config.Labels["io.palantir.platform.optimizer.runtime.base.digest"] == ("sha256:" + "afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab") and
     .[0].Config.Labels["org.opencontainers.image.licenses"] == "NOASSERTION" and
+    .[0].Config.Labels["io.palantir.platform.optimizer.application.licenses"] == "NOASSERTION" and
+    .[0].Config.Labels["io.palantir.platform.optimizer.project.license.status"] == "NOASSERTION" and
     .[0].Config.Labels["io.palantir.platform.optimizer.rust.version"] == "1.99.1" and
     .[0].Config.Labels["io.palantir.platform.optimizer.bazel.version"] == "8.7.0"
   ' "$tmp_dir/inspect.json" >/dev/null || fail 'candidate image config or labels differ from the contract'
@@ -325,7 +328,7 @@ jq --null-input \
   --argjson semanticRuns "$NATIVE_RUNS" \
   --argjson staticClosureEntries "$static_closure_entries" \
   --argjson licenseFiles "$license_files" \
-  '{schemaVersion: 1, admission: "UNADMITTED", architecture: $architecture,
+  '{schemaVersion: 1, admission: "UNADMITTED", projectLicenseStatus: "NOASSERTION", architecture: $architecture,
     platformRevision: $platformRevision, imageId: $imageId,
     imageSizeBytes: $imageSizeBytes, binarySizeBytes: $binarySizeBytes,
     binarySha256: $binarySha256,

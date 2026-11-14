@@ -31,7 +31,8 @@ ADD --checksum=sha256:172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a84507
 
 WORKDIR /src
 COPY solver/cpsat-adapter /src/adapter
-COPY LICENSE NOTICE Containerfile.optimizer-cpsat /src/platform/
+COPY Containerfile.optimizer-cpsat /src/platform/
+COPY docs/security/PROJECT-LICENSE-STATUS.md /src/platform/docs/security/PROJECT-LICENSE-STATUS.md
 COPY scripts/scan-cpsat-candidate.sh scripts/verify-cpsat-candidate.sh scripts/verify-cpsat-candidate.test.sh /src/platform/scripts/
 COPY internal/optimization /src/platform/internal/optimization
 
@@ -96,8 +97,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     install -m 0444 /tmp/rust-COPYRIGHT /out/licenses/RUST-COPYRIGHT; \
     install -m 0444 /usr/share/doc/libc6/copyright /out/licenses/GLIBC-COPYRIGHT; \
     install -m 0444 /usr/share/doc/gcc-12-base/copyright /out/licenses/GCC-RUNTIME-COPYRIGHT; \
-    install -m 0444 /src/platform/LICENSE /out/licenses/PLATFORM-LICENSE; \
-    install -m 0444 /src/platform/NOTICE /out/licenses/PLATFORM-NOTICE; \
+    install -m 0444 /src/platform/docs/security/PROJECT-LICENSE-STATUS.md /out/licenses/PLATFORM-LICENSE-STATUS; \
     cargo tree --manifest-path /src/adapter/Cargo.toml --locked --edges normal \
       --prefix none --format '{p}|{l}' | \
       sed 's# (/src/adapter)##' | LC_ALL=C sort -u > /out/cargo-closure.tsv; \
@@ -113,8 +113,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
         sed 's#  /src/adapter/#  solver/cpsat-adapter/#'; \
       sha256sum \
         /src/platform/Containerfile.optimizer-cpsat \
-        /src/platform/LICENSE \
-        /src/platform/NOTICE \
+        /src/platform/docs/security/PROJECT-LICENSE-STATUS.md \
         /src/platform/scripts/scan-cpsat-candidate.sh \
         /src/platform/scripts/verify-cpsat-candidate.sh \
         /src/platform/scripts/verify-cpsat-candidate.test.sh | \
@@ -142,7 +141,7 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
       "GCC-runtime\t$(dpkg-query -W -f='${Version}' gcc-12-base)\tlicenses/GCC-RUNTIME-COPYRIGHT" \
       'Cargo-normal-closure\tCargo.lock\tcargo-closure.tsv,licenses/cargo/' \
       'Distroless-static-debian12\tsha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab\t/usr/share/doc/,/usr/share/common-licenses/' \
-      "Platform-adapter\t${REVISION}\tlicenses/PLATFORM-LICENSE,licenses/PLATFORM-NOTICE" \
+      "Platform-adapter\t${REVISION}\tlicenses/PLATFORM-LICENSE-STATUS" \
       > /out/static-closure.tsv; \
     find /out/licenses -type f -print0 | LC_ALL=C sort -z | \
       xargs -0 sha256sum | sed 's#  /out/#  #' > /out/license-hashes.sha256; \
@@ -176,7 +175,8 @@ LABEL org.opencontainers.image.title="Platform CP-SAT adapter candidate" \
       org.opencontainers.image.version="9.15.6755-unadmitted.1" \
       org.opencontainers.image.revision="$REVISION" \
       org.opencontainers.image.licenses="NOASSERTION" \
-      io.palantir.platform.optimizer.application.licenses="LicenseRef-Proprietary AND MIT AND BSD-3-Clause AND Zlib AND LGPL-2.1-or-later AND GPL-3.0-with-GCC-exception-3.1 AND Unicode-3.0" \
+      io.palantir.platform.optimizer.application.licenses="NOASSERTION" \
+      io.palantir.platform.optimizer.project.license.status="NOASSERTION" \
       io.palantir.platform.optimizer.admission="UNADMITTED" \
       io.palantir.platform.optimizer.architecture="$TARGETARCH" \
       io.palantir.platform.optimizer.protocol="optimization.platform.example/external-discrete-solver-process/v1alpha1" \

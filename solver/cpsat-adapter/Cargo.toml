@@ -2,7 +2,7 @@
 name = "platform-cpsat-adapter"
 version = "0.1.0"
 edition = "2024"
-license-file = "../../LICENSE"
+# No project license file is provided; candidate metadata remains NOASSERTION.
 publish = false
 
 [lib]
