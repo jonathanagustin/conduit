@@ -19,7 +19,7 @@ func TestPlanningRoutesRequireAnOperator(t *testing.T) {
 	mux := http.NewServeMux()
 	Register(mux, Config{Service: application.NewService(nil)})
 	for _, route := range []string{
-		CreateRoute, GetRoute, TurnRoute, AnswerRoute, AcceptRoute, BindingRoute, ComputeRoute,
+		CreateRoute, GetRoute, TurnRoute, AnswerRoute, AcceptRoute, BindingRoute, EventsRoute, ComputeRoute,
 	} {
 		method, path, _ := strings.Cut(route, " ")
 		path = strings.ReplaceAll(path, "{sessionID}", "ps_missing")
@@ -43,7 +43,7 @@ func TestCreateAndGetReturnTheSessionContract(t *testing.T) {
 	}
 	for _, key := range []string{
 		"id", "status", "profile", "intake", "resolvedCommit", "model",
-		"inspection", "needsInput", "answers", "plan", "binding", "messages",
+		"inspection", "needsInput", "answers", "plan", "binding", "messages", "events",
 		"createdAt", "updatedAt",
 	} {
 		if _, ok := created.body[key]; !ok {
@@ -153,6 +153,49 @@ func TestAcceptAndComputeFollowTheBindingContract(t *testing.T) {
 	compute := doJSON(t, mux, http.MethodPost, "/v1/planning-sessions/"+id+"/compute", nil)
 	if compute.status != http.StatusNotImplemented || compute.body["code"] != domain.CodeComputeNotConfigured {
 		t.Fatalf("compute after accept: %d %s", compute.status, compute.raw)
+	}
+}
+
+func TestTurnStreamAndEventsLog(t *testing.T) {
+	t.Parallel()
+	service := application.NewService(scriptedPlanner{})
+	mux := newMux(t, service)
+	created := doJSON(t, mux, http.MethodPost, "/v1/planning-sessions", map[string]string{
+		"repoUrl": "https://github.com/org/app", "ref": "v1",
+	})
+	id, _ := created.body["id"].(string)
+	request := httptest.NewRequest(http.MethodPost, "/v1/planning-sessions/"+id+"/turns", strings.NewReader(`{"message":"inspect the repository"}`))
+	request.Header.Set("content-type", "application/json")
+	request.Header.Set("accept", "text/event-stream")
+	response := httptest.NewRecorder()
+	mux.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("stream status = %d body = %s", response.Code, response.Body.String())
+	}
+	if !strings.HasPrefix(response.Header().Get("content-type"), "text/event-stream") {
+		t.Fatalf("content-type = %q", response.Header().Get("content-type"))
+	}
+	body := response.Body.String()
+	for _, typ := range []string{"message", "inspection", "needs_input", "plan", "status", "done"} {
+		if !strings.Contains(body, "event: "+typ) {
+			t.Fatalf("stream missing %s event: %s", typ, body)
+		}
+	}
+	got := doJSON(t, mux, http.MethodGet, "/v1/planning-sessions/"+id+"/events", nil)
+	if got.status != http.StatusOK {
+		t.Fatalf("events status = %d body = %s", got.status, got.raw)
+	}
+	items, _ := got.body["items"].([]any)
+	types := map[string]bool{}
+	for _, item := range items {
+		row, _ := item.(map[string]any)
+		typ, _ := row["type"].(string)
+		types[typ] = true
+	}
+	for _, typ := range []string{"message", "inspection", "needs_input", "plan", "status", "done"} {
+		if !types[typ] {
+			t.Fatalf("event log missing %s: %s", typ, got.raw)
+		}
 	}
 }
 

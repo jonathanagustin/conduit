@@ -304,6 +304,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; reads one planning session, including Needs Input, the plan, and the Accept binding, and does not approve"},
 		{Pattern: "GET /v1/planning-sessions/{sessionID}/binding",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; reads the Accept binding on a planning session and does not approve"},
+		{Pattern: "GET /v1/planning-sessions/{sessionID}/events",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; reads recorded planning events, including inspection, Needs Input, and plan events, and does not approve"},
 		{Pattern: "GET /v1/plans",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + canReadPlan per Plan row"},
 		{Pattern: "GET /v1/plans/{planID}",

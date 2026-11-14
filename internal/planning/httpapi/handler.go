@@ -7,6 +7,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strings"
@@ -21,6 +22,7 @@ const (
 	AnswerRoute  = "POST /v1/planning-sessions/{sessionID}/answers"
 	AcceptRoute  = "POST /v1/planning-sessions/{sessionID}/accept"
 	BindingRoute = "GET /v1/planning-sessions/{sessionID}/binding"
+	EventsRoute  = "GET /v1/planning-sessions/{sessionID}/events"
 	ComputeRoute = "POST /v1/planning-sessions/{sessionID}/compute"
 )
 
@@ -34,6 +36,7 @@ type Sessions interface {
 	Answer(ctx context.Context, id string, answers []domain.Answer) (*domain.Session, error)
 	Accept(ctx context.Context, id string) (*domain.Session, error)
 	Compute(ctx context.Context, id string) (*domain.Session, error)
+	Events(ctx context.Context, id string) ([]domain.Event, error)
 }
 
 // Config is the route's dependencies. A nil Authorize refuses everyone.
@@ -85,9 +88,21 @@ func Register(mux *http.ServeMux, cfg Config) {
 				return
 			}
 		}
-		session, err := cfg.Service.Turn(request.Context(), request.PathValue("sessionID"), body.Message)
+		id := request.PathValue("sessionID")
+		prior := 0
+		if existing, err := cfg.Service.Get(request.Context(), id); err == nil {
+			prior = len(existing.Events)
+		}
+		session, err := cfg.Service.Turn(request.Context(), id, body.Message)
 		if err != nil {
 			writeDomainError(writer, err)
+			return
+		}
+		if wantsStream(request) {
+			if prior > len(session.Events) {
+				prior = 0
+			}
+			writeTurnStream(writer, session.Events[prior:])
 			return
 		}
 		writeJSON(writer, http.StatusOK, session)
@@ -135,6 +150,20 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		writeJSON(writer, http.StatusOK, session.Binding)
 	})
+	mux.HandleFunc(EventsRoute, func(writer http.ResponseWriter, request *http.Request) {
+		if !authorized(cfg, writer, request) {
+			return
+		}
+		events, err := cfg.Service.Events(request.Context(), request.PathValue("sessionID"))
+		if err != nil {
+			writeDomainError(writer, err)
+			return
+		}
+		if events == nil {
+			events = []domain.Event{}
+		}
+		writeJSON(writer, http.StatusOK, map[string]any{"items": events})
+	})
 	mux.HandleFunc(ComputeRoute, func(writer http.ResponseWriter, request *http.Request) {
 		if !authorized(cfg, writer, request) {
 			return
@@ -146,6 +175,28 @@ func Register(mux *http.ServeMux, cfg Config) {
 		}
 		writeJSON(writer, http.StatusAccepted, session)
 	})
+}
+
+func wantsStream(request *http.Request) bool {
+	return strings.Contains(request.Header.Get("Accept"), "text/event-stream")
+}
+
+func writeTurnStream(writer http.ResponseWriter, events []domain.Event) {
+	writer.Header().Set("content-type", "text/event-stream")
+	writer.Header().Set("cache-control", "no-cache")
+	writer.Header().Set("x-content-type-options", "nosniff")
+	writer.WriteHeader(http.StatusOK)
+	flusher, _ := writer.(http.Flusher)
+	for _, event := range events {
+		payload, err := json.Marshal(event)
+		if err != nil {
+			continue
+		}
+		_, _ = fmt.Fprintf(writer, "id: %s\nevent: %s\ndata: %s\n\n", event.ID, event.Type, payload)
+		if flusher != nil {
+			flusher.Flush()
+		}
+	}
 }
 
 func authorized(cfg Config, writer http.ResponseWriter, request *http.Request) bool {

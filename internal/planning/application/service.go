@@ -70,6 +70,7 @@ func (service *Service) Create(_ context.Context, repoURL, ref string) (*domain.
 		NeedsInput: []domain.Question{},
 		Answers:    []domain.Answer{},
 		Messages:   []domain.Message{},
+		Events:     []domain.Event{},
 		CreatedAt:  now,
 		UpdatedAt:  now,
 	}
@@ -155,6 +156,7 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 	}
 	session.Status = statusAfterTurn(session)
 	session.UpdatedAt = service.now()
+	service.recordTurnEvents(session, message, result)
 	return domain.CloneSession(session), nil
 }
 
@@ -203,6 +205,8 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 	}
 	session.Status = statusAfterTurn(session)
 	session.UpdatedAt = service.now()
+	service.appendEvent(session, domain.Event{Type: domain.EventStatus, Status: session.Status})
+	service.appendEvent(session, domain.Event{Type: domain.EventDone, Status: session.Status})
 	return domain.CloneSession(session), nil
 }
 
@@ -234,7 +238,50 @@ func (service *Service) Accept(_ context.Context, id string) (*domain.Session, e
 	}
 	session.Status = domain.StatusAccepted
 	session.UpdatedAt = now
+	service.appendEvent(session, domain.Event{Type: domain.EventStatus, Status: session.Status})
+	service.appendEvent(session, domain.Event{Type: domain.EventDone, Status: session.Status})
 	return domain.CloneSession(session), nil
+}
+
+// Events returns the recorded planning events for one session.
+func (service *Service) Events(_ context.Context, id string) ([]domain.Event, error) {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	session, ok := service.sessions[id]
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	return domain.CloneEvents(session.Events), nil
+}
+
+func (service *Service) recordTurnEvents(session *domain.Session, message string, result *TurnResult) {
+	if strings.TrimSpace(message) != "" {
+		msg := domain.Message{Role: domain.RoleOperator, Text: strings.TrimSpace(message)}
+		service.appendEvent(session, domain.Event{Type: domain.EventMessage, Message: &msg})
+	}
+	if result != nil {
+		for i := range result.Messages {
+			msg := result.Messages[i]
+			service.appendEvent(session, domain.Event{Type: domain.EventMessage, Message: &msg})
+		}
+		if result.Inspection != nil {
+			service.appendEvent(session, domain.Event{Type: domain.EventInspection, Inspection: result.Inspection})
+		}
+		if len(result.NeedsInput) > 0 {
+			service.appendEvent(session, domain.Event{Type: domain.EventNeedsInput, NeedsInput: result.NeedsInput})
+		}
+		if result.Plan != nil {
+			service.appendEvent(session, domain.Event{Type: domain.EventPlan, Plan: result.Plan})
+		}
+	}
+	service.appendEvent(session, domain.Event{Type: domain.EventStatus, Status: session.Status})
+	service.appendEvent(session, domain.Event{Type: domain.EventDone, Status: session.Status})
+}
+
+func (service *Service) appendEvent(session *domain.Session, event domain.Event) {
+	event.ID = fmt.Sprintf("ev_%d", len(session.Events)+1)
+	event.Timestamp = service.now()
+	session.Events = append(session.Events, event)
 }
 
 // Compute is refused until Accept. After Accept this contract still has

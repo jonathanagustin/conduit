@@ -41,6 +41,17 @@ const (
 	RoleModel    = "model"
 )
 
+// Event types on the planning stream and the recorded event log.
+const (
+	EventMessage    = "message"
+	EventInspection = "inspection"
+	EventNeedsInput = "needs_input"
+	EventPlan       = "plan"
+	EventStatus     = "status"
+	EventError      = "error"
+	EventDone       = "done"
+)
+
 // Stable error codes for the JSON envelope. The console branches on code.
 const (
 	CodeInvalidIntake        = "INVALID_INTAKE"
@@ -129,6 +140,20 @@ type Message struct {
 	Text string `json:"text"`
 }
 
+// Event is one item on the turn stream and the session event log.
+type Event struct {
+	ID         string      `json:"id"`
+	Type       string      `json:"type"`
+	Timestamp  time.Time   `json:"timestamp"`
+	Message    *Message    `json:"message,omitempty"`
+	Inspection *Inspection `json:"inspection,omitempty"`
+	NeedsInput []Question  `json:"needsInput,omitempty"`
+	Plan       *Plan       `json:"plan,omitempty"`
+	Status     string      `json:"status,omitempty"`
+	Error      string      `json:"error,omitempty"`
+	Code       string      `json:"code,omitempty"`
+}
+
 // Binding is recorded at Accept and never rewritten. It is the profile
 // version and hash, the intake, the source commit, the model, and the plan.
 type Binding struct {
@@ -154,6 +179,7 @@ type Session struct {
 	Plan           *Plan       `json:"plan"`
 	Binding        *Binding    `json:"binding"`
 	Messages       []Message   `json:"messages"`
+	Events         []Event     `json:"events"`
 	CreatedAt      time.Time   `json:"createdAt"`
 	UpdatedAt      time.Time   `json:"updatedAt"`
 }
@@ -225,6 +251,7 @@ func CloneSession(session *Session) *Session {
 	out.NeedsInput = append([]Question(nil), session.NeedsInput...)
 	out.Answers = append([]Answer(nil), session.Answers...)
 	out.Messages = append([]Message(nil), session.Messages...)
+	out.Events = CloneEvents(session.Events)
 	if session.Inspection != nil {
 		inspected := *session.Inspection
 		inspected.Ports = append([]int(nil), session.Inspection.Ports...)
@@ -249,6 +276,9 @@ func CloneSession(session *Session) *Session {
 	if out.Messages == nil {
 		out.Messages = []Message{}
 	}
+	if out.Events == nil {
+		out.Events = []Event{}
+	}
 	return &out
 }
 
@@ -268,4 +298,34 @@ func PendingRequired(questions []Question, answers []Answer) bool {
 		}
 	}
 	return false
+}
+
+// CloneEvents copies events, including pointer fields, so callers do not
+// share the store's mutable values.
+func CloneEvents(events []Event) []Event {
+	if events == nil {
+		return []Event{}
+	}
+	out := make([]Event, len(events))
+	for i, event := range events {
+		item := event
+		if event.Message != nil {
+			message := *event.Message
+			item.Message = &message
+		}
+		if event.Inspection != nil {
+			inspected := *event.Inspection
+			inspected.Ports = append([]int(nil), event.Inspection.Ports...)
+			inspected.Tree = append([]string(nil), event.Inspection.Tree...)
+			inspected.ToolCalls = append([]string(nil), event.Inspection.ToolCalls...)
+			item.Inspection = &inspected
+		}
+		item.NeedsInput = append([]Question(nil), event.NeedsInput...)
+		if event.Plan != nil {
+			plan := *event.Plan
+			item.Plan = &plan
+		}
+		out[i] = item
+	}
+	return out
 }

@@ -1,6 +1,8 @@
 # Planning-session HTTP contract. The console builds the composer, Needs
 # Input card, plan review, Accept button, and binding panel against this.
-# Accept is the control point: no package or image compute runs before it.
+# Turns may stream as text/event-stream (message, inspection, needs_input,
+# plan, status, error, done). Accept is the control point: no package or
+# image compute runs before it.
 openapi: 3.0.3
 info:
   title: Planning sessions
@@ -69,11 +71,15 @@ paths:
                   type: string
       responses:
         "200":
-          description: Session after the turn.
+          description: Session after the turn, or a text/event-stream of planning events when Accept is text/event-stream.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/Session"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event"
+              description: One SSE event per recorded item. event is the Event.type (message, inspection, needs_input, plan, status, error, done). data is the Event JSON.
         "401":
           $ref: "#/components/responses/Error"
         "404":
@@ -154,6 +160,30 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/events:
+    get:
+      operationId: listPlanningEvents
+      summary: Read recorded planning events
+      description: Inspection, Needs Input, plan, status, and transcript events for the session. The same items are streamed from POST /turns when Accept is text/event-stream.
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "200":
+          description: Recorded events in order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/compute:
     post:
       operationId: startPlanningCompute
@@ -228,6 +258,7 @@ components:
         - plan
         - binding
         - messages
+        - events
         - createdAt
         - updatedAt
       properties:
@@ -268,6 +299,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Message"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
         createdAt:
           type: string
           format: date-time
@@ -355,6 +390,34 @@ components:
         text:
           type: string
         sha256:
+          type: string
+    Event:
+      type: object
+      required: [id, type, timestamp]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [message, inspection, needs_input, plan, status, error, done]
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          $ref: "#/components/schemas/Message"
+        inspection:
+          $ref: "#/components/schemas/Inspection"
+        needsInput:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        plan:
+          $ref: "#/components/schemas/Plan"
+        status:
+          type: string
+        error:
+          type: string
+        code:
           type: string
     Message:
       type: object
