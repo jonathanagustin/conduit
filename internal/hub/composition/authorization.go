@@ -340,6 +340,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "POST /v1/bundles/preview",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation; Preview still verifies the envelope before reporting the signature as verified"},
+		{Pattern: "POST /v1/bundles/verification",
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation; reports verified, unsigned, or failed from the envelope check and omits contents unless the signature verified"},
 		{Pattern: "POST /v1/bundles/{bundleID}/transfer-confirmations",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
 		{Pattern: "POST /v1/change-requests/{changeRequestID}/approve",

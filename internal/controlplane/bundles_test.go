@@ -83,7 +83,8 @@ func TestBundleHTTPWorkflow(t *testing.T) {
 	if err := json.Unmarshal(previewResponse.Body.Bytes(), &shown); err != nil {
 		t.Fatal(err)
 	}
-	if shown.ManifestDigest != result.Bundles[0].ManifestDigest || !shown.Signature.Verified || shown.Signature.KeyID == "" {
+	if shown.ManifestDigest != result.Bundles[0].ManifestDigest || !shown.Signature.Verified ||
+		shown.Signature.Status != SignatureVerified || shown.Signature.KeyID == "" {
 		t.Fatalf("preview evidence = %#v", shown)
 	}
 	if len(shown.SBOM) == 0 {
@@ -101,6 +102,85 @@ func TestBundleHTTPWorkflow(t *testing.T) {
 	if anonymousResponse.Code != http.StatusUnauthorized {
 		t.Fatalf("anonymous preview = %d %s", anonymousResponse.Code, anonymousResponse.Body.String())
 	}
+}
+
+func TestBundleVerificationSeparatesUnsignedAndFailed(t *testing.T) {
+	repository := NewMemoryRepository()
+	if _, err := NewLifecycle(repository).CreatePlan(context.Background(), assessedFoundation()); err != nil {
+		t.Fatal(err)
+	}
+	handler := NewHandler(repository, HandlerOptions{
+		AllowInsecureAgentIdentityHeaders:    true,
+		AllowInsecureOperatorIdentityHeaders: true,
+		BundlePrivateKey:                     mustBundleKey(t),
+	})
+	pipeline := ExportPipeline{
+		DisplayName: "Verification export", BuildStrategy: BundleStrategySnapshot,
+		Selections: []BundleSelectionRule{{
+			Type: BundleSelectEnvironment, IDs: []string{"dev-use2"},
+			ReleaseStrategy: BundleReleasesAll, ReleaseChannels: []string{"RELEASE"},
+		}},
+	}
+	body, err := json.Marshal(pipeline)
+	if err != nil {
+		t.Fatal(err)
+	}
+	put := httptest.NewRecorder()
+	putRequest := httptest.NewRequest(http.MethodPut, "/v1/export-pipelines/verify-export", bytes.NewReader(body))
+	putRequest.Header.Set("Content-Type", "application/json")
+	handler.ServeHTTP(put, putRequest)
+	if put.Code != http.StatusOK {
+		t.Fatalf("put pipeline = %d %s", put.Code, put.Body.String())
+	}
+	built := httptest.NewRecorder()
+	handler.ServeHTTP(built, httptest.NewRequest(http.MethodPost, "/v1/export-pipelines/verify-export/build", nil))
+	if built.Code != http.StatusCreated {
+		t.Fatalf("build = %d %s", built.Code, built.Body.String())
+	}
+	var result struct {
+		Bundles []BundleEnvelope `json:"bundles"`
+	}
+	if err := json.Unmarshal(built.Body.Bytes(), &result); err != nil || len(result.Bundles) != 1 {
+		t.Fatalf("build response = %#v, %v", result, err)
+	}
+	intact := result.Bundles[0]
+	unsigned := intact
+	unsigned.Signature = ""
+	failed := intact
+	failed.Signature = intact.Signature + "x"
+
+	verified := postVerification(t, handler, intact)
+	if verified.Signature.Status != SignatureVerified || !verified.Signature.Verified || len(verified.SBOM) == 0 {
+		t.Fatalf("verified evidence = %#v", verified)
+	}
+	blank := postVerification(t, handler, unsigned)
+	if blank.Signature.Status != SignatureUnsigned || blank.Signature.Verified || len(blank.SBOM) != 0 || len(blank.Assessments) != 0 {
+		t.Fatalf("unsigned evidence = %#v", blank)
+	}
+	rejected := postVerification(t, handler, failed)
+	if rejected.Signature.Status != SignatureFailed || rejected.Signature.Verified || len(rejected.SBOM) != 0 || len(rejected.Assessments) != 0 {
+		t.Fatalf("failed evidence = %#v", rejected)
+	}
+}
+
+func postVerification(t *testing.T, handler http.Handler, envelope BundleEnvelope) BundlePreview {
+	t.Helper()
+	body, err := json.Marshal(envelope)
+	if err != nil {
+		t.Fatal(err)
+	}
+	request := httptest.NewRequest(http.MethodPost, "/v1/bundles/verification", bytes.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusOK {
+		t.Fatalf("verification = %d %s", response.Code, response.Body.String())
+	}
+	var shown BundlePreview
+	if err := json.Unmarshal(response.Body.Bytes(), &shown); err != nil {
+		t.Fatal(err)
+	}
+	return shown
 }
 
 func TestExportPipelineRevisionedLifecycleAndAlternateHTTPBuild(t *testing.T) {

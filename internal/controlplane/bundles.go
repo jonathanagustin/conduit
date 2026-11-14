@@ -236,19 +236,29 @@ type BundleSelectionRule struct {
 // prose has to be parsed back apart to be useful.
 
 type BundlePreview struct {
-	BundleID        string                  `json:"bundleId"`
-	PipelineID      string                  `json:"pipelineId"`
-	Kind            string                  `json:"kind"`
-	DependsOn       string                  `json:"dependsOn,omitempty"`
-	Added           []string                `json:"added,omitempty"`
-	Updated         []string                `json:"updated,omitempty"`
-	Removed         []string                `json:"removed,omitempty"`
-	Unchanged       []string                `json:"unchanged,omitempty"`
-	SecurityOutcome string                  `json:"securityOutcome"`
-	ManifestDigest  string                  `json:"manifestDigest"`
-	Signature       BundleSignatureEvidence `json:"signature"`
-	SBOM            []BundleSBOMComponent   `json:"sbom"`
+	BundleID        string                     `json:"bundleId"`
+	PipelineID      string                     `json:"pipelineId"`
+	Kind            string                     `json:"kind"`
+	DependsOn       string                     `json:"dependsOn,omitempty"`
+	Added           []string                   `json:"added,omitempty"`
+	Updated         []string                   `json:"updated,omitempty"`
+	Removed         []string                   `json:"removed,omitempty"`
+	Unchanged       []string                   `json:"unchanged,omitempty"`
+	SecurityOutcome string                     `json:"securityOutcome"`
+	ManifestDigest  string                     `json:"manifestDigest"`
+	Signature       BundleSignatureEvidence    `json:"signature"`
+	SBOM            []BundleSBOMComponent      `json:"sbom"`
+	Assessments     []BundleArtifactAssessment `json:"assessments,omitempty"`
 }
+
+// Signature statuses. verified is set only after the trusted-key check
+// succeeds. unsigned means the envelope carries no signature. failed means a
+// signature was present and the check rejected it.
+const (
+	SignatureVerified = "verified"
+	SignatureUnsigned = "unsigned"
+	SignatureFailed   = "failed"
+)
 
 // BundleSignatureEvidence reports whether the envelope signature verified.
 // Verified is true only after the trusted-key check succeeds. A present
@@ -256,6 +266,16 @@ type BundlePreview struct {
 type BundleSignatureEvidence struct {
 	KeyID    string `json:"keyId"`
 	Verified bool   `json:"verified"`
+	Status   string `json:"status"`
+}
+
+// BundleArtifactAssessment is one recorded scan result carried by a verified
+// envelope. It is the report stored with the bundle, not a new scan.
+type BundleArtifactAssessment struct {
+	Release             string `json:"release"`
+	ArtifactDigest      string `json:"artifactDigest"`
+	VulnerabilityStatus string `json:"vulnerabilityStatus"`
+	VirusStatus         string `json:"virusStatus"`
 }
 
 // BundleSBOMComponent is one chart or image named by a product release in the
@@ -1522,6 +1542,56 @@ func (service *BundleService) Preview(ctx context.Context, envelope BundleEnvelo
 	return service.PreviewForEnvironment(ctx, envelope, "")
 }
 
+// Verification reports signature evidence for an envelope. A verified envelope
+// includes the same preview the operator already reads. An unsigned or failed
+// envelope returns the status and the claimed digest, and omits the SBOM and
+// scan rows so an unverified manifest is not presented as contents.
+func (service *BundleService) Verification(ctx context.Context, envelope BundleEnvelope) (BundlePreview, error) {
+	evidence := service.signatureEvidence(envelope)
+	if evidence.Status != SignatureVerified {
+		return BundlePreview{
+			BundleID: envelope.Manifest.ID, PipelineID: envelope.Manifest.PipelineID,
+			Kind: envelope.Manifest.Kind, ManifestDigest: envelope.ManifestDigest,
+			Signature: evidence,
+		}, nil
+	}
+	preview, err := service.Preview(ctx, envelope)
+	if err != nil {
+		return BundlePreview{}, err
+	}
+	preview.Signature = evidence
+	return preview, nil
+}
+
+func (service *BundleService) signatureEvidence(envelope BundleEnvelope) BundleSignatureEvidence {
+	evidence := BundleSignatureEvidence{KeyID: envelope.SigningKeyID}
+	if strings.TrimSpace(envelope.Signature) == "" {
+		evidence.Status = SignatureUnsigned
+		return evidence
+	}
+	if err := service.verifyEnvelope(envelope); err != nil {
+		evidence.Status = SignatureFailed
+		return evidence
+	}
+	evidence.Status = SignatureVerified
+	evidence.Verified = true
+	return evidence
+}
+
+func bundleAssessments(report artifacts.SecurityReport) []BundleArtifactAssessment {
+	if len(report.ArtifactAssessments) == 0 {
+		return nil
+	}
+	rows := make([]BundleArtifactAssessment, 0, len(report.ArtifactAssessments))
+	for _, item := range report.ArtifactAssessments {
+		rows = append(rows, BundleArtifactAssessment{
+			Release: item.Release, ArtifactDigest: item.ArtifactDigest,
+			VulnerabilityStatus: item.VulnerabilityStatus, VirusStatus: item.VirusStatus,
+		})
+	}
+	return rows
+}
+
 func (service *BundleService) PreviewForEnvironment(
 	ctx context.Context, envelope BundleEnvelope, environment string,
 ) (BundlePreview, error) {
@@ -1577,8 +1647,9 @@ func (service *BundleService) PreviewForEnvironment(
 		Kind: envelope.Manifest.Kind, DependsOn: envelope.Manifest.DependsOn,
 		SecurityOutcome: envelope.Manifest.SecurityReport.Outcome,
 		ManifestDigest:  envelope.ManifestDigest,
-		Signature:       BundleSignatureEvidence{KeyID: envelope.SigningKeyID, Verified: true},
+		Signature:       BundleSignatureEvidence{KeyID: envelope.SigningKeyID, Verified: true, Status: SignatureVerified},
 		SBOM:            bundleSBOM(envelope.Manifest.Resources),
+		Assessments:     bundleAssessments(envelope.Manifest.SecurityReport),
 	}
 	for _, resource := range envelope.Manifest.Resources {
 		key := resource.Type + ":" + resource.ID
