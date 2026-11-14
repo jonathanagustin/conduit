@@ -1,5 +1,4 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { mkdir } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 import { createBridge, type BridgeServer } from "../../server/http.ts";
@@ -392,69 +391,25 @@ test.describe("fake ACP bridge", () => {
       await page.goto("/console/");
       await page.getByRole("button", { name: "Workbench" }).click();
       await expect(page.getByText("LIVE", { exact: true }).first()).toBeVisible();
-      await expect(page.getByRole("button", { name: "sample-app" })).toBeVisible();
-      await expect(page.getByText("1/1").first()).toBeVisible();
-      await page.getByRole("menuitem", { name: "Packaging run" }).click();
-      await expect(page.getByText("Review wait").first()).toBeVisible();
-      await expect(page.getByText("Phase review").first()).toBeVisible();
-      await page.getByLabel("Packaging run id").fill("missing");
-      await page.getByRole("button", { name: "Load", exact: true }).click();
-      await expect(page.getByText("configured: false", { exact: true })).toBeVisible();
-      await page.getByRole("menuitem", { name: "Plans & approvals" }).click();
-      await expect(page.getByText("Needs approval", { exact: true })).toBeVisible();
-      await page.getByRole("button", { name: "Review", exact: true }).click();
-      await page.getByRole("button", { name: "Approve", exact: true }).click();
-      await expect(page.getByText("APPROVED", { exact: true })).toBeVisible();
-      await expect(page.getByLabel("Message input")).toBeVisible();
-      if (process.env["CONSOLE_SHOTS"] === "1") {
-        await mkdir("/opt/cursor/artifacts", { recursive: true });
-        const shot = async (name: string) => {
-          await page.screenshot({ path: `/opt/cursor/artifacts/${name}.png` });
+      await expect(page.getByText("EXAMPLE DATA", { exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Command Center" })).toBeVisible();
+      await expect(page.getByText("87.5%").first()).toBeVisible();
+      await page.evaluate(() => {
+        const view = window as unknown as {
+          switchScreen: (id: string) => void;
+          toggleChatRail: () => void;
         };
-        await page.setViewportSize({ width: 1440, height: 900 });
-        await page.getByRole("menuitem", { name: "Overview" }).click();
-        await shot("overview-1440");
-        await page.getByRole("menuitem", { name: "Environments" }).click();
-        await page.getByRole("button", { name: /lab/ }).click();
-        await expect(page.getByText("Release channel")).toBeVisible();
-        await shot("environment-1440");
-        await page.getByRole("menuitem", { name: "Software catalog" }).click();
-        await expect(page.getByText("1.2.0", { exact: true }).first()).toBeVisible();
-        await shot("releases-1440");
-        await page.getByRole("menuitem", { name: "Packaging run" }).click();
-        await page.getByLabel("Packaging run id").fill("sample-app-1");
-        await shot("packaging-1440");
-        await page.getByRole("menuitem", { name: "Plans & approvals" }).click();
-        await shot("approvals-1440");
-        await page.getByRole("button", { name: "plan-failed" }).click();
-        const failed = page.getByText("Example rollout stopped").first();
-        await failed.scrollIntoViewIfNeeded();
-        await expect(failed).toBeVisible();
-        await shot("plans-1440");
-        await page.getByRole("menuitem", { name: "Change requests" }).click();
-        await page.getByRole("button", { name: /Example change/ }).click();
-        await expect(page.getByText("Before", { exact: true })).toBeVisible();
-        await shot("changes-1440");
-        await page.getByRole("menuitem", { name: "Audit" }).click();
-        await shot("audit-1440");
-        await page.setViewportSize({ width: 1024, height: 768 });
-        await page.getByRole("menuitem", { name: "Overview" }).click();
-        await shot("overview-1024");
-        await page.getByRole("menuitem", { name: "Environments" }).click();
-        await shot("environment-1024");
-        await page.getByRole("menuitem", { name: "Packaging run" }).click();
-        await shot("packaging-1024");
-        await page.getByRole("menuitem", { name: "Plans & approvals" }).click();
-        await shot("plans-1024");
-        await shot("approvals-1024");
-      }
-      await page.setViewportSize({ width: 1000, height: 768 });
-      await expect(page.getByRole("button", { name: "Toggle assistant" })).toBeVisible();
-      await page.getByRole("button", { name: "Toggle assistant" }).click();
-      await expect(page.getByRole("complementary", { name: "Assistant" })).toBeVisible();
-      if (process.env["CONSOLE_SHOTS"] === "1") {
-        await page.screenshot({ path: "/opt/cursor/artifacts/overview-1000-drawer.png" });
-      }
+        view.switchScreen("s08-staged-run");
+      });
+      await expect(page.getByText("RUN-8842").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("s16-approvals-board");
+      });
+      await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
+      });
+      await expect(page.getByLabel("Message input")).toBeVisible();
     } finally {
       await bridge.close();
     }
