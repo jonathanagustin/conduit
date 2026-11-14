@@ -29,9 +29,9 @@ const Kind = "download-assets"
 const SchemaVersion = "conduit.delivery/download-assets/v1"
 const MaxDocumentBytes = 4 << 20
 
+// ValueTier identifies this declaration format as Conduit-owned.
 // CONDUIT-INVENTED: productassets.PublisherDeclaredRelease
 // Displaced-by: a published or owner-approved download-asset Product contract establishing manifest shape, catalogue authority and execution eligibility.
-// ValueTier identifies this declaration format as Conduit-owned.
 const ValueTier = "CONDUIT_NATIVE"
 
 var (
