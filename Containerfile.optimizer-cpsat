@@ -38,7 +38,6 @@ ENV CARGO_HOME=/tmp/platform-cpsat-cargo \
     USE_BAZEL_VERSION=8.7.0
 
 COPY --from=inputs / /
-WORKDIR /src
 
 RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,sharing=locked \
     --mount=type=cache,id=platform-cpsat-rust-target,target=/tmp/platform-cpsat-target,sharing=locked \
