@@ -3,8 +3,12 @@
 The Hub builds Cosign 3.1.4 from the locked module graph in
 `tools/cosign-build`, using the same pinned Go 1.27.4 compiler as the Hub.
 Publication and keyless signing keep their existing manual authority boundaries.
+Signing workflows and the clean-cluster acceptance script use
+`scripts/build-cosign.sh` to compile the same locked graph for their host. They
+do not install the upstream prebuilt command, which retains the vulnerable
+legacy helper. The Hub image uses the identical module graph and build flags.
 
-The source build needs two security updates beyond the upstream release graph:
+The source build needs additional security updates beyond the upstream release graph:
 
 - [GO-2026-6865](https://pkg.go.dev/vuln/GO-2026-6865) affects
   `github.com/klauspost/compress` before 1.20.2. The reviewed graph selects
@@ -16,6 +20,11 @@ The source build needs two security updates beyond the upstream release graph:
   The [upstream report](https://github.com/chrismellard/docker-credential-acr-env/issues/21)
   directs consumers to the maintained
   [osscontainertools helper](https://github.com/osscontainertools/docker-credential-acr).
+
+- [GO-2026-5932](https://pkg.go.dev/vuln/GO-2026-5932) identifies the retired
+  unsafe OpenPGP package in older `golang.org/x/crypto` versions. The compiled
+  command did not include that package; the graph now selects 0.59.0, after the
+  fixed version, to remove the obsolete module-level advisory as well.
 
 `compat/acr` is a local compatibility adapter for the legacy constructor import
 that Cosign still consumes. It delegates to the maintained helper at 1.0.1,

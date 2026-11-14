@@ -34,23 +34,8 @@ e2e_workflow = read_workflow.call("e2e.yml")
 docker_ignore = File.read(File.expand_path("../.dockerignore", __dir__))
 container_ignore = File.read(File.expand_path("../.containerignore", __dir__))
 
-cosign_action = "sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532"
-# Declared once, like cosign_action above, rather than written into the
-# assertion. The old form scanned for a literal "cosign-release: v3.1.2", which
-# guarded the two occurrences in images.yml and silently ignored the third in
-# platform-optimizer-candidate-release.yml -- so the signing toolchain could
-# already drift between the workflows that sign images and the one that signs
-# optimizer candidates, and nothing would say so.
-#
-# The point of the pin is that an unattended bot cannot change the signing
-# toolchain on its own: Renovate rewrites workflows wholesale and cannot satisfy
-# a gate that names the old value, so the change becomes a red gate a person has
-# to resolve rather than a hunk in a grouped dependency PR. That property is
-# kept. What is added is that the version is now tethered to the one cosign this
-# repository pins by sha256 and actually executes -- the clean-cluster Gitless
-# acceptance download -- so a bump has to move the checksum too, and the tag
-# pin stops being the weakest link on its own.
-cosign_release = "v3.1.4"
+# Every execution lane builds the same patched graph; upstream prebuilts keep
+# the legacy Azure helper and must not bypass the reviewed replacement.
 clean_cluster = File.read(File.expand_path("test-gitless-clean-cluster.sh", __dir__))
 optimizer_release_workflow = read_workflow.call("optimizer-candidate-release.yml")
 retry_wrapper = "./scripts/retry-keyless-signing.sh"
@@ -73,30 +58,47 @@ workflow_document = YAML.safe_load(workflow, aliases: true)
 publication_triggers = workflow_document.is_a?(Hash) ? (workflow_document["on"] || workflow_document[true]) : nil
 abort "publication workflow must have exactly one workflow_dispatch trigger (ADR 0001, A5)" unless
   publication_triggers.is_a?(Hash) && publication_triggers.keys == ["workflow_dispatch"]
-abort "Cosign installer must be pinned for image and runtime signing" unless workflow.scan(cosign_action).length == 2
-abort "Cosign release must be pinned for image and runtime signing" unless
-  workflow.scan("cosign-release: #{cosign_release}").length == 2
-abort "Cosign release must be pinned for optimizer candidate signing" unless
-  optimizer_release_workflow.scan("cosign-release: #{cosign_release}").length == 1
-# The signing workflows and the acceptance suite have to run the same cosign, or
-# the version the suite proves out by checksum is not the version that signs
-# what ships.
-abort "Cosign release must match the checksum-pinned download in test-gitless-clean-cluster.sh" unless
-  clean_cluster.include?("/sigstore/cosign/releases/download/#{cosign_release}/")
+cosign_build_command = './scripts/build-cosign.sh "${RUNNER_TEMP}/conduit-cosign/cosign"'
+[ [workflow_document, 2], [YAML.safe_load(optimizer_release_workflow, aliases: true), 1] ].each do |document, expected|
+  builders = 0
+  document.fetch("jobs").each_value do |job|
+    steps = job.fetch("steps", [])
+    steps.each_with_index do |step, index|
+      next unless step.fetch("run", "").include?(cosign_build_command)
+      builders += 1
+      abort "Cosign signing jobs must install the exact reviewed Go compiler before building" unless
+        steps.take(index).any? do |previous|
+          previous["uses"] == "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16" &&
+            previous.fetch("with", {})["go-version"] == "1.27.4"
+        end
+    end
+  end
+  abort "all Cosign signing lanes must use the reviewed source builder" unless builders == expected
+end
+abort "clean-cluster acceptance must use the reviewed Cosign source builder" unless
+  clean_cluster.include?('"${repo_root}/scripts/build-cosign.sh" "${bin_dir}/cosign"')
+cosign_builder = File.read(File.expand_path("build-cosign.sh", __dir__))
+abort "Cosign source builder must enforce the reviewed compiler and locked source graph" unless
+  File.executable?(File.expand_path("build-cosign.sh", __dir__)) &&
+    cosign_builder.include?("export GOTOOLCHAIN=local") &&
+    cosign_builder.include?("go1.27.4") && cosign_builder.include?("CGO_ENABLED=0") &&
+    cosign_builder.include?('go -C "$root/tools/cosign-build" build -trimpath -buildvcs=false') &&
+    cosign_builder.include?("github.com/sigstore/cosign/v3/cmd/cosign")
 abort "Hub Cosign source build must pin the reviewed upstream release" unless
   cosign_build_mod.include?("tool github.com/sigstore/cosign/v3/cmd/cosign") &&
     cosign_build_mod.match?(/^\s*github\.com\/sigstore\/cosign\/v3 v3\.1\.4 \/\/ indirect$/)
 abort "Hub Cosign source build must pin the patched Go toolchain and dependency graph" unless
   cosign_build_mod.match?(/^go 1\.27\.4$/) &&
-    cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.41\.0 \/\/ indirect$/) &&
-    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.43\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.42\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.44\.0 \/\/ indirect$/) &&
     cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.84\.0 \/\/ indirect$/)
 abort "Cosign must replace the vulnerable legacy Azure helper with the maintained compatibility adapter" unless
   cosign_build_mod.include?("replace github.com/chrismellard/docker-credential-acr-env => ./compat/acr") &&
     cosign_acr_mod.match?(/^\s*github\.com\/osscontainertools\/docker-credential-acr v1\.0\.1$/) &&
     cosign_acr_adapter.include?("return maintained.NewACRCredentialsHelper()")
 abort "Cosign must retain the compression security update" unless
-  cosign_build_mod.match?(/^\s*github\.com\/klauspost\/compress v1\.20\.3 \/\/ indirect$/)
+  cosign_build_mod.match?(/^\s*github\.com\/klauspost\/compress v1\.20\.3 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/crypto v0\.59\.0 \/\/ indirect$/)
 abort "Hub build context must include the Azure helper compatibility source" unless
   hub_containerfile.include?("COPY tools/cosign-build/compat ./compat") &&
     [docker_ignore, container_ignore].all? do |ignore|
@@ -114,8 +116,9 @@ abort "Hub runtime must build and carry the locked Cosign command" unless
 abort "Hub runtime must not fall back to a vulnerable prebuilt Cosign binary" if
   hub_containerfile.include?("sigstore/cosign/releases/download") ||
     hub_containerfile.include?("ARG COSIGN_VERSION=")
-abort "no cosign-release may be left unpinned" unless
-  (workflow + optimizer_release_workflow).scan(/cosign-release: (\S+)/).flatten.uniq == [cosign_release]
+abort "Cosign execution lanes must not fall back to upstream prebuilt commands" if
+  (workflow + optimizer_release_workflow + clean_cluster).include?("sigstore/cosign-installer@") ||
+    (workflow + optimizer_release_workflow + clean_cluster).include?("sigstore/cosign/releases/download")
 abort "image and runtime jobs require GitHub OIDC" unless workflow.scan("id-token: write").length == 2
 abort "keyless signing retry wrapper must be behaviorally tested" unless
   File.executable?(File.expand_path("test-retry-keyless-signing.sh", __dir__))
