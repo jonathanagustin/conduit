@@ -252,6 +252,7 @@ func changeRequestCommand(state *commandState) *cobra.Command {
 	command.AddCommand(changeRequestReviewCommand(state, "reject"))
 	command.AddCommand(changeRequestStateCommand(state, "reopen"))
 	command.AddCommand(changeRequestStateCommand(state, "cancel"))
+	addChangeActivityCommands(command, state)
 	return command
 }
 

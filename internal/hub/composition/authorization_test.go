@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	activitymemory "github.com/jonathanagustin/conduit/internal/changeactivity/adapters/memory"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 	assetmemory "github.com/jonathanagustin/conduit/internal/productassets/adapters/memory"
@@ -56,6 +57,7 @@ var realIdentifiers = map[string]string{
 	"product":        fixtureProduct,
 	"productId":      fixtureProduct,
 	"productID":      fixtureProduct,
+	"requestID":      "crq_activity_probe",
 	"version":        fixtureVersion,
 	"productVersion": fixtureVersion,
 	"teamName":       fixtureTeam,
@@ -77,6 +79,12 @@ const (
 // would also accept it after the authorization was removed, so the GraphQL row
 // is driven with a document that parses.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/change-requests/{requestID}/comments" {
+		return `{"text":"discussion probe"}`
+	}
+	if pattern == "POST /v1/change-requests/{requestID}/label-mutations" {
+		return `{"labelName":"Do not merge","operation":"ADD"}`
+	}
 	if pattern == "POST /v1/product-publications/download-assets" {
 		return `{"apiVersion":"conduit.delivery/download-assets/v1","productGroup":"a.example","productName":"ledger","version":"0.1.0","assets":[{"name":"cli.tar.gz","uri":"https://example.org/cli.tar.gz","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`
 	}
@@ -206,7 +214,7 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 	t.Parallel()
 	store := newNotificationStore()
 	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{},
-		Options{ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+		Options{ChangeDiscussion: activitymemory.New(), ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -274,7 +282,7 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 		// Named, so the "local-developer" bootstrap shortcut is off and every
 		// decision below has to come from a grant this principal does not hold.
 		BootstrapAdministrators: []string{"root"},
-	}, Options{ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+	}, Options{ChangeDiscussion: activitymemory.New(), ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -576,6 +584,9 @@ func desiredState(environment, product string) controlplane.DesiredState {
 // the Hub's own routes.
 func seedFixture(t *testing.T, handler http.Handler, repository controlplane.Repository) {
 	t.Helper()
+	if _, err := repository.CreateChangeRequest(t.Context(), controlplane.ChangeRequest{ID: "crq_activity_probe", Author: controlplane.Principal{Username: "alice"}, Environment: fixtureEnvironment, Status: controlplane.ChangePendingApprovals, Revision: 1}); err != nil {
+		t.Fatal(err)
+	}
 	service := controlplane.NewGovernanceService(repository)
 	if _, err := service.PutTeam(t.Context(), controlplane.Team{
 		Name: fixtureTeam, DisplayName: fixtureTeam,

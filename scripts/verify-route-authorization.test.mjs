@@ -60,6 +60,7 @@ const apolloRoutes = ["/api/v0/products", "/api/v0/environments/{environmentRid}
 const notificationRoutes = ["GET /v1/notifications/inbox"];
 const spaceRoutes = ["GET /v1/spaces"];
 const assetRoutes = ["POST /v1/product-publications/download-assets"];
+const activityRoutes=["POST /v1/change-requests/{requestID}/comments"];
 const wildcardRoute = "/v1/notifications/{path...}";
 
 const facade = () =>
@@ -100,6 +101,7 @@ const baselineRows = () => [
   ...notificationRoutes.map((pattern) => row(pattern, "DecisionOperatorGrant", "operatorPrincipal + resourceOperation")),
   ...spaceRoutes.map((pattern) => row(pattern, "DecisionOperatorFiltered", "caller-bound Space and resource visibility")),
   ...assetRoutes.map((pattern) => row(pattern, "DecisionOperatorGrant", "caller-bound publication authority")),
+ ...activityRoutes.map((pattern)=>row(pattern,"DecisionOperatorGrant","request annotation authority")),
   row(wildcardRoute, "DecisionPublic", "the method-not-allowed responder; it resolves nobody and reads nothing"),
 ];
 
@@ -111,6 +113,7 @@ function build() {
   write("internal/notifications/adapters/httpapi/httpapi.go", notifications());
   write("internal/spaces/adapters/httpapi/httpapi.go", 'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("GET /v1/spaces", nil) }\n');
   write("internal/productassets/adapters/httpapi/httpapi.go", 'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("POST /v1/product-publications/download-assets", nil) }\n');
+  write("internal/changeactivity/adapters/httpapi/httpapi.go",'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("POST /v1/change-requests/{requestID}/comments", nil) }\n');
   write("internal/packagingworkflow/httpapi/httpapi.go", "package httpapi\n");
   // The negative control: a route mounted in a test file. It must not be
   // demanded of the register.
@@ -147,7 +150,7 @@ const expectFail = (what, needle) => {
 // --- the baseline -----------------------------------------------------------
 build();
 const baseline = expectPass("baseline");
-if (baseline && !/128 mounted routes/.test(baseline)) {
+if (baseline && !/129 mounted routes/.test(baseline)) {
   failures.push(`baseline: gate counted the wrong number of routes: ${baseline.trim()}`);
 }
 // The negative control, stated as an assertion rather than left implicit.
@@ -209,3 +212,4 @@ if (failures.length) {
   process.exit(1);
 }
 console.log("PASS route-authorization gate self-test: 8 planted violations, each rejected");
+

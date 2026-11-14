@@ -655,6 +655,17 @@ func (repository *PostgresRepository) UpdateChangeRequest(ctx context.Context, i
 	return result0, err
 }
 
+func (repository *PostgresRepository) UpdateChangeRequestAndPlan(ctx context.Context, id string, writeRequest bool, update func(*ChangeRequest, *PlanRecord) error) (ChangeRequest, PlanRecord, error) {
+	var result0 ChangeRequest
+	var result1 PlanRecord
+	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {
+		var innerErr error
+		result0, result1, innerErr = memory.UpdateChangeRequestAndPlan(ctx, id, writeRequest, update)
+		return innerErr
+	})
+	return result0, result1, err
+}
+
 func (repository *PostgresRepository) UpdateModuleInstallation(ctx context.Context, id string, update func(*ModuleInstallation) error) (ModuleInstallation, error) {
 	var result0 ModuleInstallation
 	err := repository.withState(ctx, true, func(memory *MemoryRepository) error {

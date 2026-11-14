@@ -13,6 +13,7 @@ into Conduit-owned concepts before it can affect delivery.
 | Delivery | Plans, rollout rules, maintenance decisions, desired-state compilation, and rollback intent | Cluster access or transport-specific request shapes |
 | Product assets | Immutable publisher-declared download metadata and its binding to catalogue publication receipts | Downloading bytes, signature verification, Agent execution, or publication permission policy |
 | Spaces | Native Space identity and immutable resource grouping anchors | Authentication, resource grants, deployment authority, or private Apollo Space identity |
+| Change Request activity | Immutable discussion records and native discussion/label result projections | Approval requirements, review rationale, request lifecycle decisions, or Plan execution |
 | Governance | Principals, grants, roles, the approval-policy language and its predicates, approval requirements, the audit contract a decision is filed under, and authorization decisions | Authentication, execution, or the Change Request lifecycle that asks it for a decision |
 | Identity | Conversion of verified credentials into operator or Spoke identity, and the policy a token must satisfy to be one | Permission grants, or how a token's signature is checked and how a credential arrives |
 | Execution | Lease ownership, attempt numbering, expiry, and execution state | Approval policy or cluster mechanics |
@@ -114,3 +115,4 @@ Related documents:
 - [Optimization](optimization.md)
 - [Conduit reconciliation](reconciliation.md)
 - [Deployment invariants](deployment-invariants.md)
+
