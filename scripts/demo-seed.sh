@@ -231,6 +231,10 @@ api PUT /v1/teams/release-reviewers "$(cat <<'JSON'
 {"name":"release-reviewers","displayName":"Release reviewers","adminGroups":["reviewers"],"memberGroups":["reviewers"]}
 JSON
 )" >/dev/null
+api PUT /v1/teams/Operator "$(cat <<'JSON'
+{"name":"Operator","displayName":"Operators","adminUsers":["local-developer"],"memberUsers":["local-developer"]}
+JSON
+)" >/dev/null
 
 api PUT /v1/approval-policies/release-review "$(cat <<'JSON'
 {"id":"release-review","displayName":"Release review","enabled":true,"expression":"type != \"\" ? require_team(\"release-reviewers\", \"release review\") : no_op()"}

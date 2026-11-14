@@ -188,7 +188,12 @@ function actionsFor(state, chip) {
     chip.objectType === "PackagingRun"
   ) {
     actions.push({
-      kind: "propose",
+      kind: "propose-rerun",
+      key: keyOf(chip),
+      label: "Propose rerun",
+    });
+    actions.push({
+      kind: "propose-cancel",
       key: keyOf(chip),
       label: "Propose cancel",
     });
@@ -307,6 +312,8 @@ export async function runAssistantAction(state, kind, chipKey) {
       arguments: { changeRequestId: chip.id },
     });
   }
+  const actionId =
+    kind === "propose-cancel" ? "cancel_packaging_run" : "rerun_packaging_run";
   const fields = governedFields(state, chip);
   if (!fields.environment || !fields.installation || !fields.product) {
     return {
@@ -324,7 +331,7 @@ export async function runAssistantAction(state, kind, chipKey) {
     mode,
     tool: "propose_governed_action",
     arguments: {
-      actionId: "cancel_packaging_run",
+      actionId,
       targetEntityId: chip.id,
       targetObjectType: chip.objectType,
       environment: fields.environment,
