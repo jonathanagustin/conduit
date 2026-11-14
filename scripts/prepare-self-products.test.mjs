@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 import assert from "node:assert/strict";
+import { createHash } from "node:crypto";
 import { readFileSync, mkdtempSync, writeFileSync, mkdirSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -8,6 +9,10 @@ import { spawnSync } from "node:child_process";
 import { prepareSelfProducts } from "./prepare-self-products.mjs";
 import { selfProductFixture } from "./fixtures/self-products.mjs";
 
+const recordedBytes=readFileSync(new URL("../docs/evidence/self-product-preparation-v0.17.5.json",import.meta.url));
+const receipt=JSON.parse(readFileSync(new URL("../docs/evidence/self-product-preparation-v0.17.5-receipt.json",import.meta.url),"utf8"));
+assert.equal(createHash("sha256").update(recordedBytes).digest("hex"),receipt.preparedDescriptor.sha256,"actual-release preparation snapshot differs from its recorded receipt");
+assert.equal(JSON.parse(recordedBytes).source.commit,receipt.originalReleaseSourceCommit);
 const fixture = selfProductFixture(), result = prepareSelfProducts(fixture);
 assert.equal(JSON.stringify(result, null, 2)+"\n",readFileSync(new URL("../testdata/self-product/synthetic-prepared.json",import.meta.url),"utf8"));
 assert.equal(result.publicationState,"NOT_PUBLISHED");

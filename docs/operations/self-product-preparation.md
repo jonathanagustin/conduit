@@ -85,3 +85,19 @@ metadata/byte failures, the CLI entry point and absence of partial output.
 through real Hub authorization/publication and checks exact executable Releases,
 configuration receipts and channel semantics. The synthetic fixture is labelled
 under `testdata/self-product/`; it contains no released artifacts.
+
+## Recorded v0.17.5 preparation
+
+The actual release assets were read on 2026-11-14. Both native Product bodies
+and all six CLI archive byte/metadata checks passed. The prepared documents are
+in `docs/evidence/self-product-preparation-v0.17.5.json`; the adjacent receipt
+records input metadata hashes, the tool revision and the exact descriptor hash.
+No archive or binary is committed.
+
+The source SHA is the original released `44e1e8845fe01c2a461061f6557a128ebf716af6`,
+retained from the release metadata. The corrected tag points to
+`92e0c6f6258b68f7bebf5da04978ac54ec337844`; the history map records the prior
+tree-preserving correction. This is not a new attestation over rewritten history.
+Signatures, registry availability, vulnerability reassessment, live publication
+and deployment were not performed. The synthetic test fixture remains separate
+from this actual-release preparation.
