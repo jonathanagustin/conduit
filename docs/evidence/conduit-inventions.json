@@ -353,7 +353,7 @@
     {
       "id": "identity.DebugBrokerIdentity",
       "what": "A dedicated one-URI-SAN debug broker identity, spiffe://platform.delivery/environment/ENV/debug-broker/BROKER, with exact bounded Environment/broker labels and no operator or delivery-Agent role alias.",
-      "why": "ADR 0015 requires a separate outbound broker and execution boundary. The pinned public terminal source establishes no private broker credential protocol. The native identity parser separates roles before any execution wiring; transport trust verification and enrollment/authorization remain separate obligations.",
+      "why": "ADR 0015 requires a separate outbound broker and execution boundary. The pinned public terminal source establishes no private broker credential protocol. The native identity parser separates roles before any execution wiring. The HTTP adapter requires the presented leaf to match standard verified TLS chains, rejects bearer credentials and supplies no header fallback; server CA configuration and enrollment/authorization remain separate obligations.",
       "displacedBy": "a reviewed replacement debug-broker credential identity and enrollment contract.",
       "riskIfWrong": "The URI and enrollment shape may differ from an eventual supported protocol. Parsing is not certificate-chain verification or execution authority, and no production transport or broker is enabled by this primitive."
     }
