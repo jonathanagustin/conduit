@@ -79,3 +79,7 @@ run = "./scripts/uds-up.sh"
 description = "Delete the local UDS Core k3d cluster"
 run = "./scripts/uds-down.sh"
 
+[tasks.uds-keycloak-users]
+description = "Create the author and reviewer Keycloak users and write their passwords outside the repository"
+run = "./scripts/uds-keycloak-users.sh"
+

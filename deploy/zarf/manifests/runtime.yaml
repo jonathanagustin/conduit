@@ -65,6 +65,11 @@ spec:
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
             - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
             - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
+            - { name: OPERATOR_OIDC_ISSUER, value: "###ZARF_VAR_OPERATOR_OIDC_ISSUER###" }
+            - { name: OPERATOR_OIDC_CLIENT_ID, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_ID###" }
+            - { name: OPERATOR_OIDC_USERNAME_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_USERNAME_CLAIM###" }
+            - { name: OPERATOR_OIDC_GROUPS_CLAIM, value: "###ZARF_VAR_OPERATOR_OIDC_GROUPS_CLAIM###" }
+            - { name: OPERATOR_OIDC_CA_FILE, value: "###ZARF_VAR_OPERATOR_OIDC_CA_FILE###" }
           ports:
             - { name: https, containerPort: 8081 }
             # Named so a UDS ServiceMonitor has a port to select. The process
@@ -88,6 +93,7 @@ spec:
             readOnlyRootFilesystem: true
           volumeMounts:
             - { name: state, mountPath: /var/lib/platform-delivery }
+            - { name: oidc-ca, mountPath: /etc/ssl/platform-ca, readOnly: true }
             - { name: hub-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
       volumes:
@@ -100,6 +106,10 @@ spec:
         - name: bundle-signing
           secret:
             secretName: "###ZARF_VAR_BUNDLE_SIGNING_SECRET###"
+        - name: oidc-ca
+          configMap:
+            name: uds-trust-bundle
+            optional: true
 ---
 apiVersion: v1
 kind: Service
