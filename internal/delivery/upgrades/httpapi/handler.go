@@ -1,3 +1,4 @@
+// Package httpapi serves release dependency and upgrade views.
 package httpapi
 
 import (
