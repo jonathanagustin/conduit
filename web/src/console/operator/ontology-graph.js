@@ -1,5 +1,9 @@
 /* Ontology graph. Live rows come from the Hub catalog; fixtures are example data. */
 
+import { createConduitClient } from "@conduit/ontology-client";
+
+const client = createConduitClient();
+
 const FIXTURE = {
   types: [
     {
@@ -210,12 +214,7 @@ export function createOntologyGraph(ctx) {
   async function load() {
     state.graphLoading = true;
     try {
-      const response = await fetch("/api/v2/ontologies/conduit/fullMetadata", {
-        credentials: "same-origin",
-        headers: { accept: "application/json" },
-      });
-      if (!response.ok) throw new Error(String(response.status));
-      const body = await response.json();
+      const body = await client.metadata();
       const projected = projectMetadata(body);
       if (!projected.types.length) throw new Error("empty");
       state.graphLive = true;
@@ -246,24 +245,8 @@ export function createOntologyGraph(ctx) {
       return;
     }
     try {
-      const response = await fetch(
-        "/api/v2/ontologies/conduit/objectSets/loadObjects",
-        {
-          method: "POST",
-          credentials: "same-origin",
-          headers: {
-            accept: "application/json",
-            "content-type": "application/json",
-          },
-          body: JSON.stringify({
-            objectSet: { type: "base", objectType: selected },
-            pageSize: 25,
-          }),
-        },
-      );
-      if (!response.ok) throw new Error(String(response.status));
-      const body = await response.json();
-      state.graphObjects = Array.isArray(body.data) ? body.data : [];
+      const page = await client.objects(selected).fetchPage({ pageSize: 25 });
+      state.graphObjects = page.data;
     } catch {
       state.graphObjects = [];
     }
