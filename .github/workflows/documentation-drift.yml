@@ -49,7 +49,7 @@ jobs:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 24.22.0
+          node-version: 24.22.3
       # Report-only: no --write, so the crawl detects drift and fails but never
       # rewrites the committed corpus. Refreshing it is a reviewed human commit.
       - name: Re-crawl and report documentation drift
