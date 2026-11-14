@@ -1,0 +1,19 @@
+apiVersion: zarf.dev/v1alpha1
+kind: ZarfPackageConfig
+metadata:
+  name: "sample-app"
+  description: "Generated package for sample-app"
+  version: "0.0.1"
+  annotations:
+    packaging.conduit.dev/source-digest: "sha256:ef46b63ef0d27c6163dadfd5851fee0dc1dee7063f4995031c43aee12ffe928b"
+    packaging.conduit.dev/template-version: "fixture-1"
+    packaging.conduit.dev/tool-versions: "lint=fixture-1,render=fixture-1"
+    packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
+components:
+  - name: "sample-app"
+    required: true
+    manifests:
+      - name: "uds-package"
+        namespace: "sample-app"
+        files:
+          - "uds-package.yaml"

@@ -54,7 +54,8 @@
           "type": "string",
           "enum": [
             "json",
-            "yaml"
+            "yaml",
+            "table"
           ]
         },
         "caFile": {
@@ -82,6 +83,36 @@
           "minLength": 1,
           "description": "Path to a mode-0600 file containing one short-lived Multipass bearer token. The token itself is never persisted in this profile."
         },
+        "oidcIssuer": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "description": "OIDC issuer for the client-credentials grant. The client secret is never persisted in this profile."
+        },
+        "oidcClientId": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oidcClientSecretFile": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Path to a mode-0600 file containing the OIDC client secret."
+        },
+        "oidcTokenUrl": {
+          "type": "string",
+          "format": "uri",
+          "pattern": "^https://",
+          "description": "Token endpoint. Discovered from the issuer when omitted."
+        },
+        "oidcScope": {
+          "type": "string",
+          "minLength": 1
+        },
+        "oidcCaFile": {
+          "type": "string",
+          "minLength": 1,
+          "description": "CA PEM for the OIDC issuer when it is not in the public trust set."
+        },
         "spaceId": {
           "type": "string",
           "pattern": "^space_[a-f0-9]{32}$",
@@ -97,21 +128,15 @@
           ],
           "not": {
             "anyOf": [
-              {
-                "required": [
-                  "spiffeEndpoint"
-                ]
-              },
-              {
-                "required": [
-                  "hubSpiffeId"
-                ]
-              },
-              {
-                "required": [
-                  "bearerTokenFile"
-                ]
-              }
+              { "required": ["spiffeEndpoint"] },
+              { "required": ["hubSpiffeId"] },
+              { "required": ["bearerTokenFile"] },
+              { "required": ["oidcIssuer"] },
+              { "required": ["oidcClientId"] },
+              { "required": ["oidcClientSecretFile"] },
+              { "required": ["oidcTokenUrl"] },
+              { "required": ["oidcScope"] },
+              { "required": ["oidcCaFile"] }
             ]
           }
         },
@@ -122,26 +147,16 @@
           ],
           "not": {
             "anyOf": [
-              {
-                "required": [
-                  "caFile"
-                ]
-              },
-              {
-                "required": [
-                  "clientCertFile"
-                ]
-              },
-              {
-                "required": [
-                  "clientKeyFile"
-                ]
-              },
-              {
-                "required": [
-                  "bearerTokenFile"
-                ]
-              }
+              { "required": ["caFile"] },
+              { "required": ["clientCertFile"] },
+              { "required": ["clientKeyFile"] },
+              { "required": ["bearerTokenFile"] },
+              { "required": ["oidcIssuer"] },
+              { "required": ["oidcClientId"] },
+              { "required": ["oidcClientSecretFile"] },
+              { "required": ["oidcTokenUrl"] },
+              { "required": ["oidcScope"] },
+              { "required": ["oidcCaFile"] }
             ]
           }
         },
@@ -151,26 +166,32 @@
           ],
           "not": {
             "anyOf": [
-              {
-                "required": [
-                  "clientCertFile"
-                ]
-              },
-              {
-                "required": [
-                  "clientKeyFile"
-                ]
-              },
-              {
-                "required": [
-                  "spiffeEndpoint"
-                ]
-              },
-              {
-                "required": [
-                  "hubSpiffeId"
-                ]
-              }
+              { "required": ["clientCertFile"] },
+              { "required": ["clientKeyFile"] },
+              { "required": ["spiffeEndpoint"] },
+              { "required": ["hubSpiffeId"] },
+              { "required": ["oidcIssuer"] },
+              { "required": ["oidcClientId"] },
+              { "required": ["oidcClientSecretFile"] },
+              { "required": ["oidcTokenUrl"] },
+              { "required": ["oidcScope"] },
+              { "required": ["oidcCaFile"] }
+            ]
+          }
+        },
+        {
+          "required": [
+            "oidcIssuer",
+            "oidcClientId",
+            "oidcClientSecretFile"
+          ],
+          "not": {
+            "anyOf": [
+              { "required": ["clientCertFile"] },
+              { "required": ["clientKeyFile"] },
+              { "required": ["spiffeEndpoint"] },
+              { "required": ["hubSpiffeId"] },
+              { "required": ["bearerTokenFile"] }
             ]
           }
         }

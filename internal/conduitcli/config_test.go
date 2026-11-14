@@ -36,7 +36,7 @@ func TestConnectionConfigRequiresOneCompleteIdentityMode(t *testing.T) {
 				CAFile: "ca.pem", ClientCertFile: "client.crt", ClientKeyFile: "client.key",
 				SPIFFEEndpoint: "unix:///run/spire.sock", HubSPIFFEID: "spiffe://platform.delivery/hub",
 			},
-			wantError: "static mTLS, SPIFFE, and bearer-token identity are mutually exclusive",
+			wantError: "static mTLS, SPIFFE, bearer-token, and OIDC identity are mutually exclusive",
 		},
 		{
 			// Zero is not "unset" here -- validate is reached with whatever
@@ -61,14 +61,14 @@ func TestConnectionConfigRequiresOneCompleteIdentityMode(t *testing.T) {
 		{
 			name:          "missing identity",
 			configuration: ConnectionConfig{Server: "https://hub.example.test", Timeout: time.Second},
-			wantError:     "configure static mTLS, SPIFFE, or bearer-token identity",
+			wantError:     "configure static mTLS, SPIFFE, bearer-token, or OIDC identity",
 		},
 		{
 			name: "partial static identity",
 			configuration: ConnectionConfig{
 				Server: "https://hub.example.test", Timeout: time.Second, CAFile: "ca.pem",
 			},
-			wantError: "configure static mTLS, SPIFFE, or bearer-token identity",
+			wantError: "configure static mTLS, SPIFFE, bearer-token, or OIDC identity",
 		},
 		{
 			name: "partial client certificate",
@@ -105,12 +105,43 @@ func TestConnectionConfigRequiresOneCompleteIdentityMode(t *testing.T) {
 			},
 		},
 		{
+			name: "valid oidc identity",
+			configuration: ConnectionConfig{
+				Server: "https://hub.example.test", Timeout: time.Second,
+				OIDCIssuer: "https://issuer.example.test/realms/main", OIDCClientID: "conduit",
+				OIDCClientSecretFile: "client.secret",
+			},
+		},
+		{
+			name: "partial oidc identity",
+			configuration: ConnectionConfig{
+				Server: "https://hub.example.test", Timeout: time.Second, OIDCIssuer: "https://issuer.example.test",
+			},
+			wantError: "--oidc-issuer, --oidc-client-id, and --oidc-client-secret-file must be supplied together",
+		},
+		{
+			name: "plaintext oidc issuer",
+			configuration: ConnectionConfig{
+				Server: "https://hub.example.test", Timeout: time.Second,
+				OIDCIssuer: "http://issuer.example.test", OIDCClientID: "conduit", OIDCClientSecretFile: "client.secret",
+			},
+			wantError: "--oidc-issuer must be an absolute https URL without userinfo, query, or fragment",
+		},
+		{
+			name: "oidc and bearer together",
+			configuration: ConnectionConfig{
+				Server: "https://hub.example.test", Timeout: time.Second, BearerTokenFile: "multipass.token",
+				OIDCIssuer: "https://issuer.example.test", OIDCClientID: "conduit", OIDCClientSecretFile: "client.secret",
+			},
+			wantError: "static mTLS, SPIFFE, bearer-token, and OIDC identity are mutually exclusive",
+		},
+		{
 			name: "bearer and SPIFFE together",
 			configuration: ConnectionConfig{
 				Server: "https://hub.example.test", Timeout: time.Second, BearerTokenFile: "multipass.token",
 				SPIFFEEndpoint: "unix:///run/spire.sock", HubSPIFFEID: "spiffe://platform.delivery/hub",
 			},
-			wantError: "static mTLS, SPIFFE, and bearer-token identity are mutually exclusive",
+			wantError: "static mTLS, SPIFFE, bearer-token, and OIDC identity are mutually exclusive",
 		},
 		{
 			name: "valid loopback development identity",

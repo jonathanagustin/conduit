@@ -183,4 +183,235 @@ test.describe("fake ACP bridge", () => {
       await bridge.close();
     }
   });
+
+  test("shows the workbench from hub routes and the fake agent", async ({
+    page,
+  }) => {
+    test.setTimeout(60_000);
+    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
+    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
+      fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
+    ]);
+    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
+    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
+    let approved = false;
+    await page.route("**/health/live", (route) =>
+      route.fulfill({ json: { ok: true } }),
+    );
+    await page.route("**/v1/environments**", (route) => {
+      const url = route.request().url();
+      if (url.includes("reported-state")) {
+        return route.fulfill({
+          json: { agentId: "example-spoke", observedAt: "2026-11-14T00:00:00Z", entities: [{ name: "sample" }] },
+        });
+      }
+      if (/\/v1\/environments\/[^/?]+/.test(url)) {
+        return route.fulfill({
+          json: {
+            environment: {
+              id: "lab",
+              generation: "4",
+              connectionSetting: "spoke",
+              defaultReleaseChannel: "stable",
+              labels: { tier: "example" },
+              maintenance: { noDowntime: { timeZone: "UTC", intervals: ["Mon 00:00-04:00"] } },
+              config: { replicas: "2" },
+            },
+          },
+        });
+      }
+      return route.fulfill({
+        json: {
+          environments: [
+            {
+              environment: { id: "lab", connectionSetting: "spoke" },
+              reported: { environment: "lab" },
+            },
+          ],
+          total: 1,
+        },
+      });
+    });
+    await page.route("**/v1/products**", (route) => {
+      if (route.request().url().includes("view=full")) {
+        return route.fulfill({
+          json: {
+            products: [
+              { product: "sample-app", releases: [{ version: "1.2.0", channels: ["candidate", "stable"] }] },
+            ],
+            total: 1,
+          },
+        });
+      }
+      return route.fulfill({ json: { products: [{ product: "sample-app" }], total: 1 } });
+    });
+    await page.route("**/v1/fleet/installations**", (route) =>
+      route.fulfill({
+        json: {
+          installations: [
+            { installationId: "sample-a", environment: "lab", product: "sample-app", health: "HEALTHY" },
+            { installationId: "sample-b", environment: "lab", product: "sample-app", health: "ERROR" },
+          ],
+        },
+      }),
+    );
+    await page.route("**/v1/change-requests**", (route) =>
+      route.fulfill({
+        json: {
+          changeRequests: [
+            {
+              id: "change-1",
+              title: "Example change",
+              status: "IN_REVIEW",
+              environment: "lab",
+              requirementsSatisfied: false,
+              changes: [{ diff: { replicas: { before: "1", after: "2" } } }],
+              reviews: [{ decision: "comment", rationale: "Example review" }],
+            },
+          ],
+        },
+      }),
+    );
+    await page.route("**/v1/promotions**", (route) =>
+      route.fulfill({
+        json: {
+          promotions: [
+            {
+              id: "promo-1",
+              product: "sample-app",
+              version: "1.2.0",
+              fromChannel: "candidate",
+              toChannel: "stable",
+              status: "BLOCKED",
+              reasons: ["Example: maintenance window is closed"],
+            },
+          ],
+        },
+      }),
+    );
+    await page.route("**/v1/plans**", async (route) => {
+      const url = route.request().url();
+      if (route.request().method() === "POST" && url.includes("/approvals")) {
+        approved = true;
+        await route.fulfill({ json: { id: "plan-1", status: "APPROVED" } });
+        return;
+      }
+      await route.fulfill({
+        json: {
+          plans: [
+            approved
+              ? {
+                  id: "plan-1",
+                  status: "APPROVED",
+                  requiredApprovals: 1,
+                  approvals: [{ subject: "operator" }],
+                  plan: { environment: "lab", steps: [{}] },
+                }
+              : {
+                  id: "plan-1",
+                  status: "AWAITING_APPROVAL",
+                  requiredApprovals: 1,
+                  plan: { environment: "lab", steps: [{}] },
+                },
+            {
+              id: "plan-failed",
+              status: "FAILED",
+              failure: "Example rollout stopped",
+              requiredApprovals: 1,
+              plan: { environment: "lab", steps: [{}] },
+              execution: { tasks: [{ phase: "apply", status: "FAILED", agentOutput: "example output" }] },
+            },
+          ],
+          total: 1,
+        },
+      });
+    });
+    await page.route("**/v1/packaging-runs**", async (route) => {
+      const url = route.request().url();
+      if (url.includes("/events")) {
+        await route.fulfill({
+          json: {
+            configured: true,
+            items: [
+              {
+                sequence: 1,
+                at: "2026-11-14T00:00:00Z",
+                step: "review",
+                outcome: "waiting",
+                reason: "example gate",
+              },
+            ],
+            total: 1,
+          },
+        });
+        return;
+      }
+      if (route.request().method() === "GET" && !url.includes("sample-app-1") && !url.includes("missing")) {
+        await route.fulfill({
+          json: {
+            configured: true,
+            items: [
+              {
+                configured: true,
+                phase: "review",
+                runId: "sample-app-1",
+                planId: "plan-1",
+                tier: "CONDUIT_NATIVE",
+              },
+            ],
+            total: 1,
+          },
+        });
+        return;
+      }
+      await route.fallback();
+    });
+    await page.route("**/*PackagingRunService/GetPackagingRun", async (route) => {
+      const body = route.request().postDataJSON() as { runId?: string };
+      const missing = body.runId === "missing";
+      await route.fulfill({
+        json: missing
+          ? { configured: false, tier: "CONDUIT_NATIVE", runId: "missing" }
+          : {
+              configured: true,
+              phase: "review",
+              runId: "sample-app-1",
+              planId: "plan-1",
+              tier: "CONDUIT_NATIVE",
+              sourceDigest: "sha256:example",
+              artifactDigest: "sha256:artifact-example",
+              proposalRevision: "rev-1",
+              targetPlanRef: "lab/plan-1",
+            },
+      });
+    });
+    const bridge: BridgeServer = await createBridge({ port: 8787 });
+    try {
+      await hydrate(page);
+      await page.goto("/console/");
+      await page.getByRole("button", { name: "Workbench" }).click();
+      await expect(page.getByText("LIVE", { exact: true }).first()).toBeVisible();
+      await expect(page.getByText("EXAMPLE DATA", { exact: true })).toBeVisible();
+      await expect(page.getByRole("button", { name: "Command Center" })).toBeVisible();
+      await expect(page.getByText("87.5%").first()).toBeVisible();
+      await page.evaluate(() => {
+        const view = window as unknown as {
+          switchScreen: (id: string) => void;
+          toggleChatRail: () => void;
+        };
+        view.switchScreen("s08-staged-run");
+      });
+      await expect(page.getByText("RUN-8842").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("s16-approvals-board");
+      });
+      await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
+      });
+      await expect(page.getByLabel("Message input")).toBeVisible();
+    } finally {
+      await bridge.close();
+    }
+  });
 });

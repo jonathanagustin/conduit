@@ -167,6 +167,48 @@
       "why": "Issue #193 authorizes preparation without publication. Conduit owns these Product coordinates and metadata format. The native Helm input can represent executable Hub/Spoke Releases; the current service-Product API cannot carry CLI archive assets, so CLI inventory is explicitly not a published or executable catalogue Product.",
       "displacedBy": "an owner-approved self-Product publication contract defining coordinates, artifact inputs and the supported CLI asset catalogue.",
       "riskIfWrong": "Product naming and preparation format may need migration before publication. Input metadata consistency and CLI byte hashes do not authenticate signatures or registry availability. Output says NOT_PUBLISHED and preserves those unperformed checks; no publication, subscription or deployment authority is added."
+    },
+    {
+      "id": "packaging.CodexRuntimeProbe",
+      "what": "Windows0.148.0 hash-pinned handshake-only preflight; runtime remains unavailable.",
+      "why": "Check exact protocol/home boundaries without launching an agent whose host-read confinement has not been established.",
+      "displacedBy": "A reviewed, scoped, authenticated agent runtime contract with enforced workspace isolation.",
+      "riskIfWrong": "Handshake success says nothing about safe inference, tool confinement or deployment authority; profile reports model disabled."
+    },
+    {
+      "id": "packaging.StructuralReceipt",
+      "what": "Unsigned local structural-validator receipt binding exact artifact/tool/schema/script bytes and recording dependency versions and mandatory check outcomes.",
+      "why": "Separate actual deterministic tool observations from model prose without inventing release or deployment authority.",
+      "displacedBy": "An authenticated validator-producer and freshness contract integrated with existing governance.",
+      "riskIfWrong": "JSON receipts can be forged outside their local producer; they must not be ingested as trusted approval or proof of image/runtime readiness."
+    },
+    {
+      "id": "packaging.PlanPackaging",
+      "what": "Versioned source-evidence-bound caller review to constrained scaffold workflow, not delivery approval.",
+      "why": "Invalidate stale review inputs and keep unsupported application requirements explicit before artifact emission.",
+      "displacedBy": "A reviewed production evidence-to-packaging workflow contract.",
+      "riskIfWrong": "Caller declarations can be incorrect; byte-bound evidence is not semantic truth, image provenance, runtime validation or human authorization."
+    },
+    {
+      "id": "packaging.GenerateScaffold",
+      "what": "Conduit-native constrained internal-stateless profile emitting deterministic review artifacts, not deployable integration.",
+      "why": "Keep unsupported requirements explicit while testing pinned schema contracts before agent runtime integration.",
+      "displacedBy": "A reviewed production packaging profile contract.",
+      "riskIfWrong": "Schema-valid artifacts can still fail startup, identity, storage, network or offline requirements; no readiness or execution approval is implied."
+    },
+    {
+      "id": "packaging.ReviewAssessment",
+      "what": "Conduit-native completeness review of supplied application packaging assessments; never deployment authorization.",
+      "why": "Separates missing or inferred evidence from source-cited claims before generating UDS artifacts, without treating a model assertion as validation.",
+      "displacedBy": "A reviewed replacement packaging-assessment contract.",
+      "riskIfWrong": "Overly narrow checklist may miss requirements; reports explicitly remain unvalidated and do not authorize execution."
+    },
+    {
+      "id": "packaging.UndeclaredNeeds",
+      "what": "When a product does not declare a section, a packaging run emits one OpenID client named for the product with redirect https://<name>.example/callback and secret <name>-sso, egress TCP and UDP 53 to kube-system pods labeled k8s-app=kube-dns, and a monitor named http on the product port at /metrics. Explicit lines replace that section. The word none keeps the section and emits an empty list.",
+      "why": "The Package custom resource requires monitor port name, selector and target port, and its network allow list is deny-by-default. No published package profile states what to write when the product is silent. Name resolution is the allow list that does not publish the workload, and the client and monitor names follow the product name so two runs of the same source agree.",
+      "displacedBy": "a reviewed packaging profile that states the SSO client, network allow and monitor values to emit when a product declares none.",
+      "riskIfWrong": "A product that needed no name resolution, a different client, or no metrics scrape receives those defaults until it declares otherwise. Empty lists are available with none. The output is not deployment authorization, and the value tier annotation says the choice is native."
     }
   ],
   "displaced": [

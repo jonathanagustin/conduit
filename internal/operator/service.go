@@ -48,6 +48,8 @@ type ControlPlane interface {
 	ApprovePlan(context.Context, string, string) (controlplane.PlanRecord, error)
 	CancelPlan(context.Context, string, string) (controlplane.PlanRecord, error)
 	GetPlan(context.Context, string) (controlplane.PlanRecord, error)
+	ListPlans(context.Context, PlanListQuery) (PlanListResult, error)
+	ListPackagingRuns(context.Context, PackagingRunQuery) (PackagingRunList, error)
 	GetReportedState(context.Context, string) (controlplane.EnvironmentReport, error)
 	ListSuppressions(context.Context, string) ([]controlplane.SuppressionRecord, error)
 	RemoveSuppression(context.Context, string) (controlplane.SuppressionRecord, error)
@@ -216,6 +218,14 @@ func (service Service) CancelPlan(ctx context.Context, id, reason string) (contr
 
 func (service Service) GetPlan(ctx context.Context, id string) (controlplane.PlanRecord, error) {
 	return service.controlPlane.GetPlan(ctx, id)
+}
+
+func (service Service) ListPlans(ctx context.Context, query PlanListQuery) (PlanListResult, error) {
+	return service.controlPlane.ListPlans(ctx, query)
+}
+
+func (service Service) ListPackagingRuns(ctx context.Context, query PackagingRunQuery) (PackagingRunList, error) {
+	return service.controlPlane.ListPackagingRuns(ctx, query)
 }
 
 func (service Service) GetReportedState(ctx context.Context, environment string) (controlplane.EnvironmentReport, error) {

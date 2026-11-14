@@ -54,9 +54,9 @@ Three things the CLI enforces, each reproduced:
 
 - **A profile with no identity is refused.** `conduit profile create staging
   --server https://…` with no credential exits 1 with `configure static mTLS,
-  SPIFFE, or bearer-token identity`. Pick mTLS (`--client-cert-file` +
-  `--client-key-file`), SPIFFE (`--spiffe-endpoint`, `--hub-spiffe-id`), or a
-  bearer token file.
+  SPIFFE, bearer-token, or OIDC identity`. Pick mTLS (`--client-cert-file` +
+  `--client-key-file`), SPIFFE (`--spiffe-endpoint`, `--hub-spiffe-id`), a
+  bearer token file, or OIDC client credentials.
 - **A bearer token file must not be group- or world-readable.** The check is at
   use time, not at profile creation, and reads `bearer token file permissions
   must not grant group or other access`.

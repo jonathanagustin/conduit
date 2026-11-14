@@ -52,8 +52,9 @@ func TestProfileOutputAcceptsOnlyTheFormatsConduitRenders(t *testing.T) {
 		{output: "json"},
 		{output: "yaml"},
 		{output: "YAML"},
+		{output: "table"},
+		{output: "TABLE"},
 		{output: "pretty", wantError: true},
-		{output: "table", wantError: true},
 	} {
 		profile := connectionProfile{
 			Name: "hub", Server: "https://hub.example.test", Output: test.output,
@@ -63,7 +64,7 @@ func TestProfileOutputAcceptsOnlyTheFormatsConduitRenders(t *testing.T) {
 		if (err != nil) != test.wantError {
 			t.Errorf("output %q: err = %v, want error = %v", test.output, err, test.wantError)
 		}
-		if test.wantError && err != nil && !strings.Contains(err.Error(), "json or yaml") {
+		if test.wantError && err != nil && !strings.Contains(err.Error(), "json, yaml, or table") {
 			t.Errorf("output %q: err = %v, want the formats that do exist", test.output, err)
 		}
 	}
@@ -82,8 +83,8 @@ func TestProfileOutputAcceptsOnlyTheFormatsConduitRenders(t *testing.T) {
 	if err := json.Unmarshal(conduitProfileSchema, &schema); err != nil {
 		t.Fatal(err)
 	}
-	if enum := schema.Defs.Profile.Properties.Output.Enum; strings.Join(enum, ",") != "json,yaml" {
-		t.Errorf("schema output enum = %v, want the two formats writeOutput renders", enum)
+	if enum := schema.Defs.Profile.Properties.Output.Enum; strings.Join(enum, ",") != "json,yaml,table" {
+		t.Errorf("schema output enum = %v, want the profile formats writeOutput renders", enum)
 	}
 }
 

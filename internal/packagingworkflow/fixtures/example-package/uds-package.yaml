@@ -1,0 +1,46 @@
+apiVersion: uds.dev/v1alpha1
+kind: Package
+metadata:
+  name: "sample-app"
+  namespace: "sample-app"
+  annotations:
+    packaging.conduit.dev/source-digest: "sha256:ef46b63ef0d27c6163dadfd5851fee0dc1dee7063f4995031c43aee12ffe928b"
+    packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
+spec:
+  network:
+    serviceMesh:
+      mode: "ambient"
+    allow:
+      - direction: "Egress"
+        description: "default-name-resolution"
+        selector:
+          "app.kubernetes.io/name": "sample-app"
+        remoteNamespace: "kube-system"
+        remoteSelector:
+          "k8s-app": "kube-dns"
+        port: 53
+        remoteProtocol: "UDP"
+      - direction: "Egress"
+        description: "default-name-resolution"
+        selector:
+          "app.kubernetes.io/name": "sample-app"
+        remoteNamespace: "kube-system"
+        remoteSelector:
+          "k8s-app": "kube-dns"
+        port: 53
+        remoteProtocol: "TCP"
+  sso:
+    - name: "sample-app"
+      clientId: "sample-app"
+      protocol: "openid-connect"
+      redirectUris:
+        - "https://sample-app.example/callback"
+      secretConfig:
+        name: "sample-app-sso"
+  monitor:
+    - portName: "http"
+      targetPort: 8080
+      path: "/metrics"
+      selector:
+        "app.kubernetes.io/name": "sample-app"
+      description: "application-metrics"
