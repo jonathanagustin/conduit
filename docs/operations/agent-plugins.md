@@ -1,4 +1,4 @@
-# Claude plugins this repository expects
+# Coding-agent plugins this repository expects
 
 Conduit consumes two plugins from the `jonathanagustin-private` marketplace at
 [`jonathanagustin/claude-code-on-the-web`](https://github.com/jonathanagustin/claude-code-on-the-web)
@@ -6,7 +6,7 @@ rather than carrying its own copies of what they know.
 
 | Plugin | What it is for here |
 | --- | --- |
-| `ccw-sandbox` | Boot and diagnose a real k3s cluster inside a Claude Code web sandbox, and run containers at full fidelity. The delivery path needs a cluster to apply Helm releases to; this is where the knowledge of how to get one lives. |
+| `ccw-sandbox` | Boot and diagnose a real k3s cluster inside the hosted coding-agent sandbox, and run containers at full fidelity. The delivery path needs a cluster to apply Helm releases to; this is where the knowledge of how to get one lives. |
 | `crossreview` | Adversarially review a claim, file, or diff with an independent subagent — optionally a model from another lab — and verify its findings before accepting them. |
 
 ## Why a plugin instead of a copy
@@ -42,7 +42,7 @@ enabled, so the marketplace resolves for everyone who trusts this project:
 ```
 
 **`enabledPlugins` in a project's settings does not install an external plugin.**
-Since Claude Code 2.1.195, a plugin that only the project enables, and that comes
+Since agent CLI 2.1.195, a plugin that only the project enables, and that comes
 from an external source such as a GitHub repository, does not load until the
 person installs it. So the checked-in settings remove the *configuration* step,
 not the install step. Run once per machine:

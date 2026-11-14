@@ -1,4 +1,4 @@
-# Zarf air-gap package
+# Zarf offline-bundle package
 
 This package carries the product-agnostic Conduit Hub, Spoke Agent, and their
 runtime manifest across an air gap. It deliberately does not contain Product

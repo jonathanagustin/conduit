@@ -241,7 +241,7 @@ gate 'Validate release path' release_path
 gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
-gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb
+gate 'Validate Zarf offline-bundle package' env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb
 gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
 gate 'Validate review ledger' review_ledger

@@ -30,7 +30,7 @@ The exact 42 filenames are retained in
 This direct-reference closure is distinct from the generic BlockSet input
 catalog. `ResolvedInputShape` has 107 tagged variants plus its root wrapper,
 and `InputShapeResolver` has six variants plus its root. Those shapes describe
-Foundry Products across ontology, data, compute, Workshop, AIP, credentials,
+Foundry Products across ontology, data, compute, Workshop, credentials,
 network policy, and other domains. Product repositories and the external
 Foundry installer own their meaning; Platform intentionally transports their
 resolved values as bounded JSON rather than cloning 107 product-specific

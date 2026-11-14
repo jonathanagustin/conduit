@@ -1,5 +1,5 @@
 UDS k3d install of platform-runtime, continued after Zarf was already up.
-Date: 2026-11-14. Not an air-gap result. No private keys are in this log.
+Date: 2026-11-14. Not an offline-bundle result. No private keys are in this log.
 
 Cluster: k3d cluster `uds`, created by
   uds deploy oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1

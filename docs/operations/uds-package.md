@@ -8,7 +8,7 @@ the console, allows the traffic below, and declares a ServiceMonitor.
 
 These steps were run on a connected machine. They pull the Zarf init package
 and, for the UDS path, the published `k3d-core-slim-dev` bundle from a public
-registry. They are not an air-gap install and they do not show a disconnected
+registry. They are not an offline-bundle install and they do not show a disconnected
 cluster operating after the images are already present.
 
 ## What the Package CR grants
@@ -41,7 +41,7 @@ cluster operating after the images are already present.
 - UDS CLI `v0.41.0`. On the UDS cluster, deploy the Conduit package with
   `uds zarf` so the CLI matches the Zarf agent that slim-dev installed.
 - k3d `v5.9.0` for the plain cluster. The UDS path uses the k3d packaged in
-  `uds-k3d` `0.21.4-airgap`, which the slim-dev bundle pins.
+  `uds-k3d` 0.21.4 (its offline variant), which the slim-dev bundle pins.
 - Slim-dev bundle
   `oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1`.
 

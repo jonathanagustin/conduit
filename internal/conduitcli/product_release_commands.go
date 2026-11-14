@@ -22,7 +22,7 @@ import (
 //go:embed apollo-product-definition-v1.schema.json
 var apolloProductDefinitionSchema []byte
 
-func addProductReleaseParityCommands(command *cobra.Command, state *commandState) {
+func addProductReleaseCoverageCommands(command *cobra.Command, state *commandState) {
 	command.AddCommand(productReleaseInitCommand(state))
 	command.AddCommand(productReleaseVerifyCommand(state))
 	command.AddCommand(productReleaseAssetCommand(state))

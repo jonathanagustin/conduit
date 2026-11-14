@@ -597,7 +597,7 @@ function Demo16() {
       id: "1",
       kind: "subagent",
       name: "Search agent",
-      detail: "gpt-5.6-luna",
+      detail: "search-model",
       text: "Found 3 matches.",
     },
   ];
@@ -607,14 +607,14 @@ function Demo16() {
 
 function Demo17() {
   const options: RegenerateOption[] = [
-    { id: "sonnet", label: "Claude Sonnet", detail: "balanced" },
+    { id: "general", label: "General model", detail: "balanced" },
   ];
 
   return (
     <RegenerateMenu
       options={options}
       open={open}
-      currentId="sonnet"
+      currentId="general"
       onOpenChange={setOpen}
       onPick={regenerateWith}
     />
@@ -1118,8 +1118,8 @@ function Demo52() {
 
   return (
     <SpecSheet
-      title="Claude Sonnet"
-      subtitle="Anthropic"
+      title="General model"
+      subtitle="Example provider"
       rows={rows}
       visibleCount={rows.length}
     />
@@ -1205,7 +1205,7 @@ function Demo57() {
 
 function Demo58() {
   const agents: SubagentItem[] = [
-    { name: "Search agent", model: "gpt-5.6-luna" },
+    { name: "Search agent", model: "search-model" },
   ];
 
   return (
@@ -1214,7 +1214,7 @@ function Demo58() {
       completedCount={0}
       progress={[40]}
       showSummary={false}
-      summaryAgent={{ name: "Summarizer", model: "claude-sonnet-4-6" }}
+      summaryAgent={{ name: "Summarizer", model: "general-model" }}
     />
   );
 }
@@ -1290,7 +1290,7 @@ function Demo64() {
       description="Handles refactors and bug fixes."
       provider="Acme"
       version="1.4.0"
-      model="claude-sonnet-4-6"
+      model="general-model"
       endpoint="https://agents.example.com/code"
       skills={skills}
       connected={false}
@@ -1374,7 +1374,7 @@ function Demo69() {
 function Demo70() {
   const lines: CostLine[] = [
     {
-      model: "Claude Sonnet",
+      model: "General model",
       inputTokens: 12,
       outputTokens: 3,
       cost: "$0.09",
@@ -1444,7 +1444,7 @@ function Demo75() {
 }
 
 function Demo76() {
-  const model: ComposerModel = { name: "Claude Sonnet", meta: "$3 / 1M" };
+  const model: ComposerModel = { name: "General model", meta: "$3 / 1M" };
 
   return (
     <>
@@ -1535,9 +1535,9 @@ function Demo82() {
 function Demo83() {
   const models: PickableModel[] = [
     {
-      id: "sonnet",
-      name: "Claude Sonnet",
-      family: "Anthropic",
+      id: "general",
+      name: "General model",
+      family: "Example provider",
       context: "200k",
       price: "$3 / 1M",
       capabilities: ["vision", "tools"],
@@ -1545,7 +1545,7 @@ function Demo83() {
   ];
 
   return (
-    <ModelPicker models={models} selectedId="sonnet" onSelect={selectModel} />
+    <ModelPicker models={models} selectedId="general" onSelect={selectModel} />
   );
 }
 
@@ -1752,8 +1752,8 @@ function Demo95() {
 
   return (
     <SettingsPanel
-      model="claude-sonnet-4-6"
-      models={["claude-sonnet-4-6", "gpt-5.6-luna"]}
+      model="general-model"
+      models={["general-model", "search-model"]}
       systemPrompt={systemPrompt}
       temperature={0.7}
       toggles={toggles}

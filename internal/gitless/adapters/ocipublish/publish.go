@@ -65,7 +65,7 @@ type Publisher struct {
 	host        string
 	name        string
 	// insecure sends http rather than https. It exists for a local registry in
-	// a test or an air-gapped mirror that terminates TLS elsewhere, and it is
+	// a test or a disconnected mirror that terminates TLS elsewhere, and it is
 	// explicit rather than inferred from the host so it can never be switched
 	// on by a hostname somebody chose.
 	//

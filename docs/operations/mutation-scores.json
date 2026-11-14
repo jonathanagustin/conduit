@@ -1,5 +1,5 @@
 {
-  "note": "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep. The 2026-08-16 Stryker entries named Blueprint console files removed when the assistant replaced that UI; they are not a measurement of the assistant.",
+  "note": "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep. The 2026-08-16 Stryker entries named UI-library console files removed when the assistant replaced that UI; they are not a measurement of the assistant.",
   "capturedAt": "2026-08-16",
   "packages": {
     "internal/environments/domain": {

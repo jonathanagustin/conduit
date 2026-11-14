@@ -54,7 +54,7 @@ bounded time ranges and a truthful no-data action.
   global sidebar as measured hypotheses. Public Apollo evidence still supports
   a narrow rail, so V0 Foundry validation alone does not displace it.
 - A screenshot or class name establishes rendered behavior, not ownership by a
-  particular Blueprint component. Component choices require the exact pinned
+  particular UI-library component. Component choices require the exact pinned
   public source or runtime evidence.
 - Tenant-specific routes and identifiers remain test inputs supplied by the
   operator, never product defaults or fixtures.

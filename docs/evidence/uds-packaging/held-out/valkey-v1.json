@@ -71,7 +71,7 @@
     {
       "id": "package-build",
       "level": "build",
-      "criterion": "Build exact package inputs in a separately authorized isolated environment; retain input/output digests and pinned tool versions. Export success alone is not an air-gap result.",
+      "criterion": "Build exact package inputs in a separately authorized isolated environment; retain input/output digests and pinned tool versions. Export success alone is not an offline-bundle result.",
       "status": "NOT_RUN"
     },
     {

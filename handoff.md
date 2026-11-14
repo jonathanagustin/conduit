@@ -2,7 +2,7 @@
 
 **Updated:** 2026-08-19 UTC
 **Lead or owner:** orchestrating session (see `docs/operations/ORCHESTRATOR.md`)
-**Status:** active — Apollo `core/whats-new` parity program in flight (see the
+**Status:** active — Apollo `core/whats-new` feature-coverage program in flight (see the
 2026-08-19 section at the end). The 2026-08-18 authorization/credential blocker
 below is the prior focus, left as recorded; this session did not touch it.
 
@@ -45,7 +45,7 @@ earlier session's claim is made where the claim is, and marked.
   post-round-trip URLs differ. Restored in PR #274.
 - `[VERIFIED]` The two #247 review findings were corrected on `main` by later
   work: `resource_decision.go` now states plainly that "this cannot decide
-  without filing" is false for `Administrator`, and the parity test carries the
+  without filing" is false for `Administrator`, and the coverage test carries the
   `alice → bob` row pinning the delegated-administrator widening.
 - `[VERIFIED]` The frontend is green on `main`: 70 unit, 122 stubbed e2e, and
   12 live specs against a real Hub (approve → Agent executes → `SUCCEEDED`),
@@ -192,10 +192,10 @@ how to fail closed -- `ALLOW_INSECURE_*_IDENTITY_HEADERS` cannot combine with a
 secure mechanism and the chart aborts -- so identity fails closed while signing
 fails open.
 
-**The structural finding.** The Air-gap READY row and Tier 2 gap 5 (recalls never
+**The structural finding.** The Offline-bundle READY row and Tier 2 gap 5 (recalls never
 reach disconnected targets) contradict each other, and the tiering hides it by
 keeping them on different pages. You cannot claim readiness for disconnected
-installation while filing "a recall never arrives there" as a parity nice-to-have.
+installation while filing "a recall never arrives there" as a feature-coverage nice-to-have.
 
 **The charge worth re-reading before writing the next readiness row:** the
 document grades *components*, and production failures are *scenarios*. Walk the
@@ -451,8 +451,8 @@ and the Apollo What's New page, then implemented in parallel:
 
 ### The adversarial review round, and what it overturned
 
-After merging, three reviewers of different model families (gpt-5.3-codex,
-grok-4.6, Fable) independently reviewed the seven core commits. **Five of seven
+After merging, three reviewers from different model families independently
+reviewed the seven core commits. **Five of seven
 carried real defects.** Every finding below was verified against source before
 being filed; several reviewer claims were rejected as false positives.
 
@@ -528,7 +528,7 @@ because each `GOOS/GOARCH` pair has its own entries.
 
 - **Plugins over copies.** `.claude/settings.json` registers the
   `jonathanagustin-private` marketplace and enables `ccw-sandbox` and
-  `crossreview` (`docs/operations/claude-plugins.md`). Note that project
+  `crossreview` (`docs/operations/agent-plugins.md`). Note that project
   settings register the marketplace but do **not** auto-install an external
   plugin — one `claude plugin install` per machine is still required.
   `scripts/bootstrap-k3s.sh` is deliberately **not** deleted yet: its header
@@ -907,9 +907,9 @@ node scripts/verify-mutation-scores.mjs         # mutation baseline intact
 ./scripts/verify-local.sh                        # full gate set
 ```
 
-## Apollo `core/whats-new` parity program, 2026-08-19
+## Apollo `core/whats-new` feature-coverage program, 2026-08-19
 
-**Goal (standing):** full Apollo feature parity, next-best-step, one act-gated PR
+**Goal (standing):** full Apollo feature coverage, next-best-step, one act-gated PR
 at a time. Trigger was reading `core/whats-new` and filing issues for everything
 Conduit lacks; the user then directed "undecline and implement" the deliberate
 boundaries too.
@@ -951,7 +951,7 @@ residual was filed.
 
 **Remaining work, with tractability notes (next contributor read this first):**
 - Ceiling is the gating constraint: `internal/controlplane` sits at 25087 / 25089
-  (2 lines under). Every control-plane parity change now needs an offset or a
+  (2 lines under). Every control-plane coverage change now needs an offset or a
   domain extraction; the ratchet only moves down. CLI-only (#292/#293) and
   domain-only changes avoid it.
 - #297 (registry type) is broader than it looks: the type belongs on the registry
@@ -1050,9 +1050,9 @@ pnpm --dir web exec playwright install chromium
 > agreed, so nothing downstream is wrong; the claim was. Do not reach for the
 > symlink.
 
-**Not adopted, recorded only.** The stylesheet carries Blueprint **6** tokens
+**Not adopted, recorded only.** The stylesheet carries the UI library **6** tokens
 (`--bp-palette-*`, `--bp-intent-*`, `--bp-typography-*`, `--bp-surface-*`) with
-concrete values; the console is on Blueprint 5. Foundry's date-format presets
+concrete values; the console is on UI library v5. Foundry's date-format presets
 and Control Panel's core vocabulary are in the receipt too. None of it was
 applied: Control Panel's wording is Control Panel's, and these are not Conduit's
 screens.
@@ -1072,19 +1072,19 @@ is folded. Now a gate — `scripts/verify-design-tokens.mjs` against
 one-hex-digit difference and *accepts* `#FFF` for `#ffffff`.
 
 **`[VERIFIED]` Correction to the receipt as first written: the console is on
-Blueprint 6.18.0, not 5.** The earlier claim was inferred from a bare import
+UI library v6.18.0, not 5.** The earlier claim was inferred from a bare import
 path rather than read from the installed package, and it is what made the token
 comparison look impossible. Corrected in place in the receipt, marked.
 
 **`[VERIFIED]` A real defect the capture exposed: the code face.** Five console
 CSS files asked for `--pt-font-family-monospace` and two for
-`--bp-font-family-monospace`. Blueprint 6 defines neither — the real token is
+`--bp-font-family-monospace`. UI library v6 defines neither — the real token is
 `--bp-typography-family-mono`, value bare `monospace`. Every digest and version
 rendered in the browser default; the `, monospace` fallback in each declaration
 was the only thing hiding it. Foundry renders them in **Source Code Pro**
 (`pre,code{font-family:Source-Code-Pro,Courier New,monospace,blueprint-icons-16}`),
 now self-hosted and named once as `--console-font-family-monospace`. The body
-stack also regained the trailing `blueprint-icons-16` that Foundry and Blueprint
+stack also regained the trailing `blueprint-icons-16` that Foundry and the UI library
 both carry.
 
 **The number that bounds every claim about this capture: it holds ~31% of
@@ -1232,21 +1232,21 @@ passed locally`, exit 0, with the Docker/Postgres daemon started via
 session; everything before it rested on focused gates.
 
 One caveat worth carrying: the **first** full run failed on `Validate Zarf
-air-gap package` ("Zarf CLI lint failed"), and that run began with
+offline-bundle package` ("Zarf CLI lint failed"), and that run began with
 `curl: (56) Recv failure: Connection reset by peer` during the pinned-tool
 fetch. The gate passes in isolation and the whole suite passes on a re-run, so
 the failure was the fetch, not the package. Re-run before believing a lone Zarf
 failure here.
 
 **`[VERIFIED]` Nine CSS custom properties the console read were defined by
-nothing.** Found by auditing every `var()` against Blueprint's token file, after
+nothing.** Found by auditing every `var()` against the UI library's token file, after
 the Source Code Pro fix turned up two of them:
 
 | Dead name | Uses | What it should have been |
 | --- | --- | --- |
-| `--pt-font-family-monospace` | 5 | Blueprint 4/5 name; fixed earlier |
+| `--pt-font-family-monospace` | 5 | UI library v4/v5 name; fixed earlier |
 | `--bp-font-family-monospace` | 2 | never existed; fixed earlier |
-| `--pt-intent-primary-muted` | 4 | Blueprint 4/5 name → `--console-selected-row-background` |
+| `--pt-intent-primary-muted` | 4 | UI library v4/v5 name → `--console-selected-row-background` |
 | `--bp-text-color-muted` | 2 | `--bp-typography-color-muted` |
 | `--bp-typography-color` | 1 | `--bp-typography-color-default-rest` |
 | `--bp-background-color-subtle` | 1 | `--bp-palette-light-gray-5` |
@@ -1269,7 +1269,7 @@ not:
 
 **Gated:** `scripts/verify-console-css-variables.mjs` (+ `.test.sh`), in
 `platform-ci.yml` and `verify-local.sh` as "Validate console CSS variables". It
-fails on any `var()` naming a property Blueprint, the console's own CSS, or a
+fails on any `var()` naming a property the UI library, the console's own CSS, or a
 component's inline style does not define. The self-test plants all four dead
 shapes **and** the two legitimate ones — a variable set from a component's
 inline style, and a name appearing only inside a comment — because a gate that

@@ -14,7 +14,7 @@ redirection. Input is limited to 128 KiB and unknown fields are rejected.
 The example revision is synthetic. Empty findings produce eight explicit
 missing-evidence blockers. Each finding has topic, summary, basis and evidence
 (path and positive line). Topics are build, images, network, persistence,
-identity, privileges, airgap and licensing. Basis is source-observed,
+identity, privileges, offline and licensing. Basis is source-observed,
 reference-derived, inferred or unknown. Source-observed requires citations.
 Only source-observed findings can remove a completeness blocker; even a complete
 report is `reviewable-not-validated`, never a package-readiness certificate.
@@ -98,7 +98,7 @@ PostgreSQL dependency, nonroot startup guarantee or deployment readiness was
 invented. The synthetic GeoServer-informed acceptance test is labeled as such.
 
 Remaining: full application evidence extraction, artifact/schema version
-selection, production packaging profiles, dependency/airgap/identity assessment,
+selection, production packaging profiles, dependency/offline-bundle/identity assessment,
 Codex runtime integration and isolated live validation. No deployable package
 is produced by these commands.
 
@@ -250,7 +250,7 @@ observations, not independent cryptographic attestation or proof of human review
 There is deliberately no importer that accepts arbitrary supplied `passed` JSON
 as a release gate. A future governed integration must bind the actual trusted
 producer/run, freshness/policy, exact target and artifact identities through
-existing Conduit controls. Image authenticity, package build, runtime/airgap
+existing Conduit controls. Image authenticity, package build, runtime/offline-bundle
 behavior and deployment permission are outside this validation profile.
 
 ## Codex runtime feasibility and handshake-only preflight

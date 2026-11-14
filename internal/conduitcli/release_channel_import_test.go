@@ -26,7 +26,7 @@ func runChannelCommand(t *testing.T, stdout *bytes.Buffer, args ...string) error
 
 // export had no inverse. A Release Channel definition could be lifted out of
 // one desired state and there was no supported way to put it into another,
-// which cuts against the air-gap story the rest of the export/import surface
+// which cuts against the offline-bundle story the rest of the export/import surface
 // supports: an operator moving a channel between Hubs hand-edited YAML.
 
 func writeJSONFile(t *testing.T, dir, name string, value any) string {

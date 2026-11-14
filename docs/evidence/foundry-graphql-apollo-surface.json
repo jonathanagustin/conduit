@@ -76,7 +76,7 @@
       "Any relationship to the notification event types in docs/evidence/apollo-notification-types.json. They are not merged."
     ],
     "whichApollo": {
-      "theProblem": "Apollo is two products. Palantir Apollo is the deployment platform this repository is about; Apollo GraphQL (apollographql.com) is an unrelated GraphQL toolchain whose hosted service also emits webhooks. A type called ApolloInboundMessageListenerHttpsTargetHandler is compatible with either, and the handler resolves to no fields in either schema, so nothing internal to it decides.",
+      "theProblem": "Apollo is two products. Palantir Apollo is the deployment platform this repository is about; Apollo GraphQL (apollographql.com) is an unrelated GraphQL toolchain whose hosted service also emits webhooks. A type called ApolloInboundMessageListenerHttpsTargetHandler accepts either, and the handler resolves to no fields in either schema, so nothing internal to it decides.",
       "whatFavoursPalantirApollo": [
         "The other Apollo-prefixed types in the same schema are unambiguously Palantir's: ApolloEventReceiverConfiguration and its monitoring-view mutations, and apolloSpaceId, documented as recording which Apollo space manages an installation and obtained when an agent reports to Apollo. Agents, installations and spaces are the deployment product.",
         "Neither schema contains any Apollo GraphQL vocabulary at all -- no GraphOS, no Studio, no supergraph, subgraph or federation identifier -- across 5283 declared types. An integration with Apollo GraphQL leaving no other trace would be surprising.",

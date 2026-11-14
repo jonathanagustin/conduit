@@ -1510,7 +1510,7 @@ func TestApolloPublicEndpointsMustNameADefinedEndpoint(t *testing.T) {
 		{
 			name:  "proxy names an undefined endpoint",
 			field: "public-proxy-endpoints", want: true,
-			build: func(d *ApolloProductDefinition) { d.Manifest.Extensions.PublicProxyEndpoints = []string{"aip"} },
+			build: func(d *ApolloProductDefinition) { d.Manifest.Extensions.PublicProxyEndpoints = []string{"assist"} },
 		},
 		// An empty name is skipped rather than reported as a missing definition;
 		// the emptiness itself is a different complaint.

@@ -5,7 +5,7 @@ Temporal runs the packaging workflow. Conduit governance remains the
 approval authority. The delivery kernel remains the authority for Plans,
 leases, rollout, and observed state. The worker calls `ProposePlan` and
 stops. It does not approve, lease, or execute. This is not a production
-Temporal deployment and it is not an air-gap claim.
+Temporal deployment and it is not an offline-bundle claim.
 
 The assistant console does not render the packaging-run routes.
 That console is the ACP assistant, and a packaging-run panel there is
