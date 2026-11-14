@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	subst "github.com/jonathanagustin/conduit/internal/apollo/substitution"
 )
@@ -296,6 +296,9 @@ func (file *ApolloManagedFile) UnmarshalYAML(node *yaml.Node) error {
 	}
 	if node.Kind != yaml.MappingNode {
 		return fmt.Errorf("line %d: managed file must be a mapping or a conf key", node.Line)
+	}
+	if len(node.Content)%2 != 0 {
+		return fmt.Errorf("line %d: managed file mapping must contain key/value pairs", node.Line)
 	}
 	for index := 0; index+1 < len(node.Content); index += 2 {
 		key := node.Content[index].Value

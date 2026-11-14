@@ -9,7 +9,7 @@ import (
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // partitionOrderableVersions splits candidates into the ones Apollo ordering can

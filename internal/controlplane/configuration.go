@@ -10,7 +10,7 @@ import (
 	"regexp"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 var namedDefaultHostnameTemplatePattern = regexp.MustCompile(`^\{\{\s*default_hostname\s*\(\s*organizationName\s*:\s*"([^"]+)"\s*\)\s*\}\}$`)

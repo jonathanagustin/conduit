@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // The fixtures below are the Apollo Product Specification's own worked examples.
@@ -1802,13 +1802,14 @@ func TestApolloDecoderEdgesThatNothingReached(t *testing.T) {
 			{Kind: yaml.ScalarNode, Value: "type"}, {Kind: yaml.ScalarNode, Value: "yaml"},
 			{Kind: yaml.ScalarNode, Value: "orphan"},
 		}}
-		// The orphan key is beyond the last whole pair, so the loop never reaches it: it is not
-		// validated as a field name, and nothing indexes past the end looking for its value.
-		if err := file.UnmarshalYAML(node); err != nil && strings.Contains(err.Error(), "orphan") {
-			t.Errorf("a key with no value was validated as a field: %v", err)
+		// Parser-produced mapping nodes contain complete pairs. A malformed
+		// caller-constructed node must be refused before the library can index
+		// past its content or install a partially decoded managed file.
+		if err := file.UnmarshalYAML(node); err == nil || !strings.Contains(err.Error(), "key/value pairs") {
+			t.Errorf("an incomplete mapping was not refused: %v", err)
 		}
-		if file.Type != "yaml" {
-			t.Errorf("the complete pair was not decoded: %#v", file)
+		if file.Type != "" || file.Content != nil || file.ReloadType != "" {
+			t.Errorf("a malformed mapping partially changed the managed file: %#v", file)
 		}
 	})
 

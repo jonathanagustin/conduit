@@ -20,7 +20,6 @@ require (
 	// validator are used; execution and field resolution stay in
 	// internal/apollographql/application, which is where Conduit's own rules are.
 	github.com/vektah/gqlparser/v2 v2.5.64
-	go.yaml.in/yaml/v3 v3.0.6
 )
 
 require (
@@ -31,8 +30,6 @@ require (
 	go.temporal.io/api v1.64.3
 	go.temporal.io/sdk v1.51.0
 )
-
-require gopkg.in/yaml.v3 v3.0.1
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -64,6 +61,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
+	go.yaml.in/yaml/v3 v3.0.5 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect
@@ -73,6 +71,7 @@ require (
 	golang.org/x/time v0.14.0 // indirect
 	golang.org/x/tools v0.49.0 // indirect
 	google.golang.org/grpc v1.83.2 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
 require (
@@ -81,6 +80,7 @@ require (
 	connectrpc.com/connect v1.21.1
 	connectrpc.com/connect/v2 v2.0.2
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
+	go.yaml.in/yaml/v4 v4.0.0
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20260526163538-3dc84a4a5aaa // indirect
