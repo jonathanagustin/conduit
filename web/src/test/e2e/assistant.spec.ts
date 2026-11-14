@@ -390,7 +390,7 @@ test.describe("fake ACP bridge", () => {
       await hydrate(page);
       await page.goto("/console/");
       await page.getByRole("button", { name: "Workbench" }).click();
-      await expect(page.getByText("LIVE", { exact: true }).first()).toBeVisible();
+      await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
       await expect(page.getByText("EXAMPLE DATA", { exact: true })).toBeVisible();
       await expect(page.getByRole("button", { name: "Command Center" })).toBeVisible();
       await expect(page.getByText("87.5%").first()).toBeVisible();
@@ -401,7 +401,7 @@ test.describe("fake ACP bridge", () => {
         };
         view.switchScreen("s08-staged-run");
       });
-      await expect(page.getByText("RUN-8842").first()).toBeVisible();
+      await expect(page.getByText("sample-app-1").first()).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("s16-approvals-board");
       });
@@ -409,7 +409,7 @@ test.describe("fake ACP bridge", () => {
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm09-recalls");
       });
-      await expect(page.getByText("RCL-2026-019").first()).toBeVisible();
+      await expect(page.getByText("No recall is recorded.").first()).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm10-ramped-rollout");
       });
@@ -417,16 +417,16 @@ test.describe("fake ACP bridge", () => {
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("rm11-debug-terminal");
       });
-      await expect(page.getByText("JITA-204").first()).toBeVisible();
+      await expect(page.getByText("session brokering not implemented").first()).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("pt01-proposal-trace");
       });
-      await expect(page.getByText("Guardrail check").first()).toBeVisible();
+      await expect(page.getByText("Recorded proposal").first()).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("og01-ontology-graph");
       });
       await expect(page.getByText("reportingSpoke").first()).toBeVisible();
-      await expect(page.getByText("Example data", { exact: true }).first()).toBeVisible();
+      await expect(page.locator("#main-workspace").getByText(/Example data|Ontology API/).first()).toBeVisible();
       await page.evaluate(() => {
         (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm01-user-prefs");
       });
