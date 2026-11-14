@@ -6,6 +6,22 @@
 .operator-root {
   color-scheme: dark;
 
+  /* Shell rhythm (kit v6.1): a 44px top bar, 26px header controls, a
+     206px rail that collapses to 52px, 29px rail rows, 34px sub-bars, and a
+     10px gap between panels. */
+  --h-topbar: 44px;
+  --h-control: 26px;
+  --w-rail: 206px;
+  --w-rail-collapsed: 52px;
+  --h-nav-row: 29px;
+  --h-subbar: 34px;
+  --gap-panel: 10px;
+  --h-btn-sm: 24px;
+  --h-pill: 18px;
+  --h-th: 27px;
+  --h-td: 31px;
+  --radius-panel: 5px;
+
   /* 4px spacing scale */
   --sp-1: 4px;
   --sp-2: 8px;
