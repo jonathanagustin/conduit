@@ -255,6 +255,8 @@ func writeDomainError(writer http.ResponseWriter, err error) {
 		writeError(writer, http.StatusServiceUnavailable, domain.CodeModelNotConfigured, err.Error())
 	case errors.Is(err, domain.ErrPlanRequired):
 		writeError(writer, http.StatusConflict, domain.CodePlanRequired, err.Error())
+	case errors.Is(err, domain.ErrCommitNotPinned):
+		writeError(writer, http.StatusConflict, domain.CodeCommitNotPinned, err.Error())
 	case errors.Is(err, domain.ErrNeedsInputPending):
 		writeError(writer, http.StatusConflict, domain.CodeNeedsInputPending, err.Error())
 	case errors.Is(err, domain.ErrAlreadyAccepted):

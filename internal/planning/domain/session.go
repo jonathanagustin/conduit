@@ -4,6 +4,9 @@
 package domain
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"errors"
 	"net/url"
 	"strings"
@@ -58,6 +61,7 @@ const (
 	CodeSessionNotFound      = "SESSION_NOT_FOUND"
 	CodeModelNotConfigured   = "MODEL_NOT_CONFIGURED"
 	CodePlanRequired         = "PLAN_REQUIRED"
+	CodeCommitNotPinned      = "COMMIT_NOT_PINNED"
 	CodeNeedsInputPending    = "NEEDS_INPUT_PENDING"
 	CodeAlreadyAccepted      = "ALREADY_ACCEPTED"
 	CodeNotAccepted          = "NOT_ACCEPTED"
@@ -73,6 +77,7 @@ var (
 	ErrNotFound             = errors.New("planning session was not found")
 	ErrModelNotConfigured   = errors.New("planning model is not configured")
 	ErrPlanRequired         = errors.New("a plan is required before Accept")
+	ErrCommitNotPinned      = errors.New("the source commit SHA is not pinned")
 	ErrNeedsInputPending    = errors.New("Needs Input questions are still unanswered")
 	ErrAlreadyAccepted      = errors.New("the planning session is already accepted")
 	ErrComputeBeforeAccept  = errors.New("compute is refused before Accept")
@@ -87,6 +92,9 @@ var (
 type Intake struct {
 	RepoURL string `json:"repoUrl"`
 	Ref     string `json:"ref"`
+	// Message is the operator's opening message. It is empty on create and
+	// filled in the Accept binding from the first operator message.
+	Message string `json:"message,omitempty"`
 }
 
 // ProfileRef names the onboard profile and, once snapshotted, its version
@@ -280,6 +288,40 @@ func CloneSession(session *Session) *Session {
 		out.Events = []Event{}
 	}
 	return &out
+}
+
+// PlanHash returns the sha256 of the canonical plan JSON. The canonical form
+// is the plan text alone under a fixed field name, so a caller-supplied hash
+// never decides the bound value.
+func PlanHash(plan Plan) string {
+	canonical, _ := json.Marshal(struct {
+		Text string `json:"text"`
+	}{Text: plan.Text})
+	sum := sha256.Sum256(canonical)
+	return hex.EncodeToString(sum[:])
+}
+
+// IsPinnedCommit reports whether sha is a full lowercase hex git object id
+// (40 characters for sha1, 64 for sha256).
+func IsPinnedCommit(sha string) bool {
+	if len(sha) != 40 && len(sha) != 64 {
+		return false
+	}
+	for _, r := range sha {
+		if (r < '0' || r > '9') && (r < 'a' || r > 'f') {
+			return false
+		}
+	}
+	return true
+}
+
+// RequireAccepted is the no-compute guard. Every build, packaging, or
+// workspace start path for a session calls it first.
+func RequireAccepted(session *Session) error {
+	if session == nil || session.Status != StatusAccepted || session.Binding == nil {
+		return ErrComputeBeforeAccept
+	}
+	return nil
 }
 
 // PendingRequired reports whether any required Needs Input question is

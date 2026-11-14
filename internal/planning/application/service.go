@@ -32,8 +32,41 @@ type TurnResult struct {
 	Profile        domain.ProfileRef
 }
 
+// ActionAccept is the audit action written when a session is accepted.
+const ActionAccept = "planning.accept"
+
+// Audit is one record for the audit chain. Accept fills the binding fields
+// and the profile and plan hashes.
+type Audit struct {
+	Action         string
+	SessionID      string
+	ProfileName    string
+	ProfileVersion string
+	ProfileHash    string
+	RepoURL        string
+	Ref            string
+	Message        string
+	ResolvedCommit string
+	Model          string
+	PlanHash       string
+	AcceptedAt     time.Time
+}
+
+// Auditor writes one audit record.
+type Auditor interface {
+	Record(ctx context.Context, event Audit) error
+}
+
+// WithAuditor sets the audit port. Accept fails closed when an auditor is
+// set and the write fails.
+func (service *Service) WithAuditor(auditor Auditor) *Service {
+	service.auditor = auditor
+	return service
+}
+
 // Service is a process-local planning-session store.
 type Service struct {
+	auditor  Auditor
 	planner  Planner
 	now      func() time.Time
 	mu       sync.Mutex
@@ -210,32 +243,65 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 	return domain.CloneSession(session), nil
 }
 
-// Accept records the binding and refuses if the session is not ready.
-func (service *Service) Accept(_ context.Context, id string) (*domain.Session, error) {
+// Accept records the binding. It refuses unless a plan exists, every
+// required Needs Input question is answered, and the commit SHA is pinned.
+// The binding is written once; a second Accept is refused.
+func (service *Service) Accept(ctx context.Context, id string) (*domain.Session, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
 	session, err := service.mutable(id)
 	if err != nil {
 		return nil, err
 	}
-	if session.Status == domain.StatusAccepted {
+	if session.Status == domain.StatusAccepted || session.Binding != nil {
 		return nil, domain.ErrAlreadyAccepted
-	}
-	if domain.PendingRequired(session.NeedsInput, session.Answers) {
-		return nil, domain.ErrNeedsInputPending
 	}
 	if session.Plan == nil || strings.TrimSpace(session.Plan.Text) == "" {
 		return nil, domain.ErrPlanRequired
 	}
+	if domain.PendingRequired(session.NeedsInput, session.Answers) {
+		return nil, domain.ErrNeedsInputPending
+	}
+	if !domain.IsPinnedCommit(session.ResolvedCommit) {
+		return nil, domain.ErrCommitNotPinned
+	}
 	now := service.now()
-	session.Binding = &domain.Binding{
+	intake := session.Intake
+	for _, message := range session.Messages {
+		if message.Role == domain.RoleOperator {
+			intake.Message = message.Text
+			break
+		}
+	}
+	plan := domain.Plan{Text: session.Plan.Text, SHA256: domain.PlanHash(*session.Plan)}
+	binding := &domain.Binding{
 		Profile:        session.Profile,
-		Intake:         session.Intake,
+		Intake:         intake,
 		ResolvedCommit: session.ResolvedCommit,
 		Model:          session.Model,
-		Plan:           *session.Plan,
+		Plan:           plan,
 		AcceptedAt:     now,
 	}
+	if service.auditor != nil {
+		err := service.auditor.Record(ctx, Audit{
+			Action:         ActionAccept,
+			SessionID:      session.ID,
+			ProfileName:    binding.Profile.Name,
+			ProfileVersion: binding.Profile.Version,
+			ProfileHash:    binding.Profile.Hash,
+			RepoURL:        intake.RepoURL,
+			Ref:            intake.Ref,
+			Message:        intake.Message,
+			ResolvedCommit: binding.ResolvedCommit,
+			Model:          binding.Model,
+			PlanHash:       plan.SHA256,
+			AcceptedAt:     now,
+		})
+		if err != nil {
+			return nil, fmt.Errorf("record the planning.accept audit event: %w", err)
+		}
+	}
+	session.Binding = binding
 	session.Status = domain.StatusAccepted
 	session.UpdatedAt = now
 	service.appendEvent(session, domain.Event{Type: domain.EventStatus, Status: session.Status})
@@ -293,8 +359,8 @@ func (service *Service) Compute(_ context.Context, id string) (*domain.Session, 
 	if err != nil {
 		return nil, err
 	}
-	if session.Status != domain.StatusAccepted {
-		return nil, domain.ErrComputeBeforeAccept
+	if err := domain.RequireAccepted(session); err != nil {
+		return nil, err
 	}
 	return nil, domain.ErrComputeNotConfigured
 }
