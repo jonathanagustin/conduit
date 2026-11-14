@@ -85,7 +85,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 		return planner.planTurn(ctx, session, message, checkout, tools)
 	}
 	adapter := localcmd.CommandName(planner.Argv[0])
-	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: adapter}
+	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: adapter, Profile: onboardProfile()}
 	prompt := inspectionPrompt(session, message)
 	promptDigest := digestText([]byte(prompt))
 	var (
@@ -300,13 +300,35 @@ func digestText(raw []byte) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// maxToolCallsPerReply matches the packaging tool parser's cap. A model that
+// asks for more in one reply gets the first ones now and can ask again.
+const maxToolCallsPerReply = 4
+
+// capToolCalls trims an oversized {"toolCalls":[...]} reply to the cap so a
+// model reading many files at once keeps making progress instead of stalling.
+func capToolCalls(raw []byte) []byte {
+	var body map[string]json.RawMessage
+	if err := json.Unmarshal(bytes.TrimSpace(raw), &body); err != nil || len(body) != 1 {
+		return raw
+	}
+	var calls []json.RawMessage
+	if err := json.Unmarshal(body["toolCalls"], &calls); err != nil || len(calls) <= maxToolCallsPerReply {
+		return raw
+	}
+	trimmed, err := json.Marshal(map[string][]json.RawMessage{"toolCalls": calls[:maxToolCallsPerReply]})
+	if err != nil {
+		return raw
+	}
+	return trimmed
+}
+
 func parseModelReply(raw []byte) ([]packagingdomain.ToolRequest, bool, error) {
-	requests, isTools, err := packagingdomain.ParseToolRequests(raw)
+	requests, isTools, err := packagingdomain.ParseToolRequests(capToolCalls(raw))
 	if isTools || (err != nil && errors.Is(err, packagingdomain.ErrProposalInvalid)) {
 		return requests, isTools, err
 	}
 	for _, candidate := range jsonCandidates(raw) {
-		requests, isTools, err = packagingdomain.ParseToolRequests(candidate)
+		requests, isTools, err = packagingdomain.ParseToolRequests(capToolCalls(candidate))
 		if isTools {
 			return requests, true, err
 		}
@@ -320,10 +342,7 @@ func parseModelReply(raw []byte) ([]packagingdomain.ToolRequest, bool, error) {
 func jsonCandidates(raw []byte) [][]byte {
 	text := string(bytes.TrimSpace(raw))
 	text = strings.ReplaceAll(text, "```json", "```")
-	var parts []string
-	for _, chunk := range strings.Split(text, "```") {
-		parts = append(parts, chunk)
-	}
+	parts := strings.Split(text, "```")
 	var out [][]byte
 	seen := map[string]bool{}
 	add := func(body string) {

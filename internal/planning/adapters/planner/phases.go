@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 	"sort"
 	"strings"
 
@@ -30,7 +31,7 @@ const (
 	readFilesNudge   = "You have not called read_file yet. Call read_file on the README, the package manifests, and any existing build files from the tree before you answer.\n"
 	readFilesRequire = `Before you answer you MUST call read_file on the key files that exist in the tree: the README, the package manifests (for example package.json, go.mod, pyproject.toml, requirements.txt, pom.xml, Gemfile, Cargo.toml), and the existing build files (for example Dockerfile, docker-compose.yml, Makefile, CI workflows). Do not guess what a file contains.
 You may call tools by replying with {"toolCalls":[{"name":"read_file","arguments":{"path":"relative/path"}},{"name":"inspect_repo","arguments":{}}]}.
-Reply with only that JSON object when you need tools.
+Reply with only that JSON object when you need tools, with at most 4 tool calls per reply.
 `
 )
 
@@ -61,7 +62,7 @@ func (planner Planner) planTurn(ctx context.Context, session *domain.Session, me
 	if session.ResolvedCommit != "" && checkout.SHA != session.ResolvedCommit {
 		return nil, fmt.Errorf("the ref %q now resolves to %s, not the inspected commit %s; start a new session", session.Intake.Ref, checkout.SHA, session.ResolvedCommit)
 	}
-	result := &application.TurnResult{Model: localcmd.CommandName(planner.Argv[0])}
+	result := &application.TurnResult{Model: localcmd.CommandName(planner.Argv[0]), Profile: onboardProfile()}
 	return planner.writeInto(ctx, session, message, checkout, tools, result)
 }
 
@@ -400,4 +401,10 @@ func uniqueTrimmed(items []string) []string {
 		out = append(out, item)
 	}
 	return out
+}
+
+// onboardProfile snapshots the packaging skill the planner works from, so
+// Accept can bind the exact skill version and hash the plan was written under.
+func onboardProfile() domain.ProfileRef {
+	return domain.ProfileRef{Name: domain.ProfileOnboard, Version: packagingskill.Version, Hash: packagingskill.SHA256()}
 }

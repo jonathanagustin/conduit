@@ -293,3 +293,21 @@ func serveGit(t *testing.T, projectRoot string) *httptest.Server {
 	t.Cleanup(server.Close)
 	return server
 }
+
+func TestParseModelReplyCapsOversizedToolCalls(t *testing.T) {
+	raw := []byte(`{"toolCalls":[{"name":"read_file","arguments":{"path":"a"}},{"name":"read_file","arguments":{"path":"b"}},{"name":"read_file","arguments":{"path":"c"}},{"name":"read_file","arguments":{"path":"d"}},{"name":"read_file","arguments":{"path":"e"}},{"name":"read_file","arguments":{"path":"f"}},{"name":"read_file","arguments":{"path":"g"}}]}`)
+	requests, isTools, err := parseModelReply(raw)
+	if err != nil || !isTools {
+		t.Fatalf("parseModelReply() = %v, %v; want tool requests", isTools, err)
+	}
+	if len(requests) != maxToolCallsPerReply {
+		t.Fatalf("len(requests) = %d, want %d", len(requests), maxToolCallsPerReply)
+	}
+}
+
+func TestOnboardProfileSnapshotsPackagingSkill(t *testing.T) {
+	profile := onboardProfile()
+	if profile.Name != domain.ProfileOnboard || profile.Version == "" || len(profile.Hash) != 64 {
+		t.Fatalf("onboardProfile() = %+v; want name, version and a sha256 hash", profile)
+	}
+}

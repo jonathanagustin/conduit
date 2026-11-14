@@ -570,7 +570,26 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           answers,
           fetchImpl,
         );
-        set({ session, busy: "", drafts: {} });
+        set({ session, drafts: {} });
+        if (session?.status === "planning") {
+          // Every required question is answered: ask the model for the plan.
+          set({ busy: "turn", events: [] });
+          const result = await startTurn(
+            session.id,
+            "",
+            (streamed) => {
+              store.planning = applyEvent(store.planning, streamed);
+              rerender();
+            },
+            fetchImpl,
+          );
+          if (result.session)
+            store.planning = { ...store.planning, session: result.session };
+          const failure = store.planning.error;
+          await refresh(session.id);
+          if (failure) set({ error: failure });
+        }
+        set({ busy: "" });
       } catch (error) {
         fail(error);
       }

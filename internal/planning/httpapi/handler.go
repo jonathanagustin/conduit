@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log/slog"
 	"net/http"
 	"strings"
 
@@ -272,6 +273,7 @@ func writeDomainError(writer http.ResponseWriter, err error) {
 	case errors.Is(err, domain.ErrInvalidAnswer):
 		writeError(writer, http.StatusBadRequest, domain.CodeInvalidAnswer, err.Error())
 	default:
+		slog.Error("planning session request failed", "error", err)
 		writeError(writer, http.StatusBadGateway, "", "planning session is unavailable")
 	}
 }

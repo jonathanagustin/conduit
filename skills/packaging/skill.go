@@ -7,6 +7,10 @@ import (
 	"encoding/hex"
 )
 
+// Version is the packaging skill version recorded in a planning binding.
+// Bump it whenever SKILL.md changes in a way an operator should notice.
+const Version = "1.0.0"
+
 // Source is the exact bytes of SKILL.md.
 //
 //go:embed SKILL.md
