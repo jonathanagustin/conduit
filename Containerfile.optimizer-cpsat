@@ -3,18 +3,7 @@
 ARG BUILDER_IMAGE=rust:1.99.1-bookworm@sha256:e6f2cff35d0f309acf8433b4f05878ed77092602c5065cc81801177da0bb3a9c
 ARG RUNTIME_IMAGE=gcr.io/distroless/static-debian12:nonroot@sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab
 
-FROM ${BUILDER_IMAGE} AS build
-
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-ARG BUILDARCH
-ARG TARGETARCH
-ARG REVISION=WORKTREE
-
-ENV CARGO_HOME=/tmp/platform-cpsat-cargo \
-    CARGO_TARGET_DIR=/tmp/platform-cpsat-target \
-    SOURCE_DATE_EPOCH=1768232310 \
-    USE_BAZEL_VERSION=8.7.0
+FROM scratch AS inputs
 
 ADD --checksum=sha256:599c870319bb127441d92c452d8f79bca46ca6fd295c1deb8031ed303a361311 \
     https://github.com/google/or-tools/releases/download/v9.15/or-tools-9.15.tar.gz \
@@ -29,15 +18,32 @@ ADD --checksum=sha256:172020dbfd5b53a226dfde77616190a48dcff519b0bc0e6deb91a84507
     https://raw.githubusercontent.com/rust-lang/rust/58cf8f9c35b355199727627d07ae34a4e2846d67/COPYRIGHT \
     /tmp/rust-COPYRIGHT
 
-WORKDIR /src
 COPY solver/cpsat-adapter /src/adapter
 COPY Containerfile.optimizer-cpsat /src/platform/
 COPY docs/security/PROJECT-LICENSE-STATUS.md /src/platform/docs/security/PROJECT-LICENSE-STATUS.md
 COPY scripts/scan-cpsat-candidate.sh scripts/verify-cpsat-candidate.sh scripts/verify-cpsat-candidate.test.sh /src/platform/scripts/
 COPY internal/optimization /src/platform/internal/optimization
 
+FROM ${BUILDER_IMAGE} AS build
+
+SHELL ["/bin/bash", "-o", "pipefail", "-c"]
+
+ARG BUILDARCH
+ARG TARGETARCH
+ARG REVISION=WORKTREE
+
+ENV CARGO_HOME=/tmp/platform-cpsat-cargo \
+    CARGO_TARGET_DIR=/tmp/platform-cpsat-target \
+    SOURCE_DATE_EPOCH=1768232310 \
+    USE_BAZEL_VERSION=8.7.0
+
+COPY --from=inputs / /
+WORKDIR /src
+
 RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,sharing=locked \
     --mount=type=cache,id=platform-cpsat-rust-target,target=/tmp/platform-cpsat-target,sharing=locked \
+    --mount=type=cache,id=platform-cpsat-bazel,target=/tmp/platform-cpsat-bazel,sharing=locked \
+    --mount=type=cache,id=platform-cpsat-bazelisk,target=/root/.cache/bazelisk,sharing=locked \
     set -eux; \
     test "$BUILDARCH" = "$TARGETARCH"; \
     test "$(rustc --version)" = 'rustc 1.99.1 (58cf8f9c3 2026-10-13)'; \
@@ -59,14 +65,8 @@ RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,
     install -m 0644 /src/adapter/native/platform_cpsat_bridge.cc /src/ortools/ortools/sat/c_api/; \
     install -m 0644 /src/adapter/native/platform_cpsat_bridge.h /src/ortools/ortools/sat/c_api/; \
     install -m 0644 /src/adapter/native/platform_cpsat_main.cc /src/ortools/ortools/sat/c_api/; \
-    install -m 0644 /src/adapter/native/platform_targets.BUILD.bazel /src/ortools/ortools/sat/c_api/BUILD.bazel
-
-WORKDIR /src/ortools
-
-RUN --mount=type=cache,id=platform-cpsat-cargo,target=/tmp/platform-cpsat-cargo,sharing=locked \
-    --mount=type=cache,id=platform-cpsat-bazel,target=/tmp/platform-cpsat-bazel,sharing=locked \
-    --mount=type=cache,id=platform-cpsat-bazelisk,target=/root/.cache/bazelisk,sharing=locked \
-    set -eux; \
+    install -m 0644 /src/adapter/native/platform_targets.BUILD.bazel /src/ortools/ortools/sat/c_api/BUILD.bazel; \
+    cd /src/ortools; \
     mkdir -p /out; \
     bazelisk --output_base=/tmp/platform-cpsat-bazel build \
       --announce_rc \
