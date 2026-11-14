@@ -1,4 +1,6 @@
 /* Ported from the release console. Example rows stay labeled in the top bar. */
+import { createReleaseGates } from "./release-gates.js";
+
 export function mountOperator(host, options) {
   const notifyOperator = () => {
     const mount = host.querySelector("#assistant-thread-mount");
@@ -50,7 +52,11 @@ export function mountOperator(host, options) {
       inbox: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.3"><path d="M2.5 3h11l1 6v4h-13V9l1-6z"/><path d="M1.5 9h4l1 1.8h3L10.5 9h4"/></svg>',
       share: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><circle cx="12" cy="3.5" r="1.8"/><circle cx="4" cy="8" r="1.8"/><circle cx="12" cy="12.5" r="1.8"/><path d="M5.6 7.1l4.8-2.7M5.6 8.9l4.8 2.7"/></svg>',
       edit: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M10.8 2.5l2.7 2.7-8 8H2.8v-2.7l8-8z"/></svg>',
-      trash: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.6 9h5.8l.6-9"/></svg>'
+      trash: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M3 4.5h10M6 4.5V3h4v1.5M4.5 4.5l.6 9h5.8l.6-9"/></svg>',
+      sparkle: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8l1.6 3.9L13.5 7.3l-3.9 1.6L8 12.8 6.4 8.9 2.5 7.3l3.9-1.6L8 1.8z"/></svg>',
+      flask: '<svg width="12" height="12" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 2.5h4M6.8 2.5v3.3L3.3 12a1.2 1.2 0 0 0 1.1 1.8h7.2A1.2 1.2 0 0 0 12.7 12L9.2 5.8V2.5"/><path d="M4.8 10h6.4"/></svg>',
+      recall: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M5.5 5.5l5 5M10.5 5.5l-5 5"/></svg>',
+      terminal: '<svg width="13" height="13" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><rect x="1.8" y="2.5" width="12.4" height="11" rx="1.5"/><path d="M4.5 6l2.5 2-2.5 2M8.2 10h3.2"/></svg>'
     };
     function ic(n) { return ICONS[n] || ICONS.file; }
 
@@ -266,6 +272,22 @@ export function mountOperator(host, options) {
       ]
     };
 
+    const releaseGates = createReleaseGates({
+      state,
+      ic,
+      pill,
+      ontChip,
+      toolChip,
+      agentChip,
+      governedBtn,
+      rmApiStrip,
+      recordAudit,
+      render: () => renderMainWorkspace(),
+      switchScreen: (id) => switchScreen(id),
+    });
+    releaseGates.extendState();
+    SCREENS.push(...releaseGates.screens);
+
     function recordAudit(evt) {
       state.auditCount += 1;
     }
@@ -368,6 +390,7 @@ export function mountOperator(host, options) {
         { label: "Environments", icon: "cluster", id: "rm01-env-page" },
         { label: "Release Rollout", icon: "cube", id: "rm05-release-rollout" },
         { label: "Promotion Pipeline", icon: "delivery", id: "rm06-promotion-pipe" },
+        ...releaseGates.navItems,
         { label: "Control Tower", icon: "approvals", id: "s15-plan-detail" },
         { label: "Workspaces", icon: "pin", id: "s02-workspaces" }
       ];
@@ -406,7 +429,7 @@ export function mountOperator(host, options) {
           <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[#596573]">${title}</div>
           <div class="space-y-0.5">
             ${apps.map(a => `
-              <button onclick="switchScreen('${a.id}')" class="so-nav-row">
+              <button onclick="switchScreen('${a.id}')" class="so-nav-row ${state.screen === a.id ? "is-active" : ""}">
                 <span class="flex items-center gap-2.5">
                   <span class="flex text-[#7c8794]">${ic(a.icon)}</span>
                   <span>${a.label}</span>
@@ -436,6 +459,7 @@ export function mountOperator(host, options) {
             }).join("")}
           </div>
         </div>
+        ${renderAppGroup("OPERATOR TOOLS", releaseGates.toolApps)}
         ${renderAppGroup("DELIVERY APPS", deliveryApps)}
         ${renderAppGroup("DEVELOPER APPS", developerApps)}
       `;
@@ -472,8 +496,10 @@ export function mountOperator(host, options) {
         plans_gov: [
           { id: "rm03-plan-detail", label: "Plan Inspector (Failed)" },
           { id: "rm04-constraints", label: "Constraint Gate" },
+          { id: "rm11-debug-terminal", label: "Debug Terminal" },
           { id: "s15-plan-detail", label: "Control Tower" }
         ],
+        proposals: releaseGates.proposalPeers,
         studio: [
           { id: "s09-source", label: "Source" },
           { id: "rm07-change-requests", label: "Change Requests" },
@@ -2464,6 +2490,7 @@ export function mountOperator(host, options) {
               </div>
             </div>
           </div>
+          ${releaseGates.showcase()}
         </div>
       `;
     }
@@ -2654,6 +2681,7 @@ export function mountOperator(host, options) {
               <div class="flex items-center justify-between">
                 <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#34d399]">Release Channel Subscription</span>
                 <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Promotion Graph</button>
+                <button type="button" onclick="switchScreen('rm11-debug-terminal')" class="so-btn so-btn-sm">Debug Terminal</button>
               </div>
               <div class="flex flex-wrap items-center gap-2">
                 <span class="code-id text-[15px] font-bold text-white">edge-cohorts</span>
@@ -2971,7 +2999,9 @@ export function mountOperator(host, options) {
               </div>
               <div class="code-id text-[11px] text-[#8b96a5] mt-1">digest: sha256:9c71fe08a41d8c02b9e7a11f404d12c91a0f2d44 &middot; Published 2026-11-13 20:18Z</div>
             </div>
-            <div class="flex gap-2">
+            <div class="flex flex-wrap gap-2">
+              <button type="button" onclick="switchScreen('rm10-ramped-rollout')" class="so-btn">Ramped Rollouts</button>
+              <button type="button" onclick="switchScreen('rm09-recalls')" class="so-btn">Recalls</button>
               <button type="button" onclick="switchScreen('rm08-bundle-preview')" class="so-btn">Offline Bundle Preview</button>
               <button type="button" onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promotion Pipeline</button>
             </div>
@@ -3268,7 +3298,7 @@ export function mountOperator(host, options) {
             <div role="dialog" aria-modal="true" aria-label="View switcher" class="so-panel w-full max-w-[540px] overflow-hidden shadow-2xl" style="border-color:#2a3a4a;">
               <div class="p-2.5 border-b border-[#1e262d]">
                 <input id="conduit-omnibar-inp" type="search" value="${state.cmdOmnibarQuery}"
-                  placeholder="Jump across all 27 views (Command Center, Promotion Pipeline, Plan Inspector, Source...)"
+                  placeholder="Jump across all ${SCREENS.length} views"
                   oninput="state.cmdOmnibarQuery=this.value; renderConduitModals(); document.getElementById('conduit-omnibar-inp').focus();"
                   class="so-input w-full !h-[32px]" />
               </div>
@@ -3319,7 +3349,8 @@ export function mountOperator(host, options) {
         "rm05-release-rollout": renderRM05ReleaseRollout,
         "rm06-promotion-pipe": renderRM06PromotionPipe,
         "rm07-change-requests": renderRM07ChangeRequests,
-        "rm08-bundle-preview": renderRM08BundlePreview
+        "rm08-bundle-preview": renderRM08BundlePreview,
+        ...releaseGates.renderers
       };
       (m[state.screen] || renderS13FleetOverview)(root);
     }
@@ -3334,6 +3365,7 @@ export function mountOperator(host, options) {
     }
 
     const onKey = (ev) => {
+      if (releaseGates.onKey(ev)) return;
       if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
         ev.preventDefault();
         openCmdOmnibar();
@@ -3369,6 +3401,7 @@ export function mountOperator(host, options) {
     window.recordAudit = recordAudit;
     window.copyRmRawLog = copyRmRawLog;
     window.state = state;
+    releaseGates.bind(window);
     renderApp();
     return () => {
       window.removeEventListener("keydown", onKey);
