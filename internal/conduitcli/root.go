@@ -629,6 +629,7 @@ func moduleCommand(state *commandState) *cobra.Command {
 
 func productReleaseCommand(state *commandState) *cobra.Command {
 	command := &cobra.Command{Use: "product-release", Short: "Author and publish immutable Product Releases"}
+	command.AddCommand(productReleaseChannelCommand(state))
 	helmChart := &cobra.Command{Use: "helm-chart", Short: "Author Helm chart Product manifests"}
 	var options helmChartInitOptions
 	initCommand := &cobra.Command{

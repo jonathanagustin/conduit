@@ -116,3 +116,8 @@ Related documents:
 - [Conduit reconciliation](reconciliation.md)
 - [Deployment invariants](deployment-invariants.md)
 
+
+The `planreview/domain` boundary owns bounded native proposal review metadata,
+not DesiredState or approval authority. Existing control-plane adapters compose
+it with governed membership-only proposals. See
+[channel-membership-proposals.md](channel-membership-proposals.md).

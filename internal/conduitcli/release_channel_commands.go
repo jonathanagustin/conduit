@@ -24,6 +24,7 @@ func releaseChannelCommand(state *commandState) *cobra.Command {
 	command.AddCommand(releaseChannelImportCommand(state))
 	command.AddCommand(releaseChannelDiffCommand(state))
 	command.AddCommand(releaseChannelAddCommand(state))
+	command.AddCommand(releaseChannelRemoveCommand(state))
 	return command
 }
 

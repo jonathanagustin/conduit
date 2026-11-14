@@ -54,3 +54,13 @@ only those four hash-pinned rows. The earlier snapshot is unchanged. Native
 comment records, the additional discussion-list command, transport routes and
 preview output are registered Conduit extensions; public command syntax does
 not establish private APIs or those unspecified result shapes.
+
+## 2026-11-14 membership editor/removal migration
+
+Issue #365 adds three previously hash-pinned command pages after behavioral
+tests of editor cancellation, saved empty lists, governed coordinate removal,
+authorization, rationale persistence and serialized stale-edit rejection. The
+profile advances to 114 of the independently inventoried 123 pages.
+`cli-command-sources-2026-11-14-365.tsv` preserves the previous 111 rows and adds
+only those three rows. Earlier snapshots remain unchanged. The native editor,
+Git-owned state projection and Plan review envelope remain explicit inventions.

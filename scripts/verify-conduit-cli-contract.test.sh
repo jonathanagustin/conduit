@@ -10,7 +10,7 @@ stage() {
   for file in cli-command-contract.json cli-command-inventory.json public-documentation-manifest.tsv; do
     cp "$repo_root/docs/reference-platform/$file" "$work/tree/docs/reference-platform/"
   done
-  cp "$repo_root/docs/reference-platform/snapshots/cli-command-sources-2026-11-14-363.tsv" "$work/tree/docs/reference-platform/snapshots/"
+  cp "$repo_root/docs/reference-platform/snapshots/cli-command-sources-2026-11-14-365.tsv" "$work/tree/docs/reference-platform/snapshots/"
 }
 run() { (cd "$work/tree" && node scripts/verify-conduit-cli-contract.mjs); }
 reject() {

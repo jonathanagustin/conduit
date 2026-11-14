@@ -251,6 +251,27 @@
       "why": "Published paths and flags are pinned, while their private transport and unspecified output are unknown. The native reader follows bounded cursor pages; comment text is discussion, not approval rationale. Mutation output formats are checked before requests can mutate state.",
       "displacedBy": "A published or sanitized CLI discussion/label result contract establishing native-ID projection, preview output and a discussion-list operation.",
       "riskIfWrong": "Native output or the added reader command may need replacement. Four published command pages join the reviewed profile only with real Hub/CLI tests; native-only commands do not count as recovered public commands."
+    },
+    {
+      "id": "planreview.ProposalEnvelope",
+      "what": "A bounded native media type on the existing Plan proposal route carrying title, rationale, baseline desired-state digest and provenance tier.",
+      "why": "The CLI must retain rationale in the persisted Change Request; the ordinary DesiredState request body has no review context. Native media type distinguishes the envelope without changing the existing JSON body contract.",
+      "displacedBy": "A published or sanitized proposal contract establishing transport and persistence of review context.",
+      "riskIfWrong": "Media type or envelope names may need replacement. CONDUIT_NATIVE marks the transport; no private Apollo API or new publication authority is claimed."
+    },
+    {
+      "id": "channelmembership.GovernedProposal",
+      "what": "Serialized membership-only desired-state proposals with an explicit new Git generation, current source digest and native membership Change Type.",
+      "why": "Whole-state proposals otherwise cannot distinguish a stale membership edit or ensure membership-only changes receive a policy decision. The server preserves immutable artifact coordinates and definitions, and reuses existing contribution authority.",
+      "displacedBy": "A published or sanitized channel-membership proposal, concurrency, authorization and Change Type contract.",
+      "riskIfWrong": "The native review type and state-loading requirements may need replacement. Existing policies must decide the new type. File writes have a process visibility boundary, not crash-atomic multi-file durability."
+    },
+    {
+      "id": "channelmembership.CLIProjection",
+      "what": "Native YAML releaseChannels/rationale editor schema, explicit state-file/next-generation inputs, structured previews/results and offline dry run for the reviewed membership commands.",
+      "why": "Public command semantics do not establish private editor/output schema or Git-owned state projection. Saved empty lists differ from empty documents; cancellation submits nothing.",
+      "displacedBy": "A published or sanitized channel-membership editor schema, state-loading and submission/result contract.",
+      "riskIfWrong": "Schema and extra Git-oriented flags may need replacement. A dry run is not server authorization or freshness. Existing desired-state validity still applies to channel-referencing Entities."
     }
   ],
   "displaced": [
@@ -293,4 +314,3 @@
     "lesson": "The register asks whether an invention is marked and whether it names what would displace it. It does not ask whether the invention was necessary. A guess made without exhausting the sources already in the repository is not an educated guess, and marking it does not make it one."
   }
 }
-
