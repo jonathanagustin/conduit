@@ -588,6 +588,49 @@
   min-width: 0;
   height: 28px;
   padding: 0 var(--sp-2);
+
+/* Change request review */
+[data-cr-root] .so-col { display: grid; gap: var(--sp-2); align-content: start; min-width: 0; }
+[data-cr-root] .so-list,
+[data-cr-root] .so-detail {
+  background: var(--c-panel);
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  padding: var(--sp-3);
+}
+[data-cr-root] .kit-tabs { display: flex; flex-wrap: wrap; gap: var(--sp-1); }
+[data-cr-root] [data-cr-select] {
+  display: grid;
+  gap: 2px;
+  width: 100%;
+  text-align: left;
+  padding: var(--sp-2);
+  border: 1px solid var(--c-border);
+  border-radius: 4px;
+  background: var(--c-card);
+  color: var(--c-text);
+  font-size: 12px;
+}
+[data-cr-root] [data-cr-select][aria-current="true"],
+[data-cr-root] [data-cr-select].is-active { border-color: var(--tone-info-bd); background: var(--tone-info-bg); }
+[data-cr-root] h3 { font-size: 14px; font-weight: 600; color: var(--c-text); }
+[data-cr-root] h4 {
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+  margin-top: var(--sp-2);
+}
+[data-cr-root] .so-detail ul { display: grid; gap: var(--sp-1); font-size: 12px; }
+[data-cr-root] .so-muted,
+[data-cr-root] .kit-empty { color: var(--c-muted); font-size: 12px; }
+[data-cr-root] .so-form { display: grid; gap: var(--sp-2); font-size: 12px; margin-top: var(--sp-2); }
+[data-cr-root] .so-form textarea {
+  display: block;
+  width: 100%;
+  min-height: 64px;
+  margin-top: var(--sp-1);
+  padding: var(--sp-2);
   border: 1px solid var(--c-border);
   border-radius: 4px;
   background: var(--c-input);
@@ -600,3 +643,8 @@
 .kit-view-panel { padding: var(--sp-3) var(--sp-4); display: grid; gap: var(--sp-2); }
 .kit-view-head { display: flex; align-items: baseline; gap: var(--sp-2); }
 .kit-view-head h2 { font-size: 13px; font-weight: 600; color: var(--c-text); }
+}
+[data-cr-root] .so-actions,
+[data-cr-root] .so-confirm { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2); font-size: 12px; }
+[data-cr-root] .so-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+[data-cr-root] [data-cr-select] .kit-badge { justify-self: start; }
