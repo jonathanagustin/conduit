@@ -11,6 +11,7 @@ import (
 	"net/url"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"time"
 )
@@ -65,9 +66,12 @@ func Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
 	if err := runGit(ctx, dir, proxy.URL, "remote", "add", "origin", repoURL); err != nil {
 		return zero, cleanup, err
 	}
-	fetch := []string{"fetch", "--depth", "1", "--no-recurse-submodules", "origin", "--", ref}
-	if err := runGit(ctx, dir, proxy.URL, fetch...); err != nil {
-		if err := runGit(ctx, dir, proxy.URL, "fetch", "--no-recurse-submodules", "origin", "--", ref); err != nil {
+	if err := fetchRef(ctx, dir, proxy.URL, ref); err != nil {
+		expanded, expandErr := expandCommit(ctx, parsed, ref, proxy.URL)
+		if expandErr != nil || expanded == "" || expanded == ref {
+			return zero, cleanup, fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, err)
+		}
+		if err := fetchRef(ctx, dir, proxy.URL, expanded); err != nil {
 			return zero, cleanup, fmt.Errorf("clone %s at %s: %w", parsed.Host, ref, err)
 		}
 	}
@@ -85,6 +89,94 @@ func Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
 		return zero, cleanup, fmt.Errorf("resolved commit is empty")
 	}
 	return Checkout{Dir: dir, SHA: sha, Host: parsed.Host}, cleanup, nil
+}
+
+func fetchRef(ctx context.Context, dir, proxyURL, ref string) error {
+	if err := runGit(ctx, dir, proxyURL, "fetch", "--depth", "1", "--no-recurse-submodules", "origin", ref); err != nil {
+		return runGit(ctx, dir, proxyURL, "fetch", "--no-recurse-submodules", "origin", ref)
+	}
+	return nil
+}
+
+var shortSHA = regexp.MustCompile(`(?i)^[0-9a-f]{4,39}$`)
+var fromCommit = regexp.MustCompile(`(?i)^From\s+([0-9a-f]{40})\b`)
+
+func expandCommit(ctx context.Context, repo *url.URL, ref, proxyURL string) (string, error) {
+	if !shortSHA.MatchString(ref) {
+		return "", fmt.Errorf("ref is not an abbreviated commit")
+	}
+	path := strings.TrimSuffix(strings.Trim(repo.Path, "/"), ".git")
+	if path == "" {
+		return "", fmt.Errorf("repository path is empty")
+	}
+	patchURL := *repo
+	patchURL.Path = "/" + path + "/commit/" + ref + ".patch"
+	patchURL.RawQuery = ""
+	patchURL.Fragment = ""
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, patchURL.String(), nil)
+	if err != nil {
+		return "", err
+	}
+	request.Header.Set("User-Agent", "conduit-planning")
+	client := &http.Client{
+		Timeout:   20 * time.Second,
+		Transport: &http.Transport{Proxy: http.ProxyURL(mustURL(proxyURL))},
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			if !hostAllowed(req.URL.Host, req.URL.Scheme, canonicalHost(repo.Host, repo.Scheme)) {
+				return fmt.Errorf("git host is not allowed")
+			}
+			if len(via) >= 5 {
+				return fmt.Errorf("too many redirects")
+			}
+			return nil
+		},
+	}
+	response, err := client.Do(request)
+	if err != nil {
+		return "", err
+	}
+	defer response.Body.Close()
+	if response.StatusCode != http.StatusOK {
+		return "", fmt.Errorf("commit lookup returned %s", response.Status)
+	}
+	body, err := io.ReadAll(io.LimitReader(response.Body, 4096))
+	if err != nil {
+		return "", err
+	}
+	// Prefer a "From <sha>" line from a patch. Fall back to the first 40-char
+	// token that starts with the given prefix.
+	prefix := strings.ToLower(ref)
+	for _, line := range strings.Split(string(body), "\n") {
+		if match := fromCommit.FindStringSubmatch(line); len(match) == 2 {
+			sha := strings.ToLower(match[1])
+			if strings.HasPrefix(sha, prefix) {
+				return sha, nil
+			}
+		}
+	}
+	hexSHA := regexp.MustCompile(`(?i)\b[0-9a-f]{40}\b`)
+	for _, match := range hexSHA.FindAllString(string(body), -1) {
+		sha := strings.ToLower(match)
+		if strings.HasPrefix(sha, prefix) {
+			return sha, nil
+		}
+	}
+	if location := response.Request.URL.Path; location != "" {
+		base := location[strings.LastIndex(location, "/")+1:]
+		base = strings.TrimSuffix(base, ".patch")
+		if len(base) == 40 && strings.HasPrefix(strings.ToLower(base), prefix) {
+			return strings.ToLower(base), nil
+		}
+	}
+	return "", fmt.Errorf("could not expand abbreviated commit")
+}
+
+func mustURL(raw string) *url.URL {
+	parsed, err := url.Parse(raw)
+	if err != nil {
+		return nil
+	}
+	return parsed
 }
 
 func runGit(ctx context.Context, dir, proxyURL string, args ...string) error {

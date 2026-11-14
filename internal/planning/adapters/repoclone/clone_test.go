@@ -3,6 +3,7 @@ package repoclone
 import (
 	"bytes"
 	"context"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -66,6 +67,34 @@ func TestClonePinsCommitAndAllowsOnlyTheGitHost(t *testing.T) {
 	}
 	if bySHA.SHA != sha {
 		t.Fatalf("sha ref = %q, want %q", bySHA.SHA, sha)
+	}
+}
+
+func TestCloneExpandsAnAbbreviatedCommit(t *testing.T) {
+	t.Parallel()
+	fixture, sha := makeFixture(t)
+	gitServer := serveGit(t, fixture)
+	short := sha[:12]
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		if strings.HasPrefix(request.URL.Path, "/src/commit/") && strings.HasSuffix(request.URL.Path, ".patch") {
+			ref := strings.TrimSuffix(strings.TrimPrefix(request.URL.Path, "/src/commit/"), ".patch")
+			if ref != short && ref != sha {
+				http.NotFound(writer, request)
+				return
+			}
+			fmt.Fprintf(writer, "From %s Mon Sep 17 00:00:00 2001\n", sha)
+			return
+		}
+		gitServer.Config.Handler.ServeHTTP(writer, request)
+	}))
+	t.Cleanup(server.Close)
+	got, cleanup, err := Clone(context.Background(), server.URL+"/src.git", short)
+	defer cleanup()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.SHA != sha {
+		t.Fatalf("sha = %q, want %q", got.SHA, sha)
 	}
 }
 

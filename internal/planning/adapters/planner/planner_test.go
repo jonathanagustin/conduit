@@ -78,9 +78,22 @@ func TestLiveExcalidrawInspect(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	timeout := 5 * time.Minute
+	if text := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
+		parsed, err := time.ParseDuration(text)
+		if err != nil || parsed <= 0 {
+			t.Fatalf("CONDUIT_MODEL_TIMEOUT: %v", err)
+		}
+		timeout = parsed
+	}
 	audit := &memoryAudit{}
-	planner := Planner{Argv: argv, Timeout: 3 * time.Minute, Audit: audit}
-	service := application.NewService(planner)
+	var reads []string
+	runner := Planner{Argv: argv, Timeout: timeout, Audit: audit, OnTool: func(name, path string) {
+		if name == "read_file" && strings.TrimSpace(path) != "" {
+			reads = append(reads, path)
+		}
+	}}
+	service := application.NewService(runner)
 	session, err := service.Create(context.Background(), "https://github.com/excalidraw/excalidraw", "3a317b55")
 	if err != nil {
 		t.Fatal(err)
@@ -101,6 +114,19 @@ func TestLiveExcalidrawInspect(t *testing.T) {
 	}
 	if len(audit.rows) == 0 || audit.rows[0].PromptSHA256 == "" || audit.rows[0].ResponseSHA256 == "" {
 		t.Fatalf("audit = %+v", audit.rows)
+	}
+	t.Logf("resolved commit %s", session.ResolvedCommit)
+	t.Logf("tool calls %s", joined)
+	t.Logf("files read %s", strings.Join(reads, ", "))
+	t.Logf("events %d", len(session.Events))
+}
+
+func TestParseModelReplyExtractsFencedToolCalls(t *testing.T) {
+	t.Parallel()
+	raw := []byte("Here you go:\n```json\n{\"toolCalls\":[{\"name\":\"inspect_repo\",\"arguments\":{}}]}\n```\n")
+	requests, isTools, err := parseModelReply(raw)
+	if err != nil || !isTools || len(requests) != 1 || requests[0].Name != "inspect_repo" {
+		t.Fatalf("got %#v %v %v", requests, isTools, err)
 	}
 }
 

@@ -3,6 +3,7 @@
 package planner
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
@@ -50,6 +51,9 @@ type Planner struct {
 	Timeout time.Duration
 	Audit   Auditor
 	Clone   CloneFunc
+	// OnTool is notified after a successful inspect_repo or read_file call.
+	// Path is set only for read_file.
+	OnTool func(name, path string)
 }
 
 // Turn clones the session intake, lets the model call inspect_repo and
@@ -93,7 +97,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 			})
 			return result, modelError(err)
 		}
-		requests, isTools, parseErr := packagingdomain.ParseToolRequests(stdout)
+		requests, isTools, parseErr := parseModelReply(stdout)
 		if isTools {
 			if parseErr != nil {
 				_ = planner.record(ctx, Record{
@@ -119,7 +123,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 			}
 			break
 		}
-		facts, nextCalls, nextInspection, toolErr := runToolRequests(ctx, tools, requests, calls, inspection)
+		facts, nextCalls, nextInspection, toolErr := runToolRequests(ctx, tools, requests, calls, inspection, planner.OnTool)
 		calls = nextCalls
 		if nextInspection != nil {
 			inspection = nextInspection
@@ -165,7 +169,7 @@ func (planner Planner) record(ctx context.Context, record Record) error {
 	return planner.Audit.Record(ctx, record)
 }
 
-func runToolRequests(ctx context.Context, tools *packagingtools.Service, requests []packagingdomain.ToolRequest, calls []string, current *domain.Inspection) (string, []string, *domain.Inspection, error) {
+func runToolRequests(ctx context.Context, tools *packagingtools.Service, requests []packagingdomain.ToolRequest, calls []string, current *domain.Inspection, onTool func(name, path string)) (string, []string, *domain.Inspection, error) {
 	var body strings.Builder
 	inspection := current
 	for _, request := range requests {
@@ -184,6 +188,9 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 			fmt.Fprintf(&body, "inspect_repo: %s\n", encoded)
 			calls = append(calls, "inspect_repo")
 			inspection = fromRepo(got, calls)
+			if onTool != nil {
+				onTool("inspect_repo", "")
+			}
 		case "read_file":
 			var args struct {
 				Path string `json:"path"`
@@ -206,6 +213,9 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 			}
 			fmt.Fprintf(&body, "read_file: %s\n", encoded)
 			calls = append(calls, "read_file")
+			if onTool != nil {
+				onTool("read_file", got.Path)
+			}
 			if inspection == nil {
 				inspection = &domain.Inspection{ToolCalls: append([]string(nil), calls...)}
 			} else {
@@ -279,6 +289,99 @@ When you are done inspecting, reply with a short text summary of the language, p
 func digestText(raw []byte) string {
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+func parseModelReply(raw []byte) ([]packagingdomain.ToolRequest, bool, error) {
+	requests, isTools, err := packagingdomain.ParseToolRequests(raw)
+	if isTools || (err != nil && errors.Is(err, packagingdomain.ErrProposalInvalid)) {
+		return requests, isTools, err
+	}
+	for _, candidate := range jsonCandidates(raw) {
+		requests, isTools, err = packagingdomain.ParseToolRequests(candidate)
+		if isTools {
+			return requests, true, err
+		}
+		if err != nil && errors.Is(err, packagingdomain.ErrProposalInvalid) {
+			return requests, isTools, err
+		}
+	}
+	return nil, false, nil
+}
+
+func jsonCandidates(raw []byte) [][]byte {
+	text := string(bytes.TrimSpace(raw))
+	text = strings.ReplaceAll(text, "```json", "```")
+	var parts []string
+	for _, chunk := range strings.Split(text, "```") {
+		parts = append(parts, chunk)
+	}
+	var out [][]byte
+	seen := map[string]bool{}
+	add := func(body string) {
+		body = strings.TrimSpace(body)
+		if body == "" || seen[body] {
+			return
+		}
+		if !strings.HasPrefix(body, "{") {
+			return
+		}
+		seen[body] = true
+		out = append(out, []byte(body))
+	}
+	for _, part := range parts {
+		add(part)
+	}
+	for _, obj := range balancedObjects([]byte(text)) {
+		add(string(obj))
+	}
+	// Prefer later objects: models often print a final JSON after logs.
+	for i, j := 0, len(out)-1; i < j; i, j = i+1, j-1 {
+		out[i], out[j] = out[j], out[i]
+	}
+	return out
+}
+
+func balancedObjects(raw []byte) [][]byte {
+	var out [][]byte
+	for i := 0; i < len(raw); i++ {
+		if raw[i] != '{' {
+			continue
+		}
+		depth := 0
+		inString := false
+		escape := false
+		for j := i; j < len(raw); j++ {
+			c := raw[j]
+			if inString {
+				if escape {
+					escape = false
+					continue
+				}
+				if c == '\\' {
+					escape = true
+					continue
+				}
+				if c == '"' {
+					inString = false
+				}
+				continue
+			}
+			switch c {
+			case '"':
+				inString = true
+			case '{':
+				depth++
+			case '}':
+				depth--
+				if depth == 0 {
+					out = append(out, raw[i:j+1])
+					i = j
+					j = len(raw)
+				}
+			}
+		}
+	}
+	return out
 }
 
 func modelError(err error) error {
