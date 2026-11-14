@@ -17,3 +17,8 @@
 - A release manifest must be assembled from registry-reported digests; never
   infer a digest from a tag.
 - Keep CI, Spoke E2E, and OCI release workflows independently diagnosable.
+
+An explicit maintainer choice of local CI may use the complete exact-head
+`run-local-ci.sh` result for merge review, as recorded in
+`docs/operations/local-act.md`. Preserve GitHub-required checks and do not
+fabricate a hosted status. This does not grant publication or deployment authority.

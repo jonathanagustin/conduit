@@ -1,0 +1,20 @@
+name: Local CI
+
+# Run through nektos/act; this label never selects a paid GitHub-hosted runner.
+on: workflow_dispatch
+permissions: {}
+
+jobs:
+  verify:
+    name: Complete local verification
+    runs-on: conduit-local
+    timeout-minutes: 90
+    steps:
+      - name: Require the local executor
+        working-directory: ${{ env.CONDUIT_LOCAL_CI_WORKTREE }}
+        run: |
+          test "${ACT:-}" = true
+          git rev-parse --show-toplevel
+      - name: Run the complete CI verifier
+        working-directory: ${{ env.CONDUIT_LOCAL_CI_WORKTREE }}
+        run: ./scripts/verify-local.sh
