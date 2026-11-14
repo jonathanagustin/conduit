@@ -1,4 +1,7 @@
-import { fetchPackagingRunDetail, packagingRunTransport } from "../../api/packaging-run.js";
+import {
+  fetchPackagingRunDetail,
+  packagingRunTransport,
+} from "../../api/packaging-run.js";
 
 export class HubError extends Error {
   readonly status: number;
@@ -36,7 +39,15 @@ export type PlanCard = {
   requiredApprovals: number;
   lease?: { attempt?: number; agentId?: string; expiresAt?: string };
   failure?: string;
-  execution?: { attempt?: number; tasks?: { phase?: string; status?: string; failure?: string; agentOutput?: string }[] };
+  execution?: {
+    attempt?: number;
+    tasks?: {
+      phase?: string;
+      status?: string;
+      failure?: string;
+      agentOutput?: string;
+    }[];
+  };
 };
 
 export type EnvironmentCard = {
@@ -59,7 +70,10 @@ async function readBody(response: Response): Promise<Record<string, unknown>> {
   return {};
 }
 
-async function send(path: string, init?: RequestInit): Promise<Record<string, unknown>> {
+async function send(
+  path: string,
+  init?: RequestInit,
+): Promise<Record<string, unknown>> {
   const response = await fetch(path, {
     credentials: "same-origin",
     ...init,
@@ -67,7 +81,10 @@ async function send(path: string, init?: RequestInit): Promise<Record<string, un
   });
   const body = await readBody(response);
   if (!response.ok) {
-    const message = typeof body["error"] === "string" ? body["error"] : `Hub returned ${response.status}`;
+    const message =
+      typeof body["error"] === "string"
+        ? body["error"]
+        : `Hub returned ${response.status}`;
     throw new HubError(response.status, message);
   }
   return body;
@@ -100,21 +117,42 @@ function runFrom(record: Record<string, unknown>): PackagingRun {
     configured: record["configured"] === true,
     ...(typeof record["tier"] === "string" ? { tier: record["tier"] } : {}),
     ...(typeof record["phase"] === "string" ? { phase: record["phase"] } : {}),
-    ...(typeof record["outcome"] === "string" ? { outcome: record["outcome"] } : {}),
-    ...(typeof record["reason"] === "string" ? { reason: record["reason"] } : {}),
+    ...(typeof record["outcome"] === "string"
+      ? { outcome: record["outcome"] }
+      : {}),
+    ...(typeof record["reason"] === "string"
+      ? { reason: record["reason"] }
+      : {}),
     ...(typeof record["runId"] === "string" ? { runId: record["runId"] } : {}),
-    ...(typeof record["sourceDigest"] === "string" ? { sourceDigest: record["sourceDigest"] } : {}),
-    ...(typeof record["artifactDigest"] === "string" ? { artifactDigest: record["artifactDigest"] } : {}),
-    ...(typeof record["proposalRevision"] === "string" ? { proposalRevision: record["proposalRevision"] } : {}),
-    ...(typeof record["targetPlanRef"] === "string" ? { targetPlanRef: record["targetPlanRef"] } : {}),
-    ...(typeof record["planId"] === "string" ? { planId: record["planId"] } : {}),
-    ...(record["handoffReconciled"] === true ? { handoffReconciled: true } : {}),
-    ...(typeof record["lastReview"] === "string" ? { lastReview: record["lastReview"] } : {}),
+    ...(typeof record["sourceDigest"] === "string"
+      ? { sourceDigest: record["sourceDigest"] }
+      : {}),
+    ...(typeof record["artifactDigest"] === "string"
+      ? { artifactDigest: record["artifactDigest"] }
+      : {}),
+    ...(typeof record["proposalRevision"] === "string"
+      ? { proposalRevision: record["proposalRevision"] }
+      : {}),
+    ...(typeof record["targetPlanRef"] === "string"
+      ? { targetPlanRef: record["targetPlanRef"] }
+      : {}),
+    ...(typeof record["planId"] === "string"
+      ? { planId: record["planId"] }
+      : {}),
+    ...(record["handoffReconciled"] === true
+      ? { handoffReconciled: true }
+      : {}),
+    ...(typeof record["lastReview"] === "string"
+      ? { lastReview: record["lastReview"] }
+      : {}),
   };
 }
 
 export async function readPackagingRun(runId: string): Promise<PackagingRun> {
-  const detail = await fetchPackagingRunDetail(runId, packagingRunTransport(window.location.origin));
+  const detail = await fetchPackagingRunDetail(
+    runId,
+    packagingRunTransport(window.location.origin),
+  );
   return {
     configured: detail.configured,
     tier: detail.tier,
@@ -132,24 +170,34 @@ export async function readPackagingRun(runId: string): Promise<PackagingRun> {
   };
 }
 
-export async function listPackagingRuns(): Promise<{ configured: boolean; items: PackagingRun[] }> {
+export async function listPackagingRuns(): Promise<{
+  configured: boolean;
+  items: PackagingRun[];
+}> {
   const body = await send("/v1/packaging-runs?limit=20");
   const items = Array.isArray(body["items"]) ? body["items"] : [];
   return {
     configured: body["configured"] === true,
-    items: items.flatMap((item) => (item !== null && typeof item === "object" ? [runFrom(item as Record<string, unknown>)] : [])),
+    items: items.flatMap((item) =>
+      item !== null && typeof item === "object"
+        ? [runFrom(item as Record<string, unknown>)]
+        : [],
+    ),
   };
 }
 
 export async function listPackagingEvents(runId: string): Promise<StepEvent[]> {
-  const body = await send(`/v1/packaging-runs/${encodeURIComponent(runId)}/events?limit=20`);
+  const body = await send(
+    `/v1/packaging-runs/${encodeURIComponent(runId)}/events?limit=20`,
+  );
   const items = Array.isArray(body["items"]) ? body["items"] : [];
   return items.flatMap((item) => {
     if (item === null || typeof item !== "object") return [];
     const record = item as Record<string, unknown>;
     return [
       {
-        sequence: typeof record["sequence"] === "number" ? record["sequence"] : 0,
+        sequence:
+          typeof record["sequence"] === "number" ? record["sequence"] : 0,
         at: typeof record["at"] === "string" ? record["at"] : "",
         step: typeof record["step"] === "string" ? record["step"] : "",
         outcome: typeof record["outcome"] === "string" ? record["outcome"] : "",
@@ -159,14 +207,20 @@ export async function listPackagingEvents(runId: string): Promise<StepEvent[]> {
   });
 }
 
-export async function cancelPackagingRun(runId: string, binding: ControlBinding): Promise<void> {
+export async function cancelPackagingRun(
+  runId: string,
+  binding: ControlBinding,
+): Promise<void> {
   await send(`/v1/packaging-runs/${encodeURIComponent(runId)}/cancel`, {
     method: "POST",
     body: JSON.stringify(binding),
   });
 }
 
-export async function rerunPackagingRun(runId: string, binding: ControlBinding): Promise<void> {
+export async function rerunPackagingRun(
+  runId: string,
+  binding: ControlBinding,
+): Promise<void> {
   await send(`/v1/packaging-runs/${encodeURIComponent(runId)}/rerun`, {
     method: "POST",
     body: JSON.stringify(binding),
@@ -177,7 +231,10 @@ function planOf(value: unknown): PlanCard | undefined {
   if (value === null || typeof value !== "object") return undefined;
   const record = value as Record<string, unknown>;
   const plan = record["plan"];
-  const nested = plan !== null && typeof plan === "object" ? (plan as Record<string, unknown>) : {};
+  const nested =
+    plan !== null && typeof plan === "object"
+      ? (plan as Record<string, unknown>)
+      : {};
   const id = typeof record["id"] === "string" ? record["id"] : "";
   if (!id) return undefined;
   const lease = record["lease"];
@@ -185,24 +242,49 @@ function planOf(value: unknown): PlanCard | undefined {
   const steps = Array.isArray(nested["steps"]) ? nested["steps"].length : 0;
   return {
     id,
-    environment: typeof nested["environment"] === "string" ? nested["environment"] : "",
+    environment:
+      typeof nested["environment"] === "string" ? nested["environment"] : "",
     status: typeof record["status"] === "string" ? record["status"] : "",
-    ...(typeof record["changeRequestId"] === "string" ? { changeRequestId: record["changeRequestId"] } : {}),
+    ...(typeof record["changeRequestId"] === "string"
+      ? { changeRequestId: record["changeRequestId"] }
+      : {}),
     stepCount: steps,
-    approvalCount: Array.isArray(record["approvals"]) ? record["approvals"].length : 0,
-    requiredApprovals: typeof record["requiredApprovals"] === "number" ? record["requiredApprovals"] : 0,
-    ...(typeof record["failure"] === "string" ? { failure: record["failure"] } : {}),
+    approvalCount: Array.isArray(record["approvals"])
+      ? record["approvals"].length
+      : 0,
+    requiredApprovals:
+      typeof record["requiredApprovals"] === "number"
+        ? record["requiredApprovals"]
+        : 0,
+    ...(typeof record["failure"] === "string"
+      ? { failure: record["failure"] }
+      : {}),
     ...(lease !== null && typeof lease === "object"
       ? {
           lease: {
-            ...(typeof (lease as Record<string, unknown>)["attempt"] === "number"
-              ? { attempt: (lease as Record<string, unknown>)["attempt"] as number }
+            ...(typeof (lease as Record<string, unknown>)["attempt"] ===
+            "number"
+              ? {
+                  attempt: (lease as Record<string, unknown>)[
+                    "attempt"
+                  ] as number,
+                }
               : {}),
-            ...(typeof (lease as Record<string, unknown>)["agentId"] === "string"
-              ? { agentId: (lease as Record<string, unknown>)["agentId"] as string }
+            ...(typeof (lease as Record<string, unknown>)["agentId"] ===
+            "string"
+              ? {
+                  agentId: (lease as Record<string, unknown>)[
+                    "agentId"
+                  ] as string,
+                }
               : {}),
-            ...(typeof (lease as Record<string, unknown>)["expiresAt"] === "string"
-              ? { expiresAt: (lease as Record<string, unknown>)["expiresAt"] as string }
+            ...(typeof (lease as Record<string, unknown>)["expiresAt"] ===
+            "string"
+              ? {
+                  expiresAt: (lease as Record<string, unknown>)[
+                    "expiresAt"
+                  ] as string,
+                }
               : {}),
           },
         }
@@ -210,20 +292,35 @@ function planOf(value: unknown): PlanCard | undefined {
     ...(execution !== null && typeof execution === "object"
       ? {
           execution: {
-            ...(typeof (execution as Record<string, unknown>)["attempt"] === "number"
-              ? { attempt: (execution as Record<string, unknown>)["attempt"] as number }
+            ...(typeof (execution as Record<string, unknown>)["attempt"] ===
+            "number"
+              ? {
+                  attempt: (execution as Record<string, unknown>)[
+                    "attempt"
+                  ] as number,
+                }
               : {}),
             ...(Array.isArray((execution as Record<string, unknown>)["tasks"])
               ? {
-                  tasks: ((execution as Record<string, unknown>)["tasks"] as unknown[]).flatMap((task) => {
+                  tasks: (
+                    (execution as Record<string, unknown>)["tasks"] as unknown[]
+                  ).flatMap((task) => {
                     if (task === null || typeof task !== "object") return [];
                     const item = task as Record<string, unknown>;
                     return [
                       {
-                        ...(typeof item["phase"] === "string" ? { phase: item["phase"] } : {}),
-                        ...(typeof item["status"] === "string" ? { status: item["status"] } : {}),
-                        ...(typeof item["failure"] === "string" ? { failure: item["failure"] } : {}),
-                        ...(typeof item["agentOutput"] === "string" ? { agentOutput: item["agentOutput"] } : {}),
+                        ...(typeof item["phase"] === "string"
+                          ? { phase: item["phase"] }
+                          : {}),
+                        ...(typeof item["status"] === "string"
+                          ? { status: item["status"] }
+                          : {}),
+                        ...(typeof item["failure"] === "string"
+                          ? { failure: item["failure"] }
+                          : {}),
+                        ...(typeof item["agentOutput"] === "string"
+                          ? { agentOutput: item["agentOutput"] }
+                          : {}),
                       },
                     ];
                   }),
@@ -259,7 +356,9 @@ export async function listEnvironments(): Promise<EnvironmentCard[]> {
       {
         id,
         reported: record["reported"] != null,
-        connected: typeof env["connectionSetting"] === "string" && env["connectionSetting"].length > 0,
+        connected:
+          typeof env["connectionSetting"] === "string" &&
+          env["connectionSetting"].length > 0,
       },
     ];
   });
@@ -275,7 +374,10 @@ export async function listProducts(): Promise<ProductCard[]> {
   });
 }
 
-export async function approvePlan(id: string, rationale: string): Promise<void> {
+export async function approvePlan(
+  id: string,
+  rationale: string,
+): Promise<void> {
   await send(`/v1/plans/${encodeURIComponent(id)}/approvals`, {
     method: "POST",
     body: JSON.stringify({ rationale }),
@@ -303,7 +405,8 @@ export type FleetRow = {
 
 function textOf(value: unknown): string {
   if (typeof value === "string") return value;
-  if (typeof value === "number" || typeof value === "boolean") return String(value);
+  if (typeof value === "number" || typeof value === "boolean")
+    return String(value);
   if (value === null || value === undefined) return "";
   try {
     return JSON.stringify(value);
@@ -312,7 +415,10 @@ function textOf(value: unknown): string {
   }
 }
 
-function diffEnds(record: Record<string, unknown>): { diffBefore: string; diffAfter: string } {
+function diffEnds(record: Record<string, unknown>): {
+  diffBefore: string;
+  diffAfter: string;
+} {
   const changes = Array.isArray(record["changes"]) ? record["changes"] : [];
   for (const change of changes) {
     if (change === null || typeof change !== "object") continue;
@@ -322,7 +428,10 @@ function diffEnds(record: Record<string, unknown>): { diffBefore: string; diffAf
     for (const entry of entries) {
       if (entry === null || typeof entry !== "object") continue;
       const item = entry as Record<string, unknown>;
-      return { diffBefore: textOf(item["before"]), diffAfter: textOf(item["after"]) };
+      return {
+        diffBefore: textOf(item["before"]),
+        diffAfter: textOf(item["after"]),
+      };
     }
   }
   return { diffBefore: "", diffAfter: "" };
@@ -348,7 +457,9 @@ function windowText(value: unknown): string {
     if (window === null || typeof window !== "object") return [];
     const intervals = (window as Record<string, unknown>)["intervals"];
     const zone = (window as Record<string, unknown>)["timeZone"];
-    const when = Array.isArray(intervals) ? intervals.filter((item) => typeof item === "string").join(", ") : "";
+    const when = Array.isArray(intervals)
+      ? intervals.filter((item) => typeof item === "string").join(", ")
+      : "";
     return [`${key} ${typeof zone === "string" ? zone : ""} ${when}`.trim()];
   });
   return parts.join("; ");
@@ -356,7 +467,9 @@ function windowText(value: unknown): string {
 
 export async function listChangeRequests(): Promise<ChangeRequestCard[]> {
   const body = await send("/v1/change-requests?limit=20");
-  const rows = Array.isArray(body["changeRequests"]) ? body["changeRequests"] : [];
+  const rows = Array.isArray(body["changeRequests"])
+    ? body["changeRequests"]
+    : [];
   return rows.flatMap((row) => {
     if (row === null || typeof row !== "object") return [];
     const record = row as Record<string, unknown>;
@@ -369,9 +482,14 @@ export async function listChangeRequests(): Promise<ChangeRequestCard[]> {
         id,
         title: typeof record["title"] === "string" ? record["title"] : id,
         status: typeof record["status"] === "string" ? record["status"] : "",
-        environment: typeof record["environment"] === "string" ? record["environment"] : "",
+        environment:
+          typeof record["environment"] === "string"
+            ? record["environment"]
+            : "",
         author:
-          author !== null && typeof author === "object" && typeof (author as Record<string, unknown>)["username"] === "string"
+          author !== null &&
+          typeof author === "object" &&
+          typeof (author as Record<string, unknown>)["username"] === "string"
             ? ((author as Record<string, unknown>)["username"] as string)
             : "",
         requirementsSatisfied: record["requirementsSatisfied"] === true,
@@ -381,8 +499,12 @@ export async function listChangeRequests(): Promise<ChangeRequestCard[]> {
           const item = review as Record<string, unknown>;
           return [
             {
-              ...(typeof item["decision"] === "string" ? { decision: item["decision"] } : {}),
-              ...(typeof item["rationale"] === "string" ? { rationale: item["rationale"] } : {}),
+              ...(typeof item["decision"] === "string"
+                ? { decision: item["decision"] }
+                : {}),
+              ...(typeof item["rationale"] === "string"
+                ? { rationale: item["rationale"] }
+                : {}),
             },
           ];
         }),
@@ -415,22 +537,37 @@ export type OverviewCounts = {
 export async function readEnvironment(id: string): Promise<EnvironmentDetail> {
   const [catalog, reported] = await Promise.all([
     send(`/v1/environments/${encodeURIComponent(id)}`),
-    send(`/v1/environments/${encodeURIComponent(id)}/reported-state`).catch(() => ({}) as Record<string, unknown>),
+    send(`/v1/environments/${encodeURIComponent(id)}/reported-state`).catch(
+      () => ({}) as Record<string, unknown>,
+    ),
   ]);
   const environment =
-    catalog["environment"] !== null && typeof catalog["environment"] === "object"
+    catalog["environment"] !== null &&
+    typeof catalog["environment"] === "object"
       ? (catalog["environment"] as Record<string, unknown>)
       : catalog;
-  const entities = Array.isArray(reported["entities"]) ? reported["entities"] : [];
+  const entities = Array.isArray(reported["entities"])
+    ? reported["entities"]
+    : [];
   return {
     id: typeof environment["id"] === "string" ? environment["id"] : id,
-    generation: typeof environment["generation"] === "string" ? environment["generation"] : "",
-    connection: typeof environment["connectionSetting"] === "string" ? environment["connectionSetting"] : "",
+    generation:
+      typeof environment["generation"] === "string"
+        ? environment["generation"]
+        : "",
+    connection:
+      typeof environment["connectionSetting"] === "string"
+        ? environment["connectionSetting"]
+        : "",
     reported: Object.keys(reported).length > 0,
     agentId: typeof reported["agentId"] === "string" ? reported["agentId"] : "",
-    observedAt: typeof reported["observedAt"] === "string" ? reported["observedAt"] : "",
+    observedAt:
+      typeof reported["observedAt"] === "string" ? reported["observedAt"] : "",
     entityCount: entities.length,
-    releaseChannel: typeof environment["defaultReleaseChannel"] === "string" ? environment["defaultReleaseChannel"] : "",
+    releaseChannel:
+      typeof environment["defaultReleaseChannel"] === "string"
+        ? environment["defaultReleaseChannel"]
+        : "",
     labels: pairText(environment["labels"]),
     maintenance: windowText(environment["maintenance"]),
     configKeys: keyText(environment["config"]),
@@ -441,7 +578,11 @@ export async function readOverview(): Promise<OverviewCounts> {
   const body = await send("/v1/overview");
   const count = (key: string) => {
     const panel = body[key];
-    if (panel !== null && typeof panel === "object" && typeof (panel as Record<string, unknown>)["count"] === "number") {
+    if (
+      panel !== null &&
+      typeof panel === "object" &&
+      typeof (panel as Record<string, unknown>)["count"] === "number"
+    ) {
       return (panel as Record<string, unknown>)["count"] as number;
     }
     return 0;
@@ -456,29 +597,44 @@ export async function readOverview(): Promise<OverviewCounts> {
 
 export async function listFleet(): Promise<FleetRow[]> {
   const body = await send("/v1/fleet/installations?limit=20");
-  const rows = Array.isArray(body["installations"]) ? body["installations"] : [];
+  const rows = Array.isArray(body["installations"])
+    ? body["installations"]
+    : [];
   return rows.flatMap((row) => {
     if (row === null || typeof row !== "object") return [];
     const record = row as Record<string, unknown>;
-    const id = typeof record["installationId"] === "string" ? record["installationId"] : "";
+    const id =
+      typeof record["installationId"] === "string"
+        ? record["installationId"]
+        : "";
     if (!id) return [];
     return [
       {
         id,
-        environment: typeof record["environment"] === "string" ? record["environment"] : "",
+        environment:
+          typeof record["environment"] === "string"
+            ? record["environment"]
+            : "",
         product: typeof record["product"] === "string" ? record["product"] : "",
-        health: typeof record["health"] === "string" ? record["health"] : "UNKNOWN",
+        health:
+          typeof record["health"] === "string" ? record["health"] : "UNKNOWN",
       },
     ];
   });
 }
 
-export async function rejectPlan(plan: PlanCard, rationale: string): Promise<void> {
+export async function rejectPlan(
+  plan: PlanCard,
+  rationale: string,
+): Promise<void> {
   if (plan.changeRequestId) {
-    await send(`/v1/change-requests/${encodeURIComponent(plan.changeRequestId)}/reject`, {
-      method: "POST",
-      body: JSON.stringify({ rationale }),
-    });
+    await send(
+      `/v1/change-requests/${encodeURIComponent(plan.changeRequestId)}/reject`,
+      {
+        method: "POST",
+        body: JSON.stringify({ rationale }),
+      },
+    );
     return;
   }
   await send(`/v1/plans/${encodeURIComponent(plan.id)}/cancel`, {
@@ -509,14 +665,20 @@ export async function listProductReleases(): Promise<ProductRelease[]> {
   return rows.flatMap((row) => {
     if (row === null || typeof row !== "object") return [];
     const record = row as Record<string, unknown>;
-    const product = typeof record["product"] === "string" ? record["product"] : "";
-    const releases = Array.isArray(record["releases"]) ? record["releases"] : [];
+    const product =
+      typeof record["product"] === "string" ? record["product"] : "";
+    const releases = Array.isArray(record["releases"])
+      ? record["releases"]
+      : [];
     return releases.flatMap((release) => {
       if (release === null || typeof release !== "object") return [];
       const item = release as Record<string, unknown>;
-      const version = typeof item["version"] === "string" ? item["version"] : "";
+      const version =
+        typeof item["version"] === "string" ? item["version"] : "";
       if (!product || !version) return [];
-      const channels = Array.isArray(item["channels"]) ? item["channels"].filter((channel) => typeof channel === "string") : [];
+      const channels = Array.isArray(item["channels"])
+        ? item["channels"].filter((channel) => typeof channel === "string")
+        : [];
       return [{ product, version, channels: channels as string[] }];
     });
   });
@@ -524,15 +686,23 @@ export async function listProductReleases(): Promise<ProductRelease[]> {
 
 export async function listPromotions(): Promise<PromotionEdge[]> {
   const body = await send("/v1/promotions?limit=20");
-  const rows = Array.isArray(body["promotions"]) ? body["promotions"] : Array.isArray(body["items"]) ? body["items"] : [];
+  const rows = Array.isArray(body["promotions"])
+    ? body["promotions"]
+    : Array.isArray(body["items"])
+      ? body["items"]
+      : [];
   return rows.flatMap((row) => {
     if (row === null || typeof row !== "object") return [];
     const record = row as Record<string, unknown>;
     const id = typeof record["id"] === "string" ? record["id"] : "";
-    const fromChannel = typeof record["fromChannel"] === "string" ? record["fromChannel"] : "";
-    const toChannel = typeof record["toChannel"] === "string" ? record["toChannel"] : "";
+    const fromChannel =
+      typeof record["fromChannel"] === "string" ? record["fromChannel"] : "";
+    const toChannel =
+      typeof record["toChannel"] === "string" ? record["toChannel"] : "";
     if (!id || !fromChannel || !toChannel) return [];
-    const reasons = Array.isArray(record["reasons"]) ? record["reasons"].filter((reason) => typeof reason === "string") : [];
+    const reasons = Array.isArray(record["reasons"])
+      ? record["reasons"].filter((reason) => typeof reason === "string")
+      : [];
     return [
       {
         id,

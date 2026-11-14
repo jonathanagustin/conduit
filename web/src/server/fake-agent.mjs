@@ -208,13 +208,22 @@ async function prompt(id, params) {
           name: "plan",
           kind: "other",
           status: "completed",
-          rawInput: { id: planId, status: "AWAITING_APPROVAL", environment: "lab", requiredApprovals: 1, approvalCount: 0 },
+          rawInput: {
+            id: planId,
+            status: "AWAITING_APPROVAL",
+            environment: "lab",
+            requiredApprovals: 1,
+            approvalCount: 0,
+          },
         },
       });
     }
     notify("session/update", {
       sessionId: params.sessionId,
-      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Opened the referenced record." } },
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: "Opened the referenced record." },
+      },
     });
     send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
     return;

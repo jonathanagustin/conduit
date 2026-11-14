@@ -110,7 +110,8 @@
 }
 
 .conduit-mono {
-  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-family:
+    "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
   font-size: 11.5px;
 }
 
@@ -363,10 +364,19 @@
   background: #2b3038;
 }
 
-.cd-gatecell[data-mark="ok"] { background: #32a467; }
-.cd-gatecell[data-mark="warn"] { background: #eab854; }
-.cd-gatecell[data-mark="bad"] { background: #e76a6e; }
-.cd-gatestrip[data-size="lg"] .cd-gatecell { width: 16px; height: 10px; }
+.cd-gatecell[data-mark="ok"] {
+  background: #32a467;
+}
+.cd-gatecell[data-mark="warn"] {
+  background: #eab854;
+}
+.cd-gatecell[data-mark="bad"] {
+  background: #e76a6e;
+}
+.cd-gatestrip[data-size="lg"] .cd-gatecell {
+  width: 16px;
+  height: 10px;
+}
 
 .cd-stepper,
 .cd-graph,
@@ -386,8 +396,12 @@
   font-size: 11px;
 }
 
-.cd-step[data-state="done"] { color: #5ad196; }
-.cd-step[data-state="current"] { color: #7cb4ff; }
+.cd-step[data-state="done"] {
+  color: #5ad196;
+}
+.cd-step[data-state="current"] {
+  color: #7cb4ff;
+}
 
 .cd-step-index {
   width: 16px;
@@ -435,9 +449,15 @@
   background: #2d72d2;
 }
 
-.cd-timeline-bar[data-tone="ok"] { background: #238551; }
-.cd-timeline-bar[data-tone="warn"] { background: #c87619; }
-.cd-timeline-bar[data-tone="bad"] { background: #cd4246; }
+.cd-timeline-bar[data-tone="ok"] {
+  background: #238551;
+}
+.cd-timeline-bar[data-tone="warn"] {
+  background: #c87619;
+}
+.cd-timeline-bar[data-tone="bad"] {
+  background: #cd4246;
+}
 
 .cd-facet {
   display: flex;
@@ -460,7 +480,9 @@
   text-transform: uppercase;
 }
 
-.cd-kv dd { margin: 0; }
+.cd-kv dd {
+  margin: 0;
+}
 
 .cd-board {
   display: grid;

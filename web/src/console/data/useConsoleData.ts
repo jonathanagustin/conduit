@@ -44,15 +44,25 @@ export function useConsoleData(runId: string) {
   const [releases, setReleases] = useState<ProductRelease[]>([]);
   const [promotions, setPromotions] = useState<PromotionEdge[]>([]);
   const [overview, setOverview] = useState<OverviewCounts | null>(null);
-  const [environmentDetail, setEnvironmentDetail] = useState<EnvironmentDetail | null>(null);
+  const [environmentDetail, setEnvironmentDetail] =
+    useState<EnvironmentDetail | null>(null);
   const [run, setRun] = useState<PackagingRun | null>(null);
   const [runs, setRuns] = useState<PackagingRun[]>([]);
   const [events, setEvents] = useState<StepEvent[]>([]);
   const [runError, setRunError] = useState("");
 
   const refresh = useCallback(async () => {
-    const [health, catalog, profileRows, planRows, requestRows, fleetRows, overviewRow, releaseRows, promotionRows] =
-      await Promise.allSettled([
+    const [
+      health,
+      catalog,
+      profileRows,
+      planRows,
+      requestRows,
+      fleetRows,
+      overviewRow,
+      releaseRows,
+      promotionRows,
+    ] = await Promise.allSettled([
       hubLive(),
       listEnvironments(),
       listProducts(),
@@ -69,7 +79,11 @@ export function useConsoleData(runId: string) {
       setError("");
     } else {
       setEnvironments([]);
-      setError(catalog.reason instanceof Error ? catalog.reason.message : "Hub is not answering");
+      setError(
+        catalog.reason instanceof Error
+          ? catalog.reason.message
+          : "Hub is not answering",
+      );
     }
     setProducts(profileRows.status === "fulfilled" ? profileRows.value : []);
     setPlans(planRows.status === "fulfilled" ? planRows.value : []);
@@ -77,8 +91,13 @@ export function useConsoleData(runId: string) {
     setFleet(fleetRows.status === "fulfilled" ? fleetRows.value : []);
     setOverview(overviewRow.status === "fulfilled" ? overviewRow.value : null);
     setReleases(releaseRows.status === "fulfilled" ? releaseRows.value : []);
-    setPromotions(promotionRows.status === "fulfilled" ? promotionRows.value : []);
-    const index = await listPackagingRuns().catch(() => ({ configured: false, items: [] as PackagingRun[] }));
+    setPromotions(
+      promotionRows.status === "fulfilled" ? promotionRows.value : [],
+    );
+    const index = await listPackagingRuns().catch(() => ({
+      configured: false,
+      items: [] as PackagingRun[],
+    }));
     setRuns(index.items);
   }, []);
 
@@ -97,7 +116,11 @@ export function useConsoleData(runId: string) {
       setEvents(await listPackagingEvents(id).catch(() => []));
     } catch (reason) {
       setRun(null);
-      setRunError(reason instanceof Error ? reason.message : "Packaging run is unavailable");
+      setRunError(
+        reason instanceof Error
+          ? reason.message
+          : "Packaging run is unavailable",
+      );
     }
   }, []);
 
@@ -111,7 +134,11 @@ export function useConsoleData(runId: string) {
   }, [runId, loadRun]);
 
   const decide = useCallback(
-    async (plan: PlanCard, verdict: "approve" | "reject", rationale: string) => {
+    async (
+      plan: PlanCard,
+      verdict: "approve" | "reject",
+      rationale: string,
+    ) => {
       if (verdict === "approve") await approvePlan(plan.id, rationale);
       else await rejectPlan(plan, rationale);
       await refresh();

@@ -37,7 +37,10 @@ export function Workbench({ dark }: { dark: boolean }) {
   }, [onAssistantMount]);
 
   return (
-    <div id="operator-root" className="operator-root bp6-dark flex h-full w-full flex-col overflow-hidden">
+    <div
+      id="operator-root"
+      className="operator-root bp6-dark flex h-full w-full flex-col overflow-hidden"
+    >
       {slot
         ? createPortal(
             <div className="flex h-full min-h-0 flex-col">

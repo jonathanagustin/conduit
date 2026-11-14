@@ -2,7 +2,14 @@ import { useState } from "react";
 import type { ReactNode } from "react";
 
 import type { PackagingRun, StepEvent } from "../../data/hub";
-import { DataTable, GraphView, KeyValue, RangeTimeline, SegmentedTabs, StatusChip } from "../base";
+import {
+  DataTable,
+  GraphView,
+  KeyValue,
+  RangeTimeline,
+  SegmentedTabs,
+  StatusChip,
+} from "../base";
 
 const TABS = [
   { id: "overview", label: "Overview" },
@@ -21,16 +28,25 @@ export function RunWorkspace({
   children: ReactNode;
 }) {
   const [tab, setTab] = useState<(typeof TABS)[number]["id"]>("overview");
-  const jobs = events.length > 0
-    ? events.map((event) => ({ id: String(event.sequence), name: event.step, status: event.outcome || "recorded" }))
-    : [
-        { id: "fetch", name: "Example fetch", status: "done" },
-        { id: "scan", name: "Example scan", status: "current" },
-        { id: "package", name: "Example package", status: "waiting" },
-      ];
+  const jobs =
+    events.length > 0
+      ? events.map((event) => ({
+          id: String(event.sequence),
+          name: event.step,
+          status: event.outcome || "recorded",
+        }))
+      : [
+          { id: "fetch", name: "Example fetch", status: "done" },
+          { id: "scan", name: "Example scan", status: "current" },
+          { id: "package", name: "Example package", status: "waiting" },
+        ];
   return (
     <div>
-      <SegmentedTabs tabs={TABS} current={tab} onSelect={(id) => setTab(id as (typeof TABS)[number]["id"])} />
+      <SegmentedTabs
+        tabs={TABS}
+        current={tab}
+        onSelect={(id) => setTab(id as (typeof TABS)[number]["id"])}
+      />
       {tab === "overview" ? children : null}
       {tab === "jobs" ? (
         <div>
@@ -38,13 +54,25 @@ export function RunWorkspace({
             rows={jobs.map((job, index) => ({
               id: job.id,
               label: job.name,
-              bars: [{ id: job.id, label: job.status, start: index * 0.12, end: Math.min(0.95, 0.2 + index * 0.12), tone: job.status === "done" ? "ok" : "info" }],
+              bars: [
+                {
+                  id: job.id,
+                  label: job.status,
+                  start: index * 0.12,
+                  end: Math.min(0.95, 0.2 + index * 0.12),
+                  tone: job.status === "done" ? "ok" : "info",
+                },
+              ],
             }))}
           />
           <DataTable
             density="compact"
             columns={["Job", "Status", "Source"]}
-            rows={jobs.map((job) => [job.name, job.status, events.length > 0 ? "Hub" : "Example"])}
+            rows={jobs.map((job) => [
+              job.name,
+              job.status,
+              events.length > 0 ? "Hub" : "Example",
+            ])}
           />
         </div>
       ) : null}
@@ -52,9 +80,24 @@ export function RunWorkspace({
         <DataTable
           density="compact"
           columns={["Step", "Level", "Message", "Source"]}
-          rows={(events.length > 0 ? events : [{ sequence: 1, at: "", step: "scan", outcome: "INFO", reason: "Example finding: no signed digest yet" }]).map((event) => [
+          rows={(events.length > 0
+            ? events
+            : [
+                {
+                  sequence: 1,
+                  at: "",
+                  step: "scan",
+                  outcome: "INFO",
+                  reason: "Example finding: no signed digest yet",
+                },
+              ]
+          ).map((event) => [
             event.step,
-            <StatusChip key={event.step} label={event.outcome || "INFO"} intent={event.outcome === "waiting" ? "warning" : "primary"} />,
+            <StatusChip
+              key={event.step}
+              label={event.outcome || "INFO"}
+              intent={event.outcome === "waiting" ? "warning" : "primary"}
+            />,
             event.reason || "—",
             events.length > 0 ? "Hub" : "Example",
           ])}
@@ -65,7 +108,10 @@ export function RunWorkspace({
           items={[
             { label: "Phase", value: run?.phase || "unknown" },
             { label: "Schedule", value: "Example · weekdays 02:00 UTC" },
-            { label: "Source", value: "Example. The run payload has no schedule." },
+            {
+              label: "Source",
+              value: "Example. The run payload has no schedule.",
+            },
           ]}
         />
       ) : null}
@@ -73,7 +119,15 @@ export function RunWorkspace({
   );
 }
 
-export function ArtifactLineage({ source, artifact, plan }: { source: string; artifact: string; plan: string }) {
+export function ArtifactLineage({
+  source,
+  artifact,
+  plan,
+}: {
+  source: string;
+  artifact: string;
+  plan: string;
+}) {
   return (
     <div>
       <GraphView
@@ -82,7 +136,10 @@ export function ArtifactLineage({ source, artifact, plan }: { source: string; ar
           { id: "artifact", label: artifact || "artifact" },
           { id: "plan", label: plan || "plan" },
         ]}
-        edges={[{ from: "source", to: "artifact" }, { from: "artifact", to: "plan" }]}
+        edges={[
+          { from: "source", to: "artifact" },
+          { from: "artifact", to: "plan" },
+        ]}
       />
       <KeyValue
         items={[

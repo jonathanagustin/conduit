@@ -1,6 +1,11 @@
 import type { ReactNode } from "react";
 
-import type { ChangeRequestCard, FleetRow, PackagingRun, PlanCard } from "../../data/hub";
+import type {
+  ChangeRequestCard,
+  FleetRow,
+  PackagingRun,
+  PlanCard,
+} from "../../data/hub";
 import { CONDUIT_ACTIONS } from "../../ontology";
 import {
   columnOf,
@@ -50,9 +55,22 @@ export function GateTag({ status }: { status: string }) {
   return <StatusTag gate={gate}>{gate}</StatusTag>;
 }
 
-export function EnvironmentCard({ id, reported }: { id: string; reported: boolean }) {
+export function EnvironmentCard({
+  id,
+  reported,
+}: {
+  id: string;
+  reported: boolean;
+}) {
   return (
-    <EntityCard title={id} meta={<StatusTag gate={reported ? "GO" : "CAUTION"}>{reported ? "in sync" : "no report"}</StatusTag>}>
+    <EntityCard
+      title={id}
+      meta={
+        <StatusTag gate={reported ? "GO" : "CAUTION"}>
+          {reported ? "in sync" : "no report"}
+        </StatusTag>
+      }
+    >
       <p className="conduit-muted">Environment from GET /v1/environments.</p>
     </EntityCard>
   );
@@ -60,7 +78,12 @@ export function EnvironmentCard({ id, reported }: { id: string; reported: boolea
 
 export function FleetTable({ rows }: { rows: readonly FleetRow[] }) {
   if (rows.length === 0) {
-    return <EmptyState title="No installations" detail="GET /v1/fleet/installations returned none." />;
+    return (
+      <EmptyState
+        title="No installations"
+        detail="GET /v1/fleet/installations returned none."
+      />
+    );
   }
   return (
     <DataTable
@@ -70,7 +93,9 @@ export function FleetTable({ rows }: { rows: readonly FleetRow[] }) {
         row.environment,
         row.product,
         row.health,
-        <StatusTag key={row.id} gate={fleetGate(row.health)}>{fleetGate(row.health)}</StatusTag>,
+        <StatusTag key={row.id} gate={fleetGate(row.health)}>
+          {fleetGate(row.health)}
+        </StatusTag>,
       ])}
     />
   );
@@ -79,17 +104,33 @@ export function FleetTable({ rows }: { rows: readonly FleetRow[] }) {
 export function ChangeRequestCard({ request }: { request: ChangeRequestCard }) {
   const blocked = !request.requirementsSatisfied;
   return (
-    <EntityCard title={request.title} meta={<StatusTag gate={blocked ? "NO-GO" : "CAUTION"}>{request.status}</StatusTag>}>
-      <p className="conduit-muted">{request.environment} · {request.author || "unknown author"}</p>
-      {blocked ? <p>Blocked until reviewer requirements are satisfied.</p> : null}
+    <EntityCard
+      title={request.title}
+      meta={
+        <StatusTag gate={blocked ? "NO-GO" : "CAUTION"}>
+          {request.status}
+        </StatusTag>
+      }
+    >
+      <p className="conduit-muted">
+        {request.environment} · {request.author || "unknown author"}
+      </p>
+      {blocked ? (
+        <p>Blocked until reviewer requirements are satisfied.</p>
+      ) : null}
     </EntityCard>
   );
 }
 
 export function RunCard({ run }: { run: PackagingRun }) {
   return (
-    <EntityCard title={run.runId || "Packaging run"} meta={<StatusTag gate={runGate(run)}>{runGate(run)}</StatusTag>}>
-      <p className="conduit-muted">{run.configured ? run.phase || "configured" : "configured: false"}</p>
+    <EntityCard
+      title={run.runId || "Packaging run"}
+      meta={<StatusTag gate={runGate(run)}>{runGate(run)}</StatusTag>}
+    >
+      <p className="conduit-muted">
+        {run.configured ? run.phase || "configured" : "configured: false"}
+      </p>
       {run.planId ? <p>Plan {run.planId}</p> : null}
     </EntityCard>
   );
@@ -98,8 +139,12 @@ export function RunCard({ run }: { run: PackagingRun }) {
 export function PlanCardView({ plan }: { plan: PlanCard }) {
   return (
     <EntityCard title={plan.id} meta={<GateTag status={plan.status} />}>
-      <p className="conduit-muted">{plan.environment || "no environment"} · {plan.status}</p>
-      <p>{plan.approvalCount}/{plan.requiredApprovals} approved</p>
+      <p className="conduit-muted">
+        {plan.environment || "no environment"} · {plan.status}
+      </p>
+      <p>
+        {plan.approvalCount}/{plan.requiredApprovals} approved
+      </p>
     </EntityCard>
   );
 }
@@ -116,7 +161,12 @@ export function PackagingRunList({
   return (
     <div>
       {runs.map((run) => (
-        <button key={run.id} type="button" aria-current={run.id === selected ? "true" : undefined} onClick={() => onSelect(run.id)}>
+        <button
+          key={run.id}
+          type="button"
+          aria-current={run.id === selected ? "true" : undefined}
+          onClick={() => onSelect(run.id)}
+        >
           {run.id}
           <span className="conduit-muted"> {run.phase}</span>
         </button>
@@ -134,11 +184,18 @@ export function PackagingRunDetail({
   error: string;
   onReload: () => void;
 }) {
-  if (error) return <ErrorState title="Packaging run unavailable" detail={error} />;
-  if (!run) return <EmptyState title="No run loaded" detail="Enter a run id and load it." />;
+  if (error)
+    return <ErrorState title="Packaging run unavailable" detail={error} />;
+  if (!run)
+    return (
+      <EmptyState title="No run loaded" detail="Enter a run id and load it." />
+    );
   const marks = stageMarks(run.configured ? run.phase : undefined);
   const stepsDone = marks.filter((mark) => mark === "done").length;
-  const validationPassed = run.phase === "review" || run.phase === "handoff" || run.phase === "complete";
+  const validationPassed =
+    run.phase === "review" ||
+    run.phase === "handoff" ||
+    run.phase === "complete";
   const checks = handoffChecklist({
     validationPassed,
     approvalCount: run.lastReview === "accepted" ? 1 : 0,
@@ -148,23 +205,40 @@ export function PackagingRunDetail({
   });
   return (
     <div>
-      <PageHeader title={run.runId || "Packaging run"} detail={run.configured ? "GET /v1/packaging-runs" : "configured: false"} />
+      <PageHeader
+        title={run.runId || "Packaging run"}
+        detail={run.configured ? "GET /v1/packaging-runs" : "configured: false"}
+      />
       <div className="conduit-row">
-        <StatusTag gate={runGate(run)}>{run.configured ? run.phase || "configured" : "not configured"}</StatusTag>
-        <button type="button" onClick={onReload}>Load</button>
+        <StatusTag gate={runGate(run)}>
+          {run.configured ? run.phase || "configured" : "not configured"}
+        </StatusTag>
+        <button type="button" onClick={onReload}>
+          Load
+        </button>
       </div>
       {!run.configured ? (
-        <ErrorState title="Worker not configured" detail="This Hub has no packaging worker. The route answered configured: false." />
+        <ErrorState
+          title="Worker not configured"
+          detail="This Hub has no packaging worker. The route answered configured: false."
+        />
       ) : null}
       <div className="conduit-kpi">
-        <Stat label="Status" value={run.phase || (run.configured ? "unknown" : "off")} />
+        <Stat
+          label="Status"
+          value={run.phase || (run.configured ? "unknown" : "off")}
+        />
         <Stat label="Steps done" value={`${stepsDone}/${marks.length}`} />
         <Stat label="Duration" value="—" />
         <Stat label="Trigger" value={run.proposalRevision || "—"} />
       </div>
       <div className="conduit-stages">
         {PACKAGING_STAGES.map((stage, index) => (
-          <EntityCard key={stage.id} title={stage.label} meta={<StatusTag>{marks[index]}</StatusTag>}>
+          <EntityCard
+            key={stage.id}
+            title={stage.label}
+            meta={<StatusTag>{marks[index]}</StatusTag>}
+          >
             {marks[index] === "current" ? (
               <div>
                 {run.sourceDigest ? <StatusTag>source</StatusTag> : null}
@@ -182,18 +256,44 @@ export function PackagingRunDetail({
           mark: marks[index] ?? "waiting",
         }))}
       />
-      <TaskList tasks={run.planId ? [{ id: "plan", label: `Plan ${run.planId}`, status: run.phase || "" }] : []} />
-      <OutputPane text={[run.reason, run.outcome, run.sourceDigest].filter(Boolean).join("\n")} />
+      <TaskList
+        tasks={
+          run.planId
+            ? [
+                {
+                  id: "plan",
+                  label: `Plan ${run.planId}`,
+                  status: run.phase || "",
+                },
+              ]
+            : []
+        }
+      />
+      <OutputPane
+        text={[run.reason, run.outcome, run.sourceDigest]
+          .filter(Boolean)
+          .join("\n")}
+      />
       <RequirementChecklist items={checks} />
       <ConstraintRow
         label="Handoff"
         passed={checks.every((item) => item.passed)}
-        reason={checks.find((item) => !item.passed)?.detail ?? "Every merge requirement passed."}
+        reason={
+          checks.find((item) => !item.passed)?.detail ??
+          "Every merge requirement passed."
+        }
       />
       <ImpactSummary
-        lines={[run.planId ? `Plan ${run.planId}` : "", run.artifactDigest ? "Artifact digest is present." : ""].filter(Boolean)}
+        lines={[
+          run.planId ? `Plan ${run.planId}` : "",
+          run.artifactDigest ? "Artifact digest is present." : "",
+        ].filter(Boolean)}
       />
-      <AuditRail title="Audit" lines={runAudit(run)} empty="No events on this route. An event timeline is not invented." />
+      <AuditRail
+        title="Audit"
+        lines={runAudit(run)}
+        empty="No events on this route. An event timeline is not invented."
+      />
     </div>
   );
 }
@@ -207,13 +307,24 @@ function Stat({ label, value }: { label: string; value: string }) {
   );
 }
 
-export function PlanTable({ plans, onSelect }: { plans: readonly PlanCard[]; onSelect: (id: string) => void }) {
-  if (plans.length === 0) return <EmptyState title="No plans" detail="GET /v1/plans returned none." />;
+export function PlanTable({
+  plans,
+  onSelect,
+}: {
+  plans: readonly PlanCard[];
+  onSelect: (id: string) => void;
+}) {
+  if (plans.length === 0)
+    return (
+      <EmptyState title="No plans" detail="GET /v1/plans returned none." />
+    );
   return (
     <DataTable
       columns={["Plan", "Environment", "Status", "Gate", "Approvals"]}
       rows={plans.map((plan) => [
-        <button key={plan.id} type="button" onClick={() => onSelect(plan.id)}>{plan.id}</button>,
+        <button key={plan.id} type="button" onClick={() => onSelect(plan.id)}>
+          {plan.id}
+        </button>,
         plan.environment,
         plan.status,
         <GateTag key={`${plan.id}-gate`} status={plan.status} />,
@@ -224,7 +335,13 @@ export function PlanTable({ plans, onSelect }: { plans: readonly PlanCard[]; onS
 }
 
 export function PlanDetail({ plan }: { plan: PlanCard | null }) {
-  if (!plan) return <EmptyState title="No plan selected" detail="Choose a plan from the table or the board." />;
+  if (!plan)
+    return (
+      <EmptyState
+        title="No plan selected"
+        detail="Choose a plan from the table or the board."
+      />
+    );
   const checks = handoffChecklist({
     validationPassed: plan.status !== "FAILED",
     approvalCount: plan.approvalCount,
@@ -234,10 +351,23 @@ export function PlanDetail({ plan }: { plan: PlanCard | null }) {
   });
   return (
     <div>
-      <PageHeader title={plan.id} detail={plan.environment || "no environment"} />
-      <GateStrip total={Math.max(plan.requiredApprovals, 1)} ok={plan.approvalCount} bad={plan.status === "FAILED" ? 1 : 0} size="lg" />
+      <PageHeader
+        title={plan.id}
+        detail={plan.environment || "no environment"}
+      />
+      <GateStrip
+        total={Math.max(plan.requiredApprovals, 1)}
+        ok={plan.approvalCount}
+        bad={plan.status === "FAILED" ? 1 : 0}
+        size="lg"
+      />
       <PlanCardView plan={plan} />
-      {plan.lease ? <p>Lease attempt {plan.lease.attempt ?? "?"}{plan.lease.expiresAt ? ` until ${plan.lease.expiresAt}` : ""}</p> : null}
+      {plan.lease ? (
+        <p>
+          Lease attempt {plan.lease.attempt ?? "?"}
+          {plan.lease.expiresAt ? ` until ${plan.lease.expiresAt}` : ""}
+        </p>
+      ) : null}
       <TaskList
         tasks={(plan.execution?.tasks ?? []).map((task, index) => ({
           id: String(index),
@@ -272,16 +402,33 @@ export function ApprovalInbox({
     <div>
       <div className="conduit-row">
         {(["inbox", "mine", "all"] as const).map((item) => (
-          <button key={item} type="button" aria-pressed={filter === item} onClick={() => onFilter(item)}>
-            {item === "inbox" ? "Inbox" : item === "mine" ? "Created by you" : "All"}
+          <button
+            key={item}
+            type="button"
+            aria-pressed={filter === item}
+            onClick={() => onFilter(item)}
+          >
+            {item === "inbox"
+              ? "Inbox"
+              : item === "mine"
+                ? "Created by you"
+                : "All"}
           </button>
         ))}
       </div>
       {filter === "mine" ? (
-        <EmptyState title="Created by you" detail="The plan list does not include the author, so this inbox stays empty rather than guessing." />
+        <EmptyState
+          title="Created by you"
+          detail="The plan list does not include the author, so this inbox stays empty rather than guessing."
+        />
       ) : null}
       {visible.map((plan) => (
-        <button key={plan.id} type="button" aria-current={plan.id === selected ? "true" : undefined} onClick={() => onSelect(plan.id)}>
+        <button
+          key={plan.id}
+          type="button"
+          aria-current={plan.id === selected ? "true" : undefined}
+          onClick={() => onSelect(plan.id)}
+        >
           {plan.id} {plan.status}
         </button>
       ))}
@@ -304,7 +451,13 @@ export function ApprovalDetail({
   onApprove: () => void;
   onReject: () => void;
 }) {
-  if (!plan) return <EmptyState title="No request selected" detail="Choose a plan that needs approval." />;
+  if (!plan)
+    return (
+      <EmptyState
+        title="No request selected"
+        detail="Choose a plan that needs approval."
+      />
+    );
   const timeline = [
     { id: "created", text: `${plan.id} is ${plan.status}` },
     ...Array.from({ length: plan.approvalCount }, (_, index) => ({
@@ -314,35 +467,70 @@ export function ApprovalDetail({
   ].reverse();
   return (
     <div>
-      <PageHeader title={plan.id} detail={`${plan.approvalCount}/${plan.requiredApprovals} approved`} />
+      <PageHeader
+        title={plan.id}
+        detail={`${plan.approvalCount}/${plan.requiredApprovals} approved`}
+      />
       <ConstraintRow
         label="Approval"
         passed={!blocked}
         reason={
           blocked
-            ? (CONDUIT_ACTIONS.find((action) => action.actionId === "approve_plan")?.blockingRule ?? "")
+            ? (CONDUIT_ACTIONS.find(
+                (action) => action.actionId === "approve_plan",
+              )?.blockingRule ?? "")
             : "Requirements on this request are satisfied."
         }
       />
-      <p className="conduit-muted">Justification: write the operational purpose. This text is stored as the decision rationale.</p>
+      <p className="conduit-muted">
+        Justification: write the operational purpose. This text is stored as the
+        decision rationale.
+      </p>
       <Checklist
         items={[
-          { id: "purpose", label: "Purpose recorded", passed: rationale.trim().length > 0, detail: "The rationale field is the justification." },
-          { id: "requirements", label: "Requirements clear", passed: !blocked, detail: "A blocked requirement stops approval." },
-          { id: "reviewer", label: "Reviewer identity", passed: true, detail: "The plan list has no author, so authorship is not invented." },
+          {
+            id: "purpose",
+            label: "Purpose recorded",
+            passed: rationale.trim().length > 0,
+            detail: "The rationale field is the justification.",
+          },
+          {
+            id: "requirements",
+            label: "Requirements clear",
+            passed: !blocked,
+            detail: "A blocked requirement stops approval.",
+          },
+          {
+            id: "reviewer",
+            label: "Reviewer identity",
+            passed: true,
+            detail:
+              "The plan list has no author, so authorship is not invented.",
+          },
         ]}
       />
       <label>
         Rationale
-        <input aria-label="Decision rationale" value={rationale} onChange={(event) => onRationale(event.target.value)} />
+        <input
+          aria-label="Decision rationale"
+          value={rationale}
+          onChange={(event) => onRationale(event.target.value)}
+        />
       </label>
       <div className="conduit-row">
         {blocked ? (
-          <DisabledWithReason reason="Blocked until reviewer requirements are satisfied." label="Approve" />
+          <DisabledWithReason
+            reason="Blocked until reviewer requirements are satisfied."
+            label="Approve"
+          />
         ) : (
-          <button type="button" onClick={onApprove}>Approve</button>
+          <button type="button" onClick={onApprove}>
+            Approve
+          </button>
         )}
-        <button type="button" onClick={onReject}>Reject</button>
+        <button type="button" onClick={onReject}>
+          Reject
+        </button>
       </div>
       <ActivityTimeline items={timeline} />
     </div>
@@ -350,7 +538,16 @@ export function ApprovalDetail({
 }
 
 export { ArtifactLineage, RunWorkspace } from "./run-workspace";
-export { BundlePreview, ChangeRequestReview, EnvironmentPage, FailedPlanDetail, PromotionReview, ReleaseDetail, ReleasePacket, ReleaseRollout } from "./release";
+export {
+  BundlePreview,
+  ChangeRequestReview,
+  EnvironmentPage,
+  FailedPlanDetail,
+  PromotionReview,
+  ReleaseDetail,
+  ReleasePacket,
+  ReleaseRollout,
+} from "./release";
 
 export function PlanBoard({
   plans,
@@ -373,7 +570,9 @@ export function PlanBoard({
       columnOf={(plan) => columnOf(plan.status)}
       renderCard={(plan) => (
         <EntityCard title={plan.id} meta={<GateTag status={plan.status} />}>
-          <button type="button" onClick={() => onSelect(plan.id)}>Open</button>
+          <button type="button" onClick={() => onSelect(plan.id)}>
+            Open
+          </button>
           {renderActions(plan)}
         </EntityCard>
       )}

@@ -11,7 +11,9 @@ import { defineConfig, devices } from "@playwright/test";
 // Hub being up.
 const baseURL = process.env["CONDUIT_HUB_URL"];
 if (baseURL === undefined || baseURL === "") {
-  throw new Error("CONDUIT_HUB_URL is required; run scripts/simulate-console.sh rather than this config directly");
+  throw new Error(
+    "CONDUIT_HUB_URL is required; run scripts/simulate-console.sh rather than this config directly",
+  );
 }
 
 export default defineConfig({

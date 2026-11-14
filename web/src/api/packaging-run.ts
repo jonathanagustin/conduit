@@ -1,5 +1,10 @@
 import { create } from "@bufbuild/protobuf";
-import { Code, ConnectError, createClient, type Transport } from "@connectrpc/connect";
+import {
+  Code,
+  ConnectError,
+  createClient,
+  type Transport,
+} from "@connectrpc/connect";
 
 export type { Transport };
 import { createConnectTransport } from "@connectrpc/connect-web";
@@ -50,7 +55,10 @@ export type PackagingRunState =
   | { status: "ready"; detail: PackagingRunDetail }
   | { status: "error"; error: PackagingRunError };
 
-export function packagingRunTransport(baseUrl: string, fetchImpl?: typeof fetch): Transport {
+export function packagingRunTransport(
+  baseUrl: string,
+  fetchImpl?: typeof fetch,
+): Transport {
   return createConnectTransport({
     baseUrl,
     useBinaryFormat: false,
@@ -65,16 +73,22 @@ export async function fetchPackagingRunDetail(
 ): Promise<PackagingRunDetail> {
   const client = createClient(PackagingRunService, transport);
   try {
-    const response = await client.getPackagingRun(create(GetPackagingRunRequestSchema, { runId }), {
-      signal,
-    });
+    const response = await client.getPackagingRun(
+      create(GetPackagingRunRequestSchema, { runId }),
+      {
+        signal,
+      },
+    );
     return toDetail(response);
   } catch (error) {
     throw asPackagingRunError(error);
   }
 }
 
-export function usePackagingRunDetail(runId: string, transport?: Transport): PackagingRunState {
+export function usePackagingRunDetail(
+  runId: string,
+  transport?: Transport,
+): PackagingRunState {
   const [state, setState] = useState<PackagingRunState>({ status: "loading" });
   useEffect(() => {
     const active = transport ?? packagingRunTransport(window.location.origin);
@@ -121,7 +135,8 @@ function toDetail(response: GetPackagingRunResponse): PackagingRunDetail {
 
 export function asPackagingRunError(error: unknown): PackagingRunError {
   if (error instanceof PackagingRunError) return error;
-  if (error instanceof ConnectError) return new PackagingRunError(statusForCode(error.code), error.message);
+  if (error instanceof ConnectError)
+    return new PackagingRunError(statusForCode(error.code), error.message);
   if (error instanceof Error && error.name === "AbortError") {
     return new PackagingRunError(499, error.message);
   }

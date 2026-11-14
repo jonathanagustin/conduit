@@ -27,7 +27,9 @@ import type { FullConfig } from "@playwright/test";
 export default async function globalSetup(config: FullConfig): Promise<void> {
   const baseURL = config.projects[0]?.use.baseURL;
   if (baseURL === undefined) {
-    throw new Error("global setup expected a baseURL to check the served build against");
+    throw new Error(
+      "global setup expected a baseURL to check the served build against",
+    );
   }
 
   // The same default vite.config.ts resolves, from the same directory, so the

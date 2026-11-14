@@ -1,6 +1,9 @@
 import { createBridge } from "./http.ts";
 
-const port = Number.parseInt(process.env["ASSISTANT_BRIDGE_PORT"] ?? "8787", 10);
+const port = Number.parseInt(
+  process.env["ASSISTANT_BRIDGE_PORT"] ?? "8787",
+  10,
+);
 const bridge = await createBridge({ port });
 console.log(`assistant bridge listening on http://127.0.0.1:${bridge.port}`);
 console.log(`workspace ${bridge.workspace}`);

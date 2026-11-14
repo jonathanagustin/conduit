@@ -6,7 +6,9 @@ import { PlanCardView, RunCard } from "./components/domain";
 import type { PackagingRun, PlanCard } from "./data/hub";
 
 function record(value: unknown): Record<string, unknown> {
-  return value !== null && typeof value === "object" ? (value as Record<string, unknown>) : {};
+  return value !== null && typeof value === "object"
+    ? (value as Record<string, unknown>)
+    : {};
 }
 
 const PackagingRunTool = makeAssistantToolUI<Record<string, unknown>, unknown>({
@@ -15,9 +17,15 @@ const PackagingRunTool = makeAssistantToolUI<Record<string, unknown>, unknown>({
     const fields = record(args);
     const run: PackagingRun = {
       configured: fields["configured"] !== false,
-      ...(typeof fields["runId"] === "string" ? { runId: fields["runId"] } : {}),
-      ...(typeof fields["phase"] === "string" ? { phase: fields["phase"] } : {}),
-      ...(typeof fields["planId"] === "string" ? { planId: fields["planId"] } : {}),
+      ...(typeof fields["runId"] === "string"
+        ? { runId: fields["runId"] }
+        : {}),
+      ...(typeof fields["phase"] === "string"
+        ? { phase: fields["phase"] }
+        : {}),
+      ...(typeof fields["planId"] === "string"
+        ? { planId: fields["planId"] }
+        : {}),
     };
     return <RunCard run={run} />;
   },
@@ -29,11 +37,21 @@ const PlanTool = makeAssistantToolUI<Record<string, unknown>, unknown>({
     const fields = record(args);
     const plan: PlanCard = {
       id: typeof fields["id"] === "string" ? fields["id"] : "plan",
-      environment: typeof fields["environment"] === "string" ? fields["environment"] : "",
-      status: typeof fields["status"] === "string" ? fields["status"] : "AWAITING_APPROVAL",
+      environment:
+        typeof fields["environment"] === "string" ? fields["environment"] : "",
+      status:
+        typeof fields["status"] === "string"
+          ? fields["status"]
+          : "AWAITING_APPROVAL",
       stepCount: 0,
-      approvalCount: typeof fields["approvalCount"] === "number" ? fields["approvalCount"] : 0,
-      requiredApprovals: typeof fields["requiredApprovals"] === "number" ? fields["requiredApprovals"] : 1,
+      approvalCount:
+        typeof fields["approvalCount"] === "number"
+          ? fields["approvalCount"]
+          : 0,
+      requiredApprovals:
+        typeof fields["requiredApprovals"] === "number"
+          ? fields["requiredApprovals"]
+          : 1,
     };
     return <PlanCardView plan={plan} />;
   },

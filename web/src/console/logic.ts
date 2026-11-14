@@ -21,12 +21,21 @@ export type StageMark = "done" | "current" | "waiting";
 
 const ORDER = PACKAGING_STAGES.map((stage) => stage.id);
 
-export function healthShares(rows: readonly { health: string }[]): { ok: number; bad: number; other: number } {
+export function healthShares(rows: readonly { health: string }[]): {
+  ok: number;
+  bad: number;
+  other: number;
+} {
   let ok = 0;
   let bad = 0;
   for (const row of rows) {
     if (row.health === "HEALTHY") ok += 1;
-    else if (row.health === "UNHEALTHY" || row.health === "ERROR" || row.health === "TERMINAL") bad += 1;
+    else if (
+      row.health === "UNHEALTHY" ||
+      row.health === "ERROR" ||
+      row.health === "TERMINAL"
+    )
+      bad += 1;
   }
   return { ok, bad, other: rows.length - ok - bad };
 }
@@ -50,7 +59,8 @@ export function runGate(run: {
   outcome?: string;
 }): Gate {
   if (!run.configured) return "CAUTION";
-  if (run.phase === "complete" || run.outcome === "HANDOFF_RECORDED") return "GO";
+  if (run.phase === "complete" || run.outcome === "HANDOFF_RECORDED")
+    return "GO";
   if (
     run.phase === "blocked" ||
     run.outcome === "REJECTED" ||
@@ -63,7 +73,11 @@ export function runGate(run: {
 
 export function fleetGate(health: string): Gate {
   if (health === "HEALTHY") return "GO";
-  if (health === "WARNING" || health === "UNKNOWN" || health === "INDETERMINATE") {
+  if (
+    health === "WARNING" ||
+    health === "UNKNOWN" ||
+    health === "INDETERMINATE"
+  ) {
     return "CAUTION";
   }
   return "NO-GO";
@@ -89,7 +103,9 @@ export function stageMarks(phase: string | undefined): StageMark[] {
   if (phase === "complete") return PACKAGING_STAGES.map(() => "done");
   const at = (ORDER as readonly string[]).indexOf(phase ?? "");
   if (phase === "blocked") {
-    return PACKAGING_STAGES.map((_, index) => (index === 0 ? "current" : "waiting"));
+    return PACKAGING_STAGES.map((_, index) =>
+      index === 0 ? "current" : "waiting",
+    );
   }
   if (at < 0) return PACKAGING_STAGES.map(() => "waiting");
   return PACKAGING_STAGES.map((_, index) => {
@@ -119,7 +135,9 @@ export function handoffChecklist(input: {
       id: "validation",
       label: "Validation passed",
       passed: input.validationPassed,
-      detail: input.validationPassed ? "Build and validate reported success." : "Validation has not passed.",
+      detail: input.validationPassed
+        ? "Build and validate reported success."
+        : "Validation has not passed.",
     },
     {
       id: "approvals",
@@ -131,7 +149,10 @@ export function handoffChecklist(input: {
       id: "rejections",
       label: "No rejections",
       passed: input.rejections === 0,
-      detail: input.rejections === 0 ? "No rejection is recorded." : `${input.rejections} rejection(s)`,
+      detail:
+        input.rejections === 0
+          ? "No rejection is recorded."
+          : `${input.rejections} rejection(s)`,
     },
     {
       id: "before-handoff",
@@ -154,10 +175,14 @@ export function runAudit(run: {
 }): AuditLine[] {
   if (!run.configured) return [];
   const lines: AuditLine[] = [];
-  if (run.phase) lines.push({ id: "phase", at: "", text: `Phase ${run.phase}` });
-  if (run.outcome) lines.push({ id: "outcome", at: "", text: `Outcome ${run.outcome}` });
+  if (run.phase)
+    lines.push({ id: "phase", at: "", text: `Phase ${run.phase}` });
+  if (run.outcome)
+    lines.push({ id: "outcome", at: "", text: `Outcome ${run.outcome}` });
   if (run.reason) lines.push({ id: "reason", at: "", text: run.reason });
-  if (run.lastReview) lines.push({ id: "review", at: "", text: `Last review ${run.lastReview}` });
-  if (run.planId) lines.push({ id: "plan", at: "", text: `Plan ${run.planId}` });
+  if (run.lastReview)
+    lines.push({ id: "review", at: "", text: `Last review ${run.lastReview}` });
+  if (run.planId)
+    lines.push({ id: "plan", at: "", text: `Plan ${run.planId}` });
   return lines.reverse();
 }

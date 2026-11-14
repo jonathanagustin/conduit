@@ -6,15 +6,25 @@ import { defineConfig, devices } from "@playwright/test";
 // server. See issue #270.
 const derivedPort =
   20_000 +
-  (createHash("sha256").update(fileURLToPath(import.meta.url)).digest().readUInt32BE(0) % 10_000);
-const PORT = Number.parseInt(process.env["CONSOLE_TEST_PORT"] ?? String(derivedPort), 10);
+  (createHash("sha256")
+    .update(fileURLToPath(import.meta.url))
+    .digest()
+    .readUInt32BE(0) %
+    10_000);
+const PORT = Number.parseInt(
+  process.env["CONSOLE_TEST_PORT"] ?? String(derivedPort),
+  10,
+);
 
 export default defineConfig({
   testDir: "./src/test/e2e",
   globalSetup: "./src/test/e2e/global-setup.ts",
   retries: 0,
   fullyParallel: true,
-  reporter: process.env["CI"] === undefined ? "list" : [["list"], ["html", { open: "never" }]],
+  reporter:
+    process.env["CI"] === undefined
+      ? "list"
+      : [["list"], ["html", { open: "never" }]],
   use: {
     baseURL: `http://127.0.0.1:${PORT}/console/`,
     trace: "retain-on-failure",

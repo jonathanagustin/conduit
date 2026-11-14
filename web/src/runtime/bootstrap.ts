@@ -27,7 +27,11 @@ export interface ConsoleBootstrap {
 
 export function parseRuntimeBootstrap(input: unknown): ConsoleBootstrap {
   const root = record(input, "bootstrap");
-  exactKeys(root, ["brand", "provenance", "schemaVersion", "tenant"], "bootstrap");
+  exactKeys(
+    root,
+    ["brand", "provenance", "schemaVersion", "tenant"],
+    "bootstrap",
+  );
   if (root.schemaVersion !== BOOTSTRAP_SCHEMA_VERSION) {
     throw new Error("unsupported console bootstrap schema");
   }
@@ -53,11 +57,17 @@ export function parseRuntimeBootstrap(input: unknown): ConsoleBootstrap {
   const provenance = record(root.provenance, "provenance");
   exactKeys(provenance, ["claimClass", "evidenceRef"], "provenance");
   const claimClass = text(provenance.claimClass, "claim class", 32);
-  if (claimClass !== "tenant-observation" && claimClass !== "conduit-extension") {
+  if (
+    claimClass !== "tenant-observation" &&
+    claimClass !== "conduit-extension"
+  ) {
     throw new Error("bootstrap claim class is not allowed");
   }
   const evidenceRef = text(provenance.evidenceRef, "evidence reference", 512);
-  validateEvidenceRef(evidenceRef, claimClass === "tenant-observation" ? "evidence:" : "conduit:");
+  validateEvidenceRef(
+    evidenceRef,
+    claimClass === "tenant-observation" ? "evidence:" : "conduit:",
+  );
 
   return {
     schemaVersion: BOOTSTRAP_SCHEMA_VERSION,
@@ -99,10 +109,14 @@ export const BOOTSTRAP_META_NAME = "x-conduit-console-bootstrap";
  * ParentNode on purpose: it keeps the reader testable without a DOM, and it
  * states that reading one meta is the entire coupling to the page. */
 export interface BootstrapShell {
-  querySelector(selectors: string): { getAttribute(name: string): string | null } | null;
+  querySelector(
+    selectors: string,
+  ): { getAttribute(name: string): string | null } | null;
 }
 
-export function loadRuntimeBootstrap(shell: BootstrapShell = document): ConsoleBootstrap {
+export function loadRuntimeBootstrap(
+  shell: BootstrapShell = document,
+): ConsoleBootstrap {
   const meta = shell.querySelector(`meta[name="${BOOTSTRAP_META_NAME}"]`);
   if (meta === null) {
     throw new Error("the console shell carries no tenant bootstrap");
@@ -121,16 +135,27 @@ function record(value: unknown, name: string): Record<string, unknown> {
   return value as Record<string, unknown>;
 }
 
-function exactKeys(value: Record<string, unknown>, expected: readonly string[], name: string): void {
+function exactKeys(
+  value: Record<string, unknown>,
+  expected: readonly string[],
+  name: string,
+): void {
   const actual = Object.keys(value).sort();
   const wanted = [...expected].sort();
-  if (actual.length !== wanted.length || actual.some((key, index) => key !== wanted[index])) {
+  if (
+    actual.length !== wanted.length ||
+    actual.some((key, index) => key !== wanted[index])
+  ) {
     throw new Error(`${name} has unknown or missing fields`);
   }
 }
 
 function text(value: unknown, name: string, maximum: number): string {
-  if (typeof value !== "string" || value.length === 0 || value.trim() !== value) {
+  if (
+    typeof value !== "string" ||
+    value.length === 0 ||
+    value.trim() !== value
+  ) {
     throw new Error(`${name} must be a non-empty canonical string`);
   }
   if ([...value].length > maximum) {
@@ -144,12 +169,17 @@ function text(value: unknown, name: string, maximum: number): string {
     lower.startsWith("data:") ||
     [...value].some((character) => /\p{Cc}/u.test(character))
   ) {
-    throw new Error(`${name} contains executable markup, a URI scheme, or a control character`);
+    throw new Error(
+      `${name} contains executable markup, a URI scheme, or a control character`,
+    );
   }
   return value;
 }
 
-function validateEvidenceRef(value: string, protocol: "evidence:" | "conduit:"): void {
+function validateEvidenceRef(
+  value: string,
+  protocol: "evidence:" | "conduit:",
+): void {
   let parsed: URL;
   try {
     parsed = new URL(value);
@@ -167,6 +197,8 @@ function validateEvidenceRef(value: string, protocol: "evidence:" | "conduit:"):
     parsed.href !== value ||
     /\s/u.test(value)
   ) {
-    throw new Error(`evidence reference must be a canonical ${protocol}// coordinate`);
+    throw new Error(
+      `evidence reference must be a canonical ${protocol}// coordinate`,
+    );
   }
 }
