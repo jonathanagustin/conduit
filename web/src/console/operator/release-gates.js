@@ -1,4 +1,5 @@
-/* Example release-gate screens. Fixture rows, not live Hub records. */
+/* Release-gate screens. Recalls and the proposal trace read the Hub. */
+import { renderLiveProposal } from "./live-hub.js";
 
 function esc(value) {
   return String(value)
@@ -274,6 +275,10 @@ export function createReleaseGates(ctx) {
   }
 
   function renderRecalls(root) {
+    if (state.liveHub) {
+      state.liveHub.renderRecall(root);
+      return;
+    }
     const endDisabled =
       state.recallMode === "SINGLE" || state.recallMode === "OPEN_ENDED";
     const endLabel =
@@ -457,6 +462,7 @@ export function createReleaseGates(ctx) {
     const preview = state.stagedEdits.slice(0, 6);
     root.innerHTML = `
       <div class="space-y-2.5 flex flex-col">
+        <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
         ${ctx.rmApiStrip("EXAMPLE", "Per-channel ramp window and cohort pacing", "ConduitReleaseChannel")}
         ${sectionCard(
           `Ramp window · edge-cohorts`,
@@ -549,6 +555,8 @@ export function createReleaseGates(ctx) {
   }
 
   function renderTerminal(root) {
+    root.innerHTML = `<div class="so-view-enter"><div class="so-panel p-4 text-[13px] text-white">session brokering not implemented</div></div>`;
+    return;
     const granted = state.accessStatus === "Granted (30m)";
     const profiles = [
       ["conduit-default-shell:6.2", "conduit-default-shell:6.2 (built in)"],
@@ -632,6 +640,7 @@ export function createReleaseGates(ctx) {
   }
 
   function renderTrace(root) {
+    if (renderLiveProposal(root, state)) return;
     const blocks = [
       {
         id: "input",
@@ -668,6 +677,7 @@ export function createReleaseGates(ctx) {
     };
     root.innerHTML = `
       <div class="space-y-2.5 h-full flex flex-col">
+        <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
         ${ctx.rmApiStrip("EXAMPLE", "Step-by-step tool trace for a proposed change", "ConduitChangeRequest")}
         ${
           state.traceBanner
@@ -827,6 +837,7 @@ export function createReleaseGates(ctx) {
     ];
     root.innerHTML = `
       <div class="space-y-3 flex flex-col">
+        <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
         ${ctx.rmApiStrip("EXAMPLE", "Staged proposals awaiting review, and eval results", "ConduitPlan")}
         <div class="so-panel p-3 flex flex-wrap items-center justify-between gap-2">
           ${segmentedCtrl(
@@ -972,7 +983,7 @@ export function createReleaseGates(ctx) {
         short: "Recalls",
         tabTitle: "Recalls & Vulnerabilities",
         hasSidebar: true,
-        showKpis: true,
+        showKpis: false,
         subtitle: "RELEASE RECALLS & VULNERABILITY GATE",
       },
       {

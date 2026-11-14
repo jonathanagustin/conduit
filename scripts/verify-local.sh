@@ -209,6 +209,7 @@ gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py
+gate 'Validate packaging endpoints' ./scripts/verify-packaging-endpoints.sh
 gate 'Validate mutation scores' bash -c './scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
@@ -310,6 +311,9 @@ locally_only=(
   # Not a gate. It repairs cache symlinks whose targets Codespaces drops on
   # restart, before any gate runs; CI gets a fresh runner with nothing to repair.
   'repair-volatile-cache-links.sh'
+  # Local packaging endpoint check. It needs Docker, PostgreSQL, and Temporal
+  # on this machine and is not a hosted workflow step.
+  'verify-packaging-endpoints.sh'
 )
 mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb|py)' "${BASH_SOURCE[0]}" |
   sed 's|^\./||' | sort -u)

@@ -2,13 +2,14 @@
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { createSettings } from "./settings.js";
+import { createLiveHub } from "./live-hub.js";
 
 export function mountOperator(host, options) {
   const notifyOperator = () => {
     const mount = host.querySelector("#assistant-thread-mount");
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
-  host.innerHTML = '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" title="Offline example fixtures from src/mocks/exampleReleaseData.ts">EXAMPLE DATA</span>\n      <div class="hidden sm:inline-flex items-center gap-1.5 h-[28px] px-2.5 rounded-[5px] bg-[#241317] border border-[#4a2026] text-[10px] font-semibold tracking-[0.08em] text-[#f28b8f]">\n        <span class="so-live-dot w-2 h-2 rounded-full bg-[#e76a6e] inline-block"></span>\n        <span>LIVE</span>\n      </div>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" title="Operator: J. Alvarez">\n        <span class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">JA</span>\n        <span class="hidden 2xl:inline">J. Alvarez</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+  host.innerHTML = '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data</span>\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
   
     const ICONS = {
       extLink: '<svg width="11" height="11" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M9.5 2.5h4v4M13.5 2.5L7.5 8.5M6.5 3.5H3.5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h8a1 1 0 0 0 1-1v-3"/></svg>',
@@ -119,7 +120,7 @@ export function mountOperator(host, options) {
       { id: "s05-backlog", num: 5, short: "Story Backlog", tabTitle: "Delivery Backlog", hasSidebar: false, showKpis: true, appGroup: "delivery", parentLabel: "Command Center", parentId: "s13-fleet-overview", subtitle: "DELIVERY STORY BACKLOG" },
       { id: "s06-active-work", num: 6, short: "Active Work", tabTitle: "STR-214 · Live Runner", hasSidebar: false, showKpis: false, appGroup: "delivery", parentLabel: "Story Backlog", parentId: "s05-backlog", subtitle: "ACTIVE WORK PROCESSOR" },
       { id: "s07-pipeline", num: 7, short: "Pipeline Graph", tabTitle: "RUN-8844 · Pipeline", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Command Center", parentId: "s13-fleet-overview", subtitle: "PACKAGING PIPELINE MANAGER" },
-      { id: "s08-staged-run", num: 8, short: "Staged Run", tabTitle: "RUN-8842 · Staged Run", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Pipeline", parentId: "s07-pipeline", subtitle: "PACKAGING RUN MANAGER" },
+      { id: "s08-staged-run", num: 8, short: "Staged Run", tabTitle: "Packaging run", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Pipeline", parentId: "s07-pipeline", subtitle: "PACKAGING RUN MANAGER" },
       // Dedicated Developer Studio Apps (No sidebar — full-bleed code/diff/runtime/lifecycle!)
       { id: "s09-source", num: 9, short: "Source", tabTitle: "values.yaml", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "WORKSPACE STUDIO" },
       { id: "s10-diff", num: 10, short: "Diff", tabTitle: "CR-308 · Diff", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "CHANGE REQUEST MANAGER" },
@@ -127,7 +128,7 @@ export function mountOperator(host, options) {
       { id: "s12-lifecycle", num: 12, short: "Lifecycle", tabTitle: "wp-edge-telemetry", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "WORK PROFILE LIFECYCLE" },
       // Hub Navigation Screens (Calm 214px Conduit Left Sidebar!)
       { id: "s13-fleet-overview", num: 13, short: "Command Center", tabTitle: "Command Center", hasSidebar: true, showKpis: true, subtitle: "FLEET DELIVERY COMMAND CENTER" },
-      { id: "s14-env-detail", num: 14, short: "Environments", tabTitle: "Environments", hasSidebar: true, showKpis: true, subtitle: "FLEET ENVIRONMENTS" },
+      { id: "s14-env-detail", num: 14, short: "Environments", tabTitle: "Environments", hasSidebar: true, showKpis: false, subtitle: "FLEET ENVIRONMENTS" },
       { id: "s15-plan-detail", num: 15, short: "Release Planning", tabTitle: "Release Planning", hasSidebar: true, showKpis: true, subtitle: "RELEASE CONTROL TOWER" },
       // Dedicated Approvals Kanban App (No sidebar — matched 1:1 to Conduit f_04_08_comms_kan.png!)
       { id: "s16-approvals-board", num: 16, short: "Approvals Pipeline", tabTitle: "Approvals Pipeline", hasSidebar: false, showKpis: true, appGroup: "approvals", parentLabel: "Release Planning", parentId: "s15-plan-detail", subtitle: "APPROVALS PIPELINE" },
@@ -142,9 +143,9 @@ export function mountOperator(host, options) {
       { id: "rm03-plan-detail", num: 22, short: "Plan Inspector", tabTitle: "PLN-2026-0416 · Failed", hasSidebar: false, showKpis: false, appGroup: "plans_gov", parentLabel: "Environment Activity", parentId: "rm02-env-activity", subtitle: "PLAN EXECUTION INSPECTOR" },
       { id: "rm04-constraints", num: 23, short: "Constraint Gate", tabTitle: "Action Constraints", hasSidebar: false, showKpis: false, appGroup: "plans_gov", parentLabel: "Environment Hub", parentId: "rm01-env-page", subtitle: "ACTION CONSTRAINT GATE" },
       { id: "rm05-release-rollout", num: 24, short: "Release Rollout", tabTitle: "Release · uds-core 0.31.2", hasSidebar: true, showKpis: true, subtitle: "FLEET RELEASE CONVERGENCE" },
-      { id: "rm06-promotion-pipe", num: 25, short: "Promotion Pipeline", tabTitle: "Channel Promotion", hasSidebar: true, showKpis: true, subtitle: "CHANNEL PROMOTION PIPELINE" },
-      { id: "rm07-change-requests", num: 26, short: "Change Requests", tabTitle: "CR-308 · Config Diff", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "CONFIG CHANGE REQUESTS" },
-      { id: "rm08-bundle-preview", num: 27, short: "Bundle Preview", tabTitle: "uds-core-0.31.2 · Bundle", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Release Rollout", parentId: "rm05-release-rollout", subtitle: "DISCONNECTED BUNDLE PREVIEW" }
+      { id: "rm06-promotion-pipe", num: 25, short: "Promotion Pipeline", tabTitle: "Channel Promotion", hasSidebar: true, showKpis: false, subtitle: "CHANNEL PROMOTION PIPELINE" },
+      { id: "rm07-change-requests", num: 26, short: "Change Requests", tabTitle: "Change requests", hasSidebar: false, showKpis: false, appGroup: "studio", parentLabel: "Workspaces", parentId: "s02-workspaces", subtitle: "CONFIG CHANGE REQUESTS" },
+      { id: "rm08-bundle-preview", num: 27, short: "Bundle Preview", tabTitle: "Bundle preview", hasSidebar: false, showKpis: false, appGroup: "packaging", parentLabel: "Release Rollout", parentId: "rm05-release-rollout", subtitle: "BUNDLE PREVIEW" }
     ];
 
     const TREE_GROUPS = [
@@ -178,6 +179,7 @@ export function mountOperator(host, options) {
 
     const state = {
       screen: "s13-fleet-overview",
+      operatorName: "Operator",
       auditCount: 142,
       leftRailCollapsed: false,
       treeOpen: { profiles: true, environments: true, spokes: true },
@@ -302,6 +304,11 @@ export function mountOperator(host, options) {
     });
     settings.extendState();
     SCREENS.push(...settings.screens);
+    const liveHub = createLiveHub({
+      state,
+      render: () => renderApp(),
+    });
+    state.liveHub = liveHub;
 
     function recordAudit(evt) {
       state.auditCount += 1;
@@ -372,6 +379,22 @@ export function mountOperator(host, options) {
     // =========================================================================
     // AUTHENTIC Conduit LEFT RAIL + TOP BAR + PLAIN RIGHT CHAT
     // =========================================================================
+    function updateExampleBadge() {
+      const exampleBadge = document.getElementById("example-data-badge");
+      if (!exampleBadge) return;
+      const hubScreens = new Set([
+        "s08-staged-run",
+        "rm08-bundle-preview",
+        "rm07-change-requests",
+        "rm06-promotion-pipe",
+        "rm09-recalls",
+        "s14-env-detail",
+      ]);
+      const recordedProposal = state.screen === "pt01-proposal-trace" && (state.hub?.packaging || []).length > 0;
+      const ontologyFromHub = state.screen === "og01-ontology-graph" && state.graphNote === "Ontology API";
+      exampleBadge.style.display = hubScreens.has(state.screen) || recordedProposal || ontologyFromHub ? "none" : "";
+    }
+
     function renderLeftRail() {
       document.querySelectorAll("[data-ic]").forEach(el => {
         el.innerHTML = ic(el.getAttribute("data-ic"));
@@ -391,6 +414,19 @@ export function mountOperator(host, options) {
         if (activeMeta.showKpis) kpiEl.classList.remove("kpi-hidden");
         else kpiEl.classList.add("kpi-hidden");
       }
+      const operatorName = state.operatorName || "Operator";
+      const operatorLabel = document.getElementById("operator-name");
+      const operatorMark = document.getElementById("operator-initials");
+      const operatorChip = document.getElementById("operator-chip");
+      if (operatorLabel) operatorLabel.textContent = operatorName;
+      if (operatorMark) {
+        const parts = operatorName.split(/[^A-Za-z0-9]+/).filter(Boolean);
+        operatorMark.textContent = parts.length
+          ? parts.slice(0, 2).map((part) => part[0].toUpperCase()).join("")
+          : "OP";
+      }
+      if (operatorChip) operatorChip.title = `Operator: ${operatorName}`;
+      updateExampleBadge();
 
       const aside = document.getElementById("left-nav");
       const sectionsEl = document.getElementById("left-nav-sections");
@@ -631,6 +667,7 @@ export function mountOperator(host, options) {
 
       root.innerHTML = `
         <div class="flex flex-col gap-3 h-full min-h-0">
+          <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
           <div class="so-compact-kpi-strip shrink-0">
             <button type="button" onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
               <div class="text-[9.5px] uppercase tracking-[0.07em] text-[#6d7885]">Convergence</div>
@@ -764,7 +801,7 @@ export function mountOperator(host, options) {
           <!-- Right Column (286px): Conduit Live Operations Stream (Matched 1:1 to f_01_18_cc Right Column!) -->
           <div class="so-resp-full so-panel w-[286px] shrink-0 flex flex-col min-h-0 overflow-hidden">
             <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
-              <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[#ffffff]">${ic("delivery")} <span>Live Operations</span> <i class="so-live-dot w-2 h-2 rounded-full bg-[#e76a6e] inline-block"></i></span>
+              <span class="flex items-center gap-2 text-[13.5px] font-semibold text-[#ffffff]">${ic("delivery")} <span>Operations</span></span>
             </div>
 
             <!-- 4-Count Sub-Header Strip (HUMAN / AGENT / RUNNERS / CONVERGED) -->
@@ -1757,6 +1794,8 @@ export function mountOperator(host, options) {
     // SCREEN 8: STAGED RUN PAGE (Stage Tracker + Output + Artifacts + Confirm + Conduit Audit Rail)
     // =========================================================================
     function renderS08StagedRun(root) {
+      liveHub.renderPackaging(root);
+      return;
       const arts = [
         ["uds-core-amd64-0.31.2.tar.zst", "Bundle Archive", "488.6 MB", "sha256:9c71fe08...2d44", "Signed"],
         ["uds-core-0.31.2-delta.tar.zst", "Diode Delta", "63.8 MB", "sha256:3b19a441...70e1", "Published"],
@@ -2191,6 +2230,8 @@ export function mountOperator(host, options) {
     // SCREEN 14: ENVIRONMENT DETAIL
     // =========================================================================
     function renderS14EnvDetail(root) {
+      liveHub.renderEnvironments(root);
+      return;
       const tabs = ["Overview", "Installations", "Reported state", "Plans", "Audit events"];
       root.innerHTML = `
         <div class="space-y-3 h-full flex flex-col">
@@ -2471,8 +2512,8 @@ export function mountOperator(host, options) {
         <div class="space-y-3 h-full flex flex-col">
           <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
             <div>
-              <div class="text-[15px] font-bold text-[#ffffff]">Spoke Transport &amp; Live Audit Streams</div>
-              <div class="text-[11.5px] text-[#6d7885]">Real-time store-and-forward queues, optical diode locks, and Merkle-verified Audit events</div>
+              <div class="text-[15px] font-bold text-[#ffffff]">Spoke Transport</div>
+              <div class="text-[11.5px] text-[#eab854]">Example data</div>
             </div>
             ${governedBtn({ label: "Export Signed Audit Ledger", role: "Security Admin", auditEvent: "audit_event.exported", onClickJs: "", cls: "so-btn so-btn-emerald", iconName: "download" })}
           </div>
@@ -2482,7 +2523,7 @@ export function mountOperator(host, options) {
               <div class="so-panel flex flex-col overflow-hidden">
                 <div class="px-3 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
                   <span class="font-semibold text-[12px] text-[#ffffff] truncate">${c.title}</span>
-                  <span class="text-[10px] text-[#34d399]">&bull; LIVE</span>
+                  <span class="text-[10px] text-[#eab854]">Example data</span>
                 </div>
                 <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] text-[11px] font-medium tnum" style="color:${c.col}">${c.kpi}</div>
                 <div class="p-3 space-y-3 overflow-y-auto flex-1">
@@ -3090,6 +3131,8 @@ export function mountOperator(host, options) {
     }
 
     function renderRM06PromotionPipe(root) {
+      liveHub.renderPromotion(root);
+      return;
       const sel = RM_CHANNELS.find(c => c.id === state.rmSelectedChannel) || RM_CHANNELS[3];
       root.innerHTML = `
         <div class="space-y-2.5 flex flex-col">
@@ -3152,6 +3195,8 @@ export function mountOperator(host, options) {
     }
 
     function renderRM07ChangeRequests(root) {
+      liveHub.renderChanges(root);
+      return;
       const sel = RM_CRS.find(c => c.id === state.rmSelectedCrId) || RM_CRS[0];
       const inc = state.rmIncludedCrs.includes(sel.id);
       const canInc = sel.status === "Approved" && !inc;
@@ -3225,6 +3270,8 @@ export function mountOperator(host, options) {
     }
 
     function renderRM08BundlePreview(root) {
+      liveHub.renderBundle(root);
+      return;
       const entries = [
         ["images/uds-core-controller-0.31.2-amd64.oci.tar", "oci-image", "237.4 MB", "sha256:3b19a441...70e1"],
         ["images/ingress-gateway-1.23.4-amd64.oci.tar", "oci-image", "185.2 MB", "sha256:6e21f088...91a0"],
@@ -3433,6 +3480,7 @@ export function mountOperator(host, options) {
         ...settings.renderers
       };
       (m[state.screen] || renderS13FleetOverview)(root);
+      updateExampleBadge();
       settings.applyChrome();
       settings.ensureLoaded();
       if (screenChanged && root.firstElementChild) {
@@ -3442,6 +3490,7 @@ export function mountOperator(host, options) {
     }
 
     function renderApp() {
+      liveHub.ensure();
       renderLeftRail();
       renderCenterTabStrip();
       renderMainWorkspace();

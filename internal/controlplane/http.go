@@ -76,6 +76,14 @@ type HandlerOptions struct {
 	RecallOpenings catalogports.RecallOpenings
 }
 
+// bundleCatalogItem is the bundle index row. The envelope itself stays on
+// GET /v1/bundles/{bundleID}; this row is only enough to find it.
+type bundleCatalogItem struct {
+	ID             string `json:"id"`
+	PipelineID     string `json:"pipelineId"`
+	ManifestDigest string `json:"manifestDigest"`
+}
+
 func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	configuration := HandlerOptions{}
 	if len(options) > 0 {
@@ -1040,6 +1048,24 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			return
 		}
 		writeJSON(w, http.StatusOK, confirmation)
+	})
+	mux.HandleFunc("GET /v1/bundles", func(w http.ResponseWriter, request *http.Request) {
+		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
+		if !ok || !requirePlatformOperation(w, request, governance, principal, configuration, OperationReadResource) {
+			return
+		}
+		stored, err := repository.ListBundles(request.Context(), "")
+		if err != nil {
+			writeLifecycleError(w, err)
+			return
+		}
+		items := make([]bundleCatalogItem, 0, len(stored))
+		for _, bundle := range stored {
+			items = append(items, bundleCatalogItem{
+				ID: bundle.Manifest.ID, PipelineID: bundle.Manifest.PipelineID, ManifestDigest: bundle.ManifestDigest,
+			})
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"bundles": items})
 	})
 	mux.HandleFunc("GET /v1/bundles/{bundleID}", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
