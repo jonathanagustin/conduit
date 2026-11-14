@@ -1,3 +1,4 @@
+// Package domain defines bounded Conduit-native Plan review context.
 package domain
 
 import (
@@ -11,6 +12,8 @@ import (
 const MediaType = "application/vnd.conduit.plan-proposal.v1+json"
 const Native = "CONDUIT_NATIVE"
 
+// Review carries the explicit rationale and source digest of a native proposal.
+//
 // CONDUIT-INVENTED: planreview.ProposalEnvelope
 // Displaced-by: a published or sanitized proposal contract establishing transport and persistence of review context.
 type Review struct {

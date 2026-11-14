@@ -14,6 +14,8 @@ import (
 
 const ChangeTypeNativeChannelMembership = "CONDUIT_NATIVE_UPDATE_RELEASE_CHANNEL_MEMBERSHIP"
 
+// ProposeMembershipPlan submits a serialized, baseline-bound membership change.
+//
 // CONDUIT-INVENTED: channelmembership.GovernedProposal
 // Displaced-by: a published or sanitized channel-membership proposal, concurrency, authorization and Change Type contract.
 func (service *GovernanceService) ProposeMembershipPlan(ctx context.Context, state DesiredState, author Principal, context review.Review) (PlanRecord, ChangeRequest, error) {

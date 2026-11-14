@@ -549,12 +549,6 @@ func (service *GovernanceService) validateLabelContributions(ctx context.Context
 	return nil
 }
 
-func (service *GovernanceService) evaluatePlan(
-	ctx context.Context, record PlanRecord, author Principal, title, description string,
-) (ChangeRequest, error) {
-	return service.evaluatePlanWithAdditionalChanges(ctx, record, author, title, description, nil)
-}
-
 func (service *GovernanceService) evaluatePlanWithAdditionalChanges(
 	ctx context.Context, record PlanRecord, author Principal, title, description string, additional []EntityChange,
 ) (ChangeRequest, error) {
