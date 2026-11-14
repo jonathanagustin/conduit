@@ -15,6 +15,7 @@ import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { mountOperator } from "./operator/engine.js";
 import "./operator/console.css";
 import "./operator/kit.css";
+import "./operator/tokens.css";
 
 const RAIL_THREAD = {
   Welcome: function RailWelcome() {

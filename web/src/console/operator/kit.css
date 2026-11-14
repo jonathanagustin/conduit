@@ -10,8 +10,6 @@
   --c-input: #0c1218;
   --c-border: #222e3c;
   --c-border-strong: #2f4054;
-  --c-text: #eef3f8;
-  --c-muted: #7e8c9c;
   --bar-ok: #10b981;
   --bar-warn: #f59e0b;
   --bar-err: #ef4444;
@@ -53,15 +51,11 @@
   --c-input: #ffffff;
   --c-border: #cbd5e1;
   --c-border-strong: #94a3b8;
-  --c-text: #0f172a;
-  --c-muted: #526071;
   --so-bg: #f1f5f9;
   --so-topbar: #ffffff;
   --so-sidebar: #f8fafc;
   --so-panel: #ffffff;
   --so-card: #ffffff;
-  --so-text: #0f172a;
-  --so-muted: #526071;
   --bar-ok: #059669;
   --bar-warn: #d97706;
   --bar-err: #dc2626;
@@ -297,16 +291,9 @@
    --------------------------------------------------------------------------- */
 .operator-root {
   --tone-ai-fg: #c4b5fd;
-  --c-dim: #8b96a5; /* 6.3:1 on #0b1113 */
 }
 .operator-root[data-theme="light"] {
   --tone-ai-fg: #6d28d9;
-  --c-dim: #526071; /* 6.4:1 on #ffffff */
-}
-/* Secondary labels: #596573 is 3.2:1 on the dark background, below AA at 9-10px. */
-.operator-root [class*="text-[#596573]"],
-.operator-root [class*="text-[#4a5562]"] {
-  color: var(--c-dim) !important;
 }
 /* Tinted actions: dark ok 10.5:1, err 9.3:1, info 7.3:1; light ok 5.2:1, err 5.9:1, info 6.2:1. */
 .so-btn.so-btn-emerald {
@@ -334,9 +321,12 @@
 }
 /* The single primary action on a view keeps a solid fill: white on #2d72d2 is 4.7:1. */
 .so-btn.so-btn-primary {
-  background: #2d72d2;
-  border-color: #2d72d2;
+  background: var(--c-primary-fill);
+  border-color: var(--c-primary-border);
   color: #ffffff;
+}
+.so-btn.so-btn-primary:hover {
+  background: var(--c-primary-fill-hover);
 }
 
 .operator-root[data-theme="light"] [class*="text-[#ffffff]"],
