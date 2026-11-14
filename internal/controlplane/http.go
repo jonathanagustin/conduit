@@ -74,6 +74,9 @@ type HandlerOptions struct {
 	// force, so that a person learns one opened. Nil is a deployment with no
 	// notification store, which raises nothing rather than failing.
 	RecallOpenings catalogports.RecallOpenings
+	// AfterPlanApproved sequences an approved Plan. Nil leaves the existing
+	// lifecycle path unchanged and does not approve, lease, or report state.
+	AfterPlanApproved func(context.Context, string) error
 }
 
 // bundleCatalogItem is the bundle index row. The envelope itself stays on
@@ -1775,6 +1778,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		} else if imported != nil {
 			result["bundleImport"] = imported
 		}
+		if err := notifyPlanApproved(request.Context(), configuration, plan); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "plan sequencing failed: " + err.Error(), "planId": plan.ID})
+			return
+		}
 		writeJSON(w, http.StatusOK, result)
 	})
 	mux.HandleFunc("POST /v1/change-requests/{changeRequestID}/reject", func(w http.ResponseWriter, request *http.Request) {
@@ -2161,6 +2168,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		}
 		if err != nil {
 			writeLifecycleError(w, err)
+			return
+		}
+		if err := notifyPlanApproved(request.Context(), configuration, record); err != nil {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "plan sequencing failed: " + err.Error(), "planId": record.ID})
 			return
 		}
 		writeJSON(w, http.StatusOK, redactLeaseToken(record))
@@ -2846,6 +2857,13 @@ func requireEmptyBody(w http.ResponseWriter, request *http.Request) bool {
 		return false
 	}
 	return true
+}
+
+func notifyPlanApproved(ctx context.Context, configuration HandlerOptions, plan PlanRecord) error {
+	if configuration.AfterPlanApproved == nil || plan.ID == "" || plan.Status != PlanApproved {
+		return nil
+	}
+	return configuration.AfterPlanApproved(ctx, plan.ID)
 }
 
 func leaseToken(request *http.Request) string {

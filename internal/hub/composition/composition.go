@@ -13,6 +13,7 @@ package composition
 
 import (
 	"net/http"
+	"os"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
@@ -62,6 +63,11 @@ func NewHub(
 		options.BundlePrivateKey = key
 	}
 	options = withSpaceLookup(repository, options, hubOptions.Spaces)
+	sequencer, err := planSequencer(repository, hubOptions, os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	options.AfterPlanApproved = sequencer
 	handler, err := mountNotifications(controlplane.NewHandler(repository, options), repository, options, hubOptions)
 	if err != nil {
 		return nil, err

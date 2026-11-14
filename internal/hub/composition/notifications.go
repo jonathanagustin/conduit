@@ -43,6 +43,10 @@ type Options struct {
 	// rather than routes that answer 500 to the first person who edits their
 	// own address.
 	NotificationContacts notificationports.Contacts
+	// PlanOrchestrator sequences an approved Plan when supplied. Nil makes
+	// NewHub read PLAN_ORCHESTRATOR. Empty and native do not change approval,
+	// lease, or reported state.
+	PlanOrchestrator controlplane.PlanOrchestrator
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader
