@@ -14,6 +14,7 @@ import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 
 import { mountOperator } from "./operator/engine.js";
 import "./operator/console.css";
+import "./operator/kit.css";
 
 const RAIL_THREAD = {
   Welcome: function RailWelcome() {
@@ -38,6 +39,7 @@ export function Workbench({ dark }: { dark: boolean }) {
     <div
       id="operator-root"
       className="operator-root bp6-dark flex h-full w-full flex-col overflow-hidden"
+      data-theme="dark"
     >
       {slot
         ? createPortal(

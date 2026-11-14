@@ -136,7 +136,7 @@ export function assistantChrome(state) {
     ? chips
         .map(
           (chip) =>
-            `<button type="button" data-remove-chip="${esc(keyOf(chip))}" class="px-2 py-0.5 rounded bg-[#14202e] border border-[#28405c] text-[10.5px] text-[#7cb4ff] hover:border-[#4c90f0]" title="Remove ${esc(chip.objectType)} ${esc(chip.id)}">${esc(chip.objectType)} · ${esc(chip.label || chip.id)} ×</button>`,
+            `<button type="button" data-remove-chip="${esc(keyOf(chip))}" class="kit-chip" title="Remove ${esc(chip.objectType)} ${esc(chip.id)}">${esc(chip.objectType)} · ${esc(chip.label || chip.id)} ×</button>`,
         )
         .join("")
     : `<span class="text-[10.5px] text-[#6d7885]">No object on this screen.</span>`;
@@ -156,6 +156,7 @@ export function assistantChrome(state) {
       <div class="flex items-center gap-2 min-w-0">
         <span class="w-2 h-2 rounded-full bg-[#34d399]"></span>
         <span class="text-[12.5px] font-semibold text-white truncate">Assistant</span>
+        <span class="kit-badge kit-badge-muted">${mode === "explore" ? "Read only" : "Governed"}</span>
       </div>
       <button type="button" onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
     </header>
@@ -247,7 +248,16 @@ export function resultCard(result) {
     Number(result.writeOps) > 0
       ? "bg-[#2a2012] border-[#4f391b] text-[#eab854]"
       : "bg-[#10241d] border-[#1f4737] text-[#34d399]";
-  return `<article data-result-index="${esc(result.index ?? "")}" class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] space-y-1.5">
+  const bar = result.applied
+    ? "kit-bar-ok"
+    : result.needsConfirm
+      ? "kit-bar-ok"
+      : result.changeRequestId
+        ? "kit-bar-warn"
+        : result.allowed === false
+          ? "kit-bar-err"
+          : "kit-bar-info";
+  return `<article data-result-index="${esc(result.index ?? "")}" class="kit-card ${bar} kit-tool">
     <div class="flex items-center justify-between gap-2">
       <span class="font-medium text-[#dce4ee]">${esc(result.tool || "tool")}</span>
       <span class="text-[10px] px-1.5 py-0.5 rounded border tabular-nums ${opsTone}">${ops}</span>
@@ -274,14 +284,14 @@ function formFor(result) {
   const inputs = fields
     .map((field) => {
       if (field.options && field.options.length) {
-        return `<label class="block text-[10.5px] text-[#8b96a5]">${esc(field.label)}<select name="${esc(field.name)}" class="so-input mt-1 w-full text-[12px]">${field.options
+        return `<label class="kit-muted">${esc(field.label)}<select name="${esc(field.name)}" class="kit-select">${field.options
           .map((option) => `<option value="${esc(option)}">${esc(option)}</option>`)
           .join("")}</select></label>`;
       }
-      return `<label class="block text-[10.5px] text-[#8b96a5]">${esc(field.label)}<input name="${esc(field.name)}" value="${esc(field.value || "")}" class="so-input mt-1 w-full text-[12px]" /></label>`;
+      return `<label class="kit-muted">${esc(field.label)}<input name="${esc(field.name)}" value="${esc(field.value || "")}" class="kit-input" /></label>`;
     })
     .join("");
-  return `<form data-elicit class="space-y-1.5 pt-1">${inputs}<button type="button" data-resume-write="1" data-confirm="${result.needsConfirm ? "1" : "0"}" class="h-[26px] px-2 rounded bg-[#1c3a2a] text-[11px] text-[#34d399]">${result.needsConfirm ? "Confirm" : "Continue"}</button></form>`;
+  return `<form data-elicit class="kit-card ${result.needsConfirm ? "kit-bar-ok" : "kit-bar-warn"} kit-tool">${result.needsConfirm ? "" : `<div class="kit-section">Required inputs</div>`}${inputs}<button type="button" data-resume-write="1" data-confirm="${result.needsConfirm ? "1" : "0"}" class="kit-btn kit-btn-sm kit-btn-ok">${result.needsConfirm ? "Confirm" : "Continue"}</button></form>`;
 }
 
 function routeFor(objectType) {

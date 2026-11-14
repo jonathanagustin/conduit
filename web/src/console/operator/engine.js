@@ -12,6 +12,13 @@ import {
   resumeWrite,
   runAssistantAction,
 } from "./assistant-rail.js";
+import {
+  areaObject,
+  areaSupplement,
+  bindKit,
+  objectHeader,
+  wavesFromRecords,
+} from "./kit.js";
 
 export function mountOperator(host, options) {
   const notifyOperator = () => {
@@ -19,7 +26,7 @@ export function mountOperator(host, options) {
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
   host.innerHTML =
-    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data</span>\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data</span>\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -596,7 +603,7 @@ export function mountOperator(host, options) {
           target: "s04-scope-plan",
         },
         {
-          id: "wp-airgap-sync",
+          id: "wp-offline-sync",
           dot: "#34d399",
           badge: "Active",
           target: "s07-pipeline",
@@ -627,7 +634,7 @@ export function mountOperator(host, options) {
           target: "s14-env-detail",
         },
         {
-          id: "airgap-vault-04",
+          id: "offline-vault-04",
           dot: "#4c90f0",
           badge: "Diode",
           target: "s08-staged-run",
@@ -1187,8 +1194,16 @@ export function mountOperator(host, options) {
                       state.screen === "s14-env-detail")) ||
                   (m.id === "s02-workspaces" &&
                     state.screen === "s03-saved-views");
+                const tone =
+                  {
+                    "area-packaging": "kit-bar-ok",
+                    "area-releases": "kit-bar-info",
+                    "area-changes": "kit-bar-warn",
+                    "area-intelligence": "kit-bar-ai",
+                    "area-fleet": "kit-bar-info",
+                  }[m.id] || "";
                 return `
-                <button onclick="switchScreen('${m.id}')" class="so-nav-row ${isAct ? "is-active" : ""}">
+                <button onclick="switchScreen('${m.id}')" class="so-nav-row kit-nav ${tone} ${isAct ? "is-active" : ""}">
                   <span class="flex items-center gap-2 min-w-0 flex-1">
                     <span class="flex shrink-0">${ic(m.icon)}</span>
                     <span class="truncate">${m.label}</span>
@@ -1417,7 +1432,7 @@ export function mountOperator(host, options) {
         note: "20/20 online converged",
       },
       {
-        code: "wp-airgap-sync",
+        code: "wp-offline-sync",
         name: "Optical Diode & Courier",
         sub: "10 Environments · uds-core 0.30.9",
         badge: "Staged",
@@ -1876,7 +1891,7 @@ export function mountOperator(host, options) {
         lat: 38.8,
         color: "#34d399",
         r: 4.2,
-        label: "airgap-vault-04 (Diode)",
+        label: "offline-vault-04 (Diode)",
         screen: "s08-staged-run",
         dx: -8,
         dy: 12,
@@ -2402,8 +2417,8 @@ export function mountOperator(host, options) {
       {
         name: "ws-vault-diode-pack",
         branch: "feat/delta-zstd",
-        profile: "wp-airgap-sync",
-        env: "airgap-vault-04",
+        profile: "wp-offline-sync",
+        env: "offline-vault-04",
         act: "24m ago",
         st: "Gated",
         tone: "amber",
@@ -2432,7 +2447,7 @@ export function mountOperator(host, options) {
       {
         name: "ws-courier-manifest",
         branch: "chore/arctic-01",
-        profile: "wp-airgap-sync",
+        profile: "wp-offline-sync",
         env: "forward-arctic-01",
         act: "2h 05m ago",
         st: "Gated",
@@ -2518,7 +2533,7 @@ export function mountOperator(host, options) {
               <option value="ALL">All Work profiles (4)</option>
               <option value="wp-edge-telemetry">wp-edge-telemetry</option>
               <option value="wp-uds-core-base">wp-uds-core-base</option>
-              <option value="wp-airgap-sync">wp-airgap-sync</option>
+              <option value="wp-offline-sync">wp-offline-sync</option>
             </select>
           </div>
 
@@ -2843,7 +2858,7 @@ export function mountOperator(host, options) {
         plan: "PLN-2026-0421",
         run: "RUN-8844",
         pct: 45,
-        desc: "Slices air-gap delta bundle for optical diode transfer window.",
+        desc: "Slices an offline delta bundle for optical diode transfer window.",
       },
       {
         id: "STR-212",
@@ -3786,7 +3801,7 @@ export function mountOperator(host, options) {
                 </div>
                 <div class="so-card p-2.5 relative flex justify-between items-center">
                   <span class="w-5 h-5 rounded-full bg-[#2d72d2] text-white text-[10.5px] font-bold flex items-center justify-center absolute -top-2 -right-2">3</span>
-                  <span class="text-[11.5px] text-[#9aa5b4]">Optical Diode (<span class="code-id text-[#f0f5fa]">airgap-vault-04</span>): hardware one-way lock active</span>
+                  <span class="text-[11.5px] text-[#9aa5b4]">Optical Diode (<span class="code-id text-[#f0f5fa]">offline-vault-04</span>): hardware one-way lock active</span>
                   ${pill("Awaiting Bundle", "blue")}
                 </div>
               </div>
@@ -4084,7 +4099,7 @@ export function mountOperator(host, options) {
                     "02:00Z window",
                   ],
                   [
-                    "Wave 3 · Optical Diode (airgap-vault-04 +3)",
+                    "Wave 3 · Optical Diode (offline-vault-04 +3)",
                     50,
                     30,
                     "#2d72d2",
@@ -4350,7 +4365,7 @@ export function mountOperator(host, options) {
             "09:36 PM",
             "Verified SHA-256 receipt for 63.8 MB zstd delta bundle",
           ],
-          ["S. Kline", "08:41 PM", "Authorized airgap-vault-04 staging spool"],
+          ["S. Kline", "08:41 PM", "Authorized offline-vault-04 staging spool"],
         ],
       },
       {
@@ -4800,7 +4815,7 @@ export function mountOperator(host, options) {
       id: "CR-309",
       title:
         "Set spoke-diode-hall-b zstd frame slice to 16MB for optical diode",
-      env: "airgap-vault-04",
+      env: "offline-vault-04",
       author: "S. Kline",
       status: "In Review",
       tone: "amber",
@@ -5397,7 +5412,7 @@ export function mountOperator(host, options) {
         tone: "green",
       },
       {
-        env: "airgap-vault-04",
+        env: "offline-vault-04",
         wave: "Wave 3 · Disconnected",
         ch: "disconnected",
         mode: "Optical Diode",
@@ -5943,14 +5958,18 @@ export function mountOperator(host, options) {
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
     state.detailScreen = current.screen;
+    const header = objectHeader(areaObject(state.hub, state.screen));
+    const extra = areaSupplement(state.hub, state.screen, current.id);
     root.innerHTML = `<div class="space-y-3">
-      <div class="text-[11px] text-[#8b96a5]">${area.label} / ${current.label}</div>
-      <div class="flex flex-wrap gap-1">${tabs
+      <div class="kit-crumb">${area.label} / ${current.label}</div>
+      <div class="kit-subnav">${tabs
         .map(
           (tab) =>
-            `<button type="button" data-area-tab="${tab.id}" class="h-[24px] px-2 rounded text-[11px] border ${tab.id === current.id ? "bg-[#162536] border-[#355982] text-[#dce8f6]" : "bg-[#12181e] border-[#222c36] text-[#8b96a5]"}">${tab.label}</button>`,
+            `<button type="button" data-area-tab="${tab.id}" class="kit-tab ${tab.id === current.id ? "is-active" : ""}">${tab.label}</button>`,
         )
         .join("")}</div>
+      ${header}
+      <div id="area-kit">${extra}</div>
       <div id="area-body"></div>
     </div>`;
     const renderer = {
@@ -5980,6 +5999,8 @@ export function mountOperator(host, options) {
         renderMainWorkspace();
       });
     });
+    const waves = wavesFromRecords(state.hub?.promotions);
+    bindKit(root, waves.pucks.length ? { pucks: waves.pucks } : null);
   }
 
   function renderApp() {
@@ -6034,6 +6055,14 @@ export function mountOperator(host, options) {
   window.closeMobileNav = closeMobileNav;
   window.toggleLeftRailCollapse = toggleLeftRailCollapse;
   window.toggleChatRail = toggleChatRail;
+  window.toggleTheme = () => {
+    const root = document.querySelector(".operator-root");
+    if (!root) return;
+    const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
+    root.setAttribute("data-theme", next);
+    const button = document.getElementById("theme-toggle");
+    if (button) button.textContent = next === "light" ? "Dark" : "Light";
+  };
   window.handleGlobalSearch = handleGlobalSearch;
   window.openCmdOmnibar = openCmdOmnibar;
   window.handleOmnibarKey = handleOmnibarKey;
