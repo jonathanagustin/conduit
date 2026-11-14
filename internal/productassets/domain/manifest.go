@@ -31,6 +31,7 @@ const MaxDocumentBytes = 4 << 20
 
 // CONDUIT-INVENTED: productassets.PublisherDeclaredRelease
 // Displaced-by: a published or owner-approved download-asset Product contract establishing manifest shape, catalogue authority and execution eligibility.
+// ValueTier identifies this declaration format as Conduit-owned.
 const ValueTier = "CONDUIT_NATIVE"
 
 var (
