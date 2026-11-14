@@ -58,3 +58,15 @@ fi
 ln -sfn "${final}/cursor-agent" "${HOME}/.local/bin/cursor-agent"
 "${HOME}/.local/bin/cursor-agent" --version
 '''
+
+[tasks.install]
+description = "Install the pinned toolchain and check host prerequisites"
+run = "./scripts/install.sh"
+
+[tasks.demo]
+description = "Reset local demo state, then seed the Hub and a sample release"
+run = '''
+set -eu
+./scripts/demo-reset.sh
+./scripts/demo-seed.sh
+'''

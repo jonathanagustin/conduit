@@ -247,6 +247,7 @@ gate 'Validate review ledger' review_ledger
 gate 'Validate Apollo frontend surface' bash -c 'node scripts/verify-apollo-frontend-surface.mjs && ./scripts/verify-apollo-frontend-surface.test.sh'
 gate 'Validate Module publication' go run ./cmd/platform-module-publisher --directory examples/modules --dry-run
 gate 'GitOps acceptance' ./scripts/test-gitops.sh
+gate 'Validate demo registry network fallback' ./scripts/test-demo-docker-network.sh
 
 # --- drift against ci.yml -----------------------------------------------
 # Every step above is named exactly as ci.yml names it. The setup steps are not
@@ -315,6 +316,9 @@ locally_only=(
   # Local packaging endpoint check. It needs Docker, PostgreSQL, and Temporal
   # on this machine and is not a hosted workflow step.
   'verify-packaging-endpoints.sh'
+  # Fake docker binary. It checks the demo registry network fallback without a
+  # daemon, so it is not a hosted workflow step.
+  'test-demo-docker-network.sh'
 )
 mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb|py)' "${BASH_SOURCE[0]}" |
   sed 's|^\./||' | sort -u)
