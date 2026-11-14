@@ -3,7 +3,7 @@
 # UNADMITTED candidate only. This file deliberately has no Helm, Zarf, or
 # runtime selection wiring. Admission remains a separate decision.
 ARG GO_IMAGE=golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea
-ARG BUILDER_IMAGE=ubuntu:24.04@sha256:2198e4c65076e9cb0b3d695219df667c0e3b0072da64ca3c2648aca17dcecaf5
+ARG BUILDER_IMAGE=ubuntu:26.04@sha256:065aa8626841f16057b78b027b464cd59c4fac36c204c72dcbf48d66f5fa8a96
 ARG CA_BOOTSTRAP_IMAGE=cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9
 ARG SOURCE_DATE_EPOCH=1786406400
 ARG TARGETARCH=amd64
