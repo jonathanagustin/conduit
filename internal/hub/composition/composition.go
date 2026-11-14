@@ -62,5 +62,9 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	handler, err = mountProductAssets(handler, repository, options, hubOptions.ProductAssets)
+	if err != nil {
+		return nil, err
+	}
 	return guardUnregisteredRoutes(mountPackaging(handler, repository, options, hubOptions)), nil
 }

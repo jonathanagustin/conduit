@@ -5,6 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
+	"slices"
+
+	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"os"
 	"path/filepath"
 	"sort"
@@ -83,7 +87,7 @@ func (repository *MemoryRepository) CreateCatalogRetirement(
 	for _, release := range repository.moduleReleases {
 		moduleReleases = append(moduleReleases, cloneJSON(release))
 	}
-	if err := catalogRetirementPreconditions(retirement, plans, reports, installations, moduleReleases); err != nil {
+	if err := catalogRetirementPreconditions(retirement, plans, reports, installations, moduleReleases, slices.Collect(maps.Values(repository.productPublications))); err != nil {
 		return CatalogRetirement{}, err
 	}
 	repository.catalogRetirements[key] = cloneJSON(retirement)
@@ -146,7 +150,11 @@ func (repository *FileRepository) CreateCatalogRetirement(
 	if err != nil {
 		return CatalogRetirement{}, err
 	}
-	if err := catalogRetirementPreconditions(retirement, plans, reports, installations, moduleReleases); err != nil {
+	publications, err := repository.listProductPublicationsUnlocked("")
+	if err != nil {
+		return CatalogRetirement{}, err
+	}
+	if err := catalogRetirementPreconditions(retirement, plans, reports, installations, moduleReleases, publications); err != nil {
 		return CatalogRetirement{}, err
 	}
 	if err := atomicWriteJSON(repository.catalogRetirementPath(retirement.Product, retirement.Version), retirement); err != nil {
@@ -361,7 +369,10 @@ func catalogRetirementRID(retirement CatalogRetirement) string {
 	return "release/" + retirement.Product + "/" + retirement.Version
 }
 
-func catalogRetirementKey(product, version string) string { return product + "\x00" + version }
+// A Maven-style coordinate is unambiguous for the validated Product/version
+// grammar. NUL-separated map keys cannot be stored in PostgreSQL JSONB. File
+// record names retain their existing independently hashed path identity.
+func catalogRetirementKey(product, version string) string { return product + ":" + version }
 
 func catalogRetirementBlocks(retirements map[string]CatalogRetirement, product, version string) bool {
 	_, productRetired := retirements[catalogRetirementKey(product, "")]
@@ -439,14 +450,18 @@ func validateCatalogRetirementPreconditions(
 	if err != nil {
 		return err
 	}
-	return catalogRetirementPreconditions(retirement, plans, reports, installations, moduleReleases)
+	publications, err := repository.ListProductPublications(ctx, "")
+	if err != nil {
+		return err
+	}
+	return catalogRetirementPreconditions(retirement, plans, reports, installations, moduleReleases, publications)
 }
 
 func catalogRetirementPreconditions(
 	retirement CatalogRetirement, plans []PlanRecord, reports []EnvironmentReport,
-	installations []ModuleInstallation, moduleReleases []ModuleRelease,
+	installations []ModuleInstallation, moduleReleases []ModuleRelease, publications []ProductPublication,
 ) error {
-	found := false
+	found := catalog.HasPublication(publications, retirement.Product, retirement.Version)
 	latest := latestPlansByEnvironment(plans)
 	for _, record := range plans {
 		if record.DesiredState == nil {

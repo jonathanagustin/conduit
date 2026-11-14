@@ -28,6 +28,7 @@ func addProductReleaseParityCommands(command *cobra.Command, state *commandState
 	command.AddCommand(productReleaseAssetCommand(state))
 	command.AddCommand(productReleaseTerraformCommand(state))
 	command.AddCommand(productReleaseDefinitionCommand(state))
+	command.AddCommand(productReleaseDownloadsCommand(state))
 }
 
 // productReleaseDefinitionCommand validates the manifest.yml/configuration.yml

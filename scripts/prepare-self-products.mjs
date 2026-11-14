@@ -27,7 +27,7 @@ export function prepareSelfProducts({ repository, version, oci, helm, checksums,
   requireValue(typeof readCLI === "function" && typeof readProvenance === "function", "CLI archives and provenance readers are required");
   const imageRepository = `ghcr.io/${repository}`;
   const group = "io.github.jonathanagustin.conduit";
-  // Product names are an explicit native first slice, not names recovered from another platform.
+  // Product names are an explicit native first slice, not recovered Apollo names.
   requireValue(repository === "jonathanagustin/conduit", "this preparer is scoped to the Conduit release producer");
   const products = ["hub", "spoke-agent"].map(component => {
     const image = oci.images[component];
@@ -73,21 +73,30 @@ export function prepareSelfProducts({ repository, version, oci, helm, checksums,
   requireValue(parsed.size === expected.size, "CLI checksums omit a supported target");
   const assets = [...expected].map(([file, target]) => {
     const digest = parsed.get(file);
-    requireValue(sha(readCLI(file)) === digest, `CLI archive checksum mismatch: ${file}`);
+    const archiveBytes = readCLI(file);
+    requireValue(sha(archiveBytes) === digest, `CLI archive checksum mismatch: ${file}`);
     const stem = file.replace(/\.(?:tar\.gz|zip)$/, "");
     const provenance = readProvenance(`${stem}.slsa.json`);
     const definition = provenance?.buildDefinition;
     const dependencies = definition?.resolvedDependencies;
     const builder = `https://github.com/${repository}/.github/workflows/platform-images.yml@refs/tags/v${version}`;
     requireValue(definition?.buildType === "https://platform.delivery/buildtypes/conduit-cli/v1" && definition.externalParameters?.target === target && definition.externalParameters?.version === version && Array.isArray(dependencies) && dependencies.length === 1 && dependencies[0].uri === `git+https://github.com/${repository}@refs/tags/v${version}` && dependencies[0].digest?.gitCommit === oci.commit && provenance.runDetails?.builder?.id === builder, `CLI provenance metadata mismatch: ${file}`);
-    return { target, file, sha256: digest, url: `https://github.com/${repository}/releases/download/v${version}/${file}`, provenanceFile: `${stem}.slsa.json` };
+    return { target, file, sizeBytes: archiveBytes.length, sha256: digest, url: `https://github.com/${repository}/releases/download/v${version}/${file}`, provenanceFile: `${stem}.slsa.json` };
   });
   return {
-    apiVersion: "conduit.delivery/self-product-preparation/v1", kind: "SelfProductPreparation", valueTier: "CONDUIT_NATIVE",
+    apiVersion: "conduit.delivery/self-product-preparation/v2", kind: "SelfProductPreparation", valueTier: "CONDUIT_NATIVE",
     publicationState: "NOT_PUBLISHED", source: { repository, version, commit: oci.commit },
     verification: { scope: "INPUT_METADATA_AND_CLI_CHECKSUMS", signatures: "NOT_VERIFIED", registryAvailability: "NOT_CHECKED", deployment: "NOT_PERFORMED" },
     products,
-    cli: { disposition: "DOWNLOAD_INVENTORY_ONLY", cataloguePublication: "UNSUPPORTED_BY_CURRENT_SERVICE_PRODUCT_API", assets },
+    cli: {
+      disposition: "DOWNLOAD_ASSET_DECLARATION", cataloguePublication: "CONDUIT_NATIVE_DOWNLOAD_ASSETS", mavenCoordinate: `${group}:cli:${version}`, assets,
+      publication: { method: "POST", path: "/v1/product-publications/download-assets", body: {
+        apiVersion: "conduit.delivery/download-assets/v1", productGroup: group, productName: "cli", version,
+        source: { repositoryUri: `https://github.com/${repository}`, commit: oci.commit },
+        assets: assets.map(asset => ({ name: asset.file, target: asset.target, uri: asset.url, sha256: asset.sha256, sizeBytes: asset.sizeBytes,
+          signatureBundleUri: `${asset.url}.sigstore.json`, provenanceBundleUri: `${asset.url}.provenance.sigstore.json` })),
+      } },
+    },
   };
 }
 

@@ -13,11 +13,14 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
+	assetmemory "github.com/jonathanagustin/conduit/internal/productassets/adapters/memory"
+	assetdomain "github.com/jonathanagustin/conduit/internal/productassets/domain"
 )
 
 // The Node test regenerates this golden file from explicitly synthetic bytes.
 // This side proves those generated native publication inputs meet the actual
-// Hub boundary and become executable Releases with the exact reviewed assets.
+// Hub boundary: Hub/Spoke become exact executable Releases, while CLI assets
+// remain publisher-declared downloads without an executable Release.
 // No registry push, cluster mutation or released artifact is involved.
 func TestPreparedSelfProductsImportThroughTheNativeHub(t *testing.T) {
 	contents, err := os.ReadFile("../../testdata/self-product/synthetic-prepared.json")
@@ -35,18 +38,23 @@ func TestPreparedSelfProductsImportThroughTheNativeHub(t *testing.T) {
 			}
 		}
 		CLI struct {
-			Disposition, CataloguePublication string
-			Assets                            []json.RawMessage
+			Disposition, CataloguePublication, MavenCoordinate string
+			Assets                                             []json.RawMessage
+			Publication                                        struct {
+				Method, Path string
+				Body         json.RawMessage
+			}
 		}
 	}
 	if err := json.Unmarshal(contents, &prepared); err != nil {
 		t.Fatal(err)
 	}
-	if prepared.PublicationState != "NOT_PUBLISHED" || len(prepared.Products) != 2 || len(prepared.CLI.Assets) != 6 || prepared.CLI.Disposition != "DOWNLOAD_INVENTORY_ONLY" || prepared.CLI.CataloguePublication != "UNSUPPORTED_BY_CURRENT_SERVICE_PRODUCT_API" {
+	if prepared.PublicationState != "NOT_PUBLISHED" || len(prepared.Products) != 2 || len(prepared.CLI.Assets) != 6 || prepared.CLI.Disposition != "DOWNLOAD_ASSET_DECLARATION" || prepared.CLI.CataloguePublication != "CONDUIT_NATIVE_DOWNLOAD_ASSETS" {
 		t.Fatal("synthetic preparation scope changed without updating its integration proof")
 	}
 	repository := controlplane.NewMemoryRepository()
-	handler, err := composition.NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"fixture-publisher"}})
+	assetStore := assetmemory.New()
+	handler, err := composition.NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"fixture-publisher"}}, composition.Options{ProductAssets: assetStore})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -96,4 +104,39 @@ func TestPreparedSelfProductsImportThroughTheNativeHub(t *testing.T) {
 			t.Fatal("input receipts were promoted into an unperformed scan/availability assessment")
 		}
 	}
+	var downloadManifest assetdomain.Manifest
+	decoder := json.NewDecoder(bytes.NewReader(prepared.CLI.Publication.Body))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&downloadManifest); err != nil {
+		t.Fatal(err)
+	}
+	if err := downloadManifest.Validate(); err != nil {
+		t.Fatal(err)
+	}
+	if downloadManifest.Coordinate() != prepared.CLI.MavenCoordinate || len(downloadManifest.Assets) != 6 {
+		t.Fatal("CLI declaration lost catalogue identity or target coverage")
+	}
+	request := httptest.NewRequest(prepared.CLI.Publication.Method, prepared.CLI.Publication.Path, bytes.NewReader(prepared.CLI.Publication.Body))
+	request.Header.Set("X-Platform-Subject", "fixture-publisher")
+	response := httptest.NewRecorder()
+	handler.ServeHTTP(response, request)
+	if response.Code != http.StatusCreated {
+		t.Fatalf("prepared CLI input rejected: %d %s", response.Code, response.Body)
+	}
+	metadata, err := assetStore.Get(t.Context(), downloadManifest.Coordinate())
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedDigest, err := downloadManifest.Digest()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if metadata.Digest != expectedDigest || metadata.PreparedBy != "fixture-publisher" || metadata.DeclarationTier != "PUBLISHER_DECLARED" {
+		t.Fatal("CLI preparation became an unsupported verification claim", metadata)
+	}
+	publications, err := repository.ListProductPublications(t.Context(), downloadManifest.Product())
+	if err != nil || len(publications) != 1 || publications[0].Kind != assetdomain.Kind || publications[0].Release != nil || publications[0].PublicationDigest != expectedDigest {
+		t.Fatal("CLI declaration failed receipt binding or became executable", publications, err)
+	}
+
 }

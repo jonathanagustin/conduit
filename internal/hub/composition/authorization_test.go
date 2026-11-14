@@ -10,6 +10,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
+	assetmemory "github.com/jonathanagustin/conduit/internal/productassets/adapters/memory"
 	spacememory "github.com/jonathanagustin/conduit/internal/spaces/adapters/memory"
 )
 
@@ -54,6 +55,7 @@ var realIdentifiers = map[string]string{
 	"environmentRid": fixtureEnvironment,
 	"product":        fixtureProduct,
 	"productId":      fixtureProduct,
+	"productID":      fixtureProduct,
 	"version":        fixtureVersion,
 	"productVersion": fixtureVersion,
 	"teamName":       fixtureTeam,
@@ -75,6 +77,9 @@ const (
 // would also accept it after the authorization was removed, so the GraphQL row
 // is driven with a document that parses.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/product-publications/download-assets" {
+		return `{"apiVersion":"conduit.delivery/download-assets/v1","productGroup":"a.example","productName":"ledger","version":"0.1.0","assets":[{"name":"cli.tar.gz","uri":"https://example.org/cli.tar.gz","sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"}]}`
+	}
 	if strings.HasSuffix(pattern, "/v1/apollo/graphql") {
 		return `{"query":"{ __typename }"}`
 	}
@@ -201,7 +206,7 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 	t.Parallel()
 	store := newNotificationStore()
 	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{},
-		Options{Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+		Options{ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -269,7 +274,7 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 		// Named, so the "local-developer" bootstrap shortcut is off and every
 		// decision below has to come from a grant this principal does not hold.
 		BootstrapAdministrators: []string{"root"},
-	}, Options{Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+	}, Options{ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}

@@ -14,6 +14,7 @@ import (
 	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
+	assetports "github.com/jonathanagustin/conduit/internal/productassets/ports"
 	spaceports "github.com/jonathanagustin/conduit/internal/spaces/ports"
 )
 
@@ -24,6 +25,8 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// ProductAssets persists native download declarations. Nil mounts no asset routes.
+	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.
 	Spaces spaceports.Store
 	// NotificationStore is the durable notification component. Nil means this
