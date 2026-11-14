@@ -1,5 +1,6 @@
 /* Ported from the release console. Example rows stay labeled in the top bar. */
 import { createReleaseGates } from "./release-gates.js";
+import { createOntologyGraph } from "./ontology-graph.js";
 
 export function mountOperator(host, options) {
   const notifyOperator = () => {
@@ -288,6 +289,12 @@ export function mountOperator(host, options) {
     });
     releaseGates.extendState();
     SCREENS.push(...releaseGates.screens);
+    const ontologyGraph = createOntologyGraph({
+      state,
+      render: () => renderMainWorkspace(),
+    });
+    ontologyGraph.extendState();
+    SCREENS.push(...ontologyGraph.screens);
 
     function recordAudit(evt) {
       state.auditCount += 1;
@@ -392,6 +399,7 @@ export function mountOperator(host, options) {
         { label: "Release Rollout", icon: "cube", id: "rm05-release-rollout" },
         { label: "Promotion Pipeline", icon: "delivery", id: "rm06-promotion-pipe" },
         ...releaseGates.navItems,
+        ...ontologyGraph.navItems,
         { label: "Control Tower", icon: "approvals", id: "s15-plan-detail" },
         { label: "Workspaces", icon: "pin", id: "s02-workspaces" }
       ];
@@ -3406,7 +3414,8 @@ export function mountOperator(host, options) {
         "rm06-promotion-pipe": renderRM06PromotionPipe,
         "rm07-change-requests": renderRM07ChangeRequests,
         "rm08-bundle-preview": renderRM08BundlePreview,
-        ...releaseGates.renderers
+        ...releaseGates.renderers,
+        ...ontologyGraph.renderers
       };
       (m[state.screen] || renderS13FleetOverview)(root);
       if (screenChanged && root.firstElementChild) {
@@ -3463,6 +3472,7 @@ export function mountOperator(host, options) {
     window.copyRmRawLog = copyRmRawLog;
     window.state = state;
     releaseGates.bind(window);
+    ontologyGraph.bind(window);
     renderApp();
     return () => {
       window.removeEventListener("keydown", onKey);

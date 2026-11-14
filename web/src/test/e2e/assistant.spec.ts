@@ -423,6 +423,11 @@ test.describe("fake ACP bridge", () => {
       });
       await expect(page.getByText("Guardrail check").first()).toBeVisible();
       await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("og01-ontology-graph");
+      });
+      await expect(page.getByText("reportingSpoke").first()).toBeVisible();
+      await expect(page.getByText("Example data", { exact: true }).first()).toBeVisible();
+      await page.evaluate(() => {
         (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
       });
       await expect(page.getByLabel("Message input")).toBeVisible();
