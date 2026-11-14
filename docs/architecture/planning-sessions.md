@@ -52,6 +52,27 @@ directory, allows only that git host, and lets the configured model call
 `inspection` event. The audit log stores the tool names and the prompt
 and response hashes. No package or image compute runs during this step.
 
+## Needs Input and the plan
+
+After inspection, in the same turn, the model is asked for clarifying
+questions (`id`, `prompt`, optional `choices`). Questions with choices become
+`select` questions; the rest are `string`. They are stored on the session,
+streamed as a `needs_input` event, and read from `GET` on the session. Answer
+them with `POST /answers`. Accept stays refused while a required question is
+unanswered, and a turn leaves the plan unwritten until they are.
+
+With no open question, the next turn (or the same turn, when the model asked
+none) has the model write the plan: summary, base image approach, build steps,
+ports, network allow rules, SSO need, and risks. The plan is stored as
+canonical JSON in a fixed field order, with ports sorted and de-duplicated, so
+`PlanHash` is the same for the same plan whatever the model's formatting. It
+streams as a `plan` event.
+
+Both prompts require the model to `read_file` the README, package manifests,
+and existing build files before it answers. The audit log records
+`planning.questions` and `planning.plan` with the prompt and response sha256,
+beside `planning.inspect`.
+
 ## Accept binding
 
 Accept records, and never rewrites:
