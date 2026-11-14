@@ -63,7 +63,7 @@ function panel(title, body) {
 }
 
 function missing(message) {
-  return `<div class="so-view-enter"><div class="so-panel p-4 text-[12.5px] text-[#8b96a5]">${esc(message)}</div></div>`;
+  return `<section class="kit-card kit-bar-warn kit-state" role="status" data-state="empty"><div class="kit-state-title">EMPTY</div><p>${esc(message)}</p></section>`;
 }
 
 function hub(state) {
