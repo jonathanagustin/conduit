@@ -10,6 +10,8 @@ import { AcpPanels } from "@/src/embed/acp-panels";
 import { ComposerCommands } from "@/src/embed/composer-commands";
 import { ThreadWelcome } from "@/src/embed/thread-welcome";
 import { BridgeConnection, ConsoleChrome } from "@/src/embed/console-shell";
+import { ContextToolUIs } from "@/src/console/context-tools";
+import { Workbench } from "@/src/console/Workbench";
 import { ElementCatalog } from "@/src/embed/element-catalog";
 import {
   SidebarInset,
@@ -51,7 +53,7 @@ const THEME_KEY = "conduit-console-theme";
 
 export const Assistant = () => {
   const runtime = useCodexRuntime();
-  const [view, setView] = useState<"thread" | "elements">("thread");
+  const [view, setView] = useState<"thread" | "elements" | "workbench">("thread");
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -75,9 +77,10 @@ export const Assistant = () => {
 
   return (
     <AssistantRuntimeProvider runtime={runtime} config={ASSISTANT_CONFIG}>
+      <ContextToolUIs />
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
-          <ThreadListSidebar />
+          {view === "workbench" ? null : <ThreadListSidebar />}
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
               <SidebarTrigger />
@@ -111,8 +114,17 @@ export const Assistant = () => {
                 >
                   {dark ? "Light" : "Dark"}
                 </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-sm"
+                  aria-pressed={view === "workbench"}
+                  data-pressed={view === "workbench"}
+                  onClick={() => setView("workbench")}
+                >
+                  Workbench
+                </button>
                 <ConsoleChrome
-                  view={view}
+                  view={view === "workbench" ? "thread" : view}
                   onView={setView}
                   dark={dark}
                   onToggleTheme={toggleTheme}
@@ -121,7 +133,9 @@ export const Assistant = () => {
             </header>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <BridgeConnection />
-              {view === "thread" ? (
+              {view === "workbench" ? (
+                <Workbench dark={dark} />
+              ) : view === "thread" ? (
                 <div className="relative min-h-0 flex-1">
                   <ConversationMapAui side="right" />
                   <Thread components={THREAD_COMPONENTS} />

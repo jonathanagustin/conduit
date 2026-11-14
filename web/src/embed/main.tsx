@@ -17,7 +17,19 @@ if (container === null) {
 
 const root = createRoot(container);
 
-try {
+const gallery =
+  import.meta.env.DEV && window.location.pathname.includes("/dev/components");
+
+if (gallery) {
+  void import("../console/gallery").then(({ ComponentGallery }) => {
+    root.render(
+      <StrictMode>
+        <ComponentGallery />
+      </StrictMode>,
+    );
+  });
+} else {
+  try {
   loadRuntimeBootstrap();
   root.render(
     <StrictMode>
@@ -36,12 +48,13 @@ try {
       </Providers>
     </StrictMode>,
   );
-} catch {
-  root.render(
-    <StrictMode>
-      <main role="alert" data-testid="console-configuration-unavailable">
-        Console configuration is unavailable. Contact the Conduit operator.
-      </main>
-    </StrictMode>,
-  );
+  } catch {
+    root.render(
+      <StrictMode>
+        <main role="alert" data-testid="console-configuration-unavailable">
+          Console configuration is unavailable. Contact the Conduit operator.
+        </main>
+      </StrictMode>,
+    );
+  }
 }

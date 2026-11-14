@@ -1,0 +1,357 @@
+/* Dark tactical shell tokens, plus a light pair for the existing theme toggle.
+   Names are Conduit's. The layout follows a three-pane command center; the
+   values are not copied from a third-party stylesheet. */
+.conduit-shell {
+  --c-bg: #0e1418;
+  --c-sidebar: #12181d;
+  --c-panel: #151c22;
+  --c-card: #1b242c;
+  --c-border: #2a3642;
+  --c-text: #e7eef5;
+  --c-muted: #8b98a5;
+  --c-accent: #4c90f0;
+  --c-ok: #3dcc8e;
+  --c-warn: #e0a14a;
+  --c-bad: #e76a6e;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  flex: 1;
+  color: var(--c-text);
+  background: var(--c-bg);
+}
+
+.conduit-shell[data-theme="light"] {
+  --c-bg: #f4f6f8;
+  --c-sidebar: #ffffff;
+  --c-panel: #ffffff;
+  --c-card: #ffffff;
+  --c-border: #d5dde6;
+  --c-text: #1c2127;
+  --c-muted: #5f6b7a;
+}
+
+.conduit-shell * {
+  box-sizing: border-box;
+}
+
+.conduit-kpi,
+.conduit-body,
+.conduit-side,
+.conduit-center,
+.conduit-chat {
+  min-height: 0;
+}
+
+.conduit-kpi {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  padding: 8px;
+}
+
+.conduit-shell {
+  position: relative;
+  height: calc(100vh - 4rem);
+}
+
+.conduit-body {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr) minmax(280px, 400px);
+  flex: 1;
+  min-height: 0;
+}
+
+.conduit-shell.is-rail-collapsed .conduit-body {
+  grid-template-columns: 56px minmax(0, 1fr) minmax(280px, 400px);
+}
+
+.conduit-shell.is-rail-collapsed .conduit-side {
+  overflow: hidden;
+}
+
+.conduit-side,
+.conduit-center {
+  overflow: auto;
+  border-color: var(--c-border);
+  border-style: solid;
+}
+
+.conduit-side {
+  background: var(--c-sidebar);
+  border-right-width: 1px;
+  padding: 8px;
+}
+
+.conduit-center {
+  padding: 12px;
+}
+
+.conduit-chat {
+  display: flex;
+  flex-direction: column;
+  border-left: 1px solid var(--c-border);
+  background: var(--c-panel);
+}
+
+.conduit-card,
+.conduit-stat {
+  background: var(--c-card);
+  border: 1px solid var(--c-border);
+  border-radius: 8px;
+  padding: 10px;
+}
+
+.conduit-stat strong {
+  display: block;
+  font-size: 20px;
+}
+
+.conduit-stat span,
+.conduit-muted {
+  color: var(--c-muted);
+  font-size: 12px;
+}
+
+.conduit-nav button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  border: 0;
+  border-radius: 6px;
+  padding: 6px 8px;
+  cursor: pointer;
+}
+
+.conduit-nav button[aria-current="page"] {
+  background: color-mix(in srgb, var(--c-accent) 24%, transparent);
+}
+
+.conduit-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.conduit-stages {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.conduit-stages > * {
+  flex: 1;
+}
+
+.conduit-kanban {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.conduit-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  border: 1px solid var(--c-border);
+}
+
+.conduit-tag[data-intent="success"] {
+  color: var(--c-ok);
+}
+.conduit-tag[data-intent="warning"] {
+  color: var(--c-warn);
+}
+.conduit-tag[data-intent="danger"] {
+  color: var(--c-bad);
+}
+
+.conduit-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13px;
+}
+
+.conduit-table th,
+.conduit-table td {
+  border-bottom: 1px solid var(--c-border);
+  text-align: left;
+  padding: 6px 4px;
+}
+
+.conduit-split {
+  display: grid;
+  grid-template-columns: 240px minmax(0, 1fr);
+  gap: 12px;
+}
+
+.conduit-live {
+  margin-left: auto;
+}
+
+.conduit-nav-toggle,
+.conduit-chat-toggle,
+.conduit-nav-backdrop {
+  display: none;
+}
+
+.conduit-health {
+  display: flex;
+  width: 100%;
+  height: 10px;
+  overflow: hidden;
+  border-radius: 4px;
+  background: var(--c-border);
+}
+
+.conduit-health > span {
+  display: block;
+  height: 100%;
+}
+
+.conduit-health > span[data-tone="ok"] {
+  background: var(--c-ok);
+}
+
+.conduit-health > span[data-tone="bad"] {
+  background: var(--c-bad);
+}
+
+.conduit-health > span[data-tone="muted"] {
+  background: var(--c-muted);
+}
+
+.conduit-pipeline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.conduit-table-scroll {
+  width: 100%;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.conduit-table-scroll .bp6-html-table,
+.conduit-table {
+  min-width: 540px;
+}
+
+@media (max-width: 1340px) {
+  .conduit-kpi {
+    gap: 6px;
+  }
+}
+
+@media (min-width: 1024px) {
+  .conduit-shell.is-rail-collapsed .conduit-side {
+    overflow: hidden;
+  }
+}
+
+@media (min-width: 1024px) and (max-width: 1239px) {
+  .conduit-body,
+  .conduit-shell.is-rail-collapsed .conduit-body {
+    grid-template-columns: 202px minmax(0, 1fr) 260px;
+  }
+
+  .conduit-shell.is-rail-collapsed .conduit-body {
+    grid-template-columns: 56px minmax(0, 1fr) 260px;
+  }
+}
+
+@media (max-width: 1239px) {
+  .conduit-kpi {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .conduit-kanban {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1023px) {
+  .conduit-nav-toggle,
+  .conduit-chat-toggle {
+    display: inline-flex;
+  }
+
+  .conduit-rail-collapse {
+    display: none;
+  }
+
+  .conduit-body {
+    display: block;
+    overflow: auto;
+  }
+
+  .conduit-side,
+  .conduit-chat {
+    position: absolute;
+    top: 50px;
+    bottom: 0;
+    z-index: 30;
+    width: min(300px, 88vw);
+    background: var(--c-panel);
+    transition: transform 160ms ease;
+  }
+
+  .conduit-side {
+    left: 0;
+    width: 236px;
+    transform: translateX(-105%);
+    border-right: 1px solid var(--c-border);
+  }
+
+  .conduit-shell.is-nav-open .conduit-side {
+    transform: translateX(0);
+  }
+
+  .conduit-chat {
+    right: 0;
+    transform: translateX(105%);
+    border-left: 1px solid var(--c-border);
+    box-shadow: -12px 0 32px rgba(0, 0, 0, 0.45);
+  }
+
+  .conduit-shell.is-chat-open .conduit-chat {
+    transform: translateX(0);
+  }
+
+  .conduit-shell.is-nav-open .conduit-nav-backdrop,
+  .conduit-shell.is-chat-open .conduit-nav-backdrop {
+    display: block;
+    position: absolute;
+    top: 50px;
+    right: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 20;
+    border: 0;
+    background: rgba(4, 8, 12, 0.68);
+  }
+
+  .conduit-split,
+  .conduit-stages {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .conduit-kpi {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 719px) {
+  .conduit-kanban,
+  .conduit-kpi {
+    grid-template-columns: 1fr;
+  }
+}

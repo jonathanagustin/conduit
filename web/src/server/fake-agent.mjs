@@ -181,6 +181,44 @@ async function prompt(id, params) {
       block.type === "image" ||
       (block.type === "text" && block.text.startsWith("Attachment ")),
   );
+  if (/\bshow packaging run\b/i.test(text) || /\bshow plan\b/i.test(text)) {
+    const runId = text.match(/run\s+(\S+)/i)?.[1] ?? "sample-app-1";
+    const planId = text.match(/plan\s+(\S+)/i)?.[1] ?? "plan-1";
+    if (/\bshow packaging run\b/i.test(text)) {
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: "packaging-run",
+          title: "Packaging run",
+          name: "packaging_run",
+          kind: "other",
+          status: "completed",
+          rawInput: { runId, phase: "review", configured: true, planId },
+        },
+      });
+    }
+    if (/\bshow plan\b/i.test(text)) {
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "tool_call",
+          toolCallId: "plan-card",
+          title: "Plan",
+          name: "plan",
+          kind: "other",
+          status: "completed",
+          rawInput: { id: planId, status: "AWAITING_APPROVAL", environment: "lab", requiredApprovals: 1, approvalCount: 0 },
+        },
+      });
+    }
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: { sessionUpdate: "agent_message_chunk", content: { type: "text", text: "Opened the referenced record." } },
+    });
+    send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
+    return;
+  }
   const secret = "sk-testsecretvalue";
   notify("session/update", {
     sessionId: params.sessionId,
