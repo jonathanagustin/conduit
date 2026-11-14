@@ -2,7 +2,7 @@
 
 # Node and pnpm match mise.toml. The console bundle is platform-independent,
 # so this stage runs on the build machine and the Go stage embeds the result.
-FROM --platform=$BUILDPLATFORM node:24.22.3-bookworm@sha256:9d266751ca3d7fdbe651c878ffd5ad0a42fed49a18c283509267c97f025b7496 AS console
+FROM --platform=$BUILDPLATFORM node:26.13.0-bookworm@sha256:a546d3f8acd2af4382668a7e6acd3bc4418e6a27478373e3246f8162f5181509 AS console
 WORKDIR /src
 COPY mise.toml mise.toml
 COPY scripts/build-console.sh scripts/build-console.sh
