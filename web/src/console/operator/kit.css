@@ -621,3 +621,17 @@ button.kit-link { background: none; border: 0; padding: 0; font: inherit; cursor
 .kit-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; font-size: var(--fs-sm); }
 .kit-kv dt { color: var(--text-2); }
 .kit-kv dd { margin: 0; color: var(--text-1); overflow-wrap: anywhere; }
+
+/* Command palette (kit v7.1): category filters, match highlight, key | value tags */
+.kit-palette { border-color: var(--info-border); }
+.kit-palette-cats { display: flex; flex-wrap: wrap; gap: var(--sp-1); padding: 0 2px 6px; }
+.kit-palette-list { max-height: 360px; overflow-y: auto; display: grid; gap: 2px; }
+.kit-palette-row { height: auto; min-height: var(--h-nav-row, 29px); padding-top: 4px; padding-bottom: 4px; justify-content: space-between; gap: 10px; text-align: left; }
+.kit-palette-text { display: grid; min-width: 0; flex: 1; }
+.kit-palette-title, .kit-palette-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.kit-palette-sub { font-size: 11px; color: var(--c-muted); }
+.kit-palette mark { background: transparent; color: inherit; font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.kit-palette-none { padding: 18px; text-align: center; color: var(--c-muted); }
+.kit-ctag { display: inline-flex; flex-shrink: 0; font-size: 10.5px; line-height: 18px; border: 1px solid var(--info-border); border-radius: 3px; overflow: hidden; }
+.kit-ctag-k { padding: 0 6px; color: var(--c-muted); }
+.kit-ctag-v { padding: 0 6px; color: var(--c-text); border-left: 1px solid var(--info-border); }

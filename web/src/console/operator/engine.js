@@ -15,6 +15,12 @@ import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
 import { facetsMarkup, envDetailMarkup } from "./env-facets.js";
 import { hubSetupMarkup } from "./empty-states.js";
+import {
+  escapeHtml as escAttr,
+  filterPalette,
+  paletteItems,
+  paletteResultsMarkup,
+} from "./palette.js";
 import { dayTexture, paintDisc } from "./globe-texture.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
@@ -737,6 +743,7 @@ export function mountOperator(host, options) {
     cmdOmnibarOpen: false,
     cmdOmnibarQuery: "",
     cmdSelectedIdx: 0,
+    cmdCategory: "All",
     rmEnvResourceTab: "overview",
     rmActivitySubnav: "plans",
     rmPlanSearch: "",
@@ -5635,36 +5642,98 @@ export function mountOperator(host, options) {
       `;
   }
 
-  function handleOmnibarKey(ev) {
-    const q = state.cmdOmnibarQuery.toLowerCase();
-    const hits = SCREENS.filter(
-      (s) =>
-        !q ||
-        s.short.toLowerCase().includes(q) ||
-        s.tabTitle.toLowerCase().includes(q) ||
-        s.subtitle.toLowerCase().includes(q),
+  // Command palette (kit v7.1): views, Hub objects and console actions.
+  function paletteHits() {
+    return filterPalette(
+      paletteItems(SCREENS, state.hub),
+      state.cmdOmnibarQuery,
+      state.cmdCategory,
     );
-    if (!hits.length) return;
+  }
+
+  function renderPaletteResults() {
+    const host = document.getElementById("conduit-palette-results");
+    if (!host) return;
+    const hits = paletteHits();
+    if (state.cmdSelectedIdx >= hits.length) state.cmdSelectedIdx = 0;
+    host.innerHTML = paletteResultsMarkup(hits, {
+      query: state.cmdOmnibarQuery,
+      category: state.cmdCategory,
+      selected: state.cmdSelectedIdx,
+    });
+    host
+      .querySelector(".kit-palette-row.is-active")
+      ?.scrollIntoView({ block: "nearest" });
+  }
+
+  function paletteInput(value) {
+    state.cmdOmnibarQuery = String(value ?? "");
+    state.cmdSelectedIdx = 0;
+    renderPaletteResults();
+  }
+
+  function paletteCategory(category) {
+    state.cmdCategory = category;
+    state.cmdSelectedIdx = 0;
+    renderPaletteResults();
+    document.getElementById("conduit-omnibar-inp")?.focus();
+  }
+
+  function pickPaletteItem(idx) {
+    const hit = paletteHits()[idx];
+    if (!hit) return;
+    state.cmdOmnibarOpen = false;
+    renderConduitModals();
+    const target = hit.target || {};
+    if (target.action === "refresh") {
+      liveHub.refresh();
+      return;
+    }
+    if (target.action === "theme") {
+      window.toggleTheme();
+      return;
+    }
+    if (target.action === "settings") {
+      window.toggleSettingsDialog();
+      return;
+    }
+    if (target.env) {
+      state.envDetailId = target.env;
+      state.envDetailTab = "state";
+    }
+    if (target.change && state.crReview) state.crReview.selectedId = target.change;
+    else if (target.change) {
+      state.crReview = {
+        filter: "all",
+        selectedId: target.change,
+        draft: { decision: "", rationale: "" },
+        pending: false,
+        error: "",
+      };
+    }
+    if (target.screen) switchScreen(target.screen);
+  }
+
+  function handleOmnibarKey(ev) {
+    const hits = paletteHits();
     if (ev.key === "ArrowDown" || ev.key === "ArrowUp") {
       ev.preventDefault();
+      if (!hits.length) return;
       const step = ev.key === "ArrowDown" ? 1 : -1;
       state.cmdSelectedIdx =
         (state.cmdSelectedIdx + step + hits.length) % hits.length;
-      renderConduitModals();
-      const input = document.getElementById("conduit-omnibar-inp");
-      if (input) input.focus();
+      renderPaletteResults();
     } else if (ev.key === "Enter") {
       ev.preventDefault();
-      const target = hits[Math.min(state.cmdSelectedIdx, hits.length - 1)];
-      if (!target) return;
-      state.cmdOmnibarOpen = false;
-      switchScreen(target.id);
+      pickPaletteItem(Math.min(state.cmdSelectedIdx, hits.length - 1));
     }
   }
 
   function openCmdOmnibar() {
     state.cmdOmnibarOpen = true;
     state.cmdOmnibarQuery = "";
+    state.cmdSelectedIdx = 0;
+    state.cmdCategory = "All";
     renderConduitModals();
     setTimeout(() => {
       const el = document.getElementById("conduit-omnibar-inp");
@@ -5725,45 +5794,27 @@ export function mountOperator(host, options) {
     }
 
     if (state.cmdOmnibarOpen) {
-      const q = state.cmdOmnibarQuery.toLowerCase();
-      const hits = SCREENS.filter(
-        (s) =>
-          !q ||
-          s.short.toLowerCase().includes(q) ||
-          s.tabTitle.toLowerCase().includes(q) ||
-          s.subtitle.toLowerCase().includes(q),
-      );
       out += `
           <div data-onclick="if(event.target===this){state.cmdOmnibarOpen=false;renderConduitModals();}"
                class="so-modal-backdrop"
                style="position:fixed;inset:0;background:rgba(6,10,13,0.62);z-index:90;display:flex;align-items:flex-start;justify-content:center;padding:68px 16px 24px;">
-            <div role="dialog" aria-modal="true" aria-label="View switcher" class="so-panel so-modal-card w-full max-w-[540px] overflow-hidden shadow-2xl" style="border-color:#2a3a4a;">
+            <div role="dialog" aria-modal="true" aria-label="Command palette" class="so-panel so-modal-card kit-palette w-full max-w-[600px] overflow-hidden shadow-2xl">
               <div class="p-2.5 border-b border-[#1e262d]">
-                <input id="conduit-omnibar-inp" type="search" value="${state.cmdOmnibarQuery}"
-                  placeholder="Jump across all ${SCREENS.length} views"
+                <input id="conduit-omnibar-inp" type="search" value="${escAttr(state.cmdOmnibarQuery)}"
+                  placeholder="Search views, environments, products, runs, change requests, actions"
+                  aria-label="Search" aria-controls="conduit-palette-results"
                   data-onkeydown="handleOmnibarKey(event)"
-                  data-oninput="state.cmdOmnibarQuery=this.value; state.cmdSelectedIdx=0; renderConduitModals(); document.getElementById('conduit-omnibar-inp').focus();"
+                  data-oninput="paletteInput(this.value)"
                   class="so-input w-full !h-[32px]" />
               </div>
-              <div class="max-h-[340px] overflow-y-auto p-1.5 space-y-0.5">
-                ${hits
-                  .map(
-                    (h, idx) => `
-                  <button type="button" data-onclick="state.cmdOmnibarOpen=false; switchScreen('${h.id}')"
-                    class="so-nav-row ${idx === state.cmdSelectedIdx ? "is-active" : ""}">
-                    <span class="truncate min-w-0 flex-1"><strong class="code-id text-[10.5px] text-[#596573] mr-2">${String(h.num).padStart(2, "0")}</strong>${h.short}</span>
-                    <span class="code-id text-[10.5px] text-[#60a5fa] shrink-0">${h.tabTitle}</span>
-                  </button>
-                `,
-                  )
-                  .join("")}
-              </div>
+              <div id="conduit-palette-results" class="p-1.5"></div>
             </div>
           </div>
         `;
     }
 
     root.innerHTML = out;
+    if (state.cmdOmnibarOpen) renderPaletteResults();
   }
 
   let previousScreen = "";
@@ -6019,6 +6070,9 @@ export function mountOperator(host, options) {
   window.handleGlobalSearch = handleGlobalSearch;
   window.openCmdOmnibar = openCmdOmnibar;
   window.handleOmnibarKey = handleOmnibarKey;
+  window.paletteInput = paletteInput;
+  window.paletteCategory = paletteCategory;
+  window.pickPaletteItem = pickPaletteItem;
   window.renderConduitModals = renderConduitModals;
   window.renderMainWorkspace = renderMainWorkspace;
   window.showTip = showTip;
