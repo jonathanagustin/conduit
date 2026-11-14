@@ -272,6 +272,13 @@
       "why": "Public command semantics do not establish private editor/output schema or Git-owned state projection. Saved empty lists differ from empty documents; cancellation submits nothing.",
       "displacedBy": "A published or sanitized channel-membership editor schema, state-loading and submission/result contract.",
       "riskIfWrong": "Schema and extra Git-oriented flags may need replacement. A dry run is not server authorization or freshness. Existing desired-state validity still applies to channel-referencing Entities."
+    },
+    {
+      "id": "installoverride.ReviewBinding",
+      "what": "Native sealed installation override intent, exact target/blocker/authority fingerprints, bounded review window, independent identity checks and a short-lived opaque admission permit.",
+      "why": "The scoped CLI/release-note evidence establishes override capability, not a private approval or execution protocol. Issue #305 requires reviewed intent instead of unreviewed bypass flags. The kernel separates that contract from future trusted authority/runtime adapters.",
+      "displacedBy": "A published or sanitized installation override contract establishing review scope, blocker identity, expiry, independent approval and last-safe-point authority.",
+      "riskIfWrong": "Native field names and timing bounds may need replacement. This foundation is not composed into production and grants no bypass by itself. Real adapters must prove authentication, mandatory review, fresh target/grant facts, audit, serialized effects and durability before composition."
     }
   ],
   "displaced": [
