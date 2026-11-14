@@ -190,7 +190,7 @@ see must not be second-guessed by evidence that only describes vulnerabilities.
 
 Palantir manages its formula and does not publish it, so the scoring function is
 Platform's own. What the exception depends on is comparing two Releases scored the
-same way; absolute parity is neither claimed nor needed.
+same way; absolute equivalence is neither claimed nor needed.
 
 Evidence: `go test ./internal/controlplane -run 'RiskScore|VulnerabilityRecalledUpgrade|PlanCarriesRisk'`
 

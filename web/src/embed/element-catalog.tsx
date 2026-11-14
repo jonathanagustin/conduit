@@ -3,11 +3,6 @@
 import { Component, type ReactNode } from "react";
 import { AssistantModal } from "@/components/assistant-ui/elements/assistant-modal.aui";
 import { AssistantSidebar } from "@/components/assistant-ui/elements/assistant-sidebar.aui";
-import {
-  ClaudeLogo,
-  GeminiLogo,
-  OpenAILogo,
-} from "@/components/assistant-ui/elements/logos";
 import { McpConfigDialog } from "@/components/assistant-ui/elements/mcp-config.aui";
 import { ModelSelector } from "@/components/assistant-ui/elements/model-selector.aui";
 import { SyntaxHighlighter as ShikiHighlighter } from "@/components/assistant-ui/elements/shiki-highlighter";
@@ -128,13 +123,6 @@ export function ElementCatalog() {
               text={"Ask :agent[Search]{name=search} about the plan."}
             />
           </p>
-        </Section>
-        <Section id="logos" title="Model logos" backing="Demo data">
-          <div className="flex items-center gap-3">
-            <OpenAILogo className="size-6" />
-            <ClaudeLogo className="size-6" />
-            <GeminiLogo className="size-6" />
-          </div>
         </Section>
         <Section id="heat-graph" title="Heat graph" backing="Demo data">
           <HeatGraph

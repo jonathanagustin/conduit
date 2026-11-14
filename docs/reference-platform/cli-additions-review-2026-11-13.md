@@ -78,7 +78,7 @@ Behavioral tests use an executable fixture to check arguments without shell
 interpretation, stdin, output-file privacy/format, policy-exit handling,
 malformed reports, blocked output flags, NVD/CVSS selection, severity boundaries,
 and provenance. They exercise the wrapper contract; they do not claim a real
-image scan, native Apollo binary equivalence, or private report schema parity.
+image scan, native Apollo binary equivalence, or private report schema equivalence.
 
 ## Remaining product semantics
 

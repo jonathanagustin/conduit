@@ -28,7 +28,7 @@ import type { TreeNodeInfo } from "@blueprintjs/core";
 import { useState, type ReactNode } from "react";
 
 import {
-  blueprintVariant,
+  libraryVariant,
   ELEVATION,
   GATE_PRESET,
   TREND_ICON,
@@ -56,7 +56,7 @@ export function StatusTag({
   children,
 }: VariantProps & { gate?: GateName; children: ReactNode }) {
   const preset = gate ? GATE_PRESET[gate] : {};
-  const mapped = blueprintVariant({ intent, size, emphasis, ...preset });
+  const mapped = libraryVariant({ intent, size, emphasis, ...preset });
   return (
     <Tag
       round
@@ -91,7 +91,7 @@ export function ActionButton({
   children: ReactNode;
   onClick?: () => void;
 }) {
-  const mapped = blueprintVariant({ intent, size, emphasis });
+  const mapped = libraryVariant({ intent, size, emphasis });
   return (
     <Button
       intent={mapped.intent}
@@ -136,7 +136,7 @@ export function StatCard({
   size?: SizeName;
   trend?: TrendName;
 }) {
-  const mapped = blueprintVariant({ size });
+  const mapped = libraryVariant({ size });
   return (
     <Card
       compact={mapped.compact || size === "sm"}

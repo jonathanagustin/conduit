@@ -39,7 +39,7 @@ does not replace that. It chooses the engine for the packaging run only.
 - The delivery kernel remains the authority for Plans, leases, rollout,
   rollback, and observed state.
 - A localhost demonstration must not be described as a production
-  deployment, an air-gap deployment, or a small-install default.
+  deployment, an offline-bundle deployment, or a small-install default.
 - The operational cost of self-hosting Temporal has to be stated, not
   implied away by a dev-server demo.
 
@@ -155,7 +155,7 @@ separately inspected `start-dev` process was 127.0.0.1, including
 frontend, UI, and the extra local ports the dev server opens. The SDK
 also passes `frontend.enableServerVersionCheck=false`, and the demo
 passes `--ui-disable-news-fetch`. The test did not disconnect the
-machine's network interface. That is not an air-gap result.
+machine's network interface. That is not an offline-bundle result.
 
 ### Self-hosted cost
 

@@ -56,7 +56,7 @@ tasks:
     cmd: node scripts/apollo-docs/audit-public-documentation-images.mjs docs/reference-platform/public-documentation-manifest.tsv {{.OUTPUT_DIR}}
 
   claude:
-    desc: Launch the mise-pinned Claude Code with permission prompts disabled
+    desc: Launch the mise-pinned coding-agent CLI with permission prompts disabled
     interactive: true
     cmds:
       - mise exec -- claude --dangerously-skip-permissions

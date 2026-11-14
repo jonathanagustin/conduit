@@ -1232,10 +1232,10 @@ func TestPromotionReasonsStaySortedAcrossConcatenatedProducers(t *testing.T) {
 		lifecycle := NewLifecycle(repository)
 		lifecycle.now = func() time.Time { return now }
 		disconnected := foundation()
-		disconnected.Environment.ID = "air-gapped"
+		disconnected.Environment.ID = "disconnected-site"
 		disconnected.Environment.ConnectionSetting = ConnectionNoConnectionExpected
 		if _, err := repository.CreatePlan(ctx, PlanRecord{
-			ID: "pln_disconnected", Plan: Plan{Environment: "air-gapped", Generation: disconnected.Environment.Generation},
+			ID: "pln_disconnected", Plan: Plan{Environment: "disconnected-site", Generation: disconnected.Environment.Generation},
 			DesiredState: &disconnected, Status: PlanAwaitingApproval, CreatedAt: now,
 		}); err != nil {
 			t.Fatal(err)
@@ -1253,14 +1253,14 @@ func TestPromotionReasonsStaySortedAcrossConcatenatedProducers(t *testing.T) {
 				Conditions: []PromotionCondition{{Action: PromoteWhenHealthy, ThresholdPercent: 100, MinimumEntityCount: 9}},
 			},
 			Evidence: []PromotionHealthEvidence{{
-				Environment: "air-gapped", InstallationID: "example-api",
+				Environment: "disconnected-site", InstallationID: "example-api",
 				Health: HealthHealthy, HealthySince: now.Add(-2 * time.Hour), ObservedAt: now.Add(-2 * time.Hour),
 			}},
 		})
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !blockedBy(record.Blockers, PromotionBlockerEnvironmentCannotVouch, "air-gapped") {
+		if !blockedBy(record.Blockers, PromotionBlockerEnvironmentCannotVouch, "disconnected-site") {
 			t.Fatalf("fixture no longer produces a federation blocker: %#v", record.Blockers)
 		}
 		if !sort.StringsAreSorted(record.Reasons) {

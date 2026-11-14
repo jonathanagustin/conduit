@@ -202,4 +202,4 @@ marks this local report as CONDUIT_NATIVE and non-authoritative. This does not
 weaken the separate Hub scanner's provenance requirements for ignored findings.
 `internal/grypescanner/local_test.go` and
 `internal/conduitcli/grype_commands_test.go` exercise these behaviors with an
-executable fixture; they do not establish real-image or Apollo binary parity.
+executable fixture; they do not establish real-image or Apollo binary equivalence.

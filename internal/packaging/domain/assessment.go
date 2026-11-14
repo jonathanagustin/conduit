@@ -9,7 +9,7 @@ import (
 )
 
 var commitPattern = regexp.MustCompile(`^[0-9a-f]{40}([0-9a-f]{24})?$`)
-var topics = []string{"build", "images", "network", "persistence", "identity", "privileges", "airgap", "licensing"}
+var topics = []string{"build", "images", "network", "persistence", "identity", "privileges", "offline", "licensing"}
 
 // Evidence identifies a source location; it is not proof that a validation ran.
 type Evidence struct {
