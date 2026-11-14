@@ -1,9 +1,4 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
-import { fileURLToPath } from "node:url";
-
-import { createBridge, type BridgeServer } from "../../server/http.ts";
-
-const BRIDGE_PORT = Number(process.env["CONSOLE_TEST_BRIDGE_PORT"]);
 
 const BOOTSTRAP_MARKER = "<!--conduit-console-bootstrap-->";
 const BOOTSTRAP = {
@@ -54,148 +49,30 @@ test("refuses to start when the Hub did not render a tenant bootstrap", async ({
   ).toBeVisible();
 });
 
-test("shows the default assistant-ui starter", async ({ page }) => {
-  await hydrate(page);
-  await page.goto("/console/");
-  await expect(page.getByText("How can I help you today?")).toBeVisible();
-  await expect(page.getByText("Starter Template")).toBeVisible();
-  await expect(page.getByRole("link", { name: "assistant-ui" })).toBeVisible();
-  await expect(page.getByLabel("Message input")).toBeVisible();
-});
-
-test("shows a clear error when the Codex bridge is unreachable", async ({
-  page,
-}) => {
-  await hydrate(page);
-  await page.route("**/api/assistant/**", (route) => route.abort());
-  await page.goto("/console/");
-  await expect(page.getByRole("alert")).toContainText(
-    "Codex bridge is unreachable",
-  );
-});
-
-test.describe("fake ACP bridge", () => {
-  test.describe.configure({ mode: "serial" });
-
-  test("runs a fake ACP thread with usage, model, and theme controls", async ({
-    page,
-  }) => {
-    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
-    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
-      fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
-    ]);
-    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
-    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
-    const bridge: BridgeServer = await createBridge({ port: BRIDGE_PORT });
-    try {
-      await hydrate(page);
-      await page.goto("/console/");
-      await expect(
-        page.getByRole("button", { name: "Assess this workspace" }),
-      ).toBeVisible();
-      await expect(page.getByText("Codex demo")).toBeVisible();
-      await page.getByLabel("Message input").fill("inspect the workspace");
-      await page.getByRole("button", { name: "Send message" }).click();
-      await page.getByRole("button", { name: "Allow once" }).click();
-      await expect(page.getByText("12 (12%)")).toBeVisible();
-      await expect(page.getByText("Ask", { exact: true })).toBeInViewport();
-      const copy = page
-        .getByRole("button", { name: "Copy", exact: true })
-        .last();
-      const chip = page.getByRole("button", { name: "What is still unknown?" });
-      await expect(chip).toBeVisible();
-      await expect
-        .poll(
-          async () => {
-            const copyBox = await copy.boundingBox();
-            const chipBox = await chip.boundingBox();
-            if (!copyBox || !chipBox) return false;
-            return copyBox.y + copyBox.height <= chipBox.y + 2;
-          },
-          { timeout: 10_000 },
-        )
-        .toBe(true);
-      await page.getByLabel("Message input").fill("second turn");
-      await page.getByRole("button", { name: "Send message" }).click();
-      await page.getByRole("button", { name: "Allow once" }).click();
-      await expect(page.getByText("24 (24%)")).toBeVisible();
-      await page.getByRole("button", { name: "Dark" }).click();
-      await expect(page.locator("html")).toHaveClass(/dark/);
-      await page.getByRole("button", { name: "Light" }).click();
-      await expect(page.locator("html")).not.toHaveClass(/dark/);
-    } finally {
-      await bridge.close();
+test("opens straight to the operator workbench", async ({ page }) => {
+  const assistantBridge: string[] = [];
+  page.on("request", (request) => {
+    if (new URL(request.url()).pathname.startsWith("/api/assistant")) {
+      assistantBridge.push(request.url());
     }
   });
+  await hydrate(page);
+  await page.goto("/console/");
+  await expect(page).toHaveTitle("Conduit Console");
+  await expect(page.locator("#operator-root")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "Command Center" }).first(),
+  ).toBeVisible();
+  await expect(page.getByText("Starter Template")).toHaveCount(0);
+  await expect(page.getByText("View Source")).toHaveCount(0);
+  await expect(page.getByText(/bridge is unreachable/i)).toHaveCount(0);
+  await page.waitForLoadState("networkidle");
+  expect(assistantBridge).toEqual([]);
+});
 
-  test("opens settings, the command palette, and thread search", async ({
-    page,
-  }) => {
-    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
-    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
-      fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
-    ]);
-    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
-    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
-    const bridge: BridgeServer = await createBridge({ port: BRIDGE_PORT });
-    try {
-      await hydrate(page);
-      await page.goto("/console/");
-      await page.getByRole("button", { name: "Settings" }).click();
-      await expect(
-        page.getByRole("heading", { name: "Settings" }),
-      ).toBeVisible();
-      await expect(page.getByText("/api/assistant")).toBeVisible();
-      await expect(page.getByText("Command palette")).toBeVisible();
-      await expect(
-        page.getByRole("button", { name: "Codex demo" }),
-      ).toBeVisible();
-      await page.keyboard.press("Escape");
-      await page.keyboard.press("Control+K");
-      await expect(
-        page.getByRole("combobox", { name: "Type a command" }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("option", { name: "Open settings" }),
-      ).toBeVisible();
-      await page.keyboard.press("Escape");
-      await page.getByLabel("Message input").fill("inspect the workspace");
-      await page.getByRole("button", { name: "Send message" }).click();
-      await page.getByRole("button", { name: "Allow once" }).click();
-      await expect(
-        page.locator("[data-slot=aui_thread-list-item]"),
-      ).toContainText(/inspect/i);
-      await page.getByRole("button", { name: "Search", exact: true }).click();
-      await expect(
-        page.getByRole("combobox", { name: "Search threads" }),
-      ).toBeVisible();
-      await page
-        .getByRole("combobox", { name: "Search threads" })
-        .fill("inspect");
-      await expect(
-        page.getByRole("option", { name: /inspect the workspace/i }),
-      ).toBeVisible();
-      await page.keyboard.press("Escape");
-      await page.getByRole("button", { name: "Prompts" }).click();
-      await page.getByRole("option", { name: /Packaging blockers/ }).dblclick();
-      await expect(page.getByLabel("Message input")).toHaveValue(
-        /packaging blockers/,
-      );
-    } finally {
-      await bridge.close();
-    }
-  });
-
-  test("shows the workbench from hub routes and the fake agent", async ({
-    page,
-  }) => {
+test.describe("workbench", () => {
+  test("shows the workbench from hub routes", async ({ page }) => {
     test.setTimeout(60_000);
-    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
-    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([
-      fileURLToPath(new URL("../../server/fake-agent.mjs", import.meta.url)),
-    ]);
-    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
-    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
     let approved = false;
     await page.route("**/health/live", (route) =>
       route.fulfill({ json: { ok: true } }),
@@ -425,110 +302,100 @@ test.describe("fake ACP bridge", () => {
         });
       },
     );
-    const bridge: BridgeServer = await createBridge({ port: BRIDGE_PORT });
-    try {
-      await hydrate(page);
-      await page.goto("/console/");
-      await page.getByRole("button", { name: "Workbench" }).click();
-      await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
-      await expect(
-        page.getByText("EXAMPLE DATA", { exact: true }),
-      ).toBeVisible();
-      await expect(
-        page.getByRole("button", { name: "Command Center" }).first(),
-      ).toBeVisible();
-      await expect(
-        page.locator("#header-kpi-strip").getByText("Convergence").first(),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        const view = window as unknown as {
-          switchScreen: (id: string) => void;
-          toggleChatRail: () => void;
-        };
-        view.switchScreen("area-packaging");
-      });
-      await expect(page.getByText("sample-app-1").first()).toBeVisible();
-      await page.evaluate(() => {
-        history.pushState(null, "", "#s08-staged-run");
-        window.dispatchEvent(new HashChangeEvent("hashchange"));
-      });
-      await expect(
-        page.getByRole("button", { name: "Timeline" }),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("s16-approvals-board");
-      });
-      await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("rm09-recalls");
-      });
-      await expect(
-        page.getByText("No recall is recorded.").first(),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("rm10-ramped-rollout");
-      });
-      await expect(page.getByText("Canary pacing").first()).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("rm11-debug-terminal");
-      });
-      await expect(
-        page.getByText("session brokering not implemented").first(),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("pt01-proposal-trace");
-      });
-      await expect(page.getByText("Recorded proposal").first()).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("og01-ontology-graph");
-      });
-      await expect(page.getByText("reportingSpoke").first()).toBeVisible();
-      await expect(
-        page
-          .locator("#main-workspace")
-          .getByText(/Example data|Ontology API/)
-          .first(),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("adm01-user-prefs");
-      });
-      await expect(page.getByText("Personal API tokens").first()).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("adm02-org-control-panel");
-      });
-      await expect(
-        page.getByRole("radio", { name: "Organizations" }).first(),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        (
-          window as unknown as { switchScreen: (id: string) => void }
-        ).switchScreen("adm03-auth-signin");
-      });
-      await expect(
-        page.getByText("Sign-in is not enabled on this Hub").first(),
-      ).toBeVisible();
-      await page.evaluate(() => {
-        (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
-      });
-      await expect(page.getByLabel("Message input")).toBeVisible();
-    } finally {
-      await bridge.close();
-    }
+    await hydrate(page);
+    await page.goto("/console/");
+    await expect(page.getByText("LIVE", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("EXAMPLE DATA", { exact: true })).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Command Center" }).first(),
+    ).toBeVisible();
+    await expect(
+      page.locator("#header-kpi-strip").getByText("Convergence").first(),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      const view = window as unknown as {
+        switchScreen: (id: string) => void;
+        toggleChatRail: () => void;
+      };
+      view.switchScreen("area-packaging");
+    });
+    await expect(page.getByText("sample-app-1").first()).toBeVisible();
+    await page.evaluate(() => {
+      history.pushState(null, "", "#s08-staged-run");
+      window.dispatchEvent(new HashChangeEvent("hashchange"));
+    });
+    await expect(page.getByRole("button", { name: "Timeline" })).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("s16-approvals-board");
+    });
+    await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("rm09-recalls");
+    });
+    await expect(
+      page.getByText("No recall is recorded.").first(),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("rm10-ramped-rollout");
+    });
+    await expect(page.getByText("Canary pacing").first()).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("rm11-debug-terminal");
+    });
+    await expect(
+      page.getByText("session brokering not implemented").first(),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("pt01-proposal-trace");
+    });
+    await expect(page.getByText("Recorded proposal").first()).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("og01-ontology-graph");
+    });
+    await expect(page.getByText("reportingSpoke").first()).toBeVisible();
+    await expect(
+      page
+        .locator("#main-workspace")
+        .getByText(/Example data|Ontology API/)
+        .first(),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("adm01-user-prefs");
+    });
+    await expect(page.getByText("Personal API tokens").first()).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("adm02-org-control-panel");
+    });
+    await expect(
+      page.getByRole("radio", { name: "Organizations" }).first(),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("adm03-auth-signin");
+    });
+    await expect(
+      page.getByText("Sign-in is not enabled on this Hub").first(),
+    ).toBeVisible();
+    await page.evaluate(() => {
+      (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
+    });
+    await expect(page.getByLabel("Message input")).toBeVisible();
   });
 });
