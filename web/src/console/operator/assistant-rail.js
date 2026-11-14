@@ -159,7 +159,7 @@ export function assistantChrome(state) {
         <span class="text-[12.5px] font-semibold text-white truncate">Assistant</span>
         <span class="kit-badge kit-badge-muted">${mode === "explore" ? "Read only" : "Governed"}</span>
       </div>
-      <button type="button" onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
+      <button type="button" data-onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
     </header>
     <div class="shrink-0 space-y-2">
       <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Mode · ${esc(state.screen || "")}</div>

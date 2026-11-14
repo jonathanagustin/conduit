@@ -18,9 +18,11 @@
 # slower than the stubbed suite by the cost of a Hub build. Run it when the
 # transport between console and Hub is what is in question.
 #
-# The scenarios still seed a Hub. The assistant no longer renders plans, fleet,
-# or change requests, so every scenario opens the same shell check: the embedded
-# bundle hydrates the tenant bootstrap and says the local Codex bridge is absent.
+# The scenarios still seed a Hub. Every scenario opens the same shell check: the
+# embedded bundle hydrates the tenant bootstrap and says the local Codex bridge
+# is absent. The healthy scenario also walks the release journey through the
+# operator workbench (release-journey.spec.ts), approving the seeded change
+# request as a second person.
 #   ./scripts/simulate-console.sh                      # embedded assistant shell
 #   ./scripts/simulate-console.sh --keep               # leave the Hub running
 set -euo pipefail
@@ -159,11 +161,15 @@ fi
 # Explicit rather than derived from the scenario name: the mapping is the thing
 # a reader needs, and a scenario whose specs silently did not exist would pass.
 case "${scenario}" in
-  healthy|failure|degraded) specs=assistant.spec.ts ;;
+  healthy) specs="assistant.spec.ts release-journey.spec.ts" ;;
+  failure|degraded) specs=assistant.spec.ts ;;
   *) echo "simulate: unknown scenario '${scenario}'" >&2; exit 1 ;;
 esac
-[ -f "${repo_root}/web/src/test/live/${specs}" ] ||
-  { echo "simulate: scenario '${scenario}' has no spec file ${specs}" >&2; exit 1; }
+for spec in ${specs}; do
+  [ -f "${repo_root}/web/src/test/live/${spec}" ] ||
+    { echo "simulate: scenario '${scenario}' has no spec file ${spec}" >&2; exit 1; }
+done
 
+# shellcheck disable=SC2086 # specs is a space-separated list of file names
 CONDUIT_HUB_URL="${hub_url}/console/" CONDUIT_SIMULATED_PLAN="${plan_id}" \
-  pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts "${specs}" "$@"
+  pnpm --dir "${repo_root}/web" exec playwright test --config playwright.live.config.ts ${specs} "$@"

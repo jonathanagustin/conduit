@@ -52,6 +52,10 @@ export default defineConfig({
       process.env["PLATFORM_CONSOLE_OUT_DIR"] ?? "../internal/consoleui/dist",
     emptyOutDir: true,
     sourcemap: false,
+    // The Hub serves the console with font-src 'self', which refuses data:
+    // URLs, so fonts ship as files rather than being inlined into the CSS.
+    assetsInlineLimit: (file: string) =>
+      /\.(woff2?|ttf|otf)$/.test(file) ? false : undefined,
   },
   server: {
     proxy: { "/api/assistant": bridge },

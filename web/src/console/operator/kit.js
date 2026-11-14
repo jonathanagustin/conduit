@@ -50,7 +50,7 @@ export function objectHeader(header) {
   const links = (header.links || [])
     .map(
       (link) =>
-        `<button type="button" class="kit-btn kit-btn-sm" onclick="switchScreen('${esc(link.screen)}')">${esc(link.label)}</button>`,
+        `<button type="button" class="kit-btn kit-btn-sm" data-onclick="switchScreen('${esc(link.screen)}')">${esc(link.label)}</button>`,
     )
     .join("");
   const owner = header.owner
@@ -333,7 +333,7 @@ export function connectivityMarkup(sites) {
   }
   const cards = sites
     .map(
-      (site) => `<button type="button" class="kit-card kit-card-interactive kit-bar-info kit-pad" onclick="switchScreen('s14-env-detail')">
+      (site) => `<button type="button" class="kit-card kit-card-interactive kit-bar-info kit-pad" data-onclick="switchScreen('s14-env-detail')">
         <div class="kit-header-row">
           <strong>${esc(site.id)}</strong>
           ${connectivityBadge(site.connectivity)}
