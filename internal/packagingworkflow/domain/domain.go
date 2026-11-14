@@ -346,6 +346,8 @@ type State struct {
 	Reason           string            `json:"reason,omitempty"`
 	Outcome          Outcome           `json:"outcome,omitempty"`
 	TargetPlanRef    string            `json:"targetPlanRef,omitempty"`
+	TemplateVersion  string            `json:"templateVersion,omitempty"`
+	ToolVersions     string            `json:"toolVersions,omitempty"`
 	Events           []StepEvent       `json:"events,omitempty"`
 	eventsEnabled    bool
 }
@@ -398,6 +400,8 @@ func (s State) Status() RunStatus {
 		ArtifactDigest:    s.Proposal.Artifact.Digest,
 		ProposalRevision:  s.Proposal.ProposalRevision,
 		TargetPlanRef:     s.TargetPlanRef,
+		TemplateVersion:   s.TemplateVersion,
+		ToolVersions:      s.ToolVersions,
 		PlanID:            s.Plan.PlanID,
 		HandoffReconciled: s.Plan.Reconciled,
 		LastReview:        string(s.LastReview),
@@ -423,6 +427,8 @@ type RunStatus struct {
 	ArtifactDigest    string `json:"artifactDigest,omitempty"`
 	ProposalRevision  string `json:"proposalRevision,omitempty"`
 	TargetPlanRef     string `json:"targetPlanRef,omitempty"`
+	TemplateVersion   string `json:"templateVersion,omitempty"`
+	ToolVersions      string `json:"toolVersions,omitempty"`
 	PlanID            string `json:"planId,omitempty"`
 	HandoffReconciled bool   `json:"handoffReconciled,omitempty"`
 	LastReview        string `json:"lastReview,omitempty"`

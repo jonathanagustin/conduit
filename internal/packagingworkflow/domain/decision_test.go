@@ -5,6 +5,17 @@ import (
 	"testing"
 )
 
+func TestStatusCarriesTheRunTemplateAndTools(t *testing.T) {
+	state := State{
+		Phase: "assess", TargetPlanRef: "env-dev/sample-app",
+		TemplateVersion: "fixture-1", ToolVersions: "lint=fixture-1",
+	}
+	status := state.Status()
+	if status.TemplateVersion != "fixture-1" || status.ToolVersions != "lint=fixture-1" {
+		t.Fatalf("status = %#v", status)
+	}
+}
+
 func sampleIdentity() RunIdentity {
 	return RunIdentity{
 		RunID:           "sample-app-1",

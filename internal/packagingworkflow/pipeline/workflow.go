@@ -41,10 +41,19 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 			Outcome: domain.OutcomeFailRequired, Reason: domain.TrimReason(err.Error()),
 		}, nil
 	}
-	state := &domain.State{Phase: domain.PhaseAssess, TargetPlanRef: in.Identity.TargetPlanRef}
+	state := &domain.State{
+		Phase: domain.PhaseAssess, TargetPlanRef: in.Identity.TargetPlanRef,
+		TemplateVersion: in.Identity.TemplateVersion, ToolVersions: in.Identity.ToolVersions,
+	}
 	if in.Carry != nil {
 		copied := *in.Carry
 		state = &copied
+		if state.TemplateVersion == "" {
+			state.TemplateVersion = in.Identity.TemplateVersion
+		}
+		if state.ToolVersions == "" {
+			state.ToolVersions = in.Identity.ToolVersions
+		}
 	}
 	if version >= 2 {
 		state.EnableEvents()

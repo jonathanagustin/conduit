@@ -68,6 +68,8 @@ func packagingRunResponse(status domain.RunStatus) *packagingv1.GetPackagingRunR
 		HandoffReconciled: status.HandoffReconciled,
 		LastReview:        status.LastReview,
 		DuplicateReviews:  int32(status.DuplicateReviews),
+		TemplateVersion:   status.TemplateVersion,
+		ToolVersions:      status.ToolVersions,
 	}
 }
 

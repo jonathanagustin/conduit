@@ -57,4 +57,8 @@ message GetPackagingRunResponse {
   string last_review = 16;
   // duplicate_reviews is the REST field duplicateReviews.
   int32 duplicate_reviews = 17;
+  // template_version is the REST field templateVersion.
+  string template_version = 18;
+  // tool_versions is the REST field toolVersions.
+  string tool_versions = 19;
 }

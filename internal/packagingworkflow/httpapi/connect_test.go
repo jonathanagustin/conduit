@@ -35,6 +35,8 @@ func TestConnectHappyPathNotFoundAndUnauthorizedMatchREST(t *testing.T) {
 		HandoffReconciled: true,
 		LastReview:        string(domain.ReviewAccepted),
 		DuplicateReviews:  2,
+		TemplateVersion:   "fixture-1",
+		ToolVersions:      "lint=fixture-1",
 		// A reader must not be able to relabel the run. Both transports stamp
 		// the same authority fields over whatever the reader returned.
 		Authority:         "temporal-approval",
@@ -57,6 +59,9 @@ func TestConnectHappyPathNotFoundAndUnauthorizedMatchREST(t *testing.T) {
 	}
 	if rest.PlanID != "plan_abc" || rest.Phase != domain.PhaseReview || rest.DuplicateReviews != 2 || !rest.HandoffReconciled {
 		t.Fatalf("payload = %#v", rest)
+	}
+	if rest.TemplateVersion != "fixture-1" || rest.ToolVersions != "lint=fixture-1" {
+		t.Fatalf("versions = %#v", rest)
 	}
 
 	missing := httptest.NewServer(mountBoth(Config{
@@ -162,6 +167,8 @@ func getConnect(t *testing.T, server *httptest.Server, runID string) domain.RunS
 		HandoffReconciled: message.GetHandoffReconciled(),
 		LastReview:        message.GetLastReview(),
 		DuplicateReviews:  int(message.GetDuplicateReviews()),
+		TemplateVersion:   message.GetTemplateVersion(),
+		ToolVersions:      message.GetToolVersions(),
 	}
 }
 
