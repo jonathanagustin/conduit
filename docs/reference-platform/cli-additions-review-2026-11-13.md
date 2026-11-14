@@ -98,3 +98,13 @@ and expiry. These requirements were added to their existing issue threads.
 The 16 unimplemented additions remain outside the profile until those product
 capabilities and behavioral tests land.
 
+
+### 2026-11-14 membership implementation review
+
+Issue #365 implements the three hash-pinned membership editor/removal command
+pages through native governed proposals, verified by real CLI/Hub tests. The
+profile is now 114 pages; 9 of the 123 live inventory pages remain outside it.
+The new dated snapshot preserves all 111 earlier rows. Native Git generation,
+editor schema, rationale transport and membership review semantics are disclosed
+in `../architecture/channel-membership-proposals.md`; this is not a recapture
+or a claim about private Apollo APIs.

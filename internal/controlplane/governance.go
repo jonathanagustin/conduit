@@ -426,6 +426,12 @@ func (service *GovernanceService) ProposePlan(
 func (service *GovernanceService) proposePlan(
 	ctx context.Context, state DesiredState, author Principal, title, description string, optimizer *OptimizerPlanProvenance,
 ) (PlanRecord, ChangeRequest, error) {
+	return service.proposePlanWithAdditionalChanges(ctx, state, author, title, description, optimizer, nil)
+}
+
+func (service *GovernanceService) proposePlanWithAdditionalChanges(
+	ctx context.Context, state DesiredState, author Principal, title, description string, optimizer *OptimizerPlanProvenance, additional []EntityChange,
+) (PlanRecord, ChangeRequest, error) {
 	if strings.TrimSpace(author.Username) == "" {
 		return PlanRecord{}, ChangeRequest{}, ErrUnauthorized
 	}
@@ -436,7 +442,7 @@ func (service *GovernanceService) proposePlan(
 	if err != nil {
 		return PlanRecord{}, ChangeRequest{}, err
 	}
-	request, err := service.evaluatePlan(ctx, record, author, title, description)
+	request, err := service.evaluatePlanWithAdditionalChanges(ctx, record, author, title, description, additional)
 	if err != nil {
 		return PlanRecord{}, ChangeRequest{}, err
 	}
@@ -543,13 +549,14 @@ func (service *GovernanceService) validateLabelContributions(ctx context.Context
 	return nil
 }
 
-func (service *GovernanceService) evaluatePlan(
-	ctx context.Context, record PlanRecord, author Principal, title, description string,
+func (service *GovernanceService) evaluatePlanWithAdditionalChanges(
+	ctx context.Context, record PlanRecord, author Principal, title, description string, additional []EntityChange,
 ) (ChangeRequest, error) {
 	changes, err := service.planChanges(ctx, record.Plan, author)
 	if err != nil {
 		return ChangeRequest{}, err
 	}
+	changes = append(changes, cloneJSON(additional)...)
 	if record.Optimizer != nil && len(changes) == 0 {
 		return ChangeRequest{}, fmt.Errorf("%w: optimizer proposal produced no reviewable changes", ErrInvalidTransition)
 	}

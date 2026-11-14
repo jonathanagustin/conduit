@@ -5,15 +5,14 @@ Sources and exact reviewed hashes are indexed in `review-ledger.tsv`; the
 records each command, capability, and product issue.
 
 Two local Grype commands and four Change Request discussion/label command
-pages (#363) are implemented and behaviorally tested. The other 12 additions
-remain outside the reviewed profile: temporary entity maintenance overrides (#364), channel
-membership editor/removal (#365), and terminal sessions/grants (#303/#304).
+pages (#363) and three membership editor/removal pages (#365) are implemented and behaviorally tested. The other 9 additions
+remain outside the reviewed profile: temporary entity maintenance overrides (#364) and terminal sessions/grants (#303/#304).
 An existing label setter, permanent Environment bypass, or channel-definition
 operation does not establish those new command semantics. Terminal create
 starts and connects to a new debug Pod; it is not just workload exec.
 
-The reviewed profile is 111 source pages: the original 105 August rows, two
-November Grype rows and four Change Request activity rows. The live inventory independently remains 123. Neither
+The reviewed profile is 114 source pages: the original 105 August rows, two
+November Grype rows and four Change Request activity rows and three membership rows. The live inventory independently remains 123. Neither
 count proves native binary output equivalence or an unpublished private protocol.
 No refusal-only commands were introduced for these additions.
 
@@ -42,3 +41,21 @@ PostgreSQL discussion/restore gates detect drift. The reviewed snapshot
 other source pages or claim native binary output equivalence. See
 [`change-request-activity.md`](../../architecture/change-request-activity.md)
 for native bounds and persistence semantics.
+
+## Release-channel membership implementation
+
+The membership editor/removal commands now create real governed Plan proposals,
+retain rationale in the Change Request and preserve channel definitions and
+immutable artifact coordinates. Saved empty lists remove memberships; empty
+documents, unchanged editor content and nonzero editor exits cancel before
+submission. Removal merges repeatable coordinates and YAML-list file inputs.
+Offline dry-run performs no submission.
+
+The YAML schema, strict review envelope, native membership Change Type, source
+digest comparison and required Git-oriented state/generation flags are Conduit
+extensions, not a recovered private API. Existing desired-state validity can
+reject an edit that leaves an Entity selecting an empty channel.
+See [channel-membership-proposals.md](../../architecture/channel-membership-proposals.md)
+for authority, concurrency, persistence bounds and behavioral tests. The new
+114-row immutable snapshot preserves the previous 111 rows; no upstream page
+was recaptured during this implementation.

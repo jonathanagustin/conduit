@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "captured": "2026-11-14",
-  "sourceManifest": "docs/reference-platform/snapshots/cli-command-sources-2026-11-14-363.tsv",
-  "sourceCount": 111,
+  "sourceManifest": "docs/reference-platform/snapshots/cli-command-sources-2026-11-14-365.tsv",
+  "sourceCount": 114,
   "commands": [
     {
       "command": "apollo-cli artifact-registry list",
@@ -3307,7 +3307,100 @@
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_changerequest_label_remove/",
       "sourceSha256": "c210bda518bc327cd03d328e22ff9d30e590bf004ef435babd289f86046a4803"
+    },
+    {
+      "command": "apollo-cli product-release release-channel edit",
+      "synopsis": "apollo-cli product-release release-channel edit <maven-coordinate> [flags]",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "--dry-run",
+        "-h",
+        "--help",
+        "--rationale",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_release-channel_edit/",
+      "sourceSha256": "fd81efc60f5fcd34b29bbd6291fb8f735d8f7aa0bb5f29a4b5bf36bf32e109b2"
+    },
+    {
+      "command": "apollo-cli product-release release-channel",
+      "synopsis": "",
+      "experimental": false,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_product-release_release-channel/",
+      "sourceSha256": "b9866ed64baf7e1fa724269d55d326cf900d50d7660bd2b18bab6aaca79ab377"
+    },
+    {
+      "command": "apollo-cli release-channel remove [Experimental]",
+      "synopsis": "apollo-cli release-channel remove <channel-name> [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "--dry-run",
+        "-h",
+        "--help",
+        "--maven-coordinate",
+        "-f",
+        "--maven-coordinates-file",
+        "--rationale",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_remove/",
+      "sourceSha256": "972d3e7f2249ffe6c7497935d7456bf3499835439a5e84af2575c828324a6625"
     }
   ]
 }
-

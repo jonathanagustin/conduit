@@ -1406,7 +1406,7 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		state, ok := decodeJSON[DesiredState](w, request)
+		state, title, description, reviewContext, ok := decodePlanProposal(w, request)
 		if !ok {
 			return
 		}
@@ -1420,9 +1420,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
-		record, changeRequest, err := governance.ProposePlan(
-			request.Context(), state, principal, request.Header.Get("X-Change-Title"), request.Header.Get("X-Change-Description"),
-		)
+		var record PlanRecord
+		var changeRequest ChangeRequest
+		var err error
+		if reviewContext != nil {
+			record, changeRequest, err = governance.ProposeMembershipPlan(request.Context(), state, principal, *reviewContext)
+		} else {
+			record, changeRequest, err = governance.ProposePlan(request.Context(), state, principal, title, description)
+		}
 		if err != nil {
 			writeLifecycleError(w, err)
 			return

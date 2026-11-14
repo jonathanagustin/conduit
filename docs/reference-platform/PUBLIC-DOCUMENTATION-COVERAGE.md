@@ -453,3 +453,14 @@ and resolver tests cover these distinctions, provenance and storage failure.
 This is a Conduit extension, not private Apollo wire compatibility; Space
 selection and guest-user publication remain unfinished under #17.
 
+
+## 2026-11-14 channel membership implementation (#365)
+
+Implemented: the three previously hash-pinned product-release release-channel
+group/editor and Experimental release-channel remove command pages. Real
+CLI/Hub tests cover cancellation, saved empty-list removal, coordinate merging,
+authorization, dry-run and persisted rationale; repository tests cover native
+approval, immutable state and serialized stale-edit rejection. The reviewed CLI
+profile is 114 pages, independently of the 123-page live inventory. Native
+transport and Git-owned projection bounds are documented in
+[`channel-membership-proposals.md`](../architecture/channel-membership-proposals.md).
