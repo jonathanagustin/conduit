@@ -69,8 +69,8 @@ importers:
         specifier: ^7.0.153
         version: 7.0.170(zod@4.6.7)
       assistant-stream:
-        specifier: 0.3.56
-        version: 0.3.56(ai@7.0.170(zod@4.6.7))
+        specifier: 0.3.57
+        version: 0.3.57(ai@7.0.170(zod@4.6.7))
       beautiful-mermaid:
         specifier: ^1.1.3
         version: 1.1.3
@@ -2267,20 +2267,6 @@ packages:
       '@opentelemetry/sdk-trace-base':
         optional: true
       ai:
-        optional: true
-
-  assistant-stream@0.3.56:
-    resolution: {integrity: sha512-it2+baky3y+JcfqTwSzjMgMJB2uCiAIKEmIMkn67RacEXQLOHNP4iO8PLGAZNJ0IVQ+sIyRaCzNuITl4h5lCMw==}
-    peerDependencies:
-      ai: ^6.0.0 || ^7.0.0
-      ioredis: ^5.10.1 || ^6.0.0
-      redis: ^5.12.1
-    peerDependenciesMeta:
-      ai:
-        optional: true
-      ioredis:
-        optional: true
-      redis:
         optional: true
 
   assistant-stream@0.3.57:
@@ -5334,15 +5320,6 @@ snapshots:
     transitivePeerDependencies:
       - ioredis
       - redis
-
-  assistant-stream@0.3.56(ai@7.0.170(zod@4.6.7)):
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@types/json-schema': 7.0.15
-      nanoid: 6.0.2
-      secure-json-parse: 4.1.1
-    optionalDependencies:
-      ai: 7.0.170(zod@4.6.7)
 
   assistant-stream@0.3.57(ai@7.0.170(zod@4.6.7)):
     dependencies:
