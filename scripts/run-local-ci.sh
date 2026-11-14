@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 # Run the complete CI gate locally, bound to one clean commit. No GitHub writes.
 set -euo pipefail
+# Match the hosted runner creation mask; permission-negative tests set modes explicitly.
+umask 022
 
 runner_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 root="$(git rev-parse --show-toplevel)"
