@@ -789,7 +789,7 @@ func (service *GovernanceService) approveOnce(
 ) (ChangeRequest, PlanRecord, error) {
 	rationale = strings.TrimSpace(rationale)
 	if rationale == "" {
-		return ChangeRequest{}, PlanRecord{}, ErrInvalidTransition
+		return ChangeRequest{}, PlanRecord{}, fmt.Errorf("%w: approval rationale is required", ErrInvalidTransition)
 	}
 	candidate, err := service.repository.GetChangeRequest(ctx, changeRequestID)
 	if err != nil {
@@ -961,7 +961,7 @@ func (service *GovernanceService) Reject(
 	ctx context.Context, id string, principal Principal, rationale string,
 ) (ChangeRequest, PlanRecord, error) {
 	if strings.TrimSpace(rationale) == "" {
-		return ChangeRequest{}, PlanRecord{}, ErrInvalidTransition
+		return ChangeRequest{}, PlanRecord{}, fmt.Errorf("%w: rejection rationale is required", ErrInvalidTransition)
 	}
 	candidate, err := service.repository.GetChangeRequest(ctx, id)
 	if err != nil {
