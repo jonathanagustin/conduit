@@ -1,5 +1,5 @@
 .operator-root {
-  /* Exact RGB Hex Sampled from AIPCon 9 Conduit 1920x1080 Reference Frames */
+  /* Dark operator palette; tokens.css owns the text tones. */
   --so-bg: #0b1113;
   --so-topbar: #0d1317;
   --so-sidebar: #101519;
@@ -322,7 +322,7 @@
   border-radius: 2px 2px 0 0;
 }
 
-/* Moving 45-deg Blueprint Candy-Stripe Progress Bar (f_02_38_cn_run.png & f_05_08_comms_det.png) */
+/* Moving 45-degree striped progress bar */
 @keyframes bpStripe {
   0% {
     background-position: 0 0;
