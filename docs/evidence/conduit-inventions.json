@@ -335,6 +335,13 @@
       "why": "A signed claim alone does not supply current authorization, one-use storage or deployment permission. The application records verified evidence only; a process-local reference adapter demonstrates the port without pretending to be durable production authority.",
       "displacedBy": "a reviewed recipient-side validation evidence admission and atomic challenge/audit contract.",
       "riskIfWrong": "The memory reference loses state on restart and is not shared across replicas or connected to live Hub facts. Durable transactional adapters, actual profile compilation, current governance and final handoff integration remain required before production use."
+    },
+    {
+      "id": "debugsessions.RequestLifecycle",
+      "what": "Native debug-session request event schema and REQUESTED/EXPIRED/REVOKED/DELETED vocabulary, dsr_ base32 identifiers, fixed immutable scope and append-only transition model. The kernel has no execution-ready state or production endpoint.",
+      "why": "The pinned public terminal/profile/session pages establish separate debug Pods, ownership, expiry, creation, deletion and reattachment but no event DTO, identifier grammar, storage or private transport. ADR 0015 requires auditable lifecycle before broker execution; this bounded kernel defines those native choices without claiming a working terminal.",
+      "displacedBy": "A published lifecycle/event schema or authorized sanitized capture that establishes the corresponding Apollo record, identity, identifier and transition semantics.",
+      "riskIfWrong": "The native model may differ from Apollo and is marked CONDUIT_NATIVE. It cannot issue execution authority. Current authorization, durable audit, concurrent persistence, Hub wiring and the actual broker remain outstanding."
     }
   ],
   "displaced": [

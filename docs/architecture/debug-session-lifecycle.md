@@ -1,0 +1,35 @@
+# Debug-session lifecycle kernel
+
+`internal/debugsessions/domain` is the native lifecycle kernel for #303's
+first phase. It does not expose a Hub API, create a durable record, authorize an
+operator, run a Pod, issue a credential or attach a shell. The production CLI
+and broker remain unchanged. ADR 0015 and the pinned public-source review in
+`reference-platform/reference/debug-access.md` remain the behavior authority.
+
+The native event vocabulary is REQUESTED, EXPIRED, REVOKED and DELETED. There
+is deliberately no READY/ACTIVE/ATTACHED state or execution permit. One immutable
+request binds an opaque random session ID, Environment, namespace, explicit
+profile reference, effective owner, authenticated original actor, creation and
+fixed expiry. It is marked CONDUIT_NATIVE. The four-hour maximum is established
+by the source; these event names, identifier grammar and schemas are native.
+
+Expiry is exclusive: expiry at the exact bound is accepted and revocation at
+that instant is not. Revocation and deletion cannot extend or change scope or
+owner. A terminal request can be deleted before or after expiry. A three-event
+history is sufficient for create, expire/revoke and delete; gaps, duplicates,
+reordering and immutable-binding changes fail validation. Terminal states cannot
+be reattached, reopened or promoted into execution readiness.
+
+This kernel validates arguments only. Callers must establish current identity
+and authorization, generate unpredictable IDs, choose time from an authoritative
+clock, enforce owner isolation, persist the whole transition/audit fact before
+acknowledging it, handle competing revisions, reconcile expiry and validate
+complete histories on read. A standalone Event.Validate call is not proof of a
+valid transition. The forthcoming durable application/adapters and authenticated
+Hub composition must enforce those obligations. No production authority or
+durability follows from these domain tests.
+
+Tests constrain lifetime bounds including one nanosecond, exact-expiry behavior,
+revocation/deletion, immutable target/owner/time bindings, broken event histories
+and unsupported execution states. They are domain tests; no runtime trial or
+broker behavior has been exercised.
