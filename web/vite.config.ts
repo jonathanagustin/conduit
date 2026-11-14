@@ -38,6 +38,9 @@ export default defineConfig({
   base: "/console/",
   resolve: {
     alias: {
+      "@conduit/ontology-client": fileURLToPath(
+        new URL("./src/api/ontology-client/index.ts", import.meta.url),
+      ),
       "@": fileURLToPath(new URL("./", import.meta.url)),
     },
   },

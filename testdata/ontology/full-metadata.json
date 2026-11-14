@@ -1,0 +1,579 @@
+{
+  "actionTypes": {
+    "createChangeRequest": {
+      "apiName": "createChangeRequest",
+      "description": "Proposes a change request through the existing approval path. VALIDATE_ONLY does not store one.",
+      "displayName": "Create change request",
+      "operations": [
+        {
+          "objectTypeApiName": "ChangeRequest",
+          "type": "createObject"
+        }
+      ],
+      "parameters": {
+        "changeId": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Identifier of the change inside the request.",
+          "displayName": "Change identifier",
+          "required": false
+        },
+        "changeType": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "A change type the governance taxonomy already accepts.",
+          "displayName": "Change type",
+          "required": true
+        },
+        "description": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Description stored on the change request.",
+          "displayName": "Description",
+          "required": false
+        },
+        "environment": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Environment the change request targets.",
+          "displayName": "Environment",
+          "required": true
+        },
+        "installationId": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Installation referenced by change types that require one.",
+          "displayName": "Installation",
+          "required": false
+        },
+        "productId": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Product referenced by change types that require one.",
+          "displayName": "Product",
+          "required": false
+        },
+        "targetId": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Identifier of the governance target.",
+          "displayName": "Target identifier",
+          "required": true
+        },
+        "targetKind": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Governance target kind, such as ENVIRONMENT.",
+          "displayName": "Target kind",
+          "required": true
+        },
+        "title": {
+          "dataType": {
+            "type": "string"
+          },
+          "description": "Title stored on the change request.",
+          "displayName": "Title",
+          "required": false
+        }
+      },
+      "rid": "ri.conduit.main.action-type.createChangeRequest",
+      "status": "ACTIVE"
+    }
+  },
+  "interfaceTypes": {},
+  "objectTypes": {
+    "Artifact": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "plans",
+          "cardinality": "MANY",
+          "displayName": "Plans",
+          "linkTypeRid": "ri.conduit.main.link-type.plan-artifact",
+          "objectTypeApiName": "Artifact",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "Artifact",
+        "description": "A chart or image referenced by a plan's desired release.",
+        "displayName": "Artifact",
+        "pluralDisplayName": "Artifacts",
+        "primaryKey": "id",
+        "properties": {
+          "digest": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Digest",
+            "rid": "ri.conduit.main.object-type.Artifact.property.digest"
+          },
+          "id": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Identifier",
+            "rid": "ri.conduit.main.object-type.Artifact.property.id"
+          },
+          "product": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Product",
+            "rid": "ri.conduit.main.object-type.Artifact.property.product"
+          },
+          "repository": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Repository",
+            "rid": "ri.conduit.main.object-type.Artifact.property.repository"
+          },
+          "tag": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Tag",
+            "rid": "ri.conduit.main.object-type.Artifact.property.tag"
+          },
+          "version": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Version",
+            "rid": "ri.conduit.main.object-type.Artifact.property.version"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.Artifact",
+        "status": "ACTIVE",
+        "titleProperty": "repository"
+      },
+      "sharedPropertyTypeMapping": {}
+    },
+    "ChangeRequest": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "environment",
+          "cardinality": "ONE",
+          "displayName": "environment",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-change",
+          "objectTypeApiName": "ChangeRequest",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "plan",
+          "cardinality": "ONE",
+          "displayName": "plan",
+          "linkTypeRid": "ri.conduit.main.link-type.plan-change",
+          "objectTypeApiName": "ChangeRequest",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "ChangeRequest",
+        "description": "A governed change request. Creating one does not approve it.",
+        "displayName": "Change request",
+        "pluralDisplayName": "Change requests",
+        "primaryKey": "id",
+        "properties": {
+          "author": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Author",
+            "rid": "ri.conduit.main.object-type.ChangeRequest.property.author"
+          },
+          "environment": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Environment",
+            "rid": "ri.conduit.main.object-type.ChangeRequest.property.environment"
+          },
+          "id": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Identifier",
+            "rid": "ri.conduit.main.object-type.ChangeRequest.property.id"
+          },
+          "planId": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Plan",
+            "rid": "ri.conduit.main.object-type.ChangeRequest.property.planId"
+          },
+          "status": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Status",
+            "rid": "ri.conduit.main.object-type.ChangeRequest.property.status"
+          },
+          "title": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Title",
+            "rid": "ri.conduit.main.object-type.ChangeRequest.property.title"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.ChangeRequest",
+        "status": "ACTIVE",
+        "titleProperty": "title"
+      },
+      "sharedPropertyTypeMapping": {}
+    },
+    "Environment": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "reportingSpoke",
+          "cardinality": "MANY",
+          "displayName": "Reporting spoke",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-spoke",
+          "objectTypeApiName": "Environment",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "workProfile",
+          "cardinality": "ONE",
+          "displayName": "Work profile",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-profile",
+          "objectTypeApiName": "Environment",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "releaseChannels",
+          "cardinality": "MANY",
+          "displayName": "Release channels",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-channel",
+          "objectTypeApiName": "Environment",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "plans",
+          "cardinality": "MANY",
+          "displayName": "Plans",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-plan",
+          "objectTypeApiName": "Environment",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "changeRequests",
+          "cardinality": "MANY",
+          "displayName": "Change requests",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-change",
+          "objectTypeApiName": "Environment",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "Environment",
+        "description": "A delivery environment and the generation it declares.",
+        "displayName": "Environment",
+        "pluralDisplayName": "Environments",
+        "primaryKey": "id",
+        "properties": {
+          "connection": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Connection",
+            "rid": "ri.conduit.main.object-type.Environment.property.connection"
+          },
+          "generation": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Generation",
+            "rid": "ri.conduit.main.object-type.Environment.property.generation"
+          },
+          "id": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Identifier",
+            "rid": "ri.conduit.main.object-type.Environment.property.id"
+          },
+          "releaseChannel": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Default release channel",
+            "rid": "ri.conduit.main.object-type.Environment.property.releaseChannel"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.Environment",
+        "status": "ACTIVE",
+        "titleProperty": "id"
+      },
+      "sharedPropertyTypeMapping": {}
+    },
+    "Plan": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "environment",
+          "cardinality": "ONE",
+          "displayName": "environment",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-plan",
+          "objectTypeApiName": "Plan",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "changeRequest",
+          "cardinality": "ONE",
+          "displayName": "Change request",
+          "linkTypeRid": "ri.conduit.main.link-type.plan-change",
+          "objectTypeApiName": "Plan",
+          "status": "ACTIVE"
+        },
+        {
+          "apiName": "artifacts",
+          "cardinality": "MANY",
+          "displayName": "Artifacts",
+          "linkTypeRid": "ri.conduit.main.link-type.plan-artifact",
+          "objectTypeApiName": "Plan",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "Plan",
+        "description": "A reviewed plan for one environment.",
+        "displayName": "Plan",
+        "pluralDisplayName": "Plans",
+        "primaryKey": "id",
+        "properties": {
+          "changeRequestId": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Change request",
+            "rid": "ri.conduit.main.object-type.Plan.property.changeRequestId"
+          },
+          "environment": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Environment",
+            "rid": "ri.conduit.main.object-type.Plan.property.environment"
+          },
+          "generation": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Generation",
+            "rid": "ri.conduit.main.object-type.Plan.property.generation"
+          },
+          "id": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Identifier",
+            "rid": "ri.conduit.main.object-type.Plan.property.id"
+          },
+          "status": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Status",
+            "rid": "ri.conduit.main.object-type.Plan.property.status"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.Plan",
+        "status": "ACTIVE",
+        "titleProperty": "id"
+      },
+      "sharedPropertyTypeMapping": {}
+    },
+    "ReleaseChannel": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "environment",
+          "cardinality": "ONE",
+          "displayName": "environment",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-channel",
+          "objectTypeApiName": "ReleaseChannel",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "ReleaseChannel",
+        "description": "A release channel declared for an environment.",
+        "displayName": "Release channel",
+        "pluralDisplayName": "Release channels",
+        "primaryKey": "id",
+        "properties": {
+          "archived": {
+            "dataType": {
+              "type": "boolean"
+            },
+            "displayName": "Archived",
+            "rid": "ri.conduit.main.object-type.ReleaseChannel.property.archived"
+          },
+          "description": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Description",
+            "rid": "ri.conduit.main.object-type.ReleaseChannel.property.description"
+          },
+          "environment": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Environment",
+            "rid": "ri.conduit.main.object-type.ReleaseChannel.property.environment"
+          },
+          "id": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Identifier",
+            "rid": "ri.conduit.main.object-type.ReleaseChannel.property.id"
+          },
+          "name": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Name",
+            "rid": "ri.conduit.main.object-type.ReleaseChannel.property.name"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.ReleaseChannel",
+        "status": "ACTIVE",
+        "titleProperty": "name"
+      },
+      "sharedPropertyTypeMapping": {}
+    },
+    "Spoke": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "environments",
+          "cardinality": "MANY",
+          "displayName": "Environments",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-spoke",
+          "objectTypeApiName": "Spoke",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "Spoke",
+        "description": "The agent that reports an environment.",
+        "displayName": "Spoke",
+        "pluralDisplayName": "Spokes",
+        "primaryKey": "id",
+        "properties": {
+          "environment": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Environment",
+            "rid": "ri.conduit.main.object-type.Spoke.property.environment"
+          },
+          "id": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Identifier",
+            "rid": "ri.conduit.main.object-type.Spoke.property.id"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.Spoke",
+        "status": "ACTIVE",
+        "titleProperty": "id"
+      },
+      "sharedPropertyTypeMapping": {}
+    },
+    "WorkProfile": {
+      "implementsInterfaces": [],
+      "implementsInterfaces2": {},
+      "linkTypes": [
+        {
+          "apiName": "environment",
+          "cardinality": "ONE",
+          "displayName": "environment",
+          "linkTypeRid": "ri.conduit.main.link-type.environment-profile",
+          "objectTypeApiName": "WorkProfile",
+          "status": "ACTIVE"
+        }
+      ],
+      "objectType": {
+        "apiName": "WorkProfile",
+        "description": "The operator-authored profile of an environment.",
+        "displayName": "Work profile",
+        "pluralDisplayName": "Work profiles",
+        "primaryKey": "environmentId",
+        "properties": {
+          "accreditation": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Accreditation",
+            "rid": "ri.conduit.main.object-type.WorkProfile.property.accreditation"
+          },
+          "description": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Description",
+            "rid": "ri.conduit.main.object-type.WorkProfile.property.description"
+          },
+          "displayName": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Display name",
+            "rid": "ri.conduit.main.object-type.WorkProfile.property.displayName"
+          },
+          "environmentId": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Environment",
+            "rid": "ri.conduit.main.object-type.WorkProfile.property.environmentId"
+          },
+          "ownerTeam": {
+            "dataType": {
+              "type": "string"
+            },
+            "displayName": "Owner team",
+            "rid": "ri.conduit.main.object-type.WorkProfile.property.ownerTeam"
+          }
+        },
+        "rid": "ri.conduit.main.object-type.WorkProfile",
+        "status": "ACTIVE",
+        "titleProperty": "displayName"
+      },
+      "sharedPropertyTypeMapping": {}
+    }
+  },
+  "ontology": {
+    "apiName": "conduit",
+    "description": "Environments, spokes, work profiles, release channels, plans, change requests, and artifacts.",
+    "displayName": "Conduit",
+    "rid": "ri.conduit.main.ontology.conduit"
+  },
+  "queryTypes": {},
+  "sharedPropertyTypes": {},
+  "valueTypes": {}
+}
