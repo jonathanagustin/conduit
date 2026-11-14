@@ -1,3 +1,4 @@
+// Package httpapi serves offline bundle hand-off and install report-back.
 package httpapi
 
 import (
