@@ -44,6 +44,9 @@ const (
 	OperationCreateArtifact        = "artifact:create"
 	OperationCreateProduct         = "product:create"
 	OperationCreateRelease         = "product-release:create"
+	OperationCreateDebugRequest    = "debug-session-request:create"
+	OperationManageDebugRequest    = "debug-session-request:manage"
+	OperationReadDebugRequest      = "debug-session-request:read"
 )
 
 // OperationVocabulary is every operation Platform itself can act on: the ones
@@ -69,6 +72,9 @@ var OperationVocabulary = []string{
 	OperationCreateArtifact,        // artifact:create
 	OperationImportBundle,          // bundle:import
 	OperationProposeChange,         // change:propose
+	OperationCreateDebugRequest,    // debug-session-request:create
+	OperationManageDebugRequest,    // debug-session-request:manage
+	OperationReadDebugRequest,      // debug-session-request:read
 	OperationBulkChange,            // fleet:bulk-change
 	OperationApplyLabel,            // label:apply
 	OperationApproveModuleOverride, // module-installation:override-approve
@@ -231,6 +237,8 @@ type AuthorizationAuditEvent struct {
 var CanonicalRoleOperations = map[string][]string{
 	"permissions:administrator":               {OperationManagePermissions, OperationReadResource},
 	"permissions:viewer":                      {OperationReadResource},
+	"environment:debug-requester":             {OperationCreateDebugRequest, OperationReadDebugRequest},
+	"environment:debug-request-manager":       {OperationCreateDebugRequest, OperationReadDebugRequest, OperationManageDebugRequest},
 	"environment:creator":                     {OperationProposeChange},
 	"environment:administrator":               {OperationProposeChange, OperationReadResource, OperationOperate, OperationImportBundle, OperationBulkChange, OperationManagePermissions},
 	"environment:editor":                      {OperationProposeChange, OperationReadResource, OperationOperate, OperationImportBundle, OperationBulkChange},

@@ -9,6 +9,7 @@ import (
 
 	activityports "github.com/jonathanagustin/conduit/internal/changeactivity/ports"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
@@ -26,6 +27,9 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// DebugSessionJournal persists non-executing metadata requests and their audit events.
+	// Nil mounts no debug-request routes.
+	DebugSessionJournal requestports.Journal
 	// ChangeDiscussion persists native discussion separately from review records.
 	ChangeDiscussion activityports.Store
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.

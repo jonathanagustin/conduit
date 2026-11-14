@@ -161,7 +161,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(helmChartCommand(state))
 	root.AddCommand(labelCommand(state))
 	root.AddCommand(releaseChannelCommand(state))
-	root.AddCommand(terminalCommand())
+	root.AddCommand(terminalCommand(state))
 	root.AddCommand(entityCommand(state))
 	root.AddCommand(suppressionCommand(state))
 	root.AddCommand(teamCommand(state))

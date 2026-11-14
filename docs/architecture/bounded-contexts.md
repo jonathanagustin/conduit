@@ -124,11 +124,15 @@ not DesiredState or approval authority. Existing control-plane adapters compose
 it with governed membership-only proposals. See
 [channel-membership-proposals.md](channel-membership-proposals.md).
 
-## Debug-session requests (lifecycle kernel only)
+## Debug-session requests
 
-`internal/debugsessions/domain` owns the native non-executing request lifecycle
-under [ADR 0015](../decisions/0015-brokered-debug-terminals.md). It imports no
-other context or infrastructure. Current authorization, durable transaction and
-audit adapters, Hub composition and broker execution remain outstanding; see
-[the lifecycle bounds](debug-session-lifecycle.md). Domain events are not
-credentials, approval receipts or evidence that a debug Pod exists.
+`internal/debugsessions` owns native non-executing request lifecycle, current
+scope/owner application authority and immutable file/PostgreSQL audit history.
+Hub composition binds existing operator identity and governance; runtime startup
+owns durable adapters, and the native operator/CLI transport exposes request
+metadata. No domain import reaches another context or infrastructure.
+[The lifecycle bounds](debug-session-lifecycle.md) describe the separate
+permission/journal boundaries and behavioral evidence. Stored requests are not
+credentials, approval receipts or evidence that a debug Pod exists. Broker,
+profile preflight, streaming/reattachment and console integration remain
+outstanding under [ADR 0015](../decisions/0015-brokered-debug-terminals.md).

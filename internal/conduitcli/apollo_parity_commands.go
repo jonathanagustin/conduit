@@ -277,30 +277,23 @@ func targetHubCommand() *cobra.Command {
 	return command
 }
 
-// terminalBoundaryGroup extends the existing `terminal` refusal to the
-// subcommands Apollo added, so the boundary is stated wherever an operator
-// arrives at it rather than only at the parent.
-//
-// This is a declared boundary, not a gap: Conduit has no SSH, kubectl exec,
-// host API, or cluster-admin execution path, and reference/debug-access.md
-// keeps just-in-time access with the audited broker that owns the Environment.
-// Growing an Agent into a privileged shell service is the thing that document
-// refuses, so these will not gain backing by being asked for again.
+// terminalBoundaryGroup retains the unimplemented grant/policy command boundary.
+// ADR 0015 and #303 reverse the old permanent H30 refusal. Native request
+// metadata does not implement broker execution or #304's JIT elevation yet.
 func terminalBoundaryGroup(name, subject string) *cobra.Command {
 	refuse := func() error {
 		return fmt.Errorf(
-			"terminal %s is intentionally unavailable: Conduit has no SSH, kubectl exec, host API, or "+
-				"cluster-admin execution path, so it neither issues nor records %s. Use the audited "+
+			"terminal %s broker/JIT support is not available yet; request metadata does not implement %s. Use the audited "+
 				"break-glass tooling owned by the Environment; see docs/reference-platform/reference/debug-access.md",
 			name, subject,
 		)
 	}
 	command := &cobra.Command{
-		Use: name, Short: "Intentionally unavailable: " + subject + " stay with the Environment's broker",
+		Use: name, Short: "Broker/JIT implementation outstanding: " + subject,
 		RunE: func(*cobra.Command, []string) error { return refuse() },
 	}
 	command.AddCommand(&cobra.Command{
-		Use: "list", Short: "Intentionally unavailable: " + subject + " stay with the Environment's broker",
+		Use: "list", Short: "Broker/JIT implementation outstanding: " + subject,
 		Args: cobra.NoArgs,
 		RunE: func(*cobra.Command, []string) error { return refuse() },
 	})
