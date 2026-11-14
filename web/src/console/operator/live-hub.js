@@ -354,6 +354,12 @@ export function createLiveHub({ state, render }) {
       next.channelNote = "Hub did not return channel subscriptions.";
     }
     try {
+      const blackout = await readJSON("/v1/blackouts?environment=dev");
+      next.blackoutReason = blackout.blocked ? blackout.reason : "";
+    } catch {
+      next.blackoutReason = "";
+    }
+    try {
       const rollouts = await readJSON("/v1/rollouts");
       next.rollouts = Array.isArray(rollouts.rollouts) ? rollouts.rollouts : [];
     } catch {
@@ -663,7 +669,8 @@ export function createLiveHub({ state, render }) {
         : `<p class="text-[12px] text-[#8b96a5]">${esc(note)}</p>`;
       root.innerHTML = `<div class="so-view-enter">${panel(
         "Staged waves",
-        `<p class="text-[12px] text-[#8b96a5]">Each wave waits on health, an approval, or a time window. Pause confirms. Start, resume, and roll back open a change request.</p>${body}`,
+        `<p class="text-[12px] text-[#8b96a5]">Each wave waits on health, an approval, or a time window. Pause confirms. Start, resume, and roll back open a change request.</p>
+         <p class="text-[12px] text-[#8b96a5]">Blackout: ${esc(hub(state).blackoutReason || "none")}</p>${body}`,
       )}</div>`;
     },
     renderChannels(root) {
