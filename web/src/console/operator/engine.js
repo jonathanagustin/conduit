@@ -13,7 +13,7 @@ import {
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
-import { facetsMarkup } from "./env-facets.js";
+import { facetsMarkup, envDetailMarkup } from "./env-facets.js";
 import { dayTexture, paintDisc } from "./globe-texture.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
@@ -5854,6 +5854,15 @@ export function mountOperator(host, options) {
       "flt-environments": (node) => {
         const selected = state.envFacets || (state.envFacets = {});
         const paint = () => {
+          if (state.envDetailId) {
+            const row = (state.hub?.environments || []).find(
+              (item) => item?.environment?.id === state.envDetailId,
+            );
+            node.innerHTML = envDetailMarkup(row, state.hub?.installations, {
+              tab: state.envDetailTab,
+            });
+            return;
+          }
           node.innerHTML = facetsMarkup(state.hub?.environments, selected, {
             note: state.hub?.environmentsNote || "",
           });
@@ -5861,6 +5870,24 @@ export function mountOperator(host, options) {
         paint();
         node.onclick = (event) => {
           const target = event.target instanceof Element ? event.target : null;
+          const open = target?.closest("[data-env-open]");
+          if (open) {
+            state.envDetailId = open.getAttribute("data-env-open");
+            state.envDetailTab = "state";
+            paint();
+            return;
+          }
+          if (target?.closest("[data-env-back]")) {
+            state.envDetailId = "";
+            paint();
+            return;
+          }
+          const envTab = target?.closest("[data-env-tab]");
+          if (envTab) {
+            state.envDetailTab = envTab.getAttribute("data-env-tab");
+            paint();
+            return;
+          }
           if (target?.closest("[data-facet-clear]")) {
             for (const key of Object.keys(selected)) delete selected[key];
             paint();

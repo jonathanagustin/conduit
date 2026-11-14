@@ -125,6 +125,20 @@ test("release journey runs end to end on the Hub's own data", async ({
     main.getByText(environments.environments[0].environment.id).first(),
   ).toBeVisible();
 
+  // 5b. Environments list to one environment and back, on the same rows.
+  const firstEnv = environments.environments[0].environment.id;
+  await openArea(page, "Fleet", "Environments");
+  await main.locator(`[data-env-open="${firstEnv}"]`).click();
+  await expect(main.locator("[data-env-back]")).toBeVisible();
+  await expect(main.locator("h2", { hasText: firstEnv })).toBeVisible();
+  await main.locator('[data-env-tab="constraints"]').click();
+  await expect(main.locator('[data-env-tab="constraints"]')).toHaveAttribute(
+    "aria-pressed",
+    "true",
+  );
+  await main.locator("[data-env-back]").click();
+  await expect(main.locator(`[data-env-open="${firstEnv}"]`)).toBeVisible();
+
   // 6. Audit: the approval is on the ledger and the chain links check out.
   await openArea(page, "Audit");
   await main.locator("[data-ledger-query]").fill("approve");
