@@ -64,3 +64,21 @@ func TestDomainDoesNotImportProcesses(t *testing.T) {
 		}
 	}
 }
+
+func TestPromptIncludesTheSkillAndItsDigest(t *testing.T) {
+	input := PackagingContext{
+		RunID: "sample-app-1", GateRules: MemoryGateRule,
+		Skill: "packaging skill body", SkillSHA256: DigestText([]byte("packaging skill body")),
+	}
+	prompt := Prompt(input)
+	marker := "--- packaging skill sha256 " + input.SkillSHA256 + " ---"
+	if !strings.Contains(prompt, marker) || !strings.Contains(prompt, "packaging skill body") || !strings.Contains(prompt, "--- end packaging skill ---") {
+		t.Fatalf("prompt missing skill\n%s", prompt)
+	}
+	if !strings.Contains(prompt, "Gate rules: "+MemoryGateRule) {
+		t.Fatalf("prompt dropped gate rules\n%s", prompt)
+	}
+	if Prompt(PackagingContext{RunID: "sample-app-1"}) == prompt {
+		t.Fatal("prompt with no skill matched the skill prompt")
+	}
+}

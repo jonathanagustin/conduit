@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
+	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 )
 
 func TestParseArgvDoesNotUseAShell(t *testing.T) {
@@ -27,7 +28,7 @@ func TestRunnerPassBlockedTimeoutMalformedAndExit(t *testing.T) {
 	script := writeScript(t)
 	input := domain.PackagingContext{RunID: "sample-app-1", GateRules: "memory limit must not exceed 1Gi"}
 	pass, provenance, err := (Runner{Argv: []string{script, "pass"}, Timeout: 5 * time.Second}).Propose(context.Background(), input)
-	if err != nil || pass.Value != "512Mi" || provenance.PromptSHA256 == "" || provenance.ResponseSHA256 == "" {
+	if err != nil || pass.Value != "512Mi" || provenance.PromptSHA256 == "" || provenance.ResponseSHA256 == "" || provenance.SkillSHA256 != packagingskill.SHA256() {
 		t.Fatalf("pass = %#v %#v %v", pass, provenance, err)
 	}
 	blocked, _, err := (Runner{Argv: []string{script, "blocked"}, Timeout: 5 * time.Second}).Propose(context.Background(), input)
@@ -73,6 +74,9 @@ func TestRunnerPromptCarriesPackagingFacts(t *testing.T) {
 		"Image ref: 127.0.0.1:5000/sample-app:0.2.0",
 		"Image digest: " + digest,
 		"Gate rules: " + domain.MemoryGateRule,
+		"--- packaging skill sha256 " + packagingskill.SHA256() + " ---",
+		packagingskill.Source,
+		"--- end packaging skill ---",
 	} {
 		if !strings.Contains(string(body), want) {
 			t.Fatalf("prompt missing %q\n%s", want, body)

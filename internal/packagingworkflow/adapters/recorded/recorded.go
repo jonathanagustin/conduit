@@ -28,7 +28,7 @@ func (adapter Adapter) Propose(ctx context.Context, input domain.PackagingContex
 		return domain.Proposal{}, domain.Provenance{}, ctx.Err()
 	}
 	if !adapter.ready {
-		return domain.Proposal{}, domain.Provenance{Adapter: "recorded"}, domain.ErrModelUnavailable
+		return domain.Proposal{}, domain.Provenance{Adapter: "recorded"}.WithSkillDigest(input), domain.ErrModelUnavailable
 	}
 	prompt := []byte(domain.Prompt(input))
 	raw, err := canonical(adapter.proposal)
@@ -37,7 +37,7 @@ func (adapter Adapter) Propose(ctx context.Context, input domain.PackagingContex
 	}
 	return adapter.proposal, domain.Provenance{
 		Adapter: "recorded", PromptSHA256: domain.DigestText(prompt), ResponseSHA256: domain.DigestText(raw),
-	}, nil
+	}.WithSkillDigest(input), nil
 }
 
 func canonical(proposal domain.Proposal) ([]byte, error) {

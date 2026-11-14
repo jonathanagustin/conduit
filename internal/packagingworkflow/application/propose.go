@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
+	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 )
 
 // Result is one live proposal after the deterministic memory gate.
@@ -72,7 +73,7 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 		result.Error = domain.ErrModelUnavailable.Error()
 		return result, nil
 	}
-	input = service.withFacts(ctx, input)
+	input = service.withFacts(ctx, input).WithSkill(packagingskill.Source, packagingskill.SHA256())
 	if len(input.AttachmentSHA256) > 0 {
 		if service.Attachments == nil {
 			result.Error = "attachments are not configured"
@@ -91,6 +92,7 @@ func (service Service) Propose(ctx context.Context, input domain.PackagingContex
 		result.AttachmentSHA256 = input.AttachmentSHA256
 	}
 	proposal, provenance, err := service.Proposer.Propose(ctx, input)
+	provenance = provenance.WithSkillDigest(input)
 	result.Provenance = provenance
 	if err != nil {
 		result.Error = err.Error()
