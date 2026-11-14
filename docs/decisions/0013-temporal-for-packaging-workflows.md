@@ -7,7 +7,10 @@ consulted: []
 informed: []
 ---
 
-# Use Temporal for packaging runs, not for Plan execution
+# Use Temporal for packaging runs
+
+Plan execution sequencing is amended by ADR 0015. This record still
+decides the packaging run, not the Plan.
 
 ## Context and problem statement
 
@@ -56,8 +59,10 @@ does not replace that. It chooses the engine for the packaging run only.
 ## Decision outcome
 
 Temporal is the preferred durable engine for the packaging pipeline.
-This record does not install it in the Hub, does not migrate Plan
-execution, and does not authorize a production Temporal cluster.
+This record does not install it in the Hub and does not authorize a
+production Temporal cluster. Plan execution sequencing is no longer
+forbidden here; ADR 0015 allows it behind the delivery kernel. Packaging
+runs remain the subject of this record.
 
 The Hub exposes one read-only route, `GET /v1/packaging-runs/{runID}`.
 With no worker configured, an authenticated operator receives
@@ -247,9 +252,19 @@ after the audit and does not pretend to signal.
 ## More information
 
 - Supersedes: none
-- Superseded by: none
+- Superseded by: none. Amended in part by ADR 0015, which lifts the
+  "not for Plan execution" limit for Plan sequencing only.
 - Operator notes: `../operations/temporal-packaging-poc.md`
+- Related: `0015-temporal-orchestrates-plan-execution.md`
 - Connect slice: `../operations/connect-packaging-run.md` serves the single-run
   read over Connect beside the REST route. The authority split above is unchanged.
   The index, the history, cancel, and rerun stay on REST.
 - Issues: #349, with integration notes for #341, #342, and #343. The index and history are #376 and #377. Cancel and rerun are #378.
+
+## Amendment, 2026-11-14
+
+ADR 0015 amends the decision that Temporal is not for Plan execution.
+Packaging runs stay here. Plan waves, maintenance-window timers, the
+approval wait, canary soak, and compensating rollback may run on
+Temporal only by calling kernel lifecycle methods. PostgreSQL and the
+Spoke reconciler are unchanged by that amendment.

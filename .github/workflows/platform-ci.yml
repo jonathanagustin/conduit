@@ -639,6 +639,10 @@ jobs:
       - name: Validate Gitless runtime source descriptor
         if: needs.scope.outputs.checks == 'true'
         run: node scripts/render-runtime-source-descriptor.test.mjs
+      - name: Validate self Product preparation
+        run: |
+          node scripts/prepare-self-products.test.mjs
+          node scripts/verify-conduit-inventions.test.mjs
       - name: Validate version and tag agreement
         if: needs.scope.outputs.checks == 'true'
         run: ./scripts/verify-version-matches-tag.sh
