@@ -13,6 +13,15 @@ const recordedBytes=readFileSync(new URL("../docs/evidence/self-product-preparat
 const receipt=JSON.parse(readFileSync(new URL("../docs/evidence/self-product-preparation-v0.17.5-receipt.json",import.meta.url),"utf8"));
 assert.equal(createHash("sha256").update(recordedBytes).digest("hex"),receipt.preparedDescriptor.sha256,"actual-release preparation snapshot differs from its recorded receipt");
 assert.equal(JSON.parse(recordedBytes).source.commit,receipt.originalReleaseSourceCommit);
+const downloadsBytes=readFileSync(new URL("../docs/evidence/self-product-preparation-v0.17.5-downloads.json",import.meta.url));
+const downloadsReceipt=JSON.parse(readFileSync(new URL("../docs/evidence/self-product-preparation-v0.17.5-downloads-receipt.json",import.meta.url),"utf8"));
+assert.equal(createHash("sha256").update(downloadsBytes).digest("hex"),downloadsReceipt.preparedDescriptor.sha256,"version-2 actual-release preparation snapshot differs from its receipt");
+const downloads=JSON.parse(downloadsBytes);
+assert.equal(downloads.apiVersion,"conduit.delivery/self-product-preparation/v2");
+assert.equal(downloads.cli.publication.body.source.commit,downloadsReceipt.originalReleaseSourceCommit);
+assert.equal(downloads.cli.publication.body.assets.length,6);
+assert.equal(downloads.publicationState,"NOT_PUBLISHED");
+
 const fixture = selfProductFixture(), result = prepareSelfProducts(fixture);
 assert.equal(JSON.stringify(result, null, 2)+"\n",readFileSync(new URL("../testdata/self-product/synthetic-prepared.json",import.meta.url),"utf8"));
 assert.equal(result.publicationState,"NOT_PUBLISHED");

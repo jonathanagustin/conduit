@@ -124,3 +124,15 @@ tree-preserving correction. This is not a new attestation over rewritten history
 Signatures, registry availability, vulnerability reassessment, live publication
 and deployment were not performed. The synthetic test fixture remains separate
 from this actual-release preparation.
+
+## Recorded v0.17.5 download declaration (version 2)
+
+The same retained release inputs were rechecked on 2026-11-14 with the native
+CLI catalogue preparer. The nine input metadata hashes still match the original
+acquisition receipt, all six archive byte checks passed, and the original
+released source SHA is preserved. Version-2 documents are recorded separately
+in `docs/evidence/self-product-preparation-v0.17.5-downloads.json`; the adjacent
+`-downloads-receipt.json` pins their hash, the tool commit and script hash.
+This preparation adds the CLI publication body without changing the historical
+version-1 record. No live publication, signature authentication or deployment
+was performed.
