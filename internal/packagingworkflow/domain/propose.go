@@ -45,7 +45,23 @@ type PackagingContext struct {
 	// lowercase sha256 hex of those exact bytes.
 	Skill       string
 	SkillSHA256 string
+	// ToolFacts is text a toolbox added, such as an image inspect result.
+	ToolFacts string
+	// Task selects the prompt and parser. Empty means a memory-limit proposal.
+	Task string
+	// IgnoreExistingDockerfile asks the proposer to write a new Dockerfile
+	// even when the bound repository already ships one.
+	IgnoreExistingDockerfile bool
+	// BuildLog is a build failure excerpt used when revising a Dockerfile.
+	BuildLog string
 }
+
+const (
+	TaskMemory     = "memory"
+	TaskDockerfile = "dockerfile"
+	TaskPackage    = "package"
+	TaskRevise     = "revise-dockerfile"
+)
 
 // WithSkill fills Skill and SkillSHA256 when they are empty.
 func (input PackagingContext) WithSkill(source, digest string) PackagingContext {
@@ -88,10 +104,20 @@ type Proposal struct {
 // Provenance records who produced a proposal and the digests of the exchange.
 // Adapter is a command name or a model id. The digests are lowercase sha256 hex.
 type Provenance struct {
-	Adapter        string `json:"adapter,omitempty"`
-	PromptSHA256   string `json:"promptSha256,omitempty"`
-	ResponseSHA256 string `json:"responseSha256,omitempty"`
-	SkillSHA256    string `json:"skillSha256,omitempty"`
+	Adapter          string           `json:"adapter,omitempty"`
+	PromptSHA256     string           `json:"promptSha256,omitempty"`
+	ResponseSHA256   string           `json:"responseSha256,omitempty"`
+	SkillSHA256      string           `json:"skillSha256,omitempty"`
+	ToolCalls        []ToolCallRecord `json:"toolCalls,omitempty"`
+	RepoURL          string           `json:"repoUrl,omitempty"`
+	ResolvedCommit   string           `json:"resolvedCommit,omitempty"`
+	DockerfileSHA256 string           `json:"dockerfileSha256,omitempty"`
+	ImageDigest      string           `json:"imageDigest,omitempty"`
+}
+
+// ToolCallRecord is one toolbox invocation made while producing a proposal.
+type ToolCallRecord struct {
+	Name string `json:"name"`
 }
 
 // WithSkillDigest copies the skill digest from the input when it is missing.
@@ -109,7 +135,14 @@ type ChangeProposer interface {
 
 // Prompt is the instruction sent to a proposer. The response must be one JSON object.
 func Prompt(input PackagingContext) string {
-	return strings.TrimSpace(basePrompt(input) + attachmentContext(input.Attachments) + skillContext(input))
+	base := basePrompt(input)
+	switch strings.TrimSpace(input.Task) {
+	case TaskDockerfile, TaskRevise:
+		base = dockerfilePrompt(input)
+	case TaskPackage:
+		base = packagePrompt(input)
+	}
+	return strings.TrimSpace(base + attachmentContext(input.Attachments) + skillContext(input) + toolContext(input))
 }
 
 func skillContext(input PackagingContext) string {
@@ -121,6 +154,13 @@ func skillContext(input PackagingContext) string {
 		digest = DigestText([]byte(input.Skill))
 	}
 	return fmt.Sprintf("\n\n--- packaging skill sha256 %s ---\n%s\n--- end packaging skill ---", digest, input.Skill)
+}
+
+func toolContext(input PackagingContext) string {
+	if strings.TrimSpace(input.ToolFacts) == "" {
+		return ""
+	}
+	return "\n\nTool results:\n" + input.ToolFacts
 }
 
 func basePrompt(input PackagingContext) string {
@@ -182,6 +222,142 @@ func AssessMemory(value string) (Outcome, string, bool) {
 		return OutcomeFailRequired, fmt.Sprintf("memory limit %s exceeds the 1Gi ceiling", strings.TrimSpace(value)), true
 	}
 	return OutcomePass, "memory limit is within the 1Gi ceiling", false
+}
+
+func dockerfilePrompt(input PackagingContext) string {
+	ignore := "false"
+	if input.IgnoreExistingDockerfile {
+		ignore = "true"
+	}
+	revise := ""
+	if strings.TrimSpace(input.Task) == TaskRevise || strings.TrimSpace(input.BuildLog) != "" {
+		revise = "The previous image build failed. Revise the Dockerfile. Build log:\n" + input.BuildLog + "\n"
+	}
+	return strings.TrimSpace(fmt.Sprintf(`Reply with one JSON object and no other text.
+You may call tools by replying with {"toolCalls":[{"name":"inspect_repo","arguments":{}},{"name":"read_file","arguments":{"path":"relative/path"}},{"name":"validate_dockerfile","arguments":{"dockerfile":"...","dockerignore":"..."}}]}.
+When you have enough context, reply with {"dockerfile":"...","dockerignore":"...","reuseExisting":false,"reuseReason":"","rationale":"..."}.
+reuseExisting may be true only when the repository Dockerfile already meets the conventions and you explain why in reuseReason.
+Ignore existing Dockerfile: %s
+If that flag is true, write a new Dockerfile and do not set reuseExisting to true.
+Use inspect_repo and read_file to inspect the source. Follow the packaging skill, including digest-pinned base images, a non-root USER, a multi-stage or minimal runtime, a high port, no secrets, and a dockerignore.
+%sPackaging run: %s
+Image ref: %s
+Image digest: %s
+Gate rules: %s`, ignore, revise, oneLine(input.RunID), oneLine(input.ImageRef), oneLine(input.ImageDigest), oneLine(input.GateRules)))
+}
+
+func packagePrompt(input PackagingContext) string {
+	return strings.TrimSpace(fmt.Sprintf(`Reply with one JSON object and no other text.
+You may call tools by replying with {"toolCalls":[{"name":"inspect_image","arguments":{"ref":"..."}},{"name":"dry_run_gates","arguments":{"source":"...","zarf":"...","cr":"...","dockerfile":"...","dockerignore":"..."}}]}.
+When the proposal is ready, reply with {"source":"...","zarf":"...","cr":"...","rationale":"..."}.
+The output is a package: write a product source, zarf.yaml, and the Package custom resource. Put network allow rules, expose, and SSO on the Package only where they are relevant. Do not treat raw Kubernetes manifests as the package. Pin images by digest. Do not open a change request.
+Packaging run: %s
+Image ref: %s
+Image digest: %s
+Gate rules: %s`, oneLine(input.RunID), oneLine(input.ImageRef), oneLine(input.ImageDigest), oneLine(input.GateRules)))
+}
+
+// DockerfileProposal is a model-written Dockerfile and dockerignore.
+type DockerfileProposal struct {
+	Dockerfile    string           `json:"dockerfile"`
+	Dockerignore  string           `json:"dockerignore"`
+	ReuseExisting bool             `json:"reuseExisting,omitempty"`
+	ReuseReason   string           `json:"reuseReason,omitempty"`
+	Rationale     string           `json:"rationale"`
+	ToolCalls     []ToolCallRecord `json:"-"`
+}
+
+// PackageProposal is a model-written product source, zarf.yaml, and Package CR.
+type PackageProposal struct {
+	Source    string `json:"source"`
+	Zarf      string `json:"zarf"`
+	CR        string `json:"cr"`
+	Rationale string `json:"rationale"`
+}
+
+// ParseDockerfileProposal accepts one Dockerfile JSON object.
+func ParseDockerfileProposal(raw []byte, ignoreExisting bool) (DockerfileProposal, error) {
+	decoder := json.NewDecoder(bytes.NewReader(bytes.TrimSpace(raw)))
+	decoder.DisallowUnknownFields()
+	var proposal DockerfileProposal
+	if err := decoder.Decode(&proposal); err != nil {
+		return DockerfileProposal{}, fmt.Errorf("%w: %v", ErrProposalInvalid, err)
+	}
+	if decoder.More() {
+		return DockerfileProposal{}, fmt.Errorf("%w: extra data after the object", ErrProposalInvalid)
+	}
+	proposal.Dockerfile = strings.TrimSpace(proposal.Dockerfile)
+	proposal.Dockerignore = strings.TrimSpace(proposal.Dockerignore)
+	proposal.ReuseReason = strings.TrimSpace(proposal.ReuseReason)
+	proposal.Rationale = strings.TrimSpace(proposal.Rationale)
+	if proposal.Dockerfile == "" {
+		return DockerfileProposal{}, fmt.Errorf("%w: dockerfile is required", ErrProposalInvalid)
+	}
+	if proposal.Rationale == "" || len(proposal.Rationale) > MaxReasonBytes {
+		return DockerfileProposal{}, fmt.Errorf("%w: rationale is required", ErrProposalInvalid)
+	}
+	if ignoreExisting && proposal.ReuseExisting {
+		return DockerfileProposal{}, fmt.Errorf("%w: existing Dockerfile must be ignored", ErrProposalInvalid)
+	}
+	if proposal.ReuseExisting && proposal.ReuseReason == "" {
+		return DockerfileProposal{}, fmt.Errorf("%w: reuseReason is required when reusing a Dockerfile", ErrProposalInvalid)
+	}
+	return proposal, nil
+}
+
+// ParsePackageProposal accepts one package JSON object.
+func ParsePackageProposal(raw []byte) (PackageProposal, error) {
+	decoder := json.NewDecoder(bytes.NewReader(bytes.TrimSpace(raw)))
+	decoder.DisallowUnknownFields()
+	var proposal PackageProposal
+	if err := decoder.Decode(&proposal); err != nil {
+		return PackageProposal{}, fmt.Errorf("%w: %v", ErrProposalInvalid, err)
+	}
+	if decoder.More() {
+		return PackageProposal{}, fmt.Errorf("%w: extra data after the object", ErrProposalInvalid)
+	}
+	proposal.Source = strings.TrimSpace(proposal.Source)
+	proposal.Zarf = strings.TrimSpace(proposal.Zarf)
+	proposal.CR = strings.TrimSpace(proposal.CR)
+	proposal.Rationale = strings.TrimSpace(proposal.Rationale)
+	if proposal.Source == "" || proposal.Zarf == "" || proposal.CR == "" {
+		return PackageProposal{}, fmt.Errorf("%w: source, zarf, and cr are required", ErrProposalInvalid)
+	}
+	if proposal.Rationale == "" || len(proposal.Rationale) > MaxReasonBytes {
+		return PackageProposal{}, fmt.Errorf("%w: rationale is required", ErrProposalInvalid)
+	}
+	return proposal, nil
+}
+
+// ToolRequest is one tool call a proposer asked to run.
+type ToolRequest struct {
+	Name      string          `json:"name"`
+	Arguments json.RawMessage `json:"arguments"`
+}
+
+// ParseToolRequests accepts a JSON object that only contains toolCalls.
+func ParseToolRequests(raw []byte) ([]ToolRequest, bool, error) {
+	decoder := json.NewDecoder(bytes.NewReader(bytes.TrimSpace(raw)))
+	decoder.DisallowUnknownFields()
+	var body struct {
+		ToolCalls []ToolRequest `json:"toolCalls"`
+	}
+	if err := decoder.Decode(&body); err != nil {
+		return nil, false, err
+	}
+	if decoder.More() || len(body.ToolCalls) == 0 {
+		return nil, false, nil
+	}
+	for i := range body.ToolCalls {
+		body.ToolCalls[i].Name = strings.TrimSpace(body.ToolCalls[i].Name)
+		if body.ToolCalls[i].Name == "" {
+			return nil, false, fmt.Errorf("%w: tool name is required", ErrProposalInvalid)
+		}
+	}
+	if len(body.ToolCalls) > 4 {
+		return nil, false, fmt.Errorf("%w: at most 4 tool calls", ErrProposalInvalid)
+	}
+	return body.ToolCalls, true, nil
 }
 
 // DigestText is sha256 hex of the exact bytes.
