@@ -1,4 +1,15 @@
 /* Ported from the release console. Example rows stay labeled in the top bar. */
+import {
+  readPref,
+  writePref,
+  siteSummary,
+  kpisFromHub,
+  allLive,
+  DOCK_SURFACES,
+  DOCK_DEFAULT,
+  clampDockWidth,
+  dockSurfacesMarkup,
+} from "./shell.js";
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { createSettings } from "./settings.js";
@@ -27,7 +38,7 @@ export function mountOperator(host, options) {
     options.onAssistantMount(state.chatCollapsed ? null : mount);
   };
   host.innerHTML =
-    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n      <span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data</span>\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="checkCircle"></span>\n          <span class="text-[17px] font-bold text-[#34d399] tnum leading-none">87.5%</span>\n          <span class="text-[10.5px] text-[#34d399] tnum">↗ 4.2%</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ON-TIME CONVERGENCE</div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#4c90f0] flex" data-ic="cluster"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">42</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">ENVIRONMENTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 48 Total</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#34d399] flex" data-ic="cube"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">3</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">PACKAGING RUNS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Active</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#9881f3] flex" data-ic="shield"></span>\n          <span class="text-[17px] font-bold text-[#f0f5fa] tnum leading-none">4</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">RELEASE PLANS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· Gated</span></div>\n      </div>\n\n      <div class="flex flex-col">\n        <div class="flex items-center gap-1.5">\n          <span class="text-[#e76a6e] flex" data-ic="warnTri"></span>\n          <span class="text-[17px] font-bold text-[#e76a6e] tnum leading-none">5</span>\n        </div>\n        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">OPEN DRIFTS <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">· 2 Critical</span></div>\n      </div>\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px] !bg-[#131920] !border-[#26323f] text-[#dce4ee]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 214px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex items-center">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
+    '<!-- ===================================================================== -->\n  <!-- AUTHENTIC Conduit 56px TOP BAR (Matched 1:1 to f_01_18_cc & f_02_15)   -->\n  <!-- ===================================================================== -->\n  <header class="h-[56px] shrink-0 bg-[#0d1317] border-b border-[#1e252b] px-4 flex items-center justify-between gap-4 z-40">\n    <!-- Left: Bold Product Wordmark + Divider + Wide-Tracked Operational Context -->\n    <div class="flex items-center gap-3 min-w-0 shrink-0">\n      <button id="btn-mobile-menu" onclick="toggleMobileNav()" class="so-btn so-btn-sm lg:hidden" aria-label="Toggle navigation">\n        <span data-ic="menu"></span>\n      </button>\n      <span onclick="switchScreen(\'s13-fleet-overview\')" class="font-bold text-[17px] tracking-[-0.02em] text-[#ffffff] cursor-pointer select-none">Conduit</span>\n      <span class="h-4 w-[1px] bg-[#242e38]"></span>\n      <span id="topbar-subtitle" class="text-[10.5px] font-medium uppercase tracking-[0.14em] text-[#7c8794] hidden sm:inline truncate">FLEET COMMAND CENTER</span>\n    </div>\n\n    <!-- Center: Iconic Conduit Icon + 20px Bold Numeral + Two-Line Label KPI Strip -->\n    <div id="header-kpi-strip" class="topbar-kpi-strip hidden lg:flex items-center gap-4 shrink-0">\n    </div>\n\n    <!-- Right: Search (Cmd+K) + LIVE Badge + Ontology Button + Avatar -->\n    <div class="flex items-center gap-2 shrink-0">\n      <div class="w-[142px] hidden md:flex items-center relative">\n        <span class="absolute left-2.5 text-[#596573] pointer-events-none flex" data-ic="search"></span>\n        <input id="global-search-input" type="text" onfocus="openCmdOmnibar()" oninput="handleGlobalSearch(this.value)"\n          placeholder="Jump to view..."\n          class="so-input w-full pl-7 pr-9 text-[11px]" />\n        <kbd class="code-id absolute right-1.5 px-1.5 py-0.5 text-[9px] text-[#8b96a5] bg-[#151b1f] border border-[#242e38] rounded-[3px]">&#8984;K</kbd>\n      </div>\n\n      <span class="hidden xl:inline-flex items-center h-[26px] px-2 rounded-[4px] bg-[#2a2012] border border-[#4f391b] text-[9.5px] font-semibold code-id text-[#eab854]" id="example-data-badge" title="Example data">EXAMPLE DATA</span>\n\n      <button type="button" id="theme-toggle" onclick="toggleTheme()" class="so-btn !h-[28px]">Light</button>\n\n      <button onclick="switchScreen(\'s19-ontology\')" class="so-btn !h-[28px]">\n        <span data-ic="globe"></span>\n        <span class="hidden sm:inline">Ontology</span>\n      </button>\n\n      <button onclick="toggleChatRail()" class="so-btn !h-[28px] !px-2" title="Toggle right chat panel">\n        <span data-ic="panelRight"></span>\n      </button>\n\n      <div class="h-[28px] px-2.5 rounded-[5px] bg-[#151b1f] border border-[#242e38] flex items-center gap-1.5 text-[11px] font-medium text-[#f0f5fa]" id="operator-chip" title="Operator">\n        <span id="operator-initials" class="w-4 h-4 rounded-full bg-[#1f3452] text-[#7cb4ff] text-[9.5px] font-semibold flex items-center justify-center">OP</span>\n        <span id="operator-name" class="inline">Operator</span>\n      </div>\n    </div>\n  </header>\n\n  <!-- ===================================================================== -->\n  <!-- THREE-PANE BODY: Conduit LEFT SIDEBAR + TABBED WORKSPACE + PLAIN CHAT  -->\n  <!-- ===================================================================== -->\n  <div class="flex-1 min-h-0 min-w-0 flex relative overflow-hidden">\n\n    <div id="mobile-nav-backdrop" onclick="closeMobileNav()"></div>\n\n    <!-- PANE 1 (LEFT SIDEBAR, 224px — ONLY on Hub screens, calm & spacious like Conduit f_01_18_cc!) -->\n    <aside id="left-nav" class="w-[224px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none">\n      <div id="left-nav-sections" class="px-2.5 pt-3.5 space-y-5 overflow-y-auto"></div>\n      <!-- Minimal Conduit Bottom-Left Two-Dot Collapse Indicator (No text, no box!) -->\n      <div class="px-4 py-3 shrink-0 flex flex-col items-start gap-1.5">\n        <button onclick="toggleLeftRailCollapse()" class="inline-flex items-center gap-1.5 py-1 opacity-85 hover:opacity-100" title="Expand / collapse sidebar" aria-label="Expand or collapse sidebar">\n          <span class="w-[6px] h-[6px] rounded-full bg-[#34d399] shadow-[0_0_5px_#34d399]"></span>\n          <span class="w-[6px] h-[6px] rounded-full bg-[#1f5c42]"></span>\n        </button>\n        <div id="left-nav-sites" class="text-[10px] text-[#596573]"></div>\n      </div>\n    </aside>\n\n    <!-- PANE 2 (WORKSPACE — Flush below <header> on Hub screens; clean breadcrumb sub-bar on Dedicated App screens!) -->\n    <section class="flex-1 min-w-0 min-h-0 flex flex-col bg-[#0b1113] overflow-hidden">\n      <div id="app-breadcrumb-bar" class="hidden h-[34px] shrink-0 bg-[#0d1317] border-b border-[#1a2229] px-4 items-center justify-between gap-3 z-30"></div>\n      <main id="main-workspace" class="flex-1 min-w-0 min-h-0 overflow-y-auto overflow-x-hidden p-3"></main>\n    </section>\n\n    <!-- PANE 3 (PLAIN NEUTRAL CHAT DRAWER — Closed by default like Conduit, toggleable from top bar!) -->\n    <aside id="right-chat-rail" class="hidden w-[248px] shrink-0 bg-[#0f1418] border-l border-[#1e252b] flex-col min-h-0"></aside>\n  </div>\n\n  <div id="so-portal-tooltip" class="so-tooltip-bubble hidden"></div>\n  <div id="conduit-modal-root"></div>';
 
   const ICONS = {
     extLink:
@@ -521,12 +532,21 @@ export function mountOperator(host, options) {
       subtitle: "SCORED OPTIONS",
     },
     {
+      id: "area-command",
+      num: 41,
+      short: "Command Center",
+      tabTitle: "Command Center",
+      hasSidebar: true,
+      showKpis: true,
+      subtitle: "COMMAND CENTER",
+    },
+    {
       id: "area-packaging",
       num: 42,
       short: "Packaging",
       tabTitle: "Packaging",
       hasSidebar: true,
-      showKpis: false,
+      showKpis: true,
       subtitle: "PACKAGING",
     },
     {
@@ -535,7 +555,7 @@ export function mountOperator(host, options) {
       short: "Releases",
       tabTitle: "Releases",
       hasSidebar: true,
-      showKpis: false,
+      showKpis: true,
       subtitle: "RELEASES",
     },
     {
@@ -544,7 +564,7 @@ export function mountOperator(host, options) {
       short: "Change requests",
       tabTitle: "Change requests",
       hasSidebar: true,
-      showKpis: false,
+      showKpis: true,
       subtitle: "CHANGE REQUESTS",
     },
     {
@@ -553,7 +573,7 @@ export function mountOperator(host, options) {
       short: "Intelligence",
       tabTitle: "Intelligence",
       hasSidebar: true,
-      showKpis: false,
+      showKpis: true,
       subtitle: "INTELLIGENCE",
     },
     {
@@ -571,7 +591,7 @@ export function mountOperator(host, options) {
       short: "Audit",
       tabTitle: "Audit",
       hasSidebar: true,
-      showKpis: false,
+      showKpis: true,
       subtitle: "AUDIT",
     },
     {
@@ -679,7 +699,9 @@ export function mountOperator(host, options) {
     screen: "s13-fleet-overview",
     operatorName: "Operator",
     auditCount: 142,
-    leftRailCollapsed: false,
+    leftRailCollapsed:
+      readPref("conduit.console.railCollapsed", false) === true ||
+      readPref("conduit.console.railCollapsed", false) === "true",
     treeOpen: { profiles: true, environments: true, spokes: true },
     openTabs: [
       "s13-fleet-overview",
@@ -916,6 +938,21 @@ export function mountOperator(host, options) {
   }
 
   const AREAS = {
+    "area-command": {
+      label: "Command Center",
+      tabs: [
+        {
+          id: "command",
+          label: "Command Center",
+          screen: "s13-fleet-overview",
+        },
+        {
+          id: "tower",
+          label: "Release Control Tower",
+          screen: "s15-plan-detail",
+        },
+      ],
+    },
     "area-packaging": {
       label: "Packaging",
       tabs: [
@@ -955,7 +992,6 @@ export function mountOperator(host, options) {
     "area-fleet": {
       label: "Fleet",
       tabs: [
-        { id: "command", label: "Command Center", screen: "s13-fleet-overview" },
         { id: "spokes", label: "Spokes", screen: "s17-spokes-audit" },
         { id: "drift", label: "Drift", screen: "s14-env-detail" },
       ],
@@ -990,7 +1026,10 @@ export function mountOperator(host, options) {
       state.areaTab = mapped.tab;
     } else if (AREAS[scrId]) {
       state.screen = scrId;
-      if (!state.areaTab || !AREAS[scrId].tabs.some((tab) => tab.id === state.areaTab)) {
+      if (
+        !state.areaTab ||
+        !AREAS[scrId].tabs.some((tab) => tab.id === state.areaTab)
+      ) {
         state.areaTab = AREAS[scrId].tabs[0].id;
       }
     } else {
@@ -1029,6 +1068,7 @@ export function mountOperator(host, options) {
   }
   function toggleLeftRailCollapse() {
     state.leftRailCollapsed = !state.leftRailCollapsed;
+    writePref("conduit.console.railCollapsed", state.leftRailCollapsed);
     renderLeftRail();
   }
   function toggleChatRail() {
@@ -1069,6 +1109,48 @@ export function mountOperator(host, options) {
         : "";
   }
 
+  function renderKpiStrip() {
+    const strip = document.getElementById("header-kpi-strip");
+    if (!strip) return;
+    const kpis = kpisFromHub(state.hub);
+    const icons = {
+      convergence: "checkCircle",
+      environments: "cluster",
+      packaging: "cube",
+      plans: "shield",
+      changes: "warnTri",
+    };
+    const tones = {
+      ok: "#34d399",
+      info: "#4c90f0",
+      warn: "#eab854",
+      bad: "#e76a6e",
+    };
+    const esc = (v) =>
+      String(v).replace(
+        /[&<>"]/g,
+        (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c],
+      );
+    const cells = kpis
+      .map((k) => {
+        const color = tones[k.tone] || tones.info;
+        return `
+      <div class="flex flex-col">
+        <div class="flex items-center gap-1.5">
+          <span class="flex" style="color:${color}">${ic(icons[k.id])}</span>
+          <span class="text-[17px] font-bold tnum leading-none" style="color:${color}">${esc(k.value)}</span>
+        </div>
+        <div class="text-[9px] uppercase tracking-[0.08em] text-[#6d7885] mt-1">${esc(k.label)} <span class="kpi-sub-extra normal-case tracking-normal text-[#596573]">${k.sub ? "· " + esc(k.sub) : ""}</span></div>
+      </div>`;
+      })
+      .join("");
+    strip.innerHTML =
+      (allLive(kpis)
+        ? ""
+        : '<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data</span>') +
+      cells;
+  }
+
   function renderLeftRail() {
     document.querySelectorAll("[data-ic]").forEach((el) => {
       el.innerHTML = ic(el.getAttribute("data-ic"));
@@ -1088,6 +1170,7 @@ export function mountOperator(host, options) {
       if (activeMeta.showKpis) kpiEl.classList.remove("kpi-hidden");
       else kpiEl.classList.add("kpi-hidden");
     }
+    renderKpiStrip();
     const operatorName = state.operatorName || "Operator";
     const operatorLabel = document.getElementById("operator-name");
     const operatorMark = document.getElementById("operator-initials");
@@ -1121,48 +1204,69 @@ export function mountOperator(host, options) {
       { label: "Audit", icon: "audit", id: "area-audit" },
     ];
 
-    const deliveryApps = [
-      { label: "Work Intake", icon: "inbox", id: "s01-intake" },
-      { label: "Packaging & Bundles", icon: "cube", id: "s08-staged-run" },
-      { label: "Plans & Constraints", icon: "shield", id: "rm03-plan-detail" },
-      {
-        label: "Approvals Pipeline",
-        icon: "approvals",
-        id: "s16-approvals-board",
-      },
-      { label: "Story Backlog", icon: "audit", id: "s05-backlog" },
+    const navigationItems = [
+      { label: "Command Center", icon: "overview", id: "area-command" },
+      ...navItems,
     ];
-
-    const developerApps = [
-      { label: "Workspace Studio", icon: "develop", id: "s09-source" },
+    const builderApps = [
+      { label: "Work Intake & Stories", icon: "inbox", id: "s01-intake" },
+      { label: "Workspaces", icon: "develop", id: "s02-workspaces" },
       { label: "Active Work Runner", icon: "bolt", id: "s06-active-work" },
+    ];
+    const governanceApps = [
+      { label: "Ontology", icon: "globe", id: "s19-ontology" },
       { label: "Component System", icon: "settings", id: "s18-components" },
+      ...settings.navItems(),
+    ];
+    // Every section is a list of groups so the collapsed rail can flatten them.
+    const sections = [
+      { groups: [{ title: "NAVIGATION", nav: true, items: navigationItems }] },
+      {
+        groups: [
+          { title: "BUILDER & STUDIO", items: builderApps },
+          { title: "OPERATOR TOOLS", items: releaseGates.toolApps },
+        ],
+      },
+      { groups: [{ title: "GOVERNANCE", items: governanceApps }] },
     ];
 
     const iconRail =
       state.leftRailCollapsed ||
       window.matchMedia("(max-width: 1024px) and (min-width: 1024px)").matches;
+
+    const sitesEl = document.getElementById("left-nav-sites");
+    if (sitesEl) {
+      const s = siteSummary(state.hub);
+      sitesEl.textContent =
+        !iconRail && s ? `${s.sites} sites · ${s.spokes} spokes` : "";
+      sitesEl.classList.toggle("hidden", iconRail);
+    }
+
     if (iconRail) {
       aside.className =
         "is-rail-collapsed w-[56px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between items-center py-2.5 select-none" +
         hubHiddenCls;
       sectionsEl.className = "flex flex-col items-center gap-1.5 pt-1";
-      sectionsEl.innerHTML = navItems
-        .map(
-          (m) => `
-          <button onclick="switchScreen('${m.id}')" title="${m.label}" class="w-[36px] h-[32px] rounded-[6px] flex items-center justify-center transition-colors ${
-            state.screen === m.id
-              ? "bg-[#17253a] border-l-2 border-[#5c96e6] text-[#5c9ce6]"
-              : "text-[#8b96a5] hover:text-white hover:bg-[#161e26]"
-          }">${ic(m.icon)}</button>
-        `,
+      sectionsEl.innerHTML = sections
+        .map((section) =>
+          section.groups
+            .flatMap((g) => g.items)
+            .map(
+              (m) =>
+                `<button onclick="switchScreen('${m.id}')" title="${m.label}" aria-label="${m.label}" class="so-nav-row !w-[36px] !px-0 !justify-center ${
+                  state.screen === m.id ? "is-active" : ""
+                }">${ic(m.icon)}</button>`,
+            )
+            .join(""),
         )
-        .join("");
+        .join(
+          '<div class="w-[24px] h-px bg-[#1e252b] my-1" role="separator"></div>',
+        );
       return;
     }
 
     aside.className =
-      "w-[214px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none" +
+      "w-[224px] shrink-0 bg-[#101519] border-r border-[#1e252b] flex flex-col justify-between min-h-0 select-none" +
       hubHiddenCls;
     sectionsEl.className = "px-2.5 pt-3.5 space-y-5 overflow-y-auto";
 
@@ -1187,11 +1291,11 @@ export function mountOperator(host, options) {
         </div>
       `;
 
-    sectionsEl.innerHTML = `
+    const renderNavGroup = (title, items) => `
         <div>
-          <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[#596573]">NAVIGATION</div>
+          <div class="px-2.5 mb-1.5 text-[9.5px] font-semibold uppercase tracking-[0.11em] text-[#596573]">${title}</div>
           <div class="space-y-0.5">
-            ${navItems
+            ${items
               .map((m) => {
                 const isAct =
                   state.screen === m.id ||
@@ -1221,9 +1325,22 @@ export function mountOperator(host, options) {
               .join("")}
           </div>
         </div>
-        ${renderAppGroup("OPERATOR TOOLS", releaseGates.toolApps)}
-        ${renderAppGroup("SETTINGS", settings.navItems())}
       `;
+
+    sectionsEl.innerHTML = sections
+      .map(
+        (section, i) => `
+        <div class="${i ? "border-t border-[#1e252b] pt-4" : ""} space-y-5">
+          ${section.groups
+            .map((g) =>
+              g.nav
+                ? renderNavGroup(g.title, g.items)
+                : renderAppGroup(g.title, g.items),
+            )
+            .join("")}
+        </div>`,
+      )
+      .join("");
   }
 
   function renderCenterTabStrip() {
@@ -1332,20 +1449,105 @@ export function mountOperator(host, options) {
       return;
     }
     const openClass =
-      "w-[332px] shrink-0 bg-[#0e1418] border-l border-[#1e252b] flex flex-col min-h-0 p-2.5 gap-2";
+      "shrink-0 bg-[#0e1418] border-l border-[#1e252b] flex flex-row min-h-0";
     if (rail.className !== openClass) rail.className = openClass;
+    rail.style.width = `${clampDockWidth(Number(readPref("conduit.console.dockWidth", DOCK_DEFAULT)))}px`;
     if (!rail.querySelector("#assistant-thread-mount")) {
       rail.innerHTML = `
-          <div data-assistant-chrome>${assistantChrome(state)}</div>
-          <div id="assistant-thread-mount" class="assistant-thread-mount"></div>
+          <div id="dock-resize" role="separator" aria-orientation="vertical" aria-label="Resize dock"></div>
+          <div class="flex-1 min-w-0 min-h-0 flex flex-col p-2.5 gap-2">
+            <div data-surface="assistant" class="flex flex-col flex-1 min-h-0 gap-2">
+              <div data-assistant-chrome>${assistantChrome(state)}</div>
+              <div id="assistant-thread-mount" class="assistant-thread-mount"></div>
+            </div>
+            <div data-surface-other class="hidden flex-1 min-h-0 overflow-y-auto"></div>
+          </div>
+          <div class="kit-dock-strip" data-dock-strip></div>
         `;
       bindAssistantRail(rail);
     }
+    bindDock(rail);
+    if (!state.dockSurface) state.dockSurface = "assistant";
+    const surface = state.dockSurface;
+    const assistantPane = rail.querySelector("[data-surface='assistant']");
+    const otherPane = rail.querySelector("[data-surface-other]");
+    if (assistantPane)
+      assistantPane.classList.toggle("hidden", surface !== "assistant");
+    if (otherPane) {
+      otherPane.classList.toggle("hidden", surface === "assistant");
+      if (surface !== "assistant") {
+        const markup = dockSurfacesMarkup(state, {
+          areaObject,
+          objectHeader,
+          esc: escHtml,
+        });
+        otherPane.innerHTML = markup[surface] || "";
+      }
+    }
+    const strip = rail.querySelector("[data-dock-strip]");
+    if (strip)
+      strip.innerHTML = DOCK_SURFACES.map(
+        (s) =>
+          `<button type="button" data-dock-surface="${s.id}" aria-pressed="${s.id === surface}" title="${s.label}" aria-label="${s.label}">${s.glyph}</button>`,
+      ).join("");
     const chrome = rail.querySelector("[data-assistant-chrome]");
     if (chrome) chrome.innerHTML = assistantChrome(state);
     const results = rail.querySelector("[data-assistant-results]");
     if (results) results.innerHTML = resultsMarkup(state);
     if (typeof notifyOperator === "function") notifyOperator();
+  }
+
+  function escHtml(v) {
+    return String(v ?? "").replace(
+      /[&<>"']/g,
+      (c) =>
+        ({
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          '"': "&quot;",
+          "'": "&#39;",
+        })[c],
+    );
+  }
+
+  function bindDock(rail) {
+    if (rail.dataset.dockBound === "1") return;
+    rail.dataset.dockBound = "1";
+    rail.addEventListener("click", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const btn = target && target.closest("[data-dock-surface]");
+      if (!btn) return;
+      state.dockSurface = btn.getAttribute("data-dock-surface");
+      renderChatRail();
+    });
+    let drag = null;
+    rail.addEventListener("pointerdown", (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const handle = target && target.closest("#dock-resize");
+      if (!handle) return;
+      drag = {
+        startX: event.clientX,
+        startWidth: rail.getBoundingClientRect().width,
+        width: rail.getBoundingClientRect().width,
+      };
+      if (handle.setPointerCapture) handle.setPointerCapture(event.pointerId);
+      event.preventDefault();
+    });
+    rail.addEventListener("pointermove", (event) => {
+      if (!drag) return;
+      drag.width = clampDockWidth(
+        drag.startWidth + (drag.startX - event.clientX),
+      );
+      rail.style.width = `${drag.width}px`;
+    });
+    const finish = () => {
+      if (!drag) return;
+      writePref("conduit.console.dockWidth", drag.width);
+      drag = null;
+    };
+    rail.addEventListener("pointerup", finish);
+    rail.addEventListener("pointercancel", finish);
   }
 
   function bindAssistantRail(rail) {
@@ -5399,6 +5601,7 @@ export function mountOperator(host, options) {
       "ai04-courses": (node) => intelligence.renderCourses(node),
       "ai03-events": (node) => intelligence.renderEvents(node),
       "s13-fleet-overview": renderS13FleetOverview,
+      "s15-plan-detail": renderS15PlanDetail,
       "s17-spokes-audit": renderS17SpokesAudit,
       "au01-audit": (node) => liveHub.renderAudit(node),
     }[current.screen];

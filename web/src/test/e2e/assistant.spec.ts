@@ -433,9 +433,11 @@ test.describe("fake ACP bridge", () => {
         page.getByText("EXAMPLE DATA", { exact: true }),
       ).toBeVisible();
       await expect(
-        page.getByRole("button", { name: "Command Center" }),
+        page.getByRole("button", { name: "Command Center" }).first(),
       ).toBeVisible();
-      await expect(page.getByText("87.5%").first()).toBeVisible();
+      await expect(
+        page.locator("#header-kpi-strip").getByText("Convergence").first(),
+      ).toBeVisible();
       await page.evaluate(() => {
         const view = window as unknown as {
           switchScreen: (id: string) => void;
