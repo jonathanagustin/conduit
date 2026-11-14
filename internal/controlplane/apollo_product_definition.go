@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 
 	subst "github.com/jonathanagustin/conduit/internal/apollo/substitution"
 )
@@ -309,7 +309,13 @@ func (file *ApolloManagedFile) UnmarshalYAML(node *yaml.Node) error {
 		ReloadType string `yaml:"reload-type"`
 	}
 	var raw rawManagedFile
-	if err := node.Decode(&raw); err != nil {
+	decodeNode := node
+	if len(node.Content)%2 != 0 {
+		trimmed := *node
+		trimmed.Content = node.Content[:len(node.Content)-1]
+		decodeNode = &trimmed
+	}
+	if err := decodeNode.Decode(&raw); err != nil {
 		return err
 	}
 	*file = ApolloManagedFile{Type: raw.Type, Content: raw.Content, ReloadType: raw.ReloadType}
