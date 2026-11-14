@@ -1,3 +1,5 @@
+// Package workspacepkg runs the Dockerfile, Package CR and zarf checks on
+// package files committed in a planning workspace.
 package workspacepkg
 
 import (

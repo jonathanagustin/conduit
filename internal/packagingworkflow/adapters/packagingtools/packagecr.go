@@ -67,16 +67,6 @@ func validatePackageCR(raw string) domain.ManifestReport {
 	return report(findings...)
 }
 
-func firstPackageCRReason(raw string) string {
-	result := validatePackageCR(raw)
-	for _, finding := range result.Findings {
-		if finding.Severity == sevError {
-			return finding.Message
-		}
-	}
-	return ""
-}
-
 func stringField(obj map[string]any, key string) string {
 	if obj == nil {
 		return ""
