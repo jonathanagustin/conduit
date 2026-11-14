@@ -113,6 +113,49 @@ func TestAcceptRecordsBindingAndRefusesComputeUntilThen(t *testing.T) {
 	}
 }
 
+func TestTurnRecordsOneInspectionEventPerToolCall(t *testing.T) {
+	t.Parallel()
+	first := &domain.Inspection{Language: "javascript", ToolCalls: []string{"inspect_repo"}}
+	second := &domain.Inspection{Language: "javascript", ToolCalls: []string{"inspect_repo", "read_file"}}
+	service := NewService(scriptedPlanner{result: &TurnResult{
+		Inspection:       second,
+		InspectionEvents: []*domain.Inspection{first, second},
+		ResolvedCommit:   "0123456789abcdef0123456789abcdef01234567",
+		Model:            "recorded-model",
+	}})
+	session, err := service.Create(context.Background(), "https://github.com/org/app", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Turn(context.Background(), session.ID, "inspect this")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.Status != domain.StatusPlanning {
+		t.Fatalf("status = %q", session.Status)
+	}
+	if session.Inspection == nil || len(session.Inspection.ToolCalls) != 2 {
+		t.Fatalf("inspection = %+v", session.Inspection)
+	}
+	var inspections int
+	var tools [][]string
+	for _, event := range session.Events {
+		if event.Type == domain.EventInspection {
+			inspections++
+			if event.Inspection == nil {
+				t.Fatal("inspection event is empty")
+			}
+			tools = append(tools, append([]string(nil), event.Inspection.ToolCalls...))
+		}
+	}
+	if inspections != 2 {
+		t.Fatalf("inspection events = %d, want 2: %+v", inspections, session.Events)
+	}
+	if len(tools[0]) != 1 || tools[0][0] != "inspect_repo" || len(tools[1]) != 2 || tools[1][1] != "read_file" {
+		t.Fatalf("tool calls = %#v", tools)
+	}
+}
+
 type scriptedPlanner struct{ result *TurnResult }
 
 func (planner scriptedPlanner) Turn(context.Context, *domain.Session, string) (*TurnResult, error) {

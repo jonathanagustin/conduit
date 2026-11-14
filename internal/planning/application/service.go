@@ -23,13 +23,14 @@ type Planner interface {
 
 // TurnResult is what a Planner may add to a session after one turn.
 type TurnResult struct {
-	Messages       []domain.Message
-	Inspection     *domain.Inspection
-	NeedsInput     []domain.Question
-	Plan           *domain.Plan
-	ResolvedCommit string
-	Model          string
-	Profile        domain.ProfileRef
+	Messages         []domain.Message
+	Inspection       *domain.Inspection
+	InspectionEvents []*domain.Inspection
+	NeedsInput       []domain.Question
+	Plan             *domain.Plan
+	ResolvedCommit   string
+	Model            string
+	Profile          domain.ProfileRef
 }
 
 // Service is a process-local planning-session store.
@@ -264,7 +265,11 @@ func (service *Service) recordTurnEvents(session *domain.Session, message string
 			msg := result.Messages[i]
 			service.appendEvent(session, domain.Event{Type: domain.EventMessage, Message: &msg})
 		}
-		if result.Inspection != nil {
+		if len(result.InspectionEvents) > 0 {
+			for _, snapshot := range result.InspectionEvents {
+				service.appendEvent(session, domain.Event{Type: domain.EventInspection, Inspection: snapshot})
+			}
+		} else if result.Inspection != nil {
 			service.appendEvent(session, domain.Event{Type: domain.EventInspection, Inspection: result.Inspection})
 		}
 		if len(result.NeedsInput) > 0 {
