@@ -90,7 +90,7 @@ tasks:
       verify_buf() {
         python3 -c 'import hashlib, pathlib, sys; sys.exit(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest() != sys.argv[2])' "$1" "${buf_sha}"
       }
-      if [ ! -f "${bindir}/buf" ] || ! verify_buf "${bindir}/buf"; then
+      if [ ! -x "${bindir}/buf" ] || ! verify_buf "${bindir}/buf"; then
         temporary="$(mktemp "${bindir}/buf.XXXXXXXX")"
         trap 'rm -f "$temporary"' EXIT
         curl --fail --silent --show-error --location \

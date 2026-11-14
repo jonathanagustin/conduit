@@ -58,7 +58,7 @@ func TestConnectV2KeepsOnlyTheExistingPOSTProcedureExposed(t *testing.T) {
 		method, path string
 		status       int
 	}{
-		{http.MethodGet, packagingv1connect.PackagingRunServiceGetPackagingRunProcedure, http.StatusMethodNotAllowed},
+		{http.MethodGet, packagingv1connect.PackagingRunServiceGetPackagingRunProcedure + `?connect=v1&encoding=json&message=%7B%22runId%22%3A%22sample-app-1%22%7D`, http.StatusMethodNotAllowed},
 		{http.MethodPost, "/conduit.packaging.v1.PackagingRunService/OtherMethod", http.StatusNotFound},
 	} {
 		t.Run(tc.method+tc.path, func(t *testing.T) {
@@ -66,6 +66,8 @@ func TestConnectV2KeepsOnlyTheExistingPOSTProcedureExposed(t *testing.T) {
 			reader := &connectObservedReader{}
 			body := &connectObservedBody{Reader: strings.NewReader(`{"runId":"sample-app-1"}`)}
 			request := httptest.NewRequest(tc.method, tc.path, body)
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Connect-Protocol-Version", "1")
 			response := httptest.NewRecorder()
 			mountBoth(Config{Reader: reader, Authorize: func(*http.Request) error { calls++; return nil }}).ServeHTTP(response, request)
 			if response.Code != tc.status || calls != 0 || body.reads != 0 || reader.reads != 0 {
