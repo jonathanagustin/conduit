@@ -25,8 +25,8 @@ and authorization, generate unpredictable IDs, choose time from an authoritative
 clock, enforce owner isolation, persist the whole transition/audit fact before
 acknowledging it, handle competing revisions, reconcile expiry and validate
 complete histories on read. A standalone Event.Validate call is not proof of a
-valid transition. The forthcoming durable application/adapters and authenticated
-Hub composition must enforce those obligations. No production authority or
+valid transition. Application authority, durable adapters and authenticated
+Hub composition must enforce their respective obligations. No production authority or
 durability follows from these domain tests.
 
 Tests constrain lifetime bounds including one nanosecond, exact-expiry behavior,
@@ -75,7 +75,7 @@ filenames, symlinks, oversized/corrupt records, private-directory permissions an
 bounded ordered ID pages. They do not simulate a power loss, malicious storage
 administrator or a live broker. Persistent records can still only represent
 non-executing requests. Current authorization and production Hub composition
-remain outstanding; the local journal work is not yet merged.
+remain outstanding.
 
 
 The PostgreSQL adapter uses the `debug-session-journal` migration component and
