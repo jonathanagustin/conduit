@@ -11,7 +11,7 @@ const defaultEsc = (value) =>
       ],
   );
 
-/** Groups a run into succeeded, running, blocked, or failed. */
+/** Groups a run into succeeded, review, running, blocked, or failed. */
 export function runState(run) {
   const outcome = String(run?.outcome || "").toUpperCase();
   const phase = String(run?.phase || "").toLowerCase();
@@ -25,12 +25,15 @@ export function runState(run) {
   ) {
     return phase === "blocked" ? "blocked" : "failed";
   }
+  // A run in the review phase is waiting on a person, not still running.
+  if (phase === "review") return "review";
   if (phase === "blocked" || outcome === "WAITING") return "blocked";
   return "running";
 }
 
 const TONE = {
   succeeded: "ok",
+  review: "info",
   running: "info",
   blocked: "warn",
   failed: "err",
@@ -49,7 +52,7 @@ export function gateResults(events) {
 }
 
 export function runCounts(runs) {
-  const counts = { succeeded: 0, running: 0, blocked: 0, failed: 0 };
+  const counts = { succeeded: 0, review: 0, running: 0, blocked: 0, failed: 0 };
   for (const run of Array.isArray(runs) ? runs : []) counts[runState(run)] += 1;
   return counts;
 }
@@ -80,7 +83,9 @@ export function gateStepper(gates, esc = defaultEsc) {
       const node = GATE_NODE[gateTone(gate.outcome)];
       const outcome = gate.outcome || "no result";
       const prevDone =
-        idx > 0 && gateTone(list[idx - 1].outcome) === "ok" ? " is-after-done" : "";
+        idx > 0 && gateTone(list[idx - 1].outcome) === "ok"
+          ? " is-after-done"
+          : "";
       return `<li class="kit-gate ${node.cls}${prevDone}" title="${esc(gate.step)}: ${esc(outcome)}"><span class="kit-gate-node" aria-hidden="true">${node.mark}</span><span class="kit-gate-label">${esc(gate.step)}</span><span class="kit-sr">: ${node.word} (${esc(outcome)})</span></li>`;
     })
     .join("");
@@ -106,6 +111,7 @@ export function runsMarkup(
   const counts = runCounts(list);
   const tiles = [
     ["succeeded", "Succeeded"],
+    ["review", "In review"],
     ["running", "In progress"],
     ["blocked", "Blocked"],
     ["failed", "Failed"],
