@@ -84,6 +84,7 @@ const SOURCES = [
   { path: "internal/appgen/httpapi", surface: "app generation" },
   { path: "internal/delivery/offlinebundle/httpapi", surface: "offline bundles" },
   { path: "internal/delivery/upgrades/httpapi", surface: "dependency and upgrade views" },
+  { path: "internal/delivery/timeline/httpapi", surface: "environment timeline" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";
