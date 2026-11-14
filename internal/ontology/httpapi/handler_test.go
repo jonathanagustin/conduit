@@ -35,6 +35,7 @@ func TestAnonymousCallerIsRefused(t *testing.T) {
 		{http.MethodGet, "/api/v2/ontologies", ""},
 		{http.MethodGet, "/api/v2/ontologies/conduit/fullMetadata", ""},
 		{http.MethodGet, "/api/v2/ontologies/conduit/objectTypes", ""},
+		{http.MethodGet, "/api/v2/ontologies/conduit/objectTypes/Environment/fullMetadata", ""},
 		{http.MethodGet, "/api/v2/ontologies/conduit/interfaceTypes", ""},
 		{http.MethodGet, "/api/v2/ontologies/conduit/actionTypes", ""},
 		{http.MethodPost, "/api/v2/ontologies/conduit/objectSets/loadObjects", `{}`},
@@ -72,13 +73,39 @@ func TestReadsAndLoadObjectsUseThePublishedShape(t *testing.T) {
 		Data []struct {
 			PrimaryKey  string `json:"__primaryKey"`
 			APIName     string `json:"__apiName"`
+			RID         string `json:"__rid"`
+			Title       string `json:"__title"`
 			Environment string `json:"environment"`
 		} `json:"data"`
 		TotalCount string `json:"totalCount"`
 	}
 	if loaded.Code != http.StatusOK || json.Unmarshal(loaded.Body.Bytes(), &page) != nil ||
-		page.TotalCount != "1" || len(page.Data) != 1 || page.Data[0].PrimaryKey != "plan-east" || page.Data[0].APIName != "Plan" {
+		page.TotalCount != "1" || len(page.Data) != 1 || page.Data[0].PrimaryKey != "plan-east" ||
+		page.Data[0].APIName != "Plan" || page.Data[0].RID == "" || page.Data[0].Title != "plan-east" {
 		t.Fatalf("load %d %s", loaded.Code, loaded.Body.String())
+	}
+	hidden := request(handler, http.MethodPost, "/api/v2/ontologies/conduit/objectSets/loadObjects", `{
+		"objectSet":{"type":"base","objectType":"Plan"},"excludeRid":true
+	}`, true)
+	if hidden.Code != http.StatusOK || strings.Contains(hidden.Body.String(), `"__rid"`) {
+		t.Fatalf("excludeRid %d %s", hidden.Code, hidden.Body.String())
+	}
+	missing := request(handler, http.MethodGet, "/api/v2/ontologies/missing", "", true)
+	var failure struct {
+		ErrorCode       string         `json:"errorCode"`
+		ErrorName       string         `json:"errorName"`
+		ErrorInstanceID string         `json:"errorInstanceId"`
+		Parameters      map[string]any `json:"parameters"`
+		Description     string         `json:"errorDescription"`
+	}
+	if json.Unmarshal(missing.Body.Bytes(), &failure) != nil || failure.ErrorCode == "" || failure.ErrorName == "" ||
+		failure.ErrorInstanceID == "" || failure.Parameters == nil || failure.Description != "" {
+		t.Fatalf("error = %s", missing.Body.String())
+	}
+	full := request(handler, http.MethodGet, "/api/v2/ontologies/conduit/objectTypes/Environment/fullMetadata", "", true)
+	if full.Code != http.StatusOK || !strings.Contains(full.Body.String(), `"implementsInterfaces2":{}`) ||
+		!strings.Contains(full.Body.String(), `"sharedPropertyTypeMapping":{}`) {
+		t.Fatalf("object type metadata %d %s", full.Code, full.Body.String())
 	}
 }
 

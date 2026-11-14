@@ -83,6 +83,22 @@ paths:
           description: Anonymous caller.
         "404":
           description: Unknown object type.
+  /api/v2/ontologies/{ontology}/objectTypes/{objectType}/fullMetadata:
+    get:
+      operationId: getObjectTypeFullMetadata
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: objectType, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: One object type, its links, and the empty interface maps.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ObjectTypeFull"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown object type.
   /api/v2/ontologies/{ontology}/interfaceTypes:
     get:
       operationId: listInterfaceTypes
@@ -200,21 +216,46 @@ components:
           type: array
           items: {$ref: "#/components/schemas/Ontology"}
         nextPageToken: {type: string}
+    Property:
+      type: object
+      required: [rid, displayName, dataType]
+      properties:
+        rid: {type: string}
+        displayName: {type: string}
+        description: {type: string}
+        dataType:
+          type: object
+          required: [type]
+          properties:
+            type: {type: string, enum: [string, boolean, integer, double, date, timestamp]}
     ObjectType:
       type: object
-      required: [apiName, displayName, status, description, pluralDisplayName, primaryKey, properties, rid, titleProperty]
+      required: [apiName, displayName, status, pluralDisplayName, primaryKey, properties, rid, titleProperty]
       properties:
         apiName: {type: string}
         displayName: {type: string}
         status: {type: string}
-        description: {type: string}
+        description: {type: string, description: Present only when non-empty.}
         pluralDisplayName: {type: string}
         primaryKey: {type: string}
-        properties: {type: object, additionalProperties: {type: object}}
+        properties:
+          type: object
+          additionalProperties: {$ref: "#/components/schemas/Property"}
         rid: {type: string}
         titleProperty: {type: string}
-        aliases: {type: array, items: {type: string}}
-        datasources: {type: array, items: {}}
+        aliases: {type: array, items: {type: string}, description: Omitted when empty.}
+        datasources: {type: array, items: {}, description: Omitted when empty.}
+    ObjectTypeFull:
+      type: object
+      required: [objectType, linkTypes, implementsInterfaces, implementsInterfaces2, sharedPropertyTypeMapping]
+      properties:
+        objectType: {$ref: "#/components/schemas/ObjectType"}
+        linkTypes:
+          type: array
+          items: {$ref: "#/components/schemas/LinkSide"}
+        implementsInterfaces: {type: array, items: {type: string}}
+        implementsInterfaces2: {type: object}
+        sharedPropertyTypeMapping: {type: object}
     ObjectTypeList:
       type: object
       required: [data]
@@ -242,7 +283,7 @@ components:
           type: object
           additionalProperties:
             type: object
-            required: [objectType, linkTypes, implementsInterfaces]
+            required: [objectType, linkTypes, implementsInterfaces, implementsInterfaces2, sharedPropertyTypeMapping]
             properties:
               objectType: {$ref: "#/components/schemas/ObjectType"}
               linkTypes:
@@ -251,6 +292,8 @@ components:
               implementsInterfaces:
                 type: array
                 items: {type: string}
+              implementsInterfaces2: {type: object}
+              sharedPropertyTypeMapping: {type: object}
         actionTypes:
           type: object
           additionalProperties: {$ref: "#/components/schemas/ActionType"}

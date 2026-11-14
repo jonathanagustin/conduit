@@ -4,8 +4,10 @@
 package httpapi
 
 import (
+	"crypto/rand"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -16,17 +18,18 @@ import (
 )
 
 const (
-	routeList           = "GET /api/v2/ontologies"
-	routeOntology       = "GET /api/v2/ontologies/{ontology}"
-	routeMetadata       = "GET /api/v2/ontologies/{ontology}/fullMetadata"
-	routeObjectTypes    = "GET /api/v2/ontologies/{ontology}/objectTypes"
-	routeObjectType     = "GET /api/v2/ontologies/{ontology}/objectTypes/{objectType}"
-	routeInterfaceTypes = "GET /api/v2/ontologies/{ontology}/interfaceTypes"
-	routeInterfaceType  = "GET /api/v2/ontologies/{ontology}/interfaceTypes/{interfaceType}"
-	routeActionTypes    = "GET /api/v2/ontologies/{ontology}/actionTypes"
-	routeActionType     = "GET /api/v2/ontologies/{ontology}/actionTypes/{actionType}"
-	routeLoadObjects    = "POST /api/v2/ontologies/{ontology}/objectSets/loadObjects"
-	routeApply          = "POST /api/v2/ontologies/{ontology}/actions/{action}/apply"
+	routeList               = "GET /api/v2/ontologies"
+	routeOntology           = "GET /api/v2/ontologies/{ontology}"
+	routeMetadata           = "GET /api/v2/ontologies/{ontology}/fullMetadata"
+	routeObjectTypes        = "GET /api/v2/ontologies/{ontology}/objectTypes"
+	routeObjectType         = "GET /api/v2/ontologies/{ontology}/objectTypes/{objectType}"
+	routeObjectTypeMetadata = "GET /api/v2/ontologies/{ontology}/objectTypes/{objectType}/fullMetadata"
+	routeInterfaceTypes     = "GET /api/v2/ontologies/{ontology}/interfaceTypes"
+	routeInterfaceType      = "GET /api/v2/ontologies/{ontology}/interfaceTypes/{interfaceType}"
+	routeActionTypes        = "GET /api/v2/ontologies/{ontology}/actionTypes"
+	routeActionType         = "GET /api/v2/ontologies/{ontology}/actionTypes/{actionType}"
+	routeLoadObjects        = "POST /api/v2/ontologies/{ontology}/objectSets/loadObjects"
+	routeApply              = "POST /api/v2/ontologies/{ontology}/actions/{action}/apply"
 )
 
 // StatusError is an authorization failure with an HTTP status.
@@ -93,6 +96,17 @@ func Register(mux *http.ServeMux, cfg Config) {
 			return
 		}
 		writeJSON(w, http.StatusOK, objectType)
+	})
+	mux.HandleFunc(routeObjectTypeMetadata, func(w http.ResponseWriter, r *http.Request) {
+		if !authorized(cfg, w, r) || !knownOntology(w, r) {
+			return
+		}
+		full, ok := domain.ObjectTypeFullByName(r.PathValue("objectType"))
+		if !ok {
+			writeError(w, http.StatusNotFound, "object type not found")
+			return
+		}
+		writeJSON(w, http.StatusOK, full)
 	})
 	mux.HandleFunc(routeInterfaceTypes, func(w http.ResponseWriter, r *http.Request) {
 		if !authorized(cfg, w, r) || !knownOntology(w, r) {
@@ -169,10 +183,11 @@ func loadObjects(cfg Config, w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	var body struct {
-		ObjectSet json.RawMessage `json:"objectSet"`
-		Select    []string        `json:"select"`
-		PageSize  *int            `json:"pageSize"`
-		PageToken string          `json:"pageToken"`
+		ObjectSet  json.RawMessage `json:"objectSet"`
+		Select     []string        `json:"select"`
+		PageSize   *int            `json:"pageSize"`
+		PageToken  string          `json:"pageToken"`
+		ExcludeRid bool            `json:"excludeRid"`
 	}
 	if err := decode(r, &body); err != nil {
 		writeError(w, http.StatusBadRequest, "request body is not valid JSON")
@@ -213,7 +228,7 @@ func loadObjects(cfg Config, w http.ResponseWriter, r *http.Request) {
 	}
 	data := make([]map[string]any, 0, len(page.Objects))
 	for _, object := range page.Objects {
-		data = append(data, objectJSON(object, body.Select))
+		data = append(data, objectJSON(object, body.Select, body.ExcludeRid))
 	}
 	payload := map[string]any{"data": data, "totalCount": strconv.Itoa(page.TotalCount)}
 	if page.NextPageToken != "" {
@@ -329,20 +344,30 @@ func requiredParam(name string) bool {
 	return false
 }
 
-func objectJSON(object domain.Object, selected []string) map[string]any {
-	out := map[string]any{"__primaryKey": object.PrimaryKey, "__apiName": object.Type}
+func objectJSON(object domain.Object, selected []string, excludeRid bool) map[string]any {
+	out := map[string]any{
+		"__primaryKey": object.PrimaryKey,
+		"__apiName":    object.Type,
+		"__title":      object.Title(),
+	}
+	if !excludeRid {
+		out["__rid"] = object.RID()
+	}
+	write := func(key, value string) {
+		out[key] = domain.WireValue(object.Type, key, value)
+	}
 	if len(selected) == 0 {
 		for key, value := range object.Properties {
-			out[key] = value
+			write(key, value)
 		}
 		return out
 	}
 	for _, key := range selected {
-		if key == "__primaryKey" || key == "__apiName" {
+		if key == "__primaryKey" || key == "__apiName" || key == "__rid" || key == "__title" {
 			continue
 		}
 		if value, ok := object.Properties[key]; ok {
-			out[key] = value
+			write(key, value)
 		}
 	}
 	return out
@@ -354,7 +379,7 @@ func validateSelect(objects []domain.Object, selected []string) error {
 	}
 	apiName := objects[0].Type
 	for _, key := range selected {
-		if key == "__primaryKey" || key == "__apiName" {
+		if key == "__primaryKey" || key == "__apiName" || key == "__rid" || key == "__title" {
 			continue
 		}
 		if !domain.KnownProperty(apiName, key) {
@@ -522,9 +547,20 @@ func refusal(err error) (int, string) {
 }
 
 func writeError(w http.ResponseWriter, status int, message string) {
-	writeJSON(w, status, map[string]string{
-		"errorCode": statusText(status), "errorName": statusText(status), "errorDescription": message,
+	writeJSON(w, status, map[string]any{
+		"errorCode": statusText(status), "errorName": statusText(status),
+		"errorInstanceId": newErrorID(), "parameters": map[string]any{"message": message},
 	})
+}
+
+func newErrorID() string {
+	var buf [16]byte
+	if _, err := rand.Read(buf[:]); err != nil {
+		return "00000000-0000-4000-8000-000000000000"
+	}
+	buf[6] = (buf[6] & 0x0f) | 0x40
+	buf[8] = (buf[8] & 0x3f) | 0x80
+	return fmt.Sprintf("%x-%x-%x-%x-%x", buf[0:4], buf[4:6], buf[6:8], buf[8:10], buf[10:])
 }
 
 func statusText(status int) string {

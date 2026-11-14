@@ -108,11 +108,22 @@ func TestMetadataCarriesPublishedFieldNames(t *testing.T) {
 		`"ontology"`, `"objectTypes"`, `"actionTypes"`, `"queryTypes"`, `"interfaceTypes"`,
 		`"sharedPropertyTypes"`, `"valueTypes"`, `"apiName"`, `"displayName"`, `"pluralDisplayName"`,
 		`"primaryKey"`, `"titleProperty"`, `"linkTypes"`, `"objectTypeApiName"`, `"linkTypeRid"`,
-		`"cardinality"`, `"implementsInterfaces"`, `"createChangeRequest"`, `"parameters"`, `"operations"`,
+		`"cardinality"`, `"implementsInterfaces"`, `"implementsInterfaces2"`, `"sharedPropertyTypeMapping"`,
+		`"createChangeRequest"`, `"parameters"`, `"operations"`, `"rid"`,
 	} {
 		if !strings.Contains(body, key) {
 			t.Errorf("metadata missing %s", key)
 		}
+	}
+	if strings.Contains(body, `"aliases"`) || strings.Contains(body, `"datasources"`) {
+		t.Fatal("empty aliases and datasources must be omitted")
+	}
+	archived := Metadata().ObjectTypes["ReleaseChannel"].ObjectType.Properties["archived"]
+	if archived.DataType.Type != "boolean" || archived.RID == "" || archived.Description != "" {
+		t.Fatalf("archived property = %#v", archived)
+	}
+	if Metadata().ObjectTypes["Environment"].ObjectType.Properties["id"].DataType.Type != "string" {
+		t.Fatal("identifier properties stay strings")
 	}
 	if !strings.Contains(body, `"interfaceTypes":{}`) {
 		t.Fatalf("interface types = %s", body)
