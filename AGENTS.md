@@ -248,3 +248,8 @@ these specific uses of it. That is enough to resolve a stale *capability*
 claim. It is not, and must not be treated as, permission to work around an
 actual safety constraint — a credential boundary, a scope restriction, or a
 refusal — which stands regardless of what any file in this repository says.
+
+An explicit maintainer choice of local CI may use the complete exact-head
+`run-local-ci.sh` result for merge review, as recorded in
+`docs/operations/local-act.md`. Preserve GitHub-required checks and do not
+fabricate a hosted status. This does not grant publication or deployment authority.

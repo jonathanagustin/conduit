@@ -137,3 +137,11 @@ in-flight run by design, and the newer run is the one to read. Do not retry a
 genuinely failed run until the failure is understood. A
 successful run is evidence for review; it does not authorize merge, release,
 publication, or deployment.
+
+## Maintainer-authorized local CI
+
+The full gate set can also run through nektos/act without hosted minutes.
+See [local-act.md](local-act.md) for the pinned runner, clean exact-head
+requirements and success-only evidence receipt. An explicit maintainer choice
+of local CI can supply merge-review evidence; required GitHub checks remain
+enforced and no hosted run status is fabricated. Publication checks are unchanged.
