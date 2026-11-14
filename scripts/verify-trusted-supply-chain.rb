@@ -32,7 +32,7 @@ e2e_workflow = read_workflow.call("e2e.yml")
 docker_ignore = File.read(File.expand_path("../.dockerignore", __dir__))
 container_ignore = File.read(File.expand_path("../.containerignore", __dir__))
 
-cosign_action = "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567deba6"
+cosign_action = "sigstore/cosign-installer@756fe2d284c7292c4e9b62c8a28f1e5629c59532"
 # Declared once, like cosign_action above, rather than written into the
 # assertion. The old form scanned for a literal "cosign-release: v3.1.2", which
 # guarded the two occurrences in images.yml and silently ignored the third in
@@ -48,7 +48,7 @@ cosign_action = "sigstore/cosign-installer@6f9f17788090df1f26f669e9d70d6ae9567de
 # repository pins by sha256 and actually executes -- the clean-cluster Gitless
 # acceptance download -- so a bump has to move the checksum too, and the tag
 # pin stops being the weakest link on its own.
-cosign_release = "v3.1.3"
+cosign_release = "v3.1.4"
 clean_cluster = File.read(File.expand_path("test-gitless-clean-cluster.sh", __dir__))
 optimizer_release_workflow = read_workflow.call("optimizer-candidate-release.yml")
 retry_wrapper = "./scripts/retry-keyless-signing.sh"
@@ -83,12 +83,12 @@ abort "Cosign release must match the checksum-pinned download in test-gitless-cl
   clean_cluster.include?("/sigstore/cosign/releases/download/#{cosign_release}/")
 abort "Hub Cosign source build must pin the reviewed upstream release" unless
   cosign_build_mod.include?("tool github.com/sigstore/cosign/v3/cmd/cosign") &&
-    cosign_build_mod.match?(/^\s*github\.com\/sigstore\/cosign\/v3 v3\.1\.3 \/\/ indirect$/)
+    cosign_build_mod.match?(/^\s*github\.com\/sigstore\/cosign\/v3 v3\.1\.4 \/\/ indirect$/)
 abort "Hub Cosign source build must pin the patched Go toolchain and dependency graph" unless
-  cosign_build_mod.match?(/^go 1\.26\.11$/) &&
+  cosign_build_mod.match?(/^go 1\.27\.4$/) &&
     cosign_build_mod.match?(/^\s*golang\.org\/x\/mod v0\.41\.0 \/\/ indirect$/) &&
-    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.42\.0 \/\/ indirect$/) &&
-    cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.83\.1 \/\/ indirect$/)
+    cosign_build_mod.match?(/^\s*golang\.org\/x\/text v0\.43\.0 \/\/ indirect$/) &&
+    cosign_build_mod.match?(/^\s*google\.golang\.org\/grpc v1\.84\.0 \/\/ indirect$/)
 abort "Hub runtime must build and carry the locked Cosign command" unless
   hub_containerfile.include?("COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./") &&
     hub_containerfile.include?("go mod download") &&
@@ -243,7 +243,7 @@ abort "Conduit archives must have verified keyless SLSA provenance bundles" unle
 abort "release must not depend on unavailable private-repository GitHub attestations" if
   workflow.include?("actions/attest@") || workflow.include?("attestations: write")
 abort "runtime builds must use the fixed Go toolchain by exact image digest" unless
-  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0") }
+  [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea") }
 abort "runtime roots must use the reviewed Chainguard static index by exact digest" unless
   [hub_containerfile, agent_containerfile].all? { |containerfile| containerfile.include?("cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9") }
 abort "Helm must be rebuilt from integrity-pinned 4.2.3 source with fixed oras-go" unless

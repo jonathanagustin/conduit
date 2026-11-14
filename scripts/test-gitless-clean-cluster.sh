@@ -50,8 +50,8 @@ fetch \
   "1ac1da365236736a8df8c32107b54aca208384ab1d9a06771443c85ad698a5eb" \
   "${bin_dir}/k3d"
 fetch \
-  "https://github.com/sigstore/cosign/releases/download/v3.1.3/cosign-linux-amd64" \
-  "4629c757b7618056f8ddd7e2625ae9fdd94c0372a65049520bc7d9df9efc7f71" \
+  "https://github.com/sigstore/cosign/releases/download/v3.1.4/cosign-linux-amd64" \
+  "424e2c97d0b45fd7a6b608a87f090f35633f4c23ece5f092d48bba11aaf4bbfa" \
   "${bin_dir}/cosign"
 fetch \
   "https://github.com/project-zot/zot/releases/download/v2.1.20/zot-linux-amd64" \

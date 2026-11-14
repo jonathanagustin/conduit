@@ -15,7 +15,7 @@ RUN corepack enable \
 
 FROM cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9 AS runtime-base
 
-FROM --platform=$BUILDPLATFORM golang:1.26.11-bookworm@sha256:dc40a13b61304647ed7e5d581d246b86413dfc29d63c6d018310feb93cd98fc0 AS build
+FROM --platform=$BUILDPLATFORM golang:1.27.4-bookworm@sha256:4fa7c968ba93f1635670522dbb01a2c78150443e1385746924566079f36570ea AS build
 ARG TARGETOS
 ARG TARGETARCH
 ARG VERSION=dev
@@ -23,11 +23,9 @@ ARG COMMIT=unknown
 ARG BUILD_DATE=unknown
 WORKDIR /cosign-source
 COPY tools/cosign-build/go.mod tools/cosign-build/go.sum ./
-# Cosign 3.1.3 is the current reviewed release, but its published binaries were
-# built with dependencies that the release scanner now rejects. Build the exact
-# upstream command from the locked module graph instead, under the same patched
-# Go toolchain as Conduit. The trusted-supply-chain gate holds both the upstream
-# version and the security overrides below to their reviewed coordinates.
+# Build the reviewed Cosign 3.1.4 command from the locked dependency graph
+# under the same patched Go toolchain as Conduit. The trusted-supply-chain
+# gate holds the upstream version and dependency overrides to their reviewed pins.
 RUN go mod download && \
   mkdir -p /out && \
   CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH go build -trimpath -buildvcs=false \
