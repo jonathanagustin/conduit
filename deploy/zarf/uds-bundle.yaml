@@ -6,7 +6,7 @@
 #
 #   uds deploy oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1 --confirm
 #   uds create deploy/zarf --confirm
-#   uds deploy uds-bundle-conduit-amd64-0.17.5.tar.zst --confirm
+#   uds deploy uds-bundle-conduit-amd64-0.18.0.tar.zst --confirm
 #
 # `uds create` reads this file because it sits next to zarf.yaml. The bundle
 # pulls nothing from a public registry itself. It is not an air-gap artifact:
@@ -16,11 +16,11 @@ kind: UDSBundle
 metadata:
   name: conduit
   description: Conduit Hub and Spoke runtime for a cluster that already has UDS Core slim-dev
-  version: 0.17.5
+  version: 0.18.0
 
 packages:
   - name: platform-runtime
     path: .
-    ref: 0.17.5
+    ref: 0.18.0
     optionalComponents:
       - uds
