@@ -160,6 +160,13 @@
       "why": "Captured CLI notes establish explicit Space selection and guest use, but not the private transport or native assignment policy. Existing grants remain the resource authority. Conduit has no primary-organization inference: an explicit readable Space and canonical artifact/product/release permissions govern guest publication.",
       "displacedBy": "A published or sanitized Apollo Space selection and publication contract establishing transport, caller access, grouping reservation and failure behavior.",
       "riskIfWrong": "The query transport and reservation policy may require migration. Assignment intent may survive a later failed publication and never asserts an artifact exists. Explicit selection cannot move an immutable existing assignment. Forbidden selection and missing publication authority fail before reservation; store failure is not an empty page."
+    },
+    {
+      "id": "releaseprep.SelfProductDescriptors",
+      "what": "Offline native preparation of Hub/Spoke Product publication inputs with exact chart/image digests, pinned default image configuration, producer display tags, and a separate six-target CLI download inventory.",
+      "why": "Issue #193 authorizes preparation without publication. Conduit owns these Product coordinates and metadata format. The native Helm input can represent executable Hub/Spoke Releases; the current service-Product API cannot carry CLI archive assets, so CLI inventory is explicitly not a published or executable catalogue Product.",
+      "displacedBy": "an owner-approved self-Product publication contract defining coordinates, artifact inputs and the supported CLI asset catalogue.",
+      "riskIfWrong": "Product naming and preparation format may need migration before publication. Input metadata consistency and CLI byte hashes do not authenticate signatures or registry availability. Output says NOT_PUBLISHED and preserves those unperformed checks; no publication, subscription or deployment authority is added."
     }
   ],
   "displaced": [
