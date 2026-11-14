@@ -223,6 +223,27 @@ abort "workflow node-version #{workflow_nodes.reject { |v| v == declared_node }.
       "disagrees with mise.toml #{declared_node}" unless
   workflow_nodes.all? { |version| version == declared_node }
 
+
+# Tool bumps must reach the container bootstrap and every pnpm setup step too.
+container_node = hub_containerfile[/\bnode:([^@\s]+)-bookworm@sha256:[a-f0-9]{64}/, 1]
+abort "container Node version disagrees with mise.toml #{declared_node}" unless container_node == declared_node
+
+declared_pnpm = mise[/^pnpm = "([^"]+)"/, 1]
+abort "mise.toml declares no pnpm version" if declared_pnpm.nil?
+workflow_pnpms = Dir[File.join(workflow_dir, "*.yml")].flat_map do |path|
+  document = YAML.safe_load(File.read(path, encoding: "UTF-8"), aliases: true)
+  document.fetch("jobs", {}).values.flat_map do |job|
+    job.fetch("steps", []).filter_map do |step|
+      next unless step["uses"].to_s.start_with?("pnpm/action-setup@")
+      step.fetch("with", {}).fetch("version", nil).to_s
+    end
+  end
+end
+abort "workflow pnpm version disagrees with mise.toml #{declared_pnpm}" unless
+  !workflow_pnpms.empty? && workflow_pnpms.all? { |version| version == declared_pnpm }
+container_pnpm = hub_containerfile[/\bnpm install[^\n]*\bpnpm@([0-9.]+)/, 1]
+abort "container pnpm version disagrees with mise.toml #{declared_pnpm}" unless container_pnpm == declared_pnpm
+
 cache_pins = workflow.scan(%r{actions/cache@([0-9a-f]{40})}).flatten
 abort "Grype database cache action must be commit pinned twice and identically" unless
   cache_pins.length == 2 && cache_pins.uniq.length == 1
