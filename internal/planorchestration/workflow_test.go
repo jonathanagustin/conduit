@@ -124,7 +124,8 @@ func TestAFailedWaveCompensatesOnce(t *testing.T) {
 	if result.Outcome != "failed" || !result.Compensated || result.Waves != 1 || log.compensations != 1 {
 		t.Fatalf("result = %#v compensations = %d", result, log.compensations)
 	}
-	if len(log.executed) != 2 || log.executed[1].PlanID != input.PlanID || log.executed[1].Attempt != 1 {
+	// The canary wave runs once. The failing wave is retried and stays on attempt 1.
+	if len(log.executed) != 4 || log.executed[0].Wave != "canary" || log.executed[1].Attempt != 1 || log.executed[3].Attempt != 1 {
 		t.Fatalf("executed = %#v", log.executed)
 	}
 }

@@ -127,6 +127,9 @@ func waitApproval(ctx workflow.Context, in Input) (string, error) {
 func activityCtx(ctx workflow.Context) workflow.Context {
 	return workflow.WithActivityOptions(ctx, workflow.ActivityOptions{
 		StartToCloseTimeout: time.Minute,
-		RetryPolicy:         &temporal.RetryPolicy{MaximumAttempts: 1},
+		RetryPolicy: &temporal.RetryPolicy{
+			InitialInterval: time.Second,
+			MaximumAttempts: 3,
+		},
 	})
 }
