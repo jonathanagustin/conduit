@@ -85,6 +85,11 @@ conduit product-release download-assets publish /review/cli-downloads.json --dry
 ```
 
 An actual publication needs the separately reviewed manual action below.
+The target Hub must have the native download catalogue installed. For
+PostgreSQL retirement operations, first upgrade all Hub writers: older binaries
+use the previously unpersistable NUL-separated key and cannot enforce new
+retirement entries. This change preserves file record paths and legacy-writer
+metadata retention; it does not establish mixed-runtime retirement semantics.
 Preparation format version 1's recorded inventory remains historical evidence;
 it is not retroactively treated as a catalogue-ready CLI Product.
 

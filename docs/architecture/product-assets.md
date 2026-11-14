@@ -54,6 +54,11 @@ publication metadata and history; it does not grant permission to publish a
 replacement at that coordinate. Retirement map keys use the validated Maven
 coordinate grammar; the previous NUL separator could not be persisted in
 PostgreSQL JSONB. Existing file record names remain unchanged.
+Older PostgreSQL Hub binaries use the former map key and cannot enforce newly
+persisted retirement entries. Upgrade every Hub writer sharing that database
+before using this newly working retirement operation. Independent download
+metadata survives legacy snapshot writes; that data-preservation guarantee does
+not establish old-runtime retirement enforcement.
 
 Production startup opens a separate `product-assets` component after the
 packaging-worker early return, matching the configured file or PostgreSQL
