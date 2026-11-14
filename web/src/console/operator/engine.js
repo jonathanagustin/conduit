@@ -9,6 +9,7 @@ import {
   publishAssistantContext,
   rememberResult,
   resultsMarkup,
+  resumeWrite,
   runAssistantAction,
 } from "./assistant-rail.js";
 
@@ -512,6 +513,60 @@ export function mountOperator(host, options) {
       subtitle: "SCORED OPTIONS",
     },
     {
+      id: "area-packaging",
+      num: 42,
+      short: "Packaging",
+      tabTitle: "Packaging",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "PACKAGING",
+    },
+    {
+      id: "area-releases",
+      num: 43,
+      short: "Releases",
+      tabTitle: "Releases",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "RELEASES",
+    },
+    {
+      id: "area-changes",
+      num: 44,
+      short: "Change requests",
+      tabTitle: "Change requests",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "CHANGE REQUESTS",
+    },
+    {
+      id: "area-intelligence",
+      num: 45,
+      short: "Intelligence",
+      tabTitle: "Intelligence",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "INTELLIGENCE",
+    },
+    {
+      id: "area-fleet",
+      num: 46,
+      short: "Fleet",
+      tabTitle: "Fleet",
+      hasSidebar: true,
+      showKpis: true,
+      subtitle: "FLEET",
+    },
+    {
+      id: "area-audit",
+      num: 47,
+      short: "Audit",
+      tabTitle: "Audit",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "AUDIT",
+    },
+    {
       id: "au01-audit",
       num: 37,
       short: "Audit",
@@ -852,9 +907,81 @@ export function mountOperator(host, options) {
     if (tip) tip.classList.add("hidden");
   }
 
+  const AREAS = {
+    "area-packaging": {
+      label: "Packaging",
+      tabs: [
+        { id: "timeline", label: "Timeline", screen: "s08-staged-run" },
+        { id: "bundle", label: "Bundle", screen: "rm08-bundle-preview" },
+        { id: "proposals", label: "Proposals", screen: "pt01-proposal-trace" },
+      ],
+    },
+    "area-releases": {
+      label: "Releases",
+      tabs: [
+        { id: "environments", label: "Environments", screen: "s14-env-detail" },
+        { id: "activity", label: "Activity", screen: "rm02-env-activity" },
+        { id: "promotion", label: "Promotion", screen: "rm06-promotion-pipe" },
+        { id: "recall", label: "Recall", screen: "rm09-recalls" },
+      ],
+    },
+    "area-changes": {
+      label: "Change requests",
+      tabs: [
+        { id: "list", label: "Requests", screen: "rm07-change-requests" },
+        { id: "approvals", label: "Approvals", screen: "s16-approvals-board" },
+      ],
+    },
+    "area-intelligence": {
+      label: "Intelligence",
+      tabs: [
+        { id: "logic", label: "Logic", screen: "ai01-logic" },
+        { id: "evals", label: "Evals", screen: "ai02-evals" },
+        { id: "courses", label: "Courses", screen: "ai04-courses" },
+        { id: "events", label: "Automations", screen: "ai03-events" },
+      ],
+    },
+    "area-fleet": {
+      label: "Fleet",
+      tabs: [
+        { id: "command", label: "Command Center", screen: "s13-fleet-overview" },
+        { id: "spokes", label: "Spokes", screen: "s17-spokes-audit" },
+        { id: "drift", label: "Drift", screen: "s14-env-detail" },
+      ],
+    },
+    "area-audit": {
+      label: "Audit",
+      tabs: [{ id: "chain", label: "Hash chain", screen: "au01-audit" }],
+    },
+  };
+  const REDIRECT = {};
+  Object.entries(AREAS).forEach(([area, spec]) => {
+    spec.tabs.forEach((tab) => {
+      REDIRECT[tab.screen] = { area, tab: tab.id };
+    });
+  });
+  REDIRECT["pt02-proposals-evals"] = { area: "area-packaging", tab: "proposals" };
+  REDIRECT["rm01-env-page"] = { area: "area-releases", tab: "environments" };
+  REDIRECT["rm05-release-rollout"] = { area: "area-releases", tab: "activity" };
+
+  function areaFor(id) {
+    return REDIRECT[id] || null;
+  }
+
   function switchScreen(scrId) {
-    state.screen = scrId;
-    const nextHash = "#" + scrId;
+    const mapped = areaFor(scrId);
+    if (mapped) {
+      state.screen = mapped.area;
+      state.areaTab = mapped.tab;
+    } else if (AREAS[scrId]) {
+      state.screen = scrId;
+      if (!state.areaTab || !AREAS[scrId].tabs.some((tab) => tab.id === state.areaTab)) {
+        state.areaTab = AREAS[scrId].tabs[0].id;
+      }
+    } else {
+      state.screen = scrId;
+    }
+    const nextHash = "#" + (mapped ? state.screen : scrId);
     if (location.hash !== nextHash) history.replaceState(null, "", nextHash);
     if (!state.openTabs.includes(scrId)) {
       state.openTabs.splice(1, 0, scrId);
@@ -971,30 +1098,12 @@ export function mountOperator(host, options) {
     const hubHiddenCls = activeMeta.hasSidebar ? "" : " hub-hidden";
 
     const navItems = [
-      { label: "Command Center", icon: "overview", id: "s13-fleet-overview" },
-      { label: "Spoke Operations", icon: "globe", id: "s17-spokes-audit" },
-      { label: "Environments", icon: "cluster", id: "rm01-env-page" },
-      { label: "Release Rollout", icon: "cube", id: "rm05-release-rollout" },
-      {
-        label: "Promotion Pipeline",
-        icon: "delivery",
-        id: "rm06-promotion-pipe",
-      },
-      {
-        label: "Change Requests",
-        icon: "approvals",
-        id: "rm07-change-requests",
-      },
-      { label: "Bundle Preview", icon: "cube", id: "rm08-bundle-preview" },
-      { label: "Logic", icon: "bolt", id: "ai01-logic" },
-      { label: "Eval cases", icon: "shield", id: "ai02-evals" },
-      { label: "Automations", icon: "audit", id: "ai03-events" },
-      { label: "Courses", icon: "delivery", id: "ai04-courses" },
-      { label: "Audit", icon: "audit", id: "au01-audit" },
-      ...releaseGates.navItems,
-      ...ontologyGraph.navItems,
-      { label: "Control Tower", icon: "approvals", id: "s15-plan-detail" },
-      { label: "Workspaces", icon: "pin", id: "s02-workspaces" },
+      { label: "Packaging", icon: "cube", id: "area-packaging" },
+      { label: "Releases", icon: "cluster", id: "area-releases" },
+      { label: "Change requests", icon: "approvals", id: "area-changes" },
+      { label: "Intelligence", icon: "bolt", id: "area-intelligence" },
+      { label: "Fleet", icon: "overview", id: "area-fleet" },
+      { label: "Audit", icon: "audit", id: "area-audit" },
     ];
 
     const deliveryApps = [
@@ -1091,8 +1200,6 @@ export function mountOperator(host, options) {
         </div>
         ${renderAppGroup("OPERATOR TOOLS", releaseGates.toolApps)}
         ${renderAppGroup("SETTINGS", settings.navItems())}
-        ${renderAppGroup("DELIVERY APPS", deliveryApps)}
-        ${renderAppGroup("DEVELOPER APPS", developerApps)}
       `;
   }
 
@@ -1255,6 +1362,22 @@ export function mountOperator(host, options) {
       const open = target.closest("[data-open-screen]");
       if (open) {
         switchScreen(open.getAttribute("data-open-screen"));
+        return;
+      }
+      const resume = target.closest("[data-resume-write]");
+      if (resume) {
+        const form = resume.closest("form");
+        const card = resume.closest("article");
+        const index = Number(card?.getAttribute("data-result-index") || "0");
+        const prior = (state.assistantResults || [])[index] || {};
+        const args = Object.assign({}, prior.elicitation || {});
+        form?.querySelectorAll("[name]").forEach((input) => {
+          args[input.getAttribute("name")] = input.value;
+        });
+        if (resume.getAttribute("data-confirm") === "1") args.confirm = true;
+        const resumed = await resumeWrite(state, args);
+        rememberResult(state, resumed);
+        renderApp();
         return;
       }
       const action = target.closest("[data-assistant-action]");
@@ -5757,6 +5880,13 @@ export function mountOperator(host, options) {
   function renderMainWorkspace() {
     const root = document.getElementById("main-workspace");
     if (!root) return;
+    if (AREAS[state.screen]) {
+      renderArea(root);
+      updateExampleBadge();
+      settings.applyChrome();
+      settings.ensureLoaded();
+      return;
+    }
     const screenChanged =
       previousScreen !== "" && previousScreen !== state.screen;
     previousScreen = state.screen;
@@ -5807,7 +5937,54 @@ export function mountOperator(host, options) {
     }
   }
 
+  function renderArea(root) {
+    const area = AREAS[state.screen];
+    const tabs = area.tabs;
+    const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
+    state.areaTab = current.id;
+    root.innerHTML = `<div class="space-y-3">
+      <div class="text-[11px] text-[#8b96a5]">${area.label} / ${current.label}</div>
+      <div class="flex flex-wrap gap-1">${tabs
+        .map(
+          (tab) =>
+            `<button type="button" data-area-tab="${tab.id}" class="h-[24px] px-2 rounded text-[11px] border ${tab.id === current.id ? "bg-[#162536] border-[#355982] text-[#dce8f6]" : "bg-[#12181e] border-[#222c36] text-[#8b96a5]"}">${tab.label}</button>`,
+        )
+        .join("")}</div>
+      <div id="area-body"></div>
+    </div>`;
+    const renderer = {
+      "s08-staged-run": renderS08StagedRun,
+      "rm08-bundle-preview": renderRM08BundlePreview,
+      "pt01-proposal-trace": releaseGates.renderers["pt01-proposal-trace"],
+      "s14-env-detail": renderS14EnvDetail,
+      "rm02-env-activity": renderRM02EnvActivity,
+      "rm06-promotion-pipe": renderRM06PromotionPipe,
+      "rm09-recalls": releaseGates.renderers["rm09-recalls"],
+      "rm07-change-requests": renderRM07ChangeRequests,
+      "s16-approvals-board": renderS16ApprovalsBoard,
+      "ai01-logic": (node) => intelligence.renderLogic(node),
+      "ai02-evals": (node) => intelligence.renderEvals(node),
+      "ai04-courses": (node) => intelligence.renderCourses(node),
+      "ai03-events": (node) => intelligence.renderEvents(node),
+      "s13-fleet-overview": renderS13FleetOverview,
+      "s17-spokes-audit": renderS17SpokesAudit,
+      "au01-audit": (node) => liveHub.renderAudit(node),
+    }[current.screen];
+    if (renderer) renderer(root.querySelector("#area-body"));
+    root.querySelectorAll("[data-area-tab]").forEach((button) => {
+      button.addEventListener("click", () => {
+        state.areaTab = button.getAttribute("data-area-tab");
+        renderMainWorkspace();
+      });
+    });
+  }
+
   function renderApp() {
+    const mapped = areaFor(state.screen);
+    if (mapped) {
+      state.screen = mapped.area;
+      state.areaTab = mapped.tab;
+    }
     liveHub.ensure();
     renderLeftRail();
     renderCenterTabStrip();
@@ -5832,8 +6009,17 @@ export function mountOperator(host, options) {
   window.addEventListener("keydown", onKey);
   const onHash = () => {
     const id = (location.hash || "").replace(/^#/, "");
-    if (!SCREENS.some((s) => s.id === id) || state.screen === id) return;
-    state.screen = id;
+    const mapped = areaFor(id);
+    if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id)) return;
+    if (mapped) {
+      state.screen = mapped.area;
+      state.areaTab = mapped.tab;
+    } else if (AREAS[id]) {
+      state.screen = id;
+      state.areaTab = AREAS[id].tabs[0].id;
+    } else if (state.screen !== id) {
+      state.screen = id;
+    } else return;
     renderApp();
   };
   window.addEventListener("hashchange", onHash);

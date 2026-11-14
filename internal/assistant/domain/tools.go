@@ -17,6 +17,7 @@ const (
 	ToolQuery   = "query_ontology_objects"
 	ToolPropose = "propose_governed_action"
 	ToolDiff    = "review_change_diff"
+	ToolWrite   = "governed_write"
 
 	LabelNoModel   = "No model call"
 	LabelLiveModel = "Live model call"
@@ -71,12 +72,35 @@ type DiffArgs struct {
 	ChangeRequestID string `json:"changeRequestId"`
 }
 
+// WriteArgs is one governed mutation. Missing fields come back as elicitation.
+// Confirm is set only after the person submits the card.
+type WriteArgs struct {
+	Action        string `json:"action"`
+	TargetID      string `json:"targetId,omitempty"`
+	Environment   string `json:"environment,omitempty"`
+	Value         string `json:"value,omitempty"`
+	Justification string `json:"justification,omitempty"`
+	Expected      string `json:"expectedOutcome,omitempty"`
+	Confirm       bool   `json:"confirm,omitempty"`
+}
+
+// Field is one elicitation input. It never asks for a secret.
+type Field struct {
+	Name     string   `json:"name"`
+	Label    string   `json:"label"`
+	Type     string   `json:"type"`
+	Required bool     `json:"required"`
+	Value    string   `json:"value,omitempty"`
+	Options  []string `json:"options,omitempty"`
+}
+
 // ToolCall is one validated call.
 type ToolCall struct {
 	Name      string
 	Query     QueryArgs
 	Propose   ProposeArgs
 	Diff      DiffArgs
+	Write     WriteArgs
 	Arguments json.RawMessage
 }
 
@@ -114,11 +138,11 @@ func toolsForMode(mode string) []string {
 	case ModeExplore:
 		return []string{ToolQuery}
 	case ModeReleasePlan:
-		return []string{ToolQuery, ToolPropose}
+		return []string{ToolQuery, ToolPropose, ToolWrite}
 	case ModeConfigDiff:
 		return []string{ToolQuery, ToolDiff}
 	case ModeOntology:
-		return []string{ToolQuery, ToolPropose, ToolDiff}
+		return []string{ToolQuery, ToolPropose, ToolDiff, ToolWrite}
 	default:
 		return nil
 	}
@@ -172,6 +196,18 @@ func ParseToolCall(name string, arguments json.RawMessage) (ToolCall, error) {
 			return ToolCall{}, fmt.Errorf("%w: changeRequestId is required", ErrToolInvalid)
 		}
 		call.Diff = args
+	case ToolWrite:
+		args, err := decode[WriteArgs](call.Arguments)
+		if err != nil {
+			return ToolCall{}, err
+		}
+		switch strings.TrimSpace(args.Action) {
+		case "add_eval_case", "propose_memory", "cancel_packaging_run", "rerun_packaging_run",
+			"promote", "recall", "approve_change", "reject_change", "select_course", "start_packaging_run":
+		default:
+			return ToolCall{}, fmt.Errorf("%w: unknown action", ErrToolInvalid)
+		}
+		call.Write = args
 	default:
 		return ToolCall{}, fmt.Errorf("%w: unknown tool %s", ErrToolInvalid, name)
 	}
@@ -200,6 +236,46 @@ func ParseReply(raw []byte) (ModelReply, error) {
 		}
 	}
 	return reply, nil
+}
+
+// Risk is low when the caller's role may apply the action after Confirm.
+// Promote, recall, approval, and resource changes stay high and open a change request.
+func Risk(action string) string {
+	switch strings.TrimSpace(action) {
+	case "add_eval_case", "rerun_packaging_run", "start_packaging_run":
+		return "low"
+	default:
+		return "high"
+	}
+}
+
+// MissingFields lists what a write still needs. It never asks for a secret.
+func MissingFields(args WriteArgs) []Field {
+	var fields []Field
+	need := func(name, label, value string, options ...string) {
+		if strings.TrimSpace(value) != "" {
+			return
+		}
+		fields = append(fields, Field{Name: name, Label: label, Type: "string", Required: true, Options: options})
+	}
+	switch strings.TrimSpace(args.Action) {
+	case "add_eval_case":
+		need("justification", "Scenario", args.Justification)
+		need("value", "Memory value", args.Value)
+		need("expectedOutcome", "Expected outcome", args.Expected, "PASS", "FAIL_REQUIRED")
+	case "propose_memory", "select_course":
+		need("value", "Memory value", args.Value, "512Mi", "1Gi", "8Gi")
+		need("justification", "Justification", args.Justification)
+		need("environment", "Environment", args.Environment)
+	case "promote", "recall":
+		need("targetId", "Target", args.TargetID)
+		need("justification", "Justification", args.Justification)
+		need("environment", "Environment", args.Environment)
+	case "approve_change", "reject_change":
+		need("targetId", "Change request", args.TargetID)
+		need("justification", "Justification", args.Justification)
+	}
+	return fields
 }
 
 // Resource is the coordinate the action rules already use.

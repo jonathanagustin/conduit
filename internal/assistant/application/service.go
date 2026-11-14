@@ -79,6 +79,12 @@ type OpenedChange struct {
 	Status string
 }
 
+// Reviews records an approval or rejection. It refuses the author of the request.
+type Reviews interface {
+	Approve(ctx context.Context, id, actor, rationale string, roles []string) (string, error)
+	Reject(ctx context.Context, id, actor, rationale string, roles []string) (string, error)
+}
+
 // Changes opens a change request and does not approve it.
 type Changes interface {
 	Open(ctx context.Context, proposal Proposal) (OpenedChange, error)
@@ -122,24 +128,31 @@ type Auditor interface {
 
 // Result is one tool execution.
 type Result struct {
-	Label                string       `json:"label"`
-	Tool                 string       `json:"tool"`
-	OK                   bool         `json:"ok"`
-	Error                string       `json:"error,omitempty"`
-	ReadOps              int          `json:"readOps"`
-	WriteOps             int          `json:"writeOps"`
-	DurationMs           int64        `json:"durationMs"`
-	MatchedCount         int          `json:"matchedCount,omitempty"`
-	Entities             []ObjectHit  `json:"entities,omitempty"`
-	Allowed              bool         `json:"allowed,omitempty"`
-	Reason               string       `json:"reason,omitempty"`
-	Constraints          []Constraint `json:"constraints,omitempty"`
-	AuditEventID         string       `json:"auditEventId,omitempty"`
-	DecisionAuditEventID string       `json:"decisionAuditEventId,omitempty"`
-	ChangeRequestID      string       `json:"changeRequestId,omitempty"`
-	ChangeRequestStatus  string       `json:"changeRequestStatus,omitempty"`
-	Title                string       `json:"title,omitempty"`
-	Hunks                []Hunk       `json:"hunks,omitempty"`
+	Label                string            `json:"label"`
+	Tool                 string            `json:"tool"`
+	OK                   bool              `json:"ok"`
+	Error                string            `json:"error,omitempty"`
+	ReadOps              int               `json:"readOps"`
+	WriteOps             int               `json:"writeOps"`
+	DurationMs           int64             `json:"durationMs"`
+	MatchedCount         int               `json:"matchedCount,omitempty"`
+	Entities             []ObjectHit       `json:"entities,omitempty"`
+	Allowed              bool              `json:"allowed,omitempty"`
+	Reason               string            `json:"reason,omitempty"`
+	Constraints          []Constraint      `json:"constraints,omitempty"`
+	AuditEventID         string            `json:"auditEventId,omitempty"`
+	DecisionAuditEventID string            `json:"decisionAuditEventId,omitempty"`
+	ChangeRequestID      string            `json:"changeRequestId,omitempty"`
+	ChangeRequestStatus  string            `json:"changeRequestStatus,omitempty"`
+	Title                string            `json:"title,omitempty"`
+	Hunks                []Hunk            `json:"hunks,omitempty"`
+	Risk                 string            `json:"risk,omitempty"`
+	NeedsConfirm         bool              `json:"needsConfirm,omitempty"`
+	Applied              bool              `json:"applied,omitempty"`
+	ObjectID             string            `json:"objectId,omitempty"`
+	State                string            `json:"state,omitempty"`
+	Elicitation          *domain.WriteArgs `json:"elicitation,omitempty"`
+	Fields               []domain.Field    `json:"fields,omitempty"`
 }
 
 // Constraint is one action-rule row.
@@ -165,7 +178,20 @@ type Service struct {
 	Diffs    Diffs
 	Audit    Auditor
 	Model    domain.Model
+	Cases    EvalCases
+	Authors  ChangeAuthor
+	Reviews  Reviews
 	Now      func() time.Time
+}
+
+// EvalCases stores one operator feedback case.
+type EvalCases interface {
+	Add(scenario, bound, value, expected string) (string, error)
+}
+
+// ChangeAuthor is the person who opened a change request.
+type ChangeAuthor interface {
+	Author(ctx context.Context, id string) (string, error)
 }
 
 func (service Service) Invoke(ctx context.Context, actor Actor, mode string, name string, arguments json.RawMessage) (Result, error) {
@@ -199,6 +225,8 @@ func (service Service) Invoke(ctx context.Context, actor Actor, mode string, nam
 		result.WriteOps = 0
 	case domain.ToolPropose:
 		result = service.propose(ctx, actor, call.Propose, result)
+	case domain.ToolWrite:
+		result = service.write(ctx, actor, call.Write, result)
 	case domain.ToolDiff:
 		if service.Diffs == nil {
 			result.OK = false
@@ -222,6 +250,160 @@ func (service Service) Invoke(ctx context.Context, actor Actor, mode string, nam
 		result.Error = "unknown tool"
 	}
 	return service.finish(ctx, actor, call, result, started, nil)
+}
+
+func (service Service) write(ctx context.Context, actor Actor, args domain.WriteArgs, result Result) Result {
+	result.Risk = domain.Risk(args.Action)
+	if fields := domain.MissingFields(args); len(fields) > 0 {
+		result.Fields = fields
+		result.Elicitation = &args
+		result.Reason = "more detail is required"
+		result.WriteOps = 0
+		return result
+	}
+	if args.Action == "approve_change" && service.Authors != nil {
+		author, err := service.Authors.Author(ctx, args.TargetID)
+		if err != nil {
+			result.OK = false
+			result.Allowed = false
+			result.Reason = err.Error()
+			return result
+		}
+		if strings.EqualFold(strings.TrimSpace(author), strings.TrimSpace(actor.Username)) && author != "" {
+			result.Allowed = false
+			result.Reason = "a person cannot approve their own change request"
+			result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: result.Reason}}
+			return result
+		}
+	}
+	if service.Governor != nil && ruleID(args.Action) != "" {
+		decision, err := service.Governor.Evaluate(ctx, actor.Username, ruleID(args.Action), domain.Resource("PackagingRun", firstNonEmpty(args.TargetID, args.Value)), actor.Roles())
+		if err != nil {
+			result.OK = false
+			result.Reason = err.Error()
+			return result
+		}
+		result.DecisionAuditEventID = decision.AuditEventID
+		if !decision.Allowed || !decision.Known {
+			result.Allowed = false
+			result.Reason = decision.Reason
+			result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: decision.Reason}}
+			return result
+		}
+	}
+	if result.Risk == "low" && !args.Confirm {
+		result.NeedsConfirm = true
+		result.Elicitation = &args
+		result.Reason = "confirm to apply this action"
+		return result
+	}
+	if args.Action == "approve_change" || args.Action == "reject_change" {
+		if service.Reviews == nil {
+			result.OK = false
+			result.Reason = "reviews are not configured"
+			return result
+		}
+		var status string
+		var err error
+		if args.Action == "approve_change" {
+			status, err = service.Reviews.Approve(ctx, args.TargetID, actor.Username, args.Justification, actor.Roles())
+		} else {
+			status, err = service.Reviews.Reject(ctx, args.TargetID, actor.Username, args.Justification, actor.Roles())
+		}
+		if err != nil {
+			result.OK = false
+			result.Allowed = false
+			result.Reason = err.Error()
+			result.Constraints = []Constraint{{ID: args.Action, Status: "DENY", Reason: err.Error()}}
+			return result
+		}
+		result.Applied = true
+		result.Allowed = true
+		result.ObjectID = args.TargetID
+		result.State = status
+		result.Reason = "review recorded"
+		result.WriteOps = 1
+		return result
+	}
+	if result.Risk == "high" {
+		if service.Changes == nil {
+			result.OK = false
+			result.Reason = "change requests are not configured"
+			return result
+		}
+		opened, err := service.Changes.Open(ctx, Proposal{
+			ActionID: args.Action, TargetEntityID: firstNonEmpty(args.TargetID, args.Value),
+			ObjectType: "ChangeRequest", Environment: firstNonEmpty(args.Environment, "dev"),
+			InstallationID: "sample-app", ProductID: "app.example:sample-app",
+			Author: actor.Username, Reason: args.Justification,
+		})
+		if err != nil {
+			result.OK = false
+			result.Reason = err.Error()
+			return result
+		}
+		result.Allowed = true
+		result.ChangeRequestID = opened.ID
+		result.ChangeRequestStatus = opened.Status
+		result.ObjectID = opened.ID
+		result.State = opened.Status
+		result.Reason = "opened for a separate approver"
+		result.WriteOps = 1
+		return result
+	}
+	if args.Action == "add_eval_case" {
+		if service.Cases == nil {
+			result.OK = false
+			result.Reason = "eval cases are not configured"
+			return result
+		}
+		id, err := service.Cases.Add(args.Justification, args.TargetID, args.Value, args.Expected)
+		if err != nil {
+			result.OK = false
+			result.Reason = err.Error()
+			return result
+		}
+		result.Applied = true
+		result.Allowed = true
+		result.ObjectID = id
+		result.State = "recorded"
+		result.Reason = "eval case recorded"
+		result.WriteOps = 1
+		return result
+	}
+	result.Applied = true
+	result.Allowed = true
+	result.ObjectID = args.TargetID
+	result.State = "applied"
+	result.Reason = "applied after confirm"
+	result.WriteOps = 1
+	return result
+}
+
+func ruleID(action string) string {
+	switch action {
+	case "approve_change":
+		return "approve_plan"
+	case "reject_change":
+		return "reject_plan"
+	case "promote":
+		return "promote_release_manual"
+	case "start_packaging_run", "rerun_packaging_run":
+		return "rerun_packaging_run"
+	case "cancel_packaging_run":
+		return "cancel_packaging_run"
+	default:
+		return ""
+	}
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 func (service Service) propose(ctx context.Context, actor Actor, args domain.ProposeArgs, result Result) Result {
@@ -324,7 +506,7 @@ func (service Service) finish(ctx context.Context, actor Actor, call domain.Tool
 	}
 	decision := "ALLOW"
 	reason := result.Reason
-	if failed != nil || result.Error != "" || (result.Tool == domain.ToolPropose && !result.Allowed) {
+	if failed != nil || result.Error != "" || ((result.Tool == domain.ToolPropose || result.Tool == domain.ToolWrite) && !result.Allowed && len(result.Fields) == 0 && !result.NeedsConfirm) {
 		decision = "DENY"
 	}
 	if reason == "" {
