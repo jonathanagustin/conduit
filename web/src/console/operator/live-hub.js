@@ -184,6 +184,62 @@ export function recordedProposal(state) {
   return { run, events, failed, passed };
 }
 
+function outcomeDot(outcome) {
+  if (outcome === "PASS") return "bg-[#34d399]";
+  if (/FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/.test(outcome || ""))
+    return "bg-[#e76a6e]";
+  return "bg-[#4c90f0]";
+}
+
+function stepTimeline(events) {
+  if (!events.length) {
+    return `<p class="text-[12px] text-[#8b96a5]">No step events recorded.</p>`;
+  }
+  return `<ol class="space-y-2">${events
+    .map(
+      (event) => `<li class="flex gap-2">
+          <span class="mt-1.5 w-2 h-2 rounded-full shrink-0 ${outcomeDot(event.outcome)}"></span>
+          <div class="min-w-0">
+            <div class="text-[12px] text-white">${esc(event.step || "")} · ${esc(event.outcome || "")}</div>
+            <div class="text-[11.5px] text-[#8b96a5]">${esc(event.reason || "No reason recorded.")}</div>
+          </div>
+        </li>`,
+    )
+    .join("")}</ol>`;
+}
+
+function constraintRows(events) {
+  if (!events.length) {
+    return `<p class="text-[12px] text-[#8b96a5]">No gate events recorded.</p>`;
+  }
+  return `<div class="space-y-2">${events
+    .map((event) => {
+      const blocked = /FAIL|REJECT|BLOCK|TIMED_OUT|CANCEL/.test(
+        event.outcome || "",
+      );
+      const tone =
+        event.outcome === "PASS"
+          ? "border-[#1f4737] bg-[#10241d]"
+          : blocked
+            ? "border-[#52252c] bg-[#241417]"
+            : "border-[#1f2a35] bg-[#10161c]";
+      const ink =
+        event.outcome === "PASS"
+          ? "text-[#34d399]"
+          : blocked
+            ? "text-[#f5a3a6]"
+            : "text-[#dce4ee]";
+      return `<div class="rounded-[6px] border ${tone} px-2.5 py-2">
+          <div class="flex items-center justify-between gap-2 text-[12px]">
+            <span class="text-white">${esc(event.step || "")}</span>
+            <span class="${ink}">${esc(event.outcome || "")}</span>
+          </div>
+          <div class="text-[11.5px] text-[#b6c2cf] mt-1">${esc(event.reason || "No reason recorded.")}</div>
+        </div>`;
+    })
+    .join("")}</div>`;
+}
+
 export function createLiveHub({ state, render }) {
   state.operatorName = state.operatorName || "Operator";
   state.hub = {
@@ -440,15 +496,6 @@ export function createLiveHub({ state, render }) {
       }
       const cards = runs
         .map((run) => {
-          const events = eventsFor(run.runId)
-            .map(
-              (event) => `<tr>
-                <td>${esc(event.step)}</td>
-                <td>${esc(event.outcome || "")}</td>
-                <td class="text-[#8b96a5]">${esc(event.reason || "")}</td>
-              </tr>`,
-            )
-            .join("");
           return `${panel(
             run.runId || "Packaging run",
             `<dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
@@ -459,12 +506,7 @@ export function createLiveHub({ state, render }) {
               <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
             </dl>`,
           )}
-          ${panel(
-            "Steps",
-            events
-              ? `<table class="so-table"><thead><tr><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${events}</tbody></table>`
-              : `<p class="text-[12px] text-[#8b96a5]">No step events recorded.</p>`,
-          )}
+          ${panel("Plan timeline", stepTimeline(eventsFor(run.runId)))}
           ${reviewNotes(run.runId)}`;
         })
         .join("");
@@ -572,21 +614,26 @@ export function createLiveHub({ state, render }) {
         );
         return;
       }
-      const rows = edges
+      const pipe = edges
         .map(
-          (edge) => `<tr>
-            <td class="text-white">${esc(edge.product || "")}</td>
-            <td>${esc(edge.version || "")}</td>
-            <td class="code-id">${esc(edge.fromChannel)} → ${esc(edge.toChannel)}</td>
-            <td>${esc(edge.status || "")}</td>
-          </tr>`,
+          (edge) => `<div class="flex flex-wrap items-center gap-2">
+            <div class="rounded-[6px] border border-[#253b54] bg-[#13202e] px-3 py-2 min-w-[88px]">
+              <div class="text-[10px] uppercase tracking-[0.07em] text-[#6d7885]">From</div>
+              <div class="text-[13px] text-white">${esc(edge.fromChannel || "")}</div>
+            </div>
+            <span class="text-[#7cb4ff]">→</span>
+            <div class="rounded-[6px] border border-[#1f4737] bg-[#10241d] px-3 py-2 min-w-[88px]">
+              <div class="text-[10px] uppercase tracking-[0.07em] text-[#6d7885]">To</div>
+              <div class="text-[13px] text-white">${esc(edge.toChannel || "")}</div>
+            </div>
+            <div class="text-[12px] text-[#8b96a5]">${esc(edge.product || "")} ${esc(edge.version || "")} · ${esc(edge.status || "")}</div>
+          </div>`,
         )
         .join("");
       root.innerHTML = split(
         panel(
-          "Promotion",
-          `<p class="text-[12px] text-[#8b96a5]">DEV to STAGING.</p>
-         <table class="so-table"><thead><tr><th>Product</th><th>Version</th><th>Edge</th><th>Status</th></tr></thead><tbody>${rows}</tbody></table>`,
+          "Promotion pipeline",
+          `<p class="text-[12px] text-[#8b96a5] mb-2">Recorded promotion edges.</p><div class="space-y-2">${pipe}</div>`,
         ),
       );
     },
@@ -623,11 +670,43 @@ export function createLiveHub({ state, render }) {
           </tr>`,
         )
         .join("");
+      const headers = rows
+        .map((row) => {
+          const spoke = row.spoke || {};
+          const id = row.environment?.id || "";
+          const reportedAt = row.reported?.observedAt || spoke.observedAt || "";
+          return `<div class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-3">
+            <div class="flex items-center justify-between gap-2">
+              <div class="text-[16px] font-semibold text-white">${esc(id)}</div>
+              <span class="px-1.5 py-0.5 rounded border border-[#253b54] text-[10px] text-[#7cb4ff]">${esc(spoke.state || "unknown")}</span>
+            </div>
+            <div class="mt-2 text-[12px] text-[#8b96a5]">Spoke <span class="text-white">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
+            <div class="text-[12px] text-[#8b96a5]">Latest report <span class="text-white">${esc(reportedAt || "no report")}</span></div>
+          </div>`;
+        })
+        .join("");
+      const ledger = (hub(state).audit || [])
+        .slice(0, 8)
+        .map(
+          (entry) => `<tr>
+            <td class="code-id">${esc(entry.sequence)}</td>
+            <td>${esc(entry.actor || "")}</td>
+            <td>${esc(entry.action || "")}</td>
+          </tr>`,
+        )
+        .join("");
       const spokeTable = rows.length
-        ? panel(
-            "Spokes",
-            `<table class="so-table"><thead><tr><th>Environment</th><th>Spoke</th><th>Liveness</th><th>Latest report</th></tr></thead><tbody>${body}</tbody></table>`,
-          )
+        ? `${panel("Environments", `<div class="grid gap-2 md:grid-cols-2">${headers}</div>`)}
+           ${panel(
+             "Activity",
+             ledger
+               ? `<p class="text-[12px] text-[#8b96a5] mb-2">Recorded authorization decisions.</p><table class="so-table"><thead><tr><th>#</th><th>Actor</th><th>Action</th></tr></thead><tbody>${ledger}</tbody></table>`
+               : `<p class="text-[12px] text-[#8b96a5]">No activity is recorded.</p>`,
+           )}
+           ${panel(
+             "Spokes",
+             `<table class="so-table"><thead><tr><th>Environment</th><th>Spoke</th><th>Liveness</th><th>Latest report</th></tr></thead><tbody>${body}</tbody></table>`,
+           )}`
         : missing(hub(state).note || "No environment is recorded.");
       const installTable = installations.length
         ? panel(
@@ -745,12 +824,6 @@ export function renderLiveProposal(root, state) {
         : passed
           ? "Deterministic checks passed."
           : "The proposal is recorded. Checks have not finished.";
-      const rows = events
-        .map(
-          (event) =>
-            `<tr><td>${esc(event.step)}</td><td>${esc(event.outcome || "")}</td><td class="text-[#8b96a5]">${esc(event.reason || "")}</td></tr>`,
-        )
-        .join("");
       return `${panel(
         `Recorded proposal · ${run.runId}`,
         `<p class="text-[12.5px] text-white">${esc(verdict)}</p>
@@ -761,12 +834,7 @@ export function renderLiveProposal(root, state) {
            <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
          </dl>`,
       )}
-      ${panel(
-        "Gates",
-        rows
-          ? `<table class="so-table"><thead><tr><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${rows}</tbody></table>`
-          : `<p class="text-[12px] text-[#8b96a5]">No gate events recorded.</p>`,
-      )}`;
+      ${panel("Constraints", constraintRows(events))}`;
     })
     .join("");
   root.innerHTML = `<div class="so-view-enter space-y-3">${ask}${liveCard}${cards}</div>`;
