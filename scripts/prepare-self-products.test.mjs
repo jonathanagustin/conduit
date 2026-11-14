@@ -18,6 +18,8 @@ assert.deepEqual(JSON.parse(Buffer.from(result.products[0].publication.body.defa
 assert.equal(result.cli.cataloguePublication,"UNSUPPORTED_BY_CURRENT_SERVICE_PRODUCT_API");
 assert.equal(result.verification.signatures,"NOT_VERIFIED");
 assert.deepEqual(result,prepareSelfProducts(selfProductFixture()),"preparation must be deterministic");
+assert.throws(()=>prepareSelfProducts(selfProductFixture("4294967296.0.0")),/catalogue ordering range/);
+assert.equal(prepareSelfProducts(selfProductFixture("4294967295.0.0")).source.version,"4294967295.0.0");
 for (const [name, mutate] of [
   ["mismatched version",x=>x.helm.version="0.18.0"],
   ["mismatched commit",x=>x.helm.commit="a".repeat(40)],

@@ -18,6 +18,7 @@ const jsonBytes = value => Buffer.from(JSON.stringify(value)).toString("base64")
 export function prepareSelfProducts({ repository, version, oci, helm, checksums, readCLI, readProvenance }) {
   requireValue(/^[a-z0-9][a-z0-9-]*\/[a-z0-9][a-z0-9._-]*$/.test(repository ?? ""), "source repository must be owner/name");
   requireValue(/^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$/.test(version ?? ""), "expected a stable semantic version");
+  requireValue(version.split(".").every(component => BigInt(component) <= 0xffffffffn), "version exceeds native catalogue ordering range");
   requireValue(oci?.apiVersion === "platform.delivery/oci-release/v2" && helm?.apiVersion === "platform.delivery/helm-release/v1", "unsupported release manifest version");
   requireValue(oci.version === version && helm.version === version, "release manifest versions differ from the selected version");
   requireValue(/^[a-f0-9]{40}$/.test(oci.commit ?? "") && helm.commit === oci.commit, "release manifests must share one full source commit");

@@ -11,7 +11,8 @@ request, publication, signature creation, subscription or deployment.
 Use assets from one already-published stable release: `platform-oci-manifest.json`,
 `platform-helm-charts.json`, CLI `SHA256SUMS`, the six archives and their six
 `.slsa.json` provenance metadata files. Put archives and provenance metadata in
-separate local directories. The version and full original source commit must
+separate local directories. Each stable version component must fit the catalogue's unsigned 32-bit ordering
+range. The version and full original source commit must
 agree across the supplied descriptors. For historically corrected Git history,
 retain the source SHA carried by the signed release inputs; the history SHA map
 establishes source-tree equivalence, not a new signature over rewritten history.

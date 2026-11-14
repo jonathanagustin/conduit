@@ -1,7 +1,7 @@
 // Synthetic metadata and bytes only. These are not released artifacts or binaries.
 import { createHash } from "node:crypto";
-export function selfProductFixture() {
-  const repository = "jonathanagustin/conduit", version = "0.17.5", commit = "1".repeat(40);
+export function selfProductFixture(version = "0.17.5") {
+  const repository = "jonathanagustin/conduit", commit = "1".repeat(40);
   const oci = { apiVersion: "platform.delivery/oci-release/v2", version, commit, images: {} };
   for (const [component, digit] of [["hub", "2"], ["spoke-agent", "3"]]) {
     const image = `ghcr.io/${repository}`, digest = `sha256:${digit.repeat(64)}`;
