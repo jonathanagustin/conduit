@@ -13,6 +13,7 @@ import {
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
+import { facetsMarkup } from "./env-facets.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
 import { createConduitClient } from "@conduit/ontology-client";
@@ -1014,6 +1015,7 @@ export function mountOperator(host, options) {
       label: "Fleet",
       tabs: [
         { id: "spokes", label: "Spokes", screen: "s17-spokes-audit" },
+        { id: "environments", label: "Environments", screen: "flt-environments" },
         { id: "drift", label: "Drift", screen: "s14-env-detail" },
       ],
     },
@@ -5779,6 +5781,30 @@ export function mountOperator(host, options) {
       "pt01-proposal-trace": releaseGates.renderers["pt01-proposal-trace"],
       "s14-env-detail": renderS14EnvDetail,
       "rm-channels": (node) => liveHub.renderChannels(node),
+      "flt-environments": (node) => {
+        const selected = state.envFacets || (state.envFacets = {});
+        const paint = () => {
+          node.innerHTML = facetsMarkup(state.hub?.environments, selected, {
+            note: state.hub?.environmentsNote || "",
+          });
+        };
+        paint();
+        node.onclick = (event) => {
+          const target = event.target instanceof Element ? event.target : null;
+          if (target?.closest("[data-facet-clear]")) {
+            for (const key of Object.keys(selected)) delete selected[key];
+            paint();
+            return;
+          }
+          const row = target?.closest("[data-facet]");
+          if (!row) return;
+          const key = row.getAttribute("data-facet");
+          const value = row.getAttribute("data-facet-value");
+          if (selected[key] === value) delete selected[key];
+          else selected[key] = value;
+          paint();
+        };
+      },
       "rel-products": (node) => {
         node.innerHTML = productsMarkup(
           productRows(state.hub?.products, state.hub?.installations),
