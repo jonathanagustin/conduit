@@ -61,6 +61,32 @@ function gateTone(outcome) {
   return "err";
 }
 
+const GATE_NODE = {
+  ok: { cls: "is-done", mark: "&#10003;", word: "passed" },
+  info: { cls: "is-active", mark: "", word: "waiting" },
+  err: { cls: "is-blocked", mark: "&#10005;", word: "did not pass" },
+};
+
+/**
+ * Connected gate stepper (kit v7.1): one node per recorded step, in order,
+ * with its name beside it. Done, waiting and blocked come from the Hub's own
+ * step outcomes; the full outcome is in each node's title.
+ */
+export function gateStepper(gates, esc = defaultEsc) {
+  const list = Array.isArray(gates) ? gates : [];
+  if (!list.length) return "";
+  const items = list
+    .map((gate, idx) => {
+      const node = GATE_NODE[gateTone(gate.outcome)];
+      const outcome = gate.outcome || "no result";
+      const prevDone =
+        idx > 0 && gateTone(list[idx - 1].outcome) === "ok" ? " is-after-done" : "";
+      return `<li class="kit-gate ${node.cls}${prevDone}" title="${esc(gate.step)}: ${esc(outcome)}"><span class="kit-gate-node" aria-hidden="true">${node.mark}</span><span class="kit-gate-label">${esc(gate.step)}</span><span class="kit-sr">: ${node.word} (${esc(outcome)})</span></li>`;
+    })
+    .join("");
+  return `<ol class="kit-gates" aria-label="Gate results">${items}</ol>`;
+}
+
 const short = (digest) =>
   String(digest || "")
     .replace(/^sha256:/, "")
@@ -97,12 +123,7 @@ export function runsMarkup(
   const rows = list
     .map((run) => {
       const stateName = runState(run);
-      const gates = gateResults(eventsByRun?.[run.runId])
-        .map(
-          (gate) =>
-            `<span class="kit-badge kit-badge-${gateTone(gate.outcome)}" title="${esc(gate.outcome || "no result")}">${esc(gate.step)}</span>`,
-        )
-        .join(" ");
+      const gates = gateStepper(gateResults(eventsByRun?.[run.runId]), esc);
       return `<tr>
         <td><button type="button" class="kit-link code-id" data-open-run="${esc(run.runId)}">${esc(run.runId)}</button></td>
         <td><span class="kit-badge kit-badge-${TONE[stateName]}">${esc(stateName)}</span></td>
