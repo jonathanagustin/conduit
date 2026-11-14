@@ -428,6 +428,18 @@ test.describe("fake ACP bridge", () => {
       await expect(page.getByText("reportingSpoke").first()).toBeVisible();
       await expect(page.getByText("Example data", { exact: true }).first()).toBeVisible();
       await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm01-user-prefs");
+      });
+      await expect(page.getByText("Personal API tokens").first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm02-org-control-panel");
+      });
+      await expect(page.getByRole("radio", { name: "Organizations" }).first()).toBeVisible();
+      await page.evaluate(() => {
+        (window as unknown as { switchScreen: (id: string) => void }).switchScreen("adm03-auth-signin");
+      });
+      await expect(page.getByText("Sign-in is not enabled on this Hub").first()).toBeVisible();
+      await page.evaluate(() => {
         (window as unknown as { toggleChatRail: () => void }).toggleChatRail();
       });
       await expect(page.getByLabel("Message input")).toBeVisible();

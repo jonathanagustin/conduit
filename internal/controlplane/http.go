@@ -62,10 +62,14 @@ type HandlerOptions struct {
 	BootstrapAdministrators              []string
 	BundlePrivateKey                     ed25519.PrivateKey
 	TrustedBundleKeys                    map[string]ed25519.PublicKey
-	ArtifactScanner                      ArtifactScanner
-	ExportSchedulerContext               context.Context
-	ExportSchedulerErrorHandler          func(error)
-	EntityConfigurationAdapters          map[string]EntityConfigurationAdapter
+	// OperatorSignIn is empty when this Hub is not validating operator tokens.
+	// The public identity route publishes the issuer and, when discovery
+	// produced one, the browser authorization address. It never publishes a secret.
+	OperatorSignIn              OperatorSignIn
+	ArtifactScanner             ArtifactScanner
+	ExportSchedulerContext      context.Context
+	ExportSchedulerErrorHandler func(error)
+	EntityConfigurationAdapters map[string]EntityConfigurationAdapter
 	// RecallOpenings is told which recalls an accepted DesiredState puts in
 	// force, so that a person learns one opened. Nil is a deployment with no
 	// notification store, which raises nothing rather than failing.
@@ -127,6 +131,9 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 	})
 	mux.HandleFunc("GET /version", func(w http.ResponseWriter, _ *http.Request) {
 		writeJSON(w, http.StatusOK, buildinfo.Current())
+	})
+	mux.HandleFunc("GET /v1/operator-identity", func(w http.ResponseWriter, _ *http.Request) {
+		writeJSON(w, http.StatusOK, operatorIdentityDocument(configuration.OperatorSignIn))
 	})
 	mux.HandleFunc("GET /v1/session", func(w http.ResponseWriter, request *http.Request) {
 		principal, ok := requireOperatorPrincipal(w, request, governance, configuration)
