@@ -1,6 +1,6 @@
 [tools]
 aws = "2.36.27"
-claude = "2.1.235"
+claude = "2.1.322"
 codex = "0.148.0"
 direnv = "2.37.1"
 go = "1.26.11"
