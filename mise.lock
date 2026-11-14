@@ -411,40 +411,47 @@ url = "https://github.com/go-task/task/releases/download/v3.54.0/task_windows_am
 url_api = "https://api.github.com/repos/go-task/task/releases/assets/604090005"
 
 [[tools.zarf]]
-version = "0.83.0"
+version = "0.89.0"
 backend = "aqua:zarf-dev/zarf"
 
 [tools.zarf."platforms.linux-arm64"]
-checksum = "sha256:bb042c824f9ed2de80093f728e554ad2ebd50df3dc9c8ecdc7cf27e7ae2617f8"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Linux_arm64"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239876"
+checksum = "sha256:8fe1fce28c38da0f5471727e0caca757650d598e6bfe09939921af5c49034b3d"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Linux_arm64"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472457"
 
 [tools.zarf."platforms.linux-arm64-musl"]
-checksum = "sha256:bb042c824f9ed2de80093f728e554ad2ebd50df3dc9c8ecdc7cf27e7ae2617f8"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Linux_arm64"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239876"
+checksum = "sha256:8fe1fce28c38da0f5471727e0caca757650d598e6bfe09939921af5c49034b3d"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Linux_arm64"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472457"
 
 [tools.zarf."platforms.linux-x64"]
-checksum = "sha256:8c10f3020941ae0e781c7b57e8bd799adc8d49996a5cfcbd98d550037b17cfbb"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Linux_amd64"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239875"
+checksum = "sha256:0d08597326701d642e42656df109a85bce55a5eb37ef912b830b0e31fa0a6110"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Linux_amd64"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472472"
 
 [tools.zarf."platforms.linux-x64-musl"]
-checksum = "sha256:8c10f3020941ae0e781c7b57e8bd799adc8d49996a5cfcbd98d550037b17cfbb"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Linux_amd64"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239875"
+checksum = "sha256:0d08597326701d642e42656df109a85bce55a5eb37ef912b830b0e31fa0a6110"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Linux_amd64"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472472"
 
 [tools.zarf."platforms.macos-arm64"]
-checksum = "sha256:ec83552302d8a13da9cc3b101a71f03d8889fed5abdb7096287b9c022850344f"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Darwin_arm64"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239870"
+checksum = "sha256:b6a0bd116ed0394314b01e1294aad5f01f7f830d630b502f18958239a0e77d31"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Darwin_arm64"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472462"
 
 [tools.zarf."platforms.macos-x64"]
-checksum = "sha256:0a857ac4eb457473b7cf59ecbe1b8510f4f6fdbbc5711dc3924db213da0659f5"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Darwin_amd64"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239878"
+checksum = "sha256:0eff59223dd28dd5a3651177a61e717116441371be34fa73fc830ae3d0a0670d"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Darwin_amd64"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472459"
 
 [tools.zarf."platforms.windows-x64"]
-checksum = "sha256:3498f766f03970f53d6c4ce24ff0b494518cf16a16b74139d295f252b76508a3"
-url = "https://github.com/zarf-dev/zarf/releases/download/v0.83.0/zarf_v0.83.0_Windows_amd64.exe"
-url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/505239874"
+checksum = "sha256:33ea17df69a57322bdbc8c99d3b7ee9e6a440089bf7cb38e9fa163e884b3d9ba"
+checksum_source = "mise-versions"
+url = "https://github.com/zarf-dev/zarf/releases/download/v0.89.0/zarf_v0.89.0_Windows_amd64.exe"
+url_api = "https://api.github.com/repos/zarf-dev/zarf/releases/assets/690472461"
