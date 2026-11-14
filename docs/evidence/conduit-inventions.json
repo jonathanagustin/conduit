@@ -363,6 +363,13 @@
       "why": "The console needs an authorized working copy for a profile. No published object schema in this repository defines that record, its pod contract, or the submit seam. The record is marked CONDUIT_NATIVE. Submit calls the existing change-request command and does not approve it.",
       "displacedBy": "a published workspace object schema with its action and pod contract",
       "riskIfWrong": "Identifiers, pod defaults, and the submit parameters may need replacement. The pod is off unless explicitly enabled, the preview runtime fails closed when unconfigured, and a workspace credential cannot approve or publish."
+    },
+    {
+      "id": "appgen.HttpPackageTemplate",
+      "what": "The fixed HTTP application template renders a scratch image definition, chart values, and package documents from a validated spec. The generator supplies the spec and allowlisted source files only.",
+      "why": "No captured packaging profile states the fields a generated HTTP application must carry. One template family keeps the rendered documents deterministic, and the generator cannot write the package configuration.",
+      "displacedBy": "a reviewed packaging profile that states the image definition, chart values, and package document fields for a generated HTTP application.",
+      "riskIfWrong": "The rendered documents may differ from a later profile. They are marked CONDUIT_NATIVE, are produced only after the spec gates pass, and do not approve a change or publish a release."
     }
   ],
   "displaced": [
