@@ -3,7 +3,7 @@
 #
 # That class is quiet by nature: `var(--wrong-name, right-value)` renders
 # correctly, so the gate passing on a clean tree says very little on its own.
-# This plants each shape the console actually shipped -- a Blueprint 4/5 name, a
+# This plants each shape the console actually shipped -- a UI library v4/v5 name, a
 # near-miss for a real token, and a name nobody ever defined -- and requires
 # each to fail. Then it plants the two shapes that must NOT fail: a variable a
 # component sets as an inline style, and a variable named inside a comment,
@@ -60,7 +60,7 @@ echo "  passes: the committed tree"
 
 # The three shapes this repository actually shipped.
 plant 'font-family: var(--pt-font-family-monospace, monospace);'
-reject "a Blueprint 4/5 token name Blueprint 6 does not define"
+reject "a UI library v4/v5 token name UI library v6 does not define"
 
 plant 'color: var(--bp-text-color-muted, #5f6b7c);'
 reject "a near-miss for a real token, with the right colour as its fallback"

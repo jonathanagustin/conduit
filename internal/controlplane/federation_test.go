@@ -92,10 +92,10 @@ func TestNonParticipatingEnvironmentBlocksPromotion(t *testing.T) {
 	repository := NewMemoryRepository()
 	lifecycle := NewLifecycle(repository)
 	disconnected := foundation()
-	disconnected.Environment.ID = "air-gapped"
+	disconnected.Environment.ID = "disconnected-site"
 	disconnected.Environment.ConnectionSetting = ConnectionNoConnectionExpected
 	if _, err := repository.CreatePlan(ctx, PlanRecord{
-		ID: "pln_disconnected", Plan: Plan{Environment: "air-gapped", Generation: disconnected.Environment.Generation},
+		ID: "pln_disconnected", Plan: Plan{Environment: "disconnected-site", Generation: disconnected.Environment.Generation},
 		DesiredState: &disconnected, Status: PlanAwaitingApproval, CreatedAt: time.Now().UTC(),
 	}); err != nil {
 		t.Fatal(err)
@@ -106,7 +106,7 @@ func TestNonParticipatingEnvironmentBlocksPromotion(t *testing.T) {
 		FromChannel: "RELEASE", ToChannel: "STABLE",
 		Policy: PromotionPolicy{MinimumHealthyEntities: 1, MinimumHealthyDurationSeconds: 60},
 		Evidence: []PromotionHealthEvidence{{
-			Environment: "air-gapped", InstallationID: "example-api",
+			Environment: "disconnected-site", InstallationID: "example-api",
 			Health: HealthHealthy, HealthySince: observed, ObservedAt: observed,
 		}},
 	})
@@ -127,8 +127,8 @@ func TestNonParticipatingEnvironmentBlocksPromotion(t *testing.T) {
 	}
 	for _, blocker := range record.Blockers {
 		if blocker.Kind == PromotionBlockerEnvironmentCannotVouch &&
-			(len(blocker.Subjects) != 1 || blocker.Subjects[0] != "air-gapped") {
-			t.Fatalf("subjects = %v, want [air-gapped]", blocker.Subjects)
+			(len(blocker.Subjects) != 1 || blocker.Subjects[0] != "disconnected-site") {
+			t.Fatalf("subjects = %v, want [disconnected-site]", blocker.Subjects)
 		}
 	}
 }
@@ -320,10 +320,10 @@ func TestPromotionBlockedByEnvironmentTopologySurvivesPlanValidation(t *testing.
 	lifecycle := NewLifecycle(repository)
 	lifecycle.now = func() time.Time { return now }
 	disconnected := foundation()
-	disconnected.Environment.ID = "air-gapped"
+	disconnected.Environment.ID = "disconnected-site"
 	disconnected.Environment.ConnectionSetting = ConnectionNoConnectionExpected
 	if _, err := repository.CreatePlan(ctx, PlanRecord{
-		ID: "pln_topology", Plan: Plan{Environment: "air-gapped", Generation: disconnected.Environment.Generation},
+		ID: "pln_topology", Plan: Plan{Environment: "disconnected-site", Generation: disconnected.Environment.Generation},
 		DesiredState: &disconnected, Status: PlanAwaitingApproval, CreatedAt: now,
 	}); err != nil {
 		t.Fatal(err)
@@ -333,14 +333,14 @@ func TestPromotionBlockedByEnvironmentTopologySurvivesPlanValidation(t *testing.
 		Release: release, FromChannel: "RELEASE", ToChannel: "STABLE",
 		Policy: PromotionPolicy{MinimumHealthyEntities: 1, MinimumHealthyDurationSeconds: 60},
 		Evidence: []PromotionHealthEvidence{{
-			Environment: "air-gapped", InstallationID: "example-api",
+			Environment: "disconnected-site", InstallationID: "example-api",
 			Health: HealthHealthy, HealthySince: now.Add(-2 * time.Hour), ObservedAt: now.Add(-2 * time.Hour),
 		}},
 	})
 	if err != nil {
 		t.Fatal(err)
 	}
-	if !blockedBy(record.Blockers, PromotionBlockerEnvironmentCannotVouch, "air-gapped") {
+	if !blockedBy(record.Blockers, PromotionBlockerEnvironmentCannotVouch, "disconnected-site") {
 		t.Fatalf("fixture no longer produces a topology blocker: %#v", record.Blockers)
 	}
 	validate := func(promotion PromotionRecord) []string {

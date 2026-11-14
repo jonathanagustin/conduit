@@ -14,7 +14,7 @@ import (
 	"github.com/spf13/cobra"
 )
 
-func addModuleParityCommands(command *cobra.Command, state *commandState) {
+func addModuleCoverageCommands(command *cobra.Command, state *commandState) {
 	command.AddCommand(modulePublishCommand(state, "create"))
 	command.AddCommand(modulePublishCommand(state, "update"))
 	command.AddCommand(moduleLockCommand(state))

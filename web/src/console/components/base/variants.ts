@@ -1,6 +1,6 @@
 import type { IconName } from "@blueprintjs/core";
 
-/** Axes the base layer accepts. Blueprint receives the mapped props. */
+/** Axes the base layer accepts. The UI library receives the mapped props. */
 export type IntentName = "none" | "primary" | "success" | "warning" | "danger";
 export type SizeName = "sm" | "md" | "lg";
 export type DensityName = "compact" | "comfortable";
@@ -20,7 +20,7 @@ export type VariantProps = {
   emphasis?: EmphasisName;
 };
 
-export type BlueprintVariant = {
+export type LibraryVariant = {
   intent?: Exclude<IntentName, "none">;
   size: "small" | "medium" | "large";
   compact: boolean;
@@ -28,14 +28,14 @@ export type BlueprintVariant = {
   outlined: boolean;
 };
 
-const SIZE: Record<SizeName, BlueprintVariant["size"]> = {
+const SIZE: Record<SizeName, LibraryVariant["size"]> = {
   sm: "small",
   md: "medium",
   lg: "large",
 };
 
 /** Tag has no small size and no outlined prop. sm stays medium; outlined uses minimal. */
-export function blueprintVariant(variant: VariantProps = {}): BlueprintVariant {
+export function libraryVariant(variant: VariantProps = {}): LibraryVariant {
   const emphasis = variant.emphasis ?? "filled";
   const intent =
     variant.intent && variant.intent !== "none" ? variant.intent : undefined;

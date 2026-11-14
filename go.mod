@@ -20,7 +20,7 @@ require (
 	// validator are used; execution and field resolution stay in
 	// internal/apollographql/application, which is where Conduit's own rules are.
 	github.com/vektah/gqlparser/v2 v2.5.64
-	go.yaml.in/yaml/v3 v3.0.6
+	go.yaml.in/yaml/v4 v4.0.0
 )
 
 require (
@@ -64,6 +64,7 @@ require (
 	github.com/spf13/pflag v1.0.9 // indirect
 	github.com/stretchr/objx v0.5.3 // indirect
 	github.com/vmware-labs/yaml-jsonpath v0.3.2 // indirect
+	go.yaml.in/yaml/v3 v3.0.6 // indirect
 	golang.org/x/mod v0.41.0 // indirect
 	golang.org/x/net v0.60.0 // indirect
 	golang.org/x/oauth2 v0.36.0 // indirect

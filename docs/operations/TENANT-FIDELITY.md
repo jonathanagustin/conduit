@@ -384,7 +384,7 @@ review-context field on the Plan proposal, which lives in `internal/controlplane
 > was retired rather than quietly dropped.
 
 The repository's own doctrine already settled the other half
-of the choice, at `internal/conduitcli/apollo_parity_commands.go`: *"a rationale
+of the choice, at `internal/conduitcli/apollo_coverage_commands.go`: *"a rationale
 would be accepted and dropped. A flag that silently does nothing is worse than
 an absent one."* An honest absent flag beats a false promise.
 

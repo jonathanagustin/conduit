@@ -202,7 +202,7 @@ func releaseChannelGetCommand(state *commandState, action string) *cobra.Command
 // releaseChannelImportCommand is the inverse of export, and it exists because
 // export had none. A Release Channel definition could be lifted out of one
 // desired state and there was no supported way to put it into another, which
-// cuts against the air-gap story the rest of the export/import surface
+// cuts against the offline-bundle story the rest of the export/import surface
 // supports: an operator moving a channel between Hubs had to hand-edit YAML.
 //
 // Deliberately NOT implemented alongside it: `release-channel populate`. Apollo

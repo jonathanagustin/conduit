@@ -19,7 +19,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/operator"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // Service is the semantic application boundary used by CLI commands. It keeps
@@ -170,7 +170,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(runCommand(state))
 	root.AddCommand(bundleCommand(state))
 	// Added last: it attaches subcommands to groups the calls above create.
-	addApolloParityCommands(root, state)
+	addApolloCoverageCommands(root, state)
 	return root
 }
 
@@ -557,7 +557,7 @@ func environmentCommand(state *commandState) *cobra.Command {
 			})
 		},
 	})
-	addEnvironmentParityCommands(command, state)
+	addEnvironmentCoverageCommands(command, state)
 	return command
 }
 
@@ -633,7 +633,7 @@ func moduleCommand(state *commandState) *cobra.Command {
 	install.Flags().StringVar(&overrideRationale, "rationale", "", "reason required when requesting a reviewed override")
 	_ = install.MarkFlagRequired("environment")
 	command.AddCommand(install)
-	addModuleParityCommands(command, state)
+	addModuleCoverageCommands(command, state)
 	addModuleOverrideCommands(command, state)
 	return command
 }
@@ -841,7 +841,7 @@ func productReleaseCommand(state *commandState) *cobra.Command {
 			})
 		},
 	})
-	addProductReleaseParityCommands(command, state)
+	addProductReleaseCoverageCommands(command, state)
 	return command
 }
 
@@ -894,7 +894,7 @@ func entityCommand(state *commandState) *cobra.Command {
 	list.Flags().StringVarP(&listEnvironment, "environment", "e", "", "Environment ID")
 	_ = list.MarkFlagRequired("environment")
 	command.AddCommand(list)
-	addEntityParityCommands(command, state)
+	addEntityCoverageCommands(command, state)
 	return command
 }
 

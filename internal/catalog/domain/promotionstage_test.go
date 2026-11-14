@@ -285,9 +285,9 @@ func TestTimedStageNoDelayWaivesTheHealthyWait(t *testing.T) {
 func TestLabelRequirementsAcceptAnyOfSeveralValues(t *testing.T) {
 	t.Parallel()
 	policy := PromotionPolicy{LabelRequirements: []PromotionLabelRequirement{{
-		Label: "build-flavor", Values: []string{"fips", "standard"},
+		Label: "build-flavor", Values: []string{"hardened", "standard"},
 	}}}
-	for value, wantAccepted := range map[string]bool{"fips": true, "standard": true, "debug": false} {
+	for value, wantAccepted := range map[string]bool{"hardened": true, "standard": true, "debug": false} {
 		release := Release{Labels: map[string]string{"build-flavor": value}}
 		reasons := EvaluateLabelRequirements(release, policy)
 		if accepted := len(reasons) == 0; accepted != wantAccepted {

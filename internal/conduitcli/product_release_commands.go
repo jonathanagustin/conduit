@@ -12,7 +12,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // The schema is embedded so `conduit product-release definition schema` and the
@@ -22,7 +22,7 @@ import (
 //go:embed apollo-product-definition-v1.schema.json
 var apolloProductDefinitionSchema []byte
 
-func addProductReleaseParityCommands(command *cobra.Command, state *commandState) {
+func addProductReleaseCoverageCommands(command *cobra.Command, state *commandState) {
 	command.AddCommand(productReleaseInitCommand(state))
 	command.AddCommand(productReleaseVerifyCommand(state))
 	command.AddCommand(productReleaseAssetCommand(state))

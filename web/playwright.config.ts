@@ -16,6 +16,21 @@ const PORT = Number.parseInt(
   10,
 );
 
+// Keep the mock bridge isolated just like the preview server. The worker and
+// Vite preview process receive the same checkout-specific port.
+const BRIDGE_PORT = Number(
+  process.env["CONSOLE_TEST_BRIDGE_PORT"] ?? String(derivedPort + 10_000),
+);
+if (
+  !Number.isInteger(BRIDGE_PORT) ||
+  BRIDGE_PORT < 1 ||
+  BRIDGE_PORT > 65_535 ||
+  BRIDGE_PORT === PORT
+) {
+  throw new Error("CONSOLE_TEST_BRIDGE_PORT must be a distinct valid TCP port");
+}
+process.env["CONSOLE_TEST_BRIDGE_PORT"] = String(BRIDGE_PORT);
+
 export default defineConfig({
   testDir: "./src/test/e2e",
   globalSetup: "./src/test/e2e/global-setup.ts",
@@ -32,6 +47,7 @@ export default defineConfig({
   },
   projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
   webServer: {
+    env: { CONSOLE_TEST_BRIDGE_ORIGIN: `http://127.0.0.1:${BRIDGE_PORT}` },
     command: `pnpm build && pnpm preview --port ${PORT} --strictPort --host 127.0.0.1`,
     url: `http://127.0.0.1:${PORT}/console/`,
     reuseExistingServer: process.env["CI"] === undefined,

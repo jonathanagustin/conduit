@@ -346,7 +346,7 @@ means a narrower contract exists but does not yet meet the public semantics.
 | Debug terminal/JIT access | Native metadata lifecycle implemented; terminal execution outstanding | Issue #303 and [ADR 0015](../decisions/0015-brokered-debug-terminals.md) reverse H30. [Native requests](../architecture/debug-session-lifecycle.md) implement current owner/Environment/namespace authority, fixed expiry, durable transition/audit history, HTTP/CLI and real restore/restart tests. `TestDebugRequestCLIUsesCurrentHubAuthorityAndSurvivesRestart` and the authorization/codec/concurrency tests constrain this metadata phase. Actual debug Pods, profile preflight, broker, attachment, command recording, console and #304 elevation remain outstanding. Six pinned source pages/seven images are reviewed in [the topic note](reference/debug-access.md); the 116-page public CLI profile is unchanged. |
 | Notifications and UI workflows | Boundary | Emit durable domain events to existing notification and UI layers after the kernel contracts stabilize. |
 | Fleet projections and bulk operations | Implemented | The [reporting contract](contracts/reporting.md) combines latest desired Plans and Environment reports, exposes exact filters, drift/freshness, per-axis summaries, and resource-filtered views. Bulk suppress/unsuppress expands into resumable, individually authorized and audited installation changes. |
-| Apollo CLI/API boundary | Implemented, bounded | The pinned public OpenAPI has an exact 13/13 route adapter with tests. A strict Go YAML adapter validates the reconstructed CLI 0.814.0 Helm Product fixture. The `conduit` binary exposes every command page in the pinned public CLI corpus through native Conduit domain ports; executable publication requires exact OCI digests, while Terraform publications remain non-executable receipts. This is command/workflow parity, not byte-for-byte `apollo-cli` output or private Hub protocol compatibility. The pinned public `osdk-ts` Apollo Agent configuration types are implemented, including all secret variants and Universal ignore reasons. Exact-byte capture/comparison tooling exists, but no native capture is available; private Hub↔Agent transport compatibility remains unclaimed. |
+| Apollo CLI/API boundary | Implemented, bounded | The pinned public OpenAPI has an exact 13/13 route adapter with tests. A strict Go YAML adapter validates the reconstructed CLI 0.814.0 Helm Product fixture. The `conduit` binary exposes every command page in the pinned public CLI corpus through native Conduit domain ports; executable publication requires exact OCI digests, while Terraform publications remain non-executable receipts. This is command/workflow coverage, not byte-for-byte `apollo-cli` output or private Hub protocol compatibility. The pinned public `osdk-ts` Apollo Agent configuration types are implemented, including all secret variants and Universal ignore reasons. Exact-byte capture/comparison tooling exists, but no native capture is available; private Hub↔Agent transport compatibility remains unclaimed. |
 | Foundry Connected Hubs publication | Implemented boundary | The [connected publisher contract](reference/connected-hubs.md) requires authenticated Artifact creation plus separate new-Product and Product-Release creation authority on the pinned public publication routes. Source-side client secrets, ingress, Marketplace store whitelists, folder tracking, remote-store import, and Product contents remain externally owned; this does not add inbound Spoke execution or claim the private integration protocol. |
 
 ## Important upstream ambiguities
@@ -385,9 +385,9 @@ without binding the control plane to Example. Example-specific coordinates,
 charts, defaults, and policies live in catalog/installation artifacts.
 
 The precise claim is **Apollo-aligned**: the architecture and domain semantics
-follow public Apollo contracts. Use **Apollo-compatible** only next to a tested
-format and version, for example “Apollo Product manifest import compatible with
-the public 2026-08-01 contract snapshot.” “Apollo-compliant” is too broad until
+follow public Apollo contracts. Do not make a compatibility claim; name the tested
+format and version instead, for example “imports Apollo Product manifests as
+tested against the public 2026-08-01 contract snapshot.” “Apollo-compliant” is too broad until
 Palantir publishes or supplies a conformance suite.
 
 ## Closure record
@@ -439,7 +439,7 @@ are historical corpus measurements, not the current live inventory.
 
 | Capability | Status | Automated evidence and limits |
 | --- | --- | --- |
-| Local `cve grype scan` and group | Implemented, bounded public semantics | CLI executable-fixture and normalizer tests cover NVD/CVSS preference, output flags, JSON file/YAML stdout, nonzero exit, invalid output, and native provenance. No Hub data, authoritative artifact assessment, real-image execution, native Apollo binary, or private schema parity claim. |
+| Local `cve grype scan` and group | Implemented, bounded public semantics | CLI executable-fixture and normalizer tests cover NVD/CVSS preference, output flags, JSON file/YAML stdout, nonzero exit, invalid output, and native provenance. No Hub data, authoritative artifact assessment, real-image execution, native Apollo binary, or private schema equivalence claim. |
 | Other November CLI additions | Reviewed, product work scoped | Source hashes and contracts recorded in the review and reference ledger; commands enter the profile only after implementation and behavioral tests. |
 
 ### Native Space projection (2026-11-13)

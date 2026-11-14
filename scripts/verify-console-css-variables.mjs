@@ -5,11 +5,11 @@
 // fallback is used and the page looks deliberate, so a token name that is
 // merely WRONG is indistinguishable from one that is right until somebody
 // compares it against the design system. This repository shipped nine of them,
-// found only by auditing every `var()` against Blueprint's token file:
+// found only by auditing every `var()` against the UI library's token file:
 //
-//   --pt-font-family-monospace   (x5)  Blueprint 4/5 name; 6 has no such token
-//   --bp-font-family-monospace   (x2)  never existed in any Blueprint
-//   --pt-intent-primary-muted    (x4)  Blueprint 4/5 name
+//   --pt-font-family-monospace   (x5)  UI library v4/v5 name; 6 has no such token
+//   --bp-font-family-monospace   (x2)  never existed in any UI-library version
+//   --pt-intent-primary-muted    (x4)  UI library v4/v5 name
 //   --bp-text-color-muted        (x2)  near-miss for --bp-typography-color-muted
 //   --bp-typography-color        (x1)  near-miss for -color-default-rest
 //   --bp-background-color-subtle (x1)  near-miss for --bp-palette-light-gray-5
@@ -25,7 +25,7 @@
 // accent resolved to an invalid colour.
 //
 // A custom property is legitimate here if it is defined by the installed
-// Blueprint, defined by the console's own CSS, or set as an inline style from a
+// UI library, defined by the console's own CSS, or set as an inline style from a
 // component. Anything else is a name nobody honours.
 //
 // Runs offline against committed files and needs no credentials.
@@ -102,12 +102,12 @@ for (const path of stylesheets) {
 if (failures.length) {
   for (const failure of failures) console.error(`FAIL console css variables: ${failure}`);
   console.error(
-    "  Define it in web/src/styles/index.css, or use the real Blueprint token. " +
+    "  Define it in web/src/styles/index.css, or use the real UI-library token. " +
       "A var() with a plausible fallback hides the mistake instead of showing it.",
   );
   process.exit(1);
 }
 console.log(
   `PASS console css variables: every var() across ${stylesheets.length} console stylesheet(s) ` +
-    `names a property Blueprint, the console's CSS, or a component's inline style defines`,
+    `names a property the UI library, the console's CSS, or a component's inline style defines`,
 );

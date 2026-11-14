@@ -79,7 +79,7 @@ One private-runtime difference remains explicit. Helm 3 exposes one `--timeout`
 for hooks and readiness during an atomic managed rollout, so Platform preserves
 distinct policy fields but the selected readiness timeout also bounds Helm
 operations in that mode. Exact timeout-phase behavior therefore remains aligned
-but not wire/runtime compatible with the private helm-chart-operator.
+but does not match the wire format or runtime of the private helm-chart-operator.
 
 ## Local evidence
 

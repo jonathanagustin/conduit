@@ -27,7 +27,7 @@ in [`EXTERNAL-AUDIT-2026-08-18.md`](EXTERNAL-AUDIT-2026-08-18.md).
 **Scope.** Two different questions get asked of this document and they have
 different answers. *Can Conduit run as a delivery control plane in production?*
 is what the rows below answer. *Can Conduit replace Apollo?* is a larger
-question the [blocking gaps](#blocking-gaps) and the Apollo parity backlog
+question the [blocking gaps](#blocking-gaps) and the Apollo feature-coverage backlog
 answer, and nothing here should be read as claiming it.
 
 ## Verified by gates
@@ -41,7 +41,7 @@ answer, and nothing here should be read as claiming it.
 | Delivery | A clean production cluster reconciles the signed private runtime artifact from OCI with no Git source or credential: pull-only registry authority, trusted-signature success, wrong-signer rejection, exact-digest application. | A8; `scripts/test-gitless-clean-cluster.sh`; ADR 0001. |
 | Agent privilege | The Spoke chart renders the Agent's Kubernetes authority instead of leaving it to whatever binding a tenant happened to create: one namespaced `Role` and `RoleBinding` per entry in `rbac.managedNamespaces`, every rule derived from a call site in `internal/agent` and carrying that citation in the template, no cluster-scoped rule of any kind, no wildcard apiGroup/resource/verb, no `escalate`/`bind`/`impersonate`, and the binding provably naming the ServiceAccount the Deployment runs as. The chart fails to render when the namespace list is absent or empty rather than defaulting to the Agent's own namespace, which is not where it installs. | `ruby scripts/verify-helm-runtime.rb` (`assert_spoke_rbac_floor!`, over the default, external-identity and multi-namespace profiles, plus both fail-closed renders and the `rbac.create=false` escape hatch). **Bounded by gap 8**, which owns what this does not claim: this is a floor on what the chart grants, not a ceiling on the Agent's effective privilege, and Bundle reach between tenants is a separate question. Read the two together. |
 | Reconciliation | Tenant intent converges through Conduit-owned durable work (leases fenced by input revision, atomic decision/audit/outbox, crash-safe receipts); Flux owns only runtime convergence. | A9; ADR 0003; `scripts/test-postgres-repository.sh`. |
-| Air-gap packaging | The Zarf package assembles and validates for disconnected **installation**: image digests pinned, one confined namespace, non-root runtime with every capability dropped, no credential bytes in the manifest, HTTPS probes, and a required `BUNDLE_SIGNING_KEY_FILE`. It claims nothing about **operating** a disconnected estate after that install. | `Validate Zarf air-gap package` gate (`scripts/verify-zarf-package.rb`). **Bounded by gap 5**: a Release recalled on the source keeps running on a disconnected target, so lifecycle control of a disconnected estate is outside this row. Read the two together — see [Air gap: what this claims and what it does not](#air-gap-what-this-claims-and-what-it-does-not). |
+| Offline-bundle packaging | The Zarf package assembles and validates for disconnected **installation**: image digests pinned, one confined namespace, non-root runtime with every capability dropped, no credential bytes in the manifest, HTTPS probes, and a required `BUNDLE_SIGNING_KEY_FILE`. It claims nothing about **operating** a disconnected estate after that install. | `Validate Zarf offline-bundle package` gate (`scripts/verify-zarf-package.rb`). **Bounded by gap 5**: a Release recalled on the source keeps running on a disconnected target, so lifecycle control of a disconnected estate is outside this row. Read the two together — see [Offline bundles: what this claims and what it does not](#offline-bundles-what-this-claims-and-what-it-does-not). |
 | Supply chain | Every workflow action, container base, and tool is digest- or checksum-pinned; images carry SBOM and vulnerability evidence with zero high/critical matches; Hadolint and the trusted-technology policy gate the Containerfiles. | `Validate trusted supply-chain policy`, `Scan for known vulnerabilities`, `Lint Containerfiles` gates. Image SBOM and vulnerability evidence is **digest-bound and produced at publication**, by the "Generate digest-bound SBOM and vulnerability evidence" step in `.github/workflows/platform-images.yml` (pinned Syft 1.50.0 and Grype 0.116.1); it is not a committed artifact, so this half of the row is proven per-publication rather than per-commit. Corrected on 2026-08-18: this row previously cited `docs/evidence/highs-1.15.1-shim-candidate-amd64.json`, which is the `UNADMITTED` optimizer candidate the [out-of-scope section](#explicitly-out-of-production-scope) excludes from production — evidence about an image this document says production does not run. |
 | CI provenance | Publication, release, and deployment run only on explicit human dispatch; verification and maintenance workflows may be automated under ADR 0006's guardrails (cancel superseded runs, cap runtime, least-privilege, never publish). The Trunk gate runs on `pull_request` under those guardrails (#195) and stays dispatchable for a re-run on an unchanged tree; it authenticates the exact pull-request head on both paths and publishes a commit status against it; each run writes a per-gate summary with failure annotations. | A4 (ADR 0006); `docs/operations/manual-ci.md`; `.github/workflows/platform-ci.yml`; `scripts/verify-pr-fidelity.test.sh`. |
 | Metrics exposition | The Hub exports queue depth, lease occupancy, exhaustion and reconciliation lag on an opt-in listener, with no tenant identifier in any label — enforced on the publishing path rather than by convention. | `internal/observability`; `TestALabelNamingATenantResourceIsRefused`; `TestAWedgedHubIsDistinguishableFromABusyOne`. **Bounded by gap 2**, which owns everything this row does not claim: no tracing, nothing exported under `REPOSITORY_KIND=file`, the listener off until `METRICS_ADDRESS` is set, and no alerting rules. This row was titled "Observability" until the 2026-08-18 external audit, which read the title as contradicting gap 2; the claim never did, but the title invited the reading. |
@@ -49,15 +49,15 @@ answer, and nothing here should be read as claiming it.
 | Disaster recovery | A `pg_dump` taken while decisions are committing restores into an empty database with the migration ledger intact, state readable through the real repositories including artifact bytes, and no decision, audit record or queued proposal torn from the transaction that wrote all three. | `docs/operations/backup-and-restore.md`; `TestPostgresBackupAndRestoreDrill` (`scripts/test-postgres-repository.sh`). **Bounded by gap 4**: the schedule, retention, PITR and secrets backup belong to the deployment that owns the database. |
 | Fidelity boundary | No private Apollo behavior is inferred: the public OpenAPI is authoritative only for published operations, and the private Hub-to-Agent protocol remains an explicit non-claim. | A1, A2; H9 (BLOCKED by design); `docs/reference-platform/conformance.md`. |
 
-### Air gap: what this claims and what it does not
+### Offline bundles: what this claims and what it does not
 
 Two external reviewers reading only this document on 2026-08-18 found the same
-defect independently, and it was a real one. The row then titled `Air gap`
+defect independently, and it was a real one. The row then titled for offline bundles
 claimed the package "validates for disconnected installation" while gap 5 recorded that
 "a Release recalled on the source keeps running on a disconnected target with no
 roll-off instruction". Those are assertions about the same estate, and the
 tiering hid the collision by putting them on different pages: readiness above,
-Apollo-parity below. As one reviewer put it, either disconnected estates are in
+Apollo feature-coverage below. As one reviewer put it, either disconnected estates are in
 scope — and gap 5 is Tier 1 — or they are not — and the row is marketing.
 
 **Resolved by narrowing the row, not by re-tiering the gap.** The reasoning,
@@ -84,14 +84,14 @@ stated here so a later reader can disagree with it on the record:
   `lifecycle.go` — and it is the bundle path that drops it, not the model. A
   disconnected target therefore installs correctly and cannot
   be told to stop. Anyone evaluating Conduit for a disconnected estate should
-  read gap 5 as a condition on this row, not as a parity nicety.
+  read gap 5 as a condition on this row, not as a feature-coverage nicety.
 
 **The rule that keeps them from drifting apart again.** A `READY` row and a gap
 that speak about the same estate, resource or failure must cite each other by
 number, in both directions, in the same change that creates either of them. A
-one-way reference is how this pair diverged: gap 5 never mentioned the air-gap
+one-way reference is how this pair diverged: gap 5 never mentioned the offline-bundle
 row, so editing one left the other untouched and unreviewed. Applied here to
-Air-gap packaging ↔ gap 5, Metrics exposition ↔ gap 2, Disaster recovery ↔
+Offline-bundle packaging ↔ gap 5, Metrics exposition ↔ gap 2, Disaster recovery ↔
 gap 4, Agent privilege ↔ gap 8, and Concurrency and replica correctness ↔ the
 Missing rows in [Test types](#test-types).
 
@@ -396,7 +396,7 @@ carried to the residual list as item 5.
    validation. This is application safety evidence, not an unqualified safe
    upgrade or production-capacity claim.
 
-### Tier 2 — blocks Apollo-parity production
+### Tier 2 — blocks Apollo feature-coverage production
 
 5. **Recalls never reach Target Hubs** (#126). A recall is a source-side
    selection filter; `Recalls` is a field of `DesiredState`, not `Environment`,
@@ -404,15 +404,15 @@ carried to the residual list as item 5.
    recalled on the source keeps running on a disconnected target with no
    roll-off instruction, and `Source: SECURITY` provenance is lost.
 
-   **This gap bounds the Air-gap packaging row above, and the two must be read
-   together** — see [Air gap: what this claims and what it does not](#air-gap-what-this-claims-and-what-it-does-not).
+   **This gap bounds the Offline-bundle packaging row above, and the two must be read
+   together** — see [Offline bundles: what this claims and what it does not](#offline-bundles-what-this-claims-and-what-it-does-not).
    It stays in Tier 2 only because that row was narrowed to installation. What
    recalls *do* reach on the bundle path is selection: `selectResources` gathers
    every live recall and `selectReleases` refuses to newly select a recalled
    Release, so a bundle built after a recall does not carry the bad Release. No
    `RECALL` resource type is ever added, so an already-installed Release on a
    disconnected target is never told to roll off. If this row is ever closed, or
-   if the Air-gap packaging row is ever widened past installation, change both
+   if the Offline-bundle packaging row is ever widened past installation, change both
    in the same commit.
 
 6. **Unsafe rollback of stateful services is not representable** (#134). Apollo
@@ -455,7 +455,7 @@ carried to the residual list as item 5.
    rendered floor plus a tenant-owned grant for the tenant's own chart is an
    ordinary and workable Kubernetes posture, so neither half blocks a
    single-tenant production use. What the second half does block is a
-   *multi-tenant* claim, which is where Apollo parity lives.
+   *multi-tenant* claim, which is where Apollo feature coverage lives.
 
 9. **The artifact security gate derives no evidence of its own** (#54). A
    `VulnerabilityAssessment` arrives inside the caller-submitted `DesiredState`
@@ -509,7 +509,7 @@ end-to-end and live suites, and mutation scores on both sides.
 | A caller does what they are not entitled to | **Authorization, negative path** | Present, and the default is now stated. This row used to read "nothing enumerates route × role, so a new route defaults to untested". The unasked question underneath it was what a route with *no* registered decision does, and the measured answer was **allow**: it served its body to a caller holding no credential while the route beside it answered 401. `internal/hub/composition/authorization.go` registers all 139 routes with the decision each makes, the Hub refuses to route a pattern the register does not name, and `scripts/verify-route-authorization.mjs` fails the build when a mounted route has no entry. See [route authorization](route-authorization.md). |
 | A caller reads another tenant's rows | **Cross-tenant isolation** | Present. Two tenants, one read grant each, every filtered index and by-name read driven as both, plus the write half — `TestFilteredRoutesShowOneTenantNothingOfAnother`. Nothing was wrong when it was written; it had simply never been asserted for Environments, Products, Releases, Plans, change requests or the fleet. Plan approval and cancellation already had cross-Environment refusal tests, so the inbox was not the only one. |
 | Wrong bytes are admitted | **Adversarial supply chain** | Strong. Wrong-signer, tampered-digest and unsigned all refused, proven against a real registry and signature. |
-| It cannot be installed in the target topology | **Clean-room delivery** | Strong. Clean cluster, no Git source or credential, Zarf air-gap. |
+| It cannot be installed in the target topology | **Clean-room delivery** | Strong. Clean cluster, no Git source or credential, Zarf offline bundle. |
 | The tests do not actually test | **Mutation** | Present on both Go and web, with committed scores. |
 | **Infrastructure fails underneath it** | **Failure injection** — PostgreSQL failover mid-transaction, Agent disconnect mid-Plan, partial network | **Missing.** Bounds the Concurrency and replica correctness row above: that row proves replicas do not corrupt each other, not that the Hub stays available when the infrastructure under it fails. |
 | **It degrades under its own backlog** | **Load and soak** — sustained multi-replica reconciliation, lease contention, no starvation | **Missing.** Concurrency tests prove correctness at small N, not behaviour at depth. Bounds the Concurrency and replica correctness row above. |

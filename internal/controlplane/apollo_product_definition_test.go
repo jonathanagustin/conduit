@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // The fixtures below are the Apollo Product Specification's own worked examples.
@@ -1510,7 +1510,7 @@ func TestApolloPublicEndpointsMustNameADefinedEndpoint(t *testing.T) {
 		{
 			name:  "proxy names an undefined endpoint",
 			field: "public-proxy-endpoints", want: true,
-			build: func(d *ApolloProductDefinition) { d.Manifest.Extensions.PublicProxyEndpoints = []string{"aip"} },
+			build: func(d *ApolloProductDefinition) { d.Manifest.Extensions.PublicProxyEndpoints = []string{"assist"} },
 		},
 		// An empty name is skipped rather than reported as a missing definition;
 		// the emptiness itself is a different complaint.

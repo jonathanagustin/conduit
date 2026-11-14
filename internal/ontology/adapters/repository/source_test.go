@@ -147,7 +147,7 @@ func seedProjection(t *testing.T, ctx context.Context, store *controlplane.Memor
 	}
 	now := time.Now().UTC()
 	if _, err := store.PutEnvironmentProfile(ctx, controlplane.EnvironmentProfile{
-		EnvironmentID: "east", DisplayName: "East", Accreditation: "IL5", OwnerTeam: "owners",
+		EnvironmentID: "east", DisplayName: "East", Accreditation: "RESTRICTED", OwnerTeam: "owners",
 		Source: "OPERATOR_API", UpdatedBy: "author", Rationale: "opened",
 		CreatedAt: now, UpdatedAt: now, Revision: 1,
 	}); err != nil {

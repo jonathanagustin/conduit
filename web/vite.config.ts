@@ -32,7 +32,10 @@ const hydrateForDevelopment = {
   },
 };
 
-const bridge = { target: "http://127.0.0.1:8787", changeOrigin: true };
+const bridge = {
+  target: process.env["CONSOLE_TEST_BRIDGE_ORIGIN"] ?? "http://127.0.0.1:8787",
+  changeOrigin: true,
+};
 
 export default defineConfig({
   base: "/console/",

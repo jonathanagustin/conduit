@@ -7,7 +7,7 @@ import (
 	"testing"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 func TestSplitOptionalVersion(t *testing.T) {

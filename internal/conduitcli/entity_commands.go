@@ -9,7 +9,7 @@ import (
 	catalog "github.com/jonathanagustin/conduit/internal/catalog/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/spf13/cobra"
-	"go.yaml.in/yaml/v3"
+	"go.yaml.in/yaml/v4"
 )
 
 // partitionOrderableVersions splits candidates into the ones Apollo ordering can
@@ -52,7 +52,7 @@ func selectAggregateVersion(orderable []string, lowest bool) string {
 	return orderable[len(orderable)-1]
 }
 
-func addEntityParityCommands(command *cobra.Command, state *commandState) {
+func addEntityCoverageCommands(command *cobra.Command, state *commandState) {
 	command.AddCommand(entityMaintenanceOverrideCommand(state))
 	command.AddCommand(entityEnforceCommand(state))
 	command.AddCommand(entityAggregateCommand(state))

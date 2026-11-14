@@ -30,7 +30,7 @@ require authoritative evidence before adoption.
 
 The only article-specific media is an editorial architecture SVG, not product
 UI. It depicts a control plane, versioned releases, connected target classes,
-and a controlled-transfer path to an air-gapped target. Its arrows are
+and a controlled-transfer path to a disconnected target. Its arrows are
 illustrative and cannot override the prose or official outbound-only Spoke
 boundary.
 
