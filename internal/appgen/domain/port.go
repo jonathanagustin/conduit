@@ -1,3 +1,5 @@
+// Package domain is the HTTP application generation contract.
+// It validates one spec and renders packaging documents. It does not start a process.
 package domain
 
 import (
