@@ -62,3 +62,40 @@ func TestFeedbackBecomesACase(t *testing.T) {
 		t.Fatalf("cases = %d", len(service.Cases()))
 	}
 }
+
+type memoryProposer struct {
+	calls []string
+	value string
+	err   error
+}
+
+func (proposer *memoryProposer) Propose(_ context.Context, scenario, value string) (string, error) {
+	proposer.calls = append(proposer.calls, scenario+"|"+value)
+	return proposer.value, proposer.err
+}
+
+func TestLiveEvalRunsOnlyTheCeilingPassCase(t *testing.T) {
+	proposer := &memoryProposer{value: "256Mi"}
+	service := New("codex", "45s")
+	service.Proposer = proposer
+	results, _, err := service.Run(context.Background(), "local-developer")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(proposer.calls) != 1 || proposer.calls[0] != "A 512Mi limit is within the ceiling|512Mi" {
+		t.Fatalf("calls = %#v", proposer.calls)
+	}
+	byID := map[string]CaseResult{}
+	for _, result := range results {
+		byID[result.Case.ID] = result
+	}
+	if len(byID["mem-512"].Columns) != 2 || byID["mem-512"].Columns[1].Label != "Live model call" || byID["mem-512"].Columns[1].Adapter != "codex" {
+		t.Fatalf("live 512 = %#v", byID["mem-512"].Columns)
+	}
+	if !byID["mem-512"].Columns[1].Passed || byID["mem-512"].Columns[1].Outcome != "PASS" {
+		t.Fatalf("live 512 score = %#v", byID["mem-512"].Columns[1])
+	}
+	if len(byID["mem-8gi"].Columns) != 1 || byID["mem-8gi"].Columns[0].Label != "No model call" {
+		t.Fatalf("8Gi should stay recorded-only: %#v", byID["mem-8gi"].Columns)
+	}
+}

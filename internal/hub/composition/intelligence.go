@@ -14,6 +14,7 @@ import (
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	intelhttp "github.com/jonathanagustin/conduit/internal/intelligence/httpapi"
+	packagingcli "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
@@ -34,7 +35,40 @@ func newIntelligenceService(repository controlplane.Repository) *intelapp.Servic
 	service := intelapp.New(intelligenceAdapter(), intelligenceTimeout())
 	service.Opener = intelligenceOpener{service: controlplane.NewGovernanceService(repository)}
 	service.Audit = intelligenceAudit{repository: repository}
+	service.Proposer = liveEvalProposer()
 	return service
+}
+
+func liveEvalProposer() intelapp.Proposer {
+	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
+	if raw == "" {
+		return nil
+	}
+	argv, err := packagingcli.ParseArgv(raw)
+	if err != nil || len(argv) == 0 {
+		return nil
+	}
+	timeout := 45 * time.Second
+	if parsed, err := time.ParseDuration(intelligenceTimeout()); err == nil && parsed > 0 {
+		timeout = parsed
+	}
+	return intelligenceEvalProposer{runner: packagingcli.Runner{Argv: argv, Timeout: timeout}}
+}
+
+type intelligenceEvalProposer struct {
+	runner packagingcli.Runner
+}
+
+func (proposer intelligenceEvalProposer) Propose(ctx context.Context, scenario, value string) (string, error) {
+	proposal, _, err := proposer.runner.Propose(ctx, packagingdomain.PackagingContext{
+		RunID: "eval-live", MemoryLimit: value, MemoryRequest: value,
+		ChartValues: "memory: " + value, Resources: "limits.memory=" + value,
+		GateRules: packagingdomain.MemoryGateRule,
+	})
+	if err != nil {
+		return "", err
+	}
+	return proposal.Value, nil
 }
 
 func mountIntelligence(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, service *intelapp.Service) http.Handler {

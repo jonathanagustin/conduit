@@ -68,7 +68,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 			writeError(w, http.StatusBadGateway, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"results": results, "auditEventId": auditID, "label": "No model call"})
+		writeJSON(w, http.StatusOK, map[string]any{"results": results, "auditEventId": auditID, "label": evalRunLabel(results)})
 	})
 	mux.HandleFunc(CaseRoute, func(w http.ResponseWriter, r *http.Request) {
 		if !allowed(cfg, w, r) {
@@ -167,4 +167,15 @@ func writeJSON(w http.ResponseWriter, status int, value any) {
 
 func writeError(w http.ResponseWriter, status int, message string) {
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func evalRunLabel(results []application.CaseResult) string {
+	for _, result := range results {
+		for _, column := range result.Columns {
+			if column.Label == "Live model call" {
+				return "Live model call"
+			}
+		}
+	}
+	return "No model call"
 }

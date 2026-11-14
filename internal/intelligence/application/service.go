@@ -12,6 +12,9 @@ import (
 
 const labelNoModel = "No model call"
 
+// liveEvalCaseID is the one recorded case that also goes through a live adapter.
+const liveEvalCaseID = "mem-512"
+
 // Case is one eval scenario bound to a memory value and an expected gate outcome.
 type Case struct {
 	ID              string `json:"id"`
@@ -146,7 +149,7 @@ func (service *Service) Run(ctx context.Context, actor string) ([]CaseResult, st
 	results := make([]CaseResult, 0, len(cases))
 	for _, item := range cases {
 		columns := []Column{scoreColumn("recorded", labelNoModel, item)}
-		if service.Proposer != nil {
+		if service.Proposer != nil && item.ID == liveEvalCaseID {
 			proposed, err := service.Proposer.Propose(ctx, item.Scenario, item.Value)
 			if err != nil {
 				columns = append(columns, Column{Adapter: service.AdapterName, Outcome: "error", Reason: err.Error(), Label: "Live model call"})
