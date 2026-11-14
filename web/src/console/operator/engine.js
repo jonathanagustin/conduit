@@ -13,6 +13,7 @@ import {
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { reviewMarkup } from "./change-review.js";
+import { runsMarkup } from "./packaging-runs.js";
 import { createConduitClient } from "@conduit/ontology-client";
 import { createSettingsDialog, THEME_KEY } from "./settings-dialog.js";
 import {
@@ -967,6 +968,7 @@ export function mountOperator(host, options) {
     "area-packaging": {
       label: "Packaging",
       tabs: [
+        { id: "runs", label: "Runs", screen: "pkg-runs" },
         { id: "timeline", label: "Timeline", screen: "s08-staged-run" },
         { id: "workspace", label: "Workspace", screen: "s02-workspaces" },
         { id: "bundle", label: "Bundle", screen: "rm08-bundle-preview" },
@@ -5790,6 +5792,16 @@ export function mountOperator(host, options) {
           productRows(state.hub?.products, state.hub?.installations),
           { note: state.hub?.productsNote || "" },
         );
+      },
+      "pkg-runs": (node) => {
+        node.innerHTML = runsMarkup(
+          state.hub?.packaging,
+          state.hub?.packagingEventsByRun,
+          { note: state.hub?.packagingNote || "" },
+        );
+        node.querySelectorAll("[data-open-run]").forEach((button) => {
+          button.addEventListener("click", () => switchScreen("s08-staged-run"));
+        });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),
       "rm02-env-activity": renderRM02EnvActivity,
