@@ -4,6 +4,7 @@ package sandbox
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"net"
 	"net/http"
@@ -75,47 +76,111 @@ func (Docker) Check(ctx context.Context, built application.BuildResult, input ap
 	}
 	port := input.Spec.Port
 	args := append(append([]string{}, base...), "--network", "bridge", "-p", fmt.Sprintf("127.0.0.1::%d", port), tag)
-	if output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
-		if !bridgeUnavailable(string(output)) {
-			return application.HealthResult{Reason: "container did not start: " + firstLine(output)}, nil
+	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+	if err == nil {
+		if hostPort, ok := publishedHostPort(ctx, name, port); ok {
+			if reason := waitHealth(ctx, "127.0.0.1", hostPort); reason != "" {
+				logs, _ := exec.CommandContext(ctx, "docker", "logs", name).CombinedOutput()
+				if text := firstLine(logs); text != "" {
+					reason = reason + ": " + text
+				}
+				return application.HealthResult{Reason: reason}, nil
+			}
+			return application.HealthResult{Passed: true, Reason: "GET /health returned 200 within the timeout"}, nil
 		}
+		if ip := containerIP(ctx, name); ip != "" {
+			if reason := waitHealth(ctx, ip, port); reason == "" {
+				return application.HealthResult{Passed: true, Reason: "GET /health returned 200 on the container network"}, nil
+			}
+		}
+		// docker run can return success with no published port and no
+		// container IP when the daemon has no usable bridge (for example
+		// --bridge=none). Fall through to the host network.
 		_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
-		hostPort, err := freePort()
-		if err != nil {
-			return application.HealthResult{Reason: "no local port for the health check"}, nil
-		}
-		port = hostPort
-		args = append(append([]string{}, base...), "--network", "host", "-e", "PORT="+strconv.Itoa(port), tag)
-		if output, err = exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
-			return application.HealthResult{Reason: "container did not start on the host network: " + firstLine(output)}, nil
-		}
-		if reason := waitHealth(ctx, port); reason != "" {
-			return application.HealthResult{Reason: reason}, nil
-		}
-		return application.HealthResult{Passed: true, Reason: "GET /health returned 200 on the host network"}, nil
+	} else if !bridgeUnavailable(string(output)) {
+		return application.HealthResult{Reason: "container did not start: " + firstLine(output)}, nil
+	} else {
+		_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
 	}
-	mapped, err := exec.CommandContext(ctx, "docker", "port", name, strconv.Itoa(port)+"/tcp").Output()
+	hostPort, err := freePort()
 	if err != nil {
-		return application.HealthResult{Reason: "published port was not recorded"}, nil
+		return application.HealthResult{Reason: "no local port for the health check"}, nil
 	}
-	hostPort, ok := hostPortOf(string(mapped))
-	if !ok {
-		return application.HealthResult{Reason: "published port was not a host address"}, nil
+	port = hostPort
+	args = append(append([]string{}, base...), "--network", "host", "-e", "PORT="+strconv.Itoa(port), tag)
+	if output, err = exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
+		return application.HealthResult{Reason: "container did not start on the host network: " + firstLine(output)}, nil
 	}
-	if reason := waitHealth(ctx, hostPort); reason != "" {
-		logs, _ := exec.CommandContext(ctx, "docker", "logs", name).CombinedOutput()
-		if text := firstLine(logs); text != "" {
-			reason = reason + ": " + text
-		}
+	if reason := waitHealth(ctx, "127.0.0.1", port); reason != "" {
 		return application.HealthResult{Reason: reason}, nil
 	}
-	return application.HealthResult{Passed: true, Reason: "GET /health returned 200 within the timeout"}, nil
+	return application.HealthResult{Passed: true, Reason: "GET /health returned 200 on the host network"}, nil
 }
 
-func waitHealth(ctx context.Context, port int) string {
+func publishedHostPort(ctx context.Context, name string, containerPort int) (int, bool) {
+	mapped, err := exec.CommandContext(ctx, "docker", "port", name, strconv.Itoa(containerPort)+"/tcp").Output()
+	if err == nil {
+		if hostPort, ok := hostPortOf(string(mapped)); ok {
+			return hostPort, true
+		}
+	}
+	inspect, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{json .NetworkSettings.Ports}}", name).Output()
+	if err != nil {
+		return 0, false
+	}
+	return hostPortFromPortsJSON(inspect, containerPort)
+}
+
+func hostPortFromPortsJSON(raw []byte, containerPort int) (int, bool) {
+	var ports map[string][]struct {
+		HostIP   string `json:"HostIp"`
+		HostPort string `json:"HostPort"`
+	}
+	if err := json.Unmarshal(raw, &ports); err != nil || len(ports) == 0 {
+		return 0, false
+	}
+	key := strconv.Itoa(containerPort) + "/tcp"
+	for _, binding := range ports[key] {
+		if port, err := strconv.Atoi(strings.TrimSpace(binding.HostPort)); err == nil && port > 0 {
+			return port, true
+		}
+	}
+	return 0, false
+}
+
+func containerIP(ctx context.Context, name string) string {
+	inspect, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{json .NetworkSettings}}", name).Output()
+	if err != nil {
+		return ""
+	}
+	return containerIPFromInspect(inspect)
+}
+
+func containerIPFromInspect(raw []byte) string {
+	var settings struct {
+		IPAddress string `json:"IPAddress"`
+		Networks  map[string]struct {
+			IPAddress string `json:"IPAddress"`
+		} `json:"Networks"`
+	}
+	if err := json.Unmarshal(raw, &settings); err != nil {
+		return ""
+	}
+	if ip := strings.TrimSpace(settings.IPAddress); ip != "" {
+		return ip
+	}
+	for _, network := range settings.Networks {
+		if ip := strings.TrimSpace(network.IPAddress); ip != "" {
+			return ip
+		}
+	}
+	return ""
+}
+
+func waitHealth(ctx context.Context, host string, port int) string {
 	deadline := time.Now().Add(8 * time.Second)
 	client := http.Client{Timeout: 2 * time.Second}
-	url := fmt.Sprintf("http://127.0.0.1:%d/health", port)
+	url := fmt.Sprintf("http://%s/health", net.JoinHostPort(host, strconv.Itoa(port)))
 	var last string
 	for time.Now().Before(deadline) {
 		if ctx.Err() != nil {
