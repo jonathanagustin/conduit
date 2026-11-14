@@ -1,3 +1,5 @@
+# CONDUIT-INVENTED: packaging.CodexRuntimeProbe
+# Displaced-by: A reviewed, scoped, authenticated agent runtime contract with enforced workspace isolation.
 """Handshake-only Codex0.148.0 capability probe. Never starts a thread or turn.
 The pinned protocol lacks restricted read roots; this is NOT an agent runtime.
 """

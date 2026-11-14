@@ -1,3 +1,5 @@
+# CONDUIT-INVENTED: packaging.StructuralReceipt
+# Displaced-by: An authenticated validator-producer and freshness contract integrated with existing governance.
 """Offline structural validation with byte-bound, unsigned local receipts.
 Never deploys. Use trusted generated artifacts and an explicitly selected Helm.
 Receipts are observations, not proof of producer identity or deployment approval.
