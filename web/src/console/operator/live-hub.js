@@ -111,7 +111,9 @@ function recallsFrom(plans) {
 // that gap stale or out of date. Drift requires an observed digest or version
 // that differs, or a reported config status of DRIFTED.
 export function reportedDrift(row) {
-  const observedAt = row?.observedAt || "";
+  const rawObservedAt = String(row?.observedAt || "");
+  // Go's zero time means the Hub has never received a report.
+  const observedAt = rawObservedAt.startsWith("0001-01-01") ? "" : rawObservedAt;
   const observedVersion = row?.observedVersion || "";
   const observedDigest = row?.observedReleaseDigest || "";
   const observedConfig = row?.observedConfigDigest || "";

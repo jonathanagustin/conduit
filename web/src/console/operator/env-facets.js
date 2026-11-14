@@ -105,7 +105,7 @@ export function facetsMarkup(
     ? matched
         .map(
           (row) => `<tr>
-        <td class="code-id">${esc(row.environment?.id)}</td>
+        <td><button type="button" class="kit-link code-id" data-env-open="${esc(row.environment?.id)}">${esc(row.environment?.id)}</button></td>
         ${FACETS.map((facet) => `<td>${esc(facet.value(row))}</td>`).join("")}
         <td class="code-id">${esc(row.spoke?.agentId || "")}</td>
       </tr>`,
@@ -123,6 +123,123 @@ export function facetsMarkup(
         <thead><tr><th>Environment</th>${FACETS.map((facet) => `<th>${esc(facet.label)}</th>`).join("")}<th>Agent</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>
+    </div>
+  </div>`;
+}
+
+export const DETAIL_TABS = Object.freeze([
+  ["state", "State & drift"],
+  ["workloads", "Reported workloads"],
+  ["constraints", "Maintenance"],
+]);
+
+/** The Hub writes Go's zero time for "never"; treat it as absent. */
+export function when(value) {
+  const text = String(value || "");
+  return text && !text.startsWith("0001-01-01") ? text : "";
+}
+
+/** Desired against observed for one installation, from its own fields. */
+export function installationDrift(row) {
+  const observed =
+    when(row?.observedAt) ||
+    row?.observedVersion ||
+    row?.observedReleaseDigest ||
+    row?.observedConfigDigest;
+  if (!observed) return "No report";
+  if (row?.configStatus === "DRIFTED") return "Drifted";
+  if (
+    row?.desiredReleaseDigest &&
+    row?.observedReleaseDigest &&
+    row.desiredReleaseDigest !== row.observedReleaseDigest
+  )
+    return "Drifted";
+  if (
+    row?.desiredVersion &&
+    row?.observedVersion &&
+    row.desiredVersion !== row.observedVersion
+  )
+    return "Drifted";
+  return "In sync";
+}
+
+/**
+ * One environment, reached from the list: desired against reported state,
+ * the workloads its agent reported, and its maintenance spec. Everything is
+ * read from /v1/environments and /v1/installations; nothing here writes.
+ */
+export function envDetailMarkup(
+  row,
+  installations,
+  { tab = "state", esc = defaultEsc } = {},
+) {
+  const id = row?.environment?.id || "";
+  const back = `<button type="button" class="kit-link" data-env-back>&larr; All environments</button>`;
+  if (!row) {
+    return `<div class="so-panel kit-view-panel">${back}<p class="kit-muted">That environment is no longer in the Hub's list.</p></div>`;
+  }
+  const mine = (Array.isArray(installations) ? installations : []).filter(
+    (item) => item?.environment === id,
+  );
+  const entities = Array.isArray(row?.reported?.entities)
+    ? row.reported.entities
+    : [];
+  const drifted = mine.filter((item) => installationDrift(item) === "Drifted");
+  const current = DETAIL_TABS.some(([key]) => key === tab) ? tab : "state";
+  const tabs = DETAIL_TABS.map(
+    ([key, label]) =>
+      `<button type="button" class="kit-tab${key === current ? " is-active" : ""}" data-env-tab="${key}" aria-pressed="${key === current}">${esc(label)}</button>`,
+  ).join("");
+  let body = "";
+  if (current === "state") {
+    body = mine.length
+      ? `<table class="so-table"><thead><tr><th>Product</th><th>Desired</th><th>Observed</th><th>State</th><th>Observed at</th></tr></thead><tbody>${mine
+          .map(
+            (item) => `<tr>
+          <td>${esc(item.product)}</td>
+          <td class="code-id">${esc(item.desiredVersion || "")}</td>
+          <td class="code-id">${esc(item.observedVersion || "")}</td>
+          <td>${esc(installationDrift(item))}</td>
+          <td class="kit-muted">${esc(when(item.observedAt) || "no report")}</td>
+        </tr>`,
+          )
+          .join("")}</tbody></table>`
+      : `<p class="kit-muted">No installation targets this environment.</p>`;
+  } else if (current === "workloads") {
+    body = entities.length
+      ? `<table class="so-table"><thead><tr><th>Product</th><th>Version</th><th>Namespace</th><th>Health</th><th>Rollout</th><th>Config</th></tr></thead><tbody>${entities
+          .map(
+            (entity) => `<tr>
+          <td>${esc(entity.product || entity.installationId || "")}</td>
+          <td class="code-id">${esc(entity.version || "")}</td>
+          <td class="code-id">${esc(entity.namespace || "")}</td>
+          <td>${esc(entity.health || "UNKNOWN")}</td>
+          <td>${esc(entity.rolloutStatus || "")}</td>
+          <td>${esc(entity.configStatus || "")}</td>
+        </tr>`,
+          )
+          .join("")}</tbody></table>`
+      : `<p class="kit-muted">This environment's agent has not reported any workloads.</p>`;
+  } else {
+    const spec = row?.environment?.maintenance || {};
+    const keys = Object.keys(spec);
+    body = keys.length
+      ? `<dl class="kit-kv">${keys
+          .map(
+            (key) =>
+              `<dt>${esc(key)}</dt><dd class="code-id">${esc(typeof spec[key] === "string" ? spec[key] : JSON.stringify(spec[key]))}</dd>`,
+          )
+          .join("")}</dl>`
+      : `<p class="kit-muted">No maintenance window is set, so changes are not held to one.</p>`;
+  }
+  return `<div class="space-y-3">
+    <div>${back}</div>
+    <div class="so-panel kit-view-panel">
+      <div class="kit-view-head"><h2 class="code-id">${esc(id)}</h2>
+        <span class="kit-muted">Spoke ${esc(row?.spoke?.state || "unknown")} &middot; ${esc(worstHealth(row))} &middot; ${drifted.length} of ${mine.length} drifted &middot; last report ${esc(when(row?.reported?.observedAt) || when(row?.spoke?.observedAt) || "none")}</span>
+      </div>
+      <div class="kit-subnav" role="group" aria-label="Environment views">${tabs}</div>
+      <div class="overflow-x-auto">${body}</div>
     </div>
   </div>`;
 }
