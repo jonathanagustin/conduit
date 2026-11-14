@@ -360,7 +360,7 @@ type State struct {
 	TemplateVersion  string            `json:"templateVersion,omitempty"`
 	ToolVersions     string            `json:"toolVersions,omitempty"`
 	AttachmentSHA256 []string          `json:"attachmentSha256,omitempty"`
-	Events          []StepEvent       `json:"events,omitempty"`
+	Events           []StepEvent       `json:"events,omitempty"`
 	eventsEnabled    bool
 }
 

@@ -112,12 +112,12 @@ type Audit struct {
 	Files          map[string]string
 	// AttachmentSHA256 is the bound intake file digests, as lowercase hex.
 	AttachmentSHA256 []string
-	BuildPassed    bool
-	BuildReason    string
-	HealthPassed   bool
-	HealthReason   string
-	Outcome        string
-	Reason         string
+	BuildPassed      bool
+	BuildReason      string
+	HealthPassed     bool
+	HealthReason     string
+	Outcome          string
+	Reason           string
 }
 
 // Auditor writes one audit record.

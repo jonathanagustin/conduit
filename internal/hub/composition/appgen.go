@@ -93,7 +93,7 @@ func (audit appAudit) Record(ctx context.Context, event application.Audit) error
 			"adapter": event.Adapter, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
 			"files": event.Files, "buildPassed": event.BuildPassed, "buildReason": event.BuildReason,
 			"healthPassed": event.HealthPassed, "healthReason": event.HealthReason,
-				"attachmentSha256": event.AttachmentSHA256,
+			"attachmentSha256": event.AttachmentSHA256,
 		},
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, record)
