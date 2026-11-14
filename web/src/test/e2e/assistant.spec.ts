@@ -425,6 +425,7 @@ test.describe("fake ACP bridge", () => {
         await page.getByLabel("Packaging run id").fill("sample-app-1");
         await shot("packaging-1440");
         await page.getByRole("menuitem", { name: "Plans & approvals" }).click();
+        await shot("approvals-1440");
         await page.getByRole("button", { name: "plan-failed" }).click();
         const failed = page.getByText("Example rollout stopped").first();
         await failed.scrollIntoViewIfNeeded();
@@ -439,6 +440,13 @@ test.describe("fake ACP bridge", () => {
         await page.setViewportSize({ width: 1024, height: 768 });
         await page.getByRole("menuitem", { name: "Overview" }).click();
         await shot("overview-1024");
+        await page.getByRole("menuitem", { name: "Environments" }).click();
+        await shot("environment-1024");
+        await page.getByRole("menuitem", { name: "Packaging run" }).click();
+        await shot("packaging-1024");
+        await page.getByRole("menuitem", { name: "Plans & approvals" }).click();
+        await shot("plans-1024");
+        await shot("approvals-1024");
       }
       await page.setViewportSize({ width: 1000, height: 768 });
       await expect(page.getByRole("button", { name: "Toggle assistant" })).toBeVisible();

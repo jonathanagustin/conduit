@@ -12,7 +12,6 @@ import {
   InputGroup,
   Menu,
   MenuItem,
-  Navbar,
   NonIdealState,
   Popover,
   ProgressBar,
@@ -373,15 +372,17 @@ export function NavTree({
 }
 
 export function AppShell({
-  theme,
   kpi,
+  toolbar,
   sidebar,
+  tabs,
   children,
   rail,
 }: {
-  theme: "dark" | "light";
   kpi: ReactNode;
+  toolbar?: ReactNode;
   sidebar: ReactNode;
+  tabs?: ReactNode;
   children: ReactNode;
   rail: ReactNode;
 }) {
@@ -389,7 +390,8 @@ export function AppShell({
   const [railCollapsed, setRailCollapsed] = useState(false);
   const [chatOpen, setChatOpen] = useState(false);
   const shellClass = [
-    theme === "dark" ? "bp6-dark" : "",
+    "dark",
+    "bp6-dark",
     "conduit-shell",
     railCollapsed ? "is-rail-collapsed" : "",
     navOpen ? "is-nav-open" : "",
@@ -398,36 +400,33 @@ export function AppShell({
     .filter((name) => name.length > 0)
     .join(" ");
   return (
-    <div className={shellClass} data-theme={theme}>
-      <Navbar>
-        <Navbar.Group align="left">
-          <Button
-            className="conduit-nav-toggle"
-            icon="menu"
-            minimal
-            aria-label="Toggle navigation"
-            onClick={() => setNavOpen((open) => !open)}
-          />
-          <Button
-            className="conduit-rail-collapse"
-            icon="chevron-left"
-            minimal
-            aria-label="Collapse sidebar"
-            onClick={() => setRailCollapsed((collapsed) => !collapsed)}
-          />
-          <Navbar.Heading>Conduit</Navbar.Heading>
-        </Navbar.Group>
-        <Navbar.Group align="right">
-          <Button
-            className="conduit-chat-toggle"
-            icon="chat"
-            minimal
-            aria-label="Toggle assistant"
-            onClick={() => setChatOpen((open) => !open)}
-          />
-        </Navbar.Group>
-      </Navbar>
-      {kpi}
+    <div className={shellClass} data-theme="dark">
+      <header className="conduit-topbar">
+        <Button
+          className="conduit-nav-toggle"
+          icon="menu"
+          minimal
+          aria-label="Toggle navigation"
+          onClick={() => setNavOpen((open) => !open)}
+        />
+        <Button
+          className="conduit-rail-collapse"
+          icon="chevron-left"
+          minimal
+          aria-label="Collapse sidebar"
+          onClick={() => setRailCollapsed((collapsed) => !collapsed)}
+        />
+        <span className="conduit-wordmark">Conduit</span>
+        <div className="conduit-top-kpis">{kpi}</div>
+        <div className="conduit-top-tools">{toolbar}</div>
+        <Button
+          className="conduit-chat-toggle"
+          icon="chat"
+          minimal
+          aria-label="Toggle assistant"
+          onClick={() => setChatOpen((open) => !open)}
+        />
+      </header>
       <button
         type="button"
         className="conduit-nav-backdrop"
@@ -441,7 +440,10 @@ export function AppShell({
         <aside className="conduit-side" onClick={() => setNavOpen(false)}>
           {sidebar}
         </aside>
-        <section className="conduit-center">{children}</section>
+        <section className="conduit-main">
+          <div className="conduit-tabstrip">{tabs}</div>
+          <div className="conduit-center">{children}</div>
+        </section>
         <aside className="conduit-chat" aria-label="Assistant">
           {rail}
         </aside>

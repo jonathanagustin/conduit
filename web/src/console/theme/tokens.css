@@ -2,23 +2,34 @@
    Names are Conduit's. The layout follows a three-pane command center; the
    values are not copied from a third-party stylesheet. */
 .conduit-shell {
-  --c-bg: #0e1418;
-  --c-sidebar: #12181d;
-  --c-panel: #151c22;
-  --c-card: #1b242c;
-  --c-border: #2a3642;
-  --c-text: #e7eef5;
-  --c-muted: #8b98a5;
-  --c-accent: #4c90f0;
-  --c-ok: #3dcc8e;
-  --c-warn: #e0a14a;
-  --c-bad: #e76a6e;
+  --c-bg: #111418;
+  --c-sidebar: #101519;
+  --c-panel: #151b1f;
+  --c-card: #1c2127;
+  --c-border: #2b3038;
+  --c-text: #f6f7f9;
+  --c-muted: #abb3bf;
+  --c-accent: #2d72d2;
+  --c-ok: #238551;
+  --c-warn: #c87619;
+  --c-bad: #cd4246;
+  --background: #111418;
+  --foreground: #f6f7f9;
+  --card: #1c2127;
+  --muted: #1c2127;
+  --muted-foreground: #8f99a8;
+  --border: #2b3038;
+  --input: #111418;
   display: flex;
   flex-direction: column;
+  height: 100%;
   min-height: 0;
   flex: 1;
   color: var(--c-text);
   background: var(--c-bg);
+  font-family: Inter, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  font-size: 12.5px;
+  line-height: 1.4;
 }
 
 .conduit-shell[data-theme="light"] {
@@ -52,12 +63,106 @@
 
 .conduit-shell {
   position: relative;
-  height: calc(100vh - 4rem);
+  height: 100%;
+}
+
+.conduit-wordmark {
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.conduit-topbar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 48px;
+  padding: 0 12px;
+  background: #0d1317;
+  border-bottom: 1px solid #1e262d;
+  flex: none;
+}
+
+.conduit-top-kpis {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  min-width: 0;
+}
+
+.conduit-top-kpis strong {
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.conduit-top-tools {
+  margin-left: auto;
+  width: min(280px, 30vw);
+}
+
+.conduit-sec {
+  margin: 10px 0 4px;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--c-muted);
+}
+
+.conduit-mono {
+  font-family: "IBM Plex Mono", ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+  font-size: 11.5px;
+}
+
+.conduit-main {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--c-bg);
+}
+
+.conduit-tabstrip {
+  display: flex;
+  gap: 4px;
+  align-items: center;
+  height: 32px;
+  padding: 0 8px;
+  overflow-x: auto;
+  background: #151b1f;
+  border-bottom: 1px solid var(--c-border);
+  flex: none;
+}
+
+.conduit-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #2b3038;
+  border-radius: 2px;
+  background: #111418;
+  color: var(--c-muted);
+  font-size: 11.5px;
+}
+
+.conduit-tab.is-active {
+  background: #252a31;
+  color: var(--c-text);
+  border-color: #383e47;
+}
+
+.conduit-shell .aui-thread-root {
+  height: 100%;
+  min-height: 0;
+  background: #111418;
+  color: #f6f7f9;
 }
 
 .conduit-body {
   display: grid;
-  grid-template-columns: 220px minmax(0, 1fr) minmax(280px, 400px);
+  grid-template-columns: 212px minmax(0, 1fr) minmax(280px, 360px);
   flex: 1;
   min-height: 0;
 }
@@ -295,7 +400,7 @@
   .conduit-side,
   .conduit-chat {
     position: absolute;
-    top: 50px;
+    top: 48px;
     bottom: 0;
     z-index: 30;
     width: min(300px, 88vw);
@@ -329,7 +434,7 @@
   .conduit-shell.is-chat-open .conduit-nav-backdrop {
     display: block;
     position: absolute;
-    top: 50px;
+    top: 48px;
     right: 0;
     bottom: 0;
     left: 0;

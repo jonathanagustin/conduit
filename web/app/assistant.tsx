@@ -75,12 +75,23 @@ export const Assistant = () => {
     });
   };
 
+  if (view === "workbench") {
+    return (
+      <AssistantRuntimeProvider runtime={runtime} config={ASSISTANT_CONFIG}>
+        <ContextToolUIs />
+        <div className="dark bp6-dark h-dvh w-full">
+          <Workbench dark />
+        </div>
+      </AssistantRuntimeProvider>
+    );
+  }
+
   return (
     <AssistantRuntimeProvider runtime={runtime} config={ASSISTANT_CONFIG}>
       <ContextToolUIs />
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
-          {view === "workbench" ? null : <ThreadListSidebar />}
+          <ThreadListSidebar />
           <SidebarInset>
             <header className="flex h-16 shrink-0 items-center gap-2 border-b px-4">
               <SidebarTrigger />
@@ -117,14 +128,13 @@ export const Assistant = () => {
                 <button
                   type="button"
                   className="text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-sm"
-                  aria-pressed={view === "workbench"}
-                  data-pressed={view === "workbench"}
+                  aria-pressed={false}
                   onClick={() => setView("workbench")}
                 >
                   Workbench
                 </button>
                 <ConsoleChrome
-                  view={view === "workbench" ? "thread" : view}
+                  view={view}
                   onView={setView}
                   dark={dark}
                   onToggleTheme={toggleTheme}
@@ -133,9 +143,7 @@ export const Assistant = () => {
             </header>
             <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
               <BridgeConnection />
-              {view === "workbench" ? (
-                <Workbench dark={dark} />
-              ) : view === "thread" ? (
+              {view === "thread" ? (
                 <div className="relative min-h-0 flex-1">
                   <ConversationMapAui side="right" />
                   <Thread components={THREAD_COMPONENTS} />
