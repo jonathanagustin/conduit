@@ -82,3 +82,39 @@ func TestPromptIncludesTheSkillAndItsDigest(t *testing.T) {
 		t.Fatal("prompt with no skill matched the skill prompt")
 	}
 }
+
+func TestPackagePromptAsksForAPackageNotRawManifests(t *testing.T) {
+	prompt := Prompt(PackagingContext{RunID: "onboard-1", Task: TaskPackage, ImageDigest: "sha256:" + strings.Repeat("ab", 32)})
+	for _, want := range []string{"zarf.yaml", "Package custom resource", "network allow rules", "SSO"} {
+		if !strings.Contains(prompt, want) {
+			t.Fatalf("package prompt missing %q\n%s", want, prompt)
+		}
+	}
+	if strings.Contains(prompt, `"manifests":`) || strings.Contains(prompt, "Write a product source, Kubernetes manifests") {
+		t.Fatalf("package prompt still treats raw manifests as the output\n%s", prompt)
+	}
+}
+
+func TestParseDockerfileProposalHonorsIgnoreExisting(t *testing.T) {
+	raw := []byte(`{"dockerfile":"FROM scratch\nUSER 65532\n","dockerignore":".git\n","reuseExisting":true,"reuseReason":"it already pins digests","rationale":"reuse the shipped file"}`)
+	if _, err := ParseDockerfileProposal(raw, true); err == nil {
+		t.Fatal("accepted reuse while ignore-existing was set")
+	}
+	got, err := ParseDockerfileProposal(raw, false)
+	if err != nil || !got.ReuseExisting || got.ReuseReason == "" {
+		t.Fatalf("reuse = %#v %v", got, err)
+	}
+	if _, err := ParseDockerfileProposal([]byte(`{"dockerfile":"FROM scratch\nUSER 65532\n","reuseExisting":true,"rationale":"no reason"}`), false); err == nil {
+		t.Fatal("accepted reuse without a reason")
+	}
+}
+
+func TestParsePackageProposalRequiresSourceZarfAndCR(t *testing.T) {
+	got, err := ParsePackageProposal([]byte(`{"source":"name: web\n","zarf":"apiVersion: zarf.dev/v1alpha1\n","cr":"apiVersion: uds.dev/v1alpha1\n","rationale":"package the static site"}`))
+	if err != nil || got.Zarf == "" || got.CR == "" {
+		t.Fatalf("valid = %#v %v", got, err)
+	}
+	if _, err := ParsePackageProposal([]byte(`{"source":"name: web\n","zarf":"x","cr":"y","manifests":"kind: Deployment\n","rationale":"no"}`)); err == nil {
+		t.Fatal("accepted unknown manifests field")
+	}
+}

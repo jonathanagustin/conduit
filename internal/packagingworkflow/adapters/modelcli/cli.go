@@ -4,6 +4,7 @@ package modelcli
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -25,6 +26,7 @@ func DefaultArgv() []string {
 type Runner struct {
 	Argv    []string
 	Timeout time.Duration
+	Tools   domain.Toolbox
 }
 
 func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext) (domain.Proposal, domain.Provenance, error) {
@@ -32,8 +34,9 @@ func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext)
 		return domain.Proposal{}, domain.Provenance{}, domain.ErrModelUnavailable
 	}
 	input = input.WithSkill(packagingskill.Source, packagingskill.SHA256())
+	calls := runner.inspectFacts(ctx, &input)
 	prompt := []byte(domain.Prompt(input))
-	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.DigestText(prompt)}.WithSkillDigest(input)
+	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.DigestText(prompt), ToolCalls: calls}.WithSkillDigest(input)
 	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, prompt)
 	provenance.ResponseSHA256 = domain.DigestText(stdout)
 	if err != nil {
@@ -61,4 +64,36 @@ func modelError(err error) error {
 // argument. There is no shell expansion.
 func ParseArgv(line string) ([]string, error) {
 	return localcmd.ParseArgv(line)
+}
+
+func (runner Runner) inspectFacts(ctx context.Context, input *domain.PackagingContext) []domain.ToolCallRecord {
+	if runner.Tools == nil {
+		return nil
+	}
+	ref := strings.TrimSpace(input.ImageRef)
+	if ref == "" {
+		ref = strings.TrimSpace(input.ImageDigest)
+	}
+	if ref == "" {
+		return nil
+	}
+	got, err := runner.Tools.InspectImage(ctx, ref)
+	calls := []domain.ToolCallRecord{{Name: "inspect_image"}}
+	var body strings.Builder
+	if err != nil {
+		fmt.Fprintf(&body, "inspect_image error: %v\n", err)
+	} else {
+		encoded, encodeErr := json.Marshal(got)
+		if encodeErr != nil {
+			fmt.Fprintf(&body, "inspect_image error: %v\n", encodeErr)
+		} else {
+			fmt.Fprintf(&body, "inspect_image: %s\n", encoded)
+		}
+	}
+	if strings.TrimSpace(input.ToolFacts) == "" {
+		input.ToolFacts = body.String()
+	} else {
+		input.ToolFacts = strings.TrimSpace(input.ToolFacts) + "\n" + body.String()
+	}
+	return calls
 }

@@ -43,6 +43,15 @@ type, and `data` as the Event JSON. Types are:
 
 `GET /events` returns the same items so a console can poll or replay without a stream.
 
+
+## Inspection
+
+A planning turn clones the intake URL at the given ref into an isolated
+directory, allows only that git host, and lets the configured model call
+`inspect_repo` and `read_file`. Each tool call is recorded as an
+`inspection` event. The audit log stores the tool names and the prompt
+and response hashes. No package or image compute runs during this step.
+
 ## Accept binding
 
 Accept records, and never rewrites:
