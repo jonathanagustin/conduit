@@ -4,6 +4,11 @@ Renovate creates reviewable pull requests; it does not merge them automatically.
 Major updates require dashboard approval, and the normal three-day release-age
 policy remains in force. Container references retain explicit tags and digests.
 
+The dependency dashboard is enabled by the inherited `config:recommended`
+preset. Keep the explicit `dependencyDashboard` option absent: older hosted
+Renovate versions require a boolean while newer versions use an object. The
+preset supplies the appropriate representation for the executing version.
+
 The mise Grok tool uses an HTTP backend in `mise.lock`, with versions supplied by
 `https://x.ai/cli/stable`. Renovate's default mise mapping instead looks for the
 nonexistent GitHub repository `x.ai/cli/grok`. The scoped `grok-stable` custom

@@ -4,9 +4,6 @@
     "config:recommended",
     "helpers:pinGitHubActionDigests"
   ],
-  "dependencyDashboard": {
-    "enabled": true
-  },
   "labels": [
     "dependencies"
   ],
