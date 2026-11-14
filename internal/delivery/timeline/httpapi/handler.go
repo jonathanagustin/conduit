@@ -1,3 +1,4 @@
+// Package httpapi serves the per-environment timeline.
 package httpapi
 
 import (
