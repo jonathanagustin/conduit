@@ -15,6 +15,7 @@ import (
 	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
 	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
 	assetports "github.com/jonathanagustin/conduit/internal/productassets/ports"
 	spaceports "github.com/jonathanagustin/conduit/internal/spaces/ports"
@@ -51,6 +52,9 @@ type Options struct {
 	// NewHub read PLAN_ORCHESTRATOR. Empty and native do not change approval,
 	// lease, or reported state.
 	PlanOrchestrator controlplane.PlanOrchestrator
+	// ModelProposer is the outbound proposal port. Nil makes NewHub read
+	// CONDUIT_MODEL_CMD. Empty selects the recorded fallback.
+	ModelProposer packagingdomain.ChangeProposer
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader

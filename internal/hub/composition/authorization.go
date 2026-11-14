@@ -414,6 +414,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + AuthorizeResourceOperation(operate) on the environment in the target-plan reference; audited; does not cancel a Plan"},
 		{Pattern: "POST /v1/packaging-runs/{runID}/feedback",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; records review input on one file, manifest field, or step and does not approve"},
+		{Pattern: "POST /v1/packaging-runs/{runID}/model-proposal",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; asks the configured local model CLI for one proposal, then the packaging gate, and does not approve"},
 		{Pattern: "POST /v1/packaging-runs/{runID}/rerun",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + AuthorizeResourceOperation(operate) on the environment in the target-plan reference; audited; starts a new run id and does not approve"},
 		{Pattern: "POST /v1/plans",

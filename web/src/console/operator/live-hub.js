@@ -715,6 +715,23 @@ export function renderLiveProposal(root, state) {
   const byRun = hub(state).packagingEventsByRun || {};
   const proposals = runs.filter((run) => run && run.runId);
   if (!proposals.length) return false;
+  const first = proposals[0];
+  const live = hub(state).modelProposal;
+  const liveCard = live
+    ? panel(
+        "Live model call",
+        live.error
+          ? `<p class="text-[12.5px] text-white">${esc(live.error)}</p>`
+          : `<p class="text-[12.5px] text-white">${esc(live.outcome || "")} ${esc(live.reason || "")}</p>
+             <p class="text-[12px] text-[#8b96a5] mt-1">Live model call</p>
+             <p class="text-[12px] text-white mt-1">${esc(live.proposal?.value || "")} — ${esc(live.proposal?.rationale || "")}</p>
+             <p class="text-[12px] text-[#8b96a5]">${esc(live.changeRequestId || "No change request.")}</p>`,
+      )
+    : "";
+  const ask = `<form data-model-run="${esc(first.runId)}" class="mb-3">
+      <button type="submit" class="so-btn so-btn-sm">Propose with model</button>
+      <p data-model-error class="text-[12px] text-[#dce4ee] mt-1"></p>
+    </form>`;
   const cards = proposals
     .map((run) => {
       const events = byRun[run.runId] || [];
@@ -752,6 +769,40 @@ export function renderLiveProposal(root, state) {
       )}`;
     })
     .join("");
-  root.innerHTML = `<div class="so-view-enter space-y-3">${cards}</div>`;
+  root.innerHTML = `<div class="so-view-enter space-y-3">${ask}${liveCard}${cards}</div>`;
+  root.querySelectorAll("form[data-model-run]").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const runID = form.getAttribute("data-model-run") || "";
+      const error = form.querySelector("[data-model-error]");
+      try {
+        const response = await fetch(
+          `/v1/packaging-runs/${encodeURIComponent(runID)}/model-proposal`,
+          {
+            method: "POST",
+            headers: {
+              "content-type": "application/json",
+              accept: "application/json",
+            },
+            body: "{}",
+          },
+        );
+        const body = await response.json();
+        if (!response.ok) {
+          state.hub = state.hub || {};
+          state.hub.modelProposal = {
+            error:
+              body.error || "The local model CLI did not return a proposal.",
+          };
+        } else {
+          state.hub.modelProposal = body;
+        }
+        renderLiveProposal(root, state);
+      } catch {
+        if (error)
+          error.textContent = "The local model CLI did not return a proposal.";
+      }
+    });
+  });
   return true;
 }
