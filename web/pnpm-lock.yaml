@@ -112,7 +112,7 @@ importers:
         version: 7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-shiki:
         specifier: ^0.11.2
-        version: 0.11.2(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 0.11.3(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-syntax-highlighter:
         specifier: ^16.1.2
         version: 16.1.2(react@19.3.1)
@@ -3064,8 +3064,8 @@ packages:
       react-dom:
         optional: true
 
-  react-shiki@0.11.2:
-    resolution: {integrity: sha512-oyhQea4Wx5JkSGVXImolgcL1P6NdGnFrHTJE+574gkjqJQrlPbbghT6UREsvSroJsb21++bgBlOaSj0Pi7Jnnw==}
+  react-shiki@0.11.3:
+    resolution: {integrity: sha512-HNnw4849CGKf/+NCeT8n/+KhCTw9POKSjtlGBINk/tS4sC402IbleYWFIp5o5sMc5LhgJU88ohB7LxL4lQY1/g==}
     peerDependencies:
       '@types/react': '>=16.14.0'
       '@types/react-dom': '>=16.14.0'
@@ -6384,7 +6384,7 @@ snapshots:
     optionalDependencies:
       react-dom: 19.3.1(react@19.3.1)
 
-  react-shiki@0.11.2(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  react-shiki@0.11.3(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       clsx: 2.1.1
       dequal: 2.0.3
