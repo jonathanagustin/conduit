@@ -1,0 +1,66 @@
+/* Text and spacing tokens. This file is the one place these values live, so a
+   new token sheet replaces it without touching component styles. Ratios are
+   against the darkest and lightest panel each theme draws text on. */
+.operator-root {
+  /* 4px spacing scale */
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  /* Dark text ramp: 16.2, 11.8, 7.4, and 6.6:1 on #0b1015 */
+  color-scheme: dark;
+  --c-text: #e6edf3;
+  --c-text-sec: #c2cdd8;
+  --c-muted: #95a3b3;
+  --c-subtle: #8b99a8;
+  --c-dim: var(--c-subtle);
+  --so-text: var(--c-text);
+  --so-muted: var(--c-muted);
+  --so-dim: var(--c-subtle);
+
+  /* Solid fills for the one primary action per surface; white text 6.5:1 */
+  --c-primary-fill: #215db0;
+  --c-primary-fill-hover: #1b4f99;
+  --c-primary-border: #3875cc;
+}
+.operator-root[data-theme="light"] {
+  /* Light text ramp: 17.9, 10.4, 7.6, and 7.6:1 on #ffffff */
+  color-scheme: light;
+  --c-text: #0f172a;
+  --c-text-sec: #334155;
+  --c-muted: #475569;
+  --c-subtle: #475569;
+}
+
+/* Hardcoded dim grays from older views read through the ramp, so they meet AA. */
+.operator-root [class*="text-[#4a5562]"],
+.operator-root [class*="text-[#55616e]"],
+.operator-root [class*="text-[#596573]"],
+.operator-root [class*="text-[#6d7885]"],
+.operator-root [class*="text-[#738091]"],
+.operator-root [class*="text-[#7c8794]"] {
+  color: var(--c-subtle) !important;
+}
+/* Pure white body text glares on dark panels; buttons keep their own colour. */
+.operator-root:not([data-theme="light"]) #main-workspace .text-white:not(button):not(.so-btn):not(.kit-btn),
+.operator-root:not([data-theme="light"]) #main-workspace [class*="text-[#fff"]:not(button):not(.so-btn):not(.kit-btn) {
+  color: var(--c-text) !important;
+}
+
+.operator-root :focus-visible {
+  outline: 2px solid #4c90f0;
+  outline-offset: 1.5px;
+}
+
+/* Rhythm on the shared frame. */
+.operator-root #main-workspace { padding: var(--sp-4); }
+.operator-root .so-nav-row { height: 32px; padding: 0 var(--sp-3); }
+.operator-root .so-table th { padding: 6px var(--sp-3); }
+.operator-root .so-table td { padding: var(--sp-2) var(--sp-3); }
+@media (max-width: 639px) {
+  .operator-root #main-workspace { padding: var(--sp-3); }
+}
