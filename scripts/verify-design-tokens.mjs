@@ -17,6 +17,9 @@
 // It compares VALUES, normalized, because the two sides are written by
 // different builds: the tenant's minifier emits `#fff`, `.1s` and `#0000001a`
 // where the npm package emits `#ffffff`, `100ms` and `rgba(0, 0, 0, 0.1)`.
+// Blueprint 6.22 also expresses values through aliases to its own palette.
+// Resolve that closed graph first; cycles, undefined references and unsupported
+// var() syntax fail. The captured token set and values remain unchanged.
 // Those are the same colour and the same duration. Treating them as drift would
 // make the gate cry wolf 16 times out of 205 and it would be turned off within
 // a week, so the normalizer below folds notation and nothing else. A genuinely
@@ -36,6 +39,7 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
+import { resolveDesignTokenAliases } from "./lib/resolve-design-token-aliases.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const CONTRACT = join(root, "docs/reference-platform/contracts/reference-design-tokens.json");
@@ -81,7 +85,7 @@ let contract;
 let installed;
 try {
   contract = JSON.parse(readFileSync(CONTRACT, "utf8"));
-  installed = parseTokens(readFileSync(INSTALLED, "utf8"));
+  installed = resolveDesignTokenAliases(parseTokens(readFileSync(INSTALLED, "utf8")));
 } catch (error) {
   // A missing node_modules is a setup problem, not a drift. Say which.
   console.error(`FAIL design tokens: could not read both sides -- ${error.message}`);

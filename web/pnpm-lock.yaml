@@ -69,8 +69,8 @@ importers:
         specifier: ^7.0.153
         version: 7.0.170(zod@4.6.7)
       assistant-stream:
-        specifier: 0.3.56
-        version: 0.3.56(ai@7.0.170(zod@4.6.7))
+        specifier: 0.3.57
+        version: 0.3.57(ai@7.0.170(zod@4.6.7))
       beautiful-mermaid:
         specifier: ^1.1.3
         version: 1.1.3
@@ -112,7 +112,7 @@ importers:
         version: 7.18.5(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-shiki:
         specifier: ^0.11.2
-        version: 0.11.2(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        version: 0.11.3(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       react-syntax-highlighter:
         specifier: ^16.1.2
         version: 16.1.2(react@19.3.1)
@@ -139,8 +139,8 @@ importers:
         specifier: latest
         version: 0.0.25
       '@blueprintjs/core':
-        specifier: 6.18.0
-        version: 6.18.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
+        specifier: 6.22.0
+        version: 6.22.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
       '@bufbuild/protoc-gen-es':
         specifier: 2.17.0
         version: 2.17.0(@bufbuild/protobuf@2.17.0)
@@ -450,8 +450,8 @@ packages:
   '@blueprintjs/colors@5.1.16':
     resolution: {integrity: sha512-P9uX0Aj2TP9+6aUcori1iPl4snxM/Vgq0LZbhUl1l5bHTgNxxwm/0+IoS/SlQg93HBRl8KTAM1evEqtPbwV10A==}
 
-  '@blueprintjs/core@6.18.0':
-    resolution: {integrity: sha512-EQVKWl/RFrPHfD42Bcicvxqwjwh+OnNSroXOdmnJZC+FP1xlcawOjTl38ewgJEaCZ6txcqiw/CGAft7/8zJ4RQ==}
+  '@blueprintjs/core@6.22.0':
+    resolution: {integrity: sha512-hzcX+QsW52EBfbP7IPNaVLqHLJwAN1Eu8ZRivY652Fs6jyADf6rTjyv4ep6iL4m9holwxa1ZMhhZYdmc3diaJg==}
     hasBin: true
     peerDependencies:
       '@types/react': 18 || 19
@@ -2269,20 +2269,6 @@ packages:
       ai:
         optional: true
 
-  assistant-stream@0.3.56:
-    resolution: {integrity: sha512-it2+baky3y+JcfqTwSzjMgMJB2uCiAIKEmIMkn67RacEXQLOHNP4iO8PLGAZNJ0IVQ+sIyRaCzNuITl4h5lCMw==}
-    peerDependencies:
-      ai: ^6.0.0 || ^7.0.0
-      ioredis: ^5.10.1 || ^6.0.0
-      redis: ^5.12.1
-    peerDependenciesMeta:
-      ai:
-        optional: true
-      ioredis:
-        optional: true
-      redis:
-        optional: true
-
   assistant-stream@0.3.57:
     resolution: {integrity: sha512-R+dAUoKcAGGjoTzbgSUhaVer2H8rNu/cY1GwdeRZ+gbsrV+DDc7QXuYDpKOp6HGO9o2Q5+7l3Dvp4qYNx8UpSg==}
     peerDependencies:
@@ -3064,8 +3050,8 @@ packages:
       react-dom:
         optional: true
 
-  react-shiki@0.11.2:
-    resolution: {integrity: sha512-oyhQea4Wx5JkSGVXImolgcL1P6NdGnFrHTJE+574gkjqJQrlPbbghT6UREsvSroJsb21++bgBlOaSj0Pi7Jnnw==}
+  react-shiki@0.11.3:
+    resolution: {integrity: sha512-HNnw4849CGKf/+NCeT8n/+KhCTw9POKSjtlGBINk/tS4sC402IbleYWFIp5o5sMc5LhgJU88ohB7LxL4lQY1/g==}
     peerDependencies:
       '@types/react': '>=16.14.0'
       '@types/react-dom': '>=16.14.0'
@@ -3805,7 +3791,7 @@ snapshots:
     dependencies:
       tslib: 2.6.3
 
-  '@blueprintjs/core@6.18.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
+  '@blueprintjs/core@6.22.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)':
     dependencies:
       '@blueprintjs/colors': 5.1.16
       '@blueprintjs/icons': 6.15.0(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -5335,15 +5321,6 @@ snapshots:
       - ioredis
       - redis
 
-  assistant-stream@0.3.56(ai@7.0.170(zod@4.6.7)):
-    dependencies:
-      '@standard-schema/spec': 1.1.0
-      '@types/json-schema': 7.0.15
-      nanoid: 6.0.2
-      secure-json-parse: 4.1.1
-    optionalDependencies:
-      ai: 7.0.170(zod@4.6.7)
-
   assistant-stream@0.3.57(ai@7.0.170(zod@4.6.7)):
     dependencies:
       '@standard-schema/spec': 1.1.0
@@ -6384,7 +6361,7 @@ snapshots:
     optionalDependencies:
       react-dom: 19.3.1(react@19.3.1)
 
-  react-shiki@0.11.2(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
+  react-shiki@0.11.3(@types/react-dom@19.3.0(@types/react@19.3.0))(@types/react@19.3.0)(react-dom@19.3.1(react@19.3.1))(react@19.3.1):
     dependencies:
       clsx: 2.1.1
       dequal: 2.0.3
