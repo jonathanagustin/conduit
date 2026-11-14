@@ -1,0 +1,368 @@
+openapi: 3.0.3
+info:
+  title: Conduit ontology API
+  version: "0.0.0"
+  description: >
+    Read model over environments, spokes, work profiles, release channels,
+    plans, change requests, and artifacts, plus one action that proposes a
+    change request. Field names follow the published ontology v2 REST
+    documents so an existing client can call this Hub. This document is not a
+    generated transport and it does not approve a change. VALIDATE_ONLY
+    evaluates the request and stores nothing. VALIDATE_AND_EXECUTE calls the
+    existing change-request path, which leaves the request pending unless a
+    policy already approves it. Interface types are part of the document and
+    are empty: these object types do not share an interface.
+paths:
+  /api/v2/ontologies:
+    get:
+      operationId: listOntologies
+      responses:
+        "200":
+          description: The one ontology this Hub serves.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/OntologyList"}
+        "401":
+          description: Anonymous caller.
+  /api/v2/ontologies/{ontology}:
+    get:
+      operationId: getOntology
+      parameters: [{name: ontology, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200":
+          description: The ontology.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Ontology"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown ontology.
+  /api/v2/ontologies/{ontology}/fullMetadata:
+    get:
+      operationId: getOntologyFullMetadata
+      parameters: [{name: ontology, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200":
+          description: Object types, link sides, action types, and empty interface types.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/FullMetadata"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown ontology.
+  /api/v2/ontologies/{ontology}/objectTypes:
+    get:
+      operationId: listObjectTypes
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: pageSize, in: query, schema: {type: integer}}
+        - {name: pageToken, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: Object types.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ObjectTypeList"}
+        "401":
+          description: Anonymous caller.
+  /api/v2/ontologies/{ontology}/objectTypes/{objectType}:
+    get:
+      operationId: getObjectType
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: objectType, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: One object type.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ObjectType"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown object type.
+  /api/v2/ontologies/{ontology}/objectTypes/{objectType}/fullMetadata:
+    get:
+      operationId: getObjectTypeFullMetadata
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: objectType, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: One object type, its links, and the empty interface maps.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ObjectTypeFull"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown object type.
+  /api/v2/ontologies/{ontology}/interfaceTypes:
+    get:
+      operationId: listInterfaceTypes
+      parameters: [{name: ontology, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200":
+          description: An empty list.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data]
+                properties:
+                  data: {type: array, items: {}}
+        "401":
+          description: Anonymous caller.
+  /api/v2/ontologies/{ontology}/interfaceTypes/{interfaceType}:
+    get:
+      operationId: getInterfaceType
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: interfaceType, in: path, required: true, schema: {type: string}}
+      responses:
+        "404":
+          description: No interface type is projected.
+        "401":
+          description: Anonymous caller.
+  /api/v2/ontologies/{ontology}/actionTypes:
+    get:
+      operationId: listActionTypes
+      parameters: [{name: ontology, in: path, required: true, schema: {type: string}}]
+      responses:
+        "200":
+          description: The create-change-request action.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ActionTypeList"}
+        "401":
+          description: Anonymous caller.
+  /api/v2/ontologies/{ontology}/actionTypes/{actionType}:
+    get:
+      operationId: getActionType
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: actionType, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: One action type.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ActionType"}
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown action type.
+  /api/v2/ontologies/{ontology}/objectSets/loadObjects:
+    post:
+      operationId: loadObjects
+      parameters: [{name: ontology, in: path, required: true, schema: {type: string}}]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/LoadObjectsRequest"}
+      responses:
+        "200":
+          description: A page of objects the caller may read.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/LoadObjectsResponse"}
+        "400":
+          description: The object set is not supported.
+        "401":
+          description: Anonymous caller.
+        "404":
+          description: Unknown object type.
+  /api/v2/ontologies/{ontology}/actions/{action}/apply:
+    post:
+      operationId: applyAction
+      parameters:
+        - {name: ontology, in: path, required: true, schema: {type: string}}
+        - {name: action, in: path, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/ApplyActionRequest"}
+      responses:
+        "200":
+          description: Validation result. A stored edit is a pending change request, not an approval.
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/ApplyActionResponse"}
+        "401":
+          description: Anonymous caller.
+        "403":
+          description: The caller cannot propose a change in the named environment.
+        "404":
+          description: Unknown action.
+components:
+  schemas:
+    Ontology:
+      type: object
+      required: [apiName, displayName, description, rid]
+      properties:
+        apiName: {type: string}
+        displayName: {type: string}
+        description: {type: string}
+        rid: {type: string}
+    OntologyList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: {$ref: "#/components/schemas/Ontology"}
+        nextPageToken: {type: string}
+    Property:
+      type: object
+      required: [rid, displayName, dataType]
+      properties:
+        rid: {type: string}
+        displayName: {type: string}
+        description: {type: string}
+        dataType:
+          type: object
+          required: [type]
+          properties:
+            type: {type: string, enum: [string, boolean, integer, double, date, timestamp]}
+    ObjectType:
+      type: object
+      required: [apiName, displayName, status, pluralDisplayName, primaryKey, properties, rid, titleProperty]
+      properties:
+        apiName: {type: string}
+        displayName: {type: string}
+        status: {type: string}
+        description: {type: string, description: Present only when non-empty.}
+        pluralDisplayName: {type: string}
+        primaryKey: {type: string}
+        properties:
+          type: object
+          additionalProperties: {$ref: "#/components/schemas/Property"}
+        rid: {type: string}
+        titleProperty: {type: string}
+        aliases: {type: array, items: {type: string}, description: Omitted when empty.}
+        datasources: {type: array, items: {}, description: Omitted when empty.}
+    ObjectTypeFull:
+      type: object
+      required: [objectType, linkTypes, implementsInterfaces, implementsInterfaces2, sharedPropertyTypeMapping]
+      properties:
+        objectType: {$ref: "#/components/schemas/ObjectType"}
+        linkTypes:
+          type: array
+          items: {$ref: "#/components/schemas/LinkSide"}
+        implementsInterfaces: {type: array, items: {type: string}}
+        implementsInterfaces2: {type: object}
+        sharedPropertyTypeMapping: {type: object}
+    ObjectTypeList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: {$ref: "#/components/schemas/ObjectType"}
+        nextPageToken: {type: string}
+    LinkSide:
+      type: object
+      required: [apiName, objectTypeApiName, cardinality, linkTypeRid]
+      properties:
+        apiName: {type: string}
+        displayName: {type: string}
+        status: {type: string}
+        objectTypeApiName: {type: string}
+        cardinality: {type: string, enum: [ONE, MANY]}
+        linkTypeRid: {type: string}
+    FullMetadata:
+      type: object
+      required: [ontology, objectTypes, actionTypes, queryTypes, interfaceTypes, sharedPropertyTypes, valueTypes]
+      properties:
+        ontology: {$ref: "#/components/schemas/Ontology"}
+        objectTypes:
+          type: object
+          additionalProperties:
+            type: object
+            required: [objectType, linkTypes, implementsInterfaces, implementsInterfaces2, sharedPropertyTypeMapping]
+            properties:
+              objectType: {$ref: "#/components/schemas/ObjectType"}
+              linkTypes:
+                type: array
+                items: {$ref: "#/components/schemas/LinkSide"}
+              implementsInterfaces:
+                type: array
+                items: {type: string}
+              implementsInterfaces2: {type: object}
+              sharedPropertyTypeMapping: {type: object}
+        actionTypes:
+          type: object
+          additionalProperties: {$ref: "#/components/schemas/ActionType"}
+        queryTypes: {type: object}
+        interfaceTypes: {type: object}
+        sharedPropertyTypes: {type: object}
+        valueTypes: {type: object}
+    ActionType:
+      type: object
+      required: [apiName, displayName, status, description, parameters, rid, operations]
+      properties:
+        apiName: {type: string}
+        displayName: {type: string}
+        status: {type: string}
+        description: {type: string}
+        parameters: {type: object, additionalProperties: {type: object}}
+        rid: {type: string}
+        operations: {type: array, items: {type: object}}
+    ActionTypeList:
+      type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items: {$ref: "#/components/schemas/ActionType"}
+        nextPageToken: {type: string}
+    LoadObjectsRequest:
+      type: object
+      required: [objectSet]
+      properties:
+        objectSet:
+          type: object
+          description: A base, filter, or searchAround object set.
+          required: [type]
+          properties:
+            type: {type: string, enum: [base, filter, searchAround]}
+            objectType: {type: string}
+            objectSet: {type: object}
+            where: {type: object}
+            link: {type: string}
+        select: {type: array, items: {type: string}}
+        pageSize: {type: integer}
+        pageToken: {type: string}
+        excludeRid: {type: boolean}
+    LoadObjectsResponse:
+      type: object
+      required: [data, totalCount]
+      properties:
+        data: {type: array, items: {type: object}}
+        totalCount: {type: string}
+        nextPageToken: {type: string}
+    ApplyActionRequest:
+      type: object
+      properties:
+        parameters: {type: object, additionalProperties: true}
+        options:
+          type: object
+          properties:
+            mode: {type: string, enum: [VALIDATE_ONLY, VALIDATE_AND_EXECUTE]}
+            returnEdits: {type: boolean}
+    ApplyActionResponse:
+      type: object
+      required: [validation]
+      properties:
+        validation:
+          type: object
+          required: [result]
+          properties:
+            result: {type: string, enum: [VALID, INVALID]}
+            parameters: {type: object}
+            submissionCriteria: {type: array, items: {type: object}}
+        edits: {type: object}

@@ -1,5 +1,7 @@
 /* Ported from the release console. Example rows stay labeled in the top bar. */
 import { createReleaseGates } from "./release-gates.js";
+import { createOntologyGraph } from "./ontology-graph.js";
+import { createSettings } from "./settings.js";
 
 export function mountOperator(host, options) {
   const notifyOperator = () => {
@@ -288,6 +290,18 @@ export function mountOperator(host, options) {
     });
     releaseGates.extendState();
     SCREENS.push(...releaseGates.screens);
+    const ontologyGraph = createOntologyGraph({
+      state,
+      render: () => renderMainWorkspace(),
+    });
+    ontologyGraph.extendState();
+    SCREENS.push(...ontologyGraph.screens);
+    const settings = createSettings({
+      state,
+      render: () => renderApp(),
+    });
+    settings.extendState();
+    SCREENS.push(...settings.screens);
 
     function recordAudit(evt) {
       state.auditCount += 1;
@@ -392,6 +406,7 @@ export function mountOperator(host, options) {
         { label: "Release Rollout", icon: "cube", id: "rm05-release-rollout" },
         { label: "Promotion Pipeline", icon: "delivery", id: "rm06-promotion-pipe" },
         ...releaseGates.navItems,
+        ...ontologyGraph.navItems,
         { label: "Control Tower", icon: "approvals", id: "s15-plan-detail" },
         { label: "Workspaces", icon: "pin", id: "s02-workspaces" }
       ];
@@ -461,6 +476,7 @@ export function mountOperator(host, options) {
           </div>
         </div>
         ${renderAppGroup("OPERATOR TOOLS", releaseGates.toolApps)}
+        ${renderAppGroup("SETTINGS", settings.navItems())}
         ${renderAppGroup("DELIVERY APPS", deliveryApps)}
         ${renderAppGroup("DEVELOPER APPS", developerApps)}
       `;
@@ -516,6 +532,11 @@ export function mountOperator(host, options) {
         system: [
           { id: "s18-components", label: "Component System" },
           { id: "s19-ontology", label: "Ontology (19 Types)" }
+        ],
+        settings: [
+          { id: "adm01-user-prefs", label: "Preferences" },
+          { id: "adm02-org-control-panel", label: "Organization" },
+          { id: "adm03-auth-signin", label: "Sign-in" }
         ]
       }[activeMeta.appGroup] || [];
 
@@ -3406,9 +3427,13 @@ export function mountOperator(host, options) {
         "rm06-promotion-pipe": renderRM06PromotionPipe,
         "rm07-change-requests": renderRM07ChangeRequests,
         "rm08-bundle-preview": renderRM08BundlePreview,
-        ...releaseGates.renderers
+        ...releaseGates.renderers,
+        ...ontologyGraph.renderers,
+        ...settings.renderers
       };
       (m[state.screen] || renderS13FleetOverview)(root);
+      settings.applyChrome();
+      settings.ensureLoaded();
       if (screenChanged && root.firstElementChild) {
         root.scrollTop = 0;
         root.firstElementChild.classList.add("so-view-enter");
@@ -3463,6 +3488,8 @@ export function mountOperator(host, options) {
     window.copyRmRawLog = copyRmRawLog;
     window.state = state;
     releaseGates.bind(window);
+    ontologyGraph.bind(window);
+    settings.bind(window);
     renderApp();
     return () => {
       window.removeEventListener("keydown", onKey);
