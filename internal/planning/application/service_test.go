@@ -96,7 +96,7 @@ func TestAcceptRecordsBindingAndRefusesComputeUntilThen(t *testing.T) {
 	if binding.Profile.Version != "1" || binding.Profile.Hash != "deadbeef" {
 		t.Fatalf("profile = %+v", binding.Profile)
 	}
-	if binding.Intake != session.Intake {
+	if binding.Intake.RepoURL != session.Intake.RepoURL || binding.Intake.Ref != session.Intake.Ref || binding.Intake.Message != "please inspect" {
 		t.Fatalf("intake = %+v", binding.Intake)
 	}
 	if binding.ResolvedCommit != "0123456789abcdef0123456789abcdef01234567" {
