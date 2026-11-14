@@ -168,7 +168,7 @@ type actionGate struct {
 }
 
 func (gate actionGate) Evaluate(ctx context.Context, actor, action, resource string, roles []string) (application.Decision, error) {
-	facts, err := actionFacts(ctx, gate.hub, action, resource)
+	facts, err := actionFacts(ctx, gate.hub, nil, action, resource)
 	if err != nil {
 		return application.Decision{}, err
 	}

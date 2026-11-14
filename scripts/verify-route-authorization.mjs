@@ -73,6 +73,7 @@ const SOURCES = [
  {path:"internal/changeactivity/adapters/httpapi",surface:"request activity"},
   { path: "internal/packagingworkflow/httpapi", surface: "packaging" },
   { path: "internal/ontology/httpapi", surface: "ontology" },
+  { path: "internal/devworkspace/httpapi", surface: "developer workspaces" },
   { path: "internal/assistant/httpapi", surface: "assistant" },
   { path: "internal/intelligence/httpapi", surface: "intelligence" },
   { path: "internal/delivery/channels/httpapi", surface: "channel subscriptions" },

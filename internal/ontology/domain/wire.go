@@ -141,7 +141,7 @@ func Metadata() FullMetadata {
 	return FullMetadata{
 		Ontology:            OntologyDocument(),
 		ObjectTypes:         objects,
-		ActionTypes:         map[string]ActionTypeV2{ActionCreateChange: actionType()},
+		ActionTypes:         publishedActions(),
 		QueryTypes:          map[string]any{},
 		InterfaceTypes:      map[string]any{},
 		SharedPropertyTypes: map[string]any{},
@@ -223,6 +223,8 @@ func displayLink(apiName string) string {
 		return "Change request"
 	case "artifacts":
 		return "Artifacts"
+	case "workspaces":
+		return "Workspaces"
 	default:
 		return apiName
 	}
@@ -258,4 +260,21 @@ func actionType() ActionTypeV2 {
 		RID:         "ri.conduit.main.action-type." + ActionCreateChange,
 		Operations:  []ActionOperationV2{{Type: "createObject", ObjectTypeAPIName: "ChangeRequest"}},
 	}
+}
+
+func publishedActions() map[string]ActionTypeV2 {
+	actions := map[string]ActionTypeV2{ActionCreateChange: actionType()}
+	for _, spec := range []ActionTypeV2{
+		{APIName: "workspace_create", DisplayName: "Create workspace", Description: "Creates an authorized workspace. It does not approve or deploy."},
+		{APIName: "workspace_stop", DisplayName: "Stop workspace", Description: "Stops the local preview runtime."},
+		{APIName: "workspace_delete", DisplayName: "Delete workspace", Description: "Deletes a stopped workspace after confirmation."},
+		{APIName: "workspace_submit", DisplayName: "Submit workspace", Description: "Opens a change request. It does not approve that request."},
+	} {
+		spec.Status = "ACTIVE"
+		spec.RID = "ri.conduit.main.action-type." + spec.APIName
+		spec.Parameters = map[string]ActionParameterV2{}
+		spec.Operations = []ActionOperationV2{}
+		actions[spec.APIName] = spec
+	}
+	return actions
 }

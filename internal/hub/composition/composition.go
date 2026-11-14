@@ -107,6 +107,8 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	workspaces := assembleDevWorkspace(repository, options, os.Getenv)
+	handler = mountDevWorkspace(handler, repository, options, workspaces)
 	intelService := newIntelligenceService(repository)
-	return guardUnregisteredRoutes(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options)), nil
+	return guardUnregisteredRoutes(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options)), nil
 }

@@ -147,6 +147,11 @@ nohup go run ./cmd/packaging-workflow worker \
 echo $! >>"${pid_file}"
 sleep 2
 
+workspace_env=""
+if [[ "${DEMO_WORKSPACES:-}" == "1" ]]; then
+  workspace_env="DEVWORKSPACE_RUNTIME=recorded DEVWORKSPACE_PODS=1"
+fi
+
 nohup env LISTEN_ADDRESS=127.0.0.1:8081 \
   DATA_DIRECTORY="${state_dir}/data" \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
@@ -154,6 +159,7 @@ nohup env LISTEN_ADDRESS=127.0.0.1:8081 \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \
   PACKAGING_TEMPORAL_ADDRESS=127.0.0.1:7233 \
   PACKAGING_FIXTURE_DIR="${state_dir}/packaging/fixture" \
+  ${workspace_env} \
   go run ./cmd/platform-delivery >"${state_dir}/hub.log" 2>&1 &
 echo $! >>"${pid_file}"
 
@@ -476,3 +482,7 @@ echo "audit ${hub}/console/#area-audit"
 echo "packaging run sample-app-1 is in review"
 echo "bundle ${bundle_id}"
 echo "change request ${change_id} approved"
+if [[ "${DEMO_WORKSPACES:-}" == "1" ]]; then
+  api POST /v1/dev-workspaces '{"profileId":"dev","environmentId":"dev","title":"Sample workspace"}' >"${state_dir}/workspace.json"
+  python3 -c 'import json,sys; print("workspace", json.load(open(sys.argv[1]))["workspaceId"])' "${state_dir}/workspace.json"
+fi
