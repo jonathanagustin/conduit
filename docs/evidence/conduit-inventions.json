@@ -321,6 +321,20 @@
       "why": "The normative/versioned sources and TAK examples establish bounded requirements and lessons, not a private evidence schema, independent trial result or receipt authority protocol.",
       "displacedBy": "A reviewed replacement reference-corpus, independent evaluation and operator-owned validation-profile contract.",
       "riskIfWrong": "The metadata/profile format may need replacement. Dataset PASS means only its static contract is well formed; runtime checks remain NOT_RUN, unsigned structural receipts remain non-authoritative, and no deployment or independent trial is authorized."
+    },
+    {
+      "id": "packagevalidation.Attestation",
+      "what": "Native fixed-version Ed25519 validation claims bound to exact run/proposal/input/target/configuration/toolchain/profile/policy/challenge and scoped producer trust.",
+      "why": "Issue #343 requires receipt authenticity and freshness separately from structural scan validity. No upstream private receipt protocol establishes this shape. The generic verifier checks an operator-owned configured recipe; it does not certify its semantic sufficiency or honest execution.",
+      "displacedBy": "a reviewed replacement packaging validation producer, exact-scope evidence and freshness contract.",
+      "riskIfWrong": "Wire shape, canonical encoding and timing limits may need replacement. No signing key, runtime validator or production path is configured; legacy unsigned receipts and scanner trust remain unchanged."
+    },
+    {
+      "id": "packagevalidation.EvidenceAdmission",
+      "what": "Native one-use validation evidence admission with current authority facts, canonical signed-document retention and atomic audit/challenge consumption obligations.",
+      "why": "A signed claim alone does not supply current authorization, one-use storage or deployment permission. The application records verified evidence only; a process-local reference adapter demonstrates the port without pretending to be durable production authority.",
+      "displacedBy": "a reviewed recipient-side validation evidence admission and atomic challenge/audit contract.",
+      "riskIfWrong": "The memory reference loses state on restart and is not shared across replicas or connected to live Hub facts. Durable transactional adapters, actual profile compilation, current governance and final handoff integration remain required before production use."
     }
   ],
   "displaced": [
