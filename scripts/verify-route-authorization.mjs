@@ -76,6 +76,7 @@ const SOURCES = [
   { path: "internal/assistant/httpapi", surface: "assistant" },
   { path: "internal/intelligence/httpapi", surface: "intelligence" },
   { path: "internal/delivery/channels/httpapi", surface: "channel subscriptions" },
+  { path: "internal/delivery/driftfix/httpapi", surface: "propose fix" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

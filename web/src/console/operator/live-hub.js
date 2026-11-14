@@ -688,6 +688,7 @@ export function createLiveHub({ state, render }) {
             <td>${esc(row.observedVersion || "")}</td>
             <td>${esc(reportedDrift(row))}</td>
             <td class="text-[#8b96a5]">${esc(row.observedAt || "no report")}</td>
+            <td>${reportedDrift(row) === "drifted" ? `<button type="button" class="so-btn so-btn-sm" data-propose-fix="${esc(row.environment)}" data-installation="${esc(row.installationId)}">Propose fix</button>` : ""}</td>
           </tr>`,
         )
         .join("");
@@ -733,13 +734,27 @@ export function createLiveHub({ state, render }) {
         ? panel(
             "Reported installations",
             `<p class="text-[12px] text-[#8b96a5]">Desired and observed versions. Drift is shown only when a spoke reported a differing digest, version, or config status. A missing report stays unknown.</p>
-             <table class="so-table"><thead><tr><th>Product</th><th>Environment</th><th>Desired</th><th>Observed</th><th>Drift</th><th>Report</th></tr></thead><tbody>${installs}</tbody></table>`,
+             <table class="so-table"><thead><tr><th>Product</th><th>Environment</th><th>Desired</th><th>Observed</th><th>Drift</th><th>Report</th><th></th></tr></thead><tbody>${installs}</tbody></table>`,
           )
         : panel(
             "Reported installations",
             `<p class="text-[12px] text-[#8b96a5]">${esc(hub(state).installationNote || "No installation report is recorded.")}</p>`,
           );
       root.innerHTML = split(`${spokeTable}${installTable}`);
+      root.querySelectorAll("[data-propose-fix]").forEach((button) => {
+        button.addEventListener("click", async () => {
+          button.disabled = true;
+          try {
+            const opened = await postJSON("/v1/fleet/propose-fix", {
+              environment: button.getAttribute("data-propose-fix"),
+              installationId: button.getAttribute("data-installation"),
+            });
+            button.textContent = opened.changeRequestId || "Proposed";
+          } catch {
+            button.textContent = "Refused";
+          }
+        });
+      });
     },
     renderRecall(root) {
       const pairs = recallsFrom(hub(state).plans);
