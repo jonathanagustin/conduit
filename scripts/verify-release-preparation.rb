@@ -1,7 +1,7 @@
 #!/usr/bin/env ruby
 # frozen_string_literal: true
 require "yaml"
-require "json"
+require_relative "lib/checked_json"
 root = File.expand_path("..", __dir__)
 workflow_path = ARGV.fetch(0, File.join(root, ".github/workflows/release-please.yml"))
 config_path = ARGV.fetch(1, File.join(root, "release-please-config.json"))
