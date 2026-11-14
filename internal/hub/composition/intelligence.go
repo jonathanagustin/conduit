@@ -2,6 +2,7 @@ package composition
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -16,11 +17,31 @@ import (
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
-func mountIntelligence(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options) http.Handler {
-	governanceService := controlplane.NewGovernanceService(repository)
+type intelCases struct{ service *intelapp.Service }
+
+func (cases intelCases) Add(scenario, bound, value, expected string) (string, error) {
+	if cases.service == nil {
+		return "", fmt.Errorf("eval cases are not configured")
+	}
+	added, err := cases.service.AddCase(scenario, bound, value, expected)
+	if err != nil {
+		return "", err
+	}
+	return added.ID, nil
+}
+
+func newIntelligenceService(repository controlplane.Repository) *intelapp.Service {
 	service := intelapp.New(intelligenceAdapter(), intelligenceTimeout())
-	service.Opener = intelligenceOpener{service: governanceService}
+	service.Opener = intelligenceOpener{service: controlplane.NewGovernanceService(repository)}
 	service.Audit = intelligenceAudit{repository: repository}
+	return service
+}
+
+func mountIntelligence(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, service *intelapp.Service) http.Handler {
+	governanceService := controlplane.NewGovernanceService(repository)
+	if service == nil {
+		service = newIntelligenceService(repository)
+	}
 	mux := http.NewServeMux()
 	intelhttp.Register(mux, intelhttp.Config{
 		API:    service,

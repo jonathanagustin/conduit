@@ -38,7 +38,7 @@ export function contextChips(state) {
     if (found.some((item) => keyOf(item) === keyOf(chip))) return;
     found.push(chip);
   };
-  const screen = state.screen;
+  const screen = state.detailScreen || state.screen;
   if (
     ["s08-staged-run", "pt02-proposals-evals", "s07-pipeline"].includes(screen)
   ) {
@@ -197,6 +197,16 @@ function actionsFor(state, chip) {
       key: keyOf(chip),
       label: "Propose cancel",
     });
+    actions.push({
+      kind: "write-case",
+      key: keyOf(chip),
+      label: "Add eval case",
+    });
+    actions.push({
+      kind: "write-memory",
+      key: keyOf(chip),
+      label: "Propose memory",
+    });
   }
   if (
     modeAllows(mode, "review_change_diff") &&
@@ -237,7 +247,7 @@ export function resultCard(result) {
     Number(result.writeOps) > 0
       ? "bg-[#2a2012] border-[#4f391b] text-[#eab854]"
       : "bg-[#10241d] border-[#1f4737] text-[#34d399]";
-  return `<article class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] space-y-1.5">
+  return `<article data-result-index="${esc(result.index ?? "")}" class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-2.5 text-[11.5px] space-y-1.5">
     <div class="flex items-center justify-between gap-2">
       <span class="font-medium text-[#dce4ee]">${esc(result.tool || "tool")}</span>
       <span class="text-[10px] px-1.5 py-0.5 rounded border tabular-nums ${opsTone}">${ops}</span>
@@ -253,7 +263,25 @@ export function resultCard(result) {
     ${result.auditEventId ? `<div class="text-[#8b96a5]">Tool audit <span class="code-id text-white">${esc(result.auditEventId)}</span></div>` : ""}
     ${hunks || (result.tool === "review_change_diff" ? `<div class="text-[#8b96a5]">${result.hunks?.length ? "" : "This change request has no stored field diff."}</div>` : "")}
     ${result.title ? `<div class="text-[#dce4ee]">${esc(result.title)}</div>` : ""}
+    ${result.objectId ? `<div class="text-[#8b96a5]">Object <a class="code-id text-white underline" href="${result.changeRequestId ? "#area-changes" : "#area-intelligence"}">${esc(result.objectId)}</a> · ${esc(result.state || "")}</div>` : ""}
+    ${formFor(result)}
   </article>`;
+}
+
+function formFor(result) {
+  const fields = result.fields || [];
+  if (!fields.length && !result.needsConfirm) return "";
+  const inputs = fields
+    .map((field) => {
+      if (field.options && field.options.length) {
+        return `<label class="block text-[10.5px] text-[#8b96a5]">${esc(field.label)}<select name="${esc(field.name)}" class="so-input mt-1 w-full text-[12px]">${field.options
+          .map((option) => `<option value="${esc(option)}">${esc(option)}</option>`)
+          .join("")}</select></label>`;
+      }
+      return `<label class="block text-[10.5px] text-[#8b96a5]">${esc(field.label)}<input name="${esc(field.name)}" value="${esc(field.value || "")}" class="so-input mt-1 w-full text-[12px]" /></label>`;
+    })
+    .join("");
+  return `<form data-elicit class="space-y-1.5 pt-1">${inputs}<button type="button" data-resume-write="1" data-confirm="${result.needsConfirm ? "1" : "0"}" class="h-[26px] px-2 rounded bg-[#1c3a2a] text-[11px] text-[#34d399]">${result.needsConfirm ? "Confirm" : "Continue"}</button></form>`;
 }
 
 function routeFor(objectType) {
@@ -285,6 +313,14 @@ export function publishAssistantContext(state) {
   };
 }
 
+export async function resumeWrite(state, args) {
+  return postTool(state, {
+    mode: state.assistantMode || "ontology",
+    tool: "governed_write",
+    arguments: args,
+  });
+}
+
 export async function runAssistantAction(state, kind, chipKey) {
   const chip = contextChips(state).find((item) => keyOf(item) === chipKey);
   if (!chip)
@@ -310,6 +346,16 @@ export async function runAssistantAction(state, kind, chipKey) {
       mode,
       tool: "review_change_diff",
       arguments: { changeRequestId: chip.id },
+    });
+  }
+  if (kind === "write-case" || kind === "write-memory") {
+    return postTool(state, {
+      mode: "ontology",
+      tool: "governed_write",
+      arguments:
+        kind === "write-memory"
+          ? { action: "propose_memory", targetId: chip.id, environment: governedFields(state, chip).environment }
+          : { action: "add_eval_case", targetId: chip.id },
     });
   }
   const actionId =
@@ -369,5 +415,7 @@ export function rememberResult(state, result) {
 }
 
 export function resultsMarkup(state) {
-  return (state.assistantResults || []).map(resultCard).join("");
+  return (state.assistantResults || [])
+    .map((result, index) => resultCard({ ...result, index }))
+    .join("");
 }

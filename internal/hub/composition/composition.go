@@ -107,5 +107,6 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
-	return guardUnregisteredRoutes(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions), repository, options, hubOptions, assistant), repository, options, hubOptions)), nil
+	intelService := newIntelligenceService(repository)
+	return guardUnregisteredRoutes(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService)), nil
 }

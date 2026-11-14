@@ -144,6 +144,82 @@ func TestInvalidToolJSONIsAuditedAndNotExecuted(t *testing.T) {
 	}
 }
 
+type memoryCases struct{ ids []string }
+
+func (cases *memoryCases) Add(scenario, _, _, _ string) (string, error) {
+	cases.ids = append(cases.ids, scenario)
+	return "case-1", nil
+}
+
+type memoryAuthors struct{ author string }
+
+func (authors memoryAuthors) Author(context.Context, string) (string, error) {
+	return authors.author, nil
+}
+
+func TestElicitationDoesNotOpenAChange(t *testing.T) {
+	changes := &memoryChanges{}
+	service := Service{Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"propose_memory"}`))
+	if err != nil || len(result.Fields) == 0 || changes.calls != 0 || result.ChangeRequestID != "" {
+		t.Fatalf("elicit = %#v calls=%d %v", result, changes.calls, err)
+	}
+}
+
+func TestHighRiskOpensAChangeRequest(t *testing.T) {
+	changes := &memoryChanges{}
+	service := Service{Changes: changes, Audit: &memoryAudit{}, Now: fixedClock()}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"propose_memory","value":"512Mi","justification":"headroom","environment":"dev"}`))
+	if err != nil || result.ChangeRequestID != "crq_test" || result.Applied || changes.calls != 1 {
+		t.Fatalf("high = %#v calls=%d %v", result, changes.calls, err)
+	}
+}
+
+func TestLowRiskAppliesOnlyAfterConfirm(t *testing.T) {
+	cases := &memoryCases{}
+	service := Service{Cases: cases, Audit: &memoryAudit{}, Now: fixedClock()}
+	body := []byte(`{"action":"add_eval_case","justification":"operator rejected 2Gi","value":"2Gi","expectedOutcome":"FAIL_REQUIRED"}`)
+	pending, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, body)
+	if err != nil || !pending.NeedsConfirm || pending.Applied || len(cases.ids) != 0 {
+		t.Fatalf("pending = %#v %v", pending, err)
+	}
+	confirmed, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"add_eval_case","justification":"operator rejected 2Gi","value":"2Gi","expectedOutcome":"FAIL_REQUIRED","confirm":true}`))
+	if err != nil || !confirmed.Applied || confirmed.ObjectID != "case-1" || len(cases.ids) != 1 {
+		t.Fatalf("applied = %#v ids=%v %v", confirmed, cases.ids, err)
+	}
+}
+
+func TestCannotApproveOwnChange(t *testing.T) {
+	changes := &memoryChanges{}
+	service := Service{
+		Authors: memoryAuthors{author: "operator"}, Changes: changes, Audit: &memoryAudit{}, Now: fixedClock(),
+		Governor: scriptGovernor{decision: Decision{Known: true, Allowed: true, Reason: "action allowed"}},
+	}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"approve_change","targetId":"crq_own","justification":"looks right"}`))
+	if err != nil || result.Allowed || changes.calls != 0 || !strings.Contains(result.Reason, "own change request") {
+		t.Fatalf("self = %#v calls=%d %v", result, changes.calls, err)
+	}
+}
+
+func TestRuleDenyDoesNotApply(t *testing.T) {
+	changes := &memoryChanges{}
+	service := Service{
+		Changes: changes, Audit: &memoryAudit{}, Now: fixedClock(),
+		Governor: scriptGovernor{decision: Decision{Known: true, Allowed: false, Reason: "run is not queued, running, or staged"}},
+	}
+	result, err := service.Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"cancel_packaging_run","targetId":"sample-app-blocked","confirm":true}`))
+	if err != nil || result.Allowed || result.Applied || changes.calls != 0 || !strings.Contains(result.Reason, "not queued") {
+		t.Fatalf("deny = %#v calls=%d %v", result, changes.calls, err)
+	}
+}
+
+func TestUnknownWriteActionIsRejected(t *testing.T) {
+	_, err := (Service{Audit: &memoryAudit{}, Now: fixedClock()}).Invoke(context.Background(), operator(), domain.ModeOntology, domain.ToolWrite, []byte(`{"action":"drop_database"}`))
+	if err == nil {
+		t.Fatal("accepted an unknown action")
+	}
+}
+
 func operator() Actor { return Actor{Username: "operator"} }
 
 func proposeBody() json.RawMessage {

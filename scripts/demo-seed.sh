@@ -463,7 +463,13 @@ if [[ "${blocked}" != blocked* ]]; then
 fi
 
 echo "Hub ${hub}"
-echo "console ${hub}/console/"
+echo "console ${hub}/console/#area-packaging"
+echo "packaging ${hub}/console/#area-packaging"
+echo "releases ${hub}/console/#area-releases"
+echo "change requests ${hub}/console/#area-changes"
+echo "intelligence ${hub}/console/#area-intelligence"
+echo "fleet ${hub}/console/#area-fleet"
+echo "audit ${hub}/console/#area-audit"
 echo "packaging run sample-app-1 is in review"
 echo "bundle ${bundle_id}"
 echo "change request ${change_id} approved"

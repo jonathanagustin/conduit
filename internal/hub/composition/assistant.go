@@ -21,11 +21,11 @@ import (
 )
 
 func mountAssistant(
-	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, model assistantdomain.Model,
+	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, model assistantdomain.Model, cases evalAdder,
 ) http.Handler {
 	governanceService := controlplane.NewGovernanceService(repository)
 	api := assistantAPI{
-		repository: repository, governance: governanceService, options: options, hub: hub, model: model,
+		repository: repository, governance: governanceService, options: options, hub: hub, model: model, cases: cases,
 	}
 	mux := http.NewServeMux()
 	assistanthttp.Register(mux, assistanthttp.Config{
@@ -77,6 +77,11 @@ type assistantAPI struct {
 	options    controlplane.HandlerOptions
 	hub        Options
 	model      assistantdomain.Model
+	cases      evalAdder
+}
+
+type evalAdder interface {
+	Add(scenario, bound, value, expected string) (string, error)
 }
 
 func (api assistantAPI) service(actor application.Actor) application.Service {
@@ -87,6 +92,9 @@ func (api assistantAPI) service(actor application.Actor) application.Service {
 		Diffs:    changeReader{repository: api.repository},
 		Audit:    toolAudit{repository: api.repository},
 		Model:    api.model,
+		Cases:    api.cases,
+		Authors:  requestAuthor{repository: api.repository},
+		Reviews:  changeReviewer{service: api.governance},
 	}
 }
 
@@ -185,6 +193,38 @@ func (gate actionGate) Evaluate(ctx context.Context, actor, action, resource str
 		Known: decision.Known, Allowed: decision.Allowed, Reason: decision.Reason,
 		AuditEvent: eventName, AuditEventID: saved.ID,
 	}, nil
+}
+
+type requestAuthor struct {
+	repository controlplane.Repository
+}
+
+func (author requestAuthor) Author(ctx context.Context, id string) (string, error) {
+	request, err := author.repository.GetChangeRequest(ctx, id)
+	if err != nil {
+		return "", err
+	}
+	return request.Author.Username, nil
+}
+
+type changeReviewer struct {
+	service *controlplane.GovernanceService
+}
+
+func (reviewer changeReviewer) Approve(ctx context.Context, id, actor, rationale string, roles []string) (string, error) {
+	request, _, err := reviewer.service.Approve(ctx, id, controlplane.Principal{Username: actor, Teams: roles}, rationale)
+	if err != nil {
+		return "", err
+	}
+	return request.Status, nil
+}
+
+func (reviewer changeReviewer) Reject(ctx context.Context, id, actor, rationale string, roles []string) (string, error) {
+	request, _, err := reviewer.service.Reject(ctx, id, controlplane.Principal{Username: actor, Teams: roles}, rationale)
+	if err != nil {
+		return "", err
+	}
+	return request.Status, nil
 }
 
 type changeOpener struct {

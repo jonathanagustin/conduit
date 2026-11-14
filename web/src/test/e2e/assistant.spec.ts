@@ -441,9 +441,14 @@ test.describe("fake ACP bridge", () => {
           switchScreen: (id: string) => void;
           toggleChatRail: () => void;
         };
-        view.switchScreen("s08-staged-run");
+        view.switchScreen("area-packaging");
       });
       await expect(page.getByText("sample-app-1").first()).toBeVisible();
+      await page.evaluate(() => {
+        history.pushState(null, "", "#s08-staged-run");
+        window.dispatchEvent(new HashChangeEvent("hashchange"));
+      });
+      await expect(page.getByRole("button", { name: "Timeline" })).toBeVisible();
       await page.evaluate(() => {
         (
           window as unknown as { switchScreen: (id: string) => void }
