@@ -58,12 +58,23 @@ abort "Zarf removal must retain durable Hub state" unless pvc&.dig("metadata", "
 health_checks = definition.dig("components", 0, "healthChecks") || []
 abort "Zarf package must health-check both runtime deployments" unless health_checks.map { |item| item["name"] }.sort == %w[platform-delivery platform-spoke-agent]
 
+example = File.join(root, "internal/packagingworkflow/fixtures/example-package")
+example_definition = YAML.safe_load(File.read(File.join(example, "zarf.yaml")))
+abort "generated package API must be pinned" unless example_definition["apiVersion"] == "zarf.dev/v1alpha1"
+abort "generated package must install the UDS Package manifest" unless example_definition.dig("components", 0, "manifests", 0, "files") == ["uds-package.yaml"]
+package_text = File.read(File.join(example, "uds-package.yaml"))
+abort "generated package CR must be uds.dev/v1alpha1 Package" unless package_text.include?("apiVersion: uds.dev/v1alpha1") && package_text.include?("kind: Package")
+%w[sso: allow: monitor:].each do |section|
+  abort "generated package CR missing #{section}" unless package_text.include?(section)
+end
+
 zarf = ENV["ZARF_BIN"]
 if zarf && !zarf.empty?
   args = [zarf, "dev", "lint", File.join(root, "deploy/zarf"), "--architecture", "amd64", "--set", "PLATFORM_VERSION=0.0.0",
           "--set", "HUB_IMAGE=ghcr.io/example/platform-hub:0.0.0@sha256:#{'a' * 64}",
           "--set", "SPOKE_AGENT_IMAGE=ghcr.io/example/platform-spoke-agent:0.0.0@sha256:#{'b' * 64}"]
   abort "Zarf CLI lint failed" unless system(*args)
+  abort "generated package lint failed" unless system(zarf, "dev", "lint", example, "--architecture", "amd64")
 end
 
 puts "Zarf air-gap package contract verified"

@@ -43,13 +43,19 @@ const entries = register.inventions ?? [];
 // disappear with it.
 const tracked = execFileSync("git", ["ls-files", "-z"], { cwd: ROOT, encoding: "utf8" })
   .split("\0")
-  .filter((path) => (path.endsWith(".go") && !path.endsWith("_test.go")) || (path.endsWith(".mjs") && !path.endsWith(".test.mjs")));
+  .filter((path) => {
+    if (path.endsWith("_test.go") || path.endsWith(".test.mjs")) return false;
+    if (path.endsWith(".go") || path.endsWith(".mjs")) return true;
+    if (!path.endsWith(".py")) return false;
+    const base = path.slice(path.lastIndexOf("/") + 1);
+    return !base.startsWith("test-") && !base.startsWith("test_");
+  });
 
 const found = new Map();
 for (const path of tracked) {
   const lines = readFileSync(resolve(ROOT, path), "utf8").split("\n");
   for (let index = 0; index < lines.length; index += 1) {
-    const marker = lines[index].match(/^\s*\/\/\s*CONDUIT-INVENTED:\s*(\S+)\s*$/);
+    const marker = lines[index].match(/^\s*(?:\/\/|#)\s*CONDUIT-INVENTED:\s*(\S+)\s*$/);
     if (!marker) continue;
     const id = marker[1];
     if (found.has(id)) {
@@ -59,7 +65,7 @@ for (const path of tracked) {
     // The displacement condition must sit on the very next line. Adjacency is
     // the point: a condition three paragraphs away gets edited independently of
     // the thing it governs, which is how a stale one survives.
-    const next = (lines[index + 1] ?? "").match(/^\s*\/\/\s*Displaced-by:\s*(.+?)\s*$/);
+    const next = (lines[index + 1] ?? "").match(/^\s*(?:\/\/|#)\s*Displaced-by:\s*(.+?)\s*$/);
     if (!next || next[1].length < 20) {
       fail(
         `invention ${id} at ${path}:${index + 1} has no Displaced-by line naming what would settle it; ` +

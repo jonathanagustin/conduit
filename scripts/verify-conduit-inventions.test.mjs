@@ -22,6 +22,9 @@ try{
  writeFileSync(file,source);writeFileSync(join(root,"duplicate.go"),source+"package fixture\n");execFileSync("git",["add","."],{cwd:root});result=run();assert.notEqual(result.status,0);assert.match(result.stderr,/marked in two places/);
  rmSync(join(root,"duplicate.go"));execFileSync("git",["add","-u"],{cwd:root});
  writeFileSync(join(root,"noise.test.mjs"),"// CONDUIT-INVENTED: fixture.TestOnly\n// Displaced-by: test-only markers cannot register a production invention.\n");execFileSync("git",["add","."],{cwd:root});assert.equal(run().status,0,"test fixtures must not register production inventions");
+ writeFileSync(join(root,"scripts/test-ignored.py"),"# CONDUIT-INVENTED: fixture.PyTest\n# Displaced-by: python test modules must not register a production invention.\n");execFileSync("git",["add","."],{cwd:root});assert.equal(run().status,0,"python tests must not register production inventions");
+ writeFileSync(join(root,"scripts/tool.py"),"# CONDUIT-INVENTED: fixture.PyTool\n# Displaced-by: an approved replacement for this synthetic python tool contract.\n");execFileSync("git",["add","."],{cwd:root});result=run();assert.notEqual(result.status,0);assert.match(result.stderr,/fixture.PyTool/);
+ rmSync(join(root,"scripts/tool.py"));execFileSync("git",["add","-u"],{cwd:root});
  writeFileSync(file,"// Removed production implementation.\n");result=run();assert.notEqual(result.status,0);assert.match(result.stderr,/which no source marker claims/);
 }finally{rmSync(root,{recursive:true,force:true});}
 console.log("PASS invention sources: production JavaScript, registration, displacement, duplicate and stale-entry controls");

@@ -208,6 +208,7 @@ gate 'Read pull request body' ./scripts/read-pull-request-body.test.sh
 gate 'Validate GitHub API retry' ./scripts/test-retry-github-api.sh
 gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
+gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py
 gate 'Validate mutation scores' bash -c './scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
@@ -310,7 +311,7 @@ locally_only=(
   # restart, before any gate runs; CI gets a fresh runner with nothing to repair.
   'repair-volatile-cache-links.sh'
 )
-mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb)' "${BASH_SOURCE[0]}" |
+mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb|py)' "${BASH_SOURCE[0]}" |
   sed 's|^\./||' | sort -u)
 if ((${#invoked[@]} == 0)); then
   echo "found no scripts/* invocations in $(basename "${BASH_SOURCE[0]}"); the reverse check has stopped working" >&2
