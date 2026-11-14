@@ -219,3 +219,14 @@ func TestCancellationAndClockAdvanceCannotReachEffect(t *testing.T) {
 		t.Fatal("nil effect admitted", err)
 	}
 }
+
+func TestDeclinedProposalIsRecordedWithoutImplyingApproval(t *testing.T) {
+	for _, status := range []string{"REJECTED", "ERROR"} {
+		s, a, intent, _ := applicationFixture(t)
+		a.ack.Status = status
+		result, err := s.Propose(t.Context(), intent)
+		if err != nil || result.Status != status || a.createCount != 1 {
+			t.Fatal("declined review outcome lost", result, err)
+		}
+	}
+}

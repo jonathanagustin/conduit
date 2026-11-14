@@ -61,7 +61,7 @@ func (s *Service) Propose(ctx context.Context, intent Intent) (ProposedReview, e
 	if err != nil {
 		return ProposedReview{}, err
 	}
-	if !domain.ValidID(ack.ReviewID) || ack.ProposalID != proposal.ID || ack.Status != "PENDING_APPROVALS" {
+	if !domain.ValidID(ack.ReviewID) || ack.ProposalID != proposal.ID || (ack.Status != "PENDING_APPROVALS" && ack.Status != "REJECTED" && ack.Status != "ERROR") {
 		return ProposedReview{}, domain.ErrCorrupt
 	}
 	return ProposedReview{domain.CopyProposal(proposal), ack.ReviewID, ack.Status}, nil

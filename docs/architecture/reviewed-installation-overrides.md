@@ -76,6 +76,8 @@ The application takes only target selectors, flag intent, rationale and review
 lifetime. `ResolveProposal` must authenticate/authorize the caller and obtain
 current facts; `CreateReview` must durably impose independent review. A returned
 auto-approved acknowledgment is rejected rather than treated as authorization.
+Pending and explicitly declined/error review outcomes may be returned; none is
+execution authority.
 
 `WithApproved` must authorize the current caller and hold the repository's
 serialization boundary from current review/target/grant reads through audit and
