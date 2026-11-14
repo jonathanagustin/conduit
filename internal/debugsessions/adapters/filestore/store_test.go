@@ -45,9 +45,11 @@ func TestDurableHistorySurvivesReopenAndConcurrentIndependentWriters(t *testing.
 	revoked, _ := e.Transition(domain.Revoked, "administrator", e.CreatedAt.Add(time.Minute))
 	var success, conflict atomic.Int32
 	var workers sync.WaitGroup
+	start := make(chan struct{})
 	for range 24 {
 		independent := open(t, directory)
 		workers.Go(func() {
+			<-start
 			err := independent.Append(t.Context(), 1, revoked)
 			switch {
 			case err == nil:
@@ -59,6 +61,7 @@ func TestDurableHistorySurvivesReopenAndConcurrentIndependentWriters(t *testing.
 			}
 		})
 	}
+	close(start)
 	workers.Wait()
 	if success.Load() != 1 || conflict.Load() != 23 {
 		t.Fatal(success.Load(), conflict.Load())
