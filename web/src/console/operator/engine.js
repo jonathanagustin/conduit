@@ -14,6 +14,7 @@ import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
 import { facetsMarkup } from "./env-facets.js";
+import { hubSetupMarkup } from "./empty-states.js";
 import { dayTexture, paintDisc } from "./globe-texture.js";
 import { reviewMarkup } from "./change-review.js";
 import { runsMarkup } from "./packaging-runs.js";
@@ -1823,6 +1824,7 @@ export function mountOperator(host, options) {
 
     root.innerHTML = `
         <div class="flex flex-col gap-3 h-full min-h-0">
+          ${hubSetupMarkup(state.hub)}
           <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
           <div class="so-compact-kpi-strip shrink-0">
             <button type="button" data-onclick="switchScreen('rm05-release-rollout')" class="so-card so-card-interactive p-2.5 text-left">
@@ -5977,6 +5979,7 @@ export function mountOperator(host, options) {
   window.closeMobileNav = closeMobileNav;
   window.toggleLeftRailCollapse = toggleLeftRailCollapse;
   window.toggleChatRail = toggleChatRail;
+  window.refreshHub = () => liveHub.refresh();
   window.toggleTheme = () => {
     const root = document.querySelector(".operator-root");
     if (!root) return;

@@ -1,4 +1,5 @@
 /* Hub-backed workbench rows. Empty when the Hub does not answer. */
+import { emptyState } from "./empty-states.js";
 import { channelTable } from "./channel-board.js";
 
 function esc(value) {
@@ -80,8 +81,8 @@ function panel(title, body) {
   </section>`;
 }
 
-function missing(message) {
-  return `<section class="kit-card kit-bar-warn kit-state" role="status" data-state="empty"><div class="kit-state-title">EMPTY</div><p>${esc(message)}</p></section>`;
+function missing(message, kind = "") {
+  return emptyState(kind, message, { esc });
 }
 
 function hub(state) {
@@ -378,7 +379,9 @@ export function createLiveHub({ state, render }) {
     try {
       const timeline = await readJSON("/v1/environments/dev/timeline");
       const entries = Array.isArray(timeline.timeline) ? timeline.timeline : [];
-      next.timeline = entries.length ? `${entries.length} entries` : "no entries";
+      next.timeline = entries.length
+        ? `${entries.length} entries`
+        : "no entries";
     } catch {
       next.timeline = "";
     }
@@ -571,6 +574,7 @@ export function createLiveHub({ state, render }) {
       if (!runs.length) {
         root.innerHTML = missing(
           hub(state).packagingNote || "No packaging run is recorded.",
+          "packaging",
         );
         return;
       }
@@ -598,6 +602,7 @@ export function createLiveHub({ state, render }) {
       if (!preview) {
         root.innerHTML = missing(
           hub(state).bundleNote || "No signed bundle is recorded.",
+          "bundle",
         );
         return;
       }
@@ -659,6 +664,7 @@ export function createLiveHub({ state, render }) {
       if (!rows.length) {
         root.innerHTML = missing(
           hub(state).changeNote || "No change request is recorded.",
+          "changes",
         );
         return;
       }
@@ -691,6 +697,7 @@ export function createLiveHub({ state, render }) {
         root.innerHTML = missing(
           hub(state).promotionNote ||
             "No promotion from dev to staging is recorded.",
+          "promotion",
         );
         return;
       }
@@ -740,6 +747,7 @@ export function createLiveHub({ state, render }) {
       if (!table) {
         root.innerHTML = missing(
           hub(state).channelNote || "No channel subscription is recorded.",
+          "channels",
         );
         return;
       }
@@ -754,6 +762,7 @@ export function createLiveHub({ state, render }) {
       if (!rows.length && !installations.length) {
         root.innerHTML = missing(
           hub(state).note || "No environment is recorded.",
+          "environments",
         );
         return;
       }
@@ -822,7 +831,10 @@ export function createLiveHub({ state, render }) {
              "Spokes",
              `<table class="so-table"><thead><tr><th>Environment</th><th>Spoke</th><th>Liveness</th><th>Latest report</th></tr></thead><tbody>${body}</tbody></table>`,
            )}`
-        : missing(hub(state).note || "No environment is recorded.");
+        : missing(
+            hub(state).note || "No environment is recorded.",
+            "environments",
+          );
       const installTable = installations.length
         ? panel(
             "Reported installations",
@@ -854,6 +866,7 @@ export function createLiveHub({ state, render }) {
       if (!pairs.length) {
         root.innerHTML = missing(
           hub(state).planNote || "No recall is recorded.",
+          "recall",
         );
         return;
       }
@@ -889,6 +902,7 @@ export function createLiveHub({ state, render }) {
       if (!entries.length) {
         root.innerHTML = missing(
           hub(state).auditNote || "No audit entries are recorded.",
+          "audit",
         );
         return;
       }
