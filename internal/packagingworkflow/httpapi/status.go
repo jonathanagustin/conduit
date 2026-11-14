@@ -43,12 +43,14 @@ type Authorize func(*http.Request) error
 // index and the history. Permit is the governance decision for cancel and
 // rerun. The single-run route stays any authenticated operator.
 type Config struct {
-	Reader    Reader
-	Authorize Authorize
-	Visible   Visible
-	Permit    Permit
-	Controls  Controls
-	Decisions DecisionLog
+	Reader       Reader
+	Authorize    Authorize
+	Visible      Visible
+	Permit       Permit
+	Controls     Controls
+	Decisions    DecisionLog
+	Feedback     FeedbackStore
+	OperatorName func(*http.Request) string
 }
 
 // Register mounts the packaging-run routes. Cancel and rerun do not approve
@@ -71,6 +73,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 	})
 	mountCollections(mux, cfg)
 	mountControls(mux, cfg)
+	mountFeedback(mux, cfg)
 }
 
 // authorize applies the route's caller check. A nil authorizer refuses
