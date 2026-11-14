@@ -79,23 +79,35 @@ tasks:
       set -eu
       version="1.75.0"
       case "$(uname -s)/$(uname -m)" in
-        Linux/x86_64) asset="buf-Linux-x86_64" ;;
-        Linux/aarch64) asset="buf-Linux-aarch64" ;;
-        Darwin/arm64) asset="buf-Darwin-arm64" ;;
-        Darwin/x86_64) asset="buf-Darwin-x86_64" ;;
+        Linux/x86_64) asset="buf-Linux-x86_64"; buf_sha="fad1e38d6909bbb583a4da81d8c02a01046e2cd663bde7e337dd24277393764b" ;;
+        Linux/aarch64) asset="buf-Linux-aarch64"; buf_sha="00eb190aa82df17f393e05b04889cc60a0b13b3259d336e21a87d5f23ab4fd26" ;;
+        Darwin/arm64) asset="buf-Darwin-arm64"; buf_sha="f71b009ebd8530b12fd85b060c6c245e15d6e5110ccc8da48d8b6fa71e59330b" ;;
+        Darwin/x86_64) asset="buf-Darwin-x86_64"; buf_sha="ff6d0979143c661d59178a032c57be883b2ac03dc9bf7d00ffca222b0354bd46" ;;
         *) echo "unsupported buf platform: $(uname -s)/$(uname -m)" >&2; exit 1 ;;
       esac
       bindir="${PWD}/.cache/buf/${version}"
       mkdir -p "${bindir}"
-      if [ ! -x "${bindir}/buf" ]; then
+      verify_buf() {
+        python3 -c 'import hashlib, pathlib, sys; sys.exit(hashlib.sha256(pathlib.Path(sys.argv[1]).read_bytes()).hexdigest() != sys.argv[2])' "$1" "${buf_sha}"
+      }
+      if [ ! -x "${bindir}/buf" ] || ! verify_buf "${bindir}/buf"; then
+        temporary="$(mktemp "${bindir}/buf.XXXXXXXX")"
+        trap 'rm -f "$temporary"' EXIT
         curl --fail --silent --show-error --location \
           "https://github.com/bufbuild/buf/releases/download/v${version}/${asset}" \
-          --output "${bindir}/buf"
-        chmod 0755 "${bindir}/buf"
+          --output "${temporary}"
+        verify_buf "${temporary}"
+        chmod 0755 "${temporary}"
+        mv "${temporary}" "${bindir}/buf"
       fi
-      export PATH="$(go env GOPATH)/bin:${bindir}:${PWD}/web/node_modules/.bin:${PATH}"
+      go_tool_bin="$(go env GOBIN)"
+      if [ -z "${go_tool_bin}" ]; then
+        go_tool_path="$(go env GOPATH)"
+        go_tool_bin="${go_tool_path%%:*}/bin"
+      fi
+      export PATH="${go_tool_bin}:${bindir}:${PWD}/web/node_modules/.bin:${PATH}"
       go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
-      go install connectrpc.com/connect/cmd/protoc-gen-connect-go@v1.21.1
+      go install connectrpc.com/connect/v2/cmd/protoc-gen-connect-go@v2.0.2
       buf generate
       python3 scripts/normalize-connect-stubs.py
       gofmt -w gen/go

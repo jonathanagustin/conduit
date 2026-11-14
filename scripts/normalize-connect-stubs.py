@@ -60,15 +60,17 @@ def detach_foreign_package_comment(text: str) -> str:
         name = stripped.removeprefix("package ").split()[0]
         if index == 0:
             return text
-        previous = lines[index - 1].strip()
-        if previous == f"// Package {name}":
+        start = index
+        while start > 0 and lines[start - 1].strip().startswith("//"):
+            start -= 1
+        comments = [line.strip() for line in lines[start:index]]
+        if any(comment == f"// Package {name}" or comment.startswith(f"// Package {name} ") for comment in comments):
             return text
-        if previous.startswith("//") or previous == "":
-            # A comment sitting on the clause is the package comment. Split it
-            # off when it names something else.
-            if previous.startswith("//") and not previous.startswith(f"// Package {name}"):
-                lines.insert(index, "\n")
-                return "".join(lines)
+        # Inspect the complete block: an authored package comment may have a
+        # lint directive after its first line. Only detach foreign comments.
+        if comments:
+            lines.insert(index, "\n")
+            return "".join(lines)
         return text
     return text
 

@@ -32,10 +32,7 @@ require (
 	go.temporal.io/sdk v1.51.0
 )
 
-require (
-	connectrpc.com/connect v1.21.1
-	gopkg.in/yaml.v3 v3.0.1
-)
+require gopkg.in/yaml.v3 v3.0.1
 
 require (
 	github.com/Microsoft/go-winio v0.6.2 // indirect
@@ -81,6 +78,8 @@ require (
 require (
 	cel.dev/cel-go v0.32.0
 	cel.dev/expr v0.25.2 // indirect
+	connectrpc.com/connect v1.21.1
+	connectrpc.com/connect/v2 v2.0.2
 	github.com/antlr4-go/antlr/v4 v4.13.1 // indirect
 	golang.org/x/exp v0.0.0-20240823005443-9b4947da3948 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20260526163538-3dc84a4a5aaa // indirect
