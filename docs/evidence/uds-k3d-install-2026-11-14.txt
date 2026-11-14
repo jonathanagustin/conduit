@@ -1,0 +1,47 @@
+UDS k3d install of platform-runtime, continued after Zarf was already up.
+Date: 2026-11-14. Not an air-gap result. No private keys are in this log.
+
+Cluster: k3d cluster `uds`, created by
+  uds deploy oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1
+  --confirm
+  --set K3D_EXTRA_ARGS=--k3s-arg --flannel-backend=host-gw@server:0
+The default vxlan backend is not supported on this kernel
+("failed to create vxlan device: operation not supported"), so host-gw
+was required. The slim-dev bundle did not finish. It stopped at
+  unable to deploy component "istio-admin-gateway": context deadline exceeded
+Keycloak was not installed. The namespace `keycloak` exists and has no pods.
+Pepr, the Package CRD, and the ServiceMonitor CRD were installed.
+Istio CNI crashed until AMBIENT_ENABLED was set false in istio-cni-config
+("error initializing host addressSet manager: invalid argument").
+The nginx DaemonSet needed its hostPorts cleared because iptables multiport
+is missing ("Extension multiport revision 0 not supported").
+
+The Zarf agent on this cluster was then set to
+ZARF_AGENT_MUTATION_POLICY=labeled.
+
+Secrets platform-hub-tls, platform-agent-tls, and platform-bundle-signing
+were created in platform-system. Bytes are not recorded here.
+
+zarf package deploy zarf-package-platform-runtime-amd64-0.17.5.tar.zst \
+  --confirm --components runtime,uds \
+  --set-variables ENVIRONMENT_ID=example \
+  --set-variables AGENT_ID=spoke-example
+
+Result, observed after that deploy:
+  platform-delivery      1/1 Running
+  platform-spoke-agent   1/1 Running
+Pod images rewritten by the labeled agent to 127.0.0.1:31999.
+Port-forward to the Hub Service:
+  /health/ready  {"status":"ok"}
+  /console/      HTTP 200
+Package platform-runtime phase=Failed.
+Event: Identity & Authorization is not deployed, but the package has SSO configuration.
+NetworkPolicies present, including:
+  allow-platform-runtime-ingress-8081-platform-delivery-istio-tenant-gateway
+  allow-platform-runtime-egress-hub-to-postgres
+  allow-platform-runtime-egress-spoke-to-hub
+  allow-platform-runtime-egress-spoke-to-the-kubernetes-api
+  allow-platform-runtime-ingress-9090-platform-delivery-metrics
+No VirtualService, no ServiceMonitor in platform-system, and no Secret
+conduit-hub-sso. The SSO client was not created because Keycloak is absent.
+The packaging-worker component was not selected.

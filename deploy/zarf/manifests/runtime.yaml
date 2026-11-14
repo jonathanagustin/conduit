@@ -67,6 +67,10 @@ spec:
             - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
           ports:
             - { name: https, containerPort: 8081 }
+            # Named so a UDS ServiceMonitor has a port to select. The process
+            # does not listen here unless METRICS_ADDRESS is set and the
+            # repository is postgres. This baseline sets neither.
+            - { name: metrics, containerPort: 9090 }
           startupProbe:
             httpGet: { path: /health/live, port: https, scheme: HTTPS }
             periodSeconds: 5
@@ -102,11 +106,14 @@ kind: Service
 metadata:
   name: platform-delivery
   namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-delivery
 spec:
   selector:
     app.kubernetes.io/name: platform-delivery
   ports:
     - { name: https, port: 8081, targetPort: https }
+    - { name: metrics, port: 9090, targetPort: metrics }
 ---
 apiVersion: apps/v1
 kind: Deployment

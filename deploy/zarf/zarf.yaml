@@ -48,6 +48,18 @@ variables:
   - name: PACKAGING_POSTGRES_SECRET
     description: Existing Secret whose dsn key is the Hub Postgres DSN. Used only by the optional packaging-worker component.
     default: platform-postgres
+  - name: CONSOLE_PUBLIC_URL
+    description: Browser origin of the Hub console. Used only by the optional uds component as the SSO redirect prefix.
+    default: https://conduit.uds.dev
+    pattern: "^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?$"
+  - name: POSTGRES_NAMESPACE
+    description: Namespace of the operator-supplied Postgres. Used only by the optional uds component.
+    default: postgres
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: POSTGRES_NAME_LABEL
+    description: app.kubernetes.io/name value on the operator-supplied Postgres pods. Used only by the optional uds component.
+    default: postgres
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
 
 components:
   - name: runtime
@@ -85,3 +97,12 @@ components:
         kind: Deployment
         namespace: platform-system
         name: platform-packaging-worker
+  - name: uds
+    required: false
+    default: false
+    description: UDS Package custom resource. Deploy only on a cluster that already has UDS Core. A plain Zarf install does not select this component.
+    manifests:
+      - name: uds-package
+        namespace: platform-system
+        files:
+          - manifests/uds-package.yaml

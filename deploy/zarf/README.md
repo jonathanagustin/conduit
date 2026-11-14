@@ -28,6 +28,13 @@ Environment-owned Git service already exists. The internal registry can also
 be replaced by Zarf's supported external-registry flags. These are Zarf-owned
 bootstrap services, not resources duplicated by the Conduit runtime package.
 
+The optional `uds` component applies a UDS Package custom resource for the
+Hub: a Keycloak client, network allows, and a metrics ServiceMonitor. It is
+not selected by `zarf package deploy --confirm`. Select it with
+`--components uds` only on a cluster that already has UDS Core. A plain Zarf
+install leaves the component out. The commands and the limits of that check
+are in [the UDS package note](../../docs/operations/uds-package.md).
+
 Create three Environment-owned Secrets in `platform-system`:
 
 | Secret | Required keys | Ownership |

@@ -1,0 +1,79 @@
+Plain Zarf install of platform-runtime on a new k3d cluster.
+Date: 2026-11-14. Not an air-gap result. The init package and the
+container images were pulled over the network. No private keys are in
+this log.
+
+Tools: Zarf CLI v0.82.0, k3d v5.9.0 (k3s v1.35.5+k3s1), kubectl v1.37.2.
+Kernel 6.12.113+, cgroup v2.
+
+The default k3d cluster exited. k3s logged:
+  Shutdown request received: flannel exited: failed to register flannel
+  network: failed to create vxlan device: operation not supported
+Recreated with:
+  k3d cluster create conduit-zarf --wait \
+    --k3s-arg "--flannel-backend=host-gw@server:0"
+
+The k3d load balancer timed out connecting to 172.18.0.2:6443.
+kubectl worked after the kubeconfig server was set to
+https://172.18.0.2:6443. Inside the node, kubectl get nodes showed
+Ready before that change.
+
+The node could not pull images (dial tcp registry-1.docker.io:443
+i/o timeout). These were pulled on the host and imported with
+crane into `ctr -n k8s.io`:
+  rancher/mirrored-pause:3.6
+  rancher/mirrored-coredns-coredns:1.14.3
+  rancher/local-path-provisioner:v0.0.36
+  rancher/mirrored-metrics-server:v0.8.1
+  rancher/klipper-helm:v0.10.0-build20260513
+  rancher/mirrored-library-busybox:1.37.0
+A busybox runc wrapper that clamps a negative oomScoreAdj to 0 was
+installed at /bin/runc in the node. After that, CoreDNS, the local-path
+provisioner, and metrics-server reached Running. Traefik stayed in
+ImagePullBackOff and was not needed.
+
+zarf init oci://ghcr.io/zarf-dev/packages/init:v0.82.0 \
+  --confirm --agent-mutation-policy=labeled
+The first attempt failed after 15 minutes:
+  unable to deploy component zarf-seed-registry: context deadline exceeded
+The registry PVC helper could not pull busybox. After that image was
+imported, the namespace was deleted and init was run again. It finished
+with "init complete". The agent-hook deployment has
+ZARF_AGENT_MUTATION_POLICY=labeled.
+
+The package was built with --skip-sbom and --plain-http from a local
+registry. It is not a signed release package. Image digests:
+  localhost:5000/conduit-hub@sha256:adc0d2132bb2f1b3f3abd20791e9b008f2bcd7c939c270c23e0f03cda6190228
+  localhost:5000/conduit-spoke-agent@sha256:2237ec3404f5fd1ce1ed982affe0ddf8ea8db60c82a4dd1776bc535a8be02910
+Those images are scratch images of the Hub and Spoke binaries built on
+this machine from this commit. They set the same listen address, data
+directory, UID, and entrypoint as Containerfile. They do not include
+the extra tools Containerfile copies (cosign, module publisher, scanner,
+operator, helm, kubectl). Containerfile itself built after it was taught
+to copy gen/, producing conduit-hub:0.17.5. That image was not the one
+deployed.
+
+zarf package deploy zarf-package-platform-runtime-amd64-0.17.5.tar.zst \
+  --confirm \
+  --set-variables ENVIRONMENT_ID=example \
+  --set-variables AGENT_ID=spoke-example
+The uds component was not selected. Result:
+  deployment "platform-delivery" successfully rolled out
+  deployment "platform-spoke-agent" successfully rolled out
+  platform-delivery-9bb667977-z7hmj      1/1 Running
+  platform-spoke-agent-6cc55444f-sxb5f   1/1 Running
+The running images were rewritten to the Zarf registry:
+  127.0.0.1:31999/conduit-hub@sha256:adc0d2132bb2f1b3f3abd20791e9b008f2bcd7c939c270c23e0f03cda6190228
+  127.0.0.1:31999/conduit-spoke-agent@sha256:2237ec3404f5fd1ce1ed982affe0ddf8ea8db60c82a4dd1776bc535a8be02910
+kubectl get package -n platform-system:
+  error: the server doesn't have a resource type "package"
+
+Port-forward to the Hub Service:
+  /health/ready  {"status":"ok"}
+  /health/live   {"status":"ok"}
+  /console/      HTTP 200
+Hub log: listening address=:8081 secureAgentIdentity=true version=0.17.5
+Spoke log: the process started. Its first calls to the Hub Service
+were "connection refused", then "context deadline exceeded" on
+/v1/environments/example/leases and /health-targets. The Deployment
+stayed Available. Those calls are not a completed lease.
