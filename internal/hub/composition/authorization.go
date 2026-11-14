@@ -164,6 +164,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; object types carry no environment row"},
 		{Pattern: "GET /api/v2/ontologies/{ontology}/objectTypes/{objectType}",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; one object type carries no environment row"},
+		{Pattern: "GET /api/v2/ontologies/{ontology}/objectTypes/{objectType}/fullMetadata",
+			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; one object type and its links carry no environment row"},
 		{Pattern: "GET /console",
 			Decision: DecisionPublic, Detail: "a redirect to /console/; it reads nothing"},
 		{Pattern: "GET /console/",

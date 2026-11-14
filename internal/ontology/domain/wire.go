@@ -15,7 +15,9 @@ type DataType struct {
 
 // PropertyV2 is one property on an object type.
 type PropertyV2 struct {
+	RID         string   `json:"rid"`
 	DisplayName string   `json:"displayName"`
+	Description string   `json:"description,omitempty"`
 	DataType    DataType `json:"dataType"`
 }
 
@@ -31,15 +33,15 @@ type ObjectTypeV2 struct {
 	APIName           string                `json:"apiName"`
 	DisplayName       string                `json:"displayName"`
 	Status            string                `json:"status"`
-	Description       string                `json:"description"`
 	PluralDisplayName string                `json:"pluralDisplayName"`
 	Icon              IconV2                `json:"icon"`
 	PrimaryKey        string                `json:"primaryKey"`
 	Properties        map[string]PropertyV2 `json:"properties"`
 	RID               string                `json:"rid"`
 	TitleProperty     string                `json:"titleProperty"`
-	Aliases           []string              `json:"aliases"`
-	Datasources       []any                 `json:"datasources"`
+	Description       string                `json:"description,omitempty"`
+	Aliases           []string              `json:"aliases,omitempty"`
+	Datasources       []any                 `json:"datasources,omitempty"`
 }
 
 // LinkSideV2 is one end of a link. The other end shares linkTypeRid.
@@ -54,9 +56,11 @@ type LinkSideV2 struct {
 
 // ObjectTypeFull is an object type plus the link sides that start on it.
 type ObjectTypeFull struct {
-	ObjectType           ObjectTypeV2 `json:"objectType"`
-	LinkTypes            []LinkSideV2 `json:"linkTypes"`
-	ImplementsInterfaces []string     `json:"implementsInterfaces"`
+	ObjectType                ObjectTypeV2   `json:"objectType"`
+	LinkTypes                 []LinkSideV2   `json:"linkTypes"`
+	ImplementsInterfaces      []string       `json:"implementsInterfaces"`
+	ImplementsInterfaces2     map[string]any `json:"implementsInterfaces2"`
+	SharedPropertyTypeMapping map[string]any `json:"sharedPropertyTypeMapping"`
 }
 
 // ActionParameterV2 is one action parameter.
@@ -123,20 +127,16 @@ func Metadata() FullMetadata {
 	for _, spec := range Types() {
 		properties := map[string]PropertyV2{}
 		for _, prop := range spec.Properties {
-			properties[prop.APIName] = PropertyV2{DisplayName: prop.DisplayName, DataType: DataType{Type: "string"}}
+			kind := prop.Kind
+			if kind == "" {
+				kind = "string"
+			}
+			properties[prop.APIName] = PropertyV2{
+				RID:         "ri.conduit.main.object-type." + spec.APIName + ".property." + prop.APIName,
+				DisplayName: prop.DisplayName, DataType: DataType{Type: kind},
+			}
 		}
-		objects[spec.APIName] = ObjectTypeFull{
-			ObjectType: ObjectTypeV2{
-				APIName: spec.APIName, DisplayName: spec.DisplayName, Status: "ACTIVE",
-				Description: spec.Description, PluralDisplayName: spec.Plural,
-				Icon:       IconV2{Type: "blueprint", Color: spec.Color, Name: spec.Icon},
-				PrimaryKey: spec.PrimaryKey, Properties: properties,
-				RID: "ri.conduit.main.object-type." + spec.APIName, TitleProperty: spec.TitleProperty,
-				Aliases: []string{}, Datasources: []any{},
-			},
-			LinkTypes:            linkSides(spec.APIName),
-			ImplementsInterfaces: []string{},
-		}
+		objects[spec.APIName] = objectTypeFull(spec, properties)
 	}
 	return FullMetadata{
 		Ontology:            OntologyDocument(),
@@ -147,6 +147,28 @@ func Metadata() FullMetadata {
 		SharedPropertyTypes: map[string]any{},
 		ValueTypes:          map[string]any{},
 	}
+}
+
+func objectTypeFull(spec TypeSpec, properties map[string]PropertyV2) ObjectTypeFull {
+	return ObjectTypeFull{
+		ObjectType: ObjectTypeV2{
+			APIName: spec.APIName, DisplayName: spec.DisplayName, Status: "ACTIVE",
+			Description: spec.Description, PluralDisplayName: spec.Plural,
+			Icon:       IconV2{Type: "blueprint", Color: spec.Color, Name: spec.Icon},
+			PrimaryKey: spec.PrimaryKey, Properties: properties,
+			RID: "ri.conduit.main.object-type." + spec.APIName, TitleProperty: spec.TitleProperty,
+		},
+		LinkTypes:                 linkSides(spec.APIName),
+		ImplementsInterfaces:      []string{},
+		ImplementsInterfaces2:     map[string]any{},
+		SharedPropertyTypeMapping: map[string]any{},
+	}
+}
+
+// ObjectTypeFullByName returns one object type with its links.
+func ObjectTypeFullByName(apiName string) (ObjectTypeFull, bool) {
+	full, ok := Metadata().ObjectTypes[apiName]
+	return full, ok
 }
 
 // ObjectTypeByName returns one object type.

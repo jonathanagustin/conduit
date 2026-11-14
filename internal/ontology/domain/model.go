@@ -1,12 +1,57 @@
 package domain
 
-import "errors"
+import (
+	"errors"
+	"strconv"
+)
 
 // Object is one projected record. Properties use the names in the type spec.
+// Values stay strings here; the wire encoding uses PropertyKind so a boolean
+// is not sent as text.
 type Object struct {
 	Type       string
 	PrimaryKey string
 	Properties map[string]string
+}
+
+// RID is the stable identifier of this record.
+func (object Object) RID() string {
+	return "ri.conduit.main.object." + object.Type + "." + object.PrimaryKey
+}
+
+// Title is the title property when it is set, otherwise the primary key.
+func (object Object) Title() string {
+	spec, ok := typeSpec(object.Type)
+	if !ok {
+		return object.PrimaryKey
+	}
+	if value := object.Properties[spec.TitleProperty]; value != "" {
+		return value
+	}
+	return object.PrimaryKey
+}
+
+// WireValue encodes one stored property in its published data type.
+func WireValue(apiName, property, raw string) any {
+	switch PropertyKind(apiName, property) {
+	case "boolean":
+		value, _ := strconv.ParseBool(raw)
+		return value
+	case "integer":
+		value, err := strconv.ParseInt(raw, 10, 64)
+		if err != nil {
+			return raw
+		}
+		return value
+	case "double":
+		value, err := strconv.ParseFloat(raw, 64)
+		if err != nil {
+			return raw
+		}
+		return value
+	default:
+		return raw
+	}
 }
 
 // Link is one directed edge. APIName is the link name on the source type.
