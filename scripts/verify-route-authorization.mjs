@@ -62,6 +62,7 @@ const FLOOR = 100;
 // fixture, and demanding a register entry for it would make this gate a
 // nuisance in exactly the place people plant deliberate violations.
 const SOURCES = [
+ {path:"internal/delivery/maintenance/httpapi",surface:"temporary maintenance admission"},
  {path:"internal/installoverride/adapters/httpapi",surface:"Module override metadata"},
   { path: "internal/controlplane", surface: "controlplane REST" },
   { path: "internal/apollo/openapi.gen.go", surface: "Apollo /api/v0" },

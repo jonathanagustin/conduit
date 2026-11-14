@@ -382,4 +382,5 @@ https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_atta
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_create/	2026-11-13	6cd367e8d958c02d9b0227757264455596d6733994ab36a3cb3b4b8a11ac69a3	cli-additions.md	semantics-reviewed-scoped-product-issue
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session_list/	2026-11-13	42be337f9941be30948abbcc02a29b5cbec2d28ae2a4a1cb22108caa8fd9c5df	cli-additions.md	semantics-reviewed-scoped-product-issue
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_terminal_session/	2026-11-13	0af9386097d4732a83f46c18adeb1e59ec94b9bdefeb694550f89bf5d00bd477	cli-additions.md	semantics-reviewed-scoped-product-issue
-
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride_create/	2026-11-14	68dd90ba43e602faaecc5eae4d4d1d921d23f1b30d9f264068ed6ce000ccb661	temporary-maintenance.md	implemented-tested-native-admission-explicit-protocol
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride/	2026-11-14	9b14ec637879f80dd7bcc0fc5105861c2ad6b1c11c8d3ef9d150bc935da6f54b	temporary-maintenance.md	implemented-tested-native-admission-explicit-protocol

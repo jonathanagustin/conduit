@@ -80,6 +80,9 @@ type HelmExecutor struct {
 func (executor HelmExecutor) Apply(
 	ctx context.Context, _ controlplane.Plan, step controlplane.PlanStep,
 ) (Receipt, error) {
+	if err := executor.checkMaintenance(ctx, step); err != nil {
+		return Receipt{}, err
+	}
 	if step.Action == "uninstall" {
 		previousRevision, err := executor.currentRevision(ctx, step)
 		if err != nil {
@@ -92,6 +95,9 @@ func (executor HelmExecutor) Apply(
 		if timeout == 0 {
 			timeout = 5 * time.Minute
 		}
+		if err := executor.checkMaintenance(ctx, step); err != nil {
+			return Receipt{}, err
+		}
 		_, err = executor.runner().Run(ctx, "helm", "uninstall", step.HelmRelease(), "--namespace", step.Namespace,
 			"--keep-history", "--wait", "--timeout", timeout.String())
 		if err != nil {
@@ -101,6 +107,9 @@ func (executor HelmExecutor) Apply(
 	}
 	if step.Action == "restart" {
 		target := strings.ToLower(step.ResourceKind) + "/" + step.ResourceName
+		if err := executor.checkMaintenance(ctx, step); err != nil {
+			return Receipt{}, err
+		}
 		if output, err := executor.runner().Run(ctx, "kubectl", "rollout", "restart", target, "--namespace", step.Namespace); err != nil {
 			return Receipt{}, DiagnosticError{Err: fmt.Errorf("restart Kubernetes resource: %w", err), Output: string(output), Resources: []controlplane.ResourceDiagnostic{{
 				Kind: step.ResourceKind, Namespace: step.Namespace, Name: step.ResourceName, Reason: "RestartFailed",
@@ -124,6 +133,9 @@ func (executor HelmExecutor) Apply(
 		}
 		if executor.Registry == nil {
 			return Receipt{}, fmt.Errorf("registry assignment %s requires an external credential preparer", access.AssignmentID)
+		}
+		if err := executor.checkMaintenance(ctx, step); err != nil {
+			return Receipt{}, err
 		}
 		if err := executor.Registry.Prepare(ctx, access, step.Namespace); err != nil {
 			return Receipt{}, fmt.Errorf("prepare registry assignment %s revision %d: %w", access.AssignmentID, access.Revision, err)
@@ -199,6 +211,9 @@ func (executor HelmExecutor) Apply(
 		if prePullTimeout == 0 {
 			prePullTimeout = 15 * time.Minute
 		}
+		if err := executor.checkMaintenance(ctx, step); err != nil {
+			return Receipt{}, err
+		}
 		prePullCtx, cancel := context.WithTimeout(ctx, prePullTimeout)
 		err = executor.Images.PrepareImages(prePullCtx, step.Images, step.RegistryAccess, step.Namespace)
 		cancel()
@@ -233,6 +248,9 @@ func (executor HelmExecutor) Apply(
 		// Keep the established Helm 3 client-side update semantics. A future
 		// server-side migration needs its own explicit compatibility gate.
 		arguments = append(arguments, "--server-side=false")
+	}
+	if err := executor.checkMaintenance(ctx, step); err != nil {
+		return Receipt{}, err
 	}
 	applyOutput, err := runner.Run(ctx, "helm", arguments...)
 	if err != nil {

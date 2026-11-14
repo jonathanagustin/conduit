@@ -80,3 +80,14 @@ func maintenanceConstraintFor(
 		Product: product, Overrides: overrides,
 	}
 }
+
+// PlanStepWithinMaintenanceWindow rechecks the immutable lease's schedule at
+// the last safe point before an Agent performs a forward mutation.
+func PlanStepWithinMaintenanceWindow(step PlanStep, at time.Time) bool {
+	return maintenanceConstraintAllows(step.InstallationID, step.Maintenance, at)
+}
+
+// PlanWithinMaintenanceWindow guards shared material preparation before steps.
+func PlanWithinMaintenanceWindow(plan Plan, at time.Time) bool {
+	return planWithinMaintenanceWindow(plan, at)
+}

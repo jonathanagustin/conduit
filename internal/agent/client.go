@@ -80,7 +80,7 @@ func (client *HTTPControlPlane) Lease(
 ) (controlplane.PlanRecord, error) {
 	var record controlplane.PlanRecord
 	status, err := client.request(ctx, http.MethodPost,
-		"/v1/environments/"+url.PathEscape(environment)+"/leases",
+		"/v1/environments/"+url.PathEscape(environment)+"/maintenance-admission/leases",
 		map[string]int{"durationSeconds": int(duration.Seconds())},
 		agentHeaders(environment, agentID), &record)
 	if err != nil {
@@ -93,7 +93,7 @@ func (client *HTTPControlPlane) Lease(
 }
 
 func (client *HTTPControlPlane) Start(ctx context.Context, environment, agentID, planID, token string) error {
-	_, err := client.request(ctx, http.MethodPost, "/v1/plans/"+url.PathEscape(planID)+"/start", nil,
+	_, err := client.request(ctx, http.MethodPost, "/v1/plans/"+url.PathEscape(planID)+"/maintenance-admission/start", nil,
 		leaseHeaders(environment, agentID, token), nil)
 	return err
 }

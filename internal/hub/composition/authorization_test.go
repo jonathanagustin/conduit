@@ -79,6 +79,9 @@ const (
 // would also accept it after the authorization was removed, so the GraphQL row
 // is driven with a document that parses.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/temporary-maintenance-overrides" {
+		return `{"entities":[{"environment":"tenant-a-use2","entity":"probe"}],"duration":"1h","reason":"CAB-364"}`
+	}
 	if pattern == "POST /v1/module-override-proposals" {
 		return `{"draft":{"action":"INSTALL","environment":"tenant-a-use2","module":"probe","version":"1.2.3","flags":{"ignoreSecretRequirements":true},"rationale":"probe"}}`
 	}

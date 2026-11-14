@@ -53,6 +53,7 @@ func selectAggregateVersion(orderable []string, lowest bool) string {
 }
 
 func addEntityParityCommands(command *cobra.Command, state *commandState) {
+	command.AddCommand(entityMaintenanceOverrideCommand(state))
 	command.AddCommand(entityEnforceCommand(state))
 	command.AddCommand(entityAggregateCommand(state))
 }

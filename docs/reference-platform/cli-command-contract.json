@@ -1,8 +1,8 @@
 {
   "schemaVersion": 1,
   "captured": "2026-11-14",
-  "sourceManifest": "docs/reference-platform/snapshots/cli-command-sources-2026-11-14-365.tsv",
-  "sourceCount": 114,
+  "sourceManifest": "docs/reference-platform/snapshots/cli-command-sources-2026-11-14-364.tsv",
+  "sourceCount": 116,
   "commands": [
     {
       "command": "apollo-cli artifact-registry list",
@@ -3401,6 +3401,69 @@
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_release-channel_remove/",
       "sourceSha256": "972d3e7f2249ffe6c7497935d7456bf3499835439a5e84af2575c828324a6625"
+    },
+    {
+      "command": "apollo-cli entity maintenancewindowoverride [Experimental]",
+      "synopsis": "",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "-h",
+        "--help",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride/",
+      "sourceSha256": "9b14ec637879f80dd7bcc0fc5105861c2ad6b1c11c8d3ef9d150bc935da6f54b"
+    },
+    {
+      "command": "apollo-cli entity maintenancewindowoverride create [Experimental]",
+      "synopsis": "apollo-cli entity maintenancewindowoverride create <aeid> [<aeid>...] [flags]",
+      "experimental": true,
+      "deprecated": false,
+      "flags": [
+        "--compliance-ticket",
+        "--downtime",
+        "--dry-run",
+        "--duration",
+        "-h",
+        "--help",
+        "--reason",
+        "--apollo-client-id",
+        "--apollo-client-secret",
+        "--apollo-token",
+        "--apollo-token-provider",
+        "--apollo-url",
+        "--debug",
+        "-e",
+        "--environment",
+        "--http-timeout",
+        "-k",
+        "--insecure-skip-verify",
+        "-o",
+        "--output",
+        "--profile",
+        "--quiet",
+        "--space-id",
+        "--sso-callback-port"
+      ],
+      "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_entity_maintenancewindowoverride_create/",
+      "sourceSha256": "68dd90ba43e602faaecc5eae4d4d1d921d23f1b30d9f264068ed6ce000ccb661"
     }
   ]
 }

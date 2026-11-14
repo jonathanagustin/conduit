@@ -293,6 +293,27 @@
       "why": "Public install flags and scoped release notes do not specify an approval transport or installed-Module update path. Existing module update publishes definitions.",
       "displacedBy": "A published or sanitized reviewed Module override CLI contract establishing request/apply stages, installed-Module update paths and intent-only secret output.",
       "riskIfWrong": "Native command paths and receipt fields may differ. Applying a request requires separate approval and current exact-scope admission; no workload execution is added."
+    },
+    {
+      "id": "maintenance.ReviewedEntityWindow",
+      "what": "Native per-Entity temporary maintenance proposal, sealed bounded window, normal policy evaluation and durable Change Request audit.",
+      "why": "The pinned Experimental CLI documents bounded Entity overrides and normal review, but no private proposal transport or persistence contract. Conduit retains common server submission time and one request per deduplicated Entity.",
+      "displacedBy": "A published or sanitized temporary Entity maintenance override transport, persisted approval binding and lease admission contract.",
+      "riskIfWrong": "Native fields and request identities may need replacement. Duration is positive and at most 3600 hours; approval never resets the interval. FileRepository visibility is serialized on one instance but is not multi-file crash atomic."
+    },
+    {
+      "id": "maintenance.EphemeralLeaseAdmission",
+      "what": "Separate maintenance-aware Agent lease/start routes project current approved temporary windows into a copy and preserve the original stored Plan schedule.",
+      "why": "Older Agents do not enforce maintenance immediately before mutation. Persisting a temporary override into a Plan would give them new authority without that check. Ordinary leases remain bound to the stored base schedule; new Agents use admission routes and recheck expiry before forward mutations.",
+      "displacedBy": "A published or sanitized temporary maintenance override Agent admission protocol with durable approval lookup and last-safe-point expiry.",
+      "riskIfWrong": "This is a native protocol upgrade: upgrade the Hub before the Agent. New Agents fail closed against Hubs without the admission routes. Existing imperative commands keep their explicit separate policy, and optimizer Plans keep their own admission boundary."
+    },
+    {
+      "id": "maintenance.CLIProjection",
+      "what": "Structured native batch/preview receipts and partial-failure output for the Experimental temporary Entity maintenance CLI.",
+      "why": "Public command semantics do not specify transport or output schema. The CLI translates the bounded AEID shape into native Environment/Entity coordinates, requires a reason and structured output before mutation, and prints created requests before reporting partial failure.",
+      "displacedBy": "A published or sanitized temporary Entity maintenance override submission and partial-result CLI output contract.",
+      "riskIfWrong": "Native JSON/YAML fields, the reason requirement and request identities may differ. Deduplication, common interval, downtime selection and stop-on-failure behavior are covered by real CLI/Hub tests."
     }
   ],
   "displaced": [

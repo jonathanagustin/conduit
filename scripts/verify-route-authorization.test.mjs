@@ -113,6 +113,7 @@ function build() {
   write("internal/notifications/adapters/httpapi/httpapi.go", notifications());
   write("internal/spaces/adapters/httpapi/httpapi.go", 'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("GET /v1/spaces", nil) }\n');
   write("internal/productassets/adapters/httpapi/httpapi.go", 'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("POST /v1/product-publications/download-assets", nil) }\n');
+  write("internal/delivery/maintenance/httpapi/httpapi.go",'package httpapi\nfunc register(mux *http.ServeMux) {}\n');
   write("internal/installoverride/adapters/httpapi/httpapi.go",'package httpapi\nfunc register(mux *http.ServeMux) {}\n');
   write("internal/changeactivity/adapters/httpapi/httpapi.go",'package httpapi\nfunc register(mux *http.ServeMux) { mux.HandleFunc("POST /v1/change-requests/{requestID}/comments", nil) }\n');
   write("internal/packagingworkflow/httpapi/httpapi.go", "package httpapi\n");

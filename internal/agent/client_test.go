@@ -83,7 +83,7 @@ func TestAgentRequestsCarryTheirIdentityAndLeaseToken(t *testing.T) {
 	if got := seen.Get("X-Platform-Agent-ID"); got != "agent-dev" {
 		t.Errorf("agent header = %q", got)
 	}
-	if !strings.Contains(path, "/v1/environments/dev-use2/leases") {
+	if !strings.Contains(path, "/v1/environments/dev-use2/maintenance-admission/leases") {
 		t.Errorf("lease path = %q", path)
 	}
 
@@ -425,4 +425,32 @@ func TestClientTranslatesAnEmptyLeaseIntoErrNoPlan(t *testing.T) {
 			t.Errorf("error %q omits the Hub's reason", err)
 		}
 	})
+}
+
+func TestMaintenanceAwareAgentDoesNotFallBackToLegacyAdmission(t *testing.T) {
+	calls := 0
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		if !strings.Contains(r.URL.Path, "/maintenance-admission/") {
+			t.Error("legacy fallback requested", r.URL.Path)
+		}
+		w.WriteHeader(http.StatusNotFound)
+	}))
+	defer server.Close()
+	client, err := NewHTTPControlPlane(server.URL, server.Client())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := client.Lease(t.Context(), "prod", "agent", time.Minute); err == nil {
+		t.Fatal("old Hub silently accepted")
+	}
+	if calls != 1 {
+		t.Fatal("unexpected admission retry", calls)
+	}
+	if err := client.Start(t.Context(), "prod", "agent", "pln_test", "token"); err == nil {
+		t.Fatal("legacy start fallback accepted")
+	}
+	if calls != 2 {
+		t.Fatal("unexpected start retry", calls)
+	}
 }

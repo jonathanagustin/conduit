@@ -10,7 +10,7 @@ into Conduit-owned concepts before it can affect delivery.
 | Context | Owns | Does not own |
 |---|---|---|
 | Apollo integration | Pinned Apollo vocabulary, generated route metadata, conformance evidence, and translation into narrow Conduit ports | Private Hub-to-Agent behavior, Conduit authorization policy, or persisted delivery state |
-| Delivery | Plans, rollout rules, maintenance decisions, desired-state compilation, and rollback intent | Cluster access or transport-specific request shapes |
+| Delivery | Plans, rollout rules, maintenance decisions, bounded reviewed Entity windows, ephemeral maintenance-aware lease admission, desired-state compilation, and rollback intent | Cluster access or transport-specific request shapes |
 | Product assets | Immutable publisher-declared download metadata and its binding to catalogue publication receipts | Downloading bytes, signature verification, Agent execution, or publication permission policy |
 | Spaces | Native Space identity and immutable resource grouping anchors | Authentication, resource grants, deployment authority, or private Apollo Space identity |
 | Installation override review | Native immutable override intent and exact review/admission binding; Module metadata admission through caller-bound Hub adapters | Entity Plan/Agent bypass, Module-to-Plan execution or cluster access |
