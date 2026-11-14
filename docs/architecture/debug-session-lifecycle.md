@@ -49,3 +49,11 @@ and object key ordering have no authority. Decoding one event still does not
 validate the history or authorize an operator. This boundary currently has no
 storage adapter, application service, authenticated Hub route or production
 composition.
+
+The process-local memory journal is a test reference only and is not a durable
+production component. It validates the complete current history and expected
+revision under one lock, appends the combined transition/audit event, returns
+independent copies and bounds sorted ID enumeration to 256 per call. A 40-writer
+race test requires exactly one committed transition and 39 revision conflicts;
+invalid scope changes, replays and pre-cancelled writes leave history unchanged.
+The file/PostgreSQL adapters, application service and Hub wiring are outstanding.
