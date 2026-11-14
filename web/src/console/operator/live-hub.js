@@ -294,6 +294,7 @@ export function createLiveHub({ state, render }) {
       const body = await readJSON("/v1/packaging-runs");
       next.packaging = Array.isArray(body.items) ? body.items : [];
       next.packagingEventsByRun = {};
+      next.feedbackByRun = {};
       for (const run of next.packaging) {
         if (!run.runId) continue;
         const events = await readJSON(
@@ -302,6 +303,16 @@ export function createLiveHub({ state, render }) {
         next.packagingEventsByRun[run.runId] = Array.isArray(events.items)
           ? events.items
           : [];
+        try {
+          const notes = await readJSON(
+            `/v1/packaging-runs/${encodeURIComponent(run.runId)}/feedback`,
+          );
+          next.feedbackByRun[run.runId] = Array.isArray(notes.items)
+            ? notes.items
+            : [];
+        } catch {
+          next.feedbackByRun[run.runId] = [];
+        }
       }
       const first = next.packaging.find((item) => item.runId);
       next.packagingEvents = first
@@ -353,6 +364,65 @@ export function createLiveHub({ state, render }) {
     render();
   }
 
+  function reviewNotes(runID) {
+    const notes = (hub(state).feedbackByRun || {})[runID] || [];
+    const rows = notes
+      .map(
+        (note) => `<li class="text-[12px] text-[#dce4ee]">
+          <span class="text-[#8b96a5]">${esc(note.target)} ${esc(note.selector)}</span>
+          — ${esc(note.note)}
+          <span class="text-[#6d7885]">(${esc(note.author || "operator")}, not an approval)</span>
+        </li>`,
+      )
+      .join("");
+    return panel(
+      "Review notes",
+      `<p class="text-[12px] text-[#8b96a5]">A note on a file, manifest field, or step is review input. It does not approve the run.</p>
+       <ul class="space-y-1 mb-2">${rows || `<li class="text-[12px] text-[#8b96a5]">No review note is recorded.</li>`}</ul>
+       <form data-run="${esc(runID)}" class="grid gap-2">
+         <label class="text-[12px] text-[#8b96a5]">Element
+           <select name="target" class="mt-1 w-full bg-[#0d1317] border border-[#1e252b] text-white text-[12px] p-1">
+             <option value="step">step</option>
+             <option value="file">file</option>
+             <option value="manifest">manifest</option>
+           </select>
+         </label>
+         <label class="text-[12px] text-[#8b96a5]">Selector
+           <input name="selector" class="mt-1 w-full bg-[#0d1317] border border-[#1e252b] text-white text-[12px] p-1" placeholder="gate or field" />
+         </label>
+         <label class="text-[12px] text-[#8b96a5]">Note
+           <textarea name="note" class="mt-1 w-full bg-[#0d1317] border border-[#1e252b] text-white text-[12px] p-1" rows="2"></textarea>
+         </label>
+         <button type="submit" class="so-btn so-btn-sm justify-self-start">Record review note</button>
+         <p data-error class="text-[12px] text-[#dce4ee]"></p>
+       </form>`,
+    );
+  }
+
+  function bindReviewNotes(root) {
+    root.querySelectorAll("form[data-run]").forEach((form) => {
+      form.addEventListener("submit", async (event) => {
+        event.preventDefault();
+        const data = new FormData(form);
+        const runID = form.getAttribute("data-run") || "";
+        const error = form.querySelector("[data-error]");
+        try {
+          await postJSON(
+            `/v1/packaging-runs/${encodeURIComponent(runID)}/feedback`,
+            {
+              target: String(data.get("target") || ""),
+              selector: String(data.get("selector") || ""),
+              note: String(data.get("note") || ""),
+            },
+          );
+          await refresh();
+        } catch {
+          if (error) error.textContent = "The note was not recorded.";
+        }
+      });
+    });
+  }
+
   return {
     ensure() {
       paintOperator();
@@ -394,10 +464,12 @@ export function createLiveHub({ state, render }) {
             events
               ? `<table class="so-table"><thead><tr><th>Gate</th><th>Outcome</th><th>Reason</th></tr></thead><tbody>${events}</tbody></table>`
               : `<p class="text-[12px] text-[#8b96a5]">No step events recorded.</p>`,
-          )}`;
+          )}
+          ${reviewNotes(run.runId)}`;
         })
         .join("");
       root.innerHTML = split(cards);
+      bindReviewNotes(root);
     },
     renderBundle(root) {
       const preview = hub(state).preview;
