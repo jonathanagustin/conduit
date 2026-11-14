@@ -324,6 +324,14 @@ export function ApprovalDetail({
             : "Requirements on this request are satisfied."
         }
       />
+      <p className="conduit-muted">Justification: write the operational purpose. This text is stored as the decision rationale.</p>
+      <Checklist
+        items={[
+          { id: "purpose", label: "Purpose recorded", passed: rationale.trim().length > 0, detail: "The rationale field is the justification." },
+          { id: "requirements", label: "Requirements clear", passed: !blocked, detail: "A blocked requirement stops approval." },
+          { id: "reviewer", label: "Reviewer identity", passed: true, detail: "The plan list has no author, so authorship is not invented." },
+        ]}
+      />
       <label>
         Rationale
         <input aria-label="Decision rationale" value={rationale} onChange={(event) => onRationale(event.target.value)} />
@@ -341,6 +349,7 @@ export function ApprovalDetail({
   );
 }
 
+export { ArtifactLineage, RunWorkspace } from "./run-workspace";
 export { BundlePreview, ChangeRequestReview, EnvironmentPage, FailedPlanDetail, PromotionReview, ReleaseDetail, ReleasePacket, ReleaseRollout } from "./release";
 
 export function PlanBoard({

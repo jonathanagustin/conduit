@@ -1,4 +1,4 @@
-import { Button, Card, EntityTitle, Tag } from "@blueprintjs/core";
+import { Button, Card, EntityTitle, Tag, Tooltip } from "@blueprintjs/core";
 import type { ReactNode } from "react";
 
 import type { IntentName } from "./variants";
@@ -302,6 +302,27 @@ export function TargetBoard({
         </Card>
       ))}
     </div>
+  );
+}
+
+export function ToolApprovalCard({ title, detail }: { title: string; detail: string }) {
+  return (
+    <Card compact>
+      <EntityTitle title={title} subtitle="Example · the thread still owns the live permission" />
+      <p className="conduit-muted">{detail}</p>
+      <Tooltip content="Example card. A live permission is answered on the thread.">
+        <Button disabled>Allow</Button>
+      </Tooltip>
+    </Card>
+  );
+}
+
+export function SubAgentCard({ name, status }: { name: string; status: string }) {
+  return (
+    <Card compact>
+      <EntityTitle title={name} subtitle="Example worker" />
+      <StatusChip label={status} intent={status === "idle" ? "none" : "primary"} />
+    </Card>
   );
 }
 

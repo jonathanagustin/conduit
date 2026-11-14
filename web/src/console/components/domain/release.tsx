@@ -2,6 +2,7 @@ import { useState } from "react";
 
 import type { ChangeRequestCard, EnvironmentDetail, FleetRow, PackagingRun, PlanCard, ProductRelease, PromotionEdge } from "../../data/hub";
 import { healthShares } from "../../logic";
+import { ArtifactLineage } from "./run-workspace";
 import { CONDUIT_ACTIONS } from "../../ontology";
 import {
   ActivityTimeline,
@@ -267,6 +268,7 @@ export function PromotionReview({ promotions }: { promotions: readonly Promotion
       <PipelineGraph nodes={nodes} selected={selected} onSelect={setSelected} />
       {current ? (
         <div>
+          <ArtifactLineage source={current.fromChannel} artifact={current.version} plan={current.toChannel} />
           <PropertyCard label="Selected transition" value={`${current.product} ${current.version} ${current.fromChannel} to ${current.toChannel}`} />
           <ConstraintRow
             label={current.status || "Promotion"}

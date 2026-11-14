@@ -824,6 +824,8 @@ export {
   StatusChip,
   StatusTabs,
   Stepper,
+  SubAgentCard,
   SummaryBand,
   TargetBoard,
+  ToolApprovalCard,
 } from "./patterns";

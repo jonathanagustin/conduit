@@ -7,10 +7,11 @@ import "@fontsource/ibm-plex-mono/400.css";
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
 import { AcpPanels } from "@/src/embed/acp-panels";
-import { ActionButton, AppShell, ClassificationBanner, DataTable, DisabledWithReason, EmptyState, ErrorState, FacetRail, MetricCard, NavTree, PageHeader, QuickFilterBand, RangeTimeline, SidebarNav, SplitListDetail, StatusTag, Stepper, SummaryBand } from "./components/base";
+import { ActionButton, AppShell, ClassificationBanner, DataTable, DisabledWithReason, EmptyState, ErrorState, FacetRail, MetricCard, NavTree, PageHeader, QuickFilterBand, RangeTimeline, SidebarNav, SplitListDetail, StatusChip, StatusTag, Stepper, SubAgentCard, SummaryBand, ToolApprovalCard } from "./components/base";
 import {
   ApprovalDetail,
   ApprovalInbox,
+  ArtifactLineage,
   BundlePreview,
   ChangeRequestCard,
   ChangeRequestReview,
@@ -26,6 +27,7 @@ import {
   ReleaseRollout,
   PlanDetail,
   PlanTable,
+  RunWorkspace,
 } from "./components/domain";
 import { useConsoleData } from "./data/useConsoleData";
 import { EXAMPLE, EXAMPLE_ENVIRONMENTS, EXAMPLE_PROFILES, EXAMPLE_SAVED_VIEWS, EXAMPLE_SPOKES } from "./examples";
@@ -172,8 +174,14 @@ export function Workbench({ dark }: { dark: boolean }) {
       })}
       rail={
         <>
-          <div className="conduit-row" style={{ padding: 8 }}>
+          <div className="cd-chips" style={{ padding: 8 }}>
+            <StatusChip label={`Run ${runId}`} intent="primary" />
+            {selected ? <StatusChip label={selected.id} intent="warning" /> : null}
             <StatusTag>Scoped to {scope}</StatusTag>
+          </div>
+          <ToolApprovalCard title="Example read" detail="Example: read the open packaging run. This card does not grant access." />
+          <SubAgentCard name="Example scan worker" status="idle" />
+          <div className="conduit-row" style={{ padding: 8 }}>
             <ActionButton
               emphasis="minimal"
               onClick={() => {
@@ -324,8 +332,9 @@ export function Workbench({ dark }: { dark: boolean }) {
               />
             }
             detail={
-              <div>
+              <RunWorkspace run={data.run} events={data.events}>
                 <PackagingRunDetail run={data.run} error={data.runError} onReload={() => void data.loadRun(runId)} />
+                <ArtifactLineage source={data.run?.sourceDigest || ""} artifact={data.run?.artifactDigest || ""} plan={data.run?.planId || ""} />
                 <ActionButton
                   intent="danger"
                   disabled={!data.run?.sourceDigest || !data.run.targetPlanRef}
@@ -369,7 +378,7 @@ export function Workbench({ dark }: { dark: boolean }) {
                   columns={["Step", "Outcome", "Reason"]}
                   rows={data.events.map((event) => [event.step, event.outcome, event.reason])}
                 />
-              </div>
+              </RunWorkspace>
             }
           />
         </div>
