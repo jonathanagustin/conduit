@@ -5942,6 +5942,7 @@ export function mountOperator(host, options) {
     const tabs = area.tabs;
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
+    state.detailScreen = current.screen;
     root.innerHTML = `<div class="space-y-3">
       <div class="text-[11px] text-[#8b96a5]">${area.label} / ${current.label}</div>
       <div class="flex flex-wrap gap-1">${tabs

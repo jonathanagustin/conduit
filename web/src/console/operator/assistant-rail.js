@@ -38,7 +38,7 @@ export function contextChips(state) {
     if (found.some((item) => keyOf(item) === keyOf(chip))) return;
     found.push(chip);
   };
-  const screen = state.screen;
+  const screen = state.detailScreen || state.screen;
   if (
     ["s08-staged-run", "pt02-proposals-evals", "s07-pipeline"].includes(screen)
   ) {
