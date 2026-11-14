@@ -348,7 +348,7 @@
       "what": "Native metadata-request application authority, caller-retained idempotency IDs, exact owner and scope checks, persisted lazy expiry, owner-visible pagination and a 10000-record scan ceiling. It exposes no broker or execution port.",
       "why": "The pinned public terminal/profile/session pages establish ownership, expiry and lifecycle commands but not a private lifecycle API, record DTO, idempotency policy, pagination or transaction semantics. ADR 0015 requires explicit current identity/scope authority before broker execution. Actor and owner preserve bounded opaque UTF-8 subjects exactly; resource-coordinate grammar is separate.",
       "displacedBy": "A published or authorized sanitized session-request lifecycle API and authorization contract.",
-      "riskIfWrong": "The native lifecycle and paging policy may differ from Apollo. Its event output is marked CONDUIT_NATIVE and grants no execution authority. The scan ceiling fails unavailable instead of reporting a false empty list; large installations may need indexed queries. Permissions and the journal are separate boundaries, so stored metadata cannot become lasting authorization. Production authority and Hub wiring remain outstanding."
+      "riskIfWrong": "The native lifecycle, dual Environment/namespace grants, metadata HTTP/CLI and paging policy may differ from Apollo. Output is marked CONDUIT_NATIVE and grants no execution authority. The scan ceiling fails unavailable instead of reporting a false empty list; large installations may need indexed queries. Permission decisions and journal writes are separate boundaries. Actual broker admission, profile verification, attachment and execution must establish fresh authority independently."
     }
   ],
   "displaced": [

@@ -108,6 +108,13 @@ func main() {
 		os.Exit(1)
 	}
 	defer closeDiscussion()
+	debugJournal, closeDebugJournal, err := openDebugSessionJournal(ctx, os.Getenv)
+	if err != nil {
+		slog.Error("initialize debug-session request journal", "error", err)
+		os.Exit(1)
+	}
+	defer closeDebugJournal()
+
 	repository, closeReconciliation, reconciliationSupervisor, readStats, notifications, err :=
 		configureReconciliation(ctx, os.Getenv, repository)
 	if err != nil {
@@ -240,6 +247,7 @@ func main() {
 			Spaces:               spaces,
 			ProductAssets:        productAssets,
 			ChangeDiscussion:     discussion,
+			DebugSessionJournal:  debugJournal,
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
 			PackagingStatus:      packagingReader,

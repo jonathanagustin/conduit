@@ -1,134 +1,154 @@
-# Debug-session lifecycle kernel
+# Native debug-request lifecycle
 
-`internal/debugsessions/domain` is the native lifecycle kernel for #303's
-first phase. It does not expose a Hub API, create a durable record, authorize an
-operator, run a Pod, issue a credential or attach a shell. The production CLI
-and broker remain unchanged. ADR 0015 and the pinned public-source review in
-`reference-platform/reference/debug-access.md` remain the behavior authority.
+Conduit implements #303's metadata phase through `terminal request` and
+`/v1/debug-session-requests`. Requests are non-executing records. They grant no
+credential, Pod admission, terminal attachment or delivery authority. Profile is
+requested metadata; an image, registry or broker preflight has not been verified.
+ADR 0015 records the H30 reversal and the pinned public-source review is in
+`reference-platform/reference/debug-access.md`. Interactive broker execution,
+reattachment, command recording, NODE/JIT access and console terminals remain
+outstanding. The public 116-page CLI implementation profile is unchanged.
 
-The native event vocabulary is REQUESTED, EXPIRED, REVOKED and DELETED. There
-is deliberately no READY/ACTIVE/ATTACHED state or execution permit. One immutable
-request binds an opaque random session ID, Environment, namespace, explicit
-profile reference, effective owner, authenticated original actor, creation and
-fixed expiry. It is marked CONDUIT_NATIVE. The four-hour maximum is established
-by the source; these event names, identifier grammar and schemas are native.
+## Identity and current authority
 
-Expiry is exclusive: expiry at the exact bound is accepted and revocation at
-that instant is not. Revocation and deletion cannot extend or change scope or
-owner. A terminal request can be deleted before or after expiry. A three-event
-history is sufficient for create, expire/revoke and delete; gaps, duplicates,
-reordering and immutable-binding changes fail validation. Terminal states cannot
-be reattached, reopened or promoted into execution readiness.
-
-This kernel validates arguments only. Callers must establish current identity
-and authorization, generate unpredictable IDs, choose time from an authoritative
-clock, enforce owner isolation, persist the whole transition/audit fact before
-acknowledging it, handle competing revisions, reconcile expiry and validate
-complete histories on read. A standalone Event.Validate call is not proof of a
-valid transition. Application authority, durable adapters and authenticated
-Hub composition must enforce their respective obligations. No production authority or
-durability follows from these domain tests.
-
-Tests constrain lifetime bounds including one nanosecond, exact-expiry behavior,
-revocation/deletion, immutable target/owner/time bindings, broken event histories
-and unsupported execution states. They are domain tests; no runtime trial or
-broker behavior has been exercised.
-
-## Private journal boundary (production integration outstanding)
-
-`debugsessions/ports.Journal` requires atomic revision comparison and persistence
-of the full validated transition/audit event before successful acknowledgement.
-Its internal ID enumeration is bounded and grants no access. Failure after a
-storage commit can be ambiguous; a caller must inspect the original history,
-rather than minting a new request identity and assuming the first write failed.
-
-The private event codec is bounded to 8192 bytes. It rejects duplicate keys,
-case aliases, unknown fields, trailing documents, invalid native state and
-external session-ID/revision mismatch. Stored times normalize to UTC. Whitespace
-and object key ordering have no authority. Decoding one event still does not
-validate the history or authorize an operator. This boundary has no application service, authenticated Hub route or production
-composition.
-
-The process-local memory journal is a test reference only and is not a durable
-production component. It validates the complete current history and expected
-revision under one lock, appends the combined transition/audit event, returns
-independent copies and bounds sorted ID enumeration to 256 per call. A 40-writer
-race test requires exactly one committed transition and 39 revision conflicts;
-invalid scope changes, replays and pre-cancelled writes leave history unchanged.
-The application service and Hub wiring are outstanding.
-
-
-The private file adapter persists each canonical event and audit fact together
-in a 0600 immutable file under a required private directory. It validates the
-observed full history before writing, fsyncs the new file, atomically hard-links
-the exact next revision and fsyncs the directory before acknowledging success.
-The unique revision filename rejects stale competing writers across independent
-Store instances. Interrupted temporary files are ignored. A failure after the
-hard link can represent an ambiguous commit; callers must read history instead
-of assuming rollback. This is not a transaction with the Hub's other stores or
-an execution authority.
-
-The file tests exercise reopen, a writer child process exiting before a reader
-starts, 24 independent concurrent writers with exactly one committed revision,
-invalid immutable bindings, pre-cancelled writes, missing predecessors, malformed
-filenames, symlinks, oversized/corrupt records, private-directory permissions and
-bounded ordered ID pages. They do not simulate a power loss, malicious storage
-administrator or a live broker. Persistent records can still only represent
-non-executing requests. Current authorization and production Hub composition
-remain outstanding.
-
-
-The PostgreSQL adapter uses the `debug-session-journal` migration component and
-one immutable row per session/revision, with bounded document size and C-collated
-native IDs. A transaction-scoped per-session advisory lock surrounds current
-history validation and append; acknowledgement follows commit with local
-`synchronous_commit=on`. PostgreSQL/storage configuration remains the database
-operator's responsibility. A revision collision or invalid history cannot be
-acknowledged as a new event.
-
-The disposable PostgreSQL gate now runs the journal tests without a name filter.
-Two independent pools and 32 competing writers produced one new transition/audit
-row and 31 conflicts. Reopen, invalid/cancelled writes and missing predecessors
-are tested. The broader migration and existing restore gate also passed, but the
-journal is not yet composed into the Hub restore fixture; journal-specific
-backup/restore integration remains outstanding alongside application authority.
-
-
-## Application authority (production bridge outstanding)
-
-The application service requires current trusted authority for create, read and
-owner cleanup, and repeats it immediately before a journal append. Original
-actor and effective owner come only from that port. Opaque UTF-8 subjects up to
+Original actor and effective owner come from the Hub's existing authenticated
+operator carrier, including its delegation checks. Opaque UTF-8 subjects up to
 256 bytes are preserved exactly, including plus-addressed email and issuer IDs
-containing a pipe; controls and surrounding whitespace are rejected. They never
-become filenames or resource paths. Resource-coordinate grammar stays separate.
+containing a pipe. Controls and surrounding whitespace are rejected. Identity
+subjects never become filenames or resource paths; resource-coordinate grammar
+is separate.
 
-Creation requires a caller-retained native request ID. Reusing a key with the
-same owner, target and lifetime returns the existing request without extending
-expiry or changing original actor; a conflicting target/lifetime fails. A key
-belonging to another owner grants no access. No actor, owner or management flag
-can be supplied in a Draft. A trusted scope decision can explicitly authorize
-management of another owner's metadata. Production authorization is not wired.
+The native `environment:debug-requester` role conveys
+`debug-session-request:create` and `debug-session-request:read`.
+`environment:debug-request-manager` also conveys
+`debug-session-request:manage`. No Apollo terminal-role alias is introduced by
+this metadata phase. Ordinary editor/operator roles convey no new permission.
 
-Current reads reconcile past-deadline REQUESTED records into a persisted EXPIRED
-transition before reporting that state. The EXPIRED state denotes automatic
-clock expiry; its system actor label is not a human identity assertion. Deleted
-requests remain available in authorized immutable history and cannot be revived
-by replay. Revoke/delete retries are idempotent. Failed journal acknowledgement
-never produces a successful lifecycle response; callers retain the original ID
-to resolve an ambiguous commit.
+Authority must cover **both** `environment/ENV` and
+`environment/ENV/namespace/NAMESPACE`. A grant on the Environment alone does not
+reach the namespace coordinate; an intentional `global/environment` grant can
+cover both. Creation additionally requires that namespace to be declared in the
+Environment's desired catalog. This establishes declared intent, not actual
+cluster existence or a completed deployment. Historical reads/cleanup retain
+current permission checks when a declared namespace is later removed.
 
-List results are filtered by exact Environment/namespace, owner (or explicitly
-trusted management permission), and deletion state. A continuation cursor comes
-only from a returned visible ID. A 10000-record scan ceiling fails unavailable
-rather than reporting a false empty/complete list. The current scope authority
-is checked again before a page is returned. This is bounded native paging, not
-a recovered Apollo wire contract or a cross-record snapshot transaction.
+Owner-visible reads and cleanup require current native read permission.
+Management of another owner's records requires native manage permission at both
+scopes. Knowing a request ID grants no access. Draft/HTTP inputs cannot provide
+an owner, actor or management flag. Scope decisions repeat immediately before
+journal appends; an identity change during an operation fails closed.
 
 Identity/grant decisions and the journal are separate boundaries. Checking
 current authority before an append is not a transaction with concurrent grant
-administration. A stored request is never lasting authority; every subsequent
-operation, and especially future broker admission/attachment, must reauthorize.
-The service currently has no production authority bridge, HTTP route, CLI
-request command or broker integration. Profile is requested metadata, not an
-assertion that an image, registry or execution preflight has been verified.
+administration. A stored request is never lasting authority. Every subsequent
+operation, especially future broker admission and attachment, must reauthorize.
+
+## Immutable lifecycle and audit facts
+
+A request binds its ID, owner, original actor, Environment, namespace, explicit
+profile reference, creation and fixed expiry. The native event vocabulary is
+REQUESTED, EXPIRED, REVOKED and DELETED; there is no execution-ready state or
+permit. The four-hour maximum comes from the public source; event names,
+identifier grammar, schemas and request authority are registered Conduit-native
+choices, marked `CONDUIT_NATIVE`.
+
+Creation uses a caller-retained ID. Retrying the same owner/target/lifetime
+returns the existing record without refreshing expiry or original actor. A
+conflicting target/lifetime fails. A foreign key cannot be adopted. CLI-generated
+IDs use 128 bits of randomness; IDs are idempotency identifiers, not bearer
+credentials. The CLI includes the original ID in mutation errors so an
+ambiguous acknowledgement can be resolved without blindly minting a new key.
+
+Expiry is exclusive. Reads/listing reconcile a past-deadline REQUESTED record
+into a persisted EXPIRED event before reporting that state. Expiry audit is
+lazy: an unqueried record can retain its last recorded state past the deadline;
+the immutable expiry is still authoritative. Future broker enforcement must
+terminate sessions independently of this metadata reconciliation. EXPIRED
+identifies automatic clock expiry; its system actor label is not a human
+identity assertion.
+
+Revocation/deletion cannot extend lifetime or alter owner/target. Revoke/delete
+retries are idempotent. Deleted requests stay available in authorized immutable
+history and cannot be revived by replay. A complete history has at most three
+events: create, expire/revoke, delete. Gaps, duplicates, reordering and immutable-
+binding changes fail validation. One event's validation alone proves no valid
+transition, identity or authority.
+
+Each event is its transition and audit fact together. A successful response
+follows the journal's persisted acknowledgement. A failed acknowledgement after
+commit can be ambiguous; callers retain the original ID and inspect history.
+Permission-decision audit and journal persistence are not one cross-context
+transaction. Neither record claims a Pod or command executed.
+
+## Persistence and recovery
+
+Runtime startup follows `REPOSITORY_KIND`: a private file journal beneath
+`DATA_DIRECTORY/debug-session-journal`, or the existing mounted PostgreSQL DSN.
+The memory implementation is a test reference only. A direct Hub composition
+with a nil journal mounts no metadata routes.
+
+File storage writes a canonical 0600 event file beneath a required private
+directory, fsyncs it, atomically hard-links the exact next revision, then fsyncs
+the directory before acknowledging. Unique revision names reject competing
+writers across independent Store instances. Interrupted temporary files are
+ignored. Failure after the canonical link is an ambiguous commit, not proof of
+rollback. This is not a transaction with other Hub stores or a power-loss test.
+
+PostgreSQL owns the independent `debug-session-journal` migration component.
+A per-session transaction-scoped advisory lock surrounds complete-history and
+expected-revision validation and append. Acknowledgement follows commit with
+local `synchronous_commit=on`. The database operator still owns PostgreSQL/WAL
+and storage durability settings. The real dump/restore drill includes the
+journal's migration ledger and exact immutable event/owner/actor/expiry history,
+checked before a repository constructor could repair missing schema.
+
+The private codec is bounded to 8192 bytes and rejects duplicate or case-aliased
+keys, unknown fields, trailing documents, invalid native state and external
+ID/revision mismatches. Times normalize to UTC. Storage administrators remain
+trusted; this is not signed protection against coherent privileged rewrites.
+
+## Native HTTP and CLI
+
+Routes are explicitly registered in the Hub authorization matrix:
+
+- `POST /v1/debug-session-requests`: create/idempotently retrieve a metadata
+  request from `sessionId`, `target` and optional whole-second `lifetimeSeconds`.
+- `GET /v1/debug-session-requests?environment=ENV&namespace=NS`: owner-visible
+  page; optional `after` and `limit` (1..100, default 50).
+- `GET /v1/debug-session-requests/ID`: current metadata, reconciling expiry.
+- `GET /v1/debug-session-requests/ID/history`: immutable authorized audit history,
+  including a deleted request.
+- `POST /v1/debug-session-requests/ID/revoke` and
+  `DELETE /v1/debug-session-requests/ID`: owner cleanup or explicit management.
+
+Responses are non-cacheable. JSON creation/POST content types, exact bounded
+body keys, query selectors and duplicate handling are checked. Internal failure
+messages do not expose database credentials or paths. Pages filter exact scope,
+owner/management permission and deletion state. A continuation cursor comes
+only from a returned visible ID. A 10000-record scan ceiling fails unavailable
+rather than fabricating an empty/complete page; large catalogs may need indexed
+queries. Paging is not a cross-record snapshot transaction.
+
+`terminal request create` requires Environment, namespace and profile reference;
+`--lifetime` defaults to four hours and accepts positive whole seconds up to
+that bound. `--request-id` retains an idempotency key. `list`, `get`, `history`,
+`revoke` and `delete` expose metadata only. JSON/YAML and explicit scope checks
+run again after profile defaults load, before mutation. Unsupported Space
+selection fails explicitly. The client validates response IDs, target, lifetime,
+state, native tier, history and page/cursor consistency.
+
+## Behavioral evidence and remaining work
+
+Tests cover exact expiry, immutable bindings and histories; current dual-scope
+permissions, ownership, manager access, revocation and delegation; malformed and
+ambiguous inputs; persistence failure before acknowledgement; concurrent expiry;
+file reopen/process-writer exit and independent writers; two PostgreSQL pools;
+startup, real dump/restore; real CLI/Hub/file restart; retained retries; and
+invalid CLI/profile settings before mutation. Existing delivery Plans remain
+unchanged. Mutation checks constrain the selected security and persistence
+branches; they do not certify a live terminal.
+
+The actual Spoke broker, admitted image profiles, scoped Kubernetes execution,
+independent credential/Pod expiry and cleanup, attachment/reattachment, command
+recording and console latency/UI still need implementation and their own tests.
+NODE/JIT elevation remains #304's separate governed boundary. #303 stays open.

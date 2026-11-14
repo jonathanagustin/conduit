@@ -7,9 +7,12 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	activitymemory "github.com/jonathanagustin/conduit/internal/changeactivity/adapters/memory"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	debugmemory "github.com/jonathanagustin/conduit/internal/debugsessions/adapters/memory"
+	debugdomain "github.com/jonathanagustin/conduit/internal/debugsessions/domain"
 	"github.com/jonathanagustin/conduit/internal/notifications/domain"
 	assetmemory "github.com/jonathanagustin/conduit/internal/productassets/adapters/memory"
 	spacememory "github.com/jonathanagustin/conduit/internal/spaces/adapters/memory"
@@ -25,6 +28,9 @@ var wildcard = regexp.MustCompile(`\{[^}]*\}`)
 
 func pathFor(pattern string) (string, string) {
 	method, path, found := strings.Cut(pattern, " ")
+	if strings.Contains(path, "/v1/debug-session-requests/") {
+		path = strings.ReplaceAll(path, "{requestID}", fixtureDebugRequestID)
+	}
 	if !found {
 		// The notification catch-all is registered without a method.
 		method, path = http.MethodGet, pattern
@@ -79,6 +85,9 @@ const (
 // would also accept it after the authorization was removed, so the GraphQL row
 // is driven with a document that parses.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/debug-session-requests" {
+		return `{"sessionId":"dsr_abcdefghijklmnopqrstuvwxyz","target":{"environment":"tenant-a-use2","namespace":"example","profile":"probe"}}`
+	}
 	if pattern == "POST /v1/temporary-maintenance-overrides" {
 		return `{"entities":[{"environment":"tenant-a-use2","entity":"probe"}],"duration":"1h","reason":"CAB-364"}`
 	}
@@ -224,7 +233,7 @@ func TestEveryRegisteredRouteRefusesAnAnonymousCaller(t *testing.T) {
 	t.Parallel()
 	store := newNotificationStore()
 	handler, err := NewHub(controlplane.NewMemoryRepository(), controlplane.HandlerOptions{},
-		Options{ChangeDiscussion: activitymemory.New(), ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+		Options{DebugSessionJournal: newDebugProbeJournal(t), ChangeDiscussion: activitymemory.New(), ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -292,7 +301,7 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 		// Named, so the "local-developer" bootstrap shortcut is off and every
 		// decision below has to come from a grant this principal does not hold.
 		BootstrapAdministrators: []string{"root"},
-	}, Options{ChangeDiscussion: activitymemory.New(), ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
+	}, Options{DebugSessionJournal: newDebugProbeJournal(t), ChangeDiscussion: activitymemory.New(), ProductAssets: assetmemory.New(), Spaces: spacememory.New(), NotificationStore: store, NotificationContacts: &contactBook{rows: map[string]domain.Contact{}}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -309,6 +318,9 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 		checked++
 		method, path := pathFor(route.Pattern)
 		request := httptest.NewRequest(method, path, strings.NewReader(bodyFor(route.Pattern)))
+		if strings.HasPrefix(path, "/v1/debug-session-requests") {
+			request.Header.Set("Content-Type", "application/json")
+		}
 		request.Header.Set("X-Platform-Subject", "nobody")
 		response := httptest.NewRecorder()
 		handler.ServeHTTP(response, request)
@@ -656,4 +668,19 @@ var refusedBeforeTheDecision = map[string]int{
 	"POST /v1/bundles/import":                                   http.StatusUnprocessableEntity,
 	"POST /v1/fleet/actions":                                    http.StatusUnprocessableEntity,
 	"POST /v1/product-publications/helm-chart":                  http.StatusUnprocessableEntity,
+}
+
+const fixtureDebugRequestID = "dsr_abcdefghijklmnopqrstuvwxyz"
+
+func newDebugProbeJournal(t *testing.T) *debugmemory.Store {
+	t.Helper()
+	journal := debugmemory.New()
+	record, err := debugdomain.New(fixtureDebugRequestID, debugdomain.Target{Environment: fixtureEnvironment, Namespace: "example", Profile: "probe"}, debugdomain.Identity{Actor: "alice", Owner: "alice"}, time.Now(), time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := journal.Append(t.Context(), 0, record); err != nil {
+		t.Fatal(err)
+	}
+	return journal
 }

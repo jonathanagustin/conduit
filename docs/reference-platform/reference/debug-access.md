@@ -105,3 +105,20 @@ Displayed session counts are examples, not established limits. The interactive
 image shows all-namespace access for that example; it does not override
 Conduit's explicit namespace-scoping requirement. Images establish UI facts,
 not authorization correctness, server state, transport or session durability.
+
+
+## Native request metadata implementation (#303, phase 1)
+
+`terminal request` and `/v1/debug-session-requests` now expose non-executing
+metadata with current original/effective identity, dual Environment/namespace
+permissions, owner isolation, fixed expiry, lazy persisted expiration and durable
+transition/audit history. The [native lifecycle contract](../../architecture/debug-session-lifecycle.md)
+records its registered choices, current-permission/journal separation,
+idempotency, scope/paging bounds and actual CLI/Hub/file/PostgreSQL restore tests.
+The runtime opens the journal in its existing file/PostgreSQL durability mode.
+
+Profile reference remains requested intent, not image/registry verification.
+No actual terminal, Pod, credential, broker, attachment or command recording is
+implemented by this phase. The public session/grant additions remain outside
+the 116-page implementation profile. No source hash, snapshot or source-review
+claim was advanced by adding the native metadata surface.

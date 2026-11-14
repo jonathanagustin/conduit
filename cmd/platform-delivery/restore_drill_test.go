@@ -51,6 +51,8 @@ import (
 	discussionpostgres "github.com/jonathanagustin/conduit/internal/changeactivity/adapters/postgres"
 	discussiondomain "github.com/jonathanagustin/conduit/internal/changeactivity/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	debugpostgres "github.com/jonathanagustin/conduit/internal/debugsessions/adapters/postgres"
+	debugdomain "github.com/jonathanagustin/conduit/internal/debugsessions/domain"
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
 	"github.com/jonathanagustin/conduit/internal/delivery/reconciliation/domain"
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/resolutionlogpostgres"
@@ -135,6 +137,7 @@ func TestPostgresBackupAndRestoreDrill(t *testing.T) {
 // seededState is what the drill wrote before the dump and expects to read back
 // through the real repositories afterwards.
 type seededState struct {
+	debugRequests         []debugdomain.Event
 	discussion            discussiondomain.Comment
 	downloadAssets        assetdomain.Prepared
 	downloadPublication   controlplane.ProductPublication
@@ -284,7 +287,27 @@ func seedSource(t *testing.T, ctx context.Context, dataSourceName string) seeded
 	if err := discussionStore.Append(ctx, discussion); err != nil {
 		t.Fatal(err)
 	}
+	debugJournal, err := debugpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer debugJournal.Close()
+	debugRequest, err := debugdomain.New("dsr_abcdefghijklmnopqrstuvwxyz", debugdomain.Target{Environment: state.Environment.ID, Namespace: "example", Profile: "requested-restore-profile"}, debugdomain.Identity{Actor: "restore-carrier|opaque", Owner: "restore+operator@example.org"}, space.CreatedAt, time.Hour)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := debugJournal.Append(ctx, 0, debugRequest); err != nil {
+		t.Fatal(err)
+	}
+	revoked, err := debugRequest.Transition(debugdomain.Revoked, "restore-reviewer", debugRequest.CreatedAt.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := debugJournal.Append(ctx, 1, revoked); err != nil {
+		t.Fatal(err)
+	}
 	return seededState{
+		debugRequests:  []debugdomain.Event{debugRequest, revoked},
 		discussion:     discussion,
 		downloadAssets: downloadAssets, downloadPublication: downloadPublication,
 		space: space, binding: binding,
@@ -405,6 +428,7 @@ func assertNothingPending(t *testing.T, ctx context.Context, restored *sql.DB) {
 		spacepostgres.Component:                 spacepostgres.Migrations(),
 		assetpostgres.Component:                 assetpostgres.Migrations(),
 		discussionpostgres.Component:            discussionpostgres.Migrations(),
+		debugpostgres.Component:                 debugpostgres.Migrations(),
 	} {
 		pending, err := pgmigrate.Pending(ctx, restored, component, migrations)
 		if err != nil {
@@ -549,6 +573,20 @@ func assertStateSurvived(t *testing.T, ctx context.Context, dataSourceName strin
 	discussionRequest, err := repository.GetChangeRequest(ctx, seeded.discussion.RequestID)
 	if err != nil || discussionRequest.Status != controlplane.ChangePendingApprovals || len(discussionRequest.Reviews) != 0 {
 		t.Fatalf("discussion acquired approval or lost its request: %#v, %v", discussionRequest, err)
+	}
+	debugJournal, err := debugpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer debugJournal.Close()
+	debugEvents, err := debugJournal.History(ctx, seeded.debugRequests[0].SessionID)
+	if err != nil || len(debugEvents) != len(seeded.debugRequests) {
+		t.Fatalf("restored debug request history differs: %v", err)
+	}
+	for i, event := range debugEvents {
+		if event != seeded.debugRequests[i] {
+			t.Fatalf("restored debug request/audit binding differs: %#v", event)
+		}
 	}
 	audits, err := repository.ListAuthorizationAudit(ctx, seeded.auditEvent.ResourceRID)
 	if err != nil || len(audits) != 1 {

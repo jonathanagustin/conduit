@@ -506,14 +506,15 @@ func proposeOrPrintDesired(command *cobra.Command, state *commandState, desired 
 	})
 }
 
-func terminalCommand() *cobra.Command {
+func terminalCommand(state *commandState) *cobra.Command {
 	var sessionID string
 	command := &cobra.Command{
-		Use: "terminal", Short: "Explain why direct workload terminals are outside Conduit's trust model", Args: cobra.NoArgs,
+		Use: "terminal", Short: "Manage debug request metadata; interactive broker execution remains unavailable", Args: cobra.NoArgs,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			return errors.New("terminal access is intentionally unavailable: Conduit has no SSH, kubectl exec, host API, or cluster-admin execution path; use audited break-glass tooling owned by the Environment")
+			return errors.New("interactive terminal broker execution is not available yet; terminal request records non-executing metadata, and audited break-glass tooling remains Environment-owned")
 		},
 	}
 	command.Flags().StringVar(&sessionID, "session-id", "", "external audited break-glass session identifier (never executed by Conduit)")
+	command.AddCommand(debugRequestCommand(state))
 	return command
 }
