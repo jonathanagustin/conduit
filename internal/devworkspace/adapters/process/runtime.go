@@ -1,0 +1,252 @@
+// Package process runs a local preview command with a cleaned environment.
+package process
+
+import (
+	"bufio"
+	"context"
+	"errors"
+	"io"
+	"os"
+	"os/exec"
+	"strings"
+	"sync"
+	"time"
+
+	"github.com/jonathanagustin/conduit/internal/devworkspace/domain"
+)
+
+// Runtime supervises one child process per workspace.
+type Runtime struct {
+	mu      sync.Mutex
+	command []string
+	dir     func(domain.Workspace) string
+	runs    map[string]*child
+}
+
+type child struct {
+	mu     sync.Mutex
+	cmd    *exec.Cmd
+	status string
+	logs   []string
+	bytes  int
+	closed bool
+	done   chan struct{}
+	fail   string
+}
+
+// New returns a runtime that executes command. dir, when set, is the working
+// directory. The child inherits PATH only.
+func New(command []string, dir func(domain.Workspace) string) *Runtime {
+	if len(command) == 0 {
+		command = []string{"sleep", "3600"}
+	}
+	return &Runtime{command: command, dir: dir, runs: map[string]*child{}}
+}
+
+func (runtime *Runtime) Start(_ context.Context, workspace domain.Workspace) (domain.Runtime, error) {
+	runtime.mu.Lock()
+	if current, ok := runtime.runs[workspace.ID]; ok {
+		current.mu.Lock()
+		status := current.status
+		result := view(workspace, current)
+		current.mu.Unlock()
+		if status == domain.StatusRunning || status == domain.StatusStarting {
+			runtime.mu.Unlock()
+			return result, nil
+		}
+	}
+	cmd := exec.Command(runtime.command[0], runtime.command[1:]...)
+	cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+	if runtime.dir != nil {
+		cmd.Dir = runtime.dir(workspace)
+	}
+	stdout, err := cmd.StdoutPipe()
+	if err != nil {
+		runtime.mu.Unlock()
+		return domain.Runtime{}, err
+	}
+	cmd.Stderr = cmd.Stdout
+	if err := cmd.Start(); err != nil {
+		runtime.mu.Unlock()
+		return domain.Runtime{WorkspaceID: workspace.ID, Status: domain.StatusFailed, Failure: err.Error(), Origin: domain.OriginLocalRuntime}, domain.ErrInvalid
+	}
+	entry := &child{cmd: cmd, status: domain.StatusStarting, done: make(chan struct{})}
+	runtime.runs[workspace.ID] = entry
+	runtime.mu.Unlock()
+	go collect(entry, stdout)
+	go func() {
+		waitErr := cmd.Wait()
+		entry.mu.Lock()
+		if !entry.closed {
+			entry.status = domain.StatusFailed
+			if waitErr != nil {
+				entry.fail = waitErr.Error()
+			} else {
+				entry.fail = "process exited"
+			}
+		}
+		entry.mu.Unlock()
+		close(entry.done)
+	}()
+	timer := time.NewTimer(150 * time.Millisecond)
+	select {
+	case <-entry.done:
+	case <-timer.C:
+	}
+	timer.Stop()
+	entry.mu.Lock()
+	if entry.status == domain.StatusStarting {
+		entry.status = domain.StatusRunning
+	}
+	result := view(workspace, entry)
+	failed := entry.status == domain.StatusFailed
+	entry.mu.Unlock()
+	if failed {
+		return result, domain.ErrInvalid
+	}
+	return result, nil
+}
+
+func (runtime *Runtime) Stop(_ context.Context, workspaceID string) (domain.Runtime, error) {
+	runtime.mu.Lock()
+	entry, ok := runtime.runs[workspaceID]
+	runtime.mu.Unlock()
+	if !ok {
+		return domain.Runtime{WorkspaceID: workspaceID, Status: domain.StatusStopped, Origin: domain.OriginLocalRuntime}, nil
+	}
+	entry.mu.Lock()
+	entry.closed = true
+	cmd := entry.cmd
+	running := entry.status == domain.StatusRunning || entry.status == domain.StatusStarting
+	entry.mu.Unlock()
+	if running && cmd != nil && cmd.Process != nil {
+		_ = cmd.Process.Kill()
+		select {
+		case <-entry.done:
+		case <-time.After(time.Second):
+		}
+	}
+	entry.mu.Lock()
+	entry.status = domain.StatusStopped
+	entry.closed = true
+	entry.mu.Unlock()
+	return domain.Runtime{ID: "rt_" + workspaceID, WorkspaceID: workspaceID, Status: domain.StatusStopped, Origin: domain.OriginLocalRuntime}, nil
+}
+
+func (runtime *Runtime) Status(_ context.Context, workspaceID string) (domain.Runtime, error) {
+	runtime.mu.Lock()
+	entry, ok := runtime.runs[workspaceID]
+	runtime.mu.Unlock()
+	if !ok {
+		return domain.Runtime{}, domain.ErrNotFound
+	}
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	return domain.Runtime{ID: "rt_" + workspaceID, WorkspaceID: workspaceID, Status: entry.status, Failure: entry.fail, Origin: domain.OriginLocalRuntime}, nil
+}
+
+func (runtime *Runtime) Logs(_ context.Context, workspaceID, cursor string, limit int) (domain.LogPage, error) {
+	runtime.mu.Lock()
+	entry, ok := runtime.runs[workspaceID]
+	runtime.mu.Unlock()
+	if !ok {
+		return domain.LogPage{}, domain.ErrNotFound
+	}
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	start := 0
+	if cursor != "" {
+		for index, line := range entry.logs {
+			if line == cursor {
+				start = index + 1
+			}
+		}
+	}
+	if limit <= 0 || limit > 200 {
+		limit = 200
+	}
+	lines := append([]string{}, entry.logs[start:]...)
+	next := ""
+	if len(lines) > limit {
+		lines = lines[:limit]
+		next = lines[len(lines)-1]
+	}
+	return domain.LogPage{Lines: lines, NextCursor: next, Origin: domain.OriginLocalRuntime, Status: entry.status, ValueTier: domain.ValueTier}, nil
+}
+
+func (runtime *Runtime) Clear(_ context.Context, workspaceID string) error {
+	runtime.mu.Lock()
+	entry, ok := runtime.runs[workspaceID]
+	runtime.mu.Unlock()
+	if !ok {
+		return nil
+	}
+	entry.mu.Lock()
+	entry.logs = nil
+	entry.bytes = 0
+	entry.mu.Unlock()
+	return nil
+}
+
+func collect(entry *child, reader io.Reader) {
+	scanner := bufio.NewScanner(reader)
+	buf := make([]byte, 0, 64*1024)
+	scanner.Buffer(buf, 256*1024)
+	for scanner.Scan() {
+		text, _ := domain.RedactLine(scanner.Text())
+		entryAppend(entry, text)
+	}
+}
+
+func entryAppend(entry *child, line string) {
+	entry.mu.Lock()
+	defer entry.mu.Unlock()
+	if entry.closed || entry.bytes >= domain.MaxLogBytes {
+		if entry.bytes >= domain.MaxLogBytes && (len(entry.logs) == 0 || entry.logs[len(entry.logs)-1] != "[truncated]") {
+			entry.logs = append(entry.logs, "[truncated]")
+		}
+		return
+	}
+	entry.logs = append(entry.logs, line)
+	entry.bytes += len(line)
+}
+
+func view(workspace domain.Workspace, entry *child) domain.Runtime {
+	return domain.Runtime{
+		ID: "rt_" + workspace.ID, WorkspaceID: workspace.ID, Owner: workspace.Owner,
+		Status: entry.status, Failure: entry.fail, Origin: domain.OriginLocalRuntime,
+	}
+}
+
+// Crash is a test helper that waits until a short-lived child has exited.
+func (runtime *Runtime) Crash(workspaceID string) error {
+	runtime.mu.Lock()
+	entry, ok := runtime.runs[workspaceID]
+	runtime.mu.Unlock()
+	if !ok {
+		return domain.ErrNotFound
+	}
+	select {
+	case <-entry.done:
+		return nil
+	case <-time.After(2 * time.Second):
+		return errors.New("child did not exit")
+	}
+}
+
+// CommandEnv is the environment a child would receive. Tests use it to prove
+// credential variables are not inherited.
+func CommandEnv() []string {
+	return []string{"PATH=" + os.Getenv("PATH")}
+}
+
+// InheritedSecret reports whether a name would be passed to a child.
+func InheritedSecret(env []string) bool {
+	for _, item := range env {
+		name, _, _ := strings.Cut(item, "=")
+		if strings.Contains(strings.ToLower(name), "token") || strings.Contains(strings.ToLower(name), "secret") || strings.Contains(strings.ToLower(name), "password") {
+			return true
+		}
+	}
+	return false
+}

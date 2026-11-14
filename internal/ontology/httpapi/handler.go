@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -54,6 +55,9 @@ type Config struct {
 	Allow     func(*http.Request, string) bool
 	Caller    func(*http.Request) (ports.Caller, error)
 	Permit    func(*http.Request, string) error
+	// Execute performs a workspace action after the server allows it. Nil leaves
+	// the decision as an audit record only.
+	Execute func(ctx context.Context, caller ports.Caller, action string, parameters map[string]string) error
 	// Audit records an allow or deny on the authorization hash chain. Nil
 	// refuses the governed action instead of skipping the record.
 	Audit func(ctx context.Context, subject, action, resource, decision, reason string) error
@@ -132,7 +136,20 @@ func Register(mux *http.ServeMux, cfg Config) {
 			return
 		}
 		action, _ := domain.ActionByName(domain.ActionCreateChange)
-		writeList(w, r, []domain.ActionTypeV2{action})
+		names := make([]string, 0, len(domain.Metadata().ActionTypes))
+		listed := make([]domain.ActionTypeV2, 0, len(names))
+		for name := range domain.Metadata().ActionTypes {
+			names = append(names, name)
+		}
+		sort.Strings(names)
+		for _, name := range names {
+			item, _ := domain.ActionByName(name)
+			listed = append(listed, item)
+		}
+		if len(listed) == 0 {
+			listed = []domain.ActionTypeV2{action}
+		}
+		writeList(w, r, listed)
 	})
 	mux.HandleFunc(routeActionType, func(w http.ResponseWriter, r *http.Request) {
 		if !authorized(cfg, w, r) || !knownOntology(w, r) {
@@ -264,10 +281,25 @@ func enforceAction(cfg Config, w http.ResponseWriter, r *http.Request, actionNam
 	}
 	resource := strings.TrimSpace(scalarOrEmpty(body.Parameters["resource"]))
 	if resource == "" {
+		resource = strings.TrimSpace(scalarOrEmpty(body.Parameters["workspaceId"]))
+	}
+	if resource == "" {
 		resource = "action/" + actionName
+	}
+	parameters := map[string]string{}
+	for name, raw := range body.Parameters {
+		if value, ok := scalar(raw); ok {
+			parameters[name] = value
+		}
 	}
 	facts := domain.ActionFacts{Roles: append([]string{}, caller.Teams...)}
 	facts.Roles = append(facts.Roles, caller.Groups...)
+	if strings.HasPrefix(actionName, "workspace_") {
+		facts.Confirmation = parameters["confirmation"]
+		if parameters["approve"] == "true" {
+			facts.CallerAlreadySigned = true
+		}
+	}
 	if cfg.Facts != nil {
 		observed, err := cfg.Facts(r.Context(), actionName, resource)
 		if err != nil {
@@ -275,6 +307,10 @@ func enforceAction(cfg Config, w http.ResponseWriter, r *http.Request, actionNam
 			return
 		}
 		observed.Roles = facts.Roles
+		observed.Confirmation = facts.Confirmation
+		if facts.CallerAlreadySigned {
+			observed.CallerAlreadySigned = true
+		}
 		facts = observed
 	}
 	decision := domain.Decide(actionName, facts)
@@ -289,6 +325,12 @@ func enforceAction(cfg Config, w http.ResponseWriter, r *http.Request, actionNam
 	if !decision.Allowed {
 		writeValidation(w, domain.ApplyResult{SubmissionMessage: decision.Reason})
 		return
+	}
+	if cfg.Execute != nil && strings.HasPrefix(actionName, "workspace_") {
+		if err := cfg.Execute(r.Context(), caller, actionName, parameters); err != nil {
+			writeValidation(w, domain.ApplyResult{SubmissionMessage: err.Error()})
+			return
+		}
 	}
 	writeValidation(w, domain.ApplyResult{Valid: true})
 }

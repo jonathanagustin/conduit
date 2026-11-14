@@ -104,6 +104,16 @@ func Types() []TypeSpec {
 				{"id", "Identifier", ""}, {"product", "Product", ""}, {"version", "Version", ""},
 				{"repository", "Repository", ""}, {"tag", "Tag", ""}, {"digest", "Digest", ""},
 			}},
+		{APIName: "Workspace", DisplayName: "Workspace", Plural: "Workspaces",
+			Description: "An authorized working copy bound to a profile. Leaving it opens a change request.",
+			PrimaryKey:  "workspaceId", TitleProperty: "title", Icon: "document", Color: "#7C8794",
+			Properties: []PropSpec{
+				{"workspaceId", "Workspace", ""}, {"title", "Title", ""},
+				{"status", "Status", ""}, {"owner", "Owner", ""},
+				{"profileId", "Work profile", ""}, {"environmentId", "Environment", ""},
+				{"sourceDigest", "Source digest", ""}, {"proposalRevision", "Proposal revision", ""},
+				{"parentId", "Parent", ""}, {"valueTier", "Value tier", ""},
+			}},
 	}
 }
 
@@ -117,6 +127,7 @@ func Links() []LinkSpec {
 		{"ri.conduit.main.link-type.environment-change", "Environment", "changeRequests", "MANY", "ChangeRequest", "environment", "ONE"},
 		{"ri.conduit.main.link-type.plan-change", "Plan", "changeRequest", "ONE", "ChangeRequest", "plan", "ONE"},
 		{"ri.conduit.main.link-type.plan-artifact", "Plan", "artifacts", "MANY", "Artifact", "plans", "MANY"},
+		{"ri.conduit.main.link-type.environment-workspace", "Environment", "workspaces", "MANY", "Workspace", "environment", "ONE"},
 	}
 }
 

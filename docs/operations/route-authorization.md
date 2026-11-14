@@ -56,6 +56,7 @@ Three surfaces are covered, and they are mounted three different ways:
 | Apollo `/api/v0` | `internal/apollo/openapi.gen.go`, generated from the pinned OpenAPI snapshot | 13 |
 | Notifications | `internal/notifications/adapters/httpapi`, mounted from `internal/hub/composition` in front of the facade | 8 |
 | Packaging runs | `internal/packagingworkflow/httpapi`, mounted from `internal/hub/composition` in front of the facade | 6 |
+| Developer workspaces | `internal/devworkspace/httpapi`, mounted from `internal/hub/composition` in front of the facade | 17 |
 
 ## The gate
 
@@ -144,6 +145,12 @@ The decision is written to the authorization audit with the run binding
 before a worker is told. Cancel stops the packaging run only. A run that
 already handed off a Plan is not cancelled here, and this route does not
 call `POST /v1/plans/{planID}/cancel`.
+
+Developer workspace routes under `/v1/dev-workspaces` are a separate surface.
+Reads require an operator and then the owner or an environment read. Writes
+require standing and then the owner. Submit opens a change request through
+the existing command and does not approve it. A diff read records no approval.
+The local preview runtime fails closed when it is not configured.
 
 ### `operator-self` — the caller's own rows only
 

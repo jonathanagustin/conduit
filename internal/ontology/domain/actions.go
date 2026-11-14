@@ -35,6 +35,8 @@ type ActionFacts struct {
 	RequirementPending  bool
 	Confirmation        string
 	ProfileID           string
+	WorkspaceKnown      bool
+	WorkspaceStatus     string
 }
 
 // ActionDecision is the server's verdict and the audit event name to record.
@@ -113,6 +115,10 @@ var actionRules = map[string]ActionRule{
 	"reject_plan":            {ID: "reject_plan", Roles: []string{"Release Approver", "Security Admin"}, AuditEvent: "plan.rejected"},
 	"rerun_from_step":        {ID: "rerun_from_step", Roles: []string{"Operator", "Developer"}, AuditEvent: "packaging_run.rerun_from_step"},
 	"cancel_run":             {ID: "cancel_run", Roles: []string{"Operator", "Developer"}, AuditEvent: "packaging_run.canceled"},
+	"workspace_create":       {ID: "workspace_create", Roles: []string{"Developer", "Operator", "Profile Owner"}, AuditEvent: "workspace.created"},
+	"workspace_stop":         {ID: "workspace_stop", Roles: []string{"Developer", "Operator"}, AuditEvent: "workspace.runtime_stopped"},
+	"workspace_delete":       {ID: "workspace_delete", Roles: []string{"Developer", "Operator", "Profile Owner"}, AuditEvent: "workspace.deleted"},
+	"workspace_submit":       {ID: "workspace_submit", Roles: []string{"Developer", "Operator"}, AuditEvent: "workspace.submitted"},
 }
 
 var blockers = map[string]func(ActionFacts) string{
@@ -224,6 +230,36 @@ var blockers = map[string]func(ActionFacts) string{
 	"cancel_run": func(facts ActionFacts) string {
 		if !runCancellable(facts) {
 			return "run is not queued, running, or staged"
+		}
+		return ""
+	},
+	"workspace_create": func(ActionFacts) string { return "" },
+	"workspace_stop": func(facts ActionFacts) string {
+		if !facts.WorkspaceKnown {
+			return "workspace is unknown"
+		}
+		switch strings.ToLower(facts.WorkspaceStatus) {
+		case "starting", "running":
+			return ""
+		default:
+			return "workspace is not starting or running"
+		}
+	},
+	"workspace_delete": func(facts ActionFacts) string {
+		if !facts.WorkspaceKnown || strings.EqualFold(facts.WorkspaceStatus, "running") || strings.EqualFold(facts.WorkspaceStatus, "starting") {
+			return "workspace is running or unknown"
+		}
+		if facts.Confirmation == "" || facts.Confirmation != facts.ProfileID {
+			return "confirmation does not match"
+		}
+		return ""
+	},
+	"workspace_submit": func(facts ActionFacts) string {
+		if !facts.WorkspaceKnown {
+			return "workspace is unknown"
+		}
+		if facts.CallerAlreadySigned {
+			return "caller cannot approve this submission"
 		}
 		return ""
 	},

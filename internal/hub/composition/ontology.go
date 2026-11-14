@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	devapp "github.com/jonathanagustin/conduit/internal/devworkspace/application"
+	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
+	devhttp "github.com/jonathanagustin/conduit/internal/devworkspace/httpapi"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	ontologyrepo "github.com/jonathanagustin/conduit/internal/ontology/adapters/repository"
 	ontologydomain "github.com/jonathanagustin/conduit/internal/ontology/domain"
@@ -18,11 +21,11 @@ import (
 // stay mounted when the repository is empty so an anonymous caller is refused
 // rather than the path not existing. Apply proposes a change request and does
 // not approve it.
-func mountOntology(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options) http.Handler {
+func mountOntology(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, workspaces *devapp.Service) http.Handler {
 	service := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
 	ontologyhttp.Register(mux, ontologyhttp.Config{
-		Source: ontologyrepo.New(repository, service),
+		Source: workspaceCatalog{inner: ontologyrepo.New(repository, service), spaces: workspaces},
 		Authorize: func(request *http.Request) error {
 			if _, err := operatorClaims(request, options); err != nil {
 				return ontologyhttp.StatusError{Status: statusForIdentityError(err), Message: "unauthorized"}
@@ -50,8 +53,14 @@ func mountOntology(legacy http.Handler, repository controlplane.Repository, opti
 			_, err := repository.AppendAuthorizationAudit(ctx, event)
 			return err
 		},
+		Execute: func(ctx context.Context, caller ports.Caller, action string, parameters map[string]string) error {
+			if workspaces == nil {
+				return nil
+			}
+			return devhttp.ApplyAction(ctx, workspaces, devdomain.Caller{Username: caller.Username, Teams: caller.Teams, Groups: caller.Groups}, action, parameters)
+		},
 		Facts: func(ctx context.Context, action, resource string) (ontologydomain.ActionFacts, error) {
-			return actionFacts(ctx, hub, action, resource)
+			return actionFacts(ctx, hub, workspaces, action, resource)
 		},
 		Permit: func(request *http.Request, environmentID string) error {
 			principal, ok := packagingPrincipal(request, service, options)
@@ -70,7 +79,7 @@ func mountOntology(legacy http.Handler, repository controlplane.Repository, opti
 	return mux
 }
 
-func actionFacts(ctx context.Context, hub Options, action, resource string) (ontologydomain.ActionFacts, error) {
+func actionFacts(ctx context.Context, hub Options, workspaces *devapp.Service, action, resource string) (ontologydomain.ActionFacts, error) {
 	facts := ontologydomain.ActionFacts{}
 	runID := strings.TrimPrefix(resource, "packaging-run/")
 	switch action {
@@ -84,6 +93,16 @@ func actionFacts(ctx context.Context, hub Options, action, resource string) (ont
 		}
 		facts.RunKnown = true
 		facts.RunPhase = status.Phase
+	}
+	if workspaces != nil && strings.HasPrefix(action, "workspace_") && action != "workspace_create" {
+		id := strings.TrimPrefix(resource, "workspace/")
+		row, err := workspaces.Observe(ctx, id)
+		if err != nil {
+			return facts, nil
+		}
+		facts.WorkspaceKnown = true
+		facts.WorkspaceStatus = row.Status
+		facts.ProfileID = row.ID
 	}
 	return facts, nil
 }
