@@ -82,6 +82,7 @@ const SOURCES = [
   { path: "internal/delivery/blackout/httpapi", surface: "blackouts" },
   { path: "internal/delivery/checkin/httpapi", surface: "site check-in" },
   { path: "internal/appgen/httpapi", surface: "app generation" },
+  { path: "internal/delivery/offlinebundle/httpapi", surface: "offline bundles" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

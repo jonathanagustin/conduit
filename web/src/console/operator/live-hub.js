@@ -740,6 +740,7 @@ export function createLiveHub({ state, render }) {
             <div class="mt-2 text-[12px] text-[#8b96a5]">Spoke <span class="text-white">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Latest report <span class="text-white">${esc(reportedAt || "no report")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Connectivity <span class="text-white">${esc(hub(state).connectivity || "no check-in")}</span></div>
+            <div class="text-[12px] text-[#8b96a5]">Offline bundle <span class="text-white">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
           </div>`;
         })
         .join("");
