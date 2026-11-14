@@ -93,7 +93,7 @@ separate Cosign graph. No vendor tree was committed by this review.
 Small personal namespaces alone are not evidence of malicious code. Dependency
 paths explain why these packages exist:
 
-* `sugawarayuuta/go-yit` enters through the OpenAPI generation tool, via the
+* `dprotaso/go-yit` enters through the OpenAPI generation tool, via the
   overlay/JSONPath stack. It is a build-tool dependency, not a justification to
   execute arbitrary runtime plugins.
 * `agnivade/levenshtein` enters through gqlparser validation. A small bounded
