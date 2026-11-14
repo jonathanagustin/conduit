@@ -3,6 +3,7 @@
 // which live-hub.js already loads; nothing here writes.
 
 import { emptyState } from "./empty-states.js";
+import { freshnessPill, reportTime } from "./freshness.js";
 const defaultEsc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -80,7 +81,7 @@ export function applyFacets(rows, selected = {}) {
 export function facetsMarkup(
   rows,
   selected = {},
-  { esc = defaultEsc, note = "" } = {},
+  { esc = defaultEsc, note = "", now = Date.now() } = {},
 ) {
   const list = Array.isArray(rows) ? rows : [];
   if (!list.length) {
@@ -113,10 +114,11 @@ export function facetsMarkup(
         <td><button type="button" class="kit-link code-id" data-env-open="${esc(row.environment?.id)}">${esc(row.environment?.id)}</button></td>
         ${FACETS.map((facet) => `<td>${esc(facet.value(row))}</td>`).join("")}
         <td class="code-id">${esc(row.spoke?.agentId || "")}</td>
+        <td>${freshnessPill(reportTime(row.reported?.observedAt, row.spoke?.observedAt), { esc, now })}</td>
       </tr>`,
         )
         .join("")
-    : `<tr><td colspan="${FACETS.length + 2}" class="kit-muted">No environment matches the selected facets.</td></tr>`;
+    : `<tr><td colspan="${FACETS.length + 3}" class="kit-muted">No environment matches the selected facets.</td></tr>`;
   return `<div class="kit-facet-layout">
     <aside class="so-panel kit-facet-side" aria-label="Environment facets">
       <div class="kit-view-head"><h2>Facets</h2>${anySelected ? `<button type="button" class="so-btn so-btn-sm" data-facet-clear>Clear</button>` : ""}</div>
@@ -125,7 +127,7 @@ export function facetsMarkup(
     <div class="so-panel kit-view-panel">
       <div class="kit-view-head"><h2>Environments</h2><span class="kit-muted">${matched.length} of ${list.length}</span></div>
       <div class="overflow-x-auto"><table class="so-table">
-        <thead><tr><th>Environment</th>${FACETS.map((facet) => `<th>${esc(facet.label)}</th>`).join("")}<th>Agent</th></tr></thead>
+        <thead><tr><th>Environment</th>${FACETS.map((facet) => `<th>${esc(facet.label)}</th>`).join("")}<th>Agent</th><th>Last report</th></tr></thead>
         <tbody>${rowsHtml}</tbody>
       </table></div>
     </div>
@@ -176,7 +178,7 @@ export function installationDrift(row) {
 export function envDetailMarkup(
   row,
   installations,
-  { tab = "state", esc = defaultEsc } = {},
+  { tab = "state", esc = defaultEsc, now = Date.now() } = {},
 ) {
   const id = row?.environment?.id || "";
   const back = `<button type="button" class="kit-link" data-env-back>&larr; All environments</button>`;
@@ -205,7 +207,7 @@ export function envDetailMarkup(
           <td class="code-id">${esc(item.desiredVersion || "")}</td>
           <td class="code-id">${esc(item.observedVersion || "")}</td>
           <td>${esc(installationDrift(item))}</td>
-          <td class="kit-muted">${esc(when(item.observedAt) || "no report")}</td>
+          <td>${freshnessPill(item.observedAt, { esc, now, stale: item.stale })}</td>
         </tr>`,
           )
           .join("")}</tbody></table>`
@@ -241,7 +243,7 @@ export function envDetailMarkup(
     <div>${back}</div>
     <div class="so-panel kit-view-panel">
       <div class="kit-view-head"><h2 class="code-id">${esc(id)}</h2>
-        <span class="kit-muted">Spoke ${esc(row?.spoke?.state || "unknown")} &middot; ${esc(worstHealth(row))} &middot; ${drifted.length} of ${mine.length} drifted &middot; last report ${esc(when(row?.reported?.observedAt) || when(row?.spoke?.observedAt) || "none")}</span>
+        <span class="kit-muted">Spoke ${esc(row?.spoke?.state || "unknown")} &middot; ${esc(worstHealth(row))} &middot; ${drifted.length} of ${mine.length} drifted &middot; last report</span> ${freshnessPill(reportTime(row?.reported?.observedAt, row?.spoke?.observedAt), { esc, now })}
       </div>
       <div class="kit-subnav" role="group" aria-label="Environment views">${tabs}</div>
       <div class="overflow-x-auto">${body}</div>

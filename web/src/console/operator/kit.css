@@ -621,3 +621,11 @@ button.kit-link { background: none; border: 0; padding: 0; font: inherit; cursor
 .kit-kv { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 16px; margin: 0; font-size: var(--fs-sm); }
 .kit-kv dt { color: var(--text-2); }
 .kit-kv dd { margin: 0; color: var(--text-1); overflow-wrap: anywhere; }
+
+/* Report freshness pill (kit v7.1) */
+.kit-fresh { display: inline-flex; align-items: center; gap: 4px; height: var(--h-pill, 18px); padding: 0 6px; border-radius: 9px; font-size: 10.5px; white-space: nowrap; border: 1px solid var(--border-control); color: var(--text-2); background: var(--bg-1); }
+.kit-fresh::before { content: ""; width: 6px; height: 6px; border-radius: 50%; background: currentColor; }
+.kit-fresh-fresh { border-color: var(--ok-border); color: var(--ok-text); background: var(--ok-fill); }
+.kit-fresh-recent { border-color: var(--info-border); color: var(--info-text); background: var(--info-fill); }
+.kit-fresh-stale { border-color: var(--warn-border); color: var(--warn-text); background: var(--warn-fill); }
+.kit-fresh-none { border-style: dashed; }

@@ -1,5 +1,6 @@
 /* Hub-backed workbench rows. Empty when the Hub does not answer. */
 import { emptyState } from "./empty-states.js";
+import { freshnessPill, reportTime } from "./freshness.js";
 import { channelTable } from "./channel-board.js";
 
 function esc(value) {
@@ -771,12 +772,15 @@ export function createLiveHub({ state, render }) {
       const body = rows
         .map((row) => {
           const spoke = row.spoke || {};
-          const reportedAt = row.reported?.observedAt || spoke.observedAt || "";
+          const reportedAt = reportTime(
+            row.reported?.observedAt,
+            spoke.observedAt,
+          );
           return `<tr>
             <td class="text-white">${esc(row.environment?.id || "")}</td>
             <td class="code-id">${esc(spoke.agentId || row.reported?.agentId || "")}</td>
             <td>${esc(spoke.state || "")}</td>
-            <td class="text-[#8b96a5]">${esc(reportedAt || "no report")}</td>
+            <td>${freshnessPill(reportedAt, { esc })}</td>
           </tr>`;
         })
         .join("");
@@ -788,7 +792,7 @@ export function createLiveHub({ state, render }) {
             <td>${esc(row.desiredVersion || "")}</td>
             <td>${esc(row.observedVersion || "")}</td>
             <td>${esc(reportedDrift(row))}</td>
-            <td class="text-[#8b96a5]">${esc(row.observedAt || "no report")}</td>
+            <td>${freshnessPill(row.observedAt, { esc, stale: row.stale })}</td>
             <td>${reportedDrift(row) === "drifted" ? `<button type="button" class="so-btn so-btn-sm" data-propose-fix="${esc(row.environment)}" data-installation="${esc(row.installationId)}">Propose fix</button>` : ""}</td>
           </tr>`,
         )
@@ -797,14 +801,17 @@ export function createLiveHub({ state, render }) {
         .map((row) => {
           const spoke = row.spoke || {};
           const id = row.environment?.id || "";
-          const reportedAt = row.reported?.observedAt || spoke.observedAt || "";
+          const reportedAt = reportTime(
+            row.reported?.observedAt,
+            spoke.observedAt,
+          );
           return `<div class="rounded-[6px] border border-[#1f2a35] bg-[#10161c] p-3">
             <div class="flex items-center justify-between gap-2">
               <div class="text-[16px] font-semibold text-white">${esc(id)}</div>
               <span class="px-1.5 py-0.5 rounded border border-[#253b54] text-[10px] text-[#7cb4ff]">${esc(spoke.state || "unknown")}</span>
             </div>
             <div class="mt-2 text-[12px] text-[#8b96a5]">Spoke <span class="text-white">${esc(spoke.agentId || row.reported?.agentId || "not recorded")}</span></div>
-            <div class="text-[12px] text-[#8b96a5]">Latest report <span class="text-white">${esc(reportedAt || "no report")}</span></div>
+            <div class="text-[12px] text-[#8b96a5]">Latest report ${freshnessPill(reportedAt, { esc })}</div>
             <div class="text-[12px] text-[#8b96a5]">Offline bundle <span class="text-white">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Behind <span class="text-white">${esc(hub(state).behind || "none")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Timeline <span class="text-white">${esc(hub(state).timeline || "no entries")}</span></div>
