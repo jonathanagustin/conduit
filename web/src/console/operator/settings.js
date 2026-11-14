@@ -18,10 +18,23 @@ const EXAMPLE_TOKENS = [
   },
 ];
 
-const EXAMPLE_ORGS = [
-  { id: "fleet-ops", name: "Fleet operations", members: 18, mode: "Internal" },
-  { id: "partner-portal", name: "Partner portal", members: 6, mode: "Limited" },
-];
+/** The tenant the Hub named in the page's bootstrap, or {} when absent. */
+function consoleTenant() {
+  try {
+    const meta = document.querySelector(
+      'meta[name="x-conduit-console-bootstrap"]',
+    );
+    const parsed = JSON.parse(meta?.getAttribute("content") || "{}");
+    const tenant = parsed?.tenant || {};
+    return {
+      id: typeof tenant.id === "string" ? tenant.id : "",
+      displayName:
+        typeof tenant.displayName === "string" ? tenant.displayName : "",
+    };
+  } catch {
+    return { id: "", displayName: "" };
+  }
+}
 
 const EXAMPLE_TEAMS = [
   { name: "release-managers", displayName: "Release managers", members: 4 },
@@ -519,19 +532,17 @@ export function createSettings(ctx) {
     ];
     const teams = state.orgTeamsLive ? state.orgTeams : EXAMPLE_TEAMS;
     const grants = state.orgGrantsLive ? state.orgGrants : EXAMPLE_GRANTS;
+    const tenant = consoleTenant();
     let body = "";
     if (tab === "org") {
       body = `
         <div class="grid gap-3 lg:grid-cols-2">
           <div class="space-y-2">
-            ${EXAMPLE_ORGS.map(
-              (
-                org,
-              ) => `<div class="so-card p-3 flex items-center justify-between gap-2">
-                <div><div class="text-[12.5px] font-semibold text-white">${esc(org.name)}</div><div class="text-[11px] text-[#8b96a5]">${esc(org.mode)} · ${org.members} members</div></div>
-                ${note(false, "Directory")}
-              </div>`,
-            ).join("")}
+            <div class="so-card p-3 flex items-center justify-between gap-2">
+              <div><div class="text-[12.5px] font-semibold text-white">${esc(tenant.displayName || tenant.id || "This Hub")}</div><div class="text-[11px] text-[#8b96a5]">${esc(tenant.id || "")}${state.orgTeamsLive ? ` · ${teams.length} team${teams.length === 1 ? "" : "s"}` : ""}</div></div>
+              ${note(Boolean(tenant.id), "Tenant")}
+            </div>
+            <div class="text-[11px] text-[#6d7885]">This console serves one tenant, named by the Hub when it serves the page. Teams and their roles are under Teams and roles.</div>
           </div>
           <div class="space-y-3">
             <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverUsers ? "checked" : ""} data-onchange="state.discoverUsers=this.checked" /> Let members find other people</label>
