@@ -58,12 +58,16 @@ type humanOpener struct {
 }
 
 func (opener humanOpener) OpenPending(ctx context.Context, change application.PendingChange) (string, error) {
+	installation, product, err := selectedRunIdentity(change)
+	if err != nil {
+		return "", err
+	}
 	request, err := opener.service.ProposeHumanChange(ctx, "PLAN", change.TargetID, change.Environment, []controlplane.EntityChange{{
-		ID: "memory-limit", Type: controlplane.ChangeTypeUpdateEntity, InstallationID: "sample-app",
+		ID: "memory-limit", Type: controlplane.ChangeTypeUpdateEntity, InstallationID: installation,
 		ReferencedResources: map[string]controlplane.ReferencedResource{
 			"environment":  {RID: "environment/" + change.Environment, Name: change.Environment},
-			"installation": {RID: "installation/" + change.Environment + "/sample-app", Name: "sample-app"},
-			"product":      {RID: "product/app.example:sample-app", Name: "sample-app"},
+			"installation": {RID: "installation/" + change.Environment + "/" + installation, Name: installation},
+			"product":      {RID: "product/" + product, Name: product},
 		},
 	}}, controlplane.Principal{Username: change.Author}, change.Title, change.Description)
 	if err != nil {
@@ -73,6 +77,23 @@ func (opener humanOpener) OpenPending(ctx context.Context, change application.Pe
 		return "", fmt.Errorf("change request %s is %s", request.ID, request.Status)
 	}
 	return request.ID, nil
+}
+
+// selectedRunIdentity names the packaging run the proposal is for. The opener
+// must not fall back to a hardcoded installation.
+func selectedRunIdentity(change application.PendingChange) (installation, product string, err error) {
+	installation = strings.TrimSpace(change.InstallationID)
+	if installation == "" {
+		installation, _, _ = strings.Cut(strings.TrimSpace(change.TargetID), ":")
+	}
+	if installation == "" {
+		return "", "", fmt.Errorf("packaging proposal is missing the run or installation")
+	}
+	product = strings.TrimSpace(change.ProductID)
+	if product == "" {
+		product = "app.example:" + installation
+	}
+	return installation, product, nil
 }
 
 type modelAudit struct {
