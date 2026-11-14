@@ -10,6 +10,8 @@ import { AcpPanels } from "@/src/embed/acp-panels";
 import { ComposerCommands } from "@/src/embed/composer-commands";
 import { ThreadWelcome } from "@/src/embed/thread-welcome";
 import { BridgeConnection, ConsoleChrome } from "@/src/embed/console-shell";
+import { ContextToolUIs } from "@/src/console/context-tools";
+import { Workbench } from "@/src/console/Workbench";
 import { ElementCatalog } from "@/src/embed/element-catalog";
 import {
   SidebarInset,
@@ -51,7 +53,7 @@ const THEME_KEY = "conduit-console-theme";
 
 export const Assistant = () => {
   const runtime = useCodexRuntime();
-  const [view, setView] = useState<"thread" | "elements">("thread");
+  const [view, setView] = useState<"thread" | "elements" | "workbench">("thread");
   const [dark, setDark] = useState(false);
 
   useEffect(() => {
@@ -73,8 +75,20 @@ export const Assistant = () => {
     });
   };
 
+  if (view === "workbench") {
+    return (
+      <AssistantRuntimeProvider runtime={runtime} config={ASSISTANT_CONFIG}>
+        <ContextToolUIs />
+        <div className="dark bp6-dark h-dvh w-full">
+          <Workbench dark />
+        </div>
+      </AssistantRuntimeProvider>
+    );
+  }
+
   return (
     <AssistantRuntimeProvider runtime={runtime} config={ASSISTANT_CONFIG}>
+      <ContextToolUIs />
       <SidebarProvider>
         <div className="flex h-dvh w-full pr-0.5">
           <ThreadListSidebar />
@@ -110,6 +124,14 @@ export const Assistant = () => {
                   onClick={toggleTheme}
                 >
                   {dark ? "Light" : "Dark"}
+                </button>
+                <button
+                  type="button"
+                  className="text-muted-foreground hover:text-foreground rounded-md px-2 py-1 text-sm"
+                  aria-pressed={false}
+                  onClick={() => setView("workbench")}
+                >
+                  Workbench
                 </button>
                 <ConsoleChrome
                   view={view}

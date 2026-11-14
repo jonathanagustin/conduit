@@ -1,4 +1,5 @@
 .platform-delivery/
+ui-ref/
 coverage.out
 dist/
 !internal/consoleui/dist/
