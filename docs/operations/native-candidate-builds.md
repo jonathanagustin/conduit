@@ -23,7 +23,7 @@ docker buildx build --load --platform linux/amd64 \
   --tag conduit-cpsat-candidate:local -f Containerfile.optimizer-cpsat .
 ```
 
-The PEM bundle configures Curl, Cargo and Bazelisk; the Java trust store
+The PEM bundle configures Curl, Cargo, Git and Bazelisk; the Java trust store
 configures Bazel's JVM. TLS verification remains enabled. These mounts are
 available during the build step and are not copied into the candidate rootfs.
 Use the operator's reviewed trust configuration; do not commit trust-store
