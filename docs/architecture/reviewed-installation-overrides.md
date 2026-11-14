@@ -8,13 +8,12 @@ scoped release-note/CLI record in
 secret-requirement overrides. Those records do not establish a private override
 API, review protocol, receipt format or enforcement implementation.
 
-## Foundation, not an enabled bypass
+## Module metadata integration
 
-`internal/installoverride` defines native intent, immutable review binding and
-an application authority port. It is not yet composed into a Hub route, CLI,
-Module service, Plan builder or Agent. Existing recall and secret enforcement
-remain in place. No new flag joins the reviewed compatibility profile in this
-foundation change, and issue #305 remains open for runtime integration.
+As of 2026-11-14, the maintainer chose to retain the existing metadata-only
+Module installation flow and record reviewed secret intent. The Hub composes
+native Module proposal/apply routes and the CLI install override flags. This
+adds no Module-to-Plan execution and does not change Entity Plan or Agent gates.
 
 The current systems have distinct seams:
 
@@ -87,12 +86,50 @@ an adapter erroneously ignores the callback error. This does not make a broken
 adapter transactional: adapters must prove their actual durability, rollback,
 concurrency and audit behavior before composition.
 
-Runtime integration must supply those adapters, mandatory approval/audit,
-strict native transport, applicable CLI flags and last-safe-point checks.
-Missing/foreign/expired approval must never fall through to ordinary execution.
-New recall/secret constraints must not inherit an old blanket exception, and
-unsupported Module secret semantics must remain explicit. These are required
-integration work, not claims established by the pure kernel tests.
+## Review and apply protocol
+
+`module install NAME:VERSION --environment ENV --ignore-recalls
+--ignore-secret-requirements --rationale "CAB-305"` creates a pending Change
+Request. It does not install metadata immediately. JSON and YAML output expose
+`valueTier: CONDUIT_NATIVE` and `secretRequirementsEffect: INTENT_ONLY`.
+
+An independent reviewer uses `change-request approve REQUEST --rationale ...`.
+The reviewer needs the explicit `module-installation:override-approve` operation
+(for example the native `environment:module-override-reviewer` role). Ordinary
+auto-approve policy does not satisfy the mandatory requirement. Both original
+and delegated effective identities are retained; self-review fails admission.
+Old Hub review records lacking the native identity proof fail closed.
+Configure policies, teams and grants before proposing: authority changes
+invalidate the sealed proposal and require a fresh request.
+
+An Environment operator then runs `module override apply REQUEST`. The Hub
+rechecks authorization, approval, expiry, immutable release/configuration,
+installation baseline and current blockers under the repository serialization
+boundary. Recall exceptions cover only the exact observed recalled release.
+Secret intent never authorizes a recall or creates a secret waiver. Declarations
+are retained unchanged. Successful repeated apply reads the stored historical
+receipt without changing metadata again.
+
+`module installation update INSTALLATION_ID --environment ENV --version VERSION
+--ignore-recalls --rationale ...` proposes a native installed-metadata update;
+`--dry-run` previews without writing a request or installation. Omitted version
+resolves the tracked channel before review. The existing `module update`
+command remains definition publication. Update retains installation variables,
+channel and configuration reconciliation behavior and requires a newer release.
+
+Native HTTP: `POST /v1/module-override-proposals` accepts `{draft, dryRun}`;
+`POST /v1/module-override-proposals/{requestID}/apply` requires an empty body.
+Caller identity is bound by the existing operator authentication carrier.
+Unknown fields, extra documents, query parameters and oversized payloads fail.
+
+Memory and PostgreSQL transactions roll back audit/effect failures. The file
+adapter serializes visibility on the repository instance, but is not a
+multi-file crash transaction: an interrupted or failed write can leave partial
+state without a successful acknowledgment. Inspect the request execution and
+installation before recovery; never treat a missing acknowledgment as success.
+PostgreSQL is the transactional production path. Durable admission audit is
+written before the metadata effect; completion audit and execution receipt are
+part of the same transaction on transactional repositories.
 
 ## Verification
 
@@ -101,5 +138,6 @@ delegated self-review, target/authority/blocker drift, non-waivable constraints,
 per-flag scope, resolved blockers and opaque short-lived permits. Application
 tests use a controlled authority port to prove no effect for missing/stale/
 unauthorized facts, cancellation, malformed acknowledgments, callback omission,
-callback replay and ignored failures. They establish the kernel and port
-contract only; they are not production authorization or database evidence.
+callback replay and ignored failures. Runtime tests additionally exercise memory, file restart and PostgreSQL adapters,
+mandatory review, stale authority/release/baseline rejection, audit rollback and
+CLI-to-Hub admission. PostgreSQL cases require the local CI database fixture.

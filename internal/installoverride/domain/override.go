@@ -125,18 +125,19 @@ func (b Blocker) key() string { return b.Kind + ":" + b.ID }
 
 // Snapshot is supplied by an authority adapter, not by a proposal's transport.
 type Snapshot struct {
-	Target          Target    `json:"target"`
-	AuthorityDigest string    `json:"authorityDigest"`
-	Blockers        []Blocker `json:"blockers"`
+	Target                       Target    `json:"target"`
+	AuthorityDigest              string    `json:"authorityDigest"`
+	Blockers                     []Blocker `json:"blockers"`
+	SecretRequirementsIntentOnly bool      `json:"secretRequirementsIntentOnly,omitempty"`
 }
 
 func (s Snapshot) Validate() error {
-	if s.Target.Validate() != nil || !digestPattern.MatchString(s.AuthorityDigest) || len(s.Blockers) > MaximumBlockers {
+	if s.Target.Validate() != nil || !digestPattern.MatchString(s.AuthorityDigest) || len(s.Blockers) > MaximumBlockers || (s.SecretRequirementsIntentOnly && s.Target.Kind != "MODULE") {
 		return ErrInvalid
 	}
 	seen := map[string]bool{}
 	for _, b := range s.Blockers {
-		if (b.Kind != Recall && b.Kind != SecretRequirement && b.Kind != OtherConstraint) || !ValidID(b.ID) || !digestPattern.MatchString(b.Digest) || seen[b.key()] || (b.Kind == OtherConstraint && b.Overridable) {
+		if (b.Kind != Recall && b.Kind != SecretRequirement && b.Kind != OtherConstraint) || !ValidID(b.ID) || !digestPattern.MatchString(b.Digest) || seen[b.key()] || (b.Kind == OtherConstraint && b.Overridable) || (s.SecretRequirementsIntentOnly && b.Kind == SecretRequirement) {
 			return ErrInvalid
 		}
 		seen[b.key()] = true
@@ -196,7 +197,7 @@ func (p Proposal) Validate() error {
 			counts[b.Kind]++
 		}
 	}
-	if (!p.Flags.IgnoreRecalls && !p.Flags.IgnoreSecretRequirements) || (p.Flags.IgnoreRecalls && counts[Recall] == 0) || (p.Flags.IgnoreSecretRequirements && counts[SecretRequirement] == 0) {
+	if (!p.Flags.IgnoreRecalls && !p.Flags.IgnoreSecretRequirements) || (p.Flags.IgnoreRecalls && counts[Recall] == 0) || (p.Flags.IgnoreSecretRequirements && counts[SecretRequirement] == 0 && !p.Snapshot.SecretRequirementsIntentOnly) {
 		return ErrInvalid
 	}
 	return nil
@@ -260,7 +261,7 @@ func Revalidate(p Proposal, a Approval, current Snapshot, now time.Time) (Permit
 			return Permit{}, ErrBlocked
 		}
 	}
-	if current.Target != p.Snapshot.Target || current.AuthorityDigest != p.Snapshot.AuthorityDigest || a.AuthorityDigest != current.AuthorityDigest {
+	if current.SecretRequirementsIntentOnly != p.Snapshot.SecretRequirementsIntentOnly || current.Target != p.Snapshot.Target || current.AuthorityDigest != p.Snapshot.AuthorityDigest || a.AuthorityDigest != current.AuthorityDigest {
 		return Permit{}, ErrBlocked
 	}
 	reviewed := map[string]Blocker{}

@@ -276,9 +276,23 @@
     {
       "id": "installoverride.ReviewBinding",
       "what": "Native sealed installation override intent, exact target/blocker/authority fingerprints, bounded review window, independent identity checks and a short-lived opaque admission permit.",
-      "why": "The scoped CLI/release-note evidence establishes override capability, not a private approval or execution protocol. Issue #305 requires reviewed intent instead of unreviewed bypass flags. The kernel separates that contract from future trusted authority/runtime adapters.",
+      "why": "The scoped CLI/release-note evidence establishes override capability, not a private approval or execution protocol. Issue #305 requires reviewed intent instead of unreviewed bypass flags. The kernel separates exact review binding from trusted Module metadata authority adapters.",
       "displacedBy": "A published or sanitized installation override contract establishing review scope, blocker identity, expiry, independent approval and last-safe-point authority.",
-      "riskIfWrong": "Native field names and timing bounds may need replacement. This foundation is not composed into production and grants no bypass by itself. Real adapters must prove authentication, mandatory review, fresh target/grant facts, audit, serialized effects and durability before composition."
+      "riskIfWrong": "Native field names and timing bounds may need replacement. The kernel grants no bypass by itself. Composed Module adapters enforce independent review, current target/grant facts, audit and serialized metadata effects; secret intent is not a runtime secret waiver."
+    },
+    {
+      "id": "installoverride.ModuleMetadataAdmission",
+      "what": "Native Module metadata admission through an independently reviewed exact-release proposal, explicit reviewer operation, current authority/state checks and audited intent-only secret semantics.",
+      "why": "Issue #305 and the maintainer decision retain metadata-only Module installation; release notes do not establish a private review protocol or runtime secret gate.",
+      "displacedBy": "A published or sanitized Module override contract establishing metadata admission, independent reviewer authority, exact release/state binding and audited intent-only secret semantics.",
+      "riskIfWrong": "The native protocol may require replacement. Secret declarations remain opaque metadata. PostgreSQL and memory transactions roll back failed effects; FileRepository serializes visibility but is not crash atomic."
+    },
+    {
+      "id": "installoverride.ModuleCLI",
+      "what": "Native request/apply stages and installed-Module update commands with structured intent-only secret output.",
+      "why": "Public install flags and scoped release notes do not specify an approval transport or installed-Module update path. Existing module update publishes definitions.",
+      "displacedBy": "A published or sanitized reviewed Module override CLI contract establishing request/apply stages, installed-Module update paths and intent-only secret output.",
+      "riskIfWrong": "Native command paths and receipt fields may differ. Applying a request requires separate approval and current exact-scope admission; no workload execution is added."
     }
   ],
   "displaced": [

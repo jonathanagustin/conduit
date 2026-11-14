@@ -251,3 +251,47 @@ func TestMutableVersionSelectorIsNotAnImmutableTarget(t *testing.T) {
 		t.Fatal("unrelated constraint declared waivable")
 	}
 }
+
+func TestModuleSecretIntentNeverCreatesRuntimeWaiver(t *testing.T) {
+	_, _, snapshot, now := reviewFixture(t)
+	snapshot.Target.Kind = "MODULE"
+	snapshot.SecretRequirementsIntentOnly = true
+	snapshot.Blockers = nil
+	p, err := NewProposal(snapshot, Flags{IgnoreSecretRequirements: true}, Identity{"author", "author"}, "Reviewed metadata intent", now.Add(-time.Minute), now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval := Approval{ReviewID: "crq_intent", ProposalID: p.ID, Revision: 1, Status: "APPROVED", RequirementsSatisfied: true, Reviewer: Identity{"reviewer", "reviewer"}, ReviewedAt: now.Add(-time.Second), AuthorityDigest: snapshot.AuthorityDigest}
+	permit, err := Revalidate(p, approval, snapshot, now)
+	if err != nil {
+		t.Fatal(err)
+	}
+	secret := Blocker{Kind: SecretRequirement, ID: "database", Digest: testDigest("e"), Overridable: true}
+	if permit.Allows(now, snapshot.Target, secret) {
+		t.Fatal("intent produced a secret waiver")
+	}
+	snapshot.SecretRequirementsIntentOnly = false
+	if _, err := Revalidate(p, approval, snapshot, now); err == nil {
+		t.Fatal("changed enforcement mode accepted")
+	}
+	snapshot = p.Snapshot
+	snapshot.Target.Kind = "ENTITY"
+	if err := snapshot.Validate(); err == nil {
+		t.Fatal("Entity intent mode accepted")
+	}
+	snapshot = p.Snapshot
+	snapshot.Blockers = []Blocker{secret}
+	if err := snapshot.Validate(); err == nil {
+		t.Fatal("intent invented a secret gate")
+	}
+	snapshot = p.Snapshot
+	snapshot.Blockers = []Blocker{{Kind: Recall, ID: "recalled", Digest: testDigest("e"), Overridable: true}}
+	p, err = NewProposal(snapshot, Flags{IgnoreSecretRequirements: true}, Identity{"author", "author"}, "Secret intent with independent recall", now.Add(-time.Minute), now.Add(time.Minute))
+	if err != nil {
+		t.Fatal(err)
+	}
+	approval.ProposalID = p.ID
+	if _, err := Revalidate(p, approval, snapshot, now); err == nil {
+		t.Fatal("secret intent waived recall")
+	}
+}
