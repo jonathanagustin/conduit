@@ -392,6 +392,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
 		{Pattern: "POST /v1/export-pipelines/{pipelineID}/unarchive",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
+		{Pattern: "POST /v1/fleet/propose-fix",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; opens a change request for one drifted installation and does not apply it"},
 		{Pattern: "POST /v1/fleet/actions",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireBulkTargetOperation"},
 		{Pattern: "POST /v1/module-installations/{installationID}/pause",
