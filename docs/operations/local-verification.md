@@ -28,9 +28,9 @@ Do not convert a skipped integration into compatibility evidence.
 
 ## Go toolchain and the analysis tools
 
-The compiler, container build images, and analysis commands pin Go 1.26.11.
+The compiler, container build images, and analysis commands pin Go 1.27.4.
 The container manifests are resolved from the registry and pinned by digest.
-Staticcheck v0.8.2 and govulncheck v1.9.0 support the Go 1.26 module graph.
+Staticcheck v0.8.2 and govulncheck v1.9.0 support the Go 1.27 module graph.
 
 The earlier Go 1.25.13 analysis override is retired: it scanned an obsolete
 standard library and now reports reachable vulnerabilities. The November 2026
