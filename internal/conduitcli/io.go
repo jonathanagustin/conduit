@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"unicode/utf8"
 
 	"go.yaml.in/yaml/v3"
 )
@@ -54,7 +55,7 @@ func decodeDocument(path string, output any) error {
 	return nil
 }
 
-// writeOutput renders in the formats Conduit has: json, yaml, and csv.
+// writeOutput renders in the formats Conduit has: json, yaml, csv, and table.
 //
 // It used to accept a name, `pretty`, in the same branch as `yaml`, and --help
 // advertised "json, yaml, or pretty". The two names produced byte-identical
@@ -83,6 +84,16 @@ func writeOutput(writer io.Writer, format string, value any) error {
 			return fmt.Errorf("write csv output: %w", err)
 		}
 		return csvWriter.Error()
+	case "table":
+		marshaler, ok := value.(CSVMarshaler)
+		if !ok {
+			return fmt.Errorf("output format table is not available for this command; use json or yaml")
+		}
+		rows, err := marshaler.MarshalCSV()
+		if err != nil {
+			return fmt.Errorf("encode table output: %w", err)
+		}
+		return writeAlignedTable(writer, rows)
 	case "yaml":
 		jsonValue, err := json.Marshal(value)
 		if err != nil {
@@ -97,7 +108,7 @@ func writeOutput(writer io.Writer, format string, value any) error {
 		defer encoder.Close()
 		return encoder.Encode(generic)
 	default:
-		return fmt.Errorf("unsupported output format %q; use json, yaml, or csv", format)
+		return fmt.Errorf("unsupported output format %q; use json, yaml, csv, or table", format)
 	}
 }
 
@@ -109,4 +120,60 @@ func writeOutput(writer io.Writer, format string, value any) error {
 // format the command cannot produce.
 type CSVMarshaler interface {
 	MarshalCSV() ([][]string, error)
+}
+
+func writeAlignedTable(writer io.Writer, rows [][]string) error {
+	if len(rows) == 0 {
+		return nil
+	}
+	width := len(rows[0])
+	widths := make([]int, width)
+	sanitized := make([][]string, len(rows))
+	for rowIndex, row := range rows {
+		if len(row) != width {
+			return errors.New("table rows must have the same number of columns")
+		}
+		sanitized[rowIndex] = make([]string, width)
+		for column, cell := range row {
+			cell = strings.NewReplacer("\n", " ", "\r", " ", "\t", " ").Replace(cell)
+			sanitized[rowIndex][column] = cell
+			if count := utf8.RuneCountInString(cell); count > widths[column] {
+				widths[column] = count
+			}
+		}
+	}
+	for rowIndex, row := range sanitized {
+		if err := writeTableRow(writer, row, widths); err != nil {
+			return err
+		}
+		if rowIndex == 0 {
+			rule := make([]string, width)
+			for column, size := range widths {
+				if size == 0 {
+					size = 1
+				}
+				rule[column] = strings.Repeat("-", size)
+			}
+			if err := writeTableRow(writer, rule, widths); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func writeTableRow(writer io.Writer, row []string, widths []int) error {
+	var builder strings.Builder
+	for column, cell := range row {
+		if column > 0 {
+			builder.WriteString("  ")
+		}
+		builder.WriteString(cell)
+		if padding := widths[column] - utf8.RuneCountInString(cell); padding > 0 {
+			builder.WriteString(strings.Repeat(" ", padding))
+		}
+	}
+	builder.WriteByte('\n')
+	_, err := io.WriteString(writer, builder.String())
+	return err
 }

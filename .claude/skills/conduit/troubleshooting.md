@@ -10,7 +10,7 @@ and then the honest list of what it will not do for you at all.
 | --- | --- | --- |
 | `all enabled policies returned no_op for change chg_…; no enabled approval policies` | The Hub has no enabled approval policy, so nothing decided what review the change needs. The Change Request lands in `ERROR` | `conduit approval-policy apply … -f policy.yaml`, then propose again. This is the first thing to configure on a new Hub |
 | `forbidden: the author of a change request cannot approve it` | Self-approval, refused unconditionally | Have a second principal who satisfies the requirement approve it |
-| `configure static mTLS, SPIFFE, or bearer-token identity` | A profile with a server and no credential | Add one of `--client-cert-file`+`--client-key-file`, `--spiffe-endpoint`+`--hub-spiffe-id`, or `--bearer-token-file` |
+| `configure static mTLS, SPIFFE, bearer-token, or OIDC identity` | A profile with a server and no credential | Add one of `--client-cert-file`+`--client-key-file`, `--spiffe-endpoint`+`--hub-spiffe-id`, `--bearer-token-file`, or `--oidc-issuer`+`--oidc-client-id`+`--oidc-client-secret-file` |
 | `bearer token file permissions must not grant group or other access` | The token file is group- or world-readable. Checked at **use** time, not at profile creation | `chmod 0600` the token file |
 | `authenticated CLI connections must use https` | A credential pointed at an `http://` server | Use `https://`. Loopback development uses `--development-subject` instead of a credential |
 | `--product-id is required by Conduit's bounded catalog projection` | `conduit product-release list` with no `-p` | Name the Product. There is no whole-catalog release listing |

@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -14,10 +15,23 @@ import (
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	if execute(ctx, conduitcli.Runtime{}, os.Stderr) != nil {
+	if err := execute(ctx, conduitcli.Runtime{}, os.Stderr); err != nil {
 		stop()
-		os.Exit(1)
+		os.Exit(processStatus(err))
 	}
+}
+
+func processStatus(err error) int {
+	if err == nil {
+		return 0
+	}
+	var coded interface{ ExitCode() int }
+	if errors.As(err, &coded) {
+		if code := coded.ExitCode(); code > 0 && code < 128 {
+			return code
+		}
+	}
+	return 1
 }
 
 // execute is separated from main so the one decision here -- whether the process

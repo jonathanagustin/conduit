@@ -268,6 +268,12 @@ func (*fakeService) CancelPlan(_ context.Context, id, _ string) (controlplane.Pl
 func (*fakeService) GetPlan(_ context.Context, id string) (controlplane.PlanRecord, error) {
 	return controlplane.PlanRecord{ID: id, Status: controlplane.PlanAwaitingApproval}, nil
 }
+func (*fakeService) ListPlans(context.Context, operator.PlanListQuery) (operator.PlanListResult, error) {
+	return operator.PlanListResult{Plans: []controlplane.PlanSummary{}}, nil
+}
+func (*fakeService) ListPackagingRuns(context.Context, operator.PackagingRunQuery) (operator.PackagingRunList, error) {
+	return operator.PackagingRunList{}, nil
+}
 func (*fakeService) GetReportedState(_ context.Context, environment string) (controlplane.EnvironmentReport, error) {
 	return controlplane.EnvironmentReport{Environment: environment}, nil
 }
