@@ -8,9 +8,8 @@ COPY mise.toml mise.toml
 COPY scripts/build-console.sh scripts/build-console.sh
 COPY internal/consoleui/dist/README.txt internal/consoleui/dist/README.txt
 COPY web/ web/
-ENV COREPACK_ENABLE_DOWNLOAD_PROMPT=0
-RUN corepack enable \
- && corepack prepare pnpm@11.28.11 --activate \
+RUN npm install --global --ignore-scripts pnpm@11.28.11 \
+ && test "$(pnpm --version)" = 11.28.11 \
  && ./scripts/build-console.sh
 
 FROM cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9 AS runtime-base
