@@ -19,17 +19,23 @@ import (
 var conduitProfileSchema []byte
 
 type connectionProfile struct {
-	SpaceID         string `json:"spaceId,omitempty" yaml:"spaceId,omitempty"`
-	Name            string `json:"name" yaml:"name"`
-	Server          string `json:"server" yaml:"server"`
-	Timeout         string `json:"timeout,omitempty" yaml:"timeout,omitempty"`
-	Output          string `json:"output,omitempty" yaml:"output,omitempty"`
-	CAFile          string `json:"caFile,omitempty" yaml:"caFile,omitempty"`
-	ClientCertFile  string `json:"clientCertFile,omitempty" yaml:"clientCertFile,omitempty"`
-	ClientKeyFile   string `json:"clientKeyFile,omitempty" yaml:"clientKeyFile,omitempty"`
-	SPIFFEEndpoint  string `json:"spiffeEndpoint,omitempty" yaml:"spiffeEndpoint,omitempty"`
-	HubSPIFFEID     string `json:"hubSpiffeId,omitempty" yaml:"hubSpiffeId,omitempty"`
-	BearerTokenFile string `json:"bearerTokenFile,omitempty" yaml:"bearerTokenFile,omitempty"`
+	SpaceID              string `json:"spaceId,omitempty" yaml:"spaceId,omitempty"`
+	Name                 string `json:"name" yaml:"name"`
+	Server               string `json:"server" yaml:"server"`
+	Timeout              string `json:"timeout,omitempty" yaml:"timeout,omitempty"`
+	Output               string `json:"output,omitempty" yaml:"output,omitempty"`
+	CAFile               string `json:"caFile,omitempty" yaml:"caFile,omitempty"`
+	ClientCertFile       string `json:"clientCertFile,omitempty" yaml:"clientCertFile,omitempty"`
+	ClientKeyFile        string `json:"clientKeyFile,omitempty" yaml:"clientKeyFile,omitempty"`
+	SPIFFEEndpoint       string `json:"spiffeEndpoint,omitempty" yaml:"spiffeEndpoint,omitempty"`
+	HubSPIFFEID          string `json:"hubSpiffeId,omitempty" yaml:"hubSpiffeId,omitempty"`
+	BearerTokenFile      string `json:"bearerTokenFile,omitempty" yaml:"bearerTokenFile,omitempty"`
+	OIDCIssuer           string `json:"oidcIssuer,omitempty" yaml:"oidcIssuer,omitempty"`
+	OIDCClientID         string `json:"oidcClientId,omitempty" yaml:"oidcClientId,omitempty"`
+	OIDCClientSecretFile string `json:"oidcClientSecretFile,omitempty" yaml:"oidcClientSecretFile,omitempty"`
+	OIDCTokenURL         string `json:"oidcTokenUrl,omitempty" yaml:"oidcTokenUrl,omitempty"`
+	OIDCScope            string `json:"oidcScope,omitempty" yaml:"oidcScope,omitempty"`
+	OIDCCAFile           string `json:"oidcCaFile,omitempty" yaml:"oidcCaFile,omitempty"`
 }
 
 type profileDocument struct {
@@ -55,9 +61,9 @@ func (profile connectionProfile) validate(name string) error {
 	}
 	if profile.Output != "" {
 		switch strings.ToLower(strings.TrimSpace(profile.Output)) {
-		case "json", "yaml":
+		case "json", "yaml", "table":
 		default:
-			return fmt.Errorf("profile %q output must be json or yaml", name)
+			return fmt.Errorf("profile %q output must be json, yaml, or table", name)
 		}
 	}
 	configuration := ConnectionConfig{
@@ -65,6 +71,9 @@ func (profile connectionProfile) validate(name string) error {
 		CAFile: profile.CAFile, ClientCertFile: profile.ClientCertFile, ClientKeyFile: profile.ClientKeyFile,
 		SPIFFEEndpoint: profile.SPIFFEEndpoint, HubSPIFFEID: profile.HubSPIFFEID,
 		BearerTokenFile: profile.BearerTokenFile, SpaceID: profile.SpaceID,
+		OIDCIssuer: profile.OIDCIssuer, OIDCClientID: profile.OIDCClientID,
+		OIDCClientSecretFile: profile.OIDCClientSecretFile, OIDCTokenURL: profile.OIDCTokenURL,
+		OIDCScope: profile.OIDCScope, OIDCCAFile: profile.OIDCCAFile,
 	}
 	if _, err := configuration.validate(); err != nil {
 		return fmt.Errorf("profile %q: %w", name, err)
@@ -229,6 +238,24 @@ func (state *commandState) applySelectedProfile(command *cobra.Command) error {
 	if state.config.BearerTokenFile == "" {
 		state.config.BearerTokenFile = profile.BearerTokenFile
 	}
+	if state.config.OIDCIssuer == "" {
+		state.config.OIDCIssuer = profile.OIDCIssuer
+	}
+	if state.config.OIDCClientID == "" {
+		state.config.OIDCClientID = profile.OIDCClientID
+	}
+	if state.config.OIDCClientSecretFile == "" {
+		state.config.OIDCClientSecretFile = profile.OIDCClientSecretFile
+	}
+	if state.config.OIDCTokenURL == "" {
+		state.config.OIDCTokenURL = profile.OIDCTokenURL
+	}
+	if state.config.OIDCScope == "" {
+		state.config.OIDCScope = profile.OIDCScope
+	}
+	if state.config.OIDCCAFile == "" {
+		state.config.OIDCCAFile = profile.OIDCCAFile
+	}
 	if !command.Flags().Changed("output") && profile.Output != "" {
 		state.output = profile.Output
 	}
@@ -248,6 +275,9 @@ func (state *commandState) profileFromFlags(name string) (connectionProfile, err
 		CAFile: state.config.CAFile, ClientCertFile: state.config.ClientCertFile, ClientKeyFile: state.config.ClientKeyFile,
 		SPIFFEEndpoint: state.config.SPIFFEEndpoint, HubSPIFFEID: state.config.HubSPIFFEID,
 		BearerTokenFile: state.config.BearerTokenFile, SpaceID: state.config.SpaceID,
+		OIDCIssuer: state.config.OIDCIssuer, OIDCClientID: state.config.OIDCClientID,
+		OIDCClientSecretFile: state.config.OIDCClientSecretFile, OIDCTokenURL: state.config.OIDCTokenURL,
+		OIDCScope: state.config.OIDCScope, OIDCCAFile: state.config.OIDCCAFile,
 	}
 	configuration := state.config
 	configuration.DevelopmentSubject = ""

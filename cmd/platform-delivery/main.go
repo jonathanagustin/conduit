@@ -6,7 +6,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"encoding/base64"
-	"encoding/json"
 	"encoding/pem"
 	"errors"
 	"fmt"
@@ -19,6 +18,7 @@ import (
 	"syscall"
 	"time"
 
+	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
 	"github.com/jonathanagustin/conduit/internal/consoleui"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -775,22 +775,7 @@ func loadTrustedBundleKeys(path string) (map[string]ed25519.PublicKey, error) {
 	if err != nil {
 		return nil, err
 	}
-	encoded := make(map[string]string)
-	if err := json.Unmarshal(contents, &encoded); err != nil {
-		return nil, fmt.Errorf("decode trusted-key map: %w", err)
-	}
-	keys := make(map[string]ed25519.PublicKey, len(encoded))
-	for id, value := range encoded {
-		decoded, decodeErr := base64.RawStdEncoding.DecodeString(value)
-		if decodeErr != nil {
-			decoded, decodeErr = base64.StdEncoding.DecodeString(value)
-		}
-		if decodeErr != nil || len(decoded) != ed25519.PublicKeySize {
-			return nil, fmt.Errorf("trusted Bundle key %q must be a base64 Ed25519 public key", id)
-		}
-		keys[id] = ed25519.PublicKey(decoded)
-	}
-	return keys, nil
+	return artifacts.ParseTrustedKeys(contents)
 }
 
 // startMetricsListener serves the metrics endpoint on its own address, and

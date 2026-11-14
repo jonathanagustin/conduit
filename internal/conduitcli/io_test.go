@@ -56,18 +56,18 @@ func TestWriteOutputSupportsStableAutomationFormats(t *testing.T) {
 // name for `yaml`, so an operator who asked for a human-oriented rendering got
 // the machine one and nothing said so. An unknown name is now refused by the
 // branch that refuses any other one, and the refusal names the formats that do
-// exist -- json, yaml, and csv -- so the operator can pick.
+// exist -- json, yaml, csv, and table -- so the operator can pick.
 func TestWriteOutputRefusesAFormatConduitDoesNotHave(t *testing.T) {
 	t.Parallel()
 	value := map[string]any{"status": "PENDING"}
-	for _, format := range []string{"pretty", "PRETTY", "table", ""} {
+	for _, format := range []string{"pretty", "PRETTY", "text", ""} {
 		var output bytes.Buffer
 		err := writeOutput(&output, format, value)
 		if err == nil {
 			t.Errorf("format %q was accepted and rendered %q", format, output.String())
 			continue
 		}
-		if !strings.Contains(err.Error(), "use json, yaml, or csv") {
+		if !strings.Contains(err.Error(), "use json, yaml, csv, or table") {
 			t.Errorf("format %q error = %v, want the formats that do exist", format, err)
 		}
 		// Nothing partial reaches the caller's writer: a rejected format that

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -91,5 +93,22 @@ func TestExecuteAttributesFailuresAndStaysQuietOtherwise(t *testing.T) {
 	}
 	if diagnostics.Len() != 0 {
 		t.Errorf("a successful command wrote %q", diagnostics.String())
+	}
+}
+
+func TestProcessStatusKeepsTheDefaultAndHonorsAnExplicitCode(t *testing.T) {
+	t.Parallel()
+	if processStatus(nil) != 0 {
+		t.Fatal("success was not status 0")
+	}
+	if processStatus(errors.New("usage")) != 1 {
+		t.Fatal("an ordinary failure was not status 1")
+	}
+	rejected := conduitcli.StatusError{Status: 2, Err: errors.New("rejected")}
+	if processStatus(rejected) != 2 {
+		t.Fatal("an explicit status was dropped")
+	}
+	if processStatus(fmt.Errorf("command: %w", rejected)) != 2 {
+		t.Fatal("a wrapped status was dropped")
 	}
 }

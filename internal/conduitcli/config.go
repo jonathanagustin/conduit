@@ -26,17 +26,23 @@ const defaultTimeout = 30 * time.Second
 // transport construction. It contains paths to trust material, never material
 // contents, and deliberately has no permissive map-based configuration.
 type ConnectionConfig struct {
-	SpaceID            string
-	Server             string
-	Timeout            time.Duration
-	CAFile             string
-	ClientCertFile     string
-	ClientKeyFile      string
-	SPIFFEEndpoint     string
-	HubSPIFFEID        string
-	BearerTokenFile    string
-	DevelopmentSubject string
-	DevelopmentGroups  []string
+	SpaceID              string
+	Server               string
+	Timeout              time.Duration
+	CAFile               string
+	ClientCertFile       string
+	ClientKeyFile        string
+	SPIFFEEndpoint       string
+	HubSPIFFEID          string
+	BearerTokenFile      string
+	OIDCIssuer           string
+	OIDCClientID         string
+	OIDCClientSecretFile string
+	OIDCTokenURL         string
+	OIDCScope            string
+	OIDCCAFile           string
+	DevelopmentSubject   string
+	DevelopmentGroups    []string
 }
 
 type clientConnection struct {
@@ -84,6 +90,12 @@ func (configuration ConnectionConfig) validate() (*url.URL, error) {
 	if strings.TrimSpace(configuration.BearerTokenFile) != "" {
 		secureModes++
 	}
+	if err := configuration.validateOIDC(); err != nil {
+		return nil, err
+	}
+	if configuration.oidcComplete() {
+		secureModes++
+	}
 	development := strings.TrimSpace(configuration.DevelopmentSubject) != ""
 	if !development && len(normalized(configuration.DevelopmentGroups)) != 0 {
 		return nil, errors.New("--development-groups requires --development-subject")
@@ -92,7 +104,7 @@ func (configuration ConnectionConfig) validate() (*url.URL, error) {
 		return nil, errors.New("--development-subject cannot be combined with a production identity")
 	}
 	if secureModes > 1 {
-		return nil, errors.New("static mTLS, SPIFFE, and bearer-token identity are mutually exclusive")
+		return nil, errors.New("static mTLS, SPIFFE, bearer-token, and OIDC identity are mutually exclusive")
 	}
 	if development {
 		if server.Scheme != "http" || !isLoopbackHost(server.Hostname()) {
@@ -103,7 +115,7 @@ func (configuration ConnectionConfig) validate() (*url.URL, error) {
 			return nil, errors.New("authenticated CLI connections must use https")
 		}
 		if secureModes == 0 {
-			return nil, errors.New("configure static mTLS, SPIFFE, or bearer-token identity")
+			return nil, errors.New("configure static mTLS, SPIFFE, bearer-token, or OIDC identity")
 		}
 	}
 	return server, nil
@@ -163,6 +175,13 @@ func (configuration ConnectionConfig) connect(ctx context.Context) (clientConnec
 		}
 		roundTripper = bearerTokenTransport{base: transport, token: token}
 	}
+	if configuration.oidcComplete() {
+		token, err := fetchOIDCAccessToken(ctx, configuration)
+		if err != nil {
+			return clientConnection{}, err
+		}
+		roundTripper = bearerTokenTransport{base: transport, token: token}
+	}
 	if strings.TrimSpace(configuration.DevelopmentSubject) != "" {
 		roundTripper = developmentIdentityTransport{
 			base:    transport,
@@ -179,34 +198,109 @@ func (configuration ConnectionConfig) connect(ctx context.Context) (clientConnec
 const maximumBearerTokenBytes = 64 * 1024
 
 func readBearerTokenFile(path string) (string, error) {
+	return readPrivateFile(path, privateFileLabels{
+		inspect: "inspect bearer token file",
+		open:    "open bearer token file",
+		read:    "read bearer token file",
+		regular: "bearer token file must be a regular file",
+		perms:   "bearer token file permissions must not grant group or other access",
+		empty:   "bearer token file must contain exactly one non-empty token",
+		tooLong: "bearer token exceeds %d bytes",
+	})
+}
+
+func readOIDCClientSecret(path string) (string, error) {
+	return readPrivateFile(path, privateFileLabels{
+		inspect: "inspect OIDC client secret file",
+		open:    "open OIDC client secret file",
+		read:    "read OIDC client secret file",
+		regular: "OIDC client secret file must be a regular file",
+		perms:   "OIDC client secret file permissions must not grant group or other access",
+		empty:   "OIDC client secret file must contain exactly one non-empty secret",
+		tooLong: "OIDC client secret exceeds %d bytes",
+	})
+}
+
+type privateFileLabels struct {
+	inspect string
+	open    string
+	read    string
+	regular string
+	perms   string
+	empty   string
+	tooLong string
+}
+
+func readPrivateFile(path string, labels privateFileLabels) (string, error) {
 	path = strings.TrimSpace(path)
 	info, err := os.Stat(path)
 	if err != nil {
-		return "", fmt.Errorf("inspect bearer token file: %w", err)
+		return "", fmt.Errorf("%s: %w", labels.inspect, err)
 	}
 	if !info.Mode().IsRegular() {
-		return "", errors.New("bearer token file must be a regular file")
+		return "", errors.New(labels.regular)
 	}
 	if runtime.GOOS != "windows" && info.Mode().Perm()&0o077 != 0 {
-		return "", errors.New("bearer token file permissions must not grant group or other access")
+		return "", errors.New(labels.perms)
 	}
 	file, err := os.Open(path)
 	if err != nil {
-		return "", fmt.Errorf("open bearer token file: %w", err)
+		return "", fmt.Errorf("%s: %w", labels.open, err)
 	}
 	defer file.Close()
 	contents, err := io.ReadAll(io.LimitReader(file, maximumBearerTokenBytes+1))
 	if err != nil {
-		return "", fmt.Errorf("read bearer token file: %w", err)
+		return "", fmt.Errorf("%s: %w", labels.read, err)
 	}
 	if len(contents) > maximumBearerTokenBytes {
-		return "", fmt.Errorf("bearer token exceeds %d bytes", maximumBearerTokenBytes)
+		return "", fmt.Errorf(labels.tooLong, maximumBearerTokenBytes)
 	}
 	token := strings.TrimSpace(string(contents))
 	if token == "" || strings.ContainsAny(token, " \t\r\n,") {
-		return "", errors.New("bearer token file must contain exactly one non-empty token")
+		return "", errors.New(labels.empty)
 	}
 	return token, nil
+}
+
+func (configuration ConnectionConfig) oidcRequested() bool {
+	return strings.TrimSpace(configuration.OIDCIssuer) != "" ||
+		strings.TrimSpace(configuration.OIDCClientID) != "" ||
+		strings.TrimSpace(configuration.OIDCClientSecretFile) != "" ||
+		strings.TrimSpace(configuration.OIDCTokenURL) != "" ||
+		strings.TrimSpace(configuration.OIDCScope) != "" ||
+		strings.TrimSpace(configuration.OIDCCAFile) != ""
+}
+
+func (configuration ConnectionConfig) oidcComplete() bool {
+	return strings.TrimSpace(configuration.OIDCIssuer) != "" &&
+		strings.TrimSpace(configuration.OIDCClientID) != "" &&
+		strings.TrimSpace(configuration.OIDCClientSecretFile) != ""
+}
+
+func (configuration ConnectionConfig) validateOIDC() error {
+	if !configuration.oidcRequested() {
+		return nil
+	}
+	if !configuration.oidcComplete() {
+		return errors.New("--oidc-issuer, --oidc-client-id, and --oidc-client-secret-file must be supplied together")
+	}
+	if err := requireHTTPSURL(configuration.OIDCIssuer, "--oidc-issuer"); err != nil {
+		return err
+	}
+	if strings.TrimSpace(configuration.OIDCTokenURL) != "" {
+		if err := requireHTTPSURL(configuration.OIDCTokenURL, "--oidc-token-url"); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func requireHTTPSURL(raw, name string) error {
+	parsed, err := url.Parse(strings.TrimSpace(raw))
+	if err != nil || parsed.Scheme != "https" || parsed.Host == "" || parsed.User != nil || parsed.RawQuery != "" || parsed.Fragment != "" {
+		return fmt.Errorf("%s must be an absolute https URL without userinfo, query, or fragment", name)
+	}
+	return nil
 }
 
 type bearerTokenTransport struct {

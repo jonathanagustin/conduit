@@ -56,6 +56,8 @@ type Service interface {
 	ApprovePlan(context.Context, string, string) (controlplane.PlanRecord, error)
 	CancelPlan(context.Context, string, string) (controlplane.PlanRecord, error)
 	GetPlan(context.Context, string) (controlplane.PlanRecord, error)
+	ListPlans(context.Context, operator.PlanListQuery) (operator.PlanListResult, error)
+	ListPackagingRuns(context.Context, operator.PackagingRunQuery) (operator.PackagingRunList, error)
 	GetReportedState(context.Context, string) (controlplane.EnvironmentReport, error)
 	ListSuppressions(context.Context, string) ([]controlplane.SuppressionRecord, error)
 	RemoveSuppression(context.Context, string) (controlplane.SuppressionRecord, error)
@@ -102,6 +104,12 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	state.config.SPIFFEEndpoint = firstNonEmpty(runtime.Getenv("CONDUIT_SPIFFE_ENDPOINT"), runtime.Getenv("SPIFFE_ENDPOINT_SOCKET"))
 	state.config.HubSPIFFEID = firstNonEmpty(runtime.Getenv("CONDUIT_HUB_SPIFFE_ID"), runtime.Getenv("CONTROL_PLANE_SPIFFE_ID"))
 	state.config.BearerTokenFile = runtime.Getenv("CONDUIT_BEARER_TOKEN_FILE")
+	state.config.OIDCIssuer = runtime.Getenv("CONDUIT_OIDC_ISSUER")
+	state.config.OIDCClientID = runtime.Getenv("CONDUIT_OIDC_CLIENT_ID")
+	state.config.OIDCClientSecretFile = runtime.Getenv("CONDUIT_OIDC_CLIENT_SECRET_FILE")
+	state.config.OIDCTokenURL = runtime.Getenv("CONDUIT_OIDC_TOKEN_URL")
+	state.config.OIDCScope = runtime.Getenv("CONDUIT_OIDC_SCOPE")
+	state.config.OIDCCAFile = runtime.Getenv("CONDUIT_OIDC_CA_FILE")
 	state.config.SpaceID = runtime.Getenv("CONDUIT_SPACE_ID")
 	state.config.Timeout = defaultTimeout
 
@@ -118,7 +126,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	flags.StringVar(&state.config.SpaceID, "space-id", state.config.SpaceID, "native Space selection for Environment listing and publication (CONDUIT_SPACE_ID)")
 	flags.StringVar(&state.config.Server, "server", state.config.Server, "Conduit Hub base URL (CONDUIT_SERVER)")
 	flags.DurationVar(&state.config.Timeout, "timeout", defaultTimeout, "request timeout")
-	flags.StringVarP(&state.output, "output", "o", "json", "output format: json, yaml, or csv")
+	flags.StringVarP(&state.output, "output", "o", "json", "output format: json, yaml, csv, or table")
 	flags.StringVar(&state.profile, "profile", runtime.Getenv("CONDUIT_PROFILE"), "named local connection profile")
 	flags.StringVar(&state.config.CAFile, "ca-file", state.config.CAFile, "Hub CA PEM file (CONDUIT_CA_FILE)")
 	flags.StringVar(&state.config.ClientCertFile, "client-cert-file", state.config.ClientCertFile, "operator client certificate PEM file")
@@ -126,6 +134,12 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	flags.StringVar(&state.config.SPIFFEEndpoint, "spiffe-endpoint", state.config.SPIFFEEndpoint, "SPIFFE Workload API address")
 	flags.StringVar(&state.config.HubSPIFFEID, "hub-spiffe-id", state.config.HubSPIFFEID, "exact Conduit Hub SPIFFE ID")
 	flags.StringVar(&state.config.BearerTokenFile, "bearer-token-file", state.config.BearerTokenFile, "mode-0600 Multipass bearer token file")
+	flags.StringVar(&state.config.OIDCIssuer, "oidc-issuer", state.config.OIDCIssuer, "OIDC issuer for the client-credentials grant (CONDUIT_OIDC_ISSUER)")
+	flags.StringVar(&state.config.OIDCClientID, "oidc-client-id", state.config.OIDCClientID, "OIDC client id (CONDUIT_OIDC_CLIENT_ID)")
+	flags.StringVar(&state.config.OIDCClientSecretFile, "oidc-client-secret-file", state.config.OIDCClientSecretFile, "mode-0600 OIDC client secret file (CONDUIT_OIDC_CLIENT_SECRET_FILE)")
+	flags.StringVar(&state.config.OIDCTokenURL, "oidc-token-url", state.config.OIDCTokenURL, "OIDC token endpoint; discovered from the issuer when omitted (CONDUIT_OIDC_TOKEN_URL)")
+	flags.StringVar(&state.config.OIDCScope, "oidc-scope", state.config.OIDCScope, "optional OIDC scope (CONDUIT_OIDC_SCOPE)")
+	flags.StringVar(&state.config.OIDCCAFile, "oidc-ca-file", state.config.OIDCCAFile, "CA PEM for the OIDC issuer when it is not public (CONDUIT_OIDC_CA_FILE)")
 	flags.StringVar(&state.config.DevelopmentSubject, "development-subject", "", "explicit loopback-only insecure development identity")
 	flags.StringSliceVar(&state.config.DevelopmentGroups, "development-groups", nil, "groups for the loopback-only development identity")
 
@@ -151,6 +165,8 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(teamCommand(state))
 	root.AddCommand(grantCommand(state))
 	root.AddCommand(approvalPolicyCommand(state))
+	root.AddCommand(runCommand(state))
+	root.AddCommand(bundleCommand(state))
 	// Added last: it attaches subcommands to groups the calls above create.
 	addApolloParityCommands(root, state)
 	return root
@@ -381,20 +397,43 @@ func planCommand(state *commandState) *cobra.Command {
 				return err
 			}
 			return state.execute(command, func(service Service) (any, error) {
-				return service.ProposePlan(command.Context(), desired)
+				return planView(service.ProposePlan(command.Context(), desired))
 			})
 		},
 	}
 	propose.Flags().StringVarP(&file, "file", "f", "", "desired-state YAML or JSON file; use - for stdin")
 	_ = propose.MarkFlagRequired("file")
 	command.AddCommand(propose)
+	var environment, status, installationID, search string
+	list := &cobra.Command{
+		Use:   "list",
+		Short: "List visible Plans",
+		Args:  cobra.NoArgs,
+		RunE: func(command *cobra.Command, _ []string) error {
+			return state.execute(command, func(service Service) (any, error) {
+				listed, err := service.ListPlans(command.Context(), operator.PlanListQuery{
+					Environment: environment, Status: status, InstallationID: installationID, Search: search,
+				})
+				if err != nil {
+					return nil, err
+				}
+				return planList{PlanListResult: listed}, nil
+			})
+		},
+	}
+	list.Flags().StringVar(&environment, "environment", "", "Environment id")
+	list.Flags().StringVar(&status, "status", "", "Plan status")
+	list.Flags().StringVar(&installationID, "installation-id", "", "installation targeted by a Plan step")
+	list.Flags().StringVar(&search, "search", "", "case-insensitive search applied by the Hub")
+	command.AddCommand(list)
 	command.AddCommand(&cobra.Command{
-		Use:   "get PLAN_ID",
-		Short: "Get a Plan and its exact execution evidence",
-		Args:  cobra.ExactArgs(1),
+		Use:     "get PLAN_ID",
+		Aliases: []string{"show"},
+		Short:   "Get a Plan and its exact execution evidence",
+		Args:    cobra.ExactArgs(1),
 		RunE: func(command *cobra.Command, args []string) error {
 			return state.execute(command, func(service Service) (any, error) {
-				return service.GetPlan(command.Context(), args[0])
+				return planView(service.GetPlan(command.Context(), args[0]))
 			})
 		},
 	})
@@ -408,7 +447,7 @@ func planCommand(state *commandState) *cobra.Command {
 				return fmt.Errorf("--rationale is required")
 			}
 			return state.execute(command, func(service Service) (any, error) {
-				return service.ApprovePlan(command.Context(), args[0], rationale)
+				return planView(service.ApprovePlan(command.Context(), args[0], rationale))
 			})
 		},
 	}
@@ -424,7 +463,7 @@ func planCommand(state *commandState) *cobra.Command {
 				return fmt.Errorf("--reason is required")
 			}
 			return state.execute(command, func(service Service) (any, error) {
-				return service.CancelPlan(command.Context(), args[0], reason)
+				return planView(service.CancelPlan(command.Context(), args[0], reason))
 			})
 		},
 	}
@@ -458,7 +497,10 @@ func environmentCommand(state *commandState) *cobra.Command {
 		RunE: func(command *cobra.Command, _ []string) error {
 			return state.execute(command, func(service Service) (any, error) {
 				records, err := service.ListEnvironments(command.Context())
-				return map[string]any{"environments": records}, err
+				if err != nil {
+					return nil, err
+				}
+				return environmentList{Environments: records}, nil
 			})
 		},
 	})
