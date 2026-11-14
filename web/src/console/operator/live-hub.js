@@ -354,6 +354,13 @@ export function createLiveHub({ state, render }) {
       next.channelNote = "Hub did not return channel subscriptions.";
     }
     try {
+      const upgrades = await readJSON("/v1/fleet/upgrades");
+      const rows = Array.isArray(upgrades.upgrades) ? upgrades.upgrades : [];
+      next.behind = rows.length ? `${rows.length} behind` : "none";
+    } catch {
+      next.behind = "";
+    }
+    try {
       const checkin = await postJSON("/v1/sites/check-in", { site: "north", environment: "north", reportOld: false });
       next.connectivity = `${checkin.state || ""} ${checkin.lastCheckIn || ""}`.trim();
     } catch {
@@ -741,6 +748,7 @@ export function createLiveHub({ state, render }) {
             <div class="text-[12px] text-[#8b96a5]">Latest report <span class="text-white">${esc(reportedAt || "no report")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Connectivity <span class="text-white">${esc(hub(state).connectivity || "no check-in")}</span></div>
             <div class="text-[12px] text-[#8b96a5]">Offline bundle <span class="text-white">${esc(hub(state).offlineBundle || "none handed off")}</span></div>
+            <div class="text-[12px] text-[#8b96a5]">Behind <span class="text-white">${esc(hub(state).behind || "none")}</span></div>
           </div>`;
         })
         .join("");
