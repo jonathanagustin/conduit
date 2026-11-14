@@ -536,7 +536,8 @@ export function mountOperator(host, options) {
         settings: [
           { id: "adm01-user-prefs", label: "Preferences" },
           { id: "adm02-org-control-panel", label: "Organization" },
-          { id: "adm03-auth-signin", label: "Sign-in" }
+          { id: "adm03-auth-signin", label: "Sign-in" },
+          { id: "adm04-data-sources", label: "Data sources" }
         ]
       }[activeMeta.appGroup] || [];
 
