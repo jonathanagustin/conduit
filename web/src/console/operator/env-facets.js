@@ -2,6 +2,7 @@
 // environments that match every selected value. Built from /v1/environments,
 // which live-hub.js already loads; nothing here writes.
 
+import { emptyState } from "./empty-states.js";
 const defaultEsc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -83,7 +84,11 @@ export function facetsMarkup(
 ) {
   const list = Array.isArray(rows) ? rows : [];
   if (!list.length) {
-    return `<div class="so-panel kit-view-panel"><p class="kit-muted">${esc(note || "The Hub returned no environments.")}</p></div>`;
+    return emptyState(
+      "environments",
+      note || "The Hub returned no environments.",
+      { esc },
+    );
   }
   const groups = FACETS.map((facet) => {
     const counts = countBy(list, facet.value);

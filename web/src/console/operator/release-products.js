@@ -1,6 +1,7 @@
 // Products and versions: each catalog product with its newest release per
 // channel and how many reported installations run the newest release.
 
+import { emptyState } from "./empty-states.js";
 const CHANNEL_ORDER = ["DEV", "CANDIDATE", "STABLE"];
 
 const defaultEsc = (value) =>
@@ -69,7 +70,9 @@ export function productRows(products, installations) {
 
 export function productsMarkup(rows, { esc = defaultEsc, note = "" } = {}) {
   if (!rows.length) {
-    return `<div class="so-panel kit-view-panel"><p class="kit-muted">${esc(note || "No product is in the catalog.")}</p></div>`;
+    return emptyState("products", note || "No product is in the catalog.", {
+      esc,
+    });
   }
   const channelNames = [
     ...CHANNEL_ORDER,

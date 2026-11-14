@@ -1,6 +1,7 @@
 // Packaging runs list: KPI tiles by state and one row per recorded run with
 // its gate results. Built from the runs and step events live-hub.js loads.
 
+import { emptyState } from "./empty-states.js";
 const defaultEsc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -17,14 +18,23 @@ export function runState(run) {
   if (outcome === "PASS" || outcome === "SUCCEEDED" || phase === "succeeded") {
     return "succeeded";
   }
-  if (outcome.startsWith("FAIL") || outcome === "TIMED_OUT" || phase === "failed") {
+  if (
+    outcome.startsWith("FAIL") ||
+    outcome === "TIMED_OUT" ||
+    phase === "failed"
+  ) {
     return phase === "blocked" ? "blocked" : "failed";
   }
   if (phase === "blocked" || outcome === "WAITING") return "blocked";
   return "running";
 }
 
-const TONE = { succeeded: "ok", running: "info", blocked: "warn", failed: "err" };
+const TONE = {
+  succeeded: "ok",
+  running: "info",
+  blocked: "warn",
+  failed: "err",
+};
 
 /** Latest outcome per step for one run, in first-seen step order. */
 export function gateResults(events) {
@@ -51,12 +61,21 @@ function gateTone(outcome) {
   return "err";
 }
 
-const short = (digest) => String(digest || "").replace(/^sha256:/, "").slice(0, 12);
+const short = (digest) =>
+  String(digest || "")
+    .replace(/^sha256:/, "")
+    .slice(0, 12);
 
-export function runsMarkup(runs, eventsByRun, { esc = defaultEsc, note = "" } = {}) {
+export function runsMarkup(
+  runs,
+  eventsByRun,
+  { esc = defaultEsc, note = "" } = {},
+) {
   const list = Array.isArray(runs) ? runs : [];
   if (!list.length) {
-    return `<div class="so-panel kit-view-panel"><p class="kit-muted">${esc(note || "No packaging run is recorded.")}</p></div>`;
+    return emptyState("packaging", note || "No packaging run is recorded.", {
+      esc,
+    });
   }
   const counts = runCounts(list);
   const tiles = [
@@ -66,7 +85,10 @@ export function runsMarkup(runs, eventsByRun, { esc = defaultEsc, note = "" } = 
     ["failed", "Failed"],
   ]
     .map(
-      ([key, label]) => `<div class="kit-card kit-run-tile kit-bar-${TONE[key]}">
+      ([
+        key,
+        label,
+      ]) => `<div class="kit-card kit-run-tile kit-bar-${TONE[key]}">
         <div class="kit-run-tile-value">${counts[key]}</div>
         <div class="kit-muted">${label}</div>
       </div>`,
