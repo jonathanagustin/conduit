@@ -430,6 +430,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
 		{Pattern: "POST /v1/export-pipelines/{pipelineID}/unarchive",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
+		{Pattern: "POST /v1/offline-bundles",
+			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; records offline bundle hand-off and install report-back"},
 		{Pattern: "POST /v1/sites/check-in",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; records a site check-in or queues a change"},
 		{Pattern: "GET /v1/blackouts",
