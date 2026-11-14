@@ -20,3 +20,14 @@ The configuration is checked with Renovate's strict config validator. A local
 lookup dry run can verify extraction and datasource selection without writing to
 GitHub; GitHub-tag lookups need a GitHub read credential, while the Grok HTTP
 lookup requires none. Do not forward that credential into local CI jobs.
+
+The runtime-base refresh in PR #478 updates the explicit reviewed-index guard
+together with the Hub/Agent Containerfiles. The new Chainguard index is
+`sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9`;
+its registry manifest includes linux/amd64 and linux/arm64, and the pulled amd64
+image retains configured UID 65532. The CP-SAT runtime index is
+`sha256:afa5c872c891853ca7fcf1f12c3edb23f7eeef36189728842dd51042ff57f7ab`;
+it also includes both architectures and retains UID 65532 on amd64. These checks
+establish availability and image metadata, not a new signature/provenance
+claim or a completed build of every application image. The exact-digest guard
+remains enforced; changing a tag alone cannot satisfy it.
