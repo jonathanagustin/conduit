@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	appdomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
 	activityports "github.com/jonathanagustin/conduit/internal/changeactivity/ports"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
@@ -55,6 +56,9 @@ type Options struct {
 	// ModelProposer is the outbound proposal port. Nil makes NewHub read
 	// CONDUIT_MODEL_CMD. Empty selects the recorded fallback.
 	ModelProposer packagingdomain.ChangeProposer
+	// AppGenerator is the outbound generation port. Nil makes NewHub read
+	// CONDUIT_MODEL_CMD. Empty selects the recorded HTTP application.
+	AppGenerator appdomain.AppGenerator
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader

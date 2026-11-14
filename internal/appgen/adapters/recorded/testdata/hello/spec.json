@@ -1,0 +1,33 @@
+{
+  "name": "hello-http",
+  "port": 8080,
+  "routes": [
+    {
+      "method": "GET",
+      "path": "/health",
+      "status": 200,
+      "body": "ok"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "status": 200,
+      "body": "<!doctype html><title>Hello</title><p>Hello</p>"
+    }
+  ],
+  "page": {
+    "title": "Hello",
+    "body": "Hello"
+  },
+  "resources": {
+    "memory": "64Mi",
+    "cpu": "50m"
+  },
+  "files": [
+    {
+      "path": "main.go",
+      "language": "go",
+      "content": "package main\n\nimport (\n\t\"fmt\"\n\t\"net/http\"\n\t\"os\"\n)\n\nfunc main() {\n\tport := os.Getenv(\"PORT\")\n\tif port == \"\" {\n\t\tport = \"8080\"\n\t}\n\tmux := http.NewServeMux()\n\tmux.HandleFunc(\"/health\", func(w http.ResponseWriter, r *http.Request) {\n\t\tif r.Method != http.MethodGet {\n\t\t\tw.WriteHeader(http.StatusMethodNotAllowed)\n\t\t\treturn\n\t\t}\n\t\tfmt.Fprint(w, \"ok\")\n\t})\n\tmux.HandleFunc(\"/\", func(w http.ResponseWriter, r *http.Request) {\n\t\tw.Header().Set(\"Content-Type\", \"text/html; charset=utf-8\")\n\t\tfmt.Fprint(w, \"<!doctype html><title>Hello</title><p>Hello</p>\")\n\t})\n\tif err := http.ListenAndServe(\":\"+port, mux); err != nil {\n\t\tos.Stderr.WriteString(err.Error() + \"\\n\")\n\t\tos.Exit(1)\n\t}\n}\n"
+    }
+  ]
+}
