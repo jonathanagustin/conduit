@@ -51,7 +51,7 @@ func TestACredentialedRedirectCarriesItsCredentialOnlyToItsOwnHostOverHttps(t *t
 		"the same host in another case":  {"https://registry.example/token", "https://REGISTRY.EXAMPLE/v2/token", true},
 		"a plaintext mirror staying put": {"http://mirror.example:5000/token", "http://mirror.example:5000/v2/token", true},
 		// Not a downgrade: the credential ends up better protected than it
-		// started. An air-gapped mirror reached over http may legitimately send
+		// started. A disconnected mirror reached over http may legitimately send
 		// its token exchange to TLS on the same host.
 		"a plaintext mirror upgrading to https": {"http://mirror.example/token", "https://mirror.example/token", true},
 	} {

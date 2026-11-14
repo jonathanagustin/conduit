@@ -42,7 +42,7 @@ sequence an approved Plan after the proposal exists.
   supported mode for a small or disconnected install.
 - ADR 0004 (Gitless GitOps) is unchanged. This record does not put a Git
   credential on a cluster or move runtime convergence off its current adapter.
-- A missing Temporal service must not be described as air-gapped or
+- A missing Temporal service must not be described as disconnected or
   production-ready. The operational cost has to be stated.
 
 ## Considered options
@@ -104,7 +104,7 @@ backups, authentication, TLS, namespace retention, and an owner. The dev
 server used for packaging tests is one process with a local database. Its
 own help text says it is not for production and that it skips HTTP security
 checks. This decision does not treat that process as a production topology,
-an air-gap deployment, or the default for a small install.
+an offline-bundle deployment, or the default for a small install.
 
 The supported mode without a worker is the native lifecycle path. Spokes
 keep reconciling as they do now. Building a private workflow engine inside
@@ -116,7 +116,7 @@ Not in this record's first code. A later change may ship an optional
 worker, off by default, reusing the Hub image, with Helm and Zarf left
 disabled until an operator turns them on. Temporal itself stays
 operator-supplied. That change has to say what was tested and what was
-not. It does not by itself make the deployment air-gapped or production
+not. It does not by itself make the deployment disconnected or production
 ready.
 
 ## Consequences

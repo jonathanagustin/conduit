@@ -60,7 +60,7 @@ tested.
 Dispatching `platform-images.yml` by hand is no longer a supported release step
 and now fails immediately from any ref that is not a `vX.Y.Z` tag agreeing with
 `VERSION`. It used to succeed there: the image push was not tag-gated while the
-runtime source, charts, air-gap packages, CLI and GitHub release were, so a
+runtime source, charts, offline-bundle packages, CLI and GitHub release were, so a
 branch dispatch published `<component>-sha-<commit>` images, skipped everything
 else, and reported success for a fraction of a release.
 

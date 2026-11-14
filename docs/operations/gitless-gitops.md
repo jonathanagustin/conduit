@@ -144,7 +144,7 @@ a registry redirecting an anonymous blob fetch to a CDN is ordinary and there is
 nothing to protect.
 
 `GITLESS_FLUX_INSECURE_REGISTRY=true` does **not** reach this. It says the
-manifest registry is contacted over http — an air-gapped mirror terminating TLS
+manifest registry is contacted over http — a disconnected mirror terminating TLS
 elsewhere. It is not a statement that a push credential may be posted in the
 clear, and it is not read as one.
 

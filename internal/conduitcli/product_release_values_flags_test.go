@@ -56,7 +56,7 @@ func runValuesFlagCreate(t *testing.T, arguments ...string) (*fakeService, error
 	return service, root.Execute()
 }
 
-// TestProductReleaseCreateAcceptsApolloValuesSpelling is the parity itself:
+// TestProductReleaseCreateAcceptsApolloValuesSpelling is the equivalence itself:
 // Apollo's flag names must reach the same bundle Conduit's own names do.
 func TestProductReleaseCreateAcceptsApolloValuesSpelling(t *testing.T) {
 	t.Parallel()

@@ -98,7 +98,7 @@ except `operator-grant`, which is the bulk and is uniform.
 | `GET /health/ready` | readiness; it answers ok or degraded and discloses no row |
 | `GET /version` | the build stamp this binary already prints to its log |
 | `GET /v1/apollo/graphql/schema` | the embedded SDL, identical for every caller |
-| `GET /v1/bundles/signing-key` | the Hub's Ed25519 public key, which an air-gapped verifier needs |
+| `GET /v1/bundles/signing-key` | the Hub's Ed25519 public key, which a disconnected verifier needs |
 | `POST /v1/validate` | validates the caller's own document and reads nothing |
 | `POST /v1/apollo/product-manifests/validate` | validates the caller's own document and reads nothing |
 | `POST /v1/apollo/environment-settings/validate` | validates the caller's own document and reads nothing |

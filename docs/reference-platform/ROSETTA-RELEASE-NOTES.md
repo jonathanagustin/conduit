@@ -174,7 +174,7 @@ approval, so overriding a recall is a governance decision that belongs in the
 change request, not a flag that bypasses it. Adding either flag verbatim would
 put an unreviewed override on the command line of a system whose whole point is
 that the override is reviewed. Recorded here so the next reader does not file it
-as parity work.
+as feature-coverage work.
 
 **Two of the six are Space, which widens #17 rather than adding to it.** Both
 CLI notes make Space a first-class argument to publishing commands, and one

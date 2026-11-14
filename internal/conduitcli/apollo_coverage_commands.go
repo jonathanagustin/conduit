@@ -26,7 +26,7 @@ import (
 // something false. A refusal here is not a stub -- it is the honest answer
 // until the backing exists, and it names what the backing would be.
 
-func addApolloParityCommands(root *cobra.Command, state *commandState) {
+func addApolloCoverageCommands(root *cobra.Command, state *commandState) {
 	root.AddCommand(targetHubCommand())
 	if entity := findCommand(root, "entity"); entity != nil {
 		entity.AddCommand(entityGetCommand(state))

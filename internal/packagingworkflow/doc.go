@@ -8,7 +8,7 @@
 // observed state. A Signal or Update is a correlation the workflow checks
 // against a governance record; it is not itself permission to deploy.
 //
-// This module is not a production Temporal deployment and it is not an air-gap
+// This module is not a production Temporal deployment and it is not an offline-bundle
 // claim. The development server it runs against is the upstream CLI's
 // single-process server, which upstream documents as not production-grade.
 package packagingworkflow

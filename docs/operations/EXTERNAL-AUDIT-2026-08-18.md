@@ -69,18 +69,18 @@ Organised by what the verification found, not by how forcefully it was argued.
 
 Claims re-checked against the repository and confirmed.
 
-#### V1 — The Air-gap row and gap 5 contradicted each other
+#### V1 — The offline-bundle row and gap 5 contradicted each other
 
 Both reviewers, independently. Kimi:
 
 > You cannot claim "validates for disconnected installation" as a readiness
-> property while filing "recalls never reach disconnected targets" as a parity
+> property while filing "recalls never reach disconnected targets" as a feature-coverage
 > issue. Either disconnected estates are in scope — and gap 5 is Tier 1 — or they
 > are not — and the Zarf row is marketing.
 
 Grok, separately:
 
-> Put recalls on the bundle / Target Hub path, or retract the Air gap READY row.
+> Put recalls on the bundle / Target Hub path, or retract the offline-bundle READY row.
 > You do not get both "disconnected installation" and "recall is source-side
 > only."
 
@@ -101,7 +101,7 @@ response to a bad Release does not arrive.
 
 **Changed.** Resolved in the document by narrowing the row rather than
 re-tiering the gap, with the reasoning stated in place — see
-[Air gap: what this claims and what it does not](PRODUCTION-READINESS.md#air-gap-what-this-claims-and-what-it-does-not).
+[Offline bundles: what this claims and what it does not](PRODUCTION-READINESS.md#offline-bundles-what-this-claims-and-what-it-does-not).
 Narrowing was chosen because the gate proves something real and narrow (the
 package is well formed, digest-pinned, namespace-confined, non-root, free of
 credential bytes, and requires a persistent signing key) and nothing wider;
@@ -130,7 +130,7 @@ emits `slog.Warn` and continues. Three details neither reviewer could have had:
   The behaviour is at `main.go:88-100`, not `75-77`. Both audits repeated the
   wrong coordinate because the document gave it to them. That is its own small
   documentation-integrity defect and it is noted in gap 4.
-- The fail-open is narrower than "always". The air-gap path already refuses it
+- The fail-open is narrower than "always". The offline-bundle path already refuses it
   at the manifest layer: `scripts/verify-zarf-package.rb` aborts unless the Zarf
   runtime manifest names `BUNDLE_SIGNING_KEY_FILE`. `main.go` also refuses the
   SPIFFE configuration without a key. What is left open is the Helm and bare
@@ -491,8 +491,8 @@ In [`PRODUCTION-READINESS.md`](PRODUCTION-READINESS.md), in this change:
 
 | Change | Finding |
 | --- | --- |
-| `Air gap` row renamed **Air-gap packaging**, narrowed to what the gate proves, and bounded by gap 5 with a two-way cross-reference | V1 |
-| New section, *Air gap: what this claims and what it does not*, stating the contradiction, the resolution, and the reasoning for narrowing rather than re-tiering | V1 |
+| `Offline bundle` row renamed **Offline-bundle packaging**, narrowed to what the gate proves, and bounded by gap 5 with a two-way cross-reference | V1 |
+| New section, *Offline bundles: what this claims and what it does not*, stating the contradiction, the resolution, and the reasoning for narrowing rather than re-tiering | V1 |
 | Gap 5 gains a return reference to that row, plus what recalls *do* reach on the bundle path (selection) and what they do not (roll-off) | V1 |
 | `Availability` row renamed **Concurrency and replica correctness** and bounded by the two Missing rows in Test types; those rows now name it back | Kimi §2, "Row titles overclaim their evidence" |
 | `Observability` row renamed **Metrics exposition** and bounded by gap 2; gap 2 gains the return reference | R4 |
@@ -503,7 +503,7 @@ In [`PRODUCTION-READINESS.md`](PRODUCTION-READINESS.md), in this change:
 | Status date line points here | — |
 | A stated **drift rule**: a READY row and a gap that speak about the same estate, resource or failure must cite each other by number, in both directions, in the change that creates either | V1 |
 
-The drift rule is the durable part. The Air-gap row and gap 5 diverged because
+The drift rule is the durable part. The offline-bundle row and gap 5 diverged because
 the reference ran one way only: gap 5 never named the row it undercut, so
 editing either left the other unreviewed. Two-way citation is what makes the
 next such pair visible to the next reader.

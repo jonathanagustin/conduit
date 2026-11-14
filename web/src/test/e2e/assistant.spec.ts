@@ -3,6 +3,8 @@ import { fileURLToPath } from "node:url";
 
 import { createBridge, type BridgeServer } from "../../server/http.ts";
 
+const BRIDGE_PORT = Number(process.env["CONSOLE_TEST_BRIDGE_PORT"]);
+
 const BOOTSTRAP_MARKER = "<!--conduit-console-bootstrap-->";
 const BOOTSTRAP = {
   schemaVersion: "conduit.console.bootstrap/v1",
@@ -84,7 +86,7 @@ test.describe("fake ACP bridge", () => {
     ]);
     process.env["ASSISTANT_ACP_FIXTURE"] = "1";
     process.env["INITIAL_AGENT_MODE"] = "workspace-write";
-    const bridge: BridgeServer = await createBridge({ port: 8787 });
+    const bridge: BridgeServer = await createBridge({ port: BRIDGE_PORT });
     try {
       await hydrate(page);
       await page.goto("/console/");
@@ -135,7 +137,7 @@ test.describe("fake ACP bridge", () => {
     ]);
     process.env["ASSISTANT_ACP_FIXTURE"] = "1";
     process.env["INITIAL_AGENT_MODE"] = "workspace-write";
-    const bridge: BridgeServer = await createBridge({ port: 8787 });
+    const bridge: BridgeServer = await createBridge({ port: BRIDGE_PORT });
     try {
       await hydrate(page);
       await page.goto("/console/");
@@ -423,7 +425,7 @@ test.describe("fake ACP bridge", () => {
         });
       },
     );
-    const bridge: BridgeServer = await createBridge({ port: 8787 });
+    const bridge: BridgeServer = await createBridge({ port: BRIDGE_PORT });
     try {
       await hydrate(page);
       await page.goto("/console/");
@@ -450,7 +452,9 @@ test.describe("fake ACP bridge", () => {
         history.pushState(null, "", "#s08-staged-run");
         window.dispatchEvent(new HashChangeEvent("hashchange"));
       });
-      await expect(page.getByRole("button", { name: "Timeline" })).toBeVisible();
+      await expect(
+        page.getByRole("button", { name: "Timeline" }),
+      ).toBeVisible();
       await page.evaluate(() => {
         (
           window as unknown as { switchScreen: (id: string) => void }
