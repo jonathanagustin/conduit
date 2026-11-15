@@ -15,6 +15,10 @@ const defaultEsc = (value) =>
 export function runState(run) {
   const outcome = String(run?.outcome || "").toUpperCase();
   const phase = String(run?.phase || "").toLowerCase();
+  if (run?.configured === false || phase === "blocked") return "blocked";
+  if (phase === "review" && !/FAIL|TIMED_OUT|REJECT|CANCEL/u.test(outcome))
+    return "review";
+  if (phase === "failed") return "failed";
   if (outcome === "PASS" || outcome === "SUCCEEDED" || phase === "succeeded") {
     return "succeeded";
   }

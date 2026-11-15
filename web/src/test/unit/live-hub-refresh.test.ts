@@ -52,4 +52,62 @@ describe("live hub refresh", () => {
     }
     expect(state.hub).toBeTruthy();
   });
+  it("keeps selected-run history separate and follows the history cursor", async () => {
+    const calls: Call[] = [];
+    stubHub(calls);
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input, init) => {
+        const path = String(input);
+        calls.push({ path, method: init?.method || "GET" });
+        if (path === "/v1/packaging-runs")
+          return new Response(
+            JSON.stringify({
+              items: [
+                { runId: "r1", phase: "review" },
+                { runId: "r2", phase: "blocked" },
+              ],
+            }),
+          );
+        if (path === "/v1/packaging-runs/r1/events")
+          return new Response(
+            JSON.stringify({
+              items: [
+                { sequence: 1, step: "inspect", reason: "first-run-only" },
+              ],
+              total: 2,
+              nextCursor: "next",
+            }),
+          );
+        if (path.includes("r1/events?cursor="))
+          return new Response(
+            JSON.stringify({
+              items: [{ sequence: 2, step: "review", outcome: "WAITING" }],
+              total: 2,
+            }),
+          );
+        if (path === "/v1/packaging-runs/r2/events")
+          return new Response(JSON.stringify({ items: [], total: 0 }));
+        return new Response("{}");
+      }),
+    );
+    const state: Record<string, any> = {};
+    const live = createLiveHub({ state, render: () => {} });
+    await live.refresh();
+    expect(state.hub.packagingEventsByRun.r1).toHaveLength(2);
+    expect(state.hub.packagingHistoryByRun.r1.complete).toBe(true);
+    state.packagingRunId = "r2";
+    const root = { innerHTML: "", querySelectorAll: () => [] };
+    live.renderPipeline(root);
+    expect(root.innerHTML).toContain("No packaging step has been recorded");
+    expect(root.innerHTML).not.toContain("first-run-only");
+    delete state.hub.packagingEventsByRun.r2;
+    live.renderPackaging(root);
+    expect(root.innerHTML).not.toContain("first-run-only");
+    expect(
+      calls
+        .filter((call) => call.path.includes("/events"))
+        .every((call) => call.method === "GET"),
+    ).toBe(true);
+  });
 });

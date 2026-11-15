@@ -866,3 +866,121 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
   ]);
   await expect(page.locator("[data-plan-binding]")).toHaveCount(0);
 });
+
+test("packaging graph and staged chunks keep the selected run and paged history", async ({
+  page,
+}) => {
+  await hydrate(page);
+  const calls: { path: string; method: string }[] = [];
+  await page.route("**/v1/packaging-runs**", async (route) => {
+    const url = new URL(route.request().url());
+    calls.push({
+      path: url.pathname + url.search,
+      method: route.request().method(),
+    });
+    if (url.pathname === "/v1/packaging-runs") {
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              runId: "run-a",
+              configured: true,
+              phase: "review",
+              outcome: "WAITING",
+              sourceDigest: "sha256:source-a",
+            },
+            {
+              runId: "run-b",
+              configured: true,
+              phase: "blocked",
+              outcome: "FAIL_REQUIRED",
+              artifactDigest: "sha256:artifact-b",
+            },
+          ],
+          total: 2,
+        },
+      });
+      return;
+    }
+    if (url.pathname.endsWith("/events")) {
+      if (url.pathname.includes("run-a")) {
+        const next = url.searchParams.has("cursor");
+        await route.fulfill({
+          json: {
+            items: [
+              {
+                sequence: next ? 2 : 1,
+                at: "2026-11-15T09:00:00Z",
+                step: next ? "review" : "assess",
+                outcome: next ? "WAITING" : "PASS",
+                reason: next ? "waiting-a" : "a-only-output",
+              },
+            ],
+            total: 2,
+            ...(next ? {} : { nextCursor: "cursor-a" }),
+          },
+        });
+        return;
+      }
+      await route.fulfill({
+        json: {
+          items: [
+            {
+              sequence: 1,
+              at: "2026-11-15T09:00:01Z",
+              step: "build",
+              outcome: "FAIL_REQUIRED",
+              reason: "b-only-failed",
+            },
+          ],
+          total: 1,
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: { items: [], total: 0 } });
+  });
+  await page.goto("/console/#s07-pipeline");
+  await expect(page.locator("[data-packaging-pipeline]")).toBeVisible();
+  await expect(
+    page.locator("[data-stage-graph] [data-packaging-stage]"),
+  ).toHaveCount(2);
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
+  await expect(page.locator("[data-stage-preview]")).toContainText("waiting-a");
+  await page.locator("[data-packaging-stage='0']").click();
+  await expect(page.locator("[data-stage-preview]")).toContainText(
+    "a-only-output",
+  );
+  await page.locator("[data-packaging-run]").selectOption("run-b");
+  await expect(
+    page.locator("[data-stage-graph] [data-packaging-stage]"),
+  ).toHaveCount(1);
+  await expect(page.locator("[data-stage-preview]")).toContainText(
+    "b-only-failed",
+  );
+  await expect(page.locator("[data-stage-preview]")).not.toContainText(
+    "a-only-output",
+  );
+  await page
+    .getByRole("button", { name: "Open staged run", exact: true })
+    .click();
+  await expect(page.locator("[data-stage-chunk]")).toHaveCount(1);
+  await expect(page.locator("[data-stage-chunk]")).toContainText(
+    "b-only-failed",
+  );
+  await page
+    .getByRole("button", { name: "Artifacts & evidence", exact: true })
+    .click();
+  await expect(page.locator("[data-staged-run]")).toContainText(
+    "No downloadable artifact reference",
+  );
+  await expect(page.locator("[data-staged-run]")).not.toContainText("RUN-8844");
+  await page
+    .getByRole("button", { name: "Open pipeline graph", exact: true })
+    .click();
+  await expect(page.locator("[data-packaging-run]")).toHaveValue("run-b");
+  expect(calls.some((call) => call.path.includes("cursor=cursor-a"))).toBe(
+    true,
+  );
+  expect(calls.every((call) => call.method === "GET")).toBe(true);
+});
