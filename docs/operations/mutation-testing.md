@@ -29,10 +29,10 @@ mutants and all, and records an efficacy per unit:
   `internal/{environments,governance,catalog,apollographql,reporting}/domain`.
   `internal/controlplane` is deliberately excluded — it is the largest and
   least-changing target, and the domains are where the rules live.
-- **Web** console files, via the already-configured Stryker
-  (`web/stryker.config.json`), which was configured but never run until this
-  gate — the same "validation surface that never executes" this repository has
-  found before.
+- **Web** console files only when `web/stryker.config.json` is present.
+  The replacement console currently has no Stryker configuration and the
+  committed web baseline is empty; frontend mutation efficacy is unmeasured.
+  Removing configuration while recorded frontend targets remain fails closed.
 
 Efficacy is `killed / (killed + lived)`. A **survivor** (a LIVED mutant) is a
 change no test noticed — the real signal, and the deterministic one. Efficacy
@@ -42,16 +42,21 @@ excluded from the denominator rather than counted; the sweep's regression check
 carries a two-point tolerance so that jitter does not read as a real drop.
 
 A full sweep compiles and reruns a suite once per mutant, so it is minutes long.
-It cannot run on every candidate and — while assumption **A4** stands — it
-cannot run on a timer, so it lives in `.github/workflows/mutation-sweep.yml`,
-dispatched deliberately. Raise the baseline where a package improved with:
+It is separate from the candidate gate in `.github/workflows/mutation-sweep.yml`,
+which permits a capped monthly maintenance measurement and manual dispatch.
+Neither path publishes or commits results automatically. Raise the baseline where a package improved with:
 
 ```bash
 scripts/mutation-sweep.sh --write   # rewrites docs/operations/mutation-scores.json
 ```
 
-The rewrite is a reviewed commit, never automatic — the same discipline the
-`internal/controlplane` line ceiling uses.
+The rewrite is a reviewed commit, never automatic. The runner compares each
+measured efficacy with its existing tolerated floor independently of the engine's
+exit status. A regressed result refuses `--write` and leaves the baseline intact.
+`scripts/test-mutation-sweep.sh` checks this with failed and misleadingly
+successful engine exits, plus missing configuration for recorded web targets.
+These fixture results are not measurements; only an actual engine sweep can
+refresh the committed baseline.
 
 ## The ratchet — cheap on every candidate
 

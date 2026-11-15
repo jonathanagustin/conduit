@@ -103,7 +103,11 @@ for pkg in "${packages[@]}"; do
   printf '{"package":"%s","efficacy":%s,"killed":%s,"lived":%s,"total":%s,"coverage":%s}\n' \
     "${pkg}" "${efficacy}" "${killed}" "${lived}" "${total}" "${coverage}" >> "${results}"
   echo "  ${pkg}: efficacy ${efficacy}% (${killed} killed, ${lived} lived of ${total}; coverage ${coverage}%)"
-  [[ ${code} -ne 0 ]] && regressed=1
+  # Check the measurement ourselves: some gremlins builds return success
+  # despite a requested efficacy threshold.
+  if [[ ${code} -ne 0 ]] || ! awk -v actual="${efficacy}" -v floor="${threshold}" 'BEGIN{exit !(actual + 0.0001 >= floor)}'; then
+    regressed=1
+  fi
 done
 
 # --- the web console, measured by Stryker --------------------------------

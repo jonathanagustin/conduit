@@ -611,6 +611,7 @@ jobs:
       - name: Validate mutation scores
         if: needs.scope.outputs.checks == 'true'
         run: |
+          ./scripts/test-mutation-sweep.sh
           ./scripts/verify-mutation-scores.test.sh
           node scripts/verify-mutation-scores.mjs
       # Grype scans the built images, so it only ever sees the compiler the

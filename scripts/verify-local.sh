@@ -212,7 +212,7 @@ gate 'Test' env PLATFORM_REQUIRE_HELM=1 go test -race ./...
 gate 'Validate mutation harness' ./scripts/verify-mutant-killed.test.sh
 gate 'Validate packaging regression gates' python3 scripts/test-packaging-gates.py
 gate 'Validate packaging endpoints' ./scripts/verify-packaging-endpoints.sh
-gate 'Validate mutation scores' bash -c './scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
+gate 'Validate mutation scores' bash -c './scripts/test-mutation-sweep.sh && ./scripts/verify-mutation-scores.test.sh && node scripts/verify-mutation-scores.mjs'
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh
