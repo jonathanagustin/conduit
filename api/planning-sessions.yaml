@@ -1,0 +1,467 @@
+# Planning-session HTTP contract. The console builds the composer, Needs
+# Input card, plan review, Accept button, and binding panel against this.
+# Turns may stream as text/event-stream (message, inspection, needs_input,
+# plan, status, error, done). Accept is the control point: no package or
+# image compute runs before it. Hub sessions are isolated by the authenticated
+# credential owner. Unknown or other-owner session IDs return 404. Session state
+# is process-local; Accept writes a repository audit receipt before binding.
+# Compute remains unconfigured after Accept in this contract slice.
+openapi: 3.0.3
+info:
+  title: Planning sessions
+  version: "1"
+paths:
+  /v1/planning-sessions:
+    post:
+      operationId: createPlanningSession
+      summary: Start a planning session from a repository URL and ref
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [repoUrl, ref]
+              properties:
+                repoUrl:
+                  type: string
+                  format: uri
+                ref:
+                  type: string
+      responses:
+        "201":
+          description: Session created in started. No repository inspect or model call happens here.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}:
+    get:
+      operationId: getPlanningSession
+      summary: Read a planning session
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "200":
+          description: The current session document.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/turns:
+    post:
+      operationId: postPlanningTurn
+      summary: Run one planning turn
+      description: Inspects the repository, may ask Needs Input, and may write a plan. Does not start package compute.
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        "200":
+          description: Session after the turn, or a text/event-stream of planning events when Accept is text/event-stream.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+            text/event-stream:
+              schema:
+                $ref: "#/components/schemas/Event"
+              description: One SSE event per recorded item. event is the Event.type (message, inspection, needs_input, plan, status, error, done). data is the Event JSON.
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "503":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/answers:
+    post:
+      operationId: answerPlanningNeedsInput
+      summary: Answer outstanding Needs Input questions
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [answers]
+              properties:
+                answers:
+                  type: array
+                  items:
+                    $ref: "#/components/schemas/Answer"
+      responses:
+        "200":
+          description: Session after the answers were recorded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "400":
+          $ref: "#/components/responses/Error"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/accept:
+    post:
+      operationId: acceptPlanningSession
+      summary: Accept the plan and record the binding
+      description: Binds the onboard profile version and hash, the intake, the source commit, the model, and the plan.
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "200":
+          description: Session in accepted, with the binding filled.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/binding:
+    get:
+      operationId: getPlanningBinding
+      summary: Read the Accept binding
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "200":
+          description: The recorded Accept binding.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Binding"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/events:
+    get:
+      operationId: listPlanningEvents
+      summary: Read recorded planning events
+      description: Inspection, Needs Input, plan, status, and transcript events for the session. The same items are streamed from POST /turns when Accept is text/event-stream.
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "200":
+          description: Recorded events in order.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      $ref: "#/components/schemas/Event"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+  /v1/planning-sessions/{sessionID}/compute:
+    post:
+      operationId: startPlanningCompute
+      summary: Start package compute for an accepted session
+      description: Refused with COMPUTE_BEFORE_ACCEPT until Accept. After Accept this contract returns COMPUTE_NOT_CONFIGURED until a later change wires a runner.
+      parameters:
+        - $ref: "#/components/parameters/SessionID"
+      responses:
+        "202":
+          description: Compute accepted. Not returned until a runner is wired.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Session"
+        "401":
+          $ref: "#/components/responses/Error"
+        "404":
+          $ref: "#/components/responses/Error"
+        "409":
+          $ref: "#/components/responses/Error"
+        "501":
+          $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
+components:
+  parameters:
+    SessionID:
+      name: sessionID
+      in: path
+      required: true
+      schema:
+        type: string
+  responses:
+    Error:
+      description: JSON error envelope. The console branches on code when present.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+  schemas:
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+        code:
+          type: string
+          enum:
+            - INVALID_INTAKE
+            - SESSION_NOT_FOUND
+            - MODEL_NOT_CONFIGURED
+            - PLAN_REQUIRED
+            - COMMIT_NOT_PINNED
+            - NEEDS_INPUT_PENDING
+            - ALREADY_ACCEPTED
+            - NOT_ACCEPTED
+            - COMPUTE_BEFORE_ACCEPT
+            - COMPUTE_NOT_CONFIGURED
+            - NO_PENDING_QUESTIONS
+            - UNKNOWN_QUESTION
+            - INVALID_ANSWER
+    Session:
+      type: object
+      required:
+        - id
+        - status
+        - profile
+        - intake
+        - resolvedCommit
+        - model
+        - inspection
+        - needsInput
+        - answers
+        - plan
+        - binding
+        - messages
+        - events
+        - createdAt
+        - updatedAt
+      properties:
+        id:
+          type: string
+        status:
+          type: string
+          enum: [started, inspecting, needs_input, planning, ready, accepted]
+        profile:
+          $ref: "#/components/schemas/Profile"
+        intake:
+          $ref: "#/components/schemas/Intake"
+        resolvedCommit:
+          type: string
+        model:
+          type: string
+        inspection:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Inspection"
+        needsInput:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        answers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Answer"
+        plan:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Plan"
+        binding:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/Binding"
+        messages:
+          type: array
+          items:
+            $ref: "#/components/schemas/Message"
+        events:
+          type: array
+          items:
+            $ref: "#/components/schemas/Event"
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+    Profile:
+      type: object
+      required: [name, version, hash]
+      properties:
+        name:
+          type: string
+          enum: [onboard]
+        version:
+          type: string
+        hash:
+          type: string
+    Intake:
+      type: object
+      required: [repoUrl, ref]
+      properties:
+        repoUrl:
+          type: string
+        ref:
+          type: string
+    Inspection:
+      type: object
+      required: [language, packageManager, kind, startCommand, ports, hasDockerfile, tree, toolCalls]
+      properties:
+        language:
+          type: string
+        packageManager:
+          type: string
+        kind:
+          type: string
+        startCommand:
+          type: string
+        ports:
+          type: array
+          items:
+            type: integer
+        hasDockerfile:
+          type: boolean
+        tree:
+          type: array
+          items:
+            type: string
+        toolCalls:
+          type: array
+          items:
+            type: string
+    Question:
+      type: object
+      required: [id, name, label, type, required]
+      properties:
+        id:
+          type: string
+        name:
+          type: string
+        label:
+          type: string
+        type:
+          type: string
+          enum: [string, boolean, select]
+        required:
+          type: boolean
+        options:
+          type: array
+          items:
+            type: string
+        value:
+          type: string
+    Answer:
+      type: object
+      required: [id, value]
+      properties:
+        id:
+          type: string
+        value:
+          type: string
+    Plan:
+      type: object
+      required: [text, sha256]
+      properties:
+        text:
+          type: string
+        sha256:
+          type: string
+    Event:
+      type: object
+      required: [id, type, timestamp]
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [message, inspection, needs_input, plan, status, error, done]
+        timestamp:
+          type: string
+          format: date-time
+        message:
+          $ref: "#/components/schemas/Message"
+        inspection:
+          $ref: "#/components/schemas/Inspection"
+        needsInput:
+          type: array
+          items:
+            $ref: "#/components/schemas/Question"
+        plan:
+          $ref: "#/components/schemas/Plan"
+        status:
+          type: string
+        error:
+          type: string
+        code:
+          type: string
+    Message:
+      type: object
+      required: [role, text]
+      properties:
+        role:
+          type: string
+          enum: [operator, model]
+        text:
+          type: string
+    Binding:
+      type: object
+      required: [profile, intake, resolvedCommit, model, plan, acceptedAt]
+      properties:
+        profile:
+          $ref: "#/components/schemas/Profile"
+        intake:
+          $ref: "#/components/schemas/Intake"
+        resolvedCommit:
+          type: string
+        model:
+          type: string
+        plan:
+          $ref: "#/components/schemas/Plan"
+        acceptedAt:
+          type: string
+          format: date-time

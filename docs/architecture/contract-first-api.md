@@ -78,3 +78,7 @@ must identify its source, scope, and compatibility effect. Generation must be
 reproducible from a clean tree, and tests must call the generated client against
 the generated server boundary. CI remains manually dispatched; see
 [Deployment invariants](deployment-invariants.md).
+
+The onboard planning-session contract is documented in
+[Planning sessions](planning-sessions.md) and pinned in
+[`api/planning-sessions.yaml`](../../api/planning-sessions.yaml).

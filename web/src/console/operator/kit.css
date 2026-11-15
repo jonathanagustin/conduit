@@ -727,3 +727,89 @@ button.kit-link { background: none; border: 0; padding: 0; font: inherit; cursor
   font-variant-numeric: tabular-nums;
   line-height: 1;
 }
+
+/* Planning flow (Work Intake). Tokens only, so both themes follow. */
+.plan-flow {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-3);
+  max-width: 880px;
+  padding: var(--sp-3);
+}
+.plan-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sp-2);
+}
+.plan-fields {
+  display: grid;
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+  gap: var(--sp-2);
+}
+.plan-label {
+  display: block;
+  font-size: var(--fs-xs);
+  color: var(--c-muted);
+  margin-bottom: 2px;
+}
+.plan-req {
+  color: var(--tone-warn-fg);
+}
+.plan-message {
+  height: auto;
+  min-height: 64px;
+  padding: 6px 8px;
+  resize: vertical;
+  font-family: inherit;
+}
+.plan-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--sp-2);
+}
+.plan-accept {
+  flex-direction: row;
+  align-items: center;
+}
+.plan-line,
+.plan-tool {
+  display: flex;
+  align-items: baseline;
+  gap: var(--sp-2);
+  font-size: var(--fs-sm);
+}
+.plan-tool {
+  font-size: var(--fs-xs);
+  padding: 2px 0;
+  border-top: 1px solid var(--c-border);
+}
+.plan-section-title {
+  font-weight: 650;
+  font-size: var(--fs-md);
+  margin-bottom: 2px;
+}
+.plan-section-body {
+  white-space: pre-wrap;
+  font-size: var(--fs-sm);
+  line-height: var(--lh-base);
+  color: var(--c-text);
+}
+.plan-alert {
+  padding: var(--sp-2) var(--sp-3);
+  font-size: var(--fs-sm);
+  color: var(--tone-err-fg);
+  background: var(--tone-err-bg);
+  border: 1px solid var(--tone-err-bd);
+  border-left-width: 3px;
+  border-radius: 2px;
+}
+.plan-flow button[disabled] {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+@media (max-width: 640px) {
+  .plan-fields {
+    grid-template-columns: 1fr;
+  }
+}
