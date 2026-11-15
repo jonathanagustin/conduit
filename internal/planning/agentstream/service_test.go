@@ -132,6 +132,7 @@ func TestSnapshotRecoveryDoesNotInvokeTheModelOrDuplicateMessages(t *testing.T) 
 		t.Fatal(err)
 	}
 	recovery := inputFor(session, "recovery-1")
+	recovery.Messages = append(recovery.Messages, map[string]any{"id": "must-not-run", "role": "user", "content": "new text must not execute in recovery mode"})
 	recovery.ForwardedProps = map[string]json.RawMessage{"conduit": json.RawMessage(`{"mode":"snapshot"}`)}
 	events := eventCollector{}
 	if err := service.Run(t.Context(), recovery, events.write); err != nil {

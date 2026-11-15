@@ -74,7 +74,7 @@ for successful confirmation requests, `confirmed`. Matching results are
 idempotent; conflicting repeated results are refused. These are client-reported
 draft outcomes. They never become planning answers, acceptance or execution
 permission. A declined confirmation stops continuation. Human input is still a
-separate bound resume. After a failed/truncated terminal, recovery eligibility
+separate bound resume. After a failed or truncated exchange, recovery eligibility
 is explicit; a client must not blindly repeat draft effects or overwrite edits.
 
 ## Audit and limits
