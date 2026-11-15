@@ -6,6 +6,13 @@ binding. Accept is the control point. No package or image compute runs before
 it.
 
 The wire contract is [`api/planning-sessions.yaml`](../../api/planning-sessions.yaml).
+Generate the DTOs, strict server, router and Go client with
+`go tool oapi-codegen --config api/planning-sessions.codegen.yaml api/planning-sessions.yaml`.
+`scripts/verify-planning-api.sh` checks reproducibility in local and hosted CI;
+contract tests call the generated client against the generated strict boundary.
+OpenAPI 3.0 nullable references preserve null inspection, plan and binding fields.
+The native service remains behind the transport adapter.
+
 Go types and mounted routes live under `internal/planning`. Other console lanes
 build against this contract:
 

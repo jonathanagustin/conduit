@@ -39,6 +39,8 @@ paths:
           $ref: "#/components/responses/Error"
         "401":
           $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}:
     get:
       operationId: getPlanningSession
@@ -55,6 +57,8 @@ paths:
         "401":
           $ref: "#/components/responses/Error"
         "404":
+          $ref: "#/components/responses/Error"
+        "502":
           $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/turns:
     post:
@@ -91,6 +95,8 @@ paths:
           $ref: "#/components/responses/Error"
         "503":
           $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/answers:
     post:
       operationId: answerPlanningNeedsInput
@@ -124,6 +130,8 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/accept:
     post:
       operationId: acceptPlanningSession
@@ -144,6 +152,8 @@ paths:
           $ref: "#/components/responses/Error"
         "409":
           $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/binding:
     get:
       operationId: getPlanningBinding
@@ -162,6 +172,8 @@ paths:
         "404":
           $ref: "#/components/responses/Error"
         "409":
+          $ref: "#/components/responses/Error"
+        "502":
           $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/events:
     get:
@@ -187,6 +199,8 @@ paths:
           $ref: "#/components/responses/Error"
         "404":
           $ref: "#/components/responses/Error"
+        "502":
+          $ref: "#/components/responses/Error"
   /v1/planning-sessions/{sessionID}/compute:
     post:
       operationId: startPlanningCompute
@@ -208,6 +222,8 @@ paths:
         "409":
           $ref: "#/components/responses/Error"
         "501":
+          $ref: "#/components/responses/Error"
+        "502":
           $ref: "#/components/responses/Error"
 components:
   parameters:
@@ -238,6 +254,7 @@ components:
             - SESSION_NOT_FOUND
             - MODEL_NOT_CONFIGURED
             - PLAN_REQUIRED
+            - COMMIT_NOT_PINNED
             - NEEDS_INPUT_PENDING
             - ALREADY_ACCEPTED
             - NOT_ACCEPTED
@@ -279,9 +296,9 @@ components:
         model:
           type: string
         inspection:
-          oneOf:
+          nullable: true
+          allOf:
             - $ref: "#/components/schemas/Inspection"
-            - type: "null"
         needsInput:
           type: array
           items:
@@ -291,13 +308,13 @@ components:
           items:
             $ref: "#/components/schemas/Answer"
         plan:
-          oneOf:
+          nullable: true
+          allOf:
             - $ref: "#/components/schemas/Plan"
-            - type: "null"
         binding:
-          oneOf:
+          nullable: true
+          allOf:
             - $ref: "#/components/schemas/Binding"
-            - type: "null"
         messages:
           type: array
           items:
