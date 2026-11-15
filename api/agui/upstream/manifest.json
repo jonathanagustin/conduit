@@ -1,0 +1,18 @@
+{
+  "protocolVersion": "1.0",
+  "sourceRepository": "https://github.com/ag-ui-protocol/ag-ui",
+  "revision": "1f694eba3a4f9cbdda1e9feded8b3edba3d3de2c",
+  "release": "release/2026-11-06",
+  "files": [
+    {
+      "file": "schema.json",
+      "source": "https://raw.githubusercontent.com/ag-ui-protocol/ag-ui/1f694eba3a4f9cbdda1e9feded8b3edba3d3de2c/spec/1.0/schema.json",
+      "sha256": "4b5c93226838a0e72d88e6c5df20633c686c49fcb75d9be2815c6cbf9e48e71a"
+    },
+    {
+      "file": "LICENSE",
+      "source": "https://raw.githubusercontent.com/ag-ui-protocol/ag-ui/1f694eba3a4f9cbdda1e9feded8b3edba3d3de2c/LICENSE",
+      "sha256": "06dcddbb6908a0c6dd4a9e8ec822eea41d5a460a53089fecccc8a68049e99241"
+    }
+  ]
+}
