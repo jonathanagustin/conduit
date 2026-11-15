@@ -348,7 +348,11 @@ test.describe("workbench", () => {
         window as unknown as { switchScreen: (id: string) => void }
       ).switchScreen("s16-approvals-board");
     });
-    await expect(page.getByText("PLN-2026-0418").first()).toBeVisible();
+    await expect(
+      page
+        .locator("[data-approvals-board]")
+        .getByText("plan-1", { exact: true }),
+    ).toBeVisible();
     await page.evaluate(() => {
       (
         window as unknown as { switchScreen: (id: string) => void }
