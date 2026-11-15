@@ -1,3 +1,4 @@
+import { createOfflineBundleFlow } from "./offline-bundle-flow.mjs";
 import { spokesMarkup } from "./fleet-spokes.mjs";
 import { mountWindowScheduler } from "./window-scheduler.js";
 import { mountReleaseDependencies } from "./release-dependencies.js";
@@ -958,7 +959,7 @@ export function mountOperator(host, options) {
   SCREENS.push(...ontologyGraph.screens);
   const settings = createSettings({
     state,
-    render: () => renderApp(),
+    render: () => renderApp({ backgroundRefresh: true }),
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
@@ -1024,9 +1025,18 @@ export function mountOperator(host, options) {
   const liveHub = createLiveHub({
     navigate: switchScreen,
     state,
-    render: () => renderApp(),
+    render: () => renderApp({ backgroundRefresh: true }),
   });
   state.liveHub = liveHub;
+  const mountOfflineBundle = createOfflineBundleFlow({
+    getHub: () => state.hub,
+    getIdentity: () => ({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    }),
+    onReview: () => switchScreen("rm07-change-requests"),
+  });
+
   const intelligence = createIntelligence({
     getHub: () => state.hub,
     getOperator: () => state.reviewOperatorName || "",
@@ -4537,96 +4547,24 @@ export function mountOperator(host, options) {
   }
 
   function renderRM08BundlePreview(root) {
-    liveHub.renderBundle(root);
-    return;
-    const entries = [
-      [
-        "images/uds-core-controller-0.31.2-amd64.oci.tar",
-        "oci-image",
-        "237.4 MB",
-        "sha256:3b19a441...70e1",
-      ],
-      [
-        "images/ingress-gateway-1.23.4-amd64.oci.tar",
-        "oci-image",
-        "185.2 MB",
-        "sha256:6e21f088...91a0",
-      ],
-      [
-        "charts/uds-core-0.31.2.tgz",
-        "helm-chart",
-        "4.0 MB",
-        "sha256:88a04c12...4f19",
-      ],
-      [
-        "crds/conduit-admission-v1.yaml",
-        "crd-manifest",
-        "0.3 MB",
-        "sha256:51c09e77...02ab",
-      ],
-      [
-        "locks/values-resolved-disconnected.yaml",
-        "values-lock",
-        "18.5 KB",
-        "sha256:19f3d811...cc08",
-      ],
-      [
-        "attestations/sbom-uds-core-0.31.2.spdx.json",
-        "spdx-sbom",
-        "1.8 MB",
-        "sha256:77e01c12...99a4",
-      ],
-    ];
-    root.innerHTML = `
-        <div class="space-y-2.5 flex flex-col">
-          ${rmApiStrip("REAL + PROPOSED", "Connect PackagingRunService/GetPackagingRun + GET /v1/bundles/{id}/preview", "ConduitArtifact")}
-          <div class="so-opt-card p-3.5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="code-id text-[15.5px] font-bold text-white">uds-core-0.31.2-offline-bundle.tar.zst</span>
-                ${pill("Signed", "green")}
-                ${pill("Run: RUN-8842", "blue")}
-                ${agentChip("Chunk Signer", 8, 1)}
-              </div>
-              <div class="text-[11.5px] text-[#8b96a5] mt-1">Target disconnected relays: <code class="code-id text-white">spoke-diode-hall-b</code>, <code class="code-id text-white">spoke-courier-north</code></div>
-            </div>
-            ${governedBtn({ label: "Download bundle (63.8 MB delta)", role: "Operator", auditEvent: "artifact.bundle_downloaded", onClickJs: "state.rmBundleDownloaded='Verified SHA-256 manifest and started 63.8 MB differential zstd transfer.'; renderMainWorkspace()", cls: "so-btn so-btn-emerald", iconName: "download" })}
-          </div>
-
-          ${state.rmBundleDownloaded ? `<div class="so-opt-card p-2.5 code-id text-[11.5px] text-[#34d399]">&#10003; ${state.rmBundleDownloaded}</div>` : ""}
-
-          <div class="so-grid-3 gap-2.5">
-            <div class="so-panel p-3.5 space-y-1">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Transfer &amp; Full Archive Size</div>
-              <div class="code-id text-[19px] font-bold text-[#60a5fa]">63.8 MB <span class="text-[11px] font-normal text-[#8b96a5]">zstd delta</span></div>
-              <div class="text-[11.5px] text-[#8b96a5]">Full standalone archive: <strong class="code-id text-white">488.6 MB</strong><br/>Diode framing: <strong class="code-id text-[#34d399]">4 &times; 16 MB</strong> slices</div>
-            </div>
-            <div class="so-panel p-3.5 space-y-1.5">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Cryptographic Signatures (2/2)</div>
-              <div class="so-card p-2 flex justify-between items-center"><span class="code-id text-[11px]">prod-root-2026 (ECDSA-P256)</span>${pill("Verified", "green")}</div>
-              <div class="so-card p-2 flex justify-between items-center"><span class="code-id text-[11px]">slsa-builder-02 (SLSA v1.0)</span>${pill("Verified", "green")}</div>
-            </div>
-            <div class="so-panel p-3.5 space-y-2">
-              <div class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">SBOM Summary (SPDX-2.3)</div>
-              <div class="flex flex-wrap gap-1.5">${pill("0 Critical", "green")}${pill("0 High", "green")}<span class="so-pill code-id">2 Medium</span>${pill("418 Packages", "blue")}</div>
-              <div class="text-[11.5px] text-[#8b96a5]">License policy check: <strong class="text-[#34d399]">PASS</strong></div>
-            </div>
-          </div>
-
-          <div class="so-panel overflow-hidden">
-            <div class="px-3.5 py-2 bg-[#0e1418] border-b border-[#1c242c] text-[11.5px] font-semibold text-white">Bundle Contents &amp; Digest Manifest (6 Entries)</div>
-            <div class="so-table-scroll"><table class="so-table">
-              <thead><tr><th>Archive Path</th><th>Kind</th><th style="text-align:right">Compressed Size</th><th>SHA-256 Digest</th></tr></thead>
-              <tbody>
-                ${entries.map((e) => `<tr><td class="code-id font-medium text-white">${e[0]}</td><td><span class="so-pill code-id">${e[1]}</span></td><td class="code-id" style="text-align:right">${e[2]}</td><td class="code-id text-[#8b96a5]">${e[3]}</td></tr>`).join("")}
-              </tbody>
-            </table></div>
-          </div>
-        </div>
-      `;
+    root.innerHTML =
+      "<div data-offline-controls></div><div data-offline-preview></div>";
+    const controls = root.querySelector("[data-offline-controls]");
+    controls.dataset.hubReady =
+      state.hub?.loading === false && Array.isArray(state.hub?.environments)
+        ? "1"
+        : "0";
+    controls.dataset.identity = JSON.stringify({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    });
+    const previewRoot = root.querySelector("[data-offline-preview]");
+    liveHub.renderBundle(previewRoot, null);
+    void mountOfflineBundle(controls, (preview) => {
+      if (previewRoot.isConnected) liveHub.renderBundle(previewRoot, preview);
+    });
   }
 
-  // Command palette (kit v7.1): views, Hub objects and console actions.
   function paletteHits() {
     return filterPalette(
       paletteItems(SCREENS, state.hub),
@@ -5036,7 +4974,7 @@ export function mountOperator(host, options) {
     bindKit(root, waves.pucks.length ? { pucks: waves.pucks } : null);
   }
 
-  function renderApp() {
+  function renderApp({ backgroundRefresh = false } = {}) {
     const mapped = areaFor(state.screen);
     if (mapped) {
       state.screen = mapped.area;
@@ -5045,7 +4983,25 @@ export function mountOperator(host, options) {
     liveHub.ensure();
     renderLeftRail();
     renderCenterTabStrip();
-    renderMainWorkspace();
+    if (
+      !(
+        backgroundRefresh &&
+        ((visibleScreen() === "s01-intake" &&
+          document.querySelector("#main-workspace [data-plan-send]")) ||
+          (visibleScreen() === "rm08-bundle-preview" &&
+            state.reviewOperatorActor &&
+            document.querySelector("#main-workspace [data-offline-flow]") &&
+            document.querySelector("#main-workspace [data-offline-controls]")
+              ?.dataset.hubReady === "1" &&
+            document.querySelector("#main-workspace [data-offline-controls]")
+              ?.dataset.identity ===
+              JSON.stringify({
+                actor: state.reviewOperatorActor || "",
+                names: state.reviewOperatorIdentities || [],
+              })))
+      )
+    )
+      renderMainWorkspace();
     renderChatRail();
     renderConduitModals();
     if (typeof notifyOperator === "function") notifyOperator();

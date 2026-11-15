@@ -405,6 +405,13 @@
       "why": "The public spoke control-plane reference establishes responsibilities but no private cluster inventory or workload UI transport. Existing Hub records establish only reported installations and report freshness.",
       "displacedBy": "A public or authorized sanitized Apollo spoke/workload view and its backing report contract establishing inventory grain, freshness and missing-data semantics.",
       "riskIfWrong": "Read-only composition marked CONDUIT_NATIVE. No inferred cluster topology, utilisation, pending-sync status or Agent-attested offline installation is presented."
+    },
+    {
+      "id": "delivery.OfflineBundleConsole",
+      "what": "A four-step native signed-envelope selection, signature verification, physical-copy attestation and operator report-back console flow using existing Hub APIs.",
+      "why": "Existing bundle and offline metadata APIs establish these actions, but the public bundle responsibility reference does not establish a private Apollo console workflow or Agent install attestation.",
+      "displacedBy": "a public or authorized sanitized Apollo offline bundle console contract establishing selection, signature evidence, handoff and report-back semantics.",
+      "riskIfWrong": "Marked CONDUIT_NATIVE; no new signing, publication, transfer, deployment, verified installation or approval authority is implied. Exact receipt coordinates and current identity are checked; write attempts are not automatically retried."
     }
   ],
   "displaced": [
