@@ -84,9 +84,10 @@ describe("approved A2UI form surfaces", () => {
         },
       }),
     ).not.toThrow();
-    expect(
-      store.action("form-1", "submit").message!.action.context["question:port"],
-    ).toBe("9090");
+    expect(store.render("form-1")).toContain('value="9090"');
+    expect(store.action("form-1", "submit")).toMatchObject({
+      message: { action: { context: { "question:port": "9090" } } },
+    });
   });
   it("escapes text, labels, values and validation messages", () => {
     const message = form();
