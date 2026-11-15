@@ -451,7 +451,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "GET /v1/fleet/upgrades",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; lists installations that are behind and why"},
 		{Pattern: "POST /v1/offline-bundles",
-			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; records offline bundle hand-off and install report-back"},
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + platform/root operate; records offline bundle metadata; check-in comes from persisted Agent reports"},
 		{Pattern: "POST /v1/sites/check-in",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; records a site check-in or queues a change"},
 		{Pattern: "GET /v1/blackouts",

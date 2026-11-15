@@ -4,8 +4,10 @@ import (
 	"context"
 	"crypto/ed25519"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	offlineapp "github.com/jonathanagustin/conduit/internal/delivery/offlinebundle/application"
@@ -43,17 +45,34 @@ func (errUnverifiedT) Error() string { return "bundle signature did not verify" 
 
 var errUnverified = errUnverifiedT{}
 
-type sitePresence struct{ online map[string]bool }
+type sitePresence struct {
+	repository controlplane.Repository
+	now        func() time.Time
+}
 
-func (presence sitePresence) Online(_ context.Context, site string) (bool, error) {
-	return presence.online[site], nil
+func (presence sitePresence) Online(ctx context.Context, site string) (bool, error) {
+	report, err := presence.repository.GetEnvironmentReport(ctx, site)
+	if errors.Is(err, controlplane.ErrNotFound) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if report.Environment != site {
+		return false, nil
+	}
+	now := time.Now()
+	if presence.now != nil {
+		now = presence.now()
+	}
+	return controlplane.ReportedSpokeStatus(&report, now).State == controlplane.SpokeLive, nil
 }
 
 func mountOfflineBundles(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) http.Handler {
 	service := &offlineapp.Service{
 		Store:    repository,
 		Verifier: bundleVerifier{repository: repository, key: options.BundlePrivateKey, trusted: options.TrustedBundleKeys},
-		Presence: sitePresence{online: map[string]bool{}},
+		Presence: sitePresence{repository: repository},
 	}
 	governance := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
@@ -67,6 +86,9 @@ func mountOfflineBundles(legacy http.Handler, repository controlplane.Repository
 			if !ok {
 				return http.StatusUnauthorized, map[string]string{"error": "unauthorized"}, nil
 			}
+			if !governance.AuthorizeResourceOperation(request.Context(), principal, options, "platform/root", controlplane.OperationOperate) {
+				return http.StatusForbidden, map[string]string{"error": "offline bundle operations require platform operate permission"}, nil
+			}
 			var body struct {
 				Action    string `json:"action"`
 				BundleID  string `json:"bundleId"`
@@ -76,13 +98,14 @@ func mountOfflineBundles(legacy http.Handler, repository controlplane.Repository
 				Confirm   bool   `json:"confirm"`
 				ChangeID  string `json:"changeRequestId"`
 				Rationale string `json:"rationale"`
-				Online    bool   `json:"online"`
 			}
-			if err := json.NewDecoder(io.LimitReader(request.Body, 1<<16)).Decode(&body); err != nil {
+			decoder := json.NewDecoder(http.MaxBytesReader(nil, request.Body, 1<<16))
+			decoder.DisallowUnknownFields()
+			if err := decoder.Decode(&body); err != nil {
 				return http.StatusBadRequest, map[string]string{"error": "request body is not valid JSON"}, nil
 			}
-			if body.Online {
-				service.Presence = sitePresence{online: map[string]bool{body.Site: true}}
+			if err := decoder.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
+				return http.StatusBadRequest, map[string]string{"error": "request body must contain one JSON object"}, nil
 			}
 			switch body.Action {
 			case "handoff":
