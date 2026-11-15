@@ -1,3 +1,9 @@
+import { releaseWavesMarkup } from "./release-waves.js";
+import { releaseCalendarMarkup } from "./release-calendar.js";
+import {
+  maintenanceMarkup,
+  selectedEnvironment,
+} from "./release-environment-hub.js";
 /* Release-gate screens. Recalls and the proposal trace read the Hub. */
 import { recordedGateRows, renderLiveProposal } from "./live-hub.js";
 
@@ -455,103 +461,17 @@ export function createReleaseGates(ctx) {
   }
 
   function renderRamp(root) {
-    const moving = state.rampCohorts.filter(
-      (row) => row.st !== "Rate Limited",
-    ).length;
-    const donePct = Math.round((moving / state.rampCohorts.length) * 100);
-    const preview = state.stagedEdits.slice(0, 6);
-    root.innerHTML = `
-      <div class="space-y-2.5 flex flex-col">
-        <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
-        ${ctx.rmApiStrip("EXAMPLE", "Per-channel ramp window and cohort pacing", "ConduitReleaseChannel")}
-        ${sectionCard(
-          `Ramp window · edge-cohorts`,
-          `
-            ${entityTitle(
-              "Cohort pacing",
-              "Upgrade plans spread across the window. Rollbacks, installs, and recall roll-offs are not rate limited.",
-              compoundTag("started", `${donePct}% of cohort`, "green"),
-            )}
-            <div class="mt-3">${segmentedCtrl(
-              [
-                ["off", "Off"],
-                ["1h", "1h"],
-                ["3h", "3h"],
-                ["6h", "6h"],
-              ],
-              state.rampWindow,
-              "setRampWindow('__VAL__')",
-            )}</div>
-            <div class="flex items-center gap-3 mt-3">
-              <div class="flex-1 h-2 bg-[#080c10] rounded-full overflow-hidden border border-[#1c242c]">
-                <div class="h-full ${state.rampPaused ? "bg-[#eab854]" : "so-striped-bar"}" style="width:${donePct}%"></div>
-              </div>
-              <label class="inline-flex items-center gap-1.5 text-[11px] text-[#eab854] cursor-pointer shrink-0">
-                <input type="checkbox" ${state.rampPaused ? "checked" : ""} data-onchange="state.rampPaused=this.checked; renderMainWorkspace()" />
-                <span>Pause while the maintenance window is closed</span>
-              </label>
-            </div>
-            <div class="so-warn-card p-2.5 mt-3 text-[11.5px] text-[#dce4ee]">
-              <strong class="text-[#fbbf24]">Canary pacing.</strong>
-              The ramp upgrades entities first-come, first-served, so a canary is not guaranteed to go first. Bypass the limit to move one now.
-            </div>
-            <div class="so-table-scroll mt-3 -mx-3.5"><table class="so-table">
-              <thead><tr><th>Environment</th><th>Role</th><th>Ramp state</th><th>Pacing note</th><th style="text-align:right">Bypass</th></tr></thead>
-              <tbody>
-                ${state.rampCohorts
-                  .map(
-                    (row) => `<tr>
-                  <td class="code-id font-semibold text-white">${esc(row.id)}</td>
-                  <td>${row.canary ? ctx.pill("Canary", "amber") : ctx.pill("Cohort", "muted")}</td>
-                  <td>${ctx.pill(state.rampPaused && row.st === "Rate Limited" ? "Paused (window closed)" : row.st, row.tone)}</td>
-                  <td class="text-[#9aa5b4]">${esc(row.note)}</td>
-                  <td style="text-align:right">${
-                    row.st === "Rate Limited"
-                      ? `<button type="button" data-onclick="bypassRamp('${esc(row.id)}')" class="so-btn so-btn-sm">Bypass ramp</button>`
-                      : `<span class="text-[11px] text-[#596573]">Dispatched</span>`
-                  }</td>
-                </tr>`,
-                  )
-                  .join("")}
-              </tbody>
-            </table></div>
-          `,
-          {
-            subtitle: "Off, 1 hour, 3 hours, or 6 hours.",
-            right: compoundTag("window", state.rampWindow, "blue"),
-          },
-        )}
-        ${sectionCard(
-          "Staged changes",
-          `
-            <p class="text-[11.5px] text-[#8b96a5] mb-2">Example preview of pending edits. Nothing here is applied.</p>
-            <div class="so-table-scroll -mx-3.5 -mb-3"><table class="so-table" style="min-width:440px">
-              <thead><tr><th>Object</th><th>Key</th><th>Field</th><th>From</th><th>To</th></tr></thead>
-              <tbody>
-                ${preview
-                  .map(
-                    (row) => `<tr>
-                  <td class="code-id text-[#60a5fa]">${esc(row.object)}</td>
-                  <td class="code-id text-white">${esc(row.key)}</td>
-                  <td class="code-id">${esc(row.field)}</td>
-                  <td class="code-id text-[#8b96a5]">${esc(row.from)}</td>
-                  <td class="code-id text-[#34d399]">${esc(row.to)}</td>
-                </tr>`,
-                  )
-                  .join("")}
-              </tbody>
-            </table></div>
-          `,
-          {
-            right: compoundTag(
-              "pending",
-              String(state.stagedEdits.length),
-              "amber",
-            ),
-          },
-        )}
-      </div>
-    `;
+    const environment = selectedEnvironment(
+      state.hub?.environments,
+      state.releaseEnvironmentId,
+    );
+    root.innerHTML =
+      releaseWavesMarkup(state.hub?.rollouts, state.hub?.rolloutNote) +
+      releaseCalendarMarkup(environment?.environment?.maintenance?.overrides) +
+      (environment
+        ? `<section class="so-panel p-3"><h3>Selected environment: ${esc(environment.environment.id)}</h3></section>` +
+          maintenanceMarkup(environment.environment.maintenance)
+        : "<p>No selected environment maintenance evidence is available.</p>");
   }
 
   function renderTerminal(root) {

@@ -1,3 +1,4 @@
+import { releaseCalendarMarkup } from "./release-calendar.js";
 import { convergenceState, convergenceMarkup } from "./release-convergence.js";
 import { timelineMarkup } from "./release-plan-inspector.js";
 const esc = (value) =>
@@ -60,7 +61,7 @@ export function environmentHubMarkup(
       )
       .join(
         "",
-      )}${maintenanceMarkup(selected.environment.maintenance)}${timelineMarkup(timeline)}</div>`;
+      )}${maintenanceMarkup(selected.environment.maintenance)}${timelineMarkup(timeline)}${releaseCalendarMarkup(selected.environment.maintenance?.overrides)}</div>`;
 }
 export function mountEnvironmentHub(
   root,

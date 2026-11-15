@@ -362,7 +362,11 @@ test.describe("workbench", () => {
         window as unknown as { switchScreen: (id: string) => void }
       ).switchScreen("rm10-ramped-rollout");
     });
-    await expect(page.getByText("Canary pacing").first()).toBeVisible();
+    await expect(page.locator("[data-release-waves]")).toBeVisible();
+    await expect(page.locator("[data-release-calendar]")).toContainText(
+      "Resolved scheduling data is unavailable",
+    );
+    await expect(page.getByText("Canary pacing")).toHaveCount(0);
     await page.evaluate(() => {
       (
         window as unknown as { switchScreen: (id: string) => void }
@@ -1326,4 +1330,120 @@ test("release dependencies display bounded native constraints and recorded upgra
         path.startsWith("/v1/products/") || path === "/v1/fleet/upgrades",
     ),
   ).toEqual([]);
+});
+
+test("release planning, ramp and windows use recorded data with explicit calendar limits", async ({
+  page,
+}) => {
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: {
+          environments: [
+            {
+              environment: {
+                id: "native-env",
+                maintenance: {
+                  downtime: {
+                    timeZone: "UTC",
+                    intervals: ["Tuesday 03:00-05:00"],
+                  },
+                  overrides: [
+                    {
+                      type: "DOWNTIME",
+                      startsAt: "2026-11-15T03:00:00Z",
+                      endsAt: "2026-11-15T04:00:00Z",
+                      reason: "Recorded maintenance approval",
+                      approvedBy: "reviewer",
+                    },
+                  ],
+                },
+              },
+            },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/plans")
+      return route.fulfill({
+        json: {
+          plans: [
+            {
+              id: "native-planning-record",
+              status: "PENDING_APPROVAL",
+              plan: { environment: "native-env", steps: [] },
+            },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/rollouts")
+      return route.fulfill({
+        json: {
+          rollouts: [
+            {
+              id: "native-ramp-record",
+              product: "service",
+              version: "1",
+              status: "paused",
+              waves: [
+                {
+                  name: "native-canary",
+                  environments: ["native-env"],
+                  gate: "approval",
+                  status: "blocked",
+                  reason: "Waiting for review",
+                },
+              ],
+            },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/blackouts")
+      return route.fulfill({
+        json: {
+          environment: url.searchParams.get("environment"),
+          blocked: false,
+        },
+      });
+    if (url.pathname.endsWith("/timeline"))
+      return route.fulfill({ json: { timeline: [] } });
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="planning"]').click();
+  await expect(page.locator("[data-release-plan-inspector]")).toContainText(
+    "native-planning-record",
+  );
+  await expect(page.locator("[data-release-calendar]")).toContainText(
+    "Resolved scheduling data is unavailable",
+  );
+  await expect(page.locator("#area-body")).not.toContainText("prod-root-2026");
+  await page.locator('[data-area-tab="ramp"]').click();
+  await expect(page.locator("[data-release-waves]")).toContainText(
+    "native-ramp-record",
+  );
+  await expect(page.locator("[data-release-waves]")).toContainText(
+    "Waiting for review",
+  );
+  await expect(page.locator("[data-release-calendar]")).toContainText(
+    "No Gantt bars",
+  );
+  await page.locator('[data-area-tab="windows"]').click();
+  await expect(page.locator("[data-release-environment-hub]")).toContainText(
+    "Tuesday 03:00-05:00",
+  );
+  await expect(page.locator("[data-release-calendar]")).toContainText(
+    "A governed scheduling proposal",
+  );
+  await expect(
+    page.getByRole("img", { name: "Recorded maintenance override interval" }),
+  ).toBeVisible();
+  await expect(page.locator("[data-release-calendar]")).toContainText(
+    "Recorded maintenance approval",
+  );
 });
