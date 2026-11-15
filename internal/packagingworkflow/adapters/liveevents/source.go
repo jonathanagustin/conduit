@@ -139,7 +139,7 @@ func project(subject live.Subject, producer string, event packaging.StepEvent) l
 }
 func knownStep(step string) bool {
 	switch step {
-	case packaging.StepAssess, packaging.StepPropose, packaging.StepValidate, packaging.StepReview, packaging.StepHandoff:
+	case packaging.StepAssess, packaging.StepPropose, packaging.StepValidate, packaging.StepReview, packaging.StepHandoff, packaging.PhaseBlocked, packaging.PhaseComplete:
 		return true
 	}
 	return false

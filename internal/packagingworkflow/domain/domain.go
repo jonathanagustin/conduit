@@ -345,23 +345,24 @@ func PlanID(key string) string {
 // State is the bounded carry across continue-as-new. It is the packaging
 // run's progress, not Plan status and not an approval log of record.
 type State struct {
-	Phase            string            `json:"phase"`
-	Assessment       Receipt           `json:"assessment"`
-	Proposal         Receipt           `json:"proposal"`
-	Validation       Validation        `json:"validation"`
-	Approval         ApprovalRecord    `json:"approval"`
-	SeenApprovalIDs  []string          `json:"seenApprovalIds,omitempty"`
-	Plan             PlanReceipt       `json:"plan"`
-	LastReview       ReviewDisposition `json:"lastReview,omitempty"`
-	DuplicateReviews int               `json:"duplicateReviews,omitempty"`
-	Reason           string            `json:"reason,omitempty"`
-	Outcome          Outcome           `json:"outcome,omitempty"`
-	TargetPlanRef    string            `json:"targetPlanRef,omitempty"`
-	TemplateVersion  string            `json:"templateVersion,omitempty"`
-	ToolVersions     string            `json:"toolVersions,omitempty"`
-	AttachmentSHA256 []string          `json:"attachmentSha256,omitempty"`
-	Events           []StepEvent       `json:"events,omitempty"`
-	eventsEnabled    bool
+	Phase               string            `json:"phase"`
+	Assessment          Receipt           `json:"assessment"`
+	Proposal            Receipt           `json:"proposal"`
+	Validation          Validation        `json:"validation"`
+	Approval            ApprovalRecord    `json:"approval"`
+	SeenApprovalIDs     []string          `json:"seenApprovalIds,omitempty"`
+	Plan                PlanReceipt       `json:"plan"`
+	LastReview          ReviewDisposition `json:"lastReview,omitempty"`
+	DuplicateReviews    int               `json:"duplicateReviews,omitempty"`
+	Reason              string            `json:"reason,omitempty"`
+	Outcome             Outcome           `json:"outcome,omitempty"`
+	TargetPlanRef       string            `json:"targetPlanRef,omitempty"`
+	TemplateVersion     string            `json:"templateVersion,omitempty"`
+	ToolVersions        string            `json:"toolVersions,omitempty"`
+	AttachmentSHA256    []string          `json:"attachmentSha256,omitempty"`
+	Events              []StepEvent       `json:"events,omitempty"`
+	eventsEnabled       bool
+	statusEventsEnabled bool
 }
 
 func (s *State) Block(outcome Outcome, reason string) {
@@ -518,6 +519,19 @@ type StepEvent struct {
 // is not serialized: a continued run enables it again from its own version
 // marker, and the events already recorded travel in Events.
 func (s *State) EnableEvents() { s.eventsEnabled = true }
+
+// EnableStatusEvents is enabled only by the workflow's v3 marker. The flag is
+// restored by that marker after replay/continue-as-new, never by caller JSON.
+func (s *State) EnableStatusEvents() { s.eventsEnabled = true; s.statusEventsEnabled = true }
+
+// NoteStatus records a native terminal status without changing execution or
+// approval authority. Older workflow histories preserve their existing journal.
+func (s *State) NoteStatus(at time.Time) {
+	if s == nil || !s.statusEventsEnabled || (s.Phase != PhaseBlocked && s.Phase != PhaseComplete) {
+		return
+	}
+	s.Note(at, s.Phase, string(s.Outcome), s.Reason, "")
+}
 
 // EventsEnabled reports whether Note will append.
 func (s *State) EventsEnabled() bool { return s != nil && s.eventsEnabled }

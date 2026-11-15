@@ -256,6 +256,10 @@ func TestCancelDuringReviewDoesNotHandoff(t *testing.T) {
 	if reported.Phase != domain.PhaseBlocked || reported.Outcome != string(domain.OutcomeCancelled) || reported.PlanID != "" {
 		t.Fatalf("status after cancel = %#v", reported)
 	}
+	events := queryEvents(t, env)
+	if !eventRecorded(events, domain.PhaseBlocked, string(domain.OutcomeCancelled), "") {
+		t.Fatalf("cancellation missing from journal: %#v", events)
+	}
 }
 
 func TestCancelRacesAnApprovalAndDoesNotHandoff(t *testing.T) {
@@ -490,4 +494,52 @@ func bytesContains(encoded, needle []byte) bool {
 		}
 	}
 	return false
+}
+
+func TestV2CancellationPreservesExistingJournal(t *testing.T) {
+	acts, id, repository := prepare(t)
+	env := boot(acts)
+	env.OnGetVersion(changeID, workflow.DefaultVersion, workflow.Version(3)).Return(workflow.Version(2))
+	env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Minute)
+	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
+	if !temporal.IsCanceledError(env.GetWorkflowError()) || mustPlans(t, repository) != 0 {
+		t.Fatal("legacy cancellation changed authority")
+	}
+	events := queryEvents(t, env)
+	if eventRecorded(events, domain.PhaseBlocked, string(domain.OutcomeCancelled), "") {
+		t.Fatal("v2 history gained a new terminal journal entry")
+	}
+	if !eventRecorded(events, domain.StepReview, domain.EventWaiting, "") {
+		t.Fatal("v2 review journal was lost")
+	}
+}
+
+func TestMissingTerminalOutcomeIsJournaledWithoutHandoff(t *testing.T) {
+	acts, id, repository := prepare(t)
+	env := boot(acts)
+	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, Carry: &domain.State{Phase: domain.PhaseComplete}})
+	result := mustComplete(t, env)
+	if result.Outcome != domain.OutcomeFailRequired || mustPlans(t, repository) != 0 {
+		t.Fatal("invalid terminal state fabricated success")
+	}
+	if !eventRecorded(queryEvents(t, env), domain.PhaseBlocked, string(domain.OutcomeFailRequired), "") {
+		t.Fatal("terminal validation failure missing from journal")
+	}
+}
+
+func TestExhaustedReviewBudgetRecordsNativeFailure(t *testing.T) {
+	acts, id, repository := prepare(t)
+	env := boot(acts)
+	seen := make([]string, domain.MaxSeenApprovals)
+	env.RegisterDelayedCallback(func() {
+		env.SignalWorkflow(SignalReview, domain.ReviewMessage{RunID: id.RunID, ApprovalID: "overflow"})
+	}, time.Minute)
+	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour, Carry: &domain.State{Phase: domain.PhaseReview, SeenApprovalIDs: seen}})
+	result := mustComplete(t, env)
+	if result.Outcome != domain.OutcomeFailRequired || mustPlans(t, repository) != 0 {
+		t.Fatal("exhausted review budget handed off")
+	}
+	if !eventRecorded(queryEvents(t, env), domain.PhaseBlocked, string(domain.OutcomeFailRequired), "") {
+		t.Fatal("review budget failure missing from journal")
+	}
 }

@@ -211,3 +211,20 @@ func TestSourceHonorsCancellationAndPageBounds(t *testing.T) {
 		t.Fatal("missing source reader accepted")
 	}
 }
+
+func TestSourceProjectsRecordedTerminalStatus(t *testing.T) {
+	reader := fixture()
+	reader.events["app-1"] = []packaging.StepEvent{step(1, packaging.PhaseBlocked, string(packaging.OutcomeCancelled))}
+	source, _ := New(reader)
+	records, err := source.ReadCommittedEvents(context.Background(), nil, 256)
+	if err != nil || len(records) != 1 || records[0].Content.Kind != "packaging.step" || string(records[0].Content.Data) != `{"phase":"blocked","outcome":"CANCELLED"}` {
+		t.Fatalf("native cancellation projection: %v %v", records, err)
+	}
+	validator, err := schema.New()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := validator.Envelope(live.Envelope{Version: 1, StreamID: "source-test", Sequence: 1, Cursor: "cursor_test", Content: records[0].Content}); err != nil {
+		t.Fatal(err)
+	}
+}
