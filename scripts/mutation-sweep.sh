@@ -114,6 +114,7 @@ done
 # per file, where a Survived mutant is the LIVED one and a Timeout counts as
 # detected. NoCoverage mutants are excluded from efficacy and shown as the gap
 # in coverage, exactly as gremlins' mutator coverage is for Go.
+if [[ -f web/stryker.config.json ]]; then
 report="web/reports/mutation/mutation.json"
 echo "sweeping web console with Stryker..."
 set +e
@@ -156,7 +157,15 @@ while IFS= read -r row; do
   awk -v a="${eff}" -v b="${threshold}" 'BEGIN{exit !(a + 0.0001 < b)}' && regressed=1
 done < "${web_results}"
 
-if [[ ${regressed} -ne 0 && "${write}" == false ]]; then
+else
+  if [[ "$(jq '.web | length' "${scores_file}")" != 0 ]]; then
+    echo 'FAIL mutation sweep: recorded frontend targets exist but their Stryker configuration is missing' >&2
+    exit 1
+  fi
+  echo 'No configured frontend mutation targets; frontend efficacy is not measured.'
+fi
+
+if [[ ${regressed} -ne 0 ]]; then
   echo "FAIL mutation sweep: an entry regressed below its recorded efficacy" >&2
   exit 1
 fi
