@@ -111,6 +111,7 @@ func Register(mux *http.ServeMux, config Config) error {
 		return errors.New("an authorizer is required; routes that cannot ask Governance would answer for it")
 	}
 	api := &api{config: config}
+	api.registerConnect(mux)
 	mux.HandleFunc("GET /v1/notifications/inbox", api.readInbox)
 	mux.HandleFunc("GET /v1/notifications/events", api.readEvents)
 	mux.HandleFunc("GET /v1/notifications/preferences", api.readPreference)
@@ -219,28 +220,52 @@ func (api *api) readEvents(writer http.ResponseWriter, request *http.Request) {
 	if !ok {
 		return
 	}
-	resourceRID := strings.TrimSpace(request.URL.Query().Get("resourceRid"))
-	if resourceRID == "" {
-		writeError(writer, http.StatusBadRequest,
-			errors.New("reading notification events requires the resource they are about"))
-		return
-	}
-	if !api.authorized(writer, request, principal, resourceRID) {
-		return
-	}
-	limit, err := requestedLimit(request.URL.Query().Get("limit"))
+	page, err := api.eventPage(request.Context(), principal, request.URL.Query().Get("resourceRid"), request.URL.Query().Get("limit"))
 	if err != nil {
-		writeError(writer, http.StatusBadRequest, err)
+		status := http.StatusInternalServerError
+		var failure StatusError
+		if errors.As(err, &failure) {
+			status = failure.Status
+		}
+		writeError(writer, status, err)
 		return
 	}
-	events, err := api.config.Reader.EventsForResource(request.Context(), resourceRID, limit)
+	writeJSON(writer, http.StatusOK, page)
+}
+
+type eventPage struct {
+	ResourceRID string         `json:"resourceRid"`
+	Limit       int            `json:"limit"`
+	Events      []domain.Event `json:"events"`
+}
+
+// eventPage is the shared native resource read for REST and Connect.
+func (api *api) eventPage(ctx context.Context, principal Principal, rawResource, rawLimit string) (eventPage, error) {
+	resource := strings.TrimSpace(rawResource)
+	if resource == "" {
+		return eventPage{}, StatusError{Status: http.StatusBadRequest, Message: "reading notification events requires the resource they are about"}
+	}
+	if err := api.resourceReadError(ctx, principal, resource); err != nil {
+		return eventPage{}, err
+	}
+	limit, err := requestedLimit(rawLimit)
 	if err != nil {
-		writeError(writer, http.StatusInternalServerError, err)
-		return
+		return eventPage{}, StatusError{Status: http.StatusBadRequest, Message: err.Error()}
 	}
-	writeJSON(writer, http.StatusOK, map[string]any{
-		"resourceRid": resourceRID, "limit": application.Bound(limit), "events": events,
-	})
+	rows, err := api.config.Reader.EventsForResource(ctx, resource, limit)
+	if err != nil {
+		return eventPage{}, StatusError{Status: http.StatusInternalServerError, Message: err.Error()}
+	}
+	bounded := application.Bound(limit)
+	if len(rows) > bounded {
+		return eventPage{}, StatusError{Status: http.StatusInternalServerError, Message: "notification source returned an oversized event window"}
+	}
+	for _, row := range rows {
+		if row.ResourceRID != resource {
+			return eventPage{}, StatusError{Status: http.StatusInternalServerError, Message: "notification source returned an event for another resource"}
+		}
+	}
+	return eventPage{ResourceRID: resource, Limit: bounded, Events: rows}, nil
 }
 
 func (api *api) readPreference(writer http.ResponseWriter, request *http.Request) {
@@ -508,7 +533,7 @@ const maximumContactBytes = 8 << 10
 
 // principal resolves the caller or writes the refusal and reports false.
 func (api *api) principal(writer http.ResponseWriter, request *http.Request) (Principal, bool) {
-	principal, err := api.config.Resolve(request)
+	principal, err := api.resolvePrincipal(request)
 	if err != nil {
 		status := StatusError{}
 		if errors.As(err, &status) && status.Status != 0 {
@@ -518,12 +543,18 @@ func (api *api) principal(writer http.ResponseWriter, request *http.Request) (Pr
 		writeError(writer, http.StatusUnauthorized, err)
 		return Principal{}, false
 	}
-	if strings.TrimSpace(principal.Username) == "" {
-		writeError(writer, http.StatusUnauthorized,
-			errors.New("an authenticated username is required to read notifications"))
-		return Principal{}, false
-	}
 	return principal, true
+}
+
+func (api *api) resolvePrincipal(request *http.Request) (Principal, error) {
+	principal, err := api.config.Resolve(request)
+	if err != nil {
+		return Principal{}, err
+	}
+	if strings.TrimSpace(principal.Username) == "" {
+		return Principal{}, StatusError{Status: http.StatusUnauthorized, Message: "an authenticated username is required to read notifications"}
+	}
+	return principal, nil
 }
 
 // authorized asks Governance whether this caller may read this resource, and
@@ -541,12 +572,18 @@ func (api *api) principal(writer http.ResponseWriter, request *http.Request) (Pr
 func (api *api) authorized(
 	writer http.ResponseWriter, request *http.Request, principal Principal, resourceRID string,
 ) bool {
-	if api.config.Authorize(request.Context(), principal, resourceRID, OperationReadResource) {
-		return true
+	if err := api.resourceReadError(request.Context(), principal, resourceRID); err != nil {
+		writeError(writer, http.StatusForbidden, err)
+		return false
 	}
-	writeError(writer, http.StatusForbidden, fmt.Errorf(
-		"forbidden: %s is not entitled to %s on %s", principal.Username, OperationReadResource, resourceRID))
-	return false
+	return true
+}
+
+func (api *api) resourceReadError(ctx context.Context, principal Principal, resourceRID string) error {
+	if api.config.Authorize(ctx, principal, resourceRID, OperationReadResource) {
+		return nil
+	}
+	return StatusError{Status: http.StatusForbidden, Message: fmt.Sprintf("forbidden: %s is not entitled to %s on %s", principal.Username, OperationReadResource, resourceRID)}
 }
 
 // ownedBy is the whole reason this package is authorization-shaped.

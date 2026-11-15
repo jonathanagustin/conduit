@@ -1,3 +1,7 @@
+import {
+  fetchNotificationEvents,
+  notificationEventsTransport,
+} from "../../api/notification-events.js";
 const esc = (value) =>
   String(value ?? "").replace(
     /[&<>"']/g,
@@ -108,11 +112,12 @@ export function createAuditEventStream({ getEntries, getIdentity }) {
       busy = true;
       paint();
       try {
-        const response = await fetch(
-          `/v1/notifications/events?resourceRid=${encodeURIComponent(selected)}&limit=100`,
-          { headers: { accept: "application/json" }, signal: request.signal },
+        const body = await fetchNotificationEvents(
+          selected,
+          notificationEventsTransport(window.location.origin),
+          request.signal,
+          BigInt(100),
         );
-        const body = await response.json();
         if (
           !current() ||
           stamp !== generation ||
@@ -120,10 +125,6 @@ export function createAuditEventStream({ getEntries, getIdentity }) {
           !resources().includes(selected)
         )
           return;
-        if (!response.ok)
-          throw new Error(
-            body.error || `Events unavailable (${response.status}).`,
-          );
         rows = scopedNotificationEvents(body, selected);
         note = `${rows.length} returned notification events for ${selected}. Polling ${paused ? "paused" : "active"}.`;
       } catch (error) {

@@ -29,6 +29,7 @@ mkdir -p "$GOBIN"
 go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.12
 go install connectrpc.com/connect/v2/cmd/protoc-gen-connect-go@v2.0.2
 export PATH="$GOBIN:$root/web/node_modules/.bin:$PATH"
+python3 scripts/test-normalize-connect-stubs.py
 "$buf_bin" lint
 base="${PROTO_BASE_SHA:-}"
 if [[ -z "$base" ]]; then

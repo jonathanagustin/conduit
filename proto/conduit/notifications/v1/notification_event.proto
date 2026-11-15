@@ -1,0 +1,52 @@
+syntax = "proto3";
+
+// Package conduit.notifications.v1 describes resource-authorized native events.
+package conduit.notifications.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/notifications/v1;notificationsv1";
+
+// NotificationService reads existing events; it cannot subscribe, emit or approve.
+service NotificationService {
+  // ListNotificationEvents maps GET /v1/notifications/events for one resource.
+  rpc ListNotificationEvents(ListNotificationEventsRequest) returns (ListNotificationEventsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// ListNotificationEventsRequest names the existing authorized resource window.
+message ListNotificationEventsRequest {
+  // resource_rid is the required resourceRid query value, trimmed by the Hub.
+  string resource_rid = 1;
+  // limit is optional: absent selects the native ceiling; explicit zero is invalid.
+  optional int64 limit = 2;
+}
+
+// ListNotificationEventsResponse retains the native event read envelope.
+message ListNotificationEventsResponse {
+  // resource_rid is the resource actually authorized and read.
+  string resource_rid = 1;
+  // limit is the bounded limit applied by the native Reader.
+  int32 limit = 2;
+  // events are the returned ordered window, not a total or a resume stream.
+  repeated NotificationEvent events = 3;
+}
+
+// NotificationEvent is the native notifications/domain.Event projection.
+message NotificationEvent {
+  // id is the stable native event identifier.
+  string id = 1;
+  // type preserves the native open event vocabulary.
+  string type = 2;
+  // resource_rid is the resource the event is about.
+  string resource_rid = 3;
+  // environment is optional native environment context, not additional authority.
+  string environment = 4;
+  // summary is the stored human-readable sentence.
+  string summary = 5;
+  // actor is empty for system-generated events.
+  string actor = 6;
+  // occurred_at is the native event timestamp.
+  google.protobuf.Timestamp occurred_at = 7;
+}

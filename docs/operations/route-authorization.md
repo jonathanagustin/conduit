@@ -81,11 +81,11 @@ is rejected. Both run in CI and in `scripts/verify-local.sh` under
 | `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 32 |
 | `operator-self` | an authenticated operator; the answer is about that operator only | 15 |
 | `operator-filtered` | an authenticated operator, then a Governance decision on every row of the answer | 35 |
-| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 129 |
+| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 130 |
 | `agent` | an Agent identity scoped to the Environment or Plan in the path | 10 |
 | `bundle-signature` | a Bundle envelope signed by a key this Hub trusts | 0 |
 
-The register itself is the full 233-row table. The tables below describe selected
+The register itself is the full 234-row table. The tables below describe selected
 examples; the source register and executable gate remain the complete inventory.
 
 ### `public` — served to anybody
@@ -284,3 +284,11 @@ What existed before, measured rather than assumed:
    you do, the Hub will not route it and the build will fail with its name.
 3. If the decision is `public`, the `Detail` has to say why that is safe. The
    gate rejects a public row whose detail is too short to be a reason.
+
+### Native notification-event RPC
+
+`POST /conduit.notifications.v1.NotificationService/ListNotificationEvents`
+uses the same operator carrier, `resourceOperation(resource:read)` and native
+event query as the REST resource-events route. It is `operator-grant` and is
+mounted only with the notification Store. It neither subscribes nor emits. See
+[connect-notification-events.md](connect-notification-events.md).
