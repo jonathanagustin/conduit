@@ -510,4 +510,3 @@ func extractReportedModel(raw []byte, argv []string) string {
 	}
 	return ""
 }
-

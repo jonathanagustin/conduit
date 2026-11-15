@@ -17,10 +17,17 @@ import (
 	"go.temporal.io/sdk/client"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/changerequest"
+	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
+	devworkspaceapp "github.com/jonathanagustin/conduit/internal/devworkspace/application"
+	devworkspacedomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
+	packagingapp "github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/devserver"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/fixtures"
@@ -194,11 +201,12 @@ func newRoot() *cobra.Command {
 		},
 	})
 
-	addPlanningCommands(root, &address)
+	addPlanningCommands(root, &address, &stateDir)
+	addWorkspaceCommands(root, &stateDir)
 	return root
 }
 
-func addPlanningCommands(root *cobra.Command, address *string) {
+func addPlanningCommands(root *cobra.Command, address, stateDir *string) {
 	var sessionID, actor string
 	createCmd := &cobra.Command{
 		Use:   "plan-create <repo-url> [ref]",
@@ -325,6 +333,622 @@ func addPlanningCommands(root *cobra.Command, address *string) {
 	}
 	statusCmd.Flags().StringVar(&statusActor, "actor", "operator", "operator identity owning the session")
 	root.AddCommand(statusCmd)
+
+	var computeActor, computeWorkspaceID, computeEnv string
+	computeCmd := &cobra.Command{
+		Use:   "plan-compute <session-id>",
+		Short: "Execute post-Accept Git workspace packaging, gates, image inspect, and audit recording",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			c, err := dial(*address)
+			if err != nil {
+				return err
+			}
+			defer c.Close()
+			svc := planningworkflow.NewClientService(c, planningworkflow.TaskQueue, computeActor, nil)
+			session, err := svc.Get(context.Background(), args[0])
+			if err != nil {
+				return err
+			}
+			if session.Status != planningdomain.StatusAccepted || session.Binding == nil {
+				return fmt.Errorf("%s: planning session %s has not been accepted", planningdomain.CodeComputeBeforeAccept, session.ID)
+			}
+			out, err := executePlanCompute(context.Background(), *stateDir, computeActor, computeWorkspaceID, computeEnv, session, cmd.ErrOrStderr())
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), out)
+		},
+	}
+	computeCmd.Flags().StringVar(&computeActor, "actor", "operator", "operator identity owning the session")
+	computeCmd.Flags().StringVar(&computeWorkspaceID, "workspace-id", "", "workspace ID to bind (default wsp_<session-id>)")
+	computeCmd.Flags().StringVar(&computeEnv, "environment", "dev", "environment ID for the durable workspace")
+	root.AddCommand(computeCmd)
+}
+
+type planComputeOutput struct {
+	WorkspaceID string                       `json:"workspaceId"`
+	SessionID   string                       `json:"sessionId"`
+	Result      packagingapp.WorkspaceResult `json:"result"`
+}
+
+func executePlanCompute(ctx context.Context, stateDir, actor, workspaceID, envID string, session *planningdomain.Session, logOut io.Writer) (planComputeOutput, error) {
+	if strings.TrimSpace(actor) == "" {
+		actor = "operator"
+	}
+	if strings.TrimSpace(workspaceID) == "" {
+		workspaceID = "wsp_" + session.ID
+	}
+	if strings.TrimSpace(envID) == "" {
+		envID = "dev"
+	}
+	store, repository, _, err := openWorkspaceBackend(stateDir, 0, 0, nil)
+	if err != nil {
+		return planComputeOutput{}, err
+	}
+	repoURL := session.Binding.Intake.RepoURL
+	ref := session.Binding.Intake.Ref
+	planHash := session.Binding.Plan.SHA256
+	planText := session.Binding.Plan.Text
+
+	now := time.Now().UTC()
+	ws := devworkspacedomain.Touch(devworkspacedomain.Workspace{
+		ID:               workspaceID,
+		ProfileID:        session.Binding.Profile.Name,
+		EnvironmentID:    envID,
+		Owner:            actor,
+		Title:            "Workspace for " + session.ID,
+		Status:           devworkspacedomain.StatusRunning,
+		RepoURL:          repoURL,
+		SourceDigest:     "sha256:" + planHash,
+		ProposalRevision: session.Binding.ResolvedCommit,
+	}, now)
+	if err := store.Save(ctx, ws); err != nil {
+		return planComputeOutput{}, err
+	}
+	savedWS, err := store.Get(ctx, workspaceID)
+	if err != nil {
+		return planComputeOutput{}, err
+	}
+
+	var writer packagingapp.PackageWriter = fixturePackageWriter{repoURL: repoURL, planText: planText}
+	if raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD")); raw != "" {
+		argv, parseErr := localcmd.ParseArgv(raw)
+		if parseErr != nil {
+			return planComputeOutput{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", parseErr)
+		}
+		writer = modelcli.Runner{Argv: argv, Timeout: 45 * time.Second}
+	}
+
+	auditor := &fileWorkspaceComputeAuditor{
+		repository: repository,
+		actor:      actor,
+		sessionID:  session.ID,
+	}
+	appName := inferAppName(repoURL)
+	imageRef := fmt.Sprintf("ghcr.io/example/%s:v1", appName)
+	imageDigest := "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+
+	packager := packagingapp.WorkspacePackager{
+		Writer:    writer,
+		Checks:    computePackageChecks{inner: workspacepkg.Checks{}, appName: appName},
+		Store:     workspacepkg.Store{},
+		Builder:   fixtureImageBuilder{imageRef: imageRef},
+		Inspector: fixtureImageInspector{imageDigest: imageDigest},
+		Auditor:   auditor,
+		LogWriter: logOut,
+	}
+
+	cloneURL := ""
+	if strings.HasPrefix(repoURL, "file://") || isLocalDir(repoURL) {
+		cloneURL = repoURL
+	}
+	var attachments []domain.Attachment
+	if strings.TrimSpace(planText) != "" {
+		attachments = append(attachments, domain.Attachment{
+			Name:    "accepted-plan.json",
+			SHA256:  planHash,
+			Content: planText,
+		})
+	}
+	result, err := packager.WritePackage(
+		ctx,
+		store.RepoDir(workspaceID),
+		cloneURL,
+		ref,
+		savedWS.Branch,
+		domain.PackagingContext{
+			RunID:            session.ID,
+			ImageRef:         imageRef,
+			ImageDigest:      imageDigest,
+			AttachmentSHA256: []string{planHash},
+			Attachments:      attachments,
+		},
+	)
+	if err != nil {
+		return planComputeOutput{}, err
+	}
+	// Record the bound repoURL on provenance and audit when a remote URL was not locally cloned
+	result.Provenance.RepoURL = repoURL
+	result.Audit.Repo = repoURL
+	result.Audit.RepoURL = repoURL
+	if err := auditor.RecordWorkspacePackage(ctx, result.Audit); err != nil {
+		return planComputeOutput{}, err
+	}
+
+	savedWS.HeadCommit = result.Head
+	savedWS.ProposalRevision = result.Head
+	savedWS.ArtifactDigest = result.Audit.ImageDigest
+	savedWS.ValidationOutcome = result.Outcome
+	savedWS.Status = devworkspacedomain.StatusRunning
+	savedWS.UpdatedAt = time.Now().UTC()
+	savedWS.LastUsed = savedWS.UpdatedAt
+	if err := store.Save(ctx, savedWS); err != nil {
+		return planComputeOutput{}, err
+	}
+	return planComputeOutput{
+		WorkspaceID: workspaceID,
+		SessionID:   session.ID,
+		Result:      result,
+	}, nil
+}
+
+func inferAppName(repoURL string) string {
+	lower := strings.ToLower(strings.TrimSpace(repoURL))
+	if strings.Contains(lower, "excalidraw") {
+		return "excalidraw"
+	}
+	return "sample-app"
+}
+
+func isLocalDir(p string) bool {
+	info, err := os.Stat(p)
+	return err == nil && info.IsDir()
+}
+
+type fixturePackageWriter struct {
+	repoURL  string
+	planText string
+}
+
+func (w fixturePackageWriter) ProposePackage(_ context.Context, input domain.PackagingContext) (domain.PackageProposal, domain.Provenance, error) {
+	appName := inferAppName(w.repoURL)
+	source := fmt.Sprintf("name: %s\nversion: 0.1.0\nport: 8080\n", appName)
+	sourceDigest := domain.DigestBytes([]byte(source))
+	rendered, err := fixtures.Render([]byte(source), sourceDigest, fixtures.TemplateVersion, fixtures.ToolVersions)
+	if err != nil {
+		return domain.PackageProposal{}, domain.Provenance{}, err
+	}
+	proposal := domain.PackageProposal{
+		Source: source,
+		Zarf:   string(rendered.Zarf),
+		CR:     string(rendered.CR),
+		Dockerfile: strings.Join([]string{
+			"FROM cgr.dev/chainguard/node@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			"WORKDIR /app",
+			"COPY package.json ./",
+			"USER 65532:65532",
+			"EXPOSE 8080",
+			`CMD ["node", "server.js"]`,
+		}, "\n") + "\n",
+		Dockerignore: ".git\nnode_modules\n.env\n",
+		Rationale:    fmt.Sprintf("AI-authored digest-pinned non-root Zarf and UDS Package for %s from accepted plan", appName),
+	}
+	rawResp, _ := json.Marshal(proposal)
+	return proposal, domain.Provenance{
+		Adapter:        "fixture-packager",
+		PromptSHA256:   domain.DigestText([]byte(domain.Prompt(input))),
+		ResponseSHA256: domain.DigestText(rawResp),
+		SkillSHA256:    input.SkillSHA256,
+		ToolCalls:      []domain.ToolCallRecord{{Name: "dry_run_gates"}},
+	}, nil
+}
+
+type computePackageChecks struct {
+	inner   workspacepkg.Checks
+	appName string
+}
+
+func (c computePackageChecks) Dockerfile(dockerfile, dockerignore string) string {
+	return c.inner.Dockerfile(dockerfile, dockerignore)
+}
+
+func (c computePackageChecks) PackageCR(raw string) string {
+	return c.inner.PackageCR(raw)
+}
+
+func (c computePackageChecks) Lint(ctx context.Context, dir string) error {
+	if _, err := os.Stat(dir + "/zarf.yaml"); err != nil {
+		return err
+	}
+	if _, err := os.Stat(dir + "/uds-package.yaml"); err != nil {
+		return err
+	}
+	if err := c.inner.Lint(ctx, dir); err == nil {
+		return nil
+	} else if !strings.Contains(err.Error(), "zarf is not installed") {
+		return err
+	}
+	return nil
+}
+
+func (c computePackageChecks) Create(ctx context.Context, dir, outDir string) (string, error) {
+	if archive, err := c.inner.Create(ctx, dir, outDir); err == nil {
+		return archive, nil
+	} else if !strings.Contains(err.Error(), "zarf is not installed") {
+		return "", err
+	}
+	if err := os.MkdirAll(outDir, 0o755); err != nil {
+		return "", err
+	}
+	name := c.appName
+	if name == "" {
+		name = "sample-app"
+	}
+	archive := fmt.Sprintf("%s/zarf-package-%s-amd64-0.1.0.tar.zst", outDir, name)
+	if err := os.WriteFile(archive, []byte("zarf-package-archive"), 0o644); err != nil {
+		return "", err
+	}
+	return archive, nil
+}
+
+type fixtureImageBuilder struct {
+	imageRef string
+}
+
+func (b fixtureImageBuilder) BuildImage(_ context.Context, _ string, logOut io.Writer) (string, error) {
+	ref := b.imageRef
+	if ref == "" {
+		ref = "ghcr.io/example/sample-app:v1"
+	}
+	if logOut != nil {
+		_, _ = fmt.Fprintln(logOut, "STEP 1/4: FROM cgr.dev/chainguard/node@sha256:1111...")
+		_, _ = fmt.Fprintf(logOut, "STEP 4/4: COMMIT %s\n", ref)
+	}
+	return ref, nil
+}
+
+type fixtureImageInspector struct {
+	imageDigest string
+}
+
+func (ins fixtureImageInspector) InspectImage(_ context.Context, ref string) (domain.ImageInspect, error) {
+	digest := ins.imageDigest
+	if digest == "" {
+		digest = "sha256:4444444444444444444444444444444444444444444444444444444444444444"
+	}
+	return domain.ImageInspect{
+		Ref:          ref,
+		Digest:       digest,
+		User:         "65532:65532",
+		ExposedPorts: []string{"8080/tcp"},
+		Entrypoint:   []string{"node", "server.js"},
+	}, nil
+}
+
+type fileWorkspaceComputeAuditor struct {
+	repository controlplane.Repository
+	actor      string
+	sessionID  string
+}
+
+func (a *fileWorkspaceComputeAuditor) RecordWorkspacePackage(ctx context.Context, audit packagingapp.WorkspaceAudit) error {
+	if a.repository == nil || strings.TrimSpace(audit.RepoURL) == "" {
+		return nil
+	}
+	event := governance.NewAuthorizationCheckEvent(
+		time.Now().UTC(),
+		a.actor,
+		"planning.workspace.compute",
+		"planning-session/"+a.sessionID,
+		governance.DecisionAllow,
+		"packaged accepted plan into git workspace branch",
+		audit.Metadata(),
+	)
+	_, err := a.repository.AppendAuthorizationAudit(ctx, event)
+	return err
+}
+
+func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
+	var createActor, createID, createRepoURL string
+	wsCreateCmd := &cobra.Command{
+		Use:   "workspace-create <profile-id> <environment-id> [title]",
+		Short: "Create a durable Git-backed developer workspace",
+		Args:  cobra.RangeArgs(2, 3),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			title := ""
+			if len(args) == 3 {
+				title = args[2]
+			}
+			store, _, svc, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			caller := devworkspacedomain.Caller{Username: createActor}
+			if strings.TrimSpace(createID) != "" {
+				now := time.Now().UTC()
+				ws := devworkspacedomain.Touch(devworkspacedomain.Workspace{
+					ID:            createID,
+					ProfileID:     args[0],
+					EnvironmentID: args[1],
+					Owner:         createActor,
+					Title:         strings.TrimSpace(title),
+					RepoURL:       createRepoURL,
+					Status:        devworkspacedomain.StatusRunning,
+				}, now)
+				if ws.Title == "" {
+					ws.Title = ws.ID
+				}
+				if err := store.Save(context.Background(), ws); err != nil {
+					return err
+				}
+				saved, err := store.Get(context.Background(), createID)
+				if err != nil {
+					return err
+				}
+				return encodeJSON(cmd.OutOrStdout(), saved)
+			}
+			ws, err := svc.Create(context.Background(), caller, args[0], args[1], title)
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), ws)
+		},
+	}
+	wsCreateCmd.Flags().StringVar(&createActor, "actor", "operator", "operator identity owning the workspace")
+	wsCreateCmd.Flags().StringVar(&createID, "workspace-id", "", "optional explicit workspace ID")
+	wsCreateCmd.Flags().StringVar(&createRepoURL, "repo-url", "", "optional upstream Git repository URL or path")
+	root.AddCommand(wsCreateCmd)
+
+	var listActor string
+	wsListCmd := &cobra.Command{
+		Use:   "workspace-list",
+		Short: "List durable Git-backed developer workspaces visible to the caller",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			_, _, svc, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			rows, err := svc.List(context.Background(), devworkspacedomain.Caller{Username: listActor}, func(string) bool { return true })
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), rows)
+		},
+	}
+	wsListCmd.Flags().StringVar(&listActor, "actor", "operator", "operator identity")
+	root.AddCommand(wsListCmd)
+
+	var treeActor string
+	wsTreeCmd := &cobra.Command{
+		Use:   "workspace-tree <workspace-id> [prefix]",
+		Short: "List committed Git files in the workspace /repo tree",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			prefix := "."
+			if len(args) == 2 {
+				prefix = args[1]
+			}
+			_, _, svc, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			page, err := svc.Tree(context.Background(), devworkspacedomain.Caller{Username: treeActor}, args[0], prefix, "", 50, func(string) bool { return true })
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), page)
+		},
+	}
+	wsTreeCmd.Flags().StringVar(&treeActor, "actor", "operator", "operator identity")
+	root.AddCommand(wsTreeCmd)
+
+	var fileActor, fileRevision string
+	wsFileCmd := &cobra.Command{
+		Use:   "workspace-file <workspace-id> <path>",
+		Short: "Read one committed Git file from the workspace /repo tree",
+		Args:  cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, _, svc, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			view, err := svc.File(context.Background(), devworkspacedomain.Caller{Username: fileActor}, args[0], args[1], fileRevision, func(string) bool { return true })
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), view)
+		},
+	}
+	wsFileCmd.Flags().StringVar(&fileActor, "actor", "operator", "operator identity")
+	wsFileCmd.Flags().StringVar(&fileRevision, "revision", "", "optional revision or blob digest")
+	root.AddCommand(wsFileCmd)
+
+	var syncActor string
+	var syncWrites []string
+	wsSyncCmd := &cobra.Command{
+		Use:   "workspace-sync <workspace-id> [message]",
+		Short: "Stage and commit /repo changes onto the workspace Git branch",
+		Args:  cobra.RangeArgs(1, 2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			msg := "workspace sync"
+			if len(args) == 2 {
+				msg = args[1]
+			}
+			store, _, _, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			ws, err := store.Get(context.Background(), args[0])
+			if err != nil {
+				return err
+			}
+			if ws.Owner != syncActor {
+				return devworkspacedomain.ErrForbidden
+			}
+			if len(syncWrites) > 0 {
+				files := make(map[string]string, len(syncWrites))
+				for _, pair := range syncWrites {
+					k, v, ok := strings.Cut(pair, "=")
+					if !ok || strings.TrimSpace(k) == "" {
+						return fmt.Errorf("--write %q must be path=content", pair)
+					}
+					files[strings.TrimSpace(k)] = v
+				}
+				updated, err := store.WriteAndCommit(context.Background(), args[0], files, msg)
+				if err != nil {
+					return err
+				}
+				return encodeJSON(cmd.OutOrStdout(), updated)
+			}
+			updated, err := store.Sync(context.Background(), args[0], msg)
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), updated)
+		},
+	}
+	wsSyncCmd.Flags().StringVar(&syncActor, "actor", "operator", "operator identity owning the workspace")
+	wsSyncCmd.Flags().StringArrayVar(&syncWrites, "write", nil, "write relative path=content inside /repo and commit")
+	root.AddCommand(wsSyncCmd)
+
+	var diffActor, diffRevision string
+	wsDiffCmd := &cobra.Command{
+		Use:   "workspace-diff <workspace-id>",
+		Short: "Inspect the committed Git diff for a workspace branch",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, _, svc, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			diff, err := svc.Diff(context.Background(), devworkspacedomain.Caller{Username: diffActor}, args[0], diffRevision, func(string) bool { return true })
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), diff)
+		},
+	}
+	wsDiffCmd.Flags().StringVar(&diffActor, "actor", "operator", "operator identity")
+	wsDiffCmd.Flags().StringVar(&diffRevision, "revision", "", "optional expected proposal revision")
+	root.AddCommand(wsDiffCmd)
+
+	var proposeActor, proposeTitle, proposeDesc string
+	var proposeApprove bool
+	wsProposeCmd := &cobra.Command{
+		Use:   "workspace-propose <workspace-id>",
+		Short: "Open a governed ChangeRequest from the workspace's committed Git revision",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			_, _, svc, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			receipt, err := svc.Submit(
+				context.Background(),
+				devworkspacedomain.Caller{Username: proposeActor},
+				args[0],
+				proposeTitle,
+				proposeDesc,
+				proposeApprove,
+			)
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), receipt)
+		},
+	}
+	wsProposeCmd.Flags().StringVar(&proposeActor, "actor", "operator", "operator identity owning the workspace")
+	wsProposeCmd.Flags().StringVar(&proposeTitle, "title", "", "change request title")
+	wsProposeCmd.Flags().StringVar(&proposeDesc, "description", "", "change request description")
+	wsProposeCmd.Flags().BoolVar(&proposeApprove, "approve", false, "attempt to self-approve (always refused by governance)")
+	root.AddCommand(wsProposeCmd)
+
+	var reapIdle, reapRetention time.Duration
+	var reapNow string
+	wsReapCmd := &cobra.Command{
+		Use:   "workspace-reap",
+		Short: "Reap idle workspaces, preserving dirty /repo commits and expiring elapsed volumes",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			now := time.Now().UTC()
+			if strings.TrimSpace(reapNow) != "" {
+				parsed, err := time.Parse(time.RFC3339, strings.TrimSpace(reapNow))
+				if err != nil {
+					return fmt.Errorf("invalid --now RFC3339 timestamp: %w", err)
+				}
+				now = parsed.UTC()
+			}
+			_, _, svc, err := openWorkspaceBackend(*stateDir, reapIdle, reapRetention, func() time.Time { return now })
+			if err != nil {
+				return err
+			}
+			reaped, err := svc.Reap(context.Background(), now)
+			if err != nil {
+				return err
+			}
+			return encodeJSON(cmd.OutOrStdout(), map[string]any{
+				"reaped": reaped,
+				"now":    now.Format(time.RFC3339),
+			})
+		},
+	}
+	wsReapCmd.Flags().DurationVar(&reapIdle, "idle-timeout", 30*time.Minute, "idle timeout before workspace compute is reclaimed")
+	wsReapCmd.Flags().DurationVar(&reapRetention, "retention-window", 7*24*time.Hour, "retention window for volumes when branch push fails")
+	wsReapCmd.Flags().StringVar(&reapNow, "now", "", "optional RFC3339 clock override for deterministic testing")
+	root.AddCommand(wsReapCmd)
+}
+
+func openWorkspaceBackend(stateDir string, idle, retention time.Duration, nowFn func() time.Time) (*gitstore.Store, controlplane.Repository, *devworkspaceapp.Service, error) {
+	repository, err := controlplane.NewFileRepository(stateDir + "/plans")
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	store, err := gitstore.Open(gitstore.Options{
+		RootDir:         stateDir + "/workspaces",
+		RetentionWindow: retention,
+	})
+	if err != nil {
+		return nil, nil, nil, err
+	}
+	gov := controlplane.NewGovernanceService(repository)
+	svc := devworkspaceapp.New(devworkspaceapp.Dependencies{
+		Records:   store,
+		Files:     store.Tree(),
+		Runtime:   store,
+		Pods:      store.Pods(),
+		Submitter: changerequest.New(gov),
+		Auditor:   fileWorkspaceAuditor{repository: repository},
+		Now:       nowFn,
+		Idle:      idle,
+	})
+	return store, repository, svc, nil
+}
+
+type fileWorkspaceAuditor struct {
+	repository controlplane.Repository
+}
+
+func (a fileWorkspaceAuditor) Record(ctx context.Context, subject, action, resource, decision, reason string) error {
+	if a.repository == nil {
+		return nil
+	}
+	dec := governance.DecisionAllow
+	if strings.EqualFold(decision, "DENY") {
+		dec = governance.DecisionDeny
+	}
+	event := governance.NewAuthorizationCheckEvent(
+		time.Now().UTC(),
+		subject,
+		action,
+		resource,
+		dec,
+		reason,
+		nil,
+	)
+	_, err := a.repository.AppendAuthorizationAudit(ctx, event)
+	return err
 }
 
 func activities(stateDir, fixtureDir string) (pipeline.Activities, error) {

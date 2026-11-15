@@ -210,4 +210,3 @@ type temporalAcceptAudit struct {
 func (a temporalAcceptAudit) RecordAccept(ctx context.Context, actor string, record planningapp.Audit) error {
 	return (planningAcceptAudit{repository: a.repository, actor: actor}).Record(ctx, record)
 }
-

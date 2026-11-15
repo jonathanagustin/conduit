@@ -8,6 +8,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacegit"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
 // Checks runs Dockerfile, Package CR, and zarf gates.
@@ -53,6 +54,14 @@ func (checks Checks) Create(ctx context.Context, dir, outDir string) (string, er
 	return checks.Zarf.Create(ctx, dir, outDir)
 }
 
+func (checks Checks) InspectImage(ctx context.Context, ref string) (domain.ImageInspect, error) {
+	tools := checks.Tools
+	if tools == nil {
+		tools = packagingtools.New()
+	}
+	return tools.InspectImage(ctx, ref)
+}
+
 // Store is a git-backed workspace.
 type Store struct{}
 
@@ -69,4 +78,5 @@ func (Store) Commit(ctx context.Context, dir string, files map[string]string, me
 }
 
 var _ application.PackageChecks = Checks{}
+var _ application.ImageInspector = Checks{}
 var _ application.WorkspaceStore = Store{}

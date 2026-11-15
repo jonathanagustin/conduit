@@ -254,4 +254,3 @@ func TestMultiTurnKeepsEarlierMessagesAfterPlanArrivesAndDefaultModelLabel(t *te
 		t.Fatalf("binding.Model = %q, want %q", accepted.Binding.Model, domain.DefaultModelLabel)
 	}
 }
-

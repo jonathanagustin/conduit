@@ -1,8 +1,11 @@
 package application
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+	"io"
 	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -24,23 +27,74 @@ type PackageChecks interface {
 	Create(ctx context.Context, dir, outDir string) (string, error)
 }
 
+// ImageBuilder is an optional governed image build step that streams build logs.
+type ImageBuilder interface {
+	BuildImage(ctx context.Context, dir string, logOut io.Writer) (string, error)
+}
+
+// ImageInspector is an optional OCI image inspector run on the built or packaged image.
+type ImageInspector interface {
+	InspectImage(ctx context.Context, ref string) (domain.ImageInspect, error)
+}
+
+// WorkspaceAuditor records the governed packaging audit event.
+type WorkspaceAuditor interface {
+	RecordWorkspacePackage(ctx context.Context, audit WorkspaceAudit) error
+}
+
 // WorkspaceStore is a git-backed branch the packager commits into.
 type WorkspaceStore interface {
 	Prepare(ctx context.Context, dir, repoURL, ref, branch string) (dirOut, branchOut string, err error)
 	Commit(ctx context.Context, dir string, files map[string]string, message string) (string, error)
 }
 
+// WorkspaceAudit is the governed audit record for a workspace packaging run.
+type WorkspaceAudit struct {
+	Repo             string   `json:"repo"`
+	RepoURL          string   `json:"repoUrl"`
+	Commit           string   `json:"commit"`
+	ResolvedCommit   string   `json:"resolvedCommit"`
+	DockerfileSHA256 string   `json:"dockerfileSha256"`
+	ImageDigest      string   `json:"imageDigest"`
+	SkillSHA256      string   `json:"skillSha256"`
+	ToolCalls        []string `json:"toolCalls"`
+	PromptSHA256     string   `json:"promptSha256"`
+	ResponseSHA256   string   `json:"responseSha256"`
+}
+
+// Metadata returns the audit fields as a governance metadata map.
+func (audit WorkspaceAudit) Metadata() map[string]any {
+	calls := audit.ToolCalls
+	if calls == nil {
+		calls = []string{}
+	}
+	return map[string]any{
+		"repo":             audit.Repo,
+		"repoUrl":          audit.RepoURL,
+		"commit":           audit.Commit,
+		"resolvedCommit":   audit.ResolvedCommit,
+		"dockerfileSha256": audit.DockerfileSHA256,
+		"imageDigest":      audit.ImageDigest,
+		"skillSha256":      audit.SkillSHA256,
+		"toolCalls":        calls,
+		"promptSha256":     audit.PromptSHA256,
+		"responseSha256":   audit.ResponseSHA256,
+	}
+}
+
 // WorkspaceResult is one packaging attempt after gates and a git commit.
 type WorkspaceResult struct {
-	Branch     string                 `json:"branch"`
-	Head       string                 `json:"head,omitempty"`
-	Attempts   []WorkspaceAttempt     `json:"attempts"`
-	Proposal   domain.PackageProposal `json:"proposal"`
-	Provenance domain.Provenance      `json:"provenance"`
-	Outcome    string                 `json:"outcome,omitempty"`
-	Reason     string                 `json:"reason,omitempty"`
-	Archive    string                 `json:"archive,omitempty"`
-	Error      string                 `json:"error,omitempty"`
+	Branch       string                 `json:"branch"`
+	Head         string                 `json:"head,omitempty"`
+	Attempts     []WorkspaceAttempt     `json:"attempts"`
+	Proposal     domain.PackageProposal `json:"proposal"`
+	Provenance   domain.Provenance      `json:"provenance"`
+	ImageInspect *domain.ImageInspect   `json:"imageInspect,omitempty"`
+	Audit        WorkspaceAudit         `json:"audit"`
+	Outcome      string                 `json:"outcome,omitempty"`
+	Reason       string                 `json:"reason,omitempty"`
+	Archive      string                 `json:"archive,omitempty"`
+	Error        string                 `json:"error,omitempty"`
 }
 
 // WorkspaceAttempt is one write-commit-gate cycle, including repairs.
@@ -54,9 +108,13 @@ type WorkspaceAttempt struct {
 
 // WorkspacePackager writes package files as commits and runs the gates.
 type WorkspacePackager struct {
-	Writer PackageWriter
-	Checks PackageChecks
-	Store  WorkspaceStore
+	Writer    PackageWriter
+	Checks    PackageChecks
+	Store     WorkspaceStore
+	Builder   ImageBuilder
+	Inspector ImageInspector
+	Auditor   WorkspaceAuditor
+	LogWriter io.Writer
 }
 
 // WritePackage prepares a git branch, commits the model-written files, and
@@ -83,13 +141,14 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 			input.Task = domain.TaskRevise
 		}
 		proposal, provenance, err := packager.Writer.ProposePackage(ctx, input)
-		provenance = provenance.WithSkillDigest(input)
+		provenance = fillProvenanceDigests(provenance.WithSkillDigest(input), input, proposal)
 		result.Proposal = proposal
 		result.Provenance = provenance
 		if err != nil {
 			cycle.Outcome, cycle.Reason = "error", err.Error()
 			result.Attempts = append(result.Attempts, cycle)
 			result.Error = err.Error()
+			result.Audit = buildWorkspaceAudit(result.Provenance)
 			return result, nil
 		}
 		files := map[string]string{"zarf.yaml": proposal.Zarf, "uds-package.yaml": proposal.CR}
@@ -107,6 +166,7 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 			cycle.Outcome, cycle.Reason = "error", err.Error()
 			result.Attempts = append(result.Attempts, cycle)
 			result.Error = err.Error()
+			result.Audit = buildWorkspaceAudit(result.Provenance)
 			return result, nil
 		}
 		cycle.Head = head
@@ -114,30 +174,154 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 		result.Provenance.DockerfileSHA256 = dockerfileDigest(proposal)
 		result.Provenance.ResolvedCommit = head
 		result.Provenance.RepoURL = repoURL
+		if input.ImageDigest != "" && result.Provenance.ImageDigest == "" {
+			result.Provenance.ImageDigest = input.ImageDigest
+		}
+		packager.streamf("[attempt %d] committed %s on %s\n", attempt, head, workBranch)
 		reason := packager.gate(ctx, workDir, proposal)
 		if reason == "" {
-			archive, err := packager.Checks.Create(ctx, workDir, workDir+"/out")
-			if err != nil {
-				reason = err.Error()
+			builtRef, buildReason := packager.runBuild(ctx, workDir, proposal, input.ImageRef)
+			if buildReason != "" {
+				reason = buildReason
 			} else {
-				cycle.Outcome = string(domain.OutcomePass)
-				cycle.Reason = "lint and render passed"
-				result.Attempts = append(result.Attempts, cycle)
-				result.Outcome, result.Reason, result.Archive = cycle.Outcome, cycle.Reason, archive
-				return result, nil
+				packager.inspectBuiltImage(ctx, builtRef, &result)
+				archive, err := packager.Checks.Create(ctx, workDir, workDir+"/out")
+				if err != nil {
+					reason = err.Error()
+				} else {
+					packager.streamf("[attempt %d] package archive created: %s\n", attempt, archive)
+					cycle.Outcome = string(domain.OutcomePass)
+					cycle.Reason = "lint and render passed"
+					result.Attempts = append(result.Attempts, cycle)
+					result.Outcome, result.Reason, result.Archive = cycle.Outcome, cycle.Reason, archive
+					result.Audit = buildWorkspaceAudit(result.Provenance)
+					if packager.Auditor != nil {
+						if auditErr := packager.Auditor.RecordWorkspacePackage(ctx, result.Audit); auditErr != nil {
+							return result, auditErr
+						}
+					}
+					return result, nil
+				}
 			}
 		}
+		packager.streamf("[attempt %d] gate failed: %s\n", attempt, reason)
 		cycle.Outcome = string(domain.OutcomeFailRequired)
 		cycle.Reason = reason
 		cycle.LogExcerpt = reason
 		result.Attempts = append(result.Attempts, cycle)
 		result.Outcome, result.Reason = cycle.Outcome, reason
+		result.Audit = buildWorkspaceAudit(result.Provenance)
 		logExcerpt = reason
 		if attempt > MaxPackageRepairs {
+			if packager.Auditor != nil {
+				if auditErr := packager.Auditor.RecordWorkspacePackage(ctx, result.Audit); auditErr != nil {
+					return result, auditErr
+				}
+			}
 			return result, nil
 		}
 	}
 	return result, nil
+}
+
+func (packager WorkspacePackager) streamf(format string, args ...any) {
+	if packager.LogWriter == nil {
+		return
+	}
+	_, _ = fmt.Fprintf(packager.LogWriter, format, args...)
+}
+
+func (packager WorkspacePackager) runBuild(ctx context.Context, dir string, proposal domain.PackageProposal, defaultRef string) (string, string) {
+	builder := packager.Builder
+	if builder == nil {
+		if candidate, ok := packager.Checks.(ImageBuilder); ok {
+			builder = candidate
+		}
+	}
+	if builder == nil || strings.TrimSpace(proposal.Dockerfile) == "" {
+		return defaultRef, ""
+	}
+	var buildBuf bytes.Buffer
+	out := io.Writer(&buildBuf)
+	if packager.LogWriter != nil {
+		out = io.MultiWriter(&buildBuf, packager.LogWriter)
+	}
+	builtRef, err := builder.BuildImage(ctx, dir, out)
+	if err != nil {
+		excerpt := strings.TrimSpace(buildBuf.String())
+		if excerpt == "" {
+			excerpt = err.Error()
+		}
+		return "", excerpt
+	}
+	if strings.TrimSpace(builtRef) == "" {
+		builtRef = defaultRef
+	}
+	return builtRef, ""
+}
+
+func (packager WorkspacePackager) inspectBuiltImage(ctx context.Context, ref string, result *WorkspaceResult) {
+	inspector := packager.Inspector
+	if inspector == nil {
+		if candidate, ok := packager.Checks.(ImageInspector); ok {
+			inspector = candidate
+		}
+	}
+	ref = strings.TrimSpace(ref)
+	if inspector == nil || ref == "" {
+		return
+	}
+	inspected, err := inspector.InspectImage(ctx, ref)
+	if err != nil {
+		return
+	}
+	result.ImageInspect = &inspected
+	if strings.TrimSpace(inspected.Digest) != "" {
+		result.Provenance.ImageDigest = strings.TrimSpace(inspected.Digest)
+	}
+	result.Provenance.ToolCalls = appendToolCallOnce(result.Provenance.ToolCalls, "inspect_image")
+}
+
+func appendToolCallOnce(calls []domain.ToolCallRecord, name string) []domain.ToolCallRecord {
+	for _, call := range calls {
+		if call.Name == name {
+			return calls
+		}
+	}
+	return append(calls, domain.ToolCallRecord{Name: name})
+}
+
+func fillProvenanceDigests(provenance domain.Provenance, input domain.PackagingContext, proposal domain.PackageProposal) domain.Provenance {
+	if strings.TrimSpace(provenance.PromptSHA256) == "" {
+		provenance.PromptSHA256 = domain.DigestText([]byte(domain.Prompt(input)))
+	}
+	if strings.TrimSpace(provenance.ResponseSHA256) == "" {
+		if raw, err := json.Marshal(proposal); err == nil {
+			provenance.ResponseSHA256 = domain.DigestText(raw)
+		}
+	}
+	return provenance
+}
+
+func buildWorkspaceAudit(provenance domain.Provenance) WorkspaceAudit {
+	calls := make([]string, 0, len(provenance.ToolCalls))
+	for _, call := range provenance.ToolCalls {
+		if strings.TrimSpace(call.Name) != "" {
+			calls = append(calls, strings.TrimSpace(call.Name))
+		}
+	}
+	return WorkspaceAudit{
+		Repo:             provenance.RepoURL,
+		RepoURL:          provenance.RepoURL,
+		Commit:           provenance.ResolvedCommit,
+		ResolvedCommit:   provenance.ResolvedCommit,
+		DockerfileSHA256: provenance.DockerfileSHA256,
+		ImageDigest:      provenance.ImageDigest,
+		SkillSHA256:      provenance.SkillSHA256,
+		ToolCalls:        calls,
+		PromptSHA256:     provenance.PromptSHA256,
+		ResponseSHA256:   provenance.ResponseSHA256,
+	}
 }
 
 func (packager WorkspacePackager) gate(ctx context.Context, dir string, proposal domain.PackageProposal) string {

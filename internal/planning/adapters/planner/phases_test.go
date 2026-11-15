@@ -332,4 +332,3 @@ func TestBindingModelReportsModelOrNeutralLabelNeverCommand(t *testing.T) {
 		t.Fatalf("reported model = %q, want claude-sonnet-4-20250514", s2.Binding.Model)
 	}
 }
-
