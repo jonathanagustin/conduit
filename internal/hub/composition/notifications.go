@@ -7,6 +7,7 @@ import (
 	"strings"
 	"sync"
 
+	adminports "github.com/jonathanagustin/conduit/internal/adminstatus/ports"
 	appdomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
 	attachapp "github.com/jonathanagustin/conduit/internal/attachments/application"
 	activityports "github.com/jonathanagustin/conduit/internal/changeactivity/ports"
@@ -30,6 +31,8 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// AdminStorage supplies read-only measurements for configured local storage filesystems.
+	AdminStorage map[string]adminports.CapacityReader
 	// DebugSessionJournal persists non-executing metadata requests and their audit events.
 	// Nil mounts no debug-request routes.
 	DebugSessionJournal requestports.Journal
