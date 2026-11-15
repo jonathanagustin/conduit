@@ -846,10 +846,6 @@ export function mountOperator(host, options) {
     selectedStoryId: "STR-214",
     agentPaused: false,
 
-    selectedPipeNode: "publish",
-    pipeFollowLogs: true,
-    pipeLogQuery: "",
-
     showRerunConfirm: true,
     confirmActionType: "rerun",
 
@@ -1012,6 +1008,7 @@ export function mountOperator(host, options) {
     },
   });
   const liveHub = createLiveHub({
+    navigate: switchScreen,
     state,
     render: () => renderApp(),
   });
@@ -1060,6 +1057,7 @@ export function mountOperator(host, options) {
       tabs: [
         { id: "runs", label: "Runs", screen: "pkg-runs" },
         { id: "timeline", label: "Timeline", screen: "s08-staged-run" },
+        { id: "pipeline", label: "Pipeline", screen: "s07-pipeline" },
         { id: "workspace", label: "Workspace", screen: "s02-workspaces" },
         { id: "bundle", label: "Bundle", screen: "rm08-bundle-preview" },
         { id: "proposals", label: "Proposals", screen: "pt01-proposal-trace" },
@@ -1212,6 +1210,7 @@ export function mountOperator(host, options) {
     "cc-overview",
     "pkg-runs",
     "s08-staged-run",
+    "s07-pipeline",
     "s02-workspaces",
     "rm08-bundle-preview",
     "s14-env-detail",
@@ -3394,326 +3393,13 @@ export function mountOperator(host, options) {
   // SCREEN 7: PIPELINE (Left-to-Right 6-Node DAG + Timestamped Log Viewer)
   // =========================================================================
   function renderS07Pipeline(root) {
-    const nodes = [
-      {
-        id: "fetch",
-        name: "fetch",
-        st: "Succeeded",
-        tone: "green",
-        dur: "00m 41s",
-        lines: [
-          "21:32:04.102Z  Resolving wp-edge-telemetry lockfile (14 OCI images, 6 charts)",
-          "21:32:45.009Z  Verified upstream digests; 11/14 cache hits -> exit 0",
-        ],
-      },
-      {
-        id: "scan",
-        name: "scan",
-        st: "Succeeded",
-        tone: "green",
-        dur: "01m 18s",
-        lines: [
-          "21:32:46.110Z  Cataloged 418 packages into sbom-uds-core-0.31.2.spdx.json",
-          "21:34:04.315Z  Policy baseline-restricted-v3 PASS (0 Critical, 0 High)",
-        ],
-      },
-      {
-        id: "sign",
-        name: "sign",
-        st: "Succeeded",
-        tone: "green",
-        dur: "00m 22s",
-        lines: [
-          "21:34:05.018Z  Attaching hardware signature hsm://slot-02/prod-root-2026",
-          "21:34:26.774Z  Signed 4 release Artifacts + SLSA provenance",
-        ],
-      },
-      {
-        id: "package",
-        name: "package",
-        st: "Succeeded",
-        tone: "green",
-        dur: "01m 39s",
-        lines: [
-          "21:34:28.119Z  Packing differential zstd archive against 0.31.1 (41.2 MB delta)",
-        ],
-      },
-      {
-        id: "publish",
-        name: "publish",
-        st: "Running",
-        tone: "blue",
-        dur: "00m 48s",
-        lines: [
-          "21:36:08.004Z  Pushing signed OCI bundle to internal hub registry.conduit.internal",
-          "21:36:21.318Z  Uploaded chunk 6/8 (31.4 / 41.2 MB) to spoke-west-relay store-and-forward",
-          "21:36:34.990Z  Staging optical diode export spool on spoke-diode-hall-b",
-          "21:36:55.401Z  Awaiting chunk 8/8 fsync receipt from spoke-diode-hall-b...",
-        ],
-      },
-      {
-        id: "propose",
-        name: "propose plan",
-        st: "Pending",
-        tone: "muted",
-        dur: "—",
-        lines: [
-          "21:36:55.402Z  Queued: waiting for publish completion to open Plan PLN-2026-0421",
-        ],
-      },
-    ];
-    const sel = nodes.find((n) => n.id === state.selectedPipeNode) || nodes[4];
-    const q = state.pipeLogQuery.toLowerCase();
-    const lines = sel.lines.filter((l) => !q || l.toLowerCase().includes(q));
-
-    root.innerHTML = `
-        <div class="space-y-3 h-full flex flex-col">
-          <div class="so-panel p-3.5 space-y-2.5 shrink-0">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="flex items-center gap-2.5">
-                <span class="text-[#60a5fa] flex">${ic("cube")}</span>
-                <span class="text-[15px] font-bold text-[#ffffff]">Packaging Pipeline · RUN-8844</span>
-                ${pill("Running · Stage 5 of 6", "blue")}
-                ${ontChip("ConduitArtifact", 4, 4, "s08-staged-run")}
-              </div>
-              <div class="flex items-center gap-2">
-                ${governedBtn({ label: "Rerun from stage", role: "Operator", auditEvent: "packaging_run.rerun_from_step", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "lock", blockedReason: "Packaging run RUN-8844 is currently Running" })}
-                <button data-onclick="switchScreen('s08-staged-run')" class="so-btn so-btn-sm so-btn-emerald">Open Staged Run (RUN-8842) &rarr;</button>
-              </div>
-            </div>
-
-            <div class="flex items-center gap-3">
-              <div class="flex-1 h-2 bg-[#080c10] rounded-full overflow-hidden"><div class="h-full so-striped-bar" style="width:78%"></div></div>
-              <span class="tnum text-[13px] font-bold text-[#34d399]">78%</span>
-            </div>
-
-            <!-- Left-to-Right 6-Node Graph -->
-            <div class="so-grid-6 gap-2 pt-1">
-              ${nodes
-                .map(
-                  (n, i) => `
-                <div class="flex items-center">
-                  <button data-onclick="state.selectedPipeNode='${n.id}'; renderMainWorkspace()"
-                    class="w-full p-2.5 text-left ${n.tone === "green" ? "so-opt-card" : "so-card"} ${n.id === sel.id ? "!border-[#5c9ce6] ring-1 ring-[#5c9ce6]/50" : ""}">
-                    <div class="flex items-center justify-between">
-                      <span class="font-semibold text-[12px] text-[#ffffff] truncate">${n.name}</span>
-                      <span class="tnum text-[10px] text-[#8b96a5]">${n.dur}</span>
-                    </div>
-                    <div class="mt-1.5">${pill(n.st, n.tone)}</div>
-                  </button>
-                  ${i < 5 ? '<span class="text-[#596573] pl-1 text-[12px]">&rarr;</span>' : ""}
-                </div>
-              `,
-                )
-                .join("")}
-            </div>
-          </div>
-
-          <div class="so-panel flex-1 min-h-0 flex flex-col overflow-hidden">
-            <div class="px-3.5 py-2 border-b border-[#1c242c] flex flex-wrap items-center justify-between gap-2 bg-[#0e1418]">
-              <div class="flex items-center gap-2">
-                <span class="text-[12.5px] font-semibold text-[#ffffff]">Job Output · ${sel.name}</span>
-                ${pill(sel.st, sel.tone)}
-              </div>
-              <div class="flex items-center gap-2">
-                <input type="text" value="${state.pipeLogQuery}" data-oninput="state.pipeLogQuery=this.value; renderMainWorkspace()" placeholder="Search log lines..." class="so-input !h-[23px] w-[165px]" />
-                <button data-onclick="state.pipeFollowLogs=!state.pipeFollowLogs; renderMainWorkspace()" class="so-btn so-btn-sm ${state.pipeFollowLogs ? "so-btn-blue" : ""}">Follow: ${state.pipeFollowLogs ? "On" : "Off"}</button>
-                ${governedBtn({ label: "Download", role: "Operator", auditEvent: "step.log_downloaded", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "download" })}
-              </div>
-            </div>
-            <div class="flex-1 min-h-0 overflow-y-auto p-3 bg-[#080c0f] code-id text-[11px] leading-[1.7]">
-              ${lines
-                .map(
-                  (ln, idx) => `
-                <div class="flex gap-3 px-1.5 rounded hover:bg-[#121920]">
-                  <span class="w-5 text-right text-[#596573] select-none">${idx + 1}</span>
-                  <span class="${ln.includes("PASS") || ln.includes("Signed") ? "text-[#34d399]" : ln.includes("Awaiting") ? "text-[#60a5fa]" : "text-[#dce4ee]"}">${ln}</span>
-                </div>
-              `,
-                )
-                .join("")}
-            </div>
-          </div>
-        </div>
-      `;
+    liveHub.renderPipeline(root);
   }
 
-  // =========================================================================
-  // SCREEN 8: STAGED RUN PAGE (Stage Tracker + Output + Artifacts + Confirm + Conduit Audit Rail)
-  // =========================================================================
   function renderS08StagedRun(root) {
     liveHub.renderPackaging(root);
-    return;
-    const arts = [
-      [
-        "uds-core-amd64-0.31.2.tar.zst",
-        "Bundle Archive",
-        "488.6 MB",
-        "sha256:9c71fe08...2d44",
-        "Signed",
-      ],
-      [
-        "uds-core-0.31.2-delta.tar.zst",
-        "Diode Delta",
-        "63.8 MB",
-        "sha256:3b19a441...70e1",
-        "Published",
-      ],
-      [
-        "sbom-uds-core-0.31.2.spdx.json",
-        "SPDX SBOM",
-        "1.84 MB",
-        "sha256:77e01c12...99a4",
-        "Signed",
-      ],
-      [
-        "provenance-slsa-v1.intoto.jsonl",
-        "Attestation",
-        "48 KB",
-        "sha256:14f09d88...3c10",
-        "Signed",
-      ],
-    ];
-    const audits = [
-      {
-        who: "J. Alvarez",
-        when: "09:53 PM",
-        what: "Requested rerun from package stage",
-        why: "Re-slice 16 MB diode chunks for Hall-B.",
-        o: ["ConduitArtifact", 4, 2],
-      },
-      {
-        who: "Release Runner",
-        when: "09:36 PM",
-        what: "Proposed Plan PLN-2026-0418",
-        why: "All 6 build & signature stages succeeded.",
-        o: ["ConduitPlan", 14, 1],
-      },
-      {
-        who: "HSM Slot-02",
-        when: "09:34 PM",
-        what: "Signed 4 release artifacts",
-        why: "Zero high/critical CVEs in SPDX scan.",
-        o: ["ConduitStep", 6, 0],
-      },
-    ];
-
-    root.innerHTML = `
-        <div class="space-y-2.5 h-full flex flex-col">
-          <div class="so-panel p-3 flex flex-wrap items-center justify-between gap-3 shrink-0">
-            <div class="flex items-center gap-3">
-              ${pill("Staged · 6/6 Complete", "green")}
-              <div>
-                <div class="text-[14.5px] font-bold text-[#ffffff]">RUN-8842 · uds-core 0.31.2</div>
-                <div class="text-[11px] text-[#8b96a5]">Proposed <button data-onclick="switchScreen('s15-plan-detail')" class="text-[#5c9ce6] underline">Plan PLN-2026-0418</button> · Duration 04m 12s</div>
-              </div>
-            </div>
-            <div class="flex items-center gap-2">
-              <button data-onclick="state.confirmActionType='rerun'; state.showRerunConfirm=true; renderMainWorkspace()" class="so-btn so-btn-sm">${ic("refresh")} <span>Rerun from stage...</span></button>
-              <button data-onclick="state.confirmActionType='cancel'; state.showRerunConfirm=true; renderMainWorkspace()" class="so-btn so-btn-sm so-btn-outline-danger">${ic("cross")} <span>Cancel</span></button>
-            </div>
-          </div>
-
-          <div class="so-grid-6 gap-2 shrink-0">
-            ${[
-              "1. fetch",
-              "2. scan",
-              "3. sign",
-              "4. package",
-              "5. publish",
-              "6. propose plan",
-            ]
-              .map(
-                (s) => `
-              <div class="so-opt-card px-2.5 py-1.5 flex items-center justify-between">
-                <span class="font-medium text-[11.5px] text-[#ffffff] truncate">${s}</span>
-                <span class="text-[#34d399]">${ic("check")}</span>
-              </div>
-            `,
-              )
-              .join("")}
-          </div>
-
-          <div class="so-resp-stack flex-1 min-h-0 flex gap-3 items-stretch">
-            <div class="flex-1 min-w-0 flex flex-col gap-2.5 min-h-0">
-              <div class="so-panel overflow-hidden shrink-0">
-                <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] flex justify-between text-[11.5px] font-semibold">
-                  <span>Stage Output</span><span class="code-id text-[#34d399]">exit 0</span>
-                </div>
-                <pre class="m-0 p-2.5 bg-[#080c0f] code-id text-[10.5px] text-[#9aa5b4] leading-relaxed">[21:34:28Z] Assembled deterministic zstd delta (63.8 MB) against base 0.31.1
-[21:36:19Z] Published 4 signed artifacts and proposed Plan PLN-2026-0418</pre>
-              </div>
-
-              ${
-                state.showRerunConfirm
-                  ? `
-                <div class="${state.confirmActionType === "cancel" ? "so-danger-card" : "so-warn-card"} p-3 flex items-center justify-between gap-3 shrink-0">
-                  <div>
-                    <div class="font-semibold text-[12px] text-[#ffffff]">${state.confirmActionType === "cancel" ? "Confirm Cancel Run RUN-8842?" : "Confirm Rerun from Stage 4 (package)?"}</div>
-                    <div class="text-[11px] text-[#9aa5b4]">Re-runs package, publish, and propose plan using pinned scan digest and logs an Audit event.</div>
-                  </div>
-                  <div class="flex gap-1.5 shrink-0">
-                    <button data-onclick="state.showRerunConfirm=false; renderMainWorkspace()" class="so-btn so-btn-sm">Dismiss</button>
-                    ${governedBtn({ label: "Confirm", role: "Operator", auditEvent: "packaging_run.rerun_from_step", onClickJs: "state.showRerunConfirm=false; renderMainWorkspace()", cls: "so-btn so-btn-sm so-btn-blue" })}
-                  </div>
-                </div>
-              `
-                  : ""
-              }
-
-              <div class="so-panel overflow-hidden flex-1">
-                <div class="px-3 py-2 bg-[#0e1418] border-b border-[#1c242c] text-[12.5px] font-semibold text-[#ffffff]">Signed Artifacts (4)</div>
-                <div class="so-table-scroll"><table class="so-table">
-                  <thead><tr><th>Artifact Name</th><th>Type</th><th>Size</th><th>Digest</th><th>Signed</th><th>Download</th></tr></thead>
-                  <tbody>
-                    ${arts
-                      .map(
-                        (a) => `
-                      <tr>
-                        <td class="code-id text-[#5c9ce6] font-medium">${a[0]}</td>
-                        <td>${a[1]}</td>
-                        <td class="tnum">${a[2]}</td>
-                        <td class="code-id text-[10.5px] text-[#8b96a5]">${a[3]}</td>
-                        <td>${pill(a[4], "green")}</td>
-                        <td>${governedBtn({ label: "Download", role: "Operator", auditEvent: "artifact.downloaded", onClickJs: "", cls: "so-btn so-btn-sm", iconName: "download" })}</td>
-                      </tr>
-                    `,
-                      )
-                      .join("")}
-                  </tbody>
-                </table></div>
-              </div>
-            </div>
-
-            <!-- Right Audit Rail (Matched to f_02_38_cn_run.png Right Column) -->
-            <div class="so-resp-full so-panel w-[264px] shrink-0 flex flex-col overflow-hidden">
-              <div class="px-3 py-2 bg-[#0e1418] border-b border-[#1c242c] flex items-center justify-between">
-                <span class="flex items-center gap-1.5 text-[12.5px] font-semibold text-[#34d399]">${ic("audit")} <span>Audit Log</span></span>
-                <span class="tnum text-[11px] px-1.5 rounded bg-[#10221f] text-[#34d399]">3</span>
-              </div>
-              <div class="p-3 space-y-3 overflow-y-auto flex-1">
-                ${audits
-                  .map(
-                    (a) => `
-                  <div class="so-stream-item so-stream-emerald space-y-1 pb-2.5 border-b border-[#171f26]">
-                    <div class="flex justify-between text-[11px]"><span class="font-semibold text-[#ffffff]">${a.who}</span><span class="tnum text-[#596573]">${a.when}</span></div>
-                    <div class="text-[11.5px] text-[#dce4ee]">${a.what}</div>
-                    <div class="text-[10.5px] text-[#8b96a5]">Why: ${a.why}</div>
-                    <div class="pt-0.5">${ontChip(a.o[0], a.o[1], a.o[2])}</div>
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
   }
 
-  // =========================================================================
-  // SCREEN 9: SOURCE
-  // =========================================================================
   function renderS09Source(root) {
     mountDevWorkspaces(root, { view: "source" });
   }
@@ -5922,6 +5608,7 @@ export function mountOperator(host, options) {
       <div id="area-body"></div>
     </div>`;
     const renderer = {
+      "s07-pipeline": renderS07Pipeline,
       "s08-staged-run": renderS08StagedRun,
       "rm08-bundle-preview": renderRM08BundlePreview,
       "pt01-proposal-trace": releaseGates.renderers["pt01-proposal-trace"],
@@ -5994,9 +5681,12 @@ export function mountOperator(host, options) {
           { note: state.hub?.packagingNote || "" },
         );
         node.querySelectorAll("[data-open-run]").forEach((button) => {
-          button.addEventListener("click", () =>
-            switchScreen("s08-staged-run"),
-          );
+          button.addEventListener("click", () => {
+            state.packagingRunId = button.getAttribute("data-open-run");
+            state.packagingStageId = "";
+            state.packagingSection = "stages";
+            switchScreen("s08-staged-run");
+          });
         });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),

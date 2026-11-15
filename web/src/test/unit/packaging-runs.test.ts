@@ -19,6 +19,9 @@ describe("packaging runs", () => {
     );
     expect(runState({ phase: "validate", outcome: "" })).toBe("running");
     expect(runState({ phase: "review", outcome: "" })).toBe("review");
+    expect(runState({ phase: "review", outcome: "PASS" })).toBe("review");
+    expect(runState({ phase: "blocked", outcome: "PASS" })).toBe("blocked");
+    expect(runState({ configured: false, outcome: "PASS" })).toBe("blocked");
     expect(runState({ phase: "review", outcome: "WAITING" })).toBe("review");
     expect(runState({ phase: "review", outcome: "TIMED_OUT" })).toBe("failed");
     expect(

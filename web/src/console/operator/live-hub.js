@@ -1,3 +1,9 @@
+import {
+  pipelineBuilderMarkup,
+  stagedRunMarkup,
+  readPackagingHistory,
+  selectedPackagingRun,
+} from "./packaging-pipeline.js";
 /* Hub-backed workbench rows. Empty when the Hub does not answer. */
 import { emptyState } from "./empty-states.js";
 import { freshnessPill, reportTime } from "./freshness.js";
@@ -264,7 +270,7 @@ function constraintRows(events) {
     .join("")}</div>`;
 }
 
-export function createLiveHub({ state, render }) {
+export function createLiveHub({ state, render, navigate = () => {} }) {
   state.operatorName = state.operatorName || "Operator";
   state.hub = {
     loading: true,
@@ -279,10 +285,45 @@ export function createLiveHub({ state, render }) {
   };
   let started = false;
 
+  function bindPackagingView(root) {
+    root.querySelectorAll("[data-packaging-run]").forEach((element) =>
+      element.addEventListener("change", () => {
+        state.packagingRunId = element.value;
+        state.packagingStageId = "";
+        render();
+      }),
+    );
+    root.querySelectorAll("[data-packaging-stage]").forEach((element) =>
+      element.addEventListener("click", () => {
+        state.packagingStageId = element.getAttribute("data-packaging-stage");
+        render();
+      }),
+    );
+    root.querySelectorAll("[data-packaging-section]").forEach((element) =>
+      element.addEventListener("click", () => {
+        state.packagingSection = element.getAttribute("data-packaging-section");
+        render();
+      }),
+    );
+    root
+      .querySelectorAll("[data-packaging-navigate]")
+      .forEach((element) =>
+        element.addEventListener("click", () =>
+          navigate(element.getAttribute("data-packaging-navigate")),
+        ),
+      );
+  }
   function eventsFor(runId) {
-    const byRun = hub(state).packagingEventsByRun || {};
-    if (byRun[runId]) return byRun[runId];
-    return hub(state).packagingEvents || [];
+    const view = hub(state);
+    const byRun = view.packagingEventsByRun;
+    if (byRun && Object.hasOwn(byRun, runId)) return byRun[runId];
+    if (
+      !byRun &&
+      view.packaging?.length === 1 &&
+      view.packaging[0].runId === runId
+    )
+      return view.packagingEvents || [];
+    return [];
   }
 
   function auditTable(entries) {
@@ -423,16 +464,14 @@ export function createLiveHub({ state, render }) {
     try {
       const body = await readJSON("/v1/packaging-runs");
       next.packaging = Array.isArray(body.items) ? body.items : [];
-      next.packagingEventsByRun = {};
-      next.feedbackByRun = {};
+      next.packagingEventsByRun = Object.create(null);
+      next.packagingHistoryByRun = Object.create(null);
+      next.feedbackByRun = Object.create(null);
       for (const run of next.packaging) {
         if (!run.runId) continue;
-        const events = await readJSON(
-          `/v1/packaging-runs/${encodeURIComponent(run.runId)}/events`,
-        );
-        next.packagingEventsByRun[run.runId] = Array.isArray(events.items)
-          ? events.items
-          : [];
+        const history = await readPackagingHistory(run.runId, readJSON);
+        next.packagingEventsByRun[run.runId] = history.items;
+        next.packagingHistoryByRun[run.runId] = history;
         try {
           const notes = await readJSON(
             `/v1/packaging-runs/${encodeURIComponent(run.runId)}/feedback`,
@@ -585,6 +624,29 @@ export function createLiveHub({ state, render }) {
       started = true;
       refresh();
     },
+    renderPipeline(root) {
+      const runs = hub(state).packaging || [];
+      if (!runs.length) {
+        root.innerHTML = missing(
+          hub(state).packagingNote || "No packaging run is recorded.",
+          "packaging",
+        );
+        return;
+      }
+      const run = selectedPackagingRun(runs, state.packagingRunId);
+      root.innerHTML = pipelineBuilderMarkup(
+        runs,
+        run ? eventsFor(run.runId) : [],
+        {
+          runId: state.packagingRunId || "",
+          stageId: state.packagingStageId || "",
+          history: run
+            ? hub(state).packagingHistoryByRun?.[run.runId]
+            : undefined,
+        },
+      );
+      bindPackagingView(root);
+    },
     renderPackaging(root) {
       const runs = hub(state).packaging || [];
       if (!runs.length) {
@@ -594,23 +656,17 @@ export function createLiveHub({ state, render }) {
         );
         return;
       }
-      const cards = runs
-        .map((run) => {
-          return `${panel(
-            run.runId || "Packaging run",
-            `<dl class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[12px]">
-              <div><dt class="text-[#6d7885]">Phase</dt><dd class="text-white">${esc(run.phase || "")}</dd></div>
-              <div><dt class="text-[#6d7885]">Outcome</dt><dd class="text-white">${esc(run.outcome || "")}</dd></div>
-              <div><dt class="text-[#6d7885]">Plan</dt><dd class="code-id text-white">${esc(run.planId || run.targetPlanRef || "")}</dd></div>
-              <div><dt class="text-[#6d7885]">Template</dt><dd class="text-white">${esc(run.templateVersion || "")}</dd></div>
-              <div class="sm:col-span-2"><dt class="text-[#6d7885]">Source digest</dt><dd class="code-id text-white break-all">${esc(run.sourceDigest || "")}</dd></div>
-            </dl>`,
-          )}
-          ${panel("Plan timeline", stepTimeline(eventsFor(run.runId)))}
-          ${reviewNotes(run.runId)}`;
-        })
-        .join("");
-      root.innerHTML = split(cards);
+      const run = selectedPackagingRun(runs, state.packagingRunId);
+      root.innerHTML =
+        stagedRunMarkup(runs, run ? eventsFor(run.runId) : [], {
+          runId: state.packagingRunId || "",
+          section: state.packagingSection || "stages",
+          stageId: state.packagingStageId || "",
+          history: run
+            ? hub(state).packagingHistoryByRun?.[run.runId]
+            : undefined,
+        }) + (run ? reviewNotes(run.runId) : "");
+      bindPackagingView(root);
       bindReviewNotes(root);
     },
     renderBundle(root) {
