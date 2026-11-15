@@ -391,7 +391,14 @@ test.describe("workbench", () => {
         window as unknown as { switchScreen: (id: string) => void }
       ).switchScreen("og01-ontology-graph");
     });
-    await expect(page.getByText("reportingSpoke").first()).toBeVisible();
+    await expect(
+      page.getByText("Metadata unavailable; no example data substituted", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.locator('svg[aria-label="Ontology graph"] g'),
+    ).toHaveCount(0);
     await expect(
       page
         .locator("#main-workspace")
@@ -2918,6 +2925,7 @@ test("ontology graph distinguishes an empty catalog from denied metadata", async
   page,
 }) => {
   let denied = false;
+  let populated = false;
   let objectReads = 0;
   await page.route("**/v1/**", async (route) => {
     if (new URL(route.request().url()).pathname === "/v1/session")
@@ -2960,4 +2968,24 @@ test("ontology graph distinguishes an empty catalog from denied metadata", async
     0,
   );
   expect(objectReads).toBe(0);
+  denied = false;
+  populated = true;
+  await page.evaluate(() => Reflect.get(window, "reloadOntologyGraph")());
+  await expect(
+    page.getByText("Native metadata · first 256 types", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator('svg[aria-label="Ontology graph"] g')).toHaveCount(
+    7,
+  );
+  await page
+    .locator('svg[aria-label="Ontology graph"] g')
+    .filter({ hasText: /^Plan$/ })
+    .click();
+  await expect(
+    page
+      .getByText("Object page unavailable; no zero-count inference.", {
+        exact: true,
+      })
+      .first(),
+  ).toBeVisible();
 });
