@@ -8,6 +8,7 @@ import (
 	"embed"
 	"fmt"
 	"regexp"
+	"sync"
 
 	"github.com/jonathanagustin/conduit/api/agui"
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -99,3 +100,12 @@ func nativePattern(pattern string) (jsonschema.Regexp, error) {
 	}
 	return regexp.Compile(pattern)
 }
+
+// CatalogID identifies the reviewed native catalog, not an upstream catalog.
+const CatalogID = "conduit:planning-forms/v1"
+
+//go:embed catalog.json
+var catalogBytes []byte
+var native = sync.OnceValues(func() (*Validator, error) { return NewValidator(catalogBytes) })
+
+func NewNativeValidator() (*Validator, error) { return native() }

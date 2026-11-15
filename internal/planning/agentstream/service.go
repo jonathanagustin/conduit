@@ -23,14 +23,16 @@ type Sessions interface {
 }
 
 type thread struct {
-	active       chan struct{}
-	seenUsers    map[string]string
-	toolCalls    []map[string]any
-	history      []map[string]any
-	nativeCursor int
-	historyIDs   map[string]bool
-	pending      map[string]pendingTool
-	acknowledged map[string]string
+	surfaceID     string
+	surfaceFormID string
+	active        chan struct{}
+	seenUsers     map[string]string
+	toolCalls     []map[string]any
+	history       []map[string]any
+	nativeCursor  int
+	historyIDs    map[string]bool
+	pending       map[string]pendingTool
+	acknowledged  map[string]string
 }
 
 // Service belongs to one authenticated owner's planning-session store.
@@ -150,6 +152,9 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			return err
 		}
 	}
+	if err := service.validateFormAction(input, state, form); err != nil {
+		return err
+	}
 	if err := service.audit.Record(ctx, AuditRecord{ThreadID: input.ThreadID, RunID: input.RunID, Action: "agent.input", PayloadSHA256: digest(raw)}); err != nil {
 		return ErrAuditUnavailable
 	}
@@ -184,6 +189,11 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 	}
 	if !snapshot {
 		if len(answers) > 0 {
+			if action := inputAction(input); len(action) > 0 {
+				if err := service.audit.Record(ctx, AuditRecord{ThreadID: input.ThreadID, RunID: input.RunID, Action: "agent.a2ui_action", PayloadSHA256: digest(action)}); err != nil {
+					return ErrAuditUnavailable
+				}
+			}
 			payload, _ := json.Marshal(input.Resume)
 			if err := service.audit.Record(ctx, AuditRecord{ThreadID: input.ThreadID, RunID: input.RunID, Action: "agent.resume", PayloadSHA256: digest(payload)}); err != nil {
 				return ErrAuditUnavailable
@@ -292,6 +302,9 @@ func (service *Service) snapshot(ctx context.Context, output *publisher, state *
 	service.mu.Unlock()
 	sort.Slice(pending, func(i, j int) bool { return pending[i].Order < pending[j].Order })
 	if err := output.stateUpdate(ctx, map[string]any{"valueTier": "CONDUIT_NATIVE", "session": view, "toolCalls": tools, "pendingClientTools": pending}); err != nil {
+		return err
+	}
+	if err := service.formSnapshot(ctx, output, state, session); err != nil {
 		return err
 	}
 	service.mu.Lock()

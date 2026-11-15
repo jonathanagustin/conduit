@@ -749,6 +749,52 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
               },
       },
     );
+    if (!resumed)
+      events.splice(events.length - 1, 0, {
+        type: "CUSTOM",
+        name: "a2ui",
+        value: {
+          version: "1.0",
+          createSurface: {
+            surfaceId: "surface-" + input.runId,
+            catalogId: "conduit:planning-forms/v1",
+            dataModel: { answers: { port: "" } },
+            components: [
+              {
+                id: "root",
+                component: "Column",
+                children: ["question:port", "submit"],
+              },
+              {
+                id: "question:port",
+                component: "TextField",
+                label: "Which port?",
+                value: { "@path": "/answers/port" },
+                "@checks": [
+                  {
+                    condition: {
+                      "@call": "required",
+                      args: { value: { "@path": "/answers/port" } },
+                    },
+                    message: "Enter the port.",
+                  },
+                ],
+              },
+              {
+                id: "submit",
+                component: "Button",
+                label: "Submit answers",
+                action: {
+                  event: {
+                    name: "submit_needs_input",
+                    context: { "question:port": { "@path": "/answers/port" } },
+                  },
+                },
+              },
+            ],
+          },
+        },
+      });
     await route.fulfill({
       contentType: "text/event-stream",
       body: events
@@ -772,6 +818,11 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
   expect(requests[1].messages.at(-1)).toMatchObject({
     role: "tool",
     toolCallId: "prefill",
+  });
+  expect(requests[2].forwardedProps.conduit.a2uiAction.action).toMatchObject({
+    name: "submit_needs_input",
+    sourceComponentId: "submit",
+    context: { "question:port": "9090" },
   });
   expect(requests[2].resume).toEqual([
     {

@@ -114,3 +114,7 @@ export function applyPatch(state, patch) {
   if (JSON.stringify(next).length > 4 * 1024 * 1024) fail();
   return next;
 }
+
+export function readPointer(state, pointer) {
+  return at(state, tokens(pointer));
+}

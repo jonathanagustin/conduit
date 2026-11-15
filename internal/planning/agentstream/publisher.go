@@ -32,16 +32,18 @@ type Auditor interface {
 func digest(raw []byte) string { value := sha256.Sum256(raw); return hex.EncodeToString(value[:]) }
 
 type publisher struct {
-	mu       sync.Mutex
-	threadID string
-	runID    string
-	sequence *agui.Sequence
-	audit    Auditor
-	write    func([]byte) error
-	bytes    int
-	started  bool
-	state    map[string]json.RawMessage
-	broken   bool
+	surfaceID     string
+	surfaceFormID string
+	mu            sync.Mutex
+	threadID      string
+	runID         string
+	sequence      *agui.Sequence
+	audit         Auditor
+	write         func([]byte) error
+	bytes         int
+	started       bool
+	state         map[string]json.RawMessage
+	broken        bool
 }
 
 func (p *publisher) send(ctx context.Context, event map[string]any) error {

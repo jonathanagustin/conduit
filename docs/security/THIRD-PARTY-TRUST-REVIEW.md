@@ -213,3 +213,25 @@ modeline precedence and the editor-image integration boundary.
 UDS Core’s root license text is AGPL version 3; per-file schema applicability
 has not been separately adjudicated. Retaining that notice does not resolve
 project licensing or authorize distribution of an editor image (#546).
+
+## A2UI browser schema validation (2026-11-15)
+
+AJV 8.20.0 is pinned as a console build dependency for standalone validators.
+The registry records publication at 2026-04-24T15:22:16.529Z, upstream
+`ajv-validator/ajv` source commit
+`0fba0b8e649909613cfce0999b149cd08f4a4987`, and MIT licensing. Its tarball
+integrity is retained in the frozen pnpm lockfile, alongside the newly selected
+fast-deep-equal 3.1.3, fast-uri 3.1.9, json-schema-traverse 1.0.0 and
+require-from-string 2.0.2. The install used the existing release-age policy and
+ignored lifecycle scripts; the resulting lockfile audit reported zero known
+advisories. This is registry/source-coordinate and advisory evidence, not a
+publisher attestation or exhaustive code certification; no npm attestation was
+reported for the AJV artifact.
+
+The build compiles only retained primary schemas and the reviewed first-party
+catalog. Incoming agent messages and catalogs are never passed to the compiler.
+The browser imports committed standalone validators and fixed tiny AJV runtime
+helpers, not the schema compiler or require-from-string. Generated imports are
+allowlisted; an unexpected runtime import fails generation. Preserve AJV and
+transitive package license notices when distributing the compiled console.
+The project distribution/licensing decision in #546 remains open.

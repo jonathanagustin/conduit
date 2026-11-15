@@ -56,12 +56,13 @@ try {
     ids,
   );
   assert.deepEqual(view.session.answers, []);
-  const final = await agent.run(
-    { answers: [{ id: "port", value: "9090" }] },
-    binding,
-    update,
-  );
+  const surfaceID = [...agent.forms.surfaces.keys()].at(-1);
+  agent.forms.input(surfaceID, "question:port", "9090");
+  const action = agent.forms.action(surfaceID, "submit").message;
+  assert.equal(action.action.context["question:port"], "9090");
+  const final = await agent.run({ formAction: action }, binding, update);
   assert.equal(final.outcome.type, "success");
+  assert.equal(final.forms.surfaces.size, 0);
   assert.equal(view.session.status, "ready");
   assert.equal(view.session.answers[0].value, "9090");
   assert.equal(view.session.plan.text, "Build the reviewed port 9090.");
