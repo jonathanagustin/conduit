@@ -1,0 +1,102 @@
+{
+  "claimClass": "PUBLIC_CONTRACT",
+  "openAPISHA256": "9e52d7fe6edb29c2f8020ac1179c582cdc89163ccb83a8c17dd803c4f651ed80",
+  "operations": [
+    {
+      "operation": "publishHelmChart",
+      "method": "POST",
+      "path": "/api/v0/products/helmChart/org.conformance:app:1.0.0/publish",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L595"
+    },
+    {
+      "operation": "publishService",
+      "method": "POST",
+      "path": "/api/v0/products/service/org.conformance:service:1.0.0/publish",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L633"
+    },
+    {
+      "operation": "listProducts",
+      "method": "GET",
+      "path": "/api/v0/products",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L670"
+    },
+    {
+      "operation": "getProduct",
+      "method": "GET",
+      "path": "/api/v0/products/org.conformance:app",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L691"
+    },
+    {
+      "operation": "listReleases",
+      "method": "GET",
+      "path": "/api/v0/products/org.conformance:app/releases",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L719"
+    },
+    {
+      "operation": "getRelease",
+      "method": "GET",
+      "path": "/api/v0/products/org.conformance:app/releases/1.0.0",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L754"
+    },
+    {
+      "operation": "listEnvironments",
+      "method": "GET",
+      "path": "/api/v0/environments",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L795"
+    },
+    {
+      "operation": "getEnvironment",
+      "method": "GET",
+      "path": "/api/v0/environments/{environmentRid}",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L817"
+    },
+    {
+      "operation": "listInstallations",
+      "method": "GET",
+      "path": "/api/v0/environments/{environmentRid}/installations",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L846"
+    },
+    {
+      "operation": "getInstallation",
+      "method": "GET",
+      "path": "/api/v0/environments/{environmentRid}/installations/{installationRid}",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L879"
+    },
+    {
+      "operation": "listNamespaces",
+      "method": "GET",
+      "path": "/api/v0/namespaces",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L1010"
+    },
+    {
+      "operation": "putStatusEntitiesInfo",
+      "method": "POST",
+      "path": "/api/v0/status/environments/conformance-env/entities/info",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L918"
+    },
+    {
+      "operation": "putStatusEntitiesHealth",
+      "method": "POST",
+      "path": "/api/v0/status/environments/conformance-env/entities/health",
+      "source": "https://github.com/palantir/apollo-openapi/blob/c663874bd7467a01e719d039509b0f206d05fe2c/api-definition.yml#L961"
+    }
+  ],
+  "graphQL": [
+    {
+      "name": "GetCurrentUser",
+      "query": "query GetCurrentUser { me { id fullName } }",
+      "source": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/",
+      "coverage": "UNCOVERED",
+      "reason": "Current Conduit Query has no me field; public example is recorded as a gap, not passing conformance."
+    },
+    {
+      "name": "GetEnvironments",
+      "query": "query GetEnvironments { apollo { environments(pageSize: 100) { environments { id } } } }",
+      "source": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/",
+      "coverage": "COVERED"
+    }
+  ],
+  "graphQLPublicPageSHA256": "6e6d296845c125e2f16a83d246f11e84569ffd8bf7b9a6a601cfe9a20a406096",
+  "graphQLReviewedAt": "2026-11-15T02:46:32.425602+00:00",
+  "fixtureOrigin": "Invented native Conduit records, not captured tenant material"
+}

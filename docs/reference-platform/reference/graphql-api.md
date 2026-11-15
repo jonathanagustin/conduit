@@ -477,3 +477,23 @@ contract; the served figure is stated here so the two are never silently swapped
 it should stay honest rather than stay zero. Conflating them is how "documented"
 quietly becomes "verified", which is the failure this whole interface exists to
 prevent.
+
+## Public-only conformance review (2026-11-15 UTC)
+
+The unauthenticated API Explorer documentation was rechecked for #429. Its two
+published examples still name `me.id`/`me.fullName` and
+`apollo.environments(pageSize: 100).environments.id`. Fresh raw HTML SHA-256:
+`6e6d296845c125e2f16a83d246f11e84569ffd8bf7b9a6a601cfe9a20a406096`.
+This raw-page checksum differs in kind from the normalized content checksum
+`01c60627857e8d274fc44ba5fdba76ba0d93fce0b335e259856a8320c8a0879b` in the public
+manifest and review ledger; neither is substituted for the other.
+
+The isolated local suite in `internal/apollo/conformance` tests all 13 operations
+from the pinned public OpenAPI and the nonempty public environment selection.
+It supplies no expectations from tenant captures or observed SDL. The public
+`GetCurrentUser` example currently fails because Query has no `me` field. It is
+explicitly uncovered, with the exact missing-field error checked before it is
+skipped; #644 tracks its implementation. The coverage report is
+[`../../operations/public-conformance.md`](../../operations/public-conformance.md).
+These local results establish the named tested shapes, not a full public
+GraphQL schema or private protocol compatibility.

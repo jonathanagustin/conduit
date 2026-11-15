@@ -371,6 +371,10 @@ one side “correct”:
   authorized Connected Hubs capture is plan-gated and exposes no Hub origin;
   [`reference/graphql-api.md`](reference/graphql-api.md) records the exact
   observed-schema recovery gate once an Apollo Hub is authorized.
+  The isolated public-only suite in `internal/apollo/conformance` now tests all
+  13 pinned REST operation schemas and the published environment selection;
+  the public `GetCurrentUser` selection is explicitly uncovered under #644.
+  See [`../operations/public-conformance.md`](../operations/public-conformance.md).
 * The published error text names both `InvalidTargetDeclaredStateSource` and
   `CannotImportInEnvironmentWithAuthoritativeDeclaredStateSource` without saying
   which applies when. Platform reports the second when the target is deliberately
