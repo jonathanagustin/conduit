@@ -59,7 +59,7 @@ import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
 import { createIntelligence } from "./intelligence.js";
-import { mountDevWorkspaces } from "./dev-workspaces.js";
+import { createDevWorkspaces } from "./dev-workspaces.js";
 import {
   assistantChrome,
   publishAssistantContext,
@@ -1029,6 +1029,30 @@ export function mountOperator(host, options) {
     render: () => renderApp({ backgroundRefresh: true }),
   });
   state.liveHub = liveHub;
+  const mountDevWorkspaces = createDevWorkspaces({
+    onSelection: (row) => {
+      state.studioWorkspace = row;
+      if (
+        state.screen !== "area-packaging" ||
+        !String(state.areaTab || "").startsWith("workspace")
+      )
+        return;
+      const header = document.querySelector("[data-area-object-header]");
+      if (header)
+        header.innerHTML = objectHeader(
+          areaObject(state.hub, state.screen, {
+            workspaceView: true,
+            workspace: row,
+          }),
+        );
+      renderChatRail();
+    },
+    getReady: () => state.hub?.loading === false,
+    getIdentity: () => ({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    }),
+  });
   const mountOfflineBundle = createOfflineBundleFlow({
     getHub: () => state.hub,
     getIdentity: () => ({
@@ -1102,6 +1126,13 @@ export function mountOperator(host, options) {
         { id: "timeline", label: "Timeline", screen: "s08-staged-run" },
         { id: "pipeline", label: "Pipeline", screen: "s07-pipeline" },
         { id: "workspace", label: "Workspace", screen: "s02-workspaces" },
+        { id: "workspace-source", label: "Source", screen: "s09-source" },
+        { id: "workspace-preview", label: "Preview", screen: "s11-preview" },
+        {
+          id: "workspace-lifecycle",
+          label: "Lifecycle",
+          screen: "s12-lifecycle",
+        },
         { id: "bundle", label: "Bundle", screen: "rm08-bundle-preview" },
         { id: "proposals", label: "Proposals", screen: "pt01-proposal-trace" },
       ],
@@ -1159,7 +1190,7 @@ export function mountOperator(host, options) {
           screen: "flt-environments",
         },
         { id: "drift", label: "Drift", screen: "s14-env-detail" },
-        { id: "spokes", label: "Example spokes", screen: "s17-spokes-audit" },
+        { id: "spokes", label: "Spoke operations", screen: "s17-spokes-audit" },
       ],
     },
     "area-audit": {
@@ -1186,10 +1217,7 @@ export function mountOperator(host, options) {
     area: "area-packaging",
     tab: "proposals",
   };
-  REDIRECT["s09-source"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["s10-diff"] = { area: "area-changes", tab: "diff" };
-  REDIRECT["s11-preview"] = { area: "area-packaging", tab: "workspace" };
-  REDIRECT["s12-lifecycle"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["rm01-env-page"] = { area: "area-releases", tab: "environments" };
   REDIRECT["rm05-release-rollout"] = {
     area: "area-releases",
@@ -1268,6 +1296,9 @@ export function mountOperator(host, options) {
   // Screens whose body is read from the Hub. Everything else is example data
   // until it is wired, and says so in the header badge.
   const LIVE_SCREENS = new Set([
+    "s09-source",
+    "s11-preview",
+    "s12-lifecycle",
     "s17-spokes-audit",
     "s01-intake",
     "cc-overview",
@@ -1731,6 +1762,10 @@ export function mountOperator(host, options) {
           packagingRunId: state.packagingRunId,
           releaseEnvironmentId: state.releaseEnvironmentId,
           changeRequestId: state.crReview?.selectedId,
+          workspaceView:
+            state.screen === "area-packaging" &&
+            String(state.areaTab || "").startsWith("workspace"),
+          workspace: state.studioWorkspace,
         }),
       )
     );
@@ -1739,7 +1774,19 @@ export function mountOperator(host, options) {
   function inspectorPane(headerMarkup) {
     const ref = currentInspectRef();
     if (!ref) return headerMarkup;
-    const key = `${ref.objectType}/${ref.primaryKey}`;
+    const key = JSON.stringify([
+      state.reviewOperatorActor || "",
+      state.reviewOperatorIdentities || [],
+      ref.objectType,
+      ref.primaryKey,
+      ref.objectType === "Workspace" &&
+      ref.primaryKey === state.studioWorkspace?.workspaceId
+        ? [
+            state.studioWorkspace.proposalRevision,
+            state.studioWorkspace.sourceDigest,
+          ]
+        : null,
+    ]);
     if (inspector.key !== key) {
       inspector.key = key;
       inspector.ref = ref;
@@ -4837,6 +4884,10 @@ export function mountOperator(host, options) {
         packagingRunId: state.packagingRunId,
         releaseEnvironmentId: state.releaseEnvironmentId,
         changeRequestId: state.crReview?.selectedId,
+        workspaceView:
+          state.screen === "area-packaging" &&
+          String(state.areaTab || "").startsWith("workspace"),
+        workspace: state.studioWorkspace,
       }),
     );
     const extra = areaSupplement(state.hub, state.screen, current.id);
@@ -4848,11 +4899,15 @@ export function mountOperator(host, options) {
             `<button type="button" data-area-tab="${tab.id}" class="kit-tab ${tab.id === current.id ? "is-active" : ""}">${tab.label}</button>`,
         )
         .join("")}</div>
-      ${header}
+      <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
       <div id="area-body"></div>
     </div>`;
     const renderer = {
+      "s02-workspaces": renderS02Workspaces,
+      "s09-source": renderS09Source,
+      "s11-preview": renderS11Preview,
+      "s12-lifecycle": renderS12Lifecycle,
       "s07-pipeline": renderS07Pipeline,
       "s08-staged-run": renderS08StagedRun,
       "rm08-bundle-preview": renderRM08BundlePreview,
