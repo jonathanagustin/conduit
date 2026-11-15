@@ -35,10 +35,10 @@ defaults:
 
 jobs:
   validate-request:
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           ref: ${{ inputs.revision }}
@@ -72,10 +72,10 @@ jobs:
 
   contract:
     needs: validate-request
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
       - name: Install pinned Hadolint
@@ -98,7 +98,7 @@ jobs:
 
   prepare-security-db:
     needs: validate-request
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Install pinned Grype
@@ -109,7 +109,7 @@ jobs:
           echo '0122df7b655981abe547ad3d2190d65551dac6a2bfc80b4dc2a989b5d0587458  /tmp/grype.tar.gz' | sha256sum --check
           tar -xzf /tmp/grype.tar.gz -C /tmp grype
           install -m 0644 /dev/null /tmp/grype-empty.yaml
-      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/grype-db
           key: optimizer-release-grype-v0.116.1-${{ github.run_id }}
@@ -135,10 +135,10 @@ jobs:
             runner: ubuntu-24.04-arm
     runs-on: ${{ matrix.runner }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version-file: go.mod
           cache-dependency-path: go.sum
@@ -233,7 +233,7 @@ jobs:
             --output /tmp/grype.tar.gz
           echo "${grype_sha}  /tmp/grype.tar.gz" | sha256sum --check
           tar -xzf /tmp/grype.tar.gz -C /tmp grype
-      - uses: actions/cache@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/grype-db
           key: optimizer-release-grype-v0.116.1-${{ github.run_id }}
@@ -254,7 +254,7 @@ jobs:
           docker save "${image}" | gzip -1 -n > "dist/${BACKEND}-${ARCHITECTURE}-image.tar.gz"
           test -s "dist/${BACKEND}-${ARCHITECTURE}-image.tar.gz"
       - if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           retention-days: 7
           name: optimizer-candidate-${{ inputs.backend }}-${{ matrix.architecture }}
@@ -269,13 +269,13 @@ jobs:
 
   cross-architecture-gate:
     needs: native-candidate
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: optimizer-candidate-${{ inputs.backend }}-*
           path: ${{ runner.temp }}/optimizer-native
@@ -289,7 +289,7 @@ jobs:
             "${RUNNER_TEMP}/optimizer-native/optimizer-candidate-${BACKEND}-amd64" \
             "${RUNNER_TEMP}/optimizer-native/optimizer-candidate-${BACKEND}-arm64" \
             "${RUNNER_TEMP}/optimizer-candidate-gate.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           retention-days: 7
           name: optimizer-candidate-${{ inputs.backend }}-gate
@@ -298,7 +298,7 @@ jobs:
 
   publish-unadmitted-candidate:
     needs: cross-architecture-gate
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     environment: optimizer-candidate-publish
     permissions:
@@ -306,10 +306,10 @@ jobs:
       id-token: write
       packages: write
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ inputs.revision }}
-      - uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0 # v5
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
         with:
           pattern: optimizer-candidate-${{ inputs.backend }}-*
           path: ${{ runner.temp }}/optimizer-release
@@ -325,13 +325,13 @@ jobs:
             exit 1
           }
           [[ "${AUTHORIZATION}" == "publish:${BACKEND}:${REVISION}" ]]
-      - uses: docker/setup-buildx-action@8d2750c68a42422c14e847fe6c8ac0403b4cbd6f # v3
-      - uses: docker/login-action@c94ce9fb468520275223c153574b00df6fe4bcc9 # v3
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4
+      - uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         with:
           go-version: "1.27.4"
           cache-dependency-path: tools/cosign-build/go.sum
@@ -507,7 +507,7 @@ jobs:
           printf '### Unadmitted optimizer candidate\n\n' >> "${GITHUB_STEP_SUMMARY}"
           printf -- '- Backend: `%s`\n- Immutable index: `%s`\n- Admission: `UNADMITTED`\n- Selectable: `false`\n' \
             "${BACKEND}" "${index_reference}" >> "${GITHUB_STEP_SUMMARY}"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7
         with:
           retention-days: 7
           name: optimizer-candidate-${{ inputs.backend }}-distribution

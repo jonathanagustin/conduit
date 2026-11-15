@@ -102,14 +102,14 @@ jobs:
   # that every lane needs rather than a step each lane would have to repeat.
   preflight:
     name: Head authentication
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Authenticated head, complete commit metadata, and tenant-fidelity checks.
     timeout-minutes: 10
     # Draft revisions do not bill a full Trunk gate. workflow_dispatch has no
     # pull_request and still runs.
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree
@@ -212,7 +212,7 @@ jobs:
     name: Changed paths
     needs: preflight
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     outputs:
       go: ${{ steps.scope.outputs.go }}
@@ -220,7 +220,7 @@ jobs:
       console: ${{ steps.scope.outputs.console }}
       checks: ${{ steps.scope.outputs.checks }}
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           ref: ${{ env.GATE_SHA }}
           fetch-depth: 0
@@ -290,7 +290,7 @@ jobs:
     name: Go suite
     needs: [preflight, scope]
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Observed at about four minutes. An uncapped job runs to GitHub's six-hour
     # default, so a hang costs six hours of runner time instead of failing.
     timeout-minutes: 20
@@ -298,7 +298,7 @@ jobs:
       - name: Skip when no Go-relevant paths changed
         if: needs.scope.outputs.go != 'true'
         run: echo 'No Go-relevant path changes; skipping the Go suite.'
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.scope.outputs.go == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
@@ -306,7 +306,7 @@ jobs:
           # than the one the Trunk status names would be a verdict about code
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         if: needs.scope.outputs.go == 'true'
         with:
           # uses: inputs are not covered by defaults.run.working-directory,
@@ -388,13 +388,13 @@ jobs:
     name: CLI release targets
     needs: [preflight, scope]
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Skip when no relevant paths changed
         if: needs.scope.outputs.cli != 'true'
         run: echo 'No CLI-relevant path changes; skipping the cross-compile matrix.'
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.scope.outputs.cli == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
@@ -402,7 +402,7 @@ jobs:
           # than the one the Trunk status names would be a verdict about code
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         if: needs.scope.outputs.cli == 'true'
         with:
           go-version-file: go.mod
@@ -417,7 +417,7 @@ jobs:
     name: Operator console
     needs: [preflight, scope]
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Longer than the other lanes on purpose. The browser install below is three
     # bounded five-minute attempts, so a lane capped at twenty minutes could
     # spend its whole budget retrying a stalled download and be cancelled before
@@ -427,7 +427,7 @@ jobs:
       - name: Skip when no relevant paths changed
         if: needs.scope.outputs.console != 'true'
         run: echo 'No console-relevant path changes; skipping the operator console lane.'
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.scope.outputs.console == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
@@ -480,7 +480,7 @@ jobs:
           done
           echo "console browser install did not succeed in three bounded attempts" >&2
           exit 1
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         if: needs.scope.outputs.console == 'true'
         with:
           go-version-file: go.mod
@@ -552,13 +552,13 @@ jobs:
     name: Lint and validators
     needs: [preflight, scope]
     if: github.event_name != 'pull_request' || github.event.pull_request.draft == false
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 20
     steps:
       - name: Skip when no relevant paths changed
         if: needs.scope.outputs.checks != 'true'
         run: echo 'No lint-relevant path changes; skipping validators.'
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         if: needs.scope.outputs.checks == 'true'
         with:
           # Every lane verifies the authenticated head, not the merge commit the
@@ -566,7 +566,7 @@ jobs:
           # than the one the Trunk status names would be a verdict about code
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
-      - uses: actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
         if: needs.scope.outputs.checks == 'true'
         with:
           go-version-file: go.mod
@@ -834,10 +834,10 @@ jobs:
     # Still runs when a lane failed, but not for draft PRs (those jobs are skipped
     # and must not produce a red Trunk gate).
     if: ${{ always() && (github.event_name != 'pull_request' || github.event.pull_request.draft == false) }}
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 10
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           # Every lane verifies the authenticated head, not the merge commit the
           # pull_request event checks out by default. A lane on a different tree

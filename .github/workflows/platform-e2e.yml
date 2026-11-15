@@ -23,7 +23,7 @@ defaults:
 jobs:
   spoke:
     name: spoke (Helm ${{ matrix.helm.version }})
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     timeout-minutes: 25
     strategy:
       fail-fast: false
@@ -38,7 +38,7 @@ jobs:
             image: alpine/helm:4.2.3@sha256:b97ba4f9b27fe7af16ee3d37e6815783c9d4a51289b6240a9024ec471611ae9b
             use-upstream: "false"
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Install pinned k3d
         run: |
           curl --fail --silent --show-error --location \

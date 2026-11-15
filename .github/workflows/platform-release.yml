@@ -40,7 +40,7 @@ defaults:
 jobs:
   release:
     name: Release
-    runs-on: ubuntu-24.04
+    runs-on: ubuntu-26.04
     # Bounded API reads, a tag, and a dispatch. Minutes at the outside; the cap is
     # here so a hung call fails fast rather than billing to the six-hour default.
     timeout-minutes: 10
@@ -56,7 +56,7 @@ jobs:
       pull-requests: read
       statuses: read
     steps:
-      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       # Refuses a version that disagrees with VERSION, a commit that is not on
       # main, a commit whose Trunk gate is not green, and a tag that already
       # exists. All four are cheap to refuse here and expensive to discover
