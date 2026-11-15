@@ -52,7 +52,9 @@ it("distinguishes unavailable blackout evidence and displays rules without sched
   expect(maintenanceMarkup({})).toContain(
     "Product and installation constraints can still apply",
   );
-  expect(maintenanceMarkup({})).toContain("No calendar drag, snap or Save");
+  expect(maintenanceMarkup({})).toContain(
+    "a proposal does not schedule or execute a workload",
+  );
   expect(environmentHubMarkup(hub, "missing")).toContain(
     "No selected environment",
   );

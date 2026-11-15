@@ -429,3 +429,100 @@ func TestTemporaryMaintenanceUsesEnvironmentQualifiedInstallationAuthority(t *te
 		t.Fatal("installation reference lost Environment scope")
 	}
 }
+
+func TestScheduledMaintenancePreviewBindingAndFutureAdmission(t *testing.T) {
+	for name, create := range moduleOverrideRepositories(t) {
+		t.Run(name, func(t *testing.T) {
+			repository := create(t)
+			service, governance, reviewer, _, clock := temporaryMaintenanceFixture(t, repository, "scheduled-env", false)
+			draft := temporaryDraft("scheduled-env")
+			start := clock.Add(3 * time.Hour)
+			draft.StartsAt = &start
+			draft.DryRun = true
+			preview, err := service.CreateMaintenanceOverrides(t.Context(), draft)
+			if err != nil || len(preview.Requests) != 1 || !preview.Requests[0].StartsAt.Equal(start) {
+				t.Fatal("explicit scheduled start changed", preview, err)
+			}
+			*clock = clock.Add(time.Minute)
+			draft.DryRun = false
+			draft.ExpectedChangeRequestID = "stale-preview"
+			if _, err := service.CreateMaintenanceOverrides(t.Context(), draft); !errors.Is(err, ErrConflict) {
+				t.Fatal("stale preview created a request", err)
+			}
+			requests, err := repository.ListChangeRequests(t.Context(), "scheduled-env")
+			if err != nil || len(requests) != 0 {
+				t.Fatal("stale preview persisted", requests, err)
+			}
+			draft.ExpectedChangeRequestID = preview.Requests[0].ChangeRequestID
+			submitted, err := service.CreateMaintenanceOverrides(t.Context(), draft)
+			if err != nil || len(submitted.Requests) != 1 {
+				t.Fatal(submitted, err)
+			}
+			receipt := submitted.Requests[0]
+			if receipt.ChangeRequestID != preview.Requests[0].ChangeRequestID || !receipt.StartsAt.Equal(start) || !receipt.EndsAt.Equal(start.Add(2*time.Hour)) {
+				t.Fatal("reviewed interval drifted", preview, submitted)
+			}
+			if _, _, err := governance.Approve(t.Context(), receipt.ChangeRequestID, reviewer, "review scheduled window"); err != nil {
+				t.Fatal(err)
+			}
+			admission := NewTemporaryMaintenanceAdmission(repository)
+			admission.now = func() time.Time { return *clock }
+			if _, err := admission.Lease(t.Context(), "scheduled-env", "agent", time.Minute); !errors.Is(err, ErrNoPlanAvailable) {
+				t.Fatal("future approval opened window early", err)
+			}
+			*clock = start
+			leased, err := admission.Lease(t.Context(), "scheduled-env", "agent", time.Minute)
+			if err != nil || len(leased.Plan.Steps[0].Maintenance.Overrides) != 1 || !leased.Plan.Steps[0].Maintenance.Overrides[0].StartsAt.Equal(start) {
+				t.Fatal("scheduled approval not admitted at start", leased, err)
+			}
+		})
+	}
+}
+
+func TestScheduledMaintenanceRefusesPastStartWithoutProposal(t *testing.T) {
+	repository := NewMemoryRepository()
+	service, _, _, _, clock := temporaryMaintenanceFixture(t, repository, "scheduled-env", false)
+	draft := temporaryDraft("scheduled-env")
+	start := clock.Add(-time.Nanosecond)
+	draft.StartsAt = &start
+	if _, err := service.CreateMaintenanceOverrides(t.Context(), draft); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatal("past schedule accepted", err)
+	}
+	far := clock.Add(maintenance.MaximumOverrideDuration)
+	draft.StartsAt = &far
+	if _, err := service.CreateMaintenanceOverrides(t.Context(), draft); !errors.Is(err, ErrInvalidTransition) {
+		t.Fatal("schedule exceeded submission horizon", err)
+	}
+	requests, err := repository.ListChangeRequests(t.Context(), "scheduled-env")
+	if err != nil || len(requests) != 0 {
+		t.Fatal("invalid schedule persisted", requests, err)
+	}
+}
+
+func TestScheduledMaintenanceRefusesChangedPreviewTarget(t *testing.T) {
+	repository := NewMemoryRepository()
+	service, _, _, base, clock := temporaryMaintenanceFixture(t, repository, "scheduled-env", false)
+	start := clock.Add(time.Hour)
+	draft := temporaryDraft("scheduled-env")
+	draft.StartsAt = &start
+	draft.DryRun = true
+	preview, err := service.CreateMaintenanceOverrides(t.Context(), draft)
+	if err != nil || len(preview.Requests) != 1 {
+		t.Fatal(preview, err)
+	}
+	if _, err := repository.UpdatePlan(t.Context(), base.ID, func(record *PlanRecord) error {
+		record.Plan.Steps[0].InstallationID = "replacement-installation"
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	draft.DryRun = false
+	draft.ExpectedChangeRequestID = preview.Requests[0].ChangeRequestID
+	if _, err := service.CreateMaintenanceOverrides(t.Context(), draft); !errors.Is(err, ErrConflict) {
+		t.Fatal("changed target bypassed preview binding", err)
+	}
+	requests, err := repository.ListChangeRequests(t.Context(), "scheduled-env")
+	if err != nil || len(requests) != 0 {
+		t.Fatal("changed preview persisted a request", requests, err)
+	}
+}

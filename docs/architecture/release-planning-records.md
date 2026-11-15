@@ -20,8 +20,9 @@ use the selected environment's recorded overrides.
 No resolved rollout calendar, dependency-timing edge or blackout interval catalog
 is supplied by the native wave/blackout routes. Empty calendar evidence stays
 explicit. Weekly maintenance intervals constrain execution but are not resolved
-appointments. No drag, resize, snap or Save is enabled without a governed
-scheduling proposal and a resolved schedule. The new views neither compute
+appointments. Recorded intervals remain read-only. The Windows view has a separate
+[reviewed Entity proposal form](window-scheduler.md) with draft move/resize;
+resolved rollout appointments, dependency timing and blackout spans remain absent. The new views neither compute
 approval nor call an execution/publication endpoint.
 
 These are Conduit extensions over native Hub records. They make no private

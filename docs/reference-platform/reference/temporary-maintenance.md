@@ -36,6 +36,29 @@ cannot open a window. Approval never extends an end time; approving an already
 expired request does not revive it. No Environment-wide permanent override is
 written, and unrelated Entities do not inherit the grant.
 
+## Native future-window extension
+
+The Windows console can send optional RFC3339 `startsAt` and
+`expectedChangeRequestId`. These are Conduit-native extensions, not a recovered
+Apollo scheduler or a change to the CLI's submission-time default. An explicit
+start must be nonzero and not precede server submission time; its end must remain
+within 3600 hours of submission. Duration stays positive and at most 3600 hours.
+The exact original interval remains sealed through preview, submission and review.
+A future approved request cannot open admission before its start.
+
+Preview binding requires one Entity and an explicit start. Within the existing
+repository boundary, submission recomputes the native request identity against
+the current Entity/installation/Product mapping and refuses a different expected
+ID before persistence. Policy is still evaluated normally at submission; preview
+is not approval. The console requires preview, an unchanged draft and explicit
+confirmation, and does not automatically retry an uncertain write.
+
+`TestScheduledMaintenancePreviewBindingAndFutureAdmission` covers stable preview,
+pre-start admission and fixed intervals on available repository implementations.
+`TestScheduledMaintenanceRefusesChangedPreviewTarget` covers mapping changes before
+persistence. HTTP and console tests cover strict fields, receipt binding, draft
+editing and the existing governed proposal route.
+
 ## Agent admission and upgrade order
 
 Upgrade the Hub before upgrading Agents. New Agents use

@@ -1,3 +1,4 @@
+import { mountWindowScheduler } from "./window-scheduler.js";
 import { mountReleaseDependencies } from "./release-dependencies.js";
 import { mountEnvironmentHub } from "./release-environment-hub.js";
 import { mountPlanInspector } from "./release-plan-inspector.js";
@@ -5233,7 +5234,16 @@ export function mountOperator(host, options) {
         });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),
-      "rm09-fleet-scheduler": renderS14EnvDetail,
+      "rm09-fleet-scheduler": (node) =>
+        mountWindowScheduler(node, state.hub, {
+          selectedId: state.releaseEnvironmentId || "",
+          onSelect: (id) => {
+            state.releaseEnvironmentId = id;
+            renderMainWorkspace();
+          },
+          onProposeFix: (environment, installationId) =>
+            liveHub.proposeFix(environment, installationId),
+        }),
       "rm10-ramped-rollout": releaseGates.renderers["rm10-ramped-rollout"],
       "rm03-plan-detail": renderRM03PlanDetail,
       "rm05-release-rollout": renderRM05ReleaseRollout,

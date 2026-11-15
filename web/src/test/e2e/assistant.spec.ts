@@ -1447,3 +1447,133 @@ test("release planning, ramp and windows use recorded data with explicit calenda
     "Recorded maintenance approval",
   );
 });
+
+test("window scheduler creates only a confirmed preview-bound change request", async ({
+  page,
+}) => {
+  const proposals: Record<string, any>[] = [];
+  const forbidden: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (
+      route.request().method() !== "GET" &&
+      /\/(approve|leases|start)$/.test(url.pathname)
+    )
+      forbidden.push(url.pathname);
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: { environments: [{ environment: { id: "scheduled-prod" } }] },
+      });
+    if (url.pathname === "/v1/plans")
+      return route.fulfill({
+        json: {
+          plans: [
+            {
+              id: "scheduled-plan",
+              status: "AWAITING_APPROVAL",
+              plan: {
+                environment: "scheduled-prod",
+                steps: [{ entity: "api", installationId: "api-1" }],
+              },
+            },
+          ],
+        },
+      });
+    if (url.pathname.endsWith("/timeline"))
+      return route.fulfill({ json: { timeline: [] } });
+    if (url.pathname === "/v1/blackouts")
+      return route.fulfill({
+        json: {
+          environment: url.searchParams.get("environment"),
+          blocked: false,
+        },
+      });
+    if (url.pathname === "/v1/temporary-maintenance-overrides") {
+      const body = route.request().postDataJSON();
+      proposals.push(body);
+      return route.fulfill({
+        json: {
+          valueTier: "CONDUIT_NATIVE",
+          dryRun: body.dryRun,
+          requests: [
+            {
+              changeRequestId: "scheduled-request",
+              ...body.entities[0],
+              startsAt: body.startsAt,
+              endsAt: new Date(
+                Date.parse(body.startsAt) +
+                  Number(body.duration.slice(0, -1)) * 60000,
+              ).toISOString(),
+              type: body.downtime ? "DOWNTIME" : "NO_DOWNTIME",
+              status: "PENDING_APPROVALS",
+            },
+          ],
+        },
+      });
+    }
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="windows"]').click();
+  const form = page.locator("[data-window-scheduler]");
+  const save = form.getByRole("button", { name: "Create change request" });
+  await expect(save).toBeDisabled();
+  await form
+    .locator('[name="start"]')
+    .fill(new Date(Date.now() + 2 * 3600000).toISOString().slice(0, 16));
+  await form.locator('[name="reason"]').fill("Reviewed maintenance");
+  await form.getByRole("button", { name: "Preview change request" }).click();
+  await expect(form.locator("[data-window-message]")).toContainText(
+    "Preview scheduled-request",
+  );
+  await form.locator('[name="minutes"]').fill("90");
+  await expect(save).toBeDisabled();
+  const bar = form.locator("[data-draft-bar]");
+  await bar.focus();
+  await bar.press("ArrowRight");
+  await bar.press("Shift+ArrowRight");
+  await expect(form.locator('[name="minutes"]')).toHaveValue("105");
+  const before = await form.locator('[name="start"]').inputValue();
+  const box = await bar.boundingBox();
+  expect(box).not.toBeNull();
+  await page.mouse.move(box!.x + 2, box!.y + 20);
+  await page.mouse.down();
+  await page.mouse.move(box!.x + 45, box!.y + 20);
+  await page.mouse.up();
+  await expect(form.locator('[name="start"]')).not.toHaveValue(before);
+  await form.getByRole("button", { name: "Preview change request" }).click();
+  await expect(form.locator("[data-window-message]")).toContainText(
+    "Preview scheduled-request",
+  );
+  await form.locator("[data-confirm-window]").check();
+  await save.click();
+  await expect(form.locator("[data-window-message]")).toContainText(
+    "Change request scheduled-request",
+  );
+  expect(proposals).toHaveLength(3);
+  expect(proposals.map((row) => row.dryRun)).toEqual([true, true, false]);
+  expect({
+    ...proposals[1],
+    dryRun: false,
+    expectedChangeRequestId: "scheduled-request",
+  }).toEqual(proposals[2]);
+  expect(proposals[2]!.entities).toEqual([
+    { environment: "scheduled-prod", entity: "api" },
+  ]);
+  expect(forbidden).toEqual([]);
+  await form.getByRole("button", { name: "Preview change request" }).click();
+  await expect(form.locator("[data-window-message]")).toContainText(
+    "Preview scheduled-request",
+  );
+  await form.locator("[data-confirm-window]").check();
+  await save.click();
+  await expect(form.locator("[data-window-message]")).toContainText(
+    "Submission already attempted",
+  );
+  expect(proposals.filter((row) => !row.dryRun)).toHaveLength(1);
+});
