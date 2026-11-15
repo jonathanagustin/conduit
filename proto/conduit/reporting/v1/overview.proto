@@ -1,0 +1,134 @@
+syntax = "proto3";
+
+// Package conduit.reporting.v1 describes the existing operator-filtered overview.
+package conduit.reporting.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/reporting/v1;reportingv1";
+
+// ReportingService reads authorized projections; it cannot approve or execute.
+service ReportingService {
+  // GetOverview maps GET /v1/overview. Each panel has independent availability.
+  rpc GetOverview(GetOverviewRequest) returns (GetOverviewResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+// GetOverviewRequest preserves the native Reporting overview shape.
+message GetOverviewRequest {
+}
+
+// GetOverviewResponse preserves the native Reporting overview shape.
+message GetOverviewResponse {
+  // generated_at maps the corresponding native JSON field.
+  google.protobuf.Timestamp generated_at = 1;
+  // stale_after_seconds maps the corresponding native JSON field.
+  int64 stale_after_seconds = 2;
+  // awaiting_approvals maps the corresponding native JSON field.
+  ChangeRequestPanel awaiting_approvals = 3;
+  // failed_plans maps the corresponding native JSON field.
+  PlanPanel failed_plans = 4;
+  // running_plans maps the corresponding native JSON field.
+  PlanPanel running_plans = 5;
+  // unhealthy_entities maps the corresponding native JSON field.
+  InstallationPanel unhealthy_entities = 6;
+  // stale_reports maps the corresponding native JSON field.
+  StaleReportPanel stale_reports = 7;
+  // blocked_promotions maps the corresponding native JSON field.
+  PromotionPanel blocked_promotions = 8;
+}
+
+// OverviewChangeRequest preserves the native Reporting overview shape.
+message OverviewChangeRequest {
+  // id maps the corresponding native JSON field.
+  string id = 1;
+  // title maps the corresponding native JSON field.
+  string title = 2;
+  // environment maps the corresponding native JSON field.
+  string environment = 3;
+}
+
+// OverviewPlan preserves the native Reporting overview shape.
+message OverviewPlan {
+  // id maps the corresponding native JSON field.
+  string id = 1;
+  // environment maps the corresponding native JSON field.
+  string environment = 2;
+}
+
+// OverviewInstallation preserves the native Reporting overview shape.
+message OverviewInstallation {
+  // environment maps the corresponding native JSON field.
+  string environment = 1;
+  // installation_id maps the corresponding native JSON field.
+  string installation_id = 2;
+  // health maps the corresponding native JSON field.
+  string health = 3;
+}
+
+// OverviewPromotion preserves the native Reporting overview shape.
+message OverviewPromotion {
+  // id maps the corresponding native JSON field.
+  string id = 1;
+  // product maps the corresponding native JSON field.
+  string product = 2;
+  // version maps the corresponding native JSON field.
+  string version = 3;
+  // from_channel maps the corresponding native JSON field.
+  string from_channel = 4;
+  // to_channel maps the corresponding native JSON field.
+  string to_channel = 5;
+}
+
+// ChangeRequestPanel preserves the native Reporting overview shape.
+message ChangeRequestPanel {
+  // status is CURRENT or UNAVAILABLE; unavailable is not an empty successful panel.
+  string status = 1;
+  // count maps the corresponding native JSON field.
+  int64 count = 2;
+  // items maps the corresponding native JSON field.
+  repeated OverviewChangeRequest items = 3;
+}
+
+// PlanPanel preserves the native Reporting overview shape.
+message PlanPanel {
+  // status is CURRENT or UNAVAILABLE; unavailable is not an empty successful panel.
+  string status = 1;
+  // count maps the corresponding native JSON field.
+  int64 count = 2;
+  // items maps the corresponding native JSON field.
+  repeated OverviewPlan items = 3;
+}
+
+// InstallationPanel preserves the native Reporting overview shape.
+message InstallationPanel {
+  // status is CURRENT or UNAVAILABLE; unavailable is not an empty successful panel.
+  string status = 1;
+  // count maps the corresponding native JSON field.
+  int64 count = 2;
+  // items maps the corresponding native JSON field.
+  repeated OverviewInstallation items = 3;
+}
+
+// StaleReportPanel preserves the native Reporting overview shape.
+message StaleReportPanel {
+  // status is CURRENT or UNAVAILABLE; unavailable is not an empty successful panel.
+  string status = 1;
+  // count maps the corresponding native JSON field.
+  int64 count = 2;
+  // items maps the corresponding native JSON field.
+  repeated google.protobuf.Empty items = 3;
+}
+
+// PromotionPanel preserves the native Reporting overview shape.
+message PromotionPanel {
+  // status is CURRENT or UNAVAILABLE; unavailable is not an empty successful panel.
+  string status = 1;
+  // count maps the corresponding native JSON field.
+  int64 count = 2;
+  // items maps the corresponding native JSON field.
+  repeated OverviewPromotion items = 3;
+}
+

@@ -111,3 +111,4 @@ tasks:
       buf generate
       python3 scripts/normalize-connect-stubs.py
       gofmt -w gen/go
+      pnpm --dir web exec oxfmt src/api/gen/conduit

@@ -261,7 +261,7 @@ jobs:
             go=true
             cli=true
           fi
-          if [ -n "$(matches '^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|^scripts/(build-console|test-console|verify-console-assets)\.sh$|^Containerfile$')" ]; then
+          if [ -n "$(matches '^proto/|^buf\.(yaml|gen\.yaml)$|^Taskfile\.yml$|^scripts/(verify-proto\.sh|normalize-connect-stubs\.py)$|^web/|^internal/consoleui/|(^|/)pnpm-lock\.yaml$|(^|/)pnpm-workspace\.yaml$|^scripts/(build-console|test-console|verify-console-assets)\.sh$|^Containerfile$')" ]; then
             console=true
           fi
           # Lint lane also holds documentation, Containerfile, renovate, and
@@ -435,6 +435,7 @@ jobs:
           # than the one the Trunk status names would be a verdict about code
           # that was never proposed.
           ref: ${{ env.GATE_SHA }}
+          fetch-depth: 0
       - name: Install pinned pnpm
         if: needs.scope.outputs.console == 'true'
         uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
@@ -485,6 +486,11 @@ jobs:
         with:
           go-version-file: go.mod
           cache: true
+      - name: Validate proto contracts
+        if: needs.scope.outputs.console == 'true'
+        env:
+          PROTO_BASE_SHA: ${{ github.event.pull_request.base.sha }}
+        run: ./scripts/verify-proto.sh
       - name: Validate operator console
         if: needs.scope.outputs.console == 'true'
         run: ./scripts/test-console.sh
