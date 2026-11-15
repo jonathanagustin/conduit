@@ -23,7 +23,7 @@ import type { Message } from "@bufbuild/protobuf";
 export const file_conduit_packaging_v1_packaging_run: GenFile =
   /*@__PURE__*/
   fileDesc(
-    "Cihjb25kdWl0L3BhY2thZ2luZy92MS9wYWNrYWdpbmdfcnVuLnByb3RvEhRjb25kdWl0LnBhY2thZ2luZy52MSIoChZHZXRQYWNrYWdpbmdSdW5SZXF1ZXN0Eg4KBnJ1bl9pZBgBIAEoCSKDAwoXR2V0UGFja2FnaW5nUnVuUmVzcG9uc2USDAoEdGllchgBIAEoCRISCgpjb25maWd1cmVkGAIgASgIEhEKCWF1dGhvcml0eRgDIAEoCRIWCg5wbGFuX2F1dGhvcml0eRgEIAEoCRIaChJhcHByb3ZhbF9hdXRob3JpdHkYBSABKAkSDgoGcnVuX2lkGAYgASgJEg0KBXBoYXNlGAcgASgJEg8KB291dGNvbWUYCCABKAkSDgoGcmVhc29uGAkgASgJEhUKDXNvdXJjZV9kaWdlc3QYCiABKAkSFwoPYXJ0aWZhY3RfZGlnZXN0GAsgASgJEhkKEXByb3Bvc2FsX3JldmlzaW9uGAwgASgJEhcKD3RhcmdldF9wbGFuX3JlZhgNIAEoCRIPCgdwbGFuX2lkGA4gASgJEhoKEmhhbmRvZmZfcmVjb25jaWxlZBgPIAEoCBITCgtsYXN0X3JldmlldxgQIAEoCRIZChFkdXBsaWNhdGVfcmV2aWV3cxgRIAEoBTKKAQoTUGFja2FnaW5nUnVuU2VydmljZRJzCg9HZXRQYWNrYWdpbmdSdW4SLC5jb25kdWl0LnBhY2thZ2luZy52MS5HZXRQYWNrYWdpbmdSdW5SZXF1ZXN0Gi0uY29uZHVpdC5wYWNrYWdpbmcudjEuR2V0UGFja2FnaW5nUnVuUmVzcG9uc2UiA5ACAUJMWkpnaXRodWIuY29tL2pvbmF0aGFuYWd1c3Rpbi9jb25kdWl0L2dlbi9nby9jb25kdWl0L3BhY2thZ2luZy92MTtwYWNrYWdpbmd2MWIGcHJvdG8z",
+    "Cihjb25kdWl0L3BhY2thZ2luZy92MS9wYWNrYWdpbmdfcnVuLnByb3RvEhRjb25kdWl0LnBhY2thZ2luZy52MSIoChZHZXRQYWNrYWdpbmdSdW5SZXF1ZXN0Eg4KBnJ1bl9pZBgBIAEoCSK0AwoXR2V0UGFja2FnaW5nUnVuUmVzcG9uc2USDAoEdGllchgBIAEoCRISCgpjb25maWd1cmVkGAIgASgIEhEKCWF1dGhvcml0eRgDIAEoCRIWCg5wbGFuX2F1dGhvcml0eRgEIAEoCRIaChJhcHByb3ZhbF9hdXRob3JpdHkYBSABKAkSDgoGcnVuX2lkGAYgASgJEg0KBXBoYXNlGAcgASgJEg8KB291dGNvbWUYCCABKAkSDgoGcmVhc29uGAkgASgJEhUKDXNvdXJjZV9kaWdlc3QYCiABKAkSFwoPYXJ0aWZhY3RfZGlnZXN0GAsgASgJEhkKEXByb3Bvc2FsX3JldmlzaW9uGAwgASgJEhcKD3RhcmdldF9wbGFuX3JlZhgNIAEoCRIPCgdwbGFuX2lkGA4gASgJEhoKEmhhbmRvZmZfcmVjb25jaWxlZBgPIAEoCBITCgtsYXN0X3JldmlldxgQIAEoCRIZChFkdXBsaWNhdGVfcmV2aWV3cxgRIAEoBRIYChB0ZW1wbGF0ZV92ZXJzaW9uGBIgASgJEhUKDXRvb2xfdmVyc2lvbnMYEyABKAkyigEKE1BhY2thZ2luZ1J1blNlcnZpY2UScwoPR2V0UGFja2FnaW5nUnVuEiwuY29uZHVpdC5wYWNrYWdpbmcudjEuR2V0UGFja2FnaW5nUnVuUmVxdWVzdBotLmNvbmR1aXQucGFja2FnaW5nLnYxLkdldFBhY2thZ2luZ1J1blJlc3BvbnNlIgOQAgFCTFpKZ2l0aHViLmNvbS9qb25hdGhhbmFndXN0aW4vY29uZHVpdC9nZW4vZ28vY29uZHVpdC9wYWNrYWdpbmcvdjE7cGFja2FnaW5ndjFiBnByb3RvMw",
   );
 
 /**
@@ -174,6 +174,20 @@ export type GetPackagingRunResponse =
      * @generated from field: int32 duplicate_reviews = 17;
      */
     duplicateReviews: number;
+
+    /**
+     * template_version is the REST field templateVersion.
+     *
+     * @generated from field: string template_version = 18;
+     */
+    templateVersion: string;
+
+    /**
+     * tool_versions is the REST field toolVersions.
+     *
+     * @generated from field: string tool_versions = 19;
+     */
+    toolVersions: string;
   };
 
 /**

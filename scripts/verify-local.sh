@@ -217,6 +217,7 @@ gate 'Validate mutation scores' bash -c 'node scripts/mutation-report-score.test
 gate 'Validate PostgreSQL repository' ./scripts/test-postgres-repository.sh
 gate 'Vet' go vet ./...
 gate 'Validate standalone CLI release targets' ./scripts/verify-cli-release-targets.sh
+gate 'Validate proto contracts' ./scripts/verify-proto.sh
 gate 'Validate operator console' ./scripts/test-console.sh
 gate 'Validate console contract' bash -c './scripts/verify-console-contract.test.sh && node scripts/verify-console-contract.mjs'
 gate 'Validate design tokens against the captured product' bash -c './scripts/verify-design-tokens.test.sh && node scripts/verify-design-tokens.mjs'
