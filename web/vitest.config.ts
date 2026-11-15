@@ -13,4 +13,5 @@ export default defineConfig({
     include: ["src/test/unit/**/*.test.ts"],
     environment: "node",
   },
+  css: { postcss: { plugins: [] } },
 });
