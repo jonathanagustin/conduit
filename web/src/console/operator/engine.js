@@ -475,7 +475,7 @@ export function mountOperator(host, options) {
       id: "rm03-plan-detail",
       num: 22,
       short: "Plan Inspector",
-      tabTitle: "PLN-2026-0416 · Failed",
+      tabTitle: "Plan execution inspector",
       hasSidebar: false,
       showKpis: false,
       appGroup: "plans_gov",
@@ -1080,6 +1080,9 @@ export function mountOperator(host, options) {
         { id: "plans", label: "Plans", screen: "rm03-plan-detail" },
         { id: "channels", label: "Channels", screen: "rm-channels" },
         { id: "waves", label: "Waves", screen: "rm-waves" },
+        { id: "windows", label: "Windows", screen: "rm09-fleet-scheduler" },
+        { id: "planning", label: "Planning", screen: "s15-plan-detail" },
+        { id: "ramp", label: "Ramp", screen: "rm10-ramped-rollout" },
         {
           id: "convergence",
           label: "Convergence",
@@ -3467,187 +3470,9 @@ export function mountOperator(host, options) {
   }
 
   function renderS15PlanDetail(root) {
-    const ok = state.planSimQuorum && state.planSimWindow;
-    const reqs = [
-      {
-        name: "Validation passed",
-        st: "Pass",
-        tone: "green",
-        desc: "14/14 cluster dry-runs clean",
-      },
-      {
-        name: "Signatures verified",
-        st: "Pass",
-        tone: "green",
-        desc: "Signed with prod-root-2026",
-      },
-      {
-        name: `Required approvals (${state.planSimQuorum ? "2/2" : "1/2"})`,
-        st: state.planSimQuorum ? "Pass" : "Blocked",
-        tone: state.planSimQuorum ? "green" : "red",
-        desc: state.planSimQuorum
-          ? "2/2 @fleet-approvers signed"
-          : "Needs 1 more @fleet-approvers signer",
-        tog: "state.planSimQuorum=!state.planSimQuorum",
-      },
-      {
-        name: "No rejections",
-        st: "Pass",
-        tone: "green",
-        desc: "0 active holds on revision r3",
-      },
-      {
-        name: "Maintenance window open",
-        st: state.planSimWindow ? "Pass" : "Blocked",
-        tone: state.planSimWindow ? "green" : "amber",
-        desc: state.planSimWindow
-          ? "Window override active"
-          : "Opens 02:00 UTC (in 4h 06m)",
-        tog: "state.planSimWindow=!state.planSimWindow",
-      },
-    ];
-
-    root.innerHTML = `
-        <div class="space-y-3 h-full flex flex-col">
-          <!-- Control Tower Banner Matched to f_06_05_ct2.png -->
-          <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-3 shrink-0">
-            <div>
-              <div class="flex items-center gap-2.5">
-                <span class="text-[15.5px] font-bold text-[#ffffff]">Release Plan Control Tower · PLN-2026-0418</span>
-                ${pill(ok ? "Approved" : "Awaiting Approval", ok ? "green" : "amber")}
-              </div>
-              <div class="text-[11.5px] text-[#6d7885] mt-0.5">uds-core 0.31.2 + CR-308 across 14 Environments. Final gate review pending.</div>
-            </div>
-            <div class="flex flex-wrap items-center gap-2.5">
-              ${agentChip("Gate Engine", 5, 1)}
-              ${ontChip("ConduitPlan", 14, 1)}
-              <div class="flex items-center gap-2 pl-2 border-l border-[#1f2933] tnum">
-                <div><div class="text-[15px] font-bold text-[#e76a6e]">3 Drifts</div><div class="text-[8.5px] text-[#6d7885]">BASELINE</div></div>
-                <span class="text-[#596573]">&rarr;</span>
-                <div><div class="text-[15px] font-bold text-[#34d399]">0 Drifts</div><div class="text-[8.5px] text-[#6d7885]">POST-WAVE</div></div>
-              </div>
-            </div>
-          </div>
-
-          <!-- 3-Column Control Tower Body Matched to f_06_05_ct2.png -->
-          <div class="so-tri-layout so-resp-stack flex-1 min-h-0 flex gap-3 items-stretch">
-            <!-- Left: Requirements Checklist -->
-            <div class="so-resp-full so-panel w-[262px] shrink-0 flex flex-col overflow-hidden">
-              <div class="px-3 py-2 border-b border-[#1c242c] flex justify-between items-center">
-                <span class="text-[12.5px] font-semibold text-[#ffffff]">Requirements Gate</span>
-                <span class="tnum text-[11px] text-[#9881f3]">${ok ? "5/5" : "3/5"}</span>
-              </div>
-              <div class="p-2.5 space-y-2 overflow-y-auto flex-1">
-                ${reqs
-                  .map(
-                    (r) => `
-                  <div class="so-card p-2.5 space-y-1">
-                    <div class="flex items-center justify-between"><span class="font-medium text-[11.5px] text-[#f0f5fa]">${r.name}</span>${pill(r.st, r.tone)}</div>
-                    <div class="text-[10.5px] text-[#8b96a5]">${r.desc}</div>
-                    ${r.tog ? `<button data-onclick="${r.tog}; renderMainWorkspace()" class="text-[10px] text-[#5c9ce6] hover:underline">Simulate unblock</button>` : ""}
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-            </div>
-
-            <!-- Center: Wave Rollout Gantt Timeline -->
-            <div class="so-panel flex-1 min-w-0 p-3 flex flex-col justify-between overflow-y-auto">
-              <div class="so-grid-3 gap-2">
-                <div class="so-card p-2.5"><div class="text-[9.5px] uppercase text-[#6d7885]">CANARY IMPACT</div><div class="text-[14px] font-bold text-[#34d399] tnum mt-1">2 Clusters · 0 Drop</div></div>
-                <div class="so-card p-2.5"><div class="text-[9.5px] uppercase text-[#6d7885]">REGIONAL EDGE</div><div class="text-[14px] font-bold text-[#60a5fa] tnum mt-1">6 Clusters · 02:00Z</div></div>
-                <div class="so-card p-2.5"><div class="text-[9.5px] uppercase text-[#6d7885]">DIODE / COURIER</div><div class="text-[14px] font-bold text-[#eab854] tnum mt-1">6 Clusters · 63.8MB</div></div>
-              </div>
-
-              <div class="space-y-2.5 my-2">
-                <div class="text-[12.5px] font-semibold text-[#ffffff]">Target Environments Rollout Waves (14 Clusters)</div>
-                ${[
-                  [
-                    "Wave 1 · Canary (edge-west-01, south-06)",
-                    8,
-                    24,
-                    "#32a467",
-                    "15m soak",
-                  ],
-                  [
-                    "Wave 2 · Regional (edge-west-02..07)",
-                    32,
-                    34,
-                    "#b78128",
-                    "02:00Z window",
-                  ],
-                  [
-                    "Wave 3 · Optical Diode (offline-vault-04 +3)",
-                    50,
-                    30,
-                    "#2d72d2",
-                    "Diode spool",
-                  ],
-                  [
-                    "Wave 3B · Courier (forward-arctic-01 +1)",
-                    68,
-                    26,
-                    "#6d5acd",
-                    "Signed media",
-                  ],
-                ]
-                  .map(
-                    (w) => `
-                  <div data-onclick="switchScreen('s14-env-detail')" class="space-y-1 cursor-pointer">
-                    <div class="flex justify-between text-[11px]"><span class="text-[#dce4ee]">${w[0]}</span><span class="tnum text-[#8b96a5]">${w[4]}</span></div>
-                    <div class="h-4 w-full bg-[#090e12] rounded border border-[#19222b] relative overflow-hidden">
-                      <div class="h-full rounded-[2px] flex items-center justify-center text-[9.5px] font-semibold text-white" style="margin-left:${w[1]}%;width:${w[2]}%;background:${w[3]}">${w[4]}</div>
-                    </div>
-                  </div>
-                `,
-                  )
-                  .join("")}
-              </div>
-
-              <div class="so-card overflow-hidden mt-2">
-                <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] flex items-center justify-between">
-                  <span class="text-[11.5px] font-semibold text-[#ffffff]">Cohort Spoke Dispatch Queue</span>
-                  <span class="tnum text-[10.5px] text-[#8b96a5]">14 Environments · 3 Spokes</span>
-                </div>
-                <div class="so-table-scroll"><table class="so-table">
-                  <thead><tr><th>Cohort</th><th>Spoke</th><th>Clusters</th><th>Transfer</th><th>Status</th></tr></thead>
-                  <tbody>
-                    <tr data-onclick="switchScreen('s14-env-detail')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 1 Canary</td><td class="code-id text-[#8b96a5]">spoke-west-relay</td><td class="tnum">2</td><td class="code-id text-[#8b96a5]">mTLS stream</td><td>${pill("Ready", "green")}</td></tr>
-                    <tr data-onclick="switchScreen('s14-env-detail')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 2 Regional</td><td class="code-id text-[#8b96a5]">spoke-west-relay</td><td class="tnum">6</td><td class="code-id text-[#8b96a5]">02:00Z hold</td><td>${pill("Window Hold", "amber")}</td></tr>
-                    <tr data-onclick="switchScreen('s08-staged-run')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 3 Diode</td><td class="code-id text-[#8b96a5]">spoke-diode-hall-b</td><td class="tnum">4</td><td class="code-id text-[#8b96a5]">63.8 MB zstd</td><td>${pill("Staged", "blue")}</td></tr>
-                    <tr data-onclick="switchScreen('s17-spokes-audit')" class="cursor-pointer"><td class="font-medium text-[#f0f5fa]">Wave 3B Courier</td><td class="code-id text-[#8b96a5]">spoke-courier-vault</td><td class="tnum">2</td><td class="code-id text-[#8b96a5]">Media manifest</td><td>${pill("Queued", "purple")}</td></tr>
-                  </tbody>
-                </table></div>
-              </div>
-            </div>
-
-            <!-- Right: Downstream Approval Actions -->
-            <div class="so-resp-full so-panel w-[248px] shrink-0 p-3 flex flex-col justify-between">
-              <div class="space-y-2.5">
-                <div class="text-[12.5px] font-semibold text-[#ffffff]">Downstream Actions</div>
-                <div class="so-card p-2.5 space-y-1.5">
-                  <div class="text-[11.5px] font-medium text-[#f0f5fa]">1. Co-sign @fleet-approvers quorum</div>
-                  <div class="text-[10.5px] text-[#8b96a5]">M. Chen signed; 1 reviewer remaining</div>
-                </div>
-                <div class="so-card p-2.5 space-y-1.5">
-                  <div class="text-[11.5px] font-medium text-[#f0f5fa]">2. Queue for 02:00 UTC window</div>
-                  <div class="text-[10.5px] text-[#8b96a5]">Auto-dispatches to spoke-west-relay</div>
-                </div>
-              </div>
-              <div class="space-y-2 pt-3 border-t border-[#1c242c]">
-                ${governedBtn({ label: "Approve Plan", role: "Release Approver", auditEvent: "plan.approved", onClickJs: "", cls: "so-btn so-btn-emerald w-full", iconName: ok ? "check" : "lock", blockedReason: ok ? "" : "Blocked while 2 Requirements are unmet" })}
-                ${governedBtn({ label: "Reject Plan", role: "Release Approver", auditEvent: "plan.rejected", onClickJs: "", cls: "so-btn so-btn-outline-danger w-full", iconName: "cross" })}
-              </div>
-            </div>
-          </div>
-        </div>
-      `;
+    renderRM03PlanDetail(root);
   }
 
-  // =========================================================================
-  // SCREEN 16: APPROVALS BOARD (Matched 1:1 to Conduit Kanban f_04_08_comms_kan.png!)
-  // =========================================================================
   function renderS16ApprovalsBoard(root) {
     const cols = [
       { k: "Proposed", icon: "inbox", col: "#8b96a5" },
@@ -5408,6 +5233,8 @@ export function mountOperator(host, options) {
         });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),
+      "rm09-fleet-scheduler": renderS14EnvDetail,
+      "rm10-ramped-rollout": releaseGates.renderers["rm10-ramped-rollout"],
       "rm03-plan-detail": renderRM03PlanDetail,
       "rm05-release-rollout": renderRM05ReleaseRollout,
       "rm02-env-activity": renderRM02EnvActivity,
