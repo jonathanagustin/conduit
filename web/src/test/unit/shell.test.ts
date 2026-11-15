@@ -11,17 +11,43 @@ import {
   writePref,
 } from "../../console/operator/shell.js";
 
+const installed = (environment: string, version = "1", observed = version) => ({
+  environment,
+  desiredVersion: version,
+  observedVersion: observed,
+  desiredReleaseDigest: "sha256:a",
+  observedReleaseDigest: "sha256:a",
+  desiredConfigDigest: "sha256:b",
+  observedConfigDigest: "sha256:b",
+  observedAt: "2026-11-15T12:00:00Z",
+  stale: false,
+  lifecycle: "INSTALLED",
+  configStatus: "APPLIED",
+  rolloutStatus: "UP_TO_DATE",
+  health: "HEALTHY",
+});
 const full = {
   environments: [
-    { environment: { id: "e1" }, reported: { agentId: "a1" } },
-    { environment: { id: "e2" }, reported: { agentId: "a1" } },
-    { environment: { id: "e3", maintenance: true } },
+    {
+      environment: { id: "e1" },
+      reported: { agentId: "a1" },
+      spoke: { state: "live", agentId: "a1" },
+    },
+    {
+      environment: { id: "e2" },
+      reported: { agentId: "a1" },
+      spoke: { state: "live", agentId: "a1" },
+    },
+    {
+      environment: { id: "e3", maintenance: true },
+      spoke: { state: "unreachable", agentId: "" },
+    },
   ],
   installations: [
-    { desiredVersion: "1", observedVersion: "1" },
-    { desiredVersion: "1", observedVersion: "1" },
-    { desiredVersion: "2", observedVersion: "2" },
-    { desiredVersion: "2", observedVersion: "1" },
+    installed("e1"),
+    installed("e1"),
+    installed("e2", "2"),
+    installed("e2", "2", "1"),
   ],
   packaging: [
     { phase: "running" },
@@ -29,6 +55,7 @@ const full = {
     { phase: "succeeded" },
     { phase: "failed" },
     { phase: "cancelled" },
+    { phase: "complete" },
   ],
   plans: [{ status: "pending_approval" }, { status: "applied" }],
   changes: [{ status: "pending" }, { status: "merged" }],
@@ -43,36 +70,88 @@ describe("kpisFromHub", () => {
       "convergence",
       "environments",
       "packaging",
-      "plans",
+      "spokes",
       "changes",
     ]);
-    expect(byId(k, "convergence").value).toBe("75%");
+    expect(byId(k, "convergence").value).toBe("1");
+    expect(byId(k, "convergence").sub).toBe("1 of 3 environments in sync");
     expect(byId(k, "environments").value).toBe("3");
-    expect(byId(k, "environments").sub).toBe("2 reporting");
+    expect(byId(k, "environments").sub).toBe("authorized rows");
     expect(byId(k, "packaging").value).toBe("1");
     expect(byId(k, "packaging").sub).toBe("1 blocked");
-    expect(byId(k, "plans").value).toBe("2");
-    expect(byId(k, "plans").sub).toBe("1 awaiting approval");
+    expect(byId(k, "spokes").value).toBe("1");
     expect(byId(k, "changes").value).toBe("1");
     expect(allLive(k)).toBe(true);
     for (const x of k) expect(["ok", "info", "warn", "bad"]).toContain(x.tone);
   });
 
-  it("does not count a never-reported installation as drift", () => {
-    const unreported = {
-      ...full,
-      installations: [{ desiredVersion: "0.1.0", observedVersion: "" }],
-    };
-    expect(byId(kpisFromHub(unreported), "changes").sub).toBe("0 drift");
+  it("requires complete fresh evidence for every installation and never counts an empty environment", () => {
+    for (const override of [
+      { observedAt: "" },
+      { stale: true },
+      { configStatus: "DRIFTED" },
+      { observedConfigDigest: "sha256:wrong" },
+      { health: "UNKNOWN" },
+      { observedReleaseDigest: "" },
+    ]) {
+      expect(
+        byId(
+          kpisFromHub({
+            ...full,
+            installations: [{ ...installed("e1"), ...override }],
+          }),
+          "convergence",
+        ).value,
+      ).toBe("0");
+    }
+    expect(
+      byId(kpisFromHub({ ...full, installations: [] }), "convergence").value,
+    ).toBe("0");
+  });
+  it("distinguishes failed reads from empty lists and never infers online from a historical report", () => {
+    for (const [note, id] of [
+      ["note", "environments"],
+      ["installationNote", "convergence"],
+      ["packagingNote", "packaging"],
+      ["changeNote", "changes"],
+    ]) {
+      expect(byId(kpisFromHub({ ...full, [note!]: "denied" }), id!).value).toBe(
+        "—",
+      );
+    }
+    expect(
+      byId(
+        kpisFromHub({
+          ...full,
+          environments: [{ reported: { agentId: "a1" } }],
+        }),
+        "spokes",
+      ).value,
+    ).toBe("—");
+    expect(
+      byId(
+        kpisFromHub({
+          ...full,
+          environments: [{ spoke: { state: "stale", agentId: "a1" } }],
+        }),
+        "spokes",
+      ).value,
+    ).toBe("0");
   });
 
-  it("counts drift", () => {
-    expect(byId(kpisFromHub(full), "changes").sub).toBe("1 drift");
-    const none = {
-      ...full,
-      installations: [{ desiredVersion: "1", observedVersion: "1" }],
-    };
-    expect(byId(kpisFromHub(none), "changes").sub).toBe("0 drift");
+  it("does not count unknown run phases as in-flight or a zero", () => {
+    expect(
+      byId(
+        kpisFromHub({ ...full, packaging: [{ phase: "unrecognized" }] }),
+        "packaging",
+      ).value,
+    ).toBe("—");
+    expect(
+      byId(
+        kpisFromHub({ ...full, packaging: [{ phase: "complete" }] }),
+        "packaging",
+      ).value,
+    ).toBe("0");
   });
 
   it("marks missing lists as not live", () => {
@@ -84,8 +163,8 @@ describe("kpisFromHub", () => {
     }
     expect(allLive(k)).toBe(false);
     expect(kpisFromHub(null)).toHaveLength(5);
-    const partial = kpisFromHub({ ...full, plans: null });
-    expect(byId(partial, "plans").live).toBe(false);
+    const partial = kpisFromHub({ ...full, changes: null });
+    expect(byId(partial, "changes").live).toBe(false);
     expect(allLive(partial)).toBe(false);
   });
 });

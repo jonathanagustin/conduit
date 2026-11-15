@@ -24,6 +24,7 @@ const bootstrap = {
 };
 async function fixture(page: Page, status = 200) {
   let planStatus = "RUNNING";
+  let completed = false;
   const writes: string[] = [],
     reads: string[] = [];
   await page.route("**/console/**", async (route) => {
@@ -68,30 +69,72 @@ async function fixture(page: Page, status = 200) {
             resources: [],
           }
         : path === "/v1/environments"
-          ? { environments: [{ id: "dev" }] }
+          ? {
+              environments: [
+                {
+                  environment: { id: "dev" },
+                  spoke: {
+                    state: completed ? "live" : "stale",
+                    agentId: "agent_live",
+                  },
+                },
+              ],
+            }
           : path === "/v1/fleet/installations"
-            ? { installations: [] }
+            ? {
+                installations: [
+                  {
+                    environment: "dev",
+                    desiredVersion: "1",
+                    observedVersion: "1",
+                    desiredReleaseDigest: "sha256:a",
+                    observedReleaseDigest: "sha256:a",
+                    desiredConfigDigest: "sha256:b",
+                    observedConfigDigest: "sha256:b",
+                    observedAt: "2026-11-15T12:00:00Z",
+                    stale: false,
+                    lifecycle: "INSTALLED",
+                    configStatus: "APPLIED",
+                    rolloutStatus: "UP_TO_DATE",
+                    health: completed ? "HEALTHY" : "UNKNOWN",
+                  },
+                ],
+              }
             : path === "/v1/products"
               ? { products: [] }
               : path === "/v1/packaging-runs"
-                ? { configured: true, items: [] }
+                ? {
+                    configured: true,
+                    items: [
+                      {
+                        runId: "run_live",
+                        phase: completed ? "complete" : "review",
+                      },
+                    ],
+                  }
                 : path === "/v1/change-requests"
-                  ? { changeRequests: [] }
-                  : path === "/v1/promotions"
-                    ? { promotions: [] }
-                    : path === "/v1/plans"
-                      ? {
-                          plans: [
-                            {
-                              id: "pln_live",
-                              status: planStatus,
-                              plan: { environment: "dev", steps: [] },
-                            },
-                          ],
-                        }
-                      : path === "/v1/environments/dev/timeline"
-                        ? { timeline: [] }
-                        : {};
+                  ? {
+                      changeRequests: completed
+                        ? []
+                        : [{ id: "cr_live", status: "pending" }],
+                    }
+                  : path === "/v1/packaging-runs/run_live/events"
+                    ? { items: [], total: 0 }
+                    : path === "/v1/promotions"
+                      ? { promotions: [] }
+                      : path === "/v1/plans"
+                        ? {
+                            plans: [
+                              {
+                                id: "pln_live",
+                                status: planStatus,
+                                plan: { environment: "dev", steps: [] },
+                              },
+                            ],
+                          }
+                        : path === "/v1/environments/dev/timeline"
+                          ? { timeline: [] }
+                          : {};
     await route.fulfill({ json: value });
   });
   // A browser-native streaming response exercises real chunk parsing/lifecycle
@@ -141,6 +184,9 @@ async function fixture(page: Page, status = 200) {
   return {
     writes,
     reads,
+    completeMetrics() {
+      completed = true;
+    },
     setStatus(value: string) {
       planStatus = value;
     },
@@ -220,4 +266,77 @@ test("live permission failure is visible and leaves polling active without recon
     cursor: null,
   });
   expect(current.writes).toEqual([]);
+});
+
+test("Audit session feed and native KPI counts update from authorized invalidations without writes", async ({
+  page,
+}, testInfo) => {
+  await page.clock.install();
+  const current = await fixture(page);
+  await page.goto("/console/#area-packaging");
+  await expect(page.locator("#live-events-status")).toHaveAttribute(
+    "data-live-state",
+    "live",
+  );
+  const kpi = (id: string) =>
+    page.locator(`[data-kpi="${id}"] .kpi-value .tnum`);
+  await expect(kpi("convergence")).toHaveText("0");
+  await expect(kpi("packaging")).toHaveText("1");
+  await expect(kpi("changes")).toHaveText("1");
+  await expect(kpi("spokes")).toHaveText("0");
+  current.completeMetrics();
+  await page.evaluate(() => {
+    const source = (
+      window as unknown as { __conduitLiveFixture: BrowserStream }
+    ).__conduitLiveFixture;
+    for (const sequence of [1, 1, 2]) {
+      const event = {
+        version: 1,
+        streamID: "s_browser",
+        sequence,
+        cursor: `c_${sequence}`,
+        occurredAt: "2026-11-15T12:00:00Z",
+        kind: "index.invalidated",
+        resource: { type: "index", id: "idx_operations", revision: sequence },
+        data: { areas: ["plans", "approvals", "packaging", "fleet", "kpi"] },
+      };
+      source.controller!.enqueue(
+        new TextEncoder().encode(
+          `id: ${event.cursor}\nevent: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`,
+        ),
+      );
+    }
+  });
+  await expect(kpi("convergence")).toHaveText("1");
+  await expect(kpi("packaging")).toHaveText("0");
+  await expect(kpi("changes")).toHaveText("0");
+  await expect(kpi("spokes")).toHaveText("1");
+  await page.evaluate(() =>
+    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
+      "au01-audit",
+    ),
+  );
+  const feed = page.locator("[data-live-operations]");
+  await expect(feed).toBeVisible();
+  await expect(feed.locator("[data-operation-sequence]")).toHaveCount(2);
+  await expect(
+    feed.locator("[data-operation-sequence]").first(),
+  ).toHaveAttribute("data-operation-sequence", "2");
+  await expect(feed).toContainText("Authorized index refreshed");
+  await expect(feed).toContainText("not a complete event history");
+  await expect(feed).not.toContainText("c_1");
+  expect(current.writes).toEqual([]);
+  await page.screenshot({
+    path: testInfo.outputPath("live-operations-audit.png"),
+  });
+  await page.clock.pauseAt(new Date(Date.now() + 1000));
+  await page.evaluate(() =>
+    (
+      window as unknown as { __conduitLiveFixture: BrowserStream }
+    ).__conduitLiveFixture.controller!.close(),
+  );
+  await expect(feed.locator("[data-operations-state]")).toHaveAttribute(
+    "data-operations-state",
+    "offline",
+  );
 });
