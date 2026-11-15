@@ -2065,7 +2065,16 @@ test("spoke operations uses recorded workloads and opens the exact environment",
               },
             },
             {
-              environment: { id: "west" },
+              environment: {
+                id: "west",
+                namespaces: [
+                  {
+                    name: "west-declared",
+                    rid: "namespace/west",
+                    deletionProtected: true,
+                  },
+                ],
+              },
               spoke: { state: "live", agentId: "agent-west" },
               reported: {
                 agentId: "agent-west",
@@ -2076,6 +2085,21 @@ test("spoke operations uses recorded workloads and opens the exact environment",
                     namespace: "west-ns",
                     version: "2",
                     health: "HEALTHY",
+                    healthDetails: {
+                      nodes: [
+                        {
+                          nodeId: "west-pod-observed",
+                          result: "HEALTHY",
+                          containers: [
+                            {
+                              containerId: "west-container",
+                              liveness: true,
+                              readiness: false,
+                            },
+                          ],
+                        },
+                      ],
+                    },
                   },
                 ],
               },
@@ -2114,6 +2138,15 @@ test("spoke operations uses recorded workloads and opens the exact environment",
   await expect(
     page.locator("#main-workspace [data-spoke-workloads]"),
   ).not.toContainText("east-product");
+  await expect(
+    page.locator("#main-workspace [data-spoke-namespaces]"),
+  ).toContainText("west-declared");
+  await expect(
+    page.locator("#main-workspace [data-spoke-instances]"),
+  ).toContainText("west-pod-observed");
+  await expect(
+    page.locator("#main-workspace [data-spoke-instances]"),
+  ).toContainText("readiness no");
   expect(writes).toEqual([]);
 });
 
