@@ -156,12 +156,53 @@ export function clampDockWidth(px) {
 }
 
 export const DOCK_SURFACES = [
-  { id: "inspector", label: "Inspector", glyph: "⊙" },
-  { id: "assistant", label: "Assistant", glyph: "✦" },
-  { id: "outline", label: "Outline", glyph: "☰" },
-  { id: "windows", label: "Windows", glyph: "⛉" },
-  { id: "live", label: "Live", glyph: "⚑" },
+  {
+    id: "inspector",
+    label: "Inspector",
+    glyph: "⊙",
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><circle cx="8" cy="8" r="2.2"/></svg>',
+  },
+  {
+    id: "assistant",
+    label: "Assistant",
+    glyph: "✦",
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 1.8l1.6 3.9L13.5 7.3l-3.9 1.6L8 12.8 6.4 8.9 2.5 7.3l3.9-1.6L8 1.8z"/></svg>',
+  },
+  {
+    id: "outline",
+    label: "Outline",
+    glyph: "☰",
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M2.5 4h11M2.5 8h11M2.5 12h11"/></svg>',
+  },
+  {
+    id: "windows",
+    label: "Windows",
+    glyph: "⛉",
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6"/><path d="M8 4.5V8l2.5 2.5"/></svg>',
+  },
+  {
+    id: "live",
+    label: "Live",
+    glyph: "⚑",
+    icon: '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M3.5 2v12M3.5 3h8.5l-2 4 2 4H3.5"/></svg>',
+  },
 ];
+
+export function dockSurfaceCounts(hub) {
+  const envs = Array.isArray(hub?.environments) ? hub.environments : [];
+  const windowCount = envs.filter((row) => {
+    const m = row?.environment?.maintenance;
+    return m && typeof m === "object" && Object.keys(m).length > 0;
+  }).length;
+  const auditEntries = Array.isArray(hub?.audit) ? hub.audit : [];
+  return {
+    inspector: 0,
+    assistant: 0,
+    outline: 0,
+    windows: windowCount,
+    live: auditEntries.length,
+  };
+}
 
 const defaultEsc = (v) =>
   String(v ?? "").replace(

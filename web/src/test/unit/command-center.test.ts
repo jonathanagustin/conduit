@@ -66,4 +66,26 @@ describe("command center overview", () => {
   it("says so before the Hub has answered", () => {
     expect(overviewMarkup(undefined)).toContain("Reading the Hub");
   });
+
+  it("renders governance opportunities with bp6-entity-title and preserved button contracts", () => {
+    const html = overviewMarkup(hub, { now });
+    expect(html).toContain(
+      'article class="kit-cc-opportunity" data-opportunity-kind="ChangeRequest"',
+    );
+    expect(html).toContain(
+      'article class="kit-cc-opportunity" data-opportunity-kind="Environment"',
+    );
+    expect(html).toContain("bp6-entity-title");
+    expect(html).toContain("bp6-entity-title-has-icon");
+    expect(html).toContain(
+      '<h3 class="bp6-entity-title-title">Raise memory</h3>',
+    );
+    expect(html).toContain(
+      'data-cc-opportunity="ChangeRequest:cr-1" data-cc-purpose="ask" aria-label="Ask about Raise memory"',
+    );
+    expect(html).toContain(
+      'data-cc-opportunity="ChangeRequest:cr-1" data-cc-purpose="review" aria-label="Review ChangeRequest cr-1"',
+    );
+    expect(html).toContain('<p class="kit-muted">PENDING_APPROVALS</p>');
+  });
 });
