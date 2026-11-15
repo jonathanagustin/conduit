@@ -1,0 +1,457 @@
+[
+  {
+    "name": "duplicate",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "ignore",
+      "apply"
+    ],
+    "sequence": 2,
+    "revision": 2
+  },
+  {
+    "name": "late-replay",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "apply",
+      "ignore"
+    ],
+    "sequence": 2,
+    "revision": 2
+  },
+  {
+    "name": "out-of-order-gap",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 3,
+        "cursor": "cursor_operator-stream-1_3",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 3
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "resync",
+      "resync"
+    ],
+    "sequence": 1,
+    "revision": 1
+  },
+  {
+    "name": "different-stream",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-2",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-2_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "resync"
+    ],
+    "sequence": 1,
+    "revision": 1
+  },
+  {
+    "name": "older-resource-revision",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 4
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 3
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 3,
+        "cursor": "cursor_operator-stream-1_3",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 5
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "ignore-resource",
+      "apply"
+    ],
+    "sequence": 3,
+    "revision": 5
+  },
+  {
+    "name": "no-initial-event",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "resync"
+    ],
+    "sequence": 0,
+    "revision": 0
+  },
+  {
+    "name": "resource-revisions-are-scoped",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-2",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 3,
+        "cursor": "cursor_3",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "apply",
+      "apply"
+    ],
+    "sequence": 3,
+    "revision": 2
+  },
+  {
+    "name": "timestamps-do-not-order",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T11:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 2
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "apply"
+    ],
+    "sequence": 2,
+    "revision": 2
+  },
+  {
+    "name": "same-resource-revision-is-idempotent",
+    "events": [
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 1,
+        "cursor": "cursor_operator-stream-1_1",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      },
+      {
+        "version": 1,
+        "streamID": "operator-stream-1",
+        "sequence": 2,
+        "cursor": "cursor_operator-stream-1_2",
+        "occurredAt": "2026-11-14T12:00:00Z",
+        "kind": "plan.changed",
+        "resource": {
+          "type": "plan",
+          "id": "plan-1",
+          "revision": 1
+        },
+        "data": {
+          "status": "AWAITING_APPROVAL"
+        }
+      }
+    ],
+    "actions": [
+      "apply",
+      "ignore-resource"
+    ],
+    "sequence": 2,
+    "revision": 1
+  }
+]
