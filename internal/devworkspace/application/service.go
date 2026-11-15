@@ -491,7 +491,8 @@ func (service *Service) Download(ctx context.Context, caller domain.Caller, id s
 	}, nil
 }
 
-// Reap stops workspaces that have been idle past the deadline.
+// Reap stops idle compute, retaining the working copy and catalog for retry if
+// any cleanup, audit, or persistence step fails. It never deletes workspace files.
 func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, error) {
 	rows, err := service.records.List(ctx)
 	if err != nil {
@@ -505,16 +506,50 @@ func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, erro
 		if row.LastUsed.IsZero() || now.Sub(row.LastUsed) < service.idle {
 			continue
 		}
+		if err := ctx.Err(); err != nil {
+			return reaped, err
+		}
+		actor := domain.Caller{Username: "system:workspace-reaper"}
+		reason := "idle timeout; owner=" + row.Owner + "; workspace files retained"
+		if err := service.record(ctx, actor, "workspace.reap_requested", row.ID, "ALLOW", reason); err != nil {
+			return reaped, err
+		}
+		fail := func(err error) ([]string, error) {
+			auditErr := service.record(ctx, actor, "workspace.compute_reclaimed", row.ID, "DENY", reason+"; cleanup incomplete")
+			return reaped, errors.Join(err, auditErr)
+		}
+		if service.runtime == nil || (service.podsOn && service.pods == nil) {
+			return fail(domain.ErrDisabled)
+		}
 		if service.runtime != nil {
-			_, _ = service.runtime.Stop(ctx, row.ID)
+			runtime, err := service.runtime.Stop(ctx, row.ID)
+			if err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return fail(err)
+			}
+			if err == nil && runtime.Status != domain.StatusStopped {
+				return fail(domain.ErrConflict)
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return fail(err)
 		}
 		if service.pods != nil {
-			_ = service.pods.Delete(ctx, row.ID)
+			if err := service.pods.Delete(ctx, row.ID); err != nil && !errors.Is(err, domain.ErrNotFound) {
+				return fail(err)
+			}
+		}
+		if err := ctx.Err(); err != nil {
+			return fail(err)
+		}
+		// This receipt describes completed compute cleanup, not a branch push or
+		// volume deletion. Persist stopped only after that receipt is durable.
+		if err := service.record(ctx, actor, "workspace.compute_reclaimed", row.ID, "ALLOW", reason); err != nil {
+			return reaped, err
 		}
 		row.Status = domain.StatusStopped
 		row.UpdatedAt = now
 		if err := service.records.Save(ctx, row); err != nil {
-			return nil, err
+			return reaped, err
 		}
 		reaped = append(reaped, row.ID)
 	}
