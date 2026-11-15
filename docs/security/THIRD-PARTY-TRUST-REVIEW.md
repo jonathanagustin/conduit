@@ -70,7 +70,7 @@ Ruby/JSON license notices when distributing the runtime or gem.
 | Web lockfile | pnpm 12.18.0 audit: zero advisories in all severities; reported total 565 dependencies. | Registry advisory coverage and the reviewed lockfile only. Keep the 24-hour install quarantine and three-day Renovate delay. |
 | Ruby runner libraries | OSV batch queries for 19 loaded gem versions: one match, JSON above. | Bundled libraries are not automatically safe because Ruby supplies them. This is not a full OS image scan. |
 | Optimizer Rust lockfile | OSV batch queries for 23 registry crates: no matches. | Does not cover the C++/OS closure or qualify native artifacts. Native candidates remain UNADMITTED; HiGHS remains held by #590. |
-| GitHub Actions | All 13 distinct remote Action repositories in workflows use full 40-character SHAs. GitHub resolves each exact commit under its named repository and reports a verified commit signature for each. Existing supply-chain policy checks pass. | Publisher identity/signature and immutable coordinates do not establish benign behavior, review nested dependencies, or prove hosted runtime compatibility. Remaining Action majors belong to #500. |
+| GitHub Actions | All 13 distinct remote Action repositories in workflows use full 40-character SHAs. GitHub resolves each exact commit under its named repository and reports a verified commit signature for each. Existing supply-chain policy checks pass. | Publisher identity/signature and immutable coordinates do not establish benign behavior, review nested dependencies, or prove hosted runtime compatibility. The #500 integration follow-up below distinguishes source review from hosted qualification. |
 | pnpm executable | 12.18.0 publisher release artifact checksum and GitHub attestation verified against upstream release workflow/tag/source; modified archive rejected. | Upstream provenance uses a self-hosted runner; do not describe it as hosted-runner isolation. |
 | Cosign | Separate locked source graph and maintained Azure helper adapter; see [source-build evidence](COSIGN-SOURCE-BUILD.md). | Not covered by the root `go mod vendor` command or root module scan. Retain separate binary/graph verification. |
 
@@ -111,3 +111,54 @@ pinned upstream commit, preserved notices, focused tests and an update owner.
 Porting these owned Ruby validators to the already pinned Go toolchain could
 reduce the runner surface, but requires equivalent fixture and rejection tests;
 this review does not claim that migration was performed.
+
+## Actions major integration follow-up
+
+Review date: 2026-11-14. #500 was merged independently while the administrator
+status change was under local verification. Two validators still required the
+previous checkout/setup-go commits. They now require the new exact pins; Go
+1.27.4, credential persistence restrictions, manual publication and the existing
+permission checks remain unchanged.
+
+The GitHub commit API resolves all 18 selected coordinates below under their
+named repositories and reports verified commit signatures. The pinned
+`action.yml` files declare these runtimes; this is a source/provenance check,
+not execution of the hosted Actions artifact/cache services.
+
+| Action | Selected commit | Declared runtime |
+| --- | --- | --- |
+| `actions/cache` | `55cc8345863c7cc4c66a329aec7e433d2d1c52a9` | `node24` |
+| `actions/cache` | `caa296126883cff596d87d8935842f9db880ef25` | `node24` |
+| `actions/checkout` | `3d3c42e5aac5ba805825da76410c181273ba90b1` | `node24` |
+| `actions/checkout` | `d23441a48e516b6c34aea4fa41551a30e30af803` | `node24` |
+| `actions/download-artifact` | `634f93cb2916e3fdff6788551b99b062d0335ce0` | `node20` |
+| `actions/download-artifact` | `9000827ccba6bdab643e8b6fd33ac0654aef8333` | `node24` |
+| `actions/setup-go` | `924ae3a1cded613372ab5595356fb5720e22ba16` | `node24` |
+| `actions/setup-go` | `b7ad1dad31e06c5925ef5d2fc7ad053ef454303e` | `node24` |
+| `actions/setup-node` | `949feb2413d6458794dcd2491c4babbbce0c15c1` | `node24` |
+| `actions/upload-artifact` | `cf430e030ddbb5b0abf93d22962f4752f3646cd9` | `node24` |
+| `actions/upload-artifact` | `ea165f8d65b6e75b540449e92b4886f43607fa02` | `node20` |
+| `docker/build-push-action` | `c3c9e263c25d99ce0380d002d59b67737d91b0dc` | `node24` |
+| `docker/login-action` | `8aa5831fb8d48d8f76594c7ddde61ae58019f550` | `node24` |
+| `docker/metadata-action` | `dc802804100637a589fabce1cb79ff13a1411302` | `node24` |
+| `docker/setup-buildx-action` | `f87e5991a6d7451dcb8d9637bfbc97413f497069` | `node24` |
+| `docker/setup-qemu-action` | `99012661954931238ded8c8b007157a8430204e1` | `node24` |
+| `googleapis/release-please-action` | `45996ed1f6d02564a971a2fa1b5860e934307cf7` | `node24` |
+| `pnpm/action-setup` | `73e46992e05b19abd31f2f3c20e0e7370d762115` | `node24` |
+
+Most selected Actions run Node 24; the retained optimizer artifact Actions run
+Node 20. Application Node 26.13.1 is a separate pin. Ubuntu 26.04 runner images,
+remote cache behavior and hosted artifact round trips are not proven by the
+local host-executor act receipt. In particular, download-artifact's stronger
+digest-mismatch failure default is retained; no compatibility override is added.
+No hosted qualification is claimed while account billing prevents jobs from
+starting, and no publication is performed by this follow-up.
+
+The CP-SAT and HiGHS qualification workflows are restored byte-for-byte to
+`60708ce503c039b48062856beb58822c505cb39a`, before #500. Their retained runner and
+Action versions must be reviewed with the qualification inputs, not silently
+changed underneath source-bound evidence. A Renovate file rule holds these
+two workflows until deliberate requalification. The CP-SAT source/evidence
+fixture passes again without editing its evidence hashes. HiGHS remains
+UNADMITTED under #590; its pre-existing static-base pin mismatch is still an
+open qualification failure, not evidence repaired by changing an expected hash.

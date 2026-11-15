@@ -68,7 +68,7 @@ cosign_build_command = './scripts/build-cosign.sh "${RUNNER_TEMP}/conduit-cosign
       builders += 1
       abort "Cosign signing jobs must install the exact reviewed Go compiler before building" unless
         steps.take(index).any? do |previous|
-          previous["uses"] == "actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16" &&
+          previous["uses"] == "actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e" &&
             previous.fetch("with", {})["go-version"] == "1.27.4"
         end
     end
