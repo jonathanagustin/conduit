@@ -43,6 +43,14 @@ type noSchemaLoader struct{}
 func (noSchemaLoader) Load(string) (any, error) { return nil, ErrInvalidToolSchema }
 
 func compileArguments(name string, value any) (*jsonschema.Schema, error) {
+	encoded, err := json.Marshal(value)
+	if err != nil {
+		return nil, ErrInvalidToolSchema
+	}
+	value, err = agui.DecodeJSON(encoded)
+	if err != nil {
+		return nil, ErrInvalidToolSchema
+	}
 	compiler := jsonschema.NewCompiler()
 	compiler.UseLoader(noSchemaLoader{})
 	location := "urn:conduit:agent-form:" + name
