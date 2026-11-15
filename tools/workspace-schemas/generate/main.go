@@ -53,7 +53,9 @@ func main() {
 func relaxPresence(value any) {
 	switch node := value.(type) {
 	case map[string]any:
-		delete(node, "required")
+		if _, isPresenceList := node["required"].([]any); isPresenceList {
+			delete(node, "required")
+		}
 		for _, child := range node {
 			relaxPresence(child)
 		}

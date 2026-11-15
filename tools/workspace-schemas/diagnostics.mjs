@@ -31,7 +31,8 @@ try {
   await Promise.race([configuration, new Promise((_, reject) => setTimeout(() => reject(Error('no settings request')), 10000))]);
   for (const name of (await readdir(`${root}/fixtures`)).sort()) {
     const valid = name.startsWith('valid.');
-    const basename = name.includes('.plan.') ? 'example.plan.yaml' : name.includes('.zarf.') ? 'zarf.yaml' : 'uds-package.yaml';
+    for (const extension of ['yaml', 'yml']) {
+    const basename = (name.includes('.plan.') ? 'example.plan.yaml' : name.includes('.zarf.') ? 'zarf.yaml' : 'uds-package.yaml').replace(/yaml$/, extension);
     const uri = pathToFileURL(`/fixtures/${name}/${basename}`).href;
     const text = await readFile(`${root}/fixtures/${name}`, 'utf8');
     const diagnostics = await new Promise((resolve, reject) => {
@@ -46,8 +47,9 @@ try {
       const schemaName = name.includes('.plan.') ? 'plan' : name.includes('.zarf.') ? 'zarf' : 'uds-package';
       assert(diagnostics.some(d => d.source?.startsWith('yaml-schema:') && d.severity === 1 && d.data?.schemaUri?.includes(`file://${root}/${schemaName}.schema.json`)), `${name}: not local YAML schema diagnostics: ${JSON.stringify(diagnostics)}`);
     }
-    console.log(`${name}: ${diagnostics.length} diagnostics${valid ? ' (valid)' : ''}`);
+    console.log(`${name} (${extension}): ${diagnostics.length} diagnostics${valid ? ' (valid)' : ''}`);
     await rpc.sendNotification('textDocument/didClose', { textDocument: { uri } });
+    }
   }
   await rpc.sendRequest('shutdown');
   await rpc.sendNotification('exit');

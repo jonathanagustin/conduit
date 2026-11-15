@@ -191,7 +191,7 @@ certification, political-boundary authority, live site location or network path.
 
 The pack vendors data schemas from the primary Zarf v0.82.0 and UDS Core
 v1.17.1 tagged repositories. `workspace-schemas/v1/manifest.json` records exact
-source URLs, SHA-256 values and the retained upstream Apache-2.0 license hashes.
+source URLs, SHA-256 values and the retained upstream root-license hashes (Zarf Apache-2.0; UDS Core AGPL-3.0).
 These are reviewed bytes, not signed supplier certification. Neither upstream
 schema contains an external schema reference; the gate rejects one even if its
 checksum is refreshed. The Conduit-native Plan-input schema is regenerated
@@ -209,3 +209,7 @@ mounts, no capabilities and no credentials. Image verification is bounded to
 that digest; no hosted/editor-image qualification or publication is claimed.
 See `docs/operations/workspace-schemas.md` for source-target mismatch handling,
 modeline precedence and the editor-image integration boundary.
+
+UDS Core’s root license text is AGPL version 3; per-file schema applicability
+has not been separately adjudicated. Retaining that notice does not resolve
+project licensing or authorize distribution of an editor image (#546).

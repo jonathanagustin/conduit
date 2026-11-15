@@ -27,7 +27,8 @@ qualification mismatch, not a reason to label a 1.0.0 schema as compatible with
 0.82.0. Change the schema target alongside the verified runtime target when
 qualifying that upgrade. UDS Package targets the **1.17.1** Core default in
 `scripts/uds-up.sh`. Upstream schemas are retained byte-for-byte, together with
-their upstream Apache-2.0 license files. Their source and license hashes are in
+Zarf’s Apache-2.0 and UDS Core’s AGPL-3.0 root license files. Their source
+and license hashes are in
 `manifest.json`. The native schema uses `platform.delivery/v1alpha1` and its
 committed generator is checked for reproducibility on every verification.
 
@@ -89,3 +90,7 @@ invoke this same complete gate; it does not publish an image.
    local CI on the exact committed head. A checksum edit alone is not evidence
    of compatibility. Include the resulting receipt in the PR. The editor-image
    owner must copy and verify these bytes before claiming an offline editor.
+
+UDS Core’s root license text is AGPL version 3; per-file schema applicability
+has not been separately adjudicated. Retaining that notice does not resolve
+project licensing or authorize distribution of an editor image (#546).

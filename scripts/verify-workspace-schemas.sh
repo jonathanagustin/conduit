@@ -2,6 +2,7 @@
 set -euo pipefail
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root}"
+cmp examples/example-foundation.json workspace-schemas/v1/fixtures/valid.foundation.plan.yaml
 node tools/workspace-schemas/verify.mjs
 node --test tools/workspace-schemas/verify.test.mjs
 output="$(mktemp)"

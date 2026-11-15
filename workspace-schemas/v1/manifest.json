@@ -14,7 +14,8 @@
       "source": "https://raw.githubusercontent.com/zarf-dev/zarf/v0.82.0/zarf.schema.json",
       "sha256": "fcdde3ac5a286bbae54f14919bfd89444b6f51956c690ed3d2b5b0d8d016f0f8",
       "license": "zarf.LICENSE",
-      "licenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30"
+      "licenseSha256": "cfc7749b96f63bd31c3c42b5c471bf756814053e847c10f3eb003417bc523d30",
+      "rootLicenseObserved": "Apache License 2.0"
     },
     {
       "file": "uds-package.schema.json",
@@ -22,7 +23,8 @@
       "source": "https://raw.githubusercontent.com/defenseunicorns/uds-core/v1.17.1/schemas/package-v1alpha1.schema.json",
       "sha256": "b001411889fc605cbce40b0783c3e08758403d068d5485f1823b892a59980b50",
       "license": "uds-core.LICENSE",
-      "licenseSha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef"
+      "licenseSha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "rootLicenseObserved": "GNU Affero General Public License v3 text; per-file applicability unadjudicated"
     }
   ]
 }
