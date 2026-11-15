@@ -1661,7 +1661,14 @@ export function mountOperator(host, options) {
   const inspector = { key: "", ref: null, model: null, tab: "props" };
 
   function currentInspectRef() {
-    return state.inspectRef || ontologyRef(areaObject(state.hub, state.screen));
+    return (
+      state.inspectRef ||
+      ontologyRef(
+        areaObject(state.hub, state.screen, {
+          packagingRunId: state.packagingRunId,
+        }),
+      )
+    );
   }
 
   function inspectorPane(headerMarkup) {
@@ -5593,7 +5600,11 @@ export function mountOperator(host, options) {
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
     state.detailScreen = current.screen;
-    const header = objectHeader(areaObject(state.hub, state.screen));
+    const header = objectHeader(
+      areaObject(state.hub, state.screen, {
+        packagingRunId: state.packagingRunId,
+      }),
+    );
     const extra = areaSupplement(state.hub, state.screen, current.id);
     root.innerHTML = `<div class="space-y-3">
       <div class="kit-crumb">${area.label} / ${current.label}</div>

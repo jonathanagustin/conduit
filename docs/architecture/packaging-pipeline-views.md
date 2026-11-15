@@ -2,7 +2,9 @@
 
 The Packaging area's Pipeline tab uses the existing `s07-pipeline` screen.
 Timeline uses `s08-staged-run`. The run list, both screens and their navigation
-share a page-local run selection. There is no second packaging workspace and
+share a page-local run selection. The shared area header and default inspector
+context use that same visible run, and the header uses the run list status
+classification rather than assuming success. There is no second packaging workspace and
 no new command endpoint. A selected run must still occur in the currently
 visible index; a missing selection never silently switches its detail to
 another run. History is looked up by that exact run ID, including when a
