@@ -699,7 +699,96 @@ describe("ACP bridge", () => {
     ).toBe(true);
   });
 
-  it("makes no outside network calls in offline-bundle mode and strips external API keys", async () => {
+  it("does not spend approval for a benign path on a different protected write", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const started = await start();
+    bridges.push(started.bridge);
+    dirs.push(started.workspace);
+    const base = `http://127.0.0.1:${started.bridge.port}`;
+    const sessionResponse = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "session/new",
+        params: { _meta: { threadId: "scope-substitution" } },
+      }),
+    });
+    const session = (await sessionResponse.json()) as {
+      result: { sessionId: string };
+    };
+    const response = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "session/prompt",
+        params: {
+          sessionId: session.result.sessionId,
+          _meta: { runId: "scope-substitution-run" },
+          prompt: [
+            {
+              type: "text",
+              text: "edit notes.txt -> .github/workflows/changed.yml: unauthorized content",
+            },
+          ],
+        },
+      }),
+    });
+    const reader = response.body!.getReader();
+    const decoder = new TextDecoder();
+    let buffer = "";
+    const requests: { path?: string; riskTier?: string }[] = [];
+    for (;;) {
+      const chunk = await reader.read();
+      if (chunk.done) break;
+      buffer += decoder.decode(chunk.value, { stream: true });
+      const frames = buffer.split("\n\n");
+      buffer = frames.pop() ?? "";
+      for (const frame of frames) {
+        const raw = frame
+          .split("\n")
+          .filter((line) => line.startsWith("data:"))
+          .map((line) => line.slice(5).trim())
+          .join("\n");
+        if (!raw) continue;
+        const event = JSON.parse(raw) as {
+          type: string;
+          request?: { requestId: string; path?: string; riskTier?: string };
+        };
+        if (event.type !== "permission_request" || !event.request) continue;
+        const request = event.request;
+        requests.push(request);
+        const settlement = await fetch(
+          `${base}/acp/permissions/${encodeURIComponent(request.requestId)}`,
+          {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({
+              threadId: "scope-substitution",
+              runId: "scope-substitution-run",
+              optionId: request.path === "notes.txt" ? "allow" : "reject",
+            }),
+          },
+        );
+        expect(settlement.status).toBe(200);
+      }
+    }
+    expect(requests).toEqual([
+      expect.objectContaining({ path: "notes.txt", riskTier: "low_confirm" }),
+      expect.objectContaining({
+        path: ".github/workflows/changed.yml",
+        riskTier: "high_change_request",
+      }),
+    ]);
+    await expect(
+      readFile(path.join(started.workspace, ".github/workflows/changed.yml")),
+    ).rejects.toMatchObject({ code: "ENOENT" });
+  });
+
+  it("blocks bridge HTTP egress in offline mode and strips external API keys", async () => {
     const workspace = await mkdtemp(path.join(tmpdir(), "conduit-assistant-"));
     dirs.push(workspace);
     const savedOpenAi = process.env["OPENAI_API_KEY"];

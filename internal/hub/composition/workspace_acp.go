@@ -22,7 +22,6 @@ import (
 	devapp "github.com/jonathanagustin/conduit/internal/devworkspace/application"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/workspaceacp/adapters/memorybridge"
 	"github.com/jonathanagustin/conduit/internal/workspaceacp/adapters/nodebridge"
 	acpapp "github.com/jonathanagustin/conduit/internal/workspaceacp/application"
 	acpdomain "github.com/jonathanagustin/conduit/internal/workspaceacp/domain"
@@ -51,8 +50,6 @@ func assembleWorkspaceACP(
 				WebDir:        webDir,
 				OfflineBundle: offline,
 			})
-		} else {
-			bridges = memorybridge.NewPool()
 		}
 	}
 	govService := controlplane.NewGovernanceService(repository)

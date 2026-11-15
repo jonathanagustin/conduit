@@ -439,7 +439,7 @@
       "what": "A Hub-routed workspace coding-agent ACP endpoint scoped to one authenticated operator and workspace branch, mapping low-risk ACP permission requests to explicit owner Confirm and high-risk requests to mandatory-human-review Change Requests, while mirroring redacted editor activity onto the console AG-UI stream.",
       "why": "The ACP wire protocol (@agentclientprotocol/sdk@2.6.0, protocolVersion 1) and AG-UI 1.0 event envelopes are public contracts, whereas how a Conduit Hub routes workspace editor ACP turns, classifies governed permission risk tiers, and correlates sessionId/runId/threadId across audit and console streams is unestablished in public Apollo sources.",
       "displacedBy": "a published or authorized sanitized workspace coding-agent ACP transport, governed permission mapping, and console activity projection contract.",
-      "riskIfWrong": "Marked CONDUIT_NATIVE; standing allow_always grants are stripped, pending or denied permissions block file writes and commands, high-risk actions require a separate human reviewer, offline-bundle mode denies non-loopback egress, and no Plan approval or deployment authority is granted."
+      "riskIfWrong": "Marked CONDUIT_NATIVE; actual file and terminal callbacks require fresh governed decisions. Transport HTTP egress filtering does not confine direct filesystem or network access by spawned agent/terminal processes. Risk-pattern matching is not an OS sandbox. The Node implementation remains draft pending enforced isolation/egress and workspace identity/branch integration evidence; no complete offline or production-governance guarantee is established."
     }
   ],
   "displaced": [

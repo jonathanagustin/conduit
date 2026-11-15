@@ -286,29 +286,10 @@ export async function startAgent(
       rawInput?: unknown;
     }
   >();
-  const approvalCredits = new Map<string, number>();
   const terminals = new Map<string, ManagedTerminal>();
   let syntheticPermissionSeq = 0;
 
-  function creditKey(sessionId: string, runId: string): string {
-    return `${sessionId}::${runId}`;
-  }
-
-  function grantCredit(sessionId: string, runId: string): void {
-    const key = creditKey(sessionId, runId);
-    approvalCredits.set(key, (approvalCredits.get(key) ?? 0) + 1);
-  }
-
-  function consumeCredit(sessionId: string, runId: string): boolean {
-    const key = creditKey(sessionId, runId);
-    const current = approvalCredits.get(key) ?? 0;
-    if (current <= 0) return false;
-    if (current === 1) approvalCredits.delete(key);
-    else approvalCredits.set(key, current - 1);
-    return true;
-  }
-
-  async function requireGovernedCredit(
+  async function requireGovernedMutation(
     sessionId: string,
     detail: {
       kind: EditorActionKind;
@@ -320,9 +301,6 @@ export async function startAgent(
     const active = handlers.activeRun(sessionId);
     if (!active) {
       throw new Error("no active governed run for ACP session");
-    }
-    if (consumeCredit(sessionId, active.runId)) {
-      return active;
     }
     syntheticPermissionSeq += 1;
     const toolCallId = `gov-${syntheticPermissionSeq}`;
@@ -544,12 +522,6 @@ export async function startAgent(
         if (outcome.outcome === "cancelled") {
           return { outcome: { outcome: "cancelled" as const } };
         }
-        const chosen = sanitized.find(
-          (option) => option.optionId === outcome.optionId,
-        );
-        if (chosen && approvedOption(chosen.kind)) {
-          grantCredit(sessionId, active.runId);
-        }
         return {
           outcome: { outcome: "selected" as const, optionId: outcome.optionId },
         };
@@ -601,7 +573,7 @@ export async function startAgent(
         if (Buffer.byteLength(ctx.params.content, "utf8") > 256 * 1024) {
           throw new Error("file write exceeds 256 KiB workspace bound");
         }
-        const active = await requireGovernedCredit(ctx.params.sessionId, {
+        const active = await requireGovernedMutation(ctx.params.sessionId, {
           kind: "file_write",
           title: `write ${confined.relative}`,
           path: confined.relative,
@@ -634,7 +606,7 @@ export async function startAgent(
           : realWorkspace;
         const args = ctx.params.args ?? [];
         const commandDisplay = [ctx.params.command, ...args].join(" ").trim();
-        const active = await requireGovernedCredit(ctx.params.sessionId, {
+        const active = await requireGovernedMutation(ctx.params.sessionId, {
           kind: "command",
           title: `command ${commandDisplay}`,
           command: commandDisplay,

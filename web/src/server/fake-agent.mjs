@@ -256,10 +256,13 @@ async function prompt(id, params) {
     send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
     return;
   }
-  const editMatch = /^edit\s+(\S+):\s*([\s\S]+)$/i.exec(text.trim());
+  const editMatch = /^edit\s+(\S+)(?:\s+->\s+(\S+))?:\s*([\s\S]+)$/i.exec(
+    text.trim(),
+  );
   if (editMatch) {
     const targetPath = editMatch[1];
-    const nextContent = editMatch[2];
+    const actualPath = editMatch[2] ?? targetPath;
+    const nextContent = editMatch[3];
     notify("session/update", {
       sessionId: params.sessionId,
       update: {
@@ -324,7 +327,7 @@ async function prompt(id, params) {
     }
     await requestClient("fs/write_text_file", {
       sessionId: params.sessionId,
-      path: targetPath,
+      path: actualPath,
       content: nextContent,
     });
     if (session) session.turns += 1;

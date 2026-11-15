@@ -67,7 +67,7 @@ flowchart LR
    and the Node bridge (`PINNED_ACP_PROTOCOL_VERSION = 1` checked against
    `@agentclientprotocol/sdk` `PROTOCOL_VERSION`) verify `protocolVersion === 1`
    during `initialize` and reject version drift before creating a session.
-4. **Workspace filesystem confinement.** `confineWorkspacePath` in
+4. **Workspace file-callback confinement.** `confineWorkspacePath` in
    `web/src/server/agent.ts` and `recorded.Tree` in
    `internal/devworkspace/adapters/recorded/store.go` resolve canonical paths and
    reject parent traversal (`..`), absolute paths outside the workspace root,
@@ -93,8 +93,11 @@ flowchart LR
 
 Standing approvals are disallowed: `SanitizeOptions` strips `allow_always` when
 `allow_once` is present (or downgrades it to single-use `allow_once`), and the
-Node bridge's single-use credit ledger requires a fresh governed permission
-settlement before each `fs/write_text_file` or `terminal/create` execution.
+Node bridge requires a fresh governed permission settlement for each actual
+`fs/write_text_file` or `terminal/create` callback. Agent-supplied permission
+requests cannot create a run-wide credit for a different path or command.
+An agent permission prompt and the actual mutation callback can therefore require
+separate decisions; approving the former does not preapprove the latter.
 
 Every ACP permission request is classified by the stricter of the Hub's and
 bridge's risk evaluations (`domain.ClassifyPermission` + `domain.StricterRisk`):
@@ -141,3 +144,24 @@ When `CONDUIT_OFFLINE_BUNDLE=1` (or `Options.WorkspaceACPOfflineBundle = true`):
 3. `startAgent` skips external ACP `authenticate` handshakes, and
    `createOfflineFetch` rejects any outbound HTTP/HTTPS call from the bridge to
    non-loopback hosts with `OFFLINE_BUNDLE_EGRESS_DENIED`.
+
+
+## Review limitations: not ready for production promotion
+
+The Node bridge runs agent and terminal subprocesses with a workspace working
+directory and filtered environment; those settings are not an operating-system
+filesystem or network sandbox. `createOfflineFetch` and the Go loopback client
+restrict their own HTTP calls, not arbitrary sockets opened by those subprocesses.
+The current offline fixture verifies only those HTTP and environment boundaries.
+It does not prove #647's no-outside-network-call acceptance criterion for a real
+agent. PR #691 remains draft pending enforced process isolation/egress and real
+workspace sign-on/branch lifecycle evidence (#616, #618, #619, #638).
+
+Risk classifiers use command text patterns; they are not a safe execution
+sandbox or a complete shell analysis. File callback canonicalization does not
+confine direct filesystem access by an unrestricted agent subprocess. These
+limits must be resolved before treating this bridge as governed shared-state
+execution or closing #647. The in-memory bridge is fixture evidence, not a live
+coding-agent integration. Unconfigured Hub composition leaves the bridge disabled;
+tests must inject the in-memory adapter explicitly. The experimental Node adapter
+still requires explicit `DEVWORKSPACE_ACP_BRIDGE=node` selection.

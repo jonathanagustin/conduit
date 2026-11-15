@@ -16,11 +16,14 @@ import (
 	"github.com/go-jose/go-jose/v4"
 	"github.com/go-jose/go-jose/v4/jwt"
 
+	"errors"
 	"github.com/jonathanagustin/conduit/api/agui"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	httpidentity "github.com/jonathanagustin/conduit/internal/identity/adapters/httpidentity"
 	oidcverifier "github.com/jonathanagustin/conduit/internal/identity/adapters/oidcverifier"
 	identitydomain "github.com/jonathanagustin/conduit/internal/identity/domain"
+	"github.com/jonathanagustin/conduit/internal/workspaceacp/adapters/memorybridge"
 	acpdomain "github.com/jonathanagustin/conduit/internal/workspaceacp/domain"
 )
 
@@ -98,7 +101,7 @@ func setupKeycloakOIDCHub(t *testing.T) oidcTestHarness {
 	hub, err := NewHub(repo, controlplane.HandlerOptions{
 		OperatorIdentityResolver: resolver,
 		BootstrapAdministrators:  []string{"root"},
-	})
+	}, Options{WorkspaceACPBridges: memorybridge.NewPool()})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -479,4 +482,22 @@ func runPromptAndSettle(
 		t.Fatal(err)
 	}
 	return capturedGate, frames
+}
+
+func TestWorkspaceACPUnconfiguredDoesNotFabricateAgentSessions(t *testing.T) {
+	repo := controlplane.NewMemoryRepository()
+	getenv := func(string) string { return "" }
+	spaces := assembleDevWorkspace(repo, controlplane.HandlerOptions{}, getenv)
+	workspace, err := spaces.Create(t.Context(), devdomain.Caller{Username: "alice"}, "profile", "dev", "unconfigured")
+	if err != nil {
+		t.Fatal(err)
+	}
+	service := assembleWorkspaceACP(repo, spaces, Options{}, getenv)
+	caller := acpdomain.Caller{Username: "alice"}
+	if _, err := service.Initialize(t.Context(), caller, workspace.ID, "", 1); !errors.Is(err, acpdomain.ErrDisabled) {
+		t.Fatalf("unconfigured initialize: %v", err)
+	}
+	if _, err := service.NewSession(t.Context(), caller, workspace.ID, "", ""); !errors.Is(err, acpdomain.ErrDisabled) {
+		t.Fatalf("fabricated session: %v", err)
+	}
 }
