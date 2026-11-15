@@ -3,8 +3,10 @@ import {
   DOCK_DEFAULT,
   DOCK_MAX,
   DOCK_MIN,
+  DOCK_SURFACES,
   allLive,
   clampDockWidth,
+  dockSurfaceCounts,
   kpisFromHub,
   readPref,
   siteSummary,
@@ -223,5 +225,51 @@ describe("prefs", () => {
     });
     expect(readPref("k", "fb")).toBe("fb");
     expect(writePref("k", "v")).toBe(false);
+  });
+});
+
+describe("DOCK_SURFACES and dockSurfaceCounts", () => {
+  it("includes 16x16 crisp svg icons and glyphs on all dock surfaces", () => {
+    expect(DOCK_SURFACES.map((s) => s.id)).toEqual([
+      "inspector",
+      "assistant",
+      "outline",
+      "windows",
+      "live",
+    ]);
+    for (const surface of DOCK_SURFACES) {
+      expect(surface.glyph).toBeTruthy();
+      expect(surface.icon).toContain('<svg width="16" height="16"');
+    }
+  });
+
+  it("calculates dockSurfaceCounts accurately from hub data", () => {
+    const hub = {
+      environments: [
+        { environment: { id: "e1", maintenance: { active: true } } },
+        { environment: { id: "e2", maintenance: {} } },
+        { environment: { id: "e3" } },
+      ],
+      audit: [
+        { sequence: 1, action: "action-1" },
+        { sequence: 2, action: "action-2" },
+      ],
+    };
+    const counts = dockSurfaceCounts(hub);
+    expect(counts).toEqual({
+      inspector: 0,
+      assistant: 0,
+      outline: 0,
+      windows: 1,
+      live: 2,
+    });
+
+    expect(dockSurfaceCounts(null)).toEqual({
+      inspector: 0,
+      assistant: 0,
+      outline: 0,
+      windows: 0,
+      live: 0,
+    });
   });
 });

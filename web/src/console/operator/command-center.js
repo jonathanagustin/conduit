@@ -7,6 +7,7 @@ import { geographyMarkup, recordedSites } from "./command-center-map.js";
 import { hubSetupMarkup } from "./empty-states.js";
 import { freshnessPill, reportTime } from "./freshness.js";
 import { gateResults, gateStepper, runState } from "./packaging-runs.js";
+import { entityTitleMarkup } from "./kit.js";
 
 const defaultEsc = (value) =>
   String(value ?? "").replace(
@@ -200,13 +201,27 @@ export function overviewMarkup(
     : profiles.groups.length
       ? `<ul class="kit-cc-list">${profiles.groups.map(([id, count]) => `<li><code>${esc(id)}</code> <span>${count} recorded active workspace${count === 1 ? "" : "s"}</span></li>`).join("")}</ul>`
       : none("No known workspace is recorded as starting or running.", esc);
+  const shieldSvg =
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><path d="M8 1.8l5 2v4.3c0 3.3-2.2 5.3-5 6.4-2.8-1.1-5-3.1-5-6.4V3.8l5-2z"/><path d="M5.5 8l1.8 1.8 3.2-3.3"/></svg>';
+  const pulseSvg =
+    '<svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.6"><circle cx="8" cy="8" r="6.2"/><path d="M2.5 8h3l1.5-3 2 6 1.5-3h3"/></svg>';
+
   const opportunities = governanceOpportunities(hub);
   const governanceBody =
     opportunities
-      .map(
-        (item) =>
-          `<article class="kit-cc-opportunity"><h3>${esc(item.label)}</h3><p class="kit-muted">${esc(item.detail)}</p><div class="kit-cc-actions"><button type="button" class="so-btn so-btn-sm" data-cc-opportunity="${esc(item.objectType)}:${esc(item.id)}" data-cc-purpose="ask" aria-label="Ask about ${esc(item.label)}">Ask</button><button type="button" class="so-btn so-btn-sm" data-cc-opportunity="${esc(item.objectType)}:${esc(item.id)}" data-cc-purpose="review" aria-label="Review ${esc(item.objectType)} ${esc(item.id)}">Review</button></div></article>`,
-      )
+      .map((item) => {
+        const isCr = item.objectType === "ChangeRequest";
+        const iconSvg = isCr ? shieldSvg : pulseSvg;
+        const tagTone = isCr ? "warn" : "info";
+        const tagsHtml = `<span class="kit-badge kit-badge-${tagTone}">${esc(item.objectType)}</span>`;
+        const titleMarkup = entityTitleMarkup({
+          headingTag: "h3",
+          title: esc(item.label),
+          iconSvg,
+          tagsHtml,
+        });
+        return `<article class="kit-cc-opportunity" data-opportunity-kind="${esc(item.objectType)}">${titleMarkup}<p class="kit-muted">${esc(item.detail)}</p><div class="kit-cc-actions"><button type="button" class="so-btn so-btn-sm" data-cc-opportunity="${esc(item.objectType)}:${esc(item.id)}" data-cc-purpose="ask" aria-label="Ask about ${esc(item.label)}">Ask</button><button type="button" class="so-btn so-btn-sm" data-cc-opportunity="${esc(item.objectType)}:${esc(item.id)}" data-cc-purpose="review" aria-label="Review ${esc(item.objectType)} ${esc(item.id)}">Review</button></div></article>`;
+      })
       .join("") || none("No known review opportunity is recorded.", esc);
 
   return `<div class="kit-cc">

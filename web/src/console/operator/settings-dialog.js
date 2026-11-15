@@ -7,6 +7,7 @@ import { DOCK_DEFAULT, readPref, writePref } from "./shell.js";
 export const THEME_KEY = "conduit.console.theme";
 export const DENSITY_KEY = "conduit.console.density";
 export const DOCK_KEY = "conduit.console.dockWidth";
+export const TIMEZONE_KEY = "conduit.console.timezone";
 
 export const THEMES = [
   { id: "dark", label: "Dark", hint: "Low-glare panels for long sessions" },
@@ -15,6 +16,10 @@ export const THEMES = [
 export const DENSITIES = [
   { id: "standard", label: "Standard", hint: "32px rows" },
   { id: "compact", label: "Compact", hint: "26px rows" },
+];
+export const TIMEZONES = [
+  { id: "utc", label: "UTC", hint: "24-hour ISO / UTC operator clock" },
+  { id: "local", label: "Local", hint: "Browser local timezone" },
 ];
 
 const esc = (value) =>
@@ -36,6 +41,11 @@ export function storedDensity() {
   return value === "compact" ? "compact" : "standard";
 }
 
+export function storedTimezone() {
+  const value = readPref(TIMEZONE_KEY, "utc");
+  return value === "local" ? "local" : "utc";
+}
+
 /** Applies the theme to the root and the top-bar toggle label. */
 export function applyTheme(root, theme) {
   if (!root) return;
@@ -46,6 +56,24 @@ export function applyTheme(root, theme) {
 
 export function applyDensity(root, density) {
   if (root) root.setAttribute("data-density", density);
+}
+
+export function applyTimezone(root, timezone) {
+  if (root) root.setAttribute("data-timezone", timezone);
+}
+
+function pad(n) {
+  return String(n).padStart(2, "0");
+}
+
+export function formatConsoleTimestamp(value, timezone = storedTimezone()) {
+  if (value == null || value === "") return "";
+  const d = new Date(value);
+  if (Number.isNaN(d.getTime())) return "";
+  if (timezone === "local") {
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())} Local`;
+  }
+  return `${d.getUTCFullYear()}-${pad(d.getUTCMonth() + 1)}-${pad(d.getUTCDate())} ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())}:${pad(d.getUTCSeconds())} UTC`;
 }
 
 function choice(group, options, current) {
@@ -63,7 +91,13 @@ function choice(group, options, current) {
 }
 
 /** Dialog HTML for the given values. */
-export function settingsMarkup({ theme, density, dockWidth, operatorName }) {
+export function settingsMarkup({
+  theme,
+  density,
+  timezone = "utc",
+  dockWidth,
+  operatorName,
+}) {
   return `<div class="kit-dialog-backdrop" data-settings-close></div>
   <div class="kit-dialog" role="dialog" aria-modal="true" aria-labelledby="settings-title">
     <div class="kit-dialog-head">
@@ -78,6 +112,10 @@ export function settingsMarkup({ theme, density, dockWidth, operatorName }) {
     <section class="kit-dialog-section">
       <h3>Density</h3>
       <div role="radiogroup" aria-label="Density" class="kit-choice">${choice("density", DENSITIES, density)}</div>
+    </section>
+    <section class="kit-dialog-section">
+      <h3>Timestamps</h3>
+      <div role="radiogroup" aria-label="Timestamps" class="kit-choice">${choice("timezone", TIMEZONES, timezone || "utc")}</div>
     </section>
     <section class="kit-dialog-section">
       <h3>Right dock</h3>
@@ -121,6 +159,7 @@ export function createSettingsDialog(ctx) {
     el.innerHTML = settingsMarkup({
       theme: storedTheme(),
       density: storedDensity(),
+      timezone: storedTimezone(),
       dockWidth: readPref(DOCK_KEY, String(DOCK_DEFAULT)),
       operatorName: ctx.getOperatorName(),
     });
@@ -140,9 +179,13 @@ export function createSettingsDialog(ctx) {
     const option = target.closest("[data-setting]");
     if (!option) return;
     const value = option.getAttribute("data-value");
-    if (option.getAttribute("data-setting") === "theme") {
+    const setting = option.getAttribute("data-setting");
+    if (setting === "theme") {
       writePref(THEME_KEY, value);
       applyTheme(ctx.getRoot(), value);
+    } else if (setting === "timezone") {
+      writePref(TIMEZONE_KEY, value);
+      applyTimezone(ctx.getRoot(), value);
     } else {
       writePref(DENSITY_KEY, value);
       applyDensity(ctx.getRoot(), value);
@@ -170,10 +213,11 @@ export function createSettingsDialog(ctx) {
     return false;
   }
 
-  /** Applies stored theme and density on mount. */
+  /** Applies stored theme, density, and timezone on mount. */
   function restore() {
     applyTheme(ctx.getRoot(), storedTheme());
     applyDensity(ctx.getRoot(), storedDensity());
+    applyTimezone(ctx.getRoot(), storedTimezone());
   }
 
   return {
