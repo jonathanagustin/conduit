@@ -183,3 +183,38 @@ rollback, durable retry, and replay after reopening the delivery journal. They
 use a bounded test authorizer; they do not establish production operator
 identity policy. Runtime polling, current native subscriber authorization,
 remaining producer families, and the SSE HTTP adapter are still not composed.
+
+## Native packaging step source
+
+`packagingworkflow/adapters/liveevents.Source` reads the same native step journal
+as `GET /v1/packaging-runs/{runID}/events`. The runtime reader reconstructs that
+journal from Temporal workflow history, including entries carried through
+continue-as-new. The real pinned-CLI restart test compares projected records
+before and after restarting both worker and Temporal server. Source producer
+positions and resource revisions use the journal's persisted `Sequence`; event
+times use its `At`. These are step-history coordinates, not a new revision field
+on `RunStatus`. A client lacking a comparable read-model revision must use the
+coalesced refetch/catch-up behavior from ADR 0016.
+
+The source projects only known phase/outcome codes into `packaging.step`.
+`WAITING` remains a wait, and `HANDOFF_RECORDED` remains a recorded Plan handoff.
+Native approval dispositions and unknown codes use a subject-bound
+`index.invalidated` hint instead. Reasons, approvals, proposal metadata, target
+references, file contents, tool output, and model text are never copied into the
+hint. The native read route remains the place to fetch authorized detail.
+
+Continued-workflow execution rows are deduplicated by logical run ID before
+reading the current journal. Each source read validates all loaded journals and
+returns at most 256 records in stable producer/sequence order. Bounds match the
+existing native index (1,000 execution rows) and native journal (32 entries per
+run); run IDs must fit the committed live contract's 200-character single-token
+bound. Invalid coordinates, unreadable runs, history gaps, or unavailable workers
+fail the source. They do not cause a fabricated completion or a silently skipped
+run. Registry wiring belongs to runtime composition and remains outstanding.
+
+Legacy runs without a journal and status-only changes with no recorded step
+emit nothing. In particular, this adapter does not infer successful completion,
+cancellation, or a new step from a status snapshot. The existing journal cap and
+legacy coverage are unchanged. Completing #389 still requires closing the native
+status-transition coverage gaps, production authorization, and SSE composition;
+the adapter alone does not make the feature available.

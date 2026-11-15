@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"reflect"
 	"strconv"
 	"strings"
 	"testing"
@@ -21,8 +22,10 @@ import (
 	sdkworkflow "go.temporal.io/sdk/workflow"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	live "github.com/jonathanagustin/conduit/internal/liveevents/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
+	packagingevents "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/liveevents"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/devserver"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -106,6 +109,7 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if status.SourceDigest != id.SourceDigest || status.ArtifactDigest == "" {
 		t.Fatalf("status after activity restart = %#v", status)
 	}
+	beforeSource := projectRecoverySource(t, ctx, running.Server.Client(), id.RunID)
 	workerTwo.Stop()
 	if err := running.Server.Stop(); err != nil {
 		t.Fatal(err)
@@ -120,6 +124,10 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	restored := query(t, ctx, running.Server.Client(), id.WorkflowID())
 	if restored.Phase != domain.PhaseReview || restored.ArtifactDigest != status.ArtifactDigest || restored.SourceDigest != id.SourceDigest {
 		t.Fatalf("status after server restart = %#v, before = %#v", restored, status)
+	}
+	afterSource := projectRecoverySource(t, ctx, running.Server.Client(), id.RunID)
+	if len(beforeSource) == 0 || !reflect.DeepEqual(beforeSource, afterSource) {
+		t.Fatal("packaging live source changed event identity or payload after Temporal restart")
 	}
 	restoredEvents := queryStepEvents(t, ctx, running.Server.Client(), id.WorkflowID())
 	if !sawEvent(restoredEvents, domain.StepReview, domain.EventWaiting) || sawEvent(restoredEvents, domain.StepHandoff, "") {
@@ -486,4 +494,39 @@ func hostportSplit(hostport string) (string, string, error) {
 		return "", "", strconv.ErrSyntax
 	}
 	return hostport[:colon], hostport[colon+1:], nil
+}
+
+// recoverySourceReader uses the same QueryEvents workflow-history projection as
+// the runtime reader, with a single known native execution for this crash test.
+type recoverySourceReader struct {
+	client client.Client
+	runID  string
+}
+
+func (reader recoverySourceReader) Configured() bool { return true }
+func (reader recoverySourceReader) List(context.Context) ([]domain.RunStatus, error) {
+	return []domain.RunStatus{{RunID: reader.runID}}, nil
+}
+func (reader recoverySourceReader) Events(ctx context.Context, id string) ([]domain.StepEvent, error) {
+	value, err := reader.client.QueryWorkflow(ctx, "packaging-"+id, "", QueryEvents)
+	if err != nil {
+		return nil, err
+	}
+	var events []domain.StepEvent
+	if err := value.Get(&events); err != nil {
+		return nil, err
+	}
+	return events, nil
+}
+func projectRecoverySource(t *testing.T, ctx context.Context, client client.Client, id string) []live.Record {
+	t.Helper()
+	source, err := packagingevents.New(recoverySourceReader{client: client, runID: id})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := source.ReadCommittedEvents(ctx, nil, 256)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return events
 }
