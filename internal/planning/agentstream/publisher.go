@@ -1,14 +1,18 @@
 package agentstream
 
 import (
+	"bytes"
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/jonathanagustin/conduit/api/agui"
+	"github.com/jonathanagustin/conduit/internal/planning/domain"
 )
 
 // AuditRecord contains correlation and content digests, never raw model/tool
@@ -36,6 +40,7 @@ type publisher struct {
 	write    func([]byte) error
 	bytes    int
 	started  bool
+	state    map[string]json.RawMessage
 	broken   bool
 }
 
@@ -47,11 +52,11 @@ func (p *publisher) send(ctx context.Context, event map[string]any) error {
 		return err
 	}
 	terminal := event["type"] == "RUN_ERROR" || event["type"] == "RUN_FINISHED"
-	limit := (1 << 20) - 4096
+	limit := (4 << 20) - 4096
 	if terminal {
-		limit = 1 << 20
+		limit = 4 << 20
 	}
-	if len(raw) > 64<<10 || p.bytes+len(raw) > limit {
+	if len(raw) > 1<<20 || p.bytes+len(raw) > limit {
 		return ErrRunCapacity
 	}
 	next, err := p.sequence.Next(raw)
@@ -73,6 +78,15 @@ func (p *publisher) send(ctx context.Context, event map[string]any) error {
 
 func (p *publisher) fail(ctx context.Context, cause error) {
 	code, message := "RUN_FAILED", "The planning run could not finish."
+	if errors.Is(cause, domain.ErrModelNotConfigured) {
+		code, message = domain.CodeModelNotConfigured, "A planning model is not configured on this Hub."
+	}
+	if errors.Is(cause, domain.ErrAlreadyAccepted) {
+		code, message = domain.CodeAlreadyAccepted, "This planning session is already accepted."
+	}
+	if errors.Is(cause, domain.ErrTurnInProgress) {
+		code, message = domain.CodeTurnInProgress, "A planning turn is already running."
+	}
 	if errors.Is(cause, ErrAuditUnavailable) {
 		code, message = "AUDIT_UNAVAILABLE", "The run stopped because its audit record could not be written."
 	}
@@ -109,4 +123,45 @@ func (p *publisher) fail(ctx context.Context, cause error) {
 	if err := p.write(raw); err == nil {
 		p.sequence = next
 	}
+}
+
+func (p *publisher) stateUpdate(ctx context.Context, value map[string]any) error {
+	next := map[string]json.RawMessage{}
+	for key, child := range value {
+		raw, err := json.Marshal(child)
+		if err != nil {
+			return err
+		}
+		next[key] = raw
+	}
+	if p.state == nil {
+		if err := p.send(ctx, map[string]any{"type": "STATE_SNAPSHOT", "snapshot": value}); err != nil {
+			return err
+		}
+	} else {
+		keys := []string{}
+		for key := range next {
+			keys = append(keys, key)
+		}
+		sort.Strings(keys)
+		patch := []any{}
+		for _, key := range keys {
+			if bytes.Equal(p.state[key], next[key]) {
+				continue
+			}
+			operation := "replace"
+			if _, exists := p.state[key]; !exists {
+				operation = "add"
+			}
+			path := strings.ReplaceAll(strings.ReplaceAll(key, "~", "~0"), "/", "~1")
+			patch = append(patch, map[string]any{"op": operation, "path": "/" + path, "value": json.RawMessage(next[key])})
+		}
+		if len(patch) > 0 {
+			if err := p.send(ctx, map[string]any{"type": "STATE_DELTA", "delta": patch}); err != nil {
+				return err
+			}
+		}
+	}
+	p.state = next
+	return nil
 }

@@ -107,3 +107,27 @@ func (input RunInput) lastUserText() (id, text string) {
 	}
 	return "", ""
 }
+
+func (input RunInput) grounding(fields map[string]Field) string {
+	messages := []map[string]any{}
+	for _, original := range input.Messages {
+		message := map[string]any{}
+		for key, value := range original {
+			message[key] = value
+		}
+		if parts, ok := message["content"].([]any); ok {
+			text := []string{}
+			for _, part := range parts {
+				if object, ok := part.(map[string]any); ok && object["type"] == "text" {
+					if value, ok := object["text"].(string); ok {
+						text = append(text, value)
+					}
+				}
+			}
+			message["content"] = strings.Join(text, "\n")
+		}
+		messages = append(messages, message)
+	}
+	raw, _ := json.Marshal(map[string]any{"messages": messages, "context": input.Context, "clientState": input.State, "frontendTools": input.Tools, "fields": fields})
+	return string(raw)
+}

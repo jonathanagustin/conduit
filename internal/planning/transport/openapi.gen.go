@@ -34,6 +34,7 @@ const (
 	NOTACCEPTED          ErrorCode = "NOT_ACCEPTED"
 	PLANREQUIRED         ErrorCode = "PLAN_REQUIRED"
 	SESSIONNOTFOUND      ErrorCode = "SESSION_NOT_FOUND"
+	TURNINPROGRESS       ErrorCode = "TURN_IN_PROGRESS"
 	UNKNOWNQUESTION      ErrorCode = "UNKNOWN_QUESTION"
 )
 
@@ -63,6 +64,8 @@ func (e ErrorCode) Valid() bool {
 	case PLANREQUIRED:
 		return true
 	case SESSIONNOTFOUND:
+		return true
+	case TURNINPROGRESS:
 		return true
 	case UNKNOWNQUESTION:
 		return true

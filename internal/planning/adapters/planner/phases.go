@@ -42,15 +42,20 @@ func (planner Planner) afterInspection(ctx context.Context, session *domain.Sess
 	view := domain.CloneSession(session)
 	view.Inspection = result.Inspection
 	questions, err := planner.askQuestions(ctx, view, message, checkout, tools)
-	if err != nil {
+	handoff := errors.Is(err, errFrontendHandoff)
+	if err != nil && !handoff {
 		return result, err
 	}
+	result.NeedsInput = questions
 	if len(questions) > 0 {
 		result.NeedsInput = questions
 		result.Messages = append(result.Messages, domain.Message{
 			Role: domain.RoleModel,
 			Text: fmt.Sprintf("I have %d question(s) before I can write the plan.", len(questions)),
 		})
+		return result, nil
+	}
+	if handoff {
 		return result, nil
 	}
 	return planner.writeInto(ctx, view, message, checkout, tools, result)
@@ -68,7 +73,7 @@ func (planner Planner) planTurn(ctx context.Context, session *domain.Session, me
 
 func (planner Planner) writeInto(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service, result *application.TurnResult) (*application.TurnResult, error) {
 	plan, err := planner.writePlan(ctx, session, message, checkout, tools)
-	if err != nil {
+	if err != nil && !errors.Is(err, errFrontendHandoff) {
 		return result, err
 	}
 	result.Plan = plan
@@ -80,10 +85,13 @@ func (planner Planner) askQuestions(ctx context.Context, session *domain.Session
 	err := planner.runPhase(ctx, session, checkout, tools, ActionQuestions, questionsPrompt(session, message), func(reply []byte) error {
 		parsed, err := parseQuestions(reply)
 		questions = parsed
-		return err
+		if err != nil {
+			return err
+		}
+		return application.QuestionsObserved(ctx, parsed)
 	})
 	if err != nil {
-		return nil, err
+		return questions, err
 	}
 	return questions, nil
 }
@@ -96,7 +104,7 @@ func (planner Planner) writePlan(ctx context.Context, session *domain.Session, m
 		return err
 	})
 	if err != nil {
-		return nil, err
+		return plan, err
 	}
 	return plan, nil
 }
@@ -106,6 +114,7 @@ func (planner Planner) writePlan(ctx context.Context, session *domain.Session, m
 // audit record whatever the outcome.
 func (planner Planner) runPhase(ctx context.Context, session *domain.Session, checkout repoclone.Checkout, tools *packagingtools.Service, action, prompt string, parse func([]byte) error) error {
 	adapter := localcmd.CommandName(planner.Argv[0])
+	prompt = application.GroundRunPrompt(ctx, prompt)
 	promptDigest := digestText([]byte(prompt))
 	var (
 		calls    []string
@@ -157,12 +166,23 @@ func (planner Planner) runPhase(ctx context.Context, session *domain.Session, ch
 		if err := parse(stdout); err != nil {
 			return fail(err)
 		}
-		return planner.record(ctx, Record{
+		handoff, err := publishFrontendCalls(ctx, stdout)
+		if err != nil {
+			return fail(err)
+		}
+		recordErr := planner.record(ctx, Record{
 			Action: action, SessionID: session.ID, Adapter: adapter, PromptSHA256: promptDigest,
 			ResponseSHA256: digestText(stdout), RepoURL: session.Intake.RepoURL,
 			ResolvedCommit: checkout.SHA, ToolCalls: append([]string(nil), calls...),
 			Outcome: "pass", Reason: phaseReason(action),
 		})
+		if recordErr != nil {
+			return recordErr
+		}
+		if handoff {
+			return errFrontendHandoff
+		}
+		return nil
 	}
 	return fail(fmt.Errorf("the model did not finish within %d rounds", phaseRounds))
 }
@@ -410,4 +430,30 @@ func uniqueTrimmed(items []string) []string {
 // Accept can bind the exact skill version and hash the plan was written under.
 func onboardProfile() domain.ProfileRef {
 	return domain.ProfileRef{Name: domain.ProfileOnboard, Version: packagingskill.Version, Hash: packagingskill.SHA256()}
+}
+
+var errFrontendHandoff = errors.New("planning is waiting for frontend tool results")
+
+func publishFrontendCalls(ctx context.Context, raw []byte) (bool, error) {
+	for _, candidate := range replyObjects(raw) {
+		var reply struct {
+			Calls *[]struct {
+				Name      string          `json:"name"`
+				Arguments json.RawMessage `json:"arguments"`
+			} `json:"clientToolCalls"`
+		}
+		if err := json.Unmarshal(candidate, &reply); err != nil || reply.Calls == nil {
+			continue
+		}
+		if len(*reply.Calls) > 4 {
+			return false, errors.New("too many frontend tool calls in one phase")
+		}
+		for _, call := range *reply.Calls {
+			if err := application.FrontendToolCalled(ctx, call.Name, call.Arguments); err != nil {
+				return false, err
+			}
+		}
+		return len(*reply.Calls) > 0, nil
+	}
+	return false, nil
 }

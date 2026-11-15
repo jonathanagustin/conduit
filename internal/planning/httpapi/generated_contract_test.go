@@ -38,6 +38,14 @@ func TestGeneratedPlanningClientAgainstStrictServer(t *testing.T) {
 	if err != nil || answered.JSON200 == nil {
 		t.Fatalf("answers: %+v %v", answered, err)
 	}
+	stale, err := client.AcceptPlanningSessionWithResponse(ctx, session.Id)
+	if err != nil || stale.JSON409 == nil {
+		t.Fatalf("stale draft was still eligible: %+v %v", stale, err)
+	}
+	replanned, err := client.PostPlanningTurnWithResponse(ctx, session.Id, api.PostPlanningTurnJSONRequestBody{})
+	if err != nil || replanned.JSON200 == nil || replanned.JSON200.Plan == nil {
+		t.Fatalf("replan: %+v %v", replanned, err)
+	}
 	accepted, err := client.AcceptPlanningSessionWithResponse(ctx, session.Id)
 	if err != nil || accepted.JSON200 == nil || accepted.JSON200.Binding == nil || accepted.JSON200.Binding.Plan.Sha256 == "" {
 		t.Fatalf("accept: %+v %v", accepted, err)

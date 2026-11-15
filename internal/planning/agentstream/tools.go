@@ -33,9 +33,9 @@ type ToolOffer struct {
 // Field is server-owned form metadata. Client state cannot add fields or change
 // their types, choices, or mutability. Type is string, boolean or number.
 type Field struct {
-	Type     string
-	Choices  []string
-	ReadOnly bool
+	Type     string   `json:"type"`
+	Choices  []string `json:"choices,omitempty"`
+	ReadOnly bool     `json:"readOnly"`
 }
 
 type noSchemaLoader struct{}

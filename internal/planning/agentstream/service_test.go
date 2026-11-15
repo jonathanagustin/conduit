@@ -317,3 +317,131 @@ func TestUncoveredInputInterruptDoesNotAdvanceTheModel(t *testing.T) {
 		t.Fatal("unanswered required input was bypassed")
 	}
 }
+
+func TestFrontendDraftToolHandoffThenHumanResume(t *testing.T) {
+	calls := 0
+	runner := plannerFunction(func(ctx context.Context, _ *domain.Session, _ string) (*application.TurnResult, error) {
+		calls++
+		if calls == 1 {
+			questions := []domain.Question{{ID: "node", Name: "node", Label: "Node version", Type: domain.QuestionSelect, Required: true, Options: []string{"20", "22"}}}
+			if err := application.QuestionsObserved(ctx, questions); err != nil {
+				return nil, err
+			}
+			if err := application.FrontendToolCalled(ctx, "fill_field", json.RawMessage(`{"field":"question:node","value":"20"}`)); err != nil {
+				return nil, err
+			}
+			return &application.TurnResult{NeedsInput: questions, ResolvedCommit: strings.Repeat("a", 40)}, nil
+		}
+		return &application.TurnResult{Plan: &domain.Plan{Text: "Reviewed plan after human answers."}}, nil
+	})
+	service, sessions, session, audit := makeRunService(t, runner)
+	firstInput := inputFor(session, "run-1")
+	firstInput.Tools = offers(t, "fill_field")
+	first := eventCollector{}
+	if err := service.Run(t.Context(), firstInput, first.write); err != nil {
+		t.Fatal(err)
+	}
+	first.validate(t, session.ID, "run-1")
+	outcome := first.last()["outcome"].(map[string]any)
+	pending := outcome["pendingToolCallIds"].([]any)
+	if outcome["type"] != "success" || len(pending) != 1 {
+		t.Fatalf("bad frontend handoff: %v", outcome)
+	}
+	callID := pending[0].(string)
+	ackInput := inputFor(session, "run-2")
+	ackInput.Tools = offers(t, "fill_field")
+	ackInput.Messages = append(ackInput.Messages, map[string]any{"id": "client-result", "role": "tool", "toolCallId": callID, "content": `{"ok":true}`})
+	second := eventCollector{}
+	if err := service.Run(t.Context(), ackInput, second.write); err != nil {
+		t.Fatal(err)
+	}
+	second.validate(t, session.ID, "run-2")
+	if calls != 1 {
+		t.Fatal("client prefill result advanced model before human answers")
+	}
+	got, _ := sessions.Get(t.Context(), session.ID)
+	if len(got.Answers) > 0 || got.Binding != nil {
+		t.Fatal("draft feedback became an answer/acceptance")
+	}
+	control := second.last()["outcome"].(map[string]any)
+	if control["type"] != "interrupt" {
+		t.Fatal("human input was not requested after prefill")
+	}
+	interruptID := control["interrupts"].([]any)[0].(map[string]any)["id"].(string)
+	resumed := inputFor(session, "run-3")
+	resumed.Tools = offers(t, "fill_field")
+	resumed.Messages = ackInput.Messages
+	resumed.Resume = []ResumeEntry{{InterruptID: interruptID, Status: "resolved", Payload: json.RawMessage(`{"question:node":"22"}`)}}
+	final := eventCollector{}
+	if err := service.Run(t.Context(), resumed, final.write); err != nil {
+		t.Fatal(err)
+	}
+	got, _ = sessions.Get(t.Context(), session.ID)
+	if calls != 2 || got.Answers[0].Value != "22" || got.Plan == nil || got.Binding != nil {
+		t.Fatalf("human override was not authoritative: %+v calls=%d", got, calls)
+	}
+	recorded := false
+	for _, event := range audit.entries {
+		if event.Action == "agent.tool_result" && event.RunID == "run-2" {
+			recorded = true
+		}
+	}
+	if !recorded {
+		t.Fatal("client result lost run/thread audit correlation")
+	}
+}
+
+func TestModelCannotUseAnUnofferedFrontendTool(t *testing.T) {
+	service, sessions, session, _ := makeRunService(t, plannerFunction(func(ctx context.Context, _ *domain.Session, _ string) (*application.TurnResult, error) {
+		return nil, application.FrontendToolCalled(ctx, "request_confirmation", json.RawMessage(`{"message":"Approve?"}`))
+	}))
+	events := eventCollector{}
+	if err := service.Run(t.Context(), inputFor(session, "run-1"), events.write); !errors.Is(err, ErrToolNotOffered) {
+		t.Fatal(err)
+	}
+	events.validate(t, session.ID, "run-1")
+	if events.last()["type"] != "RUN_ERROR" {
+		t.Fatal(events.last())
+	}
+	for _, event := range events {
+		if event["type"] == "TOOL_CALL_START" {
+			t.Fatal("unoffered frontend call reached the client")
+		}
+	}
+	got, _ := sessions.Get(t.Context(), session.ID)
+	if got.Plan != nil || got.Binding != nil {
+		t.Fatal("unoffered call changed planning state")
+	}
+}
+
+func TestDeclinedClientConfirmationDoesNotContinuePlanning(t *testing.T) {
+	calls := 0
+	service, sessions, session, _ := makeRunService(t, plannerFunction(func(ctx context.Context, _ *domain.Session, _ string) (*application.TurnResult, error) {
+		calls++
+		if err := application.FrontendToolCalled(ctx, "request_confirmation", json.RawMessage(`{"message":"Continue planning?"}`)); err != nil {
+			return nil, err
+		}
+		return &application.TurnResult{}, nil
+	}))
+	firstInput := inputFor(session, "run-1")
+	firstInput.Tools = offers(t, "request_confirmation")
+	first := eventCollector{}
+	if err := service.Run(t.Context(), firstInput, first.write); err != nil {
+		t.Fatal(err)
+	}
+	callID := first.last()["outcome"].(map[string]any)["pendingToolCallIds"].([]any)[0].(string)
+	next := inputFor(session, "run-2")
+	next.Tools = firstInput.Tools
+	next.Messages = append(next.Messages, map[string]any{"id": "declined", "role": "tool", "toolCallId": callID, "content": `{"ok":true,"confirmed":false}`})
+	events := eventCollector{}
+	if err := service.Run(t.Context(), next, events.write); err != nil {
+		t.Fatal(err)
+	}
+	if calls != 1 || events.last()["outcome"].(map[string]any)["type"] != "cancelled" {
+		t.Fatal("declined confirmation advanced the model")
+	}
+	got, _ := sessions.Get(t.Context(), session.ID)
+	if got.Plan != nil || got.Binding != nil {
+		t.Fatal("client confirmation granted authority")
+	}
+}

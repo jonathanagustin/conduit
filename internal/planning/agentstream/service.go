@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"maps"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -28,6 +29,8 @@ type thread struct {
 	history      []map[string]any
 	nativeCursor int
 	historyIDs   map[string]bool
+	pending      map[string]pendingTool
+	acknowledged map[string]string
 }
 
 // Service belongs to one authenticated owner's planning-session store.
@@ -106,7 +109,7 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			service.mu.Unlock()
 			return ErrRunCapacity
 		}
-		state = &thread{seenUsers: map[string]string{}, historyIDs: map[string]bool{}}
+		state = &thread{seenUsers: map[string]string{}, historyIDs: map[string]bool{}, pending: map[string]pendingTool{}, acknowledged: map[string]string{}}
 		service.threads[input.ThreadID] = state
 	}
 	previous := state.active
@@ -162,12 +165,21 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			output.fail(ctx, runErr)
 		}
 	}()
-	observer := &runObserver{service: service, state: state, input: input, policy: policy, output: output, calls: map[string]string{}}
-	ctx = application.WithRunScope(ctx, application.RunScope{ThreadID: input.ThreadID, RunID: input.RunID, Tools: observer})
+	observer := &runObserver{service: service, state: state, input: input, policy: policy, output: output, calls: map[string]string{}, session: session}
+	defer func() {
+		if runErr != nil {
+			observer.interrupted()
+		}
+	}()
+	feedback, err := service.clientResults(ctx, state, input)
+	if err != nil {
+		return err
+	}
+	ctx = application.WithRunScope(ctx, application.RunScope{ThreadID: input.ThreadID, RunID: input.RunID, Tools: observer, Frontend: observer, Questions: observer, Grounding: input.grounding(fieldsFor(session))})
 	if err := service.snapshot(ctx, output, state, session); err != nil {
 		return err
 	}
-	if cancelled {
+	if cancelled || feedback.Declined {
 		return output.send(ctx, map[string]any{"type": "RUN_FINISHED", "threadId": input.ThreadID, "runId": input.RunID, "outcome": map[string]any{"type": "cancelled"}})
 	}
 	if !snapshot {
@@ -180,8 +192,14 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			if err != nil {
 				return err
 			}
+			observer.policy, err = NewToolPolicy(input.Tools, fieldsFor(session))
+			if err != nil {
+				return err
+			}
+			observer.session = session
+			ctx = application.WithRunScope(ctx, application.RunScope{ThreadID: input.ThreadID, RunID: input.RunID, Tools: observer, Frontend: observer, Questions: observer, Grounding: input.grounding(fieldsFor(session))})
 		}
-		if (message != "" || len(answers) > 0) && (form == nil || len(input.Resume) > 0) {
+		if (message != "" || len(answers) > 0 || (feedback.Changed && session.Plan == nil)) && (form == nil || len(input.Resume) > 0) {
 			before := len(session.Messages)
 			if message != "" {
 				if userID == "" || strings.HasPrefix(userID, "conduit:") {
@@ -223,6 +241,11 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			}
 		}
 	}
+	service.mu.Lock()
+	for _, tool := range observer.frontend {
+		state.pending[tool.ID] = tool
+	}
+	service.mu.Unlock()
 	if err := service.snapshot(ctx, output, state, session); err != nil {
 		return err
 	}
@@ -230,7 +253,24 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 	if form := currentForm(session); form != nil {
 		outcome = map[string]any{"type": "interrupt", "interrupts": []any{map[string]any{"id": form.id, "reason": "needs_input", "message": "Complete the required planning inputs.", "responseSchema": form.schema}}}
 	}
-	return output.send(ctx, map[string]any{"type": "RUN_FINISHED", "threadId": input.ThreadID, "runId": input.RunID, "outcome": outcome})
+	if len(observer.frontend) > 0 {
+		ids := []string{}
+		for _, tool := range observer.frontend {
+			ids = append(ids, tool.ID)
+		}
+		outcome = map[string]any{"type": "success", "pendingToolCallIds": ids}
+	}
+	if err := output.send(ctx, map[string]any{"type": "RUN_FINISHED", "threadId": input.ThreadID, "runId": input.RunID, "outcome": outcome}); err != nil {
+		return err
+	}
+	service.mu.Lock()
+	for _, tool := range observer.frontend {
+		pending := state.pending[tool.ID]
+		pending.Eligible = true
+		state.pending[tool.ID] = pending
+	}
+	service.mu.Unlock()
+	return nil
 }
 
 func messageID(threadID string, index int) string {
@@ -245,8 +285,13 @@ func (service *Service) snapshot(ctx context.Context, output *publisher, state *
 	for _, call := range state.toolCalls {
 		tools = append(tools, maps.Clone(call))
 	}
+	pending := []pendingTool{}
+	for _, tool := range state.pending {
+		pending = append(pending, tool)
+	}
 	service.mu.Unlock()
-	if err := output.send(ctx, map[string]any{"type": "STATE_SNAPSHOT", "snapshot": map[string]any{"valueTier": "CONDUIT_NATIVE", "session": view, "toolCalls": tools}}); err != nil {
+	sort.Slice(pending, func(i, j int) bool { return pending[i].ID < pending[j].ID })
+	if err := output.stateUpdate(ctx, map[string]any{"valueTier": "CONDUIT_NATIVE", "session": view, "toolCalls": tools, "pendingClientTools": pending}); err != nil {
 		return err
 	}
 	service.mu.Lock()
