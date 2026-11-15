@@ -15,6 +15,7 @@ import (
 	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	liveports "github.com/jonathanagustin/conduit/internal/liveevents/ports"
 	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
 	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
@@ -31,6 +32,11 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// LiveEventJournal is a single-owner durable delivery journal. Nil keeps the
+	// authenticated route unavailable. It never falls back to memory storage.
+	LiveEventJournal liveports.Journal
+	// LiveEventContext cancels bounded source refresh during process shutdown.
+	LiveEventContext context.Context
 	// AdminStorage supplies read-only measurements for configured local storage filesystems.
 	AdminStorage map[string]adminports.CapacityReader
 	// DebugSessionJournal persists non-executing metadata requests and their audit events.

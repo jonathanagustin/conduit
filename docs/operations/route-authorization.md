@@ -81,11 +81,11 @@ is rejected. Both run in CI and in `scripts/verify-local.sh` under
 | `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 32 |
 | `operator-self` | an authenticated operator; the answer is about that operator only | 15 |
 | `operator-filtered` | an authenticated operator, then a Governance decision on every row of the answer | 35 |
-| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 130 |
+| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 131 |
 | `agent` | an Agent identity scoped to the Environment or Plan in the path | 10 |
 | `bundle-signature` | a Bundle envelope signed by a key this Hub trusts | 0 |
 
-The register itself is the full 234-row table. The tables below describe selected
+The register itself is the full 235-row table. The tables below describe selected
 examples; the source register and executable gate remain the complete inventory.
 
 ### `public` — served to anybody
@@ -292,3 +292,29 @@ uses the same operator carrier, `resourceOperation(resource:read)` and native
 event query as the REST resource-events route. It is `operator-grant` and is
 mounted only with the notification Store. It neither subscribes nor emits. See
 [connect-notification-events.md](connect-notification-events.md).
+
+
+## General live-event stream
+
+`GET /v1/events` is `operator-grant`: current operator authentication plus
+native administrator authority or an explicit relevant resource-read grant.
+It also filters each event using native resource visibility before assigning a
+visible sequence. Plan/Change Request/report subjects use the owning native
+read predicates; packaging subjects require the environment read used by the
+packaging index/history routes. A packaging single-run read being operator-any
+does not widen the stream. Agent credentials never establish an operator.
+
+The stream re-resolves the original credential, native team membership,
+delegation and grant stamp for each delivery check, rather than keeping the
+ordinary once-per-request carrier cache. Expired certificates are rejected even
+after their original TLS handshake; configured token resolvers are called again.
+Absent development identity is refused with 401, including localhost: this route
+does not use the development `local-developer` fallback. No stream authority is
+inferred from a cursor. Changed identity/grants require a fresh authorized stream.
+
+Without `LIVE_EVENT_JOURNAL_FILE`, an authenticated eligible caller gets 503.
+A missing/unconfigured/unhealthy packaging status source also prevents a ready
+response; it cannot be replaced with invented progress. Anonymous requests get
+401 and authenticated callers lacking stream eligibility get 403 before source
+reads or subscriber allocation. See [live-event delivery](live-event-delivery-journal.md)
+for replica ownership, source polling, replay and remaining coverage limits.

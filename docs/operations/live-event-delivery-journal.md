@@ -2,10 +2,11 @@
 
 This is the delivery foundation for #389 under accepted
 [ADR 0016](../decisions/0016-console-live-events.md). It consumes the existing
-`api/live-events/event.schema.json` contract. It adds no runtime route, native
-producer, automatic client subscription, approval channel or execution path.
-Runtime producer/authorization composition and mounting the SSE route remain
-#389; hooks remain #390. The current console continues using its existing reads and polling.
+`api/live-events/event.schema.json` contract. The Hub mounts the authenticated
+SSE route and can compose native outboxes with a single-owner durable journal.
+It adds no automatic client subscription, approval channel or execution path.
+Producer coverage/retention work remains #389; hooks remain #390. The current
+console continues using its existing reads and polling.
 
 ## Storage and ordering
 
@@ -210,14 +211,14 @@ existing native index (1,000 execution rows) and native journal (32 entries per
 run); run IDs must fit the committed live contract's 200-character single-token
 bound. Invalid coordinates, unreadable runs, history gaps, or unavailable workers
 fail the source. They do not cause a fabricated completion or a silently skipped
-run. Registry wiring belongs to runtime composition and remains outstanding.
+run. Runtime composition registers this source alongside the native controlplane outboxes.
 
 Legacy runs without a journal and status-only changes with no recorded step
 emit nothing. In particular, this adapter does not infer successful completion,
 cancellation, or a new step from a status snapshot. The existing journal cap and
 legacy coverage are unchanged. Completing #389 still requires closing the native
-status-transition coverage gaps, production authorization, and SSE composition;
-the adapter alone does not make the feature available.
+status-transition coverage/retention gaps; the adapter alone does not make the
+feature available without the runtime configuration described below.
 
 ## Versioned packaging terminal statuses
 
@@ -240,17 +241,17 @@ records, and replays the cancelled history.
 The existing 32-entry journal cap remains unchanged. An already full journal
 still cannot record another terminal event; legacy omissions are not backfilled.
 This closes the common terminal-transition gaps without claiming the remaining
-retention/coverage work or mounting the SSE runtime.
+retention/coverage work.
 
 
 ## SSE and native authorization adapters
 
 `liveevents/adapters/httpapi` implements the ADR 0016 response boundary for
-`GET /v1/events`. It is an adapter, **not a mounted Hub endpoint**. Production
-composition must supply authenticated request context, a current native
-operator resolver, configured source refresh, and the durable delivery service.
-It must also register the route in the authorization inventory before serving
-it. None of those runtime actions are enabled by importing the adapter.
+`GET /v1/events`. Hub composition mounts it and registers it in the route
+authorization inventory, supplying authenticated request context, current native
+operator resolution, configured source refresh, and the durable delivery service.
+Without a configured journal, the route authenticates and reports unavailable;
+importing the adapter alone does not enable delivery.
 
 The adapter authenticates before source reads or subscriber allocation. It
 rejects cross-origin requests, query parameters, request bodies and ambiguous
@@ -284,13 +285,51 @@ existing single-resource reads continue to work. Per-resource checks preserve
 Change Request author/reviewer visibility and carrier-only bootstrap authority;
 a service account cannot inherit bootstrap authority by representing an
 administrator. Missing resources are hidden and unavailable stores fail closed.
-Packaging and agent-run visibility must be composed through their own owning
-read adapters; this bridge grants neither. The resolver must revalidate the
+Packaging visibility is composed through its owning status reader and native
+environment-read decision. Agent-run visibility remains separate; this bridge
+grants neither packaging nor agent authority by itself. The resolver must revalidate the
 original credential and delegation on every call and must reject absent
 operator identity even where development routes have a localhost fallback.
 
 Tests exercise two operators, filtering before visible sequence assignment,
 stable cursor replay, permission revocation, source failure, slow clients,
 malformed requests, current grant snapshots and delegated native read rules.
-The remaining runtime composition and producer coverage work keeps #389 open;
-this adapter does not replace the console's polling or complete #390.
+The remaining producer coverage/retention work keeps #389 open;
+this runtime does not replace the console's polling or complete #390.
+
+
+## Runtime configuration and ownership
+
+Set `LIVE_EVENT_JOURNAL_FILE` to an absolute path on a private durable local
+filesystem, unique to this Hub replica. The CLI opens a private `.lock` sibling
+and takes a nonblocking exclusive process lock before loading the journal.
+A second owner, symlink/public lock, corrupt journal or unusable path fails
+startup. Shutdown releases the lock, and an OS process exit releases it after a
+crash; never delete the lock file while any process may still use it. Journal
+files are private (0600). There is no implicit memory fallback or automatic
+checkpoint discard. Existing state persists across restart on the same volume.
+
+This file adapter is single-owner, not shared multi-replica delivery storage.
+Use separate journal paths/volumes for replicas; resuming against another
+replica returns 409 and requires authorized catch-up. A shared PostgreSQL native
+outbox does not turn the local delivery file into a multi-writer database.
+
+Packaging Temporal must also be configured and readable. Missing workers,
+malformed history or source-read failures make the stream unavailable. The Hub
+retains its ordinary Plan/read routes when the optional stream is unavailable.
+Sources are drained only on an authorized stream request and every five seconds
+while connected. Refresh is coalesced across subscribers, has a ten-second
+process-context timeout, and transfers at most four 256-record batches per source
+per refresh. An operator disconnect cannot cancel another operator's source read.
+No periodic background worker is started; native outboxes retain idle writes.
+The journal's source-health freshness, bounded live queues, fail-closed gaps and
+stable cursor rules still apply. Configuring the stream grants no approval,
+execution, publication or outbound agent connection.
+
+The runtime revalidates the original operator credential and current native
+membership/delegation/grants instead of caching a request's initial principal.
+It preserves the carrier-only bootstrap rule. No raw credential or principal is
+persisted in the event journal. It does not trust forwarded scheme/identity
+headers or widen CORS. Direct Hub TLS or a same-origin development listener is
+the supported origin boundary; TLS-terminating proxies require an explicit
+trusted-origin adapter before browser SSE can be enabled through them.
