@@ -8,11 +8,17 @@ import {
   ledgerMarkup,
 } from "../../console/operator/audit-ledger.js";
 
-const GENESIS = "7afa15678bef67a658e82f9ad7ff54f9489f7bcf39d5d8a6f39ad93fc0f18ef3";
+const GENESIS =
+  "7afa15678bef67a658e82f9ad7ff54f9489f7bcf39d5d8a6f39ad93fc0f18ef3";
 
 type Decision = "ALLOW" | "DENY";
 
-function entry(sequence: number, previousDigest: string, decision: Decision = "ALLOW", extra = {}) {
+function entry(
+  sequence: number,
+  previousDigest: string,
+  decision: Decision = "ALLOW",
+  extra = {},
+) {
   return {
     sequence,
     id: `evt-${sequence}`,
@@ -42,7 +48,11 @@ describe("genesisDigest", () => {
 
 describe("checkChainLinks", () => {
   it("passes a good chain", () => {
-    expect(checkChainLinks(goodChain(), GENESIS)).toEqual({ ok: true, checked: 3, breaks: [] });
+    expect(checkChainLinks(goodChain(), GENESIS)).toEqual({
+      ok: true,
+      checked: 3,
+      breaks: [],
+    });
   });
 
   it("reports a broken link", () => {
@@ -60,7 +70,10 @@ describe("checkChainLinks", () => {
     chain[2] = { ...chain[2], sequence: 5 };
     const result = checkChainLinks(chain, GENESIS);
     expect(result.ok).toBe(false);
-    expect(result.breaks[0]).toEqual({ sequence: 5, reason: "Sequence jumps from 2 to 5." });
+    expect(result.breaks[0]).toEqual({
+      sequence: 5,
+      reason: "Sequence jumps from 2 to 5.",
+    });
   });
 
   it("reports a first entry that misses the genesis checkpoint", () => {
@@ -75,7 +88,9 @@ describe("checkChainLinks", () => {
 describe("filterEntries", () => {
   const chain = goodChain();
   it("filters by decision", () => {
-    expect(filterEntries(chain, { decision: "deny" }).map((e) => e.sequence)).toEqual([2]);
+    expect(
+      filterEntries(chain, { decision: "deny" }).map((e) => e.sequence),
+    ).toEqual([2]);
     expect(filterEntries(chain, { decision: "allow" })).toHaveLength(2);
     expect(filterEntries(chain, { decision: "all" })).toHaveLength(3);
   });
@@ -105,7 +120,8 @@ describe("ledgerMarkup", () => {
     expect(html).toContain(`title="${"03".repeat(32)}"`);
     expect(html).toContain(">030303030303<");
     expect(html).toContain("data-ledger-check");
-    expect(html).toContain("the Hub verifies each entry&#39;s own hash.");
+    expect(html).toContain("projection consistency only");
+    expect(html).toContain("independent checkpoints are separate");
   });
 
   it("marks the active decision chip", () => {
@@ -128,14 +144,18 @@ describe("ledgerMarkup", () => {
   });
 
   it("shows the empty state", () => {
-    expect(ledgerMarkup(goodChain(), { query: "zzz" })).toContain("No entry matches.");
+    expect(ledgerMarkup(goodChain(), { query: "zzz" })).toContain(
+      "No entry matches.",
+    );
   });
 
   it("shows the ok and error results", () => {
     const chain = goodChain();
     const ok = ledgerMarkup(chain, { check: checkChainLinks(chain, GENESIS) });
     expect(ok).toContain("kit-bar-ok");
-    expect(ok).toContain("All 3 links match, from the genesis checkpoint to entry 3.");
+    expect(ok).toContain(
+      "All 3 links match, from the genesis checkpoint to entry 3.",
+    );
 
     const bad = [...chain];
     bad[1] = { ...bad[1], previousDigest: "ee".repeat(32) };
@@ -178,6 +198,8 @@ describe("model exchange on the ledger", () => {
       entry(1, GENESIS, "ALLOW", { context: { promptSha256: "c66fd1e564ff" } }),
       entry(2, "11".repeat(32)),
     ];
-    expect(filterEntries(chain, { query: "c66fd1e564ff" }).map((e) => e.sequence)).toEqual([1]);
+    expect(
+      filterEntries(chain, { query: "c66fd1e564ff" }).map((e) => e.sequence),
+    ).toEqual([1]);
   });
 });

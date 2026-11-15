@@ -1,3 +1,4 @@
+import { createAuditEventStream } from "./audit-event-stream.js";
 import { createOfflineBundleFlow } from "./offline-bundle-flow.mjs";
 import { spokesMarkup } from "./fleet-spokes.mjs";
 import { mountWindowScheduler } from "./window-scheduler.js";
@@ -1812,6 +1813,13 @@ export function mountOperator(host, options) {
       if (ledgerRoot && ledgerRoot.isConnected) auditLedger.render(ledgerRoot);
     },
   });
+  const mountAuditEvents = createAuditEventStream({
+    getEntries: () => state.hub?.audit || [],
+    getIdentity: () => ({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    }),
+  });
   function renderAuditLedger(node) {
     if (!node) return;
     const entries = Array.isArray(state.hub?.audit) ? state.hub.audit : [];
@@ -1821,10 +1829,11 @@ export function mountOperator(host, options) {
     }
     node.innerHTML = `<div class="so-view-enter so-panel kit-ledger-panel">
       <div class="kit-ledger-head"><h2>Authorization audit</h2><span class="kit-muted">${entries.length} recorded decisions</span></div>
-      <div data-ledger-root></div></div>`;
+      <div data-ledger-root></div><div data-audit-stream-root></div></div>`;
     ledgerRoot = node.querySelector("[data-ledger-root]");
     auditLedger.render(ledgerRoot);
     auditLedger.bind(ledgerRoot);
+    mountAuditEvents(node.querySelector("[data-audit-stream-root]"));
   }
 
   function escHtml(v) {
