@@ -9,6 +9,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"math"
+	"strconv"
+	"strings"
 	"sync"
 
 	"github.com/santhosh-tekuri/jsonschema/v6"
@@ -65,6 +68,23 @@ func (v *Validator) Input(raw []byte) (map[string]any, error) { return validate(
 func (v *Validator) Event(raw []byte) (map[string]any, error) { return validate(v.event, raw) }
 
 func validate(schema *jsonschema.Schema, raw []byte) (map[string]any, error) {
+	value, err := DecodeJSON(raw)
+	if err != nil {
+		return nil, err
+	}
+	if err := schema.Validate(value); err != nil {
+		return nil, err
+	}
+	object, ok := value.(map[string]any)
+	if !ok {
+		return nil, fmt.Errorf("AG-UI envelope must be an object")
+	}
+	return object, nil
+}
+
+// DecodeJSON decodes one bounded JSON value without duplicate keys or lost
+// number precision. Tool-policy adapters reuse the wire parser's protections.
+func DecodeJSON(raw []byte) (any, error) {
 	if len(raw) > 1<<20 {
 		return nil, fmt.Errorf("AG-UI JSON exceeds 1 MiB")
 	}
@@ -77,14 +97,7 @@ func validate(schema *jsonschema.Schema, raw []byte) (map[string]any, error) {
 	if _, err = decoder.Token(); err != io.EOF {
 		return nil, fmt.Errorf("invalid trailing JSON")
 	}
-	if err := schema.Validate(value); err != nil {
-		return nil, err
-	}
-	object, ok := value.(map[string]any)
-	if !ok {
-		return nil, fmt.Errorf("AG-UI envelope must be an object")
-	}
-	return object, nil
+	return value, nil
 }
 
 // decode rejects duplicate keys before schema validation can discard them.
@@ -98,6 +111,22 @@ func decode(decoder *json.Decoder, depth int) (any, error) {
 	}
 	delimiter, container := token.(json.Delim)
 	if !container {
+		if number, ok := token.(json.Number); ok {
+			text := string(number)
+			if len(text) > 128 {
+				return nil, fmt.Errorf("AG-UI JSON number is too long")
+			}
+			if position := strings.IndexAny(text, "eE"); position >= 0 {
+				exponent, err := strconv.ParseInt(text[position+1:], 10, 32)
+				if err != nil || exponent < -324 || exponent > 324 {
+					return nil, fmt.Errorf("AG-UI JSON number exponent is outside supported bounds")
+				}
+			}
+			value, err := strconv.ParseFloat(text, 64)
+			if err != nil || math.IsInf(value, 0) || math.IsNaN(value) {
+				return nil, fmt.Errorf("AG-UI JSON number is outside supported bounds")
+			}
+		}
 		return token, nil
 	}
 	switch delimiter {
