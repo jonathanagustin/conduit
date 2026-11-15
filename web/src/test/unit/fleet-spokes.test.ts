@@ -51,3 +51,49 @@ describe("reported spoke workloads", () => {
     expect(html).not.toContain("i-256");
   });
 });
+
+it("separates declared namespace configuration from observed instance health", () => {
+  const html = workloadMarkup({
+    environment: {
+      id: "east",
+      namespaces: [
+        {
+          name: "declared-ns",
+          rid: "namespace/east",
+          deletionProtected: false,
+        },
+      ],
+    },
+    reported: {
+      entities: [
+        {
+          installationId: "app",
+          healthDetails: {
+            nodes: [
+              {
+                nodeId: "pod-observed",
+                containers: [
+                  {
+                    containerId: "container-a",
+                    liveness: false,
+                    readiness: true,
+                  },
+                  { containerId: "container-b" },
+                ],
+              },
+            ],
+          },
+        },
+      ],
+    },
+  });
+  expect(html).toContain("declared-ns");
+  expect(html).toContain("pod-observed");
+  expect(html).toContain("liveness no");
+  expect(html).toContain("readiness yes");
+  expect(html).toContain("liveness unavailable");
+  expect(html).toContain("not physical cluster-node inventory");
+  expect(workloadMarkup({ environment: { id: "empty" } })).toContain(
+    "No namespace declaration",
+  );
+});
