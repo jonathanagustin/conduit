@@ -400,6 +400,10 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         session?.effective?.username || session?.actor?.username || "";
       state.operatorName = name || "Operator";
       state.reviewOperatorName = typeof name === "string" ? name.trim() : "";
+      state.reviewOperatorActor =
+        typeof session?.actor?.username === "string"
+          ? session.actor.username
+          : "";
       state.reviewOperatorIdentities = [
         ...new Set(
           [session?.actor?.username, session?.effective?.username].filter(
@@ -411,6 +415,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       state.operatorName = "Operator";
       state.reviewOperatorName = "";
       state.reviewOperatorIdentities = [];
+      state.reviewOperatorActor = "";
     }
     try {
       next.environments = await readPages("/v1/environments", "environments");
@@ -680,8 +685,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       bindPackagingView(root);
       bindReviewNotes(root);
     },
-    renderBundle(root) {
-      const preview = hub(state).preview;
+    renderBundle(root, preview = hub(state).preview) {
       if (!preview) {
         root.innerHTML = missing(
           hub(state).bundleNote || "No signed bundle is recorded.",
