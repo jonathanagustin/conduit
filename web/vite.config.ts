@@ -39,6 +39,7 @@ const bridge = {
 
 export default defineConfig({
   lint: {
+    ignorePatterns: ["src/api/live-event-validator.generated.js"],
     jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
     rules: { "vite-plus/prefer-vite-plus-imports": "error" },
     options: { typeAware: true, typeCheck: true },
@@ -73,6 +74,7 @@ export default defineConfig({
       "**/*.yaml",
       "**/*.yml",
       "**/a2ui-validator.generated.js",
+      "**/live-event-validator.generated.js",
       // Generated and integrity-pinned bytes have dedicated drift/hash checks.
       "src/api/ontology-client/generated.ts",
       "src/console/operator/assets/world-borders-110m.json",

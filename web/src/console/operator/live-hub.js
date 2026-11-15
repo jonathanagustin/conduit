@@ -1,3 +1,5 @@
+import { LiveSubscription, idleLiveStatus } from "../../api/live-events.js";
+import { liveSessionIdentity } from "../../api/live-identity.js";
 import { releaseWavesMarkup } from "./release-waves.js";
 import {
   pipelineBuilderMarkup,
@@ -29,9 +31,11 @@ function initials(name) {
     .join("");
 }
 
-async function readJSON(path) {
+async function readJSON(path, signal) {
   const response = await fetch(path, {
     headers: { accept: "application/json" },
+    credentials: "same-origin",
+    signal,
   });
   if (!response.ok) {
     throw new Error(`${path} returned ${response.status}`);
@@ -49,36 +53,41 @@ export const REFRESH_READ_POSTS = Object.freeze([
   "/v1/bundles/verification",
 ]);
 
-async function readPost(path, body) {
+async function readPost(path, body, signal) {
   if (!REFRESH_READ_POSTS.includes(path)) {
     throw new Error(`${path} is not a read route`);
   }
-  return postJSON(path, body);
+  return postJSON(path, body, signal);
 }
 
-async function postJSON(path, body) {
+async function postJSON(path, body, signal) {
   const response = await fetch(path, {
     method: "POST",
     headers: { "content-type": "application/json", accept: "application/json" },
     body: JSON.stringify(body),
+    credentials: "same-origin",
+    signal,
   });
   if (!response.ok) throw new Error(`${path} returned ${response.status}`);
   return response.json();
 }
 
-async function readPages(path, key) {
+async function readPages(path, key, read = readJSON, strict = false) {
   const rows = [];
   let cursor = "";
   for (let page = 0; page < 5; page += 1) {
     const url = cursor
       ? `${path}${path.includes("?") ? "&" : "?"}cursor=${encodeURIComponent(cursor)}`
       : path;
-    const body = await readJSON(url);
+    const body = await read(url);
+    if (strict && !Array.isArray(body[key]))
+      throw new Error("Invalid Hub index");
     const items = Array.isArray(body[key]) ? body[key] : [];
     rows.push(...items);
     cursor = body.nextCursor || "";
     if (!cursor) break;
   }
+  if (strict && cursor) throw new Error("Hub index exceeds catch-up bound");
   return rows;
 }
 
@@ -285,6 +294,129 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     note: "Reading the Hub.",
   };
   let started = false;
+  let pollTimer;
+  let refreshTail = Promise.resolve();
+  let refreshing = 0,
+    refreshGeneration = 0;
+  let identityKey = "";
+  const eventListeners = new Set();
+  const stream = new LiveSubscription({
+    catchUp: async (context) => {
+      await refresh({ ...context, live: true });
+    },
+    invalidate: async (events, context) => {
+      await refresh({ ...context, live: true });
+      if (context.signal.aborted) return;
+      for (const listener of eventListeners) {
+        try {
+          listener(events);
+        } catch {
+          /* Views do not govern authorization or cursor delivery. */
+        }
+      }
+    },
+  });
+  state.liveEvents = idleLiveStatus;
+  stream.subscribe(() => {
+    state.liveEvents = stream.getSnapshot();
+    paintAvailability();
+  });
+  function paintAvailability() {
+    if (typeof document.createElement !== "function") return;
+    const chip = document.getElementById("operator-chip");
+    if (!chip?.parentElement) return;
+    let node = document.getElementById("live-events-status");
+    if (!node) {
+      node = document.createElement("span");
+      node.id = "live-events-status";
+      node.className = "kit-muted";
+      node.setAttribute("role", "status");
+      node.setAttribute("aria-live", "polite");
+      chip.before(node);
+    }
+    const status = state.liveEvents || idleLiveStatus;
+    node.textContent =
+      status.state === "live"
+        ? "Live updates"
+        : status.state === "connecting" || status.state === "catching-up"
+          ? "Syncing"
+          : "Polling";
+    if (status.state === "idle") node.textContent = "Live: sign in";
+    if (status.state === "auth-required")
+      node.textContent =
+        status.status === 401 ? "Live: sign in" : "No live access";
+    if (status.state === "unsupported") node.textContent = "Live unavailable";
+    let retry = document.getElementById("live-events-retry");
+    if (!retry) {
+      retry = document.createElement("button");
+      retry.id = "live-events-retry";
+      retry.type = "button";
+      retry.className = "kit-btn";
+      retry.textContent = "Retry live";
+      retry.addEventListener("click", () => stream.retry());
+      chip.before(retry);
+    }
+    retry.hidden =
+      !identityKey ||
+      !["offline", "auth-required", "unsupported", "resyncing"].includes(
+        status.state,
+      );
+    node.title = status.message;
+    node.setAttribute("data-live-state", status.state);
+    node.setAttribute("aria-label", status.message);
+  }
+  function partition(nextKey) {
+    if (nextKey === identityKey) return;
+    identityKey = nextKey;
+    stream.start("");
+    state.hub = {
+      loading: true,
+      packaging: [],
+      packagingEvents: [],
+      changes: [],
+      promotions: [],
+      plans: [],
+      environments: [],
+      installations: [],
+      preview: null,
+      note: "Reading the current operator's Hub state.",
+    };
+    state.reviewOperatorName = "";
+    state.reviewOperatorActor = "";
+    state.reviewOperatorIdentities = [];
+    state.operatorName = "Operator";
+    render();
+  }
+  function schedulePoll() {
+    clearTimeout(pollTimer);
+    if (!started) return;
+    pollTimer = setTimeout(async () => {
+      if (started && stream.getSnapshot().state !== "live" && refreshing === 0)
+        await refresh();
+      schedulePoll();
+    }, 30000);
+  }
+  function refresh(options = {}) {
+    const generation = refreshGeneration;
+    const task = refreshTail
+      .catch(() => {})
+      .then(async () => {
+        if (generation !== refreshGeneration) return;
+        refreshing++;
+        try {
+          return await readRefresh(options, generation);
+        } finally {
+          refreshing--;
+        }
+      });
+    refreshTail = task.then(
+      () => {},
+      () => {},
+    );
+    return task.catch((error) => {
+      if (options.live) throw error;
+    });
+  }
 
   function bindPackagingView(root) {
     root.querySelectorAll("[data-packaging-run]").forEach((element) =>
@@ -378,9 +510,15 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     if (label) label.textContent = name;
     if (mark) mark.textContent = initials(name);
     if (chip) chip.title = `Operator: ${name}`;
+    paintAvailability();
   }
 
-  async function refresh() {
+  async function readRefresh(options, generation) {
+    const read = (path) => readJSON(path, options.signal);
+    const pages = (path, key) =>
+      readPages(path, key, read, options.live === true);
+    const postRead = (path, body) => readPost(path, body, options.signal);
+    let session = null;
     const next = {
       loading: false,
       packaging: [],
@@ -395,35 +533,28 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       note: "",
     };
     try {
-      const session = await readJSON("/v1/session");
-      const name =
-        session?.effective?.username || session?.actor?.username || "";
-      state.operatorName = name || "Operator";
-      state.reviewOperatorName = typeof name === "string" ? name.trim() : "";
-      state.reviewOperatorActor =
-        typeof session?.actor?.username === "string"
-          ? session.actor.username
-          : "";
-      state.reviewOperatorIdentities = [
-        ...new Set(
-          [session?.actor?.username, session?.effective?.username].filter(
-            (name) => typeof name === "string" && name !== "",
-          ),
-        ),
-      ];
+      session = await read("/v1/session");
     } catch {
-      state.operatorName = "Operator";
-      state.reviewOperatorName = "";
-      state.reviewOperatorIdentities = [];
-      state.reviewOperatorActor = "";
+      session = null;
     }
+    if (options.signal?.aborted || generation !== refreshGeneration)
+      throw new DOMException("Hub read aborted", "AbortError");
+    const observed = liveSessionIdentity(session);
+    partition(observed);
+    if (options.identity && observed !== options.identity) {
+      queueMicrotask(() => {
+        if (started) void refresh();
+      });
+      throw new DOMException("Operator session changed", "AbortError");
+    }
+
     try {
-      next.environments = await readPages("/v1/environments", "environments");
+      next.environments = await pages("/v1/environments", "environments");
     } catch {
       next.note = "Hub did not return environments.";
     }
     try {
-      next.installations = await readPages(
+      next.installations = await pages(
         "/v1/fleet/installations",
         "installations",
       );
@@ -431,7 +562,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.installationNote = "Hub did not return reported installations.";
     }
     try {
-      const workspaces = await readJSON("/v1/dev-workspaces");
+      const workspaces = await read("/v1/dev-workspaces");
       if (!Array.isArray(workspaces.items))
         throw new Error("invalid workspace index");
       next.devWorkspaces = workspaces.items;
@@ -440,17 +571,17 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.workspaceNote = "Hub did not return workspace profile status.";
     }
     try {
-      next.products = await readPages("/v1/products?limit=20", "products");
+      next.products = await pages("/v1/products?limit=20", "products");
     } catch {
       next.productsNote = "Hub did not return the product catalog.";
     }
     try {
-      next.channels = await readJSON("/v1/channel-subscriptions");
+      next.channels = await read("/v1/channel-subscriptions");
     } catch {
       next.channelNote = "Hub did not return channel subscriptions.";
     }
     try {
-      const timeline = await readJSON("/v1/environments/dev/timeline");
+      const timeline = await read("/v1/environments/dev/timeline");
       const entries = Array.isArray(timeline.timeline) ? timeline.timeline : [];
       next.timeline = entries.length
         ? `${entries.length} entries`
@@ -459,37 +590,39 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.timeline = "";
     }
     try {
-      const upgrades = await readJSON("/v1/fleet/upgrades");
+      const upgrades = await read("/v1/fleet/upgrades");
       const rows = Array.isArray(upgrades.upgrades) ? upgrades.upgrades : [];
       next.behind = rows.length ? `${rows.length} behind` : "none";
     } catch {
       next.behind = "";
     }
     try {
-      const blackout = await readJSON("/v1/blackouts?environment=dev");
+      const blackout = await read("/v1/blackouts?environment=dev");
       next.blackoutReason = blackout.blocked ? blackout.reason : "";
     } catch {
       next.blackoutReason = "";
     }
     try {
-      const rollouts = await readJSON("/v1/rollouts");
+      const rollouts = await read("/v1/rollouts");
       next.rollouts = Array.isArray(rollouts.rollouts) ? rollouts.rollouts : [];
     } catch {
       next.rolloutNote = "Hub did not return staged rollouts.";
     }
     try {
-      const body = await readJSON("/v1/packaging-runs");
+      const body = await read("/v1/packaging-runs");
+      if (options.live && !Array.isArray(body.items))
+        throw new Error("Invalid packaging index");
       next.packaging = Array.isArray(body.items) ? body.items : [];
       next.packagingEventsByRun = Object.create(null);
       next.packagingHistoryByRun = Object.create(null);
       next.feedbackByRun = Object.create(null);
       for (const run of next.packaging) {
         if (!run.runId) continue;
-        const history = await readPackagingHistory(run.runId, readJSON);
+        const history = await readPackagingHistory(run.runId, read);
         next.packagingEventsByRun[run.runId] = history.items;
         next.packagingHistoryByRun[run.runId] = history;
         try {
-          const notes = await readJSON(
+          const notes = await read(
             `/v1/packaging-runs/${encodeURIComponent(run.runId)}/feedback`,
           );
           next.feedbackByRun[run.runId] = Array.isArray(notes.items)
@@ -507,46 +640,88 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.packagingNote = "Hub did not return packaging runs.";
     }
     try {
-      const chain = await readJSON("/v1/authorization-audit?view=chain");
+      const chain = await read("/v1/authorization-audit?view=chain");
       next.audit = Array.isArray(chain.entries) ? chain.entries : [];
     } catch {
       next.auditNote = "Hub did not return the audit chain.";
     }
     try {
-      next.changes = await readPages("/v1/change-requests", "changeRequests");
+      next.changes = await pages("/v1/change-requests", "changeRequests");
     } catch {
       next.changeNote = "Hub did not return change requests.";
     }
     try {
-      next.promotions = await readPages("/v1/promotions", "promotions");
+      next.promotions = await pages("/v1/promotions", "promotions");
     } catch {
       next.promotionNote = "Hub did not return promotions.";
     }
     try {
-      next.plans = await readPages("/v1/plans", "plans");
+      next.plans = await pages("/v1/plans", "plans");
     } catch {
       next.planNote = "Hub did not return plans.";
     }
     try {
-      const listed = await readJSON("/v1/bundles");
+      const listed = await read("/v1/bundles");
       const bundles = Array.isArray(listed.bundles) ? listed.bundles : [];
       const newest = bundles[bundles.length - 1];
       if (newest?.id) {
-        const envelope = await readJSON(
+        const envelope = await read(
           `/v1/bundles/${encodeURIComponent(newest.id)}`,
         );
         try {
-          next.preview = await readPost("/v1/bundles/preview", envelope);
+          next.preview = await postRead("/v1/bundles/preview", envelope);
         } catch {
-          next.preview = await readPost("/v1/bundles/verification", envelope);
+          next.preview = await postRead("/v1/bundles/verification", envelope);
         }
       }
     } catch {
       next.bundleNote = "Hub did not return a signed bundle.";
     }
+    if (options.signal?.aborted || generation !== refreshGeneration)
+      throw new DOMException("Hub read aborted", "AbortError");
+    if (started && observed) {
+      const finalSession = await read("/v1/session");
+      const finalIdentity = liveSessionIdentity(finalSession);
+      if (finalIdentity !== observed) {
+        partition(finalIdentity);
+        queueMicrotask(() => {
+          if (started) void refresh();
+        });
+        throw new DOMException("Operator session changed", "AbortError");
+      }
+    }
+    if (options.signal?.aborted || generation !== refreshGeneration)
+      throw new DOMException("Hub read aborted", "AbortError");
+    const name = session?.effective?.username || session?.actor?.username || "";
+    state.operatorName = name || "Operator";
+    state.reviewOperatorName = typeof name === "string" ? name.trim() : "";
+    state.reviewOperatorActor =
+      typeof session?.actor?.username === "string"
+        ? session.actor.username
+        : "";
+    state.reviewOperatorIdentities = [
+      ...new Set(
+        [session?.actor?.username, session?.effective?.username].filter(
+          (value) => typeof value === "string" && value !== "",
+        ),
+      ),
+    ];
     state.hub = next;
     paintOperator();
     render();
+    if (
+      options.live &&
+      (next.note ||
+        next.installationNote ||
+        next.planNote ||
+        next.changeNote ||
+        next.packagingNote ||
+        Object.values(next.packagingHistoryByRun || {}).some(
+          (history) => !history.complete,
+        ))
+    )
+      throw new Error("Required Hub read model is unavailable");
+    if (started && !options.live) stream.start(observed);
   }
 
   function reviewNotes(runID) {
@@ -611,6 +786,25 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   return {
     /** Reloads Hub state. Read-only: it never records anything on the Hub. */
     refresh,
+    subscribeLive(listener) {
+      return stream.subscribe(listener);
+    },
+    liveStatus() {
+      return stream.getSnapshot();
+    },
+    onLiveEvents(listener) {
+      eventListeners.add(listener);
+      return () => eventListeners.delete(listener);
+    },
+    retryLive() {
+      stream.retry();
+    },
+    stop() {
+      started = false;
+      clearTimeout(pollTimer);
+      refreshGeneration++;
+      stream.stop();
+    },
     /** Approves or rejects a change request as the signed-in operator. */
     async reviewChange(id, decision, rationale) {
       if (decision !== "approve" && decision !== "reject") {
@@ -638,7 +832,8 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       paintOperator();
       if (started) return;
       started = true;
-      refresh();
+      void refresh();
+      schedulePoll();
     },
     renderPipeline(root) {
       const runs = hub(state).packaging || [];

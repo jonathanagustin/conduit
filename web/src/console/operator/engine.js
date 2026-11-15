@@ -5118,6 +5118,7 @@ export function mountOperator(host, options) {
   settingsDialog.restore();
   renderApp();
   return () => {
+    liveHub.stop();
     removeInlineActions();
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("hashchange", onHash);

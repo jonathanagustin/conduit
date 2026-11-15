@@ -42,6 +42,7 @@ run_pinned() {
 if [[ -n "${CONSOLE_BUILD_OUT:-}" ]]; then
   run_pinned pnpm --dir "${root}/web" install --frozen-lockfile
   run_pinned node "${root}/tools/a2ui/generate-validator.mjs" --check
+  run_pinned node "${root}/tools/liveevents/generate-validator.mjs" --check
   PLATFORM_CONSOLE_OUT_DIR="${CONSOLE_BUILD_OUT}" run_pinned pnpm --dir "${root}/web" build
   exit 0
 fi
@@ -53,7 +54,7 @@ hash_inputs() {
          -o -path "${root}/web/.stryker-tmp" -o -path "${root}/web/test-results" \
          -o -path "${root}/web/playwright-report" -o -path "${root}/web/coverage" \
       \) -prune -o -type f -print
-    find "${root}/api/a2ui" "${root}/tools/a2ui" -type f -print
+    find "${root}/api/a2ui" "${root}/tools/a2ui" "${root}/api/live-events" "${root}/tools/liveevents" -type f -print
     printf '%s\n' "${root}/scripts/build-console.sh" "${root}/mise.toml"
   } | LC_ALL=C sort | xargs -d '\n' sha256sum | sha256sum | awk '{print $1}'
 }
@@ -87,6 +88,7 @@ trap restore_anchor EXIT
 
 run_pinned pnpm --dir "${root}/web" install --frozen-lockfile
 run_pinned node "${root}/tools/a2ui/generate-validator.mjs" --check
+run_pinned node "${root}/tools/liveevents/generate-validator.mjs" --check
 run_pinned pnpm --dir "${root}/web" build
 printf '%s\n' "${current}" >"${stamp}"
 echo "built the operator console into internal/consoleui/dist"
