@@ -1,3 +1,4 @@
+import { selectedEnvironment } from "./release-environment-hub.js";
 import { selectedPackagingRun } from "./packaging-pipeline.js";
 import { runState } from "./packaging-runs.js";
 /* Shared v3 surfaces. They render recorded Hub rows or an empty state. */
@@ -420,7 +421,7 @@ export function areaSupplement(hub, screen, tab) {
 /**
  * @param {any} hub
  * @param {string} screen
- * @param {{packagingRunId?: string}} selection
+ * @param {{packagingRunId?: string, releaseEnvironmentId?: string}} selection
  */
 export function areaObject(hub, screen, selection = {}) {
   const data = hub || {};
@@ -444,7 +445,10 @@ export function areaObject(hub, screen, selection = {}) {
     };
   }
   if (screen === "area-releases") {
-    const row = (data.environments || [])[0];
+    const row = selectedEnvironment(
+      data.environments,
+      selection.releaseEnvironmentId,
+    );
     const id = row?.environment?.id;
     if (!id) return null;
     return {

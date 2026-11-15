@@ -1155,3 +1155,99 @@ test("plan inspector loads the selected environment timeline and preserves audit
   await expect(inspector).not.toContainText("Hub-verified chain link");
   expect(requests).toContain("/v1/environments/env-b/timeline");
 });
+
+test("environment hub scopes header, installations, blackout and timeline to selection", async ({
+  page,
+}) => {
+  const proposals: unknown[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/fleet/propose-fix") {
+      proposals.push(route.request().postDataJSON());
+      return route.fulfill({ json: { changeRequestId: "native-fix-request" } });
+    }
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: {
+          environments: [
+            { environment: { id: "env-a" } },
+            {
+              environment: {
+                id: "env-b",
+                maintenance: {
+                  downtime: {
+                    timeZone: "UTC",
+                    intervals: ["Monday 02:00-04:00"],
+                  },
+                },
+              },
+            },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/fleet/installations")
+      return route.fulfill({
+        json: {
+          installations: [
+            { environment: "env-a", product: "other-service" },
+            {
+              environment: "env-b",
+              product: "selected-service",
+              installationId: "service-b",
+              desiredVersion: "2",
+              observedVersion: "1",
+              desiredReleaseDigest: "sha256:wanted",
+              observedReleaseDigest: "sha256:old",
+              desiredConfigDigest: "sha256:config",
+              observedConfigDigest: "sha256:config",
+              observedAt: "2026-11-15T10:00:00Z",
+              stale: false,
+            },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/blackouts")
+      return route.fulfill({
+        json: {
+          environment: url.searchParams.get("environment"),
+          blocked: true,
+          reason: `hold-${url.searchParams.get("environment")}`,
+        },
+      });
+    if (url.pathname.endsWith("/timeline"))
+      return route.fulfill({
+        json: {
+          timeline: [
+            {
+              kind: "plan",
+              at: "2026-11-15",
+              summary: `event-${url.pathname.split("/")[3]}`,
+              verified: false,
+            },
+          ],
+        },
+      });
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator("[data-release-environment]").selectOption("env-b");
+  const hub = page.locator("[data-release-environment-hub]");
+  await expect(hub).toContainText("selected-service");
+  await expect(hub).not.toContainText("other-service");
+  await expect(hub).toContainText("hold-env-b");
+  await expect(hub).toContainText("event-env-b");
+  await expect(hub).not.toContainText("hold-env-a");
+  await expect(hub).not.toContainText("event-env-a");
+  await expect(page.locator("[data-object-header]")).toContainText("env-b");
+  await expect(hub).toContainText("Monday 02:00-04:00");
+  await hub.getByRole("button", { name: "Propose fix for service-b" }).click();
+  await expect(hub).toContainText("native-fix-request");
+  expect(proposals).toEqual([
+    { environment: "env-b", installationId: "service-b" },
+  ]);
+});

@@ -818,6 +818,9 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         `<p class="text-[12px] text-[#8b96a5]">The version on dev, candidate, and stable, and the channel this environment subscribes to. Running is the version the environment last reported.</p>${table}`,
       )}</div>`;
     },
+    proposeFix(environment, installationId) {
+      return postJSON("/v1/fleet/propose-fix", { environment, installationId });
+    },
     renderEnvironments(root) {
       const rows = hub(state).environments || [];
       const installations = hub(state).installations || [];
