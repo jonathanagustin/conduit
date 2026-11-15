@@ -4,8 +4,8 @@ This is the delivery foundation for #389 under accepted
 [ADR 0016](../decisions/0016-console-live-events.md). It consumes the existing
 `api/live-events/event.schema.json` contract. It adds no runtime route, native
 producer, automatic client subscription, approval channel or execution path.
-Native producer integration and the SSE HTTP adapter remain #389; hooks remain
-#390. The current console continues using its existing reads and polling.
+Runtime producer/authorization composition and mounting the SSE route remain
+#389; hooks remain #390. The current console continues using its existing reads and polling.
 
 ## Storage and ordering
 
@@ -241,3 +241,56 @@ The existing 32-entry journal cap remains unchanged. An already full journal
 still cannot record another terminal event; legacy omissions are not backfilled.
 This closes the common terminal-transition gaps without claiming the remaining
 retention/coverage work or mounting the SSE runtime.
+
+
+## SSE and native authorization adapters
+
+`liveevents/adapters/httpapi` implements the ADR 0016 response boundary for
+`GET /v1/events`. It is an adapter, **not a mounted Hub endpoint**. Production
+composition must supply authenticated request context, a current native
+operator resolver, configured source refresh, and the durable delivery service.
+It must also register the route in the authorization inventory before serving
+it. None of those runtime actions are enabled by importing the adapter.
+
+The adapter authenticates before source reads or subscriber allocation. It
+rejects cross-origin requests, query parameters, request bodies and ambiguous
+cursor/origin headers. It exposes the ready watermark headers, writes the
+committed envelope as SSE `id`/`event`/`data`, and sends comment heartbeats.
+Source failures and permission revocation close the response; private errors
+never become event bodies. Replay remains available after a failed write or
+flush. The delivery service retains its queue, replay and envelope limits.
+Writes have a 15-second deadline, renewed for each frame/heartbeat and cleared
+on return, and connections have a 30-minute lifetime. Streaming middleware must
+preserve `ResponseController` deadline/flush support (for example via `Unwrap`).
+Same-origin checks use the request's TLS state and Host; deployments terminating
+TLS at a proxy must provide trusted original-origin handling in composition,
+not accept arbitrary forwarded identity or scheme headers.
+
+`liveevents/adapters/nativeauth` derives opaque owner, represented-principal and
+authorization hashes from freshly resolved native principals and grants. Grant
+ordering, role/operation ordering and storage timestamps do not create new
+stream epochs. Carrier/delegate identities, group/team membership, grant scopes,
+permissions/revisions and administrator status do. Invalid UTF-8 or excessive
+or cyclic delegation fails closed. No credentials, grant tables or usernames
+are written into the delivery identity. Every visibility call resolves again;
+a changed stamp requires reset before invoking the native resource predicate.
+
+The controlplane bridge exposes current stream eligibility and Plan,
+Change Request and reported-environment visibility using existing native read
+predicates. Eligibility requires administrator authority or a relevant explicit
+native resource-read grant; it does not invent a new role. An author/reviewer
+without either remains ineligible for this general stream even though their
+existing single-resource reads continue to work. Per-resource checks preserve
+Change Request author/reviewer visibility and carrier-only bootstrap authority;
+a service account cannot inherit bootstrap authority by representing an
+administrator. Missing resources are hidden and unavailable stores fail closed.
+Packaging and agent-run visibility must be composed through their own owning
+read adapters; this bridge grants neither. The resolver must revalidate the
+original credential and delegation on every call and must reject absent
+operator identity even where development routes have a localhost fallback.
+
+Tests exercise two operators, filtering before visible sequence assignment,
+stable cursor replay, permission revocation, source failure, slow clients,
+malformed requests, current grant snapshots and delegated native read rules.
+The remaining runtime composition and producer coverage work keeps #389 open;
+this adapter does not replace the console's polling or complete #390.
