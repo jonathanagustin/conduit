@@ -986,3 +986,49 @@ test("packaging graph and staged chunks keep the selected run and paged history"
   );
   expect(calls.every((call) => call.method === "GET")).toBe(true);
 });
+
+test("release convergence uses reported Hub evidence in the releases area", async ({
+  page,
+}) => {
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/v1/fleet/installations") {
+      await route.fulfill({
+        json: {
+          installations: [
+            {
+              environment: "prod-native",
+              installationId: "service-a",
+              product: "native-product",
+              desiredVersion: "2.0.0",
+              observedVersion: "2.0.0",
+              desiredReleaseDigest: "sha256:desired",
+              observedReleaseDigest: "sha256:other",
+              desiredConfigDigest: "sha256:config",
+              observedConfigDigest: "sha256:config",
+              observedAt: "2026-11-15T10:00:00Z",
+              stale: false,
+              lifecycle: "INSTALLED",
+              health: "HEALTHY",
+              configStatus: "APPLIED",
+              rolloutStatus: "UP_TO_DATE",
+            },
+          ],
+        },
+      });
+      return;
+    }
+    await route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="convergence"]').click();
+  const matrix = page.locator("[data-release-convergence]");
+  await expect(matrix).toContainText("native-product");
+  await expect(matrix).toContainText("diverged");
+  await expect(matrix).not.toContainText("edge-east-01");
+});
