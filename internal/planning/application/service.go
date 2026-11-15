@@ -243,8 +243,17 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 	for _, existing := range session.Answers {
 		byID[existing.ID] = existing
 	}
+	changed := false
 	for _, answer := range answers {
-		byID[answer.ID] = domain.Answer{ID: answer.ID, Value: strings.TrimSpace(answer.Value)}
+		value := strings.TrimSpace(answer.Value)
+		existing, exists := byID[answer.ID]
+		if !exists || existing.Value != value {
+			changed = true
+		}
+		byID[answer.ID] = domain.Answer{ID: answer.ID, Value: value}
+	}
+	if changed {
+		session.Plan = nil
 	}
 	session.Answers = session.Answers[:0]
 	for _, question := range session.NeedsInput {

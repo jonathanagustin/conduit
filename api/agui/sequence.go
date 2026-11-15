@@ -2,6 +2,7 @@ package agui
 
 import (
 	"fmt"
+	"maps"
 )
 
 // Sequence checks the Hub's explicit start/content/end producer profile. The
@@ -151,3 +152,16 @@ func (s *Sequence) Accept(raw []byte) error {
 // Complete reports receipt of the one terminal event. A truncated stream is
 // incomplete even when its HTTP status was 200.
 func (s *Sequence) Complete() bool { return s.terminal }
+
+// Next validates an advanced copy, allowing an adapter to persist its audit
+// record before committing publication/order state.
+func (s *Sequence) Next(raw []byte) (*Sequence, error) {
+	next := *s
+	next.messages = maps.Clone(s.messages)
+	next.tools = maps.Clone(s.tools)
+	next.steps = maps.Clone(s.steps)
+	if err := next.Accept(raw); err != nil {
+		return nil, err
+	}
+	return &next, nil
+}

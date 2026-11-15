@@ -24,3 +24,9 @@ Shape validation is not authorization, tool admission, argument-schema
 validation, audit persistence, state-patch application or a mounted endpoint.
 Those obligations belong to the governed Hub/application adapters and the
 console. A valid public tool event alone cannot authorize an operation.
+
+The native decoder rejects duplicate keys, more than 64 nesting levels, more
+than 1 MiB per envelope, and numeric tokens outside bounded finite browser
+number ranges (128 characters and exponent magnitude at most 324). It retains
+`json.Number` precision within those bounds. These limits also apply before
+compiling a client-provided tool argument schema.

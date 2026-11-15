@@ -100,3 +100,26 @@ func TestSnapshotIDsCannotBeReusedByNewText(t *testing.T) {
 		t.Fatal("ambiguous snapshot accepted")
 	}
 }
+
+func TestPreviewDoesNotAdvanceOriginalOrderingMaps(t *testing.T) {
+	for _, event := range []string{
+		`{"type":"TEXT_MESSAGE_START","messageId":"m","role":"assistant"}`,
+		`{"type":"TOOL_CALL_START","toolCallId":"c","toolCallName":"inspect_repo"}`,
+		`{"type":"STEP_STARTED","stepName":"inspect"}`,
+	} {
+		sequence := NewSequence("t", "r")
+		if err := sequence.Accept([]byte(started)); err != nil {
+			t.Fatal(err)
+		}
+		preview, err := sequence.Next([]byte(event))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := sequence.Accept([]byte(event)); err != nil {
+			t.Fatalf("preview mutated uncommitted order state: %v", err)
+		}
+		if err := preview.Accept([]byte(event)); err == nil {
+			t.Fatal("preview did not retain its own order state")
+		}
+	}
+}

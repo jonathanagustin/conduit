@@ -15,6 +15,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
+	"github.com/jonathanagustin/conduit/internal/planning/agentstream"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planninghttp "github.com/jonathanagustin/conduit/internal/planning/httpapi"
@@ -35,25 +36,51 @@ func planningHandler(legacy http.Handler, repository controlplane.Repository, op
 	var stores sync.Map
 	governanceService := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
+	type ownerServices struct {
+		sessions *planningapp.Service
+		runs     *agentstream.Service
+	}
+	resolve := func(request *http.Request) (*ownerServices, error) {
+		principal, ok := packagingPrincipal(request, governanceService, options)
+		if !ok || principal.Username == "" {
+			return nil, errors.New("unauthorized")
+		}
+		actor := principal.Username
+		if existing, ok := stores.Load(actor); ok {
+			return existing.(*ownerServices), nil
+		}
+		scopedRunner := runner
+		if runner != nil {
+			scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
+		}
+		sessions := planningapp.NewService(scopedRunner).WithAuditor(planningAcceptAudit{repository: repository, actor: actor})
+		runs, err := agentstream.NewService(sessions, planningRunAudit{repository: repository, actor: actor})
+		if err != nil {
+			return nil, err
+		}
+		actual, _ := stores.LoadOrStore(actor, &ownerServices{sessions: sessions, runs: runs})
+		return actual.(*ownerServices), nil
+	}
+	authorize := func(request *http.Request) error { _, err := operatorClaims(request, options); return err }
 	planninghttp.Register(mux, planninghttp.Config{
 		ResolveService: func(request *http.Request) (planninghttp.Sessions, error) {
-			principal, ok := packagingPrincipal(request, governanceService, options)
-			if !ok || principal.Username == "" {
-				return nil, errors.New("unauthorized")
+			owner, err := resolve(request)
+			if err != nil {
+				return nil, err
 			}
-			actor := principal.Username
-			scopedRunner := runner
-			if runner != nil {
-				scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
+			return owner.sessions, nil
+		},
+		Authorize: authorize,
+	})
+	agentstream.RegisterHTTP(mux, agentstream.HTTPConfig{
+		ResolveService: func(request *http.Request) (*agentstream.Service, error) {
+			owner, err := resolve(request)
+			if err != nil {
+				return nil, err
 			}
-			service := planningapp.NewService(scopedRunner).WithAuditor(planningAcceptAudit{repository: repository, actor: actor})
-			actual, _ := stores.LoadOrStore(actor, service)
-			return actual.(*planningapp.Service), nil
+			return owner.runs, nil
 		},
-		Authorize: func(request *http.Request) error {
-			_, err := operatorClaims(request, options)
-			return err
-		},
+		Authorize: authorize,
 	})
 	mux.Handle("/", legacy)
 	return mux
@@ -145,4 +172,22 @@ type actorPlanningRunner struct {
 
 func (runner actorPlanningRunner) Turn(ctx context.Context, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
 	return runner.runner.Turn(context.WithValue(ctx, planningActorKey{}, runner.actor), session, message)
+}
+
+type planningRunAudit struct {
+	repository controlplane.Repository
+	actor      string
+}
+
+func (audit planningRunAudit) Record(ctx context.Context, record agentstream.AuditRecord) error {
+	if audit.repository == nil || audit.actor == "" {
+		return agentstream.ErrAuditUnavailable
+	}
+	decision := governance.DecisionAllow
+	if record.Action == "agent.tool_denied" || record.Action == "agent.event.RUN_ERROR" {
+		decision = governance.DecisionDeny
+	}
+	event := governance.NewAuthorizationCheckEvent(time.Now().UTC(), audit.actor, record.Action, "planning-session/"+record.ThreadID, decision, "governed planning run event", map[string]any{"threadId": record.ThreadID, "runId": record.RunID, "payloadSha256": record.PayloadSHA256})
+	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
+	return err
 }

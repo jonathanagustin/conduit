@@ -140,3 +140,36 @@ func TestCancelledTurnReleasesSessionReservation(t *testing.T) {
 		t.Fatalf("cancelled turn affected retry: %+v", got)
 	}
 }
+
+func TestChangedAnswersInvalidatePlanButIdenticalAnswersPreserveIt(t *testing.T) {
+	service := NewService(scriptedPlanner{result: &TurnResult{Plan: &domain.Plan{Text: "reviewed draft"}, NeedsInput: []domain.Question{{ID: "mode", Name: "mode", Type: domain.QuestionString}}, ResolvedCommit: strings.Repeat("a", 40)}})
+	session, err := service.Create(t.Context(), "https://github.com/org/app", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Turn(t.Context(), session.ID, "plan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Answer(t.Context(), session.ID, []domain.Answer{{ID: "mode", Value: "one"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.Plan != nil {
+		t.Fatal("changed answers left the old draft eligible")
+	}
+	if _, err := service.Accept(t.Context(), session.ID); !errors.Is(err, domain.ErrPlanRequired) {
+		t.Fatalf("stale plan accepted: %v", err)
+	}
+	session, err = service.Turn(t.Context(), session.ID, "replan")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Answer(t.Context(), session.ID, []domain.Answer{{ID: "mode", Value: " one "}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if session.Plan == nil || session.Plan.Text != "reviewed draft" || session.Status != domain.StatusReady {
+		t.Fatal("idempotent answers discarded an unchanged plan")
+	}
+}

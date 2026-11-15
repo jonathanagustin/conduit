@@ -127,8 +127,16 @@ func TestAcceptAndComputeFollowTheBindingContract(t *testing.T) {
 	answered := doJSON(t, mux, http.MethodPost, "/v1/planning-sessions/"+id+"/answers", map[string]any{
 		"answers": []map[string]string{{"id": "sso", "value": "no"}},
 	})
-	if answered.status != http.StatusOK || answered.body["status"] != domain.StatusReady {
-		t.Fatalf("answers: %d %s", answered.status, answered.raw)
+	if answered.status != http.StatusOK || answered.body["status"] != domain.StatusPlanning || answered.body["plan"] != nil {
+		t.Fatalf("answers retained stale plan: %d %s", answered.status, answered.raw)
+	}
+	stale := doJSON(t, mux, http.MethodPost, "/v1/planning-sessions/"+id+"/accept", nil)
+	if stale.status != http.StatusConflict || stale.body["code"] != domain.CodePlanRequired {
+		t.Fatalf("stale accept: %d %s", stale.status, stale.raw)
+	}
+	replanned := doJSON(t, mux, http.MethodPost, "/v1/planning-sessions/"+id+"/turns", map[string]string{"message": "rebuild the plan using these answers"})
+	if replanned.status != http.StatusOK || replanned.body["status"] != domain.StatusReady {
+		t.Fatalf("replan: %d %s", replanned.status, replanned.raw)
 	}
 	accepted := doJSON(t, mux, http.MethodPost, "/v1/planning-sessions/"+id+"/accept", nil)
 	if accepted.status != http.StatusOK || accepted.body["status"] != domain.StatusAccepted {

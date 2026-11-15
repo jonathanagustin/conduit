@@ -79,8 +79,18 @@ func TestAcceptRecordsBindingAndRefusesComputeUntilThen(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	if session.Status == domain.StatusReady || session.Plan != nil {
+		t.Fatal("answer changes retained a stale draft plan")
+	}
+	if _, err := service.Accept(context.Background(), session.ID); !errors.Is(err, domain.ErrPlanRequired) {
+		t.Fatalf("accept before replanning: %v", err)
+	}
+	session, err = service.Turn(context.Background(), session.ID, "rebuild the plan using these answers")
+	if err != nil {
+		t.Fatal(err)
+	}
 	if session.Status != domain.StatusReady {
-		t.Fatalf("status after answers = %q", session.Status)
+		t.Fatalf("status after replanning = %q", session.Status)
 	}
 	if _, err := service.Compute(context.Background(), session.ID); !errors.Is(err, domain.ErrComputeBeforeAccept) {
 		t.Fatalf("compute before accept: %v", err)

@@ -88,7 +88,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 	}
 	adapter := localcmd.CommandName(planner.Argv[0])
 	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: adapter, Profile: onboardProfile()}
-	prompt := inspectionPrompt(session, message)
+	prompt := application.GroundRunPrompt(ctx, inspectionPrompt(session, message))
 	promptDigest := digestText([]byte(prompt))
 	var (
 		calls        []string
