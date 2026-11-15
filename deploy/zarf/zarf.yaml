@@ -1,4 +1,3 @@
-# yaml-language-server: $schema=https://raw.githubusercontent.com/zarf-dev/zarf/v0.82.0/zarf.schema.json
 apiVersion: zarf.dev/v1alpha1
 kind: ZarfPackageConfig
 metadata:

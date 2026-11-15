@@ -186,3 +186,30 @@ unit checks bind its bytes, ring/point counts and numeric bounds. No executable
 third-party package or remote map/geolocation service is added. These checks
 establish the reviewed static bytes and parsing boundary, not a supplier
 certification, political-boundary authority, live site location or network path.
+
+## Offline workspace schema pack
+
+The pack vendors data schemas from the primary Zarf v0.82.0 and UDS Core
+v1.17.1 tagged repositories. `workspace-schemas/v1/manifest.json` records exact
+source URLs, SHA-256 values and the retained upstream root-license hashes (Zarf Apache-2.0; UDS Core AGPL-3.0).
+These are reviewed bytes, not signed supplier certification. Neither upstream
+schema contains an external schema reference; the gate rejects one even if its
+checksum is refreshed. The Conduit-native Plan-input schema is regenerated
+from the actual Go types rather than copied from a third-party Plan model.
+
+Diagnostic verification adds Red Hat's MIT-licensed `yaml-language-server`
+2.0.0 (published 2026-10-16) and `vscode-jsonrpc` 9.0.3 as test-only dependencies.
+The complete npm lock pins registry URLs and integrity for the 21-package
+graph; lifecycle scripts are disabled. The npm advisory audit during this
+review reported zero known findings, which does not establish absence of
+vulnerabilities. The production schema pack contains no npm modules. The real
+server is exercised unprivileged in an official Node 26.13.1 bookworm-slim
+Linux/amd64 image pinned by manifest digest, with networking disabled, read-only
+mounts, no capabilities and no credentials. Image verification is bounded to
+that digest; no hosted/editor-image qualification or publication is claimed.
+See `docs/operations/workspace-schemas.md` for source-target mismatch handling,
+modeline precedence and the editor-image integration boundary.
+
+UDS Core’s root license text is AGPL version 3; per-file schema applicability
+has not been separately adjudicated. Retaining that notice does not resolve
+project licensing or authorize distribution of an editor image (#546).

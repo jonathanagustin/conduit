@@ -1,0 +1,10 @@
+apiVersion: uds.dev/v1alpha1
+kind: Package
+metadata:
+  name: offline-fixture
+  namespace: fixture
+spec:
+  network:
+    allow:
+      - direction: Egress
+        remoteGenerated: Anywhere

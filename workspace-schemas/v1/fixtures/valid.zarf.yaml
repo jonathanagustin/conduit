@@ -1,0 +1,10 @@
+apiVersion: zarf.dev/v1alpha1
+kind: ZarfPackageConfig
+metadata:
+  name: offline-fixture
+components:
+  - name: runtime
+    required: true
+    files:
+      - source: local.txt
+        target: /tmp/local.txt
