@@ -1251,3 +1251,79 @@ test("environment hub scopes header, installations, blackout and timeline to sel
     { environment: "env-b", installationId: "service-b" },
   ]);
 });
+
+test("release dependencies display bounded native constraints and recorded upgrade lag", async ({
+  page,
+}) => {
+  const writes: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET") writes.push(path);
+    if (path === "/v1/products")
+      return route.fulfill({
+        json: {
+          products: [
+            { product: "native-service", releases: [{ version: "2" }] },
+            { product: "native-library", releases: [{ version: "1" }] },
+          ],
+        },
+      });
+    if (path === "/v1/products/native-service/dependencies/2")
+      return route.fulfill({
+        json: {
+          dependencies: [
+            {
+              product: "native-library",
+              minimumVersion: "1",
+              maximumVersion: "2",
+              optional: true,
+            },
+          ],
+        },
+      });
+    if (path === "/v1/products/native-library/dependencies/1")
+      return route.fulfill({ json: { dependencies: [] } });
+    if (path === "/v1/fleet/upgrades")
+      return route.fulfill({
+        json: {
+          upgrades: [
+            {
+              environment: "prod-native",
+              installationId: "service-a",
+              product: "native-service",
+              desiredVersion: "2",
+              observedVersion: "1",
+              reason: "observed version differs",
+            },
+          ],
+        },
+      });
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="dependencies"]').click();
+  const graph = page.locator("[data-release-dependencies]");
+  await expect(graph.locator("svg")).toBeVisible();
+  await expect(graph).toContainText("native-library · optional");
+  await graph
+    .locator("[data-release-dependency]")
+    .selectOption(JSON.stringify(["native-library", "1"]));
+  await expect(graph).toContainText("native-service");
+  await expect(graph).toContainText(
+    "does not distinguish an empty dependency set",
+  );
+  await expect(page.locator("[data-release-upgrade-lag]")).toContainText(
+    "observed version differs",
+  );
+  expect(
+    writes.filter(
+      (path) =>
+        path.startsWith("/v1/products/") || path === "/v1/fleet/upgrades",
+    ),
+  ).toEqual([]);
+});

@@ -1,3 +1,4 @@
+import { mountReleaseDependencies } from "./release-dependencies.js";
 import { mountEnvironmentHub } from "./release-environment-hub.js";
 import { mountPlanInspector } from "./release-plan-inspector.js";
 /* Ported from the release console. Example rows stay labeled in the top bar. */
@@ -1071,6 +1072,11 @@ export function mountOperator(host, options) {
       tabs: [
         { id: "environments", label: "Environments", screen: "s14-env-detail" },
         { id: "products", label: "Products", screen: "rel-products" },
+        {
+          id: "dependencies",
+          label: "Dependencies",
+          screen: "rel-dependencies",
+        },
         { id: "plans", label: "Plans", screen: "rm03-plan-detail" },
         { id: "channels", label: "Channels", screen: "rm-channels" },
         { id: "waves", label: "Waves", screen: "rm-waves" },
@@ -5370,6 +5376,13 @@ export function mountOperator(host, options) {
           paint();
         };
       },
+      "rel-dependencies": (node) =>
+        mountReleaseDependencies(node, state.hub?.products, {
+          selectedId: state.releaseDependencyId || "",
+          onSelect: (id) => {
+            state.releaseDependencyId = id;
+          },
+        }),
       "rel-products": (node) => {
         node.innerHTML = productsMarkup(
           productRows(state.hub?.products, state.hub?.installations),
