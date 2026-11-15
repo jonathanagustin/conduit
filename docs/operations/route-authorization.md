@@ -77,16 +77,16 @@ is rejected. Both run in CI and in `scripts/verify-local.sh` under
 
 | Decision | What it requires | Routes |
 | --- | --- | --- |
-| `public` | nothing; the row must say why that is safe | 11 |
-| `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 5 |
-| `operator-self` | an authenticated operator; the answer is about that operator only | 7 |
-| `operator-filtered` | an authenticated operator, then a Governance decision on every row of the answer | 10 |
-| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 97 |
-| `agent` | an Agent identity scoped to the Environment or Plan in the path | 8 |
-| `bundle-signature` | a Bundle envelope signed by a key this Hub trusts | 1 |
+| `public` | nothing; the row must say why that is safe | 12 |
+| `operator-any` | an authenticated operator, and nothing else — every operator gets the same answer | 32 |
+| `operator-self` | an authenticated operator; the answer is about that operator only | 15 |
+| `operator-filtered` | an authenticated operator, then a Governance decision on every row of the answer | 35 |
+| `operator-grant` | an authenticated operator plus a Governance decision on a named resource | 129 |
+| `agent` | an Agent identity scoped to the Environment or Plan in the path | 10 |
+| `bundle-signature` | a Bundle envelope signed by a key this Hub trusts | 0 |
 
-The register itself is the full 139-row table; what follows is every class
-except `operator-grant`, which is the bulk and is uniform.
+The register itself is the full 233-row table. The tables below describe selected
+examples; the source register and executable gate remain the complete inventory.
 
 ### `public` — served to anybody
 
@@ -193,6 +193,7 @@ empty collection.
 | `GET /v1/change-requests` | `canReadChangeRequest` per row |
 | `GET /v1/change-requests/{changeRequestID}` | `canReadChangeRequest`, else 403 |
 | `GET /v1/overview` | `BuildOverviewProjection`, which projects only what the principal reads |
+| `POST /conduit.reporting.v1.ReportingService/GetOverview` | the same native principal resolution and `BuildOverviewProjection`; no caller-selected identity or approval fields |
 | `GET /v1/packaging-runs` | `AuthorizeResourceOperation(read)` on the environment in the target-plan reference; other rows are omitted |
 | `GET /v1/packaging-runs/{runID}/events` | the same environment read, else 404 |
 

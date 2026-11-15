@@ -88,6 +88,7 @@ const SOURCES = [
   { path: "internal/delivery/upgrades/httpapi", surface: "dependency and upgrade views" },
   { path: "internal/delivery/timeline/httpapi", surface: "environment timeline" },
   { path: "internal/attachments/httpapi", surface: "intake attachments" },
+  { path: "internal/reporting/httpapi", surface: "reporting Connect overview" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

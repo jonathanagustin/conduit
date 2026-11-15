@@ -1,10 +1,10 @@
 # Reporting overview contract
 
 `conduit.reporting.v1.ReportingService.GetOverview` is a contract for the
-existing `GET /v1/overview` projection. This change generates clients and
-unmounted handler interfaces. It registers no route and changes no runtime
-behavior. Handler composition belongs to #392, client migration to #393 and
-REST cutover to #394. The broader console contract inventory remains #391.
+existing `GET /v1/overview` projection, mounted beside REST by the read adapter
+described below. The overview slice implements part of #392; client migration
+remains #393 and REST cutover remains #394. The broader console contract
+inventory remains #391.
 
 | Existing route | RPC contract | Native source |
 | --- | --- | --- |
@@ -16,7 +16,7 @@ defines independent `CURRENT`/`UNAVAILABLE` panels. The proto retains that open
 string vocabulary, authorized count and bounded item list. Empty unavailable
 panels cannot be interpreted as a healthy fleet. RFC3339 generation timestamps
 map to `google.protobuf.Timestamp`; integer counts use `int64`, whose ProtoJSON
-representation is a decimal string. A future adapter must convert these typed
+representation is a decimal string. The adapter converts these typed
 values explicitly rather than returning a REST JSON body verbatim.
 
 Overview is an operator-filtered read. Authentication and delegation remain
@@ -27,8 +27,8 @@ submit a packaging run or execute a change. Packaging's separate
 `authority`, `planAuthority` and `approvalAuthority` fields remain unchanged.
 
 The existing REST overview returns a successful projection with independently
-unavailable panels when a store or panel authorization fails. A future Connect
-adapter must preserve that behavior instead of converting every missing panel
+unavailable panels when a store or panel authorization fails. The Connect
+adapter preserves that behavior instead of converting every missing panel
 into a failed RPC or successful zero. Authentication refusal maps to
 `unauthenticated`; row and resource authorization must stay in the existing
 projection. General 403/404/422 mappings for other route families remain work
@@ -50,3 +50,32 @@ and complete local verifier run it. No additional workflow is introduced.
 Regeneration also corrects the existing packaging TypeScript descriptor's
 missing `templateVersion` and `toolVersions` fields already present in its
 proto and Go output.
+
+## Mounted overview adapter
+
+The follow-up handler mounts only
+`POST /conduit.reporting.v1.ReportingService/GetOverview` beside REST. It uses
+`operatorClaims`, native `ResolvePrincipal` and the same
+`BuildOverviewProjection` as `GET /v1/overview`. The resolved principal travels
+in the request context, so an identity in the JSON body cannot widen scope.
+Production ignores development identity headers unless explicitly enabled.
+The route is `operator-filtered` in the shared authorization register; the
+route gate scans its adapter and rejects missing or stale registrations.
+
+Authentication runs before reading the request body or projection. Anonymous
+callers receive unauthenticated, forbidden delegation receives permission-denied,
+and unexpected identity-backend failures remain internal errors with sanitized
+messages. Store and panel failures retain the native independent availability
+rather than failing the whole projection. ProtoJSON's canonical int64 strings
+and default/empty list representation differ from raw REST JSON but preserve
+the typed values. No stream or mutation method is served, and an unregistered
+method remains unavailable through the existing Hub guard.
+
+Parity tests compare filtered Plans, installations, stale-report summaries and
+unavailable panels for a viewer, an outsider and an administrator. Separate
+tests compare identity refusals to REST, verify authentication precedes body
+reads, and compare every converted native panel field with its proto value.
+
+Delegation parity preserves the complete native principal, including its actor,
+service-account flag and represented identity. The adapter does not substitute
+the represented user for the actor or redefine bootstrap-administrator policy.
