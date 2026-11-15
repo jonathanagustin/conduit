@@ -12,9 +12,14 @@ import (
 	"log/slog"
 	"net/http"
 	"strings"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
 )
+
+// TurnWriteWindow is how long a turn response may take to write. It covers
+// several model phases at the configured model timeout.
+const TurnWriteWindow = 30 * time.Minute
 
 const (
 	CreateRoute  = "POST /v1/planning-sessions"
@@ -89,6 +94,10 @@ func Register(mux *http.ServeMux, cfg Config) {
 				return
 			}
 		}
+		// A turn runs the model for minutes, longer than the server-wide write
+		// timeout, and the reply is only written once it finishes. Widen this
+		// response's write deadline so the finished turn reaches the client.
+		_ = http.NewResponseController(writer).SetWriteDeadline(time.Now().Add(TurnWriteWindow))
 		id := request.PathValue("sessionID")
 		prior := 0
 		if existing, err := cfg.Service.Get(request.Context(), id); err == nil {

@@ -5,6 +5,7 @@ import {
   acceptSession,
   acceptState,
   applyEvent,
+  bindPlanning,
   bindingRows,
   createSession,
   describeError,
@@ -249,5 +250,51 @@ describe("planning flow API", () => {
       status: 409,
       code: "NEEDS_INPUT_PENDING",
     });
+  });
+
+  it("requests the plan with POST turns once answers return planning", async () => {
+    class FakeElement {
+      closest(selector: string) {
+        return selector === "[data-plan-submit-answers]" ? this : null;
+      }
+    }
+    vi.stubGlobal("Element", FakeElement);
+    try {
+      const asking = session({
+        status: "needs_input",
+        plan: null,
+        needsInput: [question()],
+      });
+      const planningSession = session({ status: "planning", plan: null });
+      const fetchImpl = vi.fn(async (path: string) =>
+        json(200, path.endsWith("/answers") ? planningSession : session()),
+      );
+      let click: (event: unknown) => Promise<void> = async () => {};
+      const root = {
+        addEventListener: (type: string, handler: typeof click) => {
+          if (type === "click") click = handler;
+        },
+      };
+      const store = {
+        planning: {
+          ...emptyPlanning(),
+          session: asking,
+          drafts: { q1: "8080" },
+        },
+      };
+      bindPlanning(root, store, () => {}, fetchImpl);
+      await click({ target: new FakeElement() });
+
+      const turns = fetchImpl.mock.calls.filter(([path]) =>
+        String(path).endsWith("/s1/turns"),
+      );
+      expect(turns).toHaveLength(1);
+      expect(
+        (fetchImpl.mock.calls.find(([p]) => String(p).endsWith("/turns")) as unknown[])[1],
+      ).toMatchObject({ method: "POST" });
+      expect(store.planning.busy).toBe("");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });

@@ -130,7 +130,7 @@ func (planner Planner) runPhase(ctx context.Context, session *domain.Session, ch
 		if err != nil {
 			return fail(modelError(err))
 		}
-		requests, isTools, parseErr := parseModelReply(stdout)
+		requests, skipped, isTools, parseErr := parseModelReply(stdout)
 		if isTools {
 			if parseErr != nil {
 				return fail(parseErr)
@@ -143,7 +143,7 @@ func (planner Planner) runPhase(ctx context.Context, session *domain.Session, ch
 					reads++
 				}
 			}
-			prompt += "\n\nTool results:\n" + facts + "\nContinue. Call tools again the same way, or give your final answer.\n"
+			prompt += "\n\nTool results:\n" + facts + skippedNote(skipped) + "\nContinue. Call tools again the same way, or give your final answer.\n"
 			continue
 		}
 		if needRead && reads == 0 && !nudged {

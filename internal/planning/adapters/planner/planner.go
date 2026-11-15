@@ -76,9 +76,11 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 		cloneFn = repoclone.Clone
 	}
 	checkout, cleanup, err := cloneFn(ctx, session.Intake.RepoURL, session.Intake.Ref)
-	defer cleanup()
 	if err != nil {
 		return nil, err
+	}
+	if cleanup != nil {
+		defer cleanup()
 	}
 	tools := packagingtools.New(packagingtools.WithRepoRoot(checkout.Dir))
 	if session.Inspection != nil {
@@ -106,7 +108,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 			})
 			return result, modelError(err)
 		}
-		requests, isTools, parseErr := parseModelReply(stdout)
+		requests, skipped, isTools, parseErr := parseModelReply(stdout)
 		if isTools {
 			if parseErr != nil {
 				_ = planner.record(ctx, Record{
@@ -147,7 +149,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 			})
 			return result, toolErr
 		}
-		prompt = prompt + "\n\nTool results:\n" + facts + "\nContinue. You may call tools again the same way, or reply with the short inspection summary.\n"
+		prompt = prompt + "\n\nTool results:\n" + facts + skippedNote(skipped) + "\nContinue. You may call tools again the same way, or reply with the short inspection summary.\n"
 	}
 	result.Inspection = cloneInspection(inspection)
 	result.InspectionEvents = events
@@ -225,9 +227,9 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 			if onTool != nil {
 				onTool("read_file", got.Path)
 			}
-			if inspection == nil {
-				inspection = &domain.Inspection{ToolCalls: append([]string(nil), calls...)}
-			} else {
+			// Only inspect_repo creates an inspection; a read before it is
+			// recorded in calls but leaves the inspection unset.
+			if inspection != nil {
 				inspection = cloneInspection(inspection)
 				inspection.ToolCalls = append([]string(nil), calls...)
 			}
@@ -288,7 +290,7 @@ func inspectionPrompt(session *domain.Session, message string) string {
 		fmt.Fprintf(&b, "Operator message: %s\n", strings.TrimSpace(message))
 	}
 	b.WriteString(`You may call tools by replying with {"toolCalls":[{"name":"inspect_repo","arguments":{}},{"name":"read_file","arguments":{"path":"relative/path"}}]}.
-Call inspect_repo first. Use read_file for files you need to understand the project.
+Call inspect_repo first. Each reply may contain at most 4 tool calls; extra calls are skipped and you can ask for them again. Use read_file for files you need to understand the project.
 Reply with only that JSON object when you need tools.
 When you are done inspecting, reply with a short text summary of the language, package manager, kind, start command, ports, and whether a Dockerfile is present. Do not write a plan, package, or Dockerfile.
 `)
@@ -306,37 +308,49 @@ const maxToolCallsPerReply = 4
 
 // capToolCalls trims an oversized {"toolCalls":[...]} reply to the cap so a
 // model reading many files at once keeps making progress instead of stalling.
-func capToolCalls(raw []byte) []byte {
+// It also returns how many calls were dropped.
+func capToolCalls(raw []byte) ([]byte, int) {
 	var body map[string]json.RawMessage
 	if err := json.Unmarshal(bytes.TrimSpace(raw), &body); err != nil || len(body) != 1 {
-		return raw
+		return raw, 0
 	}
 	var calls []json.RawMessage
 	if err := json.Unmarshal(body["toolCalls"], &calls); err != nil || len(calls) <= maxToolCallsPerReply {
-		return raw
+		return raw, 0
 	}
 	trimmed, err := json.Marshal(map[string][]json.RawMessage{"toolCalls": calls[:maxToolCallsPerReply]})
 	if err != nil {
-		return raw
+		return raw, 0
 	}
-	return trimmed
+	return trimmed, len(calls) - maxToolCallsPerReply
 }
 
-func parseModelReply(raw []byte) ([]packagingdomain.ToolRequest, bool, error) {
-	requests, isTools, err := packagingdomain.ParseToolRequests(capToolCalls(raw))
+// skippedNote tells the model how many of its tool calls were dropped by the
+// per-reply cap so it can ask for them again.
+func skippedNote(skipped int) string {
+	if skipped <= 0 {
+		return ""
+	}
+	return fmt.Sprintf("Note: only the first %d tool calls in your reply were run; %d further call(s) were skipped. Ask for them again in your next reply if you still need them.\n", maxToolCallsPerReply, skipped)
+}
+
+func parseModelReply(raw []byte) ([]packagingdomain.ToolRequest, int, bool, error) {
+	capped, skipped := capToolCalls(raw)
+	requests, isTools, err := packagingdomain.ParseToolRequests(capped)
 	if isTools || (err != nil && errors.Is(err, packagingdomain.ErrProposalInvalid)) {
-		return requests, isTools, err
+		return requests, skipped, isTools, err
 	}
 	for _, candidate := range jsonCandidates(raw) {
-		requests, isTools, err = packagingdomain.ParseToolRequests(capToolCalls(candidate))
+		capped, skipped = capToolCalls(candidate)
+		requests, isTools, err = packagingdomain.ParseToolRequests(capped)
 		if isTools {
-			return requests, true, err
+			return requests, skipped, true, err
 		}
 		if err != nil && errors.Is(err, packagingdomain.ErrProposalInvalid) {
-			return requests, isTools, err
+			return requests, skipped, isTools, err
 		}
 	}
-	return nil, false, nil
+	return nil, 0, false, nil
 }
 
 func jsonCandidates(raw []byte) [][]byte {

@@ -9,6 +9,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/planning/application"
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
@@ -258,4 +259,40 @@ func doJSON(t *testing.T, mux http.Handler, method, path string, body any) jsonR
 		}
 	}
 	return out
+}
+
+type slowPlanner struct{ delay time.Duration }
+
+func (p slowPlanner) Turn(ctx context.Context, session *domain.Session, message string) (*application.TurnResult, error) {
+	time.Sleep(p.delay)
+	return scriptedPlanner{}.Turn(ctx, session, message)
+}
+
+func TestTurnOutlivesTheServerWriteTimeout(t *testing.T) {
+	t.Parallel()
+	mux := newMux(t, application.NewService(slowPlanner{delay: 400 * time.Millisecond}))
+	server := httptest.NewUnstartedServer(mux)
+	server.Config.WriteTimeout = 100 * time.Millisecond
+	server.Start()
+	defer server.Close()
+	created, err := http.Post(server.URL+"/v1/planning-sessions", "application/json", strings.NewReader(`{"repoUrl":"https://github.com/org/app","ref":"v1"}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var session struct {
+		ID string `json:"id"`
+	}
+	if err := json.NewDecoder(created.Body).Decode(&session); err != nil {
+		t.Fatal(err)
+	}
+	_ = created.Body.Close()
+	response, err := http.Post(server.URL+"/v1/planning-sessions/"+session.ID+"/turns", "application/json", strings.NewReader(`{"message":"plan it"}`))
+	if err != nil {
+		t.Fatalf("turn did not reach the client: %v", err)
+	}
+	defer response.Body.Close()
+	body, err := io.ReadAll(response.Body)
+	if err != nil || response.StatusCode != http.StatusOK || !bytes.Contains(body, []byte(`"status"`)) {
+		t.Fatalf("turn = %d %s (%v)", response.StatusCode, body, err)
+	}
 }

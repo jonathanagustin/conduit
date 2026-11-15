@@ -3,6 +3,7 @@ package planner
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/planning/adapters/repoclone"
 	"github.com/jonathanagustin/conduit/internal/planning/application"
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
 )
@@ -124,7 +126,7 @@ func TestLiveExcalidrawInspect(t *testing.T) {
 func TestParseModelReplyExtractsFencedToolCalls(t *testing.T) {
 	t.Parallel()
 	raw := []byte("Here you go:\n```json\n{\"toolCalls\":[{\"name\":\"inspect_repo\",\"arguments\":{}}]}\n```\n")
-	requests, isTools, err := parseModelReply(raw)
+	requests, _, isTools, err := parseModelReply(raw)
 	if err != nil || !isTools || len(requests) != 1 || requests[0].Name != "inspect_repo" {
 		t.Fatalf("got %#v %v %v", requests, isTools, err)
 	}
@@ -296,12 +298,57 @@ func serveGit(t *testing.T, projectRoot string) *httptest.Server {
 
 func TestParseModelReplyCapsOversizedToolCalls(t *testing.T) {
 	raw := []byte(`{"toolCalls":[{"name":"read_file","arguments":{"path":"a"}},{"name":"read_file","arguments":{"path":"b"}},{"name":"read_file","arguments":{"path":"c"}},{"name":"read_file","arguments":{"path":"d"}},{"name":"read_file","arguments":{"path":"e"}},{"name":"read_file","arguments":{"path":"f"}},{"name":"read_file","arguments":{"path":"g"}}]}`)
-	requests, isTools, err := parseModelReply(raw)
+	requests, skipped, isTools, err := parseModelReply(raw)
 	if err != nil || !isTools {
 		t.Fatalf("parseModelReply() = %v, %v; want tool requests", isTools, err)
 	}
 	if len(requests) != maxToolCallsPerReply {
 		t.Fatalf("len(requests) = %d, want %d", len(requests), maxToolCallsPerReply)
+	}
+	if skipped != 3 {
+		t.Fatalf("skipped = %d, want 3", skipped)
+	}
+	note := skippedNote(skipped)
+	if !strings.Contains(note, "3 further") || !strings.Contains(note, "again") {
+		t.Fatalf("skippedNote = %q", note)
+	}
+	if skippedNote(0) != "" {
+		t.Fatal("skippedNote(0) must be empty")
+	}
+}
+
+func TestInspectionPromptStatesToolCallCap(t *testing.T) {
+	t.Parallel()
+	prompt := inspectionPrompt(&domain.Session{}, "")
+	if !strings.Contains(prompt, "at most "+strconv.Itoa(maxToolCallsPerReply)+" tool calls") {
+		t.Fatalf("prompt does not state the tool-call cap: %s", prompt)
+	}
+}
+
+func TestReadFileBeforeInspectRepoDoesNotCreateInspection(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("script fixture is a shell")
+	}
+	fixture, _ := makeFixture(t)
+	server := serveGit(t, fixture)
+	script := writeModelScript(t, toolRead, "done")
+	planner := Planner{Argv: []string{script}}
+	session := &domain.Session{ID: "s1", Intake: domain.Intake{RepoURL: server.URL + "/src.git", Ref: "main"}}
+	_, err := planner.Turn(context.Background(), session, "go")
+	if err == nil || !strings.Contains(err.Error(), "did not call inspect_repo") {
+		t.Fatalf("err = %v, want inspect_repo failure", err)
+	}
+}
+
+func TestTurnReturnsCloneErrorWithNilCleanup(t *testing.T) {
+	t.Parallel()
+	want := errors.New("clone failed")
+	planner := Planner{Argv: []string{"model"}, Clone: func(context.Context, string, string) (repoclone.Checkout, func(), error) {
+		return repoclone.Checkout{}, nil, want
+	}}
+	_, err := planner.Turn(context.Background(), &domain.Session{}, "")
+	if !errors.Is(err, want) {
+		t.Fatalf("err = %v, want %v", err, want)
 	}
 }
 
