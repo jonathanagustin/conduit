@@ -57,7 +57,7 @@ func (observer *runObserver) start(ctx context.Context, name string, arguments j
 	}
 	observer.calls[id] = name
 	observer.service.mu.Lock()
-	observer.state.toolCalls = append(observer.state.toolCalls, map[string]any{"id": id, "name": name, "status": "running", "execution": execution})
+	observer.state.toolCalls = append(observer.state.toolCalls, map[string]any{"id": id, "name": name, "status": "running", "execution": execution, "order": len(observer.state.toolCalls)})
 	observer.service.appendHistoryLocked(observer.state, map[string]any{"id": parentID, "role": "assistant", "toolCalls": []any{map[string]any{"id": id, "type": "function", "function": map[string]any{"name": name, "arguments": string(arguments)}}}})
 	observer.service.mu.Unlock()
 	return id, nil
@@ -122,7 +122,15 @@ func (observer *runObserver) Call(ctx context.Context, name string, arguments js
 	if err != nil {
 		return err
 	}
-	observer.frontend = append(observer.frontend, pendingTool{ID: id, RunID: observer.input.RunID, Name: name, Arguments: append(json.RawMessage(nil), arguments...)})
+	observer.service.mu.Lock()
+	order := 0
+	for _, call := range observer.state.toolCalls {
+		if call["id"] == id {
+			order = call["order"].(int)
+		}
+	}
+	observer.service.mu.Unlock()
+	observer.frontend = append(observer.frontend, pendingTool{ID: id, RunID: observer.input.RunID, Name: name, Arguments: append(json.RawMessage(nil), arguments...), Order: order})
 	return nil
 }
 

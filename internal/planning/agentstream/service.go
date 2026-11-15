@@ -290,7 +290,7 @@ func (service *Service) snapshot(ctx context.Context, output *publisher, state *
 		pending = append(pending, tool)
 	}
 	service.mu.Unlock()
-	sort.Slice(pending, func(i, j int) bool { return pending[i].ID < pending[j].ID })
+	sort.Slice(pending, func(i, j int) bool { return pending[i].Order < pending[j].Order })
 	if err := output.stateUpdate(ctx, map[string]any{"valueTier": "CONDUIT_NATIVE", "session": view, "toolCalls": tools, "pendingClientTools": pending}); err != nil {
 		return err
 	}

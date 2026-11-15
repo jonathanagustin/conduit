@@ -9,6 +9,7 @@ type pendingTool struct {
 	ID        string          `json:"id"`
 	RunID     string          `json:"runId"`
 	Eligible  bool            `json:"eligible"`
+	Order     int             `json:"order"`
 	Name      string          `json:"name"`
 	Arguments json.RawMessage `json:"arguments"`
 }
