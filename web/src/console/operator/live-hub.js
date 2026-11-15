@@ -1,3 +1,4 @@
+import { releaseWavesMarkup } from "./release-waves.js";
 import {
   pipelineBuilderMarkup,
   stagedRunMarkup,
@@ -797,21 +798,10 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       );
     },
     renderWaves(root) {
-      const rollouts = hub(state).rollouts || [];
-      const note = hub(state).rolloutNote || "No staged rollout is recorded.";
-      const body = rollouts.length
-        ? `<ul class="space-y-2">${rollouts
-            .map(
-              (rollout) =>
-                `<li class="text-[12px] text-white">${esc(rollout.id)} · ${esc(rollout.product)} ${esc(rollout.version)} · ${esc(rollout.status)}</li>`,
-            )
-            .join("")}</ul>`
-        : `<p class="text-[12px] text-[#8b96a5]">${esc(note)}</p>`;
-      root.innerHTML = `<div class="so-view-enter">${panel(
-        "Staged waves",
-        `<p class="text-[12px] text-[#8b96a5]">Each wave waits on health, an approval, or a time window. Pause confirms. Start, resume, and roll back open a change request.</p>
-         <p class="text-[12px] text-[#8b96a5]">Blackout: ${esc(hub(state).blackoutReason || "none")}</p>${body}`,
-      )}</div>`;
+      root.innerHTML = releaseWavesMarkup(
+        hub(state).rollouts,
+        hub(state).rolloutNote,
+      );
     },
     renderChannels(root) {
       const view = hub(state).channels;
