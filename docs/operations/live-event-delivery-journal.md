@@ -260,8 +260,9 @@ committed envelope as SSE `id`/`event`/`data`, and sends comment heartbeats.
 Source failures and permission revocation close the response; private errors
 never become event bodies. Replay remains available after a failed write or
 flush. The delivery service retains its queue, replay and envelope limits.
-Writes have a 15-second deadline, renewed for each frame/heartbeat and cleared
-on return, and connections have a 30-minute lifetime. Streaming middleware must
+Writes have a 15-second deadline, renewed for each frame/heartbeat and retained
+through response finalization; net/http clears it before connection reuse.
+Connections have a 30-minute lifetime. Streaming middleware must
 preserve `ResponseController` deadline/flush support (for example via `Unwrap`).
 Same-origin checks use the request's TLS state and Host; deployments terminating
 TLS at a proxy must provide trusted original-origin handling in composition,
