@@ -162,3 +162,27 @@ two workflows until deliberate requalification. The CP-SAT source/evidence
 fixture passes again without editing its evidence hashes. HiGHS remains
 UNADMITTED under #590; its pre-existing static-base pin mismatch is still an
 open qualification failure, not evidence repaired by changing an expected hash.
+
+## Static Command Center basemap
+
+The Command Center includes numeric country-boundary geometry derived from the
+primary Natural Earth repository, pinned to
+[`9380cca83db5f9aef52d5e762765100745f84b27`](https://github.com/nvkelso/natural-earth-vector/commit/9380cca83db5f9aef52d5e762765100745f84b27).
+GitHub reports no verified commit signature for this historical commit. The
+GeoJSON source is independently pinned by SHA-256
+`6866c877d39cba9c357620878839b336d569f8c662d3cfab4cb1dbe2d39c977f`.
+The README at that same commit identifies Natural Earth as public-domain data;
+its SHA-256 is
+`28b7c031e45c88d7ce20b7782373aaac378f459e9460001dadc8cfd824c3173b`.
+The official web terms endpoint returned HTTP 406 during review, so the pinned
+primary README is the retained license evidence.
+
+The checked generator accepts only that source checksum and numeric polygon
+coordinates within degree bounds. It drops feature properties, rounds the
+coordinates to three decimals and removes collapsed geometry. The resulting
+local asset has SHA-256
+`845579c98eff6a3a8c7a7c0d96e855a5d7fe9964704277717b21fc44cf62deca`;
+unit checks bind its bytes, ring/point counts and numeric bounds. No executable
+third-party package or remote map/geolocation service is added. These checks
+establish the reviewed static bytes and parsing boundary, not a supplier
+certification, political-boundary authority, live site location or network path.

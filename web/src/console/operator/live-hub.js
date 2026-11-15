@@ -115,7 +115,9 @@ function recallsFrom(plans) {
 export function reportedDrift(row) {
   const rawObservedAt = String(row?.observedAt || "");
   // Go's zero time means the Hub has never received a report.
-  const observedAt = rawObservedAt.startsWith("0001-01-01") ? "" : rawObservedAt;
+  const observedAt = rawObservedAt.startsWith("0001-01-01")
+    ? ""
+    : rawObservedAt;
   const observedVersion = row?.observedVersion || "";
   const observedDigest = row?.observedReleaseDigest || "";
   const observedConfig = row?.observedConfigDigest || "";
@@ -265,6 +267,7 @@ function constraintRows(events) {
 export function createLiveHub({ state, render }) {
   state.operatorName = state.operatorName || "Operator";
   state.hub = {
+    loading: true,
     packaging: [],
     packagingEvents: [],
     changes: [],
@@ -337,6 +340,7 @@ export function createLiveHub({ state, render }) {
 
   async function refresh() {
     const next = {
+      loading: false,
       packaging: [],
       packagingEvents: [],
       changes: [],
@@ -368,6 +372,15 @@ export function createLiveHub({ state, render }) {
       );
     } catch {
       next.installationNote = "Hub did not return reported installations.";
+    }
+    try {
+      const workspaces = await readJSON("/v1/dev-workspaces");
+      if (!Array.isArray(workspaces.items))
+        throw new Error("invalid workspace index");
+      next.devWorkspaces = workspaces.items;
+    } catch {
+      next.devWorkspaces = null;
+      next.workspaceNote = "Hub did not return workspace profile status.";
     }
     try {
       next.products = await readPages("/v1/products?limit=20", "products");

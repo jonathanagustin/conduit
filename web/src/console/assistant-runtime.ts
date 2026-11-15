@@ -1,5 +1,8 @@
 "use client";
 
+import { useEffect } from "react";
+import { appendAssistantDraft } from "./assistant-draft";
+
 import {
   useLocalRuntime,
   type ChatModelAdapter,
@@ -100,5 +103,24 @@ const workbenchModel: ChatModelAdapter = {
 };
 
 export function useWorkbenchRuntime() {
-  return useLocalRuntime(workbenchModel);
+  const runtime = useLocalRuntime(workbenchModel);
+  useEffect(() => {
+    const addDraft = (event: Event) => {
+      const detail = (
+        event as CustomEvent<{ text?: unknown; accepted?: boolean }>
+      ).detail;
+      if (!detail || typeof detail !== "object") return;
+      const next = appendAssistantDraft(
+        runtime.thread.composer.getState().text,
+        detail.text,
+      );
+      if (next === null) return;
+      runtime.thread.composer.setText(next);
+      detail.accepted = true;
+    };
+    window.addEventListener("conduit-assistant-draft", addDraft);
+    return () =>
+      window.removeEventListener("conduit-assistant-draft", addDraft);
+  }, [runtime]);
+  return runtime;
 }

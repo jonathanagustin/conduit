@@ -2,6 +2,7 @@
 // Decisions waiting, packaging runs that stopped, each environment's last
 // report, and the newest audit entries. Pure markup; nothing here writes.
 
+import { geographyMarkup, recordedSites } from "./command-center-map.js";
 import { hubSetupMarkup } from "./empty-states.js";
 import { freshnessPill, reportTime } from "./freshness.js";
 import { gateResults, gateStepper, runState } from "./packaging-runs.js";
@@ -45,11 +46,81 @@ export function runsNeedingAttention(hub) {
   return list(hub?.packaging).filter((run) => ATTENTION.has(runState(run)));
 }
 
+export function activeWorkspaceProfiles(hub) {
+  if (!Array.isArray(hub?.devWorkspaces) || hub.workspaceNote)
+    return { available: false, groups: [], unknown: 0 };
+  const profiles = new Map();
+  let unknown = 0;
+  for (const item of hub.devWorkspaces) {
+    if (!["starting", "running", "stopped", "failed"].includes(item?.status)) {
+      unknown++;
+      continue;
+    }
+    if (!["starting", "running"].includes(item.status)) continue;
+    if (typeof item.profileId !== "string" || !item.profileId) {
+      unknown++;
+      continue;
+    }
+    profiles.set(item.profileId, (profiles.get(item.profileId) || 0) + 1);
+  }
+  return {
+    available: true,
+    groups: [...profiles].sort(([a], [b]) => a.localeCompare(b)),
+    unknown,
+  };
+}
+
+export function governanceOpportunities(hub) {
+  const changes = hub?.changeNote
+    ? []
+    : decisions(hub)
+        .changes.map((change) => ({
+          id: change.id,
+          objectType: "ChangeRequest",
+          label: change.title || change.id,
+          detail: change.status,
+          environment: change.environment || "",
+        }))
+        .filter((item) => typeof item.id === "string" && item.id);
+  const drift = new Map();
+  if (!hub?.installationNote)
+    for (const item of list(hub?.installations)) {
+      if (
+        typeof item.environment !== "string" ||
+        !item.environment ||
+        typeof item.desiredVersion !== "string" ||
+        !item.desiredVersion ||
+        typeof item.observedVersion !== "string" ||
+        !item.observedVersion ||
+        item.desiredVersion === item.observedVersion
+      )
+        continue;
+      drift.set(item.environment, (drift.get(item.environment) || 0) + 1);
+    }
+  return [
+    ...changes,
+    ...[...drift].map(([id, count]) => ({
+      id,
+      objectType: "Environment",
+      label: `${id}: observed version drift`,
+      detail: `${count} reported installation${count === 1 ? "" : "s"}`,
+      environment: id,
+    })),
+  ];
+}
+
+const initialPresentation = () => ({
+  selected: "",
+  rotation: null,
+  layers: { borders: true, links: true, labels: true, globe: true },
+  message: "",
+});
+
 export function overviewMarkup(
   hub,
-  { esc = defaultEsc, now = Date.now() } = {},
+  { esc = defaultEsc, now = Date.now(), ui = initialPresentation() } = {},
 ) {
-  if (!hub) {
+  if (!hub || hub.loading) {
     return `<div class="so-panel kit-view-panel"><p class="kit-muted">Reading the Hub…</p></div>`;
   }
   const { changes, plans } = decisions(hub);
@@ -99,7 +170,9 @@ export function overviewMarkup(
             const mine = installs.filter((i) => i?.environment === id);
             const drifted = mine.filter(
               (i) =>
-                i?.observedVersion && i.observedVersion !== i.desiredVersion,
+                i?.observedVersion &&
+                i?.desiredVersion &&
+                i.observedVersion !== i.desiredVersion,
             ).length;
             return `<tr><td class="code-id">${esc(id)}</td><td>${esc(row?.spoke?.state || "unknown")}</td><td>${drifted} of ${mine.length}</td><td>${freshnessPill(reportTime(row?.reported?.observedAt, row?.spoke?.observedAt), { esc, now })}</td></tr>`;
           })
@@ -120,13 +193,161 @@ export function overviewMarkup(
           .join("")}</ul>`
       : none("No audit entry is recorded.", esc);
 
+  const profiles = activeWorkspaceProfiles(hub);
+  const profileBody = !profiles.available
+    ? none("Workspace profile status is unavailable.", esc)
+    : profiles.groups.length
+      ? `<ul class="kit-cc-list">${profiles.groups.map(([id, count]) => `<li><code>${esc(id)}</code> <span>${count} recorded active workspace${count === 1 ? "" : "s"}</span></li>`).join("")}</ul>`
+      : none("No known workspace is recorded as starting or running.", esc);
+  const opportunities = governanceOpportunities(hub);
+  const governanceBody =
+    opportunities
+      .map(
+        (item) =>
+          `<article class="kit-cc-opportunity"><h3>${esc(item.label)}</h3><p class="kit-muted">${esc(item.detail)}</p><div class="kit-cc-actions"><button type="button" class="so-btn so-btn-sm" data-cc-opportunity="${esc(item.objectType)}:${esc(item.id)}" data-cc-purpose="ask" aria-label="Ask about ${esc(item.label)}">Ask</button><button type="button" class="so-btn so-btn-sm" data-cc-opportunity="${esc(item.objectType)}:${esc(item.id)}" data-cc-purpose="review" aria-label="Review ${esc(item.objectType)} ${esc(item.id)}">Review</button></div></article>`,
+      )
+      .join("") || none("No known review opportunity is recorded.", esc);
+
   return `<div class="kit-cc">
     ${hubSetupMarkup(hub, { esc })}
+    ${ui.message ? `<p class="kit-muted" role="status">${esc(ui.message)}</p>` : ""}
+    ${geographyMarkup(hub, ui, esc)}
+    ${panel("Governance opportunities", `${opportunities.length}${hub.changeNote || hub.installationNote ? " known" : ""}`, "rm07-change-requests", governanceBody + (hub.changeNote ? none(hub.changeNote, esc) : "") + (hub.installationNote ? none(hub.installationNote, esc) : ""), esc)}
+    <div class="kit-cc-grid">
+      ${panel("Active workspace profiles", profiles.available ? (profiles.unknown ? "Partial data" : `${profiles.groups.length} profiles`) : "Unavailable", "s02-workspaces", profileBody + (profiles.unknown ? none(`${profiles.unknown} workspace record(s) have unknown status or profile metadata.`, esc) : "") + none("Recorded workspace states; not a worker heartbeat.", esc), esc)}
+      <section class="so-panel kit-view-panel"><div class="kit-view-head"><h2>Release control</h2></div><p class="kit-muted">Use the existing release views. The control-tower simulation is labeled example data.</p><div class="kit-cc-actions"><button type="button" class="so-btn so-btn-sm" data-cc-navigate="s15-plan-detail">Control tower · Example</button><button type="button" class="so-btn so-btn-sm" data-cc-navigate="rm06-promotion-pipe">Promotion pipeline</button></div></section>
+    </div>
     <div class="kit-cc-grid">
       ${panel("Waiting on a decision", `${decisionRows.length}`, "rm07-change-requests", decisionBody, esc)}
-      ${panel("Packaging runs needing attention", `${runs.length}`, "pkg-runs", runBody, esc)}
-      ${panel("Environments", `${envs.length}`, "flt-environments", envBody, esc)}
-      ${panel("Recent audit", `${audit.length}`, "au01-audit", auditBody, esc)}
+      ${panel("Packaging runs needing attention", hub.packagingNote ? "Unavailable" : `${runs.length}`, "pkg-runs", runBody, esc)}
+      ${panel("Environments", hub.note ? "Unavailable" : `${envs.length}`, "flt-environments", envBody, esc)}
+      ${panel("Recorded operations", hub.auditNote ? "Unavailable" : `${audit.length} loaded`, "au01-audit", none("Recorded audit entries; live streaming is not available.", esc) + auditBody, esc)}
     </div>
   </div>`;
+}
+
+/** Mount behavior on the existing overview. These actions only navigate or draft. */
+export function createCommandCenter({ getHub, navigate, addContext }) {
+  const ui = initialPresentation();
+  let currentNode = null;
+  function render(node) {
+    currentNode = node;
+    node.innerHTML = overviewMarkup(getHub(), { ui });
+    const select = (id) => {
+      const site = recordedSites(getHub()?.environments).find(
+        (item) => item.id === id,
+      );
+      if (!site) return;
+      ui.selected = site.id;
+      if (site.location)
+        ui.rotation = [-site.location[0], -site.location[1], 0];
+      render(node);
+      node.querySelector('[role="dialog"] button')?.focus();
+    };
+    const close = () => {
+      const selected = ui.selected;
+      ui.selected = "";
+      render(node);
+      [...node.querySelectorAll("[data-cc-site]")]
+        .find((element) => element.getAttribute("data-cc-site") === selected)
+        ?.focus();
+    };
+    const draft = (item, purpose) => {
+      ui.message = addContext(item, purpose)
+        ? ""
+        : "Context could not be added. Review the existing assistant draft first.";
+      render(node);
+    };
+    node.onclick = (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      if (!target) return;
+      const layer = target.closest("[data-cc-layer]");
+      if (layer && Object.hasOwn(ui.layers, layer.dataset.ccLayer)) {
+        const name = layer.dataset.ccLayer;
+        ui.layers[name] = !ui.layers[name];
+        render(node);
+        [...node.querySelectorAll("[data-cc-layer]")]
+          .find((element) => element.getAttribute("data-cc-layer") === name)
+          ?.focus();
+        return;
+      }
+      const site = target.closest("[data-cc-site]");
+      if (site) {
+        select(site.dataset.ccSite);
+        return;
+      }
+      if (target.closest("[data-cc-close]")) {
+        close();
+        return;
+      }
+      const nav = target.closest("[data-cc-navigate]");
+      if (
+        nav &&
+        ["s15-plan-detail", "rm06-promotion-pipe"].includes(
+          nav.dataset.ccNavigate,
+        )
+      ) {
+        navigate(nav.dataset.ccNavigate);
+        return;
+      }
+      const inspect = target.closest("[data-cc-inspect]");
+      const environment = target.closest("[data-cc-environment]");
+      if (inspect || environment) {
+        const id =
+          inspect?.dataset.ccInspect || environment?.dataset.ccEnvironment;
+        if (
+          !recordedSites(getHub()?.environments).some((item) => item.id === id)
+        )
+          return;
+        const chip = {
+          objectType: "Environment",
+          id,
+          label: id,
+          environment: id,
+        };
+        if (inspect) navigate("flt-environments", chip);
+        else if (
+          ["ask", "coa", "share"].includes(environment.dataset.ccContext)
+        )
+          draft(chip, environment.dataset.ccContext);
+        return;
+      }
+      const opportunity = target.closest("[data-cc-opportunity]");
+      if (opportunity) {
+        const item = governanceOpportunities(getHub()).find(
+          (candidate) =>
+            `${candidate.objectType}:${candidate.id}` ===
+            opportunity.dataset.ccOpportunity,
+        );
+        if (!item || !["ask", "review"].includes(opportunity.dataset.ccPurpose))
+          return;
+        if (opportunity.dataset.ccPurpose === "review")
+          navigate(
+            item.objectType === "ChangeRequest"
+              ? "rm07-change-requests"
+              : "flt-environments",
+            item,
+          );
+        else draft(item, "ask");
+      }
+    };
+    node.onkeydown = (event) => {
+      const target = event.target instanceof Element ? event.target : null;
+      const marker = target?.closest('[role="button"][data-cc-site]');
+      if (marker && ["Enter", " "].includes(event.key)) {
+        event.preventDefault();
+        select(marker.dataset.ccSite);
+      }
+      if (event.key === "Escape" && ui.selected) {
+        event.preventDefault();
+        close();
+      }
+    };
+  }
+  return {
+    render,
+    refresh: () => {
+      if (currentNode?.isConnected) render(currentNode);
+    },
+  };
 }

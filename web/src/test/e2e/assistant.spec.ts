@@ -418,26 +418,233 @@ test.describe("workbench", () => {
   });
 });
 
-test("Audit platform status renders stubbed measurements and refreshes with GET", async ({ page }) => {
+test("Audit platform status renders stubbed measurements and refreshes with GET", async ({
+  page,
+}) => {
   const methods: string[] = [];
   await page.route("**/v1/admin/status", async (route) => {
     methods.push(route.request().method());
-    await route.fulfill({ contentType: "application/json", body: JSON.stringify({
-      generatedAt: "2026-11-14T12:00:00Z",
-      components: [{ label: "Hub", status: "AVAILABLE", detail: "This Hub served the request" }],
-      counters: [{ label: "Pending reviews", status: "AVAILABLE", value: 0, detail: "Stored requests", link: "rm07-change-requests" }],
-      storage: [{ label: "Registry filesystem", status: "UNAVAILABLE", usedBytes: null, capacityBytes: null, usedPercent: null, warningPercent: 80, criticalPercent: 95, detail: "No telemetry provider configured" }],
-      audit: { status: "UNAVAILABLE", chainLength: null, verifiedAt: null, detail: "No stored-chain verifier" },
-    }) });
+    await route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({
+        generatedAt: "2026-11-14T12:00:00Z",
+        components: [
+          {
+            label: "Hub",
+            status: "AVAILABLE",
+            detail: "This Hub served the request",
+          },
+        ],
+        counters: [
+          {
+            label: "Pending reviews",
+            status: "AVAILABLE",
+            value: 0,
+            detail: "Stored requests",
+            link: "rm07-change-requests",
+          },
+        ],
+        storage: [
+          {
+            label: "Registry filesystem",
+            status: "UNAVAILABLE",
+            usedBytes: null,
+            capacityBytes: null,
+            usedPercent: null,
+            warningPercent: 80,
+            criticalPercent: 95,
+            detail: "No telemetry provider configured",
+          },
+        ],
+        audit: {
+          status: "UNAVAILABLE",
+          chainLength: null,
+          verifiedAt: null,
+          detail: "No stored-chain verifier",
+        },
+      }),
+    });
   });
   await hydrate(page);
   await page.goto("/console/");
-  await page.getByRole("button", { name: "Audit", exact: true }).first().click();
-  await page.getByRole("button", { name: "Platform status", exact: true }).click();
+  await page
+    .getByRole("button", { name: "Audit", exact: true })
+    .first()
+    .click();
+  await page
+    .getByRole("button", { name: "Platform status", exact: true })
+    .click();
   await expect(page.locator("[data-admin-status]")).toBeVisible();
-  await expect(page.locator("[data-admin-status]")).toContainText("Registry filesystem");
-  await expect(page.locator("[data-admin-status]")).toContainText("Verification time unavailable");
+  await expect(page.locator("[data-admin-status]")).toContainText(
+    "Registry filesystem",
+  );
+  await expect(page.locator("[data-admin-status]")).toContainText(
+    "Verification time unavailable",
+  );
   await page.getByRole("button", { name: "Refresh measurements" }).click();
   await expect.poll(() => methods.length).toBeGreaterThanOrEqual(2);
   expect(methods.every((method) => method === "GET")).toBe(true);
+});
+
+test("Command Center uses recorded sites and drafts context without writes", async ({
+  page,
+}) => {
+  const mutations: string[] = [];
+  const external: string[] = [];
+  page.on("request", (request) => {
+    const url = new URL(request.url());
+    if (url.pathname.startsWith("/v1/") && request.method() !== "GET")
+      mutations.push(`${request.method()} ${url.pathname}`);
+    if (!["127.0.0.1", "localhost"].includes(url.hostname))
+      external.push(url.origin);
+  });
+  const environment = (id: string, labels: Record<string, string> = {}) => ({
+    environment: { id, labels },
+    spoke: { state: "live", agentId: `agent-${id}` },
+    reported: { agentId: `agent-${id}`, observedAt: new Date().toISOString() },
+  });
+  const changes = [
+    {
+      id: "cc-other",
+      title: "Other review",
+      status: "IN_REVIEW",
+      author: { username: "author" },
+      changes: [],
+      reviews: [],
+    },
+    {
+      id: "cc-change",
+      title: "Scale review",
+      status: "IN_REVIEW",
+      author: { username: "author" },
+      changes: [],
+      reviews: [],
+    },
+  ];
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    const bodies: Record<string, unknown> = {
+      "/v1/session": {
+        actor: { username: "reader" },
+        effective: { username: "reader" },
+      },
+      "/v1/environments": {
+        environments: [
+          environment("cc-east", {
+            "conduit.latitude": "0",
+            "conduit.longitude": "0",
+          }),
+          environment("cc-west", {
+            "conduit.latitude": "35",
+            "conduit.longitude": "-105",
+          }),
+          environment("cc-unmapped"),
+        ],
+      },
+      "/v1/fleet/installations": {
+        installations: [
+          { environment: "cc-east", desiredVersion: "2", observedVersion: "1" },
+        ],
+      },
+      "/v1/dev-workspaces": {
+        items: [
+          {
+            workspaceId: "cc-workspace",
+            profileId: "packaging",
+            status: "running",
+          },
+        ],
+      },
+      "/v1/change-requests": { changeRequests: changes },
+      "/v1/products": { products: [] },
+      "/v1/plans": { plans: [] },
+      "/v1/promotions": { promotions: [] },
+      "/v1/packaging-runs": { items: [] },
+      "/v1/authorization-audit": {
+        entries: [{ sequence: 1, actor: "reader", action: "plan:read" }],
+      },
+    };
+    await route.fulfill({ json: bodies[path] || {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await expect(
+    page.getByRole("heading", { name: "Sites and connectivity" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("2 with declared coordinates · 1 without a mapped location"),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Active workspace profiles" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("1 recorded active workspace", { exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".kit-cc-pin")).toHaveCount(1);
+  const labels = page.getByRole("button", { name: "Labels", exact: true });
+  await labels.focus();
+  await page.keyboard.press("Space");
+  await expect(labels).toHaveAttribute("aria-pressed", "false");
+  await expect(labels).toBeFocused();
+  await expect(page.locator(".kit-cc-pin text")).toHaveCount(0);
+  await page.getByRole("button", { name: "cc-west", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Environment cc-west" }),
+  ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(
+    page.locator('.kit-cc-pin[data-cc-site="cc-west"]'),
+  ).toBeFocused();
+  await page.getByRole("button", { name: "cc-unmapped", exact: true }).click();
+  const object = page.getByRole("dialog", { name: "Environment cc-unmapped" });
+  await expect(
+    object.getByText("No valid coordinates are recorded for this environment."),
+  ).toBeVisible();
+  await object.getByRole("button", { name: "COA", exact: true }).click();
+  const composer = page.getByLabel("Message input");
+  await expect(composer).toHaveValue(
+    /course of action for Environment cc-unmapped/,
+  );
+  await composer.fill("My unsent notes");
+  await object
+    .getByRole("button", { name: "Share in chat", exact: true })
+    .click();
+  await expect(composer).toHaveValue(
+    /My unsent notes\n\nReference for discussion: Environment cc-unmapped/,
+  );
+  await composer.fill("x".repeat(4000));
+  await object.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(composer).toHaveValue("x".repeat(4000));
+  await expect(
+    page.getByText(
+      "Context could not be added. Review the existing assistant draft first.",
+    ),
+  ).toBeVisible();
+  await composer.fill("Keep these notes");
+  await object.getByRole("button", { name: "Ask", exact: true }).click();
+  await expect(composer).toHaveValue(
+    /Keep these notes\n\nHelp me understand Environment cc-unmapped/,
+  );
+  await expect(
+    page.getByText(
+      "Context could not be added. Review the existing assistant draft first.",
+    ),
+  ).toHaveCount(0);
+  await page.screenshot({
+    path: "/workspace/scratch/command-center-geography.png",
+    fullPage: false,
+  });
+  await page
+    .getByRole("button", {
+      name: "Review ChangeRequest cc-change",
+      exact: true,
+    })
+    .click();
+  await expect(page.locator('[data-cr-select="cc-change"]')).toHaveAttribute(
+    "aria-current",
+    "true",
+  );
+  expect(mutations).toEqual([]);
+  expect(external).toEqual([]);
 });
