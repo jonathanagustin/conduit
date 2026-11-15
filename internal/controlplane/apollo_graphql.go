@@ -26,8 +26,9 @@ import (
 //
 // Sources are bound per request from the authenticated principal, via the same
 // constructor the console's overview uses. The resolver never sees a reader's
-// identity and never filters: what a caller may see was decided before the
-// query was parsed.
+// authority-bearing principal and never filters: what a caller may see was
+// decided before the query was parsed. It additionally receives only the caller-bound native
+// current-user snapshot, never an unresolved identity header.
 func registerApolloGraphQL(
 	mux *http.ServeMux,
 	api *apolloPublicAPI,
@@ -67,7 +68,8 @@ func registerApolloGraphQL(
 			return graphqlports.Sources{}, false
 		}
 		return graphqlports.Sources{
-			Grouping: nativeGraphQLGrouping{principal: principal, configuration: configuration, repository: repository, reads: reads},
+			CurrentUser: &graphqlports.CurrentUser{ID: principal.Username},
+			Grouping:    nativeGraphQLGrouping{principal: principal, configuration: configuration, repository: repository, reads: reads},
 			// The Apollo projection is nil when its initialization failed. A nil
 			// source refuses its half of the interface rather than taking the
 			// process down, which is the same choice the REST surface makes.

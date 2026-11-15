@@ -116,8 +116,8 @@ func TestPublishedCoordinateCountsMatchTheInterface(t *testing.T) {
 		says:    "the served total and its decomposition",
 	}, {
 		path:    "../../../docs/reference-platform/reference/graphql-api.md",
-		pattern: `(\d+) \(35% of the (\d+) declared; 35% of the (\d+) served\)`,
-		want:    []int{counts.documented, counts.declared, counts.served},
+		pattern: `(\d+) \((\d+)% of the (\d+) declared; (\d+)% of the (\d+) served\)`,
+		want:    []int{counts.documented, (100*counts.documented + counts.declared/2) / counts.declared, counts.declared, (100*counts.documented + counts.served/2) / counts.served, counts.served},
 		says:    "the uncaptured share and both of its denominators",
 	}, {
 		path:    "../../../docs/reference-platform/conformance.md",

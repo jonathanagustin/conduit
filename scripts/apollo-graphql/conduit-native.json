@@ -216,6 +216,37 @@
           "publishedAs": "apollo-graphql ApolloEnvironmentPage.nextPageToken, ApolloEntityPage.nextPageToken, ApolloProductPage.nextPageToken, ApolloProductReleasePage.nextPageToken"
         }
       ]
+    },
+    "Query": {
+      "reason": "The public API Explorer example names root me. Conduit supplies an explicitly native current-user type and identity mapping.",
+      "fields": [
+        {
+          "name": "me",
+          "arguments": [],
+          "returns": "ConduitCurrentUser",
+          "servedBy": "identity: resolved credential-owner snapshot",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/"
+        }
+      ]
+    },
+    "ConduitCurrentUser": {
+      "reason": "Conduit-native type name and nullable string shape; the public example establishes selections only.",
+      "fields": [
+        {
+          "name": "id",
+          "arguments": [],
+          "returns": "String",
+          "servedBy": "identity: caller-bound id",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/"
+        },
+        {
+          "name": "fullName",
+          "arguments": [],
+          "returns": "String",
+          "servedBy": "identity: caller-bound fullName",
+          "documentedBy": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/"
+        }
+      ]
     }
   },
   "displacedByDocumentation": [

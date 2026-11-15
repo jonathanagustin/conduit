@@ -87,9 +87,10 @@ type NativeGrouping interface {
 // because one store is absent is worse than one that says which half is
 // unavailable.
 type Sources struct {
-	Grouping NativeGrouping
-	Apollo   ApolloProjection
-	Overview OverviewSource
+	CurrentUser *CurrentUser
+	Grouping    NativeGrouping
+	Apollo      ApolloProjection
+	Overview    OverviewSource
 }
 
 // Reader is the caller a query is answered for. It exists so the resolver takes

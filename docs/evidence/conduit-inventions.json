@@ -377,6 +377,13 @@
       "why": "No published object schema in this repository states which files an intake request may carry, their limits, or how they are named. The record, the allowlist, and the limits are marked CONDUIT_NATIVE. The store never approves a change or publishes a release, and a generator still cannot write package documents.",
       "displacedBy": "a published intake object schema that states which files an intake request may carry, their limits, and how they are named.",
       "riskIfWrong": "The allowed types, size caps, and naming may differ from a later schema. Storage is process-local, a rejected file is never kept, and the digests on the audit chain remain checkable against the bytes."
+    },
+    {
+      "id": "apollographql.CurrentUserProjection",
+      "what": "A nullable ConduitCurrentUser object with nullable String id/fullName selections, mapped to the resolved credential owner username and an optional display-name claim.",
+      "why": "The public API Explorer example names Query.me, id and fullName but supplies no complete type/nullability, identity-value or delegation contract. The native carrier currently has a username and no full-name claim. Conduit returns null rather than inventing a human name, and retains the credential owner rather than substituting an on-behalf-of identity.",
+      "displacedBy": "A public Apollo identity schema and delegation contract specifying me's type, ID mapping and unavailable fullName semantics.",
+      "riskIfWrong": "The names match the public example; the type and values are native choices disclosed with valueTier CONDUIT_NATIVE. They do not identify a real Apollo user or confer delegated authority."
     }
   ],
   "displaced": [

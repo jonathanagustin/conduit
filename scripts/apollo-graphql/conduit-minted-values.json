@@ -73,6 +73,24 @@
       "grammarPublishedAs": "apollo-graphql ApolloProductRelease.spaceId; no native identity grammar is established by Apollo",
       "conduitSupplies": "a real persisted native Space identity, independently authorized for the owning resource; missing assignment is null only after the configured store observes absence",
       "invention": "spaces.GraphQLGrouping"
+    },
+    "Query.me": {
+      "mintedBy": "internal/controlplane/apollo_graphql.go caller-bound CurrentUser snapshot",
+      "grammarPublishedAs": "Public API Explorer GetCurrentUser selection names; no identity value or nullability mapping is published",
+      "conduitSupplies": "Resolved credential-owner username for id, null fullName when the identity carrier has no display-name claim; nullable ConduitCurrentUser type",
+      "invention": "apollographql.CurrentUserProjection"
+    },
+    "ConduitCurrentUser.id": {
+      "mintedBy": "internal/controlplane/apollo_graphql.go caller-bound CurrentUser snapshot",
+      "grammarPublishedAs": "Public API Explorer GetCurrentUser selection names; no identity value or nullability mapping is published",
+      "conduitSupplies": "Resolved credential-owner username for id, null fullName when the identity carrier has no display-name claim; nullable ConduitCurrentUser type",
+      "invention": "apollographql.CurrentUserProjection"
+    },
+    "ConduitCurrentUser.fullName": {
+      "mintedBy": "internal/controlplane/apollo_graphql.go caller-bound CurrentUser snapshot",
+      "grammarPublishedAs": "Public API Explorer GetCurrentUser selection names; no identity value or nullability mapping is published",
+      "conduitSupplies": "Resolved credential-owner username for id, null fullName when the identity carrier has no display-name claim; nullable ConduitCurrentUser type",
+      "invention": "apollographql.CurrentUserProjection"
     }
   },
   "whyAnEntryNeedNotNameAnInvention": "Two different claims are being kept apart here. 'Conduit built this value' is what valueTier discloses, and it is true of every coordinate in this file. 'Conduit invented this shape' is a stronger claim, true of some of them, and it belongs in the invention register. ApolloEntity.id used to name an invention that turned out to be a misreading -- the shape was Apollo's all along -- and requiring an invention on every entry would have forced a replacement guess rather than allowing the honest answer, which is that there is nothing invented left to register."
