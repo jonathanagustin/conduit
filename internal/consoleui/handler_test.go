@@ -236,3 +236,25 @@ func TestHydrationRefusesAShellWithNoMarker(t *testing.T) {
 		t.Fatalf("hydration produced no bootstrap meta: %s", hydrated)
 	}
 }
+
+func TestHandlerServesFaviconSVG(t *testing.T) {
+	svg := []byte(`<svg viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><rect width="24" height="24"/></svg>`)
+	assets := fstest.MapFS{
+		"index.html":  &fstest.MapFile{Data: []byte(`<!doctype html><html><head>` + bootstrapMarker + `</head><body><div id="root"></div></body></html>`)},
+		"favicon.svg": &fstest.MapFile{Data: svg},
+	}
+	h := handler(assets, mustBootstrapJSON(t, DefaultBootstrap()))
+	response := request(t, h, "/console/favicon.svg")
+	if response.Code != http.StatusOK {
+		t.Fatalf("favicon status = %d, want 200", response.Code)
+	}
+	if got := response.Header().Get("Content-Type"); !strings.Contains(got, "image/svg+xml") {
+		t.Fatalf("favicon Content-Type = %q", got)
+	}
+	if !strings.HasPrefix(response.Header().Get("ETag"), `"sha256-`) {
+		t.Fatalf("favicon ETag = %q", response.Header().Get("ETag"))
+	}
+	if response.Body.String() != string(svg) {
+		t.Fatalf("favicon body = %q", response.Body.String())
+	}
+}

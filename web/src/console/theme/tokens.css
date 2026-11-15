@@ -20,6 +20,9 @@
   --muted-foreground: #8f99a8;
   --border: #2b3038;
   --input: #111418;
+  --cnd-mark-1: #215db0;
+  --cnd-mark-2: #4c90f0;
+  --cnd-mark-3: #8abbff;
   display: flex;
   flex-direction: column;
   height: 100%;
@@ -40,6 +43,9 @@
   --c-border: #d5dde6;
   --c-text: #1c2127;
   --c-muted: #5f6b7a;
+  --cnd-mark-1: #4c90f0;
+  --cnd-mark-2: #2d72d2;
+  --cnd-mark-3: #184a90;
 }
 
 .conduit-shell * {
@@ -70,6 +76,52 @@
   font-size: 15px;
   font-weight: 650;
   letter-spacing: -0.02em;
+}
+
+.cd-wordmark {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 15px;
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+
+.conduit-shell .cnd-brand-mark {
+  flex-shrink: 0;
+  display: block;
+}
+
+.conduit-shell .cnd-mark-c1 {
+  stroke: var(--cnd-mark-1);
+  animation: cnd-sapphire-flow 2.4s ease-in-out infinite;
+}
+.conduit-shell .cnd-mark-c2 {
+  stroke: var(--cnd-mark-2);
+  animation: cnd-sapphire-flow 2.4s ease-in-out -1.6s infinite;
+}
+.conduit-shell .cnd-mark-c3 {
+  stroke: var(--cnd-mark-3);
+  animation: cnd-sapphire-flow 2.4s ease-in-out -0.8s infinite;
+}
+@keyframes cnd-sapphire-flow {
+  0%,
+  100% {
+    stroke: var(--cnd-mark-1);
+  }
+  33.333% {
+    stroke: var(--cnd-mark-3);
+  }
+  66.667% {
+    stroke: var(--cnd-mark-2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .conduit-shell .cnd-mark-c1,
+  .conduit-shell .cnd-mark-c2,
+  .conduit-shell .cnd-mark-c3 {
+    animation: none;
+  }
 }
 
 .conduit-topbar {
