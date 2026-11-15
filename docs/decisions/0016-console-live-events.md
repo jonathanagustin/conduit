@@ -87,7 +87,9 @@ still advances. Revisions are scoped to `(resource.type, resource.id)`.
 
 Clients keep their last applied cursor in memory, scoped to the current identity.
 They resume with `Last-Event-ID`; a fetch-based SSE client may set that header,
-while native EventSource sends it on automatic reconnect. Do not store cursors
+The first client uses fetch-based SSE so it can inspect the ready watermark
+headers and classify HTTP failures before consuming events. Native EventSource
+is not the initial client because it cannot expose those headers. Do not store cursors
 in shared local storage or pass them as query parameters. Equal/earlier sequence
 numbers are duplicate/late replay and do not reapply side effects. A forward gap
 or a different stream ID stops incremental application and initiates catch-up;
@@ -107,8 +109,13 @@ Catch-up opens a new authorized stream and buffers it before fetching the
 currently visible read models. Read `GET /v1/packaging-runs/{runID}` plus
 `GET /v1/packaging-runs/{runID}/events` for packaging detail, and the existing
 Plan, approval, environment catalog, overview and KPI read routes for other
-views. The future server must supply a stream-ready watermark so that reads
-and buffered invalidations cannot lose a transition. Apply only matching-resource
+views. The response headers `X-Conduit-Stream-ID`, `X-Conduit-Event-Sequence` and
+`X-Conduit-Event-Cursor` supply the ready watermark before any body event. On a
+fresh stream the sequence is 0; on replay it is the acknowledged resume
+sequence. IDs and cursors have the same bounds as the envelope, and sequence
+is an unsigned decimal safe integer. These headers describe the queue position,
+not a claim that read models are current. They let reads and buffered
+invalidations avoid losing a transition. Apply only matching-resource
 newer revisions after the snapshot; if a read model lacks comparable revisions,
 coalesce the buffered invalidations and refetch it instead of guessing. Another
 overflow during catch-up restarts the process with backoff and a visible stale
