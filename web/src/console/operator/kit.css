@@ -22,6 +22,50 @@
   border-color: var(--c-border) !important;
 }
 
+.cnd-brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.operator-root[data-theme="light"] .cnd-brand {
+  color: var(--c-text) !important;
+}
+.cnd-brand-mark {
+  flex-shrink: 0;
+  display: block;
+}
+.cnd-mark-c1 {
+  stroke: var(--cnd-mark-1);
+  animation: cnd-sapphire-flow 2.4s ease-in-out infinite;
+}
+.cnd-mark-c2 {
+  stroke: var(--cnd-mark-2);
+  animation: cnd-sapphire-flow 2.4s ease-in-out -1.6s infinite;
+}
+.cnd-mark-c3 {
+  stroke: var(--cnd-mark-3);
+  animation: cnd-sapphire-flow 2.4s ease-in-out -0.8s infinite;
+}
+@keyframes cnd-sapphire-flow {
+  0%,
+  100% {
+    stroke: var(--cnd-mark-1);
+  }
+  33.333% {
+    stroke: var(--cnd-mark-3);
+  }
+  66.667% {
+    stroke: var(--cnd-mark-2);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cnd-mark-c1,
+  .cnd-mark-c2,
+  .cnd-mark-c3 {
+    animation: none;
+  }
+}
+
 .kit-card,
 .kit-panel {
   background: var(--c-card);

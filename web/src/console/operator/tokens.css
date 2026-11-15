@@ -83,6 +83,9 @@
   --neutral-fill: #18202b;
   --neutral-border: #6f829a;
   --neutral-text: #b8c6d8;
+  --cnd-mark-1: #215db0;
+  --cnd-mark-2: #4c90f0;
+  --cnd-mark-3: #8abbff;
 }
 .operator-root[data-theme="light"] {
   color-scheme: light;
@@ -121,6 +124,9 @@
   --neutral-fill: #f1f5f9;
   --neutral-border: #64748b;
   --neutral-text: #2d3b4e;
+  --cnd-mark-1: #4c90f0;
+  --cnd-mark-2: #2d72d2;
+  --cnd-mark-3: #184a90;
 }
 
 /* Aliases: names older styles use, mapped onto the sheet above. */
