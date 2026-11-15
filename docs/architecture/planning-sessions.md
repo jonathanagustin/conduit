@@ -85,3 +85,20 @@ Accept records, and never rewrites:
 - the accept time
 
 `POST /compute` is refused with `COMPUTE_BEFORE_ACCEPT` until that binding exists.
+After Accept it returns `COMPUTE_NOT_CONFIGURED`; this slice does not execute a
+workspace, build, or package. The later workspace flow must consume the binding.
+
+## Ownership and storage
+
+Sessions are isolated by the authenticated credential owner's principal. Other
+operators receive 404 for its session ID, including turns, answers, events,
+Accept, binding reads, and compute. Bootstrap administrator status does not
+implicitly share sessions. Session documents are process-local and disappear
+on Hub restart; this is not a durable workspace/session implementation.
+
+Accept writes an authorization audit receipt through the configured repository
+before binding the session. Audit-write failure leaves the session unaccepted.
+The receipt binds profile coordinates, intake URL/ref and opening-message hash,
+source commit, model and plan hash without copying model output or opening
+message text into the audit. Ordinary model-phase audit records use the
+credential owner's identity as well.

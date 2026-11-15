@@ -2,17 +2,21 @@ package composition
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
+	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planninghttp "github.com/jonathanagustin/conduit/internal/planning/httpapi"
 )
 
@@ -24,16 +28,35 @@ func mountPlanning(legacy http.Handler, repository controlplane.Repository, opti
 	if err != nil {
 		return nil, err
 	}
+	return planningHandler(legacy, repository, options, runner), nil
+}
+
+func planningHandler(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner) http.Handler {
+	var stores sync.Map
+	governanceService := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
 	planninghttp.Register(mux, planninghttp.Config{
-		Service: planningapp.NewService(runner),
+		ResolveService: func(request *http.Request) (planninghttp.Sessions, error) {
+			principal, ok := packagingPrincipal(request, governanceService, options)
+			if !ok || principal.Username == "" {
+				return nil, errors.New("unauthorized")
+			}
+			actor := principal.Username
+			scopedRunner := runner
+			if runner != nil {
+				scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
+			}
+			service := planningapp.NewService(scopedRunner).WithAuditor(planningAcceptAudit{repository: repository, actor: actor})
+			actual, _ := stores.LoadOrStore(actor, service)
+			return actual.(*planningapp.Service), nil
+		},
 		Authorize: func(request *http.Request) error {
 			_, err := operatorClaims(request, options)
 			return err
 		},
 	})
 	mux.Handle("/", legacy)
-	return mux, nil
+	return mux
 }
 
 func planningPlanner(getenv func(string) string, repository controlplane.Repository) (planningapp.Planner, error) {
@@ -77,7 +100,7 @@ func (audit planningAudit) Record(ctx context.Context, record planner.Record) er
 	}
 	resource := "planning-session/" + record.SessionID
 	event := governance.NewAuthorizationCheckEvent(
-		time.Now().UTC(), "planning-"+strings.TrimPrefix(action, "planning."), action, resource, decision, record.Reason,
+		time.Now().UTC(), planningActor(ctx), action, resource, decision, record.Reason,
 		map[string]any{
 			"adapter": record.Adapter, "promptSha256": record.PromptSHA256,
 			"responseSha256": record.ResponseSHA256, "toolCalls": record.ToolCalls,
@@ -86,4 +109,37 @@ func (audit planningAudit) Record(ctx context.Context, record planner.Record) er
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
+}
+
+// planningAcceptAudit commits the acceptance receipt before the service binds it.
+type planningAcceptAudit struct {
+	repository controlplane.Repository
+	actor      string
+}
+
+func (audit planningAcceptAudit) Record(ctx context.Context, record planningapp.Audit) error {
+	event := governance.NewAuthorizationCheckEvent(record.AcceptedAt, audit.actor, record.Action,
+		"planning-session/"+record.SessionID, governance.DecisionAllow, "operator accepted the bound plan",
+		map[string]any{"profileName": record.ProfileName, "profileVersion": record.ProfileVersion,
+			"profileHash": record.ProfileHash, "repoUrl": record.RepoURL, "ref": record.Ref,
+			"intakeMessageSha256": packagingdomain.DigestText([]byte(record.Message)),
+			"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash})
+	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
+	return err
+}
+
+type planningActorKey struct{}
+
+func planningActor(ctx context.Context) string {
+	actor, _ := ctx.Value(planningActorKey{}).(string)
+	return actor
+}
+
+type actorPlanningRunner struct {
+	runner planningapp.Planner
+	actor  string
+}
+
+func (runner actorPlanningRunner) Turn(ctx context.Context, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
+	return runner.runner.Turn(context.WithValue(ctx, planningActorKey{}, runner.actor), session, message)
 }

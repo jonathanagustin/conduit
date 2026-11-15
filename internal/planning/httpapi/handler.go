@@ -47,14 +47,17 @@ type Sessions interface {
 
 // Config is the route's dependencies. A nil Authorize refuses everyone.
 type Config struct {
-	Service   Sessions
-	Authorize func(*http.Request) error
+	Service Sessions
+	// ResolveService selects an isolated session store after authentication.
+	ResolveService func(*http.Request) (Sessions, error)
+	Authorize      func(*http.Request) error
 }
 
 // Register mounts the planning-session routes.
 func Register(mux *http.ServeMux, cfg Config) {
 	mux.HandleFunc(CreateRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
 		var body struct {
@@ -64,7 +67,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		if !decodeBody(writer, request, &body) {
 			return
 		}
-		session, err := cfg.Service.Create(request.Context(), body.RepoURL, body.Ref)
+		session, err := service.Create(request.Context(), body.RepoURL, body.Ref)
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -72,10 +75,11 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusCreated, session)
 	})
 	mux.HandleFunc(GetRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
-		session, err := cfg.Service.Get(request.Context(), request.PathValue("sessionID"))
+		session, err := service.Get(request.Context(), request.PathValue("sessionID"))
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -83,7 +87,8 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, session)
 	})
 	mux.HandleFunc(TurnRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
 		var body struct {
@@ -100,10 +105,10 @@ func Register(mux *http.ServeMux, cfg Config) {
 		_ = http.NewResponseController(writer).SetWriteDeadline(time.Now().Add(TurnWriteWindow))
 		id := request.PathValue("sessionID")
 		prior := 0
-		if existing, err := cfg.Service.Get(request.Context(), id); err == nil {
+		if existing, err := service.Get(request.Context(), id); err == nil {
 			prior = len(existing.Events)
 		}
-		session, err := cfg.Service.Turn(request.Context(), id, body.Message)
+		session, err := service.Turn(request.Context(), id, body.Message)
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -118,7 +123,8 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, session)
 	})
 	mux.HandleFunc(AnswerRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
 		var body struct {
@@ -127,7 +133,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		if !decodeBody(writer, request, &body) {
 			return
 		}
-		session, err := cfg.Service.Answer(request.Context(), request.PathValue("sessionID"), body.Answers)
+		session, err := service.Answer(request.Context(), request.PathValue("sessionID"), body.Answers)
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -135,10 +141,11 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, session)
 	})
 	mux.HandleFunc(AcceptRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
-		session, err := cfg.Service.Accept(request.Context(), request.PathValue("sessionID"))
+		session, err := service.Accept(request.Context(), request.PathValue("sessionID"))
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -146,10 +153,11 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, session)
 	})
 	mux.HandleFunc(BindingRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
-		session, err := cfg.Service.Get(request.Context(), request.PathValue("sessionID"))
+		session, err := service.Get(request.Context(), request.PathValue("sessionID"))
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -161,10 +169,11 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, session.Binding)
 	})
 	mux.HandleFunc(EventsRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
-		events, err := cfg.Service.Events(request.Context(), request.PathValue("sessionID"))
+		events, err := service.Events(request.Context(), request.PathValue("sessionID"))
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -175,10 +184,11 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, map[string]any{"items": events})
 	})
 	mux.HandleFunc(ComputeRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		service, ok := authorized(cfg, writer, request)
+		if !ok {
 			return
 		}
-		session, err := cfg.Service.Compute(request.Context(), request.PathValue("sessionID"))
+		session, err := service.Compute(request.Context(), request.PathValue("sessionID"))
 		if err != nil {
 			writeDomainError(writer, err)
 			return
@@ -209,12 +219,24 @@ func writeTurnStream(writer http.ResponseWriter, events []domain.Event) {
 	}
 }
 
-func authorized(cfg Config, writer http.ResponseWriter, request *http.Request) bool {
+func authorized(cfg Config, writer http.ResponseWriter, request *http.Request) (Sessions, bool) {
 	if cfg.Authorize == nil || cfg.Authorize(request) != nil {
 		writeError(writer, http.StatusUnauthorized, "", "unauthorized")
-		return false
+		return nil, false
 	}
-	return true
+	service := cfg.Service
+	if cfg.ResolveService != nil {
+		var err error
+		service, err = cfg.ResolveService(request)
+		if err != nil {
+			service = nil
+		}
+	}
+	if service == nil {
+		writeError(writer, http.StatusUnauthorized, "", "unauthorized")
+		return nil, false
+	}
+	return service, true
 }
 
 func decodeBody(writer http.ResponseWriter, request *http.Request, dest any) bool {
