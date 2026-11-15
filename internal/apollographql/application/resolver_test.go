@@ -173,7 +173,7 @@ func newFixture(t *testing.T) (*fixture, *fakeApollo, *fakeOverview) {
 		t.Fatalf("build resolver: %v", err)
 	}
 	resolver.now = func() time.Time { return time.Unix(1_700_000_000, 0).UTC() }
-	return &fixture{Resolver: resolver, sources: ports.Sources{Apollo: apolloSource, Overview: overview, Grouping: &fakeGrouping{ids: []string{"bundle-1"}}}}, apolloSource, overview
+	return &fixture{Resolver: resolver, sources: ports.Sources{CurrentUser: &ports.CurrentUser{ID: "fixture-user"}, Apollo: apolloSource, Overview: overview, Grouping: &fakeGrouping{ids: []string{"bundle-1"}}}}, apolloSource, overview
 }
 
 func ptr[T any](value T) *T { return &value }
@@ -219,12 +219,13 @@ func TestResolverAndSchemaAgree(t *testing.T) {
 func TestEveryCoveredCoordinateResolves(t *testing.T) {
 	resolver, apolloSource, _ := newFixture(t)
 	sources := map[string]any{
-		"Query":             rootSource{},
-		"ApolloBundle":      bundleSource{id: "bundle-1"},
-		"ApolloQuery":       rootSource{},
-		"ApolloEnvironment": apolloSource.environments[0],
-		"ApolloEntity":      entitySource{installation: apolloSource.installations["ri.apollo.main.environment.a"][0], environment: apolloSource.environments[0]},
-		"ApolloProduct":     apolloSource.products[0],
+		"Query":              rootSource{},
+		"ConduitCurrentUser": ports.CurrentUser{ID: "fixture-user"},
+		"ApolloBundle":       bundleSource{id: "bundle-1"},
+		"ApolloQuery":        rootSource{},
+		"ApolloEnvironment":  apolloSource.environments[0],
+		"ApolloEntity":       entitySource{installation: apolloSource.installations["ri.apollo.main.environment.a"][0], environment: apolloSource.environments[0]},
+		"ApolloProduct":      apolloSource.products[0],
 		"ApolloProductRelease": releaseSource{
 			product: apolloSource.products[0], release: apolloSource.releases["checkout"][0],
 		},

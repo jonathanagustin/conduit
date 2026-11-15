@@ -20,6 +20,9 @@ func at(typeName, field string) domain.Coordinate {
 // while forgetting to remove one makes the build fail. Silence should cost
 // coverage, never truth.
 var coverage = domain.NewCoverage(map[domain.Coordinate]string{
+	at("Query", "me"):                     "native: request-bound resolved credential owner",
+	at("ConduitCurrentUser", "id"):        "native: resolved credential owner username, valueTier CONDUIT_NATIVE",
+	at("ConduitCurrentUser", "fullName"):  "native: optional identity display name, valueTier CONDUIT_NATIVE",
 	at("ApolloEnvironment", "spaceId"):    "native: persisted authorized Environment Space assignment",
 	at("ApolloEntity", "spaceId"):         "native: persisted authorized owning Environment Space assignment",
 	at("ApolloProduct", "spaceId"):        "native: persisted authorized Product Space assignment",

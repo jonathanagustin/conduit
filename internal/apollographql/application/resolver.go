@@ -338,7 +338,28 @@ func (resolver *bound) resolve(
 	ctx context.Context, coordinate domain.Coordinate, source any, arguments map[string]any,
 ) (any, error) {
 	switch coordinate.Type {
+	case "ConduitCurrentUser":
+		user, ok := source.(ports.CurrentUser)
+		if !ok {
+			return nil, errNoSource
+		}
+		if coordinate.Field == "id" {
+			return user.ID, nil
+		}
+		if coordinate.Field == "fullName" {
+			if user.FullName == nil {
+				return nil, nil
+			}
+			return *user.FullName, nil
+		}
+		return nil, errNoSource
 	case "Query":
+		if coordinate.Field == "me" {
+			if resolver.sources.CurrentUser == nil {
+				return nil, errNoSource
+			}
+			return child{typeName: "ConduitCurrentUser", source: *resolver.sources.CurrentUser}, nil
+		}
 		// The entry point. It holds no data of its own; everything below it does.
 		return child{typeName: "ApolloQuery", source: rootSource{}}, nil
 	case "ApolloQuery":

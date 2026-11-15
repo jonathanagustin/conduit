@@ -233,9 +233,10 @@ export function buildInterfaceSchema(observed, native, cardinality = {}, minted 
     // be the one coordinate whose provenance nobody states, and the entry point
     // is the last place that should be true of.
     `  ${observed.rootField}: ${observed.rootType} @provenance(tier: OBSERVED)`,
+    ...(rendered.find((type) => type.name === "Query")?.body ?? []),
     "}",
     "",
-    ...rendered.flatMap((type) => [`type ${type.name} {`, ...type.body, "}", ""]),
+    ...rendered.filter((type) => type.name !== "Query").flatMap((type) => [`type ${type.name} {`, ...type.body, "}", ""]),
   ];
   const sdl = `${lines.join("\n").replace(/\n{3,}/g, "\n\n").trimEnd()}\n`;
   return { sdl, observedCount, documentedCount, nativeCount, mintedCount, displaceable, unresolved, unknownCardinality };

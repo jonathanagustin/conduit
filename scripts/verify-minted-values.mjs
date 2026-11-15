@@ -20,9 +20,9 @@
 // coordinate; it was silent about the value, and silence read as recovery.
 //
 // So this fails if any one of the three moves alone. It also refuses an entry
-// for a coordinate the recovery record does not contain, because this file
-// describes how a RECOVERED coordinate's value is produced and must never be a
-// back door for adding one.
+// for an unsupported coordinate. A DOCUMENTED coordinate may disclose native
+// values only when its explicit public citation matches the native declaration
+// and the pinned public-documentation manifest; it is never relabelled recovered.
 //
 // Runs offline against committed files and needs no credentials.
 import { existsSync, readFileSync } from "node:fs";
@@ -37,10 +37,13 @@ const MINTED = resolve(ROOT, "scripts/apollo-graphql/conduit-minted-values.json"
 const REGISTER = resolve(ROOT, "docs/evidence/conduit-inventions.json");
 const OBSERVED = resolve(ROOT, "docs/reference-platform/observed/reference-graphql-observed.json");
 
+const NATIVE = resolve(ROOT, "scripts/apollo-graphql/conduit-native.json");
+const MANIFEST = resolve(ROOT, "docs/reference-platform/public-documentation-manifest.tsv");
+
 const failures = [];
 const fail = (message) => failures.push(message);
 
-for (const path of [SDL, MINTED, REGISTER, OBSERVED]) {
+for (const path of [SDL, MINTED, REGISTER, OBSERVED, NATIVE, MANIFEST]) {
   if (!existsSync(path)) {
     console.error(`FAIL missing ${relative(ROOT, path)}`);
     process.exit(1);
@@ -55,6 +58,7 @@ const registered = new Set((register.inventions ?? []).map((entry) => entry.id))
 // rebuilt, so a hand-edit to the committed schema is caught rather than
 // silently regenerated away.
 const declared = new Set();
+const tiers = new Map();
 const disclosed = new Set();
 let currentType = "";
 for (const line of readFileSync(SDL, "utf8").split("\n")) {
@@ -72,6 +76,7 @@ for (const line of readFileSync(SDL, "utf8").split("\n")) {
   if (!field) continue;
   const coordinate = `${currentType}.${field[1]}`;
   declared.add(coordinate);
+  tiers.set(coordinate, field[2].match(/(?:^|,)\s*tier:\s*(\w+)/)?.[1]);
   if (/valueTier:\s*CONDUIT_NATIVE/.test(field[2])) disclosed.add(coordinate);
 }
 if (declared.size === 0) fail(`${relative(ROOT, SDL)} parsed to no fields at all; the gate is checking nothing`);
@@ -104,6 +109,15 @@ const recovered = new Set();
 for (const type of observed.types ?? []) {
   for (const field of type.fields ?? []) recovered.add(`${type.name}.${field.name}`);
 }
+if (recovered.size === 0) fail("the recovery record has no coordinates; recovered-value provenance cannot be checked");
+const native = JSON.parse(readFileSync(NATIVE, "utf8"));
+const documented = new Map();
+for (const [typeName, type] of Object.entries(native.types ?? {})) {
+  for (const field of type.fields ?? []) {
+    if (field.documentedBy) documented.set(`${typeName}.${field.name}`, field.documentedBy);
+  }
+}
+const publicURLs = new Set(readFileSync(MANIFEST,"utf8").trim().split("\n").slice(1).map(line => line.split("\t")[0]));
 for (const [coordinate, entry] of Object.entries(minted)) {
   for (const field of ["mintedBy", "grammarPublishedAs", "conduitSupplies"]) {
     if (!entry[field] || String(entry[field]).trim().length < 8) {
@@ -126,15 +140,15 @@ for (const [coordinate, entry] of Object.entries(minted)) {
         `Disclosing a value as Conduit's without registering what would displace it leaves the guess permanent`,
     );
   }
-  // The recovery record is the authority on what was recovered. An entry naming
-  // a coordinate outside it would be describing the value of a field no Hub
-  // established, which is a CONDUIT_NATIVE tier rather than a minted value.
-  if (recovered.size > 0 && !recovered.has(coordinate)) {
-    fail(
-      `${relative(ROOT, MINTED)} names ${coordinate}, which the recovery record does not contain. ` +
-        `This file describes how a RECOVERED coordinate's value is produced; a coordinate no Hub ` +
-        `established belongs at tier CONDUIT_NATIVE instead`,
-    );
+  // Publicly documented names can also carry Conduit-native values. Require
+  // the exact public citation in both declarations and its manifest entry;
+  // a generic source string or a tier annotation alone is insufficient.
+  const publicCitation = entry.documentedBy;
+  const documentedValue = tiers.get(coordinate) === "DOCUMENTED" &&
+    typeof publicCitation === "string" && publicCitation.startsWith("https://") &&
+    documented.get(coordinate) === publicCitation && publicURLs.has(publicCitation);
+  if (!recovered.has(coordinate) && !documentedValue) {
+    fail(`${relative(ROOT,MINTED)} names ${coordinate} without a recovered coordinate or matching verified public-documentation citation at tier DOCUMENTED`);
   }
 }
 

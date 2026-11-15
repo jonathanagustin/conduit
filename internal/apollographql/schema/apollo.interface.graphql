@@ -45,6 +45,7 @@ scalar RID
 
 type Query {
   apollo: ApolloQuery @provenance(tier: OBSERVED)
+  me: ConduitCurrentUser @provenance(tier: DOCUMENTED, valueTier: CONDUIT_NATIVE)
 }
 
 type ApolloBundle {
@@ -161,4 +162,9 @@ type ApolloQuery {
   productRelease(rid: RID!): ApolloProductRelease @provenance(tier: OBSERVED)
   products(pageSize: Int!): ApolloProductPage @provenance(tier: OBSERVED)
   promotions(pageSize: Int!): ApolloPromotionPage @provenance(tier: DOCUMENTED)
+}
+
+type ConduitCurrentUser {
+  fullName: String @provenance(tier: DOCUMENTED, valueTier: CONDUIT_NATIVE)
+  id: String @provenance(tier: DOCUMENTED, valueTier: CONDUIT_NATIVE)
 }

@@ -274,11 +274,11 @@ either. What it does is remove the last way of dismissing this observation as
 thin: the Control Panel's GraphQL surface is now described at the same grain as
 the surfaces it is being compared against, and it remains a different one.
 
-## The interface Conduit serves (2026-08-15)
+## The interface Conduit serves (reviewed 2026-11-15 UTC)
 
 The recovered surface is evidence. `api/graphql/apollo.interface.graphql` is the
 interface Conduit actually serves, and it is deliberately larger: 41 recovered
-coordinates plus 22 that no capture established, because an operator interface
+coordinates plus 25 that no capture established, because an operator interface
 that cannot reach plans, change requests or promotions is not usable for
 delivery work.
 
@@ -291,7 +291,7 @@ audited, and the invention silently becomes the claim.
 | Tier | What established it |
 | --- | --- |
 | `OBSERVED` | An authorized Hub answered for this coordinate. 41 fields. |
-| `DOCUMENTED` | Apollo names the field or documents the concept — in the pinned OpenAPI, in an `apollo-cli` flag, in published documentation, or on a sibling type in the recovery record. No Hub answered for *this* coordinate. 22 fields. |
+| `DOCUMENTED` | Apollo names the field or documents the concept — in the pinned OpenAPI, in an `apollo-cli` flag, in published documentation, or on a sibling type in the recovery record. No Hub answered for *this* coordinate. 25 fields. |
 | `CONDUIT_NATIVE` | Conduit's own idea, no Apollo claim of any kind. **0 fields.** |
 
 `GET /v1/apollo/graphql/schema` publishes the annotated SDL, and every response
@@ -459,19 +459,19 @@ chose to declare the field either way.
 | Recovered coordinates declared | 41 |
 | — of which served | 40 |
 | — of which declared but unanswerable | 1 |
-| Coordinates served that no capture established | 22 (35% of the 63 declared; 35% of the 62 served) |
-| — of which Apollo names or documents | 22 |
+| Coordinates served that no capture established | 25 (38% of the 66 declared; 38% of the 65 served) |
+| — of which Apollo names or documents | 25 |
 | — of which are Conduit's own invention | **0 (0%)** |
-| Coordinates served, total | 62 (40 `OBSERVED` + 22 `DOCUMENTED`) |
+| Coordinates served, total | 65 (40 `OBSERVED` + 25 `DOCUMENTED`) |
 | Mutation surface | none. The served SDL declares no mutation root, so validation refuses one; nothing hand-written enforces it. |
 | Routes | `POST /v1/apollo/graphql`, `GET /v1/apollo/graphql/schema` |
 
-Two numbers, and they answer different questions. `unrecoveredShare` (35%) is
+Two numbers, and they answer different questions. `unrecoveredShare` (38%) is
 the fraction no Hub has confirmed; it should fall as captures widen. Its
-denominator is what the SDL **declares** — 63 — not what the server answers:
+denominator is what the SDL **declares** — 66 — not what the server answers:
 `build-interface-schema.mjs:260` divides by `observedFields + documentedFields +
-conduitNativeFields`. Measured against the 62 coordinates actually served it is
-35%. The declared figure is the published one because it is the property of the
+conduitNativeFields`. Measured against the 65 coordinates actually served it is
+38%. The declared figure is the published one because it is the property of the
 contract; the served figure is stated here so the two are never silently swapped.
 `conduitNativeShare` (0%) is the fraction no Apollo source of any kind supports;
 it should stay honest rather than stay zero. Conflating them is how "documented"
@@ -491,9 +491,32 @@ manifest and review ledger; neither is substituted for the other.
 The isolated local suite in `internal/apollo/conformance` tests all 13 operations
 from the pinned public OpenAPI and the nonempty public environment selection.
 It supplies no expectations from tenant captures or observed SDL. The public
-`GetCurrentUser` example currently fails because Query has no `me` field. It is
-explicitly uncovered, with the exact missing-field error checked before it is
-skipped; #644 tracks its implementation. The coverage report is
+`GetCurrentUser` example initially exposed the missing `me` field. #644 adds
+its documented selections with explicit native identity values and type choices;
+both public examples now run as positive conformance cases. The coverage report is
 [`../../operations/public-conformance.md`](../../operations/public-conformance.md).
 These local results establish the named tested shapes, not a full public
 GraphQL schema or private protocol compatibility.
+## Public current-user projection (2026-11-15 UTC)
+
+The public API Explorer's `GetCurrentUser` selection is served from a request-
+bound identity snapshot. `Query.me` and the `id`/`fullName` selections are
+DOCUMENTED. The `ConduitCurrentUser` type name, nullable String shape and value
+mapping are Conduit choices registered as
+`apollographql.CurrentUserProjection`; `valueTier: CONDUIT_NATIVE` discloses
+them in the served schema and response provenance. No tenant schema supplies
+these expectations.
+
+`id` is the username of the resolved credential owner, including when that
+credential is authorized to act on behalf of another user. It is not an Apollo
+user ID, nor a claim to identify the delegated subject. The existing identity
+carrier has no full-name attribute, so `fullName` is null. A username is never
+substituted for a person's name. Existing GraphQL authentication and minimum
+resource-visibility requirements remain in force; this adds no resource grant.
+
+`TestCurrentUserUsesVerifiedIdentityAndRejectsAnonymous` verifies that production
+identity resolution ignores forged development headers and that anonymous
+queries disclose no identity. `TestCurrentUserKeepsCredentialOwnerDuringDelegation`
+checks both widening and narrowing delegation without changing those permissions.
+`TestCurrentUserSnapshotIsRequestBoundAndAbsenceIsAnError` checks sequential
+request isolation and refuses an unconfigured identity source.

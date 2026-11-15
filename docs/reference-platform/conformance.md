@@ -23,7 +23,7 @@ unqualified superset of Apollo.
 | CLI Product fixtures | `scripts/apollo-docs/validate-cli-fixtures.rb`; byte comparison fixture | Semantic validation of the reconstructed 0.814.0 shape; byte compatibility is not claimed without a native capture |
 | Module examples | `scripts/apollo-docs/validate-module-definitions.rb` | The committed examples satisfy the reviewed public Module constraints |
 | Apollo Hub GraphQL surface | `api/graphql/apollo.observed.graphql`; `node scripts/apollo-graphql/verify-observed-schema.mjs` | An observed subset of one authorized Hub's GraphQL contract, recovered by validation probing and bound to its own schema hash. Not Apollo's published schema and not a complete one |
-| Apollo-shaped GraphQL interface Conduit serves | `api/graphql/apollo.interface.graphql`; `node scripts/apollo-graphql/verify-apollo-interface.mjs`; `./scripts/verify-apollo-interface.test.sh` | **35% of this interface was established by no capture; 0% is Conduit's invention.** It **declares** 41 `OBSERVED` coordinates plus 22 `DOCUMENTED` ones — Apollo names the field or documents the concept, but no Hub answered for that coordinate — and 0 `CONDUIT_NATIVE`; 62 of the 63 are served, the other 1 refuses. Every field the interface serves carries its tier annotation; declaring a coordinate is not a claim to answer it. **`DOCUMENTED` is not an Apollo compatibility claim**: it says Apollo named the thing, not that a Hub would answer for it. Every citation is verified against the pinned OpenAPI, the documentation manifest, or the recovery record, and the gate fails the build if a capture recovers one of these coordinates or if Apollo publishes a name the interface is not using |
+| Apollo-shaped GraphQL interface Conduit serves | `api/graphql/apollo.interface.graphql`; `node scripts/apollo-graphql/verify-apollo-interface.mjs`; `./scripts/verify-apollo-interface.test.sh` | **38% of this interface was established by no capture; 0% is Conduit's invention.** It **declares** 41 `OBSERVED` coordinates plus 25 `DOCUMENTED` ones — Apollo names the field or documents the concept, but no Hub answered for that coordinate — and 0 `CONDUIT_NATIVE`; 65 of the 66 are served, the other 1 refuses. Every field the interface serves carries its tier annotation; declaring a coordinate is not a claim to answer it. **`DOCUMENTED` is not an Apollo compatibility claim**: it says Apollo named the thing, not that a Hub would answer for it. Every citation is verified against the pinned OpenAPI, the documentation manifest, or the recovery record, and the gate fails the build if a capture recovers one of these coordinates or if Apollo publishes a name the interface is not using |
 | Delivery, governance, reporting, and bundles | Go tests named in the [contract notes](contracts/delivery.md) | Conduit-native behavior that is Apollo-aligned only where a cited public contract covers it |
 
 ## Contract-first completion gate
@@ -73,3 +73,10 @@ context extraction still requires all of the following:
 
 The [evidence index](evidence.md) records the inputs. A green evidence check
 proves only the claim attached to that check.
+
+The public current-user selections (`me.id`, `me.fullName`) use Conduit's
+resolved credential-owner snapshot and a nullable native type. The served
+`valueTier: CONDUIT_NATIVE` annotations and the invention register distinguish
+those value/type choices from the publicly documented field names. The isolated
+public suite in `internal/apollo/conformance` now runs both published GraphQL
+examples positively alongside all 13 pinned REST operation-schema cases.
