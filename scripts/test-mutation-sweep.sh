@@ -5,7 +5,7 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 fixture=$(mktemp -d)
 trap 'rm -rf "$fixture"' EXIT
 mkdir -p "$fixture/scripts" "$fixture/docs/operations" "$fixture/bin"
-cp "$root/scripts/mutation-sweep.sh" "$fixture/scripts/"
+cp "$root/scripts/mutation-sweep.sh" "$root/scripts/score-mutation-report.mjs" "$root/scripts/mutation-report-score.mjs" "$fixture/scripts/"
 cp "$root/docs/operations/mutation-scores.json" "$fixture/docs/operations/original.json"
 cat > "$fixture/bin/gremlins" <<'STUB'
 #!/usr/bin/env bash

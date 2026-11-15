@@ -17,6 +17,7 @@
 // the console files measured by Stryker; each key is a source file. Both record
 // efficacy = killed / (killed + lived) -- for the web that is the Stryker score
 // over covered code, with a survived mutant playing the LIVED role.
+import { equivalentReview, quality } from "./mutation-report-score.mjs";
 import { existsSync, readFileSync, readdirSync, statSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -83,6 +84,9 @@ const checkEntry = (name, score, exists) => {
   if (score.lived < 0 || score.killed < 0) {
     failures.push(`${name} has a negative mutant count`);
   }
+  try { quality(score, equivalentReview(ROOT, name)); }
+  catch (error) { failures.push(`${name}: ${error.message}`); }
+
 };
 
 const packages = record.packages ?? {};
@@ -121,5 +125,5 @@ const worst = entries.reduce((low, [name, score]) =>
   score.efficacy < low.efficacy ? { name, efficacy: score.efficacy } : low, { name: "", efficacy: 100 });
 console.log(
   `PASS mutation scores: ${goNames.length} Go package(s) and ${webNames.length} web file(s) ` +
-    `baselined ${record.capturedAt}, weakest ${worst.name} at ${worst.efficacy.toFixed(1)}% efficacy`,
+    `baselined ${record.capturedAt}, weakest ${worst.name} at ${worst.efficacy.toFixed(1)}% raw efficacy`,
 );

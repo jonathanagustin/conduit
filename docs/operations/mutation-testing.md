@@ -50,6 +50,18 @@ Neither path publishes or commits results automatically. Raise the baseline wher
 scripts/mutation-sweep.sh --write   # rewrites docs/operations/mutation-scores.json
 ```
 
+The raw score always remains `killed/(killed+lived)`; equivalent mutations
+remain LIVED and are never relabeled KILLED. Individually reviewed equivalents
+are listed in `mutation-equivalents.json`, with exact file hashes, operator,
+line, column and the argument for equivalence. A missing/changed source, missing reviewed
+mutation, duplicate identity, or reviewed mutation no longer LIVED fails the
+classification. Unreviewed survivors remain in the quality denominator.
+
+The existing quality floor is applied to `nonEquivalentEfficacy`, recorded
+separately from raw `efficacy`. This avoids changing production behavior or
+inventing tests merely to reject a no-op. A changed source requires renewed
+review and measurement; source hashes prevent a general operator exemption.
+
 The rewrite is a reviewed commit, never automatic. The runner compares each
 measured efficacy with its existing tolerated floor independently of the engine's
 exit status. A regressed result refuses `--write` and leaves the baseline intact.

@@ -611,6 +611,7 @@ jobs:
       - name: Validate mutation scores
         if: needs.scope.outputs.checks == 'true'
         run: |
+          node scripts/mutation-report-score.test.mjs
           ./scripts/test-mutation-sweep.sh
           ./scripts/verify-mutation-scores.test.sh
           node scripts/verify-mutation-scores.mjs
