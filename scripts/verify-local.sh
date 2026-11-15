@@ -241,7 +241,7 @@ gate 'Validate release path' release_path
 gate 'Validate Rubix substrate CRDs' ruby scripts/verify-rubix-crds.rb
 gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
-gate 'Validate Zarf air-gap package' bash -c 'env ZARF_BIN="${zarf_bin}" ruby scripts/verify-zarf-package.rb && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
+gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" bash -c 'ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
 gate 'Build commands' build_commands
 gate 'Validate Apollo public contract' apollo_contract
 gate 'Validate review ledger' review_ledger
@@ -320,10 +320,6 @@ locally_only=(
   # Fake docker binary. It checks the demo registry network fallback without a
   # daemon, so it is not a hosted workflow step.
   'test-demo-docker-network.sh'
-  # Offline plan check for the slim-dev bring-up task. It does not need a
-  # cluster. The hosted workflow file is not updated from this token.
-  'test-uds-up.sh'
-  'test-uds-keycloak-users.sh'
 )
 mapfile -t invoked < <(grep -oE '(\./)?scripts/[a-zA-Z0-9._/-]+\.(sh|mjs|rb|py)' "${BASH_SOURCE[0]}" |
   sed 's|^\./||' | sort -u)

@@ -731,7 +731,11 @@ jobs:
         if: needs.scope.outputs.checks == 'true'
         env:
           ZARF_BIN: /tmp/zarf
-        run: ruby scripts/verify-zarf-package.rb
+        run: |
+          ruby scripts/verify-zarf-package.rb
+          ./scripts/test-zarf-runtime-selection.sh
+          ./scripts/test-uds-up.sh
+          ./scripts/test-uds-keycloak-users.sh
       - name: Validate Apollo public contract
         if: needs.scope.outputs.checks == 'true'
         run: |
