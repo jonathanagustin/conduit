@@ -178,6 +178,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionPublic, Detail: "liveness for a load balancer; it reads no repository state"},
 		{Pattern: "GET /health/ready",
 			Decision: DecisionPublic, Detail: "readiness; it answers ok or degraded and discloses no row"},
+		{Pattern: "GET /v1/admin/status",
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + existing governance Administrator predicate; read-only aggregate measurements"},
 		{Pattern: "GET /v1/apollo/graphql/schema",
 			Decision: DecisionPublic, Detail: "the embedded SDL, identical for every caller"},
 		{Pattern: "GET /v1/approval-policies",

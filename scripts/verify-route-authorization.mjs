@@ -62,6 +62,7 @@ const FLOOR = 100;
 // fixture, and demanding a register entry for it would make this gate a
 // nuisance in exactly the place people plant deliberate violations.
 const SOURCES = [
+ { path: "internal/adminstatus/transport/openapi.gen.go", surface: "administrator status" },
   { path: "internal/debugsessions/adapters/httpapi", surface: "debug request metadata" },
  {path:"internal/delivery/maintenance/httpapi",surface:"temporary maintenance admission"},
  {path:"internal/installoverride/adapters/httpapi",surface:"Module override metadata"},

@@ -417,3 +417,27 @@ test.describe("workbench", () => {
     await expect(page.getByLabel("Message input")).toBeVisible();
   });
 });
+
+test("Audit platform status renders stubbed measurements and refreshes with GET", async ({ page }) => {
+  const methods: string[] = [];
+  await page.route("**/v1/admin/status", async (route) => {
+    methods.push(route.request().method());
+    await route.fulfill({ contentType: "application/json", body: JSON.stringify({
+      generatedAt: "2026-11-14T12:00:00Z",
+      components: [{ label: "Hub", status: "AVAILABLE", detail: "This Hub served the request" }],
+      counters: [{ label: "Pending reviews", status: "AVAILABLE", value: 0, detail: "Stored requests", link: "rm07-change-requests" }],
+      storage: [{ label: "Registry filesystem", status: "UNAVAILABLE", usedBytes: null, capacityBytes: null, usedPercent: null, warningPercent: 80, criticalPercent: 95, detail: "No telemetry provider configured" }],
+      audit: { status: "UNAVAILABLE", chainLength: null, verifiedAt: null, detail: "No stored-chain verifier" },
+    }) });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page.getByRole("button", { name: "Audit", exact: true }).first().click();
+  await page.getByRole("button", { name: "Platform status", exact: true }).click();
+  await expect(page.locator("[data-admin-status]")).toBeVisible();
+  await expect(page.locator("[data-admin-status]")).toContainText("Registry filesystem");
+  await expect(page.locator("[data-admin-status]")).toContainText("Verification time unavailable");
+  await page.getByRole("button", { name: "Refresh measurements" }).click();
+  await expect.poll(() => methods.length).toBeGreaterThanOrEqual(2);
+  expect(methods.every((method) => method === "GET")).toBe(true);
+});

@@ -1,0 +1,262 @@
+{
+  "openapi": "3.0.3",
+  "info": {
+    "title": "Conduit read-only administrator status",
+    "version": "1"
+  },
+  "paths": {
+    "/v1/admin/status": {
+      "get": {
+        "operationId": "getAdminStatus",
+        "description": "Requires the existing governance administrator decision. Reads measurements and never approves, deploys, publishes, or changes configuration.",
+        "responses": {
+          "200": {
+            "description": "Read-only platform measurements. Unavailable values remain null; service configuration is not worker liveness.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Summary"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Authentication required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "Governance administrator required",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Status source unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Error"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Counter": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status",
+          "value",
+          "detail",
+          "link"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "UNAVAILABLE"
+            ]
+          },
+          "value": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string"
+          },
+          "link": {
+            "type": "string"
+          }
+        }
+      },
+      "Component": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status",
+          "detail"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "AVAILABLE",
+              "CONFIGURED",
+              "UNCONFIGURED",
+              "UNAVAILABLE"
+            ]
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "Storage": {
+        "type": "object",
+        "required": [
+          "id",
+          "label",
+          "status",
+          "usedBytes",
+          "capacityBytes",
+          "usedPercent",
+          "warningPercent",
+          "criticalPercent",
+          "detail"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "label": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "OK",
+              "WARNING",
+              "CRITICAL",
+              "UNAVAILABLE"
+            ]
+          },
+          "usedBytes": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "capacityBytes": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "usedPercent": {
+            "type": "number",
+            "format": "double",
+            "nullable": true
+          },
+          "warningPercent": {
+            "type": "number"
+          },
+          "criticalPercent": {
+            "type": "number"
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "Audit": {
+        "type": "object",
+        "required": [
+          "status",
+          "chainLength",
+          "verifiedAt",
+          "detail"
+        ],
+        "properties": {
+          "status": {
+            "type": "string",
+            "enum": [
+              "VERIFIED",
+              "FAILED",
+              "UNAVAILABLE"
+            ]
+          },
+          "chainLength": {
+            "type": "integer",
+            "format": "int64",
+            "nullable": true
+          },
+          "verifiedAt": {
+            "type": "string",
+            "format": "date-time",
+            "nullable": true
+          },
+          "detail": {
+            "type": "string"
+          }
+        }
+      },
+      "Summary": {
+        "type": "object",
+        "required": [
+          "generatedAt",
+          "components",
+          "counters",
+          "storage",
+          "audit"
+        ],
+        "properties": {
+          "generatedAt": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "components": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Component"
+            }
+          },
+          "counters": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Counter"
+            }
+          },
+          "storage": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/Storage"
+            }
+          },
+          "audit": {
+            "$ref": "#/components/schemas/Audit"
+          }
+        }
+      },
+      "Error": {
+        "type": "object",
+        "required": [
+          "error"
+        ],
+        "properties": {
+          "error": {
+            "type": "string"
+          }
+        }
+      }
+    }
+  }
+}

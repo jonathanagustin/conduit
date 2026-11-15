@@ -244,6 +244,7 @@ func main() {
 				slog.Error("run scheduled Export Pipeline", "error", err)
 			},
 		}, composition.Options{
+			AdminStorage:         adminStorageForRepository(repository, os.Getenv),
 			Spaces:               spaces,
 			ProductAssets:        productAssets,
 			ChangeDiscussion:     discussion,

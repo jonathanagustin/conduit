@@ -119,6 +119,7 @@ func NewHub(
 	if hubOptions.Attachments == nil {
 		hubOptions.Attachments = newAttachmentService(repository)
 	}
+	handler = mountAdminStatus(handler, repository, options, hubOptions)
 	handler = mountAttachments(handler, options, hubOptions.Attachments)
 	handler = mountAppGeneration(handler, repository, options, hubOptions.AppGenerator, hubOptions.Attachments)
 	intelService := newIntelligenceService(repository)

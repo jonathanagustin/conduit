@@ -38,6 +38,7 @@ import {
   validateFor,
 } from "./object-inspector.js";
 import { createAuditLedger } from "./audit-ledger.js";
+import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
@@ -626,6 +627,15 @@ export function mountOperator(host, options) {
       subtitle: "AUDIT",
     },
     {
+      id: "adm-platform-status",
+      num: 48,
+      short: "Platform status",
+      tabTitle: "Platform status",
+      hasSidebar: true,
+      showKpis: false,
+      subtitle: "ADMINISTRATOR STATUS",
+    },
+    {
       id: "au01-audit",
       num: 37,
       short: "Audit",
@@ -942,6 +952,7 @@ export function mountOperator(host, options) {
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
+  const adminStatus = createAdminStatus({ navigate: switchScreen });
   const liveHub = createLiveHub({
     state,
     render: () => renderApp(),
@@ -1034,7 +1045,10 @@ export function mountOperator(host, options) {
     },
     "area-audit": {
       label: "Audit",
-      tabs: [{ id: "chain", label: "Hash chain", screen: "au01-audit" }],
+      tabs: [
+        { id: "chain", label: "Hash chain", screen: "au01-audit" },
+        { id: "status", label: "Platform status", screen: "adm-platform-status" },
+      ],
     },
   };
   const REDIRECT = {};
@@ -1140,6 +1154,7 @@ export function mountOperator(host, options) {
     "rm07-change-requests",
     "flt-environments",
     "au01-audit",
+    "adm-platform-status",
     "ai01-logic",
     "ai02-evals",
     "ai04-courses",
@@ -5772,6 +5787,7 @@ export function mountOperator(host, options) {
       "s07-pipeline": renderS07Pipeline,
       "s08-staged-run": renderS08StagedRun,
       "au01-audit": renderAuditLedger,
+      "adm-platform-status": (node) => void adminStatus.render(node),
       "s09-source": renderS09Source,
       "s10-diff": renderS10Diff,
       "s11-preview": renderS11Preview,
@@ -5919,6 +5935,7 @@ export function mountOperator(host, options) {
       "s15-plan-detail": renderS15PlanDetail,
       "s17-spokes-audit": renderS17SpokesAudit,
       "au01-audit": renderAuditLedger,
+      "adm-platform-status": (node) => void adminStatus.render(node),
     }[current.screen];
     if (renderer) renderer(root.querySelector("#area-body"));
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
