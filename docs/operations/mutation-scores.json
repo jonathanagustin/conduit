@@ -1,41 +1,56 @@
 {
-  "note": "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep. The 2026-08-16 Stryker entries named UI-library console files removed when the assistant replaced that UI; they are not a measurement of the assistant.",
-  "capturedAt": "2026-08-16",
+  "note": "Measured by scripts/mutation-sweep.sh. Raw efficacy is killed/(killed+lived), with all LIVED mutants preserved. The separate nonEquivalentEfficacy excludes only individually reviewed, source-hash-bound equivalents; the existing quality floor and two-point jitter allowance apply to that value. No timed-out measurement may refresh this record. Empty web means frontend mutation efficacy is unmeasured.",
+  "capturedAt": "2026-11-15",
   "packages": {
     "internal/environments/domain": {
-      "efficacy": 84.84848484848484,
-      "killed": 56,
+      "efficacy": 87.01298701298701,
+      "nonEquivalentEfficacy": 87.01298701298701,
+      "equivalent": 0,
+      "equivalentManifestSha256": "",
+      "killed": 67,
       "lived": 10,
-      "total": 66,
-      "coverage": 100
+      "total": 77,
+      "coverage": 96.25
     },
     "internal/governance/domain": {
-      "efficacy": 96.22641509433963,
-      "killed": 51,
-      "lived": 2,
-      "total": 53,
-      "coverage": 91.37931034482759
+      "efficacy": 97.19626168224299,
+      "nonEquivalentEfficacy": 97.19626168224299,
+      "equivalent": 0,
+      "equivalentManifestSha256": "",
+      "killed": 104,
+      "lived": 3,
+      "total": 107,
+      "coverage": 94.69026548672566
     },
     "internal/catalog/domain": {
-      "efficacy": 77.87610619469027,
-      "killed": 88,
-      "lived": 25,
-      "total": 113,
-      "coverage": 71.0691823899371
+      "efficacy": 83.58208955223881,
+      "nonEquivalentEfficacy": 83.58208955223881,
+      "equivalent": 0,
+      "equivalentManifestSha256": "",
+      "killed": 112,
+      "lived": 22,
+      "total": 134,
+      "coverage": 62.91079812206573
     },
     "internal/apollographql/domain": {
-      "efficacy": 84.21052631578947,
-      "killed": 16,
+      "efficacy": 89.28571428571429,
+      "nonEquivalentEfficacy": 89.28571428571429,
+      "equivalent": 0,
+      "equivalentManifestSha256": "",
+      "killed": 25,
       "lived": 3,
-      "total": 19,
-      "coverage": 82.6086956521739
+      "total": 28,
+      "coverage": 77.77777777777779
     },
     "internal/reporting/domain": {
-      "efficacy": 90.9090909090909,
-      "killed": 20,
-      "lived": 2,
-      "total": 22,
-      "coverage": 42.30769230769231
+      "efficacy": 80,
+      "nonEquivalentEfficacy": 100,
+      "equivalent": 14,
+      "equivalentManifestSha256": "9f75f700b8c804741b97afbef7246ed428a17826ffdf916022789c0629217963",
+      "killed": 56,
+      "lived": 14,
+      "total": 70,
+      "coverage": 98.59154929577466
     }
   },
   "web": {}

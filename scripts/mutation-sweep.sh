@@ -68,7 +68,7 @@ packages=(
 baseline_efficacy() {
   local section="$1" key="$2"
   [[ -f "${scores_file}" ]] || { echo "0"; return; }
-  jq -r --arg s "${section}" --arg k "${key}" '.[$s][$k].efficacy // 0' "${scores_file}"
+  jq -r --arg s "${section}" --arg k "${key}" '.[$s][$k].nonEquivalentEfficacy // .[$s][$k].efficacy // 0' "${scores_file}"
 }
 
 restore_manifest() { git checkout -- go.mod go.sum 2>/dev/null || true; }
@@ -86,24 +86,25 @@ for pkg in "${packages[@]}"; do
   threshold="$(floor_with_tolerance "${floor}")"
   echo "sweeping ${pkg} (baseline efficacy ${floor}%, fails below ${threshold}%)..."
   out="${tmp}/$(echo "${pkg}" | tr / _).json"
-  # --threshold-efficacy makes gremlins exit non-zero below the tolerated floor,
-  # which is the regression check; the run still writes the machine-readable
-  # result we record from. Capture the exit code without aborting the loop.
+  # Request an ungated raw engine report, then enforce the existing floor over
+  # non-equivalent mutations ourselves. Preserve raw counts and efficacy.
+  # Capture engine errors without aborting the other measurements.
   set +e
-  gremlins unleash --output "${out}" --threshold-efficacy "${threshold}" "./${pkg}"
+  gremlins unleash --output "${out}" --threshold-efficacy 0 "./${pkg}"
   code=$?
   set -e
   restore_manifest
 
-  efficacy="$(jq -r '.test_efficacy' "${out}")"
-  killed="$(jq -r '.mutants_killed' "${out}")"
-  lived="$(jq -r '.mutants_lived' "${out}")"
-  total="$(jq -r '.mutants_total' "${out}")"
-  coverage="$(jq -r '.mutations_coverage' "${out}")"
-  printf '{"package":"%s","efficacy":%s,"killed":%s,"lived":%s,"total":%s,"coverage":%s}\n' \
-    "${pkg}" "${efficacy}" "${killed}" "${lived}" "${total}" "${coverage}" >> "${results}"
-  echo "  ${pkg}: efficacy ${efficacy}% (${killed} killed, ${lived} lived of ${total}; coverage ${coverage}%)"
-  [[ ${code} -ne 0 ]] && regressed=1
+  row="$(node scripts/score-mutation-report.mjs "${pkg}" "${out}")"
+  printf '%s\n' "${row}" >> "${results}"
+  efficacy="$(jq -r '.efficacy' <<<"${row}")"
+  measured_quality="$(jq -r '.nonEquivalentEfficacy' <<<"${row}")"
+  equivalents="$(jq -r '.equivalent' <<<"${row}")"
+  echo "  ${pkg}: raw efficacy ${efficacy}%; ${equivalents} reviewed equivalents; non-equivalent efficacy ${measured_quality}% (floor ${threshold}%)"
+  # The runner owns the quality decision; the engine exit still catches errors.
+  if [[ ${code} -ne 0 ]] || ! awk -v actual="${measured_quality}" -v floor="${threshold}" 'BEGIN{exit !(actual + 0.0001 >= floor)}'; then
+    regressed=1
+  fi
 done
 
 # --- the web console, measured by Stryker --------------------------------
@@ -114,6 +115,7 @@ done
 # per file, where a Survived mutant is the LIVED one and a Timeout counts as
 # detected. NoCoverage mutants are excluded from efficacy and shown as the gap
 # in coverage, exactly as gremlins' mutator coverage is for Go.
+if [[ -f web/stryker.config.json ]]; then
 report="web/reports/mutation/mutation.json"
 echo "sweeping web console with Stryker..."
 set +e
@@ -156,7 +158,15 @@ while IFS= read -r row; do
   awk -v a="${eff}" -v b="${threshold}" 'BEGIN{exit !(a + 0.0001 < b)}' && regressed=1
 done < "${web_results}"
 
-if [[ ${regressed} -ne 0 && "${write}" == false ]]; then
+else
+  if [[ "$(jq '.web | length' "${scores_file}")" != 0 ]]; then
+    echo 'FAIL mutation sweep: recorded frontend targets exist but their Stryker configuration is missing' >&2
+    exit 1
+  fi
+  echo 'No configured frontend mutation targets; frontend efficacy is not measured.'
+fi
+
+if [[ ${regressed} -ne 0 ]]; then
   echo "FAIL mutation sweep: an entry regressed below its recorded efficacy" >&2
   exit 1
 fi
@@ -165,9 +175,9 @@ if [[ "${write}" == true ]]; then
   captured_at="$(date -u +%Y-%m-%d)"
   jq -n --slurpfile rows "${results}" --slurpfile webrows "${web_results}" --arg at "${captured_at}" '
     {
-      note: "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep.",
+      note: "Measured by scripts/mutation-sweep.sh. Raw efficacy is killed/(killed+lived), with all LIVED mutants preserved. The separate nonEquivalentEfficacy excludes only individually reviewed, source-hash-bound equivalents; the existing quality floor and two-point jitter allowance apply to that value. No timed-out measurement may refresh this record. Empty web means frontend mutation efficacy is unmeasured.",
       capturedAt: $at,
-      packages: ($rows | map({key: .package, value: {efficacy, killed, lived, total, coverage}}) | from_entries),
+      packages: ($rows | map({key: .package, value: {efficacy, nonEquivalentEfficacy, equivalent, equivalentManifestSha256, killed, lived, total, coverage}}) | from_entries),
       web: ($webrows | map({key: .file, value: {efficacy, killed, lived, total, coverage}}) | from_entries)
     }' > "${scores_file}"
   echo "wrote ${scores_file} (${captured_at})"

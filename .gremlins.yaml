@@ -26,12 +26,14 @@ unleash:
   # out. The suites are fast, so a generous coefficient keeps a merely-slow
   # mutant from being counted as a hang without changing the score (a real
   # survivor still LIVES; this only moves the KILLED/TIMED-OUT line).
-  timeout-coefficient: 10
+  # Warm coverage runs are much faster than compilation of a fresh mutant.
+  # Ten produced false timeouts; 100 keeps those out of measured efficacy.
+  timeout-coefficient: 100
   tags: ""
 
-# Quality gate. A run below this efficacy exits non-zero. It is set per invocation
-# by scripts/mutation-sweep.sh from the committed baseline so the gate ratchets
-# with the recorded scores rather than sitting at a fixed floor.
+# The engine emits raw measurements. scripts/mutation-sweep.sh owns the quality
+# gate, preserves raw efficacy, checks reviewed equivalents, and refuses any
+# timed-out measurement instead of allowing excluded timeouts to inflate it.
 threshold:
   efficacy: 0
   mcover: 0

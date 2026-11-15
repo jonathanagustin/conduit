@@ -128,7 +128,8 @@ abort "generated package CR must be uds.dev/v1alpha1 Package" unless package_tex
 end
 
 zarf = ENV["ZARF_BIN"]
-if zarf && !zarf.empty?
+if ENV.key?("ZARF_BIN")
+  abort "ZARF_BIN must name a Zarf executable" if zarf.to_s.empty?
   args = [zarf, "dev", "lint", File.join(root, "deploy/zarf"), "--architecture", "amd64", "--set", "PLATFORM_VERSION=0.0.0",
           "--set", "HUB_IMAGE=ghcr.io/example/platform-hub:0.0.0@sha256:#{'a' * 64}",
           "--set", "SPOKE_AGENT_IMAGE=ghcr.io/example/platform-spoke-agent:0.0.0@sha256:#{'b' * 64}"]

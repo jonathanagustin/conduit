@@ -611,6 +611,8 @@ jobs:
       - name: Validate mutation scores
         if: needs.scope.outputs.checks == 'true'
         run: |
+          node scripts/mutation-report-score.test.mjs
+          ./scripts/test-mutation-sweep.sh
           ./scripts/verify-mutation-scores.test.sh
           node scripts/verify-mutation-scores.mjs
       # Grype scans the built images, so it only ever sees the compiler the
@@ -729,7 +731,11 @@ jobs:
         if: needs.scope.outputs.checks == 'true'
         env:
           ZARF_BIN: /tmp/zarf
-        run: ruby scripts/verify-zarf-package.rb
+        run: |
+          ruby scripts/verify-zarf-package.rb
+          ./scripts/test-zarf-runtime-selection.sh
+          ./scripts/test-uds-up.sh
+          ./scripts/test-uds-keycloak-users.sh
       - name: Validate Apollo public contract
         if: needs.scope.outputs.checks == 'true'
         run: |
