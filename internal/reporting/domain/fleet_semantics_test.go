@@ -75,6 +75,14 @@ func TestFleetSummariesCountEveryStatusBeforeAndAfterAuthorization(t *testing.T)
 		{Environment: "deny", InstallationID: "secret", Health: HealthUnhealthy, RolloutStatus: RolloutOutOfDate, ConfigStatus: ConfigDrifted, Lifecycle: LifecycleUninstalled, ObservedAt: now.Add(-time.Hour)},
 	}
 	fleet := BuildFleet(nil, observed, FleetQuery{MaxAge: 25 * time.Second}, now)
+	keys := make([]string, len(fleet.Installations))
+	for i, row := range fleet.Installations {
+		keys[i] = row.Environment + "/" + row.InstallationID
+	}
+	if !reflect.DeepEqual(keys, []string{"allow/one", "allow/two", "deny/secret"}) {
+		t.Fatalf("fleet row order: %v", keys)
+	}
+
 	before := FleetSummary{Total: 3, Health: map[string]int{HealthHealthy: 1, HealthUnhealthy: 2}, Rollout: map[string]int{RolloutUpToDate: 1, RolloutOutOfDate: 2}, Config: map[string]int{ConfigApplied: 1, ConfigDrifted: 2}, Lifecycle: map[string]int{LifecycleInstalled: 1, LifecycleUninstalled: 2}, Stale: 2}
 	if !reflect.DeepEqual(fleet.Summary, before) || fleet.MaxResultAgeSeconds != 3600 {
 		t.Fatalf("full summary: %+v age %d", fleet.Summary, fleet.MaxResultAgeSeconds)
