@@ -34,6 +34,7 @@ describe("agent RFC 6902 state updates", () => {
     { op: "copy", from: "/missing", path: "/new" },
     { op: "add", path: "/bad~2", value: 1 },
     { op: "add", path: "/__proto__/polluted", value: true },
+    { op: "add", path: "/__proto__", value: { polluted: true } },
     { op: "copy", from: "/constructor", path: "/new" },
     { op: "unknown", path: "" },
   ])("rejects invalid operations atomically: %j", (bad) => {
