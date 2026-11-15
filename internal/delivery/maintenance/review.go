@@ -15,6 +15,8 @@ type EntityTarget struct {
 	Entity      string `json:"entity"`
 }
 
+// OverrideDraft carries a bounded maintenance proposal through existing governance.
+//
 // CONDUIT-INVENTED: maintenance.ScheduledEntityWindow
 // Displaced-by: a published or sanitized future Entity maintenance proposal and pre-effect preview-binding contract.
 type OverrideDraft struct {
