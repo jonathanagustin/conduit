@@ -37,7 +37,11 @@ export function filterRequests(rows, filter) {
   return list.filter((r) => r && r.status === status);
 }
 
-export function reviewState(request, operatorName) {
+export function reviewState(
+  request,
+  operatorName,
+  operatorIdentities = [operatorName],
+) {
   const author = request?.author?.username ?? "";
   if (!author || !operatorName)
     return {
@@ -46,7 +50,21 @@ export function reviewState(request, operatorName) {
       reason:
         "Author or signed-in operator identity is unavailable; review is disabled.",
     };
-  const isAuthor = Boolean(author) && author === operatorName;
+  const authors = [author, request?.author?.onBehalfOf?.username].filter(
+    Boolean,
+  );
+  const identities = Array.isArray(operatorIdentities)
+    ? operatorIdentities.filter(
+        (name) => typeof name === "string" && name !== "",
+      )
+    : [];
+  if (!identities.length)
+    return {
+      isAuthor: false,
+      canReview: false,
+      reason: "Signed-in operator identity is unavailable; review is disabled.",
+    };
+  const isAuthor = authors.some((name) => identities.includes(name));
   if (isAuthor) {
     return {
       isAuthor,
@@ -97,8 +115,8 @@ function listColumn(all, shown, selectedId, filter, esc) {
 }
 
 function detailColumn(request, opts, esc) {
-  const { operatorName, draft, pending, error } = opts;
-  const state = reviewState(request, operatorName);
+  const { operatorName, operatorIdentities, draft, pending, error } = opts;
+  const state = reviewState(request, operatorName, operatorIdentities);
   const evaluations = Array.isArray(request.evaluations)
     ? request.evaluations
     : [];
@@ -200,6 +218,7 @@ export function reviewMarkup(
     filter = "all",
     selectedId,
     operatorName,
+    operatorIdentities,
     draft = { decision: "", rationale: "" },
     pending = false,
     error = "",
@@ -217,6 +236,7 @@ export function reviewMarkup(
         selected,
         {
           operatorName,
+          operatorIdentities,
           draft: draft || { decision: "", rationale: "" },
           pending,
           error,
@@ -228,13 +248,19 @@ export function reviewMarkup(
 }
 
 /** Keep one review draft bound to a visible request and its current revision. */
-export function bindReviewContext(rows, review, operatorName = "") {
+export function bindReviewContext(
+  rows,
+  review,
+  operatorName = "",
+  operatorIdentities = [operatorName],
+) {
   const shown = filterRequests(rows, review.filter || "all");
   if (!review.selectedId) review.selectedId = shown[0]?.id || "";
   const selected = shown.find((row) => row.id === review.selectedId) || null;
   const contextKey = selected
     ? JSON.stringify([
         operatorName,
+        operatorIdentities,
         selected.id,
         selected.revision,
         selected.status,

@@ -400,9 +400,17 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         session?.effective?.username || session?.actor?.username || "";
       state.operatorName = name || "Operator";
       state.reviewOperatorName = typeof name === "string" ? name.trim() : "";
+      state.reviewOperatorIdentities = [
+        ...new Set(
+          [session?.actor?.username, session?.effective?.username].filter(
+            (name) => typeof name === "string" && name !== "",
+          ),
+        ),
+      ];
     } catch {
       state.operatorName = "Operator";
       state.reviewOperatorName = "";
+      state.reviewOperatorIdentities = [];
     }
     try {
       next.environments = await readPages("/v1/environments", "environments");

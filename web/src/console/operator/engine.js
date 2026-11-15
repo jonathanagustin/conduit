@@ -4332,10 +4332,12 @@ export function mountOperator(host, options) {
       state.hub?.changes,
       review,
       state.reviewOperatorName || "",
+      state.reviewOperatorIdentities || [],
     );
     root.innerHTML = constraintGateMarkup(
       request,
       state.reviewOperatorName || "",
+      state.reviewOperatorIdentities || [],
     );
     root.onclick = (event) => {
       const target =
@@ -4439,10 +4441,16 @@ export function mountOperator(host, options) {
       error: "",
     });
     const rows = Array.isArray(state.hub?.changes) ? state.hub.changes : [];
-    bindReviewContext(rows, review, state.reviewOperatorName || "");
+    bindReviewContext(
+      rows,
+      review,
+      state.reviewOperatorName || "",
+      state.reviewOperatorIdentities || [],
+    );
     root.innerHTML = `<div data-cr-root>${reviewMarkup(rows, {
       ...review,
       operatorName: state.reviewOperatorName || "",
+      operatorIdentities: state.reviewOperatorIdentities || [],
     })}</div>`;
     const host = root.querySelector("[data-cr-root]");
     if (!host) return;
@@ -4476,6 +4484,7 @@ export function mountOperator(host, options) {
           state.hub?.changes,
           review,
           state.reviewOperatorName || "",
+          state.reviewOperatorIdentities || [],
         );
         return rerender();
       }
@@ -4504,8 +4513,15 @@ export function mountOperator(host, options) {
           state.hub?.changes,
           review,
           state.reviewOperatorName || "",
+          state.reviewOperatorIdentities || [],
         );
-        if (!reviewState(current, state.reviewOperatorName || "").canReview)
+        if (
+          !reviewState(
+            current,
+            state.reviewOperatorName || "",
+            state.reviewOperatorIdentities || [],
+          ).canReview
+        )
           return rerender();
         const id = selected();
         const { decision, rationale } = review.draft;
@@ -4961,6 +4977,7 @@ export function mountOperator(host, options) {
         state.hub?.changes,
         review,
         state.reviewOperatorName || "",
+        state.reviewOperatorIdentities || [],
       );
     }
     const header = objectHeader(

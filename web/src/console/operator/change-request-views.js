@@ -39,10 +39,14 @@ export function approvalsMarkup(plans, note = "") {
     )
     .join("")}</div></section>`;
 }
-export function constraintGateMarkup(request, operatorName) {
+export function constraintGateMarkup(
+  request,
+  operatorName,
+  operatorIdentities,
+) {
   if (!request)
     return '<section class="so-panel p-3"><h2>Action constraint gate</h2><p>No selected request is in the visible index.</p></section>';
-  const state = reviewState(request, operatorName);
+  const state = reviewState(request, operatorName, operatorIdentities);
   const requirements = Array.isArray(request.requirements)
     ? request.requirements
     : [];
