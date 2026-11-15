@@ -1,0 +1,480 @@
+{
+  "catalogId": "conduit:planning-forms/v1",
+  "protocolVersion": "1.0",
+  "title": "Conduit planning forms",
+  "description": "Approved inert text, draft inputs, layout and human form submission. No script, URL or remote function component.",
+  "components": {
+    "Text": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Text"
+        },
+        "text": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "text"
+      ]
+    },
+    "TextField": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "TextField"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+        },
+        "@checks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CheckRule"
+          }
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ]
+    },
+    "TextArea": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "TextArea"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+        },
+        "@checks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CheckRule"
+          }
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ]
+    },
+    "CheckBox": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "CheckBox"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+        },
+        "@checks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CheckRule"
+          }
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value"
+      ]
+    },
+    "Select": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Select"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "@checks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CheckRule"
+          }
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value",
+        "options"
+      ]
+    },
+    "RadioGroup": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "RadioGroup"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "value": {
+          "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+        },
+        "options": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 4096
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "@checks": {
+          "type": "array",
+          "maxItems": 8,
+          "items": {
+            "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/CheckRule"
+          }
+        },
+        "error": {
+          "oneOf": [
+            {
+              "type": "string",
+              "maxLength": 4096
+            },
+            {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DataBinding"
+            }
+          ]
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "value",
+        "options"
+      ]
+    },
+    "Button": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Button"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 4096
+        },
+        "action": {
+          "type": "object",
+          "properties": {
+            "event": {
+              "type": "object",
+              "properties": {
+                "name": {
+                  "type": "string",
+                  "minLength": 1,
+                  "maxLength": 64
+                },
+                "context": {
+                  "type": "object",
+                  "maxProperties": 64,
+                  "additionalProperties": {
+                    "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue"
+                  }
+                }
+              },
+              "required": [
+                "name",
+                "context"
+              ],
+              "additionalProperties": false
+            }
+          },
+          "required": [
+            "event"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "component",
+        "label",
+        "action"
+      ]
+    },
+    "Column": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Column"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    },
+    "Row": {
+      "type": "object",
+      "properties": {
+        "component": {
+          "const": "Row"
+        },
+        "children": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 128
+          },
+          "maxItems": 64
+        }
+      },
+      "required": [
+        "component",
+        "children"
+      ]
+    }
+  },
+  "functions": {
+    "required": {
+      "type": "object",
+      "properties": {
+        "@call": {
+          "const": "required"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue"
+            }
+          },
+          "required": [
+            "value"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly"
+    },
+    "pattern": {
+      "type": "object",
+      "properties": {
+        "@call": {
+          "const": "pattern"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue"
+            },
+            "pattern": {
+              "enum": [
+                "^[0-9]+$",
+                "^[A-Za-z0-9_.-]+$",
+                "^https://[A-Za-z0-9./_-]+$"
+              ]
+            }
+          },
+          "required": [
+            "value",
+            "pattern"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly"
+    },
+    "enum": {
+      "type": "object",
+      "properties": {
+        "@call": {
+          "const": "enum"
+        },
+        "args": {
+          "type": "object",
+          "properties": {
+            "value": {
+              "$ref": "https://a2ui.org/specification/v1_0/common_types.json#/$defs/DynamicValue"
+            },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": [
+                  "string",
+                  "number",
+                  "boolean"
+                ]
+              },
+              "maxItems": 32,
+              "minItems": 1
+            }
+          },
+          "required": [
+            "value",
+            "options"
+          ],
+          "additionalProperties": false
+        }
+      },
+      "required": [
+        "@call",
+        "args"
+      ],
+      "returnType": "boolean",
+      "allowedCallers": "rendererOnly"
+    }
+  },
+  "$defs": {
+    "anyComponent": {
+      "oneOf": [
+        {
+          "$ref": "#/components/Text"
+        },
+        {
+          "$ref": "#/components/TextField"
+        },
+        {
+          "$ref": "#/components/TextArea"
+        },
+        {
+          "$ref": "#/components/CheckBox"
+        },
+        {
+          "$ref": "#/components/Select"
+        },
+        {
+          "$ref": "#/components/RadioGroup"
+        },
+        {
+          "$ref": "#/components/Button"
+        },
+        {
+          "$ref": "#/components/Column"
+        },
+        {
+          "$ref": "#/components/Row"
+        }
+      ]
+    },
+    "anyFunction": {
+      "oneOf": [
+        {
+          "$ref": "#/functions/required"
+        },
+        {
+          "$ref": "#/functions/pattern"
+        },
+        {
+          "$ref": "#/functions/enum"
+        }
+      ]
+    }
+  }
+}

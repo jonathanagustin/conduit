@@ -90,3 +90,14 @@ func TestNativeExtensionIdentifiersAreAnExplicitASCIISubset(t *testing.T) {
 		}
 	}
 }
+
+func TestNativePlanningCatalog(t *testing.T) {
+	v, err := NewNativeValidator()
+	if err != nil {
+		t.Fatal(err)
+	}
+	raw := `{"version":"1.0","createSurface":{"surfaceId":"form-1","catalogId":"conduit:planning-forms/v1","components":[{"id":"root","component":"TextField","label":"Port","value":{"@path":"/answers/port"},"@checks":[{"condition":{"@call":"required","args":{"value":{"@path":"/answers/port"}}}}]}],"dataModel":{"answers":{"port":""}}}}`
+	if _, err := v.Agent([]byte(raw)); err != nil {
+		t.Fatal(err)
+	}
+}

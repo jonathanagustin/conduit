@@ -11,15 +11,28 @@ export class PlanningAgent {
     this.interrupt = null;
     this.recoveryRequired = false;
     this.active = false;
+    this.forms = null;
   }
-  /** @param {{message?: string, answers?: Array<{id: string, value: string}>, recover?: boolean}} options */
-  async run({ message = "", answers, recover = false } = {}, binding, update) {
+  /** @param {{message?: string, answers?: Array<{id: string, value: string}>, formAction?: any, recover?: boolean}} options */
+  async run(
+    { message = "", answers, formAction, recover = false } = {},
+    binding,
+    update,
+  ) {
     if (this.active) throw new Error("An agent exchange is already running.");
     if (this.recoveryRequired && !recover)
       throw new Error("Recover a snapshot before continuing.");
     this.active = true;
     try {
       let resume;
+      if (formAction) {
+        answers = Object.entries(formAction.action.context).map(
+          ([id, value]) => ({
+            id: id.replace(/^question:/u, ""),
+            value: String(value),
+          }),
+        );
+      }
       if (answers) {
         if (!this.interrupt)
           throw new Error(
@@ -47,13 +60,19 @@ export class PlanningAgent {
           messages: [...this.messages, ...results],
           tools: this.offers,
           ...(resume ? { resume } : {}),
+          ...(formAction
+            ? { forwardedProps: { conduit: { a2uiAction: formAction } } }
+            : {}),
           ...(recover
             ? { forwardedProps: { conduit: { mode: "snapshot" } } }
             : {}),
         };
         const run = await runAgent(
           input,
-          (current, event) => update(current, event),
+          (current, event) => {
+            this.forms = current.forms;
+            update(current, event);
+          },
           this.fetch,
         );
         this.messages = [...run.messages.values()];
@@ -97,6 +116,7 @@ export class PlanningAgent {
         if (!results.length) return run;
         // An ACK is a new run, never a resume of a broken SSE connection.
         resume = undefined;
+        formAction = undefined;
         recover = false;
       }
       throw new Error(

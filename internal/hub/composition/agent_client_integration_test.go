@@ -33,6 +33,9 @@ func (p *clientIntegrationPlanner) Turn(ctx context.Context, session *planningdo
 		}
 		return &planningapp.TurnResult{NeedsInput: questions, ResolvedCommit: strings.Repeat("a", 40)}, nil
 	}
+	if session.Answers[0].Value == "9090" {
+		return &planningapp.TurnResult{NeedsInput: []planningdomain.Question{{ID: "port", Name: "port", Type: planningdomain.QuestionString, Required: true, ValidationError: "Choose another port."}}}, nil
+	}
 	return &planningapp.TurnResult{Plan: &planningdomain.Plan{Text: fmt.Sprintf("Build the reviewed port %s.", session.Answers[0].Value)}}, nil
 }
 
@@ -59,7 +62,7 @@ func TestPlanningJavaScriptClientIntegration(t *testing.T) {
 	if err != nil {
 		t.Fatalf("JavaScript client: %v\n%s", err, output)
 	}
-	if planner.calls.Load() != 2 {
+	if planner.calls.Load() != 3 {
 		t.Fatalf("snapshot or ACK repeated model execution: calls=%d", planner.calls.Load())
 	}
 	t.Log(string(output))

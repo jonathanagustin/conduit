@@ -284,7 +284,10 @@ type Question struct {
 	Options  *[]string    `json:"options,omitempty"`
 	Required bool         `json:"required"`
 	Type     QuestionType `json:"type"`
-	Value    *string      `json:"value,omitempty"`
+
+	// ValidationError Planner-returned error requiring a reviewed correction.
+	ValidationError *string `json:"validationError,omitempty"`
+	Value           *string `json:"value,omitempty"`
 }
 
 // QuestionType defines model for Question.Type.

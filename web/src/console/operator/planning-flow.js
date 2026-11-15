@@ -245,7 +245,7 @@ export function acceptState(session) {
   if (!session.plan || !String(session.plan.text || "").trim()) {
     return { ok: false, reason: "No plan has been written yet." };
   }
-  if (openQuestions(session).some((q) => q.required)) {
+  if (openQuestions(session).some((q) => q.required || q.validationError)) {
     return { ok: false, reason: "Answer every required question." };
   }
   return { ok: true, reason: "" };
@@ -403,6 +403,15 @@ function needsInput(planning) {
   const session = planning.session;
   const open = openQuestions(session);
   if (!open.length) return "";
+  const forms = planning.agent?.forms;
+  if (forms?.surfaces.size) {
+    const content = [...forms.surfaces.keys()]
+      .map((id) =>
+        forms.render(id, { planning: true, disabled: Boolean(planning.busy) }),
+      )
+      .join("");
+    return `<section class="kit-panel kit-card kit-pad plan-card" data-plan-needs-input aria-label="Needs Input"><div class="kit-section">Needs Input</div>${content}</section>`;
+  }
   const busy = planning.busy === "answers";
   return `<section class="kit-panel kit-card kit-bar-warn kit-pad plan-card" data-plan-needs-input aria-label="Needs Input">
     <div class="kit-header-title"><span class="kit-section">Needs Input</span><span class="kit-badge kit-badge-warn">${open.length} open</span></div>
@@ -488,8 +497,8 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
         error instanceof PlanningError
           ? error
           : new PlanningError(
-              0,
-              "",
+              error?.status || 0,
+              error?.code || "",
               error?.message || "The planning request failed.",
             ),
     });
@@ -510,7 +519,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       fields: () => {
         const current = store.planning.session;
         const pending = openQuestions(current).some(
-          (question) => question.required,
+          (question) => question.required || question.validationError,
         );
         return new Map([
           ["repoUrl", { type: "string", readOnly: true }],
@@ -527,10 +536,22 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       },
       dirty: (field) =>
         Object.hasOwn(store.planning.humanDrafts, questionId(field)),
-      set: (field, value) =>
-        set({
+      set: (field, value) => {
+        for (const surface of agent.forms?.surfaces.values() || []) {
+          if (surface.components.has(field)) {
+            const item = surface.components.get(field);
+            agent.forms.input(
+              surface.id,
+              field,
+              item.component === "CheckBox" ? value === "true" : value,
+              false,
+            );
+          }
+        }
+        return set({
           drafts: { ...store.planning.drafts, [questionId(field)]: value },
-        }),
+        });
+      },
       focus: (field) => {
         const id = questionId(field);
         const target = [...root.querySelectorAll("[data-plan-answer]")].find(
@@ -540,7 +561,31 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       },
       confirm: async (message) => window.confirm(message),
     };
-    const result = await agent.run(options, binding, (run) => {
+    const result = await agent.run(options, binding, (run, event) => {
+      if (event.type === "CUSTOM") {
+        for (const surface of run.forms.surfaces.values()) {
+          for (const question of run.state.session?.needsInput || []) {
+            const field = "question:" + question.id;
+            if (
+              surface.components.has(field) &&
+              Object.hasOwn(store.planning.drafts, question.id) &&
+              (store.planning.humanDrafts[question.id] ||
+                (!question.value && !answerMap(run.state.session)[question.id]))
+            ) {
+              const item = surface.components.get(field);
+              run.forms.input(
+                surface.id,
+                field,
+                item.component === "CheckBox"
+                  ? store.planning.drafts[question.id] === "true"
+                  : store.planning.drafts[question.id],
+                Boolean(store.planning.humanDrafts[question.id]),
+                false,
+              );
+            }
+          }
+        }
+      }
       set({
         agentState: run.state,
         agentMessages: [...run.messages.values()],
@@ -565,21 +610,46 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       store.planning = { ...store.planning, [field]: target.value };
       return;
     }
+    const surface = target?.getAttribute?.("data-a2ui-surface");
+    const component = target?.getAttribute?.("data-a2ui-component");
+    if (surface && component && target.type !== "radio")
+      store.planning.agent.forms.input(
+        surface,
+        component,
+        target.type === "checkbox" ? target.checked : target.value,
+      );
     const answer = target?.getAttribute?.("data-plan-answer");
     if (answer) {
       store.planning = {
         ...store.planning,
-        drafts: { ...store.planning.drafts, [answer]: target.value },
+        drafts: {
+          ...store.planning.drafts,
+          [answer]:
+            target.type === "checkbox" ? String(target.checked) : target.value,
+        },
         humanDrafts: { ...store.planning.humanDrafts, [answer]: true },
       };
     }
   });
   root.addEventListener("change", (event) => {
+    const target = event.target;
+    const surface = target?.getAttribute?.("data-a2ui-surface");
+    const component = target?.getAttribute?.("data-a2ui-component");
+    if (surface && component)
+      store.planning.agent.forms.input(
+        surface,
+        component,
+        target.type === "checkbox" ? target.checked : target.value,
+      );
     const answer = event.target?.getAttribute?.("data-plan-answer");
     if (answer) {
       store.planning = {
         ...store.planning,
-        drafts: { ...store.planning.drafts, [answer]: event.target.value },
+        drafts: {
+          ...store.planning.drafts,
+          [answer]:
+            target.type === "checkbox" ? String(target.checked) : target.value,
+        },
         humanDrafts: { ...store.planning.humanDrafts, [answer]: true },
       };
     }
@@ -635,7 +705,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           ),
         }))
         .filter((a) => a.value.trim());
-      if (!answers.length) {
+      if (!answers.length && !planning.agent?.forms?.surfaces.size) {
         set({
           error: new PlanningError(
             0,
@@ -647,7 +717,25 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       }
       set({ busy: "answers", error: null });
       try {
-        await agentRun({ answers });
+        let formAction;
+        const forms = planning.agent?.forms;
+        if (forms?.surfaces.size) {
+          const surfaceID = [...forms.surfaces.keys()].at(-1);
+          const result = forms.action(surfaceID, "submit");
+          if (!result.message) {
+            set({ busy: "", error: null });
+            const first = Object.keys(result.errors)[0];
+            const element = [
+              ...root.querySelectorAll("[data-a2ui-component]"),
+            ].find(
+              (item) => item.getAttribute("data-a2ui-component") === first,
+            );
+            (element?.querySelector?.("input") || element)?.focus();
+            return;
+          }
+          formAction = result.message;
+        }
+        await agentRun(formAction ? { formAction } : { answers });
         set({ busy: "" });
       } catch (error) {
         fail(error);

@@ -1,3 +1,4 @@
+import { FormSurfaces } from "./a2ui-forms.js";
 import { applyPatch } from "./json-patch.js";
 
 const copy = (value) => JSON.parse(JSON.stringify(value));
@@ -21,6 +22,7 @@ export class AgentExchange {
     this.usedMessages = new Set();
     this.tools = new Map();
     this.steps = new Set();
+    this.forms = new FormSurfaces();
     this.outcome = null;
     this.error = null;
   }
@@ -65,6 +67,10 @@ export class AgentExchange {
           message: event.message,
         };
         this.terminal = true;
+        break;
+      case "CUSTOM":
+        if (event.name !== "a2ui") invalid();
+        this.forms.accept(event.value);
         break;
       case "STATE_SNAPSHOT":
         if (

@@ -123,13 +123,14 @@ type Inspection struct {
 // Question is one Needs Input prompt. The console renders it with the
 // existing elicitation forms. It never asks for a secret.
 type Question struct {
-	ID       string   `json:"id"`
-	Name     string   `json:"name"`
-	Label    string   `json:"label"`
-	Type     string   `json:"type"`
-	Required bool     `json:"required"`
-	Options  []string `json:"options,omitempty"`
-	Value    string   `json:"value,omitempty"`
+	ValidationError string   `json:"validationError,omitempty"`
+	ID              string   `json:"id"`
+	Name            string   `json:"name"`
+	Label           string   `json:"label"`
+	Type            string   `json:"type"`
+	Required        bool     `json:"required"`
+	Options         []string `json:"options,omitempty"`
+	Value           string   `json:"value,omitempty"`
 }
 
 // Answer is the operator's response to one Needs Input question.
@@ -327,13 +328,16 @@ func RequireAccepted(session *Session) error {
 }
 
 // PendingRequired reports whether any required Needs Input question is
-// still unanswered.
+// still unanswered, or the planner has rejected a recorded answer.
 func PendingRequired(questions []Question, answers []Answer) bool {
 	answered := map[string]string{}
 	for _, answer := range answers {
 		answered[answer.ID] = answer.Value
 	}
 	for _, question := range questions {
+		if strings.TrimSpace(question.ValidationError) != "" {
+			return true
+		}
 		if !question.Required {
 			continue
 		}

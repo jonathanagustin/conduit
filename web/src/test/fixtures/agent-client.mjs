@@ -56,18 +56,28 @@ try {
     ids,
   );
   assert.deepEqual(view.session.answers, []);
-  const final = await agent.run(
-    { answers: [{ id: "port", value: "9090" }] },
-    binding,
-    update,
-  );
+  const surfaceID = [...agent.forms.surfaces.keys()].at(-1);
+  agent.forms.input(surfaceID, "question:port", "9090");
+  const action = agent.forms.action(surfaceID, "submit").message;
+  assert.equal(action.action.context["question:port"], "9090");
+  const rejected = await agent.run({ formAction: action }, binding, update);
+  assert.equal(rejected.outcome.type, "interrupt");
+  assert.equal(view.session.plan, null);
+  assert.deepEqual(view.session.answers, []);
+  const correctionSurface = [...agent.forms.surfaces.keys()].at(-1);
+  assert.match(agent.forms.render(correctionSurface), /Choose another port/u);
+  assert.equal(agent.forms.action(correctionSurface, "submit").message, null);
+  agent.forms.input(correctionSurface, "question:port", "9091");
+  const correction = agent.forms.action(correctionSurface, "submit").message;
+  const final = await agent.run({ formAction: correction }, binding, update);
   assert.equal(final.outcome.type, "success");
+  assert.equal(final.forms.surfaces.size, 0);
   assert.equal(view.session.status, "ready");
-  assert.equal(view.session.answers[0].value, "9090");
-  assert.equal(view.session.plan.text, "Build the reviewed port 9090.");
+  assert.equal(view.session.answers[0].value, "9091");
+  assert.equal(view.session.plan.text, "Build the reviewed port 9091.");
   assert.equal(view.session.binding, null);
   console.log(
-    "PASS mounted Hub / JavaScript planning client: draft prefill, ACK, interrupt, snapshot recovery, human override and unaccepted plan",
+    "PASS mounted Hub / JavaScript planning client: draft prefill, ACK, interrupt, snapshot recovery, human override, returned field error, corrected action and unaccepted plan",
   );
 } finally {
   await server.close();

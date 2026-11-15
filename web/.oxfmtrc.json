@@ -13,7 +13,15 @@
   "endOfLine": "lf",
   "quoteProps": "as-needed",
   "sortTailwindcss": {
-    "functions": ["clsx", "cva", "tw", "twMerge", "cn", "twJoin", "tv"]
+    "functions": [
+      "clsx",
+      "cva",
+      "tw",
+      "twMerge",
+      "cn",
+      "twJoin",
+      "tv"
+    ]
   },
   "sortPackageJson": false,
   "ignorePatterns": [
@@ -27,6 +35,7 @@
     "**/*.md",
     "**/*.mdx",
     "**/*.yaml",
-    "**/*.yml"
+    "**/*.yml",
+    "**/a2ui-validator.generated.js"
   ]
 }
