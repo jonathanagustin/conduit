@@ -38,6 +38,9 @@ try {
   assert.throws(() => equivalentReview(root, name), /duplicate equivalent/);
   save();
   const review = equivalentReview(root, name);
+  assert.throws(() => quality({ killed: 1, lived: 1 }, review), /omitted/);
+  const timed = structuredClone(report); timed.files[0].mutations.push({type:"ARITHMETIC_BASE", status:"TIMED OUT", line:4, column:1});
+  assert.throws(() => scoreReport(root, name, timed), /timed-out mutants/);
   assert.throws(() => quality({ ...score, equivalent: 2 }, review), /invalid equivalent count/);
   assert.throws(() => quality({ ...score, nonEquivalentEfficacy: 99 }, review), /does not follow/);
   assert.throws(() => quality({ ...score, equivalentManifestSha256: "wrong" }, review), /does not match/);

@@ -40,6 +40,10 @@ itself jitters by about a point between runs because a merely-slow mutant lands
 as killed on one machine and timed-out on another, and a timed-out mutant is
 excluded from the denominator rather than counted; the sweep's regression check
 carries a two-point tolerance so that jitter does not read as a real drop.
+The configured timeout coefficient is 100: warm coverage baselines can be much
+faster than compiling a mutant. A fresh measurement containing any TIMED OUT
+mutant is rejected; the engine omits those mutants from its denominator and
+could otherwise turn untested survivors into a misleading 100% score.
 
 A full sweep compiles and reruns a suite once per mutant, so it is minutes long.
 It is separate from the candidate gate in `.github/workflows/mutation-sweep.yml`,

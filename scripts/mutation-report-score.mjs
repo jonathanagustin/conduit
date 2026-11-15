@@ -27,6 +27,7 @@ export function equivalentReview(root, name) {
 export function quality(score, review, requireExplicit = true) {
   const count = score.equivalent ?? 0;
   if (!Number.isSafeInteger(count) || count < 0 || count > score.lived) throw Error("invalid equivalent count");
+  if (review && count !== review.keys.size) throw Error("measurement omitted its source-bound equivalent review");
   if (count && (!review || review.keys.size !== count || review.digest !== score.equivalentManifestSha256)) throw Error("equivalent measurement does not match its source-bound review");
   const denominator = score.killed + score.lived - count;
   const result = denominator === 0 ? 100 : (100 * score.killed) / denominator;
@@ -35,6 +36,9 @@ export function quality(score, review, requireExplicit = true) {
   return result;
 }
 export function scoreReport(root, name, report) {
+  for (const file of report.files ?? []) for (const mutant of file.mutations ?? []) {
+    if (mutant.status === "TIMED OUT") throw Error("timed-out mutants cannot refresh a baseline; increase the validated timeout and rerun");
+  }
   for (const field of ["mutants_killed", "mutants_lived", "mutants_total"]) if (!Number.isSafeInteger(report[field]) || report[field] < 0) throw Error(`invalid engine count: ${field}`);
   const killed = report.mutants_killed, lived = report.mutants_lived;
   const efficacy = killed + lived === 0 ? 100 : (100 * killed) / (killed + lived);
