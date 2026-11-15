@@ -1,170 +1,50 @@
-/* Ontology graph. Live rows come from the Hub catalog; fixtures are example data. */
+/* Native ontology metadata and authorized sample pages. */
 
-import { createConduitClient } from "@conduit/ontology-client";
+import { ontologyCatalog, bounded } from "./ontology-explorer.js";
+import { diffValue } from "./change-diff.js";
+import { createConduitClient, fetchTransport } from "@conduit/ontology-client";
 
-const client = createConduitClient();
-
-const FIXTURE = {
-  types: [
-    {
-      apiName: "Environment",
-      displayName: "Environment",
-      description: "A delivery environment and the generation it declares.",
-      primaryKey: "id",
-      properties: ["id", "generation", "connection", "releaseChannel"],
-      count: 2,
-    },
-    {
-      apiName: "Spoke",
-      displayName: "Spoke",
-      description: "The agent that reports an environment.",
-      primaryKey: "id",
-      properties: ["id", "environment"],
-      count: 1,
-    },
-    {
-      apiName: "WorkProfile",
-      displayName: "Work profile",
-      description: "The operator-authored profile of an environment.",
-      primaryKey: "environmentId",
-      properties: ["environmentId", "displayName", "ownerTeam"],
-      count: 1,
-    },
-    {
-      apiName: "ReleaseChannel",
-      displayName: "Release channel",
-      description: "A release channel declared for an environment.",
-      primaryKey: "id",
-      properties: ["id", "environment", "name"],
-      count: 1,
-    },
-    {
-      apiName: "Plan",
-      displayName: "Plan",
-      description: "A reviewed plan for one environment.",
-      primaryKey: "id",
-      properties: ["id", "environment", "status"],
-      count: 1,
-    },
-    {
-      apiName: "ChangeRequest",
-      displayName: "Change request",
-      description: "A governed change request.",
-      primaryKey: "id",
-      properties: ["id", "environment", "title", "status"],
-      count: 1,
-    },
-    {
-      apiName: "Artifact",
-      displayName: "Artifact",
-      description: "A chart or image referenced by a plan.",
-      primaryKey: "id",
-      properties: ["id", "product", "version", "digest"],
-      count: 1,
-    },
-  ],
-  edges: [
-    { from: "Environment", to: "Spoke", label: "reportingSpoke" },
-    { from: "Environment", to: "WorkProfile", label: "workProfile" },
-    { from: "Environment", to: "ReleaseChannel", label: "releaseChannels" },
-    { from: "Environment", to: "Plan", label: "plans" },
-    { from: "Environment", to: "ChangeRequest", label: "changeRequests" },
-    { from: "Plan", to: "Artifact", label: "artifacts" },
-    { from: "Plan", to: "ChangeRequest", label: "changeRequest" },
-  ],
-  objects: {
-    Environment: [
-      {
-        __primaryKey: "edge-west-02",
-        id: "edge-west-02",
-        generation: "18",
-        releaseChannel: "edge",
-      },
-      {
-        __primaryKey: "core-east-01",
-        id: "core-east-01",
-        generation: "12",
-        releaseChannel: "stable",
-      },
-    ],
-    Spoke: [
-      {
-        __primaryKey: "spoke-west-02",
-        id: "spoke-west-02",
-        environment: "edge-west-02",
-      },
-    ],
-    WorkProfile: [
-      {
-        __primaryKey: "edge-west-02",
-        displayName: "Edge west",
-        ownerTeam: "fleet",
-        environmentId: "edge-west-02",
-      },
-    ],
-    ReleaseChannel: [
-      {
-        __primaryKey: "edge-west-02/edge",
-        name: "edge",
-        environment: "edge-west-02",
-      },
-    ],
-    Plan: [
-      {
-        __primaryKey: "PLN-2026-0418",
-        id: "PLN-2026-0418",
-        environment: "edge-west-02",
-        status: "AWAITING_APPROVAL",
-      },
-    ],
-    ChangeRequest: [
-      {
-        __primaryKey: "CR-308",
-        id: "CR-308",
-        title: "Edge channel pin",
-        status: "PENDING_APPROVALS",
-        environment: "edge-west-02",
-      },
-    ],
-    Artifact: [
-      {
-        __primaryKey: "sha256:example",
-        digest: "sha256:example",
-        product: "uds-core",
-        version: "0.31.2",
-      },
-    ],
+const transport = fetchTransport();
+const client = createConduitClient({
+  transport: async (path, init) => {
+    const body = await transport(path, init);
+    if (path.endsWith("/objectSets/loadObjects") && !Array.isArray(body?.data))
+      throw new Error("Object page unavailable");
+    return body;
   },
-};
+});
 
 function esc(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;");
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#39;");
 }
 
-function projectMetadata(body) {
-  const types = Object.values(body.objectTypes || {}).map((entry) => {
-    const objectType = entry.objectType || entry;
-    return {
-      apiName: objectType.apiName,
-      displayName: objectType.displayName || objectType.apiName,
-      description: objectType.description || "",
-      primaryKey: objectType.primaryKey || "",
-      properties: Object.keys(objectType.properties || {}),
-      links: (entry.linkTypes || []).map((link) => ({
-        apiName: link.apiName,
-        rid: link.linkTypeRid,
-        cardinality: link.cardinality,
-      })),
-    };
-  });
+export function projectMetadata(body) {
+  const types = ontologyCatalog(body)
+    .types.slice(0, 256)
+    .map((objectType) => {
+      return {
+        apiName: objectType.apiName,
+        displayName: objectType.displayName || objectType.apiName,
+        description: objectType.description || "",
+        primaryKey: objectType.primaryKey || "",
+        properties: Object.keys(objectType.properties || {}),
+        links: (objectType.links || []).map((link) => ({
+          apiName: link.apiName,
+          rid: link.linkTypeRid,
+          cardinality: link.cardinality,
+        })),
+      };
+    });
   types.sort((left, right) => left.apiName.localeCompare(right.apiName));
   const byRid = new Map();
   for (const type of types) {
     for (const link of type.links) {
+      if (!link.rid) continue;
       const sides = byRid.get(link.rid) || [];
       sides.push({ type: type.apiName, label: link.apiName });
       byRid.set(link.rid, sides);
@@ -172,7 +52,7 @@ function projectMetadata(body) {
   }
   const edges = [];
   for (const sides of byRid.values()) {
-    if (sides.length >= 2 && sides[0].type !== sides[1].type) {
+    if (sides.length === 2 && sides[0].type !== sides[1].type) {
       edges.push({
         from: sides[0].type,
         to: sides[1].type,
@@ -211,48 +91,106 @@ const COLORS = [
 export function createOntologyGraph(ctx) {
   const state = ctx.state;
 
+  let epoch = 0,
+    objectEpoch = 0,
+    identity = "";
+  const nativeIdentity = () =>
+    JSON.stringify([
+      state.reviewOperatorActor || "",
+      state.reviewOperatorIdentities || [],
+    ]);
   async function load() {
+    const stamp = ++epoch,
+      actor = nativeIdentity();
     state.graphLoading = true;
+    state.graphObjects = [];
+    state.graphObjectNote = "Object page unavailable.";
     try {
-      const body = await client.metadata();
+      const body = await bounded(client.metadata());
+      if (stamp !== epoch || actor !== nativeIdentity()) return;
       const projected = projectMetadata(body);
-      if (!projected.types.length) throw new Error("empty");
       state.graphLive = true;
       state.graphTypes = projected.types;
       state.graphEdges = projected.edges;
-      state.graphNote = "Ontology API";
+      state.graphNote = projected.types.length
+        ? "Native metadata · first 256 types"
+        : "No object types returned";
     } catch {
+      if (stamp !== epoch || actor !== nativeIdentity()) return;
       state.graphLive = false;
-      state.graphTypes = FIXTURE.types;
-      state.graphEdges = FIXTURE.edges;
-      state.graphNote = "Example data";
+      state.graphTypes = [];
+      state.graphEdges = [];
+      state.graphNote = "Metadata unavailable; no example data substituted";
     }
-    if (
-      !state.graphTypes.some((type) => type.apiName === state.graphSelected)
-    ) {
-      state.graphSelected = state.graphTypes[0]?.apiName || "Environment";
-    }
+    if (!state.graphTypes.some((type) => type.apiName === state.graphSelected))
+      state.graphSelected = state.graphTypes[0]?.apiName || "";
     await loadObjects();
+    if (stamp !== epoch || actor !== nativeIdentity()) return;
     state.graphLoaded = true;
     state.graphLoading = false;
     ctx.render();
   }
-
   async function loadObjects() {
-    const selected = state.graphSelected || "Environment";
-    if (!state.graphLive) {
-      state.graphObjects = FIXTURE.objects[selected] || [];
+    const selected = state.graphSelected,
+      stamp = ++objectEpoch,
+      actor = nativeIdentity();
+    state.graphObjects = [];
+    state.graphObjectNote = "Loading authorized sample page…";
+    if (!state.graphLive || !selected) {
+      state.graphObjectNote = "No authorized page requested.";
       return;
     }
     try {
-      const page = await client.objects(selected).fetchPage({ pageSize: 25 });
-      state.graphObjects = page.data;
+      const page = await bounded(
+        client.objects(selected).fetchPage({ pageSize: 25 }),
+      );
+      if (
+        stamp !== objectEpoch ||
+        actor !== nativeIdentity() ||
+        selected !== state.graphSelected
+      )
+        return;
+      if (
+        !Array.isArray(page.data) ||
+        page.data.some(
+          (row) => !row || typeof row !== "object" || Array.isArray(row),
+        )
+      )
+        throw new Error("Invalid page");
+      state.graphObjects = page.data.slice(0, 25);
+      state.graphObjectNote = page.data.length
+        ? "First 25 authorized sample rows; not a total count."
+        : "Returned authorized page has no rows.";
     } catch {
+      if (
+        stamp !== objectEpoch ||
+        actor !== nativeIdentity() ||
+        selected !== state.graphSelected
+      )
+        return;
       state.graphObjects = [];
+      state.graphObjectNote =
+        "Object page unavailable; no zero-count inference.";
     }
   }
 
   function render(root) {
+    const actor = nativeIdentity();
+    if (actor !== identity) {
+      identity = actor;
+      epoch++;
+      objectEpoch++;
+      state.graphLoaded = false;
+      state.graphLoading = false;
+      state.graphTypes = [];
+      state.graphEdges = [];
+      state.graphObjects = [];
+      state.graphNote = "Reading native session…";
+    }
+    if (state.hub?.loading !== false) {
+      root.innerHTML = '<p role="status">Reading native session and Hub…</p>';
+      return;
+    }
     if (!state.graphLoaded && !state.graphLoading) {
       state.graphLoading = true;
       load();
@@ -273,7 +211,7 @@ export function createOntologyGraph(ctx) {
       .map((type, index) => {
         const on = selected && selected.apiName === type.apiName;
         const color = COLORS[index % COLORS.length];
-        return `<g data-onclick="selectOntologyType('${esc(type.apiName)}')" style="cursor:pointer">
+        return `<g data-onclick="selectOntologyType(${esc(JSON.stringify(type.apiName))})" style="cursor:pointer">
           <circle cx="${type.x}" cy="${type.y}" r="${on ? 28 : 24}" fill="${on ? "#17253a" : "#12181d"}" stroke="${color}" stroke-width="${on ? 2.4 : 1.4}"></circle>
           <text x="${type.x}" y="${type.y + 4}" fill="#f0f5fa" font-size="9" text-anchor="middle">${esc(type.displayName)}</text>
         </g>`;
@@ -283,8 +221,8 @@ export function createOntologyGraph(ctx) {
       .map((object) => {
         const cells = (selected?.properties || [])
           .slice(0, 4)
-          .map((key) => `<td>${esc(object[key] ?? "")}</td>`);
-        return `<tr><td class="font-semibold text-[#5c9ce6]">${esc(object.__primaryKey || "")}</td>${cells.join("")}</tr>`;
+          .map((key) => `<td>${esc(diffValue(object[key], key))}</td>`);
+        return `<tr><td class="font-semibold text-[#5c9ce6]">${esc(object[selected?.primaryKey] ?? object.__primaryKey ?? "")}</td>${cells.join("")}</tr>`;
       })
       .join("");
     const headers = ["Key", ...(selected?.properties || []).slice(0, 4)]
@@ -311,10 +249,10 @@ export function createOntologyGraph(ctx) {
               <span class="text-[13px] font-semibold text-white">${esc(selected?.displayName || "Objects")}</span>
               <span class="text-[10px] text-[#8b96a5]">${esc(selected?.primaryKey || "")}</span>
             </div>
-            <div class="overflow-auto flex-1">
+            <p role="status">${esc(state.graphObjectNote || "")}</p><div class="overflow-auto flex-1">
               <table class="so-table">
                 <thead><tr>${headers}</tr></thead>
-                <tbody>${rows || `<tr><td colspan="5" class="text-[#8b96a5]">No objects of this type.</td></tr>`}</tbody>
+                <tbody>${rows || `<tr><td colspan="5" class="text-[#8b96a5]">${esc(state.graphObjectNote || "Object page unavailable.")}</td></tr>`}</tbody>
               </table>
             </div>
           </div>
@@ -352,10 +290,13 @@ export function createOntologyGraph(ctx) {
     renderers: { "og01-ontology-graph": render },
     bind(target) {
       target.selectOntologyType = (apiName) => {
+        if (!state.graphTypes.some((type) => type.apiName === apiName)) return;
         state.graphSelected = apiName;
         Promise.resolve(loadObjects()).then(() => ctx.render());
       };
       target.reloadOntologyGraph = () => {
+        epoch++;
+        objectEpoch++;
         state.graphLoaded = false;
         state.graphLoading = false;
         ctx.render();
