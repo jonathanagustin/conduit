@@ -20,7 +20,7 @@ check.call(job["timeout-minutes"] == 10, "preparation must cap runtime")
 check.call(job["permissions"] == {"contents" => "write", "pull-requests" => "write", "actions" => "write"}, "preparation permissions must match the reviewed PR and Trunk handoff")
 steps = job["steps"]
 check.call(steps.length == 5, "preparation must have only its reviewed five steps")
-check.call(steps[0]["uses"] == "actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803" && steps[0].dig("with", "persist-credentials") == false, "checkout must be pinned without persisted credentials")
+check.call(steps[0]["uses"] == "actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1" && steps[0].dig("with", "persist-credentials") == false, "checkout must be pinned without persisted credentials")
 check.call(steps[1]["uses"] == "actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1", "Node setup must be pinned")
 check.call(steps[2]["run"] == "node scripts/release-preparation.mjs reconcile" && steps[4]["run"] == "node scripts/release-preparation.mjs verify", "only publication reconciliation and Trunk handoff may run")
 check.call(steps[3]["uses"] == "googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7", "Release Please must use the reviewed full SHA")

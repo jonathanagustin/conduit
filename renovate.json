@@ -41,6 +41,17 @@
       "enabled": false
     },
     {
+      "description": "Keep optimizer qualification workflows source-bound to their recorded evidence; updates require a deliberate requalification, not a hash refresh",
+      "matchManagers": [
+        "github-actions"
+      ],
+      "matchFileNames": [
+        ".github/workflows/platform-cpsat-candidate.yml",
+        ".github/workflows/platform-highs-candidate.yml"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Use the official HTTP version feed for the mise Grok tool instead of GitHub tags",
       "matchManagers": [
         "mise"
