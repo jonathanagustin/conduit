@@ -29,7 +29,9 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 	// Version 2 records the step journal. A history recorded at version 1
 	// replays without those timestamps, so an older run has an empty journal
 	// rather than a rewritten command sequence.
-	version := workflow.GetVersion(ctx, changeID, workflow.DefaultVersion, 2)
+	// Version 3 also journals terminal status transitions that have no activity
+	// step (for example cancellation during the review wait).
+	version := workflow.GetVersion(ctx, changeID, workflow.DefaultVersion, 3)
 	if version < 1 {
 		return domain.Result{}, temporal.NewNonRetryableApplicationError(
 			"this worker cannot replay a packaging history from before the v1 marker",
@@ -56,7 +58,9 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 			state.ToolVersions = in.Identity.ToolVersions
 		}
 	}
-	if version >= 2 {
+	if version >= 3 {
+		state.EnableStatusEvents()
+	} else if version >= 2 {
 		state.EnableEvents()
 	}
 	if err := workflow.SetQueryHandler(ctx, QueryStatus, func() (domain.RunStatus, error) {
@@ -100,12 +104,14 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 			// so Temporal keeps that status, and the query shows it.
 			if temporal.IsCanceledError(err) || ctx.Err() != nil {
 				state.Block(domain.OutcomeCancelled, "run cancelled")
+				state.NoteStatus(workflow.Now(ctx))
 			}
 			return domain.Result{}, err
 		}
 	}
 	if state.Outcome == "" {
 		state.Block(domain.OutcomeFailRequired, "run ended without an outcome")
+		state.NoteStatus(workflow.Now(ctx))
 	}
 	return state.Result(in.CANCount), nil
 }
@@ -279,6 +285,7 @@ func applyReview(ctx workflow.Context, state *domain.State, message domain.Revie
 	}
 	if len(state.SeenApprovalIDs) >= domain.MaxSeenApprovals {
 		state.Block(domain.OutcomeFailRequired, "too many review messages")
+		state.NoteStatus(workflow.Now(ctx))
 		return domain.ReviewRejected, nil
 	}
 	var record domain.ApprovalRecord

@@ -218,3 +218,26 @@ cancellation, or a new step from a status snapshot. The existing journal cap and
 legacy coverage are unchanged. Completing #389 still requires closing the native
 status-transition coverage gaps, production authorization, and SSE composition;
 the adapter alone does not make the feature available.
+
+## Versioned packaging terminal statuses
+
+New packaging workflows use marker version 3 to record terminal status changes
+that lack a completed activity step: cancellation during review, exhausted
+review-message budgets, and invalid terminal state without an outcome. They
+record the actual blocked phase and failure/cancellation outcome, with the same
+native journal sequence and timestamp rules. The source projects those recorded
+terminal codes; a status snapshot still cannot manufacture a missing entry.
+No Plan is approved, cancelled, or executed by recording the packaging status.
+
+Histories marked version 1 or 2 keep their prior journal behavior. The new
+status-journal enablement is private workflow state restored from the version
+marker after replay/continue-as-new, not an option in caller JSON. A recorded
+synthetic version-2 history is replayed in the test suite, and the version-2
+cancellation query is tested separately. The real Temporal recovery test also
+cancels a version-3 run during review, restarts its worker, compares the source
+records, and replays the cancelled history.
+
+The existing 32-entry journal cap remains unchanged. An already full journal
+still cannot record another terminal event; legacy omissions are not backfilled.
+This closes the common terminal-transition gaps without claiming the remaining
+retention/coverage work or mounting the SSE runtime.

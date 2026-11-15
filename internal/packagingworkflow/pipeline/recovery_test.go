@@ -18,6 +18,7 @@ import (
 	historypb "go.temporal.io/api/history/v1"
 	workflowservice "go.temporal.io/api/workflowservice/v1"
 	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/temporal"
 	"go.temporal.io/sdk/worker"
 	sdkworkflow "go.temporal.io/sdk/workflow"
 
@@ -155,7 +156,8 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 		t.Fatal(err)
 	}
 	workerFour := startWorker(t, ctx, running.Server.Client(), activitiesFor("", ""))
-	defer workerFour.Stop()
+	currentWorker := workerFour
+	defer func() { currentWorker.Stop() }()
 	var result domain.Result
 	if err := running.Server.Client().GetWorkflow(ctx, id.WorkflowID(), "").Get(ctx, &result); err != nil {
 		t.Fatal(err)
@@ -202,6 +204,35 @@ func TestDevServerRestartRecoversWaitAndHandoff(t *testing.T) {
 	if !found {
 		t.Fatalf("visibility did not list %s (%d executions)", id.WorkflowID(), len(listed.GetExecutions()))
 	}
+	// A v3 cancellation during the review wait has no finished activity to
+	// journal it. Its terminal entry must nevertheless survive worker restart.
+	cancelID := id
+	cancelID.RunID = "sample-app-cancel"
+	cancelledRun, err := running.Server.Client().ExecuteWorkflow(ctx, client.StartWorkflowOptions{ID: cancelID.WorkflowID(), TaskQueue: TaskQueue}, WorkflowName, Input{Identity: cancelID, ApprovalWait: time.Minute})
+	if err != nil {
+		t.Fatal(err)
+	}
+	waitPhase(t, ctx, running.Server.Client(), cancelID.WorkflowID(), domain.PhaseReview)
+	if err := running.Server.Client().CancelWorkflow(ctx, cancelID.WorkflowID(), ""); err != nil {
+		t.Fatal(err)
+	}
+	if err := cancelledRun.Get(ctx, nil); !temporal.IsCanceledError(err) {
+		t.Fatalf("cancelled run error = %v", err)
+	}
+	beforeCancelSource := projectRecoverySource(t, ctx, running.Server.Client(), cancelID.RunID)
+	if len(beforeCancelSource) == 0 || string(beforeCancelSource[len(beforeCancelSource)-1].Content.Data) != `{"phase":"blocked","outcome":"CANCELLED"}` {
+		t.Fatalf("native cancellation source missing: %+v", beforeCancelSource)
+	}
+	if count := governedPlans(t, plansDir); count != 1 {
+		t.Fatal("cancelled run created or changed the Plan count")
+	}
+	currentWorker.Stop()
+	currentWorker = startWorker(t, ctx, running.Server.Client(), activitiesFor("", ""))
+	afterCancelSource := projectRecoverySource(t, ctx, running.Server.Client(), cancelID.RunID)
+	if !reflect.DeepEqual(beforeCancelSource, afterCancelSource) {
+		t.Fatal("cancelled native source changed after worker restart")
+	}
+	replayHistory(t, ctx, running.Server.Client(), cancelID.WorkflowID())
 	replayHistory(t, ctx, running.Server.Client(), id.WorkflowID())
 	logFootprint(t, db, startup, temporalRSS())
 	_ = run
