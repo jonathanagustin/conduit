@@ -2,6 +2,9 @@ package composition
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
@@ -31,9 +34,9 @@ func (cases intelCases) Add(scenario, bound, value, expected string) (string, er
 	return added.ID, nil
 }
 
-func newIntelligenceService(repository controlplane.Repository) *intelapp.Service {
+func newIntelligenceService(repository controlplane.Repository, options controlplane.HandlerOptions) *intelapp.Service {
 	service := intelapp.New(intelligenceAdapter(), intelligenceTimeout())
-	service.Opener = intelligenceOpener{service: controlplane.NewGovernanceService(repository)}
+	service.Opener = intelligenceOpener{service: controlplane.NewGovernanceService(repository), repository: repository, options: options}
 	service.Audit = intelligenceAudit{repository: repository}
 	service.Proposer = liveEvalProposer()
 	return service
@@ -74,28 +77,26 @@ func (proposer intelligenceEvalProposer) Propose(ctx context.Context, scenario, 
 func mountIntelligence(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, hub Options, service *intelapp.Service) http.Handler {
 	governanceService := controlplane.NewGovernanceService(repository)
 	if service == nil {
-		service = newIntelligenceService(repository)
+		service = newIntelligenceService(repository, options)
 	}
 	mux := http.NewServeMux()
 	intelhttp.Register(mux, intelhttp.Config{
 		API:    service,
-		Events: intelligenceEvents{reader: hub.PackagingStatus},
+		Events: intelligenceEvents{reader: hub.PackagingStatus, service: governanceService, options: options},
 		Authorize: func(request *http.Request) error {
-			if _, err := operatorClaims(request, options); err != nil {
-				return err
-			}
-			return nil
+			_, err := operatorFrom(request.Context())
+			return err
 		},
 		Caller: func(request *http.Request) string {
-			principal, ok := packagingPrincipal(request, governanceService, options)
-			if !ok {
-				return "operator"
+			principal, err := operatorFrom(request.Context())
+			if err != nil {
+				return ""
 			}
 			return principal.Username
 		},
 	})
 	mux.Handle("/", legacy)
-	return mux
+	return withOperatorCarrier(governanceService, options, mux)
 }
 
 func intelligenceAdapter() string {
@@ -118,11 +119,47 @@ func intelligenceTimeout() string {
 }
 
 type intelligenceOpener struct {
-	service *controlplane.GovernanceService
+	service    *controlplane.GovernanceService
+	repository controlplane.Repository
+	options    controlplane.HandlerOptions
 }
 
+// Open stages a scoped memory course for mandatory human review.
+// CONDUIT-INVENTED: intelligence.ScopedMemoryCourse
+// Displaced-by: a published or sanitized intelligence course proposal identity and scoped authorization contract.
 func (opener intelligenceOpener) Open(ctx context.Context, value, rationale, author, environment, installation, product string) (string, string, error) {
-	request, err := opener.service.ProposeHumanChange(ctx, "PLAN", "memory:"+value, environment, []controlplane.EntityChange{{
+	principal, err := operatorFrom(ctx)
+	if err != nil || principal.Username != author {
+		return "", "", intelapp.ErrCourseForbidden
+	}
+	rid := "installation/" + environment + "/" + installation
+	if !opener.service.AuthorizeResourceOperation(ctx, principal, opener.options, rid, controlplane.OperationProposeChange) {
+		return "", "", intelapp.ErrCourseForbidden
+	}
+	projection, err := controlplane.BuildFleetProjection(ctx, opener.repository, controlplane.FleetQuery{Environment: environment}, time.Now())
+	if err != nil {
+		return "", "", err
+	}
+	found := false
+	for _, row := range projection.Installations {
+		if row.Environment == environment && row.InstallationID == installation && row.Product == product && row.DesiredVersion != "" {
+			found = true
+			break
+		}
+	}
+	if !found {
+		return "", "", intelapp.ErrCourseTargetMissing
+	}
+	encoded, err := json.Marshal(struct {
+		Author                                    controlplane.Principal
+		Environment, Installation, Product, Value string
+	}{principal, environment, installation, product, value})
+	if err != nil {
+		return "", "", err
+	}
+	digest := sha256.Sum256(encoded)
+	targetID := hex.EncodeToString(digest[:16])
+	request, err := opener.service.ProposeHumanChange(ctx, "CONDUIT_NATIVE_INTELLIGENCE_COURSE", targetID, environment, []controlplane.EntityChange{{
 		ID: "memory-limit", Type: controlplane.ChangeTypeUpdateEntity, InstallationID: installation,
 		Request: map[string]any{"memory": value},
 		Diff:    map[string]controlplane.ChangeDiffEntry{"limits.memory": {After: value}},
@@ -131,7 +168,7 @@ func (opener intelligenceOpener) Open(ctx context.Context, value, rationale, aut
 			"installation": {RID: "installation/" + environment + "/" + installation, Name: installation},
 			"product":      {RID: "product/" + product, Name: product},
 		},
-	}}, controlplane.Principal{Username: author}, "Proposed memory limit "+value, rationale)
+	}}, principal, "Proposed memory limit "+value, rationale)
 	if err != nil {
 		return "", "", err
 	}
@@ -156,13 +193,19 @@ func (audit intelligenceAudit) Record(ctx context.Context, actor, action, resour
 }
 
 type intelligenceEvents struct {
-	reader interface {
+	service *controlplane.GovernanceService
+	options controlplane.HandlerOptions
+	reader  interface {
 		List(ctx context.Context) ([]packagingdomain.RunStatus, error)
 	}
 }
 
 func (events intelligenceEvents) Observed(ctx context.Context) []map[string]string {
-	if events.reader == nil {
+	if events.reader == nil || events.service == nil {
+		return nil
+	}
+	principal, err := operatorFrom(ctx)
+	if err != nil {
 		return nil
 	}
 	runs, err := events.reader.List(ctx)
@@ -171,6 +214,10 @@ func (events intelligenceEvents) Observed(ctx context.Context) []map[string]stri
 	}
 	out := make([]map[string]string, 0, len(runs))
 	for _, run := range runs {
+		environment := packagingdomain.EnvironmentOf(run.TargetPlanRef)
+		if environment == "" || !events.service.AuthorizeResourceOperation(ctx, principal, events.options, "environment/"+environment, controlplane.OperationReadResource) {
+			continue
+		}
 		out = append(out, map[string]string{"runId": run.RunID, "phase": run.Phase, "outcome": string(run.Outcome)})
 	}
 	return out

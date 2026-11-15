@@ -5,6 +5,7 @@ package httpapi
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
@@ -77,7 +78,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 		var body struct {
 			Scenario, BoundObject, Value, ExpectedOutcome string
 		}
-		if err := decode(r, &body); err != nil {
+		if err := decode(w, r, &body); err != nil {
 			writeError(w, http.StatusBadRequest, "request body must be a JSON object")
 			return
 		}
@@ -101,16 +102,25 @@ func Register(mux *http.ServeMux, cfg Config) {
 		var body struct {
 			Value, Environment, InstallationID, ProductID string
 		}
-		if err := decode(r, &body); err != nil {
+		if err := decode(w, r, &body); err != nil {
 			writeError(w, http.StatusBadRequest, "request body must be a JSON object")
 			return
 		}
 		id, status, err := cfg.API.Select(r.Context(), caller(cfg, r), body.Value, body.Environment, body.InstallationID, body.ProductID)
 		if err != nil {
-			writeError(w, http.StatusBadGateway, err.Error())
+			code := http.StatusBadGateway
+			switch {
+			case errors.Is(err, application.ErrCourseForbidden):
+				code = http.StatusForbidden
+			case errors.Is(err, application.ErrCourseTargetMissing):
+				code = http.StatusNotFound
+			case errors.Is(err, application.ErrCourseBlocked):
+				code = http.StatusUnprocessableEntity
+			}
+			writeError(w, code, err.Error())
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"changeRequestId": id, "status": status, "label": "No model call"})
+		writeJSON(w, http.StatusOK, map[string]any{"changeRequestId": id, "status": status, "label": "No model call", "valueTier": "CONDUIT_NATIVE", "environment": body.Environment, "installationId": body.InstallationID, "productId": body.ProductID, "value": body.Value})
 	})
 	mux.HandleFunc(EventsRoute, func(w http.ResponseWriter, r *http.Request) {
 		if !allowed(cfg, w, r) {
@@ -153,10 +163,16 @@ func caller(cfg Config, r *http.Request) string {
 	return "operator"
 }
 
-func decode(r *http.Request, dest any) error {
-	decoder := json.NewDecoder(io.LimitReader(r.Body, 1<<16))
+func decode(w http.ResponseWriter, r *http.Request, dest any) error {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 1<<16))
 	decoder.DisallowUnknownFields()
-	return decoder.Decode(dest)
+	if err := decoder.Decode(dest); err != nil {
+		return err
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return errors.New("expected one JSON document")
+	}
+	return nil
 }
 
 func writeJSON(w http.ResponseWriter, status int, value any) {

@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"fmt"
 	"testing"
 )
 
@@ -97,5 +98,46 @@ func TestLiveEvalRunsOnlyTheCeilingPassCase(t *testing.T) {
 	}
 	if len(byID["mem-8gi"].Columns) != 1 || byID["mem-8gi"].Columns[0].Label != "No model call" {
 		t.Fatalf("8Gi should stay recorded-only: %#v", byID["mem-8gi"].Columns)
+	}
+}
+
+func TestBlockedCourseNeverCallsProposalOpener(t *testing.T) {
+	open := &memoryOpen{}
+	service := New("", "")
+	service.Opener = open
+	for _, value := range []string{"8Gi", "", "invalid"} {
+		if _, _, err := service.Select(context.Background(), "writer", value, "env-a", "api", "product-a"); err != ErrCourseBlocked {
+			t.Fatal(value, err)
+		}
+	}
+	if open.calls != 0 {
+		t.Fatal("blocked course opened a request", open.calls)
+	}
+}
+
+func TestFeedbackIdentityCoversExpectedScopeAndBoundsGrowth(t *testing.T) {
+	service := New("", "")
+	first, err := service.AddCase("same scenario", "one", "512Mi", "PASS")
+	if err != nil {
+		t.Fatal(err)
+	}
+	retry, err := service.AddCase("same scenario", "one", "512Mi", "PASS")
+	if err != nil || retry.ID != first.ID || len(service.Cases()) != 4 {
+		t.Fatal("feedback retry duplicated case", retry, err)
+	}
+	other, err := service.AddCase("same scenario", "two", "512Mi", "FAIL_REQUIRED")
+	if err != nil || other.ID == first.ID {
+		t.Fatal("feedback identity lost bound/expectation", other, err)
+	}
+	for i := len(service.Cases()); i < 256; i++ {
+		if _, err := service.AddCase(fmt.Sprint(i), "scope", "512Mi", "PASS"); err != nil {
+			t.Fatal(i, err)
+		}
+	}
+	if _, err := service.AddCase("overflow", "scope", "512Mi", "PASS"); err == nil {
+		t.Fatal("unbounded evaluation cases accepted")
+	}
+	if _, err := service.AddCase("same scenario", "one", "512Mi", "PASS"); err != nil {
+		t.Fatal("bounded store refused idempotent retry", err)
 	}
 }

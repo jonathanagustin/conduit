@@ -295,6 +295,13 @@
       "riskIfWrong": "Native command paths and receipt fields may differ. Applying a request requires separate approval and current exact-scope admission; no workload execution is added."
     },
     {
+      "id": "intelligence.ScopedMemoryCourse",
+      "what": "Native memory-course proposals bind current desired installation/Product scope and the full resolved caller into a stable non-executable target identity, require propose permission and retain mandatory human review.",
+      "why": "The earlier demo opener used a global memory-value target and hard-coded UI coordinates. Native real-target staging must not reuse a request across environments, installations, Products or callers. No private intelligence proposal transport or execution adapter is established.",
+      "displacedBy": "A published or sanitized intelligence course proposal identity and scoped authorization contract.",
+      "riskIfWrong": "Native target identity and receipt fields may need replacement. Required memory-gate failures cannot create a proposal. Successful selection only stores a human-review request and does not approve, apply or lease work. Current scope and resource permission are checked at submission."
+    },
+    {
       "id": "maintenance.ScheduledEntityWindow",
       "what": "Optional native startsAt and single-Entity expectedChangeRequestId extend reviewed temporary maintenance proposals with future intervals and pre-effect preview identity binding.",
       "why": "The existing public CLI evidence establishes submission-time windows, not a future scheduler. Native Windows drafts need explicit timestamps and must reject a changed target or interval before persistence. Omitted startsAt preserves the original submission-time default.",
