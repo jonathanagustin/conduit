@@ -1,3 +1,5 @@
+import { PlanningAgent } from "./planning-agent.js";
+
 // Planning flow for the Work Intake screen: composer, inspection rows, Needs
 // Input card, plan review, Accept, and the binding panel. Every value shown
 // here comes from the planning-session API (api/planning-sessions.yaml). When
@@ -276,6 +278,10 @@ export function emptyPlanning() {
     drafts: {},
     busy: "",
     error: null,
+    agent: null,
+    agentState: null,
+    agentMessages: [],
+    agentTools: [],
   };
 }
 
@@ -348,6 +354,27 @@ function composer(planning) {
 }
 
 function activity(planning) {
+  if (planning.agentMessages?.length || planning.agentTools?.length) {
+    const messages = planning.agentMessages
+      .filter(
+        (item) =>
+          item.role !== "tool" &&
+          typeof item.content === "string" &&
+          item.content,
+      )
+      .map(
+        (item) =>
+          `<div class="plan-line" data-plan-message><span class="kit-badge">${esc(item.role)}</span><span>${esc(item.content)}</span></div>`,
+      )
+      .join("");
+    const calls = (planning.agentTools || [])
+      .map(
+        (item) =>
+          `<div class="plan-tool" data-plan-tool><span class="code-id">${esc(item.name)}</span><span>${esc(item.status)}</span></div>`,
+      )
+      .join("");
+    return `<section class="kit-panel kit-pad plan-card" data-plan-activity aria-label="Agent activity" aria-live="polite"><div class="kit-section">Agent activity</div>${messages}${calls}</section>`;
+  }
   const rows = toolRows(
     planning.events.length ? planning.events : planning.session?.events,
   );
@@ -408,7 +435,8 @@ function acceptBar(planning) {
   if (!session || session.binding) return "";
   const state = acceptState(session);
   const busy = planning.busy === "accept";
-  const disabled = !state.ok || busy;
+  const disabled =
+    !state.ok || Boolean(planning.busy) || planning.agent?.recoveryRequired;
   return `<section class="kit-panel kit-pad plan-card plan-accept" data-plan-accept-bar>
     <button type="button" class="kit-btn kit-btn-ok" data-plan-accept${disabled ? " disabled" : ""} aria-disabled="${disabled}">${busy ? "Accepting…" : "Accept"}</button>
     <span class="kit-muted" data-plan-accept-note>${esc(state.ok ? "Accept binds this plan to the commit shown in the binding." : state.reason)}</span>
@@ -433,6 +461,7 @@ function bindingPanel(session) {
 export function planningMarkup(planning) {
   return `<div class="plan-flow" data-plan-flow>
     ${errorBanner(planning.error)}
+    ${planning.agent?.recoveryRequired ? '<button type="button" class="kit-btn" data-plan-recover>Recover agent snapshot</button>' : ""}
     ${composer(planning)}
     ${activity(planning)}
     ${needsInput(planning)}
@@ -464,9 +493,69 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
               error?.message || "The planning request failed.",
             ),
     });
-  const refresh = async (id) => {
-    const session = await getSession(id, fetchImpl);
-    set({ session, busy: "", drafts: {} });
+  const agentRun = async (options) => {
+    const id = store.planning.session.id;
+    let agent = store.planning.agent;
+    if (!agent || agent.threadId !== id) {
+      agent = new PlanningAgent(id, fetchImpl);
+      store.planning = { ...store.planning, agent };
+    }
+    if (!store.planning.humanDrafts)
+      store.planning.humanDrafts = Object.fromEntries(
+        Object.keys(store.planning.drafts).map((id) => [id, true]),
+      );
+    const questionId = (field) =>
+      field.startsWith("question:") ? field.slice(9) : null;
+    const binding = {
+      fields: () => {
+        const current = store.planning.session;
+        const pending = openQuestions(current).some(
+          (question) => question.required,
+        );
+        return new Map([
+          ["repoUrl", { type: "string", readOnly: true }],
+          ["ref", { type: "string", readOnly: true }],
+          ...(current.needsInput || []).map((question) => [
+            "question:" + question.id,
+            {
+              type: question.type === "boolean" ? "boolean" : "string",
+              choices: question.options || [],
+              readOnly: !pending,
+            },
+          ]),
+        ]);
+      },
+      dirty: (field) =>
+        Object.hasOwn(store.planning.humanDrafts, questionId(field)),
+      set: (field, value) =>
+        set({
+          drafts: { ...store.planning.drafts, [questionId(field)]: value },
+        }),
+      focus: (field) => {
+        const id = questionId(field);
+        const target = [...root.querySelectorAll("[data-plan-answer]")].find(
+          (item) => item.getAttribute("data-plan-answer") === id,
+        );
+        target?.focus();
+      },
+      confirm: async (message) => window.confirm(message),
+    };
+    const result = await agent.run(options, binding, (run) => {
+      set({
+        agentState: run.state,
+        agentMessages: [...run.messages.values()],
+        agentTools: [
+          ...new Map(
+            [...(run.state.toolCalls || []), ...run.tools.values()].map(
+              (item) => [item.id, item],
+            ),
+          ).values(),
+        ],
+        ...(run.state.session ? { session: run.state.session } : {}),
+      });
+    });
+    set({ session: result.state.session, busy: "" });
+    return result;
   };
 
   root.addEventListener("input", (event) => {
@@ -481,6 +570,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       store.planning = {
         ...store.planning,
         drafts: { ...store.planning.drafts, [answer]: target.value },
+        humanDrafts: { ...store.planning.humanDrafts, [answer]: true },
       };
     }
   });
@@ -490,6 +580,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       store.planning = {
         ...store.planning,
         drafts: { ...store.planning.drafts, [answer]: event.target.value },
+        humanDrafts: { ...store.planning.humanDrafts, [answer]: true },
       };
     }
   });
@@ -526,21 +617,8 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           );
           store.planning = { ...store.planning, session };
         }
-        const result = await startTurn(
-          session.id,
-          message,
-          (streamed) => {
-            store.planning = applyEvent(store.planning, streamed);
-            rerender();
-          },
-          fetchImpl,
-        );
-        if (result.session)
-          store.planning = { ...store.planning, session: result.session };
-        const failure = store.planning.error;
-        await refresh(session.id);
-        if (failure) set({ error: failure });
-        else set({ message: "" });
+        await agentRun({ message });
+        set({ message: "" });
       } catch (error) {
         fail(error);
       }
@@ -548,11 +626,13 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
     }
 
     if (hit("[data-plan-submit-answers]")) {
-      const open = openQuestions(planning.session);
-      const answers = open
+      const recorded = answerMap(planning.session);
+      const answers = (planning.session.needsInput || [])
         .map((q) => ({
           id: q.id,
-          value: String(planning.drafts[q.id] ?? q.value ?? ""),
+          value: String(
+            planning.drafts[q.id] ?? recorded[q.id] ?? q.value ?? "",
+          ),
         }))
         .filter((a) => a.value.trim());
       if (!answers.length) {
@@ -567,30 +647,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       }
       set({ busy: "answers", error: null });
       try {
-        const session = await submitAnswers(
-          planning.session.id,
-          answers,
-          fetchImpl,
-        );
-        set({ session, drafts: {} });
-        if (session?.status === "planning") {
-          // Every required question is answered: ask the model for the plan.
-          set({ busy: "turn", events: [] });
-          const result = await startTurn(
-            session.id,
-            "",
-            (streamed) => {
-              store.planning = applyEvent(store.planning, streamed);
-              rerender();
-            },
-            fetchImpl,
-          );
-          if (result.session)
-            store.planning = { ...store.planning, session: result.session };
-          const failure = store.planning.error;
-          await refresh(session.id);
-          if (failure) set({ error: failure });
-        }
+        await agentRun({ answers });
         set({ busy: "" });
       } catch (error) {
         fail(error);
@@ -598,8 +655,19 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       return;
     }
 
+    if (hit("[data-plan-recover]")) {
+      set({ busy: "recover", error: null });
+      try {
+        await agentRun({ recover: true });
+      } catch (error) {
+        fail(error);
+      }
+      return;
+    }
+
     if (hit("[data-plan-accept]")) {
-      if (!acceptState(planning.session).ok) return;
+      if (!acceptState(planning.session).ok || planning.agent?.recoveryRequired)
+        return;
       set({ busy: "accept", error: null });
       try {
         const session = await acceptSession(planning.session.id, fetchImpl);

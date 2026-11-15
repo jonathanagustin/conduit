@@ -1,3 +1,4 @@
+import { PlanningAgent } from "../../console/operator/planning-agent.js";
 import { describe, expect, it, vi } from "vitest";
 
 import {
@@ -252,7 +253,7 @@ describe("planning flow API", () => {
     });
   });
 
-  it("requests the plan with POST turns once answers return planning", async () => {
+  it("submits human answers through the current AG-UI interrupt", async () => {
     class FakeElement {
       closest(selector: string) {
         return selector === "[data-plan-submit-answers]" ? this : null;
@@ -265,10 +266,29 @@ describe("planning flow API", () => {
         plan: null,
         needsInput: [question()],
       });
-      const planningSession = session({ status: "planning", plan: null });
-      const fetchImpl = vi.fn<typeof fetch>(async (input) =>
-        json(200, String(input).endsWith("/answers") ? planningSession : session()),
-      );
+      const fetchImpl = vi.fn<typeof fetch>(async (_input, options) => {
+        const input = JSON.parse(String(options?.body));
+        const events = [
+          { type: "RUN_STARTED", threadId: input.threadId, runId: input.runId },
+          {
+            type: "STATE_SNAPSHOT",
+            snapshot: { session: session(), pendingClientTools: [] },
+          },
+          { type: "MESSAGES_SNAPSHOT", messages: [] },
+          {
+            type: "RUN_FINISHED",
+            threadId: input.threadId,
+            runId: input.runId,
+            outcome: { type: "success" },
+          },
+        ];
+        return new Response(
+          events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+          { headers: { "content-type": "text/event-stream" } },
+        );
+      });
+      const agent = new PlanningAgent("s1", fetchImpl);
+      agent.interrupt = { id: "current-form" };
       let click: (event: unknown) => Promise<void> = async () => {};
       const root = {
         addEventListener: (type: string, handler: typeof click) => {
@@ -279,19 +299,25 @@ describe("planning flow API", () => {
         planning: {
           ...emptyPlanning(),
           session: asking,
+          agent,
           drafts: { q1: "8080" },
         },
       };
       bindPlanning(root, store, () => {}, fetchImpl);
       await click({ target: new FakeElement() });
 
-      const turns = fetchImpl.mock.calls.filter(([path]) =>
-        String(path).endsWith("/s1/turns"),
-      );
-      expect(turns).toHaveLength(1);
+      expect(fetchImpl).toHaveBeenCalledTimes(1);
+      expect(fetchImpl.mock.calls[0][0]).toBe("/v1/agent-runs");
       expect(
-        (fetchImpl.mock.calls.find(([p]) => String(p).endsWith("/turns")) as unknown[])[1],
-      ).toMatchObject({ method: "POST" });
+        JSON.parse(String(fetchImpl.mock.calls[0][1]?.body)).resume,
+      ).toEqual([
+        {
+          interruptId: "current-form",
+          status: "resolved",
+          payload: { "question:q1": "8080" },
+        },
+      ]);
+      expect(store.planning.session?.status).toBe("ready");
       expect(store.planning.busy).toBe("");
     } finally {
       vi.unstubAllGlobals();
