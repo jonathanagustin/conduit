@@ -266,8 +266,8 @@ describe("planning flow API", () => {
         needsInput: [question()],
       });
       const planningSession = session({ status: "planning", plan: null });
-      const fetchImpl = vi.fn(async (path: string) =>
-        json(200, path.endsWith("/answers") ? planningSession : session()),
+      const fetchImpl = vi.fn<typeof fetch>(async (input) =>
+        json(200, String(input).endsWith("/answers") ? planningSession : session()),
       );
       let click: (event: unknown) => Promise<void> = async () => {};
       const root = {
