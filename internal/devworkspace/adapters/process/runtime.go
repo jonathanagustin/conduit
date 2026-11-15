@@ -107,7 +107,10 @@ func (runtime *Runtime) Start(_ context.Context, workspace domain.Workspace) (do
 	return result, nil
 }
 
-func (runtime *Runtime) Stop(_ context.Context, workspaceID string) (domain.Runtime, error) {
+func (runtime *Runtime) Stop(ctx context.Context, workspaceID string) (domain.Runtime, error) {
+	if err := ctx.Err(); err != nil {
+		return domain.Runtime{}, err
+	}
 	runtime.mu.Lock()
 	entry, ok := runtime.runs[workspaceID]
 	runtime.mu.Unlock()
@@ -115,15 +118,24 @@ func (runtime *Runtime) Stop(_ context.Context, workspaceID string) (domain.Runt
 		return domain.Runtime{WorkspaceID: workspaceID, Status: domain.StatusStopped, Origin: domain.OriginLocalRuntime}, nil
 	}
 	entry.mu.Lock()
-	entry.closed = true
 	cmd := entry.cmd
 	running := entry.status == domain.StatusRunning || entry.status == domain.StatusStarting
 	entry.mu.Unlock()
-	if running && cmd != nil && cmd.Process != nil {
-		_ = cmd.Process.Kill()
+	if running {
+		if cmd == nil || cmd.Process == nil {
+			return domain.Runtime{}, domain.ErrConflict
+		}
+		if err := cmd.Process.Kill(); err != nil && !errors.Is(err, os.ErrProcessDone) {
+			return domain.Runtime{}, err
+		}
+		timer := time.NewTimer(time.Second)
+		defer timer.Stop()
 		select {
 		case <-entry.done:
-		case <-time.After(time.Second):
+		case <-ctx.Done():
+			return domain.Runtime{}, ctx.Err()
+		case <-timer.C:
+			return domain.Runtime{}, context.DeadlineExceeded
 		}
 	}
 	entry.mu.Lock()
