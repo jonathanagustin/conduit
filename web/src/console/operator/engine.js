@@ -27,7 +27,15 @@ import {
   paletteResultsMarkup,
 } from "./palette.js";
 import { dayTexture, paintDisc } from "./globe-texture.js";
-import { reviewMarkup } from "./change-review.js";
+import {
+  reviewMarkup,
+  reviewState,
+  bindReviewContext,
+} from "./change-review.js";
+import {
+  approvalsMarkup,
+  constraintGateMarkup,
+} from "./change-request-views.js";
 import { runsMarkup } from "./packaging-runs.js";
 import {
   bindPlanning,
@@ -1099,6 +1107,8 @@ export function mountOperator(host, options) {
       tabs: [
         { id: "list", label: "Requests", screen: "rm07-change-requests" },
         { id: "approvals", label: "Approvals", screen: "s16-approvals-board" },
+        { id: "diff", label: "Diff", screen: "s10-diff" },
+        { id: "gate", label: "Constraint gate", screen: "rm04-constraints" },
       ],
     },
     "area-intelligence": {
@@ -1147,7 +1157,7 @@ export function mountOperator(host, options) {
     tab: "proposals",
   };
   REDIRECT["s09-source"] = { area: "area-packaging", tab: "workspace" };
-  REDIRECT["s10-diff"] = { area: "area-packaging", tab: "workspace" };
+  REDIRECT["s10-diff"] = { area: "area-changes", tab: "diff" };
   REDIRECT["s11-preview"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["s12-lifecycle"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["rm01-env-page"] = { area: "area-releases", tab: "environments" };
@@ -1689,6 +1699,7 @@ export function mountOperator(host, options) {
         areaObject(state.hub, state.screen, {
           packagingRunId: state.packagingRunId,
           releaseEnvironmentId: state.releaseEnvironmentId,
+          changeRequestId: state.crReview?.selectedId,
         }),
       )
     );
@@ -3475,170 +3486,19 @@ export function mountOperator(host, options) {
   }
 
   function renderS16ApprovalsBoard(root) {
-    const cols = [
-      { k: "Proposed", icon: "inbox", col: "#8b96a5" },
-      { k: "Needs approval", icon: "warnTri", col: "#eab854" },
-      { k: "Approved", icon: "shield", col: "#60a5fa" },
-      { k: "Rolling out", icon: "bolt", col: "#9881f3" },
-      { k: "Done", icon: "checkCircle", col: "#34d399" },
-    ];
-    const cards = [
-      {
-        id: "PLN-2026-0421",
-        col: "Proposed",
-        name: "uds-core 0.31.2 + CR-308",
-        envs: 14,
-        gate: "CAUTION",
-        tone: "amber",
-        why: "RUN-8844 publishing",
-        age: "09:45 PM",
-        pct: 0,
-      },
-      {
-        id: "PLN-2026-0418",
-        col: "Needs approval",
-        name: "uds-core 0.31.2 West",
-        envs: 14,
-        gate: "NO-GO",
-        tone: "red",
-        why: "1/2 approvals · window closed",
-        age: "09:36 PM",
-        pct: 0,
-      },
-      {
-        id: "PLN-2026-0417",
-        col: "Needs approval",
-        name: "policy-admission 3.2.7",
-        envs: 31,
-        gate: "CAUTION",
-        tone: "amber",
-        why: "Awaiting 2nd signer",
-        age: "08:50 PM",
-        pct: 0,
-      },
-      {
-        id: "PLN-2026-0414",
-        col: "Approved",
-        name: "core-dns 1.11.3",
-        envs: 16,
-        gate: "GO",
-        tone: "green",
-        why: "Queued for 02:00 UTC",
-        age: "05:04 PM",
-        pct: 0,
-      },
-      {
-        id: "PLN-2026-0412",
-        col: "Rolling out",
-        name: "runtime-patch v1.30.6",
-        envs: 19,
-        gate: "CAUTION",
-        tone: "amber",
-        why: "14/19 clusters converged",
-        age: "11:20 AM",
-        pct: 74,
-      },
-      {
-        id: "PLN-2026-0411",
-        col: "Rolling out",
-        name: "log-shipper 0.41.1",
-        envs: 24,
-        gate: "GO",
-        tone: "green",
-        why: "22/24 healthy · 2 diode",
-        age: "08:15 AM",
-        pct: 91,
-      },
-      {
-        id: "PLN-2026-0409",
-        col: "Done",
-        name: "uds-core 0.31.1",
-        envs: 42,
-        gate: "GO",
-        tone: "green",
-        why: "42/42 synced · 0 rollbacks",
-        age: "2d ago",
-        pct: 100,
-      },
-    ];
-    const sel =
-      cards.find((c) => c.id === state.selectedKanbanPlanId) || cards[1];
-
-    root.innerHTML = `
-        <div class="so-resp-stack flex gap-3 h-full min-h-0 items-stretch">
-          <div class="flex-1 min-w-0 so-grid-5 gap-2 min-h-0">
-            ${cols
-              .map((c) => {
-                const items = cards.filter((x) => x.col === c.k);
-                return `
-                <div class="so-panel flex flex-col min-h-0 overflow-hidden bg-[#0e1317]">
-                  <div class="px-2.5 py-2 border-b border-[#1c242c] flex items-center justify-between">
-                    <span class="text-[10px] font-semibold uppercase tracking-[0.08em]" style="color:${c.col}">${c.k}</span>
-                    <span class="tnum text-[10px] px-1.5 rounded-full bg-[#172028] text-[#8b96a5]">${items.length}</span>
-                  </div>
-                  <div class="p-2 space-y-2 overflow-y-auto flex-1">
-                    ${items
-                      .map(
-                        (cd) => `
-                      <div data-onclick="state.selectedKanbanPlanId='${cd.id}'; renderMainWorkspace()"
-                           class="so-card so-card-interactive p-2.5 cursor-pointer space-y-1.5 ${cd.id === sel.id ? "!border-[#5c9ce6]" : ""}">
-                        <div class="flex items-center justify-between">
-                          <span class="font-semibold text-[11.5px] text-[#ffffff]">${cd.id}</span>
-                          ${pill(cd.gate, cd.tone)}
-                        </div>
-                        <div class="text-[11px] text-[#b6c2cf]">${cd.name}</div>
-                        <div class="flex justify-between text-[10px] text-[#6d7885] tnum"><span>${cd.envs} targets</span><span>${cd.age}</span></div>
-                        <div class="text-[10px] text-[#eab854]">${cd.why}</div>
-                        ${cd.pct > 0 && cd.pct < 100 ? `<div class="h-1 w-full bg-[#090e12] rounded-full overflow-hidden"><div class="h-full bg-[#4c90f0]" style="width:${cd.pct}%"></div></div>` : ""}
-                      </div>
-                    `,
-                      )
-                      .join("")}
-                  </div>
-                </div>
-              `;
-              })
-              .join("")}
-          </div>
-
-          <div class="so-resp-full so-panel w-[252px] shrink-0 p-3 flex flex-col justify-between">
-            <div class="space-y-3">
-              <div class="flex justify-between items-center border-b border-[#1c242c] pb-2">
-                <span class="font-bold text-[13.5px] text-[#ffffff]">${sel.id}</span>
-                ${pill(sel.gate, sel.tone)}
-              </div>
-              <div class="space-y-1.5">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6d7885]">Reviewer Checklist</div>
-                ${[
-                  ["sbom", "Verify SPDX zero high/crit CVEs"],
-                  ["soak", "Confirm canary soak < 1%"],
-                  ["diode", "Verify diode SHA-256 receipt"],
-                ]
-                  .map(
-                    (it) => `
-                  <label class="flex items-center gap-2 text-[11.5px] text-[#dce4ee] py-1 cursor-pointer">
-                    <input type="checkbox" ${state.revChecks[it[0]] ? "checked" : ""} data-onchange="state.revChecks['${it[0]}']=this.checked; renderMainWorkspace()" />
-                    <span>${it[1]}</span>
-                  </label>
-                `,
-                  )
-                  .join("")}
-              </div>
-              <div class="space-y-2 pt-2 border-t border-[#1c242c]">
-                <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#6d7885]">History (Newest First)</div>
-                <div class="so-stream-item so-stream-amber text-[11px]"><div class="tnum text-[#6d7885]">09:42 PM · Policy</div><div class="text-[#dce4ee]">Window closed until 02:00Z</div></div>
-                <div class="so-stream-item so-stream-emerald text-[11px]"><div class="tnum text-[#6d7885]">08:58 PM · M. Chen</div><div class="text-[#dce4ee]">Signed Approval 1/2</div></div>
-              </div>
-            </div>
-            <button data-onclick="switchScreen('s15-plan-detail')" class="so-btn so-btn-blue w-full">Open Control Tower &rarr;</button>
-          </div>
-        </div>
-      `;
+    root.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
+    root.onclick = (event) => {
+      const target =
+        event.target instanceof Element
+          ? event.target.closest("[data-review-plan]")
+          : null;
+      const id = target?.getAttribute("data-review-plan");
+      if (!(state.hub?.plans || []).some((row) => row.id === id)) return;
+      state.releasePlanId = id;
+      switchScreen("rm03-plan-detail");
+    };
   }
 
-  // =========================================================================
-  // SCREEN 17: SPOKES & LIVE AUDIT STREAMS (Matched 1:1 to f_02_15_onyx.png 4-Column Live Streams!)
-  // =========================================================================
   function renderS17SpokesAudit(root) {
     const cols = [
       {
@@ -4443,106 +4303,34 @@ export function mountOperator(host, options) {
   }
 
   function renderRM04Constraints(root) {
-    const spec =
-      RM_ACTION_SPECS[state.rmActionId] || RM_ACTION_SPECS.execute_plan;
-    const clauses = spec.blockingRule.split(";").map((s) => s.trim());
-    const rows = [
-      {
-        k: "rmFixWindow",
-        title: "Maintenance window",
-        clause: clauses[0],
-        pass: state.rmFixWindow,
-        ok: "Active Override OVR-120 authorizes execution outside 02:00–05:00 UTC.",
-        bad: "Current UTC (21:48Z) is outside edge-west-02 window (02:00–05:00 UTC) and no global Override is active.",
-        fix: "Create maintenance override",
-        go: "state.rmActivitySubnav='overrides'; switchScreen('rm02-env-activity')",
-      },
-      {
-        k: "rmFixApproval",
-        title: "Missing approval",
-        clause: clauses[1],
-        pass: state.rmFixApproval,
-        ok: "2 of 2 @fleet-approvers cryptographic approvals recorded.",
-        bad: "1 of 2 required @fleet-approvers approvals recorded (M. Chen signed; awaiting second reviewer).",
-        fix: "Open manual promotion review",
-        go: "state.rmPromoDialogOpen=true; switchScreen('rm06-promotion-pipe')",
-      },
-      {
-        k: "rmFixUnsigned",
-        title: "Unsigned artifact",
-        clause: clauses[2],
-        pass: state.rmFixUnsigned,
-        ok: "All 4 release bundle artifacts carry verified prod-root-2026 signatures.",
-        bad: "Candidate extension telemetry-collector-0.9.4.tgz in RUN-8844 is UNSIGNED (pending HSM slot).",
-        fix: "Inspect bundle signatures & SBOM",
-        go: "switchScreen('rm08-bundle-preview')",
-      },
-      {
-        k: "rmFixRolling",
-        title: "Plan rolling out",
-        clause: clauses[3],
-        pass: state.rmFixRolling,
-        ok: "Zero conflicting Plans are ROLLING_OUT on target Environments.",
-        bad: "Plan PLN-2026-0412 (runtime-admission) is currently ROLLING_OUT across 5 shared Environments.",
-        fix: "View active rollout PLN-2026-0412",
-        go: "state.rmActivitySubnav='plans'; switchScreen('rm02-env-activity')",
-      },
-    ];
-    const blocked = rows.filter((r) => !r.pass).length;
-
-    root.innerHTML = `
-        <div class="space-y-2.5 flex flex-col">
-          ${rmApiStrip("PROPOSED", "POST /v1/actions/{actionId}/evaluate-constraints", "ConduitRequirement")}
-          <div class="${blocked > 0 ? "so-warn-card" : "so-opt-card"} p-3.5 space-y-2.5">
-            <div class="flex flex-wrap items-center justify-between gap-2">
-              <div class="space-y-1">
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] ${blocked > 0 ? "text-[#eab854]" : "text-[#34d399]"}">Ontology Action Constraint Gate</span>
-                  ${agentChip("Gate Evaluator", 8, 1)}
-                  <span class="so-pill code-id">Audit: ${spec.audit}</span>
-                </div>
-                <div class="flex items-center gap-2 pt-1">
-                  <span class="text-[12px] text-[#8b96a5]">Action:</span>
-                  <select data-onchange="state.rmActionId=this.value; renderMainWorkspace()" class="so-select code-id">
-                    <option value="execute_plan" ${state.rmActionId === "execute_plan" ? "selected" : ""}>execute_plan (Plan)</option>
-                    <option value="promote_release_manual" ${state.rmActionId === "promote_release_manual" ? "selected" : ""}>promote_release_manual (Release channel)</option>
-                  </select>
-                </div>
-              </div>
-              <div class="flex flex-wrap items-center gap-2">
-                <button type="button" data-onclick="state.rmFixWindow=true;state.rmFixApproval=true;state.rmFixUnsigned=true;state.rmFixRolling=true;renderMainWorkspace()" class="so-btn">Simulate all satisfied</button>
-                ${governedBtn({ label: spec.label, role: "Release Approver", auditEvent: spec.audit, onClickJs: `state.rmExecNotice='Dispatched ${spec.actionId} and wrote ${spec.audit}'; renderMainWorkspace()`, cls: "so-btn so-btn-emerald", blockedReason: blocked > 0 ? `${blocked} constraint(s) blocking action` : "" })}
-              </div>
-            </div>
-            <div class="p-2 rounded bg-[#080c0f] border border-[#1c242c] code-id text-[10.8px] text-[#8b96a5]">
-              OntologyActionSpec.blockingRule = "${spec.blockingRule}"
-            </div>
-          </div>
-
-          ${state.rmExecNotice ? `<div class="so-opt-card p-2.5 code-id text-[11.5px] text-[#34d399]">&#10003; ${state.rmExecNotice}</div>` : ""}
-
-          <div class="so-panel overflow-hidden">
-            <div class="so-table-scroll"><table class="so-table" aria-label="Constraint rows">
-              <thead><tr><th>Status</th><th>Blocking Rule &amp; Ontology Clause</th><th>Evaluation Reason</th><th>Simulate</th><th style="text-align:right">Link to Fix</th></tr></thead>
-              <tbody>
-                ${rows
-                  .map(
-                    (r) => `
-                  <tr>
-                    <td>${pill(r.pass ? "Pass" : "Blocked", r.pass ? "green" : "red")}</td>
-                    <td><div class="font-semibold text-white">${r.title}</div><div class="code-id text-[10px] text-[#596573]">${r.clause}</div></td>
-                    <td class="text-[#8b96a5] max-w-[390px]">${r.pass ? r.ok : r.bad}</td>
-                    <td><button type="button" data-onclick="state['${r.k}']=!state['${r.k}']; state.rmExecNotice=''; renderMainWorkspace()" class="so-btn so-btn-sm">${r.pass ? "Re-block" : "Mark fixed"}</button></td>
-                    <td style="text-align:right;white-space:nowrap"><a href="#fix" data-onclick="event.preventDefault(); ${r.go}" class="text-[#60a5fa] font-semibold hover:underline">${r.fix} &rarr;</a></td>
-                  </tr>
-                `,
-                  )
-                  .join("")}
-              </tbody>
-            </table></div>
-          </div>
-        </div>
-      `;
+    const review = (state.crReview ||= {
+      filter: "all",
+      selectedId: "",
+      draft: { decision: "", rationale: "" },
+      pending: false,
+      error: "",
+    });
+    const request = bindReviewContext(
+      state.hub?.changes,
+      review,
+      state.reviewOperatorName || "",
+    );
+    root.innerHTML = constraintGateMarkup(
+      request,
+      state.reviewOperatorName || "",
+    );
+    root.onclick = (event) => {
+      const target =
+        event.target instanceof Element
+          ? event.target.closest("[data-open-cr-review]")
+          : null;
+      if (
+        !target ||
+        target.getAttribute("data-open-cr-review") !== review.selectedId
+      )
+        return;
+      switchScreen("rm07-change-requests");
+    };
   }
 
   function renderRM05ReleaseRollout(root) {
@@ -4633,21 +4421,24 @@ export function mountOperator(host, options) {
       error: "",
     });
     const rows = Array.isArray(state.hub?.changes) ? state.hub.changes : [];
+    bindReviewContext(rows, review, state.reviewOperatorName || "");
     root.innerHTML = `<div data-cr-root>${reviewMarkup(rows, {
       ...review,
-      operatorName: state.operatorName,
+      operatorName: state.reviewOperatorName || "",
     })}</div>`;
     const host = root.querySelector("[data-cr-root]");
     if (!host) return;
-    const rerender = () => renderChangeReview(root);
-    const selected = () =>
-      review.selectedId ||
-      host.querySelector("[data-cr-select]")?.getAttribute("data-cr-select") ||
-      "";
+    const rerender = () => renderMainWorkspace();
+    const selected = () => review.selectedId;
+    if (review.pending)
+      host.querySelectorAll("button, textarea").forEach((element) => {
+        element.disabled = true;
+      });
     host.addEventListener("input", (event) => {
       const target = event.target instanceof Element ? event.target : null;
       if (!target || !target.matches("[data-cr-rationale]")) return;
       review.draft = { decision: "", rationale: target.value };
+      host.querySelector(".so-confirm")?.remove();
       const ok = target.value.trim() !== "" && !review.pending;
       host.querySelectorAll("[data-cr-decide]").forEach((button) => {
         if (button.getAttribute("data-can-review") !== "0")
@@ -4656,11 +4447,18 @@ export function mountOperator(host, options) {
     });
     host.addEventListener("click", async (event) => {
       const target = event.target instanceof Element ? event.target : null;
-      if (!target) return;
+      if (!target || review.pending) return;
       const filter = target.closest("[data-cr-filter]");
       if (filter) {
         review.filter = filter.getAttribute("data-cr-filter") || "all";
         review.selectedId = "";
+        review.draft = { decision: "", rationale: "" };
+        review.error = "";
+        bindReviewContext(
+          state.hub?.changes,
+          review,
+          state.reviewOperatorName || "",
+        );
         return rerender();
       }
       const pick = target.closest("[data-cr-select]");
@@ -4684,6 +4482,13 @@ export function mountOperator(host, options) {
         return rerender();
       }
       if (target.closest("[data-cr-confirm]")) {
+        const current = bindReviewContext(
+          state.hub?.changes,
+          review,
+          state.reviewOperatorName || "",
+        );
+        if (!reviewState(current, state.reviewOperatorName || "").canReview)
+          return rerender();
         const id = selected();
         const { decision, rationale } = review.draft;
         if (!id || !decision || !rationale.trim()) return;
@@ -4693,6 +4498,7 @@ export function mountOperator(host, options) {
         try {
           await liveHub.reviewChange(id, decision, rationale.trim());
           review.draft = { decision: "", rationale: "" };
+          review.error = "";
         } catch (error) {
           review.error = error instanceof Error ? error.message : String(error);
         }
@@ -5125,10 +4931,25 @@ export function mountOperator(host, options) {
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
     state.detailScreen = current.screen;
+    if (state.screen === "area-changes") {
+      const review = (state.crReview ||= {
+        filter: "all",
+        selectedId: "",
+        draft: { decision: "", rationale: "" },
+        pending: false,
+        error: "",
+      });
+      bindReviewContext(
+        state.hub?.changes,
+        review,
+        state.reviewOperatorName || "",
+      );
+    }
     const header = objectHeader(
       areaObject(state.hub, state.screen, {
         packagingRunId: state.packagingRunId,
         releaseEnvironmentId: state.releaseEnvironmentId,
+        changeRequestId: state.crReview?.selectedId,
       }),
     );
     const extra = areaSupplement(state.hub, state.screen, current.id);
@@ -5251,6 +5072,8 @@ export function mountOperator(host, options) {
       "rm06-promotion-pipe": renderRM06PromotionPipe,
       "rm09-recalls": releaseGates.renderers["rm09-recalls"],
       "rm07-change-requests": renderRM07ChangeRequests,
+      "s10-diff": renderChangeReview,
+      "rm04-constraints": renderRM04Constraints,
       "s16-approvals-board": renderS16ApprovalsBoard,
       "ai01-logic": (node) => intelligence.renderLogic(node),
       "ai02-evals": (node) => intelligence.renderEvals(node),

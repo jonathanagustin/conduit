@@ -1,3 +1,4 @@
+import { changeDiffMarkup, diffValue } from "./change-diff.js";
 // Change-request review: list, detail, and a two-person review form.
 // Pure markup builders; the caller owns fetching and event wiring.
 
@@ -38,12 +39,20 @@ export function filterRequests(rows, filter) {
 
 export function reviewState(request, operatorName) {
   const author = request?.author?.username ?? "";
+  if (!author || !operatorName)
+    return {
+      isAuthor: false,
+      canReview: false,
+      reason:
+        "Author or signed-in operator identity is unavailable; review is disabled.",
+    };
   const isAuthor = Boolean(author) && author === operatorName;
   if (isAuthor) {
     return {
       isAuthor,
       canReview: false,
-      reason: "You wrote this request. Another person must approve or reject it.",
+      reason:
+        "You wrote this request. Another person must approve or reject it.",
     };
   }
   if (request?.status !== "PENDING_APPROVALS") {
@@ -71,7 +80,16 @@ function listColumn(all, shown, selectedId, filter, esc) {
       .map((r) => {
         const badge = BADGE[r.status] || "kit-badge-info";
         const selected = r.id === selectedId;
-        return `<button type="button" class="so-list-item${selected ? " is-selected" : ""}" data-cr-select="${esc(r.id)}" aria-current="${selected}"><strong>${esc(r.title)}</strong> <code class="code-id">${esc(r.id)}</code> <span class="kit-badge ${badge}">${esc(r.status)}</span> <span class="so-muted">${esc(r.author?.username)}</span></button>`;
+        const requirements = Array.isArray(r.requirements)
+          ? r.requirements
+          : [];
+        const approvers =
+          requirements
+            .map(
+              (row) => row.team || row.role || row.kind || "scope unavailable",
+            )
+            .join(", ") || "not recorded";
+        return `<button type="button" class="so-list-item${selected ? " is-selected" : ""}" data-cr-select="${esc(r.id)}" aria-current="${selected}"><strong>${esc(r.title)}</strong> <code class="code-id">${esc(r.id)}</code> <span class="kit-badge ${badge}">${esc(r.status)}</span> <span class="so-muted">${esc(r.author?.username)}</span> <span class="kit-badge kit-badge-muted">Risk: not recorded</span><span>Required approvers: ${esc(approvers)}</span></button>`;
       })
       .join("");
   }
@@ -81,7 +99,9 @@ function listColumn(all, shown, selectedId, filter, esc) {
 function detailColumn(request, opts, esc) {
   const { operatorName, draft, pending, error } = opts;
   const state = reviewState(request, operatorName);
-  const evaluations = Array.isArray(request.evaluations) ? request.evaluations : [];
+  const evaluations = Array.isArray(request.evaluations)
+    ? request.evaluations
+    : [];
   const changes = Array.isArray(request.changes) ? request.changes : [];
   const reviews = Array.isArray(request.reviews) ? request.reviews : [];
   const rationale = String(draft.rationale ?? "");
@@ -100,7 +120,21 @@ function detailColumn(request, opts, esc) {
     ? `<ul>${changes
         .map(
           (c) =>
-            `<li><code class="code-id">${esc(c.id)}</code> ${esc(c.type)} on <code class="code-id">${esc(c.installationId)}</code></li>`,
+            `<li><code class="code-id">${esc(c.id)}</code> ${esc(c.type)} on <code class="code-id">${esc(c.installationId)}</code><dl>${[
+              "entity",
+              "startTime",
+              "endTime",
+              "type",
+              "version",
+              "targetVersion",
+              "channel",
+            ]
+              .filter((key) => Object.hasOwn(c.request || {}, key))
+              .map(
+                (key) =>
+                  `<dt>${esc(key)}</dt><dd><code>${esc(diffValue(c.request[key], key))}</code></dd>`,
+              )
+              .join("")}</dl></li>`,
         )
         .join("")}</ul>`
     : `<p class="so-muted">No change is attached.</p>`;
@@ -132,7 +166,9 @@ function detailColumn(request, opts, esc) {
       ? `<div class="so-confirm"><span>Confirm ${esc(draft.decision)} of ${esc(request.id)}?</span> <button type="button" class="so-btn so-btn-primary" data-cr-confirm>Confirm</button> <button type="button" class="so-btn" data-cr-cancel>Cancel</button></div>`
       : "";
 
-  const err = error ? `<div class="kit-card kit-bar-err">${esc(error)}</div>` : "";
+  const err = error
+    ? `<div class="kit-card kit-bar-err">${esc(error)}</div>`
+    : "";
 
   return `<div class="so-col so-detail">
 <h3>${esc(request.title)}</h3>
@@ -143,6 +179,9 @@ function detailColumn(request, opts, esc) {
 ${why}
 <h4>Changes</h4>
 ${changeList}
+${changeDiffMarkup(request)}
+<h4>Required approvers</h4>
+${(Array.isArray(request.requirements) ? request.requirements : []).map((row) => `<p>${esc(row.kind)} · ${esc(row.team || row.role || row.operation || "scope unavailable")} · ${esc(row.reason)}</p>`).join("") || '<p class="so-muted">No reviewer requirement is recorded.</p>'}
 <h4>Reviews</h4>
 ${reviewList}
 ${form}
@@ -169,14 +208,51 @@ export function reviewMarkup(
 ) {
   const all = Array.isArray(rows) ? rows : [];
   const shown = filterRequests(all, filter);
-  const selected = shown.find((r) => r.id === selectedId) || shown[0];
+  const selected = selectedId
+    ? shown.find((r) => r.id === selectedId)
+    : shown[0];
   const left = listColumn(all, shown, selected?.id, filter, esc);
   const right = selected
     ? detailColumn(
         selected,
-        { operatorName, draft: draft || { decision: "", rationale: "" }, pending, error },
+        {
+          operatorName,
+          draft: draft || { decision: "", rationale: "" },
+          pending,
+          error,
+        },
         esc,
       )
-    : `<div class="so-col so-detail">${error ? `<div class="kit-card kit-bar-err">${esc(error)}</div>` : ""}</div>`;
+    : `<div class="so-col so-detail">${selectedId ? "<p>The selected request is no longer in the visible filtered index.</p>" : ""}${error ? `<div class="kit-card kit-bar-err">${esc(error)}</div>` : ""}</div>`;
   return `<div class="so-split">${left}${right}</div>`;
+}
+
+/** Keep one review draft bound to a visible request and its current revision. */
+export function bindReviewContext(rows, review, operatorName = "") {
+  const shown = filterRequests(rows, review.filter || "all");
+  if (!review.selectedId) review.selectedId = shown[0]?.id || "";
+  const selected = shown.find((row) => row.id === review.selectedId) || null;
+  const contextKey = selected
+    ? JSON.stringify([
+        operatorName,
+        selected.id,
+        selected.revision,
+        selected.status,
+        selected.author,
+        selected.description,
+        selected.changes,
+        selected.evaluations,
+        selected.requirements,
+        selected.labels,
+      ])
+    : `missing:${review.selectedId}`;
+  if (review.contextKey !== contextKey) {
+    const hadDraft = Boolean(review.draft?.decision || review.draft?.rationale);
+    review.draft = { decision: "", rationale: "" };
+    if (hadDraft)
+      review.error =
+        "Request context changed; review the current record again.";
+    review.contextKey = contextKey;
+  }
+  return selected;
 }
