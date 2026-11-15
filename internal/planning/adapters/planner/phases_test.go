@@ -279,3 +279,57 @@ func readPrompt(t *testing.T, script string, n int) string {
 	}
 	return string(raw)
 }
+
+func TestBindingModelReportsModelOrNeutralLabelNeverCommand(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("script fixture is a shell")
+	}
+	fixture, _ := makeFixture(t)
+	server := serveGit(t, fixture)
+	ctx := context.Background()
+
+	// Case 1: Model does not report a model name -> binding shows "Configured model", never command name ("model").
+	unreportedReplies := append(inspectReplies(askNone), toolRead, planJSON)
+	unreportedScript := writeModelScript(t, unreportedReplies...)
+	svcUnreported := application.NewService(Planner{Argv: []string{unreportedScript}})
+	s1, err := svcUnreported.Create(ctx, server.URL+"/src.git", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s1, err = svcUnreported.Turn(ctx, s1.ID, "package this")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s1, err = svcUnreported.Accept(ctx, s1.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s1.Binding.Model != domain.DefaultModelLabel {
+		t.Fatalf("unreported model = %q, want %q", s1.Binding.Model, domain.DefaultModelLabel)
+	}
+	if s1.Binding.Model == "model" || s1.Binding.Model == unreportedScript {
+		t.Fatalf("binding leaked configured command %q", s1.Binding.Model)
+	}
+
+	// Case 2: Model reports its model name in reply JSON -> binding shows reported model name.
+	reportedPlanJSON := `{"model":"claude-sonnet-4-20250514","summary":"A small Node site.","baseImage":"node:20-slim","buildSteps":["npm ci","npm run build"],"ports":[8080,3000],"networkAllow":["registry.npmjs.org:443"],"sso":{"required":true,"notes":"operator login"},"risks":["no lockfile"]}`
+	reportedReplies := append(inspectReplies(askNone), toolRead, reportedPlanJSON)
+	reportedScript := writeModelScript(t, reportedReplies...)
+	svcReported := application.NewService(Planner{Argv: []string{reportedScript}})
+	s2, err := svcReported.Create(ctx, server.URL+"/src.git", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2, err = svcReported.Turn(ctx, s2.ID, "package this")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s2, err = svcReported.Accept(ctx, s2.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if s2.Binding.Model != "claude-sonnet-4-20250514" {
+		t.Fatalf("reported model = %q, want claude-sonnet-4-20250514", s2.Binding.Model)
+	}
+}
+

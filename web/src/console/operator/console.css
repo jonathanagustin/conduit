@@ -1047,6 +1047,8 @@
 #app-breadcrumb-bar {
   background: rgba(13, 19, 23, 0.88);
   backdrop-filter: blur(10px);
+  min-height: var(--h-subbar);
+  padding: var(--sp-2) var(--sp-4);
 }
 .so-peer-scroll {
   mask-image: linear-gradient(
@@ -1167,7 +1169,9 @@
 .cnd-topbar {
   height: var(--h-topbar);
   min-height: var(--h-topbar);
+  padding-left: var(--sp-4);
+  padding-right: var(--sp-4);
 }
 .cnd-workspace {
-  padding: var(--gap-panel) 12px;
+  padding: var(--gap-panel) var(--sp-4);
 }

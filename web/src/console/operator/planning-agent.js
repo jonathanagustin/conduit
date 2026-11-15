@@ -1,6 +1,37 @@
 import { runAgent } from "./agent-runs.js";
 import { FormToolExecutor, formToolOffers } from "./agent-form-tools.js";
 
+export function mergeAgentMessages(prior, current) {
+  if (!current || !current.length) return prior;
+  const merged = [...prior];
+  const byId = new Map();
+  merged.forEach((m, idx) => {
+    if (m?.id) byId.set(m.id, idx);
+  });
+  for (const msg of current) {
+    if (!msg?.id) continue;
+    if (byId.has(msg.id)) {
+      merged[byId.get(msg.id)] = msg;
+    } else {
+      const matchingIdx = merged.findIndex(
+        (m) =>
+          m.role === msg.role &&
+          m.content === msg.content &&
+          !current.some((c) => c.id === m.id),
+      );
+      if (matchingIdx !== -1) {
+        byId.delete(merged[matchingIdx].id);
+        merged[matchingIdx] = msg;
+        byId.set(msg.id, matchingIdx);
+      } else {
+        byId.set(msg.id, merged.length);
+        merged.push(msg);
+      }
+    }
+  }
+  return merged;
+}
+
 export class PlanningAgent {
   constructor(threadId, fetchImpl = fetch) {
     this.threadId = threadId;
@@ -75,7 +106,9 @@ export class PlanningAgent {
           },
           this.fetch,
         );
-        this.messages = [...run.messages.values()];
+        this.messages = mergeAgentMessages(this.messages, [
+          ...run.messages.values(),
+        ]);
         this.interrupt =
           run.outcome?.type === "interrupt"
             ? run.outcome.interrupts?.find(

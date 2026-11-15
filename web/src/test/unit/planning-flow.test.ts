@@ -10,7 +10,9 @@ import {
   bindingRows,
   createSession,
   describeError,
+  displayModelName,
   emptyPlanning,
+  formatAcceptedTimestamp,
   openQuestions,
   parseSSE,
   planSections,
@@ -179,6 +181,106 @@ describe("planning flow state", () => {
       code: "MODEL_NOT_CONFIGURED",
     });
     expect(next.error?.code).toBe("MODEL_NOT_CONFIGURED");
+  });
+
+  it("keeps earlier planning thread messages when a plan arrives (#695)", () => {
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        messages: [
+          { id: "m1", role: "user", text: "Onboard service" },
+          { id: "m2", role: "model", text: "Which port should I expose?" },
+        ],
+      }),
+      agentMessages: [
+        { id: "m3", role: "user", content: "8080" },
+        { id: "m4", role: "model", content: "Plan drafted for port 8080." },
+      ],
+    });
+    expect(html).toContain("Onboard service");
+    expect(html).toContain("Which port should I expose?");
+    expect(html).toContain("8080");
+    expect(html).toContain("Plan drafted for port 8080.");
+  });
+
+  it("shows the reported model or Configured model in binding rows, never a command (#696)", () => {
+    expect(displayModelName("")).toBe("Configured model");
+    expect(displayModelName("/usr/local/bin/claude-planner --json")).toBe(
+      "Configured model",
+    );
+    expect(displayModelName("python3 scripts/planner.py")).toBe(
+      "Configured model",
+    );
+    expect(displayModelName("claude-sonnet-4-6")).toBe("claude-sonnet-4-6");
+    const rows = Object.fromEntries(
+      bindingRows({
+        profile: { name: "onboard", version: "v3", hash: "ph" },
+        intake: { repoUrl: "https://h/o/r", ref: "main" },
+        resolvedCommit: "c".repeat(40),
+        model: "/bin/sh -c planner",
+        plan,
+        acceptedAt: "2026-04-19T19:01:02Z",
+      }),
+    );
+    expect(rows["Model"]).toBe("Configured model");
+    expect(rows["Accepted"]).toContain("ET");
+    expect(rows["Accepted"]).toContain("2026-04-19T19:01:02Z");
+  });
+
+  it("formats Accepted timestamp in America/New_York ET (#697)", () => {
+    expect(formatAcceptedTimestamp("2026-04-19T19:01:02Z")).toBe(
+      "2026-04-19 15:01:02 ET (2026-04-19T19:01:02Z)",
+    );
+  });
+
+  it("renders canonical JSON plan sections, View JSON toggle, two-column workspace, and sticky Accept metadata (#698)", () => {
+    const jsonPlan = {
+      text: JSON.stringify(
+        {
+          summary: "Containerize service",
+          baseImage: "cgr.dev/chainguard/static:latest",
+          buildSteps: ["go build ./cmd/app"],
+          ports: [8080],
+          networkAllow: ["api.internal:443"],
+          sso: true,
+          risks: ["Requires outbound TLS"],
+        },
+        null,
+        2,
+      ),
+      sha256: "deadbeef1234567890",
+    };
+    const sections = planSections(jsonPlan.text);
+    expect(sections.map((s) => s.title)).toEqual([
+      "Summary",
+      "Base image",
+      "Build steps",
+      "Ports",
+      "Network allow",
+      "SSO",
+      "Risks",
+    ]);
+    const state = {
+      ...emptyPlanning(),
+      session: session({
+        resolvedCommit: "1234567890abcdef1234567890abcdef12345678",
+        plan: jsonPlan,
+      }),
+    };
+    const htmlClosed = planningMarkup(state);
+    expect(htmlClosed).toContain('data-plan-col="conversation"');
+    expect(htmlClosed).toContain('data-plan-col="plan"');
+    expect(htmlClosed).toContain("data-plan-view-json");
+    expect(htmlClosed).not.toContain("data-plan-json");
+    expect(htmlClosed).toContain("data-plan-accept-meta");
+    expect(htmlClosed).toContain("https://h/o/r@main");
+    expect(htmlClosed).toContain("commit 1234567890ab");
+    expect(htmlClosed).toContain("profile onboard@v3");
+    expect(htmlClosed).toContain("plan deadbeef1234");
+
+    const htmlOpen = planningMarkup({ ...state, showPlanJson: true });
+    expect(htmlOpen).toContain("data-plan-json");
+    expect(htmlOpen).toContain("Hide JSON");
   });
 });
 
