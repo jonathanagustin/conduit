@@ -85,6 +85,8 @@ func publicRouter(t *testing.T, manifest inventory) (routers.Router, *openapi3.T
 // No approval, execution, publication to a registry, or network dial is involved.
 func localHub(t *testing.T) http.Handler {
 	t.Helper()
+	// Never inherit a developer's live Temporal address/orchestrator selection.
+	t.Setenv("PLAN_ORCHESTRATOR", "native")
 	repository := controlplane.NewMemoryRepository()
 	digest := "sha256:" + strings.Repeat("a", 64)
 	state := controlplane.DesiredState{
