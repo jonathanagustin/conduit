@@ -960,7 +960,7 @@ export function mountOperator(host, options) {
   SCREENS.push(...ontologyGraph.screens);
   const settings = createSettings({
     state,
-    render: () => renderApp({ backgroundRefresh: true }),
+    render: () => renderApp({ backgroundRefresh: true, settingsRefresh: true }),
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
@@ -4983,7 +4983,10 @@ export function mountOperator(host, options) {
     bindKit(root, waves.pucks.length ? { pucks: waves.pucks } : null);
   }
 
-  function renderApp({ backgroundRefresh = false } = {}) {
+  function renderApp({
+    backgroundRefresh = false,
+    settingsRefresh = false,
+  } = {}) {
     const mapped = areaFor(state.screen);
     if (mapped) {
       state.screen = mapped.area;
@@ -4993,6 +4996,9 @@ export function mountOperator(host, options) {
     renderLeftRail();
     renderCenterTabStrip();
     if (
+      !(
+        settingsRefresh && !Object.hasOwn(settings.renderers, visibleScreen())
+      ) &&
       !(
         backgroundRefresh &&
         ((visibleScreen() === "s01-intake" &&

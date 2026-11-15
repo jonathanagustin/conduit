@@ -36,27 +36,6 @@ function consoleTenant() {
   }
 }
 
-const EXAMPLE_TEAMS = [
-  { name: "release-managers", displayName: "Release managers", members: 4 },
-  { name: "fleet-approvers", displayName: "Fleet approvers", members: 3 },
-  { name: "security-review", displayName: "Security review", members: 2 },
-];
-
-const EXAMPLE_GRANTS = [
-  {
-    team: "release-managers",
-    resourceRid: "environment/edge-west-02",
-    roles: "operator",
-    operations: "read, propose",
-  },
-  {
-    team: "fleet-approvers",
-    resourceRid: "environment/edge-west-02",
-    roles: "approver",
-    operations: "read, operate",
-  },
-];
-
 const SHORTCUTS = [
   ["Jump to a view", "Ctrl or Command K"],
   ["Close the open dialog", "Escape"],
@@ -210,6 +189,7 @@ const DATA_SOURCES = [
 async function readJSON(url) {
   const response = await fetch(url, {
     credentials: "same-origin",
+    signal: AbortSignal.timeout(15000),
     headers: { accept: "application/json" },
   });
   if (!response.ok) throw new Error(String(response.status));
@@ -219,18 +199,51 @@ async function readJSON(url) {
 export function createSettings(ctx) {
   const state = ctx.state;
 
-  function note(live, label) {
-    return `<span class="bp6-compound-tag"><span class="bp6-compound-left">${esc(label)}</span><span class="bp6-compound-right" style="background:#1a2430;color:#7cb4ff">${live ? "Hub" : "Example data"}</span></span>`;
+  function note(live, label, native = false) {
+    return `<span class="bp6-compound-tag"><span class="bp6-compound-left">${esc(label)}</span><span class="bp6-compound-right" style="background:#1a2430;color:#7cb4ff">${live ? "Hub" : native ? "Unavailable" : "Example data"}</span></span>`;
   }
 
+  const identityKey = () =>
+    JSON.stringify([
+      state.reviewOperatorActor || "",
+      state.reviewOperatorIdentities || [],
+    ]);
+  function clearOrganization() {
+    Object.assign(state, {
+      orgTeams: [],
+      orgGrants: [],
+      approvalPolicies: [],
+      signingKeys: [],
+      sessionApplications: [],
+      sessionTeams: [],
+      identityProviders: [],
+      orgTeamsLive: false,
+      orgGrantsLive: false,
+      approvalPoliciesLive: false,
+      signingLive: false,
+      identityAvailable: false,
+      sessionAvailable: false,
+      sessionName: "",
+      authEnabled: false,
+      hubReady: "unavailable",
+    });
+  }
   async function load() {
     if (state.settingsLoaded || state.settingsLoading) return;
+    const snapshotIdentity = identityKey();
+    state.settingsSnapshot = snapshotIdentity;
     state.settingsLoading = true;
+    clearOrganization();
     try {
       const identity = await readJSON("/v1/operator-identity");
-      state.authEnabled = Boolean(identity.enabled);
+      if (typeof identity.enabled !== "boolean")
+        throw new Error("identity unavailable");
+      state.identityAvailable = true;
+      state.authEnabled = identity.enabled;
       state.identityProviders = Array.isArray(identity.providers)
-        ? identity.providers
+        ? identity.providers.filter(
+            (provider) => provider && typeof provider === "object",
+          )
         : [];
     } catch {
       state.authEnabled = false;
@@ -238,41 +251,46 @@ export function createSettings(ctx) {
     }
     try {
       const body = await readJSON("/v1/teams");
-      const teams = Array.isArray(body.teams) ? body.teams : [];
-      if (teams.length) {
-        state.orgTeamsLive = true;
-        state.orgTeams = teams.map((team) => ({
-          name: team.name,
-          displayName: team.displayName || team.name,
-          members:
-            (team.memberUsers || []).length + (team.memberGroups || []).length,
-        }));
-      }
+      if (!Array.isArray(body.teams))
+        throw new Error("team directory unavailable");
+      state.orgTeamsLive = true;
+      state.orgTeams = body.teams.map((team) => ({
+        name: team.name,
+        displayName: team.displayName || team.name,
+        users: Array.isArray(team.memberUsers) ? team.memberUsers.length : 0,
+        groups: Array.isArray(team.memberGroups) ? team.memberGroups.length : 0,
+      }));
     } catch {
       state.orgTeamsLive = false;
+      state.orgTeams = [];
     }
     try {
       const body = await readJSON("/v1/resource-grants");
-      const grants = Array.isArray(body.resourceGrants)
-        ? body.resourceGrants
-        : [];
-      if (grants.length) {
-        state.orgGrantsLive = true;
-        state.orgGrants = grants.map((grant) => ({
-          team: grant.team,
-          resourceRid: grant.resourceRid,
-          roles: (grant.roles || []).join(", "),
-          operations: (grant.operations || []).join(", "),
-        }));
-      }
+      if (!Array.isArray(body.resourceGrants))
+        throw new Error("grants unavailable");
+      state.orgGrantsLive = true;
+      state.orgGrants = body.resourceGrants.map((grant) => ({
+        team: grant.team,
+        resourceRid: grant.resourceRid,
+        roles: Array.isArray(grant.roles) ? grant.roles.join(", ") : "",
+        operations: Array.isArray(grant.operations)
+          ? grant.operations.join(", ")
+          : "",
+      }));
     } catch {
       state.orgGrantsLive = false;
+      state.orgGrants = [];
     }
     try {
       const body = await readJSON("/v1/approval-policies");
-      state.approvalPolicies = Array.isArray(body.approvalPolicies)
-        ? body.approvalPolicies
-        : [];
+      if (
+        !Array.isArray(body.approvalPolicies) ||
+        body.approvalPolicies.some(
+          (policy) => !policy || typeof policy.id !== "string",
+        )
+      )
+        throw new Error("policies unavailable");
+      state.approvalPolicies = body.approvalPolicies;
       state.approvalPoliciesLive = true;
     } catch {
       state.approvalPolicies = [];
@@ -282,26 +300,32 @@ export function createSettings(ctx) {
       const ready = await readJSON("/health/ready");
       state.hubReady = ready?.status || "unknown";
     } catch (error) {
-      state.hubReady = `not ready (${error instanceof Error ? error.message : "no answer"})`;
+      state.hubReady = `unavailable (${error instanceof Error ? error.message : "no answer"})`;
     }
     try {
       const session = await readJSON("/v1/session");
+      if (typeof session?.actor?.username !== "string")
+        throw new Error("session identity unavailable");
+      state.sessionAvailable = true;
+      state.sessionName = session.effective?.username || session.actor.username;
       state.sessionApplications = Array.isArray(session.applications)
         ? session.applications
         : [];
-      state.sessionTeams = session?.effective?.teams || [];
+      state.sessionTeams = Array.isArray(session?.effective?.teams)
+        ? session.effective.teams
+        : [];
       state.sessionDelegated = Boolean(session?.delegated);
     } catch {
       state.sessionApplications = [];
     }
     try {
       const key = await readJSON("/v1/bundles/signing-key");
-      if (key && key.id) {
+      if (key && typeof key.id === "string" && key.id !== "") {
         state.signingLive = true;
         state.signingKeys = [
           {
             id: key.id,
-            algorithm: key.algorithm || "Ed25519",
+            algorithm: key.algorithm || "unavailable",
             publicKey: key.publicKey || "",
           },
         ];
@@ -310,6 +334,13 @@ export function createSettings(ctx) {
       state.signingLive = false;
     }
     await loadDataSources();
+    if (snapshotIdentity !== identityKey()) {
+      clearOrganization();
+      state.settingsLoaded = false;
+      state.settingsLoading = false;
+      ctx.render();
+      return;
+    }
     state.settingsLoaded = true;
     state.settingsLoading = false;
     ctx.render();
@@ -521,6 +552,13 @@ export function createSettings(ctx) {
   }
 
   function renderOrganization(root) {
+    if (state.settingsSnapshot !== identityKey()) state.settingsLoaded = false;
+    if (!state.settingsLoaded || state.settingsLoading) {
+      void load();
+      root.innerHTML =
+        '<div class="so-panel p-3" role="status">Reading the current organization snapshot…</div>';
+      return;
+    }
     const tab = state.orgTab || "org";
     const tabs = [
       ["org", "Organizations"],
@@ -530,37 +568,21 @@ export function createSettings(ctx) {
       ["identity", "Identity provider"],
       ["keys", "Signing keys"],
     ];
-    const teams = state.orgTeamsLive ? state.orgTeams : EXAMPLE_TEAMS;
-    const grants = state.orgGrantsLive ? state.orgGrants : EXAMPLE_GRANTS;
+    const teams = state.orgTeams || [];
+    const grants = state.orgGrants || [];
     const tenant = consoleTenant();
     let body = "";
     if (tab === "org") {
-      body = `
-        <div class="grid gap-3 lg:grid-cols-2">
-          <div class="space-y-2">
-            <div class="so-card p-3 flex items-center justify-between gap-2">
-              <div><div class="text-[12.5px] font-semibold text-white">${esc(tenant.displayName || tenant.id || "This Hub")}</div><div class="text-[11px] text-[#8b96a5]">${esc(tenant.id || "")}${state.orgTeamsLive ? ` · ${teams.length} team${teams.length === 1 ? "" : "s"}` : ""}</div></div>
-              ${note(Boolean(tenant.id), "Tenant")}
-            </div>
-            <div class="text-[11px] text-[#6d7885]">This console serves one tenant, named by the Hub when it serves the page. Teams and their roles are under Teams and roles.</div>
-          </div>
-          <div class="space-y-3">
-            <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverUsers ? "checked" : ""} data-onchange="state.discoverUsers=this.checked" /> Let members find other people</label>
-            <label class="flex items-center gap-2 text-[12px] text-[#dce4ee]"><input type="checkbox" ${state.discoverGroups ? "checked" : ""} data-onchange="state.discoverGroups=this.checked" /> Let members find groups</label>
-            <label class="block text-[11px] text-[#8b96a5]">Environment banner
-              <input class="so-input mt-1" value="${esc(state.environmentBanner)}" placeholder="Optional banner text" data-oninput="setEnvironmentBanner(this.value)" />
-            </label>
-            <div class="text-[11px] text-[#6d7885]">The banner is plain text. It does not assert a classification.</div>
-          </div>
-        </div>`;
+      body = `<section data-org-snapshot><h3>${esc(tenant.displayName || tenant.id || "This Hub")}</h3><p>${esc(tenant.id || "Tenant identity unavailable")}</p><p>This organization view is read only. Directory, grant, policy and identity sections show the returned snapshot; stored grants are not a complete effective-access calculation.</p><button type="button" class="so-btn" data-onclick="switchScreen('adm-platform-status')">Open platform measurements</button></section>`;
     } else if (tab === "teams") {
       body = `
-        <div class="flex justify-end mb-2">${note(state.orgTeamsLive && state.orgGrantsLive, "Directory")}</div>
+        <div class="flex justify-end mb-2">${note(state.orgTeamsLive && state.orgGrantsLive, "Directory", true)}</div>
+        <p data-org-directory-status>${state.orgTeamsLive ? `${teams.length} stored teams returned.` : "Team directory unavailable for this session."}</p>
         <table class="so-table">
-          <thead><tr><th>Team</th><th>Members</th></tr></thead>
-          <tbody>${teams.map((team) => `<tr><td class="font-semibold text-[#5c9ce6]">${esc(team.displayName || team.name)}</td><td>${esc(team.members)}</td></tr>`).join("")}</tbody>
+          <thead><tr><th>Team</th><th>User memberships</th><th>Group memberships</th></tr></thead>
+          <tbody>${teams.map((team) => `<tr><td class="font-semibold text-[#5c9ce6]">${esc(team.displayName || team.name)}</td><td>${esc(team.users)}</td><td>${esc(team.groups)}</td></tr>`).join("")}</tbody>
         </table>
-        <div class="text-[13px] font-semibold text-white mt-3">Roles</div>
+        <div class="text-[13px] font-semibold text-white mt-3">Stored roles and explicit operations</div><p>${state.orgGrantsLive ? `${grants.length} stored grants returned.` : "Resource grants unavailable for this session."}</p>
         <table class="so-table">
           <thead><tr><th>Team</th><th>Resource</th><th>Roles</th><th>Operations</th></tr></thead>
           <tbody>${grants.map((grant) => `<tr><td>${esc(grant.team)}</td><td class="code-id">${esc(grant.resourceRid)}</td><td>${esc(grant.roles)}</td><td>${esc(grant.operations)}</td></tr>`).join("")}</tbody>
@@ -568,7 +590,7 @@ export function createSettings(ctx) {
     } else if (tab === "policies") {
       const policies = state.approvalPolicies || [];
       body = policies.length
-        ? `<div class="flex justify-end mb-2">${note(state.approvalPoliciesLive, "Policy")}</div>
+        ? `<div class="flex justify-end mb-2">${note(state.approvalPoliciesLive, "Policy", true)}</div>
           <table class="so-table">
             <thead><tr><th>Policy</th><th>Rule</th><th>State</th><th>Revision</th><th>Updated</th></tr></thead>
             <tbody>${policies
@@ -576,7 +598,7 @@ export function createSettings(ctx) {
                 (policy) => `<tr>
                   <td><div class="font-semibold">${esc(policy.displayName || policy.id)}</div><div class="code-id text-[10.5px]">${esc(policy.id)}</div></td>
                   <td class="code-id text-[11px] break-all">${esc(policy.expression || "")}</td>
-                  <td><span class="kit-badge kit-badge-${policy.enabled ? "ok" : "info"}">${policy.enabled ? "Enabled" : "Disabled"}</span></td>
+                  <td><span class="kit-badge kit-badge-${policy.enabled ? "ok" : "info"}">${typeof policy.enabled === "boolean" ? (policy.enabled ? "Enabled" : "Disabled") : "Unknown"}</span></td>
                   <td>${esc(policy.revision ?? "")}</td>
                   <td class="code-id text-[11px]">${esc(policy.updatedAt || "")}</td>
                 </tr>`,
@@ -584,7 +606,7 @@ export function createSettings(ctx) {
               .join("")}</tbody>
           </table>
           <div class="text-[11px] text-[#8b96a5] mt-2">Read only. A policy change goes through the Hub's policy API and its own review.</div>`
-        : `<div class="text-[12px] text-[#8b96a5]">${state.approvalPoliciesLive ? "No approval policy is configured." : "Hub did not return approval policies."}</div>`;
+        : `<div class="text-[12px] text-[#8b96a5]">${state.approvalPoliciesLive ? "No stored approval policies were returned; other review requirements can still apply." : "Hub did not return approval policies."}</div>`;
     } else if (tab === "health") {
       const apps = state.sessionApplications || [];
       const ready = state.hubReady || "unknown";
@@ -597,8 +619,8 @@ export function createSettings(ctx) {
           </div>
           <div class="so-card p-3 space-y-1">
             <div class="text-[11px] uppercase tracking-[0.08em] text-[#8b96a5]">Your session</div>
-            <div class="text-[12px]">Signed in as <span class="code-id">${esc(state.operatorName || "Operator")}</span>${state.sessionDelegated ? " (delegated)" : ""}</div>
-            <div class="text-[11px] text-[#8b96a5]">Teams: ${esc((state.sessionTeams || []).join(", ") || "none")}</div>
+            <div class="text-[12px]">Signed in as <span class="code-id">${esc(state.sessionName || "unavailable")}</span>${state.sessionDelegated ? " (delegated)" : ""}</div>
+            <div class="text-[11px] text-[#8b96a5]">Teams: ${esc((state.sessionTeams || []).join(", ") || (state.sessionAvailable ? "none recorded" : "unavailable"))}</div>
           </div>
         </div>
         <table class="so-table mt-3">
@@ -608,7 +630,7 @@ export function createSettings(ctx) {
               ? apps
                   .map(
                     (app) =>
-                      `<tr><td class="code-id">${esc(app.id)}</td><td><span class="kit-badge kit-badge-${app.enabled ? "ok" : "info"}">${app.enabled ? "Enabled" : "Off"}</span></td></tr>`,
+                      `<tr><td class="code-id">${esc(app.id)}</td><td><span class="kit-badge kit-badge-${app.enabled ? "ok" : "info"}">${typeof app.enabled === "boolean" ? (app.enabled ? "Enabled" : "Off") : "Unknown"}</span></td></tr>`,
                   )
                   .join("")
               : `<tr><td colspan="2" class="text-[#8b96a5]">Hub did not return session applications.</td></tr>`
@@ -616,22 +638,24 @@ export function createSettings(ctx) {
         </table>`;
     } else if (tab === "identity") {
       const providers = state.identityProviders || [];
-      body = state.authEnabled
-        ? providers
-            .map(
-              (provider) => `<div class="so-card p-3">
+      body = !state.identityAvailable
+        ? `<p>Identity provider metadata is unavailable.</p>`
+        : state.authEnabled
+          ? providers
+              .map(
+                (provider) => `<div class="so-card p-3">
                 <div class="text-[12.5px] font-semibold text-white">${esc(provider.name || "Operator identity")}</div>
                 <div class="text-[11px] text-[#8b96a5] mt-1">Issuer ${esc(provider.issuer || "not published")}</div>
                 <div class="text-[11px] text-[#8b96a5]">Client ${esc(provider.clientId || "not published")}</div>
                 <div class="text-[11px] text-[#6d7885] mt-2">Read only. This screen does not change the provider.</div>
               </div>`,
-            )
-            .join("")
-        : `<div class="text-[12px] text-[#8b96a5]">No identity provider is published by this Hub.</div>`;
+              )
+              .join("")
+          : `<div class="text-[12px] text-[#8b96a5]">No identity provider is published by this Hub.</div>`;
     } else {
       const keys = state.signingKeys || [];
       body = `
-        <div class="flex justify-end mb-2">${note(state.signingLive, "Signer")}</div>
+        <div class="flex justify-end mb-2">${note(state.signingLive, "Signer", true)}</div>
         ${
           keys.length
             ? keys
@@ -643,9 +667,9 @@ export function createSettings(ctx) {
                   </div>`,
                 )
                 .join("")
-            : `<div class="text-[12px] text-[#8b96a5]">No signing key is published.</div>`
+            : `<div class="text-[12px] text-[#8b96a5]">Signing-key metadata is unavailable.</div>`
         }
-        <div class="text-[11px] text-[#6d7885] mt-2">The trust list shown here is the key material this Hub publishes. Nothing else is added.</div>`;
+        <div class="text-[11px] text-[#6d7885] mt-2">This is the published signing key, not the full trusted-key store.</div>`;
     }
     root.innerHTML = `
       <div class="so-view-enter space-y-3">
@@ -654,13 +678,17 @@ export function createSettings(ctx) {
             <div class="text-[15px] font-bold text-white">Organization</div>
             <div class="text-[11.5px] text-[#8b96a5]">Directory, roles, approval policies, control-plane health, the identity provider, and signing keys.</div>
           </div>
-          ${segmented(tabs, tab, "setOrganizationTab")}
+          ${segmented(tabs, tab, "setOrganizationTab")}<button type="button" class="so-btn" data-onclick="refreshOrganization()">Refresh snapshot</button>
         </div>
         <div class="so-panel p-3.5">${body}</div>
       </div>`;
   }
 
   function renderSignIn(root) {
+    if (!state.identityAvailable) {
+      root.innerHTML = `<div class="so-panel p-3" role="status">${state.settingsLoading ? "Reading identity configuration…" : "Identity configuration is unavailable."}</div>`;
+      return;
+    }
     if (!state.authEnabled) {
       root.innerHTML = `
         <div class="so-view-enter so-panel p-4 max-w-[520px] mx-auto mt-6">
@@ -798,9 +826,9 @@ export function createSettings(ctx) {
         prefTokens: EXAMPLE_TOKENS.map((token) => ({ ...token })),
         prefTokenDraft: { name: "", scope: "read", expires: "8h" },
         orgTab: "org",
-        orgTeams: EXAMPLE_TEAMS,
+        orgTeams: [],
         orgTeamsLive: false,
-        orgGrants: EXAMPLE_GRANTS,
+        orgGrants: [],
         orgGrantsLive: false,
         discoverUsers: true,
         discoverGroups: true,
@@ -831,6 +859,13 @@ export function createSettings(ctx) {
       if (!state.settingsLoaded && !state.settingsLoading) load();
     },
     bind(target) {
+      target.refreshOrganization = () => {
+        state.settingsLoaded = false;
+        clearOrganization();
+        const pending = load();
+        ctx.render();
+        return pending;
+      };
       target.setPreferenceTheme = (value) => {
         state.prefTheme = value;
         ctx.render();
