@@ -2941,7 +2941,19 @@ test("ontology graph distinguishes an empty catalog from denied metadata", async
     if (route.request().url().endsWith("/fullMetadata"))
       return denied
         ? route.fulfill({ status: 403, json: { error: "forbidden" } })
-        : route.fulfill({ json: { objectTypes: {}, actionTypes: {} } });
+        : route.fulfill({
+            json: populated
+              ? JSON.parse(
+                  readFileSync(
+                    new URL(
+                      "../../../../testdata/ontology/full-metadata.json",
+                      import.meta.url,
+                    ),
+                    "utf8",
+                  ),
+                )
+              : { objectTypes: {}, actionTypes: {} },
+          });
     objectReads++;
     return route.fulfill({ status: 403, json: { error: "forbidden" } });
   });
@@ -2979,7 +2991,7 @@ test("ontology graph distinguishes an empty catalog from denied metadata", async
   );
   await page
     .locator('svg[aria-label="Ontology graph"] g')
-    .filter({ hasText: /^Plan$/ })
+    .filter({ hasText: "Plan" })
     .click();
   await expect(
     page
