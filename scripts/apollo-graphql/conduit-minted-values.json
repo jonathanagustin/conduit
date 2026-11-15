@@ -78,19 +78,22 @@
       "mintedBy": "internal/controlplane/apollo_graphql.go caller-bound CurrentUser snapshot",
       "grammarPublishedAs": "Public API Explorer GetCurrentUser selection names; no identity value or nullability mapping is published",
       "conduitSupplies": "Resolved credential-owner username for id, null fullName when the identity carrier has no display-name claim; nullable ConduitCurrentUser type",
-      "invention": "apollographql.CurrentUserProjection"
+      "invention": "apollographql.CurrentUserProjection",
+      "documentedBy": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/"
     },
     "ConduitCurrentUser.id": {
       "mintedBy": "internal/controlplane/apollo_graphql.go caller-bound CurrentUser snapshot",
       "grammarPublishedAs": "Public API Explorer GetCurrentUser selection names; no identity value or nullability mapping is published",
       "conduitSupplies": "Resolved credential-owner username for id, null fullName when the identity carrier has no display-name claim; nullable ConduitCurrentUser type",
-      "invention": "apollographql.CurrentUserProjection"
+      "invention": "apollographql.CurrentUserProjection",
+      "documentedBy": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/"
     },
     "ConduitCurrentUser.fullName": {
       "mintedBy": "internal/controlplane/apollo_graphql.go caller-bound CurrentUser snapshot",
       "grammarPublishedAs": "Public API Explorer GetCurrentUser selection names; no identity value or nullability mapping is published",
       "conduitSupplies": "Resolved credential-owner username for id, null fullName when the identity carrier has no display-name claim; nullable ConduitCurrentUser type",
-      "invention": "apollographql.CurrentUserProjection"
+      "invention": "apollographql.CurrentUserProjection",
+      "documentedBy": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/"
     }
   },
   "whyAnEntryNeedNotNameAnInvention": "Two different claims are being kept apart here. 'Conduit built this value' is what valueTier discloses, and it is true of every coordinate in this file. 'Conduit invented this shape' is a stronger claim, true of some of them, and it belongs in the invention register. ApolloEntity.id used to name an invention that turned out to be a misreading -- the shape was Apollo's all along -- and requiring an invention on every entry would have forced a replacement guess rather than allowing the honest answer, which is that there is nothing invented left to register."
