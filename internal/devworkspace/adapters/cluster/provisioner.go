@@ -49,7 +49,7 @@ func (provisioner *Provisioner) Create(ctx context.Context, workspace domain.Wor
 	return provisioner.apply(ctx, documents.NetworkPolicy)
 }
 
-// Delete removes the pod. A missing cluster is not an error.
+// Delete removes the pod. An unavailable cluster cannot establish absence.
 func (provisioner *Provisioner) Delete(ctx context.Context, workspaceID string) error {
 	if !provisioner.Available(ctx) {
 		return domain.ErrNoCluster
@@ -87,9 +87,7 @@ func (fallback Fallback) Create(ctx context.Context, workspace domain.Workspace)
 }
 
 func (fallback Fallback) Delete(ctx context.Context, workspaceID string) error {
-	err := fallback.Primary.Delete(ctx, workspaceID)
-	if errors.Is(err, domain.ErrNoCluster) && fallback.Secondary != nil {
-		return fallback.Secondary.Delete(ctx, workspaceID)
-	}
-	return err
+	// A recorded no-cluster creation does not prove a previously real pod was
+	// removed. Only the primary adapter can confirm deletion or absence.
+	return fallback.Primary.Delete(ctx, workspaceID)
 }
