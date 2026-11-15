@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vite-plus/test";
 
 import {
   createSettingsDialog,
@@ -33,8 +33,12 @@ describe("settings dialog", () => {
       operatorName: "<ops>",
     });
     expect(html).toContain('role="dialog"');
-    expect(html).toMatch(/aria-checked="true"[^>]*data-setting="theme" data-value="light"/);
-    expect(html).toMatch(/aria-checked="true"[^>]*data-setting="density" data-value="compact"/);
+    expect(html).toMatch(
+      /aria-checked="true"[^>]*data-setting="theme" data-value="light"/,
+    );
+    expect(html).toMatch(
+      /aria-checked="true"[^>]*data-setting="density" data-value="compact"/,
+    );
     expect(html).toContain("&lt;ops&gt;");
     expect(html).not.toMatch(/data-operator|switch operator/i);
   });
@@ -45,7 +49,12 @@ describe("settings dialog", () => {
       getOperatorName: () => "ops",
     });
     const key = (init: Partial<KeyboardEvent>) =>
-      ({ preventDefault() {}, metaKey: false, ctrlKey: false, ...init }) as KeyboardEvent;
+      ({
+        preventDefault() {},
+        metaKey: false,
+        ctrlKey: false,
+        ...init,
+      }) as KeyboardEvent;
     expect(dialog.onKey(key({ ctrlKey: true, key: "," }))).toBe(true);
     expect(dialog.isOpen()).toBe(true);
     expect(dialog.onKey(key({ key: "Escape" }))).toBe(true);

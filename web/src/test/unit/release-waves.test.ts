@@ -1,4 +1,4 @@
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import { releaseWavesMarkup } from "../../console/operator/release-waves.js";
 it("retains recorded wave order, gate, status and reasons without synthetic scheduling", () => {
   const html = releaseWavesMarkup([

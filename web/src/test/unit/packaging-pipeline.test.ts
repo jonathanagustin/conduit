@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi } from "vite-plus/test";
 import {
   pipelineBuilderMarkup,
   stagedRunMarkup,
@@ -117,13 +117,11 @@ describe("recorded packaging pipeline", () => {
       "/v1/packaging-runs/r%2F1/events",
       "/v1/packaging-runs/r%2F1/events?cursor=opaque%2F%2B%3D",
     ]);
-    const looping = vi
-      .fn()
-      .mockResolvedValue({
-        items: [event(1, "assess")],
-        total: 20,
-        nextCursor: "same",
-      });
+    const looping = vi.fn().mockResolvedValue({
+      items: [event(1, "assess")],
+      total: 20,
+      nextCursor: "same",
+    });
     expect((await readPackagingHistory("r1", looping)).complete).toBe(false);
     expect(looping).toHaveBeenCalledTimes(2);
   });

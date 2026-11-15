@@ -1,5 +1,5 @@
 import { areaObject } from "../../console/operator/kit.js";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   connectivityFromSpoke,

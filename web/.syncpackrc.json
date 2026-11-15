@@ -1,0 +1,23 @@
+{
+  "source": ["package.json"],
+  "versionGroups": [
+    {
+      "label": "Vite+ tools use the shared pnpm catalog",
+      "dependencies": ["vite", "vitest", "vite-plus"],
+      "policy": "catalog"
+    }
+  ],
+  "semverGroups": [
+    {
+      "label": "Pin the bundled toolchain catalog",
+      "dependencies": ["vite", "vitest", "vite-plus"],
+      "dependencyTypes": ["pnpmCatalog"],
+      "range": ""
+    },
+    {
+      "label": "Pin Syncpack itself",
+      "dependencies": ["syncpack"],
+      "range": ""
+    }
+  ]
+}

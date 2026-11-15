@@ -3,7 +3,7 @@ import {
   scopedNotificationEvents,
 } from "../../console/operator/audit-event-stream.js";
 // @vitest-environment node
-import { describe, it, expect } from "vitest";
+import { describe, it, expect } from "vite-plus/test";
 import { readFileSync } from "node:fs";
 import {
   proofDigest,

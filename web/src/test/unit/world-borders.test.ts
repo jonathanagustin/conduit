@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { createHash } from "node:crypto";
 import { readFileSync } from "node:fs";
-import { expect, it } from "vitest";
+import { expect, it } from "vite-plus/test";
 import source from "../../console/operator/assets/world-borders-110m.source.json";
 
 it("keeps the reviewed static basemap bytes and numeric geometry bounded", () => {

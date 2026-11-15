@@ -52,7 +52,10 @@ export function fetchTransport(baseUrl = ""): Transport {
     }
 
     if (!response.ok) {
-      throw new OntologyError(response.status, errorMessage(parsed) ?? response.statusText);
+      throw new OntologyError(
+        response.status,
+        errorMessage(parsed) ?? response.statusText,
+      );
     }
     return parsed;
   };

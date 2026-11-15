@@ -13,14 +13,21 @@ export const ACTION_RISK: Record<string, ActionRisk> = {
 
 /** Unknown action names are treated as high risk. */
 export function riskOf(name: string): ActionRisk {
-  return Object.prototype.hasOwnProperty.call(ACTION_RISK, name) ? ACTION_RISK[name]! : "high";
+  return Object.prototype.hasOwnProperty.call(ACTION_RISK, name)
+    ? ACTION_RISK[name]!
+    : "high";
 }
 
 export type ActionOutcome =
   | { kind: "invalid"; messages: Record<string, string>; submission?: string }
   | { kind: "confirm"; action: string; risk: "low" }
   | { kind: "applied"; action: string }
-  | { kind: "change-request"; action: string; changeRequestId?: string; stored: boolean };
+  | {
+      kind: "change-request";
+      action: string;
+      changeRequestId?: string;
+      stored: boolean;
+    };
 
 export type ActionParamsFor<N extends string> = N extends ActionName
   ? ActionParams[N]
@@ -28,7 +35,10 @@ export type ActionParamsFor<N extends string> = N extends ActionName
 
 export interface Actions {
   /** Checks the parameters on the Hub without executing anything. */
-  validate<N extends string>(name: N, params: ActionParamsFor<N>): Promise<ActionOutcome>;
+  validate<N extends string>(
+    name: N,
+    params: ActionParamsFor<N>,
+  ): Promise<ActionOutcome>;
   /**
    * Low-risk actions run only when `opts.confirmed` is true. High-risk actions are
    * never executed directly: they are proposed as a change request that a
@@ -46,15 +56,24 @@ type Mode = "VALIDATE_ONLY" | "VALIDATE_AND_EXECUTE";
 interface ApplyResponse {
   validation?: {
     result?: string;
-    parameters?: Record<string, { result?: string; evaluatedConstraints?: { message?: string }[] }>;
+    parameters?: Record<
+      string,
+      { result?: string; evaluatedConstraints?: { message?: string }[] }
+    >;
     submissionCriteria?: { configuredFailureMessage?: string }[];
   };
-  edits?: { edits?: { type?: string; objectType?: string; primaryKey?: string }[] };
+  edits?: {
+    edits?: { type?: string; objectType?: string; primaryKey?: string }[];
+  };
 }
 
-function parseInvalid(response: ApplyResponse): ActionOutcome & { kind: "invalid" } {
+function parseInvalid(
+  response: ApplyResponse,
+): ActionOutcome & { kind: "invalid" } {
   const messages: Record<string, string> = {};
-  for (const [param, check] of Object.entries(response.validation?.parameters ?? {})) {
+  for (const [param, check] of Object.entries(
+    response.validation?.parameters ?? {},
+  )) {
     if (check.result === "VALID") continue;
     const text = (check.evaluatedConstraints ?? [])
       .map((constraint) => constraint.message)
@@ -66,18 +85,26 @@ function parseInvalid(response: ApplyResponse): ActionOutcome & { kind: "invalid
     .map((criterion) => criterion.configuredFailureMessage)
     .filter((message): message is string => !!message)
     .join("; ");
-  return submission ? { kind: "invalid", messages, submission } : { kind: "invalid", messages };
+  return submission
+    ? { kind: "invalid", messages, submission }
+    : { kind: "invalid", messages };
 }
 
 function createdChangeRequest(response: ApplyResponse): string | undefined {
   const edit = (response.edits?.edits ?? []).find(
-    (candidate) => candidate.type === "addObject" && candidate.objectType === "ChangeRequest",
+    (candidate) =>
+      candidate.type === "addObject" &&
+      candidate.objectType === "ChangeRequest",
   );
   return edit?.primaryKey || undefined;
 }
 
 export function createActions(transport: Transport): Actions {
-  async function send(name: string, params: object, mode: Mode): Promise<ApplyResponse> {
+  async function send(
+    name: string,
+    params: object,
+    mode: Mode,
+  ): Promise<ApplyResponse> {
     const response = await transport(
       `/api/v2/ontologies/${ONTOLOGY}/actions/${encodeURIComponent(name)}/apply`,
       { method: "POST", body: { parameters: params, options: { mode } } },
@@ -85,10 +112,14 @@ export function createActions(transport: Transport): Actions {
     return (response ?? {}) as ApplyResponse;
   }
 
-  async function validateAction(name: string, params: object): Promise<ActionOutcome> {
+  async function validateAction(
+    name: string,
+    params: object,
+  ): Promise<ActionOutcome> {
     const response = await send(name, params, "VALIDATE_ONLY");
     if (response.validation?.result !== "VALID") return parseInvalid(response);
-    if (riskOf(name) === "low") return { kind: "confirm", action: name, risk: "low" };
+    if (riskOf(name) === "low")
+      return { kind: "confirm", action: name, risk: "low" };
     return { kind: "change-request", action: name, stored: false };
   }
 
@@ -101,7 +132,8 @@ export function createActions(transport: Transport): Actions {
       // Without explicit confirmation, only validate; nothing is executed.
       if (opts.confirmed !== true) return validateAction(name, params);
       const response = await send(name, params, "VALIDATE_AND_EXECUTE");
-      if (response.validation?.result === "INVALID") return parseInvalid(response);
+      if (response.validation?.result === "INVALID")
+        return parseInvalid(response);
       return { kind: "applied", action: name };
     }
 
@@ -109,9 +141,17 @@ export function createActions(transport: Transport): Actions {
     const proposal =
       name === "createChangeRequest"
         ? params
-        : { ...params, changeType: (params as Record<string, unknown>).changeType ?? name };
-    const response = await send("createChangeRequest", proposal, "VALIDATE_AND_EXECUTE");
-    if (response.validation?.result === "INVALID") return parseInvalid(response);
+        : {
+            ...params,
+            changeType: (params as Record<string, unknown>).changeType ?? name,
+          };
+    const response = await send(
+      "createChangeRequest",
+      proposal,
+      "VALIDATE_AND_EXECUTE",
+    );
+    if (response.validation?.result === "INVALID")
+      return parseInvalid(response);
     const changeRequestId = createdChangeRequest(response);
     return changeRequestId === undefined
       ? { kind: "change-request", action: name, stored: false }

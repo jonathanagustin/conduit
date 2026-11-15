@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { applyPatch } from "../../console/operator/json-patch.js";
 
 describe("agent RFC 6902 state updates", () => {

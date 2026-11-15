@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import tenantA from "../../../../testdata/console-bootstrap/tenant-a.json";
 import tenantB from "../../../../testdata/console-bootstrap/tenant-b.json";

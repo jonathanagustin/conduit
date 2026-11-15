@@ -56,7 +56,7 @@ for path in target.rglob('*'):
  if path.suffix in {'.go','.ts'}: rewrite(path)
 go_files=list((target/'gen/go').rglob('*.go'))
 if go_files: subprocess.run(['gofmt','-w',*map(str,go_files)],check=True)
-subprocess.run(['pnpm','--dir','web','exec','oxfmt',str(target/'web/src/api/gen')],check=True)
+subprocess.run(['pnpm','--dir','web','exec','vp','fmt',str(target/'web/src/api/gen')],check=True)
 expected={str(path.relative_to(target)):path.read_bytes() for path in target.rglob('*') if path.is_file()}
 actual={str(path.relative_to(root)) for directory in ['gen/go','web/src/api/gen'] for path in (root/directory).rglob('*') if path.suffix in {'.go','.ts'} and b'DO NOT EDIT.' in path.read_bytes()}
 errors=[]

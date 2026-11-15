@@ -198,8 +198,12 @@
   color: var(--c-subtle) !important;
 }
 /* Pure white body text glares on dark panels; buttons keep their own colour. */
-.operator-root:not([data-theme="light"]) #main-workspace .text-white:not(button):not(.so-btn):not(.kit-btn),
-.operator-root:not([data-theme="light"]) #main-workspace [class*="text-[#fff"]:not(button):not(.so-btn):not(.kit-btn) {
+.operator-root:not([data-theme="light"])
+  #main-workspace
+  .text-white:not(button):not(.so-btn):not(.kit-btn),
+.operator-root:not([data-theme="light"])
+  #main-workspace
+  [class*="text-[#fff"]:not(button):not(.so-btn):not(.kit-btn) {
   color: var(--c-text) !important;
 }
 
@@ -209,12 +213,23 @@
 }
 
 /* Rhythm on the shared frame. */
-.operator-root #main-workspace { padding: var(--sp-4); }
-.operator-root .so-nav-row { height: 32px; padding: 0 var(--sp-3); }
-.operator-root .so-table th { padding: 6px var(--sp-3); }
-.operator-root .so-table td { padding: var(--sp-2) var(--sp-3); }
+.operator-root #main-workspace {
+  padding: var(--sp-4);
+}
+.operator-root .so-nav-row {
+  height: 32px;
+  padding: 0 var(--sp-3);
+}
+.operator-root .so-table th {
+  padding: 6px var(--sp-3);
+}
+.operator-root .so-table td {
+  padding: var(--sp-2) var(--sp-3);
+}
 @media (max-width: 639px) {
-  .operator-root #main-workspace { padding: var(--sp-3); }
+  .operator-root #main-workspace {
+    padding: var(--sp-3);
+  }
 }
 
 /* Light theme: dark-only fills from older views read through the status tokens. */

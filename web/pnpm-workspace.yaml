@@ -1,2 +1,14 @@
 # Keep the dependency quarantine explicit across package-manager upgrades.
 minimumReleaseAge: 1440
+catalog:
+  vite: npm:@voidzero-dev/vite-plus-core@1.6.0
+  vitest: 5.1.0
+  vite-plus: 1.6.0
+overrides:
+  vite@*: 'catalog:'
+  vitest@*: 'catalog:'
+# The bundled core distribution uses its own 1.6.0 package version.
+# Limit the peer alias exception to the exact pinned, validated distribution.
+peerDependencyRules:
+  allowedVersions:
+    vite: '1.6.0'
