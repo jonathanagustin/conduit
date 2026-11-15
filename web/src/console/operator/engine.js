@@ -1026,7 +1026,25 @@ export function mountOperator(host, options) {
     render: () => renderApp(),
   });
   state.liveHub = liveHub;
-  const intelligence = createIntelligence();
+  const intelligence = createIntelligence({
+    getHub: () => state.hub,
+    getOperator: () => state.reviewOperatorName || "",
+    onReviewRequest: async (id) => {
+      await liveHub.refresh();
+      const review = (state.crReview ||= {
+        filter: "all",
+        selectedId: "",
+        draft: { decision: "", rationale: "" },
+        pending: false,
+        error: "",
+      });
+      review.filter = "all";
+      review.selectedId = id;
+      review.draft = { decision: "", rationale: "" };
+      review.error = "";
+      switchScreen("rm07-change-requests");
+    },
+  });
 
   function recordAudit(evt) {
     state.auditCount += 1;

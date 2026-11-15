@@ -122,7 +122,7 @@ func NewHub(
 	handler = mountAdminStatus(handler, repository, options, hubOptions)
 	handler = mountAttachments(handler, options, hubOptions.Attachments)
 	handler = mountAppGeneration(handler, repository, options, hubOptions.AppGenerator, hubOptions.Attachments)
-	intelService := newIntelligenceService(repository)
+	intelService := newIntelligenceService(repository, options)
 	handler = mountTimeline(mountUpgrades(mountOfflineBundles(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options), repository, options), repository, options), repository, options)
 	handler, err = mountPlanning(handler, repository, options)
 	if err != nil {

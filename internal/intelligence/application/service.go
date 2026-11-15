@@ -4,11 +4,21 @@ package application
 
 import (
 	"context"
+	"errors"
 	"strings"
 	"sync"
 
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
+
+// ErrCourseForbidden means the caller cannot propose a change for the target.
+var ErrCourseForbidden = errors.New("course target is forbidden")
+
+// ErrCourseTargetMissing means the target is absent from current desired fleet state.
+var ErrCourseTargetMissing = errors.New("course target is not in current desired fleet state")
+
+// ErrCourseBlocked means the selected value failed the required memory gate.
+var ErrCourseBlocked = errors.New("course fails the required memory gate")
 
 const labelNoModel = "No model call"
 
@@ -205,7 +215,10 @@ func (service *Service) Select(ctx context.Context, actor, value, environment, i
 	if service.Opener == nil {
 		return "", "", errorString("change requests are not configured")
 	}
-	outcome, reason, _ := domain.AssessMemory(value)
+	outcome, reason, blocked := domain.AssessMemory(value)
+	if blocked || strings.TrimSpace(value) == "" {
+		return "", "", ErrCourseBlocked
+	}
 	id, status, err := service.Opener.Open(ctx, value, reason, actor, environment, installation, product)
 	if err != nil {
 		return "", "", err

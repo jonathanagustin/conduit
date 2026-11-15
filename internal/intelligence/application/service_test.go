@@ -99,3 +99,17 @@ func TestLiveEvalRunsOnlyTheCeilingPassCase(t *testing.T) {
 		t.Fatalf("8Gi should stay recorded-only: %#v", byID["mem-8gi"].Columns)
 	}
 }
+
+func TestBlockedCourseNeverCallsProposalOpener(t *testing.T) {
+	open := &memoryOpen{}
+	service := New("", "")
+	service.Opener = open
+	for _, value := range []string{"8Gi", "", "invalid"} {
+		if _, _, err := service.Select(context.Background(), "writer", value, "env-a", "api", "product-a"); err != ErrCourseBlocked {
+			t.Fatal(value, err)
+		}
+	}
+	if open.calls != 0 {
+		t.Fatal("blocked course opened a request", open.calls)
+	}
+}

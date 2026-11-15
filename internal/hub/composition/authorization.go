@@ -507,7 +507,7 @@ func HubRouteAuthorization() []RouteAuthorization {
 		{Pattern: "POST /v1/intelligence/courses",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; scores recorded memory options with the packaging gate"},
 		{Pattern: "POST /v1/intelligence/courses/select",
-			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; opens a change request that still needs a person and does not apply it"},
+			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + AuthorizeResourceOperation(proposeChange) on the current target installation; opens a scoped request that still needs a person and does not apply it"},
 		{Pattern: "GET /v1/intelligence/events",
 			Decision: DecisionOperatorAny, Detail: "requireOperatorPrincipal; lists observed packaging runs beside automation rules that are not executed"},
 		{Pattern: "POST /v1/packaging-runs/{runID}/rerun",
