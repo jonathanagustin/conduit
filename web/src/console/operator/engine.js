@@ -1,3 +1,4 @@
+import { createOntologyExplorer } from "./ontology-explorer.js";
 import { createAuditEventStream } from "./audit-event-stream.js";
 import { createOfflineBundleFlow } from "./offline-bundle-flow.mjs";
 import { spokesMarkup } from "./fleet-spokes.mjs";
@@ -1029,6 +1030,15 @@ export function mountOperator(host, options) {
     render: () => renderApp({ backgroundRefresh: true }),
   });
   state.liveHub = liveHub;
+  const mountOntologyExplorer = createOntologyExplorer({
+    getIdentity: () => ({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    }),
+    getReady: () => state.hub?.loading === false,
+    onInspect: (type, key) => inspectObject(type, key),
+    onNavigate: switchScreen,
+  });
   const mountDevWorkspaces = createDevWorkspaces({
     onSelection: (row) => {
       state.studioWorkspace = row;
@@ -1296,6 +1306,7 @@ export function mountOperator(host, options) {
   // Screens whose body is read from the Hub. Everything else is example data
   // until it is wired, and says so in the header badge.
   const LIVE_SCREENS = new Set([
+    "s19-ontology",
     "s09-source",
     "s11-preview",
     "s12-lifecycle",
@@ -1342,7 +1353,7 @@ export function mountOperator(host, options) {
       LIVE_SCREENS.has(screen) ||
       (screen === "pt01-proposal-trace" &&
         (state.hub?.packaging || []).length > 0) ||
-      (screen === "og01-ontology-graph" && state.graphNote === "Ontology API");
+      (screen === "og01-ontology-graph" && state.graphLive === true);
     if (SECTION_LABELLED.has(screen)) {
       badge.style.display = "none";
       return;
@@ -3649,72 +3660,7 @@ export function mountOperator(host, options) {
   }
 
   function renderS19Ontology(root) {
-    const rows = [
-      [
-        "Work profile",
-        "Active, Upgrade Available, Archived, Deleting",
-        "1:N Workspace, 1:N Story, 1:N Environment",
-        "s12-lifecycle",
-      ],
-      [
-        "Workspace",
-        "Active, Building, Drifted, Gated, Idle, Error",
-        "1:N Change request, runtimeStatus",
-        "s02-workspaces",
-      ],
-      [
-        "Story",
-        "Scoping, Ready, In Progress, Paused, Blocked, Done",
-        "1:N Packaging run, 0..1:N Change request",
-        "s04-scope-plan",
-      ],
-      [
-        "Change request",
-        "Draft, In Review, Approved, Included in Plan",
-        "0..N:0..1 Plan",
-        "s10-diff",
-      ],
-      [
-        "Packaging run",
-        "Queued, Running, Staged, Succeeded, Failed, Canceled",
-        "1:N Step, 1:N Artifact, 1:0..1 Plan",
-        "s08-staged-run",
-      ],
-      [
-        "Plan",
-        "Proposed, Awaiting Approval, Approved, Rolling Out, Succeeded",
-        "1:N Requirement, 1:0..N Approval, 1:N Environment",
-        "s15-plan-detail",
-      ],
-      [
-        "Environment",
-        "Online, Drift Detected, Degraded, Awaiting Bundle",
-        "1 Spoke, 0..N Installation, 1 Reported state",
-        "s14-env-detail",
-      ],
-      [
-        "Spoke",
-        "Connected, Store-and-Forward, Diode One-Way, Courier",
-        "1:1..N Environment",
-        "s17-spokes-audit",
-      ],
-    ];
-    root.innerHTML = `
-        <div class="so-panel overflow-hidden h-full flex flex-col">
-          <div class="px-3.5 py-2.5 border-b border-[#1c242c] flex justify-between items-center">
-            <span class="text-[14.5px] font-bold text-[#ffffff]">Conduit Domain Ontology (16 Object Types)</span>
-            ${ontChip("ConduitOntology", 16, 18)}
-          </div>
-          <div class="overflow-y-auto flex-1">
-            <div class="so-table-scroll"><table class="so-table">
-              <thead><tr><th>Object Type</th><th>Statuses</th><th>Links</th><th>Open</th></tr></thead>
-              <tbody>
-                ${rows.map((r) => `<tr data-onclick="switchScreen('${r[3]}')" class="cursor-pointer"><td class="font-semibold text-[#5c9ce6]">${r[0]}</td><td class="text-[#8b96a5]">${r[1]}</td><td>${r[2]}</td><td>${pill("Inspect &rarr;", "blue")}</td></tr>`).join("")}
-              </tbody>
-            </table></div>
-          </div>
-        </div>
-      `;
+    void mountOntologyExplorer(root);
   }
 
   // =========================================================================
@@ -5056,8 +5002,16 @@ export function mountOperator(host, options) {
       ) &&
       !(
         backgroundRefresh &&
-        ((visibleScreen() === "s01-intake" &&
-          document.querySelector("#main-workspace [data-plan-send]")) ||
+        ((visibleScreen() === "s19-ontology" &&
+          state.hub?.loading === false &&
+          document.querySelector("#main-workspace [data-ontology-explorer]")
+            ?.dataset.identity ===
+            JSON.stringify({
+              actor: state.reviewOperatorActor || "",
+              names: state.reviewOperatorIdentities || [],
+            })) ||
+          (visibleScreen() === "s01-intake" &&
+            document.querySelector("#main-workspace [data-plan-send]")) ||
           (visibleScreen() === "rm08-bundle-preview" &&
             state.reviewOperatorActor &&
             document.querySelector("#main-workspace [data-offline-flow]") &&
