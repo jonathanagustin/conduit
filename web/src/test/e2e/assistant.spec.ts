@@ -3001,3 +3001,96 @@ test("ontology graph distinguishes an empty catalog from denied metadata", async
       .first(),
   ).toBeVisible();
 });
+
+test("active Command Center uses scoped Connect overview and drops a previous actor's response", async ({
+  page,
+}) => {
+  let actor = "alice",
+    reads = 0,
+    denied = false,
+    releaseOld!: () => void;
+  const heldOld = new Promise<void>((resolve) => {
+    releaseOld = resolve;
+  });
+  let oldStarted = false;
+  await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/session")
+      return route.fulfill({
+        json: { actor: { username: actor }, effective: { username: actor } },
+      });
+    return route.fulfill({ status: 404, json: { error: "not configured" } });
+  });
+  await page.route(
+    "**/conduit.reporting.v1.ReportingService/GetOverview",
+    async (route) => {
+      reads++;
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({});
+      if (denied)
+        return route.fulfill({
+          status: 401,
+          json: { code: "unauthenticated", message: "sign in required" },
+        });
+      const index = reads;
+      if (index === 2) {
+        oldStarted = true;
+        await heldOld;
+      }
+      await route
+        .fulfill({
+          json: {
+            generatedAt: "2026-11-15T12:00:00Z",
+            staleAfterSeconds: "300",
+            awaitingApprovals: {
+              status: "CURRENT",
+              count: index === 3 ? "65" : "51",
+              items: [],
+            },
+            failedPlans: { status: "UNAVAILABLE", count: "0", items: [] },
+          },
+        })
+        .catch(() => {});
+    },
+  );
+  await hydrate(page);
+  await page.goto("/console/#area-command");
+  const total = page.locator('[data-overview-panel="awaitingApprovals"] dd');
+  await expect(total).toHaveText("51");
+  await expect(
+    page.locator('[data-overview-panel="failedPlans"] dd'),
+  ).toHaveText("Unavailable");
+  expect(reads).toBe(1);
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(total).toHaveText("51");
+  expect(reads).toBe(1);
+  await page
+    .getByRole("button", { name: "Refresh overview", exact: true })
+    .click();
+  await expect.poll(() => oldStarted).toBe(true);
+  actor = "bob";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(total).toHaveText("65");
+  releaseOld();
+  await page.evaluate(
+    () =>
+      new Promise((resolve) =>
+        requestAnimationFrame(() => requestAnimationFrame(resolve)),
+      ),
+  );
+  await expect(total).toHaveText("65");
+  denied = true;
+  await page
+    .getByRole("button", { name: "Refresh overview", exact: true })
+    .click();
+  await expect(page.locator("[data-overview-summary]")).toContainText(
+    "sign in required",
+  );
+  await expect(page.locator("[data-overview-summary]")).not.toContainText("65");
+  const beforeIdentityLoss = reads;
+  actor = "";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(page.locator("[data-overview-rpc]")).toContainText(
+    "Native identity is unavailable",
+  );
+  expect(reads).toBe(beforeIdentityLoss);
+});
