@@ -362,7 +362,11 @@ test.describe("workbench", () => {
         window as unknown as { switchScreen: (id: string) => void }
       ).switchScreen("rm10-ramped-rollout");
     });
-    await expect(page.getByText("Canary pacing").first()).toBeVisible();
+    await expect(page.locator("[data-release-waves]")).toBeVisible();
+    await expect(page.locator("[data-release-calendar]")).toContainText(
+      "Resolved scheduling data is unavailable",
+    );
+    await expect(page.getByText("Canary pacing")).toHaveCount(0);
     await page.evaluate(() => {
       (
         window as unknown as { switchScreen: (id: string) => void }
