@@ -15,5 +15,6 @@ function start(command, args) {
   });
 }
 
-start(process.execPath, ["--experimental-strip-types", "src/server/main.ts"]);
+// The Hub spawns and governs workspace ACP bridges behind Hub endpoints; the
+// browser development server never exposes a direct route to the agent process.
 start("pnpm", ["exec", "vp", "dev"]);

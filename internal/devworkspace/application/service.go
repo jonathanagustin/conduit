@@ -229,6 +229,42 @@ func (service *Service) File(ctx context.Context, caller domain.Caller, id, path
 	return service.files.Read(ctx, id, path, revision)
 }
 
+// ApplyGovernedEdit writes one confined file for the workspace owner after a
+// governed ACP permission has been settled, advances the proposal revision, and
+// clears any prior validation or approval. It never approves or deploys.
+func (service *Service) ApplyGovernedEdit(ctx context.Context, caller domain.Caller, id, path string, content []byte) (domain.FileView, error) {
+	workspace, err := service.owned(ctx, caller, id)
+	if err != nil {
+		return domain.FileView{}, err
+	}
+	view, err := service.files.Write(ctx, id, path, content)
+	if err != nil {
+		return domain.FileView{}, err
+	}
+	now := service.now()
+	workspace.ProposalRevision = "rev-" + shortHash(workspace.ProposalRevision+"\x00"+view.Path+"\x00"+view.Digest)
+	workspace.ValidationOutcome = ""
+	workspace.ApprovalID = ""
+	workspace.ArtifactDigest = ""
+	workspace.UpdatedAt = now
+	workspace.LastUsed = now
+	if err := service.records.Save(ctx, workspace); err != nil {
+		return domain.FileView{}, err
+	}
+	if err := service.record(ctx, caller, "workspace.acp_file_written", workspace.ID, "ALLOW", "governed ACP file edit committed: "+view.Path); err != nil {
+		return domain.FileView{}, err
+	}
+	return view, nil
+}
+
+// SnapshotFiles returns an immutable copy of all current files in an owned workspace.
+func (service *Service) SnapshotFiles(ctx context.Context, caller domain.Caller, id string) (map[string][]byte, error) {
+	if _, err := service.owned(ctx, caller, id); err != nil {
+		return nil, err
+	}
+	return service.files.Snapshot(ctx, id)
+}
+
 // Diff returns the stored proposal diff. It does not record an approval.
 func (service *Service) Diff(ctx context.Context, caller domain.Caller, id, revision string, visible func(string) bool) (domain.Diff, error) {
 	workspace, err := service.Get(ctx, caller, id, visible)

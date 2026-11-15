@@ -433,6 +433,13 @@
       "why": "ADR 0016 chooses this console transport and event vocabulary. No recovered Apollo protocol establishes a general operator event stream or these cursor, eligibility and storage semantics. The implementation uses existing native read decisions and does not infer a private upstream wire contract. Bounded native retention requires an explicit reset rather than silently skipping missing source positions.",
       "displacedBy": "A published or owner-approved sanitized event-stream contract establishing transport, cursor binding, stream eligibility, source coverage and resource authorization semantics.",
       "riskIfWrong": "Native event/cursor and transport shapes may need replacement. This is an explicit Conduit extension, conveys no approval/execution authority, and the console reconciles subscriptions through existing authorized reads with polling fallback. The bounded Audit feed is session observation, not durable event history; KPI counts cover loaded authorized snapshots."
+    },
+    {
+      "id": "workspace.GovernedACPBridge",
+      "what": "A Hub-routed workspace coding-agent ACP endpoint scoped to one authenticated operator and workspace branch, mapping low-risk ACP permission requests to explicit owner Confirm and high-risk requests to mandatory-human-review Change Requests, while mirroring redacted editor activity onto the console AG-UI stream.",
+      "why": "The ACP wire protocol (@agentclientprotocol/sdk@2.6.0, protocolVersion 1) and AG-UI 1.0 event envelopes are public contracts, whereas how a Conduit Hub routes workspace editor ACP turns, classifies governed permission risk tiers, and correlates sessionId/runId/threadId across audit and console streams is unestablished in public Apollo sources.",
+      "displacedBy": "a published or authorized sanitized workspace coding-agent ACP transport, governed permission mapping, and console activity projection contract.",
+      "riskIfWrong": "Marked CONDUIT_NATIVE; standing allow_always grants are stripped, pending or denied permissions block file writes and commands, high-risk actions require a separate human reviewer, offline-bundle mode denies non-loopback egress, and no Plan approval or deployment authority is granted."
     }
   ],
   "displaced": [

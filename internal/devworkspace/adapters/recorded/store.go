@@ -136,6 +136,14 @@ func (tree *Tree) Read(ctx context.Context, id, path, revision string) (domain.F
 	return tree.store.Read(ctx, id, path, revision)
 }
 
+func (tree *Tree) Write(ctx context.Context, id, path string, content []byte) (domain.FileView, error) {
+	return tree.store.Write(ctx, id, path, content)
+}
+
+func (tree *Tree) Snapshot(ctx context.Context, id string) (map[string][]byte, error) {
+	return tree.store.Snapshot(ctx, id)
+}
+
 func (tree *Tree) Diff(ctx context.Context, id string) (domain.Diff, error) {
 	return tree.store.Diff(ctx, id)
 }
@@ -219,6 +227,48 @@ func (store *Store) Read(_ context.Context, id, requestPath, revision string) (d
 	view.Content = text
 	view.Redacted = redacted
 	return view, nil
+}
+
+func (store *Store) Write(_ context.Context, id, requestPath string, content []byte) (domain.FileView, error) {
+	confined, err := domain.Confine(requestPath)
+	if err != nil {
+		return domain.FileView{}, err
+	}
+	if len(content) > domain.MaxFileBytes {
+		return domain.FileView{}, domain.ErrInvalid
+	}
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if _, ok := store.rows[id]; !ok {
+		return domain.FileView{}, domain.ErrNotFound
+	}
+	if store.current[id] == nil {
+		store.current[id] = map[string][]byte{}
+	}
+	copied := append([]byte(nil), content...)
+	store.current[id][confined] = copied
+	digest := domain.Digest(copied)
+	view := domain.FileView{
+		Path: confined, Revision: digest, Digest: digest, ValueTier: domain.ValueTier,
+		DownloadPath: "/v1/dev-workspaces/" + id + "/download?path=" + confined,
+	}
+	if !utf8.Valid(copied) || bytesContain(copied, 0) {
+		view.Binary = true
+		return view, nil
+	}
+	text, redacted := domain.RedactText(string(copied))
+	view.Content = text
+	view.Redacted = redacted
+	return view, nil
+}
+
+func (store *Store) Snapshot(_ context.Context, id string) (map[string][]byte, error) {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	if _, ok := store.rows[id]; !ok {
+		return nil, domain.ErrNotFound
+	}
+	return cloneFiles(store.current[id]), nil
 }
 
 func (store *Store) Diff(_ context.Context, id string) (domain.Diff, error) {

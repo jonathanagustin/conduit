@@ -383,4 +383,395 @@ describe("ACP bridge", () => {
       createBridge({ workspace: started.workspace }),
     ).rejects.toThrow(/agent-full-access/);
   });
+
+  it("refuses direct browser headers, missing Hub tokens, and cross-user or cross-branch headers", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "conduit-assistant-"));
+    dirs.push(workspace);
+    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
+    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([fakeAgent]);
+    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
+    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
+    const bridge = await createBridge({
+      workspace,
+      bridgeToken: "secret-hub-token",
+      scope: {
+        owner: "alice",
+        workspaceId: "wsp-1",
+        branch: "workspace/alice/wsp-1",
+      },
+    });
+    bridges.push(bridge);
+    const base = `http://127.0.0.1:${bridge.port}`;
+
+    const browserAttempt = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        origin: "http://127.0.0.1:5173",
+        "x-conduit-bridge-token": "secret-hub-token",
+        "x-conduit-workspace-owner": "alice",
+        "x-conduit-workspace-id": "wsp-1",
+        "x-conduit-workspace-branch": "workspace/alice/wsp-1",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(browserAttempt.status).toBe(403);
+
+    const secFetchAttempt = await fetch(`${base}/api/assistant/health`, {
+      headers: {
+        "sec-fetch-site": "cross-site",
+        "sec-fetch-dest": "empty",
+        "x-conduit-bridge-token": "secret-hub-token",
+        "x-conduit-workspace-owner": "alice",
+        "x-conduit-workspace-id": "wsp-1",
+        "x-conduit-workspace-branch": "workspace/alice/wsp-1",
+      },
+    });
+    expect(secFetchAttempt.status).toBe(403);
+
+    const unauthenticated = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(unauthenticated.status).toBe(401);
+
+    const wrongUser = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-conduit-bridge-token": "secret-hub-token",
+        "x-conduit-workspace-owner": "bob",
+        "x-conduit-workspace-id": "wsp-1",
+        "x-conduit-workspace-branch": "workspace/alice/wsp-1",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(wrongUser.status).toBe(403);
+
+    const wrongBranch = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-conduit-bridge-token": "secret-hub-token",
+        "x-conduit-workspace-owner": "alice",
+        "x-conduit-workspace-id": "wsp-1",
+        "x-conduit-workspace-branch": "workspace/alice/other-branch",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(wrongBranch.status).toBe(403);
+
+    const validHubInit = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json",
+        "x-conduit-bridge-token": "secret-hub-token",
+        "x-conduit-workspace-owner": "alice",
+        "x-conduit-workspace-id": "wsp-1",
+        "x-conduit-workspace-branch": "workspace/alice/wsp-1",
+      },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "initialize",
+        params: { protocolVersion: 1 },
+      }),
+    });
+    expect(validHubInit.status).toBe(200);
+    expect(await validHubInit.json()).toMatchObject({
+      jsonrpc: "2.0",
+      id: 1,
+      result: { protocolVersion: 1 },
+    });
+  });
+
+  it("checks the pinned ACP protocol version during initialize on both sides", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "conduit-assistant-"));
+    dirs.push(workspace);
+    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
+    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([fakeAgent]);
+    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
+    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
+    process.env["FAKE_ACP_PROTOCOL_VERSION"] = "2";
+    try {
+      await expect(createBridge({ workspace })).rejects.toThrow(
+        /negotiated protocol 2, expected 1/,
+      );
+    } finally {
+      delete process.env["FAKE_ACP_PROTOCOL_VERSION"];
+    }
+
+    const started = await start();
+    bridges.push(started.bridge);
+    dirs.push(started.workspace);
+    const mismatch = await fetch(
+      `http://127.0.0.1:${started.bridge.port}/acp`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 9,
+          method: "initialize",
+          params: { protocolVersion: 2 },
+        }),
+      },
+    );
+    expect(mismatch.status).toBe(400);
+    expect(await mismatch.json()).toMatchObject({
+      jsonrpc: "2.0",
+      id: 9,
+      error: { code: -32602 },
+    });
+  });
+
+  it("gates ACP file writes and commands on governed permission settlement and blocks denied edits", async () => {
+    const { readFile } = await import("node:fs/promises");
+    const started = await start();
+    bridges.push(started.bridge);
+    dirs.push(started.workspace);
+    const base = `http://127.0.0.1:${started.bridge.port}`;
+
+    const sessionRes = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 1,
+        method: "session/new",
+        params: { _meta: { threadId: "wsp-acp-t1" } },
+      }),
+    });
+    const sessionBody = (await sessionRes.json()) as {
+      result: { sessionId: string };
+    };
+    const sessionId = sessionBody.result.sessionId;
+
+    // 1. Denied permission blocks the file write.
+    const deniedPrompt = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 2,
+        method: "session/prompt",
+        params: {
+          sessionId,
+          _meta: { runId: "run-denied" },
+          prompt: [{ type: "text", text: "edit notes.txt: forbidden write" }],
+        },
+      }),
+    });
+    const deniedReader = deniedPrompt.body?.getReader();
+    if (!deniedReader) throw new Error("missing stream");
+    const decoder = new TextDecoder();
+    let buf = "";
+    let sawPerm = false;
+    for (;;) {
+      const chunk = await deniedReader.read();
+      if (chunk.done) break;
+      buf += decoder.decode(chunk.value, { stream: true });
+      const frames = buf.split("\n\n");
+      buf = frames.pop() ?? "";
+      for (const frame of frames) {
+        const raw = frame
+          .split("\n")
+          .filter((l) => l.startsWith("data:"))
+          .map((l) => l.slice(5).trim())
+          .join("\n");
+        if (!raw) continue;
+        const ev = JSON.parse(raw) as {
+          type: string;
+          request?: {
+            requestId: string;
+            options: { optionId: string; kind: string }[];
+          };
+        };
+        if (ev.type === "permission_request" && ev.request && !sawPerm) {
+          sawPerm = true;
+          expect(
+            ev.request.options.some((opt) => opt.kind === "allow_always"),
+          ).toBe(false);
+          const settle = await fetch(
+            `${base}/acp/permissions/${encodeURIComponent(ev.request.requestId)}`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                threadId: "wsp-acp-t1",
+                runId: "run-denied",
+                optionId: "reject",
+              }),
+            },
+          );
+          expect(settle.status).toBe(200);
+        }
+      }
+    }
+    expect(sawPerm).toBe(true);
+    await expect(
+      readFile(path.join(started.workspace, "notes.txt"), "utf8"),
+    ).rejects.toThrow();
+
+    // 2. Approved permission writes the file and emits an activity event with sha256 digest.
+    const approvedPrompt = await fetch(`${base}/acp`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({
+        jsonrpc: "2.0",
+        id: 3,
+        method: "session/prompt",
+        params: {
+          sessionId,
+          _meta: { runId: "run-approved" },
+          prompt: [{ type: "text", text: "edit notes.txt: governed content" }],
+        },
+      }),
+    });
+    const approvedReader = approvedPrompt.body?.getReader();
+    if (!approvedReader) throw new Error("missing stream");
+    let buf2 = "";
+    const activityEvents: Record<string, unknown>[] = [];
+    for (;;) {
+      const chunk = await approvedReader.read();
+      if (chunk.done) break;
+      buf2 += decoder.decode(chunk.value, { stream: true });
+      const frames = buf2.split("\n\n");
+      buf2 = frames.pop() ?? "";
+      for (const frame of frames) {
+        const raw = frame
+          .split("\n")
+          .filter((l) => l.startsWith("data:"))
+          .map((l) => l.slice(5).trim())
+          .join("\n");
+        if (!raw) continue;
+        const ev = JSON.parse(raw) as Record<string, unknown>;
+        if (ev["type"] === "activity") activityEvents.push(ev);
+        if (ev["type"] === "permission_request") {
+          const req = ev["request"] as { requestId: string };
+          await fetch(
+            `${base}/acp/permissions/${encodeURIComponent(req.requestId)}`,
+            {
+              method: "POST",
+              headers: { "content-type": "application/json" },
+              body: JSON.stringify({
+                threadId: "wsp-acp-t1",
+                runId: "run-approved",
+                optionId: "allow",
+              }),
+            },
+          );
+        }
+      }
+    }
+    expect(
+      await readFile(path.join(started.workspace, "notes.txt"), "utf8"),
+    ).toBe("governed content");
+    expect(
+      activityEvents.some(
+        (ev) =>
+          ev["kind"] === "file_write" &&
+          ev["path"] === "notes.txt" &&
+          typeof ev["digest"] === "string" &&
+          String(ev["digest"]).startsWith("sha256:"),
+      ),
+    ).toBe(true);
+  });
+
+  it("makes no outside network calls in offline-bundle mode and strips external API keys", async () => {
+    const workspace = await mkdtemp(path.join(tmpdir(), "conduit-assistant-"));
+    dirs.push(workspace);
+    const savedOpenAi = process.env["OPENAI_API_KEY"];
+    const savedCodex = process.env["CODEX_API_KEY"];
+    process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
+    process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([fakeAgent]);
+    process.env["ASSISTANT_ACP_FIXTURE"] = "1";
+    process.env["INITIAL_AGENT_MODE"] = "workspace-write";
+    process.env["OPENAI_API_KEY"] = "sk-shouldnotleaktoofflinechild";
+    process.env["CODEX_API_KEY"] = "sk-shouldnotleaktoofflinechild2";
+    process.env["FAKE_ACP_AUTH_METHODS"] = "api-key";
+    try {
+      const bridge = await createBridge({
+        workspace,
+        offlineBundle: true,
+      });
+      bridges.push(bridge);
+      expect(bridge.offlineBundle).toBe(true);
+
+      await expect(
+        bridge.outboundFetch("https://api.openai.com/v1/responses"),
+      ).rejects.toThrow(/OFFLINE_BUNDLE_EGRESS_DENIED/);
+
+      const base = `http://127.0.0.1:${bridge.port}`;
+      const localHealth = await bridge.outboundFetch(
+        `${base}/api/assistant/health`,
+      );
+      expect(localHealth.status).toBe(200);
+      expect(await localHealth.json()).toMatchObject({ offlineBundle: true });
+
+      const sessionRes = await fetch(`${base}/acp`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 1,
+          method: "session/new",
+          params: {},
+        }),
+      });
+      const {
+        result: { sessionId },
+      } = (await sessionRes.json()) as { result: { sessionId: string } };
+      const promptRes = await fetch(`${base}/acp`, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          jsonrpc: "2.0",
+          id: 2,
+          method: "session/prompt",
+          params: {
+            sessionId,
+            prompt: [{ type: "text", text: "check offline env" }],
+          },
+        }),
+      });
+      const events = await readEvents(promptRes);
+      const snapshotText =
+        events.findLast((ev) => ev.type === "snapshot")?.snapshot?.text ?? "";
+      expect(JSON.parse(snapshotText)).toEqual({
+        authenticated: false,
+        hasOpenAiKey: false,
+        hasCodexKey: false,
+        offlineBundle: "1",
+        noProxy: "*",
+      });
+    } finally {
+      delete process.env["FAKE_ACP_AUTH_METHODS"];
+      if (savedOpenAi === undefined) delete process.env["OPENAI_API_KEY"];
+      else process.env["OPENAI_API_KEY"] = savedOpenAi;
+      if (savedCodex === undefined) delete process.env["CODEX_API_KEY"];
+      else process.env["CODEX_API_KEY"] = savedCodex;
+    }
+  });
 });
