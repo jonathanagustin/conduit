@@ -506,7 +506,7 @@ test("Audit platform status renders stubbed measurements and refreshes with GET"
 
 test("Command Center uses recorded sites and drafts context without writes", async ({
   page,
-}) => {
+}, testInfo) => {
   const mutations: string[] = [];
   const external: string[] = [];
   page.on("request", (request) => {
@@ -650,7 +650,7 @@ test("Command Center uses recorded sites and drafts context without writes", asy
     ),
   ).toHaveCount(0);
   await page.screenshot({
-    path: "/workspace/scratch/command-center-geography.png",
+    path: testInfo.outputPath("command-center-geography.png"),
     fullPage: false,
   });
   await page
