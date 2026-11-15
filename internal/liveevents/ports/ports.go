@@ -26,3 +26,11 @@ type Validator interface{ Envelope(domain.Envelope) error }
 // Readiness refuses a public stream while required committed-source adapters
 // are absent, unavailable or in a failed publication state.
 type Readiness interface{ Check(context.Context) error }
+
+// CommittedSource reads private native outboxes after their owning state commits.
+// Positions are the delivery journal's durable producer checkpoints. A retained
+// history gap returns ErrReset; successful delivery must persist checkpoints
+// before requesting the next page. This port conveys no subscriber authority.
+type CommittedSource interface {
+	ReadCommittedEvents(context.Context, map[string]uint64, int) ([]domain.Record, error)
+}

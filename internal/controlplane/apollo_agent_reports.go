@@ -132,6 +132,7 @@ func (repository *PostgresRepository) updateApolloAgentReports(ctx context.Conte
 // A single file keeps raw input and projection atomic in single-process mode.
 // Existing report files remain readable; native report writes preserve inputs.
 type apolloReportEnvelope struct {
+	LiveOutbox nativeLiveOutbox `json:"_liveOutbox,omitempty"`
 	EnvironmentReport
 	ApolloAgentReports      persistedApolloAgentReports `json:"apolloAgentReports,omitempty"`
 	ApolloProjectionPending bool                        `json:"apolloProjectionPending,omitempty"`
@@ -184,6 +185,7 @@ func (repository *FileRepository) updateApolloAgentReports(ctx context.Context, 
 			return err
 		}
 		envelope.EnvironmentReport = stored
+		envelope.LiveOutbox = appendNativeInvalidation(envelope.LiveOutbox, "environment", environment, stored.Revision, "fleet", "overview", "kpi")
 		envelope.ApolloProjectionPending = false
 	}
 	envelope.ApolloAgentReports = raw

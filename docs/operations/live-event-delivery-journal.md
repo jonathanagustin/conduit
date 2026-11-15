@@ -108,3 +108,41 @@ isolation, restart/offline replay, identity and delegation changes, revocation,
 retention expiry and count limits, queue overflow with intact replay, concurrent
 publishers, producer deduplication/gaps/retcons, arbitrary/duplicate-member
 payloads, callback rollback/aliasing, cancellation, permissions and corrupt state.
+
+## Native source outboxes
+
+The native Memory, file, and PostgreSQL repositories record `index.invalidated`
+hints for successful Plan, change-request, and environment-report writes.
+Each private record binds its native subject, persisted resource revision,
+producer ordinal, and commit-recording timestamp. The timestamp describes when
+the adapter recorded the mutation; it is not an observed Agent timestamp or an
+ordering guarantee. Payloads are static area codes, with no model text or native
+record serialization. Plan invalidations include approvals so consumers refetch
+the persisted approval projection rather than infer a decision from a hint.
+
+Memory transactions and PostgreSQL's repository-state transaction include these
+outboxes in their rollback boundary. The single-process file adapter embeds the
+outbox in the same atomic JSON replacement as the owning object. Existing files
+remain readable and begin recording on their next write. New zero-revision Plans
+and change requests receive native revision 1 at creation. Native public reads
+and exports do not include the private outbox metadata.
+
+The combined file change-request/Plan operation still has two separate file
+commits. If the first succeeds and the second fails, only the first file and its
+own subject-bound hint are committed. A change-request hint never claims that
+its associated Plan or approval projection also committed.
+
+`CommittedSource.ReadCommittedEvents` is a private adapter port, not an operator
+endpoint. It returns at most 256 copied records in stable producer/ordinal order.
+The consumer supplies durable per-producer checkpoints from the delivery
+journal, publishes a batch, persists that journal, then advances its checkpoints.
+Each native subject retains its latest 10,000 records and its durable ordinal.
+A known checkpoint behind retained history, or ahead of its source, requires a
+reset. A new consumer may establish its baseline at the first retained record.
+Legacy writes before the outbox was introduced cannot be reconstructed as events.
+
+This source adapter does not mount `/v1/events`, implement current native
+subscriber authorization, or connect source draining to delivery readiness.
+Packaging and assistant producers remain separate work. The delivery feature
+must stay unavailable until its required producers, authorization, and transport
+composition are installed and verified.
