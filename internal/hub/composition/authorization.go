@@ -274,6 +274,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "GET /v1/notifications/contacts",
 			Decision: DecisionOperatorSelf, Detail: "operatorPrincipal + ownedBy(principal, owner)"},
+		{Pattern: "POST /conduit.notifications.v1.NotificationService/ListNotificationEvents",
+			Decision: DecisionOperatorGrant, Detail: "native notification principal and resourceOperation(read); shared resource-event query; no subscription or approval"},
 		{Pattern: "GET /v1/notifications/events",
 			Decision: DecisionOperatorGrant, Detail: "operatorPrincipal + resourceOperation(resourceRid, read)"},
 		{Pattern: "GET /v1/notifications/inbox",

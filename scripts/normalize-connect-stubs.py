@@ -19,6 +19,8 @@ BANNER = {
 
 def rewrite(path: Path) -> None:
     text = path.read_text()
+    if NEEDLE not in text and "DO NOT EDIT." not in text:
+        return
     if NEEDLE in text:
         banner = BANNER[path.suffix]
         lines = []

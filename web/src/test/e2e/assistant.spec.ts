@@ -2321,9 +2321,16 @@ test("audit verifies native payload bytes and keeps polled events resource scope
             : entries,
         },
       });
-    if (url.pathname === "/v1/notifications/events") {
-      const resource = url.searchParams.get("resourceRid")!;
-      polls.push(resource);
+    return route.fulfill({ status: 404, json: { error: "not configured" } });
+  });
+  await page.route(
+    "**/conduit.notifications.v1.NotificationService/ListNotificationEvents",
+    async (route) => {
+      expect(route.request().method()).toBe("POST");
+      const body = route.request().postDataJSON();
+      expect(Object.keys(body).sort()).toEqual(["limit", "resourceRid"]);
+      expect(body.limit).toBe("100");
+      polls.push(body.resourceRid);
       return route.fulfill({
         json: {
           resourceRid: "environment/east",
@@ -2335,14 +2342,13 @@ test("audit verifies native payload bytes and keeps polled events resource scope
               resourceRid: "environment/east",
               actor: "operator",
               summary: "<img src=x onerror=alert(1)>",
-              occurredAt: "2026-11-15T12:00:00Z",
+              occurredAt: "2026-11-15T12:00:00.123456789Z",
             },
           ],
         },
       });
-    }
-    return route.fulfill({ status: 404, json: { error: "not configured" } });
-  });
+    },
+  );
   await hydrate(page);
   await page.goto("/console/#au01-audit");
   await expect(page.locator(".audit-ledger")).toContainText("operator-雪");

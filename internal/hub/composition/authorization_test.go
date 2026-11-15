@@ -79,12 +79,13 @@ const (
 // bodyFor is a request body the route will accept far enough to reach its
 // authorization decision.
 //
-// "{}" does for everything except GraphQL, which reports an empty document as a
-// bad request before it asks who is calling. That ordering is not a hole -- the
-// refusal discloses nothing -- but a probe that accepted the 400 as a refusal
-// would also accept it after the authorization was removed, so the GraphQL row
-// is driven with a document that parses.
+// Routes whose decision needs a typed document or resource coordinate receive a
+// valid request below. Accepting protocol/validation errors instead would not
+// demonstrate an authorization refusal after the resource check was removed.
 func bodyFor(pattern string) string {
+	if pattern == "POST /conduit.notifications.v1.NotificationService/ListNotificationEvents" {
+		return `{"resourceRid":"environment/` + fixtureEnvironment + `","limit":"100"}`
+	}
 	if pattern == "POST /v1/intelligence/courses/select" {
 		return `{"value":"512Mi","environment":"tenant-a-use2","installationId":"probe","productId":"a.example:ledger"}`
 	}
@@ -323,6 +324,10 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 		request := httptest.NewRequest(method, path, strings.NewReader(bodyFor(route.Pattern)))
 		if strings.HasPrefix(path, "/v1/debug-session-requests") {
 			request.Header.Set("Content-Type", "application/json")
+		}
+		if strings.HasPrefix(path, "/conduit.") {
+			request.Header.Set("Content-Type", "application/json")
+			request.Header.Set("Connect-Protocol-Version", "1")
 		}
 		request.Header.Set("X-Platform-Subject", "nobody")
 		response := httptest.NewRecorder()
