@@ -24,6 +24,7 @@ var opaque = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$`)
 var cursorPattern = regexp.MustCompile(`^[A-Za-z0-9_-]{1,512}$`)
 
 type Config struct {
+	Sources    map[string]ports.CommittedSource
 	Journal    ports.Journal
 	Authorizer ports.Authorizer
 	Validator  ports.Validator
@@ -33,10 +34,12 @@ type Config struct {
 	MaxStreams int
 }
 type Service struct {
-	failed   bool
-	mu       sync.Mutex
-	cfg      Config
-	sessions map[string]*connection
+	sourceMu     sync.Mutex
+	sourceHealth *sourceReadiness
+	failed       bool
+	mu           sync.Mutex
+	cfg          Config
+	sessions     map[string]*connection
 }
 type connection struct {
 	id, stream        string
@@ -83,7 +86,21 @@ func New(cfg Config) (*Service, error) {
 	if cfg.MaxStreams < 1 {
 		return nil, domain.ErrInvalid
 	}
-	return &Service{cfg: cfg, sessions: map[string]*connection{}}, nil
+	sources := make(map[string]ports.CommittedSource, len(cfg.Sources))
+	required := make([]string, 0, len(cfg.Sources))
+	for name, source := range cfg.Sources {
+		if name == "" || source == nil {
+			return nil, domain.ErrInvalid
+		}
+		sources[name] = source
+		required = append(required, name)
+	}
+	cfg.Sources = sources
+	var sourceHealth *sourceReadiness
+	if len(required) > 0 {
+		sourceHealth = newSourceReadiness(required, cfg.Now)
+	}
+	return &Service{cfg: cfg, sourceHealth: sourceHealth, sessions: map[string]*connection{}}, nil
 }
 
 func (service *Service) identity(ctx context.Context) (domain.Identity, error) {
@@ -107,7 +124,7 @@ func (service *Service) check(ctx context.Context, expected domain.Identity) err
 	if current != expected {
 		return domain.ErrReset
 	}
-	if service.failed || service.cfg.Readiness.Check(ctx) != nil {
+	if service.failed || service.readiness(ctx) != nil {
 		return domain.ErrUnavailable
 	}
 	return nil
@@ -188,7 +205,7 @@ func (service *Service) Open(ctx context.Context, cursor string) (*Subscription,
 	if err != nil {
 		return nil, err
 	}
-	if service.cfg.Readiness.Check(ctx) != nil {
+	if service.readiness(ctx) != nil {
 		return nil, domain.ErrUnavailable
 	}
 	if cursor != "" && !cursorPattern.MatchString(cursor) {

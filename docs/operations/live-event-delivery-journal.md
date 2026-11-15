@@ -146,3 +146,40 @@ subscriber authorization, or connect source draining to delivery readiness.
 Packaging and assistant producers remain separate work. The delivery feature
 must stay unavailable until its required producers, authorization, and transport
 composition are installed and verified.
+
+## Draining configured committed sources
+
+`application.Config.Sources` fixes the named native source adapters when the
+service is constructed; the service copies the registry. `DrainCommitted`
+accepts only a configured name and a bounded budget of 1–64 pages, each of at
+most 256 records. It reads source checkpoints from the delivery journal before
+every page and uses the publisher's same durable transaction for records and
+new checkpoints. It does not maintain a second in-memory acknowledgement.
+After a failed journal write or restart, the source therefore supplies the
+unacknowledged page again. Concurrent drains are serialized. The source read
+runs outside the delivery mutex and outside native mutation callbacks, allowing
+visibility checks to read native state without a repository-lock cycle.
+
+The service combines its configured readiness port with an internal readiness
+check for every configured source. All start unready. Each source must complete
+a successful read and delivery commit at least once every 30 seconds; this is a
+Conduit-native freshness bound, not an upstream transport guarantee. Failed,
+stale, or backwards-clock checks refuse new subscriptions. A drain failure also
+wakes and terminates existing subscriptions. The caller owns polling and must
+schedule every required source even when it has no events. A successful bounded
+page can mark a source healthy while backlog remains; readiness proves that the
+adapter works, not that native read models or queues are caught up. `More` tells
+the caller that the page budget was exhausted and another drain is due.
+
+An idle recovery performs a journal write validation before marking the source
+healthy or clearing publication failure. It creates no event, sequence, or
+synthetic resource revision. A retention gap, repeated source position, invalid
+producer coordinate, oversized page, or failed native read remains a failure;
+the drainer never discards checkpoints or invents an automatic reset to hide it.
+
+The native repository/delivery integration tests exercise Memory, file, and
+PostgreSQL sources, filtered visible sequences, another database replica,
+rollback, durable retry, and replay after reopening the delivery journal. They
+use a bounded test authorizer; they do not establish production operator
+identity policy. Runtime polling, current native subscriber authorization,
+remaining producer families, and the SSE HTTP adapter are still not composed.
