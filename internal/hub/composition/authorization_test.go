@@ -85,6 +85,9 @@ const (
 // would also accept it after the authorization was removed, so the GraphQL row
 // is driven with a document that parses.
 func bodyFor(pattern string) string {
+	if pattern == "POST /v1/intelligence/courses/select" {
+		return `{"value":"512Mi","environment":"tenant-a-use2","installationId":"probe","productId":"a.example:ledger"}`
+	}
 	if pattern == "POST /v1/debug-session-requests" {
 		return `{"sessionId":"dsr_abcdefghijklmnopqrstuvwxyz","target":{"environment":"tenant-a-use2","namespace":"example","profile":"probe"}}`
 	}
