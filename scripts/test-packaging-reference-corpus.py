@@ -90,6 +90,33 @@ class ReferenceCorpusTests(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "cannot become blind"):
             self.verify()
 
+    def test_every_negative_case_has_an_explicit_application_status(self):
+        self.matrix["negativeCaseCoverage"].pop()
+        with self.assertRaisesRegex(ValueError, "all sixteen"):
+            self.verify()
+        self.setUp()
+        self.matrix["negativeCaseCoverage"][0] = copy.deepcopy(self.matrix["negativeCaseCoverage"][1])
+        with self.assertRaisesRegex(ValueError, "all sixteen"):
+            self.verify()
+
+    def test_protocol_fixture_cannot_be_promoted_to_application_proof(self):
+        for change in [{"status": "PASS"}, {"applicationReceipts": ["unit-test-success"]}]:
+            with self.subTest(change=change):
+                self.setUp()
+                self.matrix["negativeCaseCoverage"][0].update(change)
+                with self.assertRaisesRegex(ValueError, "application negative-case"):
+                    self.verify()
+
+    def test_retained_candidate_does_not_approve_a_trial(self):
+        self.matrix["candidateDisposition"]["trialApproved"] = True
+        with self.assertRaisesRegex(ValueError, "trial approval"):
+            self.verify()
+
+    def test_licensing_boundary_rejects_copied_implementation(self):
+        self.corpus["sources"][0]["implementationCopied"] = True
+        with self.assertRaisesRegex(ValueError, "must not vendor"):
+            self.verify()
+
     def test_duplicate_json_keys_fail(self):
         with self.assertRaisesRegex(ValueError, "duplicate JSON key"):
             v.decode('{"status":"NOT_RUN","status":"PASS"}')

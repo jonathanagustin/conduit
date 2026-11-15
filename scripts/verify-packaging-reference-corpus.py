@@ -103,6 +103,20 @@ def verify(corpus, matrix, profile_bytes, checksum, existing_file):
         require(evidence["trustedProducerVerified"] is False and evidence["runtimeValidation"] is False,
                 "structural/protocol evidence cannot authenticate runtime results")
     require(set(matrix["negativeCases"]) == NEGATIVE, "required negative cases changed")
+    disposition = matrix["candidateDisposition"]
+    require(disposition["decision"] == "RETAIN_UNSUPPORTED_NEGATIVE_BASELINE" and
+            disposition["profile"] == matrix["profile"] and disposition["reason"] and
+            disposition["independentAssignment"] is False and disposition["trialApproved"] is False and
+            disposition["executionIssue"] == 639, "candidate disposition cannot imply trial approval")
+    coverage = matrix["negativeCaseCoverage"]
+    require(len(coverage) == len(NEGATIVE) and {case["id"] for case in coverage} == NEGATIVE,
+            "negative-case coverage must reconcile all sixteen cases exactly once")
+    for case in coverage:
+        require(case["status"] == "NOT_RUN" and case["applicationReceipts"] == [] and
+                case["reason"] and case["followUpIssue"] == 639,
+                "protocol fixtures cannot become application negative-case receipts")
+    require(corpus["licensePolicy"] and all(source["implementationCopied"] is False for source in sources),
+            "corpus must remain references and original factual paraphrases")
     require(matrix["ownership"]["generatorIsApprovalAuthority"] is False and
             matrix["ownership"]["liveTrialAuthorized"] is False, "dataset grants no execution authority")
     measured = matrix["measurement"]

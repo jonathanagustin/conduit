@@ -152,5 +152,127 @@
       "Current internal-stateless/v1 generation does not support the held-out stateful application.",
       "Unsigned structural receipts do not authenticate the producer or authorize deployment."
     ]
-  }
+  },
+  "candidateDisposition": {
+    "decision": "RETAIN_UNSUPPORTED_NEGATIVE_BASELINE",
+    "profile": "held-out/valkey-v1.json",
+    "reason": "Valkey is materially different from the TAK reference and exercises the explicit fail-closed stateful capability boundary. Retain the original frozen criteria unchanged; do not represent this as a supported generator success benchmark. A supported independent application trial belongs to #639.",
+    "independentAssignment": false,
+    "trialApproved": false,
+    "executionIssue": 639
+  },
+  "negativeCaseCoverage": [
+    {
+      "id": "unresolvable-dependency",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No isolated application dependency-resolution trial has run.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "unsupported-chart-capability",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No held-out chart capability trial has run; stateless-generator rejection is only protocol evidence.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "unknown-migration",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No application migration or rollback semantics have been independently validated.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "unsigned-or-mutable-input",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No held-out artifact set has been built or admitted against an external trust policy.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "unauthorized-action",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No isolated application authorization trial has run.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "artifact-changed-after-validation",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No authoritative application validation receipt has been produced.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "chart-digest-mismatch",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No held-out chart or deployed workload has been validated.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "undeclared-upgrade-only-image",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No held-out install/upgrade render or runtime trial has run.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "source-or-template-drift",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No held-out generated source/template binding trial has run.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "stale-or-replayed-approval",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No approved held-out trial or application-scoped approval replay has run.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "changed-target-or-configuration",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No bound held-out target/configuration has been executed.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "scanner-timeout",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "Validator process timeout tests do not execute an application scanner or establish its authority.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "scanner-malformed-output",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No application scanner output has been independently produced and checked.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "forged-summary",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "Dataset-summary rejection is not an authoritative application-receipt trial.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "cancelled-run",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No isolated application cancellation drill has run.",
+      "followUpIssue": 639
+    },
+    {
+      "id": "partial-execution",
+      "status": "NOT_RUN",
+      "applicationReceipts": [],
+      "reason": "No isolated application partial-failure/recovery drill has run.",
+      "followUpIssue": 639
+    }
+  ]
 }
