@@ -43,7 +43,14 @@ describe("recorded packaging pipeline", () => {
       ["assess", "WAITING"],
     ]);
     expect(events).toEqual(original);
-    expect(stageChunks([event(2, "build")]).ordered).toBe(false);
+    expect(stageChunks([event(2, "build")])).toMatchObject({
+      ordered: true,
+      firstSequence: 2,
+    });
+    expect(stageChunks([event(10, "build"), event(12, "review")]).ordered).toBe(
+      false,
+    );
+    expect(stageChunks([event(0, "build")]).ordered).toBe(false);
     expect(stageChunks([event(1, "build"), event(1, "build")]).ordered).toBe(
       false,
     );
@@ -142,4 +149,35 @@ describe("recorded packaging pipeline", () => {
       false,
     );
   });
+});
+
+it("shows a retained native window without pretending its expired prefix exists", async () => {
+  const events = [
+    event(10, "review", "WAITING"),
+    event(11, "blocked", "CANCELLED"),
+  ];
+  const view = stageChunks(events);
+  expect(view.ordered).toBe(true);
+  expect(view.firstSequence).toBe(10);
+  for (const markup of [
+    pipelineBuilderMarkup(runs, events, { runId: "r1" }),
+    stagedRunMarkup(runs, events, { runId: "r1" }),
+  ]) {
+    expect(markup).toContain(
+      "Only retained history is available, starting at #10.",
+    );
+    expect(markup).not.toContain("not in strict sequence");
+    expect(markup).toContain("CANCELLED");
+  }
+  const history = await readPackagingHistory(
+    "r1",
+    vi.fn().mockResolvedValue({ items: events, total: 2 }),
+  );
+  expect(history.complete).toBe(true);
+  expect(history.note).toContain("retained history");
+  expect(
+    pipelineBuilderMarkup(runs, events, { runId: "r1", history }).match(
+      /Only retained history/gu,
+    ),
+  ).toHaveLength(1);
 });

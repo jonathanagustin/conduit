@@ -76,9 +76,15 @@ func (handler *handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 	}
 	// Keep the deadline through net/http response finalization (including its
 	// terminal chunk). The server clears it after finishRequest, before reuse.
-	if handler.cfg.Refresh != nil && handler.cfg.Refresh(ctx) != nil {
-		writeError(writer, http.StatusServiceUnavailable, "event sources unavailable")
-		return
+	if handler.cfg.Refresh != nil {
+		if err := handler.cfg.Refresh(ctx); err != nil {
+			if errors.Is(err, domain.ErrReset) {
+				writeDomainError(writer, domain.ErrReset)
+			} else {
+				writeError(writer, http.StatusServiceUnavailable, "event sources unavailable")
+			}
+			return
+		}
 	}
 	subscription, err := handler.cfg.Service.Open(ctx, request.Header.Get("Last-Event-ID"))
 	if err != nil {

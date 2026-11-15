@@ -23,7 +23,8 @@ export function selectedPackagingRun(runs, id) {
 // Do not synthesize future steps, reorder by wall clock, or mutate records.
 export function stageChunks(events) {
   const chunks = [];
-  let previous = 0;
+  let previous = null;
+  let firstSequence = null;
   let ordered = true;
   for (const event of Array.isArray(events) ? events : []) {
     if (!event || typeof event.step !== "string" || !event.step) {
@@ -32,9 +33,11 @@ export function stageChunks(events) {
     }
     if (
       !Number.isSafeInteger(event.sequence) ||
-      event.sequence !== previous + 1
+      event.sequence < 1 ||
+      (previous !== null && event.sequence !== previous + 1)
     )
       ordered = false;
+    if (firstSequence === null) firstSequence = event.sequence;
     previous = event.sequence;
     let chunk = chunks.at(-1);
     if (!chunk || chunk.step !== event.step) {
@@ -43,7 +46,7 @@ export function stageChunks(events) {
     }
     chunk.events.push(event);
   }
-  return { chunks, ordered };
+  return { chunks, ordered, firstSequence: firstSequence ?? 0 };
 }
 export async function readPackagingHistory(runId, read) {
   const base = `/v1/packaging-runs/${encodeURIComponent(runId)}/events`;
@@ -78,7 +81,9 @@ export async function readPackagingHistory(runId, read) {
         note:
           items.length !== total
             ? "Only a partial or changed history was returned."
-            : "",
+            : Number.isSafeInteger(items[0]?.sequence) && items[0].sequence > 1
+              ? `Only retained history is available, starting at #${items[0].sequence}.`
+              : "",
       };
     if (
       typeof body.nextCursor !== "string" ||
@@ -103,8 +108,12 @@ function selector(runs, run) {
 function eventOutput(events) {
   return `<pre class="code-id" style="white-space:pre-wrap;overflow-wrap:anywhere">${events.map((event) => esc(`#${event.sequence ?? "?"} ${event.at || "Time not recorded"} ${event.outcome || "Outcome not recorded"}\n${event.reason || "No step output recorded."}`)).join("\n\n")}</pre>`;
 }
-function notice(history, ordered) {
-  return `${history?.note ? `<p role="status" class="kit-muted">${esc(history.note)}</p>` : ""}${ordered ? "" : '<p role="status" class="kit-muted">History is incomplete or not in strict sequence. Only recorded entries are shown.</p>'}`;
+function notice(history, ordered, firstSequence) {
+  const retained =
+    !history?.note && Number.isSafeInteger(firstSequence) && firstSequence > 1
+      ? `<p role="status" class="kit-muted">Only retained history is available, starting at #${firstSequence}.</p>`
+      : "";
+  return `${retained}${history?.note ? `<p role="status" class="kit-muted">${esc(history.note)}</p>` : ""}${ordered ? "" : '<p role="status" class="kit-muted">History is incomplete or not in strict sequence. Only recorded entries are shown.</p>'}`;
 }
 function graph(chunks, selected) {
   return chunks.length
@@ -127,11 +136,11 @@ export function pipelineBuilderMarkup(
   const run = selectedPackagingRun(runs, runId);
   const head = header(runs, run, "Packaging pipeline");
   if (!run) return head;
-  const { chunks, ordered } = stageChunks(events);
+  const { chunks, ordered, firstSequence } = stageChunks(events);
   const selected =
     chunks.find((chunk) => chunk.id === stageId) || chunks.at(-1);
   const latest = selected?.events.at(-1);
-  return `<div class="kit-stack" data-packaging-pipeline>${head}${notice(history, ordered)}<div class="kit-grid">
+  return `<div class="kit-stack" data-packaging-pipeline>${head}${notice(history, ordered, firstSequence)}<div class="kit-grid">
     <section class="kit-card kit-pad" data-stage-graph><h3>Recorded stage graph</h3><p class="kit-muted">Read-only recorded order. Pipeline edits require a reviewed change request.</p>${graph(chunks, selected)}</section>
     <section class="kit-card kit-pad" data-stage-inspector><h3>Selected stage</h3>${
       latest
@@ -173,7 +182,7 @@ export function stagedRunMarkup(
   const run = selectedPackagingRun(runs, runId);
   const head = header(runs, run, "Staged packaging run");
   if (!run) return head;
-  const { chunks, ordered } = stageChunks(events);
+  const { chunks, ordered, firstSequence } = stageChunks(events);
   const selected =
     chunks.find((chunk) => chunk.id === stageId) || chunks.at(-1);
   const sections = [
@@ -201,5 +210,5 @@ export function stagedRunMarkup(
     ])}<p class="kit-muted">No downloadable artifact reference, SBOM, or signature verification receipt is supplied by this run record.</p>`;
   else
     content = `<p class="kit-muted">Worker-recorded step output; raw subprocess logs are not included.</p>${eventOutput(events)}`;
-  return `<div class="kit-stack" data-staged-run>${head}${notice(history, ordered)}<div class="kit-header-title" role="group" aria-label="Run detail sections">${sections.map(([id, label]) => `<button type="button" class="kit-btn" aria-pressed="${active === id}" data-packaging-section="${id}">${label}</button>`).join("")}<section class="kit-card kit-pad">${content}</section><button type="button" class="kit-btn" data-packaging-navigate="s07-pipeline">Open pipeline graph</button></div>`;
+  return `<div class="kit-stack" data-staged-run>${head}${notice(history, ordered, firstSequence)}<div class="kit-header-title" role="group" aria-label="Run detail sections">${sections.map(([id, label]) => `<button type="button" class="kit-btn" aria-pressed="${active === id}" data-packaging-section="${id}">${label}</button>`).join("")}<section class="kit-card kit-pad">${content}</section><button type="button" class="kit-btn" data-packaging-navigate="s07-pipeline">Open pipeline graph</button></div>`;
 }

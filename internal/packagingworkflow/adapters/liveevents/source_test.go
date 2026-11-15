@@ -228,3 +228,41 @@ func TestSourceProjectsRecordedTerminalStatus(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestSourceReadsMonotonicRetainedWindowAndDistinguishesLostCheckpoints(t *testing.T) {
+	reader := fixture()
+	reader.events["app-1"] = nil
+	for sequence := 10; sequence < 10+packaging.MaxStepEvents; sequence++ {
+		reader.events["app-1"] = append(reader.events["app-1"], step(sequence, packaging.StepReview, packaging.EventWaiting))
+	}
+	producer := live.ProducerID(live.Subject{Type: "packaging-run", ID: "app-1"})
+	source, _ := New(reader)
+	for _, tc := range []struct {
+		name      string
+		positions map[string]uint64
+		count     int
+		want      error
+	}{
+		{"new-baseline", nil, 32, nil}, {"retained-predecessor", map[string]uint64{producer: 9}, 32, nil}, {"retained-position", map[string]uint64{producer: 10}, 31, nil}, {"caught-up", map[string]uint64{producer: 41}, 0, nil},
+		{"lost-window", map[string]uint64{producer: 8}, 0, live.ErrSourceRetentionGap}, {"known-zero", map[string]uint64{producer: 0}, 0, live.ErrSourceRetentionGap}, {"ahead", map[string]uint64{producer: 42}, 0, live.ErrReset}, {"overflow-ahead", map[string]uint64{producer: ^uint64(0)}, 0, live.ErrReset},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			records, err := source.ReadCommittedEvents(context.Background(), tc.positions, 256)
+			if !errors.Is(err, tc.want) || len(records) != tc.count {
+				t.Fatalf("records=%d err=%v want %v", len(records), err, tc.want)
+			}
+			if tc.want == nil && len(records) > 0 {
+				if records[0].Position != uint64(reader.events["app-1"][32-len(records)].Sequence) || records[len(records)-1].Content.Resource.Revision != 41 {
+					t.Fatal("source relabeled retained positions")
+				}
+			}
+			if tc.name == "ahead" && errors.Is(err, live.ErrSourceRetentionGap) {
+				t.Fatal("rollback/corrupt cursor became a recoverable retention gap")
+			}
+		})
+	}
+	reader.events["app-1"] = reader.events["app-1"][1:]
+	if _, err := source.ReadCommittedEvents(context.Background(), nil, 256); !errors.Is(err, live.ErrInvalid) {
+		t.Fatal("partial non-native retained window accepted")
+	}
+}

@@ -168,7 +168,7 @@ func TestNativeOutboxRetentionAndValidation(t *testing.T) {
 	outbox := nativeLiveOutbox{Position: domain.MaxReplayEvents, Entries: make([]domain.Record, domain.MaxReplayEvents)}
 	producerID := domain.ProducerID(domain.Subject{Type: "plan", ID: "pln_retained"})
 	for index := range outbox.Entries {
-		outbox.Entries[index] = domain.Record{Producer: producerID, Position: uint64(index + 1)}
+		outbox.Entries[index] = domain.Record{Producer: producerID, Subject: domain.Subject{Type: "plan", ID: "pln_retained"}, Position: uint64(index + 1)}
 	}
 	outbox = appendNativeInvalidation(outbox, "plan", "pln_retained", domain.MaxReplayEvents+1, "plans")
 	producer := outbox.Entries[0].Producer
@@ -258,5 +258,43 @@ func TestNativeOutboxTransactionRollback(t *testing.T) {
 	}
 	if _, err := repository.GetPlan(ctx, "pln_rollback"); !errors.Is(err, ErrNotFound) {
 		t.Fatal("rolled-back Plan survived")
+	}
+}
+
+func TestNativeOutboxOnlyValidTruncationCanRetireDeliveryEpoch(t *testing.T) {
+	subject := domain.Subject{Type: "plan", ID: "pln_retained"}
+	producer := domain.ProducerID(subject)
+	outbox := nativeLiveOutbox{Position: domain.MaxReplayEvents + 1}
+	for i := 0; i < domain.MaxReplayEvents; i++ {
+		outbox.Entries = append(outbox.Entries, domain.Record{Producer: producer, Subject: subject, Position: uint64(i + 2)})
+	}
+	if _, err := readNativeOutboxes(context.Background(), []nativeLiveOutbox{outbox}, map[string]uint64{producer: 0}, 256); !errors.Is(err, domain.ErrSourceRetentionGap) {
+		t.Fatal("valid retained window did not require reset")
+	}
+	if _, err := readNativeOutboxes(context.Background(), []nativeLiveOutbox{outbox}, map[string]uint64{producer: ^uint64(0)}, 256); !errors.Is(err, domain.ErrReset) || errors.Is(err, domain.ErrSourceRetentionGap) {
+		t.Fatal("future checkpoint became recoverable retention loss")
+	}
+	for _, kind := range []string{"short", "counter", "gap", "producer", "subject", "empty"} {
+		t.Run(kind, func(t *testing.T) {
+			corrupt := outbox
+			corrupt.Entries = append([]domain.Record(nil), outbox.Entries...)
+			switch kind {
+			case "short":
+				corrupt.Entries = corrupt.Entries[1:]
+			case "counter":
+				corrupt.Position++
+			case "gap":
+				corrupt.Entries[1].Position++
+			case "producer":
+				corrupt.Entries[1].Producer = "wrong"
+			case "subject":
+				corrupt.Entries[1].Subject.ID = "pln_other"
+			case "empty":
+				corrupt.Entries = nil
+			}
+			if _, err := readNativeOutboxes(context.Background(), []nativeLiveOutbox{corrupt}, map[string]uint64{producer: 0}, 256); !errors.Is(err, domain.ErrInvalid) || errors.Is(err, domain.ErrSourceRetentionGap) {
+				t.Fatalf("corruption classified as recoverable truncation: %v", err)
+			}
+		})
 	}
 }

@@ -174,9 +174,11 @@ the caller that the page budget was exhausted and another drain is due.
 
 An idle recovery performs a journal write validation before marking the source
 healthy or clearing publication failure. It creates no event, sequence, or
-synthetic resource revision. A retention gap, repeated source position, invalid
-producer coordinate, oversized page, or failed native read remains a failure;
-the drainer never discards checkpoints or invents an automatic reset to hide it.
+synthetic resource revision. Repeated positions, invalid coordinates, oversized
+pages, rollback/future checkpoints and failed reads retain their checkpoints and
+fail closed. Only an explicit verified source-retention gap retires delivery
+epochs transactionally and requires visible authorized catch-up, as described
+below; it cannot silently skip a lost prefix.
 
 The native repository/delivery integration tests exercise Memory, file, and
 PostgreSQL sources, filtered visible sequences, another database replica,
@@ -215,14 +217,13 @@ run. Runtime composition registers this source alongside the native controlplane
 
 Legacy runs without a journal and status-only changes with no recorded step
 emit nothing. In particular, this adapter does not infer successful completion,
-cancellation, or a new step from a status snapshot. The existing journal cap and
-legacy coverage are unchanged. Completing #389 still requires closing the native
-status-transition coverage/retention gaps; the adapter alone does not make the
-feature available without the runtime configuration described below.
+cancellation, or a new step from a status snapshot. Legacy coverage remains
+unchanged. New v4 workflows retain their latest bounded journal as described
+below. The runtime configuration is still required to enable delivery.
 
 ## Versioned packaging terminal statuses
 
-New packaging workflows use marker version 3 to record terminal status changes
+Marker version 3 introduced recorded terminal status changes
 that lack a completed activity step: cancellation during review, exhausted
 review-message budgets, and invalid terminal state without an outcome. They
 record the actual blocked phase and failure/cancellation outcome, with the same
@@ -235,13 +236,27 @@ status-journal enablement is private workflow state restored from the version
 marker after replay/continue-as-new, not an option in caller JSON. A recorded
 synthetic version-2 history is replayed in the test suite, and the version-2
 cancellation query is tested separately. The real Temporal recovery test also
-cancels a version-3 run during review, restarts its worker, compares the source
-records, and replays the cancelled history.
+cancels current-version runs during review, restarts workers/server, compares
+source records and replays the cancelled histories.
 
-The existing 32-entry journal cap remains unchanged. An already full journal
-still cannot record another terminal event; legacy omissions are not backfilled.
-This closes the common terminal-transition gaps without claiming the remaining
-retention/coverage work.
+Version 4 preserves the 32-entry memory/carry bound but retains the latest
+window instead of silently stopping when full. Native event sequences remain
+positive, monotonic and unchanged across rotation, proposal replacement and
+continue-as-new. Terminal transitions can replace an expired prefix; no missing
+past event is invented or backfilled. Older v2/v3 histories preserve their
+stop-on-full query/carry behavior. Their recorded command histories replay with
+the current worker, and a separate full-journal cancellation test constrains
+v3 query compatibility against v4 terminal retention.
+
+The source validates the complete native window before classifying any retained
+prefix. It uses native sequence coordinates rather than slice indices: a new
+consumer establishes a baseline at the first retained event, a caught-up
+consumer reads later positions, and a known checkpoint behind the window signals
+an explicit source-retention gap. Counter rollback, missing entries inside a
+window, malformed coordinates and partial non-native windows do not qualify for
+a retention reset. Native controlplane outboxes apply the same distinction.
+The packaging views show a retained-prefix notice while preserving original
+sequence labels; an expired prefix is not displayed as newly numbered history.
 
 
 ## SSE and native authorization adapters
@@ -295,8 +310,9 @@ operator identity even where development routes have a localhost fallback.
 Tests exercise two operators, filtering before visible sequence assignment,
 stable cursor replay, permission revocation, source failure, slow clients,
 malformed requests, current grant snapshots and delegated native read rules.
-The remaining producer coverage/retention work keeps #389 open;
-this runtime does not replace the console's polling or complete #390.
+This backend runtime does not replace the console's polling or complete #390.
+The agent-specific AG-UI stream remains separate; this channel does not emit
+model/tool bodies or invent assistant activity from another protocol.
 
 
 ## Runtime configuration and ownership
@@ -307,7 +323,7 @@ and takes a nonblocking exclusive process lock before loading the journal.
 A second owner, symlink/public lock, corrupt journal or unusable path fails
 startup. Shutdown releases the lock, and an OS process exit releases it after a
 crash; never delete the lock file while any process may still use it. Journal
-files are private (0600). There is no implicit memory fallback or automatic
+files are private (0600). There is no implicit memory fallback or silent
 checkpoint discard. Existing state persists across restart on the same volume.
 
 This file adapter is single-owner, not shared multi-replica delivery storage.
@@ -334,3 +350,34 @@ persisted in the event journal. It does not trust forwarded scheme/identity
 headers or widen CORS. Direct Hub TLS or a same-origin development listener is
 the supported origin boundary; TLS-terminating proxies require an explicit
 trusted-origin adapter before browser SSE can be enabled through them.
+
+
+## Explicit reset after a retained source prefix is lost
+
+A verified `ErrSourceRetentionGap` from a trusted configured source triggers one
+journal transaction that retires **all** stored identity streams/cursors,
+source rows and producer checkpoints together. Active subscribers are closed
+with a reset requirement, and all configured sources become unready. The HTTP
+request discovering the gap receives sanitized 409 before ready headers. The
+next refresh establishes fresh native source baselines, but old cursors still
+receive 409, including after a Hub restart. A caller must open a new authorized
+stream at sequence 0 and perform the ADR 0016 read-model catch-up. No subscriber
+continues over the lost prefix; no lost completion is fabricated. The reset is
+resource-agnostic and exposes no source identity, private ordinal or row count.
+
+The reset is global because the delivery journal orders multiple native sources
+in one private position space; it is not a permission or per-tenant data change.
+It runs outside native write locks and commits before replacing any baseline.
+A failed reset write preserves the prior durable evidence and keeps delivery
+unavailable. Generic failures, malformed histories, conflicting records and
+checkpoints ahead of their source never trigger this recovery or erase evidence;
+they require source/storage repair. Existing queue overflow and expired public
+replay still require their ordinary stream-specific catch-up.
+
+The full-journal real Temporal recovery test retains a cancellation at native
+position 34, restarts worker and server, compares the source projection and
+replays the history. Hub integration tests discover a missed prefix, verify 409
+and rejection of the retired cursor, then receive the next native terminal
+position as sequence 1 of a fresh stream. Storage tests also cover reset rollback,
+all-source readiness and restart between retiring an epoch and rebuilding its
+source checkpoints.

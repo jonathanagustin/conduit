@@ -21,3 +21,23 @@ version-2 marker and replays this history using the current workflow. The
 separate mocked version-2 cancellation test checks its query-visible journal
 behavior; Temporal command replay alone cannot prove a query projection stayed
 unchanged.
+
+
+`packaging-v3-history.json` is a synthetic localhost history captured from
+`TestDevServerRestartRecoversWaitAndHandoff` at source commit
+`6a14bc8fab9f52dee09954991d532cf365852d6c`, before the version-4 rotating-journal
+change. The workflow implementation was unchanged; a Go source overlay added
+only JSON capture to the existing real restart/handoff test. The same pinned
+Temporal CLI/server/UI versions and redaction checks above apply. No Temporal
+events or version markers were hand-written. This is repository fixture data,
+not a tenant observation.
+
+SHA-256: `7eb3d3e8305190abc40e687a132601a8c9e4314b4033191b54be630fe94e5986`.
+
+`TestVersionThreeRecordedHistoryReplaysWithCurrentWorkflow` checks the real
+version-3 marker and replays with the current workflow. The separate full-journal
+v3/v4 cancellation test constrains query-visible stop/rotate behavior; command
+replay alone cannot establish that a query projection stayed unchanged. The
+real recovery test now also starts a v4 run with a full carried journal, cancels
+it, restarts worker and server, compares projected source records and replays
+its recorded history.

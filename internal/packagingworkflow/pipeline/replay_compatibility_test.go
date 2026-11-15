@@ -12,7 +12,14 @@ import (
 )
 
 func TestVersionTwoRecordedHistoryReplaysWithCurrentWorkflow(t *testing.T) {
-	body, err := os.ReadFile("testdata/packaging-v2-history.json")
+	replayRecordedVersion(t, 2, "testdata/packaging-v2-history.json")
+}
+func TestVersionThreeRecordedHistoryReplaysWithCurrentWorkflow(t *testing.T) {
+	replayRecordedVersion(t, 3, "testdata/packaging-v3-history.json")
+}
+func replayRecordedVersion(t *testing.T, want workflow.Version, path string) {
+	t.Helper()
+	body, err := os.ReadFile(path)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -40,17 +47,17 @@ func TestVersionTwoRecordedHistoryReplaysWithCurrentWorkflow(t *testing.T) {
 		if err := decoder.FromPayloads(marker.Details["version"], &version); err != nil {
 			t.Fatal(err)
 		}
-		if version != workflow.Version(2) {
-			t.Fatalf("fixture is version %d, not deployed version 2", version)
+		if version != want {
+			t.Fatalf("fixture is version %d, want deployed version %d", version, want)
 		}
 		found = true
 	}
 	if !found {
-		t.Fatal("fixture lacks the native version-2 marker")
+		t.Fatal("fixture lacks the native version marker")
 	}
 	replayer := worker.NewWorkflowReplayer()
 	replayer.RegisterWorkflowWithOptions(PackagingWorkflow, workflow.RegisterOptions{Name: WorkflowName})
 	if err := replayer.ReplayWorkflowHistory(nil, &history); err != nil {
-		t.Fatalf("version-2 replay changed: %v", err)
+		t.Fatalf("version-%d replay changed: %v", want, err)
 	}
 }

@@ -28,6 +28,8 @@ const (
 	// A packaging run records a handful of steps; the cap keeps
 	// continue-as-new from copying an unbounded log.
 	MaxStepEvents = 32
+	// MaxStepSequence keeps native event coordinates exact in browser JSON.
+	MaxStepSequence = uint64(9007199254740991)
 
 	StepAssess   = "assess"
 	StepPropose  = "propose"
@@ -345,24 +347,25 @@ func PlanID(key string) string {
 // State is the bounded carry across continue-as-new. It is the packaging
 // run's progress, not Plan status and not an approval log of record.
 type State struct {
-	Phase               string            `json:"phase"`
-	Assessment          Receipt           `json:"assessment"`
-	Proposal            Receipt           `json:"proposal"`
-	Validation          Validation        `json:"validation"`
-	Approval            ApprovalRecord    `json:"approval"`
-	SeenApprovalIDs     []string          `json:"seenApprovalIds,omitempty"`
-	Plan                PlanReceipt       `json:"plan"`
-	LastReview          ReviewDisposition `json:"lastReview,omitempty"`
-	DuplicateReviews    int               `json:"duplicateReviews,omitempty"`
-	Reason              string            `json:"reason,omitempty"`
-	Outcome             Outcome           `json:"outcome,omitempty"`
-	TargetPlanRef       string            `json:"targetPlanRef,omitempty"`
-	TemplateVersion     string            `json:"templateVersion,omitempty"`
-	ToolVersions        string            `json:"toolVersions,omitempty"`
-	AttachmentSHA256    []string          `json:"attachmentSha256,omitempty"`
-	Events              []StepEvent       `json:"events,omitempty"`
-	eventsEnabled       bool
-	statusEventsEnabled bool
+	Phase                string            `json:"phase"`
+	Assessment           Receipt           `json:"assessment"`
+	Proposal             Receipt           `json:"proposal"`
+	Validation           Validation        `json:"validation"`
+	Approval             ApprovalRecord    `json:"approval"`
+	SeenApprovalIDs      []string          `json:"seenApprovalIds,omitempty"`
+	Plan                 PlanReceipt       `json:"plan"`
+	LastReview           ReviewDisposition `json:"lastReview,omitempty"`
+	DuplicateReviews     int               `json:"duplicateReviews,omitempty"`
+	Reason               string            `json:"reason,omitempty"`
+	Outcome              Outcome           `json:"outcome,omitempty"`
+	TargetPlanRef        string            `json:"targetPlanRef,omitempty"`
+	TemplateVersion      string            `json:"templateVersion,omitempty"`
+	ToolVersions         string            `json:"toolVersions,omitempty"`
+	AttachmentSHA256     []string          `json:"attachmentSha256,omitempty"`
+	Events               []StepEvent       `json:"events,omitempty"`
+	eventsEnabled        bool
+	statusEventsEnabled  bool
+	rollingEventsEnabled bool
 }
 
 func (s *State) Block(outcome Outcome, reason string) {
@@ -524,6 +527,26 @@ func (s *State) EnableEvents() { s.eventsEnabled = true }
 // restored by that marker after replay/continue-as-new, never by caller JSON.
 func (s *State) EnableStatusEvents() { s.eventsEnabled = true; s.statusEventsEnabled = true }
 
+// EnableRollingEvents is private workflow-version behavior restored by the v4
+// marker. Serialized carry cannot enable it on an older history.
+func (s *State) EnableRollingEvents() { s.EnableStatusEvents(); s.rollingEventsEnabled = true }
+
+// CanRecordEvent preserves the old full-journal behavior on v2/v3 histories.
+// New histories retain the latest bounded window without reusing positions.
+func (s *State) CanRecordEvent() bool {
+	if s == nil || !s.eventsEnabled {
+		return false
+	}
+	if !s.rollingEventsEnabled {
+		return len(s.Events) < MaxStepEvents
+	}
+	if len(s.Events) == 0 {
+		return true
+	}
+	last := s.Events[len(s.Events)-1].Sequence
+	return last > 0 && last < int(^uint(0)>>1) && uint64(last) < MaxStepSequence
+}
+
 // NoteStatus records a native terminal status without changing execution or
 // approval authority. Older workflow histories preserve their existing journal.
 func (s *State) NoteStatus(at time.Time) {
@@ -538,9 +561,10 @@ func (s *State) EventsEnabled() bool { return s != nil && s.eventsEnabled }
 
 // Note appends one bounded step event. A secret-shaped value is replaced
 // with a fixed reason and is not copied. The call is a no-op once the
-// journal is full or when the run did not enable events.
+// legacy journal is full or when the run did not enable events. Version 4
+// retains the latest MaxStepEvents entries with stable monotonic positions.
 func (s *State) Note(at time.Time, step, outcome, reason, approvalID string) {
-	if s == nil || !s.eventsEnabled || len(s.Events) >= MaxStepEvents {
+	if !s.CanRecordEvent() {
 		return
 	}
 	reason = TrimReason(reason)
@@ -556,8 +580,17 @@ func (s *State) Note(at time.Time, step, outcome, reason, approvalID string) {
 			approvalID = ""
 		}
 	}
-	s.Events = append(s.Events, StepEvent{
-		Sequence:         len(s.Events) + 1,
+	sequence := len(s.Events) + 1
+	if s.rollingEventsEnabled && len(s.Events) > 0 {
+		sequence = s.Events[len(s.Events)-1].Sequence + 1
+	}
+	// Detach from the carried/proposal snapshot before appending or rotating.
+	retained := s.Events
+	if s.rollingEventsEnabled && len(retained) >= MaxStepEvents {
+		retained = retained[len(retained)-MaxStepEvents+1:]
+	}
+	s.Events = append(append([]StepEvent(nil), retained...), StepEvent{
+		Sequence:         sequence,
 		At:               at.UTC(),
 		Step:             step,
 		Outcome:          outcome,

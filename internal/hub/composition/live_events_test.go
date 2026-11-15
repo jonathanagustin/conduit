@@ -405,3 +405,46 @@ func TestLiveHubDelegationRetainsCarrierBootstrapBoundary(t *testing.T) {
 		}
 	}
 }
+
+func TestLiveHubRetainedSourceGapRequiresCatchupAndStartsNewEpoch(t *testing.T) {
+	repository, path := liveNativeFixture(t)
+	reader := &livePackagingReader{events: []packaging.StepEvent{{Sequence: 1, At: time.Unix(1, 0).UTC(), Step: packaging.StepReview, Outcome: packaging.EventWaiting}}}
+	server := liveHubServer(t, repository, path, reader)
+	old := liveConnect(t, server, "alice", "")
+	if old.StatusCode != 200 {
+		t.Fatal(old.StatusCode)
+	}
+	cursor, epoch := old.Header.Get("X-Conduit-Event-Cursor"), old.Header.Get("X-Conduit-Stream-ID")
+	old.Body.Close()
+	reader.mu.Lock()
+	reader.events = nil
+	for sequence := 10; sequence < 42; sequence++ {
+		reader.events = append(reader.events, packaging.StepEvent{Sequence: sequence, At: time.Unix(int64(sequence), 0).UTC(), Step: packaging.StepReview, Outcome: packaging.EventWaiting})
+	}
+	reader.mu.Unlock()
+	// Expire the one-second shared refresh coalescer, so this request discovers
+	// the lost native prefix before any ready headers can be sent.
+	time.Sleep(1100 * time.Millisecond)
+	reset := liveConnect(t, server, "alice", cursor)
+	body, _ := io.ReadAll(reset.Body)
+	reset.Body.Close()
+	if reset.StatusCode != 409 || reset.Header.Get("X-Conduit-Stream-ID") != "" || strings.Contains(string(body), "retention gap") {
+		t.Fatalf("gap escaped reset protocol: %d %s", reset.StatusCode, body)
+	}
+	stale := liveConnect(t, server, "alice", cursor)
+	stale.Body.Close()
+	if stale.StatusCode != 409 {
+		t.Fatal("old epoch resumed after source baseline reset")
+	}
+	fresh := liveConnect(t, server, "alice", "")
+	if fresh.StatusCode != 200 || fresh.Header.Get("X-Conduit-Event-Sequence") != "0" || fresh.Header.Get("X-Conduit-Stream-ID") == epoch {
+		t.Fatalf("fresh catch-up inherited old epoch: %d %v", fresh.StatusCode, fresh.Header)
+	}
+	reader.mu.Lock()
+	reader.events = append(append([]packaging.StepEvent(nil), reader.events[1:]...), packaging.StepEvent{Sequence: 42, At: time.Unix(42, 0).UTC(), Step: packaging.PhaseBlocked, Outcome: string(packaging.OutcomeCancelled)})
+	reader.mu.Unlock()
+	frame := liveReadFrame(t, bufio.NewReader(fresh.Body))
+	if frame.Sequence != 1 || frame.Resource.Revision != 42 || frame.Kind != "packaging.step" {
+		t.Fatalf("new epoch relabeled or lost native terminal: %+v", frame)
+	}
+}
