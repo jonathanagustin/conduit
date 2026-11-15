@@ -307,7 +307,7 @@ export class FormSurfaces {
       const item = surface.components.get(id);
       const type = item.component;
       if (type === "Row" || type === "Column")
-        return `<div class="kit-stack" data-a2ui-layout="${type}">${item.children.map(render).join("")}</div>`;
+        return `<div class="${type === "Row" ? "kit-header-title" : "kit-stack"}" data-a2ui-layout="${type}">${item.children.map(render).join("")}</div>`;
       if (type === "Text")
         return `<p>${esc(valueOf(item.text, surface.model))}</p>`;
       const attributes = `data-a2ui-surface="${esc(surfaceId)}" data-a2ui-component="${esc(id)}"`;
