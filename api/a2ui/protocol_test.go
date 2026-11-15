@@ -59,7 +59,7 @@ func TestPinnedSourceHashes(t *testing.T) {
 	if err := json.Unmarshal(raw, &manifest); err != nil {
 		t.Fatal(err)
 	}
-	if len(manifest.Files) != 9 {
+	if len(manifest.Files) != 8 {
 		t.Fatal("source manifest incomplete")
 	}
 	for _, entry := range manifest.Files {

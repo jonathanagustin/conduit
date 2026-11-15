@@ -42,11 +42,7 @@
       "file": "LICENSE",
       "source": "https://raw.githubusercontent.com/a2ui-project/a2ui/3ed9601862ecc78027e20ac80ad8b1b98a5d9079/LICENSE",
       "sha256": "8c8b5b632d56c4c1658296963c693db5396772a33caaddb9a22593c4155c437a"
-    },
-    {
-      "file": "a2ui_protocol.md",
-      "source": "https://raw.githubusercontent.com/a2ui-project/a2ui/3ed9601862ecc78027e20ac80ad8b1b98a5d9079/specification/v1_0/docs/a2ui_protocol.md",
-      "sha256": "40c790dadefd8c43be778f7bd5486712ed6efae5eac789f2013bb1f600ecd8ff"
     }
-  ]
+  ],
+  "sourceSpecification": "https://github.com/a2ui-project/a2ui/blob/3ed9601862ecc78027e20ac80ad8b1b98a5d9079/specification/v1_0/docs/a2ui_protocol.md"
 }
