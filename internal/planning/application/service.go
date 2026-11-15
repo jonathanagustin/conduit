@@ -67,20 +67,22 @@ func (service *Service) WithAuditor(auditor Auditor) *Service {
 
 // Service is a process-local planning-session store.
 type Service struct {
-	auditor  Auditor
-	planner  Planner
-	now      func() time.Time
-	mu       sync.Mutex
-	sessions map[string]*domain.Session
+	auditor     Auditor
+	planner     Planner
+	now         func() time.Time
+	mu          sync.Mutex
+	sessions    map[string]*domain.Session
+	activeTurns map[string]bool
 }
 
 // NewService returns an empty in-memory store. A nil planner leaves turns
 // unconfigured so this contract can ship without calling a model.
 func NewService(planner Planner) *Service {
 	return &Service{
-		planner:  planner,
-		now:      func() time.Time { return time.Now().UTC() },
-		sessions: map[string]*domain.Session{},
+		planner:     planner,
+		now:         func() time.Time { return time.Now().UTC() },
+		sessions:    map[string]*domain.Session{},
+		activeTurns: map[string]bool{},
 	}
 }
 
@@ -142,8 +144,18 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 		service.mu.Unlock()
 		return nil, domain.ErrModelNotConfigured
 	}
+	if service.activeTurns[id] {
+		service.mu.Unlock()
+		return nil, domain.ErrTurnInProgress
+	}
+	service.activeTurns[id] = true
 	snapshot := domain.CloneSession(session)
 	service.mu.Unlock()
+	defer func() {
+		service.mu.Lock()
+		delete(service.activeTurns, id)
+		service.mu.Unlock()
+	}()
 
 	result, err := service.planner.Turn(ctx, snapshot, strings.TrimSpace(message))
 	if err != nil {
@@ -202,6 +214,9 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 	if err != nil {
 		return nil, err
 	}
+	if service.activeTurns[id] {
+		return nil, domain.ErrTurnInProgress
+	}
 	if session.Status == domain.StatusAccepted {
 		return nil, domain.ErrAlreadyAccepted
 	}
@@ -253,6 +268,9 @@ func (service *Service) Accept(ctx context.Context, id string) (*domain.Session,
 	session, err := service.mutable(id)
 	if err != nil {
 		return nil, err
+	}
+	if service.activeTurns[id] {
+		return nil, domain.ErrTurnInProgress
 	}
 	if session.Status == domain.StatusAccepted || session.Binding != nil {
 		return nil, domain.ErrAlreadyAccepted

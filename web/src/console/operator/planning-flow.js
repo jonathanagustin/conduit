@@ -23,6 +23,8 @@ export const ERROR_TEXT = {
   COMMIT_NOT_PINNED:
     "The source commit is not pinned, so the plan cannot be bound. Run another turn.",
   NEEDS_INPUT_PENDING: "Answer every required question before Accept.",
+  TURN_IN_PROGRESS:
+    "A planning turn is already running. Wait for it before changing answers or accepting.",
   ALREADY_ACCEPTED: "This plan is already accepted. Its binding is below.",
   NOT_ACCEPTED: "This session has not been accepted.",
   COMPUTE_BEFORE_ACCEPT: "Compute is refused until the plan is accepted.",
