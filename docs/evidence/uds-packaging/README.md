@@ -104,3 +104,40 @@ This corpus does not create competing contracts for those issues.
 No new cluster/device deployment, application runtime, package build or restore
 is authorized by this change. Those remain separately authorized, isolated
 operations with explicit unrun records until evidence exists.
+
+## Corpus reconciliation and retained negative baseline
+
+The corpus/criteria scope of #343 retains the original Valkey profile and its
+exact frozen digest as an **unsupported negative baseline**. This is a deliberate
+selection: it differs materially from TAK and exercises the current generator's
+stateful-capability rejection. It is not selected as a supported success
+benchmark. Its criteria have not been rewritten to accommodate the generator.
+A supported application assignment, independent evaluator, exact-profile trial
+approval and actual execution remain #639. No independent or successful
+held-out result is claimed by retaining this nomination.
+
+`matrix-v1.json` now records that disposition separately from the immutable
+profile's unapproved authority. All sixteen negative cases have individual
+`negativeCaseCoverage` records with status **NOT_RUN**, empty application
+receipts, a concrete reason and #639 ownership. Some related protocol/unit
+fixtures already exist in `existingEvidence`; those are not application trials.
+For example, a subprocess timeout fixture does not run a real scanner, and an
+unsigned structural receipt does not prove producer identity or an application
+recovery drill. Keeping those levels separate prevents a green dataset gate
+from silently becoming a green application report.
+
+The licensing check for this corpus is explicit: the retained dataset consists
+of original factual paraphrases, pinned references and license observations.
+It does not vendor GPL/AGPL application implementation, the TAK integration
+template or its smoke-test implementation. The nine source records each declare
+`implementationCopied: false`, and the checker rejects promotion to copied
+implementation. This is a bounded corpus-content review, not artifact license
+adjudication or a resolution of the project's separate licensing decision #546.
+
+The report keeps correctness and reproducibility **NOT_RUN**, runtime evidence
+coverage **0**, all ten required application checks unrun and explicit failures.
+Static schema/render checks, package builds, integration, restore, scanning and
+admission have separate levels. The checker only verifies the dataset contract;
+it does not measure application correctness. Four additional negative tests
+reject missing/duplicated case records, protocol results promoted to application
+receipts, accidental trial approval and copied-implementation declarations.
