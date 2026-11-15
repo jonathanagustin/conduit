@@ -47,6 +47,12 @@ func (s *TemporaryMaintenanceService) CreateMaintenanceOverrides(ctx context.Con
 		return result, err
 	}
 	start := s.now().UTC()
+	if draft.StartsAt != nil {
+		if draft.StartsAt.Before(start) || draft.StartsAt.Add(duration).Sub(start) > maintenance.MaximumOverrideDuration {
+			return result, ErrInvalidTransition
+		}
+		start = draft.StartsAt.UTC()
+	}
 	seen := map[maintenance.EntityTarget]bool{}
 	for _, target := range draft.Entities {
 		if seen[target] {
@@ -95,9 +101,16 @@ func (s *TemporaryMaintenanceService) CreateMaintenanceOverrides(ctx context.Con
 				"product":      service.referencedResource(ctx, productRID(step.Product), step.Product, effectivePrincipal(s.actor)),
 			}}
 			var request ChangeRequest
-			if draft.DryRun {
+			if draft.DryRun || draft.ExpectedChangeRequestID != "" {
 				request, err = service.PreviewChanges(ctx, TemporaryMaintenanceTarget, id, target.Environment, []EntityChange{change}, s.actor, "Temporary Entity maintenance override", window.Reason)
-			} else {
+				if err != nil {
+					return err
+				}
+				if draft.ExpectedChangeRequestID != "" && request.ID != draft.ExpectedChangeRequestID {
+					return ErrConflict
+				}
+			}
+			if !draft.DryRun {
 				request, _, err = service.ProposeChanges(ctx, TemporaryMaintenanceTarget, id, target.Environment, []EntityChange{change}, s.actor, "Temporary Entity maintenance override", window.Reason)
 			}
 			if err != nil {

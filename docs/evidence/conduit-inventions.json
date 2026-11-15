@@ -295,6 +295,13 @@
       "riskIfWrong": "Native command paths and receipt fields may differ. Applying a request requires separate approval and current exact-scope admission; no workload execution is added."
     },
     {
+      "id": "maintenance.ScheduledEntityWindow",
+      "what": "Optional native startsAt and single-Entity expectedChangeRequestId extend reviewed temporary maintenance proposals with future intervals and pre-effect preview identity binding.",
+      "why": "The existing public CLI evidence establishes submission-time windows, not a future scheduler. Native Windows drafts need explicit timestamps and must reject a changed target or interval before persistence. Omitted startsAt preserves the original submission-time default.",
+      "displacedBy": "A published or sanitized future Entity maintenance proposal and pre-effect preview-binding contract.",
+      "riskIfWrong": "Native fields may need replacement. Starts cannot be in the past; the full end must remain within 3600 hours of submission. Expected identity requires one Entity and an explicit start. Existing approval, active-window admission and exclusive end checks remain authoritative. A preview or proposed interval is not execution authority."
+    },
+    {
       "id": "maintenance.ReviewedEntityWindow",
       "what": "Native per-Entity temporary maintenance proposal, sealed bounded window, normal policy evaluation and durable Change Request audit.",
       "why": "The pinned Experimental CLI documents bounded Entity overrides and normal review, but no private proposal transport or persistence contract. Conduit retains common server submission time and one request per deduplicated Entity.",

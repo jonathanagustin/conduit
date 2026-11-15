@@ -17,8 +17,9 @@ timeline, fleet-wide upgrade count or global offline-bundle summary.
 Recorded environment downtime/no-downtime rules show their time zone and weekly
 interval strings. Recorded overrides show their provided start/end, reason and
 approver. These are not resolved execution appointments. Product and installation
-constraints can still apply when no environment rule is present. Calendar drag,
-snap and Save are unavailable without a governed scheduling proposal contract.
+constraints can still apply when no environment rule is present. Recorded intervals remain read-only. The Windows view separately supports
+[reviewed Entity window drafts](window-scheduler.md); it does not resolve a
+workload execution schedule.
 
 The existing explicit Propose fix action is retained for a diverged selected
 installation. It uses the same `/v1/fleet/propose-fix` endpoint and records the

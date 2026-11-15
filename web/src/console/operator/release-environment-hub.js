@@ -29,7 +29,7 @@ export function maintenanceMarkup(spec = {}) {
   return `<section class="so-panel p-3 space-y-2"><h3>Maintenance rules</h3>
     ${rules.length ? `<dl>${rules.join("")}</dl>` : "<p>No recurring environment maintenance rule is recorded. Product and installation constraints can still apply.</p>"}
     ${overrides.length ? `<h4>Recorded overrides</h4><ul>${overrides.map((row) => `<li>${esc(row.type)} · ${esc(row.startsAt)} → ${esc(row.endsAt)} · ${esc(row.reason)} · ${esc(row.approvedBy)}</li>`).join("")}</ul>` : "<p>No environment override is recorded.</p>"}
-    <p class="kit-muted">Rules are not resolved execution appointments. No calendar drag, snap or Save is available without a governed scheduling proposal contract.</p></section>`;
+    <p class="kit-muted">Rules and recorded intervals are read-only. Windows can propose a separate reviewed Entity override; a proposal does not schedule or execute a workload.</p></section>`;
 }
 /**
  * @param {any} hub

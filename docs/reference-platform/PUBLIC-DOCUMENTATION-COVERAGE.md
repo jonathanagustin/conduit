@@ -469,3 +469,12 @@ approval, immutable state and serialized stale-edit rejection. The reviewed CLI
 profile is 114 pages, independently of the 123-page live inventory. Native
 transport and Git-owned projection bounds are documented in
 [`channel-membership-proposals.md`](../architecture/channel-membership-proposals.md).
+
+## 2026-11-15 native future maintenance proposals
+
+The public Experimental CLI's submission-time behavior remains unchanged. The
+console's optional explicit start and pre-effect expected-request binding are
+implemented Conduit extensions, not a recovered public scheduler contract.
+Automated domain, HTTP, repository and console tests cover future intervals,
+normal review, refusal of stale mapping, and admission only within the approved
+interval. See [temporary-maintenance.md](reference/temporary-maintenance.md).
