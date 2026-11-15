@@ -25,6 +25,7 @@ type FileRepository struct {
 
 type MemoryRepository struct {
 	mu                          sync.Mutex
+	liveOutboxes                map[string]nativeLiveOutbox
 	plans                       map[string]PlanRecord
 	reports                     map[string]EnvironmentReport
 	apolloAgentReports          map[string]persistedApolloAgentReports
@@ -62,7 +63,8 @@ type memoryBlob struct {
 
 func NewMemoryRepository() *MemoryRepository {
 	return &MemoryRepository{
-		plans: make(map[string]PlanRecord), reports: make(map[string]EnvironmentReport),
+		liveOutboxes: make(map[string]nativeLiveOutbox),
+		plans:        make(map[string]PlanRecord), reports: make(map[string]EnvironmentReport),
 		apolloAgentReports:          make(map[string]persistedApolloAgentReports),
 		suppressions:                make(map[string]SuppressionRecord),
 		promotions:                  make(map[string]PromotionRecord),
@@ -838,6 +840,10 @@ func (repository *MemoryRepository) CreatePlan(_ context.Context, record PlanRec
 			return PlanRecord{}, ErrConflict
 		}
 	}
+	if record.Revision == 0 {
+		record.Revision = 1
+	}
+	repository.appendNativeInvalidation("plan", record.ID, record.Revision, "plans", "approvals", "overview", "kpi")
 	repository.plans[record.ID] = clonePlanRecord(record)
 	return clonePlanRecord(record), nil
 }
@@ -878,6 +884,7 @@ func (repository *MemoryRepository) UpdatePlan(
 		return PlanRecord{}, err
 	}
 	working.Revision++
+	repository.appendNativeInvalidation("plan", id, working.Revision, "plans", "approvals", "overview", "kpi")
 	repository.plans[id] = clonePlanRecord(working)
 	return clonePlanRecord(working), nil
 }
@@ -888,6 +895,7 @@ func (repository *MemoryRepository) PutEnvironmentReport(
 	repository.mu.Lock()
 	defer repository.mu.Unlock()
 	report.Revision = repository.reports[report.Environment].Revision + 1
+	repository.appendNativeInvalidation("environment", report.Environment, report.Revision, "fleet", "overview", "kpi")
 	repository.reports[report.Environment] = cloneEnvironmentReport(report)
 	return cloneEnvironmentReport(report), nil
 }
@@ -2009,7 +2017,10 @@ func (repository *FileRepository) CreatePlan(_ context.Context, record PlanRecor
 			return PlanRecord{}, fmt.Errorf("%w: generation %s already has different desired state", ErrConflict, record.Plan.Generation)
 		}
 	}
-	if err := atomicWriteJSON(repository.planPath(record.ID), record); err != nil {
+	if record.Revision == 0 {
+		record.Revision = 1
+	}
+	if err := repository.writePlanWithOutbox(record.ID, record); err != nil {
 		return PlanRecord{}, err
 	}
 	return record, nil
@@ -2043,7 +2054,7 @@ func (repository *FileRepository) UpdatePlan(
 	if record.UpdatedAt.Before(record.CreatedAt) {
 		record.UpdatedAt = record.CreatedAt
 	}
-	if err := atomicWriteJSON(repository.planPath(id), record); err != nil {
+	if err := repository.writePlanWithOutbox(id, record); err != nil {
 		return PlanRecord{}, err
 	}
 	return record, nil
@@ -2061,6 +2072,7 @@ func (repository *FileRepository) PutEnvironmentReport(
 	report.Revision = envelope.Revision + 1
 	envelope.EnvironmentReport = report
 	envelope.ApolloProjectionPending = false
+	envelope.LiveOutbox = appendNativeInvalidation(envelope.LiveOutbox, "environment", report.Environment, report.Revision, "fleet", "overview", "kpi")
 	if err := atomicWriteJSON(repository.reportPath(report.Environment), envelope); err != nil {
 		return EnvironmentReport{}, err
 	}

@@ -39,10 +39,12 @@ func (repository *MemoryRepository) UpdateChangeRequestAndPlan(ctx context.Conte
 	}
 	if writeRequest {
 		request.Revision++
+		repository.appendNativeInvalidation("change-request", id, request.Revision, "approvals", "overview", "kpi")
 		repository.changeRequests[id] = cloneJSON(request)
 	}
 	if plan != nil {
 		plan.Revision++
+		repository.appendNativeInvalidation("plan", original.PlanID, plan.Revision, "plans", "approvals", "overview", "kpi")
 		repository.plans[original.PlanID] = clonePlanRecord(*plan)
 		return cloneJSON(request), clonePlanRecord(*plan), nil
 	}
@@ -83,7 +85,7 @@ func (repository *FileRepository) UpdateChangeRequestAndPlan(ctx context.Context
 	}
 	if writeRequest {
 		request.Revision++
-		if err := atomicWriteJSON(repository.changeRequestPath(id), request); err != nil {
+		if err := repository.writeChangeRequestWithOutbox(id, request); err != nil {
 			return ChangeRequest{}, PlanRecord{}, err
 		}
 	}
@@ -92,7 +94,7 @@ func (repository *FileRepository) UpdateChangeRequestAndPlan(ctx context.Context
 		if plan.UpdatedAt.Before(plan.CreatedAt) {
 			plan.UpdatedAt = plan.CreatedAt
 		}
-		if err := atomicWriteJSON(repository.planPath(original.PlanID), *plan); err != nil {
+		if err := repository.writePlanWithOutbox(original.PlanID, *plan); err != nil {
 			return ChangeRequest{}, PlanRecord{}, err
 		}
 		return request, *plan, nil

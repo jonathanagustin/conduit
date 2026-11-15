@@ -112,6 +112,10 @@ func (repository *MemoryRepository) CreateChangeRequest(_ context.Context, reque
 		}
 		return ChangeRequest{}, ErrConflict
 	}
+	if request.Revision == 0 {
+		request.Revision = 1
+	}
+	repository.appendNativeInvalidation("change-request", request.ID, request.Revision, "approvals", "overview", "kpi")
 	repository.changeRequests[request.ID] = cloneJSON(request)
 	return cloneJSON(request), nil
 }
@@ -151,6 +155,7 @@ func (repository *MemoryRepository) UpdateChangeRequest(_ context.Context, id st
 		return ChangeRequest{}, err
 	}
 	request.Revision++
+	repository.appendNativeInvalidation("change-request", id, request.Revision, "approvals", "overview", "kpi")
 	repository.changeRequests[id] = cloneJSON(request)
 	return cloneJSON(request), nil
 }
@@ -277,7 +282,10 @@ func (repository *FileRepository) CreateChangeRequest(_ context.Context, request
 	if !errors.Is(err, ErrNotFound) {
 		return ChangeRequest{}, err
 	}
-	if err := atomicWriteJSON(repository.changeRequestPath(request.ID), request); err != nil {
+	if request.Revision == 0 {
+		request.Revision = 1
+	}
+	if err := repository.writeChangeRequestWithOutbox(request.ID, request); err != nil {
 		return ChangeRequest{}, err
 	}
 	return request, nil
@@ -310,7 +318,7 @@ func (repository *FileRepository) UpdateChangeRequest(_ context.Context, id stri
 		return ChangeRequest{}, err
 	}
 	request.Revision++
-	if err := atomicWriteJSON(repository.changeRequestPath(id), request); err != nil {
+	if err := repository.writeChangeRequestWithOutbox(id, request); err != nil {
 		return ChangeRequest{}, err
 	}
 	return request, nil

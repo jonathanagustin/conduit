@@ -319,6 +319,7 @@ func (repository *PostgresRepository) openBlob(ctx context.Context, digest strin
 }
 
 type memoryRepositoryState struct {
+	LiveOutboxes                map[string]nativeLiveOutbox              `json:"liveOutboxes,omitempty"`
 	Plans                       map[string]PlanRecord                    `json:"plans"`
 	Reports                     map[string]EnvironmentReport             `json:"reports"`
 	Suppressions                map[string]SuppressionRecord             `json:"suppressions"`
@@ -349,7 +350,8 @@ type memoryRepositoryState struct {
 
 func (repository *MemoryRepository) stateLocked() memoryRepositoryState {
 	return memoryRepositoryState{
-		Plans: repository.plans, Reports: repository.reports, Suppressions: repository.suppressions,
+		LiveOutboxes: repository.liveOutboxes,
+		Plans:        repository.plans, Reports: repository.reports, Suppressions: repository.suppressions,
 		Promotions: repository.promotions, PromotionStageControls: repository.promotionStageControls,
 		ModuleReleases: repository.moduleReleases, ModuleInstallations: repository.moduleInstallations,
 		ModuleAutoUpdatePolicies: repository.moduleAutoUpdatePolicies, ExportPipelines: repository.exportPipelines,
@@ -368,7 +370,8 @@ func (repository *MemoryRepository) stateLocked() memoryRepositoryState {
 func decodeMemoryRepositoryState(encoded []byte) (*MemoryRepository, error) {
 	repository := NewMemoryRepository()
 	state := memoryRepositoryState{
-		Plans: repository.plans, Reports: repository.reports, Suppressions: repository.suppressions,
+		LiveOutboxes: repository.liveOutboxes,
+		Plans:        repository.plans, Reports: repository.reports, Suppressions: repository.suppressions,
 		Promotions: repository.promotions, PromotionStageControls: repository.promotionStageControls,
 		ModuleReleases: repository.moduleReleases, ModuleInstallations: repository.moduleInstallations,
 		ModuleAutoUpdatePolicies: repository.moduleAutoUpdatePolicies, ExportPipelines: repository.exportPipelines,
@@ -392,6 +395,7 @@ func decodeMemoryRepositoryState(encoded []byte) (*MemoryRepository, error) {
 }
 
 func (repository *MemoryRepository) applyStateLocked(state memoryRepositoryState) {
+	repository.liveOutboxes = nonNilMap(state.LiveOutboxes)
 	repository.plans = nonNilMap(state.Plans)
 	repository.reports = nonNilMap(state.Reports)
 	repository.suppressions = nonNilMap(state.Suppressions)
