@@ -409,9 +409,6 @@ export function areaSupplement(hub, screen, tab) {
   if (screen === "area-packaging" && tab === "proposals") {
     return lineageMarkup(lineageFromHub(data));
   }
-  if (screen === "area-changes") {
-    return diffTimeline(diffRowsFromChanges(data.changes));
-  }
   if (screen === "area-audit") {
     return auditTimeline(data.audit);
   }
@@ -421,7 +418,7 @@ export function areaSupplement(hub, screen, tab) {
 /**
  * @param {any} hub
  * @param {string} screen
- * @param {{packagingRunId?: string, releaseEnvironmentId?: string}} selection
+ * @param {{packagingRunId?: string, releaseEnvironmentId?: string, changeRequestId?: string}} selection
  */
 export function areaObject(hub, screen, selection = {}) {
   const data = hub || {};
@@ -462,7 +459,9 @@ export function areaObject(hub, screen, selection = {}) {
     };
   }
   if (screen === "area-changes") {
-    const change = (data.changes || [])[0];
+    const change = selection.changeRequestId
+      ? (data.changes || []).find((row) => row.id === selection.changeRequestId)
+      : (data.changes || [])[0];
     if (!change?.id) return null;
     const author =
       typeof change.author === "string"

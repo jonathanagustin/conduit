@@ -399,8 +399,10 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       const name =
         session?.effective?.username || session?.actor?.username || "";
       state.operatorName = name || "Operator";
+      state.reviewOperatorName = typeof name === "string" ? name.trim() : "";
     } catch {
       state.operatorName = "Operator";
+      state.reviewOperatorName = "";
     }
     try {
       next.environments = await readPages("/v1/environments", "environments");
