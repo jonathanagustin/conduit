@@ -61,7 +61,10 @@ an injected remote reference. Then the pinned official Node 26.13.1
 bookworm-slim Linux/amd64 container runs the real YAML language server 2.0.0 over
 stdio, as an unprivileged user, read-only, without capabilities or credentials,
 with Docker `--network none`. The test also checks that only loopback exists.
-It supplies the shipped settings through normal LSP configuration requests;
+It stages only the public schema/test files and locked dependencies in a
+temporary directory with readable modes; restrictive checkout permissions are
+left unchanged. It supplies the shipped settings through normal LSP
+configuration requests;
 the server uses its own schema loader. Each invalid document must produce an
 error tied to its installed schema URI; load failures do not count. Valid
 fixtures, including the repository's foundation Plan example, must be free of
