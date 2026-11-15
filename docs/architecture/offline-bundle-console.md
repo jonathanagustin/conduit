@@ -10,6 +10,6 @@ Editing a draft clears confirmation. Current session identity, selection, signat
 
 The catalog shows at most 256 options with an explicit notice. Values are escaped. Unknown identity, failed verification and unavailable APIs leave controls disabled. The native workflow is registered as `delivery.OfflineBundleConsole` with `CONDUIT_NATIVE` disclosure. No private Apollo workflow, network-isolation mode or new signing/publication authority is claimed.
 
-As an integration fix, background Hub/settings refreshes preserve an already mounted Work Intake form. Explicit planning updates still rerender it; a refresh cannot erase a focused repository/ref draft before its input event reaches the handler. Browser coverage checks focus and value survive an awaited native refresh.
+As an integration fix, background Hub/settings refreshes preserve an already mounted Work Intake form and the bundle selection for the same native actor/identity. A changed native identity remounts bundle controls. Explicit planning updates still rerender it; a refresh cannot erase a focused repository/ref draft before its input event reaches the handler. Browser coverage checks focus and value survive an awaited native refresh.
 
 This contributes to #556. Existing workload observations, environment timeline, blackout and convergence views are retained. Cluster-wide telemetry and a durable site pending-sync projection are not fabricated by this flow.

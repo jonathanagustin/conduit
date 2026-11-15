@@ -2206,6 +2206,13 @@ test("offline bundles bind verified envelope, physical-copy confirmation and rep
   await expect(page.locator("[data-offline-preview]")).not.toContainText(
     "bundle-b",
   );
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(page.getByLabel("Offline bundle", { exact: true })).toHaveValue(
+    "bundle-a",
+  );
+  await expect(page.locator("[data-offline-signature]")).toContainText(
+    "Verified by Hub",
+  );
   const download = page.waitForEvent("download");
   await page.getByRole("button", { name: "Download signed envelope" }).click();
   expect((await download).suggestedFilename()).toBe("bundle-a.json");

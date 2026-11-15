@@ -959,7 +959,7 @@ export function mountOperator(host, options) {
   SCREENS.push(...ontologyGraph.screens);
   const settings = createSettings({
     state,
-    render: () => renderApp({ preserveIntake: true }),
+    render: () => renderApp({ backgroundRefresh: true }),
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
@@ -1025,20 +1025,15 @@ export function mountOperator(host, options) {
   const liveHub = createLiveHub({
     navigate: switchScreen,
     state,
-    render: () => renderApp({ preserveIntake: true }),
+    render: () => renderApp({ backgroundRefresh: true }),
   });
   state.liveHub = liveHub;
-  let offlinePreviewRoot;
   const mountOfflineBundle = createOfflineBundleFlow({
     getHub: () => state.hub,
     getIdentity: () => ({
       actor: state.reviewOperatorActor || "",
       names: state.reviewOperatorIdentities || [],
     }),
-    onPreview: (preview) => {
-      if (offlinePreviewRoot?.isConnected)
-        liveHub.renderBundle(offlinePreviewRoot, preview);
-    },
     onReview: () => switchScreen("rm07-change-requests"),
   });
 
@@ -4554,9 +4549,20 @@ export function mountOperator(host, options) {
   function renderRM08BundlePreview(root) {
     root.innerHTML =
       "<div data-offline-controls></div><div data-offline-preview></div>";
-    offlinePreviewRoot = root.querySelector("[data-offline-preview]");
-    liveHub.renderBundle(offlinePreviewRoot, null);
-    void mountOfflineBundle(root.querySelector("[data-offline-controls]"));
+    const controls = root.querySelector("[data-offline-controls]");
+    controls.dataset.hubReady =
+      state.hub?.loading === false && Array.isArray(state.hub?.environments)
+        ? "1"
+        : "0";
+    controls.dataset.identity = JSON.stringify({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    });
+    const previewRoot = root.querySelector("[data-offline-preview]");
+    liveHub.renderBundle(previewRoot, null);
+    void mountOfflineBundle(controls, (preview) => {
+      if (previewRoot.isConnected) liveHub.renderBundle(previewRoot, preview);
+    });
   }
 
   function paletteHits() {
@@ -4968,7 +4974,7 @@ export function mountOperator(host, options) {
     bindKit(root, waves.pucks.length ? { pucks: waves.pucks } : null);
   }
 
-  function renderApp({ preserveIntake = false } = {}) {
+  function renderApp({ backgroundRefresh = false } = {}) {
     const mapped = areaFor(state.screen);
     if (mapped) {
       state.screen = mapped.area;
@@ -4979,9 +4985,20 @@ export function mountOperator(host, options) {
     renderCenterTabStrip();
     if (
       !(
-        preserveIntake &&
-        visibleScreen() === "s01-intake" &&
-        document.querySelector("#main-workspace [data-plan-send]")
+        backgroundRefresh &&
+        ((visibleScreen() === "s01-intake" &&
+          document.querySelector("#main-workspace [data-plan-send]")) ||
+          (visibleScreen() === "rm08-bundle-preview" &&
+            state.reviewOperatorActor &&
+            document.querySelector("#main-workspace [data-offline-flow]") &&
+            document.querySelector("#main-workspace [data-offline-controls]")
+              ?.dataset.hubReady === "1" &&
+            document.querySelector("#main-workspace [data-offline-controls]")
+              ?.dataset.identity ===
+              JSON.stringify({
+                actor: state.reviewOperatorActor || "",
+                names: state.reviewOperatorIdentities || [],
+              })))
       )
     )
       renderMainWorkspace();

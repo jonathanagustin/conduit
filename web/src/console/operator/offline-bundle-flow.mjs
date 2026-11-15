@@ -50,14 +50,17 @@ export function validHandoff(receipt, item, site, actor) {
 export function createOfflineBundleFlow({
   getHub,
   getIdentity,
-  onPreview,
+  onPreview = () => {},
   onReview,
 }) {
   const attempted = new Set();
-  return async function mount(root) {
+  return async function mount(root, onPreviewForMount = onPreview) {
     const token = {};
     mounts.set(root, token);
     const current = () => mounts.get(root) === token && root.isConnected;
+    const showPreview = (preview) => {
+      if (current()) onPreviewForMount(preview);
+    };
     const identity = JSON.stringify(getIdentity());
     const actor = getIdentity()?.actor;
     let selected = null,
@@ -124,7 +127,10 @@ export function createOfflineBundleFlow({
         !confirm(reportForm).checked ||
         !reportForm.elements.namedItem("outcome").value ||
         attempted.has(fingerprint("report"));
-      picker.disabled = busy;
+      picker.disabled =
+        busy ||
+        getHub()?.loading !== false ||
+        !Array.isArray(getHub()?.environments);
       handoffForm.elements.namedItem("site").disabled =
         busy || Boolean(handoff);
       download.disabled = !ready() || busy;
@@ -160,6 +166,7 @@ export function createOfflineBundleFlow({
     }
     let selectionGeneration = 0;
     picker.onchange = async () => {
+      if (!current() || busy) return;
       const generation = ++selectionGeneration;
       selected = catalog.find((item) => item.id === picker.value) || null;
       envelope = null;
@@ -169,7 +176,7 @@ export function createOfflineBundleFlow({
       confirm(reportForm).checked = false;
       reportForm.hidden = true;
       signature.textContent = "Not verified";
-      onPreview(null);
+      showPreview(null);
       sync();
       if (!selected) return;
       const item = selected;
@@ -185,7 +192,7 @@ export function createOfflineBundleFlow({
         envelope = loaded;
         preview = checked;
         signature.textContent = `Verified by Hub · ${checked.signature.keyId || "key identity unavailable"} · ${checked.manifestDigest}`;
-        onPreview(checked);
+        showPreview(checked);
         show(
           "Existing signature verified by Hub. Download and physically copy the envelope before confirming handoff.",
         );
