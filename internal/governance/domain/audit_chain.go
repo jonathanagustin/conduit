@@ -53,6 +53,11 @@ type AuthorizationAuditChainEntry struct {
 	// promptSha256, responseSha256, a packaging skill hash, and tool names.
 	// It is display data; it is not an input to the chain digest.
 	Context map[string]any `json:"context,omitempty"`
+	// These are the exact inputs used for this returned projection's digest.
+	// They do not expose the persisted ledger's commit order or trust anchor.
+	ResourceRID string `json:"resourceRid"`
+	Origin      string `json:"origin"`
+	Payload     []byte `json:"payload"`
 }
 
 // ChainAuthorizationAudit folds recorded events, oldest first, into the same
@@ -77,6 +82,7 @@ func ChainAuthorizationAudit(events []AuthorizationAuditEvent) ([]AuthorizationA
 			Sequence: record.Sequence, ID: event.ID, Actor: event.Subject, Action: event.Action,
 			Decision: event.Decision, PreviousDigest: record.PreviousDigest, Digest: record.Digest,
 			CreatedAt: event.CreatedAt, Context: event.Context,
+			ResourceRID: record.ResourceRID, Origin: record.Origin, Payload: record.Payload,
 		})
 		previous = AuditCheckpoint{Version: AuditChainVersion, Sequence: record.Sequence, Digest: record.Digest}
 	}

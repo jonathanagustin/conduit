@@ -1,11 +1,11 @@
-// Audit ledger view: lists hub audit entries and checks the hash links
-// between them. The API does not return the payload each digest covers, so
-// digests cannot be recomputed here; only the previousDigest links are checked.
+import { verifyProjection } from "./audit-proof.mjs";
+// Audit projection display. Older responses support link checks only; exact
+// returned payload inputs allow separate projection-digest recomputation.
 
 export const CHAIN_VERSION = "conduit.authorization-audit-chain/v1";
 
 const NOTE =
-  "Each entry stores the hash of the entry before it. This check confirms those links; the Hub verifies each entry's own hash.";
+  "Link checks do not recompute payload digests. Returned-payload verification checks projection consistency only; stored ledger order, event truth and independent checkpoints are separate.";
 
 function esc(value) {
   return String(value ?? "")
@@ -20,7 +20,9 @@ function esc(value) {
 export async function genesisDigest() {
   const bytes = new TextEncoder().encode(`${CHAIN_VERSION}:genesis`);
   const hash = await globalThis.crypto.subtle.digest("SHA-256", bytes);
-  return Array.from(new Uint8Array(hash), (b) => b.toString(16).padStart(2, "0")).join("");
+  return Array.from(new Uint8Array(hash), (b) =>
+    b.toString(16).padStart(2, "0"),
+  ).join("");
 }
 
 /**
@@ -68,8 +70,15 @@ export function filterEntries(entries, { query = "", decision = "all" } = {}) {
       if (String(entry.decision).toLowerCase() !== want) return false;
     }
     if (!q) return true;
-    return [entry.actor, entry.action, entry.id, ...exchangeSearchFields(entry)].some((field) =>
-      String(field ?? "").toLowerCase().includes(q),
+    return [
+      entry.actor,
+      entry.action,
+      entry.id,
+      ...exchangeSearchFields(entry),
+    ].some((field) =>
+      String(field ?? "")
+        .toLowerCase()
+        .includes(q),
     );
   });
 }
@@ -79,10 +88,27 @@ function shortHash(value, escape) {
   return `<code class="code-id" title="${escape(full)}">${escape(full.slice(0, 12))}</code>`;
 }
 
-
 function contextOf(entry) {
-  const ctx = entry && entry.context && typeof entry.context === "object" ? entry.context : {};
-  return ctx;
+  if (entry && Object.hasOwn(entry, "payload")) {
+    try {
+      if (typeof entry.payload !== "string" || entry.payload.length > 2_800_000)
+        return {};
+      const binary = atob(entry.payload);
+      const payload = JSON.parse(
+        new TextDecoder("utf-8", { fatal: true }).decode(
+          Uint8Array.from(binary, (char) => char.charCodeAt(0)),
+        ),
+      );
+      return payload?.context && typeof payload.context === "object"
+        ? payload.context
+        : {};
+    } catch {
+      return {};
+    }
+  }
+  return entry && entry.context && typeof entry.context === "object"
+    ? entry.context
+    : {};
 }
 
 function firstPresent(ctx, keys) {
@@ -100,21 +126,63 @@ export function exchangeFields(entry) {
   const tools = firstPresent(ctx, ["toolNames", "mcpTools", "tools"]);
   let toolText = "";
   if (Array.isArray(tools)) {
-    toolText = tools.map((item) => (item && typeof item === "object" ? item.name || item.id || "" : String(item))).filter(Boolean).join(", ");
+    toolText = tools
+      .map((item) =>
+        item && typeof item === "object"
+          ? item.name || item.id || ""
+          : String(item),
+      )
+      .filter(Boolean)
+      .join(", ");
   } else if (tools) {
     toolText = String(tools);
   }
   return {
     promptSha256: String(firstPresent(ctx, ["promptSha256"]) || ""),
     responseSha256: String(firstPresent(ctx, ["responseSha256"]) || ""),
-    skillSha256: String(firstPresent(ctx, ["skillSha256", "skillHash", "packagingSkillSha256"]) || ""),
+    skillSha256: String(
+      firstPresent(ctx, ["skillSha256", "skillHash", "packagingSkillSha256"]) ||
+        "",
+    ),
     tools: toolText,
   };
 }
 
 function exchangeSearchFields(entry) {
   const fields = exchangeFields(entry);
-  return [fields.promptSha256, fields.responseSha256, fields.skillSha256, fields.tools];
+  return [
+    fields.promptSha256,
+    fields.responseSha256,
+    fields.skillSha256,
+    fields.tools,
+  ];
+}
+
+export function modelProvenance(entry) {
+  const context = contextOf(entry);
+  const live =
+    typeof context.liveModelCall === "boolean"
+      ? context.liveModelCall
+        ? "yes"
+        : "no"
+      : context.adapter === "recorded"
+        ? "no"
+        : "unknown";
+  const digest = (value) =>
+    typeof value === "string" && /^[0-9a-f]{64}$/.test(value)
+      ? value
+      : "unavailable";
+  return {
+    live,
+    input: digest(context.promptSha256),
+    output: digest(context.responseSha256),
+    adapter:
+      typeof context.adapter === "string" ? context.adapter : "unavailable",
+  };
+}
+function provenanceMarkup(entry, escape) {
+  const provenance = modelProvenance(entry);
+  return `<details data-audit-provenance><summary>Object and model provenance</summary><p>Target: ${escape(entry.resourceRid || "unavailable")}</p><p>Live model call: ${escape(provenance.live)} · adapter: ${escape(provenance.adapter)}</p><p>Input SHA-256: ${escape(provenance.input)}</p><p>Output SHA-256: ${escape(provenance.output)}</p><p>Recorded metadata; an adapter name or a hash alone does not prove a live provider call.</p></details>`;
 }
 
 function exchangeMarkup(entry, escape) {
@@ -124,7 +192,9 @@ function exchangeMarkup(entry, escape) {
     parts.push(`<span>prompt ${shortHash(fields.promptSha256, escape)}</span>`);
   }
   if (fields.responseSha256) {
-    parts.push(`<span>response ${shortHash(fields.responseSha256, escape)}</span>`);
+    parts.push(
+      `<span>response ${shortHash(fields.responseSha256, escape)}</span>`,
+    );
   }
   if (fields.skillSha256) {
     parts.push(`<span>skill ${shortHash(fields.skillSha256, escape)}</span>`);
@@ -159,7 +229,16 @@ function checkMarkup(check, entries, escape) {
  */
 export function ledgerMarkup(
   entries,
-  { query = "", decision = "all", page = 0, pageSize = 50, check = null, esc: escape = esc } = {},
+  {
+    query = "",
+    decision = "all",
+    page = 0,
+    pageSize = 50,
+    check = null,
+    proof = null,
+    checking = false,
+    esc: escape = esc,
+  } = {},
 ) {
   const all = Array.isArray(entries) ? entries : [];
   const filtered = filterEntries(all, { query, decision }).slice().reverse();
@@ -183,13 +262,18 @@ export function ledgerMarkup(
     `<input type="search" data-ledger-query value="${escape(query)}" placeholder="Search actor, action or id" aria-label="Search audit entries">` +
     chips +
     `<button type="button" class="so-btn so-btn-sm" data-ledger-check>Check chain links</button>` +
+    `<button type="button" class="so-btn so-btn-sm" data-ledger-proof${checking ? " disabled" : ""}>Verify returned payload digests</button>` +
     `</div>`;
 
-  const result = checkMarkup(check, all, escape);
+  const result =
+    checkMarkup(check, all, escape) +
+    (proof
+      ? `<p role="status" class="kit-card ${proof.ok ? "kit-bar-ok" : "kit-bar-err"}" data-audit-proof>${escape(proof.reason)} Checked ${escape(proof.checked)} returned entries.</p>`
+      : "");
   const note = `<p class="so-muted">${escape(NOTE)}</p>`;
 
   if (total === 0) {
-    return `<div class="audit-ledger">${toolbar}${result}${note}<p class="so-muted">No entry matches.</p></div>`;
+    return `<div class="audit-ledger" data-value-tier="CONDUIT_NATIVE">${toolbar}${result}${note}<p class="so-muted">No entry matches.</p></div>`;
   }
 
   const rows = slice
@@ -205,7 +289,7 @@ export function ledgerMarkup(
         `<td>${badge}</td>` +
         `<td>${shortHash(e.previousDigest, escape)}</td>` +
         `<td>${shortHash(e.digest, escape)}</td>` +
-        `<td>${exchangeMarkup(e, escape)}</td>` +
+        `<td>${exchangeMarkup(e, escape)}${provenanceMarkup(e, escape)}</td>` +
         `</tr>`
       );
     })
@@ -225,7 +309,7 @@ export function ledgerMarkup(
     `<button type="button" class="so-btn so-btn-sm" data-ledger-page="${current + 1}"${current >= lastPage ? " disabled" : ""}>Next</button>` +
     `</div>`;
 
-  return `<div class="audit-ledger">${toolbar}${result}${note}${table}${pager}</div>`;
+  return `<div class="audit-ledger" data-value-tier="CONDUIT_NATIVE">${toolbar}${result}${note}${table}${pager}</div>`;
 }
 
 /**
@@ -233,10 +317,24 @@ export function ledgerMarkup(
  * `rerender()` is called after state changes so the host can call render(root).
  */
 export function createAuditLedger({ getEntries, rerender }) {
-  const state = { query: "", decision: "all", page: 0, check: null };
+  const state = {
+    query: "",
+    decision: "all",
+    page: 0,
+    check: null,
+    proof: null,
+    checking: false,
+    checkedEntries: null,
+  };
 
   function render(root) {
-    root.innerHTML = ledgerMarkup(getEntries(), { ...state, esc });
+    const entries = getEntries();
+    root.innerHTML = ledgerMarkup(entries, {
+      ...state,
+      check: state.checkedEntries === entries ? state.check : null,
+      proof: state.checkedEntries === entries ? state.proof : null,
+      esc,
+    });
   }
 
   function bind(root) {
@@ -266,9 +364,33 @@ export function createAuditLedger({ getEntries, rerender }) {
         return;
       }
 
+      if (target.closest("[data-ledger-proof]")) {
+        if (state.checking) return;
+        const entries = getEntries();
+        state.checking = true;
+        state.proof = null;
+        rerender();
+        try {
+          const proof = await verifyProjection(entries);
+          if (getEntries() === entries) {
+            state.proof = proof;
+            state.checkedEntries = entries;
+          }
+        } catch {
+          state.proof = null;
+        } finally {
+          state.checking = false;
+          rerender();
+        }
+        return;
+      }
+
       if (target.closest("[data-ledger-check]")) {
+        const entries = getEntries();
         const genesis = await genesisDigest();
-        state.check = checkChainLinks(getEntries(), genesis);
+        if (getEntries() !== entries) return;
+        state.check = checkChainLinks(entries, genesis);
+        state.checkedEntries = entries;
         rerender();
       }
     });
@@ -285,7 +407,8 @@ export function createAuditLedger({ getEntries, rerender }) {
       if (input) {
         input.focus();
         const pos = typeof caret === "number" ? caret : input.value.length;
-        if (typeof input.setSelectionRange === "function") input.setSelectionRange(pos, pos);
+        if (typeof input.setSelectionRange === "function")
+          input.setSelectionRange(pos, pos);
       }
     });
   }

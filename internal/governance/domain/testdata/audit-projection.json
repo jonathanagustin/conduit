@@ -1,0 +1,33 @@
+[
+  {
+    "sequence": 1,
+    "id": "audit-fixture-1",
+    "actor": "operator-雪",
+    "action": "packaging.model-proposal",
+    "decision": "ALLOW",
+    "previousDigest": "7afa15678bef67a658e82f9ad7ff54f9489f7bcf39d5d8a6f39ad93fc0f18ef3",
+    "digest": "48aa0689e3e856148b7063e1c48f6db934475c37133a3c68a311bd35419fe4ca",
+    "createdAt": "2026-11-15T12:00:00Z",
+    "context": {
+      "adapter": "recorded",
+      "promptSha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "responseSha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+    },
+    "resourceRid": "environment/east",
+    "origin": "LIVE",
+    "payload": "eyJpZCI6ImF1ZGl0LWZpeHR1cmUtMSIsInNjaGVtYVZlcnNpb24iOiJhdWRpdC4zIiwiY2F0ZWdvcmllcyI6WyJhdXRob3JpemF0aW9uQ2hlY2siXSwidHJhY2VJZCI6ImVudmlyb25tZW50L2Vhc3QiLCJzdWJqZWN0Ijoib3BlcmF0b3It6ZuqIiwiYWN0aW9uIjoicGFja2FnaW5nLm1vZGVsLXByb3Bvc2FsIiwicmVzb3VyY2VSaWQiOiJlbnZpcm9ubWVudC9lYXN0IiwiZGVjaXNpb24iOiJBTExPVyIsInJlYXNvbiI6InJlY29yZGVkIGZpeHR1cmUiLCJyZXF1ZXN0RmllbGRzIjp7ImF1dGhvcml6YXRpb25DaGVja09wZXJhdGlvbnMiOlsicGFja2FnaW5nLm1vZGVsLXByb3Bvc2FsIl0sImF1dGhvcml6YXRpb25DaGVja1RhcmdldHMiOlsiZW52aXJvbm1lbnQvZWFzdCJdfSwicmVzdWx0RmllbGRzIjp7ImF1dGhvcml6YXRpb25DaGVja0ZhaWxlZFRhcmdldHMiOltdLCJhdXRob3JpemF0aW9uQ2hlY2tSZXN1bHRNZXNzYWdlIjoicmVjb3JkZWQgZml4dHVyZSIsImF1dGhvcml6YXRpb25DaGVja1N1Y2NlZWRlZFRhcmdldHMiOlsiZW52aXJvbm1lbnQvZWFzdCJdfSwiY29udGV4dCI6eyJhZGFwdGVyIjoicmVjb3JkZWQiLCJwcm9tcHRTaGEyNTYiOiJhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhYWFhIiwicmVzcG9uc2VTaGEyNTYiOiJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiYmJiIn0sImNyZWF0ZWRBdCI6IjIwMjYtMTEtMTVUMTI6MDA6MDBaIn0="
+  },
+  {
+    "sequence": 2,
+    "id": "audit-fixture-2",
+    "actor": "reviewer",
+    "action": "read",
+    "decision": "DENY",
+    "previousDigest": "48aa0689e3e856148b7063e1c48f6db934475c37133a3c68a311bd35419fe4ca",
+    "digest": "73c6c44bf45b435e8d86cfe3cf96ec5c95874908698c02ac8a4d740b83ba0a37",
+    "createdAt": "2026-11-15T12:00:01Z",
+    "resourceRid": "environment/west",
+    "origin": "LIVE",
+    "payload": "eyJpZCI6ImF1ZGl0LWZpeHR1cmUtMiIsInNjaGVtYVZlcnNpb24iOiJhdWRpdC4zIiwiY2F0ZWdvcmllcyI6WyJhdXRob3JpemF0aW9uQ2hlY2siXSwidHJhY2VJZCI6ImVudmlyb25tZW50L3dlc3QiLCJzdWJqZWN0IjoicmV2aWV3ZXIiLCJhY3Rpb24iOiJyZWFkIiwicmVzb3VyY2VSaWQiOiJlbnZpcm9ubWVudC93ZXN0IiwiZGVjaXNpb24iOiJERU5ZIiwicmVhc29uIjoibm90IHBlcm1pdHRlZCIsInJlcXVlc3RGaWVsZHMiOnsiYXV0aG9yaXphdGlvbkNoZWNrT3BlcmF0aW9ucyI6WyJyZWFkIl0sImF1dGhvcml6YXRpb25DaGVja1RhcmdldHMiOlsiZW52aXJvbm1lbnQvd2VzdCJdfSwicmVzdWx0RmllbGRzIjp7ImF1dGhvcml6YXRpb25DaGVja0ZhaWxlZFRhcmdldHMiOlsiZW52aXJvbm1lbnQvd2VzdCJdLCJhdXRob3JpemF0aW9uQ2hlY2tSZXN1bHRNZXNzYWdlIjoibm90IHBlcm1pdHRlZCIsImF1dGhvcml6YXRpb25DaGVja1N1Y2NlZWRlZFRhcmdldHMiOltdfSwiY3JlYXRlZEF0IjoiMjAyNi0xMS0xNVQxMjowMDowMVoifQ=="
+  }
+]
