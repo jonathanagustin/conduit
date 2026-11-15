@@ -72,11 +72,14 @@ func (planner Planner) planTurn(ctx context.Context, session *domain.Session, me
 }
 
 func (planner Planner) writeInto(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service, result *application.TurnResult) (*application.TurnResult, error) {
-	plan, err := planner.writePlan(ctx, session, message, checkout, tools)
+	plan, questions, err := planner.writePlan(ctx, session, message, checkout, tools)
 	if err != nil && !errors.Is(err, errFrontendHandoff) {
 		return result, err
 	}
 	result.Plan = plan
+	if questions != nil {
+		result.NeedsInput = questions
+	}
 	return result, nil
 }
 
@@ -96,17 +99,26 @@ func (planner Planner) askQuestions(ctx context.Context, session *domain.Session
 	return questions, nil
 }
 
-func (planner Planner) writePlan(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) (*domain.Plan, error) {
+func (planner Planner) writePlan(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) (*domain.Plan, []domain.Question, error) {
 	var plan *domain.Plan
+	var questions []domain.Question
 	err := planner.runPhase(ctx, session, checkout, tools, ActionPlan, planPrompt(session, message), func(reply []byte) error {
+		parsedQuestions, found, err := parseFieldErrors(reply, session.NeedsInput)
+		if found {
+			questions = parsedQuestions
+			if err != nil {
+				return err
+			}
+			return application.QuestionsObserved(ctx, questions)
+		}
 		parsed, err := parsePlan(reply)
 		plan = parsed
 		return err
 	})
 	if err != nil {
-		return plan, err
+		return plan, questions, err
 	}
-	return plan, nil
+	return plan, questions, nil
 }
 
 // runPhase drives one model phase: it feeds tool results back until the
@@ -191,7 +203,7 @@ func phaseReason(action string) string {
 	if action == ActionQuestions {
 		return "asked Needs Input questions"
 	}
-	return "wrote the packaging plan"
+	return "completed packaging plan review"
 }
 
 func sessionContext(session *domain.Session, message string) string {
@@ -253,6 +265,7 @@ func planPrompt(session *domain.Session, message string) string {
 	b.WriteString(readFilesRequire)
 	b.WriteString(`Your final answer is one JSON object and nothing else:
 {"summary":"what the package is and how it runs","baseImage":"the base image approach","buildSteps":["ordered build step"],"ports":[8080],"networkAllow":["host or host:port the service must reach"],"sso":{"required":false,"notes":""},"risks":["known risk"]}
+If a recorded operator answer cannot be used, return {"fieldErrors":[{"id":"existing_question_id","message":"what must be corrected"}]} instead of a plan. Use only existing question IDs, never include a plan together with fieldErrors, and never include secrets in error messages.
 Do not include secrets. Do not write a Dockerfile or run a build; this is a plan the operator reviews and accepts first.
 `)
 	return b.String()

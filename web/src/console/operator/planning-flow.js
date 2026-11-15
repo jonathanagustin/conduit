@@ -245,7 +245,7 @@ export function acceptState(session) {
   if (!session.plan || !String(session.plan.text || "").trim()) {
     return { ok: false, reason: "No plan has been written yet." };
   }
-  if (openQuestions(session).some((q) => q.required)) {
+  if (openQuestions(session).some((q) => q.required || q.validationError)) {
     return { ok: false, reason: "Answer every required question." };
   }
   return { ok: true, reason: "" };
@@ -406,7 +406,9 @@ function needsInput(planning) {
   const forms = planning.agent?.forms;
   if (forms?.surfaces.size) {
     const content = [...forms.surfaces.keys()]
-      .map((id) => forms.render(id, { planning: true }))
+      .map((id) =>
+        forms.render(id, { planning: true, disabled: Boolean(planning.busy) }),
+      )
       .join("");
     return `<section class="kit-panel kit-card kit-pad plan-card" data-plan-needs-input aria-label="Needs Input"><div class="kit-section">Needs Input</div>${content}</section>`;
   }
@@ -517,7 +519,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       fields: () => {
         const current = store.planning.session;
         const pending = openQuestions(current).some(
-          (question) => question.required,
+          (question) => question.required || question.validationError,
         );
         return new Map([
           ["repoUrl", { type: "string", readOnly: true }],
@@ -578,6 +580,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
                   ? store.planning.drafts[question.id] === "true"
                   : store.planning.drafts[question.id],
                 Boolean(store.planning.humanDrafts[question.id]),
+                false,
               );
             }
           }

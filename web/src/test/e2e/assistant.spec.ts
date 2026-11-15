@@ -683,16 +683,27 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
     requests.push(input);
     const first = requests.length === 1;
     const resumed = Boolean(input.resume);
-    const current = resumed
+    const rejected = requests.length === 3;
+    const current = rejected
       ? {
           ...session,
-          status: "ready",
-          answers: [
-            { id: "port", value: input.resume[0].payload["question:port"] },
+          needsInput: [
+            {
+              ...session.needsInput[0],
+              validationError: "Choose another port.",
+            },
           ],
-          plan: { text: "Build reviewed input.", sha256: "c".repeat(64) },
         }
-      : session;
+      : resumed && !rejected
+        ? {
+            ...session,
+            status: "ready",
+            answers: [
+              { id: "port", value: input.resume[0].payload["question:port"] },
+            ],
+            plan: { text: "Build reviewed input.", sha256: "c".repeat(64) },
+          }
+        : session;
     const events: unknown[] = [
       { type: "RUN_STARTED", threadId: input.threadId, runId: input.runId },
     ];
@@ -741,7 +752,7 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
         runId: input.runId,
         outcome: first
           ? { type: "success", pendingToolCallIds: ["prefill"] }
-          : resumed
+          : resumed && !rejected
             ? { type: "success" }
             : {
                 type: "interrupt",
@@ -749,7 +760,7 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
               },
       },
     );
-    if (!resumed)
+    if (!resumed || rejected)
       events.splice(events.length - 1, 0, {
         type: "CUSTOM",
         name: "a2ui",
@@ -768,7 +779,9 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
               {
                 id: "question:port",
                 component: "TextField",
-                label: "Which port?",
+                label:
+                  'Which port? <img src=x onerror="window.formInjected=true">',
+                ...(rejected ? { error: "Choose another port." } : {}),
                 value: { "@path": "/answers/port" },
                 "@checks": [
                   {
@@ -809,12 +822,32 @@ test("Work Intake uses agent form tools and resumes with the human's answer", as
   await page.locator("[data-plan-send]").click();
   await expect(page.locator('[data-plan-answer="port"]')).toHaveValue("8080");
   await expect(page.locator("[data-plan-submit-answers]")).toBeEnabled();
+  await expect(page.locator("[data-plan-needs-input] img")).toHaveCount(0);
+  expect(
+    await page.evaluate(() => Reflect.get(window, "formInjected")),
+  ).toBeUndefined();
+  await page.locator('[data-plan-answer="port"]').fill("");
+  await page.locator("[data-plan-submit-answers]").click();
+  await expect(page.locator('[data-plan-answer="port"]')).toBeFocused();
+  await expect(page.locator('[data-plan-answer="port"]')).toHaveAttribute(
+    "aria-invalid",
+    "true",
+  );
+  expect(requests).toHaveLength(2);
   await page.locator('[data-plan-answer="port"]').fill("9090");
+  await page.locator("[data-plan-submit-answers]").click();
+  await expect(page.locator("[data-plan-needs-input]")).toContainText(
+    "Choose another port.",
+  );
+  await page.locator("[data-plan-submit-answers]").click();
+  expect(requests).toHaveLength(3);
+  await page.locator('[data-plan-answer="port"]').fill("9091");
   await page.locator("[data-plan-submit-answers]").click();
   await expect(page.locator("[data-plan-review]")).toContainText(
     "Build reviewed input.",
   );
-  expect(requests).toHaveLength(3);
+  expect(requests).toHaveLength(4);
+  expect(requests[3].resume[0].payload).toEqual({ "question:port": "9091" });
   expect(requests[1].messages.at(-1)).toMatchObject({
     role: "tool",
     toolCallId: "prefill",

@@ -230,7 +230,7 @@ export class FormSurfaces {
       reject();
     }
   }
-  input(surfaceId, componentId, value, human = true) {
+  input(surfaceId, componentId, value, human = true, clearError = human) {
     const surface = this.surfaces.get(surfaceId);
     const item = surface?.components.get(componentId);
     if (
@@ -252,7 +252,7 @@ export class FormSurfaces {
     ]);
     if (human) surface.dirty.add(item.value["@path"]);
     delete surface.errors[item.id];
-    surface.dismissed.add(item.id);
+    if (clearError) surface.dismissed.add(item.id);
   }
   action(surfaceId, componentId) {
     const surface = this.surfaces.get(surfaceId);
@@ -298,7 +298,7 @@ export class FormSurfaces {
     if (!renderer(message)) reject();
     return { errors: {}, message };
   }
-  render(surfaceId, { planning = false } = {}) {
+  render(surfaceId, { planning = false, disabled = false } = {}) {
     const surface = this.surfaces.get(surfaceId);
     if (!surface) return "";
     if (!surface.components.size)
@@ -312,7 +312,7 @@ export class FormSurfaces {
         return `<p>${esc(valueOf(item.text, surface.model))}</p>`;
       const attributes = `data-a2ui-surface="${esc(surfaceId)}" data-a2ui-component="${esc(id)}"`;
       if (type === "Button")
-        return `<button type="button" class="kit-btn kit-btn-sm" ${attributes} data-a2ui-action${planning ? " data-plan-submit-answers" : ""}>${esc(item.label)}</button>`;
+        return `<button type="button" class="kit-btn kit-btn-sm" ${attributes} data-a2ui-action${planning ? " data-plan-submit-answers" : ""}${disabled ? " disabled" : ""}>${esc(item.label)}</button>`;
       const value = valueOf(item.value, surface.model);
       const fieldError =
         surface.errors[id] ||

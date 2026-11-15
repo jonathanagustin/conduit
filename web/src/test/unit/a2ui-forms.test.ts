@@ -180,6 +180,7 @@ describe("approved A2UI form surfaces", () => {
       },
     });
     expect(store.render("form-1")).toContain("Use the reviewed port.");
+    store.input("form-1", "port", "8080", true, false);
     expect(store.action("form-1", "submit").message).toBeNull();
     store.input("form-1", "port", "9090");
     expect(

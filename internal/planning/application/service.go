@@ -200,6 +200,23 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 			session.Profile = result.Profile
 		}
 	}
+	// Rejected values are no longer answers, and cannot keep an old draft eligible.
+	rejected := map[string]bool{}
+	for _, question := range session.NeedsInput {
+		if strings.TrimSpace(question.ValidationError) != "" {
+			rejected[question.ID] = true
+		}
+	}
+	if len(rejected) > 0 {
+		session.Plan = nil
+		kept := []domain.Answer{}
+		for _, answer := range session.Answers {
+			if !rejected[answer.ID] {
+				kept = append(kept, answer)
+			}
+		}
+		session.Answers = kept
+	}
 	session.Status = statusAfterTurn(session)
 	session.UpdatedAt = service.now()
 	service.recordTurnEvents(session, message, result)
@@ -251,6 +268,13 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 			changed = true
 		}
 		byID[answer.ID] = domain.Answer{ID: answer.ID, Value: value}
+	}
+	for index := range session.NeedsInput {
+		for _, answer := range answers {
+			if answer.ID == session.NeedsInput[index].ID {
+				session.NeedsInput[index].ValidationError = ""
+			}
+		}
 	}
 	if changed {
 		session.Plan = nil
@@ -420,7 +444,7 @@ func statusAfterTurn(session *domain.Session) string {
 
 func validateAnswer(question domain.Question, value string) error {
 	value = strings.TrimSpace(value)
-	if question.Required && value == "" {
+	if (question.Required || question.ValidationError != "") && value == "" {
 		return domain.ErrInvalidAnswer
 	}
 	switch question.Type {

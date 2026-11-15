@@ -47,7 +47,12 @@ created for each AG-UI run, including snapshot recovery.
 
 Input `@checks` produce adjacent errors and block submission. The optional
 owned `error` property displays returned field errors, also blocking submit
-until the user changes that field. Labels, native keyboard navigation,
+until the user changes that field. Restoring an existing draft does not dismiss
+a newly returned error. The model plan phase can return bounded `fieldErrors`
+for existing question IDs instead of a plan. Those errors retain the question
+policy, remove rejected answers, invalidate an older draft and reopen Needs
+Input, including for a previously optional question. An explicit correction
+clears the error and invokes the model review again. Labels, native keyboard navigation,
 `aria-invalid`, error descriptions and focus on the first failed field are
 part of the intake binding. Select/radio choices are checked independently of
 optional check declarations. The renderer does not run an expression language.

@@ -227,7 +227,7 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 			}
 			service.mu.Lock()
 			service.syncNativeLocked(state, session, before, userID)
-			if userID != "" {
+			if userID != "" && message != "" {
 				state.seenUsers[userID] = digest([]byte(message))
 			}
 			service.mu.Unlock()

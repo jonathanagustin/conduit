@@ -41,7 +41,7 @@ func currentForm(session *domain.Session) *inputForm {
 		properties[key] = item
 		form.questions[key] = question
 		form.order = append(form.order, key)
-		if question.Required {
+		if question.Required || question.ValidationError != "" {
 			required = append(required, key)
 			item["minLength"] = 1
 		}

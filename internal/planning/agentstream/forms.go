@@ -57,12 +57,15 @@ func formSurface(session *domain.Session, form *inputForm, surfaceID string) (ma
 		}
 		component := map[string]any{"id": id, "component": kind, "label": label, "value": binding}
 		checks := []any{}
-		if question.Required {
+		if question.Required || question.ValidationError != "" {
 			checks = append(checks, map[string]any{"condition": map[string]any{"@call": "required", "args": map[string]any{"value": binding}}, "message": "Enter a value."})
 		}
 		if kind == "Select" {
 			component["options"] = question.Options
 			checks = append(checks, map[string]any{"condition": map[string]any{"@call": "enum", "args": map[string]any{"value": binding, "options": question.Options}}, "message": "Choose one of the offered values."})
+		}
+		if question.ValidationError != "" {
+			component["error"] = question.ValidationError
 		}
 		component["@checks"] = checks
 		components = append(components, component)
