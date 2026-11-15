@@ -1032,3 +1032,54 @@ test("release convergence uses reported Hub evidence in the releases area", asyn
   await expect(matrix).toContainText("diverged");
   await expect(matrix).not.toContainText("edge-east-01");
 });
+
+test("release waves show recorded gates and reasons without synthetic calendar data", async ({
+  page,
+}) => {
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    await route.fulfill({
+      json:
+        path === "/v1/rollouts"
+          ? {
+              rollouts: [
+                {
+                  id: "native-wave-run",
+                  product: "native-service",
+                  version: "3",
+                  status: "paused",
+                  pausedBy: "reviewer",
+                  waves: [
+                    {
+                      name: "canary-native",
+                      environments: ["dev"],
+                      gate: "health",
+                      status: "passed",
+                    },
+                    {
+                      name: "fleet-native",
+                      environments: ["prod"],
+                      gate: "approval",
+                      status: "blocked",
+                      reason: "Waiting for separate approver",
+                    },
+                  ],
+                },
+              ],
+            }
+          : {},
+    });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="waves"]').click();
+  const waves = page.locator("[data-release-waves]");
+  await expect(waves).toContainText("native-wave-run");
+  await expect(waves).toContainText("Gate: approval");
+  await expect(waves).toContainText("Waiting for separate approver");
+  await expect(waves).toContainText("scheduling is unavailable");
+});
