@@ -1,3 +1,4 @@
+import { mountPlanInspector } from "./release-plan-inspector.js";
 /* Ported from the release console. Example rows stay labeled in the top bar. */
 import {
   readPref,
@@ -1069,6 +1070,7 @@ export function mountOperator(host, options) {
       tabs: [
         { id: "environments", label: "Environments", screen: "s14-env-detail" },
         { id: "products", label: "Products", screen: "rel-products" },
+        { id: "plans", label: "Plans", screen: "rm03-plan-detail" },
         { id: "channels", label: "Channels", screen: "rm-channels" },
         { id: "waves", label: "Waves", screen: "rm-waves" },
         {
@@ -4652,126 +4654,12 @@ export function mountOperator(host, options) {
   }
 
   function renderRM03PlanDetail(root) {
-    const rawLog = [
-      "[2026-11-13T02:04:11.082Z] INFO  hub.dispatcher     Issued plan=PLN-2026-0416 env=edge-west-02 window=mw-west-daily",
-      "[2026-11-13T02:04:14.419Z] INFO  agent.receiver     Received signed envelope via spoke-west-relay (lag=3.33s)",
-      "[2026-11-13T02:04:25.601Z] INFO  agent.task[01/05]  Validated 14 Kubernetes v1.30 manifests & CRD schemas",
-      "[2026-11-13T02:04:31.890Z] INFO  agent.task[02/05]  Verified cosign keyId=prod-root-2026 sha256:9c71fe08...2d44",
-      "[2026-11-13T02:04:45.912Z] INFO  agent.task[03/05]  Applied environment values override rev=r41 (limits.memory=768Mi)",
-      "[2026-11-13T02:06:44.118Z] ERROR k8s.pod.watch      Pod conduit-system/ingress-gateway-7d9c4b8f-x92lm OOMKilled (exitCode=137)",
-      "[2026-11-13T02:06:49.904Z] FATAL agent.task[04/05]  helm upgrade --atomic timed out; rolled back to v1.23.3 & engaged OVR-117",
-    ].join("\n");
-
-    const tasks = [
-      [
-        "01",
-        "Validate Kubernetes v1.30 CRD & admission schemas",
-        "Succeeded",
-        "green",
-        "11s",
-        "14/14 manifests validated cleanly",
-      ],
-      [
-        "02",
-        "Verify hardware signature against prod-root-2026",
-        "Succeeded",
-        "green",
-        "06s",
-        "Digest sha256:9c71fe08...2d44 verified",
-      ],
-      [
-        "03",
-        "Stage ConfigMap & Secret overrides (revision r41)",
-        "Succeeded",
-        "green",
-        "14s",
-        "Rendered memory limit 768Mi",
-      ],
-      [
-        "04",
-        "Execute atomic Helm upgrade ingress-gateway -> 1.23.4",
-        "Failed",
-        "red",
-        "127s",
-        "Container ingress-proxy OOMKilled (exit 137) during replay burst",
-      ],
-      [
-        "05",
-        "Verify post-upgrade readiness & clear hold",
-        "Skipped",
-        "muted",
-        "00s",
-        "Skipped after task #04 non-zero exit; rolled back to v1.23.3",
-      ],
-    ];
-
-    root.innerHTML = `
-        <div class="space-y-2.5 flex flex-col">
-          ${rmApiStrip("PROPOSED", "GET /v1/plans/{planId}", "ConduitPlan")}
-          <div class="so-warn-card p-3.5 space-y-2.5" style="border-top-color:#e05257;">
-            <div class="flex flex-wrap items-center justify-between gap-3">
-              <div>
-                <div class="flex flex-wrap items-center gap-2">
-                  <span class="code-id text-[15.5px] font-bold text-white">PLN-2026-0416</span>
-                  ${pill("Failed", "red")}
-                  <span class="so-pill">Upgrade</span>
-                  ${agentChip("Helm Executor", 5, 2)}
-                </div>
-                <div class="text-[13px] font-semibold text-white mt-1">ingress-gateway (1.23.3 &rarr; 1.23.4) on edge-west-02 &mdash; OOMKilled at Task 4/5</div>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                ${kpiBox("02m 38s", "DURATION", "#eab854")}
-                ${kpiBox("Exit 137", "OOMKILLED", "#f87171")}
-                ${kpiBox("OVR-117", "SUPPRESSED", "#60a5fa")}
-              </div>
-            </div>
-            <div class="so-striped-bar"><div class="so-striped-fill" style="width:75%;background:repeating-linear-gradient(-45deg,#b8383c 0px,#b8383c 7px,#de5256 7px,#de5256 14px);"></div></div>
-          </div>
-
-          <div class="so-grid-2 gap-3 items-start">
-            <div class="so-panel p-3.5 space-y-2">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Ordered Task List (5 Tasks)</div>
-              <div class="so-table-scroll"><table class="so-table">
-                <thead><tr><th>#</th><th>Ordered Task</th><th>Status</th><th style="text-align:right">Duration</th></tr></thead>
-                <tbody>
-                  ${tasks.map((t) => `<tr style="${t[2] === "Failed" ? "background:rgba(231,106,110,0.10)" : ""}"><td class="code-id text-[#596573]">${t[0]}</td><td><div class="font-semibold text-white">${t[1]}</div><div class="text-[11px] text-[#8b96a5]">${t[5]}</div></td><td>${pill(t[2], t[3])}</td><td class="code-id" style="text-align:right">${t[4]}</td></tr>`).join("")}
-                </tbody>
-              </table></div>
-            </div>
-
-            <div class="so-panel p-3.5 space-y-2.5">
-              <div class="text-[11px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Issued &rarr; Received &rarr; Failed Dispatch Timeline</div>
-              <div class="so-card so-stream-item p-2.5"><div class="flex justify-between items-center">${pill("1. Issued", "blue")}<span class="code-id text-[11px] text-[#8b96a5]">2026-11-13T02:04:11.082Z</span></div><div class="text-[11.5px] text-[#8b96a5] mt-1">Dispatched by <strong class="text-white">conduit-hub-orchestrator</strong> in window <code class="code-id">mw-west-daily</code>.</div></div>
-              <div class="so-card so-stream-item p-2.5"><div class="flex justify-between items-center">${pill("2. Received", "blue")}<span class="code-id text-[11px] text-[#8b96a5]">2026-11-13T02:04:14.419Z (+3.34s)</span></div><div class="text-[11.5px] text-[#8b96a5] mt-1">Verified by agent on <code class="code-id text-white">edge-west-02</code> via <code class="code-id">spoke-west-relay</code>.</div></div>
-              <div class="so-card so-stream-item so-stream-red p-2.5" style="background:rgba(43,21,25,0.45)"><div class="flex justify-between items-center">${pill("3. Failed", "red")}<span class="code-id text-[11px] text-[#f87171]">2026-11-13T02:06:49.904Z (+158.8s)</span></div><div class="text-[11.5px] text-white mt-1">Container <code class="code-id">ingress-proxy</code> exceeded <code class="code-id">768Mi</code> limit; rolled back to v1.23.3.</div></div>
-
-              <div class="flex items-center justify-between pt-1">
-                <span class="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-[#8b96a5]">Raw Agent Output</span>
-                <div class="flex gap-1.5">
-                  <button type="button" data-onclick="copyRmRawLog()" class="so-btn so-btn-sm">${state.rmCopiedRaw ? "&#10003; Copied" : "Copy raw output"}</button>
-                  <button type="button" data-onclick="switchScreen('rm07-change-requests')" class="so-btn so-btn-sm so-btn-emerald">&rarr; Fix in CR-308</button>
-                </div>
-              </div>
-              <pre id="rm-raw-output" class="p-2.5 rounded bg-[#080c0f] border border-[#1c242c] code-id text-[10.5px] text-[#dce4ee] overflow-x-auto leading-relaxed">${rawLog}</pre>
-            </div>
-          </div>
-        </div>
-      `;
-  }
-
-  function copyRmRawLog() {
-    const el = document.getElementById("rm-raw-output");
-    if (el && navigator.clipboard) {
-      try {
-        navigator.clipboard.writeText(el.textContent || "");
-      } catch (e) {}
-    }
-    state.rmCopiedRaw = true;
-    renderMainWorkspace();
-    setTimeout(() => {
-      state.rmCopiedRaw = false;
-      renderMainWorkspace();
-    }, 1500);
+    mountPlanInspector(root, state.hub?.plans, {
+      selectedId: state.releasePlanId || "",
+      onSelect: (id) => {
+        state.releasePlanId = id;
+      },
+    });
   }
 
   function renderRM04Constraints(root) {
@@ -5558,6 +5446,7 @@ export function mountOperator(host, options) {
         });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),
+      "rm03-plan-detail": renderRM03PlanDetail,
       "rm05-release-rollout": renderRM05ReleaseRollout,
       "rm02-env-activity": renderRM02EnvActivity,
       "rm06-promotion-pipe": renderRM06PromotionPipe,
@@ -5666,7 +5555,6 @@ export function mountOperator(host, options) {
   window.showTip = showTip;
   window.hideTip = hideTip;
   window.recordAudit = recordAudit;
-  window.copyRmRawLog = copyRmRawLog;
   window.toggleSavedViewPin = (id) => {
     const view = state.savedViews.find((item) => item.id === id);
     if (view) view.pinned = !view.pinned;
