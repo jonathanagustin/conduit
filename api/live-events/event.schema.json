@@ -1,0 +1,315 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://conduit.invalid/contracts/live-event-v1",
+  "title": "Conduit general console live event v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "streamID",
+    "sequence",
+    "cursor",
+    "occurredAt",
+    "kind",
+    "resource",
+    "data"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "streamID": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+    },
+    "sequence": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 9007199254740991
+    },
+    "cursor": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 512,
+      "pattern": "^[A-Za-z0-9_-]+$"
+    },
+    "occurredAt": {
+      "type": "string",
+      "format": "date-time",
+      "maxLength": 35
+    },
+    "kind": {
+      "enum": [
+        "packaging.step",
+        "plan.changed",
+        "approval.changed",
+        "spoke.reported",
+        "assistant.activity",
+        "index.invalidated"
+      ]
+    },
+    "resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "type",
+        "id",
+        "revision"
+      ],
+      "properties": {
+        "type": {
+          "enum": [
+            "packaging-run",
+            "plan",
+            "environment",
+            "assistant-run",
+            "index"
+          ]
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200,
+          "pattern": "^[A-Za-z0-9][A-Za-z0-9._:/-]*$"
+        },
+        "revision": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 9007199254740991
+        }
+      }
+    },
+    "data": {
+      "type": "object"
+    }
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "kind": {
+          "const": "packaging.step"
+        },
+        "resource": {
+          "properties": {
+            "type": {
+              "const": "packaging-run"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "phase",
+            "outcome"
+          ],
+          "properties": {
+            "phase": {
+              "type": "string",
+              "enum": [
+                "assess",
+                "propose",
+                "validate",
+                "review",
+                "handoff",
+                "complete",
+                "blocked"
+              ]
+            },
+            "outcome": {
+              "type": "string",
+              "enum": [
+                "PASS",
+                "FAIL_REQUIRED",
+                "UNKNOWN_SECURITY",
+                "UNSUPPORTED",
+                "TIMED_OUT",
+                "CANCELLED",
+                "STALE_APPROVAL",
+                "REJECTED",
+                "HANDOFF_RECORDED",
+                "WAITING",
+                "NOT_RUN"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "plan.changed"
+        },
+        "resource": {
+          "properties": {
+            "type": {
+              "const": "plan"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "AWAITING_APPROVAL",
+                "APPROVED",
+                "LEASED",
+                "RUNNING",
+                "SUCCEEDED",
+                "FAILED",
+                "CANCELLED",
+                "RECORDED"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "approval.changed"
+        },
+        "resource": {
+          "properties": {
+            "type": {
+              "const": "plan"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "status"
+          ],
+          "properties": {
+            "status": {
+              "type": "string",
+              "enum": [
+                "PENDING",
+                "APPROVED",
+                "REJECTED",
+                "REVOKED"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "spoke.reported"
+        },
+        "resource": {
+          "properties": {
+            "type": {
+              "const": "environment"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "state"
+          ],
+          "properties": {
+            "state": {
+              "type": "string",
+              "enum": [
+                "live",
+                "stale",
+                "unreachable"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "assistant.activity"
+        },
+        "resource": {
+          "properties": {
+            "type": {
+              "const": "assistant-run"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "activity"
+          ],
+          "properties": {
+            "activity": {
+              "type": "string",
+              "enum": [
+                "STARTED",
+                "WAITING_INPUT",
+                "PLANNING",
+                "FINISHED",
+                "FAILED"
+              ]
+            }
+          }
+        }
+      }
+    },
+    {
+      "properties": {
+        "kind": {
+          "const": "index.invalidated"
+        },
+        "resource": {
+          "properties": {
+            "type": {
+              "const": "index"
+            }
+          }
+        },
+        "data": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "areas"
+          ],
+          "properties": {
+            "areas": {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 8,
+              "uniqueItems": true,
+              "items": {
+                "enum": [
+                  "overview",
+                  "kpi",
+                  "packaging",
+                  "plans",
+                  "approvals",
+                  "fleet",
+                  "assistant",
+                  "audit"
+                ]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
