@@ -171,3 +171,87 @@ type scriptedPlanner struct{ result *TurnResult }
 func (planner scriptedPlanner) Turn(context.Context, *domain.Session, string) (*TurnResult, error) {
 	return planner.result, nil
 }
+
+type sequencePlanner struct {
+	turns []*TurnResult
+	idx   int
+}
+
+func (p *sequencePlanner) Turn(context.Context, *domain.Session, string) (*TurnResult, error) {
+	if p.idx >= len(p.turns) {
+		return p.turns[len(p.turns)-1], nil
+	}
+	res := p.turns[p.idx]
+	p.idx++
+	return res, nil
+}
+
+func TestMultiTurnKeepsEarlierMessagesAfterPlanArrivesAndDefaultModelLabel(t *testing.T) {
+	t.Parallel()
+	planner := &sequencePlanner{
+		turns: []*TurnResult{
+			{
+				Messages:       []domain.Message{{Role: domain.RoleModel, Text: "Inspected repository: TypeScript static app."}},
+				Inspection:     &domain.Inspection{Language: "TypeScript", Kind: "static", ToolCalls: []string{"inspect_repo"}},
+				NeedsInput:     []domain.Question{{ID: "port", Name: "port", Label: "Which port?", Type: domain.QuestionString, Required: true}},
+				ResolvedCommit: "0123456789abcdef0123456789abcdef01234567",
+			},
+			{
+				Messages: []domain.Message{{Role: domain.RoleModel, Text: "Generated initial packaging plan."}},
+				Plan:     &domain.Plan{Text: `{"summary":"Initial plan","baseImage":"node:20-slim","buildSteps":["npm ci"],"ports":[8080],"networkAllow":[],"sso":{"required":false,"notes":""},"risks":[]}`},
+			},
+			{
+				Messages: []domain.Message{{Role: domain.RoleModel, Text: "Updated plan to expose port 3000."}},
+				Plan:     &domain.Plan{Text: `{"summary":"Revised plan","baseImage":"node:20-slim","buildSteps":["npm ci"],"ports":[3000],"networkAllow":[],"sso":{"required":false,"notes":""},"risks":[]}`},
+			},
+		},
+	}
+	service := NewService(planner)
+	ctx := context.Background()
+	session, err := service.Create(ctx, "https://github.com/org/app", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Turn(ctx, session.ID, "First operator message")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := service.Answer(ctx, session.ID, []domain.Answer{{ID: "port", Value: "8080"}}); err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Turn(ctx, session.ID, "Second operator message")
+	if err != nil {
+		t.Fatal(err)
+	}
+	session, err = service.Turn(ctx, session.ID, "Third operator message")
+	if err != nil {
+		t.Fatal(err)
+	}
+	wantTexts := []string{
+		"First operator message",
+		"Inspected repository: TypeScript static app.",
+		"Second operator message",
+		"Generated initial packaging plan.",
+		"Third operator message",
+		"Updated plan to expose port 3000.",
+	}
+	if len(session.Messages) != len(wantTexts) {
+		t.Fatalf("len(messages) = %d, want %d: %+v", len(session.Messages), len(wantTexts), session.Messages)
+	}
+	for i, want := range wantTexts {
+		if session.Messages[i].Text != want {
+			t.Fatalf("messages[%d] = %q, want %q", i, session.Messages[i].Text, want)
+		}
+	}
+	if session.Model != domain.DefaultModelLabel {
+		t.Fatalf("session.Model = %q, want %q", session.Model, domain.DefaultModelLabel)
+	}
+	accepted, err := service.Accept(ctx, session.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if accepted.Binding.Model != domain.DefaultModelLabel {
+		t.Fatalf("binding.Model = %q, want %q", accepted.Binding.Model, domain.DefaultModelLabel)
+	}
+}
+

@@ -21,6 +21,7 @@
   --h-th: 27px;
   --h-td: 31px;
   --radius-panel: 5px;
+  --plan-accept-bar-h: 72px;
 
   /* 4px spacing scale */
   --sp-1: 4px;
@@ -30,6 +31,13 @@
   --sp-5: 20px;
   --sp-6: 24px;
   --sp-8: 32px;
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
 
   /* Type and icon scale */
   --fs-xs: 11px;

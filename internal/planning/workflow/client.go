@@ -1,0 +1,211 @@
+package workflow
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+	"sync/atomic"
+
+	enumspb "go.temporal.io/api/enums/v1"
+	"go.temporal.io/api/serviceerror"
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/converter"
+
+	"github.com/jonathanagustin/conduit/internal/planning/domain"
+)
+
+// WorkflowClient is the slice of Temporal's client.Client used by ClientService.
+type WorkflowClient interface {
+	ExecuteWorkflow(ctx context.Context, options client.StartWorkflowOptions, workflow any, args ...any) (client.WorkflowRun, error)
+	QueryWorkflow(ctx context.Context, workflowID string, runID string, queryType string, args ...any) (converter.EncodedValue, error)
+	UpdateWorkflow(ctx context.Context, options client.UpdateWorkflowOptions) (client.WorkflowUpdateHandle, error)
+}
+
+// ClientService implements the planning session lifecycle (Create, Get, Turn,
+// Answer, Accept, Events, Compute) backed by Temporal workflows.
+type ClientService struct {
+	client    WorkflowClient
+	taskQueue string
+	actor     string
+	seq       *atomic.Uint64
+}
+
+// NewClientService creates a Temporal-backed planning session service scoped
+// to an authenticated operator actor.
+func NewClientService(c WorkflowClient, taskQueue, actor string, seq *atomic.Uint64) *ClientService {
+	if strings.TrimSpace(taskQueue) == "" {
+		taskQueue = TaskQueue
+	}
+	if seq == nil {
+		seq = &atomic.Uint64{}
+	}
+	return &ClientService{
+		client:    c,
+		taskQueue: taskQueue,
+		actor:     strings.TrimSpace(actor),
+		seq:       seq,
+	}
+}
+
+// Create starts a new durable planning session workflow and queries its initial state.
+func (s *ClientService) Create(ctx context.Context, repoURL, ref string) (*domain.Session, error) {
+	return s.CreateWithID(ctx, fmt.Sprintf("ps_%d", s.seq.Add(1)), repoURL, ref)
+}
+
+// CreateWithID starts a new durable planning session workflow with an explicit session ID.
+func (s *ClientService) CreateWithID(ctx context.Context, sessionID, repoURL, ref string) (*domain.Session, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	if _, err := domain.ParseIntake(repoURL, ref); err != nil {
+		return nil, err
+	}
+	sessionID = strings.TrimSpace(sessionID)
+	if sessionID == "" {
+		sessionID = fmt.Sprintf("ps_%d", s.seq.Add(1))
+	}
+	wfID := WorkflowID(sessionID)
+	_, err := s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:                    wfID,
+		TaskQueue:             s.taskQueue,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+	}, WorkflowName, Input{
+		SessionID: sessionID,
+		Actor:     s.actor,
+		RepoURL:   repoURL,
+		Ref:       ref,
+	})
+	if err != nil {
+		return nil, MapWorkflowError(err)
+	}
+	return s.Get(ctx, sessionID)
+}
+
+// Get queries the current state of a planning session workflow.
+func (s *ClientService) Get(ctx context.Context, id string) (*domain.Session, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	wfID := WorkflowID(id)
+	if s.actor != "" {
+		ownerVal, err := s.client.QueryWorkflow(ctx, wfID, "", QueryOwner)
+		if err != nil {
+			return nil, mapNotFound(err)
+		}
+		var owner string
+		if err := ownerVal.Get(&owner); err != nil {
+			return nil, err
+		}
+		if owner != "" && owner != s.actor {
+			return nil, domain.ErrNotFound
+		}
+	}
+	val, err := s.client.QueryWorkflow(ctx, wfID, "", QuerySession)
+	if err != nil {
+		return nil, mapNotFound(err)
+	}
+	var session domain.Session
+	if err := val.Get(&session); err != nil {
+		return nil, err
+	}
+	return &session, nil
+}
+
+// Events queries the recorded event log of a planning session workflow.
+func (s *ClientService) Events(ctx context.Context, id string) ([]domain.Event, error) {
+	session, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	return domain.CloneEvents(session.Events), nil
+}
+
+// Turn sends a synchronous UpdateTurn to the planning session workflow and
+// waits for the turn activity to complete.
+func (s *ClientService) Turn(ctx context.Context, id, message string) (*domain.Session, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
+		WorkflowID:   WorkflowID(id),
+		UpdateName:   UpdateTurn,
+		Args:         []any{TurnRequest{Actor: s.actor, Message: message}},
+		WaitForStage: client.WorkflowUpdateStageCompleted,
+	})
+	if err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	var session domain.Session
+	if err := handle.Get(ctx, &session); err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	return &session, nil
+}
+
+// Answer sends a synchronous UpdateAnswer to record operator answers on the workflow.
+func (s *ClientService) Answer(ctx context.Context, id string, answers []domain.Answer) (*domain.Session, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
+		WorkflowID:   WorkflowID(id),
+		UpdateName:   UpdateAnswer,
+		Args:         []any{AnswerRequest{Actor: s.actor, Answers: answers}},
+		WaitForStage: client.WorkflowUpdateStageCompleted,
+	})
+	if err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	var session domain.Session
+	if err := handle.Get(ctx, &session); err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	return &session, nil
+}
+
+// Accept sends a synchronous UpdateAccept to record the governance audit and
+// bind the accepted plan on the workflow.
+func (s *ClientService) Accept(ctx context.Context, id string) (*domain.Session, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
+		WorkflowID:   WorkflowID(id),
+		UpdateName:   UpdateAccept,
+		Args:         []any{AcceptRequest{Actor: s.actor}},
+		WaitForStage: client.WorkflowUpdateStageCompleted,
+	})
+	if err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	var session domain.Session
+	if err := handle.Get(ctx, &session); err != nil {
+		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	return &session, nil
+}
+
+// Compute verifies the session has been accepted on the workflow and returns
+// the bound session (or refuses compute before accept).
+func (s *ClientService) Compute(ctx context.Context, id string) (*domain.Session, error) {
+	session, err := s.Get(ctx, id)
+	if err != nil {
+		return nil, err
+	}
+	if err := domain.RequireAccepted(session); err != nil {
+		return nil, err
+	}
+	return nil, domain.ErrComputeNotConfigured
+}
+
+func mapNotFound(err error) error {
+	if err == nil {
+		return nil
+	}
+	var notFound *serviceerror.NotFound
+	if errors.As(err, &notFound) {
+		return domain.ErrNotFound
+	}
+	return err
+}

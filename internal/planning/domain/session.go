@@ -18,6 +18,9 @@ import (
 // skill, the packaging tools, and the gates, versioned and hashed together.
 const ProfileOnboard = "onboard"
 
+// DefaultModelLabel is the neutral label shown when the model does not report its name.
+const DefaultModelLabel = "Configured model"
+
 // Session statuses. A session is created at started. Turns move it through
 // inspecting, needs_input, and planning. Ready means a plan is waiting for
 // Accept. Accepted means the binding is recorded.
