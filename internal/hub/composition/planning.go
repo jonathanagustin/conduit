@@ -99,13 +99,16 @@ func (audit planningAudit) Record(ctx context.Context, record planner.Record) er
 		action = planner.ActionInspect
 	}
 	resource := "planning-session/" + record.SessionID
+	attributes := map[string]any{
+		"adapter": record.Adapter, "promptSha256": record.PromptSHA256,
+		"responseSha256": record.ResponseSHA256, "toolCalls": record.ToolCalls,
+		"repoUrl": record.RepoURL, "resolvedCommit": record.ResolvedCommit,
+	}
+	if threadID, runID := planningapp.RunIdentifiers(ctx); threadID != "" && runID != "" {
+		attributes["threadId"], attributes["runId"] = threadID, runID
+	}
 	event := governance.NewAuthorizationCheckEvent(
-		time.Now().UTC(), planningActor(ctx), action, resource, decision, record.Reason,
-		map[string]any{
-			"adapter": record.Adapter, "promptSha256": record.PromptSHA256,
-			"responseSha256": record.ResponseSHA256, "toolCalls": record.ToolCalls,
-			"repoUrl": record.RepoURL, "resolvedCommit": record.ResolvedCommit,
-		},
+		time.Now().UTC(), planningActor(ctx), action, resource, decision, record.Reason, attributes,
 	)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
