@@ -967,6 +967,10 @@ export function mountOperator(host, options) {
   SCREENS.push(...settings.screens);
   const adminStatus = createAdminStatus({ navigate: switchScreen });
   const commandCenter = createCommandCenter({
+    getIdentity: () => ({
+      actor: state.reviewOperatorActor || "",
+      names: state.reviewOperatorIdentities || [],
+    }),
     getHub: () => state.hub,
     navigate: (screen, item) => {
       if (item?.objectType === "ChangeRequest")

@@ -3,15 +3,8 @@ import {
   packagingRunTransport,
 } from "../../api/packaging-run.js";
 
-export class HubError extends Error {
-  readonly status: number;
-
-  constructor(status: number, message: string) {
-    super(message);
-    this.name = "HubError";
-    this.status = status;
-  }
-}
+import { HubError } from "../../api/hub-error.js";
+export { HubError };
 
 export type PackagingRun = {
   configured: boolean;

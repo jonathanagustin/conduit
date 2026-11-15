@@ -79,3 +79,33 @@ reads, and compare every converted native panel field with its proto value.
 Delegation parity preserves the complete native principal, including its actor,
 service-account flag and represented identity. The adapter does not substitute
 the represented user for the actor or redefine bootstrap-administrator policy.
+
+## Active Command Center client
+
+The Command Center's authorized-overview summary uses the generated
+`ReportingService` client through `web/src/api/overview.ts`. It sends only the
+empty read request to the same origin, includes same-origin credentials and
+propagates cancellation with a 15-second deadline. The existing `HubError`
+class is shared with the older helpers; unauthenticated/forbidden remain
+401/403 and invalid-argument responses retain the existing 422 convention.
+There is no automatic REST fallback and no new assistant or review store.
+
+Counts remain protobuf `bigint` values until decimal-string display, so values
+beyond JavaScript's exact Number range are preserved. Only a `CURRENT` panel
+with a nonnegative integer displays a count. Missing, unknown or unavailable
+panels do not become zero. A missing snapshot timestamp makes the summary
+unavailable. Counts describe the server's authorized projection, independently
+of how many browser list pages are loaded.
+
+On remount, a successful snapshot is reused only when it is less than 15
+seconds old and belongs to the same native identity. Remounts share the current read rather than making map interactions
+start repeated requests. Refresh bypasses the cache. A changed or unavailable
+native identity clears the snapshot and cancels the pending read; generation,
+connection and identity checks prevent late responses from updating a new
+view. The displayed timestamp identifies the returned snapshot; this is a
+bounded read cache, not a live subscription. An already displayed snapshot
+remains a snapshot until the next read.
+
+The older `useConsoleData` hook is not imported by the active workbench; its
+remaining REST calls are not presented as migrated. Other route families and
+any subscription transport remain #393 and the live-update contract work.

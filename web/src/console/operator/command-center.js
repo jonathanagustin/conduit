@@ -1,3 +1,4 @@
+import { createOverviewSummary } from "./overview-summary.js";
 // Command Center overview: what needs attention, from the Hub's own records.
 // Decisions waiting, packaging runs that stopped, each environment's last
 // report, and the newest audit entries. Pure markup; nothing here writes.
@@ -210,6 +211,7 @@ export function overviewMarkup(
 
   return `<div class="kit-cc">
     ${hubSetupMarkup(hub, { esc })}
+    <div data-overview-rpc></div>
     ${ui.message ? `<p class="kit-muted" role="status">${esc(ui.message)}</p>` : ""}
     ${geographyMarkup(hub, ui, esc)}
     ${panel("Governance opportunities", `${opportunities.length}${hub.changeNote || hub.installationNote ? " known" : ""}`, "rm07-change-requests", governanceBody + (hub.changeNote ? none(hub.changeNote, esc) : "") + (hub.installationNote ? none(hub.installationNote, esc) : ""), esc)}
@@ -227,12 +229,22 @@ export function overviewMarkup(
 }
 
 /** Mount behavior on the existing overview. These actions only navigate or draft. */
-export function createCommandCenter({ getHub, navigate, addContext }) {
+export function createCommandCenter({
+  getHub,
+  navigate,
+  addContext,
+  getIdentity = () => null,
+}) {
+  const mountOverview = createOverviewSummary({
+    getIdentity,
+    getReady: () => getHub()?.loading === false,
+  });
   const ui = initialPresentation();
   let currentNode = null;
   function render(node) {
     currentNode = node;
     node.innerHTML = overviewMarkup(getHub(), { ui });
+    void mountOverview(node.querySelector("[data-overview-rpc]"));
     const select = (id) => {
       const site = recordedSites(getHub()?.environments).find(
         (item) => item.id === id,
