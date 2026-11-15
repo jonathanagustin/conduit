@@ -2032,3 +2032,83 @@ test("Intelligence stages only scoped confirmed proposals and distinguishes eval
   ).toBeDisabled();
   expect(forbidden).toEqual([]);
 });
+
+test("spoke operations uses recorded workloads and opens the exact environment", async ({
+  page,
+}) => {
+  const writes: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (route.request().method() !== "GET") writes.push(url.pathname);
+    if (url.pathname === "/v1/environments")
+      return route.fulfill({
+        json: {
+          environments: [
+            {
+              environment: { id: "east" },
+              spoke: { state: "stale", agentId: "agent-east" },
+              reported: {
+                agentId: "agent-east",
+                entities: [
+                  {
+                    installationId: "east-app",
+                    product: "east-product",
+                    namespace: "east-ns",
+                    version: "1",
+                    health: "UNHEALTHY",
+                  },
+                ],
+              },
+            },
+            {
+              environment: { id: "west" },
+              spoke: { state: "live", agentId: "agent-west" },
+              reported: {
+                agentId: "agent-west",
+                entities: [
+                  {
+                    installationId: "west-app",
+                    product: "west-product",
+                    namespace: "west-ns",
+                    version: "2",
+                    health: "HEALTHY",
+                  },
+                ],
+              },
+            },
+          ],
+        },
+      });
+    if (url.pathname === "/v1/fleet/installations")
+      return route.fulfill({ json: { installations: [] } });
+    if (url.pathname.endsWith("/timeline"))
+      return route.fulfill({ json: { timeline: [] } });
+    if (url.pathname === "/v1/blackouts")
+      return route.fulfill({
+        json: {
+          environment: url.searchParams.get("environment"),
+          blocked: false,
+        },
+      });
+    return route.fulfill({ status: 404, json: { error: "not configured" } });
+  });
+  await hydrate(page);
+  await page.goto("/console/#s17-spokes-audit");
+  await expect(page.locator("[data-spoke-operations]")).toContainText(
+    "east-product",
+  );
+  await expect(page.locator("[data-spoke-operations]")).toContainText(
+    "Spoke: stale",
+  );
+  await expect(page.locator("[data-spoke-operations]")).not.toContainText(
+    "Optical Diode",
+  );
+  await page.locator('[data-spoke-environment="west"]').click();
+  await expect(
+    page.locator("#main-workspace [data-spoke-workloads]"),
+  ).toContainText("west-product");
+  await expect(
+    page.locator("#main-workspace [data-spoke-workloads]"),
+  ).not.toContainText("east-product");
+  expect(writes).toEqual([]);
+});

@@ -1,3 +1,4 @@
+import { workloadMarkup } from "./fleet-spokes.mjs";
 import { releaseCalendarMarkup } from "./release-calendar.js";
 import { convergenceState, convergenceMarkup } from "./release-convergence.js";
 import { timelineMarkup } from "./release-plan-inspector.js";
@@ -52,7 +53,7 @@ export function environmentHubMarkup(
   ).filter((row) => row.environment === environment);
   return `<div data-release-environment-hub class="space-y-3"><section class="so-panel p-3 space-y-2"><h2>${esc(environment)}</h2>${picker}<p>Spoke: ${esc(selected.spoke?.state || "unknown")} · Agent: ${esc(selected.spoke?.agentId || "unavailable")}</p>
     <p>Blackout: ${blackout && blackout.environment === environment && typeof blackout.blocked === "boolean" ? (blackout.blocked ? `blocked · ${esc(blackout.reason || "reason unavailable")}` : "not blocked at the Hub evaluation time") : "unavailable"}</p>${note ? `<p role="status">${esc(note)}</p>` : ""}</section>
-    ${convergenceMarkup(installations, hub.installationNote)}
+    ${workloadMarkup(selected)}${convergenceMarkup(installations, hub.installationNote)}
     ${installations
       .filter((row) => convergenceState(row) === "diverged")
       .map(
