@@ -10,6 +10,7 @@ import {
   clampDockWidth,
   dockSurfacesMarkup,
 } from "./shell.js";
+import { convergenceMarkup } from "./release-convergence.js";
 import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
@@ -1070,6 +1071,11 @@ export function mountOperator(host, options) {
         { id: "products", label: "Products", screen: "rel-products" },
         { id: "channels", label: "Channels", screen: "rm-channels" },
         { id: "waves", label: "Waves", screen: "rm-waves" },
+        {
+          id: "convergence",
+          label: "Convergence",
+          screen: "rm05-release-rollout",
+        },
         { id: "activity", label: "Activity", screen: "rm02-env-activity" },
         { id: "promotion", label: "Promotion", screen: "rm06-promotion-pipe" },
         { id: "recall", label: "Recall", screen: "rm09-recalls" },
@@ -1132,7 +1138,10 @@ export function mountOperator(host, options) {
   REDIRECT["s11-preview"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["s12-lifecycle"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["rm01-env-page"] = { area: "area-releases", tab: "environments" };
-  REDIRECT["rm05-release-rollout"] = { area: "area-releases", tab: "activity" };
+  REDIRECT["rm05-release-rollout"] = {
+    area: "area-releases",
+    tab: "convergence",
+  };
 
   function areaFor(id) {
     return REDIRECT[id] || null;
@@ -4869,162 +4878,10 @@ export function mountOperator(host, options) {
   }
 
   function renderRM05ReleaseRollout(root) {
-    const envs = [
-      {
-        env: "edge-east-01",
-        wave: "Wave 1 · Canary",
-        ch: "staging",
-        mode: "Online mTLS",
-        desired: "0.31.2",
-        reported: "0.31.2",
-        drift: 0,
-        st: "Succeeded",
-        tone: "green",
-      },
-      {
-        env: "edge-south-06",
-        wave: "Wave 1 · Canary",
-        ch: "staging",
-        mode: "Online mTLS",
-        desired: "0.31.2",
-        reported: "0.31.2",
-        drift: 0,
-        st: "Succeeded",
-        tone: "green",
-      },
-      {
-        env: "edge-west-02",
-        wave: "Wave 2 · Regional",
-        ch: "edge-cohorts",
-        mode: "Store-and-Forward",
-        desired: "0.31.2",
-        reported: "0.31.1",
-        drift: 3,
-        st: "Awaiting Approval",
-        tone: "amber",
-      },
-      {
-        env: "metro-core-03",
-        wave: "Wave 2 · Regional",
-        ch: "edge-cohorts",
-        mode: "Store-and-Forward",
-        desired: "0.31.2",
-        reported: "0.31.2",
-        drift: 0,
-        st: "Rolling Out",
-        tone: "blue",
-      },
-      {
-        env: "edge-central-05",
-        wave: "Wave 2 · Regional",
-        ch: "edge-cohorts",
-        mode: "Online mTLS",
-        desired: "0.31.2",
-        reported: "0.31.2",
-        drift: 1,
-        st: "Succeeded",
-        tone: "green",
-      },
-      {
-        env: "offline-vault-04",
-        wave: "Wave 3 · Disconnected",
-        ch: "disconnected",
-        mode: "Optical Diode",
-        desired: "0.31.2",
-        reported: "0.31.1",
-        drift: 0,
-        st: "Proposed",
-        tone: "amber",
-      },
-      {
-        env: "forward-north-01",
-        wave: "Wave 3 · Disconnected",
-        ch: "disconnected",
-        mode: "Courier Bundle",
-        desired: "0.31.2",
-        reported: "0.31.0",
-        drift: 1,
-        st: "Proposed",
-        tone: "amber",
-      },
-    ].filter(
-      (r) => state.rmWaveFilter === "ALL" || r.wave === state.rmWaveFilter,
+    root.innerHTML = convergenceMarkup(
+      state.hub?.installations,
+      state.hub?.installationNote,
     );
-
-    root.innerHTML = `
-        <div class="space-y-2.5 flex flex-col">
-          ${rmApiStrip("REAL + PROPOSED", "GET /v1/packaging-runs + GET /v1/releases/{version}/rollout", "ConduitWorkProfile")}
-          <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-3">
-            <div>
-              <div class="flex flex-wrap items-center gap-2">
-                <span class="code-id text-[16px] font-bold text-white">uds-core 0.31.2</span>
-                ${pill("Signed", "green")}
-                ${pill("Run: RUN-8842", "blue")}
-                ${pill("Total Drift: 5", "amber")}
-              </div>
-              <div class="code-id text-[11px] text-[#8b96a5] mt-1">digest: sha256:9c71fe08a41d8c02b9e7a11f404d12c91a0f2d44 &middot; Published 2026-11-13 20:18Z</div>
-            </div>
-            <div class="flex flex-wrap gap-2">
-              <button type="button" data-onclick="switchScreen('rm10-ramped-rollout')" class="so-btn">Ramped Rollouts</button>
-              <button type="button" data-onclick="switchScreen('rm09-recalls')" class="so-btn">Recalls</button>
-              <button type="button" data-onclick="switchScreen('rm08-bundle-preview')" class="so-btn">Offline Bundle Preview</button>
-              <button type="button" data-onclick="switchScreen('rm06-promotion-pipe')" class="so-btn so-btn-emerald">&rarr; Promotion Pipeline</button>
-            </div>
-          </div>
-
-          <div class="so-grid-3 gap-2.5">
-            ${[
-              [
-                "Wave 1 · Canary",
-                "4 / 4 Synced",
-                100,
-                "0 drifts · Soak complete",
-                "#2e9a62",
-                "so-opt-card",
-              ],
-              [
-                "Wave 2 · Regional",
-                "6 / 10 Synced",
-                60,
-                "4 drifts across 2 clusters · 02:00Z window",
-                "#d99b26",
-                "so-warn-card",
-              ],
-              [
-                "Wave 3 · Disconnected",
-                "2 / 6 Synced",
-                33,
-                "1 drift · 4 awaiting 63.8 MB zstd bundle",
-                "#4c90f0",
-                "so-panel",
-              ],
-            ]
-              .map(
-                ([w, ratio, pct, sub, col, cls]) => `
-              <div data-onclick="state.rmWaveFilter=(state.rmWaveFilter==='${w}'?'ALL':'${w}'); renderMainWorkspace()" class="${cls} p-3 cursor-pointer space-y-1.5">
-                <div class="flex justify-between items-center"><strong class="text-[12.5px] text-white">${w}</strong><span class="code-id text-[11.5px]">${ratio}</span></div>
-                <div class="h-1.5 bg-[#090e12] rounded overflow-hidden"><div style="width:${pct}%;height:100%;background:${col}"></div></div>
-                <div class="text-[11px] text-[#8b96a5]">${sub}</div>
-              </div>
-            `,
-              )
-              .join("")}
-          </div>
-
-          <div class="so-panel overflow-hidden">
-            <div class="px-3.5 py-2 bg-[#0e1418] border-b border-[#1c242c] flex justify-between items-center">
-              <span class="text-[11.5px] font-semibold text-white">Environment Rollout Matrix (Desired vs. Reported &amp; Drift Count)</span>
-              ${state.rmWaveFilter !== "ALL" ? `<button type="button" data-onclick="state.rmWaveFilter='ALL'; renderMainWorkspace()" class="so-btn so-btn-sm">Clear filter</button>` : ""}
-            </div>
-            <div class="so-table-scroll"><table class="so-table">
-              <thead><tr><th>Environment</th><th>Wave</th><th>Channel</th><th>Connection</th><th>Desired</th><th>Reported</th><th style="text-align:right">Drift Count</th><th>Plan Status</th></tr></thead>
-              <tbody>
-                ${envs.map((r) => `<tr data-onclick="switchScreen('rm01-env-page')" class="cursor-pointer"><td class="code-id font-semibold text-white">${r.env}</td><td>${r.wave}</td><td class="code-id"><span class="so-pill code-id">${r.ch}</span></td><td>${pill(r.mode, "blue")}</td><td class="code-id">${r.desired}</td><td class="code-id font-semibold ${r.desired === r.reported ? "text-[#34d399]" : "text-[#eab854]"}">${r.reported}</td><td class="code-id" style="text-align:right">${r.drift > 0 ? pill(r.drift + " drift", "amber") : pill("0", "green")}</td><td>${pill(r.st, r.tone)}</td></tr>`).join("")}
-              </tbody>
-            </table></div>
-          </div>
-        </div>
-      `;
   }
 
   function renderRM06PromotionPipe(root) {
@@ -5701,6 +5558,7 @@ export function mountOperator(host, options) {
         });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),
+      "rm05-release-rollout": renderRM05ReleaseRollout,
       "rm02-env-activity": renderRM02EnvActivity,
       "rm06-promotion-pipe": renderRM06PromotionPipe,
       "rm09-recalls": releaseGates.renderers["rm09-recalls"],
