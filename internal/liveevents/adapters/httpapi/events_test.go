@@ -425,3 +425,18 @@ func TestSSEStalledClientHasBoundedWriteAndReplay(t *testing.T) {
 		t.Fatal("stalled client lost replay")
 	}
 }
+
+func TestSSERetentionGapRequiresExplicitCatchupBeforeReadyHeaders(t *testing.T) {
+	fixture := setup(t)
+	fixture.handler.cfg.Refresh = func(context.Context) error { return domain.ErrSourceRetentionGap }
+	srv := server(t, fixture)
+	response := connect(t, srv, "alice", "")
+	body, _ := io.ReadAll(response.Body)
+	if response.StatusCode != 409 || response.Header.Get("X-Conduit-Stream-ID") != "" || strings.Contains(string(body), "retention gap") {
+		t.Fatalf("reset not sanitized before ready: %d %s", response.StatusCode, body)
+	}
+	state, _ := fixture.journal.Snapshot(context.Background())
+	if len(state.Streams) != 0 {
+		t.Fatal("retention reset allocated a ready stream")
+	}
+}

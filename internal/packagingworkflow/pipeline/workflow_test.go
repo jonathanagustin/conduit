@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -499,7 +500,7 @@ func bytesContains(encoded, needle []byte) bool {
 func TestV2CancellationPreservesExistingJournal(t *testing.T) {
 	acts, id, repository := prepare(t)
 	env := boot(acts)
-	env.OnGetVersion(changeID, workflow.DefaultVersion, workflow.Version(3)).Return(workflow.Version(2))
+	env.OnGetVersion(changeID, workflow.DefaultVersion, workflow.Version(4)).Return(workflow.Version(2))
 	env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Minute)
 	env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, ApprovalWait: time.Hour})
 	if !temporal.IsCanceledError(env.GetWorkflowError()) || mustPlans(t, repository) != 0 {
@@ -541,5 +542,38 @@ func TestExhaustedReviewBudgetRecordsNativeFailure(t *testing.T) {
 	}
 	if !eventRecorded(queryEvents(t, env), domain.PhaseBlocked, string(domain.OutcomeFailRequired), "") {
 		t.Fatal("review budget failure missing from journal")
+	}
+}
+
+func TestFullJournalCancellationPreservesV3AndRecordsV4Terminal(t *testing.T) {
+	for _, version := range []workflow.Version{3, 4} {
+		t.Run(fmt.Sprintf("version-%d", version), func(t *testing.T) {
+			acts, id, repository := prepare(t)
+			env := boot(acts)
+			env.OnGetVersion(changeID, workflow.DefaultVersion, workflow.Version(4)).Return(version)
+			carry := domain.State{Phase: domain.PhaseReview, TargetPlanRef: id.TargetPlanRef}
+			for i := 0; i < domain.MaxStepEvents; i++ {
+				carry.Events = append(carry.Events, domain.StepEvent{Sequence: i + 1, At: time.Unix(int64(i+1), 0), Step: domain.StepReview, Outcome: domain.EventWaiting})
+			}
+			env.RegisterDelayedCallback(func() { env.CancelWorkflow() }, time.Minute)
+			env.ExecuteWorkflow(PackagingWorkflow, Input{Identity: id, Carry: &carry, ApprovalWait: time.Hour})
+			if !temporal.IsCanceledError(env.GetWorkflowError()) || mustPlans(t, repository) != 0 {
+				t.Fatal("cancellation changed execution authority")
+			}
+			events := queryEvents(t, env)
+			if len(events) != domain.MaxStepEvents {
+				t.Fatal("native journal is unbounded")
+			}
+			last := events[len(events)-1]
+			if version == 3 {
+				if events[0].Sequence != 1 || last.Sequence != 32 || last.Step != domain.StepReview {
+					t.Fatal("v3 query projection changed")
+				}
+			} else {
+				if events[0].Sequence != 3 || last.Sequence != 34 || last.Step != domain.PhaseBlocked || last.Outcome != string(domain.OutcomeCancelled) {
+					t.Fatalf("v4 cancellation lost after full carry: %+v", events)
+				}
+			}
+		})
 	}
 }

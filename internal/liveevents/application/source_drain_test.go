@@ -3,6 +3,8 @@ package application
 import (
 	"context"
 	"errors"
+	"github.com/jonathanagustin/conduit/internal/liveevents/adapters/filejournal"
+	"reflect"
 	"sync"
 	"testing"
 	"time"
@@ -328,4 +330,151 @@ func TestDrainRejectsMissingSourcesAndCancellation(t *testing.T) {
 	drain(t, fixture, "native")
 	subscription := open(t, fixture, "alice", "")
 	subscription.Close()
+}
+
+func TestRetentionGapAtomicallyInvalidatesAllStreamsAndRequiresFreshSourceHealth(t *testing.T) {
+	fixture := newSetup(t)
+	ctx := context.Background()
+	first := uint64(1)
+	producer := domain.ProducerID(domain.Subject{Type: "plan", ID: "pln_gap"})
+	native := sourceFunc(func(_ context.Context, positions map[string]uint64, _ int) ([]domain.Record, error) {
+		previous, known := positions[producer]
+		if known && previous < first-1 {
+			return nil, domain.ErrSourceRetentionGap
+		}
+		if previous >= first {
+			return nil, nil
+		}
+		return []domain.Record{record("pln_gap", first, first)}, nil
+	})
+	sources := map[string]ports.CommittedSource{"native": native, "other": sourceFunc(emptySource)}
+	sourcesSetup(t, fixture, sources, fixture.journal)
+	drain(t, fixture, "native")
+	drain(t, fixture, "other")
+	alice := open(t, fixture, "alice", "")
+	defer alice.Close()
+	bob := open(t, fixture, "bob", "")
+	defer bob.Close()
+	cursor := alice.Ready.Cursor
+	stream := alice.Ready.StreamID
+	first = 10
+	if _, err := fixture.service.DrainCommitted(ctx, "native", 4); !errors.Is(err, domain.ErrSourceRetentionGap) {
+		t.Fatalf("gap=%v", err)
+	}
+	for _, subscription := range []*Subscription{alice, bob} {
+		select {
+		case <-subscription.Changed():
+		default:
+			t.Fatal("reset did not wake every subscriber")
+		}
+		if _, err := subscription.Next(ctx); !errors.Is(err, domain.ErrReset) {
+			t.Fatalf("old stream remained deliverable: %v", err)
+		}
+	}
+	state, err := fixture.journal.Snapshot(ctx)
+	if err != nil || len(state.Streams) != 0 || len(state.Producers) != 0 || len(state.Sources) != 0 || state.SourcePosition != 0 {
+		t.Fatalf("reset was not one complete durable transaction: %+v %v", state, err)
+	}
+	// Restart after the reset, before new source checkpoints: cached cursors may
+	// never recover from the old process or a partially reset journal.
+	reopened, err := filejournal.Open(fixture.path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	sourcesSetup(t, fixture, sources, reopened)
+	drain(t, fixture, "native")
+	if _, err := fixture.service.Open(asOwner("alice"), ""); !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatal("other source kept its pre-reset healthy stamp")
+	}
+	drain(t, fixture, "other")
+	if _, err := fixture.service.Open(asOwner("alice"), cursor); !errors.Is(err, domain.ErrReset) {
+		t.Fatal("retired cursor resumed after restart")
+	}
+	fresh := open(t, fixture, "alice", "")
+	defer fresh.Close()
+	if fresh.Ready.Sequence != 0 || fresh.Ready.StreamID == stream {
+		t.Fatal("catch-up inherited retired delivery epoch")
+	}
+	fixture.auth.allowed["alice"]["pln_gap"] = true
+	first = 11
+	drain(t, fixture, "native")
+	frame, err := fresh.Next(ctx)
+	if err != nil || frame == nil || frame.Sequence != 1 || frame.Resource.Revision != 11 {
+		t.Fatalf("new epoch did not resume native source: %+v %v", frame, err)
+	}
+}
+
+func TestOnlyExplicitRetentionGapCanDiscardCheckpoints(t *testing.T) {
+	for _, sourceErr := range []error{domain.ErrReset, domain.ErrConflict, domain.ErrInvalid, errors.New("unavailable")} {
+		t.Run(sourceErr.Error(), func(t *testing.T) {
+			fixture := newSetup(t)
+			ctx := context.Background()
+			failure := error(nil)
+			producer := domain.ProducerID(domain.Subject{Type: "plan", ID: "pln_source"})
+			source := sourceFunc(func(_ context.Context, positions map[string]uint64, _ int) ([]domain.Record, error) {
+				if failure != nil {
+					return nil, failure
+				}
+				if positions[producer] == 0 {
+					return []domain.Record{record("pln_source", 1, 1)}, nil
+				}
+				return nil, nil
+			})
+			sourcesSetup(t, fixture, map[string]ports.CommittedSource{"native": source}, fixture.journal)
+			drain(t, fixture, "native")
+			old := open(t, fixture, "alice", "")
+			defer old.Close()
+			before, _ := fixture.journal.Snapshot(ctx)
+			failure = sourceErr
+			if _, err := fixture.service.DrainCommitted(ctx, "native", 1); !errors.Is(err, sourceErr) {
+				t.Fatal(err)
+			}
+			after, _ := fixture.journal.Snapshot(ctx)
+			if !reflect.DeepEqual(before, after) {
+				t.Fatal("unclassified error erased replay/checkpoint evidence")
+			}
+		})
+	}
+}
+
+func TestFailedRetentionResetPreservesDurableEvidence(t *testing.T) {
+	fixture := newSetup(t)
+	ctx := context.Background()
+	fault := &faultJournal{Journal: fixture.journal}
+	gap := false
+	producer := domain.ProducerID(domain.Subject{Type: "plan", ID: "pln_source"})
+	source := sourceFunc(func(_ context.Context, positions map[string]uint64, _ int) ([]domain.Record, error) {
+		if gap {
+			return nil, domain.ErrSourceRetentionGap
+		}
+		if positions[producer] == 0 {
+			return []domain.Record{record("pln_source", 1, 1)}, nil
+		}
+		return nil, nil
+	})
+	sourcesSetup(t, fixture, map[string]ports.CommittedSource{"native": source}, fault)
+	drain(t, fixture, "native")
+	old := open(t, fixture, "alice", "")
+	defer old.Close()
+	before, _ := fixture.journal.Snapshot(ctx)
+	gap = true
+	fault.err = errors.New("reset write failed")
+	if _, err := fixture.service.DrainCommitted(ctx, "native", 1); !errors.Is(err, fault.err) {
+		t.Fatal("failed reset reported complete")
+	}
+	after, _ := fixture.journal.Snapshot(ctx)
+	if !reflect.DeepEqual(before, after) {
+		t.Fatal("failed reset changed durable checkpoints")
+	}
+	if _, err := fixture.service.Open(asOwner("alice"), ""); !errors.Is(err, domain.ErrUnavailable) {
+		t.Fatal("failed reset admitted a new stream")
+	}
+	fault.err = nil
+	if _, err := fixture.service.DrainCommitted(ctx, "native", 1); !errors.Is(err, domain.ErrSourceRetentionGap) {
+		t.Fatal("reset did not retry after IO recovery")
+	}
+	after, _ = fixture.journal.Snapshot(ctx)
+	if len(after.Streams) != 0 || len(after.Producers) != 0 {
+		t.Fatal("successful retry did not invalidate epoch")
+	}
 }

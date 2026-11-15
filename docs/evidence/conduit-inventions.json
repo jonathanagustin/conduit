@@ -429,8 +429,8 @@
     },
     {
       "id": "liveevents.GovernedSSE",
-      "what": "Conduit-native same-origin SSE delivery with opaque owner/delegate/grant-bound cursors, single-owner durable journal, native per-resource visibility and demand-driven outbox refresh.",
-      "why": "ADR 0016 chooses this console transport and event vocabulary. No recovered Apollo protocol establishes a general operator event stream or these cursor, eligibility and storage semantics. The implementation uses existing native read decisions and does not infer a private upstream wire contract.",
+      "what": "Conduit-native same-origin SSE delivery with opaque owner/delegate/grant-bound cursors, single-owner durable journal, native per-resource visibility and demand-driven outbox refresh. Verified retained-source gaps atomically retire every delivery epoch and require authorized catch-up before rebaselining.",
+      "why": "ADR 0016 chooses this console transport and event vocabulary. No recovered Apollo protocol establishes a general operator event stream or these cursor, eligibility and storage semantics. The implementation uses existing native read decisions and does not infer a private upstream wire contract. Bounded native retention requires an explicit reset rather than silently skipping missing source positions.",
       "displacedBy": "A published or owner-approved sanitized event-stream contract establishing transport, cursor binding, stream eligibility, source coverage and resource authorization semantics.",
       "riskIfWrong": "Native event/cursor and transport shapes may need replacement. This is an explicit Conduit extension, conveys no approval/execution authority, and the console retains existing reads/polling until its subscription integration is implemented."
     }

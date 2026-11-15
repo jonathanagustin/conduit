@@ -83,14 +83,31 @@ func (source *Source) ReadCommittedEvents(ctx context.Context, positions map[str
 		}
 		subject := live.Subject{Type: "packaging-run", ID: id}
 		producer := live.ProducerID(subject)
-		previous := positions[producer]
-		if previous > uint64(len(events)) {
-			return nil, live.ErrReset
-		}
+		previous, known := positions[producer]
+		var first, last uint64
 		for index, event := range events {
-			if event.Sequence != index+1 || event.At.IsZero() {
+			if event.Sequence <= 0 || uint64(event.Sequence) > packaging.MaxStepSequence || event.At.IsZero() {
 				return nil, live.ErrInvalid
 			}
+			if index == 0 {
+				first = uint64(event.Sequence)
+			}
+			if uint64(event.Sequence) != first+uint64(index) {
+				return nil, live.ErrInvalid
+			}
+			last = uint64(event.Sequence)
+		}
+		// Native v4 histories rotate only when their complete window is full.
+		if first > 1 && len(events) != packaging.MaxStepEvents {
+			return nil, live.ErrInvalid
+		}
+		if previous > last {
+			return nil, live.ErrReset
+		}
+		if known && first > 0 && previous < first-1 {
+			return nil, live.ErrSourceRetentionGap
+		}
+		for _, event := range events {
 			if uint64(event.Sequence) <= previous {
 				continue
 			}

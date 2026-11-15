@@ -31,7 +31,9 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 	// rather than a rewritten command sequence.
 	// Version 3 also journals terminal status transitions that have no activity
 	// step (for example cancellation during the review wait).
-	version := workflow.GetVersion(ctx, changeID, workflow.DefaultVersion, 3)
+	// Version 4 retains a bounded recent window with monotonic event positions;
+	// v2/v3 histories keep their original stop-on-full projection and carry.
+	version := workflow.GetVersion(ctx, changeID, workflow.DefaultVersion, 4)
 	if version < 1 {
 		return domain.Result{}, temporal.NewNonRetryableApplicationError(
 			"this worker cannot replay a packaging history from before the v1 marker",
@@ -58,7 +60,9 @@ func PackagingWorkflow(ctx workflow.Context, in Input) (domain.Result, error) {
 			state.ToolVersions = in.Identity.ToolVersions
 		}
 	}
-	if version >= 3 {
+	if version >= 4 {
+		state.EnableRollingEvents()
+	} else if version >= 3 {
 		state.EnableStatusEvents()
 	} else if version >= 2 {
 		state.EnableEvents()
@@ -365,7 +369,7 @@ func activityCtx(ctx workflow.Context, startToClose time.Duration) workflow.Cont
 // and for continue-as-new, which is not an activity failure but shares the
 // helper's call sites.
 func note(ctx workflow.Context, state *domain.State, step, outcome, reason, approvalID string) {
-	if !state.EventsEnabled() || len(state.Events) >= domain.MaxStepEvents {
+	if !state.CanRecordEvent() {
 		return
 	}
 	state.Note(workflow.Now(ctx), step, outcome, reason, approvalID)

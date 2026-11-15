@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"sync"
 	"time"
 
@@ -96,6 +97,14 @@ func (service *Service) DrainCommitted(ctx context.Context, name string, maxBatc
 			next[producer] = position
 		}
 		records, err := source.ReadCommittedEvents(ctx, positions, domain.MaxQueueEvents)
+		if errors.Is(err, domain.ErrSourceRetentionGap) {
+			// Reset all delivery epochs in the same transaction as checkpoints.
+			// A client must catch up; it can never continue past a missing row.
+			if resetErr := service.resetRetainedEpoch(ctx); resetErr != nil {
+				return fail(resetErr)
+			}
+			return result, domain.ErrSourceRetentionGap
+		}
 		if err != nil {
 			return fail(err)
 		}
@@ -154,6 +163,35 @@ func (service *Service) readiness(ctx context.Context) error {
 	}
 	if service.sourceHealth != nil {
 		return service.sourceHealth.Check(ctx)
+	}
+	return nil
+}
+
+// resetRetainedEpoch is called only while sourceMu is held and only for an
+// explicit trusted retention gap. Generic source failures/corruption retain
+// checkpoints. Invalidate every public cursor before allowing a new baseline.
+func (service *Service) resetRetainedEpoch(ctx context.Context) error {
+	service.mu.Lock()
+	defer service.mu.Unlock()
+	err := service.cfg.Journal.Update(ctx, func(state *domain.State) error {
+		if !validState(*state) {
+			return domain.ErrUnavailable
+		}
+		*state = domain.NewState()
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	service.failed = true
+	service.sourceHealth.mu.Lock()
+	for name := range service.sourceHealth.required {
+		service.sourceHealth.required[name] = sourceHealth{}
+	}
+	service.sourceHealth.mu.Unlock()
+	for _, connection := range service.sessions {
+		connection.err = domain.ErrReset
+		signal(connection)
 	}
 	return nil
 }

@@ -85,17 +85,35 @@ func readNativeOutboxes(ctx context.Context, outboxes []nativeLiveOutbox, positi
 	records := make([]domain.Record, 0)
 	for _, outbox := range outboxes {
 		if len(outbox.Entries) == 0 {
+			if outbox.Position != 0 {
+				return nil, domain.ErrInvalid
+			}
 			continue
 		}
+		if len(outbox.Entries) > domain.MaxReplayEvents {
+			return nil, domain.ErrInvalid
+		}
 		first := outbox.Entries[0]
+		last := outbox.Entries[len(outbox.Entries)-1]
+		if first.Position == 0 || first.Producer != domain.ProducerID(first.Subject) || last.Position != outbox.Position || last.Position < first.Position || last.Position-first.Position != uint64(len(outbox.Entries)-1) {
+			return nil, domain.ErrInvalid
+		}
+		if first.Position > 1 && len(outbox.Entries) != domain.MaxReplayEvents {
+			return nil, domain.ErrInvalid
+		}
+		for index, entry := range outbox.Entries {
+			if entry.Producer != first.Producer || entry.Subject != first.Subject || entry.Position < first.Position || entry.Position-first.Position != uint64(index) {
+				return nil, domain.ErrInvalid
+			}
+		}
 		position, known := positions[first.Producer]
 		// A new source consumer may establish a baseline at the first retained entry.
 		// An existing consumer may never silently skip a missing committed ordinal.
-		if known && position+1 < first.Position {
-			return nil, domain.ErrReset
-		}
 		if position > outbox.Position {
 			return nil, domain.ErrReset
+		}
+		if known && first.Position > 0 && position < first.Position-1 {
+			return nil, domain.ErrSourceRetentionGap
 		}
 		for _, record := range outbox.Entries {
 			if record.Position > position {

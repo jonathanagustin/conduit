@@ -209,6 +209,9 @@ func newLiveRefresh(root context.Context, service liveDrainer, names []string) f
 		for _, name := range names {
 			if _, err := service.DrainCommitted(poll, name, 4); err != nil {
 				last = time.Time{}
+				if errors.Is(err, live.ErrReset) {
+					return live.ErrReset
+				}
 				return live.ErrUnavailable
 			}
 		}

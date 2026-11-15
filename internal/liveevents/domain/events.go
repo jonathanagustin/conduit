@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"time"
 )
 
@@ -25,11 +26,14 @@ var (
 	ErrUnauthorized = errors.New("operator identity required")
 	ErrForbidden    = errors.New("event stream permission required")
 	ErrReset        = errors.New("event stream reset required")
-	ErrUnavailable  = errors.New("event delivery unavailable")
-	ErrConflict     = errors.New("committed event identity conflict")
-	ErrInvalid      = errors.New("invalid event contract")
-	ErrBusy         = errors.New("previous delivery is not acknowledged")
-	ErrClosed       = errors.New("event subscription closed")
+	// ErrSourceRetentionGap is a trusted source's explicit truncation signal.
+	// Other reset/corruption errors must not erase durable producer checkpoints.
+	ErrSourceRetentionGap = fmt.Errorf("%w: committed source retention gap", ErrReset)
+	ErrUnavailable        = errors.New("event delivery unavailable")
+	ErrConflict           = errors.New("committed event identity conflict")
+	ErrInvalid            = errors.New("invalid event contract")
+	ErrBusy               = errors.New("previous delivery is not acknowledged")
+	ErrClosed             = errors.New("event subscription closed")
 )
 
 // Identity contains only hashes derived by a trusted current native authorizer.

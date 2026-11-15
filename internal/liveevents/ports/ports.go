@@ -29,8 +29,12 @@ type Readiness interface{ Check(context.Context) error }
 
 // CommittedSource reads private native outboxes after their owning state commits.
 // Positions are the delivery journal's durable producer checkpoints. A retained
-// history gap returns ErrReset; successful delivery must persist checkpoints
-// before requesting the next page. This port conveys no subscriber authority.
+// history gap must return ErrSourceRetentionGap only after verifying a complete
+// native retained window. That signal atomically retires all public streams and
+// source checkpoints, forcing authorized catch-up before a new baseline.
+// Generic ErrReset/corruption/unavailability never discard checkpoints.
+// Successful delivery must persist checkpoints before the next page. This port
+// conveys no subscriber authority.
 type CommittedSource interface {
 	ReadCommittedEvents(context.Context, map[string]uint64, int) ([]domain.Record, error)
 }

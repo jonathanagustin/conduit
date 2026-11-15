@@ -102,3 +102,62 @@ func TestStatusJournalIsVersionEnabledAndSurvivesProposal(t *testing.T) {
 		t.Fatal("version marker did not restore native journal after carry")
 	}
 }
+
+func TestRollingJournalRetainsTerminalPositionsAndDetachedCarry(t *testing.T) {
+	state := State{Phase: PhaseReview}
+	state.EnableRollingEvents()
+	for i := 0; i < MaxStepEvents; i++ {
+		state.Note(time.Unix(int64(i+1), 0), StepReview, EventWaiting, "waiting", "")
+	}
+	carried := append([]StepEvent(nil), state.Events...)
+	next := ApplyProposal(state, Receipt{})
+	next.Note(time.Unix(100, 0), StepReview, EventWaiting, "waiting", "")
+	next.Block(OutcomeCancelled, "run cancelled")
+	next.NoteStatus(time.Unix(101, 0))
+	if len(next.Events) != MaxStepEvents || next.Events[0].Sequence != 3 || next.Events[MaxStepEvents-1].Sequence != MaxStepEvents+2 || next.Events[MaxStepEvents-1].Outcome != string(OutcomeCancelled) {
+		t.Fatalf("full journal lost terminal position: %+v", next.Events)
+	}
+	for i, event := range state.Events {
+		if event != carried[i] {
+			t.Fatal("rotating proposal mutated carried snapshot")
+		}
+	}
+	body, err := json.Marshal(next)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var restarted State
+	if err := json.Unmarshal(body, &restarted); err != nil {
+		t.Fatal(err)
+	}
+	restarted.NoteStatus(time.Unix(102, 0))
+	if restarted.Events[MaxStepEvents-1].Sequence != MaxStepEvents+2 {
+		t.Fatal("caller JSON enabled rolling behavior")
+	}
+	restarted.EnableRollingEvents()
+	restarted.NoteStatus(time.Unix(103, 0))
+	if len(restarted.Events) != MaxStepEvents || restarted.Events[0].Sequence != 4 || restarted.Events[MaxStepEvents-1].Sequence != MaxStepEvents+3 {
+		t.Fatal("carry restart reused positions")
+	}
+}
+func TestLegacyFullJournalAndExhaustedPositionCannotRotate(t *testing.T) {
+	legacy := State{Phase: PhaseReview}
+	legacy.EnableStatusEvents()
+	for i := 0; i < MaxStepEvents; i++ {
+		legacy.Note(time.Unix(int64(i+1), 0), StepReview, EventWaiting, "waiting", "")
+	}
+	legacy.Block(OutcomeCancelled, "cancelled")
+	legacy.NoteStatus(time.Unix(100, 0))
+	if legacy.Events[0].Sequence != 1 || legacy.Events[MaxStepEvents-1].Step != StepReview || legacy.CanRecordEvent() {
+		t.Fatal("legacy full-history query changed")
+	}
+	// No wrap or malformed continuation is allowed even for an invalid carry.
+	for _, last := range []int{0, -1, int(^uint(0) >> 1)} {
+		state := State{Events: []StepEvent{{Sequence: last}}}
+		state.EnableRollingEvents()
+		state.Note(time.Unix(10, 0), StepReview, EventWaiting, "", "")
+		if len(state.Events) != 1 {
+			t.Fatal("invalid/exhausted position wrapped")
+		}
+	}
+}
