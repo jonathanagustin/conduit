@@ -73,3 +73,10 @@ context extraction still requires all of the following:
 
 The [evidence index](evidence.md) records the inputs. A green evidence check
 proves only the claim attached to that check.
+
+The public current-user selections (`me.id`, `me.fullName`) use Conduit's
+resolved credential-owner snapshot and a nullable native type. The served
+`valueTier: CONDUIT_NATIVE` annotations and the invention register distinguish
+those value/type choices from the publicly documented field names. The isolated
+public suite in `internal/apollo/conformance` now runs both published GraphQL
+examples positively alongside all 13 pinned REST operation-schema cases.

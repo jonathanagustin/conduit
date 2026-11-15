@@ -491,9 +491,9 @@ manifest and review ledger; neither is substituted for the other.
 The isolated local suite in `internal/apollo/conformance` tests all 13 operations
 from the pinned public OpenAPI and the nonempty public environment selection.
 It supplies no expectations from tenant captures or observed SDL. The public
-`GetCurrentUser` example currently fails because Query has no `me` field. It is
-explicitly uncovered, with the exact missing-field error checked before it is
-skipped; #644 tracks its implementation. The coverage report is
+`GetCurrentUser` example initially exposed the missing `me` field. #644 adds
+its documented selections with explicit native identity values and type choices;
+both public examples now run as positive conformance cases. The coverage report is
 [`../../operations/public-conformance.md`](../../operations/public-conformance.md).
 These local results establish the named tested shapes, not a full public
 GraphQL schema or private protocol compatibility.

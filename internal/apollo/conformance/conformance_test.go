@@ -249,19 +249,6 @@ func TestPublicGraphQLExamples(t *testing.T) {
 			if err := json.Unmarshal(response.Body.Bytes(), &result); err != nil {
 				t.Fatal(err)
 			}
-			if tc.Coverage == "UNCOVERED" {
-				if len(result.Errors) == 0 {
-					t.Fatal("known gap is now served; review and promote its coverage instead of leaving a stale exclusion")
-				}
-				if len(result.Errors) != 1 {
-					t.Fatalf("unexpected failure instead of known coverage gap: %s", response.Body.String())
-				}
-				message, ok := result.Errors[0].(map[string]any)
-				if !ok || message["message"] != `Cannot query field "me" on type "Query".` {
-					t.Fatalf("unexpected failure instead of known coverage gap: %s", response.Body.String())
-				}
-				t.Skip("public GetCurrentUser is not implemented; explicitly UNCOVERED in the source inventory and report")
-			}
 			if tc.Coverage != "COVERED" {
 				t.Fatal("unknown coverage state")
 			}

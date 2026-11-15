@@ -64,12 +64,15 @@ registry publication or deployment occurs.
 | Public example | Covered selections | Status |
 | --- | --- | --- |
 | `GetEnvironments` | `apollo.environments(pageSize: 100).environments.id` | Covered against a nonempty synthetic environment |
-| `GetCurrentUser` | `me.id`, `me.fullName` | **Uncovered**: current Query has no `me` field; tracked in [#644](https://github.com/jonathanagustin/conduit/issues/644) |
+| `GetCurrentUser` | `me.id`, `me.fullName` | Covered; identity values and nullable type choices are explicitly Conduit-native under #644 |
 
-The missing `me` example is explicitly skipped as unsupported, never counted as
-a passing conformance case. Its gap check first requires the exact missing-field
-error; an unrelated failure is not accepted as that gap. If the query begins
-succeeding, the inventory must be promoted and a positive assertion added.
+Both public examples now run as positive conformance cases, with no known-gap
+skip. The current-user case checks the documented selections; separate identity
+tests verify credential-owner binding, delegation and the unavailable full name.
+The username is Conduit's resolved identity and `fullName` is null when the
+identity carrier has no display-name claim. Schema/response provenance and the
+invention register disclose those native choices; the public example establishes
+neither those values nor a complete nullable type definition.
 The full GraphQL operation universe is unknown because this public page does
 not publish it; observed operations do not expand this denominator.
 

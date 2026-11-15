@@ -86,8 +86,7 @@
       "name": "GetCurrentUser",
       "query": "query GetCurrentUser { me { id fullName } }",
       "source": "https://www.palantir.com/docs/apollo/apollo-references/apollo-api-documentation/",
-      "coverage": "UNCOVERED",
-      "reason": "Current Conduit Query has no me field; public example is recorded as a gap, not passing conformance."
+      "coverage": "COVERED"
     },
     {
       "name": "GetEnvironments",
