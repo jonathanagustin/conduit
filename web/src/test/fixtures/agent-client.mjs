@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { createServer } from "vite";
+import { createServer } from "vite-plus";
 const server = await createServer({
   server: { middlewareMode: true },
   appType: "custom",

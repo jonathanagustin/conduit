@@ -51,7 +51,9 @@ export function applyDensity(root, density) {
 function choice(group, options, current) {
   return options
     .map(
-      (option) => `<button type="button" role="radio" aria-checked="${option.id === current}"
+      (
+        option,
+      ) => `<button type="button" role="radio" aria-checked="${option.id === current}"
         class="kit-tab ${option.id === current ? "is-active" : ""}" data-setting="${group}" data-value="${option.id}">
         <span class="font-semibold">${esc(option.label)}</span>
         <span class="kit-muted block text-[10.5px]">${esc(option.hint)}</span>

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import { FormSurfaces, CATALOG_ID } from "../../console/operator/a2ui-forms.js";
 const binding = { "@path": "/answers/port" };
 function form() {

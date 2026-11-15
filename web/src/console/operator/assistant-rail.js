@@ -289,7 +289,10 @@ function formFor(result) {
     .map((field) => {
       if (field.options && field.options.length) {
         return `<label class="kit-muted">${esc(field.label)}<select name="${esc(field.name)}" class="kit-select">${field.options
-          .map((option) => `<option value="${esc(option)}">${esc(option)}</option>`)
+          .map(
+            (option) =>
+              `<option value="${esc(option)}">${esc(option)}</option>`,
+          )
           .join("")}</select></label>`;
       }
       return `<label class="kit-muted">${esc(field.label)}<input name="${esc(field.name)}" value="${esc(field.value || "")}" class="kit-input" /></label>`;
@@ -368,7 +371,11 @@ export async function runAssistantAction(state, kind, chipKey) {
       tool: "governed_write",
       arguments:
         kind === "write-memory"
-          ? { action: "propose_memory", targetId: chip.id, environment: governedFields(state, chip).environment }
+          ? {
+              action: "propose_memory",
+              targetId: chip.id,
+              environment: governedFields(state, chip).environment,
+            }
           : { action: "add_eval_case", targetId: chip.id },
     });
   }

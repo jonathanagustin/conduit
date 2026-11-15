@@ -5,7 +5,12 @@ export type { ConduitClient } from "./client.js";
 export { ObjectSet } from "./objectSet.js";
 export type { Page, PageOptions, Where, WireObjectSet } from "./objectSet.js";
 export { ACTION_RISK, createActions, riskOf } from "./actions.js";
-export type { ActionOutcome, ActionParamsFor, ActionRisk, Actions } from "./actions.js";
+export type {
+  ActionOutcome,
+  ActionParamsFor,
+  ActionRisk,
+  Actions,
+} from "./actions.js";
 export { OntologyError, fetchTransport } from "./transport.js";
 export type { Transport } from "./transport.js";
 export * from "./generated.js";

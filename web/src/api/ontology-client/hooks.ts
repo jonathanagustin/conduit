@@ -132,25 +132,22 @@ export function useAction<N extends string>(name: N) {
   const [outcome, setOutcome] = useState<ActionOutcome | null>(null);
   const [error, setError] = useState<Error | null>(null);
 
-  const run = useCallback(
-    async (step: () => Promise<ActionOutcome>) => {
-      setPending(true);
-      setError(null);
-      try {
-        const result = await step();
-        setOutcome(result);
-        return result;
-      } catch (caught) {
-        const failure =
-          caught instanceof Error ? caught : new Error(String(caught));
-        setError(failure);
-        throw failure;
-      } finally {
-        setPending(false);
-      }
-    },
-    [],
-  );
+  const run = useCallback(async (step: () => Promise<ActionOutcome>) => {
+    setPending(true);
+    setError(null);
+    try {
+      const result = await step();
+      setOutcome(result);
+      return result;
+    } catch (caught) {
+      const failure =
+        caught instanceof Error ? caught : new Error(String(caught));
+      setError(failure);
+      throw failure;
+    } finally {
+      setPending(false);
+    }
+  }, []);
 
   const validate = useCallback(
     (params: ActionParamsFor<N>) =>

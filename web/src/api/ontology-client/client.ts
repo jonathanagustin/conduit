@@ -9,7 +9,9 @@ export interface ConduitClient {
   metadata(): Promise<unknown>;
 }
 
-export function createConduitClient(opts: { baseUrl?: string; transport?: Transport } = {}): ConduitClient {
+export function createConduitClient(
+  opts: { baseUrl?: string; transport?: Transport } = {},
+): ConduitClient {
   const transport = opts.transport ?? fetchTransport(opts.baseUrl);
   return {
     objects: (type) => ObjectSet.of(transport, type),

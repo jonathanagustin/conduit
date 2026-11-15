@@ -1,4 +1,9 @@
-import { ONTOLOGY, type LinkTargets, type ObjectTypeName, type ObjectTypes } from "./generated.js";
+import {
+  ONTOLOGY,
+  type LinkTargets,
+  type ObjectTypeName,
+  type ObjectTypes,
+} from "./generated.js";
 import type { Transport } from "./transport.js";
 
 export type Where =
@@ -23,11 +28,13 @@ export interface Page<T> {
   totalCount?: number;
 }
 
-type FieldFilter<T extends ObjectTypeName> = Partial<Record<keyof ObjectTypes[T] & string, string>>;
-type LinkTarget<T extends ObjectTypeName, L extends keyof LinkTargets[T]> = Extract<
-  LinkTargets[T][L],
-  ObjectTypeName
+type FieldFilter<T extends ObjectTypeName> = Partial<
+  Record<keyof ObjectTypes[T] & string, string>
 >;
+type LinkTarget<
+  T extends ObjectTypeName,
+  L extends keyof LinkTargets[T],
+> = Extract<LinkTargets[T][L], ObjectTypeName>;
 
 const LOAD_OBJECTS = `/api/v2/ontologies/${ONTOLOGY}/objectSets/loadObjects`;
 
@@ -41,7 +48,9 @@ function isWhere(value: object): value is Where {
 }
 
 /** Turns `{ a: "x", b: "y" }` into eq clauses joined with and. */
-function fromFields(fields: Record<string, string | undefined>): Where | undefined {
+function fromFields(
+  fields: Record<string, string | undefined>,
+): Where | undefined {
   const clauses: Where[] = [];
   for (const field of Object.keys(fields).sort()) {
     const value = fields[field];
@@ -62,17 +71,28 @@ export class ObjectSet<T extends ObjectTypeName> {
     this.wire = wire;
   }
 
-  static of<T extends ObjectTypeName>(transport: Transport, objectType: T): ObjectSet<T> {
+  static of<T extends ObjectTypeName>(
+    transport: Transport,
+    objectType: T,
+  ): ObjectSet<T> {
     return new ObjectSet<T>(transport, { type: "base", objectType });
   }
 
   where(filter: FieldFilter<T> | Where): ObjectSet<T> {
-    const where = isWhere(filter) ? filter : fromFields(filter as Record<string, string | undefined>);
+    const where = isWhere(filter)
+      ? filter
+      : fromFields(filter as Record<string, string | undefined>);
     if (where === undefined) return this;
-    return new ObjectSet<T>(this.transport, { type: "filter", objectSet: this.wire, where });
+    return new ObjectSet<T>(this.transport, {
+      type: "filter",
+      objectSet: this.wire,
+      where,
+    });
   }
 
-  pivotTo<L extends keyof LinkTargets[T] & string>(link: L): ObjectSet<LinkTarget<T, L>> {
+  pivotTo<L extends keyof LinkTargets[T] & string>(
+    link: L,
+  ): ObjectSet<LinkTarget<T, L>> {
     return new ObjectSet<LinkTarget<T, L>>(this.transport, {
       type: "searchAround",
       objectSet: this.wire,
@@ -89,18 +109,25 @@ export class ObjectSet<T extends ObjectTypeName> {
         pageToken: options.pageToken,
         select: options.select,
       },
-    })) as { data?: ObjectTypes[T][]; nextPageToken?: string; totalCount?: number } | undefined;
+    })) as
+      | { data?: ObjectTypes[T][]; nextPageToken?: string; totalCount?: number }
+      | undefined;
 
     const page: Page<ObjectTypes[T]> = { data: response?.data ?? [] };
     if (response?.nextPageToken) page.nextPageToken = response.nextPageToken;
-    if (response?.totalCount !== undefined) page.totalCount = response.totalCount;
+    if (response?.totalCount !== undefined)
+      page.totalCount = response.totalCount;
     return page;
   }
 
-  async *asyncIter(options: Omit<PageOptions, "pageToken"> = {}): AsyncGenerator<ObjectTypes[T]> {
+  async *asyncIter(
+    options: Omit<PageOptions, "pageToken"> = {},
+  ): AsyncGenerator<ObjectTypes[T]> {
     let pageToken: string | undefined;
     do {
-      const page = await this.fetchPage(pageToken ? { ...options, pageToken } : options);
+      const page = await this.fetchPage(
+        pageToken ? { ...options, pageToken } : options,
+      );
       yield* page.data;
       pageToken = page.nextPageToken;
     } while (pageToken);
@@ -117,7 +144,11 @@ export class ObjectSet<T extends ObjectTypeName> {
   }
 
   async fetchOne(primaryKey: string): Promise<ObjectTypes[T] | undefined> {
-    const page = await this.where({ type: "eq", field: "__primaryKey", value: primaryKey }).fetchPage({
+    const page = await this.where({
+      type: "eq",
+      field: "__primaryKey",
+      value: primaryKey,
+    }).fetchPage({
       pageSize: 1,
     });
     return page.data[0];

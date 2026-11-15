@@ -1,7 +1,7 @@
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath, URL } from "node:url";
-import { defineConfig } from "vite";
+import { defineConfig, lazyPlugins } from "vite-plus";
 
 // Dev-only stand-in for the marker the Hub replaces at serve time.
 const hydrateForDevelopment = {
@@ -38,6 +38,46 @@ const bridge = {
 };
 
 export default defineConfig({
+  lint: {
+    jsPlugins: [{ name: "vite-plus", specifier: "vite-plus/oxlint-plugin" }],
+    rules: { "vite-plus/prefer-vite-plus-imports": "error" },
+    options: { typeAware: true, typeCheck: true },
+  },
+  fmt: {
+    printWidth: 80,
+    tabWidth: 2,
+    useTabs: false,
+    semi: true,
+    singleQuote: false,
+    jsxSingleQuote: false,
+    trailingComma: "all",
+    bracketSpacing: true,
+    bracketSameLine: false,
+    arrowParens: "always",
+    endOfLine: "lf",
+    quoteProps: "as-needed",
+    sortTailwindcss: {
+      functions: ["clsx", "cva", "tw", "twMerge", "cn", "twJoin", "tv"],
+    },
+    sortPackageJson: false,
+    ignorePatterns: [
+      "**/node_modules/**",
+      "**/.next/**",
+      "**/.vercel/**",
+      "**/out/**",
+      "**/build/**",
+      "**/coverage/**",
+      "**/next-env.d.ts",
+      "**/*.md",
+      "**/*.mdx",
+      "**/*.yaml",
+      "**/*.yml",
+      "**/a2ui-validator.generated.js",
+      // Generated and integrity-pinned bytes have dedicated drift/hash checks.
+      "src/api/ontology-client/generated.ts",
+      "src/console/operator/assets/world-borders-110m.json",
+    ],
+  },
   base: "/console/",
   resolve: {
     alias: {
@@ -47,7 +87,7 @@ export default defineConfig({
       "@": fileURLToPath(new URL("./", import.meta.url)),
     },
   },
-  plugins: [react(), tailwindcss(), hydrateForDevelopment],
+  plugins: lazyPlugins(() => [react(), tailwindcss(), hydrateForDevelopment]),
   // The template's PostCSS config is for Next. The embed uses @tailwindcss/vite.
   css: { postcss: { plugins: [] } },
   build: {

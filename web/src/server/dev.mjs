@@ -16,4 +16,4 @@ function start(command, args) {
 }
 
 start(process.execPath, ["--experimental-strip-types", "src/server/main.ts"]);
-start("pnpm", ["exec", "vite"]);
+start("pnpm", ["exec", "vp", "dev"]);

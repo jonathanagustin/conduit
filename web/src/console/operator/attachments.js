@@ -69,7 +69,10 @@ export async function uploadAttachment(file, fetchImpl = fetch) {
   try {
     response = await fetchImpl("/v1/intake-attachments", {
       method: "POST",
-      headers: { "content-type": "application/json", accept: "application/json" },
+      headers: {
+        "content-type": "application/json",
+        accept: "application/json",
+      },
       body: JSON.stringify({ filename: file.name, content }),
     });
   } catch {
@@ -102,7 +105,9 @@ export function attachmentList(items) {
   }
   return `<div class="flex flex-col gap-1.5" data-attachment-list>${items
     .map(
-      (item) => `<div class="px-2.5 py-1.5 rounded-[5px] bg-[#0c1217] border border-[#222e3a] text-[11px]" data-attachment-row>
+      (
+        item,
+      ) => `<div class="px-2.5 py-1.5 rounded-[5px] bg-[#0c1217] border border-[#222e3a] text-[11px]" data-attachment-row>
         <div class="flex items-center gap-1.5"><span class="code-id text-[#f0f5fa]">${esc(item.name)}</span><span class="text-[10px] text-[#6d7885]">(${esc(item.kind)} · ${esc(formatSize(item.size))})</span></div>
         <div class="code-id text-[10px] text-[#8b96a5] break-all" title="sha256">sha256 ${esc(item.sha256)}</div>
       </div>`,
@@ -138,7 +143,10 @@ export function bindAttach(root, state, onChange, fetchImpl = fetch) {
   });
   root.addEventListener("change", async (event) => {
     const input = event.target;
-    if (!(input instanceof HTMLInputElement) || !input.matches("[data-attach-input]"))
+    if (
+      !(input instanceof HTMLInputElement) ||
+      !input.matches("[data-attach-input]")
+    )
       return;
     const file = input.files && input.files[0];
     input.value = "";
@@ -155,7 +163,11 @@ export function bindAttach(root, state, onChange, fetchImpl = fetch) {
 // ensureLoaded fetches the stored list once per page load, then re-renders.
 export function ensureLoaded(state, onChange, fetchImpl = fetch) {
   if (state.attachments?.loaded || state.attachments?.loading) return;
-  state.attachments = { ...(state.attachments || {}), items: [], loading: true };
+  state.attachments = {
+    ...(state.attachments || {}),
+    items: [],
+    loading: true,
+  };
   loadAttachments(fetchImpl)
     .then((loaded) => {
       state.attachments = {
@@ -166,7 +178,11 @@ export function ensureLoaded(state, onChange, fetchImpl = fetch) {
       };
     })
     .catch(() => {
-      state.attachments = { items: [], reason: "Attachments are unavailable.", loaded: true };
+      state.attachments = {
+        items: [],
+        reason: "Attachments are unavailable.",
+        loaded: true,
+      };
     })
     .finally(onChange);
 }

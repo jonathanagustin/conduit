@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 import {
   INSPECTOR_TABS,
   inspectorMarkup,
@@ -12,7 +12,10 @@ type Call = { path: string; body: any };
 
 function fakeTransport(opts: { failLink?: string } = {}) {
   const calls: Call[] = [];
-  const transport = async (path: string, init?: { method?: string; body?: unknown }) => {
+  const transport = async (
+    path: string,
+    init?: { method?: string; body?: unknown },
+  ) => {
     const body = init?.body as any;
     calls.push({ path, body });
     if (path.endsWith("/apply")) {
@@ -35,11 +38,15 @@ describe("ontologyRef", () => {
       objectType: "Environment",
       primaryKey: "dev",
     });
-    expect(ontologyRef({ objectType: "ChangeRequest", id: "cr-1", name: "n" })).toEqual({
+    expect(
+      ontologyRef({ objectType: "ChangeRequest", id: "cr-1", name: "n" }),
+    ).toEqual({
       objectType: "ChangeRequest",
       primaryKey: "cr-1",
     });
-    expect(ontologyRef({ objectType: "ChangeRequest", name: "n" })?.primaryKey).toBe("n");
+    expect(
+      ontologyRef({ objectType: "ChangeRequest", name: "n" })?.primaryKey,
+    ).toBe("n");
   });
 
   it("returns null for unknown types", () => {
@@ -56,7 +63,9 @@ describe("loadInspector", () => {
     const { transport, calls } = fakeTransport();
     const model = await loadInspector(createConduitClient({ transport }), ref);
     expect(calls).toHaveLength(1 + 5);
-    expect(calls.filter((c) => c.body.objectSet.type === "searchAround")).toHaveLength(5);
+    expect(
+      calls.filter((c) => c.body.objectSet.type === "searchAround"),
+    ).toHaveLength(5);
     expect(model.object).toMatchObject({ id: "dev" });
     expect(model.links).toHaveLength(5);
     expect(model.links[0]!.count).toBe(7);
@@ -87,7 +96,11 @@ describe("loadInspector", () => {
 describe("inspectorMarkup", () => {
   const model = {
     ref: { objectType: "Environment", primaryKey: "dev" },
-    object: { id: "dev", connection: "<script>x</script>", __internal: "hidden" },
+    object: {
+      id: "dev",
+      connection: "<script>x</script>",
+      __internal: "hidden",
+    },
     links: [
       {
         link: "plans",
@@ -103,7 +116,9 @@ describe("inspectorMarkup", () => {
     const html = inspectorMarkup(model, { tab: "links" });
     expect(INSPECTOR_TABS).toHaveLength(5);
     expect((html.match(/data-inspector-tab=/g) ?? []).length).toBe(5);
-    expect(html).toContain('class="kit-tab is-active" data-inspector-tab="links"');
+    expect(html).toContain(
+      'class="kit-tab is-active" data-inspector-tab="links"',
+    );
   });
 
   it("escapes values and skips internal keys", () => {
@@ -118,8 +133,12 @@ describe("inspectorMarkup", () => {
   });
 
   it("shows empty and loading states", () => {
-    expect(inspectorMarkup({}, { tab: "props" })).toContain("No object is selected.");
-    expect(inspectorMarkup({ loading: true }, { tab: "props" })).toContain("Loading…");
+    expect(inspectorMarkup({}, { tab: "props" })).toContain(
+      "No object is selected.",
+    );
+    expect(inspectorMarkup({ loading: true }, { tab: "props" })).toContain(
+      "Loading…",
+    );
     expect(inspectorMarkup(model, { tab: "timeline", audit: [] })).toContain(
       "No audit entry names this object.",
     );
@@ -127,9 +146,27 @@ describe("inspectorMarkup", () => {
 
   it("renders the timeline newest first", () => {
     const audit = [
-      { sequence: 1, action: "a1", actor: "u", resource: "env/dev", recordedAt: "t1" },
-      { sequence: 3, action: "a3", actor: "u", resource: "env/dev", recordedAt: "t3" },
-      { sequence: 2, action: "other", actor: "u", resource: "env/prod", recordedAt: "t2" },
+      {
+        sequence: 1,
+        action: "a1",
+        actor: "u",
+        resource: "env/dev",
+        recordedAt: "t1",
+      },
+      {
+        sequence: 3,
+        action: "a3",
+        actor: "u",
+        resource: "env/dev",
+        recordedAt: "t3",
+      },
+      {
+        sequence: 2,
+        action: "other",
+        actor: "u",
+        resource: "env/prod",
+        recordedAt: "t2",
+      },
     ];
     const html = inspectorMarkup(model, { tab: "timeline", audit });
     expect(html.indexOf("a3")).toBeLessThan(html.indexOf("a1"));
@@ -138,12 +175,15 @@ describe("inspectorMarkup", () => {
 
   it("has no approve button and shows the change-request text", () => {
     const html = inspectorMarkup(
-      { ...model, outcome: { kind: "change-request", action: "delete", stored: false } },
+      {
+        ...model,
+        outcome: { kind: "change-request", action: "delete", stored: false },
+      },
       { tab: "actions" },
     );
     expect(html).not.toMatch(/approve<\/button>/i);
     expect(html).not.toContain("data-inspector-approve");
-    expect(html).toContain("data-inspector-validate=\"delete\"");
+    expect(html).toContain('data-inspector-validate="delete"');
     expect(html).toContain(
       "High risk: proposed as a change request. A different approver must approve it; you cannot approve your own request.",
     );
@@ -160,7 +200,11 @@ describe("validateFor", () => {
   it("returns change-request for delete", async () => {
     const { transport, calls } = fakeTransport();
     const client = createConduitClient({ transport });
-    const outcome = await validateFor(client, { objectType: "Environment", primaryKey: "dev" }, "delete");
+    const outcome = await validateFor(
+      client,
+      { objectType: "Environment", primaryKey: "dev" },
+      "delete",
+    );
     expect(outcome.kind).toBe("change-request");
     expect(calls[0]!.body.parameters).toEqual({
       environment: "dev",
@@ -177,9 +221,18 @@ describe("validateFor", () => {
         throw new Error("boom");
       },
     });
-    const outcome = await validateFor(client, { objectType: "Plan", primaryKey: "p1" }, "fork", {
-      environment: "dev",
+    const outcome = await validateFor(
+      client,
+      { objectType: "Plan", primaryKey: "p1" },
+      "fork",
+      {
+        environment: "dev",
+      },
+    );
+    expect(outcome).toEqual({
+      kind: "invalid",
+      messages: {},
+      submission: "boom",
     });
-    expect(outcome).toEqual({ kind: "invalid", messages: {}, submission: "boom" });
   });
 });

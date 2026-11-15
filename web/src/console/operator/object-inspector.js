@@ -15,12 +15,21 @@ const TIMELINE_LIMIT = 20;
 
 function defaultEsc(value) {
   return String(value ?? "").replace(/[&<>"']/g, (c) => {
-    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+    return {
+      "&": "&amp;",
+      "<": "&lt;",
+      ">": "&gt;",
+      '"': "&quot;",
+      "'": "&#39;",
+    }[c];
   });
 }
 
 function hasType(name) {
-  return typeof name === "string" && Object.prototype.hasOwnProperty.call(OBJECT_TYPES, name);
+  return (
+    typeof name === "string" &&
+    Object.prototype.hasOwnProperty.call(OBJECT_TYPES, name)
+  );
 }
 
 /** Maps a console area object to an ontology reference, or null when it has no ontology type. */
@@ -28,13 +37,18 @@ export function ontologyRef(areaObj) {
   if (!areaObj || !hasType(areaObj.objectType)) return null;
   const objectType = areaObj.objectType;
   const primaryKey =
-    objectType === "ChangeRequest" ? (areaObj.id ?? areaObj.name) : areaObj.name;
-  if (primaryKey === undefined || primaryKey === null || primaryKey === "") return null;
+    objectType === "ChangeRequest"
+      ? (areaObj.id ?? areaObj.name)
+      : areaObj.name;
+  if (primaryKey === undefined || primaryKey === null || primaryKey === "")
+    return null;
   return { objectType, primaryKey: String(primaryKey) };
 }
 
 function messageOf(err) {
-  return err && typeof err.message === "string" && err.message ? err.message : String(err);
+  return err && typeof err.message === "string" && err.message
+    ? err.message
+    : String(err);
 }
 
 function itemOf(type, item) {
@@ -53,7 +67,13 @@ export async function loadInspector(client, ref, { linkLimit = 5 } = {}) {
     model.object = await set.fetchOne(ref.primaryKey);
     const meta = OBJECT_TYPES[ref.objectType];
     for (const [link, def] of Object.entries(meta.links)) {
-      const entry = { link, target: def.target, cardinality: def.cardinality, items: [], count: 0 };
+      const entry = {
+        link,
+        target: def.target,
+        cardinality: def.cardinality,
+        items: [],
+        count: 0,
+      };
       try {
         const page = await client
           .objects(ref.objectType)
@@ -78,7 +98,9 @@ export async function loadInspector(client, ref, { linkLimit = 5 } = {}) {
 
 /** Validates an action against the Hub for the inspected object. Nothing is executed. */
 export async function validateFor(client, ref, actionName, object) {
-  const environment = object?.environment ?? (ref.objectType === "Environment" ? ref.primaryKey : "");
+  const environment =
+    object?.environment ??
+    (ref.objectType === "Environment" ? ref.primaryKey : "");
   try {
     return await client.actions.validate(actionName, {
       environment,
@@ -99,7 +121,12 @@ function keyOf(model) {
   const type = typeOf(model);
   const meta = hasType(type) ? OBJECT_TYPES[type] : undefined;
   const object = model.object;
-  return String(object?.[meta?.primaryKey ?? "id"] ?? object?.__primaryKey ?? model.ref?.primaryKey ?? "");
+  return String(
+    object?.[meta?.primaryKey ?? "id"] ??
+      object?.__primaryKey ??
+      model.ref?.primaryKey ??
+      "",
+  );
 }
 
 function titleOf(model) {
@@ -133,7 +160,8 @@ function propsBody(model, esc, empty) {
 }
 
 function linksBody(model, esc, empty) {
-  if (!model.links || model.links.length === 0) return empty("This object has no links.");
+  if (!model.links || model.links.length === 0)
+    return empty("This object has no links.");
   return model.links
     .map((l) => {
       const items = l.items
@@ -142,7 +170,9 @@ function linksBody(model, esc, empty) {
             `<li><button type="button" class="kit-tab" data-inspect-type="${esc(l.target)}" data-inspect-key="${esc(i.primaryKey)}">${esc(i.title)}</button></li>`,
         )
         .join("");
-      const err = l.error ? `<p class="kit-muted text-[12px]">${esc(l.error)}</p>` : "";
+      const err = l.error
+        ? `<p class="kit-muted text-[12px]">${esc(l.error)}</p>`
+        : "";
       return `<section class="kit-card"><h4 class="text-[12px] text-white">${esc(l.link)}</h4><p class="kit-muted text-[12px]">${esc(l.target)} · ${esc(l.cardinality)} · ${esc(l.count)}</p>${err}<ul>${items}</ul></section>`;
     })
     .join("");
@@ -153,9 +183,11 @@ function outcomeMarkup(outcome, esc) {
   switch (outcome.kind) {
     case "invalid": {
       const items = Object.entries(outcome.messages ?? {}).map(
-        ([param, msg]) => `<li class="text-[12px]">${esc(param)}: ${esc(msg)}</li>`,
+        ([param, msg]) =>
+          `<li class="text-[12px]">${esc(param)}: ${esc(msg)}</li>`,
       );
-      if (outcome.submission) items.push(`<li class="text-[12px]">${esc(outcome.submission)}</li>`);
+      if (outcome.submission)
+        items.push(`<li class="text-[12px]">${esc(outcome.submission)}</li>`);
       return `<div class="kit-card"><p class="text-[12px]">This action is not valid.</p><ul>${items.join("")}</ul></div>`;
     }
     case "confirm":
@@ -220,7 +252,10 @@ function rawBody(model, esc) {
  * @param {any} model
  * @param {{ tab?: string, esc?: (v: unknown) => string, audit?: any[] }} [options]
  */
-export function inspectorMarkup(model, { tab = "props", esc = defaultEsc, audit = [] } = {}) {
+export function inspectorMarkup(
+  model,
+  { tab = "props", esc = defaultEsc, audit = [] } = {},
+) {
   model = model ?? {};
   const empty = (text) => `<p class="kit-muted text-[12px]">${esc(text)}</p>`;
   const active = INSPECTOR_TABS.some((t) => t.id === tab) ? tab : "props";

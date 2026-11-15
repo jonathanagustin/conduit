@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 import {
   compareVersions,
@@ -11,7 +11,11 @@ const products = [
     product: "app.example:sample-app",
     releases: [
       { version: "0.1.0", channels: ["DEV"], chart: { digest: "sha256:a" } },
-      { version: "0.10.0", channels: ["DEV", "CANDIDATE"], chart: { digest: "sha256:c" } },
+      {
+        version: "0.10.0",
+        channels: ["DEV", "CANDIDATE"],
+        chart: { digest: "sha256:c" },
+      },
       { version: "0.2.0", channels: ["STABLE"], chart: { digest: "sha256:b" } },
     ],
   },
@@ -41,9 +45,9 @@ describe("release products", () => {
   });
 
   it("renders an empty note and escapes product names", () => {
-    expect(productsMarkup([], { note: "Hub did not return the product catalog." })).toContain(
-      "Hub did not return the product catalog.",
-    );
+    expect(
+      productsMarkup([], { note: "Hub did not return the product catalog." }),
+    ).toContain("Hub did not return the product catalog.");
     const html = productsMarkup(
       productRows([{ product: "<x>", releases: [] }], []),
     );

@@ -1,4 +1,4 @@
-import { afterEach, describe, it, expect, vi } from "vitest";
+import { afterEach, describe, it, expect, vi } from "vite-plus/test";
 import { createSettings } from "../../console/operator/settings.js";
 function harness(overrides: Record<string, any> = {}) {
   const state: any = {

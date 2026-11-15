@@ -28,6 +28,22 @@
       "enabled": false
     },
     {
+      "description": "Keep Vite+ core and Vitest catalog pins tied to the bundle; update them with the parent Vite+ release",
+      "matchManagers": [
+        "npm"
+      ],
+      "matchFileNames": [
+        "web/package.json",
+        "web/pnpm-workspace.yaml"
+      ],
+      "matchDepNames": [
+        "vite",
+        "vitest",
+        "@voidzero-dev/vite-plus-core"
+      ],
+      "enabled": false
+    },
+    {
       "description": "Keep the HiGHS builder on its audited base until the frozen native compiler closure is requalified (#590)",
       "matchDatasources": [
         "docker"

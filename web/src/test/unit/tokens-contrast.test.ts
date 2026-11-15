@@ -1,7 +1,7 @@
 // @vitest-environment node
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it } from "vite-plus/test";
 
 const css = readFileSync(
   join(import.meta.dirname, "../../console/operator/tokens.css"),
@@ -50,27 +50,43 @@ describe.each([
 
   it("keeps control boundaries and focus at 3:1", () => {
     for (const surface of ["--bg-1", "--bg-2"]) {
-      expect(ratio(t["--border-control"], t[surface])).toBeGreaterThanOrEqual(3);
+      expect(ratio(t["--border-control"], t[surface])).toBeGreaterThanOrEqual(
+        3,
+      );
       expect(ratio(t["--border-strong"], t[surface])).toBeGreaterThanOrEqual(3);
     }
     expect(ratio(t["--accent-focus"], t["--bg-1"])).toBeGreaterThanOrEqual(3);
-    expect(ratio(t["--accent-sel-border"], t["--bg-1"])).toBeGreaterThanOrEqual(3);
+    expect(ratio(t["--accent-sel-border"], t["--bg-1"])).toBeGreaterThanOrEqual(
+      3,
+    );
   });
 
   it("keeps the primary action label at 4.5:1", () => {
     for (const fill of ["--accent-fill", "--accent-hover", "--accent-active"]) {
       expect(ratio(t["--accent-text"], t[fill])).toBeGreaterThanOrEqual(4.5);
     }
-    expect(ratio(t["--text-1"], t["--accent-sel-bg"])).toBeGreaterThanOrEqual(4.5);
+    expect(ratio(t["--text-1"], t["--accent-sel-bg"])).toBeGreaterThanOrEqual(
+      4.5,
+    );
   });
 
   it("keeps status text at 4.5:1 and status borders at 3:1", () => {
     for (const tone of STATUS) {
       const fill = t[`--${tone}-fill`];
-      expect(ratio(t[`--${tone}-text`], fill), tone).toBeGreaterThanOrEqual(4.5);
-      expect(ratio(t[`--${tone}-text`], t["--bg-1"]), tone).toBeGreaterThanOrEqual(4.5);
-      expect(ratio(t[`--${tone}-border`], fill), tone).toBeGreaterThanOrEqual(3);
-      expect(ratio(t[`--${tone}-border`], t["--bg-1"]), tone).toBeGreaterThanOrEqual(3);
+      expect(ratio(t[`--${tone}-text`], fill), tone).toBeGreaterThanOrEqual(
+        4.5,
+      );
+      expect(
+        ratio(t[`--${tone}-text`], t["--bg-1"]),
+        tone,
+      ).toBeGreaterThanOrEqual(4.5);
+      expect(ratio(t[`--${tone}-border`], fill), tone).toBeGreaterThanOrEqual(
+        3,
+      );
+      expect(
+        ratio(t[`--${tone}-border`], t["--bg-1"]),
+        tone,
+      ).toBeGreaterThanOrEqual(3);
     }
   });
 
