@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  bindReviewContext,
   filterRequests,
   reviewMarkup,
   reviewState,
@@ -17,16 +18,35 @@ const rows = [
     status: "PENDING_APPROVALS",
     author: { username: "alice" },
     changes: [{ id: "ch-1", type: "UPGRADE", installationId: "inst-1" }],
-    evaluations: [{ changeId: "ch-1", policyId: "pol-1", outcome: "REVIEW", reason: "prod" }],
+    evaluations: [
+      {
+        changeId: "ch-1",
+        policyId: "pol-1",
+        outcome: "REVIEW",
+        reason: "prod",
+      },
+    ],
     reviews: [],
   },
-  { id: "cr-2", title: "Done", status: "APPROVED", author: { username: "bob" } },
+  {
+    id: "cr-2",
+    title: "Done",
+    status: "APPROVED",
+    author: { username: "bob" },
+  },
   { id: "cr-3", title: "No", status: "REJECTED", author: { username: "bob" } },
-  { id: "cr-4", title: "Gone", status: "CANCELLED", author: { username: "bob" } },
+  {
+    id: "cr-4",
+    title: "Gone",
+    status: "CANCELLED",
+    author: { username: "bob" },
+  },
 ];
 
 const decideButtons = (html: string) =>
-  [...html.matchAll(/<button[^>]*data-cr-decide="[^"]+"[^>]*>/g)].map((m) => m[0]);
+  [...html.matchAll(/<button[^>]*data-cr-decide="[^"]+"[^>]*>/g)].map(
+    (m) => m[0],
+  );
 
 describe("filterRequests", () => {
   it("filters by status and keeps all for 'all'", () => {
@@ -42,15 +62,23 @@ describe("reviewState", () => {
     const s = reviewState(rows[0], "alice");
     expect(s.isAuthor).toBe(true);
     expect(s.canReview).toBe(false);
-    expect(s.reason).toBe("You wrote this request. Another person must approve or reject it.");
+    expect(s.reason).toBe(
+      "You wrote this request. Another person must approve or reject it.",
+    );
   });
   it("allows another operator on a pending request", () => {
-    expect(reviewState(rows[0], "carol")).toEqual({ isAuthor: false, canReview: true, reason: "" });
+    expect(reviewState(rows[0], "carol")).toEqual({
+      isAuthor: false,
+      canReview: true,
+      reason: "",
+    });
   });
   it("blocks a request that is not pending", () => {
     const s = reviewState(rows[1], "carol");
     expect(s.canReview).toBe(false);
-    expect(s.reason).toBe("This request is APPROVED; it no longer takes a review.");
+    expect(s.reason).toBe(
+      "This request is APPROVED; it no longer takes a review.",
+    );
   });
 });
 
@@ -62,8 +90,12 @@ describe("reviewMarkup", () => {
     });
     expect(decideButtons(html)).toHaveLength(0);
     expect(html).not.toContain("data-cr-rationale");
-    expect(html).toContain("You wrote this request. Another person must approve or reject it.");
-    expect(html).toContain("Two-person rule: the author cannot approve their own request.");
+    expect(html).toContain(
+      "You wrote this request. Another person must approve or reject it.",
+    );
+    expect(html).toContain(
+      "Two-person rule: the author cannot approve their own request.",
+    );
   });
 
   it("enables buttons for another operator only with a rationale", () => {
@@ -136,14 +168,45 @@ describe("reviewMarkup", () => {
     expect(reviewMarkup([], { operatorName: "carol" })).toContain(
       "No change request is recorded.",
     );
-    expect(reviewMarkup(rows, { filter: "pending", operatorName: "carol" })).not.toContain(
-      "No request matches.",
+    expect(
+      reviewMarkup(rows, { filter: "pending", operatorName: "carol" }),
+    ).not.toContain("No request matches.");
+    expect(
+      reviewMarkup([rows[1]], { filter: "pending", operatorName: "carol" }),
+    ).toContain("No request matches.");
+    expect(
+      reviewMarkup(rows, { operatorName: "carol", error: "boom" }),
+    ).toContain("kit-card kit-bar-err");
+  });
+});
+
+describe("delegated review identity", () => {
+  it("blocks overlap between actor and represented author in either direction", () => {
+    const delegated = {
+      ...rows[0],
+      author: { username: "service", onBehalfOf: { username: "alice" } },
+    };
+    expect(reviewState(delegated, "alice", ["alice"]).canReview).toBe(false);
+    expect(reviewState(rows[0], "carol", ["alice", "carol"]).canReview).toBe(
+      false,
     );
-    expect(reviewMarkup([rows[1]], { filter: "pending", operatorName: "carol" })).toContain(
-      "No request matches.",
-    );
-    expect(reviewMarkup(rows, { operatorName: "carol", error: "boom" })).toContain(
-      "kit-card kit-bar-err",
-    );
+    expect(
+      reviewState(delegated, "carol", ["service", "carol"]).canReview,
+    ).toBe(false);
+    expect(reviewState(rows[0], "ALICE", ["ALICE"]).canReview).toBe(true);
+    expect(reviewState(rows[0], "carol", []).canReview).toBe(false);
+  });
+  it("invalidates confirmation when the actor changes behind the same effective user", () => {
+    const review = {
+      filter: "all",
+      selectedId: "cr-1",
+      draft: { decision: "", rationale: "" },
+      error: "",
+    };
+    bindReviewContext(rows, review, "carol", ["first", "carol"]);
+    review.draft = { decision: "APPROVE", rationale: "Reviewed" };
+    bindReviewContext(rows, review, "carol", ["second", "carol"]);
+    expect(review.draft).toEqual({ decision: "", rationale: "" });
+    expect(review.error).toContain("context changed");
   });
 });
