@@ -1,3 +1,4 @@
+import { mountEnvironmentHub } from "./release-environment-hub.js";
 import { mountPlanInspector } from "./release-plan-inspector.js";
 /* Ported from the release console. Example rows stay labeled in the top bar. */
 import {
@@ -1677,6 +1678,7 @@ export function mountOperator(host, options) {
       ontologyRef(
         areaObject(state.hub, state.screen, {
           packagingRunId: state.packagingRunId,
+          releaseEnvironmentId: state.releaseEnvironmentId,
         }),
       )
     );
@@ -3447,71 +3449,17 @@ export function mountOperator(host, options) {
   // SCREEN 14: ENVIRONMENT DETAIL
   // =========================================================================
   function renderS14EnvDetail(root) {
-    liveHub.renderEnvironments(root);
-    return;
-    const tabs = [
-      "Overview",
-      "Installations",
-      "Reported state",
-      "Plans",
-      "Audit events",
-    ];
-    root.innerHTML = `
-        <div class="space-y-3 h-full flex flex-col">
-          <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-            <div>
-              <div class="flex items-center gap-2.5">
-                <span class="code-id text-[15px] font-bold text-[#5c9ce6]">edge-west-02</span>
-                ${pill("Drift Detected", "amber")}
-                ${ontChip("ConduitSpoke", 1, 0, "s17-spokes-audit")}
-              </div>
-              <div class="text-[11.5px] text-[#8b96a5] mt-0.5">Kubernetes v1.30.6 · Spoke spoke-west-relay · Last heartbeat 14m ago</div>
-            </div>
-            <div class="flex items-center gap-2">
-              ${kpiBox("3", "DRIFTS", "#eab854")}
-              ${kpiBox("99.9%", "UPTIME", "#34d399")}
-              ${governedBtn({ label: "Reconcile Drift", role: "Operator", auditEvent: "environment.reconcile_triggered", onClickJs: "", cls: "so-btn so-btn-blue", iconName: "lock", blockedReason: "Plan PLN-2026-0418 is Awaiting Approval" })}
-            </div>
-          </div>
-
-          <div class="border-b border-[#1c242c] flex gap-2 shrink-0">
-            ${tabs.map((t) => `<button data-onclick="state.envTab='${t}'; renderMainWorkspace()" class="px-3 py-1.5 text-[12px] font-medium border-b-2 -mb-[1px] ${state.envTab === t ? "border-[#5c9ce6] text-[#ffffff]" : "border-transparent text-[#8b96a5]"}">${t}</button>`).join("")}
-          </div>
-
-          <div class="so-grid-2 gap-3 shrink-0">
-            <div class="so-panel p-3 space-y-1.5 text-[11.5px]">
-              <div class="font-semibold text-[12.5px] text-[#ffffff] pb-1 border-b border-[#1c242c]">Cluster &amp; Spoke Properties</div>
-              <div class="flex justify-between"><span class="text-[#6d7885]">Spoke Transport</span><span>spoke-west-relay (Store-and-Forward)</span></div>
-              <div class="flex justify-between"><span class="text-[#6d7885]">Nodes</span><span class="tnum">3 control-plane · 5 worker</span></div>
-              <div class="flex justify-between"><span class="text-[#6d7885]">Maintenance Window</span><span class="text-[#eab854] tnum">02:00–05:00 UTC (Closed)</span></div>
-            </div>
-            <div class="so-panel p-3 space-y-1.5 text-[11.5px]">
-              <div class="font-semibold text-[12.5px] text-[#ffffff] pb-1 border-b border-[#1c242c]">Reported State &amp; Bundle</div>
-              <div class="flex justify-between"><span class="text-[#6d7885]">Installed Bundle</span><span class="code-id">uds-core 0.31.1</span></div>
-              <div class="flex justify-between"><span class="text-[#6d7885]">Desired Staged</span><span class="code-id text-[#5c9ce6]">uds-core 0.31.2 (PLN-2026-0418)</span></div>
-              <div class="flex justify-between"><span class="text-[#6d7885]">Agent Signature</span><span class="text-[#34d399]">Verified (ed25519)</span></div>
-            </div>
-          </div>
-
-          <div class="so-panel overflow-hidden flex-1 flex flex-col">
-            <div class="px-3.5 py-2 bg-[#0e1418] border-b border-[#1c242c] flex justify-between items-center">
-              <span class="text-[12.5px] font-semibold text-[#ffffff]">Desired vs. Reported State Diff</span>
-              ${ontChip("ConduitReportedState", 3, 0)}
-            </div>
-            <div class="p-3 bg-[#080c0f] flex-1 overflow-y-auto code-id text-[11px] space-y-2">
-              <div class="p-2 rounded bg-[#2a1216] text-[#f87171]">- Deployment/ingress-gateway: resources.limits.memory = "768Mi"  (Reported)</div>
-              <div class="p-2 rounded bg-[#0f261d] text-[#34d399]">+ Deployment/ingress-gateway: resources.limits.memory = "1Gi"    (Desired · CR-308)</div>
-              <div class="p-2 rounded bg-[#2a1216] text-[#f87171]">- NetworkPolicy/egress-relay-lock: cidr = "10.240.0.0/16"</div>
-              <div class="p-2 rounded bg-[#0f261d] text-[#34d399]">+ NetworkPolicy/egress-relay-lock: cidr = "10.240.12.0/24"</div>
-            </div>
-          </div>
-        </div>
-      `;
+    mountEnvironmentHub(root, state.hub, {
+      selectedId: state.releaseEnvironmentId || "",
+      onProposeFix: (environment, installationId) =>
+        liveHub.proposeFix(environment, installationId),
+      onSelect: (id) => {
+        state.releaseEnvironmentId = id;
+        renderMainWorkspace();
+      },
+    });
   }
 
-  // =========================================================================
-  // SCREEN 15: PLAN CONTROL TOWER (Matched 1:1 to Conduit f_06_05_ct2.png!)
-  // =========================================================================
   function renderS15PlanDetail(root) {
     const ok = state.planSimQuorum && state.planSimWindow;
     const reqs = [
@@ -5348,6 +5296,7 @@ export function mountOperator(host, options) {
     const header = objectHeader(
       areaObject(state.hub, state.screen, {
         packagingRunId: state.packagingRunId,
+        releaseEnvironmentId: state.releaseEnvironmentId,
       }),
     );
     const extra = areaSupplement(state.hub, state.screen, current.id);
