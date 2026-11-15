@@ -952,6 +952,8 @@ test("packaging graph and staged chunks keep the selected run and paged history"
     "a-only-output",
   );
   await page.locator("[data-packaging-run]").selectOption("run-b");
+  await expect(page.locator("[data-object-header]")).toContainText("run-b");
+  await expect(page.locator("[data-object-header]")).not.toContainText("run-a");
   await expect(
     page.locator("[data-stage-graph] [data-packaging-stage]"),
   ).toHaveCount(1);

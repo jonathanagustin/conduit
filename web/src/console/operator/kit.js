@@ -1,3 +1,5 @@
+import { selectedPackagingRun } from "./packaging-pipeline.js";
+import { runState } from "./packaging-runs.js";
 /* Shared v3 surfaces. They render recorded Hub rows or an empty state. */
 
 function esc(value) {
@@ -41,7 +43,8 @@ export function connectivityBadge(state) {
 }
 
 export function gateBadge(label, state) {
-  const tone = state === "Blocked" ? "err" : state === "Pending" ? "warn" : "ok";
+  const tone =
+    state === "Blocked" ? "err" : state === "Pending" ? "warn" : "ok";
   return `<span class="kit-badge kit-badge-${tone}" data-gate="${esc(state)}">${esc(label)}: ${esc(String(state || "").toUpperCase())}</span>`;
 }
 
@@ -53,10 +56,8 @@ export function objectHeader(header) {
         `<button type="button" class="kit-btn kit-btn-sm" data-onclick="switchScreen('${esc(link.screen)}')">${esc(link.label)}</button>`,
     )
     .join("");
-  const owner = header.owner
-    ? esc(header.owner)
-    : "not recorded";
-  return `<header class="kit-card kit-bar-${esc(header.tone || "info")} kit-header">
+  const owner = header.owner ? esc(header.owner) : "not recorded";
+  return `<header data-object-header class="kit-card kit-bar-${esc(header.tone || "info")} kit-header">
     <div class="kit-header-row">
       <div>
         <div class="kit-header-title">
@@ -110,7 +111,9 @@ export function wavesFromRecords(records) {
     const id = String(row.id || row.runId || `wave-${pucks.length + 1}`);
     pucks.push({
       id,
-      lane: String(row.lane || row.environment || row.toChannel || "unassigned"),
+      lane: String(
+        row.lane || row.environment || row.toChannel || "unassigned",
+      ),
       label: String(row.label || row.product || row.id || id),
       startHourUtc: start,
       durationHours: Math.max(1, duration),
@@ -333,7 +336,9 @@ export function connectivityMarkup(sites) {
   }
   const cards = sites
     .map(
-      (site) => `<button type="button" class="kit-card kit-card-interactive kit-bar-info kit-pad" data-onclick="switchScreen('s14-env-detail')">
+      (
+        site,
+      ) => `<button type="button" class="kit-card kit-card-interactive kit-bar-info kit-pad" data-onclick="switchScreen('s14-env-detail')">
         <div class="kit-header-row">
           <strong>${esc(site.id)}</strong>
           ${connectivityBadge(site.connectivity)}
@@ -412,17 +417,28 @@ export function areaSupplement(hub, screen, tab) {
   return "";
 }
 
-export function areaObject(hub, screen) {
+/**
+ * @param {any} hub
+ * @param {string} screen
+ * @param {{packagingRunId?: string}} selection
+ */
+export function areaObject(hub, screen, selection = {}) {
   const data = hub || {};
   if (screen === "area-packaging") {
-    const run = (data.packaging || [])[0];
+    const run = selectedPackagingRun(data.packaging, selection.packagingRunId);
     if (!run?.runId) return null;
     return {
       name: run.runId,
       objectType: "PackagingRun",
-      status: run.phase || run.outcome || "recorded",
+      status: runState(run),
       owner: "",
-      tone: run.outcome === "FAIL_REQUIRED" ? "err" : "ok",
+      tone: {
+        succeeded: "ok",
+        review: "warn",
+        running: "info",
+        blocked: "warn",
+        failed: "err",
+      }[runState(run)],
       subtitle: run.outcome || run.phase || "",
       links: [{ label: "Releases", screen: "area-releases" }],
     };
@@ -445,7 +461,9 @@ export function areaObject(hub, screen) {
     const change = (data.changes || [])[0];
     if (!change?.id) return null;
     const author =
-      typeof change.author === "string" ? change.author : change.author?.username;
+      typeof change.author === "string"
+        ? change.author
+        : change.author?.username;
     return {
       name: change.title || change.id,
       objectType: "ChangeRequest",
@@ -468,7 +486,10 @@ export function bindKit(root, store) {
       "wheel",
       (event) => {
         event.preventDefault();
-        scale = Math.min(2.4, Math.max(0.6, scale + (event.deltaY > 0 ? -0.08 : 0.08)));
+        scale = Math.min(
+          2.4,
+          Math.max(0.6, scale + (event.deltaY > 0 ? -0.08 : 0.08)),
+        );
         if (svg) svg.style.transform = `scale(${scale})`;
       },
       { passive: false },
@@ -481,7 +502,11 @@ export function bindKit(root, store) {
       const origin = event.clientX;
       const start = Number(puckEl.getAttribute("data-start"));
       const move = (ev) => {
-        store.pucks = movePuck(store.pucks, id, start + (ev.clientX - origin) / 18);
+        store.pucks = movePuck(
+          store.pucks,
+          id,
+          start + (ev.clientX - origin) / 18,
+        );
         const next = store.pucks.find((puck) => puck.id === id);
         if (!next) return;
         puckEl.style.left = `${(next.startHourUtc / 24) * 100}%`;

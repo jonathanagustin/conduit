@@ -1,3 +1,4 @@
+import { areaObject } from "../../console/operator/kit.js";
 import { describe, expect, it } from "vitest";
 
 import {
@@ -50,7 +51,9 @@ describe("v3 kit records", () => {
 
   it("links only recorded channels", () => {
     const graph = lineageFromHub({
-      promotions: [{ fromChannel: "DEV", toChannel: "STAGING", status: "APPROVED" }],
+      promotions: [
+        { fromChannel: "DEV", toChannel: "STAGING", status: "APPROVED" },
+      ],
       packaging: [{ runId: "sample-app-1", phase: "review" }],
     });
     expect(graph.edges).toEqual([["channel:DEV", "channel:STAGING"]]);
@@ -67,7 +70,12 @@ describe("v3 kit records", () => {
         },
       ]),
     ).toMatchObject([
-      { path: "memory", before: "256Mi", after: "512Mi", actor: "local-developer" },
+      {
+        path: "memory",
+        before: "256Mi",
+        after: "512Mi",
+        actor: "local-developer",
+      },
     ]);
     expect(diffRowsFromChanges([{ id: "crq", changes: [{}] }])).toEqual([]);
   });
@@ -80,5 +88,38 @@ describe("v3 kit records", () => {
     });
     expect(html).toContain("No staged wave is recorded.");
     expect(html).not.toContain("quorum");
+  });
+});
+
+describe("packaging area selection", () => {
+  const hub = {
+    packaging: [
+      { runId: "first", phase: "succeeded", outcome: "PASS" },
+      { runId: "selected", phase: "review", outcome: "PASS" },
+    ],
+  };
+  it("binds the shared area object to the selected visible run", () => {
+    expect(
+      areaObject(hub, "area-packaging", { packagingRunId: "selected" }),
+    ).toMatchObject({ name: "selected", status: "review", tone: "warn" });
+    expect(
+      areaObject(hub, "area-packaging", { packagingRunId: "hidden" }),
+    ).toBeNull();
+    expect(areaObject(hub, "area-packaging")).toMatchObject({ name: "first" });
+    expect(
+      areaObject(
+        {
+          packaging: [
+            {
+              runId: "off",
+              configured: false,
+              phase: "succeeded",
+              outcome: "PASS",
+            },
+          ],
+        },
+        "area-packaging",
+      ),
+    ).toMatchObject({ status: "blocked", tone: "warn" });
   });
 });
