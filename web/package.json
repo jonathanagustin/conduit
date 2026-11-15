@@ -6,7 +6,7 @@
   "scripts": {
     "dev": "node src/server/dev.mjs",
     "dev:template": "next dev --turbopack",
-    "build": "node scripts/check-toolchain.mjs && vp build",
+    "build": "node scripts/check-toolchain.mjs && pnpm check:events && vp build",
     "build:next": "next build",
     "preview": "vp preview",
     "start": "next start",
@@ -19,9 +19,10 @@
     "format": "vp fmt --check",
     "format:fix": "vp fmt",
     "check:toolchain": "node scripts/check-toolchain.mjs && node --test scripts/check-toolchain.test.mjs",
-    "check": "pnpm check:deps && pnpm check:toolchain && vp check",
+    "check": "pnpm check:deps && pnpm check:toolchain && pnpm check:events && vp check",
     "check:deps": "syncpack lint",
-    "fix:deps": "syncpack fix"
+    "fix:deps": "syncpack fix",
+    "check:events": "node ../tools/liveevents/generate-validator.mjs --check"
   },
   "dependencies": {
     "@agentclientprotocol/codex-acp": "2.6.0",
