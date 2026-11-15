@@ -45,20 +45,28 @@ export function createOverviewSummary({
     transport = null;
   return async function mount(root, { force = false } = {}) {
     const token = ++generation,
-      actor = JSON.stringify(getIdentity());
+      session = getIdentity(),
+      actor = JSON.stringify(session),
+      ready =
+        getReady() &&
+        typeof session?.actor === "string" &&
+        session.actor !== "";
     const current = () =>
       token === generation &&
+      getReady() &&
       root.isConnected &&
       actor === JSON.stringify(getIdentity());
-    if (actor !== identity || !getReady()) {
+    if (actor !== identity || !ready) {
       controller?.abort();
       flight = null;
       cache = null;
       cachedAt = 0;
       identity = actor;
     }
-    if (!getReady()) {
-      root.innerHTML = '<p role="status">Reading native identity and Hub…</p>';
+    if (!ready) {
+      root.innerHTML = getReady()
+        ? '<p role="status">Native identity is unavailable; authorized overview cannot be displayed.</p>'
+        : '<p role="status">Reading native identity and Hub…</p>';
       return;
     }
     const paint = (view) => {

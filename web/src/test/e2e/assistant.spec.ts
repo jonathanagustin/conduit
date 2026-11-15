@@ -3086,4 +3086,11 @@ test("active Command Center uses scoped Connect overview and drops a previous ac
     "sign in required",
   );
   await expect(page.locator("[data-overview-summary]")).not.toContainText("65");
+  const beforeIdentityLoss = reads;
+  actor = "";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(page.locator("[data-overview-rpc]")).toContainText(
+    "Native identity is unavailable",
+  );
+  expect(reads).toBe(beforeIdentityLoss);
 });
