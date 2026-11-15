@@ -126,8 +126,9 @@ must_reject "a baseline older than the 90-day maximum" "${good}" "2027-01-01"
 must_reject "a baseline captured in the future" "${good}" "2026-01-01"
 
 # --- the real committed baseline still passes -------------------------------
-# The gate is only worth wiring in if it accepts the tree it ships with.
+# Validate the real record at its capture date. The separate unmodified gate
+# invocation in CI enforces freshness against the actual current UTC date.
 must_accept "the committed docs/operations/mutation-scores.json" \
-  "docs/operations/mutation-scores.json"
+  "docs/operations/mutation-scores.json" "$(jq -r .capturedAt docs/operations/mutation-scores.json)"
 
 echo "verify-mutation-scores: all cases behaved"

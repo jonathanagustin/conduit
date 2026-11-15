@@ -89,3 +89,29 @@ same gate.
 The division of labour is the point: the sweep produces a number that can
 regress and be caught, and the ratchet — nearly free — refuses to let that
 number rot silently between sweeps.
+
+## Refreshed measurement
+
+The Go 1.27.4 / gremlins v0.6.0 source-built sweep completed with zero timed-out,
+non-viable or skipped mutants in every package. Values below are actual engine
+counts; reporting's reviewed equivalents remain included in its LIVED column.
+
+| Package domain | Killed | LIVED | Reviewed equivalents | Raw efficacy | Non-equivalent efficacy |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| `internal/environments/domain` | 67 | 10 | 0 | 87.01% | 87.01% |
+| `internal/governance/domain` | 104 | 3 | 0 | 97.20% | 97.20% |
+| `internal/catalog/domain` | 112 | 22 | 0 | 83.58% | 83.58% |
+| `internal/apollographql/domain` | 25 | 3 | 0 | 89.29% | 89.29% |
+| `internal/reporting/domain` | 56 | 14 | 14 | 80.00% | 100.00% |
+
+The reporting tests now cover exact freshness boundaries, future-clock clamping,
+report-time fallback, release/configuration drift, every summary status count,
+authorization rebuilds, and deterministic row/facet ordering. Its raw result
+improved from the first refreshed sweep's 28 killed / 37 LIVED to 56 / 14.
+Those remaining 14 cases have individual arguments in the source-bound manifest.
+The other packages retain their unreviewed survivors; this is not a claim that
+all executable faults are detected. Frontend mutation efficacy remains unmeasured.
+
+The expired historical reporting number (20 killed / 2 LIVED) covered an older,
+smaller mutation surface. It is not reused as a current measurement or hidden
+behind a date-only update.

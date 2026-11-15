@@ -175,7 +175,7 @@ if [[ "${write}" == true ]]; then
   captured_at="$(date -u +%Y-%m-%d)"
   jq -n --slurpfile rows "${results}" --slurpfile webrows "${web_results}" --arg at "${captured_at}" '
     {
-      note: "Mutation efficacy baseline from scripts/mutation-sweep.sh. `packages` is per Go bounded-context domain (gremlins); `web` is per console source file (Stryker). Efficacy is killed/(killed+lived); a survivor is a LIVED mutant no test caught. Ratcheted: an entry may only improve. Regenerate with scripts/mutation-sweep.sh --write after a real sweep.",
+      note: "Measured by scripts/mutation-sweep.sh. Raw efficacy is killed/(killed+lived), with all LIVED mutants preserved. The separate nonEquivalentEfficacy excludes only individually reviewed, source-hash-bound equivalents; the existing quality floor and two-point jitter allowance apply to that value. No timed-out measurement may refresh this record. Empty web means frontend mutation efficacy is unmeasured.",
       capturedAt: $at,
       packages: ($rows | map({key: .package, value: {efficacy, nonEquivalentEfficacy, equivalent, equivalentManifestSha256, killed, lived, total, coverage}}) | from_entries),
       web: ($webrows | map({key: .file, value: {efficacy, killed, lived, total, coverage}}) | from_entries)
