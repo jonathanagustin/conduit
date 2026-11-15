@@ -4,6 +4,9 @@ package changerequest
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
+	"encoding/json"
 	"strings"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -43,16 +46,37 @@ func (submitter *Submitter) Submit(ctx context.Context, caller domain.Caller, dr
 			"environment": {RID: "environment/" + draft.EnvironmentID, Name: draft.EnvironmentID},
 		},
 	}
-	author := controlplane.Principal{Username: caller.Username, Teams: caller.Teams, Groups: caller.Groups}
+	author := controlplane.Principal{Username: caller.Username, Teams: caller.Teams, Groups: caller.Groups, ServiceAccount: caller.ServiceAccount}
+	if represented := caller.OnBehalfOf; represented != nil {
+		author.OnBehalfOf = &controlplane.Principal{Username: represented.Username, Teams: represented.Teams, Groups: represented.Groups, ServiceAccount: represented.ServiceAccount}
+	}
+	targetID, err := submissionIdentity(author, draft)
+	if err != nil {
+		return domain.Receipt{}, err
+	}
 	title := draft.Title
 	if title == "" {
 		title = "Workspace " + draft.WorkspaceID
 	}
-	request, _, err := submitter.governance.ProposeChanges(ctx,
-		"WORKSPACE", draft.WorkspaceID+"@"+draft.Revision, draft.EnvironmentID,
+	request, err := submitter.governance.ProposeHumanChange(ctx,
+		"WORKSPACE", targetID, draft.EnvironmentID,
 		[]controlplane.EntityChange{change}, author, title, draft.Description)
 	if err != nil {
 		return domain.Receipt{}, err
 	}
 	return domain.Receipt{ChangeRequestID: request.ID, Status: request.Status}, nil
+}
+
+// CONDUIT-INVENTED: workspace.ScopedHumanSubmission
+// Displaced-by: a published or authorized sanitized workspace submission identity, delegated-author and mandatory-human-review contract.
+func submissionIdentity(author controlplane.Principal, draft domain.Submission) (string, error) {
+	encoded, err := json.Marshal(struct {
+		Author                                   controlplane.Principal
+		Workspace, Environment, Revision, Source string
+	}{author, draft.WorkspaceID, draft.EnvironmentID, draft.Revision, draft.SourceDigest})
+	if err != nil {
+		return "", err
+	}
+	digest := sha256.Sum256(encoded)
+	return draft.WorkspaceID + "@" + draft.Revision + ":" + hex.EncodeToString(digest[:16]), nil
 }

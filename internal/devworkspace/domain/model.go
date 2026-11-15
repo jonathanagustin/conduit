@@ -73,9 +73,11 @@ type Workspace struct {
 
 // Caller is the operator the HTTP adapter already authenticated.
 type Caller struct {
-	Username string
-	Teams    []string
-	Groups   []string
+	Username       string
+	Teams          []string
+	Groups         []string
+	ServiceAccount bool
+	OnBehalfOf     *Caller
 }
 
 // TreeEntry is one file or directory directly under a prefix.

@@ -70,7 +70,7 @@ func mountDevWorkspace(
 			if !ok {
 				return devdomain.Caller{}, devhttp.StatusError{Status: http.StatusUnauthorized, Message: "unauthorized"}
 			}
-			return devdomain.Caller{Username: principal.Username, Teams: principal.Teams, Groups: principal.Groups}, nil
+			return devWorkspaceCaller(principal), nil
 		},
 		Visible: func(request *http.Request, environmentID string) bool {
 			principal, ok := packagingPrincipal(request, service, options)
@@ -101,6 +101,14 @@ func mountDevWorkspace(
 	})
 	mux.Handle("/", legacy)
 	return mux
+}
+
+func devWorkspaceCaller(principal controlplane.Principal) devdomain.Caller {
+	caller := devdomain.Caller{Username: principal.Username, Teams: principal.Teams, Groups: principal.Groups, ServiceAccount: principal.ServiceAccount}
+	if represented := principal.OnBehalfOf; represented != nil {
+		caller.OnBehalfOf = &devdomain.Caller{Username: represented.Username, Teams: represented.Teams, Groups: represented.Groups, ServiceAccount: represented.ServiceAccount}
+	}
+	return caller
 }
 
 func devStanding(ctx context.Context, service *controlplane.GovernanceService, options controlplane.HandlerOptions, principal controlplane.Principal) bool {
