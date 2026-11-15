@@ -64,6 +64,7 @@ const (
 	CodeCommitNotPinned      = "COMMIT_NOT_PINNED"
 	CodeNeedsInputPending    = "NEEDS_INPUT_PENDING"
 	CodeAlreadyAccepted      = "ALREADY_ACCEPTED"
+	CodeTurnInProgress       = "TURN_IN_PROGRESS"
 	CodeNotAccepted          = "NOT_ACCEPTED"
 	CodeComputeBeforeAccept  = "COMPUTE_BEFORE_ACCEPT"
 	CodeComputeNotConfigured = "COMPUTE_NOT_CONFIGURED"
@@ -80,6 +81,7 @@ var (
 	ErrCommitNotPinned      = errors.New("the source commit SHA is not pinned")
 	ErrNeedsInputPending    = errors.New("Needs Input questions are still unanswered")
 	ErrAlreadyAccepted      = errors.New("the planning session is already accepted")
+	ErrTurnInProgress       = errors.New("a planning turn is already in progress")
 	ErrComputeBeforeAccept  = errors.New("compute is refused before Accept")
 	ErrComputeNotConfigured = errors.New("package compute is not configured")
 	ErrNoPendingQuestions   = errors.New("there are no pending Needs Input questions")

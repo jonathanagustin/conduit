@@ -136,7 +136,10 @@ func (planner Planner) runPhase(ctx context.Context, session *domain.Session, ch
 				return fail(parseErr)
 			}
 			before := len(calls)
-			facts, nextCalls, nextInspect, _ := runToolRequests(ctx, tools, requests, calls, inspect, planner.OnTool)
+			facts, nextCalls, nextInspect, toolErr := runToolRequests(ctx, tools, requests, calls, inspect, planner.OnTool)
+			if toolErr != nil {
+				return fail(toolErr)
+			}
 			calls, inspect = nextCalls, nextInspect
 			for _, name := range calls[before:] {
 				if name == "read_file" {

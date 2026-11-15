@@ -116,3 +116,20 @@ func TestPlanningModelAuditUsesCredentialOwner(t *testing.T) {
 		t.Fatalf("model audit: %+v %v", events, err)
 	}
 }
+
+func TestPlanningModelAuditCarriesBoundRunIdentifiers(t *testing.T) {
+	repository := controlplane.NewMemoryRepository()
+	ctx := context.WithValue(t.Context(), planningActorKey{}, "alice")
+	ctx = planningapp.WithRunScope(ctx, planningapp.RunScope{ThreadID: "session", RunID: "run-1"})
+	err := (planningAudit{repository: repository}).Record(ctx, planner.Record{SessionID: "session", Action: planner.ActionInspect, Outcome: "pass"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := repository.ListAuthorizationAudit(t.Context(), "planning-session/session")
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	if events[0].Subject != "alice" || events[0].Context["threadId"] != "session" || events[0].Context["runId"] != "run-1" {
+		t.Fatalf("lost run binding: %+v", events[0])
+	}
+}

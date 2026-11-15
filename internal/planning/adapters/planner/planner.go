@@ -140,7 +140,7 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 			inspection = nextInspection
 			events = append(events, cloneInspection(inspection))
 		}
-		if toolErr != nil && facts == "" {
+		if toolErr != nil {
 			_ = planner.record(ctx, Record{
 				SessionID: session.ID, Adapter: adapter, PromptSHA256: promptDigest,
 				ResponseSHA256: digestText(stdout), RepoURL: session.Intake.RepoURL,
@@ -184,9 +184,16 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 	var body strings.Builder
 	inspection := current
 	for _, request := range requests {
+		callID, observeErr := application.ToolStarted(ctx, request.Name, request.Arguments)
+		if observeErr != nil {
+			return body.String(), calls, inspection, observeErr
+		}
 		switch request.Name {
 		case "inspect_repo":
 			got, err := tools.InspectRepo(ctx)
+			if observeErr := application.ToolFinished(ctx, callID, err == nil); observeErr != nil {
+				return body.String(), calls, inspection, observeErr
+			}
 			if err != nil {
 				fmt.Fprintf(&body, "inspect_repo error: %v\n", err)
 				continue
@@ -208,11 +215,17 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 			}
 			if len(request.Arguments) > 0 {
 				if err := json.Unmarshal(request.Arguments, &args); err != nil {
+					if observeErr := application.ToolFinished(ctx, callID, false); observeErr != nil {
+						return body.String(), calls, inspection, observeErr
+					}
 					fmt.Fprintf(&body, "read_file error: %v\n", err)
 					continue
 				}
 			}
 			got, err := tools.ReadFile(ctx, args.Path)
+			if observeErr := application.ToolFinished(ctx, callID, err == nil); observeErr != nil {
+				return body.String(), calls, inspection, observeErr
+			}
 			if err != nil {
 				fmt.Fprintf(&body, "read_file error: %v\n", err)
 				continue
@@ -234,6 +247,9 @@ func runToolRequests(ctx context.Context, tools *packagingtools.Service, request
 				inspection.ToolCalls = append([]string(nil), calls...)
 			}
 		default:
+			if observeErr := application.ToolFinished(ctx, callID, false); observeErr != nil {
+				return body.String(), calls, inspection, observeErr
+			}
 			fmt.Fprintf(&body, "%s error: tool is not allowed during planning inspection\n", request.Name)
 		}
 	}

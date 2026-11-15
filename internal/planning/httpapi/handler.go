@@ -68,6 +68,8 @@ func writeDomainError(writer http.ResponseWriter, err error) {
 		writeError(writer, http.StatusConflict, domain.CodeCommitNotPinned, err.Error())
 	case errors.Is(err, domain.ErrNeedsInputPending):
 		writeError(writer, http.StatusConflict, domain.CodeNeedsInputPending, err.Error())
+	case errors.Is(err, domain.ErrTurnInProgress):
+		writeError(writer, http.StatusConflict, domain.CodeTurnInProgress, err.Error())
 	case errors.Is(err, domain.ErrAlreadyAccepted):
 		writeError(writer, http.StatusConflict, domain.CodeAlreadyAccepted, err.Error())
 	case errors.Is(err, domain.ErrComputeBeforeAccept):
