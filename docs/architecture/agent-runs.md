@@ -97,6 +97,36 @@ process retains at most 128 threads and 1024 run-ID tombstones. Reaching a bound
 fails explicitly; it never truncates an authority-bearing document into PASS.
 
 The HTTP adapter flushes SSE, disables response caching/proxy buffering, sends
-keep-alive comments while running, and bounds a run to thirty minutes. The
-console consumer and governed workspace-activity integration remain #640/#647;
-this server implementation does not claim either is complete.
+keep-alive comments while running, and bounds a run to thirty minutes. The governed workspace-activity integration remains #647; no editor activity publication is claimed here.
+
+## Work Intake client
+
+The console creates a native planning session, then uses AG-UI for model turns
+and human form resume. Accept remains a separate explicit native request. The
+client checks the Hub explicit-start/end ordering, replaces state/message
+snapshots, and applies all six RFC 6902 operations atomically. Invalid paths,
+prototype traversal, failed tests and partial patches leave the old state intact.
+The client rejects malformed, oversized or truncated exchanges rather than
+falling back to a second native model turn. Its Recover action uses a fresh run
+ID with `forwardedProps.conduit.mode = "snapshot"`.
+
+The four browser tools offer the same owned schemas as the Hub (a drift test
+compares them). Existing Zod validates both the canonical and offered schema.
+Only current question drafts are writable; repo/ref and answered forms are
+read-only. Human drafts win over model suggestions, including deliberately
+cleared fields. Confirmation is human feedback, never an Accept operation.
+Tool effects wait for a successful terminal handoff or an explicitly eligible
+recovery request. Results are acknowledged in a new run, with a maximum of five
+exchanges per action. The call-ID ledger deduplicates effects within this page;
+it is not durable across browser restart. Unknown, malformed, unoffered and
+conflicting calls produce refused tool results. Backend inspection calls are
+progress data only and are never executed by the browser.
+
+The console gate runs the real JavaScript controller against the mounted Hub
+over loopback HTTP with a scripted planner: prefill, acknowledgement, interrupt,
+snapshot recovery, human override and an unaccepted plan. This fixture uses the
+explicit insecure-header test configuration, not production authentication or
+a live provider. Unit replay covers dropped/invalid streams and schema policy.
+Browser interaction tests separately exercise the Work Intake DOM with owned
+wire fixtures. None of these fixtures establishes live-model, tenant, cluster,
+publication or workspace-agent qualification.

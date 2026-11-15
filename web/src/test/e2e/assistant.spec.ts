@@ -648,3 +648,137 @@ test("Command Center uses recorded sites and drafts context without writes", asy
   expect(mutations).toEqual([]);
   expect(external).toEqual([]);
 });
+
+test("Work Intake uses agent form tools and resumes with the human's answer", async ({
+  page,
+}) => {
+  await hydrate(page);
+  const session = {
+    id: "ps_browser",
+    status: "needs_input",
+    intake: { repoUrl: "https://github.com/org/app", ref: "main" },
+    profile: { name: "onboard", version: "1", hash: "b".repeat(64) },
+    needsInput: [
+      {
+        id: "port",
+        name: "port",
+        label: "Which port?",
+        type: "string",
+        required: true,
+      },
+    ],
+    answers: [],
+    messages: [],
+    events: [],
+    plan: null,
+    binding: null,
+    resolvedCommit: "a".repeat(40),
+  };
+  await page.route("**/v1/planning-sessions", (route) =>
+    route.fulfill({ status: 201, json: session }),
+  );
+  const requests: Record<string, any>[] = [];
+  await page.route("**/v1/agent-runs", async (route) => {
+    const input = route.request().postDataJSON();
+    requests.push(input);
+    const first = requests.length === 1;
+    const resumed = Boolean(input.resume);
+    const current = resumed
+      ? {
+          ...session,
+          status: "ready",
+          answers: [
+            { id: "port", value: input.resume[0].payload["question:port"] },
+          ],
+          plan: { text: "Build reviewed input.", sha256: "c".repeat(64) },
+        }
+      : session;
+    const events: unknown[] = [
+      { type: "RUN_STARTED", threadId: input.threadId, runId: input.runId },
+    ];
+    if (first)
+      events.push(
+        { type: "TEXT_MESSAGE_START", messageId: "request", role: "assistant" },
+        {
+          type: "TOOL_CALL_START",
+          toolCallId: "prefill",
+          toolCallName: "fill_field",
+          parentMessageId: "request",
+        },
+        {
+          type: "TOOL_CALL_ARGS",
+          toolCallId: "prefill",
+          delta: '{"field":"question:port","value":"8080"}',
+        },
+        { type: "TOOL_CALL_END", toolCallId: "prefill" },
+        { type: "TEXT_MESSAGE_END", messageId: "request" },
+      );
+    events.push(
+      {
+        type: "STATE_SNAPSHOT",
+        snapshot: {
+          session: current,
+          toolCalls: [],
+          pendingClientTools: first
+            ? [
+                {
+                  id: "prefill",
+                  name: "fill_field",
+                  arguments: { field: "question:port", value: "8080" },
+                  eligible: false,
+                },
+              ]
+            : [],
+        },
+      },
+      {
+        type: "MESSAGES_SNAPSHOT",
+        messages: [{ id: "user", role: "user", content: "Inspect" }],
+      },
+      {
+        type: "RUN_FINISHED",
+        threadId: input.threadId,
+        runId: input.runId,
+        outcome: first
+          ? { type: "success", pendingToolCallIds: ["prefill"] }
+          : resumed
+            ? { type: "success" }
+            : {
+                type: "interrupt",
+                interrupts: [{ id: "form-current", reason: "needs_input" }],
+              },
+      },
+    );
+    await route.fulfill({
+      contentType: "text/event-stream",
+      body: events
+        .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+        .join(""),
+    });
+  });
+  await page.goto("/console/#s01-intake");
+  await page.getByLabel("Repository URL").fill("https://github.com/org/app");
+  await page.getByLabel("Ref", { exact: true }).fill("main");
+  await page.getByLabel("Message", { exact: true }).fill("Inspect");
+  await page.locator("[data-plan-send]").click();
+  await expect(page.locator('[data-plan-answer="port"]')).toHaveValue("8080");
+  await expect(page.locator("[data-plan-submit-answers]")).toBeEnabled();
+  await page.locator('[data-plan-answer="port"]').fill("9090");
+  await page.locator("[data-plan-submit-answers]").click();
+  await expect(page.locator("[data-plan-review]")).toContainText(
+    "Build reviewed input.",
+  );
+  expect(requests).toHaveLength(3);
+  expect(requests[1].messages.at(-1)).toMatchObject({
+    role: "tool",
+    toolCallId: "prefill",
+  });
+  expect(requests[2].resume).toEqual([
+    {
+      interruptId: "form-current",
+      status: "resolved",
+      payload: { "question:port": "9090" },
+    },
+  ]);
+  await expect(page.locator("[data-plan-binding]")).toHaveCount(0);
+});

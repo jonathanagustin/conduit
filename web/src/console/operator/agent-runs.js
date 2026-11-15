@@ -18,6 +18,7 @@ export class AgentExchange {
     this.state = {};
     this.messages = new Map();
     this.openMessages = new Set();
+    this.usedMessages = new Set();
     this.tools = new Map();
     this.steps = new Set();
     this.outcome = null;
@@ -88,6 +89,7 @@ export class AgentExchange {
           )
             invalid();
           next.set(item.id, copy(item));
+          this.usedMessages.add(item.id);
         }
         this.messages = next;
         break;
@@ -95,7 +97,7 @@ export class AgentExchange {
       case "TEXT_MESSAGE_START":
         if (
           !identifier(event.messageId) ||
-          this.messages.has(event.messageId) ||
+          this.usedMessages.has(event.messageId) ||
           event.role !== "assistant"
         )
           invalid();
@@ -105,6 +107,7 @@ export class AgentExchange {
           content: "",
         });
         this.openMessages.add(event.messageId);
+        this.usedMessages.add(event.messageId);
         break;
       case "TEXT_MESSAGE_CONTENT":
         if (
@@ -149,11 +152,12 @@ export class AgentExchange {
         if (
           tool?.status !== "pending" ||
           !identifier(event.messageId) ||
-          this.messages.has(event.messageId) ||
+          this.usedMessages.has(event.messageId) ||
           typeof event.content !== "string"
         )
           invalid();
         tool.status = "complete";
+        this.usedMessages.add(event.messageId);
         this.messages.set(event.messageId, {
           id: event.messageId,
           role: "tool",

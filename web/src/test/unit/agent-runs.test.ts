@@ -101,6 +101,13 @@ describe("Hub AG-UI browser exchange", () => {
     [
       [{ type: "TEXT_MESSAGE_CONTENT", messageId: "missing", delta: "x" }],
       [start, start],
+      [start, { type: "STEP_FINISHED", stepName: "missing" }],
+      [
+        start,
+        { type: "MESSAGES_SNAPSHOT", messages: [{ id: "old", role: "user" }] },
+        { type: "MESSAGES_SNAPSHOT", messages: [] },
+        { type: "TEXT_MESSAGE_START", messageId: "old", role: "assistant" },
+      ],
       [start, { type: "RUN_FINISHED", threadId: "other", runId: "r1" }],
       [
         start,

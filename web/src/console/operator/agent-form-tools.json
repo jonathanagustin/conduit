@@ -1,0 +1,42 @@
+{
+  "fill_field": {
+    "type": "object",
+    "properties": {
+      "field": { "type": "string", "minLength": 1, "maxLength": 128 },
+      "value": {
+        "anyOf": [
+          { "type": "string", "maxLength": 4096 },
+          { "type": "boolean" },
+          { "type": "number" },
+          { "type": "null" }
+        ]
+      }
+    },
+    "required": ["field", "value"],
+    "additionalProperties": false
+  },
+  "clear_field": {
+    "type": "object",
+    "properties": {
+      "field": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "required": ["field"],
+    "additionalProperties": false
+  },
+  "focus_field": {
+    "type": "object",
+    "properties": {
+      "field": { "type": "string", "minLength": 1, "maxLength": 128 }
+    },
+    "required": ["field"],
+    "additionalProperties": false
+  },
+  "request_confirmation": {
+    "type": "object",
+    "properties": {
+      "message": { "type": "string", "minLength": 1, "maxLength": 1024 }
+    },
+    "required": ["message"],
+    "additionalProperties": false
+  }
+}
