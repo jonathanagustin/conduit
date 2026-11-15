@@ -1083,3 +1083,75 @@ test("release waves show recorded gates and reasons without synthetic calendar d
   await expect(waves).toContainText("Waiting for separate approver");
   await expect(waves).toContainText("scheduling is unavailable");
 });
+
+test("plan inspector loads the selected environment timeline and preserves audit evidence limits", async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    requests.push(path);
+    if (path === "/v1/plans")
+      return route.fulfill({
+        json: {
+          plans: [
+            {
+              id: "native-plan-a",
+              status: "FAILED",
+              failure: "Recorded denial",
+              plan: { environment: "env-a", steps: [] },
+            },
+            {
+              id: "native-plan-b",
+              status: "SUCCEEDED",
+              plan: { environment: "env-b", steps: [] },
+            },
+          ],
+        },
+      });
+    if (path === "/v1/environments/env-a/timeline")
+      return route.fulfill({
+        json: {
+          timeline: [
+            {
+              at: "2026-11-15",
+              kind: "audit",
+              summary: "native-audit-a",
+              verified: true,
+              digest: "sha256:link",
+              sequence: 7,
+            },
+          ],
+        },
+      });
+    if (path === "/v1/environments/env-b/timeline")
+      return route.fulfill({
+        json: {
+          timeline: [
+            {
+              at: "2026-11-15",
+              kind: "plan",
+              summary: "native-plan-event-b",
+              verified: true,
+            },
+          ],
+        },
+      });
+    return route.fulfill({ json: {} });
+  });
+  await hydrate(page);
+  await page.goto("/console/");
+  await page
+    .getByRole("button", { name: "Releases", exact: true })
+    .first()
+    .click();
+  await page.locator('[data-area-tab="plans"]').click();
+  const inspector = page.locator("[data-release-plan-inspector]");
+  await expect(inspector).toContainText("Recorded denial");
+  await expect(inspector).toContainText("Hub-verified chain link 7");
+  await inspector.locator("[data-release-plan]").selectOption("native-plan-b");
+  await expect(inspector).toContainText("native-plan-event-b");
+  await expect(inspector).not.toContainText("native-audit-a");
+  await expect(inspector).not.toContainText("Hub-verified chain link");
+  expect(requests).toContain("/v1/environments/env-b/timeline");
+});
