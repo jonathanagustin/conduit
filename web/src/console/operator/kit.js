@@ -418,10 +418,25 @@ export function areaSupplement(hub, screen, tab) {
 /**
  * @param {any} hub
  * @param {string} screen
- * @param {{packagingRunId?: string, releaseEnvironmentId?: string, changeRequestId?: string}} selection
+ * @param {{packagingRunId?: string, releaseEnvironmentId?: string, changeRequestId?: string, workspaceView?: boolean, workspace?: any}} selection
  */
 export function areaObject(hub, screen, selection = {}) {
   const data = hub || {};
+  if (screen === "area-packaging" && selection.workspaceView) {
+    const row = selection.workspace;
+    if (!row?.workspaceId) return null;
+    return {
+      name: row.workspaceId,
+      objectType: "Workspace",
+      owner: row.owner || "",
+      status: row.status || "unknown",
+      tone: "info",
+      subtitle: [row.proposalRevision, row.sourceDigest]
+        .filter(Boolean)
+        .join(" · "),
+      links: [{ label: "Workspaces", screen: "s02-workspaces" }],
+    };
+  }
   if (screen === "area-packaging") {
     const run = selectedPackagingRun(data.packaging, selection.packagingRunId);
     if (!run?.runId) return null;

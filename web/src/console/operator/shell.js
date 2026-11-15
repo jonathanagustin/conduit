@@ -150,7 +150,15 @@ export function dockSurfacesMarkup(state, helpers) {
 
   let inspector = empty("Select an object to inspect it.");
   const object = helpers?.areaObject
-    ? helpers.areaObject(state?.hub, state?.screen)
+    ? helpers.areaObject(state?.hub, state?.screen, {
+        packagingRunId: state?.packagingRunId,
+        releaseEnvironmentId: state?.releaseEnvironmentId,
+        changeRequestId: state?.crReview?.selectedId,
+        workspaceView:
+          state?.screen === "area-packaging" &&
+          String(state?.areaTab || "").startsWith("workspace"),
+        workspace: state?.studioWorkspace,
+      })
     : null;
   if (object && helpers?.objectHeader) inspector = helpers.objectHeader(object);
 
