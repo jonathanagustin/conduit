@@ -398,6 +398,13 @@
       "why": "The public API Explorer example names Query.me, id and fullName but supplies no complete type/nullability, identity-value or delegation contract. The native carrier currently has a username and no full-name claim. Conduit returns null rather than inventing a human name, and retains the credential owner rather than substituting an on-behalf-of identity.",
       "displacedBy": "A public Apollo identity schema and delegation contract specifying me's type, ID mapping and unavailable fullName semantics.",
       "riskIfWrong": "The names match the public example; the type and values are native choices disclosed with valueTier CONDUIT_NATIVE. They do not identify a real Apollo user or confer delegated authority."
+    },
+    {
+      "id": "reporting.SpokeWorkloadView",
+      "what": "A native Spoke Operations board and selected-environment workload table composed from existing environment liveness and Agent-reported entity records.",
+      "why": "The public spoke control-plane reference establishes responsibilities but no private cluster inventory or workload UI transport. Existing Hub records establish only reported installations and report freshness.",
+      "displacedBy": "A public or authorized sanitized Apollo spoke/workload view and its backing report contract establishing inventory grain, freshness and missing-data semantics.",
+      "riskIfWrong": "Read-only composition marked CONDUIT_NATIVE. No inferred cluster topology, utilisation, pending-sync status or Agent-attested offline installation is presented."
     }
   ],
   "displaced": [

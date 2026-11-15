@@ -1,3 +1,4 @@
+import { spokesMarkup } from "./fleet-spokes.mjs";
 import { mountWindowScheduler } from "./window-scheduler.js";
 import { mountReleaseDependencies } from "./release-dependencies.js";
 import { mountEnvironmentHub } from "./release-environment-hub.js";
@@ -1256,6 +1257,7 @@ export function mountOperator(host, options) {
   // Screens whose body is read from the Hub. Everything else is example data
   // until it is wired, and says so in the header badge.
   const LIVE_SCREENS = new Set([
+    "s17-spokes-audit",
     "s01-intake",
     "cc-overview",
     "pkg-runs",
@@ -3518,121 +3520,24 @@ export function mountOperator(host, options) {
   }
 
   function renderS17SpokesAudit(root) {
-    const cols = [
-      {
-        title: "West Store-and-Forward",
-        kpi: "18 Envs · 94% Synced",
-        col: "#34d399",
-        bar: "emerald",
-        events: [
-          [
-            "Relay Agent",
-            "09:54 PM",
-            "Uploaded chunk 6/8 (31.4 MB) to spoke-west-relay spool",
-          ],
-          [
-            "Drift Watch",
-            "09:19 PM",
-            "Flagged 768Mi memory override on edge-west-02",
-          ],
-        ],
-      },
-      {
-        title: "Optical Diode Hall-B",
-        kpi: "6 Envs · One-Way Lock",
-        col: "#60a5fa",
-        bar: "blue",
-        events: [
-          [
-            "Diode Guard",
-            "09:36 PM",
-            "Verified SHA-256 receipt for 63.8 MB zstd delta bundle",
-          ],
-          ["S. Kline", "08:41 PM", "Authorized offline-vault-04 staging spool"],
-        ],
-      },
-      {
-        title: "Courier & Offshore",
-        kpi: "6 Envs · 1 Degraded",
-        col: "#eab854",
-        bar: "amber",
-        events: [
-          [
-            "Link Probe",
-            "09:15 PM",
-            "Packet loss 9.2% on remote-rig-09 satellite relay",
-          ],
-          [
-            "K. Wong",
-            "07:20 PM",
-            "Exported signed media manifest for forward-arctic-01",
-          ],
-        ],
-      },
-      {
-        title: "Signed Audit Ledger",
-        kpi: "142 Verified Events",
-        col: "#9881f3",
-        bar: "violet",
-        events: [
-          [
-            "M. Chen",
-            "08:58 PM",
-            "Recorded ECDSA hardware signature 1/2 on PLN-2026-0418",
-          ],
-          [
-            "HSM Slot-02",
-            "08:34 PM",
-            "Signed 4 release artifacts under prod-root-2026",
-          ],
-        ],
-      },
-    ];
-
-    root.innerHTML = `
-        <div class="space-y-3 h-full flex flex-col">
-          <div class="so-panel p-3.5 flex flex-wrap items-center justify-between gap-2.5 shrink-0">
-            <div>
-              <div class="text-[15px] font-bold text-[#ffffff]">Spoke Transport</div>
-              <div class="text-[11.5px] text-[#eab854]">Example data</div>
-            </div>
-            ${governedBtn({ label: "Export Signed Audit Ledger", role: "Security Admin", auditEvent: "audit_event.exported", onClickJs: "", cls: "so-btn so-btn-emerald", iconName: "download" })}
-          </div>
-
-          <div class="so-grid-4 gap-3 flex-1 min-h-0">
-            ${cols
-              .map(
-                (c) => `
-              <div class="so-panel flex flex-col overflow-hidden">
-                <div class="px-3 py-2.5 border-b border-[#1c242c] flex items-center justify-between">
-                  <span class="font-semibold text-[12px] text-[#ffffff] truncate">${c.title}</span>
-                  <span class="text-[10px] text-[#eab854]">Example data</span>
-                </div>
-                <div class="px-3 py-1.5 bg-[#0e1418] border-b border-[#1c242c] text-[11px] font-medium tnum" style="color:${c.col}">${c.kpi}</div>
-                <div class="p-3 space-y-3 overflow-y-auto flex-1">
-                  ${c.events
-                    .map(
-                      (e) => `
-                    <div class="so-stream-item so-stream-${c.bar} space-y-1 pb-2.5 border-b border-[#171f26]">
-                      <div class="flex justify-between text-[11px]"><span class="font-semibold text-[#f0f5fa]">${e[0]}</span><span class="tnum text-[#596573]">${e[1]}</span></div>
-                      <div class="text-[11.5px] text-[#9aa5b4] leading-snug">${e[2]}</div>
-                    </div>
-                  `,
-                    )
-                    .join("")}
-                </div>
-              </div>
-            `,
-              )
-              .join("")}
-          </div>
-        </div>
-      `;
+    root.innerHTML = spokesMarkup(state.hub);
+    root.onclick = (event) => {
+      const target =
+        event.target instanceof Element
+          ? event.target.closest("[data-spoke-environment]")
+          : null;
+      const id = target?.getAttribute("data-spoke-environment");
+      if (
+        !(state.hub?.environments || []).some(
+          (row) => row.environment?.id === id,
+        )
+      )
+        return;
+      state.releaseEnvironmentId = id;
+      switchScreen("s14-env-detail");
+    };
   }
 
-  // =========================================================================
-  // SCREEN 18: COMPONENT LIBRARY SHEET & SCREEN 19: ONTOLOGY REGISTRY
-  // =========================================================================
   function renderS18Components(root) {
     root.innerHTML = `
         <div class="space-y-3 h-full flex flex-col">
