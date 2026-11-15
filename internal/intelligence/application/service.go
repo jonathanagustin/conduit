@@ -4,6 +4,7 @@ package application
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -137,14 +138,23 @@ func (service *Service) AddCase(scenario, bound, value, expected string) (Case, 
 	if scenario == "" || expected == "" {
 		return Case{}, errCase
 	}
-	added := Case{
-		ID:       "case-" + domain.DigestText([]byte(scenario + value))[:8],
-		Scenario: scenario, BoundObject: strings.TrimSpace(bound), Value: strings.TrimSpace(value),
-		ExpectedOutcome: expected, Source: "operator feedback",
+	bound, value = strings.TrimSpace(bound), strings.TrimSpace(value)
+	identity, err := json.Marshal([]string{scenario, bound, value, expected})
+	if err != nil {
+		return Case{}, err
 	}
+	added := Case{ID: "case-" + domain.DigestText(identity)[:16], Scenario: scenario, BoundObject: bound, Value: value, ExpectedOutcome: expected, Source: "operator feedback"}
 	service.mu.Lock()
+	defer service.mu.Unlock()
+	for _, existing := range service.cases {
+		if existing.ID == added.ID {
+			return existing, nil
+		}
+	}
+	if len(service.cases) >= 256 {
+		return Case{}, errorString("evaluation case limit reached")
+	}
 	service.cases = append(service.cases, added)
-	service.mu.Unlock()
 	return added, nil
 }
 

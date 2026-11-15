@@ -82,7 +82,7 @@ func mountIntelligence(legacy http.Handler, repository controlplane.Repository, 
 	mux := http.NewServeMux()
 	intelhttp.Register(mux, intelhttp.Config{
 		API:    service,
-		Events: intelligenceEvents{reader: hub.PackagingStatus},
+		Events: intelligenceEvents{reader: hub.PackagingStatus, service: governanceService, options: options},
 		Authorize: func(request *http.Request) error {
 			_, err := operatorFrom(request.Context())
 			return err
@@ -193,13 +193,19 @@ func (audit intelligenceAudit) Record(ctx context.Context, actor, action, resour
 }
 
 type intelligenceEvents struct {
-	reader interface {
+	service *controlplane.GovernanceService
+	options controlplane.HandlerOptions
+	reader  interface {
 		List(ctx context.Context) ([]packagingdomain.RunStatus, error)
 	}
 }
 
 func (events intelligenceEvents) Observed(ctx context.Context) []map[string]string {
-	if events.reader == nil {
+	if events.reader == nil || events.service == nil {
+		return nil
+	}
+	principal, err := operatorFrom(ctx)
+	if err != nil {
 		return nil
 	}
 	runs, err := events.reader.List(ctx)
@@ -208,6 +214,10 @@ func (events intelligenceEvents) Observed(ctx context.Context) []map[string]stri
 	}
 	out := make([]map[string]string, 0, len(runs))
 	for _, run := range runs {
+		environment := packagingdomain.EnvironmentOf(run.TargetPlanRef)
+		if environment == "" || !events.service.AuthorizeResourceOperation(ctx, principal, events.options, "environment/"+environment, controlplane.OperationReadResource) {
+			continue
+		}
 		out = append(out, map[string]string{"runId": run.RunID, "phase": run.Phase, "outcome": string(run.Outcome)})
 	}
 	return out

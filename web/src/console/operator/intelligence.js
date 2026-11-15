@@ -327,7 +327,7 @@ export function createIntelligence({
                 )
                 .join("")}</tbody></table>`
             : "<p>No observed run is supplied; this does not establish that no run exists.</p>"
-        }<h3>Supplied rules</h3>${rules.map((row) => `<article class="so-panel p-2"><h4>${esc(row.name)}</h4><p>${esc(row.label)} · execution ${row.executes === true ? "reported enabled" : row.executes === false ? "reported disabled" : "unavailable"}</p><button type="button" disabled>Pause unavailable</button></article>`).join("") || "<p>No rule is supplied.</p>"}<p>No live pause or rule-persistence endpoint is supplied. This view does not execute these examples.</p></section>`;
+        }${observed.length > 256 ? "<p>Only the first 256 visible observed runs are displayed.</p>" : ""}<h3>Supplied rules</h3>${rules.map((row) => `<article class="so-panel p-2"><h4>${esc(row.name)}</h4><p>${esc(row.label)} · execution ${row.executes === true ? "reported enabled" : row.executes === false ? "reported disabled" : "unavailable"}</p><button type="button" disabled>Pause unavailable</button></article>`).join("") || "<p>No rule is supplied.</p>"}<p>No live pause or rule-persistence endpoint is supplied. This view does not execute these examples.</p></section>`;
       } catch (error) {
         if (current())
           root.innerHTML = `<p role="status">${esc(error.message)}</p>`;

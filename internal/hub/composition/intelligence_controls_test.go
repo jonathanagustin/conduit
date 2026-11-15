@@ -4,10 +4,12 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
 func TestIntelligenceCourseUsesCurrentAuthorizedTargetAndScopedIdentity(t *testing.T) {
@@ -27,7 +29,7 @@ func TestIntelligenceCourseUsesCurrentAuthorizedTargetAndScopedIdentity(t *testi
 			}
 		}
 	}
-	handler, err := NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true}, Options{})
+	handler, err := NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true}, Options{PackagingStatus: intelligenceTestRuns{}})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -62,6 +64,9 @@ func TestIntelligenceCourseUsesCurrentAuthorizedTargetAndScopedIdentity(t *testi
 	if status != http.StatusOK {
 		t.Fatal(status, a)
 	}
+	if a["valueTier"] != "CONDUIT_NATIVE" || a["environment"] != "env-a" || a["installationId"] != "api" || a["productId"] != "product-a" || a["value"] != "512Mi" {
+		t.Fatal("course receipt lost scoped coordinates", a)
+	}
 	status, b := submit("env-b", "api", "product-a", "512Mi")
 	if status != http.StatusOK {
 		t.Fatal(status, b)
@@ -82,8 +87,24 @@ func TestIntelligenceCourseUsesCurrentAuthorizedTargetAndScopedIdentity(t *testi
 			t.Fatal("course gained approval or lost caller scope", request)
 		}
 	}
+	read := httptest.NewRequest(http.MethodGet, "/v1/intelligence/events", nil)
+	read.Header.Set("X-Platform-Subject", "writer")
+	observed := httptest.NewRecorder()
+	handler.ServeHTTP(observed, read)
+	var eventBody struct {
+		Observed []map[string]string `json:"observed"`
+	}
+	if err := json.Unmarshal(observed.Body.Bytes(), &eventBody); err != nil || len(eventBody.Observed) != 1 || eventBody.Observed[0]["runId"] != "visible-run" {
+		t.Fatal("events leaked foreign or unbound runs", observed.Code, observed.Body.String(), err)
+	}
 	response := postAssistant(handler, "writer", "", "/v1/intelligence/courses/select", `{"Value":"512Mi","Environment":"env-a","InstallationID":"api","ProductID":"product-a"} {"approve":true}`)
 	if response.Code != http.StatusBadRequest {
 		t.Fatal("trailing course document accepted", response.Code, response.Body.String())
 	}
+}
+
+type intelligenceTestRuns struct{ runningPackaging }
+
+func (intelligenceTestRuns) List(context.Context) ([]packagingdomain.RunStatus, error) {
+	return []packagingdomain.RunStatus{{RunID: "visible-run", TargetPlanRef: "env-a/api"}, {RunID: "foreign-run", TargetPlanRef: "env-c/api"}, {RunID: "unbound-run"}}, nil
 }

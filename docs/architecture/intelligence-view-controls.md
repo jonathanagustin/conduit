@@ -33,9 +33,12 @@ counts mean expectations matched: a required failure that was expected is a
 matching test, not a deployment pass. Run is explicit and may use the configured
 adapter for its supported case. Feedback-case capture requires confirmation and
 states that the current service does not persist cases across Hub restart.
+Feedback identity includes scenario, bound-object label, value and expectation;
+identical retries reuse the case and the in-memory suite is capped at 256 cases.
 These results do not establish deployment or independent live-provider proof.
 
-Automations show supplied observed runs and label the service's non-executing
+Automations apply the same Environment read permission as Packaging to observed
+runs and hide unbound or foreign runs. They label the service's non-executing
 example rules. The current API provides no pause or rule-persistence endpoint;
 those controls stay unavailable rather than changing local state as though a
 rule were paused. Empty observed data means none was supplied, not proof of no
