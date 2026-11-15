@@ -1,3 +1,4 @@
+import { convergenceState } from "./release-convergence.js";
 // Pure helpers for the console shell: header KPIs, site summary, dock sizing,
 // and guarded preference storage.
 
@@ -11,6 +12,16 @@ const TERMINAL_PHASES = new Set([
   "failed",
   "cancelled",
   "blocked",
+  "complete",
+]);
+const ACTIVE_PHASES = new Set([
+  "assess",
+  "propose",
+  "validate",
+  "review",
+  "handoff",
+  "running",
+  "pending",
 ]);
 
 const list = (value) => (Array.isArray(value) ? value : null);
@@ -24,76 +35,96 @@ function kpi(id, label, items, compute) {
   return { id, value: String(value), label, sub, tone, live: true };
 }
 
-function isDrifted(row) {
-  const desired = row?.desiredVersion || "";
-  const reported = row?.observedVersion || "";
-  return desired !== reported;
-}
-
+// Unknown, stale or never-reported installations cannot establish convergence.
 export function kpisFromHub(hub) {
   const h = hub || {};
-  const installations = list(h.installations);
-  const environments = list(h.environments);
-  const packaging = list(h.packaging);
-  const plans = list(h.plans);
-  const changes = list(h.changes);
-
+  const environments = h.loading || h.note ? null : list(h.environments);
+  const installations =
+    h.loading || h.installationNote ? null : list(h.installations);
+  const packaging = h.loading || h.packagingNote ? null : list(h.packaging);
+  const changes = h.loading || h.changeNote ? null : list(h.changes);
+  const complete = environments && installations;
+  const hasSpokeStates =
+    environments &&
+    environments.every(
+      (row) =>
+        ["live", "stale", "unreachable"].includes(row?.spoke?.state) &&
+        (row.spoke.state !== "live" || Boolean(row.spoke.agentId)),
+    );
   return [
-    kpi("convergence", "Convergence", installations, (rows) => {
-      const converged = rows.filter((r) => !isDrifted(r)).length;
-      const pct = rows.length ? Math.round((converged / rows.length) * 100) : 0;
-      const tone = !rows.length
-        ? "info"
-        : pct >= 90
-          ? "ok"
-          : pct >= 60
-            ? "warn"
-            : "bad";
-      return {
-        value: `${pct}%`,
-        sub: `${converged} of ${rows.length} converged`,
-        tone,
-      };
-    }),
-    kpi("environments", "Environments", environments, (rows) => {
-      const reporting = rows.filter((r) => r?.reported).length;
-      return {
-        value: rows.length,
-        sub: `${reporting} reporting`,
-        tone: rows.length && reporting < rows.length ? "warn" : "ok",
-      };
-    }),
-    kpi("packaging", "Packaging runs", packaging, (rows) => {
-      const active = rows.filter((r) => !TERMINAL_PHASES.has(lower(r?.phase)));
-      const blocked = rows.filter((r) => lower(r?.phase) === "blocked").length;
-      return {
-        value: active.length,
-        sub: `${blocked} blocked`,
-        tone: blocked ? "bad" : active.length ? "info" : "ok",
-      };
-    }),
-    kpi("plans", "Plans", plans, (rows) => {
-      const waiting = rows.filter((r) =>
-        /pending|awaiting|review|proposed/.test(lower(r?.status)),
-      ).length;
-      return {
-        value: rows.length,
-        sub: `${waiting} awaiting approval`,
-        tone: waiting ? "warn" : "ok",
-      };
-    }),
-    kpi("changes", "Change requests", changes, (rows) => {
+    kpi(
+      "convergence",
+      "Convergence",
+      complete ? environments : null,
+      (rows) => {
+        const converged = rows.filter((environment) => {
+          const id = environment?.environment?.id;
+          const members = installations.filter(
+            (row) => id && row.environment === id,
+          );
+          return (
+            members.length > 0 &&
+            members.every((row) => convergenceState(row) === "converged")
+          );
+        }).length;
+        return {
+          value: converged,
+          sub: `${converged} of ${rows.length} environments in sync`,
+          tone: rows.length && converged === rows.length ? "ok" : "info",
+        };
+      },
+    ),
+    kpi("environments", "Environments", environments, (rows) => ({
+      value: rows.length,
+      sub: "authorized rows",
+      tone: "info",
+    })),
+    kpi(
+      "packaging",
+      "Packaging runs",
+      packaging?.every(
+        (row) =>
+          TERMINAL_PHASES.has(lower(row?.phase)) ||
+          ACTIVE_PHASES.has(lower(row?.phase)),
+      )
+        ? packaging
+        : null,
+      (rows) => {
+        const active = rows.filter(
+          (r) => !TERMINAL_PHASES.has(lower(r?.phase)),
+        );
+        const blocked = rows.filter(
+          (r) => lower(r?.phase) === "blocked",
+        ).length;
+        return {
+          value: active.length,
+          sub: `${blocked} blocked`,
+          tone: blocked ? "bad" : active.length ? "info" : "ok",
+        };
+      },
+    ),
+    kpi(
+      "spokes",
+      "Spokes online",
+      hasSpokeStates ? environments : null,
+      (rows) => ({
+        value: new Set(
+          rows
+            .filter((row) => row.spoke.state === "live")
+            .map((row) => row.spoke.agentId),
+        ).size,
+        sub: "Hub report-freshness snapshot",
+        tone: "info",
+      }),
+    ),
+    kpi("changes", "Pending approvals", changes, (rows) => {
       const pending = rows.filter((r) =>
         /pending|open|awaiting|review|proposed/.test(lower(r?.status)),
       ).length;
-      // Drift needs a report to differ from; never-reported is not drift.
-      const drift = (installations || []).filter(
-        (row) => row?.observedVersion && isDrifted(row),
-      ).length;
       return {
         value: pending,
-        sub: `${drift} drift`,
-        tone: drift ? "warn" : pending ? "info" : "ok",
+        sub: "change requests",
+        tone: pending ? "info" : "ok",
       };
     }),
   ];

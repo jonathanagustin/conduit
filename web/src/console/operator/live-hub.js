@@ -1,4 +1,5 @@
 import { LiveSubscription, idleLiveStatus } from "../../api/live-events.js";
+import { createLiveOperations } from "./live-operations.js";
 import { liveSessionIdentity } from "../../api/live-identity.js";
 import { releaseWavesMarkup } from "./release-waves.js";
 import {
@@ -300,6 +301,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     refreshGeneration = 0;
   let identityKey = "";
   const eventListeners = new Set();
+  const operations = createLiveOperations();
   const stream = new LiveSubscription({
     catchUp: async (context) => {
       await refresh({ ...context, live: true });
@@ -307,6 +309,8 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     invalidate: async (events, context) => {
       await refresh({ ...context, live: true });
       if (context.signal.aborted) return;
+      operations.accept(events);
+      render();
       for (const listener of eventListeners) {
         try {
           listener(events);
@@ -319,9 +323,19 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   state.liveEvents = idleLiveStatus;
   stream.subscribe(() => {
     state.liveEvents = stream.getSnapshot();
+    if (
+      ["stopped", "idle", "resyncing", "auth-required", "unsupported"].includes(
+        state.liveEvents.state,
+      )
+    )
+      operations.reset();
     paintAvailability();
+    if (started && ["au01-audit", "area-audit"].includes(state.screen))
+      render();
   });
   function paintAvailability() {
+    const strip = document.getElementById("header-kpi-strip");
+    strip?.setAttribute("data-live-state", stream.getSnapshot().state);
     if (typeof document.createElement !== "function") return;
     const chip = document.getElementById("operator-chip");
     if (!chip?.parentElement) return;
@@ -368,6 +382,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   function partition(nextKey) {
     if (nextKey === identityKey) return;
     identityKey = nextKey;
+    operations.reset();
     stream.start("");
     state.hub = {
       loading: true,
@@ -515,8 +530,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
 
   async function readRefresh(options, generation) {
     const read = (path) => readJSON(path, options.signal);
-    const pages = (path, key) =>
-      readPages(path, key, read, options.live === true);
+    const pages = (path, key) => readPages(path, key, read, true);
     const postRead = (path, body) => readPost(path, body, options.signal);
     let session = null;
     const next = {
@@ -1177,16 +1191,21 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
         .join("");
       root.innerHTML = split(blocks);
     },
+    operationsMarkup() {
+      return operations.markup(stream.getSnapshot());
+    },
     renderAudit(root) {
       const entries = hub(state).audit || [];
       if (!entries.length) {
-        root.innerHTML = missing(
-          hub(state).auditNote || "No audit entries are recorded.",
-          "audit",
-        );
+        root.innerHTML =
+          operations.markup(stream.getSnapshot()) +
+          missing(
+            hub(state).auditNote || "No audit entries are recorded.",
+            "audit",
+          );
         return;
       }
-      root.innerHTML = `<div class="so-view-enter">${panel(
+      root.innerHTML = `<div class="so-view-enter">${operations.markup(stream.getSnapshot())}${panel(
         "Authorization audit",
         `<p class="text-[12px] text-[#8b96a5]">Hash chain of the recorded decisions. The previous hash of each entry is the hash of the entry before it.</p>${auditTable(entries)}`,
       )}</div>`;

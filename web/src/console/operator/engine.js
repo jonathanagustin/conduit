@@ -1379,6 +1379,7 @@ export function mountOperator(host, options) {
       environments: "cluster",
       packaging: "cube",
       plans: "shield",
+      spokes: "cluster",
       changes: "warnTri",
     };
     const tones = {
@@ -1396,7 +1397,7 @@ export function mountOperator(host, options) {
       .map((k) => {
         const color = tones[k.tone] || tones.info;
         return `
-      <div class="kpi-cell">
+      <div class="kpi-cell" data-kpi="${esc(k.id)}">
         <div class="kpi-value">
           <span class="flex" style="color:${color}">${ic(icons[k.id])}</span>
           <span class="tnum" style="color:${color}">${esc(k.value)}</span>
@@ -1406,10 +1407,13 @@ export function mountOperator(host, options) {
       </div>`;
       })
       .join("");
+    strip.dataset.liveState = state.liveEvents?.state || "idle";
+    strip.title =
+      "Latest authorized Hub read; counts cover loaded rows. Spoke liveness is report freshness, not a network probe.";
     strip.innerHTML =
       (allLive(kpis)
         ? ""
-        : '<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Example data</span>') +
+        : '<span class="text-[10px] uppercase tracking-[0.08em] text-[#eab854]">Read unavailable</span>') +
       cells;
   }
 
@@ -1890,6 +1894,7 @@ export function mountOperator(host, options) {
       return;
     }
     node.innerHTML = `<div class="so-view-enter so-panel kit-ledger-panel">
+      ${liveHub.operationsMarkup()}
       <div class="kit-ledger-head"><h2>Authorization audit</h2><span class="kit-muted">${entries.length} recorded decisions</span></div>
       <div data-ledger-root></div><div data-audit-stream-root></div></div>`;
     ledgerRoot = node.querySelector("[data-ledger-root]");

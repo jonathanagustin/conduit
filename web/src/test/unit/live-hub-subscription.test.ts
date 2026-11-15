@@ -138,6 +138,7 @@ describe("active Hub live bridge", () => {
     await tick();
     expect(fixture.hubState().plans[0].revision).toBe(2);
     expect(received).toHaveLength(1);
+    expect(hub!.operationsMarkup()).toContain('data-operation-sequence="1"');
     const count = fixture.calls.length;
     await vi.advanceTimersByTimeAsync(30000);
     await tick();
@@ -174,6 +175,7 @@ describe("active Hub live bridge", () => {
     await hub!.refresh();
     await tick();
     expect(oldSignal!.aborted).toBe(true);
+    expect(hub!.operationsMarkup()).not.toContain("data-operation-sequence");
     expect(fixture.hubState().plans[0].id).toBe("bob-plan");
     expect(fixture.state.reviewOperatorName).toBe("bob");
     expect(hub!.liveStatus().state).toBe("live");
