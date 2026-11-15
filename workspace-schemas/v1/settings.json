@@ -1,0 +1,22 @@
+{
+  "yaml.validate": true,
+  "yaml.completion": true,
+  "yaml.hover": true,
+  "yaml.schemaStore.enable": false,
+  "yaml.schemaStore.url": "",
+  "yaml.schemas": {
+    "file:///opt/conduit/workspace-schemas/v1/plan.schema.json": [
+      "**/*.plan.yaml",
+      "**/*.plan.yml"
+    ],
+    "file:///opt/conduit/workspace-schemas/v1/zarf.schema.json": [
+      "**/zarf.yaml",
+      "**/zarf.yml"
+    ],
+    "file:///opt/conduit/workspace-schemas/v1/uds-package.schema.json": [
+      "**/uds-package.yaml",
+      "**/uds-package.yml"
+    ]
+  },
+  "redhat.telemetry.enabled": false
+}

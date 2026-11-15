@@ -45,3 +45,6 @@ docs/reference-platform/reference/.review-ledger-selftest.*
 
 # Isolated Release Please contract-test dependencies.
 tools/release-please/node_modules/
+
+# Isolated offline YAML language-service verification dependencies.
+tools/workspace-schemas/node_modules/

@@ -244,6 +244,7 @@ gate 'Validate Flux runtime source' ruby scripts/verify-flux-runtime.rb
 gate 'Validate Helm runtime chart' ruby scripts/verify-helm-runtime.rb
 gate 'Validate Zarf air-gap package' env ZARF_BIN="${zarf_bin}" bash -c 'ruby scripts/verify-zarf-package.rb && ./scripts/test-zarf-runtime-selection.sh && ./scripts/test-uds-up.sh && ./scripts/test-uds-keycloak-users.sh'
 gate 'Build commands' build_commands
+gate 'Validate offline workspace schemas' ./scripts/verify-workspace-schemas.sh
 gate 'Validate administrator status API' ./scripts/verify-admin-status-api.sh
 gate 'Validate planning API contract' ./scripts/verify-planning-api.sh
 gate 'Validate Apollo public contract' apollo_contract

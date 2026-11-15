@@ -736,6 +736,9 @@ jobs:
           ./scripts/test-zarf-runtime-selection.sh
           ./scripts/test-uds-up.sh
           ./scripts/test-uds-keycloak-users.sh
+      - name: Validate offline workspace schemas
+        if: needs.scope.outputs.checks == 'true'
+        run: ./scripts/verify-workspace-schemas.sh
       - name: Validate administrator status API
         if: needs.scope.outputs.checks == 'true'
         run: ./scripts/verify-admin-status-api.sh

@@ -1,0 +1,75 @@
+{
+  "apiVersion": "platform.delivery/v1alpha1",
+  "kind": "EnvironmentDeployment",
+  "environment": {
+    "id": "dev-use2",
+    "generation": "replace-with-reviewed-git-commit",
+    "helmExecution": {
+      "imagePrePull": {
+        "enabled": false
+      }
+    },
+    "artifactRegistries": [
+      {
+        "id": "primary",
+        "url": "registry.example",
+        "revision": 1
+      }
+    ]
+  },
+  "releases": [
+    {
+      "product": "app.example:example-api",
+      "version": "0.1.0",
+      "chart": {
+        "repository": "registry.example/example-api",
+        "tag": "0.1.0",
+        "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+      },
+      "images": [
+        {
+          "repository": "registry.example/example-api",
+          "tag": "0.1.0",
+          "digest": "sha256:aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
+        }
+      ]
+    },
+    {
+      "product": "app.example:example-workspace",
+      "version": "0.1.0",
+      "chart": {
+        "repository": "registry.example/example-workspace",
+        "tag": "0.1.0",
+        "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+      },
+      "images": [
+        {
+          "repository": "registry.example/example-workspace",
+          "tag": "0.1.0",
+          "digest": "sha256:bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"
+        }
+      ],
+      "dependencies": [
+        {
+          "product": "app.example:example-api",
+          "minimumVersion": "0.1.0",
+          "maximumVersion": "0.1.999"
+        }
+      ]
+    }
+  ],
+  "entities": [
+    {
+      "name": "example-api",
+      "product": "app.example:example-api",
+      "releaseChannel": "RELEASE",
+      "namespace": "example"
+    },
+    {
+      "name": "example-workspace",
+      "product": "app.example:example-workspace",
+      "releaseChannel": "RELEASE",
+      "namespace": "example"
+    }
+  ]
+}

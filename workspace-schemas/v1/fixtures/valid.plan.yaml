@@ -1,0 +1,7 @@
+apiVersion: platform.delivery/v1alpha1
+kind: EnvironmentDeployment
+environment:
+  id: development
+  generation: reviewed-commit
+releases: []
+entities: []

@@ -1,0 +1,11 @@
+{
+  "name": "conduit-workspace-schema-verification",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "description": "Offline editor schema diagnostic verification",
+  "dependencies": {
+    "vscode-jsonrpc": "9.0.3",
+    "yaml-language-server": "2.0.0"
+  }
+}
