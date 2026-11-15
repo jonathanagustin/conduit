@@ -74,7 +74,8 @@ func (handler *handler) ServeHTTP(writer http.ResponseWriter, request *http.Requ
 		writeError(writer, http.StatusServiceUnavailable, "event streaming unsupported")
 		return
 	}
-	defer controller.SetWriteDeadline(time.Time{})
+	// Keep the deadline through net/http response finalization (including its
+	// terminal chunk). The server clears it after finishRequest, before reuse.
 	if handler.cfg.Refresh != nil && handler.cfg.Refresh(ctx) != nil {
 		writeError(writer, http.StatusServiceUnavailable, "event sources unavailable")
 		return

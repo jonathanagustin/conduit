@@ -415,8 +415,8 @@ func TestSSEStalledClientHasBoundedWriteAndReplay(t *testing.T) {
 	writer := &stalledWriter{failedFlushWriter: failedFlushWriter{header: http.Header{}}}
 	started := time.Now()
 	fixture.handler.ServeHTTP(writer, request("alice", cursor))
-	if elapsed := time.Since(started); elapsed > time.Second || !writer.timedOut || !writer.cleared {
-		t.Fatalf("stalled write not bounded or deadline not cleared: %v %+v", elapsed, writer)
+	if elapsed := time.Since(started); elapsed > time.Second || !writer.timedOut || writer.cleared {
+		t.Fatalf("stalled write not bounded or deadline cleared before response finalization: %v %+v", elapsed, writer)
 	}
 	srv := server(t, fixture)
 	response := connect(t, srv, "alice", cursor)

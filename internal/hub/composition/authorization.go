@@ -252,6 +252,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "GET /v1/environments/{environmentID}/target-hub-versions",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation + requirePlatformOperation"},
+		{Pattern: "GET /v1/events",
+			Decision: DecisionOperatorGrant, Detail: "current operator identity + native stream read eligibility; every event rechecks native resource visibility; no localhost anonymous fallback"},
 		{Pattern: "GET /v1/export-pipelines",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requirePlatformOperation"},
 		{Pattern: "GET /v1/export-pipelines/{pipelineID}/schedule-runs",

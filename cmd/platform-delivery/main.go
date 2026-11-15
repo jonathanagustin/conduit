@@ -223,6 +223,12 @@ func main() {
 		operatorSignIn = controlplane.OperatorSignInFromIssuer(ctx, os.Getenv("OPERATOR_OIDC_ISSUER"), os.Getenv("OPERATOR_OIDC_CLIENT_ID"))
 	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
+	liveEventJournal, closeLiveEventJournal, err := openLiveEventJournal(os.Getenv)
+	if err != nil {
+		slog.Error("initialize live-event delivery journal", "error", err)
+		os.Exit(1)
+	}
+	defer closeLiveEventJournal()
 	server := &http.Server{
 		Addr: address,
 		Handler: composition.NewHubHandler(repository, controlplane.HandlerOptions{
@@ -244,6 +250,8 @@ func main() {
 				slog.Error("run scheduled Export Pipeline", "error", err)
 			},
 		}, composition.Options{
+			LiveEventJournal:     liveEventJournal,
+			LiveEventContext:     ctx,
 			AdminStorage:         adminStorageForRepository(repository, os.Getenv),
 			Spaces:               spaces,
 			ProductAssets:        productAssets,

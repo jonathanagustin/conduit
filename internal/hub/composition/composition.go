@@ -129,5 +129,9 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	handler, err = mountLiveEvents(handler, repository, options, hubOptions)
+	if err != nil {
+		return nil, err
+	}
 	return guardUnregisteredRoutes(handler), nil
 }
