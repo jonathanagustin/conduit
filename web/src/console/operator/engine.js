@@ -14,7 +14,7 @@ import { createReleaseGates } from "./release-gates.js";
 import { createOntologyGraph } from "./ontology-graph.js";
 import { installInlineActions } from "./inline-actions.js";
 import { facetsMarkup, envDetailMarkup } from "./env-facets.js";
-import { overviewMarkup } from "./command-center.js";
+import { createCommandCenter } from "./command-center.js";
 import {
   escapeHtml as escAttr,
   filterPalette,
@@ -953,6 +953,64 @@ export function mountOperator(host, options) {
   settings.extendState();
   SCREENS.push(...settings.screens);
   const adminStatus = createAdminStatus({ navigate: switchScreen });
+  const commandCenter = createCommandCenter({
+    getHub: () => state.hub,
+    navigate: (screen, item) => {
+      if (item?.objectType === "ChangeRequest")
+        state.crReview = {
+          filter: "all",
+          selectedId: item.id,
+          draft: { decision: "", rationale: "" },
+          pending: false,
+          error: "",
+        };
+      if (item?.objectType === "Environment") {
+        state.envDetailId = item.id;
+        state.envDetailTab = "state";
+      }
+      switchScreen(screen);
+    },
+    addContext: (item, purpose) => {
+      const chip = {
+        id: item.id,
+        objectType: item.objectType,
+        label: item.label || item.id,
+        environment: item.environment || "",
+      };
+      state.assistantAdded = [
+        ...(state.assistantAdded || []).filter(
+          (existing) =>
+            existing.id !== chip.id || existing.objectType !== chip.objectType,
+        ),
+        chip,
+      ];
+      state.assistantRemoved = (state.assistantRemoved || []).filter(
+        (key) => key !== `${chip.objectType}:${chip.id}`,
+      );
+      state.assistantMode = purpose === "coa" ? "release_plan" : "explore";
+      state.chatCollapsed = false;
+      renderChatRail();
+      publishAssistantContext(state);
+      const prefix =
+        purpose === "coa"
+          ? "Outline a reviewable course of action for"
+          : purpose === "share"
+            ? "Reference for discussion:"
+            : "Help me understand";
+      const draft = {
+        text: `${prefix} ${chip.objectType} ${chip.id}. Use recorded facts and state any unknowns.`,
+        accepted: false,
+      };
+      window.dispatchEvent(
+        new CustomEvent("conduit-assistant-draft", { detail: draft }),
+      );
+      if (draft.accepted)
+        requestAnimationFrame(() =>
+          root.querySelector("#right-chat-rail textarea")?.focus(),
+        );
+      return draft.accepted;
+    },
+  });
   const liveHub = createLiveHub({
     state,
     render: () => renderApp(),
@@ -1038,7 +1096,11 @@ export function mountOperator(host, options) {
     "area-fleet": {
       label: "Fleet",
       tabs: [
-        { id: "environments", label: "Environments", screen: "flt-environments" },
+        {
+          id: "environments",
+          label: "Environments",
+          screen: "flt-environments",
+        },
         { id: "drift", label: "Drift", screen: "s14-env-detail" },
         { id: "spokes", label: "Example spokes", screen: "s17-spokes-audit" },
       ],
@@ -1047,7 +1109,11 @@ export function mountOperator(host, options) {
       label: "Audit",
       tabs: [
         { id: "chain", label: "Hash chain", screen: "au01-audit" },
-        { id: "status", label: "Platform status", screen: "adm-platform-status" },
+        {
+          id: "status",
+          label: "Platform status",
+          screen: "adm-platform-status",
+        },
       ],
     },
   };
@@ -1059,7 +1125,10 @@ export function mountOperator(host, options) {
   });
   // Links to the Command Center land on its live overview, not the example.
   REDIRECT["s13-fleet-overview"] = { area: "area-command", tab: "command" };
-  REDIRECT["pt02-proposals-evals"] = { area: "area-packaging", tab: "proposals" };
+  REDIRECT["pt02-proposals-evals"] = {
+    area: "area-packaging",
+    tab: "proposals",
+  };
   REDIRECT["s09-source"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["s10-diff"] = { area: "area-packaging", tab: "workspace" };
   REDIRECT["s11-preview"] = { area: "area-packaging", tab: "workspace" };
@@ -1622,7 +1691,8 @@ export function mountOperator(host, options) {
   }
 
   function inspectObject(objectType, primaryKey) {
-    state.inspectRef = objectType && primaryKey ? { objectType, primaryKey } : null;
+    state.inspectRef =
+      objectType && primaryKey ? { objectType, primaryKey } : null;
     state.dockSurface = "inspector";
     state.chatCollapsed = false;
     renderChatRail();
@@ -1648,13 +1718,16 @@ export function mountOperator(host, options) {
     if (check && inspector.ref && inspector.model) {
       const name = check.getAttribute("data-inspector-validate");
       const key = inspector.key;
-      validateFor(ontologyClient, inspector.ref, name, inspector.model.object).then(
-        (outcome) => {
-          if (inspector.key !== key || !inspector.model) return;
-          inspector.model = { ...inspector.model, outcome };
-          renderChatRail();
-        },
-      );
+      validateFor(
+        ontologyClient,
+        inspector.ref,
+        name,
+        inspector.model.object,
+      ).then((outcome) => {
+        if (inspector.key !== key || !inspector.model) return;
+        inspector.model = { ...inspector.model, outcome };
+        renderChatRail();
+      });
       return true;
     }
     return false;
@@ -2133,7 +2206,8 @@ export function mountOperator(host, options) {
       "light";
     const day = light
       ? dayTexture(() => {
-          if (document.getElementById("conduit-globe-canvas")) initConduitGlobe();
+          if (document.getElementById("conduit-globe-canvas"))
+            initConduitGlobe();
         })
       : null;
 
@@ -5358,7 +5432,8 @@ export function mountOperator(host, options) {
       review.draft = { decision: "", rationale: target.value };
       const ok = target.value.trim() !== "" && !review.pending;
       host.querySelectorAll("[data-cr-decide]").forEach((button) => {
-        if (button.getAttribute("data-can-review") !== "0") button.disabled = !ok;
+        if (button.getAttribute("data-can-review") !== "0")
+          button.disabled = !ok;
       });
     });
     host.addEventListener("click", async (event) => {
@@ -5647,7 +5722,8 @@ export function mountOperator(host, options) {
       state.envDetailId = target.env;
       state.envDetailTab = "state";
     }
-    if (target.change && state.crReview) state.crReview.selectedId = target.change;
+    if (target.change && state.crReview)
+      state.crReview.selectedId = target.change;
     else if (target.change) {
       state.crReview = {
         filter: "all",
@@ -5909,7 +5985,7 @@ export function mountOperator(host, options) {
         );
       },
       "cc-overview": (node) => {
-        node.innerHTML = overviewMarkup(state.hub);
+        commandCenter.render(node);
       },
       "pkg-runs": (node) => {
         node.innerHTML = runsMarkup(
@@ -5918,7 +5994,9 @@ export function mountOperator(host, options) {
           { note: state.hub?.packagingNote || "" },
         );
         node.querySelectorAll("[data-open-run]").forEach((button) => {
-          button.addEventListener("click", () => switchScreen("s08-staged-run"));
+          button.addEventListener("click", () =>
+            switchScreen("s08-staged-run"),
+          );
         });
       },
       "rm-waves": (node) => liveHub.renderWaves(node),

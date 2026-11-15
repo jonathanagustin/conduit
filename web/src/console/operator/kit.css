@@ -813,3 +813,109 @@ button.kit-link { background: none; border: 0; padding: 0; font: inherit; cursor
     grid-template-columns: 1fr;
   }
 }
+
+/* Recorded Command Center geography and governance context. */
+.kit-cc-layers,
+.kit-cc-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.kit-cc-layers {
+  margin-bottom: 10px;
+}
+.kit-cc-layers [aria-pressed="true"] {
+  border-color: var(--bar-info);
+  background: var(--c-card-hover);
+}
+.kit-cc-map-layout {
+  display: grid;
+  grid-template-columns: minmax(240px, 1fr) minmax(220px, 1fr);
+  gap: 16px;
+}
+.kit-cc-globe {
+  width: 100%;
+  max-height: 340px;
+  display: block;
+}
+.kit-cc-sphere {
+  fill: transparent;
+  stroke: var(--c-border-strong);
+  stroke-width: 1;
+}
+.kit-cc-sphere.is-filled {
+  fill: var(--c-card);
+}
+.kit-cc-borders {
+  fill: none;
+  stroke: var(--c-muted);
+  stroke-width: 0.65;
+  opacity: 0.7;
+}
+.kit-cc-pin {
+  cursor: pointer;
+  fill: var(--bar-info);
+}
+.kit-cc-pin text {
+  fill: var(--c-text);
+  font-size: 10px;
+  paint-order: stroke;
+  stroke: var(--c-panel);
+  stroke-width: 3px;
+}
+.kit-cc-pin-live {
+  fill: var(--bar-ok);
+}
+.kit-cc-pin-stale {
+  fill: var(--bar-warn);
+}
+.kit-cc-pin-unreachable {
+  fill: var(--bar-err);
+}
+.kit-cc-pin-unknown {
+  fill: var(--c-muted);
+}
+.kit-cc-pin:focus {
+  outline: none;
+}
+.kit-cc-pin:focus circle {
+  stroke: var(--c-text);
+  stroke-width: 3px;
+}
+.kit-cc-sites {
+  max-height: 210px;
+  overflow: auto;
+}
+.kit-cc-sites li {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+.kit-cc-spatial-object,
+.kit-cc-opportunity {
+  padding: 10px;
+  border: 1px solid var(--c-border);
+  border-radius: 6px;
+  background: var(--c-card);
+}
+.kit-cc-spatial-object {
+  margin-top: 12px;
+}
+.kit-cc-opportunity {
+  margin-bottom: 8px;
+}
+.kit-cc-spatial-object p,
+.kit-cc-opportunity p {
+  margin: 6px 0;
+}
+.kit-cc-opportunity h3 {
+  font-size: 12px;
+  font-weight: 600;
+}
+@media (max-width: 720px) {
+  .kit-cc-map-layout {
+    grid-template-columns: 1fr;
+  }
+}
