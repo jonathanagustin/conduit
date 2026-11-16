@@ -68,7 +68,7 @@ rules:
     resources: ["secrets"]
     verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
   # Workload kinds the Agent's own post-renderer expects to meet in a rendered
-  # chart: `apolloPodTemplatePaths` in internal/controlplane/apollo_annotations.go
+  # chart: `apolloPodTemplatePaths` in internal/apollo/workloadmetadata/annotations.go
   # enumerates Deployment, StatefulSet, DaemonSet, ReplicaSet,
   # ReplicationController, Job and CronJob, and the bare-Pod branch below it
   # handles Pod. Helm creates and deletes them; `helm rollback` and the
