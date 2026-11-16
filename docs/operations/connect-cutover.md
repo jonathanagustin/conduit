@@ -15,7 +15,7 @@ including reads. A read encoded as POST is not a governed state change.
 | REST route | Connect service and method | Current console use |
 | --- | --- | --- |
 | `GET /v1/overview` | `conduit.reporting.v1.ReportingService/GetOverview` | Generated overview client |
-| `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | List remains REST |
+| `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for live catch-up; initial/manual reads remain REST |
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | History remains REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |

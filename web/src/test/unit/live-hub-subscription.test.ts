@@ -23,6 +23,7 @@ afterEach(() => {
 });
 function setup(streamStatus = 200) {
   vi.useFakeTimers();
+  vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
   vi.stubGlobal("document", {
     getElementById: () => null,
     querySelector: () => null,
@@ -52,6 +53,21 @@ function setup(streamStatus = 200) {
         signal: init?.signal,
         headers: init?.headers,
       });
+      if (
+        path ===
+        "http://hub.local/conduit.packaging.v1.PackagingRunService/ListPackagingRuns"
+      ) {
+        return new Response(
+          JSON.stringify({
+            configured: true,
+            items: [],
+            limit: 20,
+            total: "0",
+            pageSize: 0,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
+      }
       if (path === "/v1/events") {
         const body = new ReadableStream<Uint8Array>({
           start(value) {

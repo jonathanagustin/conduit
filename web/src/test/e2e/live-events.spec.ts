@@ -26,7 +26,8 @@ async function fixture(page: Page, status = 200) {
   let planStatus = "RUNNING";
   let completed = false;
   const writes: string[] = [],
-    reads: string[] = [];
+    reads: string[] = [],
+    packagingRPCs: string[] = [];
   await page.route("**/console/**", async (route) => {
     if (route.request().resourceType() !== "document") {
       await route.fallback();
@@ -49,6 +50,28 @@ async function fixture(page: Page, status = 200) {
       ),
     });
   });
+  await page.route(
+    "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+    async (route) => {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({});
+      packagingRPCs.push(route.request().method());
+      await route.fulfill({
+        json: {
+          configured: true,
+          authority: "packaging-run",
+          planAuthority: "conduit-plan",
+          approvalAuthority: "conduit-governance",
+          pageSize: 1,
+          limit: 20,
+          total: "1",
+          items: [
+            { runId: "run_live", phase: completed ? "complete" : "review" },
+          ],
+        },
+      });
+    },
+  );
   await page.route("**/v1/**", async (route) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;
@@ -184,6 +207,7 @@ async function fixture(page: Page, status = 200) {
   return {
     writes,
     reads,
+    packagingRPCs,
     completeMetrics() {
       completed = true;
     },
@@ -234,6 +258,8 @@ test("live invalidations refetch the native Plan view under the Hub CSP without 
     "live",
   );
   expect(current.writes).toEqual([]);
+  expect(current.packagingRPCs.length).toBeGreaterThan(0);
+  expect(current.packagingRPCs.every((method) => method === "POST")).toBe(true);
   await page.screenshot({
     path: testInfo.outputPath("live-plan-invalidation.png"),
   });
@@ -266,6 +292,7 @@ test("live permission failure is visible and leaves polling active without recon
     cursor: null,
   });
   expect(current.writes).toEqual([]);
+  expect(current.packagingRPCs).toEqual([]);
 });
 
 test("Audit session feed and native KPI counts update from authorized invalidations without writes", async ({
@@ -326,6 +353,8 @@ test("Audit session feed and native KPI counts update from authorized invalidati
   await expect(feed).toContainText("not a complete event history");
   await expect(feed).not.toContainText("c_1");
   expect(current.writes).toEqual([]);
+  expect(current.packagingRPCs.length).toBeGreaterThan(0);
+  expect(current.packagingRPCs.every((method) => method === "POST")).toBe(true);
   await page.screenshot({
     path: testInfo.outputPath("live-operations-audit.png"),
   });
