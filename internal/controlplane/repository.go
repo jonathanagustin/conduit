@@ -54,6 +54,7 @@ type MemoryRepository struct {
 	changeRequests              map[string]ChangeRequest
 	authorizationAudit          map[string]AuthorizationAuditEvent
 	productPublications         map[string]ProductPublication
+	computeExecutions           map[string]ComputeReservation
 }
 
 type memoryBlob struct {
@@ -91,6 +92,7 @@ func NewMemoryRepository() *MemoryRepository {
 		changeRequests:              make(map[string]ChangeRequest),
 		authorizationAudit:          make(map[string]AuthorizationAuditEvent),
 		productPublications:         make(map[string]ProductPublication),
+		computeExecutions:           make(map[string]ComputeReservation),
 	}
 }
 
