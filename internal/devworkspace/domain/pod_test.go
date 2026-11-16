@@ -287,3 +287,11 @@ func TestConfineRejectsEscape(t *testing.T) {
 		t.Fatalf("confine = %s %v", got, err)
 	}
 }
+
+func TestRenderPodRequiresOperatorEgress(t *testing.T) {
+	for _, config := range []*EgressConfig{nil, {}} {
+		if _, err := RenderPod(PodRequest{Name: "example", Namespace: "workspaces", Egress: config}); !errors.Is(err, ErrInvalidEgress) {
+			t.Fatalf("missing operator git host was replaced by a placeholder: %v", err)
+		}
+	}
+}

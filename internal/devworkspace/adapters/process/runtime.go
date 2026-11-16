@@ -41,7 +41,7 @@ type child struct {
 }
 
 // New returns a runtime that executes command. dir, when set, is the working
-// directory. The child inherits a cleaned rootless environment with no cluster credentials.
+// directory. The child inherits PATH only. This is a host process, not a container.
 func New(command []string, dir func(domain.Workspace) string) *Runtime {
 	if len(command) == 0 {
 		command = []string{"sleep", "3600"}
@@ -49,7 +49,8 @@ func New(command []string, dir func(domain.Workspace) string) *Runtime {
 	return &Runtime{command: command, dir: dir, runs: map[string]*child{}}
 }
 
-// NewWithEgress returns a runtime configured with a validated workspace.egress allowlist.
+// NewWithEgress validates the policy for the controlled DialContext helper.
+// Start refuses arbitrary child execution because this adapter cannot enforce it.
 func NewWithEgress(command []string, dir func(domain.Workspace) string, egress domain.EgressConfig) (*Runtime, error) {
 	validated, err := domain.NormalizeAndValidateEgress(egress)
 	if err != nil {
@@ -69,6 +70,10 @@ func (runtime *Runtime) SetEndpointResolver(resolver func(host string, port int)
 }
 
 func (runtime *Runtime) Start(_ context.Context, workspace domain.Workspace) (domain.Runtime, error) {
+	if runtime.egress != nil {
+		reason := "process runtime cannot enforce workspace isolation"
+		return domain.Runtime{WorkspaceID: workspace.ID, Status: domain.StatusFailed, Failure: reason, Origin: domain.OriginLocalRuntime}, fmt.Errorf("%w: %s", domain.ErrDisabled, reason)
+	}
 	if domain.IsNetworkPolicyEditCommand(runtime.command) {
 		return domain.Runtime{WorkspaceID: workspace.ID, Status: domain.StatusFailed, Failure: "workspace cannot modify its own network policy", Origin: domain.OriginLocalRuntime}, domain.ErrForbidden
 	}
@@ -274,17 +279,9 @@ func (runtime *Runtime) Crash(workspaceID string) error {
 	}
 }
 
-// CommandEnv is the environment a child would receive. Tests use it to prove
-// credential and cluster variables are not inherited and rootless builder mode is set.
-func CommandEnv() []string {
-	return []string{
-		"PATH=" + os.Getenv("PATH"),
-		"BUILDKIT_ROOTLESS=1",
-		"BUILDAH_ISOLATION=chroot",
-		"STORAGE_DRIVER=vfs",
-		"CONDUIT_ISOLATION_MODE=container",
-	}
-}
+// CommandEnv filters inherited variables. It does not restrict filesystem access
+// or establish rootless builder or container execution.
+func CommandEnv() []string { return []string{"PATH=" + os.Getenv("PATH")} }
 
 // InheritedSecret reports whether a secret or cluster credential variable would be passed to a child.
 func InheritedSecret(env []string) bool {
@@ -319,9 +316,8 @@ func HasClusterCredentials(env []string) bool {
 	return false
 }
 
-// VerifyNoClusterCredentialsInWorkspace checks that the workspace environment
-// and filesystem directory contain no Kubernetes service-account token,
-// kubeconfig, or host Docker socket.
+// VerifyNoClusterCredentialsInWorkspace checks the supplied environment and a
+// small set of relative paths. It does not confine absolute host file access.
 func VerifyNoClusterCredentialsInWorkspace(env []string, workDir string) error {
 	if HasClusterCredentials(env) {
 		return fmt.Errorf("%w: cluster credential environment variable present in workspace", domain.ErrForbidden)
@@ -343,8 +339,8 @@ func VerifyNoClusterCredentialsInWorkspace(env []string, workDir string) error {
 	return nil
 }
 
-// DialContext connects from the workspace only when the destination host, port,
-// and protocol are permitted by the workspace's default-deny egress allowlist.
+// DialContext applies the allowlist to this application-controlled connection.
+// It does not intercept sockets opened directly by a child process.
 func (runtime *Runtime) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
 	runtime.mu.Lock()
 	egress := runtime.egress
@@ -378,28 +374,15 @@ func (runtime *Runtime) DialContext(ctx context.Context, network, address string
 	return dialer.DialContext(ctx, network, dialAddr)
 }
 
-// ExecInWorkspace runs a command inside the isolated workspace environment and
-// denies any attempt from inside the workspace to edit its own network policy.
-func (runtime *Runtime) ExecInWorkspace(ctx context.Context, workspace domain.Workspace, argv []string) (string, error) {
-	if len(argv) == 0 {
-		return "", domain.ErrInvalid
-	}
-	if domain.IsNetworkPolicyEditCommand(argv) {
-		return "", fmt.Errorf("%w: workspace container cannot modify its own network policy", domain.ErrForbidden)
-	}
-	env := CommandEnv()
-	workDir := ""
-	if runtime.dir != nil {
-		workDir = runtime.dir(workspace)
-	}
-	if err := VerifyNoClusterCredentialsInWorkspace(env, workDir); err != nil {
+// ExecInWorkspace refuses execution because this adapter has no filesystem or
+// network namespace. A filtered environment and a client-side dial helper do not
+// isolate arbitrary child code.
+func (runtime *Runtime) ExecInWorkspace(ctx context.Context, _ domain.Workspace, argv []string) (string, error) {
+	if err := ctx.Err(); err != nil {
 		return "", err
 	}
-	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
-	cmd.Env = env
-	if workDir != "" {
-		cmd.Dir = workDir
+	if domain.IsNetworkPolicyEditCommand(argv) {
+		return "", domain.ErrForbidden
 	}
-	out, err := cmd.CombinedOutput()
-	return string(out), err
+	return "", fmt.Errorf("%w: process runtime cannot enforce workspace isolation", domain.ErrDisabled)
 }
