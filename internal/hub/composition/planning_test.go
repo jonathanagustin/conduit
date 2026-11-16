@@ -290,7 +290,7 @@ func TestPlanningHandlerWithTemporalServesSessionsAndSSEAgentRuns(t *testing.T) 
 	}
 }
 
-func TestPlanningHandlerEndToEndWorkspaceComputeWithAgentExec(t *testing.T) {
+func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 	tmpDir := t.TempDir()
 	binPath := tmpDir + "/packaging-workflow"
 	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
@@ -373,20 +373,34 @@ func TestPlanningHandlerEndToEndWorkspaceComputeWithAgentExec(t *testing.T) {
 		t.Fatalf("accept session: %d %s", accResp.Code, accResp.Body.String())
 	}
 
-	// 5. Post-Accept Workspace Compute -> writes Dockerfile, zarf.yaml, uds-package.yaml into durable gitstore workspace wsp_<session.ID>
-	compResp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions/"+created.ID+"/compute", `{}`)
-	if compResp.Code != http.StatusAccepted {
-		t.Fatalf("compute session: %d %s", compResp.Code, compResp.Body.String())
+	// Configuring a source root and executable planner does not configure a real
+	// image builder, image inspector or package creator. Do not fabricate success.
+	beforeAudit, err := repository.ListAuthorizationAudit(context.Background(), "planning-session/"+created.ID)
+	if err != nil {
+		t.Fatal(err)
 	}
-
-	// 6. Verify files exist in /v1/dev-workspaces/wsp_<session.ID>/tree and /file
+	compResp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions/"+created.ID+"/compute", `{}`)
+	if compResp.Code != http.StatusNotImplemented || !strings.Contains(compResp.Body.String(), planningdomain.CodeComputeNotConfigured) {
+		t.Fatalf("unconfigured compute: %d %s", compResp.Code, compResp.Body.String())
+	}
 	wsID := "wsp_" + created.ID
 	treeResp := planningRequest(t, handler, "alice", "GET", "/v1/dev-workspaces/"+wsID+"/tree", "")
-	if treeResp.Code != http.StatusOK || !strings.Contains(treeResp.Body.String(), "Dockerfile") || !strings.Contains(treeResp.Body.String(), "zarf.yaml") || !strings.Contains(treeResp.Body.String(), "uds-package.yaml") {
-		t.Fatalf("dev-workspace tree missing generated files: %d %s", treeResp.Code, treeResp.Body.String())
+	if treeResp.Code != http.StatusNotFound {
+		t.Fatalf("unconfigured compute created a workspace: %d %s", treeResp.Code, treeResp.Body.String())
 	}
-	fileResp := planningRequest(t, handler, "alice", "GET", "/v1/dev-workspaces/"+wsID+"/file?path=uds-package.yaml", "")
-	if fileResp.Code != http.StatusOK || !strings.Contains(fileResp.Body.String(), "uds.dev/v1alpha1") {
-		t.Fatalf("dev-workspace file uds-package.yaml: %d %s", fileResp.Code, fileResp.Body.String())
+	afterAudit, err := repository.ListAuthorizationAudit(context.Background(), "planning-session/"+created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(beforeAudit, afterAudit) {
+		t.Fatal("unconfigured compute wrote a packaging audit")
+	}
+	workspaceDir := tmpDir + "/devworkspaces/workspaces/wsp_" + created.ID
+	if _, err := os.Stat(workspaceDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unconfigured compute changed workspace: %v", err)
+	}
+	bindingResp := planningRequest(t, handler, "alice", "GET", "/v1/planning-sessions/"+created.ID+"/binding", "")
+	if bindingResp.Code != http.StatusOK {
+		t.Fatalf("accepted binding was lost: %d %s", bindingResp.Code, bindingResp.Body.String())
 	}
 }

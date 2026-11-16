@@ -99,7 +99,6 @@ func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Re
 			httpSessions = inMem
 			runSessions = inMem
 		}
-		httpSessions = withWorkspaceCompute(httpSessions, os.Getenv("DEVWORKSPACE_GIT_ROOT"), os.Getenv("CONDUIT_MODEL_CMD"), actor, repository)
 		runs, err := agentstream.NewService(runSessions, planningRunAudit{repository: repository, actor: actor})
 		if err != nil {
 			return nil, err
