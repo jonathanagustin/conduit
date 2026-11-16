@@ -713,13 +713,17 @@ func (a *fileWorkspaceComputeAuditor) RecordWorkspacePackage(ctx context.Context
 	if a.repository == nil || strings.TrimSpace(audit.RepoURL) == "" {
 		return nil
 	}
+	decision, reason := governance.DecisionDeny, "workspace packaging did not pass validation"
+	if audit.Outcome == string(domain.OutcomePass) {
+		decision, reason = governance.DecisionAllow, "packaged accepted plan into git workspace branch"
+	}
 	event := governance.NewAuthorizationCheckEvent(
 		time.Now().UTC(),
 		a.actor,
 		"planning.workspace.compute",
 		"planning-session/"+a.sessionID,
-		governance.DecisionAllow,
-		"packaged accepted plan into git workspace branch",
+		decision,
+		reason,
 		audit.Metadata(),
 	)
 	_, err := a.repository.AppendAuthorizationAudit(ctx, event)
