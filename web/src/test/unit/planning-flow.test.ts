@@ -436,7 +436,10 @@ describe("planning flow API", () => {
     try {
       const binding = {
         profile: { name: "onboard", version: "v3", hash: "ph" },
-        intake: { repoUrl: "https://github.com/excalidraw/excalidraw", ref: "main" },
+        intake: {
+          repoUrl: "https://github.com/excalidraw/excalidraw",
+          ref: "main",
+        },
         resolvedCommit: "c".repeat(40),
         model: "conduit-packaging-agent-v1",
         plan,
@@ -462,17 +465,19 @@ describe("planning flow API", () => {
           session: accepted,
         },
       };
-      let computeUrl = "";
-      bindPlanning(root, store, () => {}, async (url: string) => {
-        computeUrl = url;
-        return new Response(JSON.stringify(accepted), {
-          status: 200,
-          headers: { "content-type": "application/json" },
-        });
-      });
+      const fetchImpl = vi.fn<typeof fetch>(
+        async () =>
+          new Response(JSON.stringify(accepted), {
+            status: 200,
+            headers: { "content-type": "application/json" },
+          }),
+      );
+      bindPlanning(root, store, () => {}, fetchImpl);
 
       await click({ target: new FakeElement() });
-      expect(computeUrl).toBe("/v1/planning-sessions/s1/compute");
+      expect(fetchImpl.mock.calls[0]?.[0]).toBe(
+        "/v1/planning-sessions/s1/compute",
+      );
       expect(store.planning.computedWorkspaceId).toBe("wsp_s1");
       expect(planningMarkup(store.planning)).toContain(
         "data-plan-computed-workspace",
@@ -482,4 +487,3 @@ describe("planning flow API", () => {
     }
   });
 });
-

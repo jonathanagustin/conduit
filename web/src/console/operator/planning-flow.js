@@ -385,6 +385,7 @@ export function emptyPlanning() {
     agentMessages: [],
     agentTools: [],
     showPlanJson: false,
+    computedWorkspaceId: "",
   };
 }
 
