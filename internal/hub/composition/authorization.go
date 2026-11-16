@@ -330,6 +330,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "GET /v1/products/{product}/releases",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
+		{Pattern: "GET /v1/products/{product}/releases/{version}/rollout",
+			Decision: DecisionOperatorFiltered, Detail: "explicit operator identity + native Product read grant; filters Environment facts and omits mixed-visibility wave aggregates"},
 		{Pattern: "GET /v1/products/{product}/releases/{version}",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
 		{Pattern: "GET /v1/promotions",
