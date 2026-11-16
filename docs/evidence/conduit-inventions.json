@@ -433,6 +433,13 @@
       "why": "ADR 0016 chooses this console transport and event vocabulary. No recovered Apollo protocol establishes a general operator event stream or these cursor, eligibility and storage semantics. The implementation uses existing native read decisions and does not infer a private upstream wire contract. Bounded native retention requires an explicit reset rather than silently skipping missing source positions.",
       "displacedBy": "A published or owner-approved sanitized event-stream contract establishing transport, cursor binding, stream eligibility, source coverage and resource authorization semantics.",
       "riskIfWrong": "Native event/cursor and transport shapes may need replacement. This is an explicit Conduit extension, conveys no approval/execution authority, and the console reconciles subscriptions through existing authorized reads with polling fallback. The bounded Audit feed is session observation, not durable event history; KPI counts cover loaded authorized snapshots."
+    },
+    {
+      "id": "delivery.ReleaseRolloutView",
+      "what": "Conduit-native read-only release view joining native fleet desired/reported installation facts, environment-scoped declared Product promotion graph edges, and fully authorized process-local staged rollout waves.",
+      "why": "Issue #415 requests a combined backend contract. Existing native fleet, Product settings and staged rollout records establish the underlying facts; no recovered public or authorized Apollo source establishes this combined route or JSON projection.",
+      "displacedBy": "A published or owner-approved sanitized release rollout view contract establishing join grain, Product and Environment visibility, promotion graph scope and wave persistence semantics.",
+      "riskIfWrong": "The JSON projection may need replacement. It is observation-only, not rollout or promotion authority. Mixed-visibility rollouts are omitted entirely; empty observations remain unknown. The wave store is process-local and reads across sources are not a transaction."
     }
   ],
   "displaced": [
