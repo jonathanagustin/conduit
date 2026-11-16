@@ -450,6 +450,9 @@ type planComputeOutput struct {
 }
 
 func executePlanCompute(ctx context.Context, stateDir, actor, workspaceID, envID string, session *planningdomain.Session, logOut io.Writer) (planComputeOutput, error) {
+	if err := requireWorkspaceBoundary(ctx); err != nil {
+		return planComputeOutput{}, err
+	}
 	if strings.TrimSpace(actor) == "" {
 		actor = "operator"
 	}

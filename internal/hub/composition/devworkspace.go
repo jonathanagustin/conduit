@@ -9,6 +9,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	devchange "github.com/jonathanagustin/conduit/internal/devworkspace/adapters/changerequest"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/cluster"
+	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/container"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/process"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/recorded"
@@ -43,6 +44,13 @@ func assembleDevWorkspace(
 		runtime = process.New(nil, nil)
 	case "recorded":
 		runtime = store
+	case "container":
+		isolated, isolateErr := container.NewFromEnv(getenv)
+		if isolateErr != nil {
+			runtime = container.Unavailable{Reason: isolateErr}
+		} else {
+			runtime = isolated
+		}
 	}
 	var pods ports.Provisioner
 	podsOn := getenv("DEVWORKSPACE_PODS") == "1"
