@@ -2,6 +2,7 @@ import { fileURLToPath } from "node:url";
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
+  cacheDir: process.env["PLATFORM_CONSOLE_CACHE_DIR"],
   resolve: {
     alias: {
       "@conduit/ontology-client": fileURLToPath(
