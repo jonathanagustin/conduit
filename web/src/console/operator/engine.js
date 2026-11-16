@@ -1,3 +1,7 @@
+import {
+  createOperationalExamples,
+  isOperationalExample,
+} from "./operational-examples.js";
 import { createEngineerFocus } from "./engineer-workspace.js";
 import { createOntologyExplorer } from "./ontology-explorer.js";
 import { createAuditEventStream } from "./audit-event-stream.js";
@@ -7,7 +11,7 @@ import { mountWindowScheduler } from "./window-scheduler.js";
 import { mountReleaseDependencies } from "./release-dependencies.js";
 import { mountEnvironmentHub } from "./release-environment-hub.js";
 import { mountPlanInspector } from "./release-plan-inspector.js";
-/* Ported from the release console. Example rows stay labeled in the top bar. */
+/* Native views remain native; operational fixtures require per-view opt-in. */
 import {
   readPref,
   writePref,
@@ -944,6 +948,17 @@ export function mountOperator(host, options) {
     ],
   };
 
+  const operationalExamples = createOperationalExamples({
+    currentScreen: () => visibleScreen(),
+    identity: () =>
+      JSON.stringify({
+        actor: state.reviewOperatorActor || "",
+        effective: state.reviewOperatorName || "",
+        identities: state.reviewOperatorIdentities || [],
+      }),
+    render: () => renderMainWorkspace(),
+  });
+
   const releaseGates = createReleaseGates({
     state,
     ic,
@@ -1405,9 +1420,13 @@ export function mountOperator(host, options) {
     }
     badge.style.display = "";
     const proposalUnavailable =
-      (screen === "pt01-proposal-trace" || screen === "pt02-proposals-evals") &&
-      !live &&
-      !state.proposalExamples;
+      ((screen === "pt01-proposal-trace" ||
+        screen === "pt02-proposals-evals") &&
+        !live &&
+        !state.proposalExamples) ||
+      (isOperationalExample(screen) && !operationalExamples.enabled(screen)) ||
+      document.getElementById("main-workspace")?.dataset.unavailableScreen ===
+        screen;
     badge.dataset.mode = live
       ? "live"
       : proposalUnavailable
@@ -1421,7 +1440,7 @@ export function mountOperator(host, options) {
     badge.title = live
       ? "This view is read from the Hub"
       : proposalUnavailable
-        ? "No recorded proposal is available; example mode is off"
+        ? "No native operational data is available for this view; example mode is off"
         : "This view shows example data, not this Hub's records";
   }
 
@@ -4815,6 +4834,8 @@ export function mountOperator(host, options) {
       mountAuditEvents.dispose();
     const root = document.getElementById("main-workspace");
     if (!root) return;
+    delete root.dataset.unavailableScreen;
+    operationalExamples.sync(visibleScreen());
     if (AREAS[state.screen]) {
       renderArea(root);
       updateExampleBadge();
@@ -4863,7 +4884,13 @@ export function mountOperator(host, options) {
       ...ontologyGraph.renderers,
       ...settings.renderers,
     };
-    (m[state.screen] || renderS13FleetOverview)(root);
+    const renderer = m[state.screen];
+    if (!renderer) {
+      root.dataset.unavailableScreen = state.screen;
+      root.innerHTML = `<section class="so-panel p-3" aria-label="View unavailable">This view is unavailable. Choose a view from the navigation.</section>`;
+    } else if (!operationalExamples.paint(root, state.screen, renderer)) {
+      renderer(root);
+    }
     updateExampleBadge();
     settings.applyChrome();
     settings.ensureLoaded();
@@ -5042,7 +5069,11 @@ export function mountOperator(host, options) {
       "au01-audit": renderAuditLedger,
       "adm-platform-status": (node) => void adminStatus.render(node),
     }[current.screen];
-    if (renderer) renderer(root.querySelector("#area-body"));
+    if (renderer) {
+      const body = root.querySelector("#area-body");
+      if (!operationalExamples.paint(body, current.screen, renderer))
+        renderer(body);
+    }
     root.querySelectorAll("[data-area-tab]").forEach((button) => {
       button.addEventListener("click", () => {
         state.areaTab = button.getAttribute("data-area-tab");
@@ -5062,6 +5093,7 @@ export function mountOperator(host, options) {
       state.screen = mapped.area;
       state.areaTab = mapped.tab;
     }
+    operationalExamples.sync(visibleScreen());
     liveHub.ensure();
     renderLeftRail();
     renderCenterTabStrip();
