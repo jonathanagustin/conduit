@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +60,7 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("activitiesWithRepository: %v", err)
 	}
-	planActs, err := planningActivities(repository, true)
+	planActs, err := planningActivities(stateDir, repository, true)
 	if err != nil {
 		t.Fatalf("planningActivities: %v", err)
 	}
@@ -255,5 +257,73 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	reapBytes, err := execRaw("workspace-reap", "--now", futureTime)
 	if err != nil || !strings.Contains(string(reapBytes), "wsp_excalidraw") {
 		t.Fatalf("workspace-reap: err=%v\n%s", err, string(reapBytes))
+	}
+
+	// 13. Point plan-create at a local filesystem repository and verify it creates a new GitHub repo to start and inspects the real files
+	localSrc := filepath.Join(tmpDir, "local-excalidraw")
+	if err := os.MkdirAll(localSrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localSrc, "package.json"), []byte(`{"name":"excalidraw","scripts":{"start":"yarn start"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localSrc, "yarn.lock"), []byte("# yarn lockfile v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localSrc, "tsconfig.json"), []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ghMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/user":
+			_ = json.NewEncoder(w).Encode(map[string]any{"login": "alice"})
+		case r.Method == http.MethodPost && r.URL.Path == "/user/repos":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"name":      "excalidraw-demo",
+				"full_name": "alice/excalidraw-demo",
+				"html_url":  "https://github.com/alice/excalidraw-demo",
+			})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/blobs"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "blob_1"})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/trees"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "tree_1"})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/commits"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "commit_1"})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/refs"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ref": "refs/heads/main"})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ghMock.Close()
+	t.Setenv("CONDUIT_GITHUB_TOKEN", "test-pat-for-demo")
+
+	localSession, err := execCLI(
+		"plan-create", localSrc, "main",
+		"--session-id", "ps_local_gh",
+		"--actor", "alice",
+		"--create-github-repo",
+		"--github-repo", "alice/excalidraw-demo",
+		"--github-api-url", ghMock.URL,
+	)
+	if err != nil {
+		t.Fatalf("plan-create from local filesystem with --create-github-repo: %v", err)
+	}
+	if localSession.Intake.RepoURL != "https://github.com/alice/excalidraw-demo" {
+		t.Fatalf("expected intake RepoURL to be newly created GitHub repo https://github.com/alice/excalidraw-demo, got %q", localSession.Intake.RepoURL)
+	}
+	turnedLocal, err := execCLI("plan-turn", "ps_local_gh", "Inspect local Excalidraw repo", "--actor", "alice")
+	if err != nil {
+		t.Fatalf("plan-turn on local bootstrapped repo: %v", err)
+	}
+	if turnedLocal.Inspection == nil || turnedLocal.Inspection.Language != "typescript" || turnedLocal.Inspection.PackageManager != "yarn" {
+		t.Fatalf("expected real repo inspection (typescript / yarn), got %+v", turnedLocal.Inspection)
 	}
 }
