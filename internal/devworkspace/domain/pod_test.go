@@ -69,19 +69,19 @@ func TestValidateWorkspaceContainerSpecRejectsDockerSocketAndClusterCredentials(
 		{
 			name: "docker socket mount",
 			req: PodRequest{
-				Name:             base.Name,
-				Namespace:        base.Namespace,
-				Egress:           base.Egress,
-				ExtraMountPaths:  []string{"/var/run/docker.sock"},
+				Name:            base.Name,
+				Namespace:       base.Namespace,
+				Egress:          base.Egress,
+				ExtraMountPaths: []string{"/var/run/docker.sock"},
 			},
 		},
 		{
 			name: "serviceaccount token mount",
 			req: PodRequest{
-				Name:             base.Name,
-				Namespace:        base.Namespace,
-				Egress:           base.Egress,
-				ExtraMountPaths:  []string{"/var/run/secrets/kubernetes.io/serviceaccount"},
+				Name:            base.Name,
+				Namespace:       base.Namespace,
+				Egress:          base.Egress,
+				ExtraMountPaths: []string{"/var/run/secrets/kubernetes.io/serviceaccount"},
 			},
 		},
 		{
@@ -287,4 +287,3 @@ func TestConfineRejectsEscape(t *testing.T) {
 		t.Fatalf("confine = %s %v", got, err)
 	}
 }
-
