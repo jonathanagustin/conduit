@@ -5,6 +5,8 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
+	"net"
 	"os/exec"
 	"time"
 
@@ -44,8 +46,20 @@ func (provisioner *Provisioner) Available(ctx context.Context) bool {
 
 // Create applies the pod and its network policy.
 func (provisioner *Provisioner) Create(ctx context.Context, workspace domain.Workspace) error {
-	if !provisioner.Available(ctx) {
-		return domain.ErrNoCluster
+	if provisioner.egress == nil {
+		return fmt.Errorf("%w: operator workspace.egress is not configured", domain.ErrDisabled)
+	}
+	// Standard NetworkPolicy cannot enforce a DNS-name allowlist. The current
+	// renderer uses pod-label placeholders for names; do not admit that draft
+	// as host enforcement until a qualified DNS-aware backend is configured.
+	for _, entry := range provisioner.egress.Allow {
+		if net.ParseIP(entry.Host) != nil {
+			continue
+		}
+		if _, _, err := net.ParseCIDR(entry.Host); err == nil {
+			continue
+		}
+		return fmt.Errorf("%w: DNS workspace egress enforcement is not configured", domain.ErrDisabled)
 	}
 	documents, err := domain.RenderPod(domain.PodRequest{
 		Name:      podName(workspace.ID),
@@ -58,10 +72,15 @@ func (provisioner *Provisioner) Create(ctx context.Context, workspace domain.Wor
 	if err != nil {
 		return err
 	}
-	if err := provisioner.apply(ctx, documents.Pod); err != nil {
+	if !provisioner.Available(ctx) {
+		return domain.ErrNoCluster
+	}
+	// Install the restriction before any workload can start. A policy failure
+	// must never leave an unrestricted Pod running.
+	if err := provisioner.apply(ctx, documents.NetworkPolicy); err != nil {
 		return err
 	}
-	return provisioner.apply(ctx, documents.NetworkPolicy)
+	return provisioner.apply(ctx, documents.Pod)
 }
 
 // Delete removes the pod. An unavailable cluster cannot establish absence.

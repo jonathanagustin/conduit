@@ -30,8 +30,9 @@ type PodDocuments struct {
 	PackageCR     []byte
 }
 
-// RenderPod builds a non-root pod with a rootless builder, a deny-by-default
+// RenderPod requests non-root container settings and a deny-by-default
 // network policy rendered from workspace.egress, and a matching UDS Package CR.
+// Rendering alone does not establish a working rootless builder or DNS policy.
 // The documents never grant cluster-admin, never mount a host Docker socket,
 // and never mount or inject cluster credentials.
 func RenderPod(request PodRequest) (PodDocuments, error) {
@@ -61,15 +62,10 @@ func RenderPod(request PodRequest) (PodDocuments, error) {
 		}
 	}
 
-	egressCfg := EgressConfig{
-		GitHost:      "git.workspace.internal",
-		GitPort:      DefaultGitPort,
-		Registry:     DefaultWorkspaceRegistryHost,
-		RegistryPort: DefaultWorkspaceRegistryPort,
+	if request.Egress == nil {
+		return PodDocuments{}, fmt.Errorf("%w: operator workspace.egress is required", ErrInvalidEgress)
 	}
-	if request.Egress != nil {
-		egressCfg = *request.Egress
-	}
+	egressCfg := *request.Egress
 	validatedEgress, err := NormalizeAndValidateEgress(egressCfg)
 	if err != nil {
 		return PodDocuments{}, err
