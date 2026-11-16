@@ -1,6 +1,7 @@
 package conduitcli
 
 import (
+	"bytes"
 	"encoding/csv"
 	"encoding/json"
 	"errors"
@@ -100,13 +101,15 @@ func writeOutput(writer io.Writer, format string, value any) error {
 			return fmt.Errorf("encode output: %w", err)
 		}
 		var generic any
-		if err := json.Unmarshal(jsonValue, &generic); err != nil {
+		decoder := json.NewDecoder(bytes.NewReader(jsonValue))
+		decoder.UseNumber()
+		if err := decoder.Decode(&generic); err != nil {
 			return fmt.Errorf("normalize output: %w", err)
 		}
 		encoder := yaml.NewEncoder(writer)
 		encoder.SetIndent(2)
 		defer encoder.Close()
-		return encoder.Encode(generic)
+		return encoder.Encode(exactYAMLNumbers(generic))
 	default:
 		return fmt.Errorf("unsupported output format %q; use json, yaml, csv, or table", format)
 	}
