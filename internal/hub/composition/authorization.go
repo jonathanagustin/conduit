@@ -370,6 +370,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; propose permission on the named environment, then the existing policy evaluation, which does not approve the request"},
 		{Pattern: "POST /api/v2/ontologies/{ontology}/objectSets/loadObjects",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal; each object requires resource:read on its environment"},
+		{Pattern: "POST /conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
+			Decision: DecisionOperatorFiltered, Detail: "same operator and parent-run environment visibility checks as GET /v1/packaging-runs/{runID}/events; denied parents remain not found"},
 		{Pattern: "POST /conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
 			Decision: DecisionOperatorFiltered, Detail: "same operator and per-environment visibility checks as GET /v1/packaging-runs; filtering precedes counting and pagination"},
 		{Pattern: "POST /conduit.packaging.v1.PackagingRunService/GetPackagingRun",

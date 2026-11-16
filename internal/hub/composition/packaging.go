@@ -11,7 +11,8 @@ import (
 )
 
 // mountPackaging puts the packaging-run routes, and the Connect procedures for
-// the single-run and filtered index reads, in front of the rest of the Hub. The routes are mounted
+// the single-run, filtered index and event-history reads, in front of the rest
+// of the Hub. The routes are mounted
 // even when no reader is configured so an anonymous caller is refused rather
 // than the path not existing. Cancel and rerun authorize and audit before they
 // talk to a worker, and neither one cancels a Plan.
