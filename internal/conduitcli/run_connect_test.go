@@ -31,7 +31,7 @@ func TestRunListUsesGeneratedConnectAndRetainsNativeEvidence(t *testing.T) {
 		}
 		if r.Header.Get("X-Platform-Subject") != "developer" {
 			t.Error("configured native identity did not reach RPC")
-			http.Error(w, "refused", 401)
+			http.Error(w, "refused", http.StatusUnauthorized)
 			return
 		}
 		body, err := io.ReadAll(r.Body)
