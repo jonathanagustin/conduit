@@ -3,6 +3,15 @@ import {
   packagingRunTransport,
 } from "../../api/packaging-run.js";
 
+import {
+  fetchPackagingRuns,
+  packagingRunsTransport,
+} from "../../api/packaging-runs.js";
+import {
+  fetchPackagingEvents,
+  packagingEventsTransport,
+} from "../../api/packaging-events.js";
+
 import { HubError } from "../../api/hub-error.js";
 export { HubError };
 
@@ -163,41 +172,37 @@ export async function readPackagingRun(runId: string): Promise<PackagingRun> {
   };
 }
 
-export async function listPackagingRuns(): Promise<{
+export async function listPackagingRuns(signal?: AbortSignal): Promise<{
   configured: boolean;
   items: PackagingRun[];
 }> {
-  const body = await send("/v1/packaging-runs?limit=20");
-  const items = Array.isArray(body["items"]) ? body["items"] : [];
+  const page = await fetchPackagingRuns(
+    packagingRunsTransport(window.location.origin),
+    signal,
+    { limit: 20 },
+  );
   return {
-    configured: body["configured"] === true,
-    items: items.flatMap((item) =>
-      item !== null && typeof item === "object"
-        ? [runFrom(item as Record<string, unknown>)]
-        : [],
-    ),
+    configured: page.configured,
+    items: page.items.map((item) => runFrom({ ...item })),
   };
 }
 
-export async function listPackagingEvents(runId: string): Promise<StepEvent[]> {
-  const body = await send(
-    `/v1/packaging-runs/${encodeURIComponent(runId)}/events?limit=20`,
+export async function listPackagingEvents(
+  runId: string,
+  signal?: AbortSignal,
+): Promise<StepEvent[]> {
+  const page = await fetchPackagingEvents(
+    packagingEventsTransport(window.location.origin),
+    signal,
+    { runId, cursor: "" },
   );
-  const items = Array.isArray(body["items"]) ? body["items"] : [];
-  return items.flatMap((item) => {
-    if (item === null || typeof item !== "object") return [];
-    const record = item as Record<string, unknown>;
-    return [
-      {
-        sequence:
-          typeof record["sequence"] === "number" ? record["sequence"] : 0,
-        at: typeof record["at"] === "string" ? record["at"] : "",
-        step: typeof record["step"] === "string" ? record["step"] : "",
-        outcome: typeof record["outcome"] === "string" ? record["outcome"] : "",
-        reason: typeof record["reason"] === "string" ? record["reason"] : "",
-      },
-    ];
-  });
+  return page.items.map(({ sequence, at, step, outcome, reason }) => ({
+    sequence,
+    at,
+    step,
+    outcome,
+    reason,
+  }));
 }
 
 export async function cancelPackagingRun(

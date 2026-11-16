@@ -63,5 +63,17 @@ integer representation. An out-of-range sequence fails the page rather than
 rounding recorded evidence. Totals remain `bigint`; nanosecond timestamps are
 formatted through the generated Timestamp contract. A partial count cannot be
 mistaken for complete history. Worker-unconfigured empty reads remain distinct
-at the client boundary. Initial/manual packaging index reads remain REST;
-this changes only event history, not commands, Plan status or approvals.
+at the client boundary. Initial, manual and live packaging index reads also use
+their generated client. Commands, Plan status and approvals retain their own
+transport and governance contracts.
+
+## Legacy React data helper
+
+`console/data/hub.ts` uses the same generated list and event clients, retaining
+its existing return DTOs and first-page-only behavior (20 rows/events). It does
+not follow returned cursors or claim a complete journal. Both helpers accept an
+optional abort signal; same-origin identity and native `HubError` categories
+are retained, without REST replay. Event sequences outside the renderer's safe
+integer range are refused instead of being rounded or replaced with zero, and
+nanosecond timestamps remain exact. This helper migration is separate from the
+active workbench cutover above; it adds no second conversation or approval path.
