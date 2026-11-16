@@ -97,6 +97,7 @@ var (
 	ErrComputeBeforeAccept  = errors.New("compute is refused before Accept")
 	ErrComputeInProgress    = errors.New("compute is already running for this session")
 	ErrComputeNotConfigured = errors.New("package compute is not configured")
+	ErrPlanDigestMismatch   = errors.New("accepted plan digest does not match the recorded plan text")
 	ErrNoPendingQuestions   = errors.New("there are no pending Needs Input questions")
 	ErrUnknownQuestion      = errors.New("the answer does not match a pending question")
 	ErrInvalidAnswer        = errors.New("the answer is not valid for the question")
@@ -502,6 +503,34 @@ func RequireAccepted(session *Session) error {
 		return ErrComputeBeforeAccept
 	}
 	return nil
+}
+
+// AcceptedGeneration is the plan revision generation must consume: the session
+// that accepted it, the recorded digest, the plan text, and the planning
+// conversation. The digest is checked against the text here.
+type AcceptedGeneration struct {
+	RevisionID   string
+	Digest       string
+	PlanText     string
+	Conversation []Message
+}
+
+// AcceptedGenerationFrom returns the binding generation implements. A stored
+// digest that does not match the plan text is refused.
+func AcceptedGenerationFrom(session *Session) (AcceptedGeneration, error) {
+	if err := RequireAccepted(session); err != nil {
+		return AcceptedGeneration{}, err
+	}
+	plan := session.Binding.Plan
+	if strings.TrimSpace(plan.Text) == "" || plan.SHA256 == "" || PlanHash(plan) != plan.SHA256 {
+		return AcceptedGeneration{}, ErrPlanDigestMismatch
+	}
+	return AcceptedGeneration{
+		RevisionID:   session.ID,
+		Digest:       plan.SHA256,
+		PlanText:     plan.Text,
+		Conversation: append([]Message(nil), session.Messages...),
+	}, nil
 }
 
 // PendingRequired reports whether any required Needs Input question is
