@@ -122,33 +122,38 @@ func serveEvents(cfg Config, writer http.ResponseWriter, request *http.Request) 
 	if !authorized(cfg, writer, request) {
 		return
 	}
-	query, err := parsePage(request.URL.Query())
-	if writeCoded(writer, err) || writeCoded(writer, validateCursor(query)) {
+	page, err := readEventPage(cfg, request, request.PathValue("runID"), request.URL.Query())
+	if writeCoded(writer, err) {
 		return
 	}
-	runID := request.PathValue("runID")
+	writeJSON(writer, http.StatusOK, page)
+}
+
+func readEventPage(cfg Config, request *http.Request, runID string, values url.Values) (eventPage, error) {
+	query, err := parsePage(values)
+	if err != nil {
+		return eventPage{}, err
+	}
+	if err := validateCursor(query); err != nil {
+		return eventPage{}, err
+	}
 	page := blankEventPage(cfg.Reader != nil, query.limit)
 	if cfg.Reader == nil {
-		writeJSON(writer, http.StatusOK, page)
-		return
+		return page, nil
 	}
 	status, err := cfg.Reader.Read(request.Context(), runID)
 	if errors.Is(err, ErrNotFound) || (err == nil && !cfg.allows(request, status.TargetPlanRef)) {
-		writeError(writer, http.StatusNotFound, ErrNotFound.Error())
-		return
+		return eventPage{}, StatusError{Status: http.StatusNotFound, Message: ErrNotFound.Error()}
 	}
 	if err != nil {
-		writeError(writer, http.StatusBadGateway, "packaging run status is unavailable")
-		return
+		return eventPage{}, StatusError{Status: http.StatusBadGateway, Message: "packaging run status is unavailable"}
 	}
 	events, err := cfg.Reader.Events(request.Context(), runID)
 	if errors.Is(err, ErrNotFound) {
-		writeError(writer, http.StatusNotFound, ErrNotFound.Error())
-		return
+		return eventPage{}, StatusError{Status: http.StatusNotFound, Message: ErrNotFound.Error()}
 	}
 	if err != nil {
-		writeError(writer, http.StatusBadGateway, "packaging run history is unavailable")
-		return
+		return eventPage{}, StatusError{Status: http.StatusBadGateway, Message: "packaging run history is unavailable"}
 	}
 	redacted := make([]domain.StepEvent, 0, len(events))
 	for _, event := range events {
@@ -156,8 +161,8 @@ func serveEvents(cfg Config, writer http.ResponseWriter, request *http.Request) 
 	}
 	sort.Slice(redacted, func(i, j int) bool { return redacted[i].Sequence < redacted[j].Sequence })
 	items, meta, err := paginate(redacted, eventKey, query.fingerprint(), query.cursor, query.limit)
-	if writeCoded(writer, err) {
-		return
+	if err != nil {
+		return eventPage{}, err
 	}
 	if items == nil {
 		items = []domain.StepEvent{}
@@ -169,7 +174,7 @@ func serveEvents(cfg Config, writer http.ResponseWriter, request *http.Request) 
 	page.NextCursor = meta.NextCursor
 	page.PreviousCursor = meta.PreviousCursor
 	page.Total = len(redacted)
-	writeJSON(writer, http.StatusOK, page)
+	return page, nil
 }
 
 func (cfg Config) allows(request *http.Request, targetPlanRef string) bool {

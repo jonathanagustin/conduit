@@ -4,6 +4,8 @@ syntax = "proto3";
 // Other Hub domains use the same proto/conduit/<domain>/v1 layout.
 package conduit.packaging.v1;
 
+import "google/protobuf/timestamp.proto";
+
 option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/packaging/v1;packagingv1";
 
 // PackagingRunService reads packaging-run progress.
@@ -11,6 +13,11 @@ option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/packaging
 service PackagingRunService {
   // ListPackagingRuns reads GET /v1/packaging-runs with the same visibility and cursors.
   rpc ListPackagingRuns(ListPackagingRunsRequest) returns (ListPackagingRunsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
+  // ListPackagingRunEvents reads the recorded, redacted history of one visible run.
+  rpc ListPackagingRunEvents(ListPackagingRunEventsRequest) returns (ListPackagingRunEventsResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
   }
 
@@ -112,4 +119,73 @@ message ListPackagingRunsResponse {
   string previous_cursor = 11;
   // total counts visible matches, not all stored runs.
   int64 total = 12;
+}
+
+// ListPackagingRunEventsRequest names a run and the native seek window.
+message ListPackagingRunEventsRequest {
+  // run_id is the REST path parameter, not an approval or actor identity.
+  string run_id = 1;
+  // view selects full (default, max 20) or summary (default 100, max 200).
+  string view = 2;
+  // limit is optional; explicit zero and negative values are invalid.
+  optional int32 limit = 3;
+  // cursor is the native opaque seek cursor.
+  string cursor = 4;
+}
+
+// PackagingRunEvent is one native recorded packaging step, after redaction.
+// References never grant authority or establish Plan approval or execution.
+message PackagingRunEvent {
+  // sequence is the native monotonic journal position.
+  int64 sequence = 1;
+  // at is the occurrence time; sequence, not time, determines ordering.
+  google.protobuf.Timestamp at = 2;
+  // step retains the native open step vocabulary.
+  string step = 3;
+  // outcome is the recorded outcome; absent steps are not passes.
+  string outcome = 4;
+  // reason has the same credential redaction as REST.
+  string reason = 5;
+  // source_digest identifies the recorded source.
+  string source_digest = 6;
+  // artifact_digest identifies the recorded artifact.
+  string artifact_digest = 7;
+  // proposal_revision identifies the recorded proposal revision.
+  string proposal_revision = 8;
+  // approval_id is a reference, not approval authority.
+  string approval_id = 9;
+  // plan_id is a reference, not Plan state.
+  string plan_id = 10;
+  // target_plan_ref is the existing native target reference.
+  string target_plan_ref = 11;
+}
+
+// ListPackagingRunEventsResponse is the native authorized history page.
+message ListPackagingRunEventsResponse {
+  // tier identifies this Conduit-native contract.
+  string tier = 1;
+  // configured is false when this Hub has no packaging reader.
+  bool configured = 2;
+  // authority owns packaging progress.
+  string authority = 3;
+  // plan_authority owns Plan state separately.
+  string plan_authority = 4;
+  // approval_authority owns approval decisions separately.
+  string approval_authority = 5;
+  // run_id identifies the visible parent run, empty when unconfigured.
+  string run_id = 6;
+  // items contains only recorded, redacted events in sequence order.
+  repeated PackagingRunEvent items = 7;
+  // page_size is the number of returned events.
+  int32 page_size = 8;
+  // limit is the applied native limit.
+  int32 limit = 9;
+  // has_previous indicates a previous seek window exists.
+  bool has_previous = 10;
+  // next_cursor is opaque and absent at the end.
+  string next_cursor = 11;
+  // previous_cursor is opaque; empty can address the first page.
+  string previous_cursor = 12;
+  // total counts the parent run's recorded events, not future steps.
+  int64 total = 13;
 }

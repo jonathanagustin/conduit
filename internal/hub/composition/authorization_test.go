@@ -83,6 +83,9 @@ const (
 // valid request below. Accepting protocol/validation errors instead would not
 // demonstrate an authorization refusal after the resource check was removed.
 func bodyFor(pattern string) string {
+	if pattern == "POST /conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents" {
+		return `{"runId":"private-run"}`
+	}
 	if pattern == "POST /conduit.notifications.v1.NotificationService/ListNotificationEvents" {
 		return `{"resourceRid":"environment/` + fixtureEnvironment + `","limit":"100"}`
 	}
