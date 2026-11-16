@@ -2,6 +2,8 @@ package workflow
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -31,6 +33,7 @@ type ClientService struct {
 	taskQueue string
 	actor     string
 	seq       *atomic.Uint64
+	compute   application.AppgenComputer
 }
 
 // NewClientService creates a Temporal-backed planning session service scoped
@@ -50,9 +53,19 @@ func NewClientService(c WorkflowClient, taskQueue, actor string, seq *atomic.Uin
 	}
 }
 
+// WithCompute sets the post-Accept computer. Unset compute stays refused.
+func (s *ClientService) WithCompute(compute application.AppgenComputer) *ClientService {
+	s.compute = compute
+	return s
+}
+
 // Create starts a new durable planning session workflow and queries its initial state.
 func (s *ClientService) Create(ctx context.Context, repoURL, ref string) (*domain.Session, error) {
-	return s.CreateWithID(ctx, fmt.Sprintf("ps_%d", s.seq.Add(1)), repoURL, ref)
+	sessionID, err := newSessionID()
+	if err != nil {
+		return nil, err
+	}
+	return s.CreateWithID(ctx, sessionID, repoURL, ref)
 }
 
 // CreateWithInput starts a new durable planning session workflow for either onboard or appgen intake.
@@ -63,9 +76,12 @@ func (s *ClientService) CreateWithInput(ctx context.Context, in domain.CreateInp
 	if _, _, _, err := domain.ParseCreateInput(in); err != nil {
 		return nil, err
 	}
-	sessionID := fmt.Sprintf("ps_%d", s.seq.Add(1))
+	sessionID, err := newSessionID()
+	if err != nil {
+		return nil, err
+	}
 	wfID := WorkflowID(sessionID)
-	_, err := s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+	_, err = s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
 		ID:                    wfID,
 		TaskQueue:             s.taskQueue,
 		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
@@ -241,7 +257,21 @@ func (s *ClientService) Compute(ctx context.Context, id string) (*domain.Session
 	if err := domain.RequireAccepted(session); err != nil {
 		return nil, err
 	}
-	return nil, domain.ErrComputeNotConfigured
+	if s.compute == nil {
+		return nil, domain.ErrComputeNotConfigured
+	}
+	if err := s.compute(ctx, session); err != nil {
+		return nil, err
+	}
+	return session, nil
+}
+
+func newSessionID() (string, error) {
+	var raw [16]byte
+	if _, err := rand.Read(raw[:]); err != nil {
+		return "", fmt.Errorf("allocate a planning session id: %w", err)
+	}
+	return "ps_" + hex.EncodeToString(raw[:]), nil
 }
 
 func mapNotFound(err error) error {

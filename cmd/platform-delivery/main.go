@@ -223,6 +223,12 @@ func main() {
 		operatorSignIn = controlplane.OperatorSignInFromIssuer(ctx, os.Getenv("OPERATOR_OIDC_ISSUER"), os.Getenv("OPERATOR_OIDC_CLIENT_ID"))
 	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
+	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository)
+	if err != nil {
+		slog.Error("start planning workflow worker", "error", err)
+		os.Exit(1)
+	}
+	defer stopPlanning()
 	liveEventJournal, closeLiveEventJournal, err := openLiveEventJournal(os.Getenv)
 	if err != nil {
 		slog.Error("initialize live-event delivery journal", "error", err)
@@ -562,6 +568,20 @@ func openRepository(
 	}
 }
 
+func httpWriteTimeout() time.Duration {
+	fallback := 30 * time.Second
+	text := strings.TrimSpace(os.Getenv("CONDUIT_HTTP_WRITE_TIMEOUT"))
+	if text == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(text)
+	if err != nil || parsed <= 0 {
+		slog.Error("CONDUIT_HTTP_WRITE_TIMEOUT must be a positive duration", "value", text)
+		os.Exit(1)
+	}
+	return parsed
+}
+
 func readSingleLineSecretFile(path, variable string) (string, error) {
 	path = strings.TrimSpace(path)
 	if path == "" {
@@ -858,18 +878,4 @@ func startMetricsListener(ctx context.Context, address string, readStats metrics
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
 	}
-}
-
-func httpWriteTimeout() time.Duration {
-	fallback := 30 * time.Second
-	text := strings.TrimSpace(os.Getenv("CONDUIT_HTTP_WRITE_TIMEOUT"))
-	if text == "" {
-		return fallback
-	}
-	parsed, err := time.ParseDuration(text)
-	if err != nil || parsed <= 0 {
-		slog.Error("CONDUIT_HTTP_WRITE_TIMEOUT must be a positive duration", "value", text)
-		os.Exit(1)
-	}
-	return parsed
 }

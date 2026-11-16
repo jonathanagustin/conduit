@@ -38,14 +38,14 @@ Accept records, and never rewrites:
 
 Accept writes an authorization audit receipt before the session is bound. If that write fails, the session stays unaccepted. The receipt binds profile coordinates, intake, the source commit, and the plan hash. It does not copy the plan text into the audit.
 
-Sessions are isolated by the authenticated owner. Another operator receives 404 for that session, including for Accept and compute. Session documents in this slice are process-local and disappear on Hub restart.
+Sessions are isolated by the authenticated owner. Another operator receives 404 for that session, including for Accept and compute. The production chart runs two Hub replicas against one shared workflow frontend, so a session created on one replica is readable on the other and survives a Hub restart when that frontend persists. A process-local store is limited to one replica. The chart will not render more than one, and startup fails if `HUB_REPLICA_COUNT` is greater than 1 without the shared frontend.
 
 ## Compute before Accept is refused
 
 > [!IMPORTANT]
 > `POST /v1/planning-sessions/{sessionID}/compute` is refused with `COMPUTE_BEFORE_ACCEPT` until the Accept binding exists.
 
-After Accept, that route returns `COMPUTE_NOT_CONFIGURED` until `CONDUIT_IMAGE_BUILDER=docker` admits the local engine builder, the engine image inspector, and the zarf package creator together. `scripts/demo-seed.sh` and `scripts/demo-excalidraw-e2e.sh` set that variable. They exit with an install message when docker or zarf is missing. The digest they record is the local engine image id, not a registry manifest digest, unless the image is pushed.
+After Accept, that route returns `COMPUTE_NOT_CONFIGURED` until `CONDUIT_IMAGE_BUILDER=docker` admits the local engine builder, the engine image inspector, and the zarf package creator together. The production chart publishes that builder, `DEVWORKSPACE_GIT_ROOT`, and `CONDUIT_HTTP_WRITE_TIMEOUT`. `scripts/demo-seed.sh` and `scripts/demo-excalidraw-e2e.sh` set the builder. They exit with an install message when docker or zarf is missing. The digest they record is the local engine image id, not a registry manifest digest, unless the image is pushed.
 
 ## Workspace, gates, and the change request
 

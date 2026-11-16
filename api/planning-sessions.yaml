@@ -3,8 +3,9 @@
 # Turns may stream as text/event-stream (message, inspection, needs_input,
 # plan, status, error, done). Accept is the control point: no package or
 # image compute runs before it. Hub sessions are isolated by the authenticated
-# credential owner. Unknown or other-owner session IDs return 404. Session state
-# is process-local; Accept writes a repository audit receipt before binding.
+# credential owner. Unknown or other-owner session IDs return 404. The production
+# chart stores sessions on a shared workflow frontend. A process-local store is
+# one replica only. Accept writes a repository audit receipt before binding.
 # Compute remains unconfigured after Accept in this contract slice.
 openapi: 3.0.3
 info:

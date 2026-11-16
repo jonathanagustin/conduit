@@ -1,3 +1,7 @@
+{{- $planningBackend := .Values.planning.backend | default "local" -}}
+{{- if and (gt (int .Values.replicaCount) 1) (ne $planningBackend "temporal") }}
+{{- fail "replicaCount greater than 1 requires planning.backend temporal; a process-local planning store is not shared across Hub replicas" }}
+{{- end }}
 {{- $podLabels := deepCopy .Values.podLabels -}}
 {{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-hub.name" .) -}}
 {{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
@@ -100,6 +104,25 @@ spec:
             - { name: DOCKER_CONFIG, value: {{ $.Values.artifactScanner.registryAuthMountPath | quote }} }
             {{- end }}
             {{- end }}
+            - { name: HUB_REPLICA_COUNT, value: {{ .Values.replicaCount | quote }} }
+            {{- if eq $planningBackend "temporal" }}
+            - { name: CONDUIT_TEMPORAL_ADDRESS, value: {{ required "planning.temporal.address is required when planning.backend is temporal" .Values.planning.temporal.address | quote }} }
+            - { name: CONDUIT_TEMPORAL_NAMESPACE, value: {{ .Values.planning.temporal.namespace | default "default" | quote }} }
+            - { name: CONDUIT_TEMPORAL_TASK_QUEUE, value: {{ .Values.planning.temporal.taskQueue | default "planning-sessions" | quote }} }
+            - { name: CONDUIT_TEMPORAL_SHARED, value: "true" }
+            {{- end }}
+            {{- with .Values.planning.compute.imageBuilder }}
+            - { name: CONDUIT_IMAGE_BUILDER, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.planning.compute.gitRoot }}
+            - { name: DEVWORKSPACE_GIT_ROOT, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.planning.compute.packagingBuild }}
+            - { name: CONDUIT_PACKAGING_BUILD, value: {{ . | quote }} }
+            {{- end }}
+            {{- with .Values.planning.compute.httpWriteTimeout }}
+            - { name: CONDUIT_HTTP_WRITE_TIMEOUT, value: {{ . | quote }} }
+            {{- end }}
             {{- if .Values.packagingWorkflow.enabled }}
             - { name: PACKAGING_TEMPORAL_ADDRESS, value: {{ required "packagingWorkflow.address is required when packagingWorkflow.enabled" .Values.packagingWorkflow.address | quote }} }
             - { name: PACKAGING_TEMPORAL_NAMESPACE, value: {{ .Values.packagingWorkflow.namespace | quote }} }
@@ -154,6 +177,9 @@ spec:
             {{- with .Values.artifactScanner.registryAuthSecretName }}
             - { name: artifact-scanner-registry-auth, mountPath: {{ $.Values.artifactScanner.registryAuthMountPath | quote }}, readOnly: true }
             {{- end }}
+            {{- with .Values.planning.compute.gitRoot }}
+            - { name: planning-workspaces, mountPath: {{ . | quote }} }
+            {{- end }}
             {{- if .Values.packagingWorkflow.enabled }}
             {{- with .Values.packagingWorkflow.tls.certSecretName }}
             - { name: packaging-temporal-tls, mountPath: /run/packaging-temporal-tls, readOnly: true }
@@ -197,6 +223,10 @@ spec:
             name: {{ include "platform-hub.fullname" . }}-console-bootstrap
             items:
               - { key: bootstrap.json, path: bootstrap.json }
+        {{- with .Values.planning.compute.gitRoot }}
+        - name: planning-workspaces
+          emptyDir: {}
+        {{- end }}
         {{- with .Values.artifactScanner.toolsPersistentVolumeClaimName }}
         - name: artifact-scanner-tools
           persistentVolumeClaim:

@@ -14,3 +14,6 @@ repository:
   postgres:
     secretName: platform-postgres
     dsnKey: dsn
+planning:
+  temporal:
+    address: planning-frontend.platform-system.svc:7233
