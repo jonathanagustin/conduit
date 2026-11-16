@@ -456,7 +456,7 @@ func (store *Store) ExpirePreservedVolumes(_ context.Context, now time.Time) ([]
 	return expired, nil
 }
 
-// List implements ports.Files over committed Git state at HEAD.
+// ListDir implements ports.Files over committed Git state at HEAD.
 func (store *Store) ListDir(ctx context.Context, id, prefix, cursor string, limit int) (domain.TreePage, error) {
 	confined := "."
 	var err error
