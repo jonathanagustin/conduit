@@ -3285,6 +3285,26 @@ test("engineer focus preserves one live conversation, draft and pending request"
       (el) => el === document.querySelector('[aria-label="Message input"]'),
     ),
   ).toBe(true);
+  const guidance = rail.locator("[data-engineer-guidance]");
+  await expect(guidance).toBeVisible();
+  const capabilities = guidance.getByText("Capabilities", { exact: true });
+  await capabilities.focus();
+  await capabilities.press("Enter");
+  await expect(
+    guidance.getByText("Inspect ontology objects", { exact: true }),
+  ).toBeVisible();
+  await expect(
+    guidance.getByText("Propose governed action", { exact: true }),
+  ).toHaveCount(0);
+  await guidance.getByText("Skills", { exact: true }).click();
+  await expect(
+    guidance.getByText("No skills inventory is available for this workspace."),
+  ).toBeVisible();
+  await guidance.getByText("Docs", { exact: true }).click();
+  await expect(
+    guidance.getByRole("link", { name: "Workspace Studio scope", exact: true }),
+  ).toHaveAttribute("rel", "noopener noreferrer");
+  await expect(composer).toHaveValue("Unsent engineering notes");
   expect(calls).toBe(0);
   expect(writes).toEqual([]);
   expect(
@@ -3295,6 +3315,10 @@ test("engineer focus preserves one live conversation, draft and pending request"
   await composer.fill("Inspect <img src=x> recorded source");
   await page.getByRole("button", { name: "Send message", exact: true }).click();
   await expect.poll(() => calls).toBe(1);
+  await capabilities.press("Enter");
+  await capabilities.press("Enter");
+  expect(failed).toBe(0);
+  expect(writes).toEqual(["/v1/assistant/turns"]);
   await page
     .getByRole("button", { name: "Return to workbench", exact: true })
     .click();
@@ -3335,8 +3359,26 @@ test("engineer focus preserves one live conversation, draft and pending request"
   expect(bounds!.x).toBeGreaterThanOrEqual(-0.01);
   expect(bounds!.width).toBeLessThanOrEqual(375.01);
   await expect(composer).toBeVisible();
+  await rail
+    .locator("[data-engineer-guidance]")
+    .getByText("Capabilities", { exact: true })
+    .click();
+  await rail
+    .locator("[data-engineer-guidance]")
+    .getByText("Docs", { exact: true })
+    .click();
+  await expect(
+    rail.getByRole("link", { name: "Identity and governed actions" }),
+  ).toBeVisible();
+  await expect(composer).toBeVisible();
+  await expect(composer).toHaveValue(
+    "Keep this draft across Studio navigation",
+  );
+  const expandedBounds = await rail.boundingBox();
+  expect(expandedBounds!.x).toBeGreaterThanOrEqual(-0.01);
+  expect(expandedBounds!.x + expandedBounds!.width).toBeLessThanOrEqual(375.01);
   await page.screenshot({
-    path: "/workspace/scratch/engineer-focus-narrow.png",
+    path: "/workspace/scratch/engineer-guidance-narrow.png",
   });
   await page.evaluate(() => {
     const event = new KeyboardEvent("keydown", {

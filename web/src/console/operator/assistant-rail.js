@@ -112,6 +112,38 @@ function modeAllows(mode, tool) {
   return (table[mode] || []).includes(tool);
 }
 
+// Guidance describes existing mode controls, not a permission or model-readiness claim.
+function workspaceGuidance(mode) {
+  const tools = [
+    [
+      "query_ontology_objects",
+      "Inspect ontology objects",
+      "Read recorded objects visible to the caller.",
+    ],
+    [
+      "review_change_diff",
+      "Review change diff",
+      "Inspect the recorded before/after fields of a Change Request.",
+    ],
+    [
+      "propose_governed_action",
+      "Propose governed action",
+      "Prepare a proposal; submission still follows Confirm or Change Request review.",
+    ],
+  ].filter(([tool]) => modeAllows(mode, tool));
+  const toolRows = tools
+    .map(
+      ([, label, description]) =>
+        `<li><span class="font-medium text-[#dce4ee]">${esc(label)}</span><p>${esc(description)}</p></li>`,
+    )
+    .join("");
+  return `<section data-engineer-guidance aria-label="Workspace guidance" class="shrink-0 max-h-[180px] overflow-y-auto text-[10.5px] text-[#8b96a5]">
+    <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Capabilities</summary><p>Tools shown in this mode. Each request uses your Hub permissions.</p>${toolRows ? `<ul class="space-y-2 mt-2">${toolRows}</ul>` : "<p>No tools are listed for this mode.</p>"}</details>
+    <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Skills</summary><p>No skills inventory is available for this workspace.</p></details>
+    <details class="kit-card"><summary class="cursor-pointer py-1 text-[#dce4ee]">Docs</summary><ul class="space-y-1"><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/engineer-conversation-focus.md" target="_blank" rel="noopener noreferrer">Engineer conversation guide</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/workspace-studio-scope.md" target="_blank" rel="noopener noreferrer">Workspace Studio scope</a></li><li><a class="underline" href="https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/identity-and-governance.md" target="_blank" rel="noopener noreferrer">Identity and governed actions</a></li></ul></details>
+  </section>`;
+}
+
 function governedFields(state, chip) {
   const hub = state.hub || {};
   const change = (hub.changes || []).find((item) => item.environment) || {};
@@ -175,6 +207,7 @@ export function assistantChrome(state) {
       <div class="max-h-[120px] overflow-y-auto">${attachmentList(state.attachments?.items)}</div>
       ${attachControl(state.attachments?.reason, "assistant")}
     </div>
+    ${state.engineerFocus ? workspaceGuidance(mode) : ""}
     <div data-assistant-results class="shrink-0 max-h-[42%] overflow-y-auto space-y-2"></div>
   `;
 }

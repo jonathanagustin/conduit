@@ -28,6 +28,53 @@ function fixture() {
   return { root, nav, workspace, focus: createEngineerFocus(root) };
 }
 
+describe("engineer workspace guidance", () => {
+  it("is scoped to focus and uses native read-only disclosures", () => {
+    expect(assistantChrome({})).not.toContain("data-engineer-guidance");
+    const html = assistantChrome({ engineerFocus: true });
+    expect(html).toContain('aria-label="Workspace guidance"');
+    for (const label of ["Capabilities", "Skills", "Docs"])
+      expect(html).toContain(`>${label}</summary>`);
+    expect(html).toContain(
+      "No skills inventory is available for this workspace.",
+    );
+    expect(html).not.toContain("textarea");
+    expect(html).not.toContain("data-install-skill");
+  });
+  it.each([
+    ["explore", true, false, false],
+    ["config_diff", true, true, false],
+    ["release_plan", true, false, true],
+    ["ontology", true, true, true],
+    ["unknown", false, false, false],
+  ])(
+    "describes only existing controls for %s",
+    (mode, query, diff, propose) => {
+      const html = assistantChrome({
+        engineerFocus: true,
+        assistantMode: mode,
+      });
+      expect(html.includes("Inspect ontology objects")).toBe(query);
+      expect(html.includes("Review change diff")).toBe(diff);
+      expect(html.includes("Propose governed action")).toBe(propose);
+      expect(html).toContain("Each request uses your Hub permissions.");
+    },
+  );
+  it("links to existing repository guides with no opener", () => {
+    const html = assistantChrome({ engineerFocus: true });
+    for (const document of [
+      "engineer-conversation-focus",
+      "workspace-studio-scope",
+      "identity-and-governance",
+    ]) {
+      expect(html).toContain(
+        `/docs/architecture/${document}.md" target="_blank" rel="noopener noreferrer"`,
+      );
+    }
+    expect(html).not.toContain("javascript:");
+  });
+});
+
 describe("engineer conversation focus", () => {
   it("makes only the background inert and restores its prior state", () => {
     const { root, nav, workspace, focus } = fixture();
