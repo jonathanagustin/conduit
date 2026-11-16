@@ -304,3 +304,25 @@ credentials and nonessential traffic/updating disabled. This is a version check,
 not a model request or agent execution. Other platform artifacts are covered by
 the signed checksum coordinates, not local execution. No source-to-binary
 attestation or review of the complete bundled dependency closure is claimed.
+
+## Dockerfile frontend 1.29 qualification
+
+The [upstream dockerfile/1.29.0 release](https://github.com/moby/buildkit/releases/tag/dockerfile%2F1.29.0)
+cleared the three-day Renovate delay. Its annotated tag resolves to
+`f55949dea4f03bb9d85b73e9afc9a609291289db`; GitHub reports the tag as unsigned.
+Docker Hub's `docker/dockerfile:1.29` index bytes match the pinned digest
+`sha256:572cebbc2b15e6f84c077742952674889cb63cd5e9b80abdffcbe587b6f19183`.
+Its annotations identify version 1.29.0 and the same source revision, and its
+platform manifests include Linux amd64 and arm64.
+
+The pulled amd64 frontend, run with networking disabled, a read-only filesystem
+and dropped capabilities, reports `dockerfile/1.29.0` and that exact revision.
+The four Containerfiles retain immutable digest pins and otherwise unchanged
+contents. This establishes image identity, source-coordinate agreement and an
+amd64 version check. It does not verify an image signature or build attestation,
+execute the arm64 frontend, or establish a complete application image build.
+
+BuildKit v0.34.0 `--call=check` passes on all four tracked Containerfiles with
+this frontend, using an isolated tracked-tree context. This checks frontend
+parsing and build configuration against the pinned base-image metadata without
+executing application build steps; it is not a completed image build.
