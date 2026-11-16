@@ -1,10 +1,11 @@
 # Hub REST and Connect cutover
 
 Status: incremental dual serving; no REST deprecation date is set. This plan
-addresses the documentation portion of #394. Contracts (#391), handlers (#392),
-console clients (#393), governed-write parity and CLI migration remain tracked
-separately. It does not authorize route removal or change the supported protocol
-of an existing caller.
+records the representative dual-serve milestone in #394: authorized index and
+detail reads plus governed Plan approval, with existing generated console reads
+and explicit CLI read modes. Remaining contracts (#391), handlers (#392), console
+clients (#393) and route-specific CLI migrations remain incremental. This does
+not authorize route removal or change an existing caller’s supported protocol.
 
 ## Current route map
 
@@ -19,6 +20,7 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
 | `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated contract and native adapter; no caller cutover yet |
+| `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Native governed command; callers remain REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
 | `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Dual-served native summary contract; callers remain REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
@@ -28,11 +30,12 @@ These are Conduit-native contracts. See [overview](connect-reporting-overview.md
 [notification events](connect-notification-events.md),
 [event history](connect-packaging-events.md) and
 [Plan summaries](connect-plan-summaries.md) and
-[Product summaries](connect-product-summaries.md) for their bounded behavior.
+[Product summaries](connect-product-summaries.md) and
+[Plan approval](connect-plan-approval.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
 Known follow-ons are environment index/detail/reported-state, fleet
-installations, full Plan index/detail/approval/cancel, change-request approve/reject,
+installations, full Plan index/detail/cancel, change-request approve/reject,
 and authorization audit. Governed packaging rerun/cancel already have REST
 routes but no methods in the current packaging proto.
 Derive their RPC messages from those routes before migrating their callers;
@@ -65,8 +68,11 @@ Existing examples are `internal/packagingworkflow/httpapi/connect_list_test.go`,
 `internal/hub/composition/packaging_index_test.go`,
 `internal/hub/composition/reporting_connect_test.go` and
 `internal/hub/composition/notification_connect_test.go`. They establish bounded
-read parity. Representative governed-command parity remains unfinished; #394
-must stay open until that proof and the CLI work are complete.
+read parity. Plan approval adds governed-command parity in
+`internal/hub/composition/plan_approval_connect_test.go`, including stored state,
+audit, independent review and a failed handoff after approval is recorded. This
+completes the representative proof in #394, without claiming all routes or CLI
+commands have migrated.
 
 During this period, a new route in a family being migrated needs its REST
 registration, proto contract, RPC adapter, authorization-register entry and

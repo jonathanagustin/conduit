@@ -52,14 +52,14 @@ func paginatePlans(records []PlanRecord, query PlanQuery, cursor string, limit i
 func summarizePlanPage(page PlanPage) PlanSummaryPage {
 	summaries := make([]PlanSummary, 0, len(page.Plans))
 	for _, record := range page.Plans {
-		summaries = append(summaries, PlanSummary{
-			ID: record.ID, Environment: record.Plan.Environment, Status: record.Status,
-			StepCount: len(record.Plan.Steps), ApprovalCount: len(record.Approvals),
-			RequiredApprovals: record.RequiredApprovals, CreatedAt: record.CreatedAt,
-			UpdatedAt: record.UpdatedAt, Revision: record.Revision,
-		})
+		summaries = append(summaries, PlanSummaryFor(record))
 	}
 	return PlanSummaryPage{Plans: summaries, Total: page.Total, PageMetadata: page.PageMetadata}
+}
+
+// PlanSummaryFor projects an already-authorized native result; it grants no read authority.
+func PlanSummaryFor(record PlanRecord) PlanSummary {
+	return PlanSummary{ID: record.ID, Environment: record.Plan.Environment, Status: record.Status, StepCount: len(record.Plan.Steps), ApprovalCount: len(record.Approvals), RequiredApprovals: record.RequiredApprovals, CreatedAt: record.CreatedAt, UpdatedAt: record.UpdatedAt, Revision: record.Revision}
 }
 
 func filterPlans(records []PlanRecord, query PlanQuery) []PlanRecord {
