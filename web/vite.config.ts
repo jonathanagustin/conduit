@@ -78,6 +78,8 @@ export default defineConfig({
     ],
   },
   base: "/console/",
+  // Verification owns a disposable cache; ordinary development keeps Vite defaults.
+  cacheDir: process.env["PLATFORM_CONSOLE_CACHE_DIR"],
   resolve: {
     alias: {
       "@conduit/ontology-client": fileURLToPath(

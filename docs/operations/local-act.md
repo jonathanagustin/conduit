@@ -45,3 +45,10 @@ protection, write a fabricated hosted status or override a server refusal.
 Hosted run reporting depends on GitHub run IDs and remains separate. Release,
 signing, publication and deployment retain their existing manual authorization
 and release-path checks; a local PASS grants none of them.
+
+Console verification gives Vite a cache under its own temporary run directory
+through `PLATFORM_CONSOLE_CACHE_DIR`. The cache is a sibling of the build output,
+so rebuilding the output cannot erase a live cache. The script removes its owned
+run directory on exit, including failures. Ordinary developer runs retain Vite's
+default cache. This cleanup does not remove installed dependencies, browser
+binaries, qualified inputs, source, receipts or another run's cache.
