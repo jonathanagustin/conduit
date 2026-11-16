@@ -772,7 +772,7 @@ func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
 		Short: "Stage and commit /repo changes onto the workspace Git branch",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			msg := "workspace sync"
+			msg := "chore(workspace): sync files"
 			if len(args) == 2 {
 				msg = args[1]
 			}
