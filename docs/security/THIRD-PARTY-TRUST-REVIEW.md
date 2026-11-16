@@ -381,3 +381,55 @@ ACR strict-host regression, root race/contract/schema tests, source-built Cosign
 command, and advisory scans are the relevant execution checks; exact tested
 commits and their results are recorded on PR #735. Local credential-helper tests
 do not establish live Azure authentication, signing authority or publication.
+
+## Terraform AWS provider 6.73.0 qualification
+
+The November 11 release clears the repository's three-day delay. The upstream
+`v6.73.0` tag resolves to `22e15d8b32e0c8bac1378a058b6d087c0191c1da`.
+The Linux amd64 ZIP is SHA-256
+`2ba661a4a782fba053c411ce4d828dc148d7ed3998d073a28370a559400b1578`.
+Its signed checksum manifest verifies against HashiCorp release key
+`C874011F0AB405110D02105534365D9472D7468F`, obtained from HashiCorp's
+[primary release-key endpoint](https://www.hashicorp.com/.well-known/pgp-key.txt).
+The registry checksum agrees; modifying the manifest invalidates its signature.
+The archive retains its MPL-2.0 license notice. This is publisher archive
+signature verification, not verification of a build attestation or a proof that
+the tag's source reproduced the executable.
+
+The 808,878,240-byte executable has SHA-256
+`abf1a999cc3d66dc3f087f096493cd1cd6d97a07022470d1f5a89cb0ce1f683f`
+and reports Go 1.27.4 in its build information. Actual Terraform 1.17.2
+initialization, provider schema loading and validation pass for the four
+unchanged module input files except the reviewed version pin. Execution used an
+offline filesystem mirror in a container with networking disabled, UID 65532,
+read-only root and all capabilities dropped. AWS configuration/credential paths
+were `/dev/null`, metadata access was disabled, and no credentials, Docker socket
+or cluster token were mounted. Validation returned zero errors and warnings;
+the module's IAM policy, role, attachment and policy-document types exist.
+There was no plan, apply, AWS call or qualification of other platforms or the
+entire declared Terraform version range. The release's WAF/EFS changes do not
+correspond to resources in this module.
+
+### Retired OpenPGP advisory assessment
+
+`govulncheck v1.9.0 -mode=binary` reports GO-2026-5932 for the artifact's
+`golang.org/x/crypto v0.58.0` module. The provider is stripped. That scanner
+[falls back to module-wide candidate package findings when symbols are absent](https://github.com/golang/vuln/blob/v1.9.0/internal/vulncheck/binary.go),
+so the printed result alone does not establish that the retired OpenPGP package
+is present or callable.
+
+An independent Go 1.27.4 standard-library ELF/pclntab inspection reads 867,843
+functions, including `main.main`, 531 functions from the maintained
+`github.com/ProtonMail/go-crypto/openpgp` fork and 131 cryptobyte functions.
+It finds no retired `golang.org/x/crypto/openpgp` functions; that exact package
+prefix is also absent from the complete executable bytes. A known-present
+package control is correctly detected and rejected. This corroborates the
+[same pinned upstream source's documented use of the maintained fork](https://github.com/hashicorp/terraform-provider-aws/blob/22e15d8b32e0c8bac1378a058b6d087c0191c1da/.release/security-scan.hcl).
+The pclntab check is not a call-graph analysis or a general vulnerability scanner.
+
+The finding is assessed as not applicable to this exact artifact, rather than
+reported as a clean scanner exit. No scanner suppression or security gate was
+added to Conduit. Repeat the assessment for another artifact or dependency graph;
+it is not a blanket exemption for the legacy package or a live AWS security
+qualification. Exact source, command, archive and diagnostic receipts are linked
+from PR #734, outside the repository.
