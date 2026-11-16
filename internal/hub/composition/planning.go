@@ -80,10 +80,6 @@ func planningHandler(legacy http.Handler, repository controlplane.Repository, op
 	return planningHandlerWithTemporal(legacy, repository, options, runner, nil)
 }
 
-func planningHandlerWithAppgenCompute(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, appgenCompute planningapp.AppgenComputer) http.Handler {
-	return planningHandlerWithOptions(legacy, repository, options, runner, nil, appgenCompute, nil, os.Getenv)
-}
-
 func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient) http.Handler {
 	return planningHandlerWithOptions(legacy, repository, options, runner, temporalClient, nil, nil, os.Getenv)
 }
