@@ -370,15 +370,26 @@ jobs:
       - name: Validate mutation harness
         if: needs.scope.outputs.go == 'true'
         run: ./scripts/verify-mutant-killed.test.sh
-      # ubuntu-26.04 does not package Python 3.12. The gate accepts 3.12 or
-      # newer and still installs the pinned validator dependencies in a
-      # temporary venv. These are protocol regressions, not live inference
-      # or a cluster acceptance test.
+      # ubuntu-26.04's python3 is not 3.12, and Debian splits ensurepip into
+      # python3.12-venv. This CPython build includes both. The gate creates an
+      # isolated venv through ensurepip. These are protocol/validator
+      # regressions, not live Codex inference or Kubernetes/Helm acceptance.
+      - name: Install pinned Python
+        if: needs.scope.outputs.go == 'true'
+        uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
       - name: Validate packaging regression gates
         if: needs.scope.outputs.go == 'true'
         run: |
-          sudo apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-venv
+          python3 - <<'PY'
+          import ensurepip, sys, venv
+          if sys.version_info[:2] != (3, 12):
+              raise SystemExit(
+                  "packaging gates require Python 3.12 with venv and ensurepip, found "
+                  + sys.version.split()[0]
+              )
+          PY
           python3 scripts/test-packaging-gates.py
       - name: Validate PostgreSQL repository
         if: needs.scope.outputs.go == 'true'

@@ -272,6 +272,7 @@ not_run_as_written=(
   'Install console dependencies'
   'Install pinned console browser'
   'Install pinned Hadolint'
+  'Install pinned Python'
   'Install pinned Zarf'
   'Publish pending Trunk status'
   'Publish gate summary'
