@@ -358,6 +358,7 @@ func (store *Store) WriteAndCommit(ctx context.Context, id string, files map[str
 	if err := store.saveWorkspaceLocked(ws); err != nil {
 		return domain.Workspace{}, err
 	}
+	_ = store.pushBranchLocked(ctx, ws)
 	return ws, nil
 }
 
@@ -382,8 +383,20 @@ func (store *Store) Sync(ctx context.Context, id, message string) (domain.Worksp
 		if err := store.saveWorkspaceLocked(ws); err != nil {
 			return domain.Workspace{}, err
 		}
+		_ = store.pushBranchLocked(ctx, ws)
 	}
 	return ws, nil
+}
+
+// PushBranch pushes the workspace's Git branch to origin.
+func (store *Store) PushBranch(ctx context.Context, id string) error {
+	store.mu.Lock()
+	defer store.mu.Unlock()
+	ws, ok := store.rows[id]
+	if !ok {
+		return domain.ErrNotFound
+	}
+	return store.pushBranchLocked(ctx, ws)
 }
 
 func (store *Store) commitWorkingTreeLocked(ctx context.Context, ws domain.Workspace, message string, skipSecrets bool) (string, bool, error) {
@@ -494,6 +507,13 @@ func (store *Store) pushBranchLocked(ctx context.Context, ws domain.Workspace) e
 	}
 	if !found {
 		return fmt.Errorf("workspace has no origin remote")
+	}
+	remoteURL, _ := gitOut(ctx, repoDir, "remote", "get-url", "origin")
+	remoteURL = strings.TrimSpace(remoteURL)
+	if owner, repo, ok := parseGitHubOwnerRepo(remoteURL); ok {
+		if token := resolveGitHubToken(""); token != "" {
+			return pushBranchToGitHubOrOrigin(ctx, repoDir, ws.Branch, "", token, owner, repo)
+		}
 	}
 	return runGit(ctx, repoDir, "push", "-u", "origin", "HEAD:refs/heads/"+ws.Branch)
 }
