@@ -13,6 +13,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"go.yaml.in/yaml/v4"
 )
@@ -552,7 +553,7 @@ func (executor HelmExecutor) postRenderArguments(
 	if strings.TrimSpace(executor.Environment) == "" {
 		return nil, nil
 	}
-	metadata, err := controlplane.ApolloWorkloadMetadataFor(
+	metadata, err := workloadmetadata.ApolloWorkloadMetadataFor(
 		executor.Environment, step.Entity, step.Product, step.Version)
 	if err != nil {
 		return nil, nil

@@ -144,7 +144,7 @@ def assert_spoke_rbac_floor!(root, documents, expected_namespaces, profile)
     # kubernetesSecretName half of internal/agent/material.go.
     ['', 'secrets'] => %w[get list watch create update patch delete],
     # apolloPodTemplatePaths and the bare-Pod branch in
-    # internal/controlplane/apollo_annotations.go; health.go lists Pods.
+    # internal/apollo/workloadmetadata/annotations.go; health.go lists Pods.
     ['', 'pods'] => %w[get list watch create update patch delete],
     ['', 'replicationcontrollers'] => %w[get list watch create update patch delete],
     # Same table, plus `kubectl rollout restart|status` in helm.go, whose kinds

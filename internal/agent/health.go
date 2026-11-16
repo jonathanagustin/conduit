@@ -14,13 +14,14 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
 
-// healthProbeAnnotation is defined once in the control plane alongside the rest
+// healthProbeAnnotation is defined once in the compatibility leaf alongside the rest
 // of the documented Apollo workload metadata, so the key this reads and the keys
 // the platform emits cannot drift apart.
-const healthProbeAnnotation = controlplane.ApolloHealthProbeAnnotation
+const healthProbeAnnotation = workloadmetadata.ApolloHealthProbeAnnotation
 
 type HealthControlPlane interface {
 	HealthTargets(context.Context, string, string) ([]controlplane.HealthTarget, error)

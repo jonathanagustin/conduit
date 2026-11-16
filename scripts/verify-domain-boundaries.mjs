@@ -21,6 +21,13 @@ function imports(path) {
   return [...singles, ...blocks.flatMap((block) => [...block.matchAll(/"([^"]+)"/g)].map((match) => match[1]))];
 }
 for (const path of filesBelow(join(root, "internal"))) {
+  if (path.startsWith(join(root, "internal/apollo/workloadmetadata/"))) {
+    for (const dependency of imports(path)) {
+      if (dependency !== "go.yaml.in/yaml/v4" && (dependency.includes("/internal/") || dependency.split("/")[0].includes("."))) {
+        failures.push(`${relative(root, path)}: workload metadata leaf imports ${dependency}`);
+      }
+    }
+  }
   const local = relative(root, path).replaceAll("\\", "/");
   const dependencies = imports(path);
   if (local.includes("/domain/")) {

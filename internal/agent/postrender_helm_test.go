@@ -10,6 +10,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 )
 
@@ -90,7 +91,7 @@ func TestPostRenderChainAgainstRealHelm(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	metadata, err := controlplane.ApolloWorkloadMetadataFor("prod-eu", "catalog", "com.palantir:catalog", "1.2.3")
+	metadata, err := workloadmetadata.ApolloWorkloadMetadataFor("prod-eu", "catalog", "com.palantir:catalog", "1.2.3")
 	if err != nil {
 		t.Fatal(err)
 	}

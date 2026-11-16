@@ -46,6 +46,20 @@ rest of the system. See [Contract-first API](contract-first-api.md).
 
 ## Dependency direction
 
+The leaf `internal/apollo/workloadmetadata` package owns the existing public
+workload annotation keys, Entity ID grammar and YAML stamping implementation.
+Agent renderers, health readers and network-policy rendering import it directly;
+it may depend only on the standard library and the existing YAML v4 parser.
+The boundary gate rejects imports of Conduit implementations and additional
+third-party packages from this leaf. Existing tests move with the implementation;
+this extraction adds no compatibility claim or new wire behavior.
+
+The legacy configuration renderer in `internal/controlplane/configuration.go`
+still calls this leaf to render the existing `apollo` Helm values projection.
+That transitional dependency is explicit: this extraction does not finish the
+native core/edge-port migration in #428. The remaining facade, mirrored types
+and configuration projection still need that broader migration.
+
 Domain packages may depend on their own value types and narrow ports. Adapters
 depend inward on those ports. Composition code may depend on both so it can
 wire them together. Domain code must not import HTTP handlers, file stores,

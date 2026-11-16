@@ -7,7 +7,7 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 )
 
 // Helm applies a chart by rendering it and sending the result to the API server.
@@ -31,7 +31,7 @@ func RunPostRenderer(metadataPath string, in io.Reader, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read post-render metadata: %w", err)
 	}
-	var metadata controlplane.ApolloWorkloadMetadata
+	var metadata workloadmetadata.ApolloWorkloadMetadata
 	if err := json.Unmarshal(raw, &metadata); err != nil {
 		return fmt.Errorf("parse post-render metadata: %w", err)
 	}
@@ -39,7 +39,7 @@ func RunPostRenderer(metadataPath string, in io.Reader, out io.Writer) error {
 	if err != nil {
 		return fmt.Errorf("read rendered manifests: %w", err)
 	}
-	stamped, err := controlplane.ApplyApolloWorkloadMetadata(rendered, metadata)
+	stamped, err := workloadmetadata.ApplyApolloWorkloadMetadata(rendered, metadata)
 	if err != nil {
 		return err
 	}

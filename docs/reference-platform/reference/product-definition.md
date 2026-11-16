@@ -282,7 +282,7 @@ point at which they are cheap to find:
   outside the platform. Its `apollo.palantir.com/*` label and annotations are
   applied by the Agent at install time rather than written by a Product author,
   so there is nothing in the pair to validate against them. They are defined in
-  `internal/controlplane/apollo_annotations.go` and stamped onto rendered objects
+  `internal/apollo/workloadmetadata/annotations.go` and stamped onto rendered objects
   by a Helm post-renderer. The flag is spelled differently per Helm major
   version — an executable path on 3, a `postrenderer/v1` plugin name on 4 — and
   the plugin manifest's schema was established against a real Helm 4 binary,

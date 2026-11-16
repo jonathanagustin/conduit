@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 )
 
 const (
@@ -199,7 +199,7 @@ func (backend CiliumBackend) validateScope(intent NetworkPolicyIntent) error {
 	if strings.TrimSpace(intent.EntityID) == "" {
 		return fmt.Errorf("network policy requires an Apollo Entity ID")
 	}
-	if len(intent.EntityID) > controlplane.ApolloEntityIDMaximumLength || !strings.HasPrefix(intent.EntityID, "aeid:"+intent.Environment+":") {
+	if len(intent.EntityID) > workloadmetadata.ApolloEntityIDMaximumLength || !strings.HasPrefix(intent.EntityID, "aeid:"+intent.Environment+":") {
 		return fmt.Errorf("network policy Apollo Entity ID is not bound to Environment %q", intent.Environment)
 	}
 	if strings.TrimSpace(intent.PlanID) == "" || intent.Attempt == 0 {
@@ -348,9 +348,9 @@ func renderCiliumPolicy(intent NetworkPolicyIntent, name, digest string) ([]byte
 	policy := ciliumPolicy{
 		APIVersion: ciliumAPIVersion, Kind: ciliumKind,
 		Metadata: ciliumPolicyMetadata{Name: name, Namespace: intent.Namespace, Annotations: map[string]string{
-			controlplane.ApolloEnvironmentIDAnnotation: intent.Environment,
-			controlplane.ApolloEntityIDAnnotation:      intent.EntityID,
-			planIDAnnotation:                           intent.PlanID, planAttemptAnnotation: strconv.FormatUint(intent.Attempt, 10),
+			workloadmetadata.ApolloEnvironmentIDAnnotation: intent.Environment,
+			workloadmetadata.ApolloEntityIDAnnotation:      intent.EntityID,
+			planIDAnnotation: intent.PlanID, planAttemptAnnotation: strconv.FormatUint(intent.Attempt, 10),
 			policyDigestAnnotation: digest,
 		}},
 		Spec: ciliumPolicySpec{EndpointSelector: ciliumEndpointSelector{MatchLabels: CiliumWorkloadIdentityLabels(intent.Environment, intent.EntityID)}, Egress: egress},
@@ -455,9 +455,9 @@ func applyCiliumRealization(observation *NetworkPolicyObservation, evidence Cili
 
 func receiptAnnotations(receipt NetworkPolicyReceipt) map[string]string {
 	return map[string]string{
-		controlplane.ApolloEnvironmentIDAnnotation: receipt.Environment,
-		controlplane.ApolloEntityIDAnnotation:      receipt.EntityID,
-		planIDAnnotation:                           receipt.PlanID, planAttemptAnnotation: strconv.FormatUint(receipt.Attempt, 10),
+		workloadmetadata.ApolloEnvironmentIDAnnotation: receipt.Environment,
+		workloadmetadata.ApolloEntityIDAnnotation:      receipt.EntityID,
+		planIDAnnotation: receipt.PlanID, planAttemptAnnotation: strconv.FormatUint(receipt.Attempt, 10),
 		policyDigestAnnotation: receipt.PolicyDigest,
 	}
 }

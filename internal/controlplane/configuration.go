@@ -10,6 +10,7 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 	"go.yaml.in/yaml/v4"
 )
 
@@ -63,7 +64,7 @@ func resolveDeploymentHelmValues(environment Environment, entity Entity) (json.R
 	}
 	values = mergeStringMaps(values, cloneJSON(overrides))
 	parts := strings.SplitN(entity.Product, ":", 2)
-	entityID, _ := ApolloHelmChartEntityID(environment.ID, entity.Name)
+	entityID, _ := workloadmetadata.ApolloHelmChartEntityID(environment.ID, entity.Name)
 	compatibilityValues := map[string]any{
 		"entity":      map[string]any{"id": entityID},
 		"product":     map[string]any{"group": parts[0], "name": parts[1], "version": entity.Version},
