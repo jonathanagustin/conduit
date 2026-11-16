@@ -120,9 +120,9 @@ describe("recorded packaging pipeline", () => {
     const history = await readPackagingHistory("r/1", read);
     expect(history.complete).toBe(true);
     expect(history.items).toHaveLength(2);
-    expect(read.mock.calls.map(([path]) => path)).toEqual([
-      "/v1/packaging-runs/r%2F1/events",
-      "/v1/packaging-runs/r%2F1/events?cursor=opaque%2F%2B%3D",
+    expect(read.mock.calls.map(([query]) => query)).toEqual([
+      { runId: "r/1", cursor: "" },
+      { runId: "r/1", cursor: "opaque/+=" },
     ]);
     const looping = vi.fn().mockResolvedValue({
       items: [event(1, "assess")],

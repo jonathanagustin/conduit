@@ -72,6 +72,23 @@ async function fixture(page: Page, status = 200) {
       });
     },
   );
+  await page.route(
+    "**/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
+    async (route) => {
+      expect(route.request().method()).toBe("POST");
+      expect(route.request().postDataJSON()).toEqual({ runId: "run_live" });
+      await route.fulfill({
+        json: {
+          configured: true,
+          runId: "run_live",
+          items: [],
+          total: "0",
+          pageSize: 0,
+          limit: 20,
+        },
+      });
+    },
+  );
   await page.route("**/v1/**", async (route) => {
     const request = route.request(),
       path = new URL(request.url()).pathname;

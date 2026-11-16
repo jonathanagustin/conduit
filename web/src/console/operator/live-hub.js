@@ -2,6 +2,10 @@ import {
   fetchPackagingRuns,
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
+import {
+  fetchPackagingEvents,
+  packagingEventsTransport,
+} from "../../api/packaging-events.js";
 import { LiveSubscription, idleLiveStatus } from "../../api/live-events.js";
 import { createLiveOperations } from "./live-operations.js";
 import { liveSessionIdentity } from "../../api/live-identity.js";
@@ -643,7 +647,13 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.feedbackByRun = Object.create(null);
       for (const run of next.packaging) {
         if (!run.runId) continue;
-        const history = await readPackagingHistory(run.runId, read);
+        const history = await readPackagingHistory(run.runId, (query) =>
+          fetchPackagingEvents(
+            packagingEventsTransport(window.location.origin),
+            options.signal,
+            query,
+          ),
+        );
         next.packagingEventsByRun[run.runId] = history.items;
         next.packagingHistoryByRun[run.runId] = history;
         try {

@@ -923,44 +923,42 @@ test("packaging graph and staged chunks keep the selected run and paged history"
       });
       return;
     }
-    if (url.pathname.endsWith("/events")) {
-      if (url.pathname.includes("run-a")) {
-        const next = url.searchParams.has("cursor");
-        await route.fulfill({
-          json: {
-            items: [
-              {
-                sequence: next ? 2 : 1,
-                at: "2026-11-15T09:00:00Z",
-                step: next ? "review" : "assess",
-                outcome: next ? "WAITING" : "PASS",
-                reason: next ? "waiting-a" : "a-only-output",
-              },
-            ],
-            total: 2,
-            ...(next ? {} : { nextCursor: "cursor-a" }),
-          },
-        });
-        return;
-      }
-      await route.fulfill({
-        json: {
-          items: [
-            {
-              sequence: 1,
-              at: "2026-11-15T09:00:01Z",
-              step: "build",
-              outcome: "FAIL_REQUIRED",
-              reason: "b-only-failed",
-            },
-          ],
-          total: 1,
-        },
-      });
-      return;
-    }
     await route.fulfill({ json: { items: [], total: 0 } });
   });
+  const historyQueries: { runId: string; cursor?: string }[] = [];
+  await page.route(
+    "**/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
+    async (route) => {
+      expect(route.request().method()).toBe("POST");
+      const query = route.request().postDataJSON();
+      historyQueries.push(query);
+      const first = query.runId === "run-a";
+      const next = Boolean(query.cursor);
+      await route.fulfill({
+        json: {
+          configured: true,
+          runId: query.runId,
+          pageSize: 1,
+          limit: 20,
+          total: first ? "2" : "1",
+          nextCursor: first && !next ? "cursor-a" : "",
+          items: [
+            {
+              sequence: first && next ? "2" : "1",
+              at: "2026-11-15T09:00:00.123456789Z",
+              step: first ? (next ? "review" : "assess") : "build",
+              outcome: first ? (next ? "WAITING" : "PASS") : "FAIL_REQUIRED",
+              reason: first
+                ? next
+                  ? "waiting-a"
+                  : "a-only-output"
+                : "b-only-failed",
+            },
+          ],
+        },
+      });
+    },
+  );
   await page.goto("/console/#s07-pipeline");
   await expect(page.locator("[data-packaging-pipeline]")).toBeVisible();
   await expect(
@@ -1002,9 +1000,8 @@ test("packaging graph and staged chunks keep the selected run and paged history"
     .getByRole("button", { name: "Open pipeline graph", exact: true })
     .click();
   await expect(page.locator("[data-packaging-run]")).toHaveValue("run-b");
-  expect(calls.some((call) => call.path.includes("cursor=cursor-a"))).toBe(
-    true,
-  );
+  expect(historyQueries).toContainEqual({ runId: "run-a", cursor: "cursor-a" });
+  expect(calls.some((call) => call.path.includes("/events"))).toBe(false);
   expect(calls.every((call) => call.method === "GET")).toBe(true);
 });
 

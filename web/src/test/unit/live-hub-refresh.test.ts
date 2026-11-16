@@ -58,8 +58,38 @@ describe("live hub refresh", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input, init) => {
-        const path = String(input);
-        calls.push({ path, method: init?.method || "GET" });
+        const request = input instanceof Request ? input : null;
+        const path = request ? new URL(request.url).pathname : String(input);
+        calls.push({ path, method: request?.method || init?.method || "GET" });
+        if (request) {
+          const query = await request.json();
+          expect(path).toBe(
+            "/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
+          );
+          expect(request.credentials).toBe("same-origin");
+          const first = query.runId === "r1";
+          return new Response(
+            JSON.stringify({
+              configured: true,
+              runId: query.runId,
+              limit: 20,
+              pageSize: first ? 1 : 0,
+              total: first ? "2" : "0",
+              nextCursor: first && !query.cursor ? "next" : "",
+              items: first
+                ? [
+                    {
+                      sequence: query.cursor ? "2" : "1",
+                      at: "2026-11-16T00:00:00Z",
+                      step: query.cursor ? "review" : "inspect",
+                      reason: "first-run-only",
+                    },
+                  ]
+                : [],
+            }),
+            { headers: { "content-type": "application/json" } },
+          );
+        }
         if (path === "/v1/packaging-runs")
           return new Response(
             JSON.stringify({
@@ -69,32 +99,16 @@ describe("live hub refresh", () => {
               ],
             }),
           );
-        if (path === "/v1/packaging-runs/r1/events")
-          return new Response(
-            JSON.stringify({
-              items: [
-                { sequence: 1, step: "inspect", reason: "first-run-only" },
-              ],
-              total: 2,
-              nextCursor: "next",
-            }),
-          );
-        if (path.includes("r1/events?cursor="))
-          return new Response(
-            JSON.stringify({
-              items: [{ sequence: 2, step: "review", outcome: "WAITING" }],
-              total: 2,
-            }),
-          );
-        if (path === "/v1/packaging-runs/r2/events")
-          return new Response(JSON.stringify({ items: [], total: 0 }));
         return new Response("{}");
       }),
     );
+    vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
     const state: Record<string, any> = {};
     const live = createLiveHub({ state, render: () => {} });
     await live.refresh();
     expect(state.hub.packagingEventsByRun.r1).toHaveLength(2);
+    expect(state.hub.packagingHistoryByRun.r1.total).toBe(BigInt(2));
+    expect(calls.some((call) => call.path.includes("/events"))).toBe(false);
     expect(state.hub.packagingHistoryByRun.r1.complete).toBe(true);
     state.packagingRunId = "r2";
     const root = { innerHTML: "", querySelectorAll: () => [] };
@@ -106,8 +120,8 @@ describe("live hub refresh", () => {
     expect(root.innerHTML).not.toContain("first-run-only");
     expect(
       calls
-        .filter((call) => call.path.includes("/events"))
-        .every((call) => call.method === "GET"),
+        .filter((call) => call.path.includes("ListPackagingRunEvents"))
+        .every((call) => call.method === "POST"),
     ).toBe(true);
   });
 });

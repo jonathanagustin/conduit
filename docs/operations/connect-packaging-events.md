@@ -48,3 +48,20 @@ CLI keep their existing callers until their own explicit migration changes.
 General live updates remain SSE under [ADR 0016](../decisions/0016-console-live-events.md).
 
 Refs #391, #392, #393 and the [cutover plan](connect-cutover.md).
+
+## Operator console reader
+
+The active workbench refresh uses the generated `ListPackagingRunEvents` client
+for each run, following opaque cursors in recorded order. Requests retain
+same-origin credentials, the refresh abort signal and a ten-second per-page
+timeout. Auth and validation failures map to `HubError` and never replay through
+REST. The existing bounded view retains a successfully read prefix on a later
+failure and labels it incomplete (16 pages / 256 events maximum).
+
+ProtoJSON event sequences are checked before conversion to the renderer's safe
+integer representation. An out-of-range sequence fails the page rather than
+rounding recorded evidence. Totals remain `bigint`; nanosecond timestamps are
+formatted through the generated Timestamp contract. A partial count cannot be
+mistaken for complete history. Worker-unconfigured empty reads remain distinct
+at the client boundary. Initial/manual packaging index reads remain REST;
+this changes only event history, not commands, Plan status or approvals.
