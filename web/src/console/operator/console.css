@@ -1177,6 +1177,10 @@
 }
 
 /* Focus the existing assistant; keep its DOM node and saved dock width. */
+/* Hidden background content must not scroll the root when a disclosure gains focus. */
+.operator-root[data-engineer-focus="true"] {
+  overflow: clip;
+}
 .operator-root[data-engineer-focus="true"] #right-chat-rail {
   position: absolute !important;
   inset: 0;
