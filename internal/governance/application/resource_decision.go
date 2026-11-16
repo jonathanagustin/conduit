@@ -36,23 +36,13 @@ type AdministratorPolicy struct {
 	AllowLocalDeveloperFallback bool
 }
 
-// ResourceDecision answers, and records, the one question every Hub surface
-// asks before serving a resource: may this caller perform this operation on
-// this coordinate.
+// ResourceDecision checks a resource operation and attempts to record the policy
+// verdict for the original carrier. Mutations require successful persistence;
+// the two explicit read operations retain best-effort auditing.
 //
-// The pairing of answer and record is Allow's, and it is worth stating exactly
-// how far it reaches, because the shorter claim -- "this cannot decide without
-// filing" -- is false and would be believed. Allow is the *resource* decision,
-// and it always files. Administrator below is a predicate that returns a full
-// verdict and touches nothing: it is exported because the routes gated on
-// administrator status alone need the same answer these routes use, and those
-// routes record nothing. A refused `GET /v1/authorization-audit` leaves no
-// entry in the authorization audit, here and on every revision before this one.
-//
-// That gap is real and is deliberately not closed here. Recording the predicate
-// means recording it for every administrator-gated route, under an action name
-// none of them currently supply, which is a change to those routes rather than
-// to this struct.
+// Administrator is a separate side-effect-free predicate. Administrator-only
+// routes that call that predicate directly still write no resource decision;
+// this type does not change those routes or their audit behavior.
 type ResourceDecision struct {
 	// Authorizer answers what the grant table conveys.
 	Authorizer *Authorizer
@@ -97,17 +87,16 @@ func (decision ResourceDecision) Administrator(ctx context.Context, principal do
 		ctx, domain.EffectivePrincipal(principal), platformRoot, domain.OperationManagePermissions)
 }
 
-// Allow decides whether the operation may proceed and files what it decided.
-// This is the pairing ResourceDecision claims: reaching this function means the
-// record is written, whichever branch the administrator predicate above took.
-//
-// The record is written for a refusal as well as a grant, and its failure is
-// not reported: a decision already taken is not undone by a store that would
-// not hold the note, and refusing the request instead would let an audit outage
-// deny reads that Governance had already allowed.
+// Allow checks permission and attempts to persist the original carrier's decision.
+// Mutations require a persisted verdict. The two explicit read operations retain
+// their existing best-effort audit behavior; unknown operations fail closed on an
+// audit outage. A missing required sink refuses every operation.
 func (decision ResourceDecision) Allow(
 	ctx context.Context, principal domain.Principal, resourceRID, operation string,
 ) bool {
+	if decision.Audit == nil {
+		return false
+	}
 	allowed := decision.Administrator(ctx, principal) ||
 		decision.Authorizer.Allows(ctx, domain.EffectivePrincipal(principal), resourceRID, operation)
 	verdict, reason := domain.DecisionAllow, "resource operation authorized"
@@ -122,10 +111,10 @@ func (decision ResourceDecision) Allow(
 	if principal.OnBehalfOf != nil {
 		onBehalfOf = principal.OnBehalfOf.Username
 	}
-	_, _ = decision.Audit.AppendAuthorizationAudit(ctx, domain.NewAuthorizationCheckEvent(
+	_, err := decision.Audit.AppendAuthorizationAudit(ctx, domain.NewAuthorizationCheckEvent(
 		decision.instant(), principal.Username, operation, resourceRID, verdict, reason,
 		map[string]any{"onBehalfOf": onBehalfOf}))
-	return allowed
+	return allowed && (err == nil || operation == domain.OperationReadResource || operation == domain.OperationReadDebugRequest)
 }
 
 func (decision ResourceDecision) instant() time.Time {
