@@ -287,6 +287,8 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	ghMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/info/refs"):
+			w.WriteHeader(http.StatusServiceUnavailable)
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			_ = json.NewEncoder(w).Encode(map[string]any{"login": "alice"})
 		case r.Method == http.MethodPost && r.URL.Path == "/user/repos":
@@ -294,20 +296,22 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"name":      "excalidraw-demo",
 				"full_name": "alice/excalidraw-demo",
-				"html_url":  "https://github.com/alice/excalidraw-demo",
+				"html_url":  "http://" + r.Host + "/alice/excalidraw-demo",
 			})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/blobs"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "blob_1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("a", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/trees"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "tree_1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("b", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/commits"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "commit_1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("c", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/refs"):
+			var payload struct{ Ref, SHA string }
+			_ = json.NewDecoder(r.Body).Decode(&payload)
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ref": "refs/heads/main"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"ref": payload.Ref, "object": map[string]string{"sha": payload.SHA, "type": "commit"}})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -326,8 +330,8 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plan-create from local filesystem with --create-github-repo: %v", err)
 	}
-	if localSession.Intake.RepoURL != "https://github.com/alice/excalidraw-demo" {
-		t.Fatalf("expected intake RepoURL to be newly created GitHub repo https://github.com/alice/excalidraw-demo, got %q", localSession.Intake.RepoURL)
+	if localSession.Intake.RepoURL != ghMock.URL+"/alice/excalidraw-demo" {
+		t.Fatalf("expected loopback GitHub fixture repo %q, got %q", ghMock.URL+"/alice/excalidraw-demo", localSession.Intake.RepoURL)
 	}
 	turnedLocal, err := execCLI("plan-turn", "ps_local_gh", "Inspect local Excalidraw repo", "--actor", "alice")
 	if err != nil {
