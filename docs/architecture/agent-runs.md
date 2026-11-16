@@ -97,7 +97,7 @@ process retains at most 128 threads and 1024 run-ID tombstones. Reaching a bound
 fails explicitly; it never truncates an authority-bearing document into PASS.
 
 The HTTP adapter flushes SSE, disables response caching/proxy buffering, sends
-keep-alive comments while running, and bounds a run to thirty minutes. The governed workspace-activity integration remains #647; no editor activity publication is claimed here.
+keep-alive comments while running, and bounds a run to thirty minutes. Workspace coding-agent sessions over ACP mirror validated tool and file-edit events onto AG-UI threads (`wsp-acp-*`) as documented in [workspace-acp-connections.md](workspace-acp-connections.md).
 
 ## Work Intake client
 

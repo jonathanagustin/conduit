@@ -286,6 +286,38 @@ export function applyUpdate(
   };
 }
 
+export const PINNED_ACP_PROTOCOL_VERSION = 1 as const;
+
+export type GovernedRiskTier = "low_confirm" | "high_change_request";
+
+export type EditorActionKind = "tool_call" | "file_write" | "command";
+
+export type WorkspaceScope = {
+  owner: string;
+  workspaceId: string;
+  branch: string;
+};
+
+export type EditorActivityEvent = {
+  type: "activity";
+  sessionId: string;
+  threadId: string;
+  runId: string;
+  toolCallId: string;
+  kind: EditorActionKind | "message" | "permission";
+  name: string;
+  status: ToolStatus;
+  path?: string;
+  digest?: string;
+  content?: string;
+  command?: string;
+  riskTier?: GovernedRiskTier;
+  requestId?: string;
+  argsText?: string;
+  resultText?: string;
+  text?: string;
+};
+
 export type PermissionRequest = {
   requestId: string;
   threadId: string;
@@ -293,7 +325,79 @@ export type PermissionRequest = {
   toolCallId: string;
   title: string;
   options: ApprovalOption[];
+  kind?: EditorActionKind;
+  riskTier?: GovernedRiskTier;
+  path?: string;
+  command?: string;
 };
+
+export function sanitizeApprovalOptions(
+  options: readonly ApprovalOption[],
+): ApprovalOption[] {
+  const hasAllowOnce = options.some((option) => option.kind === "allow_once");
+  const sanitized: ApprovalOption[] = [];
+  for (const option of options) {
+    if (option.kind === "allow_always") {
+      if (hasAllowOnce) continue;
+      sanitized.push({
+        optionId: option.optionId,
+        name: redact(option.name).replace(/always/gi, "once"),
+        kind: "allow_once",
+      });
+      continue;
+    }
+    sanitized.push({
+      optionId: option.optionId,
+      name: redact(option.name),
+      kind: option.kind,
+    });
+  }
+  return sanitized;
+}
+
+const HIGH_RISK_PATH =
+  /(?:^|\/)(?:\.\.(?:\/|$)|\.github(?:\/|$)|deploy(?:\/|$)|\.env(?:\.|$)|secrets?(?:\/|\.|$)|credentials?(?:\/|\.|$))/i;
+
+const HIGH_RISK_COMMAND =
+  /\b(?:git\s+push|gh\s+(?:pr|release|repo)|deploy|publish|helm\b|kubectl\b|terraform\b|curl\b|wget\b|ssh\b|scp\b|rsync\b|nc\b|ncat\b|sudo\b|rm\s+-[a-z]*r[a-z]*f|docker\s+push|oras\s+push)\b/i;
+
+export function classifyPermissionRisk(input: {
+  kind?: string | null | undefined;
+  name?: string | null | undefined;
+  title?: string | null | undefined;
+  path?: string | null | undefined;
+  command?: string | null | undefined;
+  rawInput?: unknown;
+}): GovernedRiskTier {
+  const kind = (input.kind ?? "").toLowerCase();
+  const name = (input.name ?? "").toLowerCase();
+  if (
+    kind === "deploy" ||
+    kind === "publish" ||
+    kind === "external" ||
+    name === "deploy" ||
+    name === "publish"
+  ) {
+    return "high_change_request";
+  }
+  const pathCandidate = (input.path ?? "").trim();
+  if (
+    pathCandidate.length > 0 &&
+    (pathCandidate.startsWith("/") || HIGH_RISK_PATH.test(pathCandidate))
+  ) {
+    return "high_change_request";
+  }
+  const combined = [
+    input.title ?? "",
+    input.command ?? "",
+    pathCandidate,
+    input.rawInput === undefined ? "" : asText(input.rawInput),
+  ].join("\n");
+  if (HIGH_RISK_COMMAND.test(combined) || HIGH_RISK_PATH.test(combined)) {
+    return "high_change_request";
+  }
+  return "low_confirm";
+}
 
 export function attachApproval(
   snapshot: RunSnapshot,
@@ -303,11 +407,7 @@ export function attachApproval(
   const approval = {
     requestId: request.requestId,
     prompt: redact(request.title),
-    options: request.options.map((option) => ({
-      optionId: option.optionId,
-      name: redact(option.name),
-      kind: option.kind,
-    })),
+    options: sanitizeApprovalOptions(request.options),
   };
   const index = tools.findIndex(
     (tool) => tool.toolCallId === request.toolCallId,
@@ -366,6 +466,11 @@ export type PermissionBook = {
     runId: string;
     optionId: string;
   }): { ok: true } | { ok: false; status: number; error: string };
+  cancelRequest(input: {
+    requestId: string;
+    threadId: string;
+    runId: string;
+  }): { ok: true } | { ok: false; status: number; error: string };
   cancelRun(runId: string): void;
   pending(requestId: string): PendingPermission | undefined;
 };
@@ -404,6 +509,27 @@ export function createPermissionBook(): PermissionBook {
       entry.resolve({ outcome: "selected", optionId: option.optionId });
       return { ok: true };
     },
+    cancelRequest(input) {
+      const entry = pending.get(input.requestId);
+      if (!entry || entry.settled) {
+        return {
+          ok: false,
+          status: 409,
+          error: "stale or replayed permission request",
+        };
+      }
+      if (entry.threadId !== input.threadId || entry.runId !== input.runId) {
+        return {
+          ok: false,
+          status: 409,
+          error: "permission is bound to another run",
+        };
+      }
+      entry.settled = true;
+      pending.delete(input.requestId);
+      entry.resolve({ outcome: "cancelled" });
+      return { ok: true };
+    },
     cancelRun(runId) {
       for (const [requestId, entry] of pending) {
         if (entry.runId !== runId || entry.settled) continue;
@@ -419,5 +545,5 @@ export function createPermissionBook(): PermissionBook {
 }
 
 export function approvedOption(kind: string): boolean {
-  return kind === "allow_once" || kind === "allow_always";
+  return kind === "allow_once";
 }
