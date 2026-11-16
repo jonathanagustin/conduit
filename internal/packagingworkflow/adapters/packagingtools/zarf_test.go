@@ -15,8 +15,6 @@ func TestZarfLintAndCreateOnARenderedPackage(t *testing.T) {
 	if bin == "" {
 		if path, err := LookZarf(); err == nil {
 			bin = path
-		} else if _, err := os.Stat("/home/box/.local/share/mise/installs/zarf/1.0.0/zarf"); err == nil {
-			bin = "/home/box/.local/share/mise/installs/zarf/1.0.0/zarf"
 		} else {
 			t.Skip("zarf is not installed")
 		}
@@ -55,5 +53,47 @@ func TestFilteredZarfEnvDropsClusterCredentials(t *testing.T) {
 		if entry == "KUBECONFIG=/secret/kubeconfig" || entry == "KUBERNETES_SERVICE_HOST=10.0.0.1" || entry == "KUBE_TOKEN=nope" {
 			t.Fatalf("leaked cluster credential %q", entry)
 		}
+	}
+}
+
+func TestLookZarfDoesNotSelectAnUnrequestedDeveloperInstall(t *testing.T) {
+	home := t.TempDir()
+	installed := filepath.Join(home, ".local", "share", "mise", "installs", "zarf", "1.0.0", "zarf")
+	if err := os.MkdirAll(filepath.Dir(installed), 0755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(installed, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("HOME", home)
+	t.Setenv("PATH", t.TempDir())
+	t.Setenv("ZARF_BIN", "")
+	if binary, err := LookZarf(); err == nil || binary != "" {
+		t.Fatalf("implicitly selected developer install %q: %v", binary, err)
+	}
+}
+
+func TestLookZarfPreservesExplicitSelectionAndFailsClosedOnBadOverride(t *testing.T) {
+	dir := t.TempDir()
+	selected := filepath.Join(dir, "zarf")
+	if err := os.WriteFile(selected, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("PATH", dir)
+	t.Setenv("ZARF_BIN", "")
+	if binary, err := LookZarf(); err != nil || binary != selected {
+		t.Fatalf("PATH selection=%q err=%v", binary, err)
+	}
+	override := filepath.Join(t.TempDir(), "qualified-zarf")
+	if err := os.WriteFile(override, []byte("#!/bin/sh\nexit 0\n"), 0755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("ZARF_BIN", override)
+	if binary, err := LookZarf(); err != nil || binary != override {
+		t.Fatalf("override=%q err=%v", binary, err)
+	}
+	t.Setenv("ZARF_BIN", filepath.Join(dir, "missing"))
+	if binary, err := LookZarf(); err == nil || binary != "" {
+		t.Fatalf("invalid override fell through to PATH: %q err=%v", binary, err)
 	}
 }
