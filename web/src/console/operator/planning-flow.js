@@ -1181,10 +1181,13 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           });
           if (pageResp?.ok) {
             const page = await pageResp.json();
-            const rows = Array.isArray(page?.changeRequests) ? page.changeRequests : [];
+            const rows = Array.isArray(page?.changeRequests)
+              ? page.changeRequests
+              : [];
             const match = rows.find(
               (row) =>
-                (computedDigest && String(row?.description || "").includes(computedDigest)) ||
+                (computedDigest &&
+                  String(row?.description || "").includes(computedDigest)) ||
                 String(row?.title || "").includes(wsId),
             );
             computedChangeRequestId = match?.id || "";

@@ -515,7 +515,10 @@ describe("planning flow API", () => {
       });
       const fetchImpl = vi.fn<typeof fetch>(async (input, options) => {
         const path = String(input);
-        if (path.endsWith("/v1/planning-sessions") && options?.method === "POST") {
+        if (
+          path.endsWith("/v1/planning-sessions") &&
+          options?.method === "POST"
+        ) {
           return new Response(JSON.stringify(created), {
             status: 201,
             headers: { "content-type": "application/json" },
@@ -524,18 +527,27 @@ describe("planning flow API", () => {
         const body = JSON.parse(String(options?.body));
         const events = [
           { type: "RUN_STARTED", threadId: body.threadId, runId: body.runId },
-          { type: "STATE_SNAPSHOT", snapshot: { session: advanced, pendingClientTools: [] } },
+          {
+            type: "STATE_SNAPSHOT",
+            snapshot: { session: advanced, pendingClientTools: [] },
+          },
           { type: "MESSAGES_SNAPSHOT", messages: [] },
           {
             type: "RUN_FINISHED",
             threadId: body.threadId,
             runId: body.runId,
-            outcome: { type: "interrupt", interrupts: [{ id: "needs-input", reason: "needs_input" }] },
+            outcome: {
+              type: "interrupt",
+              interrupts: [{ id: "needs-input", reason: "needs_input" }],
+            },
           },
         ];
-        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), {
-          headers: { "content-type": "text/event-stream" },
-        });
+        return new Response(
+          events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""),
+          {
+            headers: { "content-type": "text/event-stream" },
+          },
+        );
       });
       let click: (event: unknown) => Promise<void> = async () => {};
       const root = {
@@ -553,8 +565,12 @@ describe("planning flow API", () => {
       };
       bindPlanning(root, store, () => {}, fetchImpl);
       await click({ target: new FakeElement() });
-      expect(store.planning.session?.status).toBe("needs_input");
-      expect(store.planning.session?.needsInput?.[0]?.id).toBe("node_version");
+      const recorded = store.planning.session as {
+        status?: string;
+        needsInput?: Array<{ id?: string }>;
+      } | null;
+      expect(recorded?.status).toBe("needs_input");
+      expect(recorded?.needsInput?.[0]?.id).toBe("node_version");
       expect(planningMarkup(store.planning)).toContain("data-plan-needs-input");
     } finally {
       vi.unstubAllGlobals();
