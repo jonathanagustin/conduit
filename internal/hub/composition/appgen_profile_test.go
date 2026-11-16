@@ -315,6 +315,46 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 	if _, _, err := governanceSvc.Approve(t.Context(), crs[0].ID, controlplane.Principal{Username: "alice", Teams: []string{"release-reviewers"}}, "self-approve"); !errors.Is(err, controlplane.ErrForbidden) {
 		t.Fatalf("expected author self-approval to be forbidden, got %v", err)
 	}
+
+	// Verify GET /v1/dev-workspaces/wsp_<id> and GET /v1/dev-workspaces/wsp_<id>/diff on the NewHub handler.
+	wsResp := planningRequest(t, handler, "alice", http.MethodGet, "/v1/dev-workspaces/wsp_"+session.ID, "")
+	if wsResp.Code != http.StatusOK {
+		t.Fatalf("get dev-workspace: %d %s", wsResp.Code, wsResp.Body.String())
+	}
+	var wsView struct {
+		WorkspaceID       string `json:"workspaceId"`
+		HeadCommit        string `json:"headCommit"`
+		ApprovalID        string `json:"approvalId"`
+		ValidationOutcome string `json:"validationOutcome"`
+	}
+	if err := json.Unmarshal(wsResp.Body.Bytes(), &wsView); err != nil {
+		t.Fatal(err)
+	}
+	if wsView.WorkspaceID != "wsp_"+session.ID || wsView.HeadCommit == "" || wsView.HeadCommit == planningdomain.NoRepositoryCommit || wsView.ApprovalID != crs[0].ID || wsView.ValidationOutcome != "PASS" {
+		t.Fatalf("unexpected dev-workspace view: %+v (want approvalId=%s)", wsView, crs[0].ID)
+	}
+
+	diffResp := planningRequest(t, handler, "alice", http.MethodGet, "/v1/dev-workspaces/wsp_"+session.ID+"/diff", "")
+	if diffResp.Code != http.StatusOK {
+		t.Fatalf("get dev-workspace diff: %d %s", diffResp.Code, diffResp.Body.String())
+	}
+	var diffView struct {
+		Files []struct {
+			Path string `json:"path"`
+		} `json:"files"`
+	}
+	if err := json.Unmarshal(diffResp.Body.Bytes(), &diffView); err != nil {
+		t.Fatal(err)
+	}
+	diffPaths := make(map[string]bool, len(diffView.Files))
+	for _, f := range diffView.Files {
+		diffPaths[f.Path] = true
+	}
+	for _, wantPath := range []string{"Dockerfile", "zarf.yaml", "uds-package.yaml", "main.go", "package-source.yaml"} {
+		if !diffPaths[wantPath] {
+			t.Fatalf("dev-workspace diff missing %q in %+v", wantPath, diffView.Files)
+		}
+	}
 }
 
 func TestAppgenProfileFailsClosedWhenSandboxBuildFails(t *testing.T) {

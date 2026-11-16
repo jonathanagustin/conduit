@@ -604,7 +604,7 @@ func (w fixturePackageWriter) ProposePackage(_ context.Context, input domain.Pac
 		Zarf:   string(rendered.Zarf),
 		CR:     string(rendered.CR),
 		Dockerfile: strings.Join([]string{
-			"FROM cgr.dev/chainguard/node@sha256:1111111111111111111111111111111111111111111111111111111111111111",
+			"FROM cgr.dev/chainguard/node@sha256:a7e8f028496a951ef5f97fd5de75d98ef5a74383148a346e6858264de0b211a8",
 			"WORKDIR /app",
 			"COPY package.json ./",
 			"USER 65532:65532",

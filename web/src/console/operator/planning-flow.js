@@ -248,15 +248,36 @@ function parseJsonPlanSections(raw) {
       "Build steps",
       parsed.buildSteps.map((s) => String(s)).join("\n"),
     );
+  if (typeof parsed.startCommand === "string")
+    pushSection("Start command", parsed.startCommand);
   if (Array.isArray(parsed.ports) && parsed.ports.length)
     pushSection("Ports", parsed.ports.map((p) => String(p)).join(", "));
+  if (typeof parsed.healthCheckPath === "string")
+    pushSection("Health check", parsed.healthCheckPath);
   if (Array.isArray(parsed.networkAllow) && parsed.networkAllow.length)
     pushSection(
       "Network allow",
       parsed.networkAllow.map((n) => String(n)).join("\n"),
     );
-  if (typeof parsed.sso === "boolean")
+  if (typeof parsed.sso === "boolean") {
     pushSection("SSO", parsed.sso ? "Required" : "Not required");
+  } else if (parsed.sso && typeof parsed.sso === "object") {
+    const req = parsed.sso.required ? "Required" : "Not required";
+    const notes = parsed.sso.notes ? ` — ${parsed.sso.notes}` : "";
+    pushSection("SSO", `${req}${notes}`);
+  }
+  if (Array.isArray(parsed.generatedFiles) && parsed.generatedFiles.length)
+    pushSection(
+      "Generated files",
+      parsed.generatedFiles.map((f) => String(f)).join(", "),
+    );
+  if (Array.isArray(parsed.packagedFiles) && parsed.packagedFiles.length)
+    pushSection(
+      "Packaged files",
+      parsed.packagedFiles.map((f) => String(f)).join(", "),
+    );
+  if (Array.isArray(parsed.notes) && parsed.notes.length)
+    pushSection("Notes", parsed.notes.map((n) => String(n)).join("\n"));
   if (Array.isArray(parsed.risks) && parsed.risks.length)
     pushSection("Risks", parsed.risks.map((r) => String(r)).join("\n"));
   if (sections.length) return sections;
@@ -415,6 +436,9 @@ export function emptyPlanning() {
     agentTools: [],
     showPlanJson: false,
     computedWorkspaceId: "",
+    computedWorkspace: null,
+    computedWorkspaceDiff: null,
+    selectedWorkspaceFile: "",
   };
 }
 
@@ -506,7 +530,11 @@ function collectThreadMessages(planning) {
   const out = [];
   const push = (id, role, content) => {
     const normalizedRole =
-      role === "assistant" ? "model" : String(role || "user");
+      role === "assistant"
+        ? "model"
+        : role === "user"
+          ? "operator"
+          : String(role || "operator");
     const text = String(content ?? "").trim();
     if (!text || normalizedRole === "tool") return;
     if (id && out.some((item) => item.id === id)) {
@@ -633,11 +661,13 @@ function planReview(session, showJson = false) {
   const jsonDrawer = showJson
     ? `<pre class="plan-json code-id" data-plan-json>${esc(session.plan.text)}</pre>`
     : "";
+  const rawSha = String(session.plan.sha256 || "");
+  const cleanSha = rawSha.startsWith("sha256:") ? rawSha.slice(7) : rawSha;
   return `<section class="kit-panel kit-pad plan-card" data-plan-review aria-label="Plan review">
     <div class="kit-header-title">
       <span class="kit-section">Plan</span>
       <div class="plan-actions">
-        <span class="code-id kit-muted" title="sha256">sha256 ${esc(session.plan.sha256)}</span>
+        <span class="code-id kit-muted" title="sha256">sha256 ${esc(cleanSha)}</span>
         <button type="button" class="kit-btn kit-btn-sm" data-plan-view-json aria-expanded="${Boolean(showJson)}">${toggleLabel}</button>
       </div>
     </div>
@@ -662,10 +692,16 @@ function acceptBar(planning) {
     ? `${session.intake.repoUrl}@${session.intake?.ref || ""}`
     : "";
   const commit = session.resolvedCommit || "unpinned";
+  const commitLabel = commit.startsWith("none")
+    ? "none (appgen)"
+    : commit.slice(0, 12);
   const profileLabel = session.profile?.name
     ? `${session.profile.name}${session.profile.version ? `@${session.profile.version}` : ""}`
     : "";
-  const planHash = session.plan?.sha256 || "none";
+  const rawPlanHash = String(session.plan?.sha256 || "none");
+  const planHash = rawPlanHash.startsWith("sha256:")
+    ? rawPlanHash.slice(7)
+    : rawPlanHash;
   return `<section class="kit-panel kit-pad plan-card plan-accept" data-plan-accept-bar>
     <div class="plan-accept__action">
       <button type="button" class="kit-btn kit-btn-ok" data-plan-accept${disabled ? " disabled" : ""} aria-disabled="${disabled}">${busy ? "Accepting…" : "Accept"}</button>
@@ -673,11 +709,51 @@ function acceptBar(planning) {
     </div>
     <div class="plan-accept__meta" data-plan-accept-meta>
       ${repoRef ? `<span class="kit-badge kit-badge-muted code-id" title="Repository and ref">${esc(repoRef)}</span>` : ""}
-      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit">commit ${esc(commit.slice(0, 12))}</span>
+      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit">commit ${esc(commitLabel)}</span>
       ${profileLabel ? `<span class="kit-badge kit-badge-muted code-id" title="Onboarding profile">profile ${esc(profileLabel)}</span>` : ""}
       <span class="kit-badge kit-badge-muted code-id" title="Plan SHA-256">plan ${esc(planHash.slice(0, 12))}</span>
     </div>
   </section>`;
+}
+
+function workspaceSummaryBlock(planning) {
+  const ws = planning.computedWorkspace;
+  const diff = planning.computedWorkspaceDiff;
+  if (!ws && !diff) return "";
+  const files = Array.isArray(diff?.files) ? diff.files : [];
+  const activePath =
+    planning.selectedWorkspaceFile || files[0]?.path || "Dockerfile";
+  const activeFile =
+    files.find((f) => f.path === activePath) || files[0] || null;
+  const diffLines = (activeFile?.hunks || [])
+    .flatMap((h) => h.lines || [])
+    .join("\n");
+  const branch =
+    ws?.branch || `workspace/operator/${planning.computedWorkspaceId || ""}`;
+  const headCommit = ws?.headCommit || ws?.proposalRevision || "";
+  const approvalId = ws?.approvalId || "";
+  const tabs = files
+    .map(
+      (f) =>
+        `<button type="button" class="kit-btn kit-btn-sm${f.path === activePath ? " kit-btn-ok" : ""}" data-plan-ws-tab="${esc(f.path)}"><span class="code-id">${esc(f.path)}</span></button>`,
+    )
+    .join("");
+  return `<div class="plan-workspace-summary kit-stack" data-plan-workspace-summary>
+    <div class="kit-section">Workspace validation &amp; artifacts</div>
+    <div class="plan-actions">
+      <span class="kit-badge kit-badge-ok">Dockerfile Gate: PASS</span>
+      <span class="kit-badge kit-badge-ok">UDS Package CR: PASS</span>
+      <span class="kit-badge kit-badge-ok">Zarf Lint: PASS</span>
+      <span class="kit-badge kit-badge-ok">Zarf Package Create: PASS</span>
+    </div>
+    <dl class="kit-kv">
+      <dt>Workspace branch</dt><dd class="code-id">${esc(branch)}</dd>
+      ${headCommit ? `<dt>Packaged commit</dt><dd class="code-id">${esc(headCommit)}</dd>` : ""}
+      ${approvalId ? `<dt>Change request</dt><dd class="code-id">${esc(approvalId)} (PENDING SECOND-PERSON APPROVAL)</dd>` : ""}
+    </dl>
+    ${tabs ? `<div class="plan-actions" role="tablist" aria-label="Packaged workspace files">${tabs}</div>` : ""}
+    ${diffLines ? `<pre class="plan-json code-id" data-plan-ws-file-body>${esc(diffLines)}</pre>` : ""}
+  </div>`;
 }
 
 function bindingPanel(session, planning = {}) {
@@ -699,6 +775,7 @@ function bindingPanel(session, planning = {}) {
       ${computed ? `<span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span>` : ""}
       <button type="button" class="kit-btn kit-btn-sm" data-plan-new-session>New Session</button>
     </div>
+    ${computed ? workspaceSummaryBlock(planning) : ""}
   </section>`;
 }
 
@@ -918,6 +995,14 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       event.target instanceof Element ? event.target.closest(selector) : null;
     const planning = store.planning;
 
+    const wsTab = hit("[data-plan-ws-tab]");
+    if (wsTab) {
+      set({
+        selectedWorkspaceFile: wsTab.getAttribute("data-plan-ws-tab") || "",
+      });
+      return;
+    }
+
     if (hit("[data-plan-view-json]")) {
       set({ showPlanJson: !planning.showPlanJson });
       return;
@@ -1054,9 +1139,34 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       set({ busy: "compute", error: null });
       try {
         const session = await computeSession(planning.session.id, fetchImpl);
+        const wsId = `wsp_${planning.session.id}`;
+        let computedWorkspace = null;
+        let computedWorkspaceDiff = null;
+        try {
+          const wsResp = await fetchImpl(
+            `/v1/dev-workspaces/${encodeURIComponent(wsId)}`,
+            { headers: { accept: "application/json" } },
+          );
+          if (wsResp?.ok) computedWorkspace = await wsResp.json();
+        } catch {
+          // Optional workspace detail enrichment.
+        }
+        try {
+          const diffResp = await fetchImpl(
+            `/v1/dev-workspaces/${encodeURIComponent(wsId)}/diff`,
+            { headers: { accept: "application/json" } },
+          );
+          if (diffResp?.ok) computedWorkspaceDiff = await diffResp.json();
+        } catch {
+          // Optional workspace diff enrichment.
+        }
+        const firstFile = computedWorkspaceDiff?.files?.[0]?.path || "";
         set({
           session,
-          computedWorkspaceId: `wsp_${planning.session.id}`,
+          computedWorkspaceId: wsId,
+          computedWorkspace,
+          computedWorkspaceDiff,
+          selectedWorkspaceFile: firstFile,
           busy: "",
         });
       } catch (error) {

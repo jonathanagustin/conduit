@@ -147,6 +147,7 @@ nohup go run ./cmd/packaging-workflow worker \
 echo $! >>"${pid_file}"
 sleep 2
 
+mkdir -p "${state_dir}/workspaces"
 workspace_env=""
 if [[ "${DEMO_WORKSPACES:-}" == "1" ]]; then
   workspace_env="DEVWORKSPACE_RUNTIME=recorded DEVWORKSPACE_PODS=1"
@@ -154,6 +155,8 @@ fi
 
 nohup env LISTEN_ADDRESS=127.0.0.1:8081 \
   DATA_DIRECTORY="${state_dir}/data" \
+  DEVWORKSPACE_GIT_ROOT="${state_dir}/workspaces" \
+  CONDUIT_LOCAL_REGISTRY=127.0.0.1:5000 \
   ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_AGENT_IDENTITY_HEADERS=true \
   ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY=true \

@@ -520,5 +520,145 @@ describe("planning flow API", () => {
       "Commit SHA",
       "none (no source repository — problem-statement intake)",
     ]);
+
+    const appgenPlan = {
+      text: JSON.stringify({
+        summary: "Generate companion service",
+        baseImage: "cgr.dev/chainguard/static:latest",
+        startCommand: "/app",
+        ports: [8080],
+        healthCheckPath: "/healthz",
+        sso: {
+          required: true,
+          notes: "Keycloak OIDC SSO via Defense Unicorns UDS Package",
+        },
+        generatedFiles: ["main.go", "index.html"],
+        packagedFiles: ["Dockerfile", "zarf.yaml"],
+        notes: ["Generated after Accept"],
+      }),
+      sha256:
+        "sha256:9c88c9910e6d231fb53a7f902d714a6054a98f22134bc810e15c9b8a76543210",
+    };
+    const appgenReadyHtml = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        profile: { name: "appgen", version: "0.1.0", hash: "ph" },
+        intake: {
+          repoUrl: "",
+          ref: "",
+          problemStatement: "Build an incident status dashboard",
+          appName: "incident-status",
+        },
+        resolvedCommit:
+          "none (no source repository — problem-statement intake)",
+        plan: appgenPlan,
+        messages: [
+          { id: "", role: "operator", text: "Include Keycloak OIDC SSO" },
+        ],
+      }),
+      agentMessages: [
+        { id: "m_1", role: "user", content: "Include Keycloak OIDC SSO" },
+      ],
+    });
+    expect(appgenReadyHtml).toContain(
+      "Required — Keycloak OIDC SSO via Defense Unicorns UDS Package",
+    );
+    expect(appgenReadyHtml).toContain("commit none (appgen)");
+    expect(appgenReadyHtml).toContain("plan 9c88c9910e6d");
+    expect(appgenReadyHtml).not.toContain("sha256 sha256:");
+    expect(appgenReadyHtml.match(/Include Keycloak OIDC SSO/g)).toHaveLength(1);
+  });
+
+  it("renders workspace validation summary and interactive file diff tabs after compute", async () => {
+    class FakeElement {
+      attr: string;
+      constructor(attr: string) {
+        this.attr = attr;
+      }
+      closest(selector: string) {
+        return selector === this.attr ? this : null;
+      }
+      getAttribute(name: string) {
+        return name === "data-plan-ws-tab" ? "zarf.yaml" : "";
+      }
+    }
+    vi.stubGlobal("Element", FakeElement);
+    try {
+      const binding = {
+        profile: { name: "onboard", version: "v3", hash: "ph" },
+        intake: {
+          repoUrl: "https://github.com/excalidraw/excalidraw",
+          ref: "main",
+        },
+        resolvedCommit: "c".repeat(40),
+        model: "conduit-packaging-agent-v1",
+        plan,
+        acceptedAt: "2026-01-01T00:00:00Z",
+      };
+      const accepted = session({ status: "accepted", binding });
+      let click: (event: unknown) => Promise<void> = async () => {};
+      const root = {
+        addEventListener: (type: string, handler: typeof click) => {
+          if (type === "click") click = handler;
+        },
+      };
+      const store = {
+        planning: {
+          ...emptyPlanning(),
+          session: accepted,
+        },
+      };
+      const fetchImpl = vi.fn<typeof fetch>(async (input) => {
+        const url = String(input);
+        if (url.endsWith("/compute")) {
+          return json(202, accepted);
+        }
+        if (url === "/v1/dev-workspaces/wsp_s1") {
+          return json(200, {
+            workspaceId: "wsp_s1",
+            branch: "workspace/operator/wsp_s1",
+            headCommit: "7b3c91e4a52d",
+            approvalId: "cr-wsp_s1-uds",
+          });
+        }
+        if (url === "/v1/dev-workspaces/wsp_s1/diff") {
+          return json(200, {
+            workspaceId: "wsp_s1",
+            files: [
+              {
+                path: "Dockerfile",
+                change: "added",
+                hunks: [{ header: "@@ -0,0 +1 @@", lines: ["+FROM node:20"] }],
+              },
+              {
+                path: "zarf.yaml",
+                change: "added",
+                hunks: [
+                  {
+                    header: "@@ -0,0 +1 @@",
+                    lines: ["+kind: ZarfPackageConfig"],
+                  },
+                ],
+              },
+            ],
+          });
+        }
+        return json(404, {});
+      });
+      bindPlanning(root, store, () => {}, fetchImpl);
+
+      await click({ target: new FakeElement("[data-plan-compute]") });
+      const html1 = planningMarkup(store.planning);
+      expect(html1).toContain("data-plan-workspace-summary");
+      expect(html1).toContain("cr-wsp_s1-uds (PENDING SECOND-PERSON APPROVAL)");
+      expect(html1).toContain("+FROM node:20");
+
+      await click({ target: new FakeElement("[data-plan-ws-tab]") });
+      expect(store.planning.selectedWorkspaceFile).toBe("zarf.yaml");
+      const html2 = planningMarkup(store.planning);
+      expect(html2).toContain("+kind: ZarfPackageConfig");
+    } finally {
+      vi.unstubAllGlobals();
+    }
   });
 });
