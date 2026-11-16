@@ -1909,6 +1909,7 @@ export function mountOperator(host, options) {
     if (!node) return;
     const entries = Array.isArray(state.hub?.audit) ? state.hub.audit : [];
     if (!entries.length) {
+      mountAuditEvents.dispose();
       liveHub.renderAudit(node);
       return;
     }
@@ -4772,6 +4773,8 @@ export function mountOperator(host, options) {
 
   let previousScreen = "";
   function renderMainWorkspace() {
+    if (state.screen !== "au01-audit" && state.screen !== "area-audit")
+      mountAuditEvents.dispose();
     const root = document.getElementById("main-workspace");
     if (!root) return;
     if (AREAS[state.screen]) {
@@ -5143,6 +5146,7 @@ export function mountOperator(host, options) {
   renderApp();
   return () => {
     liveHub.stop();
+    mountAuditEvents.dispose();
     removeInlineActions();
     window.removeEventListener("keydown", onKey);
     window.removeEventListener("hashchange", onHash);
