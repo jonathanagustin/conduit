@@ -12,13 +12,13 @@ The following unary methods are present in the committed proto contracts and
 HTTP adapters. Connect procedure paths use `/<service>/<method>` and HTTP POST,
 including reads. A read encoded as POST is not a governed state change.
 
-| REST route | Connect service and method | Current console use |
+| REST route | Connect service and method | Current caller use |
 | --- | --- | --- |
 | `GET /v1/overview` | `conduit.reporting.v1.ReportingService/GetOverview` | Generated overview client |
 | `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for live catch-up; initial/manual reads remain REST |
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
-| `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | No caller switched |
+| `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),
@@ -102,6 +102,17 @@ authority fields, and refuses totals outside the local integer range. Responses
 retain the existing one-MiB per-message bound. A permission refusal, unavailable
 procedure, timeout or canceled read fails on the selected transport; it never
 silently replays through REST. Other reads and governed commands remain REST.
+
+### CLI Plan summary index
+
+`conduit plan list --read-transport connect` selects the generated native summary
+read. The default and explicit `rest` modes retain the existing REST path. The
+client preserves native filters and output fields, exact revisions/timestamps,
+identity, TLS trust and timeout, and follows bounded native pages without
+interpreting cursors. It rejects invalid evidence and continuation cycles.
+Refusals never trigger a replay through REST. See
+[Plan summaries](connect-plan-summaries.md) for the transport and conversion
+bounds. Plan detail and governed approve/cancel commands remain REST.
 
 ## Live updates
 
