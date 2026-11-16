@@ -321,3 +321,8 @@ The four Containerfiles retain immutable digest pins and otherwise unchanged
 contents. This establishes image identity, source-coordinate agreement and an
 amd64 version check. It does not verify an image signature or build attestation,
 execute the arm64 frontend, or establish a complete application image build.
+
+BuildKit v0.34.0 `--call=check` passes on all four tracked Containerfiles with
+this frontend, using an isolated tracked-tree context. This checks frontend
+parsing and build configuration against the pinned base-image metadata without
+executing application build steps; it is not a completed image build.
