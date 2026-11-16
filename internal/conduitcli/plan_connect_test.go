@@ -345,14 +345,3 @@ func TestPlanListConnectDoesNotReplayTypedRefusals(t *testing.T) {
 		})
 	}
 }
-
-func observedPlanRequestCancellation(t *testing.T, canceled <-chan bool) bool {
-	t.Helper()
-	select {
-	case observed := <-canceled:
-		return observed
-	case <-time.After(3 * time.Second):
-		t.Fatal("HTTP request was not observed before the test deadline")
-		return false
-	}
-}
