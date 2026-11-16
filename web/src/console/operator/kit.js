@@ -3,6 +3,17 @@ import { selectedPackagingRun } from "./packaging-pipeline.js";
 import { runState } from "./packaging-runs.js";
 /* Shared v3 surfaces. They render recorded Hub rows or an empty state. */
 
+export function brandMarkMarkup(size = 20) {
+  const n = Number(size) || 20;
+  return (
+    `<svg class="cnd-brand-mark" width="${n}" height="${n}" viewBox="0 0 24 24" fill="none" aria-hidden="true">` +
+    `<path class="cnd-mark-c1" d="M3.6 6.6L9 12L3.6 17.4" stroke="#215db0" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path class="cnd-mark-c2" d="M9.3 6.6L14.7 12L9.3 17.4" stroke="#4c90f0" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `<path class="cnd-mark-c3" d="M15 6.6L20.4 12L15 17.4" stroke="#8abbff" stroke-width="2.35" stroke-linecap="round" stroke-linejoin="round"/>` +
+    `</svg>`
+  );
+}
+
 function esc(value) {
   return String(value ?? "")
     .replaceAll("&", "&amp;")
@@ -49,6 +60,39 @@ export function gateBadge(label, state) {
   return `<span class="kit-badge kit-badge-${tone}" data-gate="${esc(state)}">${esc(label)}: ${esc(String(state || "").toUpperCase())}</span>`;
 }
 
+export function entityTitleMarkup({
+  title,
+  subtitle = "",
+  headingTag = "div",
+  iconSvg = "",
+  tagsHtml = "",
+  fill = true,
+  wrap = false,
+}) {
+  const outerCls = [
+    "bp6-entity-title",
+    iconSvg ? "bp6-entity-title-has-icon" : "",
+    fill ? "bp6-fill" : "",
+    wrap ? "bp6-entity-title-wrap" : "",
+  ]
+    .filter(Boolean)
+    .join(" ");
+
+  const iconPart = iconSvg
+    ? `<span class="bp6-entity-title-icon-container" aria-hidden="true">${iconSvg}</span>`
+    : "";
+
+  const titlePart = `<${headingTag} class="bp6-entity-title-title">${title}</${headingTag}>`;
+  const tagsPart = tagsHtml
+    ? `<span class="bp6-entity-title-tags">${tagsHtml}</span>`
+    : "";
+  const subtitlePart = subtitle
+    ? `<div class="bp6-entity-title-subtitle kit-muted">${subtitle}</div>`
+    : "";
+
+  return `<div class="${outerCls}">${iconPart}<div class="bp6-entity-title-text"><div class="bp6-entity-title-title-and-tags">${titlePart}${tagsPart}</div>${subtitlePart}</div></div>`;
+}
+
 export function objectHeader(header) {
   if (!header?.name) return "";
   const links = (header.links || [])
@@ -58,35 +102,75 @@ export function objectHeader(header) {
     )
     .join("");
   const owner = header.owner ? esc(header.owner) : "not recorded";
+  const entityTitle = entityTitleMarkup({
+    headingTag: "h1",
+    title: esc(header.name),
+    tagsHtml: `<span class="kit-badge kit-badge-muted">${esc(header.objectType || "Object")}</span>${statusBadge(header.status)}`,
+    subtitle: `Owner: <strong>${owner}</strong>${header.subtitle ? ` · ${esc(header.subtitle)}` : ""}`,
+  });
   return `<header data-object-header class="kit-card kit-bar-${esc(header.tone || "info")} kit-header">
     <div class="kit-header-row">
-      <div>
-        <div class="kit-header-title">
-          <span class="kit-badge kit-badge-muted">${esc(header.objectType || "Object")}</span>
-          <h1>${esc(header.name)}</h1>
-          ${statusBadge(header.status)}
-        </div>
-        <div class="kit-muted">Owner: <strong>${owner}</strong>${header.subtitle ? ` · ${esc(header.subtitle)}` : ""}</div>
-      </div>
+      ${entityTitle}
     </div>
     ${links ? `<div class="kit-links">${links}</div>` : ""}
   </header>`;
 }
 
 /**
- * @param {{ state: string, title: string, detail?: string, operator?: string }} args
+ * @param {{ state: string, title: string, detail?: string, operator?: string, retryOnClick?: string }} args
  */
-export function viewState({ state, title, detail, operator }) {
+export function viewState({ state, title, detail, operator, retryOnClick }) {
   const copy = {
     loading: "Reading the Hub.",
     empty: detail || "No records match this view.",
+    stale:
+      detail ||
+      "Showing the last recorded Hub snapshot while refresh catches up.",
+    partial:
+      detail ||
+      "Some Hub endpoints did not respond; showing recorded rows only.",
+    "partial-failure":
+      detail ||
+      "Some Hub endpoints did not respond; showing recorded rows only.",
     error: detail || "The Hub did not answer. Nothing was changed.",
-    disconnected: "The Hub did not answer. Nothing was changed.",
+    disconnected: detail || "The Hub did not answer. Nothing was changed.",
     denied: `${operator || "This operator"} does not have a role for this view.`,
   };
-  return `<section class="kit-card kit-bar-warn kit-state" role="status" data-state="${esc(state)}">
+
+  const toneMap = {
+    loading: "kit-bar-info",
+    empty: "",
+    stale: "kit-bar-warn",
+    partial: "kit-bar-warn",
+    "partial-failure": "kit-bar-warn",
+    denied: "kit-bar-err",
+    error: "kit-bar-err",
+    disconnected: "kit-bar-err",
+  };
+
+  const barClass =
+    toneMap[state] !== undefined ? toneMap[state] : "kit-bar-warn";
+  const cardClass = `kit-card${barClass ? ` ${barClass}` : ""} kit-state`;
+
+  const retryAllowed =
+    Boolean(retryOnClick) &&
+    (state === "error" || state === "disconnected" || state === "stale");
+  const retryHtml = retryAllowed
+    ? `<div class="kit-links"><button type="button" class="kit-btn kit-btn-sm" data-onclick="${esc(retryOnClick)}">Retry</button></div>`
+    : "";
+
+  const skeletonHtml =
+    state === "loading"
+      ? '<div class="kit-skeleton-stack" aria-hidden="true"><span class="kit-skeleton-line"></span><span class="kit-skeleton-line kit-skeleton-short"></span></div>'
+      : "";
+
+  const message = copy[state] ?? detail ?? "";
+
+  return `<section class="${cardClass}" role="status" data-state="${esc(state)}"${state === "loading" ? ' aria-busy="true"' : ""}>
     <div class="kit-state-title">${esc(String(state || "").toUpperCase())} — ${esc(title || "View")}</div>
-    <p>${esc(copy[state] || detail || "")}</p>
+    <p>${esc(message)}</p>
+    ${skeletonHtml}
+    ${retryHtml}
   </section>`;
 }
 

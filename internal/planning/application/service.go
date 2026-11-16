@@ -193,6 +193,9 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 		if result.Model != "" {
 			session.Model = result.Model
 		}
+		if session.Model == "" {
+			session.Model = domain.DefaultModelLabel
+		}
 		if result.Profile.Name != "" || result.Profile.Version != "" || result.Profile.Hash != "" {
 			if result.Profile.Name == "" {
 				result.Profile.Name = domain.ProfileOnboard
@@ -326,11 +329,15 @@ func (service *Service) Accept(ctx context.Context, id string) (*domain.Session,
 		}
 	}
 	plan := domain.Plan{Text: session.Plan.Text, SHA256: domain.PlanHash(*session.Plan)}
+	model := session.Model
+	if model == "" {
+		model = domain.DefaultModelLabel
+	}
 	binding := &domain.Binding{
 		Profile:        session.Profile,
 		Intake:         intake,
 		ResolvedCommit: session.ResolvedCommit,
-		Model:          session.Model,
+		Model:          model,
 		Plan:           plan,
 		AcceptedAt:     now,
 	}

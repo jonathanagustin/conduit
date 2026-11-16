@@ -506,7 +506,7 @@ test("Audit platform status renders stubbed measurements and refreshes with GET"
 
 test("Command Center uses recorded sites and drafts context without writes", async ({
   page,
-}) => {
+}, testInfo) => {
   const mutations: string[] = [];
   const external: string[] = [];
   page.on("request", (request) => {
@@ -650,7 +650,7 @@ test("Command Center uses recorded sites and drafts context without writes", asy
     ),
   ).toHaveCount(0);
   await page.screenshot({
-    path: "/workspace/scratch/command-center-geography.png",
+    path: testInfo.outputPath("command-center-geography.png"),
     fullPage: false,
   });
   await page
@@ -2377,6 +2377,18 @@ test("audit verifies native payload bytes and keeps polled events resource scope
     "<img src=x",
   );
   await expect(page.locator("[data-audit-event-stream] img")).toHaveCount(0);
+  // Force the same refresh that previously remounted and reset the poller.
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(page.getByLabel("Audit event resource")).toHaveValue(
+    "environment/east",
+  );
+  await expect(
+    page.getByRole("button", { name: "Pause polling", exact: true }),
+  ).toBeEnabled();
+  await expect(page.locator("[data-audit-event-stream]")).toContainText(
+    "<img src=x",
+  );
+
   await page
     .getByRole("button", { name: "Pause polling", exact: true })
     .click();

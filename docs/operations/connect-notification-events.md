@@ -74,3 +74,20 @@ errors, cancellation and absent readers. The browser regression observes the
 actual RPC, escapes event text and rejects a response for another selected
 resource. These complete only this read-family slice of #391–#393; the live
 transport/outbox work remains #371/#389/#390.
+
+## Refresh lifecycle
+
+A native Audit refresh rebinds the polling session to the new view when the
+identity and selected visible resource remain valid. Selection, pause state,
+returned rows and an in-flight read survive that remount without a duplicate
+request. This state stays in memory for this mounted operator console.
+
+Changing identity, removing the selected resource, leaving Audit, showing an
+empty ledger or disposing the console stops polling and aborts pending reads.
+Late completions cannot refill the cleared view. A manual pause also aborts an
+in-flight read and rejects its late result. This preserves the original
+resource checks; a refresh does not grant access or create durable events.
+
+The browser regression forces a native refresh between receiving the selected
+resource's events and clicking Pause. Unit tests hold the network result open
+to verify cancellation and late-result rejection independently of response timing.

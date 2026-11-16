@@ -9,8 +9,8 @@ const matched = {
   expectedVitest: "5.1.0",
   sameCore: true,
   sameVitest: true,
-  packageManager: "pnpm@12.18.0",
-  pnpmPin: "12.18.0",
+  packageManager: "pnpm@12.20.0",
+  pnpmPin: "12.20.0",
 };
 
 await test("accepts the matched bundle and pinned package manager", () => {

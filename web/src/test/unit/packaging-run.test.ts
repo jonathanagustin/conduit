@@ -7,7 +7,11 @@ import {
   packagingRunTransport,
   PackagingRunError,
 } from "../../api/packaging-run.js";
-import { PackagingRunDetailView } from "../../features/packaging/PackagingRunPage.js";
+import {
+  derivePackagingSteps,
+  PackagingRunDetailView,
+} from "../../features/packaging/PackagingRunPage.js";
+import { ViewStateBoundary } from "../../components/index.js";
 
 const detailBody = {
   tier: "CONDUIT_NATIVE",
@@ -87,5 +91,56 @@ describe("packaging-run detail view", () => {
     await expect(
       fetchPackagingRunDetail("sample-app-1", transport),
     ).rejects.toBeInstanceOf(PackagingRunError);
+  });
+
+  it("derives pipeline stepper stages with rejection and handoff states", () => {
+    const rejectedSteps = derivePackagingSteps(detailBody);
+    expect(rejectedSteps).toEqual([
+      { id: "assess", label: "Assess", state: "done", detail: undefined },
+      { id: "build", label: "Build", state: "done", detail: undefined },
+      { id: "verify", label: "Verify", state: "done", detail: undefined },
+      { id: "review", label: "Review", state: "failed", detail: "REJECTED" },
+      { id: "handoff", label: "Handoff", state: "done", detail: undefined },
+    ]);
+
+    const activeSteps = derivePackagingSteps({
+      ...detailBody,
+      phase: "build",
+      outcome: "PENDING",
+      handoffReconciled: false,
+    });
+    expect(activeSteps).toEqual([
+      { id: "assess", label: "Assess", state: "done", detail: undefined },
+      { id: "build", label: "Build", state: "active", detail: "PENDING" },
+      { id: "verify", label: "Verify", state: "waiting", detail: undefined },
+      { id: "review", label: "Review", state: "waiting", detail: undefined },
+      { id: "handoff", label: "Handoff", state: "waiting", detail: undefined },
+    ]);
+  });
+
+  it("renders loading and error view state boundary contracts correctly", () => {
+    const loadingHtml = renderToStaticMarkup(
+      createElement(ViewStateBoundary, {
+        state: "loading",
+        testId: "packaging-run-loading",
+        loadingLabel: "Loading packaging run",
+      }),
+    );
+    expect(loadingHtml).toContain('data-testid="packaging-run-loading"');
+    expect(loadingHtml).toContain("Loading packaging run");
+    expect(loadingHtml).toContain('role="status"');
+    expect(loadingHtml).toContain('aria-busy="true"');
+
+    const errorHtml = renderToStaticMarkup(
+      createElement(ViewStateBoundary, {
+        state: "disconnected",
+        testId: "packaging-run-error",
+        title: "Packaging run error",
+        description: "Network timeout communicating with Hub",
+      }),
+    );
+    expect(errorHtml).toContain('data-testid="packaging-run-error"');
+    expect(errorHtml).toContain('role="alert"');
+    expect(errorHtml).toContain("Network timeout communicating with Hub");
   });
 });

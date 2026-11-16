@@ -8,8 +8,8 @@ COPY mise.toml mise.toml
 COPY scripts/build-console.sh scripts/build-console.sh
 COPY internal/consoleui/dist/README.txt internal/consoleui/dist/README.txt
 COPY web/ web/
-RUN npm install --global --ignore-scripts pnpm@12.18.0 \
- && test "$(pnpm --version)" = 12.18.0 \
+RUN npm install --global --ignore-scripts pnpm@12.20.0 \
+ && test "$(pnpm --version)" = 12.20.0 \
  && ./scripts/build-console.sh
 
 FROM cgr.dev/chainguard/static:latest@sha256:fc42af33e643f20d08baf03cddcc1c02ba57052dfb02edb0d79f3fc47bcea8d9 AS runtime-base

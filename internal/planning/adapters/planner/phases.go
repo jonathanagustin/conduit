@@ -41,7 +41,10 @@ Reply with only that JSON object when you need tools, with at most 4 tool calls 
 func (planner Planner) afterInspection(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service, result *application.TurnResult) (*application.TurnResult, error) {
 	view := domain.CloneSession(session)
 	view.Inspection = result.Inspection
-	questions, err := planner.askQuestions(ctx, view, message, checkout, tools)
+	questions, reportedModel, err := planner.askQuestions(ctx, view, message, checkout, tools)
+	if reportedModel != "" {
+		result.Model = reportedModel
+	}
 	handoff := errors.Is(err, errFrontendHandoff)
 	if err != nil && !handoff {
 		return result, err
@@ -67,12 +70,19 @@ func (planner Planner) planTurn(ctx context.Context, session *domain.Session, me
 	if session.ResolvedCommit != "" && checkout.SHA != session.ResolvedCommit {
 		return nil, fmt.Errorf("the ref %q now resolves to %s, not the inspected commit %s; start a new session", session.Intake.Ref, checkout.SHA, session.ResolvedCommit)
 	}
-	result := &application.TurnResult{Model: localcmd.CommandName(planner.Argv[0]), Profile: onboardProfile()}
+	model := session.Model
+	if model == "" {
+		model = domain.DefaultModelLabel
+	}
+	result := &application.TurnResult{Model: model, Profile: onboardProfile()}
 	return planner.writeInto(ctx, session, message, checkout, tools, result)
 }
 
 func (planner Planner) writeInto(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service, result *application.TurnResult) (*application.TurnResult, error) {
-	plan, questions, err := planner.writePlan(ctx, session, message, checkout, tools)
+	plan, questions, reportedModel, err := planner.writePlan(ctx, session, message, checkout, tools)
+	if reportedModel != "" {
+		result.Model = reportedModel
+	}
 	if err != nil && !errors.Is(err, errFrontendHandoff) {
 		return result, err
 	}
@@ -83,9 +93,13 @@ func (planner Planner) writeInto(ctx context.Context, session *domain.Session, m
 	return result, nil
 }
 
-func (planner Planner) askQuestions(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) ([]domain.Question, error) {
+func (planner Planner) askQuestions(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) ([]domain.Question, string, error) {
 	var questions []domain.Question
+	var reportedModel string
 	err := planner.runPhase(ctx, session, checkout, tools, ActionQuestions, questionsPrompt(session, message), func(reply []byte) error {
+		if m := extractReportedModel(reply, planner.Argv); m != "" {
+			reportedModel = m
+		}
 		parsed, err := parseQuestions(reply)
 		questions = parsed
 		if err != nil {
@@ -94,15 +108,19 @@ func (planner Planner) askQuestions(ctx context.Context, session *domain.Session
 		return application.QuestionsObserved(ctx, parsed)
 	})
 	if err != nil {
-		return questions, err
+		return questions, reportedModel, err
 	}
-	return questions, nil
+	return questions, reportedModel, nil
 }
 
-func (planner Planner) writePlan(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) (*domain.Plan, []domain.Question, error) {
+func (planner Planner) writePlan(ctx context.Context, session *domain.Session, message string, checkout repoclone.Checkout, tools *packagingtools.Service) (*domain.Plan, []domain.Question, string, error) {
 	var plan *domain.Plan
 	var questions []domain.Question
+	var reportedModel string
 	err := planner.runPhase(ctx, session, checkout, tools, ActionPlan, planPrompt(session, message), func(reply []byte) error {
+		if m := extractReportedModel(reply, planner.Argv); m != "" {
+			reportedModel = m
+		}
 		parsedQuestions, found, err := parseFieldErrors(reply, session.NeedsInput)
 		if found {
 			questions = parsedQuestions
@@ -116,9 +134,9 @@ func (planner Planner) writePlan(ctx context.Context, session *domain.Session, m
 		return err
 	})
 	if err != nil {
-		return plan, questions, err
+		return plan, questions, reportedModel, err
 	}
-	return plan, questions, nil
+	return plan, questions, reportedModel, nil
 }
 
 // runPhase drives one model phase: it feeds tool results back until the
@@ -469,4 +487,26 @@ func publishFrontendCalls(ctx context.Context, raw []byte) (bool, error) {
 		return len(*reply.Calls) > 0, nil
 	}
 	return false, nil
+}
+
+func extractReportedModel(raw []byte, argv []string) string {
+	var cmdRaw, cmdName string
+	if len(argv) > 0 {
+		cmdRaw = strings.TrimSpace(argv[0])
+		cmdName = localcmd.CommandName(argv[0])
+	}
+	for _, candidate := range replyObjects(raw) {
+		var envelope struct {
+			Model string `json:"model"`
+		}
+		if err := json.Unmarshal(candidate, &envelope); err != nil {
+			continue
+		}
+		model := collapse(envelope.Model)
+		if model == "" || model == cmdRaw || model == cmdName {
+			continue
+		}
+		return model
+	}
+	return ""
 }

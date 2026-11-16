@@ -18,10 +18,15 @@ const (
 	// OriginLocalRuntime is the only origin a preview log may claim.
 	OriginLocalRuntime = "local-runtime"
 
-	StatusStopped  = "stopped"
-	StatusStarting = "starting"
-	StatusRunning  = "running"
-	StatusFailed   = "failed"
+	StatusStopped      = "stopped"
+	StatusStarting     = "starting"
+	StatusInitializing = "initializing"
+	StatusRunning      = "running"
+	StatusStopping     = "stopping"
+	StatusIdle         = "idle"
+	StatusFailed       = "failed"
+
+	DefaultRetentionWindow = 7 * 24 * time.Hour
 
 	MaxTreePage  = 50
 	MaxFileBytes = 256 * 1024
@@ -34,41 +39,49 @@ const (
 )
 
 var (
-	ErrNotFound     = errors.New("workspace not found")
-	ErrForbidden    = errors.New("forbidden")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrInvalid      = errors.New("invalid workspace request")
-	ErrConflict     = errors.New("conflict")
-	ErrDisabled     = errors.New("workspace support is not configured")
-	ErrNoCluster    = errors.New("no cluster")
-	ErrStale        = errors.New("stale revision")
-	ErrSelfApproval = errors.New("self approval")
-	ErrPath         = errors.New("path is outside the workspace")
-	ErrMissing      = errors.New("file not found")
+	ErrNotFound        = errors.New("workspace not found")
+	ErrForbidden       = errors.New("forbidden")
+	ErrUnauthorized    = errors.New("unauthorized")
+	ErrInvalid         = errors.New("invalid workspace request")
+	ErrBranchNotPushed = errors.New("branch not pushed; volume preservation recorded")
+	ErrConflict        = errors.New("conflict")
+	ErrDisabled        = errors.New("workspace support is not configured")
+	ErrNoCluster       = errors.New("no cluster")
+	ErrStale           = errors.New("stale revision")
+	ErrSelfApproval    = errors.New("self approval")
+	ErrPath            = errors.New("path is outside the workspace")
+	ErrMissing         = errors.New("file not found")
 )
 
 // Workspace is one authorized working copy. ApprovalID is empty unless a
 // separate reviewer recorded an approval through governance.
 type Workspace struct {
-	ID                string
-	ProfileID         string
-	EnvironmentID     string
-	Owner             string
-	Title             string
-	Status            string
-	SourceDigest      string
-	ProposalRevision  string
-	ArtifactDigest    string
-	ParentID          string
-	TemplateVersion   string
-	ToolVersions      string
-	ValidationOutcome string
-	ApprovalID        string
-	SignatureStatus   string
-	CreatedAt         time.Time
-	UpdatedAt         time.Time
-	LastUsed          time.Time
-	ValueTier         string
+	ID                string    `json:"id"`
+	ProfileID         string    `json:"profileId"`
+	EnvironmentID     string    `json:"environmentId"`
+	Owner             string    `json:"owner"`
+	Title             string    `json:"title"`
+	Status            string    `json:"status"`
+	UpstreamRepo      string    `json:"upstreamRepo,omitempty"`
+	RepoURL           string    `json:"repoUrl,omitempty"`
+	Branch            string    `json:"branch,omitempty"`
+	BaseCommit        string    `json:"baseCommit,omitempty"`
+	HeadCommit        string    `json:"headCommit,omitempty"`
+	SourceDigest      string    `json:"sourceDigest"`
+	ProposalRevision  string    `json:"proposalRevision"`
+	ArtifactDigest    string    `json:"artifactDigest,omitempty"`
+	ParentID          string    `json:"parentId,omitempty"`
+	TemplateVersion   string    `json:"templateVersion,omitempty"`
+	ToolVersions      string    `json:"toolVersions,omitempty"`
+	ValidationOutcome string    `json:"validationOutcome,omitempty"`
+	ApprovalID        string    `json:"approvalId,omitempty"`
+	SignatureStatus   string    `json:"signatureStatus"`
+	VolumePreserved   bool      `json:"volumePreserved,omitempty"`
+	PreservedUntil    time.Time `json:"preservedUntil,omitempty"`
+	CreatedAt         time.Time `json:"createdAt"`
+	UpdatedAt         time.Time `json:"updatedAt"`
+	LastUsed          time.Time `json:"lastUsed"`
+	ValueTier         string    `json:"valueTier"`
 }
 
 // Caller is the operator the HTTP adapter already authenticated.

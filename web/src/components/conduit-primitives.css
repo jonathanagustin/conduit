@@ -1,0 +1,471 @@
+/* Conduit React Primitives Stylesheet
+ * Calm Operational Palette (WCAG 2.2 AA Verified)
+ */
+
+:root,
+[data-theme="light"] {
+  color-scheme: light;
+
+  /* Conduit core token scale */
+  --cnd-bg-0: #f1f4f8;
+  --cnd-bg-1: #ffffff;
+  --cnd-bg-2: #f6f8fb;
+  --cnd-bg-3: #eaeff5;
+
+  --cnd-border-subtle: #d8e0ea;
+  --cnd-border-control: #768599;
+  --cnd-border-strong: #526277;
+
+  --cnd-text-1: #0f172a;
+  --cnd-text-2: #435266;
+  --cnd-text-3: #8c9ab0;
+
+  --cnd-accent-fill: #1d4ed8;
+  --cnd-accent-hover: #1e40af;
+  --cnd-accent-active: #1e3a8a;
+  --cnd-accent-text: #ffffff;
+  --cnd-accent-focus: #1d4ed8;
+  --cnd-accent-sel-bg: #e8f0fe;
+  --cnd-accent-sel-border: #2563eb;
+
+  --cnd-ok-fill: #eafaf2;
+  --cnd-ok-border: #1f8254;
+  --cnd-ok-text: #0c5434;
+
+  --cnd-warn-fill: #fef7e6;
+  --cnd-warn-border: #a3680e;
+  --cnd-warn-text: #734406;
+
+  --cnd-err-fill: #fef0f1;
+  --cnd-err-border: #c43c45;
+  --cnd-err-text: #8c1921;
+
+  --cnd-info-fill: #edf4ff;
+  --cnd-info-border: #2b67bd;
+  --cnd-info-text: #163e7a;
+
+  --cnd-ai-fill: #f3f0ff;
+  --cnd-ai-border: #6d52cc;
+  --cnd-ai-text: #452799;
+
+  --cnd-neutral-fill: #f1f5f9;
+  --cnd-neutral-border: #64748b;
+  --cnd-neutral-text: #2d3b4e;
+
+  /* Font stacks */
+  --cnd-font-sans:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+  --cnd-font-mono:
+    ui-monospace, SFMono-Regular, "SF Mono", Menlo, Monaco, Consolas,
+    "Liberation Mono", monospace;
+
+  /* Spacing */
+  --cnd-sp-1: 4px;
+  --cnd-sp-2: 8px;
+  --cnd-sp-3: 12px;
+  --cnd-sp-4: 16px;
+  --cnd-sp-6: 24px;
+
+  /* Stepper & Pill Tokens */
+  --cnd-step-line: var(--cnd-border-subtle);
+  --cnd-step-line-done: var(--cnd-ok-border);
+  --cnd-pill-bg: var(--cnd-bg-2);
+  --cnd-pill-border: var(--cnd-border-control);
+  --cnd-skeleton-base: rgba(0, 0, 0, 0.06);
+  --cnd-skeleton-highlight: rgba(0, 0, 0, 0.12);
+}
+
+.bp6-dark,
+[data-theme="dark"] {
+  color-scheme: dark;
+
+  --cnd-bg-0: #0b1113;
+  --cnd-bg-1: #10161a;
+  --cnd-bg-2: #141c22;
+  --cnd-bg-3: #19232b;
+
+  --cnd-border-subtle: #1e2830;
+  --cnd-border-control: #5e7185;
+  --cnd-border-strong: #7c90a6;
+
+  --cnd-text-1: #e2e8f0;
+  --cnd-text-2: #9fb0c4;
+  --cnd-text-3: #5e6e82;
+
+  --cnd-accent-fill: #255fb8;
+  --cnd-accent-hover: #2d6fd1;
+  --cnd-accent-active: #1e4e98;
+  --cnd-accent-text: #f8fafc;
+  --cnd-accent-focus: #63a4ff;
+  --cnd-accent-sel-bg: #16263d;
+  --cnd-accent-sel-border: #5392eb;
+
+  --cnd-ok-fill: #10261e;
+  --cnd-ok-border: #3ca374;
+  --cnd-ok-text: #6ee0a8;
+
+  --cnd-warn-fill: #281f11;
+  --cnd-warn-border: #c48a2b;
+  --cnd-warn-text: #f2be68;
+
+  --cnd-err-fill: #2b1619;
+  --cnd-err-border: #d45b64;
+  --cnd-err-text: #f9989f;
+
+  --cnd-info-fill: #132236;
+  --cnd-info-border: #4d8be0;
+  --cnd-info-text: #8cc0ff;
+
+  --cnd-ai-fill: #1d1933;
+  --cnd-ai-border: #8b78e6;
+  --cnd-ai-text: #c4b5fd;
+
+  --cnd-neutral-fill: #18202b;
+  --cnd-neutral-border: #6f829a;
+  --cnd-neutral-text: #b8c6d8;
+
+  --cnd-step-line: var(--cnd-border-subtle);
+  --cnd-step-line-done: var(--cnd-ok-border);
+  --cnd-pill-bg: var(--cnd-bg-2);
+  --cnd-pill-border: var(--cnd-border-control);
+  --cnd-skeleton-base: rgba(255, 255, 255, 0.05);
+  --cnd-skeleton-highlight: rgba(255, 255, 255, 0.12);
+}
+
+/* =========================================================================
+   Conduit Entity Title & Header
+   ========================================================================= */
+
+.cnd-entity-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--cnd-sp-4);
+  margin-bottom: var(--cnd-sp-4);
+}
+
+.cnd-entity-title-fill {
+  width: 100%;
+}
+
+.cnd-entity-title-wrap .bp6-entity-title-title-and-tags {
+  flex-wrap: wrap;
+}
+
+.cnd-entity-header-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cnd-sp-2);
+  flex-shrink: 0;
+}
+
+/* =========================================================================
+   Conduit Switch Card
+   ========================================================================= */
+
+.cnd-switch-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--cnd-sp-3);
+  padding: var(--cnd-sp-3) var(--cnd-sp-4);
+  background-color: var(--cnd-bg-1);
+  border: 1px solid var(--cnd-border-subtle);
+  border-radius: 4px;
+}
+
+.cnd-switch-card:hover {
+  border-color: var(--cnd-border-control);
+}
+
+.cnd-switch-card-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.cnd-switch-card-label {
+  font-family: var(--cnd-font-sans);
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--cnd-text-1);
+}
+
+.cnd-switch-card-helper {
+  font-family: var(--cnd-font-sans);
+  font-size: 12px;
+  color: var(--cnd-text-2);
+}
+
+/* =========================================================================
+   Conduit Orb Count Badge
+   ========================================================================= */
+
+.cnd-orb-badge {
+  font-variant-numeric: tabular-nums;
+  font-weight: 600;
+  font-size: 11px;
+  min-width: 18px;
+  height: 18px;
+  line-height: 18px;
+  padding: 0 5px;
+  text-align: center;
+}
+
+/* =========================================================================
+   View State Boundary (7 states)
+   ========================================================================= */
+
+.cnd-view-boundary {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cnd-sp-3);
+  width: 100%;
+}
+
+.cnd-view-loading {
+  display: flex;
+  flex-direction: column;
+  gap: var(--cnd-sp-3);
+  padding: var(--cnd-sp-4);
+}
+
+.cnd-loading-label {
+  font-family: var(--cnd-font-sans);
+  font-size: 13px;
+  color: var(--cnd-text-2);
+}
+
+.cnd-skeleton-bar {
+  display: block;
+  width: 100%;
+  height: 16px;
+  border-radius: 4px;
+  background-color: var(--cnd-skeleton-base);
+  background-image: linear-gradient(
+    90deg,
+    var(--cnd-skeleton-base) 0%,
+    var(--cnd-skeleton-highlight) 50%,
+    var(--cnd-skeleton-base) 100%
+  );
+  background-size: 200% 100%;
+  animation: cnd-shimmer 1.6s infinite ease-in-out;
+}
+
+@keyframes cnd-shimmer {
+  0% {
+    background-position: 200% 0;
+  }
+  100% {
+    background-position: -200% 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cnd-skeleton-bar {
+    animation: none;
+    background-image: none;
+  }
+}
+
+.cnd-view-callout-top {
+  margin-bottom: var(--cnd-sp-3);
+}
+
+.cnd-view-non-ideal {
+  padding: var(--cnd-sp-6) var(--cnd-sp-4);
+}
+
+/* =========================================================================
+   Pipeline Stepper
+   ========================================================================= */
+
+.cnd-pipeline-stepper {
+  display: flex;
+  align-items: center;
+  gap: var(--cnd-sp-2);
+  padding: var(--cnd-sp-3) var(--cnd-sp-4);
+  background-color: var(--cnd-bg-1);
+  border: 1px solid var(--cnd-border-subtle);
+  border-radius: 4px;
+  overflow-x: auto;
+}
+
+.cnd-pipeline-step-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cnd-sp-2);
+  flex-shrink: 0;
+}
+
+.cnd-pipeline-step {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--cnd-sp-2);
+  font-family: var(--cnd-font-sans);
+  font-size: 12px;
+  color: var(--cnd-text-2);
+}
+
+.cnd-pipeline-step-indicator {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1.5px solid var(--cnd-border-control);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--cnd-text-2);
+  background-color: transparent;
+}
+
+.cnd-pipeline-step-label {
+  font-weight: 500;
+  color: var(--cnd-text-2);
+}
+
+.cnd-pipeline-step-detail {
+  font-size: 11px;
+  color: var(--cnd-text-3);
+  margin-left: 2px;
+}
+
+/* Step States: done | active | failed | blocked | waiting */
+.cnd-pipeline-step.is-done .cnd-pipeline-step-indicator {
+  border-color: var(--cnd-ok-border);
+  background-color: var(--cnd-ok-fill);
+  color: var(--cnd-ok-text);
+}
+.cnd-pipeline-step.is-done .cnd-pipeline-step-label {
+  color: var(--cnd-text-1);
+}
+
+.cnd-pipeline-step.is-active .cnd-pipeline-step-indicator {
+  border-color: var(--cnd-accent-focus);
+  background-color: var(--cnd-accent-sel-bg);
+  color: var(--cnd-accent-text);
+}
+.cnd-pipeline-step.is-active .cnd-pipeline-step-label {
+  color: var(--cnd-text-1);
+  font-weight: 600;
+}
+
+.cnd-pipeline-step.is-failed .cnd-pipeline-step-indicator {
+  border-color: var(--cnd-err-border);
+  background-color: var(--cnd-err-fill);
+  color: var(--cnd-err-text);
+}
+.cnd-pipeline-step.is-failed .cnd-pipeline-step-label {
+  color: var(--cnd-err-text);
+  font-weight: 600;
+}
+
+.cnd-pipeline-step.is-blocked .cnd-pipeline-step-indicator {
+  border-color: var(--cnd-warn-border);
+  background-color: var(--cnd-warn-fill);
+  color: var(--cnd-warn-text);
+}
+.cnd-pipeline-step.is-blocked .cnd-pipeline-step-label {
+  color: var(--cnd-warn-text);
+}
+
+.cnd-pipeline-step.is-waiting .cnd-pipeline-step-indicator {
+  border-color: var(--cnd-border-subtle);
+  color: var(--cnd-text-3);
+}
+.cnd-pipeline-step.is-waiting .cnd-pipeline-step-label {
+  color: var(--cnd-text-3);
+}
+
+.cnd-pipeline-connector {
+  display: inline-block;
+  width: 24px;
+  height: 2px;
+  background-color: var(--cnd-step-line);
+  flex-shrink: 0;
+}
+
+.cnd-pipeline-connector.is-done {
+  background-color: var(--cnd-step-line-done);
+}
+
+/* =========================================================================
+   Metadata Grid & Cards
+   ========================================================================= */
+
+.cnd-meta-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: var(--cnd-sp-3);
+  margin: 0;
+  padding: 0;
+}
+
+.cnd-meta-card {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: var(--cnd-sp-3) var(--cnd-sp-4);
+  background-color: var(--cnd-bg-1);
+  border: 1px solid var(--cnd-border-subtle);
+  border-radius: 4px;
+}
+
+.cnd-meta-label {
+  font-family: var(--cnd-font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: var(--cnd-text-2);
+}
+
+.cnd-meta-value {
+  font-family: var(--cnd-font-sans);
+  font-size: 13px;
+  color: var(--cnd-text-1);
+  margin: 0;
+  word-break: break-word;
+}
+
+.cnd-meta-value.is-mono {
+  font-family: var(--cnd-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 12px;
+}
+
+/* =========================================================================
+   Digest Pill
+   ========================================================================= */
+
+.cnd-digest-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  font-family: var(--cnd-font-mono);
+  font-variant-numeric: tabular-nums;
+  font-size: 11.5px;
+  color: var(--cnd-text-1);
+  background-color: var(--cnd-pill-bg);
+  border: 1px solid var(--cnd-pill-border);
+  border-radius: 3px;
+  max-width: 100%;
+}
+
+.cnd-digest-pill-label {
+  font-family: var(--cnd-font-sans);
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--cnd-text-2);
+}
+
+.cnd-digest-pill-value {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

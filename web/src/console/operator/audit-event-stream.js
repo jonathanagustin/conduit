@@ -41,7 +41,10 @@ export function scopedNotificationEvents(body, resource) {
   ];
 }
 export function createAuditEventStream({ getEntries, getIdentity }) {
-  return function mount(root) {
+  let active = null;
+  function mount(root) {
+    if (active?.reuse(root)) return;
+    active?.dispose();
     const token = {};
     mounts.set(root, token);
     const identity = JSON.stringify(getIdentity());
@@ -145,32 +148,69 @@ export function createAuditEventStream({ getEntries, getIdentity }) {
         }
       }
     };
-    root.onchange = (event) => {
-      if (!event.target?.matches?.("[data-audit-resource]")) return;
-      stop();
-      resource = event.target.value;
-      rows = [];
-      busy = false;
-      note = "Selection changed; polling is paused.";
-      paint();
-    };
-    root.onclick = (event) => {
-      const button = event.target?.closest?.("button");
-      if (!button || button.disabled) return;
-      if (button.matches("[data-audit-poll]")) {
-        if (!paused) {
-          stop();
-          busy = false;
-          note = "Polling paused.";
-          paint();
-        } else {
-          paused = false;
-          generation++;
-          void load();
+    const bind = () => {
+      root.onchange = (event) => {
+        if (!event.target?.matches?.("[data-audit-resource]")) return;
+        stop();
+        resource = event.target.value;
+        rows = [];
+        busy = false;
+        note = "Selection changed; polling is paused.";
+        paint();
+      };
+      root.onclick = (event) => {
+        const button = event.target?.closest?.("button");
+        if (!button || button.disabled) return;
+        if (button.matches("[data-audit-poll]")) {
+          if (!paused) {
+            stop();
+            busy = false;
+            note = "Polling paused.";
+            paint();
+          } else {
+            paused = false;
+            generation++;
+            void load();
+          }
         }
-      }
-      if (button.matches("[data-audit-refresh]")) void load();
+        if (button.matches("[data-audit-refresh]")) void load();
+      };
     };
+    const session = {
+      reuse(nextRoot) {
+        if (!sameIdentity()) return false;
+        root.onchange = null;
+        root.onclick = null;
+        mounts.delete(root);
+        root = nextRoot;
+        mounts.set(root, token);
+        if (resource && !resources().includes(resource)) {
+          stop();
+          resource = "";
+          rows = [];
+          busy = false;
+          note = "Visible resource changed; select again.";
+        }
+        bind();
+        paint();
+        return true;
+      },
+      dispose() {
+        stop();
+        rows = [];
+        resource = "";
+        root.onchange = null;
+        root.onclick = null;
+        mounts.delete(root);
+      },
+    };
+    active = session;
+    bind();
     paint();
+  }
+  mount.dispose = () => {
+    active?.dispose();
+    active = null;
   };
+  return mount;
 }

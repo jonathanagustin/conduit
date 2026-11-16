@@ -35,6 +35,17 @@ import {
   Surface,
   TextField,
 } from "./components/base";
+import {
+  ConduitCardList,
+  ConduitEntityTitle,
+  ConduitSwitchCard,
+  DigestPill,
+  KeyComboTag,
+  MetadataGrid,
+  OrbCountBadge,
+  PipelineStepper,
+  ViewStateBoundary,
+} from "../components/index.js";
 import "./theme/tokens.css";
 
 const INTENTS = ["none", "primary", "success", "warning", "danger"] as const;
@@ -46,6 +57,7 @@ export function ComponentGallery() {
   const [drawer, setDrawer] = useState(false);
   const [dialog, setDialog] = useState(false);
   const [text, setText] = useState("lab");
+  const [switchChecked, setSwitchChecked] = useState(true);
   return (
     <div
       className={theme === "dark" ? "bp6-dark conduit-shell" : "conduit-shell"}
@@ -273,6 +285,92 @@ export function ComponentGallery() {
         >
           Dialog body
         </PromptDialog>
+      </section>
+      <section>
+        <h2>Shared Conduit UI Kit Primitives</h2>
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          <ConduitEntityTitle
+            title="EntityTitle primitive"
+            subtitle="Scoped to Inspector panels and entity cards with zero-gutter alignment"
+            tags={
+              <>
+                <OrbCountBadge count={42} intent="primary" />
+                <KeyComboTag combo="⌘K" />
+              </>
+            }
+          />
+          <ConduitCardList bordered compact>
+            <div style={{ padding: 12 }}>
+              <ConduitSwitchCard
+                label="Governed two-person sign-off"
+                helperText="Requires explicit approval from governance authority before release handoff."
+                checked={switchChecked}
+                onChange={setSwitchChecked}
+              />
+            </div>
+          </ConduitCardList>
+          <div>
+            <h3>PipelineStepper</h3>
+            <PipelineStepper
+              steps={[
+                { id: "assess", label: "Assess", state: "done" },
+                { id: "build", label: "Build", state: "done" },
+                { id: "verify", label: "Verify", state: "active" },
+                { id: "review", label: "Review", state: "waiting" },
+                { id: "handoff", label: "Handoff", state: "waiting" },
+              ]}
+              ariaLabel="Gallery pipeline demo"
+            />
+          </div>
+          <div>
+            <h3>MetadataGrid & DigestPill</h3>
+            <MetadataGrid
+              items={[
+                { label: "Target Coordinate", value: "spoke-fleet-east" },
+                {
+                  label: "Source Digest",
+                  value: (
+                    <DigestPill
+                      value="sha256:7f83b1657ff1fc53b92dc18148a1d65dfc2d4b1fa3d677284addd200126d9069"
+                      label="sha256"
+                    />
+                  ),
+                  mono: true,
+                },
+                {
+                  label: "Artifact Digest",
+                  value: (
+                    <DigestPill
+                      value="sha256:8b0e8c14f6b6eb8b07f87c1f8f30730d10c2d3345842845c479e0a8ff2472d73"
+                      label="sha256"
+                    />
+                  ),
+                  mono: true,
+                },
+                { label: "Status", value: "Active", mono: false },
+              ]}
+            />
+          </div>
+          <div>
+            <h3>ViewStateBoundary (Stale state with preserved children)</h3>
+            <ViewStateBoundary
+              state="stale"
+              title="Telemetry sync pending"
+              description="Spoke node reporting delayed by 45s. Live records preserved below."
+            >
+              <div
+                style={{
+                  padding: 12,
+                  background: "var(--cnd-bg-1, #10161a)",
+                  borderRadius: 4,
+                  border: "1px solid var(--cnd-border-subtle, #1e2830)",
+                }}
+              >
+                Preserved Hub recorded view content during staleness.
+              </div>
+            </ViewStateBoundary>
+          </div>
+        </div>
       </section>
     </div>
   );

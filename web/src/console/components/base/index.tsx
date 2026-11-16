@@ -432,6 +432,44 @@ export function NavTree({
   );
 }
 
+export function ConduitMark({ size = 18 }: { size?: number }) {
+  return (
+    <svg
+      className="cnd-brand-mark"
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+    >
+      <path
+        className="cnd-mark-c1"
+        d="M3.6 6.6L9 12L3.6 17.4"
+        stroke="#215db0"
+        strokeWidth="2.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        className="cnd-mark-c2"
+        d="M9.3 6.6L14.7 12L9.3 17.4"
+        stroke="#4c90f0"
+        strokeWidth="2.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path
+        className="cnd-mark-c3"
+        d="M15 6.6L20.4 12L15 17.4"
+        stroke="#8abbff"
+        strokeWidth="2.35"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
 export function AppShell({
   kpi,
   toolbar,
@@ -482,7 +520,10 @@ export function AppShell({
           aria-label="Collapse sidebar"
           onClick={() => setRailCollapsed((collapsed) => !collapsed)}
         />
-        <span className="cd-wordmark">Conduit</span>
+        <span className="cd-wordmark">
+          <ConduitMark />
+          Conduit
+        </span>
         <div className="cd-kpi-strip">{kpi}</div>
         <div className="conduit-top-tools">{toolbar}</div>
         <Button

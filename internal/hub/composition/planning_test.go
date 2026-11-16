@@ -6,13 +6,19 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"reflect"
 	"strings"
+	"sync"
 	"testing"
+
+	"go.temporal.io/sdk/client"
+	"go.temporal.io/sdk/converter"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
+	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
 )
 
 type readyPlanningRunner struct{}
@@ -131,5 +137,153 @@ func TestPlanningModelAuditCarriesBoundRunIdentifiers(t *testing.T) {
 	}
 	if events[0].Subject != "alice" || events[0].Context["threadId"] != "session" || events[0].Context["runId"] != "run-1" {
 		t.Fatalf("lost run binding: %+v", events[0])
+	}
+}
+
+func TestMountPlanningRefusesNonLoopbackTemporalAddress(t *testing.T) {
+	t.Setenv("CONDUIT_TEMPORAL_ADDRESS", "10.0.0.1:7233")
+	_, err := mountPlanning(http.NotFoundHandler(), controlplane.NewMemoryRepository(), controlplane.HandlerOptions{})
+	if err == nil || !strings.Contains(err.Error(), "refusing non-loopback") {
+		t.Fatalf("expected non-loopback error, got %v", err)
+	}
+}
+
+type fakeEncodedValue struct {
+	val any
+}
+
+func (f fakeEncodedValue) HasValue() bool { return true }
+func (f fakeEncodedValue) Get(valuePtr any) error {
+	raw, err := json.Marshal(f.val)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(raw, valuePtr)
+}
+
+type fakeUpdateHandle struct {
+	session *planningdomain.Session
+}
+
+func (h fakeUpdateHandle) WorkflowID() string { return "" }
+func (h fakeUpdateHandle) RunID() string      { return "" }
+func (h fakeUpdateHandle) UpdateID() string   { return "upd-1" }
+func (h fakeUpdateHandle) Get(_ context.Context, valuePtr any) error {
+	if valuePtr == nil {
+		return nil
+	}
+	rv := reflect.ValueOf(valuePtr)
+	if rv.Kind() == reflect.Ptr {
+		rv.Elem().Set(reflect.ValueOf(*h.session))
+	}
+	return nil
+}
+
+type fakeTemporalWorkflowClient struct {
+	mu       sync.Mutex
+	sessions map[string]*planningdomain.Session
+	owners   map[string]string
+}
+
+func newFakeTemporalWorkflowClient() *fakeTemporalWorkflowClient {
+	return &fakeTemporalWorkflowClient{
+		sessions: make(map[string]*planningdomain.Session),
+		owners:   make(map[string]string),
+	}
+}
+
+func (c *fakeTemporalWorkflowClient) ExecuteWorkflow(_ context.Context, options client.StartWorkflowOptions, _ any, args ...any) (client.WorkflowRun, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	in := args[0].(planningworkflow.Input)
+	intake, err := planningdomain.ParseIntake(in.RepoURL, in.Ref)
+	if err != nil {
+		return nil, err
+	}
+	s := &planningdomain.Session{
+		ID:      in.SessionID,
+		Status:  planningdomain.StatusStarted,
+		Profile: planningdomain.ProfileRef{Name: planningdomain.ProfileOnboard},
+		Intake:  intake,
+	}
+	c.sessions[options.ID] = s
+	c.owners[options.ID] = in.Actor
+	return nil, nil
+}
+
+func (c *fakeTemporalWorkflowClient) QueryWorkflow(_ context.Context, workflowID string, _ string, queryType string, _ ...any) (converter.EncodedValue, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s, ok := c.sessions[workflowID]
+	if !ok {
+		return nil, planningdomain.ErrNotFound
+	}
+	if queryType == planningworkflow.QueryOwner {
+		return fakeEncodedValue{val: c.owners[workflowID]}, nil
+	}
+	return fakeEncodedValue{val: planningdomain.CloneSession(s)}, nil
+}
+
+func (c *fakeTemporalWorkflowClient) UpdateWorkflow(_ context.Context, options client.UpdateWorkflowOptions) (client.WorkflowUpdateHandle, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	s, ok := c.sessions[options.WorkflowID]
+	if !ok {
+		return nil, planningdomain.ErrNotFound
+	}
+	switch options.UpdateName {
+	case planningworkflow.UpdateTurn:
+		req := options.Args[0].(planningworkflow.TurnRequest)
+		planText := `{"summary":"Excalidraw web app","baseImage":"cgr.dev/chainguard/node"}`
+		plan := planningdomain.Plan{Text: planText}
+		plan.SHA256 = planningdomain.PlanHash(plan)
+		s.Status = planningdomain.StatusReady
+		s.Messages = append(s.Messages,
+			planningdomain.Message{Role: planningdomain.RoleOperator, Text: req.Message},
+			planningdomain.Message{Role: planningdomain.RoleModel, Text: "Generated Excalidraw plan."},
+		)
+		s.Inspection = &planningdomain.Inspection{Language: "typescript", PackageManager: "yarn", ToolCalls: []string{"inspect_repo"}}
+		s.Plan = &plan
+		s.ResolvedCommit = strings.Repeat("a", 40)
+		s.Model = planningdomain.DefaultModelLabel
+		s.Profile = planningdomain.ProfileRef{Name: "onboard", Version: "1", Hash: strings.Repeat("b", 64)}
+	}
+	cp := planningdomain.CloneSession(s)
+	return fakeUpdateHandle{session: cp}, nil
+}
+
+func TestPlanningHandlerWithTemporalServesSessionsAndSSEAgentRuns(t *testing.T) {
+	repository := controlplane.NewMemoryRepository()
+	wfClient := newFakeTemporalWorkflowClient()
+	handler := planningHandlerWithTemporal(
+		http.NotFoundHandler(),
+		repository,
+		controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true},
+		nil,
+		wfClient,
+	)
+
+	resp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions", `{"repoUrl":"https://github.com/excalidraw/excalidraw","ref":"main"}`)
+	var created planningdomain.Session
+	if resp.Code != http.StatusCreated || json.Unmarshal(resp.Body.Bytes(), &created) != nil || created.ID == "" {
+		t.Fatalf("create via Temporal adapter: %d %s", resp.Code, resp.Body.String())
+	}
+
+	// Verify SSE /v1/agent-runs streams structured tool calls and plan over the same Temporal-backed session
+	sseBodyJSON, _ := json.Marshal(map[string]any{
+		"threadId":        created.ID,
+		"runId":           "run-1",
+		"protocolVersion": "1.0",
+		"messages": []any{
+			map[string]any{"id": "user-1", "role": "user", "content": "Package Excalidraw with Zarf and UDS"},
+		},
+	})
+	sseResp := planningRequest(t, handler, "alice", "POST", "/v1/agent-runs", string(sseBodyJSON))
+	if sseResp.Code != http.StatusOK {
+		t.Fatalf("SSE /v1/agent-runs: %d %s", sseResp.Code, sseResp.Body.String())
+	}
+	sseBody := sseResp.Body.String()
+	if !strings.Contains(sseBody, "RUN_STARTED") || !strings.Contains(sseBody, "STATE_DELTA") || !strings.Contains(sseBody, "inspect_repo") || !strings.Contains(sseBody, "RUN_FINISHED") {
+		t.Fatalf("SSE stream missing expected events:\n%s", sseBody)
 	}
 }

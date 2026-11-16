@@ -151,4 +151,49 @@ describe("planning agent exchange controller", () => {
     expect(form.set).not.toHaveBeenCalled();
     expect(fetcher).toHaveBeenCalledTimes(1);
   });
+  it("preserves earlier messages across subsequent turns when server snapshots omit prior client ids (#695)", async () => {
+    let call = 0;
+    const fetcher = vi.fn(async (_url, init) => {
+      call++;
+      const input = JSON.parse(init.body);
+      const messages =
+        call === 1
+          ? [
+              { id: "srv-u1", role: "user", content: "first turn" },
+              { id: "srv-m1", role: "assistant", content: "need port" },
+            ]
+          : [
+              { id: "srv-u2", role: "user", content: "second turn" },
+              { id: "srv-m2", role: "assistant", content: "plan ready" },
+            ];
+      return new Response(
+        [
+          { type: "RUN_STARTED", threadId: input.threadId, runId: input.runId },
+          {
+            type: "STATE_SNAPSHOT",
+            snapshot: { session, pendingClientTools: [] },
+          },
+          { type: "MESSAGES_SNAPSHOT", messages },
+          {
+            type: "RUN_FINISHED",
+            threadId: input.threadId,
+            runId: input.runId,
+            outcome: { type: "success" },
+          },
+        ]
+          .map((event) => `data: ${JSON.stringify(event)}\n\n`)
+          .join(""),
+        { headers: { "content-type": "text/event-stream" } },
+      );
+    });
+    const agent = new PlanningAgent("s1", fetcher);
+    await agent.run({ message: "first turn" }, binding(), () => {});
+    await agent.run({ message: "second turn" }, binding(), () => {});
+    expect(agent.messages.map((m) => m.content)).toEqual([
+      "first turn",
+      "need port",
+      "second turn",
+      "plan ready",
+    ]);
+  });
 });

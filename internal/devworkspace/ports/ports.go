@@ -3,6 +3,7 @@ package ports
 
 import (
 	"context"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 )
@@ -52,4 +53,19 @@ type ChangeSubmitter interface {
 // Auditor records an authorization decision on the existing hash chain.
 type Auditor interface {
 	Record(ctx context.Context, subject, action, resource, decision, reason string) error
+}
+
+// BranchPreserver commits dirty /repo changes to a preservation commit and pushes
+// the workspace branch before idle compute is reclaimed, or marks the workspace
+// volume preserved for the retention window when push fails.
+type BranchPreserver interface {
+	PreserveOnIdle(ctx context.Context, workspace domain.Workspace, now time.Time) (domain.Workspace, error)
+	ExpirePreservedVolumes(ctx context.Context, now time.Time, audit VolumeExpiryAudit) ([]domain.Workspace, error)
+}
+
+// VolumeExpiryAudit durably records expiry intent and the observed removal result.
+// Implementations must not re-enter the workspace store from these callbacks.
+type VolumeExpiryAudit interface {
+	BeforeExpire(ctx context.Context, workspace domain.Workspace) error
+	AfterExpire(ctx context.Context, workspace domain.Workspace, removalErr error) error
 }

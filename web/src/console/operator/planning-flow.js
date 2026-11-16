@@ -1,4 +1,4 @@
-import { PlanningAgent } from "./planning-agent.js";
+import { PlanningAgent, mergeAgentMessages } from "./planning-agent.js";
 
 // Planning flow for the Work Intake screen: composer, inspection rows, Needs
 // Input card, plan review, Accept, and the binding panel. Every value shown
@@ -196,8 +196,59 @@ export function toolRows(events) {
   return rows;
 }
 
-/** Splits plan text at Markdown headings. Text before a heading is its own section. */
+function parseJsonPlanSections(raw) {
+  const trimmed = String(raw || "").trim();
+  if (!trimmed.startsWith("{")) return null;
+  let parsed;
+  try {
+    parsed = JSON.parse(trimmed);
+  } catch {
+    return null;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed))
+    return null;
+  const sections = [];
+  const pushSection = (title, value) => {
+    const body = String(value ?? "").trim();
+    if (body) sections.push({ title, body });
+  };
+  if (typeof parsed.summary === "string")
+    pushSection("Summary", parsed.summary);
+  if (typeof parsed.baseImage === "string")
+    pushSection("Base image", parsed.baseImage);
+  if (Array.isArray(parsed.buildSteps) && parsed.buildSteps.length)
+    pushSection(
+      "Build steps",
+      parsed.buildSteps.map((s) => String(s)).join("\n"),
+    );
+  if (Array.isArray(parsed.ports) && parsed.ports.length)
+    pushSection("Ports", parsed.ports.map((p) => String(p)).join(", "));
+  if (Array.isArray(parsed.networkAllow) && parsed.networkAllow.length)
+    pushSection(
+      "Network allow",
+      parsed.networkAllow.map((n) => String(n)).join("\n"),
+    );
+  if (typeof parsed.sso === "boolean")
+    pushSection("SSO", parsed.sso ? "Required" : "Not required");
+  if (Array.isArray(parsed.risks) && parsed.risks.length)
+    pushSection("Risks", parsed.risks.map((r) => String(r)).join("\n"));
+  if (sections.length) return sections;
+  for (const [key, value] of Object.entries(parsed)) {
+    if (Array.isArray(value)) {
+      pushSection(key, value.map((item) => String(item)).join("\n"));
+    } else if (value !== null && typeof value === "object") {
+      pushSection(key, JSON.stringify(value, null, 2));
+    } else {
+      pushSection(key, value);
+    }
+  }
+  return sections.length ? sections : null;
+}
+
+/** Splits plan text into structured sections (canonical JSON plan or Markdown headings). */
 export function planSections(text) {
+  const fromJson = parseJsonPlanSections(text);
+  if (fromJson) return fromJson;
   const sections = [];
   let current = null;
   for (const line of String(text || "").split(/\r?\n/)) {
@@ -251,6 +302,47 @@ export function acceptState(session) {
   return { ok: true, reason: "" };
 }
 
+/** Returns the reported model name or a neutral label, never a configured command string. */
+export function displayModelName(model) {
+  const trimmed = String(model ?? "").trim();
+  if (!trimmed) return "Configured model";
+  if (
+    trimmed.includes("/") ||
+    trimmed.includes("\\") ||
+    /\s--?[a-z0-9]/i.test(trimmed) ||
+    /\.(sh|py|js|mjs|cjs|exe|bin)(\s|$)/i.test(trimmed) ||
+    /^(sh|bash|zsh|python3?|node|deno|bun|env|go)\b/i.test(trimmed)
+  ) {
+    return "Configured model";
+  }
+  return trimmed;
+}
+
+/** Formats an ISO timestamp in America/New_York (ET) while keeping the raw ISO string. */
+export function formatAcceptedTimestamp(value) {
+  const raw = String(value ?? "").trim();
+  if (!raw) return "";
+  const date = new Date(raw);
+  if (Number.isNaN(date.getTime())) return raw;
+  try {
+    const parts = new Intl.DateTimeFormat("en-US", {
+      timeZone: "America/New_York",
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }).formatToParts(date);
+    const map = Object.fromEntries(parts.map((p) => [p.type, p.value]));
+    const hour = map.hour === "24" ? "00" : map.hour;
+    return `${map.year}-${map.month}-${map.day} ${hour}:${map.minute}:${map.second} ET (${raw})`;
+  } catch {
+    return raw;
+  }
+}
+
 /** Rows for the binding panel, straight from the recorded binding. */
 export function bindingRows(binding) {
   if (!binding) return [];
@@ -261,9 +353,9 @@ export function bindingRows(binding) {
     ["Repository", binding.intake?.repoUrl || ""],
     ["Ref", binding.intake?.ref || ""],
     ["Commit SHA", binding.resolvedCommit || ""],
-    ["Model", binding.model || ""],
+    ["Model", displayModelName(binding.model)],
     ["Plan hash", binding.plan?.sha256 || ""],
-    ["Accepted", binding.acceptedAt || ""],
+    ["Accepted", formatAcceptedTimestamp(binding.acceptedAt)],
   ];
 }
 
@@ -282,6 +374,7 @@ export function emptyPlanning() {
     agentState: null,
     agentMessages: [],
     agentTools: [],
+    showPlanJson: false,
   };
 }
 
@@ -353,18 +446,72 @@ function composer(planning) {
   </section>`;
 }
 
+function collectThreadMessages(planning) {
+  const out = [];
+  const push = (id, role, content) => {
+    const normalizedRole =
+      role === "assistant" ? "model" : String(role || "user");
+    const text = String(content ?? "").trim();
+    if (!text || normalizedRole === "tool") return;
+    if (id && out.some((item) => item.id === id)) {
+      const idx = out.findIndex((item) => item.id === id);
+      out[idx] = { id, role: normalizedRole, content: text };
+      return;
+    }
+    const dupIdx = out.findIndex(
+      (item) => item.role === normalizedRole && item.content === text,
+    );
+    if (dupIdx !== -1) {
+      if (id && !out[dupIdx].id) out[dupIdx].id = id;
+      return;
+    }
+    out.push({ id: id || "", role: normalizedRole, content: text });
+  };
+  for (const msg of planning.session?.messages || []) {
+    push(msg?.id, msg?.role, msg?.text ?? msg?.content);
+  }
+  for (const event of planning.session?.events || []) {
+    if (event?.type === "message" && event.message) {
+      push(event.id, event.message.role, event.message.text);
+    }
+  }
+  for (const event of planning.events || []) {
+    if (event?.type === "message" && event.message) {
+      push(event.id, event.message.role, event.message.text);
+    }
+  }
+  for (const msg of planning.agentMessages || []) {
+    if (
+      msg?.role !== "tool" &&
+      typeof msg?.content === "string" &&
+      msg.content
+    ) {
+      push(msg.id, msg.role, msg.content);
+    }
+  }
+  return out;
+}
+
+function mergeSessionEvents(sessionEvents, localEvents) {
+  const out = [];
+  const seen = new Set();
+  for (const event of [...(sessionEvents || []), ...(localEvents || [])]) {
+    if (!event) continue;
+    const key = event.id || JSON.stringify(event);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.push(event);
+  }
+  return out;
+}
+
 function activity(planning) {
+  const messages = collectThreadMessages(planning);
   if (planning.agentMessages?.length || planning.agentTools?.length) {
-    const messages = planning.agentMessages
-      .filter(
-        (item) =>
-          item.role !== "tool" &&
-          typeof item.content === "string" &&
-          item.content,
-      )
+    const renderedMessages = messages
       .map(
         (item) =>
-          `<div class="plan-line" data-plan-message><span class="kit-badge">${esc(item.role)}</span><span>${esc(item.content)}</span></div>`,
+          `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${item.role === "model" ? "ai" : "muted"}">${esc(item.role)}</span><span>${esc(item.content)}</span></div>`,
       )
       .join("");
     const calls = (planning.agentTools || [])
@@ -373,19 +520,17 @@ function activity(planning) {
           `<div class="plan-tool" data-plan-tool><span class="code-id">${esc(item.name)}</span><span>${esc(item.status)}</span></div>`,
       )
       .join("");
-    return `<section class="kit-panel kit-pad plan-card" data-plan-activity aria-label="Agent activity" aria-live="polite"><div class="kit-section">Agent activity</div>${messages}${calls}</section>`;
+    return `<section class="kit-panel kit-pad plan-card" data-plan-activity aria-label="Agent activity" aria-live="polite"><div class="kit-section">Agent activity</div><div class="kit-stack">${renderedMessages}${calls}</div></section>`;
   }
-  const rows = toolRows(
-    planning.events.length ? planning.events : planning.session?.events,
+  const combinedEvents = mergeSessionEvents(
+    planning.session?.events,
+    planning.events,
   );
-  const lines = (
-    planning.events.length ? planning.events : planning.session?.events || []
-  )
-    .filter((event) => event.type === "message" && event.message)
-    .map(
-      (event) =>
-        `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${event.message.role === "model" ? "ai" : "muted"}">${esc(event.message.role)}</span><span>${esc(event.message.text)}</span></div>`,
-    );
+  const rows = toolRows(combinedEvents);
+  const lines = messages.map(
+    (item) =>
+      `<div class="plan-line" data-plan-message><span class="kit-badge kit-badge-${item.role === "model" ? "ai" : "muted"}">${esc(item.role)}</span><span>${esc(item.content)}</span></div>`,
+  );
   if (!rows.length && !lines.length) return "";
   const tools = rows
     .map(
@@ -425,17 +570,28 @@ function needsInput(planning) {
   </section>`;
 }
 
-function planReview(session) {
+function planReview(session, showJson = false) {
   if (!session?.plan) return "";
   const sections = planSections(session.plan.text);
+  const toggleLabel = showJson ? "Hide JSON" : "View JSON";
+  const jsonDrawer = showJson
+    ? `<pre class="plan-json code-id" data-plan-json>${esc(session.plan.text)}</pre>`
+    : "";
   return `<section class="kit-panel kit-pad plan-card" data-plan-review aria-label="Plan review">
-    <div class="kit-header-title"><span class="kit-section">Plan</span><span class="code-id kit-muted" title="sha256">sha256 ${esc(session.plan.sha256)}</span></div>
+    <div class="kit-header-title">
+      <span class="kit-section">Plan</span>
+      <div class="plan-actions">
+        <span class="code-id kit-muted" title="sha256">sha256 ${esc(session.plan.sha256)}</span>
+        <button type="button" class="kit-btn kit-btn-sm" data-plan-view-json aria-expanded="${Boolean(showJson)}">${toggleLabel}</button>
+      </div>
+    </div>
     <div class="kit-stack">${sections
       .map(
         (section) =>
           `<div class="plan-section" data-plan-section>${section.title ? `<div class="plan-section-title">${esc(section.title)}</div>` : ""}<div class="plan-section-body">${esc(section.body)}</div></div>`,
       )
       .join("")}</div>
+    ${jsonDrawer}
   </section>`;
 }
 
@@ -446,9 +602,25 @@ function acceptBar(planning) {
   const busy = planning.busy === "accept";
   const disabled =
     !state.ok || Boolean(planning.busy) || planning.agent?.recoveryRequired;
+  const repoRef = session.intake?.repoUrl
+    ? `${session.intake.repoUrl}@${session.intake?.ref || ""}`
+    : "";
+  const commit = session.resolvedCommit || "unpinned";
+  const profileLabel = session.profile?.name
+    ? `${session.profile.name}${session.profile.version ? `@${session.profile.version}` : ""}`
+    : "";
+  const planHash = session.plan?.sha256 || "none";
   return `<section class="kit-panel kit-pad plan-card plan-accept" data-plan-accept-bar>
-    <button type="button" class="kit-btn kit-btn-ok" data-plan-accept${disabled ? " disabled" : ""} aria-disabled="${disabled}">${busy ? "Accepting…" : "Accept"}</button>
-    <span class="kit-muted" data-plan-accept-note>${esc(state.ok ? "Accept binds this plan to the commit shown in the binding." : state.reason)}</span>
+    <div class="plan-accept__action">
+      <button type="button" class="kit-btn kit-btn-ok" data-plan-accept${disabled ? " disabled" : ""} aria-disabled="${disabled}">${busy ? "Accepting…" : "Accept"}</button>
+      <span class="kit-muted" data-plan-accept-note>${esc(state.ok ? "Accept binds this plan to the commit shown in the binding." : state.reason)}</span>
+    </div>
+    <div class="plan-accept__meta" data-plan-accept-meta>
+      ${repoRef ? `<span class="kit-badge kit-badge-muted code-id" title="Repository and ref">${esc(repoRef)}</span>` : ""}
+      <span class="kit-badge kit-badge-muted code-id" title="Pinned commit">commit ${esc(commit.slice(0, 12))}</span>
+      ${profileLabel ? `<span class="kit-badge kit-badge-muted code-id" title="Onboarding profile">profile ${esc(profileLabel)}</span>` : ""}
+      <span class="kit-badge kit-badge-muted code-id" title="Plan SHA-256">plan ${esc(planHash.slice(0, 12))}</span>
+    </div>
   </section>`;
 }
 
@@ -460,7 +632,7 @@ function bindingPanel(session) {
         `<dt>${esc(key)}</dt><dd class="code-id">${esc(value)}</dd>`,
     )
     .join("");
-  return `<section class="kit-panel kit-card kit-bar-ok kit-pad plan-card" data-plan-binding aria-label="Accept binding">
+  return `<section class="kit-panel kit-card kit-bar-ok kit-pad plan-card plan-binding" data-plan-binding aria-label="Accept binding">
     <div class="kit-header-title"><span class="kit-section">Binding</span><span class="kit-badge kit-badge-ok">Accepted</span></div>
     <dl class="kit-kv">${rows}</dl>
   </section>`;
@@ -471,12 +643,18 @@ export function planningMarkup(planning) {
   return `<div class="plan-flow" data-plan-flow>
     ${errorBanner(planning.error)}
     ${planning.agent?.recoveryRequired ? '<button type="button" class="kit-btn" data-plan-recover>Recover agent snapshot</button>' : ""}
-    ${composer(planning)}
-    ${activity(planning)}
-    ${needsInput(planning)}
-    ${planReview(planning.session)}
+    <div class="plan-flow__workspace" data-plan-workspace>
+      <div class="plan-flow__col plan-flow__col--left" data-plan-col="conversation">
+        ${composer(planning)}
+        ${activity(planning)}
+        ${needsInput(planning)}
+      </div>
+      <div class="plan-flow__col plan-flow__col--right" data-plan-col="plan">
+        ${planReview(planning.session, planning.showPlanJson)}
+        ${bindingPanel(planning.session)}
+      </div>
+    </div>
     ${acceptBar(planning)}
-    ${bindingPanel(planning.session)}
   </div>`;
 }
 
@@ -588,18 +766,29 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       }
       set({
         agentState: run.state,
-        agentMessages: [...run.messages.values()],
+        agentMessages: mergeAgentMessages(store.planning.agentMessages || [], [
+          ...run.messages.values(),
+        ]),
         agentTools: [
           ...new Map(
-            [...(run.state.toolCalls || []), ...run.tools.values()].map(
-              (item) => [item.id, item],
-            ),
+            [
+              ...(store.planning.agentTools || []),
+              ...(run.state.toolCalls || []),
+              ...run.tools.values(),
+            ].map((item) => [item.id, item]),
           ).values(),
         ],
         ...(run.state.session ? { session: run.state.session } : {}),
       });
     });
-    set({ session: result.state.session, busy: "" });
+    set({
+      session: result.state.session,
+      agentMessages: mergeAgentMessages(
+        store.planning.agentMessages || [],
+        agent.messages,
+      ),
+      busy: "",
+    });
     return result;
   };
 
@@ -659,6 +848,12 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
     const hit = (selector) =>
       event.target instanceof Element ? event.target.closest(selector) : null;
     const planning = store.planning;
+
+    if (hit("[data-plan-view-json]")) {
+      set({ showPlanJson: !planning.showPlanJson });
+      return;
+    }
+
     if (planning.busy) return;
 
     if (hit("[data-plan-send]")) {
@@ -676,7 +871,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
         });
         return;
       }
-      set({ busy: "turn", error: null, events: [] });
+      set({ busy: "turn", error: null });
       try {
         let session = store.planning.session;
         if (!session) {

@@ -87,7 +87,11 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 		return planner.planTurn(ctx, session, message, checkout, tools)
 	}
 	adapter := localcmd.CommandName(planner.Argv[0])
-	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: adapter, Profile: onboardProfile()}
+	model := session.Model
+	if model == "" {
+		model = domain.DefaultModelLabel
+	}
+	result := &application.TurnResult{ResolvedCommit: checkout.SHA, Model: model, Profile: onboardProfile()}
 	prompt := application.GroundRunPrompt(ctx, inspectionPrompt(session, message))
 	promptDigest := digestText([]byte(prompt))
 	var (
@@ -107,6 +111,9 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 				Outcome: "fail", Reason: err.Error(),
 			})
 			return result, modelError(err)
+		}
+		if reported := extractReportedModel(stdout, planner.Argv); reported != "" {
+			result.Model = reported
 		}
 		requests, skipped, isTools, parseErr := parseModelReply(stdout)
 		if isTools {
