@@ -354,6 +354,11 @@ test.describe("workbench", () => {
       ).switchScreen("area-command");
     });
     await page.getByRole("button", { name: "Example fleet" }).click();
+    await expect(badge).toHaveText("UNAVAILABLE");
+    await page
+      .locator("#main-workspace")
+      .getByRole("button", { name: "Show example data", exact: true })
+      .click();
     await expect(badge).toHaveText("EXAMPLE DATA");
     await page.evaluate(() => {
       (
@@ -3691,5 +3696,90 @@ test("proposal examples never replace missing native evidence without opt-in", a
   await expect(
     workspace.getByText("failedPlan PLN-2026-0416", { exact: false }),
   ).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
+
+test("operational prototype rows require a per-view example choice", async ({
+  page,
+}) => {
+  await hydrate(page);
+  let operator = "alice";
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() !== "GET" &&
+      new URL(request.url()).pathname.startsWith("/v1/")
+    )
+      writes.push(request.url());
+  });
+  await page.route("**/v1/**", (route) => route.fulfill({ json: {} }));
+  await page.route("**/v1/session", (route) =>
+    route.fulfill({
+      json: {
+        actor: { username: operator },
+        effective: { username: operator, teams: [] },
+        applications: [],
+      },
+    }),
+  );
+  await page.goto("/console/");
+  const root = page.locator("#main-workspace");
+  const open = (id: string) =>
+    page.evaluate((screen) => Reflect.get(window, "switchScreen")(screen), id);
+  await open("area-command");
+  await page
+    .getByRole("button", { name: "Example fleet", exact: true })
+    .click();
+  await expect(root.getByText("Pipeline Agent", { exact: false })).toHaveCount(
+    0,
+  );
+  await root
+    .getByRole("button", { name: "Show example data", exact: true })
+    .click();
+  await expect(
+    root.getByRole("status").filter({ hasText: "local prototype" }),
+  ).toBeVisible();
+  await expect(
+    root.getByText("Pipeline Agent", { exact: false }).first(),
+  ).toBeVisible();
+  await root
+    .getByRole("button", { name: "Exit example mode", exact: true })
+    .click();
+  await expect(root.getByText("Pipeline Agent", { exact: false })).toHaveCount(
+    0,
+  );
+  await root
+    .getByRole("button", { name: "Show example data", exact: true })
+    .click();
+  operator = "bob";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(
+    root.getByRole("button", { name: "Show example data", exact: true }),
+  ).toBeVisible();
+  await expect(root.getByText("Pipeline Agent", { exact: false })).toHaveCount(
+    0,
+  );
+  await root
+    .getByRole("button", { name: "Show example data", exact: true })
+    .click();
+  await open("s05-backlog");
+  await expect(root.getByText("STR-216", { exact: false })).toHaveCount(0);
+  await expect(
+    root.getByRole("button", { name: "Show example data", exact: true }),
+  ).toBeVisible();
+  await open("area-command");
+  await page
+    .getByRole("button", { name: "Example fleet", exact: true })
+    .click();
+  await expect(
+    root.getByRole("button", { name: "Show example data", exact: true }),
+  ).toBeVisible();
+  await open("missing-view");
+  await expect(
+    root.getByRole("region", { name: "View unavailable" }),
+  ).toBeVisible();
+  await expect(root.getByText("Pipeline Agent", { exact: false })).toHaveCount(
+    0,
+  );
   expect(writes).toEqual([]);
 });
