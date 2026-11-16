@@ -126,6 +126,16 @@ export async function acceptSession(id, fetchImpl = fetch) {
   return response.json();
 }
 
+export async function computeSession(id, fetchImpl = fetch) {
+  const response = await request(
+    fetchImpl,
+    "POST",
+    `${BASE}/${encodeURIComponent(id)}/compute`,
+    {},
+  );
+  return response.json();
+}
+
 /**
  * Splits buffered server-sent text into complete events. Returns the parsed
  * events and the unfinished remainder to prepend to the next chunk.
@@ -375,6 +385,7 @@ export function emptyPlanning() {
     agentMessages: [],
     agentTools: [],
     showPlanJson: false,
+    computedWorkspaceId: "",
   };
 }
 
@@ -624,7 +635,7 @@ function acceptBar(planning) {
   </section>`;
 }
 
-function bindingPanel(session) {
+function bindingPanel(session, planning = {}) {
   if (!session?.binding) return "";
   const rows = bindingRows(session.binding)
     .map(
@@ -632,9 +643,16 @@ function bindingPanel(session) {
         `<dt>${esc(key)}</dt><dd class="code-id">${esc(value)}</dd>`,
     )
     .join("");
+  const busy = planning.busy === "compute";
+  const computed = Boolean(planning.computedWorkspaceId);
+  const wsId = planning.computedWorkspaceId || `wsp_${session.id || ""}`;
   return `<section class="kit-panel kit-card kit-bar-ok kit-pad plan-card plan-binding" data-plan-binding aria-label="Accept binding">
     <div class="kit-header-title"><span class="kit-section">Binding</span><span class="kit-badge kit-badge-ok">Accepted</span></div>
     <dl class="kit-kv">${rows}</dl>
+    <div class="plan-actions">
+      <button type="button" class="kit-btn kit-btn-sm" data-plan-compute${busy || computed ? " disabled" : ""}>${busy ? "Packaging…" : computed ? "Packaged into Git Workspace" : "Package into Git Workspace"}</button>
+      ${computed ? `<span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span>` : ""}
+    </div>
   </section>`;
 }
 
@@ -651,7 +669,7 @@ export function planningMarkup(planning) {
       </div>
       <div class="plan-flow__col plan-flow__col--right" data-plan-col="plan">
         ${planReview(planning.session, planning.showPlanJson)}
-        ${bindingPanel(planning.session)}
+        ${bindingPanel(planning.session, planning)}
       </div>
     </div>
     ${acceptBar(planning)}
@@ -963,6 +981,22 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
         } catch {
           // Keep the session already on screen.
         }
+        fail(error);
+      }
+      return;
+    }
+
+    if (hit("[data-plan-compute]")) {
+      if (!planning.session?.binding || planning.computedWorkspaceId) return;
+      set({ busy: "compute", error: null });
+      try {
+        const session = await computeSession(planning.session.id, fetchImpl);
+        set({
+          session,
+          computedWorkspaceId: `wsp_${planning.session.id}`,
+          busy: "",
+        });
+      } catch (error) {
         fail(error);
       }
     }

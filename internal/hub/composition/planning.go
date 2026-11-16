@@ -99,6 +99,7 @@ func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Re
 			httpSessions = inMem
 			runSessions = inMem
 		}
+		httpSessions = withWorkspaceCompute(httpSessions, os.Getenv("DEVWORKSPACE_GIT_ROOT"), os.Getenv("CONDUIT_MODEL_CMD"), actor, repository)
 		runs, err := agentstream.NewService(runSessions, planningRunAudit{repository: repository, actor: actor})
 		if err != nil {
 			return nil, err
@@ -151,7 +152,12 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 		}
 		timeout = parsed
 	}
-	return planner.Planner{Argv: argv, Timeout: timeout, Audit: planningAudit{repository: repository}}, nil
+	return planner.Planner{
+		Argv:    argv,
+		Timeout: timeout,
+		Audit:   planningAudit{repository: repository},
+		Clone:   hubPlanningClone(getenv("DEVWORKSPACE_GIT_ROOT")),
+	}, nil
 }
 
 type planningAudit struct {

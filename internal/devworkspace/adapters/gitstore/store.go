@@ -168,10 +168,27 @@ func (store *Store) removeWorkspaceVolume(id string) error {
 	return root.RemoveAll(filepath.Join("workspaces", id))
 }
 
+func (store *Store) refreshCatalogLocked() {
+	raw, err := os.ReadFile(store.catalogPath)
+	if err != nil {
+		return
+	}
+	var list []domain.Workspace
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return
+	}
+	for _, ws := range list {
+		if validWorkspaceID.MatchString(ws.ID) {
+			store.rows[ws.ID] = ws
+		}
+	}
+}
+
 // List returns all stored workspaces ordered by ID.
 func (store *Store) List(context.Context) ([]domain.Workspace, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	store.refreshCatalogLocked()
 	rows := make([]domain.Workspace, 0, len(store.rows))
 	for _, row := range store.rows {
 		rows = append(rows, row)
@@ -184,6 +201,7 @@ func (store *Store) List(context.Context) ([]domain.Workspace, error) {
 func (store *Store) Get(_ context.Context, id string) (domain.Workspace, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	store.refreshCatalogLocked()
 	row, ok := store.rows[id]
 	if !ok {
 		return domain.Workspace{}, domain.ErrNotFound
