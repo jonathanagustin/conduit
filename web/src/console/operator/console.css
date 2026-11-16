@@ -1175,3 +1175,44 @@
 .cnd-workspace {
   padding: var(--gap-panel) var(--sp-4);
 }
+
+/* Focus the existing assistant; keep its DOM node and saved dock width. */
+.operator-root[data-engineer-focus="true"] #right-chat-rail {
+  position: absolute !important;
+  inset: 0;
+  z-index: 35;
+  width: 100% !important;
+  border-left: 0;
+}
+.operator-root[data-engineer-focus="true"] [data-engineer-background] {
+  visibility: hidden;
+}
+.operator-root[data-engineer-focus="true"] #dock-resize {
+  display: none;
+}
+.engineer-thread-outline {
+  margin-bottom: 1rem;
+  color: var(--so-text);
+  font-size: 12px;
+}
+.engineer-thread-outline summary {
+  cursor: pointer;
+  padding: 0.5rem 0;
+}
+.engineer-thread-outline ol {
+  max-height: 12rem;
+  overflow-y: auto;
+  padding: 0.5rem;
+}
+.engineer-thread-outline .kit-btn {
+  max-width: 100%;
+  height: auto;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  text-align: left;
+  margin-bottom: 0.25rem;
+}
+.assistant-thread-mount [data-message-id]:focus-visible {
+  outline: 2px solid var(--so-blue);
+  outline-offset: 3px;
+}

@@ -11,6 +11,7 @@ import "@fontsource/jetbrains-mono/500.css";
 import "@fontsource/jetbrains-mono/600.css";
 
 import { Thread } from "@/components/assistant-ui/elements/thread.aui";
+import { EngineerThreadHeader } from "./EngineerThreadHeader";
 
 import { mountOperator } from "./operator/engine.js";
 import "./operator/console.css";
@@ -18,6 +19,7 @@ import "./operator/kit.css";
 import "./operator/tokens.css";
 
 const RAIL_THREAD = {
+  ViewportHeader: EngineerThreadHeader,
   Welcome: function RailWelcome() {
     return null;
   },
