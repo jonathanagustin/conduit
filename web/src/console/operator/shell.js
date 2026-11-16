@@ -10,6 +10,7 @@ export function operatorIdentity(name) {
       label: "Identity unavailable",
       initials: "?",
       title: "Operator identity unavailable",
+      settingsLabel: "Native operator identity is unavailable.",
     };
   const parts = value.split(/[^A-Za-z0-9]+/).filter(Boolean);
   const initials = parts.length
@@ -18,7 +19,12 @@ export function operatorIdentity(name) {
         .map((part) => part[0].toUpperCase())
         .join("")
     : Array.from(value)[0].toUpperCase();
-  return { label: value, initials, title: `Operator: ${value}` };
+  return {
+    label: value,
+    initials,
+    title: `Operator: ${value}`,
+    settingsLabel: `Signed in as ${value}. The Hub session sets this.`,
+  };
 }
 
 export function paintOperatorIdentity(name) {
@@ -26,7 +32,9 @@ export function paintOperatorIdentity(name) {
   const label = document.getElementById("operator-name");
   const mark = document.getElementById("operator-initials");
   const chip = document.getElementById("operator-chip");
+  const settings = document.getElementById("settings-operator-identity");
   if (label) label.textContent = identity.label;
+  if (settings) settings.textContent = identity.settingsLabel;
   if (mark) mark.textContent = identity.initials;
   if (chip) {
     chip.title = identity.title;

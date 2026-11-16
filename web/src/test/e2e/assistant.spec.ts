@@ -3500,15 +3500,24 @@ test("operator badge shows only a complete native session and clears on refusal"
   await page.screenshot({
     path: "/workspace/scratch/operator-identity-mobile.png",
   });
+  await page.keyboard.press("Control+,");
+  const settingsIdentity = page.locator("#settings-operator-identity");
+  await expect(settingsIdentity).toBeVisible();
+  await expect(settingsIdentity).toContainText(name);
+  await expect(settingsIdentity.locator("img")).toHaveCount(0);
   phase = "malformed";
   await page.evaluate(() => Reflect.get(window, "refreshHub")());
   await expect(badge).toHaveAttribute(
     "aria-label",
     "Operator identity unavailable",
   );
+  await expect(settingsIdentity).toHaveText(
+    "Native operator identity is unavailable.",
+  );
   phase = "valid";
   await page.evaluate(() => Reflect.get(window, "refreshHub")());
   await expect(label).toHaveText(name);
+  await expect(settingsIdentity).toContainText(name);
   phase = "refused";
   await page.evaluate(() => Reflect.get(window, "refreshHub")());
   await expect(badge).toHaveAttribute(
@@ -3516,5 +3525,8 @@ test("operator badge shows only a complete native session and clears on refusal"
     "Operator identity unavailable",
   );
   await expect(label).toHaveText("Identity unavailable");
+  await expect(settingsIdentity).toHaveText(
+    "Native operator identity is unavailable.",
+  );
   expect(writes).toEqual([]);
 });

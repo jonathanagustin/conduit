@@ -14,7 +14,9 @@ the same presentation rules. Real users named “Operator” remain valid.
 Names are written through textContent; Settings escapes its HTML. Avatar
 initials are presentation, not permission or delegation authority. At phone
 width the accessible badge retains its full name while the visible text is
-collapsed. The header wraps when needed so both identity and live retry remain
+collapsed. An open Settings dialog follows the same native identity boundaries
+as the header, clearing old identity before replacement data is committed.
+The header wraps when needed so both identity and live retry remain
 reachable, and the stream-status label is bounded without losing its full
 title or accessible description.
 

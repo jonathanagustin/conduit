@@ -19,16 +19,18 @@ function nodes() {
   });
   const label = make(),
     mark = make(),
-    chip = make();
+    chip = make(),
+    settings = make();
   const byId: Record<string, ReturnType<typeof make>> = {
     "operator-name": label,
     "operator-initials": mark,
     "operator-chip": chip,
+    "settings-operator-identity": settings,
   };
   vi.stubGlobal("document", {
     getElementById: (id: string) => byId[id] ?? null,
   });
-  return { label, mark, chip };
+  return { label, mark, chip, settings };
 }
 afterEach(() => vi.unstubAllGlobals());
 describe("operator identity presentation", () => {
@@ -39,6 +41,7 @@ describe("operator identity presentation", () => {
         label: "Identity unavailable",
         initials: "?",
         title: "Operator identity unavailable",
+        settingsLabel: "Native operator identity is unavailable.",
       });
     },
   );
@@ -47,6 +50,7 @@ describe("operator identity presentation", () => {
       label: "alice.smith",
       initials: "AS",
       title: "Operator: alice.smith",
+      settingsLabel: "Signed in as alice.smith. The Hub session sets this.",
     });
     expect(operatorIdentity("Operator").label).toBe("Operator");
     expect(operatorIdentity("用户")).toMatchObject({
@@ -55,15 +59,21 @@ describe("operator identity presentation", () => {
     });
   });
   it("writes hostile names as text and updates the accessible badge", () => {
-    const { label, mark, chip } = nodes();
+    const { label, mark, chip, settings } = nodes();
     const name = '<img src=x onerror="attack()">';
     paintOperatorIdentity(name);
     expect(label.textContent).toBe(name);
+    expect(settings.textContent).toBe(
+      `Signed in as ${name}. The Hub session sets this.`,
+    );
     expect(chip.title).toBe(`Operator: ${name}`);
     expect(chip.attributes.get("aria-label")).toBe(chip.title);
     paintOperatorIdentity(undefined);
     expect(label.textContent).toBe("Identity unavailable");
     expect(mark.textContent).toBe("?");
+    expect(settings.textContent).toBe(
+      "Native operator identity is unavailable.",
+    );
     expect(chip.attributes.get("aria-label")).toBe(
       "Operator identity unavailable",
     );
