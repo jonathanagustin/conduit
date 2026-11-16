@@ -173,6 +173,26 @@ func TestPackagingIndexAndHistoryFollowEnvironmentRead(t *testing.T) {
 	if other.Code != http.StatusNotFound || strings.Contains(other.Body.String(), "plan_b") {
 		t.Fatalf("alice reading bob = %d %s", other.Code, other.Body.String())
 	}
+	for _, run := range []struct {
+		id     string
+		status int
+	}{{"run-a", 200}, {"run-b", 404}} {
+		request := httptest.NewRequest(http.MethodPost, "/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents", strings.NewReader(`{"runId":"`+run.id+`"}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Connect-Protocol-Version", "1")
+		request.Header.Set("X-Platform-Subject", "alice")
+		response := httptest.NewRecorder()
+		handler.ServeHTTP(response, request)
+		if response.Code != run.status {
+			t.Fatalf("alice RPC history %s: %d %s", run.id, response.Code, response.Body.String())
+		}
+		if run.status == 200 && !strings.Contains(response.Body.String(), "plan_a") {
+			t.Fatal("visible history was lost")
+		}
+		if run.status == 404 && strings.Contains(response.Body.String(), "plan_b") {
+			t.Fatal("foreign history leaked")
+		}
+	}
 	posted := driveAs(t, handler, http.MethodPost, "/v1/packaging-runs/run-a/events", "alice", `{}`)
 	if posted.Code == http.StatusOK {
 		t.Fatal("event history accepted a write")
@@ -213,6 +233,49 @@ func TestPackagingListConnectRetainsDelegatingCarrier(t *testing.T) {
 		}
 		if actual.Total != test.total || actual.Total != expected.Total {
 			t.Fatalf("%s/%s got %d native %d expected %d", test.actor, test.represented, actual.Total, expected.Total, test.total)
+		}
+	}
+}
+
+func TestPackagingEventsConnectRetainsDelegatingCarrier(t *testing.T) {
+	_, repository, _ := delegationHub(t)
+	reader := packagingCatalog{runs: []domain.RunStatus{{RunID: "private-run", TargetPlanRef: "secret-env/app"}}, events: map[string][]domain.StepEvent{"private-run": {{Sequence: 1, Step: domain.StepAssess}}}}
+	handler, err := NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"alice"}}, Options{PackagingStatus: reader})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		actor, represented string
+		allowed            bool
+	}{{"alice", "", true}, {"alice", "bob", true}, {"robot", "alice", false}, {"bob", "alice", false}, {"bob", "", false}} {
+		native := as(t, handler, "/v1/packaging-runs/private-run/events", test.actor, test.represented)
+		request := httptest.NewRequest(http.MethodPost, "/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents", strings.NewReader(`{"runId":"private-run"}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Connect-Protocol-Version", "1")
+		request.Header.Set("X-Platform-Subject", test.actor)
+		if test.represented != "" {
+			request.Header.Set("X-Platform-Service-Account", "true")
+			request.Header.Set("X-Platform-On-Behalf-Of", test.represented)
+		}
+		wire := httptest.NewRecorder()
+		handler.ServeHTTP(wire, request)
+		expected := http.StatusNotFound
+		if test.allowed {
+			expected = http.StatusOK
+		}
+		if native.Code != expected || wire.Code != expected {
+			t.Fatalf("%s as %s: REST=%d RPC=%d body=%s", test.actor, test.represented, native.Code, wire.Code, wire.Body.String())
+		}
+		if test.allowed {
+			actual := &packagingv1.ListPackagingRunEventsResponse{}
+			if err := protojson.Unmarshal(wire.Body.Bytes(), actual); err != nil {
+				t.Fatal(err)
+			}
+			if actual.RunId != "private-run" || actual.Total != 1 || actual.ApprovalAuthority != "conduit-governance" {
+				t.Fatalf("history=%+v", actual)
+			}
+		} else if strings.Contains(wire.Body.String(), "secret-env") || strings.Contains(wire.Body.String(), "private-run") {
+			t.Fatal("denied parent identity leaked")
 		}
 	}
 }

@@ -17,17 +17,19 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/overview` | `conduit.reporting.v1.ReportingService/GetOverview` | Generated overview client |
 | `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for live catch-up; initial/manual reads remain REST |
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
+| `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | History remains REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),
-[packaging runs](connect-packaging-run.md) and
-[notification events](connect-notification-events.md) for their bounded behavior.
+[packaging runs](connect-packaging-run.md),
+[notification events](connect-notification-events.md) and
+[event history](connect-packaging-events.md) for their bounded behavior.
 The map does not imply that all Hub routes have RPC equivalents.
 
 Known follow-ons are environment index/detail/reported-state, fleet
 installations, Plan index/detail/approval/cancel, change-request approve/reject,
-and authorization audit. Packaging event history and governed rerun/cancel
-already have REST routes but no methods in the current packaging proto.
+and authorization audit. Governed packaging rerun/cancel already have REST
+routes but no methods in the current packaging proto.
 Derive their RPC messages from those routes before migrating their callers;
 do not infer a method from a similar name in another service.
 
