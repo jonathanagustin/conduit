@@ -34,3 +34,11 @@ The Hub's workspace ACP bridge (`DEVWORKSPACE_ACP_BRIDGE=node`) launches one cod
 | `grok` | no preset; requires `DEVWORKSPACE_ACP_AGENT_CMD` |
 
 `DEVWORKSPACE_ACP_AGENT_CMD` replaces any preset with an explicit whitespace-separated command. An unknown or unusable setting disables the bridge with a log line; it never substitutes a simulated agent. Every file write and command still passes through the Hub's governed permission mapping, so the choice of agent adds no authority. Only the `codex` default is exercised here; the `claude` and `gemini` presets are unverified against real installs.
+
+## Post-Accept compute
+
+A model command configures planning proposals, not a native image builder or
+package creator. Native workspace compute remains unconfigured and returns
+`COMPUTE_NOT_CONFIGURED` after Accept. It does not substitute a fixture image
+digest or synthetic package archive. See
+[native workspace compute](native-workspace-compute.md) for the evidence boundary.
