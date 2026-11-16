@@ -73,6 +73,8 @@ message GetPackagingRunResponse {
   string template_version = 18;
   // tool_versions is the REST field toolVersions.
   string tool_versions = 19;
+  // attachment_sha256 binds the same intake-file digests as the native REST read.
+  repeated string attachment_sha256 = 20;
 }
 
 // ListPackagingRunsRequest uses the native index filters and opaque cursor.
