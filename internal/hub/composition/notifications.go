@@ -23,6 +23,7 @@ import (
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
 	assetports "github.com/jonathanagustin/conduit/internal/productassets/ports"
 	spaceports "github.com/jonathanagustin/conduit/internal/spaces/ports"
+	acpports "github.com/jonathanagustin/conduit/internal/workspaceacp/ports"
 )
 
 // Options carries the Hub surfaces that are not the legacy facade's.
@@ -79,6 +80,13 @@ type Options struct {
 	// Attachments stores intake files by sha256. Nil makes NewHub use the
 	// process-local store. Stored bytes are bound, read-only context.
 	Attachments *attachapp.Service
+	// WorkspaceACPBridges overrides the ACP bridge pool for workspace coding-agent
+	// sessions. Nil selects nodebridge when DEVWORKSPACE_ACP_BRIDGE=node and the
+	// pure-Go memorybridge otherwise.
+	WorkspaceACPBridges acpports.BridgePool
+	// WorkspaceACPOfflineBundle forces offline-bundle egress denial on workspace
+	// ACP bridges even when CONDUIT_OFFLINE_BUNDLE is unset.
+	WorkspaceACPOfflineBundle bool
 }
 
 // mountNotifications puts the notification routes in front of the legacy

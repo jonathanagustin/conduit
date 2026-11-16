@@ -257,3 +257,50 @@ normalizes the Vitest catalog override to its existing effective `5.1.0` lock
 specifier and removes the unused catalog mirror. The refreshed web advisory
 scan reports zero findings in all severities; this does not establish that the
 package manager's entire bundled closure is benign or advisory-free.
+
+## AWS CLI 2.40.2 qualification
+
+The [2.40.2 source tag](https://github.com/aws/aws-cli/tree/2.40.2) resolves to
+`058b113d98423d9d3b17105bdbf628495a466b81`. The release cleared the three-day
+Renovate review delay. Mise's separate seven-day setting filters fuzzy version
+selection; the [pinned mise documentation](https://github.com/jdx/mise/blob/v2026.8.3/docs/security.md)
+explicitly states that exact version pins bypass that filter. No age setting or
+exception is changed by this update.
+
+The official Linux x86_64 archive has SHA-256
+`a9ac0d635e97fab65e234ae1519fa6bd2b02d72120bf965a8ff6eaf7611f1833`.
+Its detached GPG signature verifies with fingerprint
+`FB5DB77FD5C118B80511ADA8A6310ACC4672475C`, obtained from
+[AWS's installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+The key is authenticated through that publisher HTTPS source, not an independent
+web-of-trust certification. A modified archive fails signature verification.
+The extracted executable reports `aws-cli/2.40.2` with Python 3.14.8 on Linux
+x86_64. Verification does not invoke cloud operations or use AWS credentials.
+
+The ARM Linux archive's checksum and AWS GPG signature also verify. The macOS
+package's downloaded checksum matches the lockfile; its Apple package signature
+is not verified here. Neither platform is executed. The existing musl aliases
+point to the same upstream Linux archives; this review does not establish musl
+compatibility. Artifact identity and a version check do not establish that the
+bundled dependency closure is benign or that every AWS service operation works.
+
+## Claude CLI 2.1.323 qualification
+
+The [2.1.323 release](https://github.com/anthropics/claude-code/releases/tag/v2.1.323)
+was published after its tag resolved to
+`89eb88e3357be13ae7fcf8966144ad32f44def33` and cleared the three-day Renovate
+delay. All seven mise platform checksums match its `SHASUMS256.txt`. The manifest's
+detached GPG signature verifies with fingerprint
+`31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE`, checked against the key and fingerprint
+published in [the publisher's setup guide](https://code.claude.com/docs/en/setup).
+This authenticates the manifest through the publisher HTTPS trust source;
+independent web-of-trust certification is not claimed. A modified manifest fails
+signature verification.
+
+The downloaded Linux x86_64 archive matches SHA-256
+`522255678548859b9799b7b098c03a3aa286c9a9ede01957e35f4713ccc43631`.
+Its executable reports `2.1.323 (Claude Code)` under an empty home with no inherited
+credentials and nonessential traffic/updating disabled. This is a version check,
+not a model request or agent execution. Other platform artifacts are covered by
+the signed checksum coordinates, not local execution. No source-to-binary
+attestation or review of the complete bundled dependency closure is claimed.

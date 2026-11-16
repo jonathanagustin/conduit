@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -287,6 +288,8 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	ghMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/info/refs"):
+			w.WriteHeader(http.StatusServiceUnavailable)
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			_ = json.NewEncoder(w).Encode(map[string]any{"login": "alice"})
 		case r.Method == http.MethodPost && r.URL.Path == "/user/repos":
@@ -294,20 +297,22 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"name":      "excalidraw-demo",
 				"full_name": "alice/excalidraw-demo",
-				"html_url":  "https://github.com/alice/excalidraw-demo",
+				"html_url":  "http://" + r.Host + "/alice/excalidraw-demo",
 			})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/blobs"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "blob_1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("a", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/trees"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "tree_1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("b", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/commits"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "commit_1"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("c", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/refs"):
+			var payload struct{ Ref, SHA string }
+			_ = json.NewDecoder(r.Body).Decode(&payload)
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ref": "refs/heads/main"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"ref": payload.Ref, "object": map[string]string{"sha": payload.SHA, "type": "commit"}})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -326,8 +331,8 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("plan-create from local filesystem with --create-github-repo: %v", err)
 	}
-	if localSession.Intake.RepoURL != "https://github.com/alice/excalidraw-demo" {
-		t.Fatalf("expected intake RepoURL to be newly created GitHub repo https://github.com/alice/excalidraw-demo, got %q", localSession.Intake.RepoURL)
+	if localSession.Intake.RepoURL != ghMock.URL+"/alice/excalidraw-demo" {
+		t.Fatalf("expected loopback GitHub fixture repo %q, got %q", ghMock.URL+"/alice/excalidraw-demo", localSession.Intake.RepoURL)
 	}
 	turnedLocal, err := execCLI("plan-turn", "ps_local_gh", "Inspect local Excalidraw repo", "--actor", "alice")
 	if err != nil {
@@ -376,5 +381,148 @@ func TestCLIMCPServeToolbox(t *testing.T) {
 	readOut := runMCP("--call", "read_file", "--args", `{"path":"package.json"}`)
 	if !strings.Contains(readOut, "excalidraw") {
 		t.Fatalf("mcp-serve --call read_file output:\n%s", readOut)
+	}
+}
+
+func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
+	cliPath := strings.TrimSpace(os.Getenv("CONDUIT_TEMPORAL_CLI"))
+	if cliPath == "" {
+		candidate := filepath.Join("..", "..", ".cache", "temporal", "temporal")
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			if abs, err := filepath.Abs(candidate); err == nil {
+				cliPath = abs
+			}
+		}
+	}
+	if cliPath == "" {
+		t.Skip("set CONDUIT_TEMPORAL_CLI or run scripts/fetch-temporal-cli.sh to run the live agent-exec subprocess test")
+	}
+
+	tmpDir := t.TempDir()
+	binPath := filepath.Join(tmpDir, "packaging-workflow")
+	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
+	}
+	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
+
+	dbPath := filepath.Join(tmpDir, "temporal.db")
+	stateDir := filepath.Join(tmpDir, "state")
+
+	srcRepo := filepath.Join(tmpDir, "excalidraw-src")
+	if err := os.MkdirAll(srcRepo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcRepo, "package.json"), []byte(`{"name":"excalidraw","version":"0.17.6","scripts":{"start":"yarn start","build":"yarn build"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcRepo, "yarn.lock"), []byte("# yarn lockfile v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(srcRepo, "tsconfig.json"), []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", srcRepo)
+
+	running, err := devserver.Start(context.Background(), devserver.Options{
+		CLIPath: cliPath,
+		DBPath:  dbPath,
+		Stdout:  os.Stdout,
+		Stderr:  os.Stderr,
+	})
+	if err != nil {
+		t.Fatalf("start devserver: %v", err)
+	}
+	t.Cleanup(func() { _ = running.Server.Stop() })
+
+	_, repository, err := activitiesWithRepository(stateDir, "")
+	if err != nil {
+		t.Fatalf("activitiesWithRepository: %v", err)
+	}
+	// Passing false for fixturePlanner ensures CONDUIT_MODEL_CMD is invoked for every turn!
+	planActs, err := planningActivities(stateDir, repository, false)
+	if err != nil {
+		t.Fatalf("planningActivities: %v", err)
+	}
+	c, err := dial(running.Frontend)
+	if err != nil {
+		t.Fatalf("dial: %v", err)
+	}
+	t.Cleanup(func() { c.Close() })
+
+	w := planningworkflow.RegisterWorker(c, planningworkflow.TaskQueue, planActs)
+	if err := w.Start(); err != nil {
+		t.Fatalf("start worker: %v", err)
+	}
+	t.Cleanup(func() { w.Stop() })
+
+	execCLI := func(args ...string) (*planningdomain.Session, error) {
+		t.Helper()
+		var out bytes.Buffer
+		cmd := newRoot()
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		fullArgs := append([]string{"--address", running.Frontend, "--state-dir", stateDir}, args...)
+		cmd.SetArgs(fullArgs)
+		if err := cmd.Execute(); err != nil {
+			return nil, err
+		}
+		var session planningdomain.Session
+		if err := json.Unmarshal(out.Bytes(), &session); err != nil {
+			t.Fatalf("decode CLI JSON output (%v):\n%s", err, out.String())
+		}
+		return &session, nil
+	}
+
+	s, err := execCLI("plan-create", "https://github.com/excalidraw/excalidraw", "main", "--session-id", "ps_real_agent", "--actor", "alice")
+	if err != nil || s.Status != planningdomain.StatusStarted {
+		t.Fatalf("plan-create: %+v, err=%v", s, err)
+	}
+
+	s, err = execCLI("plan-turn", "ps_real_agent", "Inspect Excalidraw and identify runtime dependencies", "--actor", "alice")
+	if err != nil {
+		t.Fatalf("plan-turn 1 (real agent): %v", err)
+	}
+	if s.Status != planningdomain.StatusNeedsInput || len(s.NeedsInput) != 1 || s.NeedsInput[0].ID != "node_version" {
+		t.Fatalf("expected NeedsInput(node_version) from real agent, got %+v", s)
+	}
+	if s.Model != agentExecModelName {
+		t.Fatalf("expected model=%q from real agent, got %q", agentExecModelName, s.Model)
+	}
+	if s.Inspection == nil || s.Inspection.Language != "typescript" || s.Inspection.PackageManager != "yarn" {
+		t.Fatalf("expected real typescript/yarn inspection, got %+v", s.Inspection)
+	}
+
+	if _, err := execCLI("plan-answer", "ps_real_agent", "node_version=20", "--actor", "alice"); err != nil {
+		t.Fatalf("plan-answer: %v", err)
+	}
+
+	s, err = execCLI("plan-turn", "ps_real_agent", "Produce the Excalidraw Zarf and UDS packaging plan", "--actor", "alice")
+	if err != nil {
+		t.Fatalf("plan-turn 2 (real agent): %v", err)
+	}
+	if s.Status != planningdomain.StatusReady || s.Plan == nil || !strings.Contains(s.Plan.Text, "Excalidraw") {
+		t.Fatalf("expected Ready plan from real agent, got %+v", s)
+	}
+
+	s, err = execCLI("plan-accept", "ps_real_agent", "--actor", "alice")
+	if err != nil || s.Status != planningdomain.StatusAccepted || s.Binding == nil {
+		t.Fatalf("plan-accept: %+v, err=%v", s, err)
+	}
+
+	var out, errBuf bytes.Buffer
+	cmd := newRoot()
+	cmd.SetOut(&out)
+	cmd.SetErr(&errBuf)
+	cmd.SetArgs([]string{"--address", running.Frontend, "--state-dir", stateDir, "plan-compute", "ps_real_agent", "--actor", "alice"})
+	if err := cmd.Execute(); err != nil {
+		t.Fatalf("plan-compute with real agent: %v\n%s", err, errBuf.String())
+	}
+	var computeOut planComputeOutput
+	if err := json.Unmarshal(out.Bytes(), &computeOut); err != nil {
+		t.Fatalf("decode plan-compute JSON (%v):\n%s", err, out.String())
+	}
+	if computeOut.Result.Outcome != "PASS" || computeOut.Result.Provenance.Adapter != "packaging-workflow" {
+		t.Fatalf("expected PASS with packaging-workflow provenance adapter, got %+v", computeOut.Result)
 	}
 }

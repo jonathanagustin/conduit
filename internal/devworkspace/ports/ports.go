@@ -20,6 +20,8 @@ type Catalog interface {
 type Files interface {
 	List(ctx context.Context, id, prefix, cursor string, limit int) (domain.TreePage, error)
 	Read(ctx context.Context, id, path, revision string) (domain.FileView, error)
+	Write(ctx context.Context, id, path string, content []byte) (domain.FileView, error)
+	Snapshot(ctx context.Context, id string) (map[string][]byte, error)
 	Diff(ctx context.Context, id string) (domain.Diff, error)
 	Copy(ctx context.Context, fromID, toID string) error
 }

@@ -44,6 +44,9 @@ function configOptions(model, effort) {
 }
 let cancelRequested = false;
 let pendingPermission;
+let nextClientRequest = 1;
+let authenticated = false;
+const pendingClientRequests = new Map();
 
 function send(message) {
   process.stdout.write(`${JSON.stringify(message)}\n`);
@@ -53,19 +56,45 @@ function notify(method, params) {
   send({ jsonrpc: "2.0", method, params });
 }
 
+function requestClient(method, params) {
+  const id = `client-${nextClientRequest}`;
+  nextClientRequest += 1;
+  return new Promise((resolve, reject) => {
+    pendingClientRequests.set(id, { resolve, reject });
+    send({ jsonrpc: "2.0", id, method, params });
+  });
+}
+
 const input = createInterface({ input: process.stdin });
 input.on("line", (line) => {
   if (line.trim().length === 0) return;
   const message = JSON.parse(line);
   if (message.method === undefined) {
-    if (message.id === "perm-1")
+    if (message.id === "perm-1") {
       pendingPermission?.(message.result?.outcome ?? { outcome: "cancelled" });
+      return;
+    }
+    const clientPending = pendingClientRequests.get(message.id);
+    if (clientPending) {
+      pendingClientRequests.delete(message.id);
+      if (message.error) {
+        clientPending.reject(
+          new Error(message.error.message ?? "client request failed"),
+        );
+      } else {
+        clientPending.resolve(message.result ?? {});
+      }
+    }
     return;
   }
   if (message.id === undefined) {
     if (message.method === "session/cancel") {
       cancelRequested = true;
       pendingPermission?.({ outcome: "cancelled" });
+      for (const [, waiter] of pendingClientRequests) {
+        waiter.reject(new Error("cancelled"));
+      }
+      pendingClientRequests.clear();
     }
     return;
   }
@@ -84,14 +113,23 @@ input.on("line", (line) => {
 async function handle(message) {
   const { id, method, params } = message;
   if (method === "initialize") {
+    const overrideVersion = process.env["FAKE_ACP_PROTOCOL_VERSION"];
+    const protocolVersion =
+      overrideVersion !== undefined
+        ? Number.parseInt(overrideVersion, 10)
+        : params.protocolVersion;
+    const authMethods =
+      process.env["FAKE_ACP_AUTH_METHODS"] === "api-key"
+        ? [{ id: "api-key", name: "API key" }]
+        : [];
     send({
       jsonrpc: "2.0",
       id,
       result: {
-        protocolVersion: params.protocolVersion,
+        protocolVersion,
         agentCapabilities: {},
         agentInfo: { name: "fake-codex", version: "0" },
-        authMethods: [],
+        authMethods,
       },
     });
     return;
@@ -159,6 +197,7 @@ async function handle(message) {
     return;
   }
   if (method === "authenticate") {
+    authenticated = true;
     send({ jsonrpc: "2.0", id, result: {} });
     return;
   }
@@ -167,6 +206,24 @@ async function handle(message) {
     id,
     error: { code: -32601, message: `method not found: ${method}` },
   });
+}
+
+async function askPermission(sessionId, toolCall, options) {
+  const outcome = await new Promise((resolve) => {
+    pendingPermission = resolve;
+    send({
+      jsonrpc: "2.0",
+      id: "perm-1",
+      method: "session/request_permission",
+      params: {
+        sessionId,
+        toolCall,
+        options,
+      },
+    });
+  });
+  pendingPermission = undefined;
+  return outcome;
 }
 
 async function prompt(id, params) {
@@ -181,6 +238,224 @@ async function prompt(id, params) {
       block.type === "image" ||
       (block.type === "text" && block.text.startsWith("Attachment ")),
   );
+  if (text.trim() === "check offline env") {
+    const summary = JSON.stringify({
+      authenticated,
+      hasOpenAiKey: Boolean(process.env["OPENAI_API_KEY"]),
+      hasCodexKey: Boolean(process.env["CODEX_API_KEY"]),
+      offlineBundle: process.env["CONDUIT_OFFLINE_BUNDLE"] ?? "",
+      noProxy: process.env["NO_PROXY"] ?? "",
+    });
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: summary },
+      },
+    });
+    send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
+    return;
+  }
+  const editMatch = /^edit\s+(\S+)(?:\s+->\s+(\S+))?:\s*([\s\S]+)$/i.exec(
+    text.trim(),
+  );
+  if (editMatch) {
+    const targetPath = editMatch[1];
+    const actualPath = editMatch[2] ?? targetPath;
+    const nextContent = editMatch[3];
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId,
+        title: `write ${targetPath}`,
+        name: "write_file",
+        kind: "edit",
+        status: "pending",
+        locations: [{ path: targetPath }],
+        rawInput: { path: targetPath, content: nextContent },
+      },
+    });
+    const outcome = await askPermission(
+      params.sessionId,
+      {
+        toolCallId,
+        title: `write ${targetPath}`,
+        kind: "edit",
+        status: "pending",
+        locations: [{ path: targetPath }],
+        rawInput: { path: targetPath },
+      },
+      [
+        { optionId: "allow", name: "Allow once", kind: "allow_once" },
+        { optionId: "always", name: "Allow always", kind: "allow_always" },
+        { optionId: "reject", name: "Reject", kind: "reject_once" },
+      ],
+    );
+    if (cancelRequested || outcome.outcome === "cancelled") {
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          status: "failed",
+          rawOutput: { error: "cancelled" },
+        },
+      });
+      send({ jsonrpc: "2.0", id, result: { stopReason: "cancelled" } });
+      return;
+    }
+    if (outcome.optionId !== "allow") {
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          status: "failed",
+          rawOutput: { error: "rejected" },
+        },
+      });
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: `Rejected edit to ${targetPath}.` },
+        },
+      });
+      send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
+      return;
+    }
+    await requestClient("fs/write_text_file", {
+      sessionId: params.sessionId,
+      path: actualPath,
+      content: nextContent,
+    });
+    if (session) session.turns += 1;
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId,
+        status: "completed",
+        locations: [{ path: targetPath }],
+        rawOutput: { path: targetPath, written: true },
+      },
+    });
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: `Edited ${targetPath}.` },
+      },
+    });
+    send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
+    return;
+  }
+  const cmdMatch = /^run command:\s*([\s\S]+)$/i.exec(text.trim());
+  if (cmdMatch) {
+    const commandLine = cmdMatch[1].trim();
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "tool_call",
+        toolCallId,
+        title: `command ${commandLine}`,
+        name: "terminal",
+        kind: "execute",
+        status: "pending",
+        rawInput: { command: commandLine },
+      },
+    });
+    const outcome = await askPermission(
+      params.sessionId,
+      {
+        toolCallId,
+        title: `command ${commandLine}`,
+        kind: "execute",
+        status: "pending",
+        rawInput: { command: commandLine },
+      },
+      [
+        { optionId: "allow", name: "Allow once", kind: "allow_once" },
+        { optionId: "reject", name: "Reject", kind: "reject_once" },
+      ],
+    );
+    if (cancelRequested || outcome.outcome === "cancelled") {
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          status: "failed",
+          rawOutput: { error: "cancelled" },
+        },
+      });
+      send({ jsonrpc: "2.0", id, result: { stopReason: "cancelled" } });
+      return;
+    }
+    if (outcome.optionId !== "allow") {
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "tool_call_update",
+          toolCallId,
+          status: "failed",
+          rawOutput: { error: "rejected" },
+        },
+      });
+      notify("session/update", {
+        sessionId: params.sessionId,
+        update: {
+          sessionUpdate: "agent_message_chunk",
+          content: { type: "text", text: `Rejected command ${commandLine}.` },
+        },
+      });
+      send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
+      return;
+    }
+    const execCommand = process.execPath;
+    const execArgs = [
+      "-e",
+      "process.stdout.write(process.argv[1])",
+      `ran:${commandLine}`,
+    ];
+    const created = await requestClient("terminal/create", {
+      sessionId: params.sessionId,
+      command: execCommand,
+      args: execArgs,
+    });
+    await requestClient("terminal/wait_for_exit", {
+      sessionId: params.sessionId,
+      terminalId: created.terminalId,
+    });
+    const out = await requestClient("terminal/output", {
+      sessionId: params.sessionId,
+      terminalId: created.terminalId,
+    });
+    await requestClient("terminal/release", {
+      sessionId: params.sessionId,
+      terminalId: created.terminalId,
+    });
+    if (session) session.turns += 1;
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "tool_call_update",
+        toolCallId,
+        status: "completed",
+        rawOutput: { output: out.output ?? "" },
+      },
+    });
+    notify("session/update", {
+      sessionId: params.sessionId,
+      update: {
+        sessionUpdate: "agent_message_chunk",
+        content: { type: "text", text: `Ran ${commandLine}.` },
+      },
+    });
+    send({ jsonrpc: "2.0", id, result: { stopReason: "end_turn" } });
+    return;
+  }
   if (/\bshow packaging run\b/i.test(text) || /\bshow plan\b/i.test(text)) {
     const runId = text.match(/run\s+(\S+)/i)?.[1] ?? "sample-app-1";
     const planId = text.match(/plan\s+(\S+)/i)?.[1] ?? "plan-1";

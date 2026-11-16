@@ -91,6 +91,8 @@ const SOURCES = [
   { path: "internal/delivery/timeline/httpapi", surface: "environment timeline" },
   { path: "internal/attachments/httpapi", surface: "intake attachments" },
   { path: "internal/reporting/httpapi", surface: "reporting Connect overview" },
+  { path: "internal/planning/agentstream", surface: "planning agent runs" },
+  { path: "internal/workspaceacp/httpapi", surface: "workspace ACP" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

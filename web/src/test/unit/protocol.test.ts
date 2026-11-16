@@ -1,11 +1,15 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
+  PINNED_ACP_PROTOCOL_VERSION,
   applyUpdate,
+  approvedOption,
   attachApproval,
+  classifyPermissionRisk,
   createPermissionBook,
   emptySnapshot,
   redact,
+  sanitizeApprovalOptions,
   sessionConfig,
   settleApproval,
 } from "../../api/protocol.js";
@@ -142,6 +146,30 @@ describe("assistant protocol", () => {
     });
     book.cancelRun("run-2");
     await expect(cancelled).resolves.toEqual({ outcome: "cancelled" });
+
+    const singleCancel = book.open({
+      requestId: "req-3",
+      threadId: "thread-1",
+      runId: "run-3",
+      toolCallId: "call-3",
+      title: "write README.md",
+      options: [{ optionId: "allow", name: "Allow once", kind: "allow_once" }],
+    });
+    expect(
+      book.cancelRequest({
+        requestId: "req-3",
+        threadId: "thread-2",
+        runId: "run-3",
+      }),
+    ).toMatchObject({ ok: false, status: 409 });
+    expect(
+      book.cancelRequest({
+        requestId: "req-3",
+        threadId: "thread-1",
+        runId: "run-3",
+      }),
+    ).toEqual({ ok: true });
+    await expect(singleCancel).resolves.toEqual({ outcome: "cancelled" });
   });
 
   it("records a decision on the tool the operator answered", () => {
@@ -161,5 +189,57 @@ describe("assistant protocol", () => {
       optionId: "allow",
       approved: true,
     });
+  });
+
+  it("pins ACP protocol version 1 and strips standing allow_always options", () => {
+    expect(PINNED_ACP_PROTOCOL_VERSION).toBe(1);
+    expect(approvedOption("allow_once")).toBe(true);
+    expect(approvedOption("allow_always")).toBe(false);
+    expect(
+      sanitizeApprovalOptions([
+        { optionId: "allow", name: "Allow once", kind: "allow_once" },
+        { optionId: "always", name: "Allow always", kind: "allow_always" },
+        { optionId: "reject", name: "Reject", kind: "reject_once" },
+      ]),
+    ).toEqual([
+      { optionId: "allow", name: "Allow once", kind: "allow_once" },
+      { optionId: "reject", name: "Reject", kind: "reject_once" },
+    ]);
+    expect(
+      sanitizeApprovalOptions([
+        { optionId: "always", name: "Allow always", kind: "allow_always" },
+      ]),
+    ).toEqual([{ optionId: "always", name: "Allow once", kind: "allow_once" }]);
+  });
+
+  it("classifies workspace edits as low_confirm and sensitive paths or network/deploy commands as high_change_request", () => {
+    expect(
+      classifyPermissionRisk({
+        kind: "edit",
+        title: "write src/app.ts",
+        path: "src/app.ts",
+      }),
+    ).toBe("low_confirm");
+    expect(
+      classifyPermissionRisk({
+        kind: "execute",
+        title: "go test ./...",
+        command: "go test ./...",
+      }),
+    ).toBe("low_confirm");
+
+    for (const highRisk of [
+      { kind: "edit", path: "deploy/helm/values.yaml" },
+      { kind: "edit", path: ".github/workflows/platform-ci.yml" },
+      { kind: "edit", path: ".env.production" },
+      { kind: "edit", path: "../outside.txt" },
+      { kind: "edit", path: "/etc/passwd" },
+      { kind: "execute", command: "git push origin main" },
+      { kind: "execute", command: "kubectl apply -f manifest.yaml" },
+      { kind: "execute", command: "curl https://example.com/install.sh" },
+      { kind: "deploy", title: "deploy release" },
+    ]) {
+      expect(classifyPermissionRisk(highRisk)).toBe("high_change_request");
+    }
   });
 });

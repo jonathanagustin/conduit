@@ -4,15 +4,19 @@ import (
 	"bytes"
 	"context"
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	"io"
 	"io/fs"
 	"net/http"
 	"net/url"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 )
@@ -65,6 +69,9 @@ var skipBootstrapDirs = map[string]bool{
 // provisions a new durable GitHub repository (or local bare Git remote when
 // LocalOnly is set or no GitHub token is configured) as origin.
 func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResult, error) {
+	if err := ctx.Err(); err != nil {
+		return BootstrapResult{}, err
+	}
 	source := strings.TrimSpace(opts.SourceRepo)
 	if source == "" {
 		return BootstrapResult{}, fmt.Errorf("source repository URL or path is required")
@@ -82,7 +89,26 @@ func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResul
 		branch = "workspace/operator/default"
 	}
 
-	if err := ingestSourceToGitDir(ctx, source, ref, destDir); err != nil {
+	if opts.WorkspaceID != "" && !validWorkspaceID.MatchString(opts.WorkspaceID) {
+		return BootstrapResult{}, domain.ErrInvalid
+	}
+	if err := runGit(ctx, "", "check-ref-format", "refs/heads/"+branch); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return BootstrapResult{}, ctxErr
+		}
+		return BootstrapResult{}, domain.ErrInvalid
+	}
+	if ref != "HEAD" {
+		if err := runGit(ctx, "", "check-ref-format", "--allow-onelevel", ref); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return BootstrapResult{}, ctxErr
+			}
+			return BootstrapResult{}, domain.ErrInvalid
+		}
+	}
+	var err error
+	destDir, err = ingestSourceToGitDir(ctx, source, ref, destDir)
+	if err != nil {
 		return BootstrapResult{}, err
 	}
 	_ = runGit(ctx, destDir, "config", "user.name", "workspace")
@@ -165,11 +191,11 @@ func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResul
 	if err := runGit(ctx, destDir, "remote", "add", "origin", remoteDir); err != nil {
 		return BootstrapResult{}, fmt.Errorf("add local bare remote: %w", err)
 	}
-	if err := runGit(ctx, destDir, "push", "-f", "origin", "HEAD:refs/heads/main"); err != nil {
+	if err := pushGitRef(ctx, destDir, "", "HEAD:refs/heads/main"); err != nil {
 		return BootstrapResult{}, fmt.Errorf("push main to local remote: %w", err)
 	}
 	if branch != "main" {
-		if err := runGit(ctx, destDir, "push", "-f", "origin", "HEAD:refs/heads/"+branch); err != nil {
+		if err := pushGitRef(ctx, destDir, "", "HEAD:refs/heads/"+branch); err != nil {
 			return BootstrapResult{}, fmt.Errorf("push %s to local remote: %w", branch, err)
 		}
 	}
@@ -178,65 +204,238 @@ func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResul
 	return res, nil
 }
 
-func ingestSourceToGitDir(ctx context.Context, source, ref, destDir string) error {
-	if err := os.RemoveAll(destDir); err != nil {
-		return err
+func ingestSourceToGitDir(ctx context.Context, source, ref, destDir string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return err
+	localPath, local := resolveLocalSourcePath(source)
+	if !local && !isHTTPURL(source) {
+		return "", domain.ErrInvalid
 	}
+	if local {
+		var err error
+		localPath, err = filepath.EvalSymlinks(localPath)
+		if err != nil {
+			return "", err
+		}
+		localPath, err = filepath.Abs(localPath)
+		if err != nil {
+			return "", err
+		}
+		if filepath.Dir(localPath) == localPath {
+			return "", domain.ErrInvalid
+		}
+	}
+	// Never resolve a destination leaf symlink into somebody else's directory.
+	if err := emptyBootstrapDestination(destDir); err != nil {
+		return "", err
+	}
+	target, err := canonicalBootstrapTarget(destDir)
+	if err != nil {
+		return "", err
+	}
+	if filepath.Dir(target) == target || (local && bootstrapPathsOverlap(localPath, target)) {
+		return "", domain.ErrInvalid
+	}
+	mode := os.FileMode(0o755)
+	if info, err := os.Stat(target); err == nil {
+		mode = info.Mode().Perm()
+	}
+	parent := filepath.Dir(target)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return "", err
+	}
+	stage, err := os.MkdirTemp(parent, "."+filepath.Base(target)+".bootstrap-")
+	if err != nil {
+		return "", err
+	}
+	promoted := false
+	defer func() {
+		if !promoted {
+			_ = os.RemoveAll(stage)
+		}
+	}() // Only our fresh staging path.
+	preparedSource := source
+	if local {
+		preparedSource = localPath
+	}
+	if err := prepareSourceCheckout(ctx, preparedSource, ref, stage); err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := emptyBootstrapDestination(target); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(stage, mode); err != nil {
+		return "", err
+	}
+	// Directory rename cannot replace a populated destination. A competing
+	// writer therefore wins without losing its files, even after our last check.
+	if err := os.Rename(stage, target); err != nil {
+		return "", fmt.Errorf("promote source checkout: %w", err)
+	}
+	promoted = true
+	return target, nil
+}
 
-	// Check if source is a local filesystem path or file:// URL.
+func emptyBootstrapDestination(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("destination is not an empty directory: %w", domain.ErrConflict)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	if len(entries) != 0 {
+		return fmt.Errorf("destination already contains work: %w", domain.ErrConflict)
+	}
+	return nil
+}
+
+func canonicalBootstrapTarget(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	existing := absolute
+	var missing []string
+	for {
+		if _, err := os.Lstat(existing); err == nil {
+			break
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return "", domain.ErrInvalid
+		}
+		missing = append(missing, filepath.Base(existing))
+		existing = parent
+	}
+	resolved, err := filepath.EvalSymlinks(existing)
+	if err != nil {
+		return "", err
+	}
+	for i := len(missing) - 1; i >= 0; i-- {
+		resolved = filepath.Join(resolved, missing[i])
+	}
+	return resolved, nil
+}
+
+func bootstrapPathsOverlap(left, right string) bool {
+	for _, pair := range [][2]string{{left, right}, {right, left}} {
+		relative, err := filepath.Rel(pair[0], pair[1])
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func prepareSourceCheckout(ctx context.Context, source, ref, destDir string) error {
 	if localPath, ok := resolveLocalSourcePath(source); ok {
 		if isGitDirectory(localPath) {
-			if err := runGit(ctx, "", "clone", "--no-recurse-submodules", localPath, destDir); err != nil {
-				return fmt.Errorf("clone local git repo %s: %w", localPath, err)
+			if err := runGit(ctx, "", "clone", "--no-recurse-submodules", "--", localPath, destDir); err != nil {
+				return sourceCheckoutFailure(ctx, "clone source")
 			}
-			checkoutRequestedRef(ctx, destDir, ref)
+			if err := checkoutRequestedRef(ctx, destDir, ref); err != nil {
+				return err
+			}
 			return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(localPath))
 		}
-		// Plain filesystem directory: copy non-secret files and initialize git repository.
-		if err := copyDirectoryFiltered(localPath, destDir); err != nil {
-			return fmt.Errorf("copy local source directory %s: %w", localPath, err)
+		if ref != "main" && ref != "HEAD" {
+			return fmt.Errorf("plain directory has no requested Git ref: %w", domain.ErrNotFound)
+		}
+		if err := copyDirectoryFiltered(ctx, localPath, destDir); err != nil {
+			return err
 		}
 		if err := runGit(ctx, destDir, "init"); err != nil {
 			return err
 		}
-		_ = runGit(ctx, destDir, "symbolic-ref", "HEAD", "refs/heads/main")
+		if err := runGit(ctx, destDir, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
+			return err
+		}
 		if err := runGit(ctx, destDir, "add", "-A"); err != nil {
 			return err
 		}
-		_ = runGit(ctx, destDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "import local source directory")
+		staged, err := gitOut(ctx, destDir, "ls-files", "-z")
+		if err != nil {
+			return err
+		}
+		if staged != "" {
+			if err := runGit(ctx, destDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "chore(workspace): import local source directory"); err != nil {
+				return err
+			}
+		}
 		return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(localPath))
 	}
-
-	// Online http:// or https:// Git repository.
-	if isHTTPURL(source) {
-		if err := runGit(ctx, "", "clone", "--depth", "1", "--no-recurse-submodules", source, destDir); err != nil {
-			return fmt.Errorf("clone online repository %s: %w", source, err)
-		}
-		checkoutRequestedRef(ctx, destDir, ref)
-		return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(strings.TrimSuffix(source, ".git")))
+	if err := runGit(ctx, "", "clone", "--depth", "1", "--no-recurse-submodules", "--", source, destDir); err != nil {
+		return sourceCheckoutFailure(ctx, "clone source")
 	}
-
-	return fmt.Errorf("source %q is neither a readable local path nor an http/https Git repository URL", source)
+	if err := checkoutRequestedRef(ctx, destDir, ref); err != nil {
+		return err
+	}
+	return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(strings.TrimSuffix(source, ".git")))
 }
 
-func checkoutRequestedRef(ctx context.Context, repoDir, ref string) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || ref == "HEAD" || ref == "main" {
-		return
+func sourceCheckoutFailure(ctx context.Context, operation string) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if err := runGit(ctx, repoDir, " fetch", "--depth", "1", "--no-recurse-submodules", "origin", ref); err == nil {
-		if runGit(ctx, repoDir, "checkout", "--detach", "FETCH_HEAD") == nil {
-			return
+	return fmt.Errorf("%s failed", operation)
+}
+
+func checkoutRequestedRef(ctx context.Context, repoDir, ref string) error {
+	candidates := []string{ref}
+	if ref != "HEAD" && !strings.HasPrefix(ref, "refs/") && !validGitObjectID(ref) {
+		candidates = []string{"refs/heads/" + ref, "refs/remotes/origin/" + ref, "refs/tags/" + ref, ref}
+	}
+	checkout := func(candidate string) error {
+		head, err := gitOut(ctx, repoDir, "rev-parse", "--verify", "--end-of-options", candidate+"^{commit}")
+		if err != nil || !validGitObjectID(strings.TrimSpace(head)) {
+			return domain.ErrNotFound
+		}
+		if err := runGit(ctx, repoDir, "checkout", "--detach", strings.TrimSpace(head)); err != nil {
+			return sourceCheckoutFailure(ctx, "checkout requested source ref")
+		}
+		return nil
+	}
+	for _, candidate := range candidates {
+		err := checkout(candidate)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
 	}
-	_ = runGit(ctx, repoDir, "fetch", "--depth", "1", "--no-recurse-submodules", "origin", ref)
-	if runGit(ctx, repoDir, "checkout", "--detach", "FETCH_HEAD") == nil {
-		return
+	if err := runGit(ctx, repoDir, "fetch", "--no-recurse-submodules", "--", "origin", ref); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return fmt.Errorf("requested source ref is unavailable: %w", domain.ErrNotFound)
 	}
-	_ = runGit(ctx, repoDir, "checkout", ref)
+	if err := checkout("FETCH_HEAD"); err != nil {
+		return fmt.Errorf("requested source ref is unavailable: %w", err)
+	}
+	return nil
+}
+
+func validGitObjectID(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func ensureAtLeastOneCommit(ctx context.Context, repoDir, title string) error {
@@ -255,7 +454,7 @@ func ensureAtLeastOneCommit(ctx context.Context, repoDir, title string) error {
 	if err := runGit(ctx, repoDir, "add", "-A"); err != nil {
 		return err
 	}
-	return runGit(ctx, repoDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "initialize workspace repository")
+	return runGit(ctx, repoDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "chore(workspace): initialize repository")
 }
 
 func resolveLocalSourcePath(source string) (string, bool) {
@@ -312,8 +511,16 @@ func canonicalRepoURL(source string) string {
 	return "https://github.com/local/" + sanitizeBranchSegment(base)
 }
 
-func copyDirectoryFiltered(srcDir, dstDir string) error {
+func copyDirectoryFiltered(ctx context.Context, srcDir, dstDir string) error {
+	sourceRoot, err := os.OpenRoot(srcDir)
+	if err != nil {
+		return err
+	}
+	defer sourceRoot.Close()
 	return filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+		if cancelErr := ctx.Err(); cancelErr != nil {
+			return cancelErr
+		}
 		if err != nil {
 			return err
 		}
@@ -330,15 +537,29 @@ func copyDirectoryFiltered(srcDir, dstDir string) error {
 		if isSecretPath(rel) || !d.Type().IsRegular() {
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		input, err := sourceRoot.Open(rel)
 		if err != nil {
 			return err
+		}
+		defer input.Close()
+		info, err := input.Stat()
+		if err != nil {
+			return err
+		}
+		mode := os.FileMode(0o644)
+		if info.Mode().Perm()&0o111 != 0 {
+			mode = 0o755
 		}
 		target := filepath.Join(dstDir, rel)
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o644)
+		output, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(output, input)
+		return errors.Join(copyErr, output.Close())
 	})
 }
 
@@ -472,21 +693,55 @@ func pushBranchToGitHubOrOrigin(ctx context.Context, repoDir, branch, apiBase, t
 	if _, err := gitOut(ctx, repoDir, "rev-parse", "--verify", "refs/heads/"+branch); err != nil {
 		refSpec = fmt.Sprintf("HEAD:refs/heads/%s", branch)
 	}
+	err := pushGitRef(ctx, repoDir, token, refSpec)
+	if err == nil {
+		return nil
+	}
+	if !errors.Is(err, errGitPushTransportUnavailable) {
+		return err
+	}
+	if token != "" && owner != "" && repo != "" {
+		return syncBranchViaGitHubDataAPI(ctx, repoDir, branch, apiBase, token, owner, repo)
+	}
+	return err
+}
+
+var errGitPushTransportUnavailable = errors.New("git push transport is unavailable")
+
+func pushGitRef(ctx context.Context, repoDir, token, refSpec string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	cmd := exec.CommandContext(ctx, "git", "push", "--porcelain", "origin", refSpec)
+	cmd.Dir = repoDir
+	cmd.Env = append(os.Environ(), "GIT_TERMINAL_PROMPT=0", "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_COUNT=0")
 	if token != "" {
-		basic := base64.StdEncoding.EncodeToString([]byte("x-access-token:" + token))
-		header := "AUTHORIZATION: basic " + basic
-		if err := runGit(ctx, repoDir, "-c", "http.extraHeader="+header, "push", "-f", "origin", refSpec); err == nil {
-			return nil
-		}
-		if owner != "" && repo != "" {
-			if apiErr := syncBranchViaGitHubDataAPI(ctx, repoDir, branch, apiBase, token, owner, repo); apiErr == nil {
-				return nil
-			} else {
-				return apiErr
-			}
+		header := "AUTHORIZATION: basic " + base64.StdEncoding.EncodeToString([]byte("x-access-token:"+token))
+		cmd.Env = append(cmd.Env, "GIT_CONFIG_COUNT=1", "GIT_CONFIG_KEY_0=http.extraHeader", "GIT_CONFIG_VALUE_0="+header)
+	}
+	output, err := cmd.Output()
+	if err == nil {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	var exit *exec.ExitError
+	if !errors.As(err, &exit) {
+		return fmt.Errorf("execute git push: %w", err)
+	}
+	for _, line := range strings.Split(string(output), "\n") {
+		if strings.HasPrefix(line, "!\t") {
+			return fmt.Errorf("git rejected branch publication: %w", domain.ErrConflict)
 		}
 	}
-	return runGit(ctx, repoDir, "push", "-f", "origin", refSpec)
+	failure := strings.ToLower(string(exit.Stderr))
+	for _, message := range []string{"authentication failed", "could not read username", "invalid username or password", "permission denied", "returned error: 401"} {
+		if strings.Contains(failure, message) {
+			return fmt.Errorf("git push authentication failed: %w", domain.ErrForbidden)
+		}
+	}
+	return errGitPushTransportUnavailable
 }
 
 func parseGitHubOwnerRepo(remoteURL string) (string, string, bool) {
@@ -505,28 +760,56 @@ func parseGitHubOwnerRepo(remoteURL string) (string, string, bool) {
 	return parts[0], parts[1], true
 }
 
-// syncBranchViaGitHubDataAPI replicates the tracked files at branch (or HEAD)
+// syncBranchViaGitHubDataAPI publishes a snapshot only to an absent branch.
 // to GitHub's Git Data REST API (/git/blobs, /git/trees, /git/commits, /git/refs).
 func syncBranchViaGitHubDataAPI(ctx context.Context, repoDir, branch, apiBase, token, owner, repo string) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := runGit(ctx, repoDir, "check-ref-format", "refs/heads/"+branch); err != nil {
+		return domain.ErrInvalid
+	}
 	if strings.TrimSpace(apiBase) == "" {
 		apiBase = "https://api.github.com"
 	}
 	apiBase = strings.TrimRight(apiBase, "/")
-
 	rev := "refs/heads/" + branch
 	if _, err := gitOut(ctx, repoDir, "rev-parse", "--verify", rev); err != nil {
 		rev = "HEAD"
+	}
+	localHead, err := gitOut(ctx, repoDir, "rev-parse", rev)
+	if err != nil {
+		return err
+	}
+	localHead = strings.TrimSpace(localHead)
+	if !validGitHubObjectID(localHead) {
+		return domain.ErrInvalid
+	}
+	endpoint := fmt.Sprintf("%s/repos/%s/%s/git", apiBase, owner, repo)
+	remoteHead, absent, err := lookupBootstrapRef(ctx, endpoint, token, branch)
+	if err != nil {
+		return err
+	}
+	if !absent {
+		if remoteHead == localHead {
+			return nil
+		}
+		return fmt.Errorf("API fallback cannot replace an existing branch; use a fast-forward Git push: %w", domain.ErrConflict)
+	}
+	var parents []string
+	if branch != "main" {
+		mainHead, mainAbsent, err := lookupBootstrapRef(ctx, endpoint, token, "main")
+		if err != nil {
+			return err
+		}
+		if !mainAbsent {
+			parents = []string{mainHead}
+		}
 	}
 	files, err := filesAtCommit(ctx, repoDir, rev)
 	if err != nil {
 		return err
 	}
-	msg, err := gitOut(ctx, repoDir, "log", "-1", "--format=%s", rev)
-	if err != nil || strings.TrimSpace(msg) == "" {
-		msg = "Update workspace branch " + branch
-	}
-	msg = strings.TrimSpace(msg)
-
 	type treeEntry struct {
 		Path string `json:"path"`
 		Mode string `json:"mode"`
@@ -534,100 +817,117 @@ func syncBranchViaGitHubDataAPI(ctx context.Context, repoDir, branch, apiBase, t
 		SHA  string `json:"sha"`
 	}
 	entries := make([]treeEntry, 0, len(files))
-	for path, content := range files {
-		var blobResp struct {
+	paths := make([]string, 0, len(files))
+	for path := range files {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+	for _, path := range paths {
+		file := files[path]
+		var blob struct {
 			SHA string `json:"sha"`
 		}
-		blobURL := fmt.Sprintf("%s/repos/%s/%s/git/blobs", apiBase, owner, repo)
-		status, body, err := githubJSONRequest(ctx, http.MethodPost, blobURL, token, map[string]any{
-			"content":  base64.StdEncoding.EncodeToString(content),
-			"encoding": "base64",
-		}, &blobResp)
+		status, _, err := githubJSONRequest(ctx, http.MethodPost, endpoint+"/blobs", token, map[string]any{"content": base64.StdEncoding.EncodeToString(file.Content), "encoding": "base64"}, &blob)
 		if err != nil {
 			return err
 		}
-		if status != http.StatusCreated && status != http.StatusOK {
-			return fmt.Errorf("create github blob %s HTTP %d: %s", path, status, string(body))
+		if (status != http.StatusCreated && status != http.StatusOK) || !validGitHubObjectID(blob.SHA) {
+			return fmt.Errorf("create GitHub blob failed (HTTP %d)", status)
 		}
-		entries = append(entries, treeEntry{
-			Path: path,
-			Mode: "100644",
-			Type: "blob",
-			SHA:  blobResp.SHA,
-		})
+		entries = append(entries, treeEntry{Path: path, Mode: file.Mode, Type: "blob", SHA: blob.SHA})
 	}
-
-	var treeResp struct {
+	var tree struct {
 		SHA string `json:"sha"`
 	}
-	treeURL := fmt.Sprintf("%s/repos/%s/%s/git/trees", apiBase, owner, repo)
-	status, body, err := githubJSONRequest(ctx, http.MethodPost, treeURL, token, map[string]any{
-		"tree": entries,
-	}, &treeResp)
+	status, _, err := githubJSONRequest(ctx, http.MethodPost, endpoint+"/trees", token, map[string]any{"tree": entries}, &tree)
 	if err != nil {
 		return err
 	}
-	if status != http.StatusCreated && status != http.StatusOK {
-		return fmt.Errorf("create github tree HTTP %d: %s", status, string(body))
+	if (status != http.StatusCreated && status != http.StatusOK) || !validGitHubObjectID(tree.SHA) {
+		return fmt.Errorf("create GitHub tree failed (HTTP %d)", status)
 	}
-
-	// Check if branch ref already exists so we can parent the commit cleanly.
-	var parents []string
-	var refLookup struct {
+	var commit struct {
+		SHA string `json:"sha"`
+	}
+	payload := map[string]any{"message": "chore(workspace): bootstrap source snapshot", "tree": tree.SHA}
+	if len(parents) > 0 {
+		payload["parents"] = parents
+	}
+	status, _, err = githubJSONRequest(ctx, http.MethodPost, endpoint+"/commits", token, payload, &commit)
+	if err != nil {
+		return err
+	}
+	if (status != http.StatusCreated && status != http.StatusOK) || !validGitHubObjectID(commit.SHA) {
+		return fmt.Errorf("create GitHub commit failed (HTTP %d)", status)
+	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	// Creating a ref is atomic with respect to absence. Never PATCH or force an
+	// existing ref, including one created by another caller after our lookup.
+	var createdRef struct {
+		Ref    string `json:"ref"`
 		Object struct {
-			SHA string `json:"sha"`
+			SHA  string `json:"sha"`
+			Type string `json:"type"`
 		} `json:"object"`
 	}
-	refGetURL := fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/%s", apiBase, owner, repo, branch)
-	if refStatus, _, refErr := githubJSONRequest(ctx, http.MethodGet, refGetURL, token, nil, &refLookup); refErr == nil && refStatus == http.StatusOK && refLookup.Object.SHA != "" {
-		parents = []string{refLookup.Object.SHA}
-	} else if branch != "main" {
-		mainGetURL := fmt.Sprintf("%s/repos/%s/%s/git/ref/heads/main", apiBase, owner, repo)
-		if mStatus, _, mErr := githubJSONRequest(ctx, http.MethodGet, mainGetURL, token, nil, &refLookup); mErr == nil && mStatus == http.StatusOK && refLookup.Object.SHA != "" {
-			parents = []string{refLookup.Object.SHA}
-		}
-	}
-
-	var commitResp struct {
-		SHA string `json:"sha"`
-	}
-	commitURL := fmt.Sprintf("%s/repos/%s/%s/git/commits", apiBase, owner, repo)
-	commitPayload := map[string]any{
-		"message": msg,
-		"tree":    treeResp.SHA,
-	}
-	if len(parents) > 0 {
-		commitPayload["parents"] = parents
-	}
-	status, body, err = githubJSONRequest(ctx, http.MethodPost, commitURL, token, commitPayload, &commitResp)
+	status, _, err = githubJSONRequest(ctx, http.MethodPost, endpoint+"/refs", token, map[string]any{"ref": "refs/heads/" + branch, "sha": commit.SHA}, &createdRef)
 	if err != nil {
 		return err
 	}
-	if status != http.StatusCreated && status != http.StatusOK {
-		return fmt.Errorf("create github commit HTTP %d: %s", status, string(body))
+	if status == http.StatusConflict || status == http.StatusUnprocessableEntity {
+		return fmt.Errorf("branch creation conflicted: %w", domain.ErrConflict)
 	}
-
-	// Update existing ref or create new ref.
-	patchURL := fmt.Sprintf("%s/repos/%s/%s/git/refs/heads/%s", apiBase, owner, repo, branch)
-	status, _, err = githubJSONRequest(ctx, http.MethodPatch, patchURL, token, map[string]any{
-		"sha":   commitResp.SHA,
-		"force": true,
-	}, nil)
-	if err == nil && (status == http.StatusOK || status == http.StatusCreated) {
-		return nil
+	if status != http.StatusCreated {
+		return fmt.Errorf("create GitHub ref failed (HTTP %d)", status)
 	}
-	createRefURL := fmt.Sprintf("%s/repos/%s/%s/git/refs", apiBase, owner, repo)
-	status, body, err = githubJSONRequest(ctx, http.MethodPost, createRefURL, token, map[string]any{
-		"ref": "refs/heads/" + branch,
-		"sha": commitResp.SHA,
-	}, nil)
-	if err != nil {
-		return err
-	}
-	if status != http.StatusCreated && status != http.StatusOK {
-		return fmt.Errorf("create github ref refs/heads/%s HTTP %d: %s", branch, status, string(body))
+	if createdRef.Ref != "refs/heads/"+branch || createdRef.Object.SHA != commit.SHA || createdRef.Object.Type != "commit" {
+		return fmt.Errorf("created GitHub ref response is invalid")
 	}
 	return nil
+}
+
+func validGitHubObjectID(value string) bool {
+	if len(value) != 40 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
+}
+
+func lookupBootstrapRef(ctx context.Context, endpoint, token, branch string) (string, bool, error) {
+	var ref struct {
+		Ref    string `json:"ref"`
+		Object struct {
+			SHA  string `json:"sha"`
+			Type string `json:"type"`
+		} `json:"object"`
+	}
+	status, body, err := githubJSONRequest(ctx, http.MethodGet, endpoint+"/ref/heads/"+branch, token, nil, &ref)
+	if err != nil {
+		return "", false, err
+	}
+	if status == http.StatusOK {
+		if ref.Ref != "refs/heads/"+branch || ref.Object.Type != "commit" || !validGitHubObjectID(ref.Object.SHA) {
+			return "", false, fmt.Errorf("GitHub ref response is invalid")
+		}
+		return ref.Object.SHA, false, nil
+	}
+	if status == http.StatusNotFound {
+		return "", true, nil
+	}
+	// GitHub reports a newly created, empty repository with this specific 409.
+	// Other conflicts do not establish absence and must not authorize creation.
+	if status == http.StatusConflict {
+		var failure struct {
+			Message string `json:"message"`
+		}
+		if json.Unmarshal(body, &failure) == nil && failure.Message == "Git Repository is empty." {
+			return "", true, nil
+		}
+	}
+	return "", false, fmt.Errorf("lookup GitHub ref failed (HTTP %d)", status)
 }
 
 func githubJSONRequest(ctx context.Context, method, reqURL, token string, payload any, out any) (int, []byte, error) {
@@ -667,12 +967,17 @@ func githubJSONRequest(ctx context.Context, method, reqURL, token string, payloa
 	return resp.StatusCode, respBytes, nil
 }
 
-func filesAtCommit(ctx context.Context, repoDir, ref string) (map[string][]byte, error) {
+type bootstrapFile struct {
+	Content []byte
+	Mode    string
+}
+
+func filesAtCommit(ctx context.Context, repoDir, ref string) (map[string]bootstrapFile, error) {
 	out, err := gitOut(ctx, repoDir, "ls-tree", "-r", "-z", "--full-tree", ref)
 	if err != nil {
 		return nil, err
 	}
-	files := map[string][]byte{}
+	files := map[string]bootstrapFile{}
 	for _, entry := range strings.Split(out, "\x00") {
 		if strings.TrimSpace(entry) == "" {
 			continue
@@ -682,14 +987,14 @@ func filesAtCommit(ctx context.Context, repoDir, ref string) (map[string][]byte,
 			continue
 		}
 		fields := strings.Fields(meta)
-		if len(fields) < 3 || fields[1] != "blob" {
-			continue
+		if len(fields) != 3 || fields[1] != "blob" || (fields[0] != "100644" && fields[0] != "100755" && fields[0] != "120000") {
+			return nil, fmt.Errorf("GitHub snapshot fallback does not support this tree entry")
 		}
 		content, err := gitRawOut(ctx, repoDir, "cat-file", "blob", fields[2])
 		if err != nil {
 			return nil, err
 		}
-		files[filePath] = content
+		files[filePath] = bootstrapFile{Content: content, Mode: fields[0]}
 	}
 	return files, nil
 }

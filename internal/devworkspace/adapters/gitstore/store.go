@@ -168,10 +168,27 @@ func (store *Store) removeWorkspaceVolume(id string) error {
 	return root.RemoveAll(filepath.Join("workspaces", id))
 }
 
+func (store *Store) refreshCatalogLocked() {
+	raw, err := os.ReadFile(store.catalogPath)
+	if err != nil {
+		return
+	}
+	var list []domain.Workspace
+	if err := json.Unmarshal(raw, &list); err != nil {
+		return
+	}
+	for _, ws := range list {
+		if validWorkspaceID.MatchString(ws.ID) {
+			store.rows[ws.ID] = ws
+		}
+	}
+}
+
 // List returns all stored workspaces ordered by ID.
 func (store *Store) List(context.Context) ([]domain.Workspace, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	store.refreshCatalogLocked()
 	rows := make([]domain.Workspace, 0, len(store.rows))
 	for _, row := range store.rows {
 		rows = append(rows, row)
@@ -184,6 +201,7 @@ func (store *Store) List(context.Context) ([]domain.Workspace, error) {
 func (store *Store) Get(_ context.Context, id string) (domain.Workspace, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	store.refreshCatalogLocked()
 	row, ok := store.rows[id]
 	if !ok {
 		return domain.Workspace{}, domain.ErrNotFound
@@ -661,6 +679,36 @@ func (store *Store) Read(ctx context.Context, id, requestPath, revision string) 
 	return view, nil
 }
 
+// Write commits one confined file into the workspace Git branch and returns its FileView.
+func (store *Store) Write(ctx context.Context, id, requestPath string, content []byte) (domain.FileView, error) {
+	confined, err := domain.Confine(requestPath)
+	if err != nil {
+		return domain.FileView{}, err
+	}
+	if len(content) > domain.MaxFileBytes {
+		return domain.FileView{}, domain.ErrInvalid
+	}
+	if _, err := store.WriteAndCommit(ctx, id, map[string]string{confined: string(content)}, "chore(workspace): write "+confined); err != nil {
+		return domain.FileView{}, err
+	}
+	return store.Read(ctx, id, confined, "")
+}
+
+// Snapshot returns a copy of all committed files at HEAD in the workspace Git repository.
+func (store *Store) Snapshot(ctx context.Context, id string) (map[string][]byte, error) {
+	store.mu.Lock()
+	ws, ok := store.rows[id]
+	store.mu.Unlock()
+	if !ok {
+		return nil, domain.ErrNotFound
+	}
+	ref := ws.HeadCommit
+	if ref == "" {
+		ref = "HEAD"
+	}
+	return store.readCommittedSnapshot(ctx, store.RepoDir(id), ref)
+}
+
 // Diff implements ports.Files by comparing BaseCommit against HeadCommit in Git.
 // Uncommitted working-tree edits and files outside /repo are never included.
 func (store *Store) Diff(ctx context.Context, id string) (domain.Diff, error) {
@@ -732,6 +780,14 @@ func (t treeAdapter) List(ctx context.Context, id, prefix, cursor string, limit 
 
 func (t treeAdapter) Read(ctx context.Context, id, path, revision string) (domain.FileView, error) {
 	return t.store.Read(ctx, id, path, revision)
+}
+
+func (t treeAdapter) Write(ctx context.Context, id, path string, content []byte) (domain.FileView, error) {
+	return t.store.Write(ctx, id, path, content)
+}
+
+func (t treeAdapter) Snapshot(ctx context.Context, id string) (map[string][]byte, error) {
+	return t.store.Snapshot(ctx, id)
 }
 
 func (t treeAdapter) Diff(ctx context.Context, id string) (domain.Diff, error) {

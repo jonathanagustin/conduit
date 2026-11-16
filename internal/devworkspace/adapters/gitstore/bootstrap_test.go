@@ -3,6 +3,7 @@ package gitstore_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -42,6 +43,8 @@ func TestBootstrapSourceFromLocalDirectoryCreatesGitHubRepoAndPushesBranches(t *
 		defer mu.Unlock()
 		w.Header().Set("Content-Type", "application/json")
 		switch {
+		case strings.HasSuffix(r.URL.Path, "/info/refs"):
+			w.WriteHeader(http.StatusServiceUnavailable)
 		case r.Method == http.MethodGet && r.URL.Path == "/user":
 			_ = json.NewEncoder(w).Encode(map[string]any{"login": "operator"})
 		case r.Method == http.MethodPost && r.URL.Path == "/user/repos":
@@ -54,24 +57,24 @@ func TestBootstrapSourceFromLocalDirectoryCreatesGitHubRepoAndPushesBranches(t *
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"name":      body.Name,
 				"full_name": createdRepo,
-				"html_url":  "https://github.com/" + createdRepo,
-				"clone_url": "https://github.com/" + createdRepo + ".git",
+				"html_url":  "http://" + r.Host + "/" + createdRepo,
+				"clone_url": "http://" + r.Host + "/" + createdRepo + ".git",
 			})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/blobs"):
 			var body struct {
 				Content string `json:"content"`
 			}
 			_ = json.NewDecoder(r.Body).Decode(&body)
-			sha := "blob_" + string(rune('a'+len(blobs)))
+			sha := fmt.Sprintf("%040x", len(blobs)+1)
 			blobs[sha] = body.Content
 			w.WriteHeader(http.StatusCreated)
 			_ = json.NewEncoder(w).Encode(map[string]any{"sha": sha})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/trees"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "tree_123"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("b", 40)})
 		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/commits"):
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"sha": "commit_456"})
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("c", 40)})
 		case r.Method == http.MethodGet && strings.Contains(r.URL.Path, "/git/ref/heads/"):
 			w.WriteHeader(http.StatusNotFound)
 			_ = json.NewEncoder(w).Encode(map[string]any{"message": "Not Found"})
@@ -85,7 +88,7 @@ func TestBootstrapSourceFromLocalDirectoryCreatesGitHubRepoAndPushesBranches(t *
 			_ = json.NewDecoder(r.Body).Decode(&body)
 			pushedRefs[body.Ref] = body.SHA
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(map[string]any{"ref": body.Ref})
+			_ = json.NewEncoder(w).Encode(map[string]any{"ref": body.Ref, "object": map[string]string{"sha": body.SHA, "type": "commit"}})
 		default:
 			w.WriteHeader(http.StatusNotFound)
 		}
@@ -107,7 +110,7 @@ func TestBootstrapSourceFromLocalDirectoryCreatesGitHubRepoAndPushesBranches(t *
 	if err != nil {
 		t.Fatalf("BootstrapSource: %v", err)
 	}
-	if !res.CreatedGitHub || res.RepoURL != "https://github.com/operator/excalidraw-packaged" {
+	if !res.CreatedGitHub || res.RepoURL != ghServer.URL+"/operator/excalidraw-packaged" {
 		t.Fatalf("expected created GitHub repo URL, got %+v", res)
 	}
 	if res.BaseCommit == "" {
