@@ -89,6 +89,18 @@ a timeout, connection reset, ambiguous server error or permission refusal:
 the first command may already have committed. Read the resulting native state
 before an operator decides whether another command is needed.
 
+### CLI packaging index
+
+`conduit run list --read-transport connect` explicitly selects the generated Go
+client for the packaging-run index. The default remains `rest`; pass
+`--read-transport rest` to select the existing REST read for rollback. Both modes
+reuse the configured identity, TLS trust and HTTP timeout. Connect follows native
+opaque cursors with the same summary filters, preserves attachment evidence and
+authority fields, and refuses totals outside the local integer range. Responses
+retain the existing one-MiB per-message bound. A permission refusal, unavailable
+procedure, timeout or canceled read fails on the selected transport; it never
+silently replays through REST. Other reads and governed commands remain REST.
+
 ## Live updates
 
 [ADR 0016](../decisions/0016-console-live-events.md) selects same-origin SSE for

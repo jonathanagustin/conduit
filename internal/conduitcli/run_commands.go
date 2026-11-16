@@ -27,6 +27,7 @@ func runCommand(state *commandState) *cobra.Command {
 			})
 		},
 	}
+	list.Flags().StringVar(&state.config.PackagingReadTransport, "read-transport", "rest", "packaging index transport: rest or connect; failures are never retried over the other transport")
 	list.Flags().StringVar(&phase, "phase", "", "phase reported by the Hub")
 	list.Flags().StringVar(&outcome, "outcome", "", "outcome reported by the Hub")
 	list.Flags().StringVar(&planID, "plan-id", "", "Plan id the run is aimed at")

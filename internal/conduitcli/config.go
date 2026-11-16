@@ -26,23 +26,24 @@ const defaultTimeout = 30 * time.Second
 // transport construction. It contains paths to trust material, never material
 // contents, and deliberately has no permissive map-based configuration.
 type ConnectionConfig struct {
-	SpaceID              string
-	Server               string
-	Timeout              time.Duration
-	CAFile               string
-	ClientCertFile       string
-	ClientKeyFile        string
-	SPIFFEEndpoint       string
-	HubSPIFFEID          string
-	BearerTokenFile      string
-	OIDCIssuer           string
-	OIDCClientID         string
-	OIDCClientSecretFile string
-	OIDCTokenURL         string
-	OIDCScope            string
-	OIDCCAFile           string
-	DevelopmentSubject   string
-	DevelopmentGroups    []string
+	PackagingReadTransport string
+	SpaceID                string
+	Server                 string
+	Timeout                time.Duration
+	CAFile                 string
+	ClientCertFile         string
+	ClientKeyFile          string
+	SPIFFEEndpoint         string
+	HubSPIFFEID            string
+	BearerTokenFile        string
+	OIDCIssuer             string
+	OIDCClientID           string
+	OIDCClientSecretFile   string
+	OIDCTokenURL           string
+	OIDCScope              string
+	OIDCCAFile             string
+	DevelopmentSubject     string
+	DevelopmentGroups      []string
 }
 
 type clientConnection struct {
@@ -51,6 +52,9 @@ type clientConnection struct {
 }
 
 func (configuration ConnectionConfig) validate() (*url.URL, error) {
+	if configuration.PackagingReadTransport != "" && configuration.PackagingReadTransport != "rest" && configuration.PackagingReadTransport != "connect" {
+		return nil, errors.New("--read-transport must be rest or connect")
+	}
 	if configuration.SpaceID != "" && !spacedomain.ValidID(configuration.SpaceID) {
 		return nil, errors.New("--space-id must name a native Space identity")
 	}

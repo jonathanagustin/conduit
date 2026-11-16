@@ -331,6 +331,10 @@ func newService(ctx context.Context, configuration ConnectionConfig) (Service, f
 		return nil, nil, err
 	}
 	service := operator.NewService(adapter)
+	if err := adapter.SetPackagingReadTransport(configuration.PackagingReadTransport); err != nil {
+		connection.cleanup()
+		return nil, nil, err
+	}
 	return service, connection.cleanup, nil
 }
 
