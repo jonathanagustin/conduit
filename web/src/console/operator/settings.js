@@ -1,4 +1,8 @@
 /* Settings screens. Directory rows come from the Hub. Tokens and request shapes are examples. */
+import {
+  fetchPackagingRuns,
+  packagingRunsTransport,
+} from "../../api/packaging-runs.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -394,7 +398,9 @@ export function createSettings(ctx) {
       state.dataSourceLive.imports = "Hub did not return import receipts";
     }
     try {
-      const body = await readJSON("/v1/packaging-runs");
+      const body = await fetchPackagingRuns(
+        packagingRunsTransport(window.location.origin),
+      );
       const items = Array.isArray(body.items) ? body.items : [];
       if (!items.length) {
         state.dataSourceLive.packaging = "No packaging run";

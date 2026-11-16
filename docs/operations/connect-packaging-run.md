@@ -84,9 +84,10 @@ and the same effective limit.
 
 The response includes visible redacted rows and native pagination metadata.
 Total uses an int64 field, represented as a string in protobuf JSON and as a
-bigint in the generated TypeScript API. This change generates the client
-contract but leaves the console's existing list path on REST; detail, overview
-and Audit reads already use their generated clients. The broader migration
+bigint in the generated TypeScript API. The active operator workbench and Settings
+data-source status use this generated client for initial, manual and live list
+refreshes, without falling back to REST on an RPC failure. Detail,
+overview and Audit reads also use their generated clients. The broader migration
 issues #391–#394 remain open.
 
 The [Hub cutover plan](connect-cutover.md) records the remaining route map,
