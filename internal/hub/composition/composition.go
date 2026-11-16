@@ -109,6 +109,7 @@ func NewHub(
 	}
 	workspaces := assembleDevWorkspace(repository, options, os.Getenv)
 	handler = mountDevWorkspace(handler, repository, options, workspaces)
+	workspaceACP := assembleWorkspaceACP(repository, workspaces, hubOptions, os.Getenv)
 	if hubOptions.AppGenerator == nil {
 		generator, err := appGenerator(os.Getenv)
 		if err != nil {
@@ -133,5 +134,6 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	handler = mountWorkspaceACP(handler, repository, options, workspaceACP)
 	return guardUnregisteredRoutes(handler), nil
 }

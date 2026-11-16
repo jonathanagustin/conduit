@@ -55,6 +55,7 @@ func mountWaves(legacy http.Handler, repository controlplane.Repository, options
 			return status, result, nil
 		},
 	})
+	registerReleaseRollout(mux, repository, options, service.List)
 	mux.Handle("/", legacy)
 	return mux
 }

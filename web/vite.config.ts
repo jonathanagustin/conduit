@@ -32,11 +32,8 @@ const hydrateForDevelopment = {
   },
 };
 
-const bridge = {
-  target: process.env["CONSOLE_TEST_BRIDGE_ORIGIN"] ?? "http://127.0.0.1:8787",
-  changeOrigin: true,
-};
-
+// Browser traffic never proxies directly to an ACP bridge process; workspace
+// coding-agent sessions route exclusively through Hub /v1/dev-workspaces/.../acp.
 export default defineConfig({
   lint: {
     ignorePatterns: ["src/api/live-event-validator.generated.js"],
@@ -101,11 +98,5 @@ export default defineConfig({
     // URLs, so fonts ship as files rather than being inlined into the CSS.
     assetsInlineLimit: (file: string) =>
       /\.(woff2?|ttf|otf)$/.test(file) ? false : undefined,
-  },
-  server: {
-    proxy: { "/api/assistant": bridge },
-  },
-  preview: {
-    proxy: { "/api/assistant": bridge },
   },
 });

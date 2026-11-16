@@ -39,17 +39,18 @@ const (
 )
 
 var (
-	ErrNotFound     = errors.New("workspace not found")
-	ErrForbidden    = errors.New("forbidden")
-	ErrUnauthorized = errors.New("unauthorized")
-	ErrInvalid      = errors.New("invalid workspace request")
-	ErrConflict     = errors.New("conflict")
-	ErrDisabled     = errors.New("workspace support is not configured")
-	ErrNoCluster    = errors.New("no cluster")
-	ErrStale        = errors.New("stale revision")
-	ErrSelfApproval = errors.New("self approval")
-	ErrPath         = errors.New("path is outside the workspace")
-	ErrMissing      = errors.New("file not found")
+	ErrNotFound        = errors.New("workspace not found")
+	ErrForbidden       = errors.New("forbidden")
+	ErrUnauthorized    = errors.New("unauthorized")
+	ErrInvalid         = errors.New("invalid workspace request")
+	ErrBranchNotPushed = errors.New("branch not pushed; volume preservation recorded")
+	ErrConflict        = errors.New("conflict")
+	ErrDisabled        = errors.New("workspace support is not configured")
+	ErrNoCluster       = errors.New("no cluster")
+	ErrStale           = errors.New("stale revision")
+	ErrSelfApproval    = errors.New("self approval")
+	ErrPath            = errors.New("path is outside the workspace")
+	ErrMissing         = errors.New("file not found")
 )
 
 // Workspace is one authorized working copy. ApprovalID is empty unless a
@@ -61,6 +62,7 @@ type Workspace struct {
 	Owner             string    `json:"owner"`
 	Title             string    `json:"title"`
 	Status            string    `json:"status"`
+	UpstreamRepo      string    `json:"upstreamRepo,omitempty"`
 	RepoURL           string    `json:"repoUrl,omitempty"`
 	Branch            string    `json:"branch,omitempty"`
 	BaseCommit        string    `json:"baseCommit,omitempty"`

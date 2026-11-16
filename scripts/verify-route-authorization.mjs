@@ -82,6 +82,7 @@ const SOURCES = [
   { path: "internal/delivery/channels/httpapi", surface: "channel subscriptions" },
   { path: "internal/delivery/driftfix/httpapi", surface: "propose fix" },
   { path: "internal/delivery/waves/httpapi", surface: "staged rollouts" },
+  { path: "internal/delivery/releasestatus/httpapi", surface: "release rollout read" },
   { path: "internal/delivery/blackout/httpapi", surface: "blackouts" },
   { path: "internal/delivery/checkin/httpapi", surface: "site check-in" },
   { path: "internal/appgen/httpapi", surface: "app generation" },
@@ -90,6 +91,8 @@ const SOURCES = [
   { path: "internal/delivery/timeline/httpapi", surface: "environment timeline" },
   { path: "internal/attachments/httpapi", surface: "intake attachments" },
   { path: "internal/reporting/httpapi", surface: "reporting Connect overview" },
+  { path: "internal/planning/agentstream", surface: "planning agent runs" },
+  { path: "internal/workspaceacp/httpapi", surface: "workspace ACP" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

@@ -20,6 +20,8 @@ type Catalog interface {
 type Files interface {
 	List(ctx context.Context, id, prefix, cursor string, limit int) (domain.TreePage, error)
 	Read(ctx context.Context, id, path, revision string) (domain.FileView, error)
+	Write(ctx context.Context, id, path string, content []byte) (domain.FileView, error)
+	Snapshot(ctx context.Context, id string) (map[string][]byte, error)
 	Diff(ctx context.Context, id string) (domain.Diff, error)
 	Copy(ctx context.Context, fromID, toID string) error
 }
@@ -58,5 +60,12 @@ type Auditor interface {
 // volume preserved for the retention window when push fails.
 type BranchPreserver interface {
 	PreserveOnIdle(ctx context.Context, workspace domain.Workspace, now time.Time) (domain.Workspace, error)
-	ExpirePreservedVolumes(ctx context.Context, now time.Time) ([]domain.Workspace, error)
+	ExpirePreservedVolumes(ctx context.Context, now time.Time, audit VolumeExpiryAudit) ([]domain.Workspace, error)
+}
+
+// VolumeExpiryAudit durably records expiry intent and the observed removal result.
+// Implementations must not re-enter the workspace store from these callbacks.
+type VolumeExpiryAudit interface {
+	BeforeExpire(ctx context.Context, workspace domain.Workspace) error
+	AfterExpire(ctx context.Context, workspace domain.Workspace, removalErr error) error
 }

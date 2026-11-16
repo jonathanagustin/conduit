@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-// Package conduit.packaging.v1 is the read contract for one packaging run.
+// Package conduit.packaging.v1 contains packaging-run read contracts.
 // Other Hub domains use the same proto/conduit/<domain>/v1 layout.
 package conduit.packaging.v1;
 
@@ -9,6 +9,11 @@ option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/packaging
 // PackagingRunService reads packaging-run progress.
 // It does not accept an approval and it does not report Plan status.
 service PackagingRunService {
+  // ListPackagingRuns reads GET /v1/packaging-runs with the same visibility and cursors.
+  rpc ListPackagingRuns(ListPackagingRunsRequest) returns (ListPackagingRunsResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+
   // GetPackagingRun is the read model of GET /v1/packaging-runs/{run_id}.
   rpc GetPackagingRun(GetPackagingRunRequest) returns (GetPackagingRunResponse) {
     option idempotency_level = NO_SIDE_EFFECTS;
@@ -61,4 +66,50 @@ message GetPackagingRunResponse {
   string template_version = 18;
   // tool_versions is the REST field toolVersions.
   string tool_versions = 19;
+}
+
+// ListPackagingRunsRequest uses the native index filters and opaque cursor.
+message ListPackagingRunsRequest {
+  // view is full (default, max 20) or summary (default 100, max 200).
+  string view = 1;
+  // limit is optional; explicitly zero or negative limits are invalid.
+  optional int32 limit = 2;
+  // cursor must match these filters and is never interpreted by the client.
+  string cursor = 3;
+  // phase selects the native phase.
+  string phase = 4;
+  // outcome selects the native outcome.
+  string outcome = 5;
+  // plan_id selects the referenced Plan, without granting Plan authority.
+  string plan_id = 6;
+  // search is the native case-insensitive search string.
+  string search = 7;
+}
+
+// ListPackagingRunsResponse counts only visible, filtered runs.
+message ListPackagingRunsResponse {
+  // tier marks the native read model.
+  string tier = 1;
+  // configured reports whether a packaging reader is configured.
+  bool configured = 2;
+  // authority is packaging-run.
+  string authority = 3;
+  // plan_authority remains conduit-plan.
+  string plan_authority = 4;
+  // approval_authority remains conduit-governance.
+  string approval_authority = 5;
+  // items are redacted rows, ordered by run_id.
+  repeated GetPackagingRunResponse items = 6;
+  // page_size is the number of returned rows.
+  int32 page_size = 7;
+  // limit is the effective page limit.
+  int32 limit = 8;
+  // has_previous indicates a previous visible page.
+  bool has_previous = 9;
+  // next_cursor is absent at the end of the filtered index.
+  string next_cursor = 10;
+  // previous_cursor is absent on the first page.
+  string previous_cursor = 11;
+  // total counts visible matches, not all stored runs.
+  int64 total = 12;
 }

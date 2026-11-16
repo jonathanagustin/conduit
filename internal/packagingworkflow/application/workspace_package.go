@@ -344,7 +344,7 @@ func commitMessage(attempt int, rationale string) string {
 	if rationale == "" {
 		rationale = "write package files"
 	}
-	return fmt.Sprintf("workspace package attempt %d: %s", attempt, rationale)
+	return fmt.Sprintf("chore(workspace): package attempt %d: %s", attempt, rationale)
 }
 
 func dockerfileDigest(proposal domain.PackageProposal) string {

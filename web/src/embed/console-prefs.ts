@@ -16,8 +16,7 @@ export type {
 export const THEME_KEY = "conduit-console-theme";
 export const ONBOARDED_KEY = "conduit-console-onboarded";
 
-export const BRIDGE_ENDPOINT = "127.0.0.1";
-export const BRIDGE_PATH = "/api/assistant";
+export const HUB_AGENT_RUNS_PATH = "/v1/agent-runs";
 
 export const SHORTCUTS = [
   { keys: "Enter", action: "Send the composer" },
@@ -56,8 +55,8 @@ export const PACKAGING_PROMPTS: readonly SavedPrompt[] = [
 
 export const ONBOARDING_STEPS = [
   {
-    title: "This chat stays on this machine",
-    body: "The thread talks to the Codex bridge on 127.0.0.1. Nothing is sent until that bridge is up.",
+    title: "Agent sessions route through the Hub",
+    body: "The browser connects only to the Hub; it never opens a direct socket to a coding-agent process.",
     example: "Assess this workspace for packaging blockers.",
   },
   {

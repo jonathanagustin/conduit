@@ -229,6 +229,42 @@ func (service *Service) File(ctx context.Context, caller domain.Caller, id, path
 	return service.files.Read(ctx, id, path, revision)
 }
 
+// ApplyGovernedEdit writes one confined file for the workspace owner after a
+// governed ACP permission has been settled, advances the proposal revision, and
+// clears any prior validation or approval. It never approves or deploys.
+func (service *Service) ApplyGovernedEdit(ctx context.Context, caller domain.Caller, id, path string, content []byte) (domain.FileView, error) {
+	workspace, err := service.owned(ctx, caller, id)
+	if err != nil {
+		return domain.FileView{}, err
+	}
+	view, err := service.files.Write(ctx, id, path, content)
+	if err != nil {
+		return domain.FileView{}, err
+	}
+	now := service.now()
+	workspace.ProposalRevision = "rev-" + shortHash(workspace.ProposalRevision+"\x00"+view.Path+"\x00"+view.Digest)
+	workspace.ValidationOutcome = ""
+	workspace.ApprovalID = ""
+	workspace.ArtifactDigest = ""
+	workspace.UpdatedAt = now
+	workspace.LastUsed = now
+	if err := service.records.Save(ctx, workspace); err != nil {
+		return domain.FileView{}, err
+	}
+	if err := service.record(ctx, caller, "workspace.acp_file_written", workspace.ID, "ALLOW", "governed ACP file edit committed: "+view.Path); err != nil {
+		return domain.FileView{}, err
+	}
+	return view, nil
+}
+
+// SnapshotFiles returns an immutable copy of all current files in an owned workspace.
+func (service *Service) SnapshotFiles(ctx context.Context, caller domain.Caller, id string) (map[string][]byte, error) {
+	if _, err := service.owned(ctx, caller, id); err != nil {
+		return nil, err
+	}
+	return service.files.Snapshot(ctx, id)
+}
+
 // Diff returns the stored proposal diff. It does not record an approval.
 func (service *Service) Diff(ctx context.Context, caller domain.Caller, id, revision string, visible func(string) bool) (domain.Diff, error) {
 	workspace, err := service.Get(ctx, caller, id, visible)
@@ -492,6 +528,9 @@ func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, erro
 		if preserver != nil {
 			preservedRow, preserveErr := preserver.PreserveOnIdle(ctx, row, now)
 			row = preservedRow
+			if preserveErr != nil && !errors.Is(preserveErr, domain.ErrBranchNotPushed) {
+				return fail(preserveErr)
+			}
 			if preserveErr != nil {
 				reason = reason + "; branch push failed; volume preserved until " + row.PreservedUntil.Format(time.RFC3339)
 			} else if row.HeadCommit != "" {
@@ -531,13 +570,8 @@ func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, erro
 		reaped = append(reaped, row.ID)
 	}
 	if preserver != nil {
-		expired, err := preserver.ExpirePreservedVolumes(ctx, now)
-		if err != nil {
+		if _, err := preserver.ExpirePreservedVolumes(ctx, now, expiryAudit{service}); err != nil {
 			return reaped, err
-		}
-		actor := domain.Caller{Username: "system:workspace-reaper"}
-		for _, exp := range expired {
-			_ = service.record(ctx, actor, "workspace.preserved_volume_expired", exp.ID, "ALLOW", "retention window elapsed; owner="+exp.Owner)
 		}
 	}
 	return reaped, nil
@@ -586,4 +620,18 @@ func newID() string {
 
 func shortHash(value string) string {
 	return domain.Digest([]byte(value))[7:19]
+}
+
+type expiryAudit struct{ service *Service }
+
+func (a expiryAudit) BeforeExpire(ctx context.Context, ws domain.Workspace) error {
+	return a.service.record(ctx, domain.Caller{Username: "system:workspace-reaper"}, "workspace.preserved_volume_expiry_requested", ws.ID, "ALLOW", "retention window elapsed; owner="+ws.Owner)
+}
+
+func (a expiryAudit) AfterExpire(ctx context.Context, ws domain.Workspace, removalErr error) error {
+	decision, reason := "ALLOW", "expired volume removal completed"
+	if removalErr != nil {
+		decision, reason = "DENY", "expired volume removal incomplete"
+	}
+	return a.service.record(ctx, domain.Caller{Username: "system:workspace-reaper"}, "workspace.preserved_volume_expired", ws.ID, decision, reason)
 }

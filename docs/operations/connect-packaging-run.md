@@ -6,7 +6,7 @@ the rest of the migration can extend. It does not replace REST.
 ## What is served
 
 The read is the one `GET /v1/packaging-runs/{runID}` already serves. That REST
-route stays mounted. The index, the history, cancel, and rerun stay on REST.
+route stays mounted. The filtered index is also dual-served over Connect. History, cancel, and rerun stay on REST.
 
 | | |
 | --- | --- |
@@ -60,3 +60,28 @@ under `proto/conduit/<domain>/v1/`, with the same `buf.yaml` and
 
 This is the proof for #395, under #381. REST stays until the cutover in #394
 says otherwise.
+
+## Filtered run index
+
+`PackagingRunService.ListPackagingRuns` is the typed twin of
+`GET /v1/packaging-runs`. Only its exact POST procedure is exposed. Both call
+one native index reader: per-environment visibility runs before filtering,
+counting and pagination. A delegated identity retains the original credential
+carrier for the native authorization decision. No new approval authority is
+introduced.
+
+The request accepts the native view, optional limit, opaque cursor, phase,
+outcome, Plan ID and search. Omitting limit selects the native default; zero is
+an invalid explicit limit. Native cursors work across both transports with the
+same active filters. Invalid inputs are REST 422 and Connect `invalid_argument`
+(HTTP 400); authentication remains 401. Reader failures are sanitized as REST
+502 and Connect `unavailable` (HTTP 503), following their existing transport
+conventions. An unconfigured reader returns `configured: false`, an empty index
+and the same effective limit.
+
+The response includes visible redacted rows and native pagination metadata.
+Total uses an int64 field, represented as a string in protobuf JSON and as a
+bigint in the generated TypeScript API. This change generates the client
+contract but leaves the console's existing list path on REST; detail, overview
+and Audit reads already use their generated clients. The broader migration
+issues #391–#394 remain open.
