@@ -127,13 +127,16 @@ func (e MessageRole) Valid() bool {
 
 // Defines values for ProfileName.
 const (
-	Onboard ProfileName = "onboard"
+	ProfileNameAppgen  ProfileName = "appgen"
+	ProfileNameOnboard ProfileName = "onboard"
 )
 
 // Valid indicates whether the value is a known member of the ProfileName enum.
 func (e ProfileName) Valid() bool {
 	switch e {
-	case Onboard:
+	case ProfileNameAppgen:
+		return true
+	case ProfileNameOnboard:
 		return true
 	default:
 		return false
@@ -185,6 +188,24 @@ func (e SessionStatus) Valid() bool {
 	case SessionStatusReady:
 		return true
 	case SessionStatusStarted:
+		return true
+	default:
+		return false
+	}
+}
+
+// Defines values for CreatePlanningSessionJSONBodyProfile.
+const (
+	CreatePlanningSessionJSONBodyProfileAppgen  CreatePlanningSessionJSONBodyProfile = "appgen"
+	CreatePlanningSessionJSONBodyProfileOnboard CreatePlanningSessionJSONBodyProfile = "onboard"
+)
+
+// Valid indicates whether the value is a known member of the CreatePlanningSessionJSONBodyProfile enum.
+func (e CreatePlanningSessionJSONBodyProfile) Valid() bool {
+	switch e {
+	case CreatePlanningSessionJSONBodyProfileAppgen:
+		return true
+	case CreatePlanningSessionJSONBodyProfileOnboard:
 		return true
 	default:
 		return false
@@ -247,8 +268,11 @@ type Inspection struct {
 
 // Intake defines model for Intake.
 type Intake struct {
-	Ref     string `json:"ref"`
-	RepoUrl string `json:"repoUrl"`
+	AppName          *string `json:"appName,omitempty"`
+	Message          *string `json:"message,omitempty"`
+	ProblemStatement *string `json:"problemStatement,omitempty"`
+	Ref              string  `json:"ref"`
+	RepoUrl          string  `json:"repoUrl"`
 }
 
 // Message defines model for Message.
@@ -320,9 +344,15 @@ type SessionID = string
 
 // CreatePlanningSessionJSONBody defines parameters for CreatePlanningSession.
 type CreatePlanningSessionJSONBody struct {
-	Ref     string `json:"ref"`
-	RepoUrl string `json:"repoUrl"`
+	AppName          *string                               `json:"appName,omitempty"`
+	ProblemStatement *string                               `json:"problemStatement,omitempty"`
+	Profile          *CreatePlanningSessionJSONBodyProfile `json:"profile,omitempty"`
+	Ref              string                                `json:"ref,omitempty"`
+	RepoUrl          string                                `json:"repoUrl,omitempty"`
 }
+
+// CreatePlanningSessionJSONBodyProfile defines parameters for CreatePlanningSession.
+type CreatePlanningSessionJSONBodyProfile string
 
 // AnswerPlanningNeedsInputJSONBody defines parameters for AnswerPlanningNeedsInput.
 type AnswerPlanningNeedsInputJSONBody struct {
@@ -417,14 +447,14 @@ func WithRequestEditorFn(fn RequestEditorFn) ClientOption {
 // The interface specification for the client above.
 type ClientInterface interface {
 
-	// CreatePlanningSessionWithBody Start a planning session from a repository URL and ref
+	// CreatePlanningSessionWithBody Start a planning session from a repository URL and ref or a problem statement
 	//
 	// Takes any type of body and a specified content type.
 	//
 	// Corresponds with POST /v1/planning-sessions (the `CreatePlanningSession` operationId).
 	CreatePlanningSessionWithBody(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*http.Response, error)
 
-	// CreatePlanningSession Start a planning session from a repository URL and ref
+	// CreatePlanningSession Start a planning session from a repository URL and ref or a problem statement
 	//
 	// Takes a body of the `application/json` content type.
 	//
@@ -495,7 +525,7 @@ type ClientInterface interface {
 	PostPlanningTurn(ctx context.Context, sessionID SessionID, body PostPlanningTurnJSONRequestBody, reqEditors ...RequestEditorFn) (*http.Response, error)
 }
 
-// CreatePlanningSessionWithBody Start a planning session from a repository URL and ref
+// CreatePlanningSessionWithBody Start a planning session from a repository URL and ref or a problem statement
 //
 // Takes any type of body and a specified content type.
 //
@@ -512,7 +542,7 @@ func (c *Client) CreatePlanningSessionWithBody(ctx context.Context, contentType 
 	return c.Client.Do(req)
 }
 
-// CreatePlanningSession Start a planning session from a repository URL and ref
+// CreatePlanningSession Start a planning session from a repository URL and ref or a problem statement
 //
 // Takes a body of the `application/json` content type.
 //
@@ -1030,14 +1060,14 @@ func WithBaseURL(baseURL string) ClientOption {
 // ClientWithResponsesInterface is the interface specification for the client with responses above.
 type ClientWithResponsesInterface interface {
 
-	// CreatePlanningSessionWithBodyWithResponse Start a planning session from a repository URL and ref
+	// CreatePlanningSessionWithBodyWithResponse Start a planning session from a repository URL and ref or a problem statement
 	//
 	// Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 	//
 	// Corresponds with POST /v1/planning-sessions (the `CreatePlanningSession` operationId).
 	CreatePlanningSessionWithBodyWithResponse(ctx context.Context, contentType string, body io.Reader, reqEditors ...RequestEditorFn) (*CreatePlanningSessionResponse, error)
 
-	// CreatePlanningSessionWithResponse Start a planning session from a repository URL and ref
+	// CreatePlanningSessionWithResponse Start a planning session from a repository URL and ref or a problem statement
 	//
 	// Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 	//
@@ -1674,7 +1704,7 @@ func (r PostPlanningTurnResponse) ContentType() string {
 	return ""
 }
 
-// CreatePlanningSessionWithBodyWithResponse Start a planning session from a repository URL and ref
+// CreatePlanningSessionWithBodyWithResponse Start a planning session from a repository URL and ref or a problem statement
 //
 // Takes any type of body and a specified content type, and returns a wrapper object for the known response body format(s).
 //
@@ -1687,7 +1717,7 @@ func (c *ClientWithResponses) CreatePlanningSessionWithBodyWithResponse(ctx cont
 	return ParseCreatePlanningSessionResponse(rsp)
 }
 
-// CreatePlanningSessionWithResponse Start a planning session from a repository URL and ref
+// CreatePlanningSessionWithResponse Start a planning session from a repository URL and ref or a problem statement
 //
 // Takes a body of the `application/json` content type, and returns a wrapper object for the known response body format(s).
 //
@@ -2266,7 +2296,7 @@ func ParsePostPlanningTurnResponse(rsp *http.Response) (*PostPlanningTurnRespons
 
 // ServerInterface represents all server handlers.
 type ServerInterface interface {
-	// CreatePlanningSession Start a planning session from a repository URL and ref
+	// CreatePlanningSession Start a planning session from a repository URL and ref or a problem statement
 	// (POST /v1/planning-sessions)
 	CreatePlanningSession(w http.ResponseWriter, r *http.Request)
 	// GetPlanningSession Read a planning session
@@ -3304,7 +3334,7 @@ func (response PostPlanningTurn503JSONResponse) VisitPostPlanningTurnResponse(w 
 
 // StrictServerInterface represents all server handlers.
 type StrictServerInterface interface {
-	// CreatePlanningSession Start a planning session from a repository URL and ref
+	// CreatePlanningSession Start a planning session from a repository URL and ref or a problem statement
 	// (POST /v1/planning-sessions)
 	CreatePlanningSession(ctx context.Context, request CreatePlanningSessionRequestObject) (CreatePlanningSessionResponseObject, error)
 	// GetPlanningSession Read a planning session

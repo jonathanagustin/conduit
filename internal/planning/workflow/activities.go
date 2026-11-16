@@ -71,6 +71,9 @@ func (a Activities) TurnActivity(ctx context.Context, in TurnActivityInput) (*ap
 	if in.Session == nil {
 		return nil, temporal.NewNonRetryableApplicationError("planning session is required", ErrTypeBadInput, nil)
 	}
+	if in.Session.Profile.Name == domain.ProfileAppgen && a.Planner == nil && a.ActorPlanner == nil {
+		return application.BuildAppgenTurnResult(in.Session, in.Message, ""), nil
+	}
 	if a.Planner == nil && a.ActorPlanner == nil {
 		return nil, temporal.NewNonRetryableApplicationError(domain.ErrModelNotConfigured.Error(), ErrTypeModelNotConfigured, nil)
 	}

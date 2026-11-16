@@ -142,11 +142,46 @@ func dto[T any](value any) (T, error) {
 }
 func service(ctx context.Context) Sessions { return ctx.Value(requestKey{}).(requestContext).service }
 
+type createWithInputSessions interface {
+	CreateWithInput(ctx context.Context, in domain.CreateInput) (*domain.Session, error)
+}
+
 func (strictServer) CreatePlanningSession(ctx context.Context, r api.CreatePlanningSessionRequestObject) (api.CreatePlanningSessionResponseObject, error) {
 	if r.Body == nil {
 		return nil, wireError{400, "", "request body must be a JSON object"}
 	}
-	session, err := service(ctx).Create(ctx, r.Body.RepoUrl, r.Body.Ref)
+	var (
+		profile, problemStatement, appName string
+	)
+	if r.Body.Profile != nil {
+		profile = string(*r.Body.Profile)
+	}
+	if r.Body.ProblemStatement != nil {
+		problemStatement = *r.Body.ProblemStatement
+	}
+	if r.Body.AppName != nil {
+		appName = *r.Body.AppName
+	}
+	svc := service(ctx)
+	var (
+		session *domain.Session
+		err     error
+	)
+	if (profile != "" || problemStatement != "" || appName != "") && svc != nil {
+		if withInput, ok := svc.(createWithInputSessions); ok {
+			session, err = withInput.CreateWithInput(ctx, domain.CreateInput{
+				Profile:          profile,
+				RepoURL:          r.Body.RepoUrl,
+				Ref:              r.Body.Ref,
+				ProblemStatement: problemStatement,
+				AppName:          appName,
+			})
+		} else {
+			session, err = svc.Create(ctx, r.Body.RepoUrl, r.Body.Ref)
+		}
+	} else {
+		session, err = svc.Create(ctx, r.Body.RepoUrl, r.Body.Ref)
+	}
 	if err != nil {
 		return nil, err
 	}

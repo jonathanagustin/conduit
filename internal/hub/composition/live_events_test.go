@@ -24,6 +24,8 @@ import (
 	live "github.com/jonathanagustin/conduit/internal/liveevents/domain"
 	packaging "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
+	"github.com/jonathanagustin/conduit/internal/planning/agentstream"
+	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 )
 
 type livePackagingReader struct {
@@ -446,5 +448,68 @@ func TestLiveHubRetainedSourceGapRequiresCatchupAndStartsNewEpoch(t *testing.T) 
 	frame := liveReadFrame(t, bufio.NewReader(fresh.Body))
 	if frame.Sequence != 1 || frame.Resource.Revision != 42 || frame.Kind != "packaging.step" {
 		t.Fatalf("new epoch relabeled or lost native terminal: %+v", frame)
+	}
+}
+
+func TestLiveHubAssistantActivityFanoutAndOwnerIsolation(t *testing.T) {
+	repository, path := liveNativeFixture(t)
+	packagingReader := &livePackagingReader{}
+	server := liveHubServer(t, repository, path, packagingReader)
+	alice := liveConnect(t, server, "alice", "")
+	bob := liveConnect(t, server, "bob", "")
+	if alice.StatusCode != 200 || bob.StatusCode != 200 {
+		t.Fatalf("not ready: %d %d", alice.StatusCode, bob.StatusCode)
+	}
+	defer alice.Body.Close()
+	defer bob.Body.Close()
+
+	inMem := planningapp.NewService(actorPlanningRunner{runner: readyPlanningRunner{}, actor: "alice"})
+	session, err := inMem.Create(t.Context(), "https://github.com/org/app", "main")
+	if err != nil {
+		t.Fatal(err)
+	}
+	runs, err := agentstream.NewService(inMem, planningRunAudit{repository: repository, actor: "alice"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	rawInput, _ := json.Marshal(map[string]any{
+		"threadId":        session.ID,
+		"runId":           "run-1",
+		"protocolVersion": "1.0",
+		"messages":        []any{map[string]any{"id": "m1", "role": "user", "content": "package the app"}},
+	})
+	input, err := agentstream.DecodeRunInput(rawInput)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := runs.Run(t.Context(), input, func([]byte) error { return nil }); err != nil {
+		t.Fatal(err)
+	}
+
+	aliceReader := bufio.NewReader(alice.Body)
+	wantActivities := []string{"STARTED", "PLANNING", "FINISHED"}
+	for idx, want := range wantActivities {
+		frame := liveReadFrame(t, aliceReader)
+		if frame.Kind != "assistant.activity" || frame.Resource.Type != "assistant-run" || frame.Resource.ID != session.ID+":run-1" || frame.Resource.Revision != uint64(idx+1) {
+			t.Fatalf("unexpected assistant frame %d: %+v", idx, frame)
+		}
+		var payload struct {
+			Activity string `json:"activity"`
+		}
+		if err := json.Unmarshal(frame.Data, &payload); err != nil || payload.Activity != want {
+			t.Fatalf("unexpected activity payload %d: %s (%v)", idx, string(frame.Data), err)
+		}
+	}
+
+	// Trigger a bob-visible event and verify bob's stream never received alice's assistant-run events.
+	if _, err := repository.UpdatePlan(context.Background(), "pln_prod", func(p *controlplane.PlanRecord) error {
+		p.Status = controlplane.PlanCancelled
+		return nil
+	}); err != nil {
+		t.Fatal(err)
+	}
+	bobFrame := liveReadFrame(t, bufio.NewReader(bob.Body))
+	if bobFrame.Sequence != 1 || bobFrame.Resource.ID != live.IndexID(live.Subject{Type: "plan", ID: "pln_prod"}) {
+		t.Fatalf("cross-owner assistant-run leak to bob: %+v", bobFrame)
 	}
 }

@@ -64,6 +64,9 @@ func (planner Planner) Turn(ctx context.Context, session *domain.Session, messag
 	if session == nil {
 		return nil, fmt.Errorf("planning session is required")
 	}
+	if session.Profile.Name == domain.ProfileAppgen {
+		return application.BuildAppgenTurnResult(session, message, ""), nil
+	}
 	if len(planner.Argv) == 0 || strings.TrimSpace(planner.Argv[0]) == "" {
 		return nil, domain.ErrModelNotConfigured
 	}
