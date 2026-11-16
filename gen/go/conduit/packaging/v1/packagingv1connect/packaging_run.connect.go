@@ -3,7 +3,7 @@
 //
 // Source: conduit/packaging/v1/packaging_run.proto
 
-// Package conduit.packaging.v1 is the read contract for one packaging run.
+// Package conduit.packaging.v1 contains packaging-run read contracts.
 // Other Hub domains use the same proto/conduit/<domain>/v1 layout.
 
 package packagingv1connect
@@ -28,12 +28,23 @@ const (
 // reflection-formatted method names, remove the leading slash and convert the remaining slash to a
 // period.
 const (
+	// PackagingRunServiceListPackagingRunsProcedure is the procedure name of the PackagingRunService's
+	// ListPackagingRuns RPC.
+	PackagingRunServiceListPackagingRunsProcedure = "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns"
 	// PackagingRunServiceGetPackagingRunProcedure is the procedure name of the PackagingRunService's
 	// GetPackagingRun RPC.
 	PackagingRunServiceGetPackagingRunProcedure = "/conduit.packaging.v1.PackagingRunService/GetPackagingRun"
 )
 
 var (
+	packagingRunServiceListPackagingRunsSpec = sync.OnceValue(func() connect.Spec {
+		return connect.Spec{
+			StreamType:       connect.StreamTypeUnary,
+			Schema:           v1.File_conduit_packaging_v1_packaging_run_proto.Services().ByName("PackagingRunService").Methods().ByName("ListPackagingRuns"),
+			Procedure:        PackagingRunServiceListPackagingRunsProcedure,
+			IdempotencyLevel: connect.IdempotencyNoSideEffects,
+		}
+	})
 	packagingRunServiceGetPackagingRunSpec = sync.OnceValue(func() connect.Spec {
 		return connect.Spec{
 			StreamType:       connect.StreamTypeUnary,
@@ -46,6 +57,8 @@ var (
 
 // PackagingRunServiceClient is a client for the conduit.packaging.v1.PackagingRunService service.
 type PackagingRunServiceClient interface {
+	// ListPackagingRuns reads GET /v1/packaging-runs with the same visibility and cursors.
+	ListPackagingRuns(context.Context, *v1.ListPackagingRunsRequest) (*v1.ListPackagingRunsResponse, error)
 	// GetPackagingRun is the read model of GET /v1/packaging-runs/{run_id}.
 	GetPackagingRun(context.Context, *v1.GetPackagingRunRequest) (*v1.GetPackagingRunResponse, error)
 }
@@ -59,6 +72,8 @@ func NewPackagingRunServiceClient(client *connect.Client) PackagingRunServiceCli
 // PackagingRunServiceHandler is an implementation of the conduit.packaging.v1.PackagingRunService
 // service.
 type PackagingRunServiceHandler interface {
+	// ListPackagingRuns reads GET /v1/packaging-runs with the same visibility and cursors.
+	ListPackagingRuns(context.Context, *v1.ListPackagingRunsRequest) (*v1.ListPackagingRunsResponse, error)
 	// GetPackagingRun is the read model of GET /v1/packaging-runs/{run_id}.
 	GetPackagingRun(context.Context, *v1.GetPackagingRunRequest) (*v1.GetPackagingRunResponse, error)
 }
@@ -68,6 +83,7 @@ type PackagingRunServiceHandler interface {
 func RegisterPackagingRunServiceHandler(server *connect.Server, svc PackagingRunServiceHandler) {
 	adapter := packagingRunServiceHandler{svc: svc}
 	server.Register(
+		connect.Method{Spec: packagingRunServiceListPackagingRunsSpec(), Handler: adapter.listPackagingRuns},
 		connect.Method{Spec: packagingRunServiceGetPackagingRunSpec(), Handler: adapter.getPackagingRun},
 	)
 }
@@ -75,12 +91,24 @@ func RegisterPackagingRunServiceHandler(server *connect.Server, svc PackagingRun
 // UnimplementedPackagingRunServiceHandler returns CodeUnimplemented from all methods.
 type UnimplementedPackagingRunServiceHandler struct{}
 
+func (UnimplementedPackagingRunServiceHandler) ListPackagingRuns(context.Context, *v1.ListPackagingRunsRequest) (*v1.ListPackagingRunsResponse, error) {
+	return nil, connect.NewError(connect.CodeUnimplemented, "conduit.packaging.v1.PackagingRunService.ListPackagingRuns is not implemented")
+}
+
 func (UnimplementedPackagingRunServiceHandler) GetPackagingRun(context.Context, *v1.GetPackagingRunRequest) (*v1.GetPackagingRunResponse, error) {
 	return nil, connect.NewError(connect.CodeUnimplemented, "conduit.packaging.v1.PackagingRunService.GetPackagingRun is not implemented")
 }
 
 type packagingRunServiceClient struct {
 	client *connect.Client
+}
+
+func (c *packagingRunServiceClient) ListPackagingRuns(ctx context.Context, req *v1.ListPackagingRunsRequest) (*v1.ListPackagingRunsResponse, error) {
+	var res v1.ListPackagingRunsResponse
+	if err := c.client.CallUnary(ctx, packagingRunServiceListPackagingRunsSpec(), req, &res); err != nil {
+		return nil, err
+	}
+	return &res, nil
 }
 
 func (c *packagingRunServiceClient) GetPackagingRun(ctx context.Context, req *v1.GetPackagingRunRequest) (*v1.GetPackagingRunResponse, error) {
@@ -92,6 +120,18 @@ func (c *packagingRunServiceClient) GetPackagingRun(ctx context.Context, req *v1
 }
 
 type packagingRunServiceHandler struct{ svc PackagingRunServiceHandler }
+
+func (h packagingRunServiceHandler) listPackagingRuns(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
+	var req v1.ListPackagingRunsRequest
+	if err := stream.Receive(&req); err != nil {
+		return err
+	}
+	res, err := h.svc.ListPackagingRuns(ctx, &req)
+	if err != nil {
+		return err
+	}
+	return stream.Send(res)
+}
 
 func (h packagingRunServiceHandler) getPackagingRun(ctx context.Context, _ connect.Spec, stream connect.ServerStream) error {
 	var req v1.GetPackagingRunRequest

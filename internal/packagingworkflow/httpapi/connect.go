@@ -4,6 +4,8 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"net/url"
+	"strconv"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
@@ -16,6 +18,11 @@ import (
 // It is the same read as Route, mounted beside it.
 const ConnectRoute = "POST /conduit.packaging.v1.PackagingRunService/GetPackagingRun"
 
+// ConnectListRoute is the filtered packaging-run index procedure.
+const ConnectListRoute = "POST /conduit.packaging.v1.PackagingRunService/ListPackagingRuns"
+
+type packagingRequestKey struct{}
+
 // RegisterConnect mounts the Connect procedure beside the REST route.
 // Both use the same reader and the same caller check.
 func RegisterConnect(mux *http.ServeMux, cfg Config) {
@@ -23,13 +30,16 @@ func RegisterConnect(mux *http.ServeMux, cfg Config) {
 	packagingv1connect.RegisterPackagingRunServiceHandler(rpcServer, &connectService{cfg: cfg})
 	rpcMux := http.NewServeMux()
 	connecthttp.Mount(rpcMux, rpcServer)
-	mux.Handle(ConnectRoute, http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+	handler := http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		if err := authorize(cfg, request); err != nil {
 			writeConnectRefusal(writer, request, err)
 			return
 		}
-		rpcMux.ServeHTTP(writer, request)
-	}))
+		ctx := context.WithValue(request.Context(), packagingRequestKey{}, request)
+		rpcMux.ServeHTTP(writer, request.WithContext(ctx))
+	})
+	mux.Handle(ConnectRoute, handler)
+	mux.Handle(ConnectListRoute, handler)
 }
 
 type connectService struct {
@@ -89,4 +99,28 @@ func writeConnectRefusal(writer http.ResponseWriter, request *http.Request, err 
 	}
 	writer.Header().Set("X-Content-Type-Options", "nosniff")
 	_ = connecthttp.NewErrorWriter().Write(writer, request, connect.NewError(code, message))
+}
+
+func (s *connectService) ListPackagingRuns(ctx context.Context, input *packagingv1.ListPackagingRunsRequest) (*packagingv1.ListPackagingRunsResponse, error) {
+	request, ok := ctx.Value(packagingRequestKey{}).(*http.Request)
+	if !ok {
+		return nil, connect.NewError(connect.CodeUnauthenticated, "unauthorized")
+	}
+	values := url.Values{"view": {input.GetView()}, "cursor": {input.GetCursor()}, "phase": {input.GetPhase()}, "outcome": {input.GetOutcome()}, "planId": {input.GetPlanId()}, "search": {input.GetSearch()}}
+	if input.Limit != nil {
+		values.Set("limit", strconv.FormatInt(int64(input.GetLimit()), 10))
+	}
+	page, err := readRunPage(s.cfg, request.WithContext(ctx), values)
+	if err != nil {
+		var coded StatusError
+		if errors.As(err, &coded) && coded.Status == http.StatusUnprocessableEntity {
+			return nil, connect.NewError(connect.CodeInvalidArgument, coded.Message)
+		}
+		return nil, connect.NewError(connect.CodeUnavailable, "packaging run index is unavailable")
+	}
+	response := &packagingv1.ListPackagingRunsResponse{Tier: page.Tier, Configured: page.Configured, Authority: page.Authority, PlanAuthority: page.PlanAuthority, ApprovalAuthority: page.ApprovalAuthority, PageSize: int32(page.PageSize), Limit: int32(page.Limit), HasPrevious: page.HasPrevious, NextCursor: page.NextCursor, PreviousCursor: page.PreviousCursor, Total: int64(page.Total)}
+	for _, row := range page.Items {
+		response.Items = append(response.Items, packagingRunResponse(row))
+	}
+	return response, nil
 }
