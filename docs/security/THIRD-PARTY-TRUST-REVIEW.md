@@ -235,3 +235,25 @@ helpers, not the schema compiler or require-from-string. Generated imports are
 allowlisted; an unexpected runtime import fails generation. Preserve AJV and
 transitive package license notices when distributing the compiled console.
 The project distribution/licensing decision in #546 remains open.
+
+## pnpm 12.20.0 qualification
+
+The [12.20.0 release](https://github.com/pnpm/pnpm/releases/tag/v12.20.0)
+cleared the three-day Renovate quarantine. Its signed annotated tag resolves to
+`ea74c2cf907bd95d8f69daf3ef778b7f8d92860d`. The downloaded Linux x64 archive
+has SHA-256 `568fd50dd174a57e80efacc04be1d6a228bb41fbebe557f2ef63a1c3a721a5f4`.
+GitHub's SLSA attestation verified against that digest, source commit, tag and
+`pnpm/pnpm/.github/workflows/release.yml`; a modified archive was rejected.
+The direct bundle redirect was unavailable, so verification used the inline
+bundle returned by GitHub's attestation API, with the same cryptographic checks.
+The attested runner is self-hosted, as in the earlier qualification.
+
+Mise's seven platform archive coordinates and checksums match the publisher's
+release metadata. Execution and SLSA artifact verification here cover Linux x64;
+other platform binaries were not executed. Workflow, package-manager, container
+and mise pins move together. A frozen install succeeds with the qualified tool.
+Application package versions and snapshots remain unchanged. The new tool
+normalizes the Vitest catalog override to its existing effective `5.1.0` lock
+specifier and removes the unused catalog mirror. The refreshed web advisory
+scan reports zero findings in all severities; this does not establish that the
+package manager's entire bundled closure is benign or advisory-free.

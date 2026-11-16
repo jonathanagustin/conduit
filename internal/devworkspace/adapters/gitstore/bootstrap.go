@@ -609,7 +609,7 @@ func syncBranchViaGitHubDataAPI(ctx context.Context, repoDir, branch, apiBase, t
 
 	// Update existing ref or create new ref.
 	patchURL := fmt.Sprintf("%s/repos/%s/%s/git/refs/heads/%s", apiBase, owner, repo, branch)
-	status, body, err = githubJSONRequest(ctx, http.MethodPatch, patchURL, token, map[string]any{
+	status, _, err = githubJSONRequest(ctx, http.MethodPatch, patchURL, token, map[string]any{
 		"sha":   commitResp.SHA,
 		"force": true,
 	}, nil)
