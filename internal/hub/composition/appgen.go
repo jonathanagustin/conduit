@@ -198,11 +198,18 @@ func appgenPlanningComputer(
 				Status:            devdomain.StatusRunning,
 				RepoURL:           "https://conduit.local/appgen/" + session.Binding.Intake.AppName,
 				Branch:            "workspace/" + principal.Username + "/" + wsID,
-				BaseCommit:        session.Binding.ResolvedCommit,
-				HeadCommit:        session.Binding.ResolvedCommit,
 				ArtifactDigest:    res.ImageDigest,
 				ValidationOutcome: string(packagingdomain.OutcomePass),
 			}, now)); err != nil {
+				return err
+			}
+			toCommit := make(map[string]string, len(res.Files)+2)
+			for _, f := range res.Files {
+				toCommit[f.Path] = f.Content
+			}
+			toCommit[".dockerignore"] = dockerIgnore
+			toCommit["package-source.yaml"] = res.PackagingSource
+			if _, err := store.WriteAndCommit(ctx, wsID, toCommit, "feat(appgen): package "+session.Binding.Intake.AppName); err != nil {
 				return err
 			}
 		}
@@ -212,15 +219,24 @@ func appgenPlanningComputer(
 			if sourceDigest == "" {
 				sourceDigest = res.Provenance.ResponseSHA256
 			}
-			if _, err := submitter.Submit(ctx, devWorkspaceCaller(principal), devdomain.Submission{
+			receipt, err := submitter.Submit(ctx, devWorkspaceCaller(principal), devdomain.Submission{
 				WorkspaceID:   wsID,
 				EnvironmentID: "dev",
 				Revision:      session.Binding.Plan.SHA256,
 				SourceDigest:  sourceDigest,
 				Title:         "Generated application " + session.Binding.Intake.AppName,
 				Description:   session.Binding.Intake.ProblemStatement,
-			}); err != nil {
+			})
+			if err != nil {
 				return err
+			}
+			if store != nil && strings.TrimSpace(receipt.ChangeRequestID) != "" {
+				if ws, getErr := store.Get(ctx, wsID); getErr == nil {
+					ws.ApprovalID = receipt.ChangeRequestID
+					if saveErr := store.Save(ctx, ws); saveErr != nil {
+						return saveErr
+					}
+				}
 			}
 		}
 		return nil
