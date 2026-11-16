@@ -191,23 +191,3 @@ func (audit planningRunAudit) Record(ctx context.Context, record agentstream.Aud
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
 }
-
-type temporalActorRunner struct {
-	runner planningapp.Planner
-}
-
-func (r temporalActorRunner) TurnForActor(ctx context.Context, actor string, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
-	if r.runner == nil {
-		return nil, planningdomain.ErrModelNotConfigured
-	}
-	return r.runner.Turn(context.WithValue(ctx, planningActorKey{}, actor), session, message)
-}
-
-type temporalAcceptAudit struct {
-	repository controlplane.Repository
-}
-
-func (a temporalAcceptAudit) RecordAccept(ctx context.Context, actor string, record planningapp.Audit) error {
-	return (planningAcceptAudit{repository: a.repository, actor: actor}).Record(ctx, record)
-}
-

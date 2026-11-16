@@ -6,6 +6,8 @@ import (
 	"time"
 )
 
+// ValueTier identifies this native observation contract.
+//
 // CONDUIT-INVENTED: delivery.ReleaseRolloutView
 // Displaced-by: a published or owner-approved sanitized release rollout contract
 // establishing join grain, resource visibility, graph scope and wave persistence.
