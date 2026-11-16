@@ -39,18 +39,18 @@ const (
 // Application error type constants used across workflow/activity boundaries so
 // callers can map Temporal errors back to domain sentinels deterministically.
 const (
-	ErrTypeBadInput           = "BadInput"
-	ErrTypeModelNotConfigured = "ModelNotConfigured"
-	ErrTypeNeedsInputPending  = "NeedsInputPending"
-	ErrTypeNoPendingQuestions = "NoPendingQuestions"
+	ErrTypeBadInput            = "BadInput"
+	ErrTypeModelNotConfigured  = "ModelNotConfigured"
+	ErrTypeNeedsInputPending   = "NeedsInputPending"
+	ErrTypeNoPendingQuestions  = "NoPendingQuestions"
 	ErrTypeUnknownQuestion     = "UnknownQuestion"
 	ErrTypeInvalidAnswer       = "InvalidAnswer"
 	ErrTypePlanRequired        = "PlanRequired"
 	ErrTypeComputeBeforeAccept = "ComputeBeforeAccept"
 	ErrTypeCommitNotPinned     = "CommitNotPinned"
-	ErrTypeAlreadyAccepted    = "AlreadyAccepted"
-	ErrTypeAuditFailed        = "AuditFailed"
-	ErrTypeForbidden          = "Forbidden"
+	ErrTypeAlreadyAccepted     = "AlreadyAccepted"
+	ErrTypeAuditFailed         = "AuditFailed"
+	ErrTypeForbidden           = "Forbidden"
 )
 
 // Input starts or continues a durable planning session workflow.

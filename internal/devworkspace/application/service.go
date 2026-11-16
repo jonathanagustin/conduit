@@ -462,9 +462,13 @@ func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, erro
 	if err != nil {
 		return nil, err
 	}
+	preserver, _ := service.records.(ports.BranchPreserver)
+	if preserver == nil {
+		preserver, _ = service.files.(ports.BranchPreserver)
+	}
 	reaped := []string{}
 	for _, row := range rows {
-		if row.Status != domain.StatusRunning && row.Status != domain.StatusStarting {
+		if row.Status != domain.StatusRunning && row.Status != domain.StatusStarting && row.Status != domain.StatusInitializing && row.Status != domain.StatusStopping {
 			continue
 		}
 		if row.LastUsed.IsZero() || now.Sub(row.LastUsed) < service.idle {
@@ -484,6 +488,15 @@ func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, erro
 		}
 		if service.runtime == nil || (service.podsOn && service.pods == nil) {
 			return fail(domain.ErrDisabled)
+		}
+		if preserver != nil {
+			preservedRow, preserveErr := preserver.PreserveOnIdle(ctx, row, now)
+			row = preservedRow
+			if preserveErr != nil {
+				reason = reason + "; branch push failed; volume preserved until " + row.PreservedUntil.Format(time.RFC3339)
+			} else if row.HeadCommit != "" {
+				reason = reason + "; branch=" + row.Branch + "; head=" + row.HeadCommit
+			}
 		}
 		if service.runtime != nil {
 			runtime, err := service.runtime.Stop(ctx, row.ID)
@@ -516,6 +529,16 @@ func (service *Service) Reap(ctx context.Context, now time.Time) ([]string, erro
 			return reaped, err
 		}
 		reaped = append(reaped, row.ID)
+	}
+	if preserver != nil {
+		expired, err := preserver.ExpirePreservedVolumes(ctx, now)
+		if err != nil {
+			return reaped, err
+		}
+		actor := domain.Caller{Username: "system:workspace-reaper"}
+		for _, exp := range expired {
+			_ = service.record(ctx, actor, "workspace.preserved_volume_expired", exp.ID, "ALLOW", "retention window elapsed; owner="+exp.Owner)
+		}
 	}
 	return reaped, nil
 }

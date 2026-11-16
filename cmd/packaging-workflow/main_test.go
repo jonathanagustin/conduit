@@ -160,4 +160,100 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	if err != nil || len(audits) != 1 || audits[0].Subject != "alice" {
 		t.Fatalf("persisted audits = %+v, err = %v", audits, err)
 	}
+
+	execRaw := func(args ...string) ([]byte, error) {
+		t.Helper()
+		var out, errBuf bytes.Buffer
+		cmd := newRoot()
+		cmd.SetOut(&out)
+		cmd.SetErr(&errBuf)
+		fullArgs := append([]string{"--address", running.Frontend, "--state-dir", stateDir}, args...)
+		cmd.SetArgs(fullArgs)
+		err := cmd.Execute()
+		return out.Bytes(), err
+	}
+
+	// 7. Create an Excalidraw planning session and verify plan-compute refuses before Accept (COMPUTE_BEFORE_ACCEPT)
+	excalidrawSession, err := execCLI("plan-create", "https://github.com/excalidraw/excalidraw", "3a317b55", "--session-id", "ps_excalidraw", "--actor", "alice")
+	if err != nil || excalidrawSession.ID != "ps_excalidraw" {
+		t.Fatalf("plan-create excalidraw: %+v, err=%v", excalidrawSession, err)
+	}
+	if _, err := execRaw("plan-compute", "ps_excalidraw", "--actor", "alice"); err == nil || !strings.Contains(err.Error(), planningdomain.CodeComputeBeforeAccept) {
+		t.Fatalf("expected COMPUTE_BEFORE_ACCEPT before accept, got %v", err)
+	}
+
+	// Complete Excalidraw AI planning turns and Accept
+	if _, err := execCLI("plan-turn", "ps_excalidraw", "Inspect Excalidraw for UDS/Zarf packaging", "--actor", "alice"); err != nil {
+		t.Fatalf("excalidraw turn 1: %v", err)
+	}
+	if _, err := execCLI("plan-answer", "ps_excalidraw", "node_version=20", "--actor", "alice"); err != nil {
+		t.Fatalf("excalidraw answer: %v", err)
+	}
+	if _, err := execCLI("plan-turn", "ps_excalidraw", "Generate the Excalidraw packaging plan", "--actor", "alice"); err != nil {
+		t.Fatalf("excalidraw turn 2: %v", err)
+	}
+	if _, err := execCLI("plan-accept", "ps_excalidraw", "--actor", "alice"); err != nil {
+		t.Fatalf("excalidraw accept: %v", err)
+	}
+
+	// 8. Run plan-compute after Accept: AI writes Excalidraw Dockerfile/zarf.yaml/uds-package.yaml into durable Git workspace branch
+	computeBytes, err := execRaw("plan-compute", "ps_excalidraw", "--actor", "alice", "--workspace-id", "wsp_excalidraw", "--environment", "dev")
+	if err != nil {
+		t.Fatalf("plan-compute after accept: %v\n%s", err, string(computeBytes))
+	}
+	var computeOut planComputeOutput
+	if err := json.Unmarshal(computeBytes, &computeOut); err != nil {
+		t.Fatalf("decode plan-compute JSON (%v):\n%s", err, string(computeBytes))
+	}
+	if computeOut.WorkspaceID != "wsp_excalidraw" || computeOut.Result.Outcome != "PASS" || computeOut.Result.Head == "" {
+		t.Fatalf("unexpected plan-compute output: %+v", computeOut)
+	}
+	if !strings.Contains(computeOut.Result.Archive, "zarf-package-excalidraw") {
+		t.Fatalf("expected excalidraw archive, got %q", computeOut.Result.Archive)
+	}
+	if computeOut.Result.Audit.RepoURL != "https://github.com/excalidraw/excalidraw" || computeOut.Result.Audit.ImageDigest == "" || computeOut.Result.Audit.DockerfileSHA256 == "" {
+		t.Fatalf("incomplete compute audit: %+v", computeOut.Result.Audit)
+	}
+
+	// 9. Inspect committed Git tree and files via workspace-tree and workspace-file
+	treeBytes, err := execRaw("workspace-tree", "wsp_excalidraw", "--actor", "alice")
+	if err != nil {
+		t.Fatalf("workspace-tree: %v", err)
+	}
+	if !strings.Contains(string(treeBytes), "Dockerfile") || !strings.Contains(string(treeBytes), "zarf.yaml") || !strings.Contains(string(treeBytes), "uds-package.yaml") {
+		t.Fatalf("workspace-tree missing committed package files:\n%s", string(treeBytes))
+	}
+	fileBytes, err := execRaw("workspace-file", "wsp_excalidraw", "uds-package.yaml", "--actor", "alice")
+	if err != nil || !strings.Contains(string(fileBytes), "excalidraw") || !strings.Contains(string(fileBytes), "uds.dev/v1alpha1") {
+		t.Fatalf("workspace-file uds-package.yaml: err=%v\n%s", err, string(fileBytes))
+	}
+
+	// 10. Commit an operator/AI adjustment on the Git branch via workspace-sync and inspect workspace-diff
+	syncBytes, err := execRaw("workspace-sync", "wsp_excalidraw", "pin excalidraw replica notes", "--actor", "alice", "--write", "NOTES.md=Excalidraw packaged for airgap delivery\n")
+	if err != nil {
+		t.Fatalf("workspace-sync: %v\n%s", err, string(syncBytes))
+	}
+	diffBytes, err := execRaw("workspace-diff", "wsp_excalidraw", "--actor", "alice")
+	if err != nil || !strings.Contains(string(diffBytes), "NOTES.md") || !strings.Contains(string(diffBytes), "zarf.yaml") {
+		t.Fatalf("workspace-diff: err=%v\n%s", err, string(diffBytes))
+	}
+
+	// 11. Propose a governed ChangeRequest from the durable Git workspace revision (and verify self-approval is refused)
+	if _, err := execRaw("workspace-propose", "wsp_excalidraw", "--actor", "alice", "--approve"); err == nil {
+		t.Fatal("expected workspace-propose --approve to be refused with self-approval error")
+	}
+	proposeBytes, err := execRaw("workspace-propose", "wsp_excalidraw", "--actor", "alice", "--title", "Onboard Excalidraw package")
+	if err != nil {
+		t.Fatalf("workspace-propose: %v\n%s", err, string(proposeBytes))
+	}
+	if !strings.Contains(string(proposeBytes), "PENDING") {
+		t.Fatalf("expected PENDING ChangeRequest receipt, got:\n%s", string(proposeBytes))
+	}
+
+	// 12. Run workspace-reap past the idle timeout and verify the workspace compute is reclaimed while preserving Git history
+	futureTime := "2099-01-01T00:00:00Z"
+	reapBytes, err := execRaw("workspace-reap", "--now", futureTime)
+	if err != nil || !strings.Contains(string(reapBytes), "wsp_excalidraw") {
+		t.Fatalf("workspace-reap: err=%v\n%s", err, string(reapBytes))
+	}
 }
