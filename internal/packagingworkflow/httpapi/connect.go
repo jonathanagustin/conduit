@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
@@ -67,25 +68,25 @@ func (s *connectService) GetPackagingRun(
 
 func packagingRunResponse(status domain.RunStatus) *packagingv1.GetPackagingRunResponse {
 	return &packagingv1.GetPackagingRunResponse{
-		Tier:              status.Tier,
+		Tier:              nativeJSONString(status.Tier),
 		Configured:        status.Configured,
-		Authority:         status.Authority,
-		PlanAuthority:     status.PlanAuthority,
-		ApprovalAuthority: status.ApprovalAuthority,
-		RunId:             status.RunID,
-		Phase:             status.Phase,
-		Outcome:           status.Outcome,
-		Reason:            status.Reason,
-		SourceDigest:      status.SourceDigest,
-		ArtifactDigest:    status.ArtifactDigest,
-		ProposalRevision:  status.ProposalRevision,
-		TargetPlanRef:     status.TargetPlanRef,
-		PlanId:            status.PlanID,
+		Authority:         nativeJSONString(status.Authority),
+		PlanAuthority:     nativeJSONString(status.PlanAuthority),
+		ApprovalAuthority: nativeJSONString(status.ApprovalAuthority),
+		RunId:             nativeJSONString(status.RunID),
+		Phase:             nativeJSONString(status.Phase),
+		Outcome:           nativeJSONString(status.Outcome),
+		Reason:            nativeJSONString(status.Reason),
+		SourceDigest:      nativeJSONString(status.SourceDigest),
+		ArtifactDigest:    nativeJSONString(status.ArtifactDigest),
+		ProposalRevision:  nativeJSONString(status.ProposalRevision),
+		TargetPlanRef:     nativeJSONString(status.TargetPlanRef),
+		PlanId:            nativeJSONString(status.PlanID),
 		HandoffReconciled: status.HandoffReconciled,
-		LastReview:        status.LastReview,
+		LastReview:        nativeJSONString(status.LastReview),
 		DuplicateReviews:  int32(status.DuplicateReviews),
-		TemplateVersion:   status.TemplateVersion,
-		ToolVersions:      status.ToolVersions,
+		TemplateVersion:   nativeJSONString(status.TemplateVersion),
+		ToolVersions:      nativeJSONString(status.ToolVersions),
 	}
 }
 
@@ -158,7 +159,17 @@ func (s *connectService) ListPackagingRunEvents(ctx context.Context, input *pack
 		if at.CheckValid() != nil {
 			return nil, connect.NewError(connect.CodeUnavailable, "packaging run history is unavailable")
 		}
-		response.Items = append(response.Items, &packagingv1.PackagingRunEvent{Sequence: int64(event.Sequence), At: at, Step: event.Step, Outcome: event.Outcome, Reason: event.Reason, SourceDigest: event.SourceDigest, ArtifactDigest: event.ArtifactDigest, ProposalRevision: event.ProposalRevision, ApprovalId: event.ApprovalID, PlanId: event.PlanID, TargetPlanRef: event.TargetPlanRef})
+		response.Items = append(response.Items, &packagingv1.PackagingRunEvent{Sequence: int64(event.Sequence), At: at, Step: nativeJSONString(event.Step), Outcome: nativeJSONString(event.Outcome), Reason: nativeJSONString(event.Reason), SourceDigest: nativeJSONString(event.SourceDigest), ArtifactDigest: nativeJSONString(event.ArtifactDigest), ProposalRevision: nativeJSONString(event.ProposalRevision), ApprovalId: nativeJSONString(event.ApprovalID), PlanId: nativeJSONString(event.PlanID), TargetPlanRef: nativeJSONString(event.TargetPlanRef)})
 	}
 	return response, nil
+}
+
+// nativeJSONString preserves the decoded REST JSON string when a native
+// byte-bounded reason ends inside a UTF-8 encoding. JSON replaces each malformed
+// byte with U+FFFD; protobuf requires the resulting string to be valid UTF-8.
+func nativeJSONString(value string) string {
+	if utf8.ValidString(value) {
+		return value
+	}
+	return string([]rune(value))
 }

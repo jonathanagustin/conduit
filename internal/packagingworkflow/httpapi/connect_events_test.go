@@ -206,3 +206,32 @@ func TestConnectEventsRefusesUnrepresentableStoredTime(t *testing.T) {
 		t.Fatalf("unrepresentable time=%d %s", response.Code, response.Body.String())
 	}
 }
+
+func TestPackagingRPCsPreserveNativeTruncatedUnicodeReason(t *testing.T) {
+	reason := strings.Repeat("x", domain.MaxReasonBytes-1) + "界"
+	store := &catalog{runs: []domain.RunStatus{{RunID: "history", TargetPlanRef: "visible/app", Reason: reason}}, events: map[string][]domain.StepEvent{"history": {{Sequence: 1, At: time.Now().UTC(), Step: domain.StepAssess, Reason: reason}}}}
+	mux := mountBoth(Config{Reader: store, Authorize: authed(), Visible: allowEnvironment("visible")})
+	server := httptest.NewServer(mux)
+	defer server.Close()
+	client := connectClient(server)
+	native := httptest.NewRecorder()
+	mux.ServeHTTP(native, httptest.NewRequest(http.MethodGet, "/v1/packaging-runs/history/events", nil))
+	var expected eventPage
+	if err := json.Unmarshal(native.Body.Bytes(), &expected); err != nil {
+		t.Fatal(err)
+	}
+	actual, err := client.ListPackagingRunEvents(t.Context(), &packagingv1.ListPackagingRunEventsRequest{RunId: "history"})
+	if err != nil || native.Code != 200 || len(actual.GetItems()) != 1 || actual.Items[0].Reason != expected.Items[0].Reason {
+		t.Fatalf("events failed native=%d err=%v RPC=%+v", native.Code, err, actual)
+	}
+	native = httptest.NewRecorder()
+	mux.ServeHTTP(native, httptest.NewRequest(http.MethodGet, "/v1/packaging-runs/history", nil))
+	var expectedRun domain.RunStatus
+	if err := json.Unmarshal(native.Body.Bytes(), &expectedRun); err != nil {
+		t.Fatal(err)
+	}
+	run, err := client.GetPackagingRun(t.Context(), &packagingv1.GetPackagingRunRequest{RunId: "history"})
+	if err != nil || native.Code != 200 || run.GetReason() != expectedRun.Reason {
+		t.Fatalf("detail failed native=%d err=%v RPC=%+v", native.Code, err, run)
+	}
+}

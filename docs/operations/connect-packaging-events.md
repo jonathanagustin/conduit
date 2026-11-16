@@ -30,7 +30,9 @@ ProtoJSON encodes sequence/count int64 values as decimal strings. Occurrence
 times use `google.protobuf.Timestamp`, preserving instants and normalizing
 zones. A stored time outside that type's supported range produces a sanitized
 unavailable error rather than a fabricated time. Unknown step/outcome strings
-remain open native vocabulary. Compare typed values, not raw REST JSON bytes.
+remain open native vocabulary. Compare typed values, not raw REST JSON bytes. Byte-truncated Unicode reasons
+retain REST JSON's decoded replacement characters rather than failing protobuf
+encoding. The same normalization applies to the existing run-detail projection.
 
 Native validation (REST 422) maps to Connect invalid-argument; a hidden/missing
 parent remains not-found. Unexpected store errors become sanitized unavailable
