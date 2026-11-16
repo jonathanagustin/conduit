@@ -2085,26 +2085,19 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
 			return
 		}
-		records, err := repository.ListPlans(request.Context(), "")
-		if err != nil {
-			writeLifecycleError(w, err)
-			return
-		}
-		visible := make([]PlanRecord, 0, len(records))
-		for _, record := range records {
-			if !canReadPlan(request.Context(), repository, governance, principal, configuration, record) {
-				continue
-			}
-			visible = append(visible, redactLeaseToken(record))
-		}
-		page, err := paginatePlans(visible, PlanQuery{
+		page, err := readAuthorizedPlanPage(request.Context(), repository, governance, principal, configuration, PlanQuery{
 			Environment:    strings.TrimSpace(query.Get("environment")),
 			Status:         strings.TrimSpace(query.Get("status")),
 			InstallationID: strings.TrimSpace(query.Get("installationId")),
 			Search:         query.Get("search"), View: view,
 		}, cursor, limit)
 		if err != nil {
-			writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			var pagination planIndexPageError
+			if errors.As(err, &pagination) {
+				writeJSON(w, http.StatusUnprocessableEntity, map[string]string{"error": err.Error()})
+			} else {
+				writeLifecycleError(w, err)
+			}
 			return
 		}
 		if view == "summary" {

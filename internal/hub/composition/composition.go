@@ -125,6 +125,7 @@ func NewHub(
 		hubOptions.AppgenSandbox, hubOptions.AppgenPublisher, os.Getenv,
 	)
 	handler = mountReportingConnect(handler, repository, options)
+	handler = mountPlanSummaryConnect(handler, repository, options)
 	handler = mountAdminStatus(handler, repository, options, hubOptions)
 	handler = mountAttachments(handler, options, hubOptions.Attachments)
 	handler = mountAppGenerationWithService(handler, options, appgenService)
