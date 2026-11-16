@@ -77,6 +77,9 @@ func (adapter *HTTPControlPlane) ListPlans(ctx context.Context, query PlanListQu
 }
 
 func (adapter *HTTPControlPlane) ListPackagingRuns(ctx context.Context, query PackagingRunQuery) (PackagingRunList, error) {
+	if adapter.packagingReadTransport == "connect" {
+		return adapter.listPackagingRunsConnect(ctx, query)
+	}
 	values := url.Values{}
 	values.Set("view", "summary")
 	values.Set("limit", "200")
