@@ -19,10 +19,9 @@ including reads. A read encoded as POST is not a governed state change.
 | `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for initial, manual and live refreshes |
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
-| `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated contract and native adapter; no caller cutover yet |
+| `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Generated legacy name-only summary helper; full-catalog operator reads remain REST |
 | `POST /v1/plans/{planID}/approvals` | `conduit.plans.v1.PlanApprovalService/ApprovePlan` | Native governed command; callers remain REST, no automatic retry |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |
-| `GET /v1/products?view=summary` | `conduit.catalog.v1.ProductReadService/ListProductSummaries` | Dual-served native summary contract; callers remain REST |
 | `GET /v1/notifications/events` | `conduit.notifications.v1.NotificationService/ListNotificationEvents` | Generated Audit notification client |
 
 These are Conduit-native contracts. See [overview](connect-reporting-overview.md),

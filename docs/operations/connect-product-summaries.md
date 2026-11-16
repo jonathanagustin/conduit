@@ -55,3 +55,13 @@ unfiltered visible counts, semantic versions, metadata-only Products,
 filter-bound cursors and unknown routes. These tests establish bounded read
 parity, not runtime deployment or governed-write parity. See
 [the cutover plan](connect-cutover.md); #391, #392 and #394 remain open.
+
+## Console summary helper
+
+`web/src/api/product-summaries.ts` uses the generated Product read client, with
+same-origin credentials, cancellation and typed Hub errors. Counts stay bigint;
+invalid page evidence is refused instead of silently rounded or discarded.
+The legacy `data/hub.ts` `listProducts` helper preserves its name-only DTO and
+20-item first page, without following the opaque next cursor. It never retries
+an RPC refusal through REST. Full-catalog operator reads still require release
+records and remain on REST; this bounded helper change is not their migration.
