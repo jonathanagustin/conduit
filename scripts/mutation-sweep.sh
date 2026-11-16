@@ -48,10 +48,6 @@ command -v gremlins >/dev/null || {
   echo "gremlins is required: go install github.com/go-gremlins/gremlins/cmd/gremlins@v0.6.0" >&2
   exit 1
 }
-command -v pnpm >/dev/null || {
-  echo "pnpm is required for the web Stryker sweep; install the pinned pnpm as CI does" >&2
-  exit 1
-}
 
 # The bounded-context domain packages: the rules, where a surviving mutant is
 # most alarming and least excusable. internal/controlplane is deliberately not
@@ -116,6 +112,10 @@ done
 # detected. NoCoverage mutants are excluded from efficacy and shown as the gap
 # in coverage, exactly as gremlins' mutator coverage is for Go.
 if [[ -f web/stryker.config.json ]]; then
+command -v pnpm >/dev/null || {
+  echo "pnpm is required for the web Stryker sweep; install the pinned pnpm as CI does" >&2
+  exit 1
+}
 report="web/reports/mutation/mutation.json"
 echo "sweeping web console with Stryker..."
 set +e
