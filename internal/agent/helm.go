@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -104,7 +105,7 @@ func (executor HelmExecutor) Apply(
 		if err != nil {
 			return Receipt{}, fmt.Errorf("Helm uninstall: %w", err)
 		}
-		return Receipt{Step: step, PreviousRevision: previousRevision}, nil
+		return executor.receipt(ctx, step, previousRevision), nil
 	}
 	if step.Action == "restart" {
 		target := strings.ToLower(step.ResourceKind) + "/" + step.ResourceName
@@ -126,7 +127,7 @@ func (executor HelmExecutor) Apply(
 				Kind: step.ResourceKind, Namespace: step.Namespace, Name: step.ResourceName, Reason: "RolloutFailed",
 			}}}
 		}
-		return Receipt{Step: step}, nil
+		return executor.receipt(ctx, step, 0), nil
 	}
 	for _, access := range step.RegistryAccess {
 		if access.CredentialRef == "" && access.ImagePullSecretName == "" {
@@ -178,7 +179,7 @@ func (executor HelmExecutor) Apply(
 	if timeout == 0 {
 		timeout = 5 * time.Minute
 	}
-	description := releaseDescription(step)
+	description := executor.ownedReleaseDescription(ctx, step)
 	valuesPath := filepath.Join(temporaryDirectory, "values.json")
 	values := step.Values
 	if len(values) == 0 {
@@ -256,8 +257,8 @@ func (executor HelmExecutor) Apply(
 	applyOutput, err := runner.Run(ctx, "helm", arguments...)
 	if err != nil {
 		if step.HelmExecution.RolloutStrategy == controlplane.RolloutApplyChangesNoWait {
-			rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), operationTimeout)
-			rollbackErr := executor.Rollback(rollbackCtx, Receipt{Step: step, PreviousRevision: previousRevision})
+			rollbackCtx, cancel := context.WithTimeout(ctx, operationTimeout)
+			rollbackErr := executor.Rollback(rollbackCtx, executor.receipt(ctx, step, previousRevision))
 			cancel()
 			if rollbackErr != nil {
 				return Receipt{}, fmt.Errorf("Helm apply failed: %w; rollback: %v", err, rollbackErr)
@@ -267,7 +268,7 @@ func (executor HelmExecutor) Apply(
 			Kind: "HelmRelease", Namespace: step.Namespace, Name: step.HelmRelease(), Reason: "ReconcileFailed",
 		}}}
 	}
-	return Receipt{Step: step, PreviousRevision: previousRevision}, nil
+	return executor.receipt(ctx, step, previousRevision), nil
 }
 
 func (executor HelmExecutor) Observe(
@@ -309,7 +310,7 @@ func (executor HelmExecutor) Observe(
 	if status.Info.Status != "deployed" {
 		return controlplane.ReportedEntity{}, fmt.Errorf("Helm release status is %q", status.Info.Status)
 	}
-	if status.Info.Description != releaseDescription(step) {
+	if releaseIdentity(status.Info.Description) != releaseDescription(step) {
 		return controlplane.ReportedEntity{}, fmt.Errorf("Helm release metadata does not match the leased plan")
 	}
 	release, err := executor.currentRelease(ctx, step)
@@ -356,7 +357,32 @@ func readinessTimeout(step controlplane.PlanStep, previousRevision int, fallback
 	return fallback
 }
 
+func (executor HelmExecutor) receipt(ctx context.Context, step controlplane.PlanStep, previousRevision int) Receipt {
+	receipt := Receipt{Step: step, PreviousRevision: previousRevision}
+	if claim, ok := executionClaimFrom(ctx); ok {
+		receipt.Fence = ReleaseFence{
+			Generation: claim.Generation, Attempt: claim.Attempt,
+			Namespace: step.Namespace, Name: step.HelmRelease(),
+		}
+	}
+	return receipt
+}
+
+func (executor HelmExecutor) ownedReleaseDescription(ctx context.Context, step controlplane.PlanStep) string {
+	description := releaseDescription(step)
+	if claim, ok := executionClaimFrom(ctx); ok {
+		description = fencedReleaseDescription(step, ReleaseFence{
+			Generation: claim.Generation, Attempt: claim.Attempt,
+			Namespace: step.Namespace, Name: step.HelmRelease(),
+		})
+	}
+	return description
+}
+
 func (executor HelmExecutor) Rollback(ctx context.Context, receipt Receipt) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 	timeout := executor.Timeout
 	if timeout == 0 {
 		timeout = 5 * time.Minute
@@ -366,23 +392,68 @@ func (executor HelmExecutor) Rollback(ctx context.Context, receipt Receipt) erro
 		// there is no truthful inverse operation.
 		return nil
 	}
+	// The step records the release deployment changed. The entity name is a
+	// different identifier and may name a release this attempt never touched.
+	releaseName := receipt.Step.HelmRelease()
+	if receipt.Fence.Attempt > 0 && receipt.Fence.Name != "" && receipt.Fence.Name != releaseName {
+		return fmt.Errorf("rollback fence names %s but the step records %s", receipt.Fence.Name, releaseName)
+	}
+	if err := executor.confirmReleaseOwnership(ctx, receipt, releaseName); err != nil {
+		return err
+	}
 	if receipt.PreviousRevision == 0 {
-		output, err := executor.runner().Run(ctx, "helm", "uninstall", receipt.Step.Entity,
+		output, err := executor.runner().Run(ctx, "helm", "uninstall", releaseName,
 			"--namespace", receipt.Step.Namespace, "--wait", "--timeout", timeout.String())
 		if err != nil {
 			return DiagnosticError{Err: err, Output: string(output), Resources: []controlplane.ResourceDiagnostic{{
-				Kind: "HelmRelease", Namespace: receipt.Step.Namespace, Name: receipt.Step.HelmRelease(), Reason: "RollbackFailed",
+				Kind: "HelmRelease", Namespace: receipt.Step.Namespace, Name: releaseName, Reason: "RollbackFailed",
 			}}}
 		}
 		return nil
 	}
-	output, err := executor.runner().Run(ctx, "helm", "rollback", receipt.Step.Entity,
+	output, err := executor.runner().Run(ctx, "helm", "rollback", releaseName,
 		strconv.Itoa(receipt.PreviousRevision), "--namespace", receipt.Step.Namespace,
 		"--wait", "--timeout", timeout.String())
 	if err != nil {
 		return DiagnosticError{Err: err, Output: string(output), Resources: []controlplane.ResourceDiagnostic{{
-			Kind: "HelmRelease", Namespace: receipt.Step.Namespace, Name: receipt.Step.HelmRelease(), Reason: "RollbackFailed",
+			Kind: "HelmRelease", Namespace: receipt.Step.Namespace, Name: releaseName, Reason: "RollbackFailed",
 		}}}
+	}
+	return nil
+}
+
+// confirmReleaseOwnership reads the fence written at apply time. A newer
+// attempt replaces that fence, and rollback must refuse the release rather
+// than infer that the name still belongs to this execution.
+func (executor HelmExecutor) confirmReleaseOwnership(ctx context.Context, receipt Receipt, releaseName string) error {
+	if receipt.Fence.Attempt < 1 {
+		return nil
+	}
+	output, err := executor.runner().Run(ctx, "helm", "status", releaseName,
+		"--namespace", receipt.Step.Namespace, "--output", "json")
+	if err != nil {
+		return DiagnosticError{Err: err, Output: string(output), Resources: []controlplane.ResourceDiagnostic{{
+			Kind: "HelmRelease", Namespace: receipt.Step.Namespace, Name: releaseName, Reason: "RollbackRefused",
+		}}}
+	}
+	var status struct {
+		Name string `json:"name"`
+		Info struct {
+			Description string `json:"description"`
+		} `json:"info"`
+	}
+	if err := json.Unmarshal(output, &status); err != nil {
+		return fmt.Errorf("decode Helm release ownership: %w", err)
+	}
+	if status.Name != "" && status.Name != releaseName {
+		return fmt.Errorf("helm release status named %s, not %s", status.Name, releaseName)
+	}
+	live, ok := parseReleaseFence(status.Info.Description)
+	if !ok {
+		return nil
+	}
+	if !fenceMatches(receipt.Fence, live) {
+		return fmt.Errorf("helm release %s/%s is owned by generation %s attempt %d", receipt.Step.Namespace, releaseName, live.Generation, live.Attempt)
 	}
 	return nil
 }
@@ -468,6 +539,51 @@ func (executor HelmExecutor) helmMajor(ctx context.Context) (int, error) {
 
 func releaseDescription(step controlplane.PlanStep) string {
 	return "platform-delivery/release=" + step.ReleaseDigest + ";config=" + step.ConfigDigest + ";chart=" + step.Chart.Digest
+}
+
+const releaseFenceMarker = ";fence="
+
+func fencedReleaseDescription(step controlplane.PlanStep, fence ReleaseFence) string {
+	return releaseDescription(step) + releaseFenceMarker + encodeReleaseFence(fence)
+}
+
+func releaseIdentity(description string) string {
+	if index := strings.Index(description, releaseFenceMarker); index >= 0 {
+		return description[:index]
+	}
+	return description
+}
+
+func encodeReleaseFence(fence ReleaseFence) string {
+	return url.QueryEscape(fence.Generation) + "/" + strconv.Itoa(fence.Attempt) + "/" +
+		url.QueryEscape(fence.Namespace) + "/" + url.QueryEscape(fence.Name)
+}
+
+func parseReleaseFence(description string) (ReleaseFence, bool) {
+	index := strings.Index(description, releaseFenceMarker)
+	if index < 0 {
+		return ReleaseFence{}, false
+	}
+	parts := strings.Split(description[index+len(releaseFenceMarker):], "/")
+	if len(parts) != 4 {
+		return ReleaseFence{}, false
+	}
+	generation, err1 := url.QueryUnescape(parts[0])
+	attempt, err2 := strconv.Atoi(parts[1])
+	namespace, err3 := url.QueryUnescape(parts[2])
+	name, err4 := url.QueryUnescape(parts[3])
+	if err1 != nil || err2 != nil || err3 != nil || err4 != nil || attempt < 1 || name == "" {
+		return ReleaseFence{}, false
+	}
+	return ReleaseFence{Generation: generation, Attempt: attempt, Namespace: namespace, Name: name}, true
+}
+
+func fenceMatches(recorded, live ReleaseFence) bool {
+	return recorded.Attempt > 0 &&
+		recorded.Generation == live.Generation &&
+		recorded.Attempt == live.Attempt &&
+		recorded.Namespace == live.Namespace &&
+		recorded.Name == live.Name
 }
 
 func validateRenderedImages(rendered []byte, declared []controlplane.Artifact) error {

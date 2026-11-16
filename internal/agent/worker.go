@@ -18,6 +18,38 @@ import (
 type Receipt struct {
 	Step             controlplane.PlanStep
 	PreviousRevision int
+	// Fence is the execution that created or changed the release. Rollback
+	// refuses a live release that carries a different one.
+	Fence ReleaseFence
+}
+
+// ReleaseFence binds a Helm release to one runtime generation, one lease
+// attempt, and the release name the step recorded. A later attempt replaces
+// it, which is how an old worker can see that the release is no longer its own.
+type ReleaseFence struct {
+	Generation string
+	Attempt    int
+	Namespace  string
+	Name       string
+}
+
+type executionClaim struct {
+	Generation string
+	Attempt    int
+}
+
+type executionClaimKey struct{}
+
+func withExecutionClaim(ctx context.Context, claim executionClaim) context.Context {
+	return context.WithValue(ctx, executionClaimKey{}, claim)
+}
+
+func executionClaimFrom(ctx context.Context) (executionClaim, bool) {
+	claim, ok := ctx.Value(executionClaimKey{}).(executionClaim)
+	if !ok || claim.Attempt < 1 || strings.TrimSpace(claim.Generation) == "" {
+		return executionClaim{}, false
+	}
+	return claim, true
 }
 
 type Executor interface {
@@ -66,6 +98,7 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 		return false, errors.New("control plane returned a lease without an opaque token")
 	}
 	token := record.Lease.Token
+	attempt := record.Lease.Attempt
 	if err := worker.ControlPlane.Start(ctx, worker.Environment, worker.AgentID, record.ID, token); err != nil {
 		return true, fmt.Errorf("start plan %s: %w", record.ID, err)
 	}
@@ -74,6 +107,11 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	workCtx, cancelWork := context.WithCancel(ctx)
 	if record.Command != nil {
 		workCtx = context.WithValue(workCtx, imperativeMaintenanceKey{}, true)
+	}
+	if attempt > 0 && strings.TrimSpace(record.Plan.Generation) != "" {
+		workCtx = withExecutionClaim(workCtx, executionClaim{
+			Generation: record.Plan.Generation, Attempt: attempt,
+		})
 	}
 	heartbeatErrors := make(chan error, 1)
 	heartbeatDone := make(chan struct{})
@@ -205,20 +243,30 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	cancelWork()
 	<-heartbeatDone
 	planCancelled := false
+	leaseLost := false
+	var heartbeatErr error
 	select {
-	case heartbeatErr := <-heartbeatErrors:
+	case heartbeatErr = <-heartbeatErrors:
 		recorder.add(controlplane.ExecutionPhaseLease, controlplane.ExecutionTaskFailed, "", "", recorder.now(), heartbeatErr)
 		if errors.Is(heartbeatErr, ErrPlanCancelled) {
 			planCancelled = true
 			executionErr = heartbeatErr
-		} else if executionErr == nil {
-			executionErr = fmt.Errorf("renew plan lease: %w", heartbeatErr)
+		} else {
+			// The lease was not renewed. A newer execution may already own the
+			// releases, so rollback must not run on this attempt's authority.
+			leaseLost = true
+			if executionErr == nil {
+				executionErr = fmt.Errorf("renew plan lease: %w", heartbeatErr)
+			}
 		}
 	default:
 	}
 
 	if executionErr != nil {
-		rollbackErr := worker.rollback(ctx, receipts, materialReceipts, postMaterialReceipts, recorder)
+		var rollbackErr error
+		if !leaseLost {
+			rollbackErr = worker.rollback(ctx, record.ID, token, leaseDuration, receipts, materialReceipts, postMaterialReceipts, recorder)
+		}
 		if planCancelled {
 			if rollbackErr != nil {
 				return true, fmt.Errorf("cancelled plan rollback: %w", rollbackErr)
@@ -226,6 +274,9 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 			return true, nil
 		}
 		failure := executionErr.Error()
+		if leaseLost && heartbeatErr != nil && !strings.Contains(failure, heartbeatErr.Error()) {
+			failure += "; lease lost: " + heartbeatErr.Error()
+		}
 		if rollbackErr != nil {
 			failure += "; rollback: " + rollbackErr.Error()
 		}
@@ -233,7 +284,7 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 		defer finishCancel()
 		if err := worker.ControlPlane.Finish(
 			finishCtx, worker.Environment, worker.AgentID, record.ID, token,
-			false, failure, failedInstallationID, recorder.finish(), controlplane.EnvironmentReport{},
+			false, failure, failedInstallationID, recorder.finish(attempt), controlplane.EnvironmentReport{},
 		); err != nil {
 			return true, fmt.Errorf("%s; finish failed plan: %w", failure, err)
 		}
@@ -242,11 +293,11 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	finishCtx, finishCancel := context.WithTimeout(context.WithoutCancel(ctx), 30*time.Second)
 	defer finishCancel()
 	if err := worker.ControlPlane.Finish(
-		finishCtx, worker.Environment, worker.AgentID, record.ID, token, true, "", "", recorder.finish(), controlplane.EnvironmentReport{
+		finishCtx, worker.Environment, worker.AgentID, record.ID, token, true, "", "", recorder.finish(attempt), controlplane.EnvironmentReport{
 			Entities: reports, Secrets: reportedSecrets(record.Plan.SecretMutations),
 		},
 	); errors.Is(err, ErrPlanCancelled) {
-		if rollbackErr := worker.rollback(ctx, receipts, materialReceipts, postMaterialReceipts, recorder); rollbackErr != nil {
+		if rollbackErr := worker.rollback(ctx, record.ID, token, leaseDuration, receipts, materialReceipts, postMaterialReceipts, recorder); rollbackErr != nil {
 			return true, fmt.Errorf("cancelled plan rollback: %w", rollbackErr)
 		}
 		return true, nil
@@ -273,14 +324,82 @@ func validateSecretMutationCoverage(plan controlplane.Plan) error {
 	return nil
 }
 
+// renewForRollback keeps this attempt's lease while it unwinds work. A
+// cancelled plan is not handed to another execution, so that refusal does not
+// stop the unwind. Every other renewal failure means the lease has expired or
+// moved, and rollback must stop before it can undo a successor.
+func (worker Worker) renewForRollback(ctx context.Context, planID, token string, leaseDuration time.Duration) error {
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if leaseDuration <= 0 {
+		leaseDuration = 2 * time.Minute
+	}
+	err := worker.ControlPlane.Renew(ctx, worker.Environment, worker.AgentID, planID, token, leaseDuration)
+	if err == nil || errors.Is(err, ErrPlanCancelled) {
+		return nil
+	}
+	return fmt.Errorf("lease is no longer held: %w", err)
+}
+
 func (worker Worker) rollback(
-	ctx context.Context, receipts []Receipt, materialReceipts, postMaterialReceipts []controlplane.SecretMutation,
+	ctx context.Context, planID, token string, leaseDuration time.Duration,
+	receipts []Receipt, materialReceipts, postMaterialReceipts []controlplane.SecretMutation,
 	recorder *executionRecorder,
 ) error {
-	rollbackCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), 10*time.Minute)
+	// The caller's context is the cancellation signal. Rollback used to detach
+	// from it for ten minutes after renewal had already stopped, which left an
+	// expired attempt free to undo the execution that had taken the lease.
+	if err := worker.renewForRollback(ctx, planID, token, leaseDuration); err != nil {
+		return err
+	}
+	rollbackCtx, cancel := context.WithCancel(ctx)
 	defer cancel()
+	renewErrors := make(chan error, 1)
+	go func() {
+		interval := leaseDuration / 3
+		if interval <= 0 {
+			interval = time.Second
+		}
+		ticker := time.NewTicker(interval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-rollbackCtx.Done():
+				return
+			case <-ticker.C:
+				if err := worker.renewForRollback(rollbackCtx, planID, token, leaseDuration); err != nil {
+					select {
+					case renewErrors <- err:
+					default:
+					}
+					cancel()
+					return
+				}
+			}
+		}
+	}()
+	stop := func() error {
+		select {
+		case err := <-renewErrors:
+			return err
+		default:
+		}
+		return rollbackCtx.Err()
+	}
 	failures := make([]string, 0)
-	for index := len(postMaterialReceipts) - 1; index >= 0; index-- {
+	stopped := false
+	halt := func() bool {
+		if stopped {
+			return true
+		}
+		if err := stop(); err != nil {
+			failures = append(failures, err.Error())
+			stopped = true
+		}
+		return stopped
+	}
+	for index := len(postMaterialReceipts) - 1; index >= 0 && !halt(); index-- {
 		mutation := postMaterialReceipts[index]
 		startedAt := recorder.now()
 		if err := worker.Materials.RollbackSecretMutation(rollbackCtx, mutation); err != nil {
@@ -290,7 +409,7 @@ func (worker Worker) rollback(
 			recorder.add(controlplane.ExecutionPhaseRollback, controlplane.ExecutionTaskRolledBack, "", mutation.Namespace, startedAt, nil)
 		}
 	}
-	for index := len(receipts) - 1; index >= 0; index-- {
+	for index := len(receipts) - 1; index >= 0 && !halt(); index-- {
 		startedAt := recorder.now()
 		if err := worker.Executor.Rollback(rollbackCtx, receipts[index]); err != nil {
 			failures = append(failures, receipts[index].Step.InstallationID+": "+err.Error())
@@ -299,7 +418,7 @@ func (worker Worker) rollback(
 			recorder.add(controlplane.ExecutionPhaseRollback, controlplane.ExecutionTaskRolledBack, receipts[index].Step.InstallationID, receipts[index].Step.Namespace, startedAt, nil)
 		}
 	}
-	for index := len(materialReceipts) - 1; index >= 0; index-- {
+	for index := len(materialReceipts) - 1; index >= 0 && !halt(); index-- {
 		mutation := materialReceipts[index]
 		if mutation.Action == controlplane.SecretVerify {
 			continue

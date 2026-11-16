@@ -55,7 +55,8 @@ func (recorder *executionRecorder) add(phase, status, installationID, namespace 
 	recorder.execution.Tasks = append(recorder.execution.Tasks, task)
 }
 
-func (recorder *executionRecorder) finish() controlplane.PlanExecution {
+func (recorder *executionRecorder) finish(attempt int) controlplane.PlanExecution {
 	recorder.execution.FinishedAt = recorder.now()
+	recorder.execution.Attempt = attempt
 	return recorder.execution
 }
