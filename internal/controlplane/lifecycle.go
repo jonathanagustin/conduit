@@ -681,7 +681,11 @@ func (lifecycle *Lifecycle) FinishPlan(
 		if !succeeded {
 			status = ExecutionTaskFailed
 		}
-		execution = &PlanExecution{StartedAt: now, FinishedAt: now, Tasks: []PlanExecutionTask{{
+		attempt := 0
+		if existing.Lease != nil {
+			attempt = existing.Lease.Attempt
+		}
+		execution = &PlanExecution{Attempt: attempt, StartedAt: now, FinishedAt: now, Tasks: []PlanExecutionTask{{
 			Sequence: 1, Phase: ExecutionPhaseLegacy, Status: status, StartedAt: now, FinishedAt: now,
 			InstallationID: strings.TrimSpace(failedInstallationID), Failure: strings.TrimSpace(failure),
 		}}}
@@ -723,8 +727,10 @@ func (lifecycle *Lifecycle) FinishPlan(
 			record.Failure = strings.TrimSpace(failure)
 			record.FailedInstallation = strings.TrimSpace(failedInstallationID)
 		}
+		if normalizedExecution.Attempt != record.Lease.Attempt {
+			return fmt.Errorf("%w: execution attempt %d does not hold lease attempt %d", ErrLeaseRejected, normalizedExecution.Attempt, record.Lease.Attempt)
+		}
 		normalizedExecution.AgentID = record.Lease.AgentID
-		normalizedExecution.Attempt = record.Lease.Attempt
 		record.Execution = &normalizedExecution
 		return nil
 	})
