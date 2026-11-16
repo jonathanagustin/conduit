@@ -46,7 +46,7 @@ describe("packaging index generated client", () => {
       },
     );
     const page = await fetchPackagingRuns(transport);
-    expect(page.total).toBe(9007199254740993n);
+    expect(page.total).toBe(BigInt("9007199254740993"));
     expect(page.nextCursor).toBe("opaque/+=");
     expect(page.items[0]).toMatchObject(payload.items[0]);
     expect(page.approvalAuthority).toBe("conduit-governance");
