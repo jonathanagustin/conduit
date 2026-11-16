@@ -100,7 +100,7 @@ func startLocalTCPServer(t *testing.T, banner string) string {
 	return listener.Addr().String()
 }
 
-func TestWorkspaceDefaultEgressAllowlistAndPolicyDenial(t *testing.T) {
+func TestControlledDialAllowlistAndCommandRejection(t *testing.T) {
 	gitTarget := startLocalTCPServer(t, "GIT_OK")
 	registryTarget := startLocalTCPServer(t, "REGISTRY_OK")
 	forbiddenTarget := startLocalTCPServer(t, "FORBIDDEN_OK")
@@ -130,13 +130,8 @@ workspace:
 	})
 
 	ws := domain.Workspace{ID: "wsp_isolated", Owner: "ada", Branch: "workspace/ada/wsp_isolated"}
-	state, err := runtime.Start(context.Background(), ws)
-	if err != nil || state.Status != domain.StatusRunning {
-		t.Fatalf("Start workspace = %#v %v", state, err)
-	}
-	t.Cleanup(func() { _, _ = runtime.Stop(context.Background(), ws.ID) })
 
-	// (1) Connection to configured git host and to the local registry succeeds.
+	// Controlled helper connections honor the configured endpoints; no child runs.
 	gitConn, err := runtime.DialContext(context.Background(), "tcp", "git.example.internal:443")
 	if err != nil {
 		t.Fatalf("expected connection to configured git host to succeed: %v", err)
@@ -159,7 +154,7 @@ workspace:
 		t.Fatalf("unexpected registry response: %q", string(buf[:n]))
 	}
 
-	// (2) Connection to any other host or address is refused.
+	// The helper refuses other endpoints; this is not a kernel egress test.
 	for _, blocked := range []string{
 		"registry.npmjs.org:443",
 		"1.1.1.1:443",
@@ -208,7 +203,7 @@ workspace:
 	}
 }
 
-func TestWorkspaceContainerHasNoClusterCredentials(t *testing.T) {
+func TestFilteredEnvironmentDoesNotInheritClusterCredentials(t *testing.T) {
 	t.Setenv("KUBECONFIG", "/tmp/should-not-leak-kubeconfig")
 	t.Setenv("KUBERNETES_SERVICE_HOST", "10.96.0.1")
 	t.Setenv("KUBERNETES_SERVICE_PORT", "443")
@@ -232,13 +227,101 @@ func TestWorkspaceContainerHasNoClusterCredentials(t *testing.T) {
 		t.Fatalf("NewWithEgress: %v", err)
 	}
 	ws := domain.Workspace{ID: "wsp_nocreds", Owner: "ada"}
-	if _, err := runtime.Start(context.Background(), ws); err != nil {
-		t.Fatalf("Start: %v", err)
+	if _, err := runtime.Start(context.Background(), ws); !errors.Is(err, domain.ErrDisabled) {
+		t.Fatalf("expected unavailable isolation, got %v", err)
 	}
-	t.Cleanup(func() { _, _ = runtime.Stop(context.Background(), ws.ID) })
 
 	if err := VerifyNoClusterCredentialsInWorkspace(env, workDir); err != nil {
 		t.Fatalf("VerifyNoClusterCredentialsInWorkspace failed: %v", err)
 	}
 }
 
+// The control uses a real child socket/file read, rather than the cooperative
+// DialContext helper. A cwd and filtered environment do not confine a process.
+func TestIsolationRequestsRefuseHostProcessExecution(t *testing.T) {
+	for _, mode := range []string{"network", "host-file"} {
+		t.Run(mode, func(t *testing.T) {
+			workDir := t.TempDir()
+			destination := startLocalTCPServer(t, "reachable")
+			if mode == "host-file" {
+				destination = filepath.Join(t.TempDir(), "outside-workspace")
+				if err := os.WriteFile(destination, []byte("test sentinel"), 0o600); err != nil {
+					t.Fatal(err)
+				}
+			}
+			makeCommand := func(marker string) []string {
+				return []string{os.Args[0], "-test.run=^TestIsolationProbeHelper$", "--", "conduit-isolation-probe", mode, destination, marker}
+			}
+			// Establish that this exact helper can reach the socket or file as an
+			// ordinary local preview, so the isolation check cannot pass vacuously.
+			controlMarker := filepath.Join(t.TempDir(), "control")
+			control := New(makeCommand(controlMarker), func(domain.Workspace) string { return workDir })
+			controlWS := domain.Workspace{ID: "control"}
+			t.Cleanup(func() { _, _ = control.Stop(context.Background(), controlWS.ID) })
+			_, _ = control.Start(t.Context(), controlWS)
+			if err := control.Crash(controlWS.ID); err != nil {
+				t.Fatal(err)
+			}
+			if _, err := os.Stat(controlMarker); err != nil {
+				t.Fatalf("uncontained probe did not establish reachability: %v", err)
+			}
+
+			marker := filepath.Join(t.TempDir(), "must-not-exist")
+			isolated, err := NewWithEgress(makeCommand(marker), func(domain.Workspace) string { return workDir }, domain.EgressConfig{GitHost: "git.example.internal"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			workspace := domain.Workspace{ID: "must-not-start"}
+			t.Cleanup(func() { _, _ = isolated.Stop(context.Background(), workspace.ID) })
+			result, err := isolated.Start(t.Context(), workspace)
+			if !errors.Is(err, domain.ErrDisabled) || result.Status != domain.StatusFailed {
+				t.Fatalf("unconfined Start accepted isolation request: %#v, %v", result, err)
+			}
+			if _, err := isolated.Status(t.Context(), workspace.ID); !errors.Is(err, domain.ErrNotFound) {
+				t.Fatalf("refused request created a child: %v", err)
+			}
+			for _, runtime := range []*Runtime{isolated, New(nil, nil)} {
+				if _, err := runtime.ExecInWorkspace(t.Context(), workspace, makeCommand(marker)); !errors.Is(err, domain.ErrDisabled) {
+					t.Fatalf("unconfined Exec accepted: %v", err)
+				}
+			}
+			if _, err := os.Stat(marker); !os.IsNotExist(err) {
+				t.Fatalf("refused execution touched host state: %v", err)
+			}
+		})
+	}
+}
+
+func TestIsolationProbeHelper(t *testing.T) {
+	index := -1
+	for i, arg := range os.Args {
+		if arg == "conduit-isolation-probe" {
+			index = i
+			break
+		}
+	}
+	if index < 0 {
+		return
+	}
+	args := os.Args[index+1:]
+	if len(args) != 3 {
+		t.Fatal("invalid probe arguments")
+	}
+	switch args[0] {
+	case "network":
+		conn, err := net.DialTimeout("tcp", args[1], time.Second)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = conn.Close()
+	case "host-file":
+		if _, err := os.ReadFile(args[1]); err != nil {
+			t.Fatal(err)
+		}
+	default:
+		t.Fatal("invalid probe mode")
+	}
+	if err := os.WriteFile(args[2], []byte("probe succeeded"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+}

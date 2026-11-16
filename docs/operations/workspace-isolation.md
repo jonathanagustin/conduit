@@ -1,46 +1,54 @@
-# Isolated workspace container and default-deny egress
+# Workspace isolation status and admission
 
-Each user's workspace runs in an isolated container on its own git branch (`container isolation now, stronger isolation planned`).
+The local `process` adapter starts a host process with a filtered environment.
+A working directory does not confine filesystem access, and its `DialContext`
+helper only checks calls made through that helper. A child can open sockets or
+read absolute host paths directly. Those mechanisms do not establish container
+isolation, a rootless builder, absence of filesystem credentials or enforced
+egress policy.
 
-## Rootless builder and zero cluster credentials
+`NewWithEgress` validates configuration and supports cooperative dial checks,
+but `Start` refuses to execute a host process when that policy is requested.
+`ExecInWorkspace` also refuses execution because no isolated executor is wired.
+Both return the existing unavailable-workspace error; no child is started.
+Ordinary local previews retain their explicitly uncontained process behavior.
+The UI states that isolation must be configured and local previews use the host.
 
-Workspace containers run as non-root (`runAsNonRoot: true`, UID/GID `10001`), with a read-only root filesystem (`readOnlyRootFilesystem: true`), `allowPrivilegeEscalation: false`, `procMount: "Default"`, and all Linux capabilities dropped (`drop: ["ALL"]`). Container builds inside a workspace use rootless builder configuration (`BUILDKIT_ROOTLESS=1`, `BUILDAH_ISOLATION=chroot`, `STORAGE_DRIVER=vfs`) and never mount a host Docker daemon socket (`/var/run/docker.sock`) or `hostPath` volumes.
+## Rendered configuration versus runtime enforcement
 
-Cluster credentials are absent from the container:
+The `workspace.egress` YAML parser validates a required operator-supplied Git
+host and optional additional entries. The registry defaults to
+`registry.uds.svc.cluster.local:5000`. Wildcards, allow-all CIDRs and empty entries
+are rejected. `RenderPod` requires this configuration explicitly; it does not
+invent a Git host when none was supplied.
 
-- `automountServiceAccountToken: false` and `enableServiceLinks: false` are enforced on the Pod spec.
-- `/var/run/secrets/kubernetes.io/serviceaccount`, `KUBECONFIG`, `KUBERNETES_SERVICE_HOST`, `KUBERNETES_SERVICE_PORT`, and `DOCKER_HOST` are rejected by container spec validation and stripped from the workspace process environment.
+The rendered Pod requests a non-root user, read-only root filesystem, dropped
+capabilities, disabled privilege escalation, no service-account token and no
+service links. Builder environment variables are requests, not proof that an
+admitted rootless builder exists in the selected image. Credential-variable
+filtering and a scan of a controlled directory do not prove that an arbitrary
+host process cannot read credentials elsewhere.
 
-## Default-deny egress allowlist (`workspace.egress`)
+Standard Kubernetes NetworkPolicy does not match DNS names. The current draft
+renderer represents name-based peers with labels, which does not establish
+connectivity to or enforcement for the configured DNS host. The cluster adapter
+therefore refuses provisioning without explicit operator egress configuration
+or when entries require unsupported DNS enforcement. Explicit IP/CIDR entries
+can be rendered; the network policy must apply successfully before the Pod is
+created. A missing cluster cannot establish a real workload or its isolation.
+The generated Package CR alone does not prove it was installed or enforced.
 
-Outbound network access from the workspace is default-deny. Only endpoints listed in the platform-operator-controlled `workspace.egress` configuration (plus cluster DNS on port 53 UDP/TCP) are permitted.
+## Remaining qualification
 
-```yaml
-workspace:
-  egress:
-    # Required; set per environment during bundle deploy. No default.
-    gitHost: "git.example.internal"
-    # Optional; defaults to the in-cluster registry service.
-    registry: "registry.uds.svc.cluster.local:5000"
-    allow:
-      - name: "git-host"
-        host: "git.example.internal"
-        port: 443
-        protocol: "TCP"
-      - name: "local-registry"
-        host: "registry.uds.svc.cluster.local"
-        port: 5000
-        protocol: "TCP"
-```
+Issue #616 remains open for the operator installation-config loader, admitted
+workspace image and rootless builder, DNS-aware policy backend, and live tests
+inside the workload proving allowed endpoints, blocked endpoints, protected
+policy and absent credentials. Once observed for that runtime, its posture is
+“container isolation now, stronger isolation planned.” Rendering manifests or
+testing a cooperative Go dial method does not close those requirements.
 
-Validation rules enforced by `domain.ParseEgressValuesYAML` and `domain.NormalizeAndValidateEgress`:
-
-- `workspace.egress.gitHost` is required and has no default value. An empty or missing `gitHost` fails validation rather than falling back to allow-all.
-- `workspace.egress.registry` defaults to the in-cluster registry service (`registry.uds.svc.cluster.local:5000`).
-- When `workspace.egress.allow` is omitted, it defaults to two entries: `git-host` (`<gitHost>:443/TCP`) and `local-registry` (`registry.uds.svc.cluster.local:5000/TCP`).
-- Wildcard hosts (`*`, `*.example.com`), allow-all CIDRs (`0.0.0.0/0`, `::/0`), unspecified IP addresses, and empty entries are rejected at validation time.
-- Validated entries are rendered into both the workspace's UDS `Package` CR `spec.network.allow` section and its Kubernetes `NetworkPolicy`.
-
-## Governance and change control
-
-The egress allowlist is never read from inside the workspace container. Workspace users, the packaging workflow, and the coding-agent model cannot edit `workspace.egress` or modify the workspace's network policy (`ErrForbidden`, recorded in the authorization audit trail). Platform operators propose changes to `workspace.egress` through a reviewed change request (`ProposeEgressAllowlistChange`), which requires separate human approval and records `workspace.egress_config_change` in the audit trail.
+Regression coverage establishes raw socket and out-of-workspace file access in
+an ordinary child as a positive control, then verifies that isolation requests
+are refused before that child runs. Cluster adapter tests verify no apply for
+missing/unsupported configuration and policy-before-Pod ordering, including a
+failed policy apply. Those tests do not deploy or qualify a Kubernetes cluster.

@@ -65,7 +65,7 @@ export function safeWorkspaceDownload(path, id) {
   }
 }
 export const WORKSPACE_ISOLATION_NOTICE =
-  "container isolation now, stronger isolation planned";
+  "Workspace isolation must be configured; local previews run on the host.";
 export function createDevWorkspaces({
   getIdentity,
   getReady = () => true,

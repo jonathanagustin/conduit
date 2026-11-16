@@ -10,7 +10,7 @@ Owner actions first stage a visible draft. Editing coordinates clears confirmati
 
 Runtime stop uses the preview-stop endpoint. Runtime and log origin, status and available revision/artifact fields are shown as returned snapshots; no deployment or lease is implied. Metadata upgrades do not prove files changed. Review submission requests `approve:false` and accepts only a pending/rejected separate review, backed by the mandatory-human submission fix. The UI never approves, includes work in a Plan, publishes, or invokes direct workspace deletion. Governed deletion, real branch-backed editing and commit history remain separate backend work.
 
-Each user's workspace runs in an isolated container on its own git branch (`container isolation now, stronger isolation planned`), using a rootless builder without mounting a host Docker socket or cluster credentials, and with default-deny egress controlled by the platform-operator `workspace.egress` allowlist (#616).
+The local process preview shares the host filesystem and network. It does not provide container isolation, a rootless builder or kernel-enforced egress restrictions. Container isolation and the operator-controlled `workspace.egress` contract remain open under #616; rendering a Pod or checking an adapter dial method does not prove those runtime boundaries.
 
 This contributes to #558. It reuses existing authenticated APIs, the existing review flow and existing assistant/inspector surfaces. No new dependencies or private protocol claims are introduced.
 

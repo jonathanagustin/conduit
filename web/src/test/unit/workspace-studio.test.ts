@@ -14,9 +14,9 @@ const row = {
   sourceDigest: "sha256:a",
 };
 describe("workspace studio binding", () => {
-  it("states container isolation now, stronger isolation planned", () => {
+  it("states the local preview isolation limit", () => {
     expect(WORKSPACE_ISOLATION_NOTICE).toBe(
-      "container isolation now, stronger isolation planned",
+      "Workspace isolation must be configured; local previews run on the host.",
     );
   });
   it("binds drafts to native identity, owner and immutable source coordinates", () => {
@@ -81,4 +81,3 @@ it("keeps the studio header on the selected workspace instead of a packaging run
     areaObject(hub, "area-packaging", { workspaceView: true, workspace: null }),
   ).toBeNull();
 });
-

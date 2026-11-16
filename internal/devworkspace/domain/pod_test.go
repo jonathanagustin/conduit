@@ -69,19 +69,19 @@ func TestValidateWorkspaceContainerSpecRejectsDockerSocketAndClusterCredentials(
 		{
 			name: "docker socket mount",
 			req: PodRequest{
-				Name:             base.Name,
-				Namespace:        base.Namespace,
-				Egress:           base.Egress,
-				ExtraMountPaths:  []string{"/var/run/docker.sock"},
+				Name:            base.Name,
+				Namespace:       base.Namespace,
+				Egress:          base.Egress,
+				ExtraMountPaths: []string{"/var/run/docker.sock"},
 			},
 		},
 		{
 			name: "serviceaccount token mount",
 			req: PodRequest{
-				Name:             base.Name,
-				Namespace:        base.Namespace,
-				Egress:           base.Egress,
-				ExtraMountPaths:  []string{"/var/run/secrets/kubernetes.io/serviceaccount"},
+				Name:            base.Name,
+				Namespace:       base.Namespace,
+				Egress:          base.Egress,
+				ExtraMountPaths: []string{"/var/run/secrets/kubernetes.io/serviceaccount"},
 			},
 		},
 		{
@@ -288,3 +288,10 @@ func TestConfineRejectsEscape(t *testing.T) {
 	}
 }
 
+func TestRenderPodRequiresOperatorEgress(t *testing.T) {
+	for _, config := range []*EgressConfig{nil, {}} {
+		if _, err := RenderPod(PodRequest{Name: "example", Namespace: "workspaces", Egress: config}); !errors.Is(err, ErrInvalidEgress) {
+			t.Fatalf("missing operator git host was replaced by a placeholder: %v", err)
+		}
+	}
+}
