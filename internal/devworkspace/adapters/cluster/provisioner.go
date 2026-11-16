@@ -17,11 +17,21 @@ import (
 type Provisioner struct {
 	kubectl string
 	image   string
+	egress  *domain.EgressConfig
 }
 
 // New returns a provisioner that looks for kubectl on PATH.
 func New(image string) *Provisioner {
 	return &Provisioner{kubectl: "kubectl", image: image}
+}
+
+// NewWithEgress returns a provisioner bound to a validated workspace.egress configuration.
+func NewWithEgress(image string, egress domain.EgressConfig) (*Provisioner, error) {
+	validated, err := domain.NormalizeAndValidateEgress(egress)
+	if err != nil {
+		return nil, err
+	}
+	return &Provisioner{kubectl: "kubectl", image: image, egress: &validated}, nil
 }
 
 // Available reports whether a cluster answered a readiness probe.
@@ -38,7 +48,12 @@ func (provisioner *Provisioner) Create(ctx context.Context, workspace domain.Wor
 		return domain.ErrNoCluster
 	}
 	documents, err := domain.RenderPod(domain.PodRequest{
-		Name: podName(workspace.ID), Namespace: "workspaces", Image: provisioner.image,
+		Name:      podName(workspace.ID),
+		Namespace: "workspaces",
+		Image:     provisioner.image,
+		Owner:     workspace.Owner,
+		Branch:    workspace.Branch,
+		Egress:    provisioner.egress,
 	})
 	if err != nil {
 		return err

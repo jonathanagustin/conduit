@@ -349,6 +349,55 @@ func TestUnconfiguredRuntimeFailsClosed(t *testing.T) {
 	}
 }
 
+func TestWorkspaceEgressPolicyProtectionAndOperatorChangeRequest(t *testing.T) {
+	service, _, log := newService(t)
+	created, err := service.Create(context.Background(), caller(), "profile", "dev", "Sample")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// Workspace user or model attempting to write a network policy or egress allowlist is denied.
+	for _, protectedPath := range []string{"workspace-networkpolicy.yaml", "deploy/networkpolicy.yaml", "workspace-egress.yaml"} {
+		_, editErr := service.ApplyGovernedEdit(context.Background(), caller(), created.ID, protectedPath, []byte("network:\n  allow: []\n"))
+		if !errors.Is(editErr, domain.ErrForbidden) {
+			t.Fatalf("expected ApplyGovernedEdit(%s) to return ErrForbidden, got %v", protectedPath, editErr)
+		}
+	}
+	if err := service.DenyWorkspaceNetworkPolicyEdit(context.Background(), caller(), created.ID, "kubectl patch networkpolicy"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("expected DenyWorkspaceNetworkPolicyEdit to return ErrForbidden, got %v", err)
+	}
+	if !log.has("workspace.network_policy_edit", "DENY") {
+		t.Fatalf("expected workspace.network_policy_edit DENY in audit log, got %v", log.events)
+	}
+
+	// Non-operator cannot propose an egress allowlist change.
+	validYAML := []byte("workspace:\n  egress:\n    gitHost: \"git.example.internal\"\n")
+	if _, err := service.ProposeEgressAllowlistChange(context.Background(), caller(), created.ID, validYAML, "Allow mirror", "Add internal mirror"); !errors.Is(err, domain.ErrForbidden) {
+		t.Fatalf("expected non-operator ProposeEgressAllowlistChange to fail with ErrForbidden, got %v", err)
+	}
+
+	// Platform operator with invalid egress config (wildcard or 0.0.0.0/0 or missing gitHost) fails validation.
+	operator := domain.Caller{Username: "ops-admin", Teams: []string{"Administrator"}}
+	for _, badYAML := range [][]byte{
+		[]byte("workspace:\n  egress:\n    gitHost: \"\"\n"),
+		[]byte("workspace:\n  egress:\n    gitHost: \"git.example.internal\"\n    allow:\n      - name: all\n        host: \"0.0.0.0/0\"\n        port: 443\n        protocol: TCP\n"),
+		[]byte("workspace:\n  egress:\n    gitHost: \"*.example.internal\"\n"),
+	} {
+		if _, err := service.ProposeEgressAllowlistChange(context.Background(), operator, created.ID, badYAML, "Bad egress", "Invalid"); !errors.Is(err, domain.ErrInvalidEgress) {
+			t.Fatalf("expected ProposeEgressAllowlistChange with invalid YAML to fail with ErrInvalidEgress, got %v", err)
+		}
+	}
+
+	// Platform operator proposing a valid egress allowlist change opens a reviewed ChangeRequest and records it in the audit trail.
+	receipt, err := service.ProposeEgressAllowlistChange(context.Background(), operator, created.ID, validYAML, "Update workspace egress", "Configure git.example.internal")
+	if err != nil || receipt.ChangeRequestID == "" || receipt.Status != "PENDING_APPROVALS" {
+		t.Fatalf("ProposeEgressAllowlistChange = %#v %v", receipt, err)
+	}
+	if !log.has("workspace.egress_config_change", "ALLOW") {
+		t.Fatalf("expected workspace.egress_config_change ALLOW in audit log, got %v", log.events)
+	}
+}
+
 func bytesOf(n int) []byte {
 	return make([]byte, n)
 }
@@ -368,3 +417,4 @@ func min(a, b int) int {
 	}
 	return b
 }
+

@@ -64,6 +64,8 @@ export function safeWorkspaceDownload(path, id) {
     return "";
   }
 }
+export const WORKSPACE_ISOLATION_NOTICE =
+  "container isolation now, stronger isolation planned";
 export function createDevWorkspaces({
   getIdentity,
   getReady = () => true,
@@ -184,7 +186,7 @@ export function createDevWorkspaces({
     const item = selected();
     onSelection(item);
     const canWrite = owner(item) && !state.busy;
-    host.innerHTML = `<div data-workspace-studio data-value-tier="CONDUIT_NATIVE" class="space-y-3"><section class="so-panel p-3"><h2>Developer workspaces</h2><p>Hub records and authorized file views. Source is read only here; a branch-backed editor and coding-agent bridge are separate features. No commit history is inferred.</p><button type="button" class="so-btn" data-ws-action="refresh"${state.busy || !getReady() ? " disabled" : ""}>Refresh workspaces</button>${state.error ? `<p role="alert">${esc(state.error)}</p>` : ""}${state.message ? `<p role="status">${esc(state.message)}</p>` : ""}${
+    host.innerHTML = `<div data-workspace-studio data-value-tier="CONDUIT_NATIVE" class="space-y-3"><section class="so-panel p-3"><h2>Developer workspaces</h2><p>Hub records and authorized file views (${esc(WORKSPACE_ISOLATION_NOTICE)}; rootless builder, default-deny egress, zero cluster credentials). Source is read only here; a branch-backed editor and coding-agent bridge are separate features. No commit history is inferred.</p><button type="button" class="so-btn" data-ws-action="refresh"${state.busy || !getReady() ? " disabled" : ""}>Refresh workspaces</button>${state.error ? `<p role="alert">${esc(state.error)}</p>` : ""}${state.message ? `<p role="status">${esc(state.message)}</p>` : ""}${
       state.items.length
         ? `<ul>${state.items
             .slice(0, 256)
