@@ -136,6 +136,11 @@ func planningHandlerWithOptions(
 				}
 				return packagingCompute(ctx, session)
 			}
+			if ownerCompute != nil {
+				if store, ok := repository.(computeExecutionStore); ok {
+					ownerCompute = guardCompute(store, ownerCompute)
+				}
+			}
 			inMem := planningapp.NewService(scopedRunner).
 				WithAuditor(planningAcceptAudit{repository: repository, actor: actor}).
 				WithAppgenCompute(ownerCompute)

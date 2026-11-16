@@ -78,6 +78,7 @@ const (
 	CodeTurnInProgress       = "TURN_IN_PROGRESS"
 	CodeNotAccepted          = "NOT_ACCEPTED"
 	CodeComputeBeforeAccept  = "COMPUTE_BEFORE_ACCEPT"
+	CodeComputeInProgress    = "COMPUTE_IN_PROGRESS"
 	CodeComputeNotConfigured = "COMPUTE_NOT_CONFIGURED"
 	CodeNoPendingQuestions   = "NO_PENDING_QUESTIONS"
 	CodeUnknownQuestion      = "UNKNOWN_QUESTION"
@@ -94,6 +95,7 @@ var (
 	ErrAlreadyAccepted      = errors.New("the planning session is already accepted")
 	ErrTurnInProgress       = errors.New("a planning turn is already in progress")
 	ErrComputeBeforeAccept  = errors.New("compute is refused before Accept")
+	ErrComputeInProgress    = errors.New("compute is already running for this session")
 	ErrComputeNotConfigured = errors.New("package compute is not configured")
 	ErrNoPendingQuestions   = errors.New("there are no pending Needs Input questions")
 	ErrUnknownQuestion      = errors.New("the answer does not match a pending question")
@@ -187,6 +189,16 @@ type Event struct {
 	Code       string      `json:"code,omitempty"`
 }
 
+// ComputeReceipt is the recorded result of a completed compute. A repeat
+// request returns it instead of running generation again.
+type ComputeReceipt struct {
+	SessionID      string    `json:"sessionId"`
+	PlanRevisionID string    `json:"planRevisionId"`
+	PlanDigest     string    `json:"planDigest"`
+	Outcome        string    `json:"outcome"`
+	CompletedAt    time.Time `json:"completedAt"`
+}
+
 // Binding is recorded at Accept and never rewritten. It is the profile
 // version and hash, the intake, the source commit, the model, and the plan.
 type Binding struct {
@@ -200,21 +212,22 @@ type Binding struct {
 
 // Session is the planning-session document the HTTP contract returns.
 type Session struct {
-	ID             string      `json:"id"`
-	Status         string      `json:"status"`
-	Profile        ProfileRef  `json:"profile"`
-	Intake         Intake      `json:"intake"`
-	ResolvedCommit string      `json:"resolvedCommit"`
-	Model          string      `json:"model"`
-	Inspection     *Inspection `json:"inspection"`
-	NeedsInput     []Question  `json:"needsInput"`
-	Answers        []Answer    `json:"answers"`
-	Plan           *Plan       `json:"plan"`
-	Binding        *Binding    `json:"binding"`
-	Messages       []Message   `json:"messages"`
-	Events         []Event     `json:"events"`
-	CreatedAt      time.Time   `json:"createdAt"`
-	UpdatedAt      time.Time   `json:"updatedAt"`
+	ID             string          `json:"id"`
+	Status         string          `json:"status"`
+	Profile        ProfileRef      `json:"profile"`
+	Intake         Intake          `json:"intake"`
+	ResolvedCommit string          `json:"resolvedCommit"`
+	Model          string          `json:"model"`
+	Inspection     *Inspection     `json:"inspection"`
+	NeedsInput     []Question      `json:"needsInput"`
+	Answers        []Answer        `json:"answers"`
+	Plan           *Plan           `json:"plan"`
+	Binding        *Binding        `json:"binding"`
+	ComputeReceipt *ComputeReceipt `json:"computeReceipt,omitempty"`
+	Messages       []Message       `json:"messages"`
+	Events         []Event         `json:"events"`
+	CreatedAt      time.Time       `json:"createdAt"`
+	UpdatedAt      time.Time       `json:"updatedAt"`
 }
 
 // IntakeError is a rejected repository URL, ref, or problem-statement intake.
@@ -428,6 +441,10 @@ func CloneSession(session *Session) *Session {
 	if session.Binding != nil {
 		binding := *session.Binding
 		out.Binding = &binding
+	}
+	if session.ComputeReceipt != nil {
+		receipt := *session.ComputeReceipt
+		out.ComputeReceipt = &receipt
 	}
 	if out.NeedsInput == nil {
 		out.NeedsInput = []Question{}

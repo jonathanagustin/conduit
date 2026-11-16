@@ -268,6 +268,7 @@ components:
             - TURN_IN_PROGRESS
             - NOT_ACCEPTED
             - COMPUTE_BEFORE_ACCEPT
+            - COMPUTE_IN_PROGRESS
             - COMPUTE_NOT_CONFIGURED
             - NO_PENDING_QUESTIONS
             - UNKNOWN_QUESTION
@@ -324,6 +325,10 @@ components:
           nullable: true
           allOf:
             - $ref: "#/components/schemas/Binding"
+        computeReceipt:
+          nullable: true
+          allOf:
+            - $ref: "#/components/schemas/ComputeReceipt"
         messages:
           type: array
           items:
@@ -467,6 +472,21 @@ components:
           enum: [operator, model]
         text:
           type: string
+    ComputeReceipt:
+      type: object
+      required: [sessionId, planRevisionId, planDigest, outcome, completedAt]
+      properties:
+        sessionId:
+          type: string
+        planRevisionId:
+          type: string
+        planDigest:
+          type: string
+        outcome:
+          type: string
+        completedAt:
+          type: string
+          format: date-time
     Binding:
       type: object
       required: [profile, intake, resolvedCommit, model, plan, acceptedAt]
