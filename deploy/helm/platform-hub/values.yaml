@@ -7,6 +7,22 @@ imagePullSecrets: []
 bootstrapAdministrators: []
 replicaCount: 2
 
+# Sessions are shared through a workflow frontend so two Hub replicas see the
+# same planning state and a restart does not drop it. backend local keeps
+# process-local maps and the chart refuses it when replicaCount is above 1.
+# The frontend itself is operator-supplied and must persist its own history.
+planning:
+  backend: temporal
+  temporal:
+    address: planning-frontend.platform-system.svc:7233
+    namespace: default
+    taskQueue: planning-sessions
+  compute:
+    imageBuilder: docker
+    gitRoot: /var/lib/conduit-workspaces
+    packagingBuild: ""
+    httpWriteTimeout: 45m
+
 # Production uses PostgreSQL so independent Hub replicas share one
 # transactional visibility boundary. File mode remains an explicit
 # single-replica development/migration profile.

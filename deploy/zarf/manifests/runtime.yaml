@@ -64,6 +64,7 @@ spec:
             - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
             - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
+            - { name: HUB_REPLICA_COUNT, value: "1" }
             - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
             - { name: OPERATOR_OIDC_ISSUER, value: "###ZARF_VAR_OPERATOR_OIDC_ISSUER###" }
             - { name: OPERATOR_OIDC_CLIENT_ID, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_ID###" }

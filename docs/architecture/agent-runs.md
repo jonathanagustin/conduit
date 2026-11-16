@@ -87,9 +87,9 @@ audit prevents tool admission/publication. RUN_ERROR reports an audit outage
 if a failure receipt itself cannot be persisted; it is never a success receipt.
 Network write failure stops tool admission and leaves a truncated exchange.
 
-This adapter shares the current process-local planning store. It is not a new
-durable workflow engine or a claim of replay after Hub restart. Existing
-Temporal-backed compute remains a separate governed path. The initial bounds
+This adapter uses the same planning session service as the native routes. Its
+run ledger is process-local and does not resume a broken stream after a Hub
+restart. The initial bounds
 are 1 MiB input/event, 4 MiB total event data per exchange, 256 input messages,
 32 bounded context entries, four offered form tools, 8 KiB tool arguments and
 16 KiB offered schemas. Numeric/depth bounds are in the codec. Per owner, the

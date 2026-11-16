@@ -166,6 +166,35 @@
     "nodeSelector": {"type": "object", "additionalProperties": {"type": "string"}},
     "affinity": {"type": "object"},
     "tolerations": {"type": "array", "items": {"type": "object"}},
+    "planning": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["backend", "temporal", "compute"],
+      "properties": {
+        "backend": {"type": "string", "enum": ["temporal", "local"]},
+        "temporal": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["address", "namespace", "taskQueue"],
+          "properties": {
+            "address": {"type": "string"},
+            "namespace": {"type": "string", "minLength": 1},
+            "taskQueue": {"type": "string", "minLength": 1}
+          }
+        },
+        "compute": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["imageBuilder", "gitRoot", "packagingBuild", "httpWriteTimeout"],
+          "properties": {
+            "imageBuilder": {"type": "string"},
+            "gitRoot": {"type": "string"},
+            "packagingBuild": {"type": "string"},
+            "httpWriteTimeout": {"type": "string"}
+          }
+        }
+      }
+    },
     "packagingWorkflow": {
       "type": "object",
       "additionalProperties": false,
@@ -203,6 +232,10 @@
     {
       "if": {"properties": {"repository": {"properties": {"kind": {"const": "file"}}}}},
       "then": {"properties": {"replicaCount": {"const": 1}}}
+    },
+    {
+      "if": {"properties": {"planning": {"properties": {"backend": {"const": "temporal"}}}}},
+      "then": {"properties": {"planning": {"properties": {"temporal": {"properties": {"address": {"minLength": 1}}}}}}}
     },
     {
       "if": {"properties": {"packagingWorkflow": {"properties": {"enabled": {"const": true}}}}},

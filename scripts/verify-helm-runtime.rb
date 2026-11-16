@@ -395,6 +395,31 @@ abort "Hub production identity/signing inputs are incomplete" unless (required_h
 abort "chart enabled insecure identity" if hub_env.keys.any? { |name| name.start_with?("ALLOW_INSECURE_") }
 abort "Hub console bootstrap path drifted" unless hub_env["CONSOLE_BOOTSTRAP_FILE"] == "/etc/conduit/console/bootstrap.json"
 abort "Hub PostgreSQL mode drifted" unless hub_env["REPOSITORY_KIND"] == "postgres" && hub_env["POSTGRES_DSN_FILE"] == "/run/conduit-database/dsn"
+abort "production chart must publish the shared planning frontend" unless
+  hub.dig("spec", "replicas") == 2 &&
+    hub_env["HUB_REPLICA_COUNT"] == "2" &&
+    hub_env["CONDUIT_TEMPORAL_ADDRESS"] == "planning-frontend.platform-system.svc:7233" &&
+    hub_env["CONDUIT_TEMPORAL_SHARED"] == "true" &&
+    hub_env["CONDUIT_TEMPORAL_TASK_QUEUE"] == "planning-sessions" &&
+    hub_env["CONDUIT_IMAGE_BUILDER"] == "docker" &&
+    hub_env["DEVWORKSPACE_GIT_ROOT"] == "/var/lib/conduit-workspaces" &&
+    hub_env["CONDUIT_HTTP_WRITE_TIMEOUT"] == "45m"
+workspace_mount = hub_container.fetch("volumeMounts").find { |item| item["name"] == "planning-workspaces" }
+abort "planning workspace volume is missing" unless workspace_mount&.fetch("mountPath") == "/var/lib/conduit-workspaces"
+local_failure = capture(
+  helm, "template", "platform-hub", charts.fetch(:hub), "--namespace", "platform-system",
+  "--values", File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  "--set", "planning.backend=local", "--set", "replicaCount=2"
+)
+abort "two replicas with a process-local planning store rendered" if local_failure[2].success?
+abort "process-local replica guard did not name the failure" unless (local_failure[0] + local_failure[1]).include?("process-local planning store")
+local_hub = render!(
+  helm, "platform-hub", charts.fetch(:hub), File.join(charts.fetch(:hub), "ci/test-values.yaml"),
+  ["--set", "planning.backend=local", "--set", "replicaCount=1"]
+).find { |item| item["kind"] == "Deployment" }
+local_env = local_hub.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+abort "one replica may stay process-local" unless local_hub.dig("spec", "replicas") == 1 && local_env["HUB_REPLICA_COUNT"] == "1"
+abort "process-local planning rendered a workflow frontend" if local_env.key?("CONDUIT_TEMPORAL_ADDRESS")
 database_mount = hub_container.fetch("volumeMounts").find { |item| item["name"] == "database" }
 database_volume = hub.dig("spec", "template", "spec", "volumes").find { |item| item["name"] == "database" }
 abort "PostgreSQL DSN must come from one read-only Secret mount" unless
