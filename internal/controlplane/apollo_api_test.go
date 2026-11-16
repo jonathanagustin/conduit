@@ -11,8 +11,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"github.com/jonathanagustin/conduit/internal/apollo"
-	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -21,6 +19,10 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/apollo"
+	apolloapp "github.com/jonathanagustin/conduit/internal/apollo/application"
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 )
 
 func TestApolloPublicAPIPublishAndReadCatalog(t *testing.T) {
@@ -923,10 +925,10 @@ func TestApolloStatusIngestionValidatesAtItsEdges(t *testing.T) {
 			nameLength int
 			wantError  bool
 		}{
-			{nameLength: ApolloEntityIDMaximumLength - fixed},
-			{nameLength: ApolloEntityIDMaximumLength - fixed + 1, wantError: true},
+			{nameLength: workloadmetadata.ApolloEntityIDMaximumLength - fixed},
+			{nameLength: workloadmetadata.ApolloEntityIDMaximumLength - fixed + 1, wantError: true},
 		} {
-			id, err := ApolloEntityID("dev-use2", "HELM_CHART", strings.Repeat("a", test.nameLength))
+			id, err := workloadmetadata.ApolloEntityID("dev-use2", "HELM_CHART", strings.Repeat("a", test.nameLength))
 			if (err != nil) != test.wantError {
 				t.Errorf("name of %d chars rejected=%v, want %v (id=%d chars)",
 					test.nameLength, err != nil, test.wantError, len(id))

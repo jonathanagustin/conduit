@@ -11,11 +11,11 @@ import (
 	"slices"
 	"strings"
 	"testing"
-
-	"go.yaml.in/yaml/v4"
 	"time"
 
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"go.yaml.in/yaml/v4"
 )
 
 type helmRunner struct {
@@ -543,7 +543,7 @@ func TestInstallPostRendererPluginWritesAHelmFourPlugin(t *testing.T) {
 
 // TestRunPostRendererStampsStream is the entrypoint Helm actually executes.
 func TestRunPostRendererStampsStream(t *testing.T) {
-	metadata, err := controlplane.ApolloWorkloadMetadataFor("prod-eu", "catalog", "com.palantir:catalog", "1.2.3")
+	metadata, err := workloadmetadata.ApolloWorkloadMetadataFor("prod-eu", "catalog", "com.palantir:catalog", "1.2.3")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -561,7 +561,7 @@ func TestRunPostRendererStampsStream(t *testing.T) {
 	if err := RunPostRenderer(metadataPath, input, &out); err != nil {
 		t.Fatalf("post-render: %v", err)
 	}
-	if !strings.Contains(out.String(), controlplane.ApolloEntityIDAnnotation) {
+	if !strings.Contains(out.String(), workloadmetadata.ApolloEntityIDAnnotation) {
 		t.Fatalf("stamped output = %s", out.String())
 	}
 

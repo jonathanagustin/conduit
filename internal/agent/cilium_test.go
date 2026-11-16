@@ -10,7 +10,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/apollo/workloadmetadata"
 )
 
 type fakeCiliumStore struct {
@@ -120,7 +120,7 @@ func TestCiliumApplyRendersNamespacedIdentityAndAttemptBoundPolicy(t *testing.T)
 		t.Fatalf("selector labels = %#v, want Apollo-bound labels %#v", labels, wantLabels)
 	}
 	annotations := policy.Metadata.Annotations
-	if annotations[controlplane.ApolloEnvironmentIDAnnotation] != receipt.Environment || annotations[controlplane.ApolloEntityIDAnnotation] != receipt.EntityID {
+	if annotations[workloadmetadata.ApolloEnvironmentIDAnnotation] != receipt.Environment || annotations[workloadmetadata.ApolloEntityIDAnnotation] != receipt.EntityID {
 		t.Fatalf("exact Apollo annotations = %#v", annotations)
 	}
 	if annotations[planIDAnnotation] != receipt.PlanID || annotations[planAttemptAnnotation] != "3" || annotations[policyDigestAnnotation] != receipt.PolicyDigest {
