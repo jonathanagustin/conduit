@@ -2377,6 +2377,18 @@ test("audit verifies native payload bytes and keeps polled events resource scope
     "<img src=x",
   );
   await expect(page.locator("[data-audit-event-stream] img")).toHaveCount(0);
+  // Force the same refresh that previously remounted and reset the poller.
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(page.getByLabel("Audit event resource")).toHaveValue(
+    "environment/east",
+  );
+  await expect(
+    page.getByRole("button", { name: "Pause polling", exact: true }),
+  ).toBeEnabled();
+  await expect(page.locator("[data-audit-event-stream]")).toContainText(
+    "<img src=x",
+  );
+
   await page
     .getByRole("button", { name: "Pause polling", exact: true })
     .click();
