@@ -81,4 +81,3 @@ it("keeps the studio header on the selected workspace instead of a packaging run
     areaObject(hub, "area-packaging", { workspaceView: true, workspace: null }),
   ).toBeNull();
 });
-

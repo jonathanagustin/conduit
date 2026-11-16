@@ -241,4 +241,3 @@ func TestWorkspaceContainerHasNoClusterCredentials(t *testing.T) {
 		t.Fatalf("VerifyNoClusterCredentialsInWorkspace failed: %v", err)
 	}
 }
-

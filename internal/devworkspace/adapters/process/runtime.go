@@ -403,4 +403,3 @@ func (runtime *Runtime) ExecInWorkspace(ctx context.Context, workspace domain.Wo
 	out, err := cmd.CombinedOutput()
 	return string(out), err
 }
-
