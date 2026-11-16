@@ -21,3 +21,16 @@ Example: `CONDUIT_MODEL_CMD="packaging-workflow agent-exec --provider claude"`.
 Each turn's prompt goes to the CLI on stdin. Markdown fences are stripped and, where JSON is expected, the first balanced JSON object is extracted from surrounding prose. Replace any default argv with `CONDUIT_PROVIDER_<NAME>_CMD`. Credentials stay in each CLI's own configuration.
 
 Only the `codex` argv comes from this document's existing contract. The `claude`, `gemini` and `grok` defaults are unverified against real installs, so confirm them with a local run before relying on them. The adapter is covered by tests that use a fake CLI.
+
+## Workspace editor ACP agent
+
+The Hub's workspace ACP bridge (`DEVWORKSPACE_ACP_BRIDGE=node`) launches one coding agent that speaks ACP over stdio. Choose it with `DEVWORKSPACE_ACP_AGENT`:
+
+| Value | Launches |
+| --- | --- |
+| `codex` (default) | the bundled `codex-acp` |
+| `claude` | `claude-code-acp` |
+| `gemini` | `gemini --experimental-acp` |
+| `grok` | no preset; requires `DEVWORKSPACE_ACP_AGENT_CMD` |
+
+`DEVWORKSPACE_ACP_AGENT_CMD` replaces any preset with an explicit whitespace-separated command. An unknown or unusable setting disables the bridge with a log line; it never substitutes a simulated agent. Every file write and command still passes through the Hub's governed permission mapping, so the choice of agent adds no authority. Only the `codex` default is exercised here; the `claude` and `gemini` presets are unverified against real installs.
