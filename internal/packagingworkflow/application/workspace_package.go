@@ -50,6 +50,7 @@ type WorkspaceStore interface {
 
 // WorkspaceAudit is the governed audit record for a workspace packaging run.
 type WorkspaceAudit struct {
+	Outcome          string   `json:"outcome"`
 	Repo             string   `json:"repo"`
 	RepoURL          string   `json:"repoUrl"`
 	Commit           string   `json:"commit"`
@@ -69,6 +70,7 @@ func (audit WorkspaceAudit) Metadata() map[string]any {
 		calls = []string{}
 	}
 	return map[string]any{
+		"outcome":          audit.Outcome,
 		"repo":             audit.Repo,
 		"repoUrl":          audit.RepoURL,
 		"commit":           audit.Commit,
@@ -136,6 +138,7 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 	logExcerpt := strings.TrimSpace(input.BuildLog)
 	for attempt := 1; attempt <= MaxPackageRepairs+1; attempt++ {
 		cycle := WorkspaceAttempt{Number: attempt}
+		result.ImageInspect = nil
 		if logExcerpt != "" {
 			input.BuildLog = logExcerpt
 			input.Task = domain.TaskRevise
@@ -148,7 +151,7 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 			cycle.Outcome, cycle.Reason = "error", err.Error()
 			result.Attempts = append(result.Attempts, cycle)
 			result.Error = err.Error()
-			result.Audit = buildWorkspaceAudit(result.Provenance)
+			result.Audit = buildWorkspaceAudit(result.Provenance, result.Outcome)
 			return result, nil
 		}
 		files := map[string]string{"zarf.yaml": proposal.Zarf, "uds-package.yaml": proposal.CR}
@@ -166,7 +169,7 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 			cycle.Outcome, cycle.Reason = "error", err.Error()
 			result.Attempts = append(result.Attempts, cycle)
 			result.Error = err.Error()
-			result.Audit = buildWorkspaceAudit(result.Provenance)
+			result.Audit = buildWorkspaceAudit(result.Provenance, result.Outcome)
 			return result, nil
 		}
 		cycle.Head = head
@@ -183,8 +186,9 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 			builtRef, buildReason := packager.runBuild(ctx, workDir, proposal, input.ImageRef)
 			if buildReason != "" {
 				reason = buildReason
+			} else if inspectErr := packager.inspectBuiltImage(ctx, builtRef, &result); inspectErr != nil {
+				reason = inspectErr.Error()
 			} else {
-				packager.inspectBuiltImage(ctx, builtRef, &result)
 				archive, err := packager.Checks.Create(ctx, workDir, workDir+"/out")
 				if err != nil {
 					reason = err.Error()
@@ -194,7 +198,7 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 					cycle.Reason = "lint and render passed"
 					result.Attempts = append(result.Attempts, cycle)
 					result.Outcome, result.Reason, result.Archive = cycle.Outcome, cycle.Reason, archive
-					result.Audit = buildWorkspaceAudit(result.Provenance)
+					result.Audit = buildWorkspaceAudit(result.Provenance, result.Outcome)
 					if packager.Auditor != nil {
 						if auditErr := packager.Auditor.RecordWorkspacePackage(ctx, result.Audit); auditErr != nil {
 							return result, auditErr
@@ -210,7 +214,7 @@ func (packager WorkspacePackager) WritePackage(ctx context.Context, dir, repoURL
 		cycle.LogExcerpt = reason
 		result.Attempts = append(result.Attempts, cycle)
 		result.Outcome, result.Reason = cycle.Outcome, reason
-		result.Audit = buildWorkspaceAudit(result.Provenance)
+		result.Audit = buildWorkspaceAudit(result.Provenance, result.Outcome)
 		logExcerpt = reason
 		if attempt > MaxPackageRepairs {
 			if packager.Auditor != nil {
@@ -260,26 +264,34 @@ func (packager WorkspacePackager) runBuild(ctx context.Context, dir string, prop
 	return builtRef, ""
 }
 
-func (packager WorkspacePackager) inspectBuiltImage(ctx context.Context, ref string, result *WorkspaceResult) {
+func (packager WorkspacePackager) inspectBuiltImage(ctx context.Context, ref string, result *WorkspaceResult) error {
 	inspector := packager.Inspector
 	if inspector == nil {
 		if candidate, ok := packager.Checks.(ImageInspector); ok {
 			inspector = candidate
 		}
 	}
+	if inspector == nil {
+		return nil
+	}
+	// Once inspection is configured, proposed/input digests cannot stand in for
+	// facts about a built reference whose inspection has not succeeded.
+	result.Provenance.ImageDigest = ""
 	ref = strings.TrimSpace(ref)
-	if inspector == nil || ref == "" {
-		return
+	if ref == "" {
+		return fmt.Errorf("image reference is required for configured inspection")
 	}
 	inspected, err := inspector.InspectImage(ctx, ref)
 	if err != nil {
-		return
+		return fmt.Errorf("inspect image: %w", err)
+	}
+	if strings.TrimSpace(inspected.Digest) == "" {
+		return fmt.Errorf("image inspection returned no digest")
 	}
 	result.ImageInspect = &inspected
-	if strings.TrimSpace(inspected.Digest) != "" {
-		result.Provenance.ImageDigest = strings.TrimSpace(inspected.Digest)
-	}
+	result.Provenance.ImageDigest = strings.TrimSpace(inspected.Digest)
 	result.Provenance.ToolCalls = appendToolCallOnce(result.Provenance.ToolCalls, "inspect_image")
+	return nil
 }
 
 func appendToolCallOnce(calls []domain.ToolCallRecord, name string) []domain.ToolCallRecord {
@@ -303,7 +315,7 @@ func fillProvenanceDigests(provenance domain.Provenance, input domain.PackagingC
 	return provenance
 }
 
-func buildWorkspaceAudit(provenance domain.Provenance) WorkspaceAudit {
+func buildWorkspaceAudit(provenance domain.Provenance, outcome string) WorkspaceAudit {
 	calls := make([]string, 0, len(provenance.ToolCalls))
 	for _, call := range provenance.ToolCalls {
 		if strings.TrimSpace(call.Name) != "" {
@@ -311,6 +323,7 @@ func buildWorkspaceAudit(provenance domain.Provenance) WorkspaceAudit {
 		}
 	}
 	return WorkspaceAudit{
+		Outcome:          outcome,
 		Repo:             provenance.RepoURL,
 		RepoURL:          provenance.RepoURL,
 		Commit:           provenance.ResolvedCommit,
