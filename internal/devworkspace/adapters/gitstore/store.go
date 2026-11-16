@@ -344,6 +344,9 @@ func (store *Store) WriteAndCommit(ctx context.Context, id string, files map[str
 		if isSecretPath(confined) {
 			return domain.Workspace{}, fmt.Errorf("%w: refusing secret path %s", domain.ErrInvalid, confined)
 		}
+		if domain.IsProtectedEgressPath(confined) {
+			return domain.Workspace{}, fmt.Errorf("%w: workspace cannot edit network policy or egress allowlist (%s)", domain.ErrForbidden, confined)
+		}
 		full := filepath.Join(repoDir, filepath.FromSlash(confined))
 		if err := os.MkdirAll(filepath.Dir(full), 0o755); err != nil {
 			return domain.Workspace{}, err
@@ -434,9 +437,12 @@ func (store *Store) commitWorkingTreeLocked(ctx context.Context, ws domain.Works
 			continue
 		}
 		rel := entry[3:]
-		if isSecretPath(rel) {
+		if isSecretPath(rel) || domain.IsProtectedEgressPath(rel) {
 			if skipSecrets {
 				continue
+			}
+			if domain.IsProtectedEgressPath(rel) {
+				return "", false, fmt.Errorf("%w: workspace cannot edit network policy or egress allowlist (%s)", domain.ErrForbidden, rel)
 			}
 			return "", false, fmt.Errorf("%w: refusing secret path %s", domain.ErrInvalid, rel)
 		}

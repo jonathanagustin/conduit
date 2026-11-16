@@ -1548,6 +1548,8 @@ button.kit-link {
 }
 .plan-section-body {
   white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
   font-size: var(--fs-sm);
   line-height: var(--lh-base);
   color: var(--c-text);

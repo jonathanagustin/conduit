@@ -237,6 +237,10 @@ func (service *Service) ApplyGovernedEdit(ctx context.Context, caller domain.Cal
 	if err != nil {
 		return domain.FileView{}, err
 	}
+	if domain.IsProtectedEgressPath(path) {
+		_ = service.record(ctx, caller, "workspace.acp_file_written", workspace.ID, "DENY", "workspace cannot modify its own network policy or egress allowlist: "+path)
+		return domain.FileView{}, domain.ErrForbidden
+	}
 	view, err := service.files.Write(ctx, id, path, content)
 	if err != nil {
 		return domain.FileView{}, err
@@ -255,6 +259,68 @@ func (service *Service) ApplyGovernedEdit(ctx context.Context, caller domain.Cal
 		return domain.FileView{}, err
 	}
 	return view, nil
+}
+
+// DenyWorkspaceNetworkPolicyEdit records and refuses any attempt from inside a
+// workspace or by a workspace user/model to edit the workspace's network policy.
+func (service *Service) DenyWorkspaceNetworkPolicyEdit(ctx context.Context, caller domain.Caller, id, attemptedAction string) error {
+	actor := caller
+	if strings.TrimSpace(actor.Username) == "" {
+		actor.Username = "workspace-container"
+	}
+	_ = service.record(ctx, actor, "workspace.network_policy_edit", id, "DENY", "workspace container has no permission to modify its own network policy: "+attemptedAction)
+	return domain.ErrForbidden
+}
+
+// ProposeEgressAllowlistChange validates a platform-operator change to
+// workspace.egress and opens a mandatory-human-review change request recorded in
+// the authorization audit trail.
+func (service *Service) ProposeEgressAllowlistChange(ctx context.Context, caller domain.Caller, id string, valuesYAML []byte, title, description string) (domain.Receipt, error) {
+	if err := service.requireCaller(caller); err != nil {
+		return domain.Receipt{}, err
+	}
+	isOperator := false
+	for _, team := range caller.Teams {
+		t := strings.ToLower(strings.TrimSpace(team))
+		if t == "administrator" || t == "platformoperator" || t == "platform-operator" {
+			isOperator = true
+			break
+		}
+	}
+	if !isOperator {
+		_ = service.record(ctx, caller, "workspace.egress_config_change", id, "DENY", "workspace users cannot modify workspace.egress allowlist")
+		return domain.Receipt{}, domain.ErrForbidden
+	}
+	workspace, err := service.records.Get(ctx, id)
+	if err != nil {
+		return domain.Receipt{}, err
+	}
+	if _, err := domain.ParseEgressValuesYAML(valuesYAML); err != nil {
+		_ = service.record(ctx, caller, "workspace.egress_config_change", workspace.ID, "DENY", "invalid workspace.egress configuration: "+err.Error())
+		return domain.Receipt{}, err
+	}
+	if service.submit == nil {
+		return domain.Receipt{}, domain.ErrDisabled
+	}
+	cfgDigest := domain.Digest(valuesYAML)
+	receipt, err := service.submit.Submit(ctx, caller, domain.Submission{
+		WorkspaceID:   workspace.ID,
+		EnvironmentID: workspace.EnvironmentID,
+		Revision:      "egress-" + cfgDigest[7:19],
+		SourceDigest:  cfgDigest,
+		Title:         title,
+		Description:   description,
+	})
+	if err != nil {
+		return domain.Receipt{}, err
+	}
+	if strings.EqualFold(receipt.Status, "APPROVED") {
+		return domain.Receipt{}, domain.ErrSelfApproval
+	}
+	if err := service.record(ctx, caller, "workspace.egress_config_change", workspace.ID, "ALLOW", "workspace.egress allowlist change request opened: "+receipt.ChangeRequestID); err != nil {
+		return domain.Receipt{}, err
+	}
+	return receipt, nil
 }
 
 // SnapshotFiles returns an immutable copy of all current files in an owned workspace.
