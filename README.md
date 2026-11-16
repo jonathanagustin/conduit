@@ -20,7 +20,7 @@ The `1920x1080` console walkthrough above demonstrates both governed planning
 and workspace compute profiles in the operator console (`/console/planning`):
 
 1. **Source-based packaging (`packaging-v1`)** — Intake of Excalidraw at a
-   pinned commit SHA (`3402f5bc78ae5f4ffbc7e9be4be1fc2c6c1fa6ef`), live
+   pinned commit SHA (`c0a0ca348faa273c768de839a22df113f997c095`), live
    `assistant.activity` inspection, `Needs Input` operator Q&A, structured plan
    review (with a `View JSON` toggle), immutable `Accept` binding (`repo@ref`,
    commit SHA, profile hash, and plan hash), and post-accept governed workspace

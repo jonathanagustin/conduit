@@ -11,17 +11,17 @@
      10px gap between panels. */
   --h-topbar: 44px;
   --h-control: 26px;
-  --w-rail: 206px;
+  --w-rail: 226px;
   --w-rail-collapsed: 52px;
-  --h-nav-row: 29px;
-  --h-subbar: 34px;
-  --gap-panel: 10px;
+  --h-nav-row: 30px;
+  --h-subbar: 38px;
+  --gap-panel: 12px;
   --h-btn-sm: 24px;
   --h-pill: 18px;
-  --h-th: 27px;
-  --h-td: 31px;
-  --radius-panel: 5px;
-  --plan-accept-bar-h: 72px;
+  --h-th: 28px;
+  --h-td: 32px;
+  --radius-panel: 6px;
+  --plan-accept-bar-h: 76px;
 
   /* 4px spacing scale */
   --sp-1: 4px;

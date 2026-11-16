@@ -282,6 +282,48 @@ describe("planning flow state", () => {
     expect(htmlOpen).toContain("data-plan-json");
     expect(htmlOpen).toContain("Hide JSON");
   });
+
+  it("formats problem-statement commit badge without mid-word truncation and deduplicates operator/user prompt rows", () => {
+    const html = planningMarkup({
+      ...emptyPlanning(),
+      session: session({
+        profile: { name: "appgen", version: "1.0.0", hash: "ph" },
+        intake: {
+          repoUrl: "",
+          ref: "",
+          problemStatement: "Build room companion",
+          appName: "excalidraw-companion",
+        },
+        resolvedCommit:
+          "none (no source repository — problem-statement intake)",
+        messages: [
+          {
+            id: "",
+            role: "operator",
+            text: "Generate non-root Go service and Zarf/UDS package",
+          },
+        ],
+      }),
+      agentMessages: [
+        {
+          id: "u1",
+          role: "user",
+          content: "Generate non-root Go service and Zarf/UDS package",
+        },
+        {
+          id: "a1",
+          role: "model",
+          content:
+            'Prepared generation plan. {"model":"conduit-packaging-agent-v1"}',
+        },
+      ],
+    });
+    expect(html).toContain(">commit none (no source repo)<");
+    expect(html).not.toContain(">commit none (no sou<");
+    expect(html.match(/data-plan-message/g)).toHaveLength(2);
+    expect(html).toContain("conduit-packaging-agent-v1");
+    expect(html).not.toContain("{&quot;model&quot;:");
+  });
 });
 
 describe("planning flow API", () => {
