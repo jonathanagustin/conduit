@@ -67,6 +67,22 @@ func Prepare(ctx context.Context, dir, repoURL, ref, branch string) (Snapshot, e
 	return Snapshot{Dir: dir, Branch: branch, Head: strings.TrimSpace(head), Repo: repoURL, Ref: ref}, nil
 }
 
+// Detach checks out rev. The accepted commit is the tree that is packaged.
+func (repo Repo) Detach(ctx context.Context, rev string) error {
+	rev = strings.TrimSpace(rev)
+	if repo.Dir == "" || rev == "" {
+		return fmt.Errorf("workspace commit is required")
+	}
+	head, err := gitOut(ctx, repo.Dir, "rev-parse", "HEAD")
+	if err == nil && strings.TrimSpace(head) == rev {
+		return nil
+	}
+	if err := runGit(ctx, repo.Dir, "checkout", "--detach", rev); err != nil {
+		return fmt.Errorf("accepted commit %s is not in the workspace: %w", rev, err)
+	}
+	return nil
+}
+
 // Commit writes the given paths only and creates one commit. Paths outside the
 // repository or named like secret files are rejected.
 func (repo Repo) Commit(ctx context.Context, files map[string]string, message string) (string, error) {

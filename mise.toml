@@ -32,6 +32,10 @@ go run ./cmd/packaging-workflow worker --address 127.0.0.1:7233 --state-dir .pac
 description = "Crash and restart drill through one governed Plan"
 run = "./scripts/packaging-temporal-demo.sh"
 
+[tasks.excalidraw-packaging]
+description = "Governed packaging path. PACKAGING_REPO_URL selects a repository; unset runs the deterministic fixture."
+run = "./scripts/governed-packaging-run.sh"
+
 [tasks.install-cursor]
 description = "Install the pinned Cursor Agent used for independent evaluation"
 run = '''

@@ -119,9 +119,22 @@ func planningHandlerWithOptions(
 			if runner != nil {
 				scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
 			}
-			ownerCompute := appgenCompute
-			if ownerCompute == nil && appgenService != nil {
-				ownerCompute = appgenPlanningComputer(*appgenService, repository, principal, getenv)
+			appgenHook := appgenCompute
+			if appgenHook == nil && appgenService != nil {
+				appgenHook = appgenPlanningComputer(*appgenService, repository, principal, getenv)
+			}
+			packagingCompute := packagingPlanningComputer(repository, principal, getenv)
+			ownerCompute := func(ctx context.Context, session *planningdomain.Session) error {
+				if session == nil || session.Binding == nil {
+					return planningdomain.ErrComputeBeforeAccept
+				}
+				if session.Binding.Profile.Name == planningdomain.ProfileAppgen {
+					if appgenHook == nil {
+						return planningdomain.ErrComputeNotConfigured
+					}
+					return appgenHook(ctx, session)
+				}
+				return packagingCompute(ctx, session)
 			}
 			inMem := planningapp.NewService(scopedRunner).
 				WithAuditor(planningAcceptAudit{repository: repository, actor: actor}).

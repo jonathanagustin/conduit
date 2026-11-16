@@ -14,7 +14,7 @@ The posture is: container isolation now, stronger isolation planned.
 
 The container joins only the internal network. A forwarder is the only peer, and it dials the configured git host and registry ports. Connections to any other name, address, or port do not reach that forwarder. A policy listener on the forwarder's other network answers there and is unreachable from the workspace. The host can read a planted kubeconfig; the container cannot, and the host `KUBECONFIG` and `SERVICEACCOUNT_TOKEN` variables are not copied in.
 
-`POST /v1/planning-sessions/{id}/compute` still returns `COMPUTE_NOT_CONFIGURED` until an image builder, inspector, and package creator are admitted. Selecting the container runtime makes `plan-compute` refuse to continue unless the live probe passes. It does not turn the fixture package writer into an image build.
+`POST /v1/planning-sessions/{id}/compute` returns `COMPUTE_NOT_CONFIGURED` until `CONDUIT_IMAGE_BUILDER=docker` admits the local engine. That build runs on the host engine because this container has no builder and no container socket. Selecting the container runtime makes `plan-compute` refuse to continue unless the live probe passes. It does not turn the fixture package writer into an image build.
 
 A local process preview is a host process. Its working directory and filtered environment do not confine sockets or host files. The console states that limit next to the container posture. Rendering a Pod, or checking a dial made through the process adapter, is not this boundary.
 

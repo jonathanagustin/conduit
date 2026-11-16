@@ -264,7 +264,7 @@ func main() {
 		}),
 		ReadHeaderTimeout: 5 * time.Second,
 		ReadTimeout:       15 * time.Second,
-		WriteTimeout:      30 * time.Second,
+		WriteTimeout:      httpWriteTimeout(),
 		IdleTimeout:       60 * time.Second,
 	}
 	if agentClientCAFile != "" {
@@ -858,4 +858,18 @@ func startMetricsListener(ctx context.Context, address string, readStats metrics
 		defer cancel()
 		_ = server.Shutdown(shutdownCtx)
 	}
+}
+
+func httpWriteTimeout() time.Duration {
+	fallback := 30 * time.Second
+	text := strings.TrimSpace(os.Getenv("CONDUIT_HTTP_WRITE_TIMEOUT"))
+	if text == "" {
+		return fallback
+	}
+	parsed, err := time.ParseDuration(text)
+	if err != nil || parsed <= 0 {
+		slog.Error("CONDUIT_HTTP_WRITE_TIMEOUT must be a positive duration", "value", text)
+		os.Exit(1)
+	}
+	return parsed
 }

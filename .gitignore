@@ -23,6 +23,9 @@ web/.stryker-tmp/
 /packaging-workflow
 .packaging-state/
 
+# Demo recordings stay outside git. The manual Demo Video workflow uploads them.
+demo/out/
+
 # Local verification tool cache (scripts/verify-local.sh downloads pinned
 # binaries here; its comment already assumes this is ignored).
 .cache/
