@@ -1,4 +1,4 @@
-import { mkdirSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const BOOTSTRAP_MARKER = "<!--conduit-console-bootstrap-->";
@@ -3218,7 +3218,7 @@ test("active Command Center uses scoped Connect overview and drops a previous ac
 
 test("engineer focus preserves one live conversation, draft and pending request", async ({
   page,
-}) => {
+}, testInfo) => {
   await page.setViewportSize({ width: 1440, height: 1024 });
   await hydrate(page);
   await page.addInitScript(() =>
@@ -3382,9 +3382,8 @@ test("engineer focus preserves one live conversation, draft and pending request"
   const expandedBounds = await rail.boundingBox();
   expect(expandedBounds!.x).toBeGreaterThanOrEqual(-0.01);
   expect(expandedBounds!.x + expandedBounds!.width).toBeLessThanOrEqual(375.01);
-  mkdirSync("test-results", { recursive: true });
   await page.screenshot({
-    path: "test-results/engineer-guidance-narrow.png",
+    path: testInfo.outputPath("engineer-guidance-narrow.png"),
   });
   await page.evaluate(() => {
     const event = new KeyboardEvent("keydown", {
@@ -3447,7 +3446,7 @@ test("engineer focus preserves one live conversation, draft and pending request"
 
 test("operator badge shows only a complete native session and clears on refusal", async ({
   page,
-}) => {
+}, testInfo) => {
   await hydrate(page);
   const name = '<img src=x onerror="attack()">';
   let phase: "refused" | "valid" | "malformed" = "refused";
@@ -3503,9 +3502,8 @@ test("operator badge shows only a complete native session and clears on refusal"
   expect(retryBounds!.x).toBeGreaterThanOrEqual(0);
   expect(retryBounds!.x + retryBounds!.width).toBeLessThanOrEqual(375);
 
-  mkdirSync("test-results", { recursive: true });
   await page.screenshot({
-    path: "test-results/operator-identity-mobile.png",
+    path: testInfo.outputPath("operator-identity-mobile.png"),
   });
   await page.keyboard.press("Control+,");
   const settingsIdentity = page.locator("#settings-operator-identity");
