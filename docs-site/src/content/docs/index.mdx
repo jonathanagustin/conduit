@@ -1,0 +1,98 @@
+---
+title: Overview
+description: Self-hosted delivery control plane that takes an upstream app from source to a governed UDS package. Every step is planned, accepted, validated, and receipted.
+template: splash
+hero:
+  title: Conduit
+  tagline: Self-hosted delivery control plane that takes an upstream app from source to a governed UDS package. Every step is planned, accepted, validated, and receipted.
+  actions:
+    - text: Quick start
+      link: /conduit/getting-started/
+      icon: right-arrow
+      variant: primary
+    - text: GitHub
+      link: https://github.com/jonathanagustin/conduit
+      icon: external
+      variant: minimal
+prev: false
+next: false
+sidebar:
+  label: Home
+  order: 0
+---
+
+import LegacyHomeHash from '../../components/LegacyHomeHash.astro';
+import { CardGrid, LinkCard, Tabs, TabItem } from '@astrojs/starlight/components';
+
+<LegacyHomeHash />
+
+A Hub owns desired state, approval, artifact admission, and durable history. Spoke agents connect outbound only, execute a leased plan inside an environment, and report what they observe.
+
+The console walkthrough below is the repository demo at `/console/planning`. It shows two profiles: source packaging of Excalidraw at a pinned commit, and application generation from a problem statement. Both are planned, accepted, validated, and handed off as a governed change request. Compute before Accept is refused.
+
+<figure class="demo-frame" id="demo-packaging">
+  <img
+    src={`${import.meta.env.BASE_URL}demo/conduit-excalidraw-demo.webp`}
+    alt="Console walkthrough of Excalidraw packaging and application generation"
+    width="1920"
+    height="1080"
+  />
+  <figcaption>
+    Source packaging (<code>packaging-v1</code>) and application generation (<code>appgen-v1</code>), from the repository demo.
+  </figcaption>
+</figure>
+
+<details>
+  <summary>Planning-only walkthrough, ending at Accept (<code>COMPUTE_BEFORE_ACCEPT</code> enforced)</summary>
+  <figure class="demo-frame" id="demo-planning">
+    <img
+      src={`${import.meta.env.BASE_URL}demo/conduit-excalidraw-planning-only.webp`}
+      alt="Planning-only console walkthrough that ends at Accept"
+      width="1920"
+      height="1080"
+    />
+    <figcaption>
+      The same intake, stopped when Accept records the binding. Package compute has not started.
+    </figcaption>
+  </figure>
+</details>
+
+## Choose a starting point
+
+<Tabs>
+  <TabItem label="Local demo">
+
+Clone the repository, install the pinned toolchain, and start the demo. When the seed finishes, open the console at `http://127.0.0.1:8081/console/`. Follow [Quick start](/conduit/getting-started/#quick-start).
+
+  </TabItem>
+  <TabItem label="Recorded proposals">
+
+Leave `CONDUIT_MODEL_CMD` unset. The Hub keeps the recorded proposals and makes no model call. The variable, and the local command it runs, are described in [Quick start](/conduit/getting-started/#recorded-proposals).
+
+  </TabItem>
+</Tabs>
+
+## Explore the documentation
+
+<CardGrid>
+  <LinkCard
+    title="Quick start"
+    href="/conduit/getting-started/"
+    description="Install the pinned toolchain, start the local demo, and open the console."
+  />
+  <LinkCard
+    title="How it works"
+    href="/conduit/how-it-works/"
+    description="Intake, Needs Input, Accept, the compute refusal, gates, change requests, and receipts."
+  />
+  <LinkCard
+    title="Architecture"
+    href="/conduit/architecture/"
+    description="Bounded contexts, Hub and Spoke, Temporal workflows, and gitless delivery."
+  />
+  <LinkCard
+    title="Packaging profiles"
+    href="/conduit/packaging/"
+    description="What packaging-v1 and appgen-v1 intake, validate, and hand off."
+  />
+</CardGrid>
