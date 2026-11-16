@@ -19,7 +19,8 @@ type ZarfRunner struct {
 	Timeout time.Duration
 }
 
-// LookZarf finds the zarf binary. ZARF_BIN wins, then PATH, then pinned mise locations.
+// LookZarf finds the operator-selected zarf binary. ZARF_BIN wins, then PATH.
+// Installed developer tools outside PATH are not implicit runtime authority.
 func LookZarf() (string, error) {
 	if path := strings.TrimSpace(os.Getenv("ZARF_BIN")); path != "" {
 		if info, err := os.Stat(path); err == nil && !info.IsDir() {
@@ -29,15 +30,6 @@ func LookZarf() (string, error) {
 	}
 	if path, err := exec.LookPath("zarf"); err == nil {
 		return path, nil
-	}
-	candidates := []string{"/home/box/.local/share/mise/installs/zarf/1.0.0/zarf"}
-	if home, err := os.UserHomeDir(); err == nil && strings.TrimSpace(home) != "" {
-		candidates = append([]string{filepath.Join(home, ".local/share/mise/installs/zarf/1.0.0/zarf")}, candidates...)
-	}
-	for _, candidate := range candidates {
-		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
-			return candidate, nil
-		}
 	}
 	return "", fmt.Errorf("zarf is not installed")
 }
