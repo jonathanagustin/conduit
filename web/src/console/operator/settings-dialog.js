@@ -124,7 +124,7 @@ export function settingsMarkup({
     </section>
     <section class="kit-dialog-section">
       <h3>Identity and approvals</h3>
-      <p>Signed in as <span class="code-id">${esc(operatorName || "Operator")}</span>. The Hub session sets this.</p>
+      ${typeof operatorName === "string" && operatorName.trim() ? `<p>Signed in as <span class="code-id">${esc(operatorName.trim())}</span>. The Hub session sets this.</p>` : "<p>Native operator identity is unavailable.</p>"}
       <p class="kit-muted">A high-risk change needs an approver other than its author. The Hub refuses a self-approval and records the refusal in the audit chain.</p>
     </section>
   </div>`;

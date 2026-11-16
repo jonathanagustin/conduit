@@ -1220,3 +1220,41 @@
   outline: 2px solid var(--so-blue);
   outline-offset: 3px;
 }
+
+/* Keep the native identity badge reachable beside the live stream status. */
+#operator-name {
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+@media (max-width: 639px) {
+  #operator-name {
+    display: none !important;
+  }
+  #operator-chip {
+    flex-shrink: 0;
+  }
+  #live-events-status {
+    min-width: 0;
+    max-width: 60px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}
+
+@media (max-width: 639px) {
+  .operator-root > header {
+    height: auto !important;
+    flex-wrap: wrap;
+    padding-top: 6px;
+    padding-bottom: 6px;
+  }
+  .operator-root > header > div:last-child {
+    margin-left: auto;
+    max-width: 100%;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+  }
+}

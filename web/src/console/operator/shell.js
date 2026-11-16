@@ -1,6 +1,38 @@
 import { convergenceState } from "./release-convergence.js";
-// Pure helpers for the console shell: header KPIs, site summary, dock sizing,
+// Shared helpers for the console shell: identity, header KPIs, site summary, dock sizing,
 // and guarded preference storage.
+
+// Presentation only. Identity is supplied by the existing native session read.
+export function operatorIdentity(name) {
+  const value = typeof name === "string" ? name.trim() : "";
+  if (!value)
+    return {
+      label: "Identity unavailable",
+      initials: "?",
+      title: "Operator identity unavailable",
+    };
+  const parts = value.split(/[^A-Za-z0-9]+/).filter(Boolean);
+  const initials = parts.length
+    ? parts
+        .slice(0, 2)
+        .map((part) => part[0].toUpperCase())
+        .join("")
+    : Array.from(value)[0].toUpperCase();
+  return { label: value, initials, title: `Operator: ${value}` };
+}
+
+export function paintOperatorIdentity(name) {
+  const identity = operatorIdentity(name);
+  const label = document.getElementById("operator-name");
+  const mark = document.getElementById("operator-initials");
+  const chip = document.getElementById("operator-chip");
+  if (label) label.textContent = identity.label;
+  if (mark) mark.textContent = identity.initials;
+  if (chip) {
+    chip.title = identity.title;
+    chip.setAttribute("aria-label", identity.title);
+  }
+}
 
 export const DOCK_DEFAULT = 368;
 export const DOCK_MIN = 280;

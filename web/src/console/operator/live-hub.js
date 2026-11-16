@@ -1,3 +1,4 @@
+import { paintOperatorIdentity } from "./shell.js";
 import {
   fetchPackagingRuns,
   packagingRunsTransport,
@@ -27,17 +28,6 @@ function esc(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
-}
-
-function initials(name) {
-  const parts = String(name || "")
-    .split(/[^A-Za-z0-9]+/)
-    .filter(Boolean);
-  if (!parts.length) return "OP";
-  return parts
-    .slice(0, 2)
-    .map((part) => part[0].toUpperCase())
-    .join("");
 }
 
 async function readJSON(path, signal) {
@@ -290,7 +280,7 @@ function constraintRows(events) {
 }
 
 export function createLiveHub({ state, render, navigate = () => {} }) {
-  state.operatorName = state.operatorName || "Operator";
+  state.operatorName = "";
   state.hub = {
     loading: true,
     packaging: [],
@@ -351,7 +341,8 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     if (!node) {
       node = document.createElement("span");
       node.id = "live-events-status";
-      node.className = "kit-muted";
+      node.className =
+        "kit-muted min-w-0 max-w-[72px] truncate sm:max-w-[180px]";
       node.setAttribute("role", "status");
       node.setAttribute("aria-live", "polite");
       chip.before(node);
@@ -407,7 +398,8 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     state.reviewOperatorName = "";
     state.reviewOperatorActor = "";
     state.reviewOperatorIdentities = [];
-    state.operatorName = "Operator";
+    state.operatorName = "";
+    paintOperatorIdentity("");
     render();
   }
   function schedulePoll() {
@@ -526,13 +518,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   }
 
   function paintOperator() {
-    const name = state.operatorName || "Operator";
-    const chip = document.getElementById("operator-chip");
-    const label = document.getElementById("operator-name");
-    const mark = document.getElementById("operator-initials");
-    if (label) label.textContent = name;
-    if (mark) mark.textContent = initials(name);
-    if (chip) chip.title = `Operator: ${name}`;
+    paintOperatorIdentity(state.operatorName);
     paintAvailability();
   }
 
@@ -724,7 +710,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     if (options.signal?.aborted || generation !== refreshGeneration)
       throw new DOMException("Hub read aborted", "AbortError");
     const name = session?.effective?.username || session?.actor?.username || "";
-    state.operatorName = name || "Operator";
+    state.operatorName = observed ? name : "";
     state.reviewOperatorName = typeof name === "string" ? name.trim() : "";
     state.reviewOperatorActor =
       typeof session?.actor?.username === "string"

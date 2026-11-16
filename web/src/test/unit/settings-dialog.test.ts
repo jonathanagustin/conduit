@@ -22,6 +22,34 @@ const store = new Map<string, string>();
 afterEach(() => store.clear());
 
 describe("settings dialog", () => {
+  it.each([undefined, null, "", "  ", 42])(
+    "does not claim a signed-in principal for %j",
+    (operatorName) => {
+      const html = settingsMarkup({
+        theme: "dark",
+        density: "standard",
+        dockWidth: "400",
+        operatorName,
+      });
+      expect(html).toContain("Native operator identity is unavailable.");
+      expect(html).not.toContain("Signed in as");
+    },
+  );
+
+  it.each([undefined, null, "", "  ", 42])(
+    "does not claim sign-in for unavailable identity %j",
+    (operatorName) => {
+      const html = settingsMarkup({
+        theme: "dark",
+        density: "standard",
+        dockWidth: "400",
+        operatorName,
+      });
+      expect(html).toContain("Native operator identity is unavailable.");
+      expect(html).not.toContain("Signed in as");
+    },
+  );
+
   it("falls back to dark and standard for unknown stored values", () => {
     store.set(THEME_KEY, "neon");
     store.set(DENSITY_KEY, "tiny");
