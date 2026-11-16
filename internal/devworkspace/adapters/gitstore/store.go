@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"sync"
@@ -41,6 +42,7 @@ type Store struct {
 	rows            map[string]domain.Workspace
 	runtimes        map[string]domain.Runtime
 	pods            map[string]struct{}
+	removeVolume    func(string) error
 }
 
 // Open opens or initializes a durable Git-backed workspace store at opts.RootDir.
@@ -65,6 +67,7 @@ func Open(opts Options) (*Store, error) {
 		runtimes:        map[string]domain.Runtime{},
 		pods:            map[string]struct{}{},
 	}
+	store.removeVolume = store.removeWorkspaceVolume
 	if err := store.loadCatalog(); err != nil {
 		return nil, err
 	}
@@ -109,6 +112,12 @@ func (store *Store) loadCatalog() error {
 		return err
 	}
 	for _, ws := range list {
+		if !validWorkspaceID.MatchString(ws.ID) {
+			return fmt.Errorf("invalid workspace ID")
+		}
+		if _, exists := store.rows[ws.ID]; exists {
+			return fmt.Errorf("duplicate workspace ID")
+		}
 		store.rows[ws.ID] = ws
 	}
 	return nil
@@ -129,6 +138,34 @@ func (store *Store) saveCatalogLocked() error {
 		return err
 	}
 	return os.Rename(tmp, store.catalogPath)
+}
+
+var validWorkspaceID = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$`)
+
+func (store *Store) saveWorkspaceLocked(row domain.Workspace) error {
+	old, existed := store.rows[row.ID]
+	store.rows[row.ID] = row
+	if err := store.saveCatalogLocked(); err != nil {
+		if existed {
+			store.rows[row.ID] = old
+		} else {
+			delete(store.rows, row.ID)
+		}
+		return err
+	}
+	return nil
+}
+
+func (store *Store) removeWorkspaceVolume(id string) error {
+	if !validWorkspaceID.MatchString(id) {
+		return fmt.Errorf("invalid workspace ID")
+	}
+	root, err := os.OpenRoot(store.rootDir)
+	if err != nil {
+		return err
+	}
+	defer root.Close()
+	return root.RemoveAll(filepath.Join("workspaces", id))
 }
 
 // List returns all stored workspaces ordered by ID.
@@ -158,6 +195,9 @@ func (store *Store) Get(_ context.Context, id string) (domain.Workspace, error) 
 func (store *Store) Save(ctx context.Context, workspace domain.Workspace) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
+	if !validWorkspaceID.MatchString(workspace.ID) {
+		return fmt.Errorf("invalid workspace ID")
+	}
 	if strings.TrimSpace(workspace.Branch) == "" {
 		owner := strings.TrimSpace(workspace.Owner)
 		if owner == "" {
@@ -167,6 +207,9 @@ func (store *Store) Save(ctx context.Context, workspace domain.Workspace) error 
 	}
 	repoDir := store.RepoDir(workspace.ID)
 	if _, err := os.Stat(filepath.Join(repoDir, ".git")); err != nil {
+		if _, exists := store.rows[workspace.ID]; exists {
+			return fmt.Errorf("workspace repository unavailable: %w", domain.ErrNotFound)
+		}
 		baseHead, initErr := store.initWorkspaceRepoLocked(ctx, workspace, repoDir)
 		if initErr != nil {
 			return initErr
@@ -184,8 +227,7 @@ func (store *Store) Save(ctx context.Context, workspace domain.Workspace) error 
 			workspace.ProposalRevision = baseHead
 		}
 	}
-	store.rows[workspace.ID] = workspace
-	return store.saveCatalogLocked()
+	return store.saveWorkspaceLocked(workspace)
 }
 
 func (store *Store) initWorkspaceRepoLocked(ctx context.Context, workspace domain.Workspace, repoDir string) (string, error) {
@@ -230,7 +272,7 @@ func (store *Store) initWorkspaceRepoLocked(ctx context.Context, workspace domai
 	if err := runGit(ctx, repoDir, "add", "--", "README.md"); err != nil {
 		return "", err
 	}
-	if err := runGit(ctx, repoDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "initialize workspace branch"); err != nil {
+	if err := runGit(ctx, repoDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "chore(workspace): initialize branch"); err != nil {
 		return "", err
 	}
 	head, err := gitOut(ctx, repoDir, "rev-parse", "HEAD")
@@ -241,17 +283,27 @@ func (store *Store) initWorkspaceRepoLocked(ctx context.Context, workspace domai
 }
 
 // Delete removes a workspace record and its disk directory.
-func (store *Store) Delete(_ context.Context, id string) error {
+func (store *Store) Delete(ctx context.Context, id string) error {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	if _, ok := store.rows[id]; !ok {
 		return domain.ErrNotFound
 	}
+	if err := ctx.Err(); err != nil {
+		return err
+	}
+	if err := store.removeVolume(id); err != nil {
+		return err
+	}
+	old := store.rows[id]
 	delete(store.rows, id)
+	if err := store.saveCatalogLocked(); err != nil {
+		store.rows[id] = old
+		return err
+	}
 	delete(store.runtimes, id)
 	delete(store.pods, id)
-	_ = os.RemoveAll(store.WorkspaceDir(id))
-	return store.saveCatalogLocked()
+	return nil
 }
 
 // WriteAndCommit writes the given relative paths inside /repo and commits them
@@ -290,7 +342,7 @@ func (store *Store) WriteAndCommit(ctx context.Context, id string, files map[str
 		}
 	}
 	if strings.TrimSpace(message) == "" {
-		message = "workspace commit"
+		message = "chore(workspace): commit files"
 	}
 	commitArgs := append([]string{"-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", message, "--"}, paths...)
 	if err := runGit(ctx, repoDir, commitArgs...); err != nil {
@@ -303,8 +355,7 @@ func (store *Store) WriteAndCommit(ctx context.Context, id string, files map[str
 	ws.HeadCommit = strings.TrimSpace(head)
 	ws.ProposalRevision = ws.HeadCommit
 	ws.UpdatedAt = time.Now().UTC()
-	store.rows[id] = ws
-	if err := store.saveCatalogLocked(); err != nil {
+	if err := store.saveWorkspaceLocked(ws); err != nil {
 		return domain.Workspace{}, err
 	}
 	return ws, nil
@@ -328,8 +379,7 @@ func (store *Store) Sync(ctx context.Context, id, message string) (domain.Worksp
 		ws.HeadCommit = head
 		ws.ProposalRevision = head
 		ws.UpdatedAt = time.Now().UTC()
-		store.rows[id] = ws
-		if err := store.saveCatalogLocked(); err != nil {
+		if err := store.saveWorkspaceLocked(ws); err != nil {
 			return domain.Workspace{}, err
 		}
 	}
@@ -371,7 +421,7 @@ func (store *Store) commitWorkingTreeLocked(ctx context.Context, ws domain.Works
 		}
 	}
 	if strings.TrimSpace(message) == "" {
-		message = "workspace sync"
+		message = "chore(workspace): sync files"
 	}
 	if err := runGit(ctx, repoDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", message); err != nil {
 		return "", false, err
@@ -392,11 +442,15 @@ func (store *Store) PreserveOnIdle(ctx context.Context, workspace domain.Workspa
 	defer store.mu.Unlock()
 	row, ok := store.rows[workspace.ID]
 	if !ok {
-		row = workspace
+		return workspace, domain.ErrNotFound
+	}
+	original := row
+	if err := ctx.Err(); err != nil {
+		return original, err
 	}
 	row.Status = domain.StatusStopping
 	row.UpdatedAt = now
-	head, changed, err := store.commitWorkingTreeLocked(ctx, row, "workspace idle preservation commit", true)
+	head, changed, err := store.commitWorkingTreeLocked(ctx, row, "chore(workspace): preserve idle work", true)
 	if err == nil && head != "" {
 		row.HeadCommit = head
 		if changed || row.ProposalRevision == "" || row.ProposalRevision == "rev-1" {
@@ -407,51 +461,86 @@ func (store *Store) PreserveOnIdle(ctx context.Context, workspace domain.Workspa
 	if pushErr == nil {
 		pushErr = store.pushBranchLocked(ctx, row)
 	}
+	if err := ctx.Err(); err != nil {
+		return original, err
+	}
 	if pushErr != nil {
 		row.VolumePreserved = true
 		row.PreservedUntil = now.Add(store.retentionWindow)
-		store.rows[row.ID] = row
-		_ = store.saveCatalogLocked()
-		return row, pushErr
+	} else {
+		row.VolumePreserved = false
+		row.PreservedUntil = time.Time{}
 	}
-	row.VolumePreserved = false
-	row.PreservedUntil = time.Time{}
-	store.rows[row.ID] = row
-	_ = store.saveCatalogLocked()
+	if err := store.saveWorkspaceLocked(row); err != nil {
+		return original, err
+	}
+	if pushErr != nil {
+		return row, fmt.Errorf("%w: %v", domain.ErrBranchNotPushed, pushErr)
+	}
 	return row, nil
 }
 
 func (store *Store) pushBranchLocked(ctx context.Context, ws domain.Workspace) error {
 	repoDir := store.RepoDir(ws.ID)
 	remotes, err := gitOut(ctx, repoDir, "remote")
-	if err != nil || !strings.Contains(remotes, "origin") {
-		return nil
+	if err != nil {
+		return err
+	}
+	found := false
+	for _, remote := range strings.Fields(remotes) {
+		if remote == "origin" {
+			found = true
+		}
+	}
+	if !found {
+		return fmt.Errorf("workspace has no origin remote")
 	}
 	return runGit(ctx, repoDir, "push", "-u", "origin", "HEAD:refs/heads/"+ws.Branch)
 }
 
 // ExpirePreservedVolumes removes preserved workspace volumes whose retention
 // window has elapsed and updates their catalog records.
-func (store *Store) ExpirePreservedVolumes(_ context.Context, now time.Time) ([]domain.Workspace, error) {
+func (store *Store) ExpirePreservedVolumes(ctx context.Context, now time.Time, audit ports.VolumeExpiryAudit) ([]domain.Workspace, error) {
 	store.mu.Lock()
 	defer store.mu.Unlock()
 	expired := []domain.Workspace{}
-	for id, row := range store.rows {
-		if !row.VolumePreserved || row.PreservedUntil.IsZero() || now.Before(row.PreservedUntil) {
+	ids := make([]string, 0, len(store.rows))
+	for id := range store.rows {
+		ids = append(ids, id)
+	}
+	sort.Strings(ids)
+	for _, id := range ids {
+		row := store.rows[id]
+		if row.Status != domain.StatusStopped || !row.VolumePreserved || row.PreservedUntil.IsZero() || now.Before(row.PreservedUntil) {
 			continue
 		}
-		_ = os.RemoveAll(store.WorkspaceDir(id))
+		if runtime, exists := store.runtimes[id]; exists && runtime.Status != domain.StatusStopped {
+			continue
+		}
+		if err := ctx.Err(); err != nil {
+			return expired, err
+		}
+		if audit == nil {
+			return expired, domain.ErrDisabled
+		}
+		if err := audit.BeforeExpire(ctx, row); err != nil {
+			return expired, err
+		}
+		if err := ctx.Err(); err != nil {
+			return expired, err
+		}
+		removalErr := store.removeVolume(id)
+		auditErr := audit.AfterExpire(ctx, row, removalErr)
+		if err := errors.Join(removalErr, auditErr); err != nil {
+			return expired, err
+		}
 		row.VolumePreserved = false
 		row.PreservedUntil = time.Time{}
 		row.UpdatedAt = now
-		store.rows[id] = row
-		expired = append(expired, row)
-	}
-	if len(expired) > 0 {
-		sort.Slice(expired, func(i, j int) bool { return expired[i].ID < expired[j].ID })
-		if err := store.saveCatalogLocked(); err != nil {
-			return nil, err
+		if err := store.saveWorkspaceLocked(row); err != nil {
+			return expired, err
 		}
+		expired = append(expired, row)
 	}
 	return expired, nil
 }
@@ -637,8 +726,8 @@ func (t treeAdapter) PreserveOnIdle(ctx context.Context, workspace domain.Worksp
 	return t.store.PreserveOnIdle(ctx, workspace, now)
 }
 
-func (t treeAdapter) ExpirePreservedVolumes(ctx context.Context, now time.Time) ([]domain.Workspace, error) {
-	return t.store.ExpirePreservedVolumes(ctx, now)
+func (t treeAdapter) ExpirePreservedVolumes(ctx context.Context, now time.Time, audit ports.VolumeExpiryAudit) ([]domain.Workspace, error) {
+	return t.store.ExpirePreservedVolumes(ctx, now, audit)
 }
 
 // Tree returns a ports.Files adapter over the store's committed Git state.
