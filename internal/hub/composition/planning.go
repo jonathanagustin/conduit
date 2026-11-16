@@ -4,11 +4,16 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
+	"net"
 	"net/http"
 	"os"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"go.temporal.io/sdk/client"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
@@ -19,25 +24,53 @@ import (
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planninghttp "github.com/jonathanagustin/conduit/internal/planning/httpapi"
+	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
 )
 
 // mountPlanning exposes the planning-session contract. When
 // CONDUIT_MODEL_CMD is set, turns inspect the intake repository through
-// inspect_repo and read_file. Compute is refused until Accept.
+// inspect_repo and read_file. When CONDUIT_TEMPORAL_ADDRESS is set, planning
+// sessions and SSE agent runs are backed by durable Temporal workflows.
+// Compute is refused until Accept.
 func mountPlanning(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) (http.Handler, error) {
 	runner, err := planningPlanner(os.Getenv, repository)
 	if err != nil {
 		return nil, err
 	}
-	return planningHandler(legacy, repository, options, runner), nil
+	var temporalClient planningworkflow.WorkflowClient
+	if addr := strings.TrimSpace(os.Getenv("CONDUIT_TEMPORAL_ADDRESS")); addr != "" {
+		host, _, splitErr := net.SplitHostPort(addr)
+		if splitErr != nil {
+			return nil, fmt.Errorf("CONDUIT_TEMPORAL_ADDRESS: %w", splitErr)
+		}
+		if ip := net.ParseIP(host); ip == nil || !ip.IsLoopback() {
+			return nil, fmt.Errorf("CONDUIT_TEMPORAL_ADDRESS: refusing non-loopback address %q", addr)
+		}
+		dialed, dialErr := client.NewLazyClient(client.Options{
+			HostPort:       addr,
+			Namespace:      "default",
+			Logger:         planningworkflow.StructuredLogger(slog.Default()),
+			MetricsHandler: planningworkflow.NewMetricsRecorder(),
+		})
+		if dialErr != nil {
+			return nil, fmt.Errorf("CONDUIT_TEMPORAL_ADDRESS: %w", dialErr)
+		}
+		temporalClient = dialed
+	}
+	return planningHandlerWithTemporal(legacy, repository, options, runner, temporalClient), nil
 }
 
 func planningHandler(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner) http.Handler {
+	return planningHandlerWithTemporal(legacy, repository, options, runner, nil)
+}
+
+func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient) http.Handler {
 	var stores sync.Map
+	var seq atomic.Uint64
 	governanceService := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
 	type ownerServices struct {
-		sessions *planningapp.Service
+		sessions planninghttp.Sessions
 		runs     *agentstream.Service
 	}
 	resolve := func(request *http.Request) (*ownerServices, error) {
@@ -49,16 +82,28 @@ func planningHandler(legacy http.Handler, repository controlplane.Repository, op
 		if existing, ok := stores.Load(actor); ok {
 			return existing.(*ownerServices), nil
 		}
-		scopedRunner := runner
-		if runner != nil {
-			scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
+		var (
+			httpSessions planninghttp.Sessions
+			runSessions  agentstream.Sessions
+		)
+		if temporalClient != nil {
+			wfService := planningworkflow.NewClientService(temporalClient, planningworkflow.TaskQueue, actor, &seq)
+			httpSessions = wfService
+			runSessions = wfService
+		} else {
+			scopedRunner := runner
+			if runner != nil {
+				scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
+			}
+			inMem := planningapp.NewService(scopedRunner).WithAuditor(planningAcceptAudit{repository: repository, actor: actor})
+			httpSessions = inMem
+			runSessions = inMem
 		}
-		sessions := planningapp.NewService(scopedRunner).WithAuditor(planningAcceptAudit{repository: repository, actor: actor})
-		runs, err := agentstream.NewService(sessions, planningRunAudit{repository: repository, actor: actor})
+		runs, err := agentstream.NewService(runSessions, planningRunAudit{repository: repository, actor: actor})
 		if err != nil {
 			return nil, err
 		}
-		actual, _ := stores.LoadOrStore(actor, &ownerServices{sessions: sessions, runs: runs})
+		actual, _ := stores.LoadOrStore(actor, &ownerServices{sessions: httpSessions, runs: runs})
 		return actual.(*ownerServices), nil
 	}
 	authorize := func(request *http.Request) error { _, err := operatorClaims(request, options); return err }
