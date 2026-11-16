@@ -2,8 +2,11 @@
 set -euo pipefail
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-test_build="$(mktemp -d)"
-trap 'rm -rf "${test_build}"' EXIT
+test_root="$(mktemp -d)"
+test_build="${test_root}/dist"
+# Keep dependency prebundles beside, not inside, the output Vite may empty.
+export PLATFORM_CONSOLE_CACHE_DIR="${test_root}/vite-cache"
+trap 'rm -rf "${test_root}"' EXIT
 
 "${repo_root}/scripts/build-console.sh"
 # `verify-local.sh` deliberately points XDG_CACHE_HOME at a repository-owned,
