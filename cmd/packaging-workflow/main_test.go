@@ -554,7 +554,7 @@ func serveTestGitRepo(t *testing.T, workDir, name string) (string, string) {
 	runGit(workDir, "config", "user.name", "fixture")
 	runGit(workDir, "config", "user.email", "fixture@local")
 	runGit(workDir, "add", "-A")
-	runGit(workDir, "commit", "--quiet", "-m", "initial commit")
+	runGit(workDir, "commit", "--quiet", "-m", "test: initialize source fixture")
 	sha := strings.TrimSpace(runGit(workDir, "rev-parse", "HEAD"))
 
 	projectRoot := t.TempDir()

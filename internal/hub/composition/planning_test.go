@@ -403,4 +403,3 @@ func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 		t.Fatalf("bound ResolvedCommit = %q, want %q", bound.ResolvedCommit, remote.defaultSHA)
 	}
 }
-

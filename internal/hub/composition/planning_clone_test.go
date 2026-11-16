@@ -51,7 +51,7 @@ func newTestGitRemote(t *testing.T, repoName string, files map[string]string) *t
 	runGitIn(t, workDir, "config", "user.name", "fixture")
 	runGitIn(t, workDir, "config", "user.email", "fixture@local")
 	runGitIn(t, workDir, "add", "-A")
-	runGitIn(t, workDir, "commit", "--quiet", "-m", "initial commit")
+	runGitIn(t, workDir, "commit", "--quiet", "-m", "test: initialize source fixture")
 	defaultSHA := strings.TrimSpace(runGitIn(t, workDir, "rev-parse", "HEAD"))
 
 	projectRoot := filepath.Join(root, "git-http")
@@ -89,7 +89,7 @@ func (r *testGitRemote) commitBranch(t *testing.T, branch, baseRef string, files
 		}
 	}
 	runGitIn(t, r.workDir, "add", "-A")
-	runGitIn(t, r.workDir, "commit", "--quiet", "-m", message)
+	runGitIn(t, r.workDir, "commit", "--quiet", "-m", "test: "+message)
 	sha := strings.TrimSpace(runGitIn(t, r.workDir, "rev-parse", "HEAD"))
 	runGitIn(t, r.workDir, "push", "--quiet", "-f", "origin", "refs/heads/"+branch+":refs/heads/"+branch)
 	refreshBareServer(t, r.bareDir)

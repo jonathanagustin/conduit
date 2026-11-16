@@ -25,6 +25,8 @@ func TestParseIntakeRejectsCredentialsAndMissingFields(t *testing.T) {
 		{"https://github.com", "main"},
 		{"https://github.com/org/app", "main branch"},
 		{"https://github.com/org/app", "../HEAD"},
+		{"https://github.com/org/app", "--upload-pack=unexpected"},
+		{"https://github.com/org/app", "main:other"},
 	}
 	for _, test := range cases {
 		if _, err := ParseIntake(test.url, test.ref); err == nil {
