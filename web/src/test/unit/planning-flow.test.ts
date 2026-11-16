@@ -425,4 +425,61 @@ describe("planning flow API", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("renders Package into Git Workspace after Accept and posts to /compute", async () => {
+    class FakeElement {
+      closest(selector: string) {
+        return selector === "[data-plan-compute]" ? this : null;
+      }
+    }
+    vi.stubGlobal("Element", FakeElement);
+    try {
+      const binding = {
+        profile: { name: "onboard", version: "v3", hash: "ph" },
+        intake: { repoUrl: "https://github.com/excalidraw/excalidraw", ref: "main" },
+        resolvedCommit: "c".repeat(40),
+        model: "conduit-packaging-agent-v1",
+        plan,
+        acceptedAt: "2026-01-01T00:00:00Z",
+      };
+      const accepted = session({ status: "accepted", binding });
+      const html = planningMarkup({
+        ...emptyPlanning(),
+        session: accepted,
+      });
+      expect(html).toContain("data-plan-compute");
+      expect(html).toContain("Package into Git Workspace");
+
+      let click: (event: unknown) => Promise<void> = async () => {};
+      const root = {
+        addEventListener: (type: string, handler: typeof click) => {
+          if (type === "click") click = handler;
+        },
+      };
+      const store = {
+        planning: {
+          ...emptyPlanning(),
+          session: accepted,
+        },
+      };
+      let computeUrl = "";
+      bindPlanning(root, store, () => {}, async (url: string) => {
+        computeUrl = url;
+        return new Response(JSON.stringify(accepted), {
+          status: 200,
+          headers: { "content-type": "application/json" },
+        });
+      });
+
+      await click({ target: new FakeElement() });
+      expect(computeUrl).toBe("/v1/planning-sessions/s1/compute");
+      expect(store.planning.computedWorkspaceId).toBe("wsp_s1");
+      expect(planningMarkup(store.planning)).toContain(
+        "data-plan-computed-workspace",
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
 });
+

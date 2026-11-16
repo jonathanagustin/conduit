@@ -207,6 +207,7 @@ func newRoot() *cobra.Command {
 
 	addPlanningCommands(root, &address, &stateDir)
 	addWorkspaceCommands(root, &stateDir)
+	addAgentExecCommand(root)
 	return root
 }
 
@@ -1192,7 +1193,7 @@ func planningActivities(stateDir string, repository controlplane.Repository, use
 		if err != nil {
 			return planningworkflow.Activities{}, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
 		}
-		runner = planner.Planner{Argv: argv, Timeout: 45 * time.Second}
+		runner = planner.Planner{Argv: argv, Timeout: 45 * time.Second, Clone: workspaceAwareClone(stateDir)}
 	} else if useFixture {
 		runner = fixturePlanningRunner{stateDir: stateDir}
 	}
