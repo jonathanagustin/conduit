@@ -244,7 +244,7 @@ func ParseIntake(repoURL, ref string) (Intake, error) {
 	if len(ref) > 255 {
 		return Intake{}, IntakeError{Reason: "ref is too long"}
 	}
-	if strings.ContainsAny(ref, " \t\r\n") || strings.Contains(ref, "..") {
+	if strings.HasPrefix(ref, "-") || strings.Contains(ref, ":") || strings.ContainsAny(ref, " \t\r\n") || strings.Contains(ref, "..") {
 		return Intake{}, IntakeError{Reason: "ref is not a valid git revision"}
 	}
 	for _, r := range ref {

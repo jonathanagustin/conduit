@@ -298,22 +298,13 @@ func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
 	}
 
-	srcRepo := tmpDir + "/excalidraw-src"
-	if err := os.MkdirAll(srcRepo, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(srcRepo+"/package.json", []byte(`{"name":"excalidraw","version":"0.17.6","scripts":{"start":"yarn start"}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(srcRepo+"/yarn.lock", []byte("# yarn lockfile v1\n"), 0o644); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(srcRepo+"/tsconfig.json", []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
-		t.Fatal(err)
-	}
+	remote := newTestGitRemote(t, "excalidraw", map[string]string{
+		"package.json":  `{"name":"excalidraw","version":"0.17.6","scripts":{"start":"yarn start"}}`,
+		"yarn.lock":     "# yarn lockfile v1\n",
+		"tsconfig.json": `{"compilerOptions":{"strict":true}}`,
+	})
 
 	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
-	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", srcRepo)
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", tmpDir+"/devworkspaces")
 
 	repository := controlplane.NewMemoryRepository()
@@ -329,7 +320,11 @@ func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 	}
 
 	// 1. Create planning session for Excalidraw
-	resp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions", `{"repoUrl":"https://github.com/excalidraw/excalidraw","ref":"main"}`)
+	createReq, _ := json.Marshal(map[string]string{
+		"repoUrl": remote.repoURL,
+		"ref":     "main",
+	})
+	resp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions", string(createReq))
 	var created planningdomain.Session
 	if resp.Code != http.StatusCreated || json.Unmarshal(resp.Body.Bytes(), &created) != nil || created.ID == "" {
 		t.Fatalf("create session: %d %s", resp.Code, resp.Body.String())
@@ -400,7 +395,12 @@ func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 		t.Fatalf("unconfigured compute changed workspace: %v", err)
 	}
 	bindingResp := planningRequest(t, handler, "alice", "GET", "/v1/planning-sessions/"+created.ID+"/binding", "")
-	if bindingResp.Code != http.StatusOK {
+	var bound planningdomain.Binding
+	if bindingResp.Code != http.StatusOK || json.Unmarshal(bindingResp.Body.Bytes(), &bound) != nil {
 		t.Fatalf("accepted binding was lost: %d %s", bindingResp.Code, bindingResp.Body.String())
 	}
+	if bound.ResolvedCommit != remote.defaultSHA || bound.ResolvedCommit == legacyPlaceholderSHA {
+		t.Fatalf("bound ResolvedCommit = %q, want %q", bound.ResolvedCommit, remote.defaultSHA)
+	}
 }
+
