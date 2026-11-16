@@ -37,8 +37,11 @@ The Hub's workspace ACP bridge (`DEVWORKSPACE_ACP_BRIDGE=node`) launches one cod
 
 ## Post-Accept compute
 
-A model command configures planning proposals, not a native image builder or
-package creator. Native workspace compute remains unconfigured and returns
-`COMPUTE_NOT_CONFIGURED` after Accept. It does not substitute a fixture image
-digest or synthetic package archive. See
-[native workspace compute](native-workspace-compute.md) for the evidence boundary.
+A model command configures who writes the Dockerfile and package files. It does
+not admit an image builder. Set `CONDUIT_IMAGE_BUILDER=docker` and
+`DEVWORKSPACE_GIT_ROOT` to run the governed build after Accept. Leave
+`CONDUIT_MODEL_CMD` unset, or set it to `packaging-workflow agent-exec`, for the
+deterministic writer. A live model is the same variable pointed at that CLI,
+for example `CONDUIT_MODEL_CMD="packaging-workflow agent-exec --provider claude"`.
+The Hub still refuses to invent an image digest when the builder is not
+admitted. See [native workspace compute](native-workspace-compute.md).

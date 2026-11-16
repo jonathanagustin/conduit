@@ -1264,6 +1264,7 @@ export function mountOperator(host, options) {
   }
 
   function switchScreen(scrId) {
+    globalThis.switchScreen = switchScreen;
     closeEngineerWorkspace();
     const mapped = areaFor(scrId);
     if (mapped) {

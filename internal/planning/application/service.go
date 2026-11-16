@@ -481,9 +481,9 @@ func (service *Service) appendEvent(session *domain.Session, event domain.Event)
 	session.Events = append(session.Events, event)
 }
 
-// Compute is refused until Accept. After Accept, appgen sessions run the
-// configured appgen compute hook when present; otherwise compute reports that
-// it is not configured.
+// Compute is refused until Accept. After Accept, the configured compute hook
+// runs for the appgen and onboard profiles. The hook reports that compute is
+// not configured when no image builder is admitted.
 func (service *Service) Compute(ctx context.Context, id string) (*domain.Session, error) {
 	service.mu.Lock()
 	session, err := service.mutable(id)
@@ -498,7 +498,7 @@ func (service *Service) Compute(ctx context.Context, id string) (*domain.Session
 	cloned := domain.CloneSession(session)
 	compute := service.appgenCompute
 	service.mu.Unlock()
-	if cloned.Binding != nil && cloned.Binding.Profile.Name == domain.ProfileAppgen && compute != nil {
+	if compute != nil && cloned.Binding != nil && (cloned.Binding.Profile.Name == domain.ProfileAppgen || cloned.Binding.Profile.Name == domain.ProfileOnboard) {
 		if err := compute(ctx, cloned); err != nil {
 			return nil, err
 		}

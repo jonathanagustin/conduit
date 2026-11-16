@@ -30,7 +30,8 @@ export const ERROR_TEXT = {
   ALREADY_ACCEPTED: "This plan is already accepted. Its binding is below.",
   NOT_ACCEPTED: "This session has not been accepted.",
   COMPUTE_BEFORE_ACCEPT: "Compute is refused until the plan is accepted.",
-  COMPUTE_NOT_CONFIGURED: "Package compute is not configured on this Hub.",
+  COMPUTE_NOT_CONFIGURED:
+    "Package compute is not configured. Start the Hub with CONDUIT_IMAGE_BUILDER=docker, and install docker and zarf.",
   NO_PENDING_QUESTIONS: "There are no questions waiting for an answer.",
   UNKNOWN_QUESTION: "An answer did not match a pending question.",
   INVALID_ANSWER: "An answer is not valid for its question.",
@@ -439,6 +440,9 @@ export function emptyPlanning() {
     computedWorkspace: null,
     computedWorkspaceDiff: null,
     selectedWorkspaceFile: "",
+    computedDigest: "",
+    computedOutcome: "",
+    computedChangeRequestId: "",
   };
 }
 
@@ -767,12 +771,18 @@ function bindingPanel(session, planning = {}) {
   const busy = planning.busy === "compute";
   const computed = Boolean(planning.computedWorkspaceId);
   const wsId = planning.computedWorkspaceId || `wsp_${session.id || ""}`;
+  const digest = planning.computedDigest || "";
+  const outcome = planning.computedOutcome || "";
+  const changeID = planning.computedChangeRequestId || "";
   return `<section class="kit-panel kit-card kit-bar-ok kit-pad plan-card plan-binding" data-plan-binding aria-label="Accept binding">
     <div class="kit-header-title"><span class="kit-section">Binding</span><span class="kit-badge kit-badge-ok">Accepted</span></div>
     <dl class="kit-kv">${rows}</dl>
     <div class="plan-actions">
       <button type="button" class="kit-btn kit-btn-sm" data-plan-compute${busy || computed ? " disabled" : ""}>${busy ? "Packaging…" : computed ? "Packaged into Git Workspace" : "Package into Git Workspace"}</button>
       ${computed ? `<span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span>` : ""}
+      ${digest ? `<span class="kit-badge kit-badge-ok code-id" data-plan-image-digest>pinned ${esc(digest)}</span>` : ""}
+      ${outcome ? `<span class="kit-badge kit-badge-muted code-id" data-plan-validation>${esc(outcome)}</span>` : ""}
+      ${changeID ? `<button type="button" class="kit-btn kit-btn-sm" data-plan-review>Review ${esc(changeID)}</button>` : ""}
       <button type="button" class="kit-btn kit-btn-sm" data-plan-new-session>New Session</button>
     </div>
     ${computed ? workspaceSummaryBlock(planning) : ""}
@@ -1142,14 +1152,19 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
         const wsId = `wsp_${planning.session.id}`;
         let computedWorkspace = null;
         let computedWorkspaceDiff = null;
+        let computedDigest = "";
+        let computedOutcome = "";
+        let computedChangeRequestId = "";
         try {
           const wsResp = await fetchImpl(
             `/v1/dev-workspaces/${encodeURIComponent(wsId)}`,
             { headers: { accept: "application/json" } },
           );
           if (wsResp?.ok) computedWorkspace = await wsResp.json();
+          computedDigest = computedWorkspace?.artifactDigest || "";
+          computedOutcome = computedWorkspace?.validationOutcome || "";
         } catch {
-          // Optional workspace detail enrichment.
+          computedDigest = "";
         }
         try {
           const diffResp = await fetchImpl(
@@ -1158,7 +1173,24 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           );
           if (diffResp?.ok) computedWorkspaceDiff = await diffResp.json();
         } catch {
-          // Optional workspace diff enrichment.
+          computedWorkspaceDiff = null;
+        }
+        try {
+          const pageResp = await fetchImpl("/v1/change-requests", {
+            headers: { accept: "application/json" },
+          });
+          if (pageResp?.ok) {
+            const page = await pageResp.json();
+            const rows = Array.isArray(page?.changeRequests) ? page.changeRequests : [];
+            const match = rows.find(
+              (row) =>
+                (computedDigest && String(row?.description || "").includes(computedDigest)) ||
+                String(row?.title || "").includes(wsId),
+            );
+            computedChangeRequestId = match?.id || "";
+          }
+        } catch {
+          computedChangeRequestId = "";
         }
         const firstFile = computedWorkspaceDiff?.files?.[0]?.path || "";
         set({
@@ -1167,11 +1199,20 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
           computedWorkspace,
           computedWorkspaceDiff,
           selectedWorkspaceFile: firstFile,
+          computedDigest,
+          computedOutcome,
+          computedChangeRequestId,
           busy: "",
         });
       } catch (error) {
         fail(error);
       }
+      return;
+    }
+
+    if (hit("[data-plan-review]")) {
+      const open = globalThis.switchScreen;
+      if (typeof open === "function") open("rm07-change-requests");
       return;
     }
 

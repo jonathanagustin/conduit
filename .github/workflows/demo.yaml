@@ -1,0 +1,116 @@
+name: Demo Video
+
+# Pull requests that touch the recorder run a one-second media preflight.
+# A manual run records the governed packaging walkthrough and uploads the MP4.
+# The video is not committed.
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Also upload the MP4 as a release asset
+        type: boolean
+        required: false
+        default: false
+  pull_request:
+    paths:
+      - .github/workflows/demo.yaml
+      - demo/**
+      - tests/demo/**
+      - tests/playwright.demo.config.ts
+
+permissions:
+  contents: read
+
+jobs:
+  preflight:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Media preflight
+        run: python3 demo/tools/check-media.py
+
+  record:
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 180
+    permissions:
+      id-token: write
+      attestations: write
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+      - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
+        with:
+          version: 12.20.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26.13.1
+          cache: pnpm
+          cache-dependency-path: web/pnpm-lock.yaml
+      - name: Install the qualified zarf binary
+        run: |
+          curl -fsSL -o /tmp/zarf https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64
+          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          sudo install -m 0755 /tmp/zarf /usr/local/bin/zarf
+      - name: Build the console
+        run: ./scripts/build-console.sh
+      - name: Start the Hub
+        run: |
+          sudo mkdir -p /opt/conduit-demo && sudo chown "$USER" /opt/conduit-demo
+          PACKAGING_HUB_ONLY=1 \
+            PACKAGING_STATE_DIR=/opt/conduit-demo \
+            PACKAGING_REPO_URL=https://github.com/excalidraw/excalidraw \
+            PACKAGING_REF=a2ec2889babf7d2295469c6d90ebe77fae57df84 \
+            CONDUIT_PACKAGING_BUILD=source \
+            ./scripts/governed-packaging-run.sh
+      - name: Record the console walkthrough
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y xvfb ffmpeg fonts-inter fonts-jetbrains-mono
+          pnpm --dir web install --frozen-lockfile
+          pnpm --dir web exec playwright install --with-deps chrome || pnpm --dir web exec playwright install chrome
+          demo/record-browser.sh packaging tests/demo/packaging.demo.ts
+          demo/assemble.sh demo/out/packaging.mp4 demo/out/conduit-excalidraw-packaging.mp4
+      - name: Attest the recording
+        uses: actions/attest-build-provenance@e8998f949152b193b063cb0ec769d69d929409be # v2.4.0
+        with:
+          subject-path: demo/out/conduit-excalidraw-packaging.mp4
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: conduit-excalidraw-packaging
+          path: |
+            demo/out/conduit-excalidraw-packaging.mp4
+            demo/out/packaging-events.json
+            demo/out/shots/
+          if-no-files-found: error
+
+  publish:
+    needs: record
+    if: github.event_name == 'workflow_dispatch' && inputs.publish
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # v4.3.0
+        with:
+          name: conduit-excalidraw-packaging
+          path: demo/out
+      - name: Upload the release asset
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="demo-${{ github.run_id }}"
+          gh release create "$tag" demo/out/conduit-excalidraw-packaging.mp4 \
+            --repo "${{ github.repository }}" \
+            --title "Governed packaging recording ${{ github.run_id }}" \
+            --notes "Console recording of the governed packaging path. The video is a release asset and is not in git."
