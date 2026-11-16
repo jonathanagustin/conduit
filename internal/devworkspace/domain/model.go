@@ -62,6 +62,7 @@ type Workspace struct {
 	Owner             string    `json:"owner"`
 	Title             string    `json:"title"`
 	Status            string    `json:"status"`
+	UpstreamRepo      string    `json:"upstreamRepo,omitempty"`
 	RepoURL           string    `json:"repoUrl,omitempty"`
 	Branch            string    `json:"branch,omitempty"`
 	BaseCommit        string    `json:"baseCommit,omitempty"`

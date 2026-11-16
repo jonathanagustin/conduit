@@ -9,6 +9,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"syscall"
 	"time"
@@ -25,6 +26,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingapp "github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
@@ -100,7 +102,7 @@ func newRoot() *cobra.Command {
 			}
 			defer work.Stop()
 
-			planActs, err := planningActivities(repository, planFixture)
+			planActs, err := planningActivities(stateDir, repository, planFixture)
 			if err != nil {
 				return err
 			}
@@ -207,23 +209,89 @@ func newRoot() *cobra.Command {
 }
 
 func addPlanningCommands(root *cobra.Command, address, stateDir *string) {
-	var sessionID, actor string
+	var (
+		sessionID        string
+		actor            string
+		workspaceID      string
+		githubRepo       string
+		githubAPIBaseURL string
+		createGitHubRepo bool
+		githubPrivate    bool
+		localOnly        bool
+	)
 	createCmd := &cobra.Command{
-		Use:   "plan-create <repo-url> [ref]",
-		Short: "Start a durable Temporal planning session workflow",
+		Use:   "plan-create <repo-url-or-path> [ref]",
+		Short: "Bootstrap a durable workspace repository (on GitHub or locally) from an online or filesystem source and start a planning session",
 		Args:  cobra.RangeArgs(1, 2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ref := "main"
 			if len(args) == 2 {
 				ref = args[1]
 			}
+			sourceInput := strings.TrimSpace(args[0])
+			wsID := strings.TrimSpace(workspaceID)
+			if wsID == "" {
+				wsID = "wsp_" + sessionID
+			}
+			owner := strings.TrimSpace(actor)
+			if owner == "" {
+				owner = "operator"
+			}
+			intakeRepoURL := sourceInput
+			store, _, _, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+			if err != nil {
+				return err
+			}
+			branch := fmt.Sprintf("workspace/%s/%s", owner, wsID)
+			wantGitHub := createGitHubRepo || strings.TrimSpace(githubRepo) != "" || os.Getenv("CONDUIT_CREATE_GITHUB_REPO") == "1"
+			localOnlyMode := localOnly || (!wantGitHub && !cmd.Flags().Changed("create-github-repo"))
+			boot, bootErr := gitstore.BootstrapSource(context.Background(), gitstore.BootstrapOptions{
+				WorkspaceID:      wsID,
+				SourceRepo:       sourceInput,
+				Ref:              ref,
+				Branch:           branch,
+				DestDir:          store.RepoDir(wsID),
+				LocalRemoteDir:   filepath.Join(*stateDir, "devworkspaces", "remotes", wsID+".git"),
+				CreateGitHubRepo: wantGitHub,
+				LocalOnly:        localOnlyMode,
+				GitHubRepo:       githubRepo,
+				GitHubPrivate:    githubPrivate,
+				GitHubAPIBaseURL: githubAPIBaseURL,
+			})
+			if bootErr != nil {
+				if wantGitHub || isLocalDir(sourceInput) || strings.HasPrefix(sourceInput, "file://") {
+					return bootErr
+				}
+			} else {
+				intakeRepoURL = boot.RepoURL
+				now := time.Now().UTC()
+				ws := devworkspacedomain.Touch(devworkspacedomain.Workspace{
+					ID:               wsID,
+					ProfileID:        planningdomain.ProfileOnboard,
+					EnvironmentID:    "dev",
+					Owner:            owner,
+					Title:            "Workspace for " + sessionID,
+					Status:           devworkspacedomain.StatusRunning,
+					UpstreamRepo:     sourceInput,
+					RepoURL:          boot.RepoURL,
+					Branch:           boot.Branch,
+					BaseCommit:       boot.BaseCommit,
+					HeadCommit:       boot.HeadCommit,
+					SourceDigest:     "git:" + boot.BaseCommit,
+					ProposalRevision: boot.HeadCommit,
+				}, now)
+				if err := store.Save(context.Background(), ws); err != nil {
+					return err
+				}
+			}
+
 			c, err := dial(*address)
 			if err != nil {
 				return err
 			}
 			defer c.Close()
 			svc := planningworkflow.NewClientService(c, planningworkflow.TaskQueue, actor, nil)
-			session, err := svc.CreateWithID(context.Background(), sessionID, args[0], ref)
+			session, err := svc.CreateWithID(context.Background(), sessionID, intakeRepoURL, ref)
 			if err != nil {
 				return err
 			}
@@ -232,6 +300,12 @@ func addPlanningCommands(root *cobra.Command, address, stateDir *string) {
 	}
 	createCmd.Flags().StringVar(&sessionID, "session-id", "ps_1", "planning session identifier")
 	createCmd.Flags().StringVar(&actor, "actor", "operator", "operator identity owning the session")
+	createCmd.Flags().StringVar(&workspaceID, "workspace-id", "", "workspace ID to initialize (default wsp_<session-id>)")
+	createCmd.Flags().BoolVar(&createGitHubRepo, "create-github-repo", false, "create a new durable GitHub repository and push the initial source tree to it")
+	createCmd.Flags().StringVar(&githubRepo, "github-repo", "", "target GitHub repository (<owner/name> or <name>) to create as the durable workspace remote")
+	createCmd.Flags().BoolVar(&githubPrivate, "github-private", false, "create the new GitHub repository as private")
+	createCmd.Flags().BoolVar(&localOnly, "local-only", false, "use a local bare Git repository as origin instead of creating a GitHub repository")
+	createCmd.Flags().StringVar(&githubAPIBaseURL, "github-api-url", "", "optional GitHub REST API base URL override")
 	root.AddCommand(createCmd)
 
 	var turnActor string
@@ -650,10 +724,20 @@ func (a *fileWorkspaceComputeAuditor) RecordWorkspacePackage(ctx context.Context
 }
 
 func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
-	var createActor, createID, createRepoURL string
+	var (
+		createActor      string
+		createID         string
+		createRepoURL    string
+		createRef        string
+		createGitHubRepo bool
+		githubRepo       string
+		githubPrivate    bool
+		localOnly        bool
+		githubAPIBaseURL string
+	)
 	wsCreateCmd := &cobra.Command{
 		Use:   "workspace-create <profile-id> <environment-id> [title]",
-		Short: "Create a durable Git-backed developer workspace",
+		Short: "Create a durable Git-backed developer workspace (optionally bootstrapping a new GitHub repository from an online or local source)",
 		Args:  cobra.RangeArgs(2, 3),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			title := ""
@@ -665,16 +749,56 @@ func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
 				return err
 			}
 			caller := devworkspacedomain.Caller{Username: createActor}
-			if strings.TrimSpace(createID) != "" {
+			if strings.TrimSpace(createID) != "" || strings.TrimSpace(createRepoURL) != "" {
+				wsID := strings.TrimSpace(createID)
+				if wsID == "" {
+					wsID = fmt.Sprintf("wsp_%d", time.Now().UTC().UnixNano())
+				}
+				owner := strings.TrimSpace(createActor)
+				if owner == "" {
+					owner = "operator"
+				}
+				branch := fmt.Sprintf("workspace/%s/%s", owner, wsID)
+				repoURL := strings.TrimSpace(createRepoURL)
+				var baseCommit, headCommit string
+				if repoURL != "" {
+					wantGitHub := createGitHubRepo || strings.TrimSpace(githubRepo) != "" || os.Getenv("CONDUIT_CREATE_GITHUB_REPO") == "1"
+					localOnlyMode := localOnly || (!wantGitHub && !cmd.Flags().Changed("create-github-repo"))
+					boot, bootErr := gitstore.BootstrapSource(context.Background(), gitstore.BootstrapOptions{
+						WorkspaceID:      wsID,
+						SourceRepo:       repoURL,
+						Ref:              createRef,
+						Branch:           branch,
+						DestDir:          store.RepoDir(wsID),
+						LocalRemoteDir:   filepath.Join(*stateDir, "devworkspaces", "remotes", wsID+".git"),
+						CreateGitHubRepo: wantGitHub,
+						LocalOnly:        localOnlyMode,
+						GitHubRepo:       githubRepo,
+						GitHubPrivate:    githubPrivate,
+						GitHubAPIBaseURL: githubAPIBaseURL,
+					})
+					if bootErr != nil {
+						return bootErr
+					}
+					repoURL = boot.RepoURL
+					branch = boot.Branch
+					baseCommit = boot.BaseCommit
+					headCommit = boot.HeadCommit
+				}
 				now := time.Now().UTC()
 				ws := devworkspacedomain.Touch(devworkspacedomain.Workspace{
-					ID:            createID,
-					ProfileID:     args[0],
-					EnvironmentID: args[1],
-					Owner:         createActor,
-					Title:         strings.TrimSpace(title),
-					RepoURL:       createRepoURL,
-					Status:        devworkspacedomain.StatusRunning,
+					ID:               wsID,
+					ProfileID:        args[0],
+					EnvironmentID:    args[1],
+					Owner:            owner,
+					Title:            strings.TrimSpace(title),
+					UpstreamRepo:     strings.TrimSpace(createRepoURL),
+					RepoURL:          repoURL,
+					Branch:           branch,
+					BaseCommit:       baseCommit,
+					HeadCommit:       headCommit,
+					ProposalRevision: headCommit,
+					Status:           devworkspacedomain.StatusRunning,
 				}, now)
 				if ws.Title == "" {
 					ws.Title = ws.ID
@@ -682,7 +806,7 @@ func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
 				if err := store.Save(context.Background(), ws); err != nil {
 					return err
 				}
-				saved, err := store.Get(context.Background(), createID)
+				saved, err := store.Get(context.Background(), wsID)
 				if err != nil {
 					return err
 				}
@@ -697,7 +821,13 @@ func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
 	}
 	wsCreateCmd.Flags().StringVar(&createActor, "actor", "operator", "operator identity owning the workspace")
 	wsCreateCmd.Flags().StringVar(&createID, "workspace-id", "", "optional explicit workspace ID")
-	wsCreateCmd.Flags().StringVar(&createRepoURL, "repo-url", "", "optional upstream Git repository URL or path")
+	wsCreateCmd.Flags().StringVar(&createRepoURL, "repo-url", "", "optional upstream Git repository URL or local filesystem path")
+	wsCreateCmd.Flags().StringVar(&createRef, "ref", "main", "upstream Git ref (branch, tag, or commit) to check out")
+	wsCreateCmd.Flags().BoolVar(&createGitHubRepo, "create-github-repo", false, "create a new durable GitHub repository and push the initial source tree to it")
+	wsCreateCmd.Flags().StringVar(&githubRepo, "github-repo", "", "target GitHub repository (<owner/name> or <name>) to create as the durable workspace remote")
+	wsCreateCmd.Flags().BoolVar(&githubPrivate, "github-private", false, "create the new GitHub repository as private")
+	wsCreateCmd.Flags().BoolVar(&localOnly, "local-only", false, "use a local bare Git repository as origin instead of creating a GitHub repository")
+	wsCreateCmd.Flags().StringVar(&githubAPIBaseURL, "github-api-url", "", "optional GitHub REST API base URL override")
 	root.AddCommand(wsCreateCmd)
 
 	var listActor string
@@ -976,7 +1106,7 @@ func activitiesWithRepository(stateDir, fixtureDir string) (pipeline.Activities,
 	}, repository, nil
 }
 
-func planningActivities(repository controlplane.Repository, useFixture bool) (planningworkflow.Activities, error) {
+func planningActivities(stateDir string, repository controlplane.Repository, useFixture bool) (planningworkflow.Activities, error) {
 	var runner planningapp.Planner
 	if raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD")); raw != "" {
 		argv, err := localcmd.ParseArgv(raw)
@@ -985,7 +1115,7 @@ func planningActivities(repository controlplane.Repository, useFixture bool) (pl
 		}
 		runner = planner.Planner{Argv: argv, Timeout: 45 * time.Second}
 	} else if useFixture {
-		runner = fixturePlanningRunner{}
+		runner = fixturePlanningRunner{stateDir: stateDir}
 	}
 	return planningworkflow.Activities{
 		Planner: runner,
@@ -993,30 +1123,77 @@ func planningActivities(repository controlplane.Repository, useFixture bool) (pl
 	}, nil
 }
 
-type fixturePlanningRunner struct{}
+type fixturePlanningRunner struct {
+	stateDir string
+}
 
-func (fixturePlanningRunner) Turn(_ context.Context, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
+func (f fixturePlanningRunner) Turn(ctx context.Context, session *planningdomain.Session, message string) (*planningapp.TurnResult, error) {
 	profile := planningdomain.ProfileRef{
 		Name:    planningdomain.ProfileOnboard,
 		Version: packagingskill.Version,
 		Hash:    packagingskill.SHA256(),
 	}
 	if session.Inspection == nil {
+		inspection := &planningdomain.Inspection{
+			Language:       "JavaScript",
+			PackageManager: "npm",
+			Kind:           "service",
+			StartCommand:   "node server.js",
+			Ports:          []int{8080},
+			HasDockerfile:  false,
+			Tree:           []string{"README.md", "package.json"},
+			ToolCalls:      []string{"inspect_repo", "read_file"},
+		}
+		resolvedCommit := "3a317b550123456789abcdef0123456789abcdef"
+		if strings.TrimSpace(f.stateDir) != "" && session != nil {
+			if store, _, _, err := openWorkspaceBackend(f.stateDir, 0, 0, nil); err == nil {
+				wsID := "wsp_" + session.ID
+				if ws, wsErr := store.Get(ctx, wsID); wsErr == nil {
+					if ws.BaseCommit != "" {
+						resolvedCommit = ws.BaseCommit
+					}
+					tools := packagingtools.New(packagingtools.WithRepoRoot(store.RepoDir(wsID)))
+					if realInspect, inspErr := tools.InspectRepo(ctx); inspErr == nil && len(realInspect.Tree) > 0 {
+						ports := realInspect.Ports
+						if len(ports) == 0 {
+							ports = []int{8080}
+						}
+						lang := realInspect.Language
+						if lang == "" {
+							lang = "JavaScript"
+						}
+						pm := realInspect.PackageManager
+						if pm == "" {
+							pm = "npm"
+						}
+						kind := realInspect.Kind
+						if kind == "" {
+							kind = "service"
+						}
+						startCmd := realInspect.StartCommand
+						if startCmd == "" {
+							startCmd = "node server.js"
+						}
+						inspection = &planningdomain.Inspection{
+							Language:       lang,
+							PackageManager: pm,
+							Kind:           kind,
+							StartCommand:   startCmd,
+							Ports:          ports,
+							HasDockerfile:  realInspect.HasDockerfile,
+							Tree:           realInspect.Tree,
+							ToolCalls:      []string{"inspect_repo", "read_file"},
+						}
+					}
+				}
+			}
+		}
 		return &planningapp.TurnResult{
 			Messages: []planningdomain.Message{{
 				Role: planningdomain.RoleModel,
-				Text: "Inspected repository: Node service with package.json and README.md. I have 1 question(s) before I can write the plan.",
+				Text: fmt.Sprintf("Inspected repository (%s / %s, %d file(s)). I have 1 question(s) before I can write the plan.", inspection.Language, inspection.PackageManager, len(inspection.Tree)),
 			}},
-			Inspection: &planningdomain.Inspection{
-				Language:       "JavaScript",
-				PackageManager: "npm",
-				Kind:           "service",
-				StartCommand:   "node server.js",
-				Ports:          []int{8080},
-				HasDockerfile:  false,
-				Tree:           []string{"README.md", "package.json"},
-				ToolCalls:      []string{"inspect_repo", "read_file"},
-			},
+			Inspection: inspection,
 			NeedsInput: []planningdomain.Question{{
 				ID:       "node_version",
 				Name:     "node_version",
@@ -1025,7 +1202,7 @@ func (fixturePlanningRunner) Turn(_ context.Context, session *planningdomain.Ses
 				Required: true,
 				Options:  []string{"18", "20"},
 			}},
-			ResolvedCommit: "3a317b550123456789abcdef0123456789abcdef",
+			ResolvedCommit: resolvedCommit,
 			Model:          planningdomain.DefaultModelLabel,
 			Profile:        profile,
 		}, nil

@@ -9,6 +9,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	devchange "github.com/jonathanagustin/conduit/internal/devworkspace/adapters/changerequest"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/cluster"
+	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/process"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/recorded"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/application"
@@ -25,7 +26,18 @@ func assembleDevWorkspace(
 ) *application.Service {
 	store := recorded.New()
 	service := controlplane.NewGovernanceService(repository)
+	var records ports.Catalog = store
+	var files ports.Files = store.Files()
 	var runtime ports.Runtime
+	if gitRoot := strings.TrimSpace(getenv("DEVWORKSPACE_GIT_ROOT")); gitRoot != "" {
+		if gitBacked, err := gitstore.Open(gitstore.Options{
+			RootDir: gitRoot,
+		}); err == nil {
+			records = gitBacked
+			files = gitBacked.Tree()
+			runtime = gitBacked
+		}
+	}
 	switch getenv("DEVWORKSPACE_RUNTIME") {
 	case "process":
 		runtime = process.New(nil, nil)
@@ -38,7 +50,7 @@ func assembleDevWorkspace(
 		pods = cluster.Fallback{Primary: cluster.New(getenv("DEVWORKSPACE_IMAGE")), Secondary: store.Pods()}
 	}
 	return application.New(application.Dependencies{
-		Records: store, Files: store.Files(), Runtime: runtime, Pods: pods,
+		Records: records, Files: files, Runtime: runtime, Pods: pods,
 		Submitter: devchange.New(service), Auditor: devAudit{repository: repository},
 		PodsEnabled: podsOn,
 	})
