@@ -1,3 +1,7 @@
+import {
+  fetchPackagingRuns,
+  packagingRunsTransport,
+} from "../../api/packaging-runs.js";
 import { LiveSubscription, idleLiveStatus } from "../../api/live-events.js";
 import { createLiveOperations } from "./live-operations.js";
 import { liveSessionIdentity } from "../../api/live-identity.js";
@@ -623,7 +627,14 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.rolloutNote = "Hub did not return staged rollouts.";
     }
     try {
-      const body = await read("/v1/packaging-runs");
+      // Live catch-up uses the typed read. Initial/manual refresh retains the
+      // existing REST path during this bounded migration.
+      const body = options.live
+        ? await fetchPackagingRuns(
+            packagingRunsTransport(window.location.origin),
+            options.signal,
+          )
+        : await read("/v1/packaging-runs");
       if (options.live && !Array.isArray(body.items))
         throw new Error("Invalid packaging index");
       next.packaging = Array.isArray(body.items) ? body.items : [];
