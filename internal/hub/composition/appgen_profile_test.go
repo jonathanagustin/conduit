@@ -274,6 +274,10 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 	if reason := checks.PackageCR(string(crBytes)); reason != "" {
 		t.Fatalf("PackageCR gate failed: %s", reason)
 	}
+	outEntries, err := os.ReadDir(filepath.Join(repoDir, "out"))
+	if err != nil || len(outEntries) == 0 {
+		t.Fatalf("expected zarf package create archive in %s/out, got entries=%d err=%v", repoDir, len(outEntries), err)
+	}
 
 	// Verify a governed ChangeRequest was opened and requires a second reviewer.
 	crs, err := repository.ListChangeRequests(t.Context(), "")
@@ -331,6 +335,58 @@ func TestAppgenProfileFailsClosedWhenSandboxBuildFails(t *testing.T) {
 	crs, err := repository.ListChangeRequests(t.Context(), "")
 	if err != nil || len(crs) != 0 {
 		t.Fatalf("expected 0 ChangeRequests when sandbox build fails, got %d (err=%v)", len(crs), err)
+	}
+}
+
+func TestAppgenProfileFailsClosedWhenZarfLintOrCreateFails(t *testing.T) {
+	gitRoot := t.TempDir()
+	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
+	t.Setenv("PACKAGING_FIXTURE_DIR", t.TempDir())
+	t.Setenv("ZARF_BIN", filepath.Join(t.TempDir(), "missing-zarf-binary"))
+	sandbox := &testAppgenSandbox{}
+	publisher := &testAppgenPublisher{}
+	repository := controlplane.NewMemoryRepository()
+	handler, err := NewHub(
+		repository,
+		controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true},
+		Options{
+			AppGenerator:    recorded.Adapter{},
+			AppgenSandbox:   sandbox,
+			AppgenPublisher: publisher,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	resp := planningRequest(t, handler, "alice", http.MethodPost, "/v1/planning-sessions", `{"profile":"appgen","problemStatement":"Create a service catalog portal","appName":"hello-http"}`)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", resp.Code, resp.Body.String())
+	}
+	var session planningdomain.Session
+	if err := json.Unmarshal(resp.Body.Bytes(), &session); err != nil {
+		t.Fatal(err)
+	}
+	path := "/v1/planning-sessions/" + session.ID
+	if r := planningRequest(t, handler, "alice", http.MethodPost, path+"/turns", `{}`); r.Code != http.StatusOK {
+		t.Fatalf("turn: %d %s", r.Code, r.Body.String())
+	}
+	if r := planningRequest(t, handler, "alice", http.MethodPost, path+"/accept", `{}`); r.Code != http.StatusOK {
+		t.Fatalf("accept: %d %s", r.Code, r.Body.String())
+	}
+	computeResp := planningRequest(t, handler, "alice", http.MethodPost, path+"/compute", `{}`)
+	if computeResp.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 Bad Gateway when Zarf lint/create fails, got %d %s", computeResp.Code, computeResp.Body.String())
+	}
+	store, err := gitstore.Open(gitstore.Options{RootDir: gitRoot})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := store.Get(t.Context(), "wsp_"+session.ID); err == nil {
+		t.Fatal("expected workspace not to be recorded as PASS when Zarf lint/create fails")
+	}
+	crs, err := repository.ListChangeRequests(t.Context(), "")
+	if err != nil || len(crs) != 0 {
+		t.Fatalf("expected 0 ChangeRequests when Zarf lint/create fails, got %d (err=%v)", len(crs), err)
 	}
 }
 

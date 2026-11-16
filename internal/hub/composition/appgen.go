@@ -86,14 +86,6 @@ func newAppGenerationService(
 	return service
 }
 
-func mountAppGeneration(
-	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, generator appdomain.AppGenerator,
-	stored *attachapp.Service,
-) http.Handler {
-	service := newAppGenerationService(repository, generator, stored, nil, nil, os.Getenv)
-	return mountAppGenerationWithService(legacy, options, service)
-}
-
 func mountAppGenerationWithService(
 	legacy http.Handler, options controlplane.HandlerOptions, service application.Service,
 ) http.Handler {
@@ -153,26 +145,49 @@ func appgenPlanningComputer(
 			return fmt.Errorf("packaging uds-package.yaml gate: %s", reason)
 		}
 		wsID := "wsp_" + session.ID
+		var (
+			store  *gitstore.Store
+			pkgDir string
+		)
 		if gitRoot := strings.TrimSpace(getenv("DEVWORKSPACE_GIT_ROOT")); gitRoot != "" {
-			store, err := gitstore.Open(gitstore.Options{RootDir: gitRoot})
+			var openErr error
+			store, openErr = gitstore.Open(gitstore.Options{RootDir: gitRoot})
+			if openErr != nil {
+				return openErr
+			}
+			pkgDir = store.RepoDir(wsID)
+			if err := os.MkdirAll(pkgDir, 0o755); err != nil {
+				return err
+			}
+		} else {
+			tmpDir, err := os.MkdirTemp("", "conduit-appgen-pkg-*")
 			if err != nil {
 				return err
 			}
-			repoDir := store.RepoDir(wsID)
-			if err := os.MkdirAll(repoDir, 0o755); err != nil {
+			defer func() { _ = os.RemoveAll(tmpDir) }()
+			pkgDir = tmpDir
+		}
+		for _, f := range res.Files {
+			if err := os.WriteFile(filepath.Join(pkgDir, f.Path), []byte(f.Content), 0o600); err != nil {
 				return err
 			}
-			for _, f := range res.Files {
-				if err := os.WriteFile(filepath.Join(repoDir, f.Path), []byte(f.Content), 0o600); err != nil {
-					return err
-				}
+		}
+		if err := os.WriteFile(filepath.Join(pkgDir, ".dockerignore"), []byte(dockerIgnore), 0o600); err != nil {
+			return err
+		}
+		if err := os.WriteFile(filepath.Join(pkgDir, "package-source.yaml"), []byte(res.PackagingSource), 0o600); err != nil {
+			return err
+		}
+		if err := checks.Lint(ctx, pkgDir); err != nil {
+			return fmt.Errorf("packaging zarf lint gate: %w", err)
+		}
+		if archive, err := checks.Create(ctx, pkgDir, filepath.Join(pkgDir, "out")); err != nil || strings.TrimSpace(archive) == "" {
+			if err != nil {
+				return fmt.Errorf("packaging zarf create gate: %w", err)
 			}
-			if err := os.WriteFile(filepath.Join(repoDir, ".dockerignore"), []byte(dockerIgnore), 0o600); err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(repoDir, "package-source.yaml"), []byte(res.PackagingSource), 0o600); err != nil {
-				return err
-			}
+			return fmt.Errorf("packaging zarf create gate: archive was not created")
+		}
+		if store != nil {
 			now := time.Now().UTC()
 			if err := store.Save(ctx, devdomain.Touch(devdomain.Workspace{
 				ID:                wsID,

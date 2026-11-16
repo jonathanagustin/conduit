@@ -4,6 +4,8 @@ package sandbox
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"net"
@@ -11,6 +13,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"time"
@@ -48,73 +51,56 @@ func (Docker) Build(ctx context.Context, input application.BuildRequest) (applic
 	if err := os.Chmod(filepath.Join(dir, "app"), 0o755); err != nil {
 		return application.BuildResult{}, err
 	}
-	tag := "appgen-" + input.Spec.Name + ":local"
-	output, err := exec.CommandContext(ctx, "docker", "build", "--network", "none", "--tag", tag, dir).CombinedOutput()
+	tag := "appgen-build-" + filepath.Base(dir) + ":local"
+	output, err := exec.CommandContext(ctx, "docker", "build", "--network", "none", "--tag", tag, "--iidfile", filepath.Join(dir, "image-id"), dir).CombinedOutput()
 	if err != nil {
 		return fail("image build failed: " + firstLine(output)), nil
 	}
-	id, err := exec.CommandContext(ctx, "docker", "image", "inspect", "--format", "{{.Id}}", tag).Output()
-	if err != nil {
+	id, err := os.ReadFile(filepath.Join(dir, "image-id"))
+	if err != nil || !imageIDPattern.MatchString(strings.TrimSpace(string(id))) {
 		return fail("image id was not recorded"), nil
 	}
 	return application.BuildResult{Passed: true, Reason: "image built with no network as a non-root scratch image", ImageID: strings.TrimSpace(string(id))}, nil
 }
 
+var imageIDPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
+
 func (Docker) Check(ctx context.Context, built application.BuildResult, input application.BuildRequest) (application.HealthResult, error) {
-	if strings.TrimSpace(built.ImageID) == "" {
-		return application.HealthResult{Reason: "no image to start"}, nil
+	if !built.Passed || !imageIDPattern.MatchString(built.ImageID) {
+		return application.HealthResult{Reason: "no verified image to start"}, nil
 	}
-	tag := "appgen-" + input.Spec.Name + ":local"
-	name := "appgen-check-" + input.Spec.Name
-	_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
+	var nonce [16]byte
+	if _, err := rand.Read(nonce[:]); err != nil {
+		return application.HealthResult{}, err
+	}
+	name := "appgen-check-" + hex.EncodeToString(nonce[:])
+	// A failed start can still create a container. Cleanup is restricted to
+	// this invocation's unpredictable name; never remove a shared app name.
 	defer exec.Command("docker", "rm", "-f", name).Run()
-	memory := memoryFlag(input.Spec.Resources.Memory)
-	base := []string{
+	args := []string{
 		"run", "--detach", "--name", name, "--read-only", "--cap-drop", "ALL",
 		"--security-opt", "no-new-privileges:true", "--user", "65532:65532",
-		"--memory", memory, "--pids-limit", "64",
+		"--memory", memoryFlag(input.Spec.Resources.Memory), "--pids-limit", "64",
+		"--network", "bridge", "-p", fmt.Sprintf("127.0.0.1::%d", input.Spec.Port), built.ImageID,
 	}
-	port := input.Spec.Port
-	args := append(append([]string{}, base...), "--network", "bridge", "-p", fmt.Sprintf("127.0.0.1::%d", port), tag)
 	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
-	if err == nil {
-		if hostPort, ok := publishedHostPort(ctx, name, port); ok {
-			if reason := waitHealth(ctx, "127.0.0.1", hostPort); reason != "" {
-				logs, _ := exec.CommandContext(ctx, "docker", "logs", name).CombinedOutput()
-				if text := firstLine(logs); text != "" {
-					reason = reason + ": " + text
-				}
-				return application.HealthResult{Reason: reason}, nil
-			}
-			return application.HealthResult{Passed: true, Reason: "GET /health returned 200 within the timeout"}, nil
-		}
-		if ip := containerIP(ctx, name); ip != "" {
-			if reason := waitHealth(ctx, ip, port); reason == "" {
-				return application.HealthResult{Passed: true, Reason: "GET /health returned 200 on the container network"}, nil
-			}
-		}
-		// docker run can return success with no published port and no
-		// container IP when the daemon has no usable bridge (for example
-		// --bridge=none). Fall through to the host network.
-		_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
-	} else if !bridgeUnavailable(string(output)) {
-		return application.HealthResult{Reason: "container did not start: " + firstLine(output)}, nil
-	} else {
-		_ = exec.CommandContext(ctx, "docker", "rm", "-f", name).Run()
-	}
-	hostPort, err := freePort()
 	if err != nil {
-		return application.HealthResult{Reason: "no local port for the health check"}, nil
+		return application.HealthResult{Reason: "container did not start: " + firstLine(output)}, nil
 	}
-	port = hostPort
-	args = append(append([]string{}, base...), "--network", "host", "-e", "PORT="+strconv.Itoa(port), tag)
-	if output, err = exec.CommandContext(ctx, "docker", args...).CombinedOutput(); err != nil {
-		return application.HealthResult{Reason: "container did not start on the host network: " + firstLine(output)}, nil
+	hostPort, ok := publishedHostPort(ctx, name, input.Spec.Port)
+	if !ok {
+		return application.HealthResult{Reason: "container has no loopback health port"}, nil
 	}
-	if reason := waitHealth(ctx, "127.0.0.1", port); reason != "" {
+	if reason := waitHealth(ctx, "127.0.0.1", hostPort); reason != "" {
 		return application.HealthResult{Reason: reason}, nil
 	}
-	return application.HealthResult{Passed: true, Reason: "GET /health returned 200 on the host network"}, nil
+	// Do not accept another process's response after the owned container
+	// exited or when the daemon did not start the requested immutable image.
+	observed, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Image}} {{.State.Running}}", name).Output()
+	if err != nil || strings.TrimSpace(string(observed)) != built.ImageID+" true" {
+		return application.HealthResult{Reason: "healthy response did not match the running built image"}, nil
+	}
+	return application.HealthResult{Passed: true, Reason: "GET /health returned 200 for the running built image"}, nil
 }
 
 func publishedHostPort(ctx context.Context, name string, containerPort int) (int, bool) {
@@ -141,40 +127,11 @@ func hostPortFromPortsJSON(raw []byte, containerPort int) (int, bool) {
 	}
 	key := strconv.Itoa(containerPort) + "/tcp"
 	for _, binding := range ports[key] {
-		if port, err := strconv.Atoi(strings.TrimSpace(binding.HostPort)); err == nil && port > 0 {
+		if port, err := strconv.Atoi(strings.TrimSpace(binding.HostPort)); err == nil && port > 0 && port <= 65535 && binding.HostIP == "127.0.0.1" {
 			return port, true
 		}
 	}
 	return 0, false
-}
-
-func containerIP(ctx context.Context, name string) string {
-	inspect, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{json .NetworkSettings}}", name).Output()
-	if err != nil {
-		return ""
-	}
-	return containerIPFromInspect(inspect)
-}
-
-func containerIPFromInspect(raw []byte) string {
-	var settings struct {
-		IPAddress string `json:"IPAddress"`
-		Networks  map[string]struct {
-			IPAddress string `json:"IPAddress"`
-		} `json:"Networks"`
-	}
-	if err := json.Unmarshal(raw, &settings); err != nil {
-		return ""
-	}
-	if ip := strings.TrimSpace(settings.IPAddress); ip != "" {
-		return ip
-	}
-	for _, network := range settings.Networks {
-		if ip := strings.TrimSpace(network.IPAddress); ip != "" {
-			return ip
-		}
-	}
-	return ""
 }
 
 func waitHealth(ctx context.Context, host string, port int) string {
@@ -207,23 +164,18 @@ func waitHealth(ctx context.Context, host string, port int) string {
 	return "health check timed out: " + last
 }
 
-func bridgeUnavailable(output string) bool {
-	text := strings.ToLower(output)
-	return strings.Contains(text, "bridge") || strings.Contains(text, "iptables") || strings.Contains(text, "network") && strings.Contains(text, "not found")
-}
-
 func hostPortOf(value string) (int, bool) {
 	value = strings.TrimSpace(value)
 	if value == "" {
 		return 0, false
 	}
 	line := strings.Split(value, "\n")[0]
-	_, port, err := net.SplitHostPort(line)
+	host, port, err := net.SplitHostPort(line)
 	if err != nil {
 		return 0, false
 	}
 	parsed, err := strconv.Atoi(port)
-	if err != nil || parsed < 1 {
+	if err != nil || host != "127.0.0.1" || parsed < 1 || parsed > 65535 {
 		return 0, false
 	}
 	return parsed, true
@@ -243,15 +195,6 @@ func memoryFlag(value string) string {
 		return strconv.Itoa(n*1024) + "m"
 	}
 	return "64m"
-}
-
-func freePort() (int, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil {
-		return 0, err
-	}
-	defer listener.Close()
-	return listener.Addr().(*net.TCPAddr).Port, nil
 }
 
 func writeFile(dir, name string, body []byte) error {
