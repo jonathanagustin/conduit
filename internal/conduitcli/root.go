@@ -449,7 +449,7 @@ func planCommand(state *commandState) *cobra.Command {
 			})
 		},
 	})
-	var rationale string
+	var rationale, approvalTransport string
 	approve := &cobra.Command{
 		Use:   "approve PLAN_ID",
 		Short: "Approve a reviewed Plan",
@@ -458,12 +458,11 @@ func planCommand(state *commandState) *cobra.Command {
 			if strings.TrimSpace(rationale) == "" {
 				return fmt.Errorf("--rationale is required")
 			}
-			return state.execute(command, func(service Service) (any, error) {
-				return planView(service.ApprovePlan(command.Context(), args[0], rationale))
-			})
+			return executePlanApproval(command, state, args[0], rationale, approvalTransport)
 		},
 	}
 	approve.Flags().StringVar(&rationale, "rationale", "", "review rationale")
+	approve.Flags().StringVar(&approvalTransport, "write-transport", "rest", "Approval transport: rest (full Plan) or connect (conduit.plan-approval/v1 receipt); failures are not replayed")
 	command.AddCommand(approve)
 	var reason string
 	cancel := &cobra.Command{
