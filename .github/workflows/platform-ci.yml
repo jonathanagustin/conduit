@@ -327,6 +327,16 @@ jobs:
           echo 'e9b88b4ee95b18c706839c28d3a0220e5bc470e9cd9262410c90793c45ff8b7c  /tmp/helm.tar.gz' | sha256sum --check
           tar -xzf /tmp/helm.tar.gz -C /tmp
           sudo install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+      # Accepted app generation lints and creates a package with zarf. The binary
+      # is the same pin as the air-gap gate; without it on PATH that test fails.
+      - name: Install pinned Zarf
+        if: needs.scope.outputs.go == 'true'
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            --output /tmp/zarf
+          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          sudo install -m 0755 /tmp/zarf /usr/local/bin/zarf
       # Nothing here checked formatting until now: vet does not, and staticcheck
       # does not. An unformatted file reached main in #21 and stayed there
       # through eighteen merges because no gate looked. This runs first because
