@@ -34,7 +34,7 @@ export async function fetchProductSummaries(
       page.limit > 200 ||
       page.products.length > page.limit ||
       page.products.some(
-        (product) => !product.product || product.releaseCount < 0n,
+        (product) => !product.product || product.releaseCount < BigInt(0),
       )
     )
       throw new HubError(502, "Product summary index is unavailable.");

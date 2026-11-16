@@ -59,8 +59,8 @@ describe("generated native Product summary client", () => {
       undefined,
       { limit: 20, cursor: "opaque/+==", search: " <ledger> " },
     );
-    expect(result.total).toBe(9223372036854775807n);
-    expect(result.products[0]?.releaseCount).toBe(9007199254740993n);
+    expect(result.total).toBe(BigInt("9223372036854775807"));
+    expect(result.products[0]?.releaseCount).toBe(BigInt("9007199254740993"));
     expect(result.products[0]?.latestVersion).toBe("10.0.0");
     expect(result.nextCursor).toBe("opaque/+==");
     expect(result.previousCursor).toBe("previous/%");
