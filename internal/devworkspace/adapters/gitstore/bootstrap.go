@@ -69,6 +69,9 @@ var skipBootstrapDirs = map[string]bool{
 // provisions a new durable GitHub repository (or local bare Git remote when
 // LocalOnly is set or no GitHub token is configured) as origin.
 func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResult, error) {
+	if err := ctx.Err(); err != nil {
+		return BootstrapResult{}, err
+	}
 	source := strings.TrimSpace(opts.SourceRepo)
 	if source == "" {
 		return BootstrapResult{}, fmt.Errorf("source repository URL or path is required")
@@ -86,7 +89,26 @@ func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResul
 		branch = "workspace/operator/default"
 	}
 
-	if err := ingestSourceToGitDir(ctx, source, ref, destDir); err != nil {
+	if opts.WorkspaceID != "" && !validWorkspaceID.MatchString(opts.WorkspaceID) {
+		return BootstrapResult{}, domain.ErrInvalid
+	}
+	if err := runGit(ctx, "", "check-ref-format", "refs/heads/"+branch); err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return BootstrapResult{}, ctxErr
+		}
+		return BootstrapResult{}, domain.ErrInvalid
+	}
+	if ref != "HEAD" {
+		if err := runGit(ctx, "", "check-ref-format", "--allow-onelevel", ref); err != nil {
+			if ctxErr := ctx.Err(); ctxErr != nil {
+				return BootstrapResult{}, ctxErr
+			}
+			return BootstrapResult{}, domain.ErrInvalid
+		}
+	}
+	var err error
+	destDir, err = ingestSourceToGitDir(ctx, source, ref, destDir)
+	if err != nil {
 		return BootstrapResult{}, err
 	}
 	_ = runGit(ctx, destDir, "config", "user.name", "workspace")
@@ -182,65 +204,238 @@ func BootstrapSource(ctx context.Context, opts BootstrapOptions) (BootstrapResul
 	return res, nil
 }
 
-func ingestSourceToGitDir(ctx context.Context, source, ref, destDir string) error {
-	if err := os.RemoveAll(destDir); err != nil {
-		return err
+func ingestSourceToGitDir(ctx context.Context, source, ref, destDir string) (string, error) {
+	if err := ctx.Err(); err != nil {
+		return "", err
 	}
-	if err := os.MkdirAll(destDir, 0o755); err != nil {
-		return err
+	localPath, local := resolveLocalSourcePath(source)
+	if !local && !isHTTPURL(source) {
+		return "", domain.ErrInvalid
 	}
+	if local {
+		var err error
+		localPath, err = filepath.EvalSymlinks(localPath)
+		if err != nil {
+			return "", err
+		}
+		localPath, err = filepath.Abs(localPath)
+		if err != nil {
+			return "", err
+		}
+		if filepath.Dir(localPath) == localPath {
+			return "", domain.ErrInvalid
+		}
+	}
+	// Never resolve a destination leaf symlink into somebody else's directory.
+	if err := emptyBootstrapDestination(destDir); err != nil {
+		return "", err
+	}
+	target, err := canonicalBootstrapTarget(destDir)
+	if err != nil {
+		return "", err
+	}
+	if filepath.Dir(target) == target || (local && bootstrapPathsOverlap(localPath, target)) {
+		return "", domain.ErrInvalid
+	}
+	mode := os.FileMode(0o755)
+	if info, err := os.Stat(target); err == nil {
+		mode = info.Mode().Perm()
+	}
+	parent := filepath.Dir(target)
+	if err := os.MkdirAll(parent, 0o755); err != nil {
+		return "", err
+	}
+	stage, err := os.MkdirTemp(parent, "."+filepath.Base(target)+".bootstrap-")
+	if err != nil {
+		return "", err
+	}
+	promoted := false
+	defer func() {
+		if !promoted {
+			_ = os.RemoveAll(stage)
+		}
+	}() // Only our fresh staging path.
+	preparedSource := source
+	if local {
+		preparedSource = localPath
+	}
+	if err := prepareSourceCheckout(ctx, preparedSource, ref, stage); err != nil {
+		return "", err
+	}
+	if err := ctx.Err(); err != nil {
+		return "", err
+	}
+	if err := emptyBootstrapDestination(target); err != nil {
+		return "", err
+	}
+	if err := os.Chmod(stage, mode); err != nil {
+		return "", err
+	}
+	// Directory rename cannot replace a populated destination. A competing
+	// writer therefore wins without losing its files, even after our last check.
+	if err := os.Rename(stage, target); err != nil {
+		return "", fmt.Errorf("promote source checkout: %w", err)
+	}
+	promoted = true
+	return target, nil
+}
 
-	// Check if source is a local filesystem path or file:// URL.
+func emptyBootstrapDestination(path string) error {
+	info, err := os.Lstat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return nil
+	}
+	if err != nil {
+		return err
+	}
+	if !info.IsDir() || info.Mode()&os.ModeSymlink != 0 {
+		return fmt.Errorf("destination is not an empty directory: %w", domain.ErrConflict)
+	}
+	entries, err := os.ReadDir(path)
+	if err != nil {
+		return err
+	}
+	if len(entries) != 0 {
+		return fmt.Errorf("destination already contains work: %w", domain.ErrConflict)
+	}
+	return nil
+}
+
+func canonicalBootstrapTarget(path string) (string, error) {
+	absolute, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	existing := absolute
+	var missing []string
+	for {
+		if _, err := os.Lstat(existing); err == nil {
+			break
+		} else if !errors.Is(err, os.ErrNotExist) {
+			return "", err
+		}
+		parent := filepath.Dir(existing)
+		if parent == existing {
+			return "", domain.ErrInvalid
+		}
+		missing = append(missing, filepath.Base(existing))
+		existing = parent
+	}
+	resolved, err := filepath.EvalSymlinks(existing)
+	if err != nil {
+		return "", err
+	}
+	for i := len(missing) - 1; i >= 0; i-- {
+		resolved = filepath.Join(resolved, missing[i])
+	}
+	return resolved, nil
+}
+
+func bootstrapPathsOverlap(left, right string) bool {
+	for _, pair := range [][2]string{{left, right}, {right, left}} {
+		relative, err := filepath.Rel(pair[0], pair[1])
+		if err == nil && relative != ".." && !strings.HasPrefix(relative, ".."+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
+}
+
+func prepareSourceCheckout(ctx context.Context, source, ref, destDir string) error {
 	if localPath, ok := resolveLocalSourcePath(source); ok {
 		if isGitDirectory(localPath) {
-			if err := runGit(ctx, "", "clone", "--no-recurse-submodules", localPath, destDir); err != nil {
-				return fmt.Errorf("clone local git repo %s: %w", localPath, err)
+			if err := runGit(ctx, "", "clone", "--no-recurse-submodules", "--", localPath, destDir); err != nil {
+				return sourceCheckoutFailure(ctx, "clone source")
 			}
-			checkoutRequestedRef(ctx, destDir, ref)
+			if err := checkoutRequestedRef(ctx, destDir, ref); err != nil {
+				return err
+			}
 			return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(localPath))
 		}
-		// Plain filesystem directory: copy non-secret files and initialize git repository.
-		if err := copyDirectoryFiltered(localPath, destDir); err != nil {
-			return fmt.Errorf("copy local source directory %s: %w", localPath, err)
+		if ref != "main" && ref != "HEAD" {
+			return fmt.Errorf("plain directory has no requested Git ref: %w", domain.ErrNotFound)
+		}
+		if err := copyDirectoryFiltered(ctx, localPath, destDir); err != nil {
+			return err
 		}
 		if err := runGit(ctx, destDir, "init"); err != nil {
 			return err
 		}
-		_ = runGit(ctx, destDir, "symbolic-ref", "HEAD", "refs/heads/main")
+		if err := runGit(ctx, destDir, "symbolic-ref", "HEAD", "refs/heads/main"); err != nil {
+			return err
+		}
 		if err := runGit(ctx, destDir, "add", "-A"); err != nil {
 			return err
 		}
-		_ = runGit(ctx, destDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "chore(workspace): import local source directory")
+		staged, err := gitOut(ctx, destDir, "ls-files", "-z")
+		if err != nil {
+			return err
+		}
+		if staged != "" {
+			if err := runGit(ctx, destDir, "-c", "user.name=workspace", "-c", "user.email=workspace@local", "commit", "-m", "chore(workspace): import local source directory"); err != nil {
+				return err
+			}
+		}
 		return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(localPath))
 	}
-
-	// Online http:// or https:// Git repository.
-	if isHTTPURL(source) {
-		if err := runGit(ctx, "", "clone", "--depth", "1", "--no-recurse-submodules", source, destDir); err != nil {
-			return fmt.Errorf("clone online repository %s: %w", source, err)
-		}
-		checkoutRequestedRef(ctx, destDir, ref)
-		return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(strings.TrimSuffix(source, ".git")))
+	if err := runGit(ctx, "", "clone", "--depth", "1", "--no-recurse-submodules", "--", source, destDir); err != nil {
+		return sourceCheckoutFailure(ctx, "clone source")
 	}
-
-	return fmt.Errorf("source %q is neither a readable local path nor an http/https Git repository URL", source)
+	if err := checkoutRequestedRef(ctx, destDir, ref); err != nil {
+		return err
+	}
+	return ensureAtLeastOneCommit(ctx, destDir, filepath.Base(strings.TrimSuffix(source, ".git")))
 }
 
-func checkoutRequestedRef(ctx context.Context, repoDir, ref string) {
-	ref = strings.TrimSpace(ref)
-	if ref == "" || ref == "HEAD" || ref == "main" {
-		return
+func sourceCheckoutFailure(ctx context.Context, operation string) error {
+	if err := ctx.Err(); err != nil {
+		return err
 	}
-	if err := runGit(ctx, repoDir, " fetch", "--depth", "1", "--no-recurse-submodules", "origin", ref); err == nil {
-		if runGit(ctx, repoDir, "checkout", "--detach", "FETCH_HEAD") == nil {
-			return
+	return fmt.Errorf("%s failed", operation)
+}
+
+func checkoutRequestedRef(ctx context.Context, repoDir, ref string) error {
+	candidates := []string{ref}
+	if ref != "HEAD" && !strings.HasPrefix(ref, "refs/") && !validGitObjectID(ref) {
+		candidates = []string{"refs/heads/" + ref, "refs/remotes/origin/" + ref, "refs/tags/" + ref, ref}
+	}
+	checkout := func(candidate string) error {
+		head, err := gitOut(ctx, repoDir, "rev-parse", "--verify", "--end-of-options", candidate+"^{commit}")
+		if err != nil || !validGitObjectID(strings.TrimSpace(head)) {
+			return domain.ErrNotFound
+		}
+		if err := runGit(ctx, repoDir, "checkout", "--detach", strings.TrimSpace(head)); err != nil {
+			return sourceCheckoutFailure(ctx, "checkout requested source ref")
+		}
+		return nil
+	}
+	for _, candidate := range candidates {
+		err := checkout(candidate)
+		if err == nil {
+			return nil
+		}
+		if !errors.Is(err, domain.ErrNotFound) {
+			return err
 		}
 	}
-	_ = runGit(ctx, repoDir, "fetch", "--depth", "1", "--no-recurse-submodules", "origin", ref)
-	if runGit(ctx, repoDir, "checkout", "--detach", "FETCH_HEAD") == nil {
-		return
+	if err := runGit(ctx, repoDir, "fetch", "--no-recurse-submodules", "--", "origin", ref); err != nil {
+		if err := ctx.Err(); err != nil {
+			return err
+		}
+		return fmt.Errorf("requested source ref is unavailable: %w", domain.ErrNotFound)
 	}
-	_ = runGit(ctx, repoDir, "checkout", ref)
+	if err := checkout("FETCH_HEAD"); err != nil {
+		return fmt.Errorf("requested source ref is unavailable: %w", err)
+	}
+	return nil
+}
+
+func validGitObjectID(value string) bool {
+	if len(value) != 40 && len(value) != 64 {
+		return false
+	}
+	_, err := hex.DecodeString(value)
+	return err == nil
 }
 
 func ensureAtLeastOneCommit(ctx context.Context, repoDir, title string) error {
@@ -316,8 +511,16 @@ func canonicalRepoURL(source string) string {
 	return "https://github.com/local/" + sanitizeBranchSegment(base)
 }
 
-func copyDirectoryFiltered(srcDir, dstDir string) error {
+func copyDirectoryFiltered(ctx context.Context, srcDir, dstDir string) error {
+	sourceRoot, err := os.OpenRoot(srcDir)
+	if err != nil {
+		return err
+	}
+	defer sourceRoot.Close()
 	return filepath.WalkDir(srcDir, func(path string, d fs.DirEntry, err error) error {
+		if cancelErr := ctx.Err(); cancelErr != nil {
+			return cancelErr
+		}
 		if err != nil {
 			return err
 		}
@@ -334,15 +537,29 @@ func copyDirectoryFiltered(srcDir, dstDir string) error {
 		if isSecretPath(rel) || !d.Type().IsRegular() {
 			return nil
 		}
-		data, err := os.ReadFile(path)
+		input, err := sourceRoot.Open(rel)
 		if err != nil {
 			return err
+		}
+		defer input.Close()
+		info, err := input.Stat()
+		if err != nil {
+			return err
+		}
+		mode := os.FileMode(0o644)
+		if info.Mode().Perm()&0o111 != 0 {
+			mode = 0o755
 		}
 		target := filepath.Join(dstDir, rel)
 		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
 			return err
 		}
-		return os.WriteFile(target, data, 0o644)
+		output, err := os.OpenFile(target, os.O_WRONLY|os.O_CREATE|os.O_EXCL, mode)
+		if err != nil {
+			return err
+		}
+		_, copyErr := io.Copy(output, input)
+		return errors.Join(copyErr, output.Close())
 	})
 }
 
