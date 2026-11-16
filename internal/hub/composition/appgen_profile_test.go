@@ -3,21 +3,18 @@ package composition
 import (
 	"context"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/recorded"
-	"github.com/jonathanagustin/conduit/internal/appgen/adapters/sourcefile"
 	appgenapp "github.com/jonathanagustin/conduit/internal/appgen/application"
 	appgendomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
-	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
@@ -27,10 +24,14 @@ import (
 
 type testAppgenSandbox struct {
 	builds int
+	fail   bool
 }
 
 func (s *testAppgenSandbox) Build(_ context.Context, _ appgenapp.BuildRequest) (appgenapp.BuildResult, error) {
 	s.builds++
+	if s.fail {
+		return appgenapp.BuildResult{Passed: false, Reason: "container build failed"}, nil
+	}
 	return appgenapp.BuildResult{Passed: true, Reason: "image built without network", ImageID: "sha256:appgen"}, nil
 }
 
@@ -150,76 +151,36 @@ func TestAppgenProfileMissingAppNameRaisesNeedsInput(t *testing.T) {
 func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *testing.T) {
 	gitRoot := t.TempDir()
 	handoffDir := t.TempDir()
+	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
+	t.Setenv("PACKAGING_FIXTURE_DIR", handoffDir)
 	sandbox := &testAppgenSandbox{}
 	publisher := &testAppgenPublisher{}
 	repository := controlplane.NewMemoryRepository()
-	appgenSvc := appgenapp.Service{
-		Generator: recorded.Adapter{},
-		Sandbox:   sandbox,
-		Publish:   publisher,
-		Handoff:   sourcefile.Writer{Dir: handoffDir},
-		Audit:     appAudit{repository: repository},
-		Store:     &appgenapp.Memory{},
+	governanceSvc := controlplane.NewGovernanceService(repository)
+	if _, err := governanceSvc.PutTeam(t.Context(), controlplane.Team{
+		Name: "release-reviewers", DisplayName: "Release reviewers",
+		AdminUsers: []string{"alice", "bob"}, MemberUsers: []string{"alice", "bob"},
+	}); err != nil {
+		t.Fatal(err)
 	}
-	handler := planningHandlerWithAppgenCompute(
-		http.NotFoundHandler(),
+	if _, err := governanceSvc.PutPolicy(t.Context(), controlplane.ApprovalPolicy{
+		ID: "release-review", DisplayName: "Release review", Enabled: true,
+		Expression: `type != "" ? require_team("release-reviewers", "release review") : no_op()`,
+	}); err != nil {
+		t.Fatal(err)
+	}
+	handler, err := NewHub(
 		repository,
 		controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true},
-		nil,
-		func(ctx context.Context, s *planningdomain.Session) error {
-			res, err := appgenSvc.Generate(ctx, appgenapp.Input{
-				Name:        s.Binding.Intake.AppName,
-				Description: s.Binding.Intake.ProblemStatement,
-				Confirm:     true,
-			})
-			if err != nil {
-				return err
-			}
-			if res.Error != "" {
-				return fmt.Errorf("appgen gate failed: %s", res.Error)
-			}
-			for _, g := range res.Gates {
-				if g.Outcome != appgendomain.OutcomePass {
-					return fmt.Errorf("gate %s: %s", g.Name, g.Reason)
-				}
-			}
-			store, err := gitstore.Open(gitstore.Options{RootDir: gitRoot})
-			if err != nil {
-				return err
-			}
-			wsID := "wsp_" + s.ID
-			repoDir := store.RepoDir(wsID)
-			if err := os.MkdirAll(repoDir, 0o755); err != nil {
-				return err
-			}
-			for _, f := range res.Files {
-				if err := os.WriteFile(filepath.Join(repoDir, f.Path), []byte(f.Content), 0o600); err != nil {
-					return err
-				}
-			}
-			if err := os.WriteFile(filepath.Join(repoDir, ".dockerignore"), []byte(".git\nout\n*.tar.zst\n.env\n*.pem\n*.key\n"), 0o600); err != nil {
-				return err
-			}
-			if err := os.WriteFile(filepath.Join(repoDir, "package-source.yaml"), []byte(res.PackagingSource), 0o600); err != nil {
-				return err
-			}
-			now := time.Now().UTC()
-			return store.Save(ctx, devdomain.Touch(devdomain.Workspace{
-				ID:                wsID,
-				ProfileID:         s.Binding.Profile.Name,
-				EnvironmentID:     "dev",
-				Owner:             "alice",
-				Title:             "Workspace for " + s.ID,
-				Status:            devdomain.StatusRunning,
-				RepoURL:           "https://conduit.local/appgen/" + s.Binding.Intake.AppName,
-				Branch:            "workspace/alice/" + wsID,
-				BaseCommit:        s.Binding.ResolvedCommit,
-				HeadCommit:        s.Binding.ResolvedCommit,
-				ArtifactDigest:    res.ImageDigest,
-				ValidationOutcome: string(packagingdomain.OutcomePass),
-			}, now))
+		Options{
+			AppGenerator:    recorded.Adapter{},
+			AppgenSandbox:   sandbox,
+			AppgenPublisher: publisher,
 		},
 	)
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
 
 	createBody := `{"profile":"appgen","problemStatement":"Create a service catalog portal","appName":"hello-http"}`
 	resp := planningRequest(t, handler, "alice", http.MethodPost, "/v1/planning-sessions", createBody)
@@ -263,6 +224,26 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 		t.Fatalf("expected 1 build and 1 push after Accept+Compute, got builds=%d pushes=%d", sandbox.builds, publisher.pushes)
 	}
 
+	// Verify GET /v1/app-generations on the same NewHub handler exposes the generated record and passing gates.
+	genListResp := planningRequest(t, handler, "alice", http.MethodGet, "/v1/app-generations", "")
+	if genListResp.Code != http.StatusOK {
+		t.Fatalf("list app-generations: %d %s", genListResp.Code, genListResp.Body.String())
+	}
+	var genList struct {
+		Items []appgenapp.Result `json:"items"`
+	}
+	if err := json.Unmarshal(genListResp.Body.Bytes(), &genList); err != nil {
+		t.Fatal(err)
+	}
+	if len(genList.Items) != 1 || genList.Items[0].Name != "hello-http" || len(genList.Items[0].Gates) != 6 {
+		t.Fatalf("unexpected app-generations list: %+v", genList.Items)
+	}
+	for _, g := range genList.Items[0].Gates {
+		if g.Outcome != appgendomain.OutcomePass {
+			t.Fatalf("expected gate %s to pass, got %+v", g.Name, g)
+		}
+	}
+
 	// Verify both generated application files and packaged manifests exist in the workspace and handoff dir.
 	if _, err := os.Stat(filepath.Join(handoffDir, "sources", "hello-http-1.txt")); err != nil {
 		t.Fatalf("missing packaging handoff source file: %v", err)
@@ -292,6 +273,64 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 	checks := workspacepkg.Checks{}
 	if reason := checks.PackageCR(string(crBytes)); reason != "" {
 		t.Fatalf("PackageCR gate failed: %s", reason)
+	}
+
+	// Verify a governed ChangeRequest was opened and requires a second reviewer.
+	crs, err := repository.ListChangeRequests(t.Context(), "")
+	if err != nil || len(crs) != 1 {
+		t.Fatalf("expected 1 ChangeRequest from appgen compute, got %d (err=%v)", len(crs), err)
+	}
+	if crs[0].Status != controlplane.ChangePendingApprovals {
+		t.Fatalf("expected ChangeRequest status %q, got %q", controlplane.ChangePendingApprovals, crs[0].Status)
+	}
+	if _, _, err := governanceSvc.Approve(t.Context(), crs[0].ID, controlplane.Principal{Username: "alice", Teams: []string{"release-reviewers"}}, "self-approve"); !errors.Is(err, controlplane.ErrForbidden) {
+		t.Fatalf("expected author self-approval to be forbidden, got %v", err)
+	}
+}
+
+func TestAppgenProfileFailsClosedWhenSandboxBuildFails(t *testing.T) {
+	t.Setenv("DEVWORKSPACE_GIT_ROOT", t.TempDir())
+	t.Setenv("PACKAGING_FIXTURE_DIR", t.TempDir())
+	sandbox := &testAppgenSandbox{fail: true}
+	publisher := &testAppgenPublisher{}
+	repository := controlplane.NewMemoryRepository()
+	handler, err := NewHub(
+		repository,
+		controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true},
+		Options{
+			AppGenerator:    recorded.Adapter{},
+			AppgenSandbox:   sandbox,
+			AppgenPublisher: publisher,
+		},
+	)
+	if err != nil {
+		t.Fatalf("NewHub: %v", err)
+	}
+	resp := planningRequest(t, handler, "alice", http.MethodPost, "/v1/planning-sessions", `{"profile":"appgen","problemStatement":"Create a service catalog portal","appName":"hello-http"}`)
+	if resp.Code != http.StatusCreated {
+		t.Fatalf("create: %d %s", resp.Code, resp.Body.String())
+	}
+	var session planningdomain.Session
+	if err := json.Unmarshal(resp.Body.Bytes(), &session); err != nil {
+		t.Fatal(err)
+	}
+	path := "/v1/planning-sessions/" + session.ID
+	if r := planningRequest(t, handler, "alice", http.MethodPost, path+"/turns", `{}`); r.Code != http.StatusOK {
+		t.Fatalf("turn: %d %s", r.Code, r.Body.String())
+	}
+	if r := planningRequest(t, handler, "alice", http.MethodPost, path+"/accept", `{}`); r.Code != http.StatusOK {
+		t.Fatalf("accept: %d %s", r.Code, r.Body.String())
+	}
+	computeResp := planningRequest(t, handler, "alice", http.MethodPost, path+"/compute", `{}`)
+	if computeResp.Code != http.StatusBadGateway {
+		t.Fatalf("expected 502 Bad Gateway when sandbox build fails, got %d %s", computeResp.Code, computeResp.Body.String())
+	}
+	if publisher.pushes != 0 {
+		t.Fatalf("expected 0 pushes when sandbox build fails, got %d", publisher.pushes)
+	}
+	crs, err := repository.ListChangeRequests(t.Context(), "")
+	if err != nil || len(crs) != 0 {
+		t.Fatalf("expected 0 ChangeRequests when sandbox build fails, got %d (err=%v)", len(crs), err)
 	}
 }
 

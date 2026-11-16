@@ -8,6 +8,7 @@ import (
 	"sync"
 
 	adminports "github.com/jonathanagustin/conduit/internal/adminstatus/ports"
+	appgenapp "github.com/jonathanagustin/conduit/internal/appgen/application"
 	appdomain "github.com/jonathanagustin/conduit/internal/appgen/domain"
 	attachapp "github.com/jonathanagustin/conduit/internal/attachments/application"
 	activityports "github.com/jonathanagustin/conduit/internal/changeactivity/ports"
@@ -70,6 +71,12 @@ type Options struct {
 	// AppGenerator is the outbound generation port. Nil makes NewHub read
 	// CONDUIT_MODEL_CMD. Empty selects the recorded HTTP application.
 	AppGenerator appdomain.AppGenerator
+	// AppgenSandbox overrides the sandbox builder and health checker used by
+	// app generation and the appgen planning work profile. Nil uses sandbox.Docker{}.
+	AppgenSandbox appgenapp.Sandbox
+	// AppgenPublisher overrides the OCI image/chart publisher used by app
+	// generation and the appgen planning work profile. Nil uses registry.DockerPublisher.
+	AppgenPublisher appgenapp.Publisher
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader
