@@ -47,6 +47,9 @@ func Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
 	if ref == "" {
 		return zero, cleanup, fmt.Errorf("ref is required")
 	}
+	if strings.HasPrefix(ref, "-") || strings.Contains(ref, ":") || strings.Contains(ref, "..") || strings.ContainsAny(ref, " \t\r\n") {
+		return zero, cleanup, fmt.Errorf("ref is not a valid git revision")
+	}
 	dir, err := os.MkdirTemp("", "conduit-planning-")
 	if err != nil {
 		return zero, cleanup, err
@@ -76,24 +79,24 @@ func Clone(ctx context.Context, repoURL, ref string) (Checkout, func(), error) {
 		}
 	}
 	if err := runGit(ctx, dir, proxy.URL, "checkout", "--quiet", "--detach", "FETCH_HEAD"); err != nil {
-		if err := runGit(ctx, dir, proxy.URL, "checkout", "--quiet", "--detach", ref); err != nil {
+		if err := runGit(ctx, dir, proxy.URL, "checkout", "--quiet", "--detach", ref, "--"); err != nil {
 			return zero, cleanup, fmt.Errorf("checkout %s: %w", ref, err)
 		}
 	}
-	sha, err := gitOut(ctx, dir, proxy.URL, "rev-parse", "HEAD")
+	sha, err := gitOut(ctx, dir, proxy.URL, "rev-parse", "--verify", "HEAD^{commit}")
 	if err != nil {
 		return zero, cleanup, err
 	}
 	sha = strings.TrimSpace(sha)
-	if sha == "" {
-		return zero, cleanup, fmt.Errorf("resolved commit is empty")
+	if len(sha) != 40 {
+		return zero, cleanup, fmt.Errorf("resolved commit is invalid")
 	}
 	return Checkout{Dir: dir, SHA: sha, Host: parsed.Host}, cleanup, nil
 }
 
 func fetchRef(ctx context.Context, dir, proxyURL, ref string) error {
-	if err := runGit(ctx, dir, proxyURL, "fetch", "--depth", "1", "--no-recurse-submodules", "origin", ref); err != nil {
-		return runGit(ctx, dir, proxyURL, "fetch", "--no-recurse-submodules", "origin", ref)
+	if err := runGit(ctx, dir, proxyURL, "fetch", "--depth", "1", "--no-recurse-submodules", "--", "origin", ref); err != nil {
+		return runGit(ctx, dir, proxyURL, "fetch", "--no-recurse-submodules", "--", "origin", ref)
 	}
 	return nil
 }

@@ -2,6 +2,8 @@ package packagingtools
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -140,9 +142,6 @@ func (service *Service) InspectImage(ctx context.Context, ref string) (domain.Im
 	if err != nil {
 		return domain.ImageInspect{}, err
 	}
-	if manifestDigest == "" {
-		manifestDigest = configDigest
-	}
 	return domain.ImageInspect{
 		Ref:          ref,
 		Digest:       manifestDigest,
@@ -170,6 +169,11 @@ func (service *Service) getManifest(ctx context.Context, origin string, parsed i
 	if err != nil {
 		return nil, "", err
 	}
+	digest, err = verifyImageBytes(body, parsed.digest, digest)
+	if err != nil {
+		return nil, "", fmt.Errorf("verify image manifest: %w", err)
+	}
+	rootDigest := digest
 	var manifest map[string]any
 	if err := json.Unmarshal(body, &manifest); err != nil {
 		return nil, "", fmt.Errorf("decode image manifest: %w", err)
@@ -179,23 +183,35 @@ func (service *Service) getManifest(ctx context.Context, origin string, parsed i
 		if err != nil {
 			return nil, "", err
 		}
+		if !validImageDigest(child) {
+			return nil, "", fmt.Errorf("image index has invalid manifest digest")
+		}
 		body, digest, _, err = service.get(ctx, origin, "/v2/"+parsed.repo+"/manifests/"+url.PathEscape(child),
 			"application/vnd.oci.image.manifest.v1+json, application/vnd.docker.distribution.manifest.v2+json")
 		if err != nil {
 			return nil, "", err
+		}
+		if _, err := verifyImageBytes(body, child, digest); err != nil {
+			return nil, "", fmt.Errorf("verify child image manifest: %w", err)
 		}
 		manifest = map[string]any{}
 		if err := json.Unmarshal(body, &manifest); err != nil {
 			return nil, "", fmt.Errorf("decode image manifest: %w", err)
 		}
 	}
-	return manifest, digest, nil
+	return manifest, rootDigest, nil
 }
 
 func (service *Service) getConfig(ctx context.Context, origin, repo, digest string) (imageConfig, error) {
-	body, _, _, err := service.get(ctx, origin, "/v2/"+repo+"/blobs/"+digest, "application/vnd.oci.image.config.v1+json, application/json")
+	if !validImageDigest(digest) {
+		return imageConfig{}, fmt.Errorf("image config digest is not a sha256 digest")
+	}
+	body, header, _, err := service.get(ctx, origin, "/v2/"+repo+"/blobs/"+digest, "application/vnd.oci.image.config.v1+json, application/json")
 	if err != nil {
 		return imageConfig{}, err
+	}
+	if _, err := verifyImageBytes(body, digest, header); err != nil {
+		return imageConfig{}, fmt.Errorf("verify image config: %w", err)
 	}
 	var wrapper struct {
 		Config imageConfig `json:"config"`
@@ -353,4 +369,26 @@ func keys(values map[string]struct{}) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// verifyImageBytes binds registry claims to exact response bytes. Missing digest
+// headers are allowed; an expected descriptor or nonempty header must match.
+func verifyImageBytes(body []byte, expected, header string) (string, error) {
+	sum := sha256.Sum256(body)
+	actual := "sha256:" + hex.EncodeToString(sum[:])
+	if expected != "" && expected != actual {
+		return "", fmt.Errorf("digest does not match requested content")
+	}
+	if header != "" && header != actual {
+		return "", fmt.Errorf("digest header does not match response content")
+	}
+	return actual, nil
+}
+
+func validImageDigest(digest string) bool {
+	if len(digest) != 71 || !strings.HasPrefix(digest, "sha256:") {
+		return false
+	}
+	_, err := hex.DecodeString(digest[7:])
+	return err == nil && digest == strings.ToLower(digest)
 }

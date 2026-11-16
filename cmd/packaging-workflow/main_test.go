@@ -4,14 +4,18 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 
+	devworkspacedomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/devserver"
 	planningdomain "github.com/jonathanagustin/conduit/internal/planning/domain"
 	planningworkflow "github.com/jonathanagustin/conduit/internal/planning/workflow"
@@ -422,7 +426,7 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	if err := os.WriteFile(filepath.Join(srcRepo, "tsconfig.json"), []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
 		t.Fatal(err)
 	}
-	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", srcRepo)
+	repoURL, expectedSHA := serveTestGitRepo(t, srcRepo, "excalidraw")
 
 	running, err := devserver.Start(context.Background(), devserver.Options{
 		CLIPath: cliPath,
@@ -474,7 +478,7 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 		return &session, nil
 	}
 
-	s, err := execCLI("plan-create", "https://github.com/excalidraw/excalidraw", "main", "--session-id", "ps_real_agent", "--actor", "alice")
+	s, err := execCLI("plan-create", repoURL, "main", "--session-id", "ps_real_agent", "--actor", "alice")
 	if err != nil || s.Status != planningdomain.StatusStarted {
 		t.Fatalf("plan-create: %+v, err=%v", s, err)
 	}
@@ -491,6 +495,9 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	}
 	if s.Inspection == nil || s.Inspection.Language != "typescript" || s.Inspection.PackageManager != "yarn" {
 		t.Fatalf("expected real typescript/yarn inspection, got %+v", s.Inspection)
+	}
+	if s.ResolvedCommit != expectedSHA {
+		t.Fatalf("ResolvedCommit = %q, want %q", s.ResolvedCommit, expectedSHA)
 	}
 
 	if _, err := execCLI("plan-answer", "ps_real_agent", "node_version=20", "--actor", "alice"); err != nil {
@@ -509,6 +516,9 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	if err != nil || s.Status != planningdomain.StatusAccepted || s.Binding == nil {
 		t.Fatalf("plan-accept: %+v, err=%v", s, err)
 	}
+	if s.Binding.ResolvedCommit != expectedSHA {
+		t.Fatalf("bound ResolvedCommit = %q, want %q", s.Binding.ResolvedCommit, expectedSHA)
+	}
 
 	var out, errBuf bytes.Buffer
 	cmd := newRoot()
@@ -524,5 +534,162 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	}
 	if computeOut.Result.Outcome != "PASS" || computeOut.Result.Provenance.Adapter != "packaging-workflow" {
 		t.Fatalf("expected PASS with packaging-workflow provenance adapter, got %+v", computeOut.Result)
+	}
+}
+
+func serveTestGitRepo(t *testing.T, workDir, name string) (string, string) {
+	t.Helper()
+	runGit := func(dir string, args ...string) string {
+		t.Helper()
+		cmd := exec.Command("git", args...)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GIT_CONFIG_NOSYSTEM=1", "GIT_CONFIG_GLOBAL="+os.DevNull)
+		out, err := cmd.CombinedOutput()
+		if err != nil {
+			t.Fatalf("git %s in %s: %v\n%s", strings.Join(args, " "), dir, err, out)
+		}
+		return string(out)
+	}
+	runGit(workDir, "init", "--quiet", "-b", "main")
+	runGit(workDir, "config", "user.name", "fixture")
+	runGit(workDir, "config", "user.email", "fixture@local")
+	runGit(workDir, "add", "-A")
+	runGit(workDir, "commit", "--quiet", "-m", "test: initialize source fixture")
+	sha := strings.TrimSpace(runGit(workDir, "rev-parse", "HEAD"))
+
+	projectRoot := t.TempDir()
+	bareDir := filepath.Join(projectRoot, name)
+	runGit(projectRoot, "clone", "--quiet", "--bare", workDir, bareDir)
+	runGit(bareDir, "update-server-info")
+	runGit(bareDir, "config", "http.uploadpack", "true")
+
+	server := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
+		var body bytes.Buffer
+		_, _ = io.Copy(&body, request.Body)
+		cmd := exec.Command("git", "http-backend")
+		cmd.Env = append(os.Environ(),
+			"GIT_PROJECT_ROOT="+projectRoot,
+			"GIT_HTTP_EXPORT_ALL=1",
+			"PATH_INFO="+request.URL.Path,
+			"PATH_TRANSLATED="+filepath.Join(projectRoot, request.URL.Path),
+			"QUERY_STRING="+request.URL.RawQuery,
+			"REQUEST_METHOD="+request.Method,
+			"CONTENT_TYPE="+request.Header.Get("Content-Type"),
+			"CONTENT_LENGTH="+strconv.Itoa(body.Len()),
+		)
+		cmd.Stdin = &body
+		var stdout, stderr bytes.Buffer
+		cmd.Stdout = &stdout
+		cmd.Stderr = &stderr
+		if err := cmd.Run(); err != nil {
+			http.Error(writer, stderr.String(), http.StatusInternalServerError)
+			return
+		}
+		out := stdout.Bytes()
+		header, rest, found := bytes.Cut(out, []byte("\r\n\r\n"))
+		if !found {
+			header, rest, found = bytes.Cut(out, []byte("\n\n"))
+		}
+		if !found {
+			writer.WriteHeader(http.StatusOK)
+			_, _ = writer.Write(out)
+			return
+		}
+		status := http.StatusOK
+		for _, line := range strings.Split(string(header), "\n") {
+			line = strings.TrimSpace(line)
+			if line == "" {
+				continue
+			}
+			key, value, ok := strings.Cut(line, ":")
+			if !ok {
+				continue
+			}
+			key = strings.TrimSpace(key)
+			value = strings.TrimSpace(value)
+			if strings.EqualFold(key, "Status") {
+				if code, _, _ := strings.Cut(value, " "); code != "" {
+					if parsed, err := strconv.Atoi(code); err == nil {
+						status = parsed
+					}
+				}
+				continue
+			}
+			writer.Header().Add(key, value)
+		}
+		writer.WriteHeader(status)
+		_, _ = writer.Write(rest)
+	}))
+	t.Cleanup(server.Close)
+	return server.URL + "/" + name, sha
+}
+
+func TestWorkspaceAwareCloneIgnoresWorkspacesAndDemoDirAndResolvesRequestedRef(t *testing.T) {
+	tmpDir := t.TempDir()
+	workDir := filepath.Join(tmpDir, "work")
+	if err := os.MkdirAll(workDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(workDir, "README.md"), []byte("main branch\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	repoURL, mainSHA := serveTestGitRepo(t, workDir, "sample")
+
+	stateDir := filepath.Join(tmpDir, "state")
+	store, _, _, err := openWorkspaceBackend(stateDir, 0, 0, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	ws := devworkspacedomain.Touch(devworkspacedomain.Workspace{
+		ID:            "wsp_existing",
+		ProfileID:     "onboard",
+		EnvironmentID: "dev",
+		Owner:         "bob",
+		Status:        devworkspacedomain.StatusRunning,
+		UpstreamRepo:  repoURL,
+		RepoURL:       repoURL,
+		BaseCommit:    "short-invalid",
+		HeadCommit:    mainSHA,
+	}, time.Now().UTC())
+	if err := store.Save(t.Context(), ws); err != nil {
+		t.Fatal(err)
+	}
+	dirtyPath := filepath.Join(store.RepoDir("wsp_existing"), "dirty.txt")
+	if err := os.WriteFile(dirtyPath, []byte("dirty"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	demoDir := filepath.Join(tmpDir, "demo")
+	if err := os.MkdirAll(demoDir, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", demoDir)
+
+	cloneFn := workspaceAwareClone(stateDir)
+	got, cleanup, err := cloneFn(t.Context(), repoURL, "main")
+	if err != nil {
+		t.Fatalf("workspaceAwareClone(main): %v", err)
+	}
+	if got.SHA != mainSHA || got.SHA == "3a317b550123456789abcdef0123456789abcdef" {
+		cleanup()
+		t.Fatalf("got.SHA = %q, want %q", got.SHA, mainSHA)
+	}
+	if got.Dir == store.RepoDir("wsp_existing") || got.Dir == demoDir {
+		cleanup()
+		t.Fatalf("reused non-isolated directory %q", got.Dir)
+	}
+	if _, err := os.Stat(filepath.Join(got.Dir, "dirty.txt")); !os.IsNotExist(err) {
+		cleanup()
+		t.Fatalf("dirty workspace file leaked into clone: %v", err)
+	}
+	cleanup()
+
+	if _, cleanBad, err := cloneFn(t.Context(), repoURL, "missing-ref"); err == nil {
+		cleanBad()
+		t.Fatal("expected error for missing-ref")
+	} else {
+		cleanBad()
+	}
+	if raw, err := os.ReadFile(dirtyPath); err != nil || string(raw) != "dirty" {
+		t.Fatalf("existing workspace dirty file changed: %q %v", raw, err)
 	}
 }
