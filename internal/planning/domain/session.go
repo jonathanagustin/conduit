@@ -14,9 +14,17 @@ import (
 	"unicode"
 )
 
-// ProfileOnboard is the work profile this session runs. It is the packaging
-// skill, the packaging tools, and the gates, versioned and hashed together.
+// ProfileOnboard is the work profile for repository-backed onboarding. It is
+// the packaging skill, the packaging tools, and the gates, versioned and hashed together.
 const ProfileOnboard = "onboard"
+
+// ProfileAppgen is the work profile that generates an HTTP application from a
+// problem statement and hands the generated source to the packaging flow.
+const ProfileAppgen = "appgen"
+
+// NoRepositoryCommit is the bound resolvedCommit value recorded when a planning
+// session starts from a problem statement rather than a git repository.
+const NoRepositoryCommit = "none (no source repository — problem-statement intake)"
 
 // DefaultModelLabel is the neutral label shown when the model does not report its name.
 const DefaultModelLabel = "Configured model"
@@ -92,14 +100,25 @@ var (
 	ErrInvalidAnswer        = errors.New("the answer is not valid for the question")
 )
 
-// Intake is the operator-supplied repository and ref. It is recorded on
-// create and copied into the Accept binding.
+// Intake is the operator-supplied repository/ref or problem statement/appName.
+// It is recorded on create and copied into the Accept binding.
 type Intake struct {
-	RepoURL string `json:"repoUrl"`
-	Ref     string `json:"ref"`
+	RepoURL          string `json:"repoUrl"`
+	Ref              string `json:"ref"`
+	ProblemStatement string `json:"problemStatement,omitempty"`
+	AppName          string `json:"appName,omitempty"`
 	// Message is the operator's opening message. It is empty on create and
 	// filled in the Accept binding from the first operator message.
 	Message string `json:"message,omitempty"`
+}
+
+// CreateInput holds the intake fields supplied when starting a planning session.
+type CreateInput struct {
+	Profile          string
+	RepoURL          string
+	Ref              string
+	ProblemStatement string
+	AppName          string
 }
 
 // ProfileRef names the onboard profile and, once snapshotted, its version
@@ -198,7 +217,7 @@ type Session struct {
 	UpdatedAt      time.Time   `json:"updatedAt"`
 }
 
-// IntakeError is a rejected repository URL or ref.
+// IntakeError is a rejected repository URL, ref, or problem-statement intake.
 type IntakeError struct {
 	Reason string
 }
@@ -209,6 +228,135 @@ func (err IntakeError) Error() string {
 
 func (err IntakeError) Code() string {
 	return CodeInvalidIntake
+}
+
+// ParseCreateInput validates intake for either the onboard or appgen profile.
+// For appgen, missing problemStatement or appName raises NeedsInput questions
+// rather than failing session creation, while supplying repoUrl or ref is rejected.
+func ParseCreateInput(in CreateInput) (ProfileRef, Intake, []Question, error) {
+	profile := strings.TrimSpace(in.Profile)
+	if profile == "" {
+		profile = ProfileOnboard
+	}
+	switch profile {
+	case ProfileOnboard:
+		if strings.TrimSpace(in.ProblemStatement) != "" || strings.TrimSpace(in.AppName) != "" {
+			return ProfileRef{}, Intake{}, nil, IntakeError{Reason: "onboard profile does not accept problemStatement or appName"}
+		}
+		intake, err := ParseIntake(in.RepoURL, in.Ref)
+		if err != nil {
+			return ProfileRef{}, Intake{}, nil, err
+		}
+		return ProfileRef{Name: ProfileOnboard}, intake, []Question{}, nil
+	case ProfileAppgen:
+		if strings.TrimSpace(in.RepoURL) != "" || strings.TrimSpace(in.Ref) != "" {
+			return ProfileRef{}, Intake{}, nil, IntakeError{Reason: "appgen profile does not accept repoUrl or ref"}
+		}
+		ps := strings.TrimSpace(in.ProblemStatement)
+		appName := strings.TrimSpace(in.AppName)
+		if len(ps) > 8192 {
+			return ProfileRef{}, Intake{}, nil, IntakeError{Reason: "problemStatement is too long"}
+		}
+		if len(appName) > 64 {
+			return ProfileRef{}, Intake{}, nil, IntakeError{Reason: "appName is too long"}
+		}
+		questions := []Question{}
+		if ps == "" {
+			questions = append(questions, Question{
+				ID:       "problem_statement",
+				Name:     "problemStatement",
+				Label:    "Problem statement",
+				Type:     QuestionString,
+				Required: true,
+			})
+		}
+		if appName == "" || !IsValidAppName(appName) {
+			suggested := appName
+			if suggested == "" && ps != "" {
+				suggested = DeriveAppName(ps)
+			}
+			valErr := ""
+			if appName != "" && !IsValidAppName(appName) {
+				valErr = "appName must be a lowercase DNS label (3-32 characters, a-z, 0-9, -)"
+			}
+			questions = append(questions, Question{
+				ID:              "app_name",
+				Name:            "appName",
+				Label:           "Application name",
+				Type:            QuestionString,
+				Required:        true,
+				Value:           suggested,
+				ValidationError: valErr,
+			})
+		}
+		return ProfileRef{Name: ProfileAppgen}, Intake{
+			ProblemStatement: ps,
+			AppName:          appName,
+		}, questions, nil
+	default:
+		return ProfileRef{}, Intake{}, nil, IntakeError{Reason: "profile must be onboard or appgen"}
+	}
+}
+
+// IsValidAppName reports whether name is a lowercase DNS label (3-32 chars).
+func IsValidAppName(name string) bool {
+	if len(name) < 3 || len(name) > 32 {
+		return false
+	}
+	if name[0] < 'a' || name[0] > 'z' {
+		return false
+	}
+	last := name[len(name)-1]
+	if (last < 'a' || last > 'z') && (last < '0' || last > '9') {
+		return false
+	}
+	for i := 1; i < len(name)-1; i++ {
+		c := name[i]
+		if (c < 'a' || c > 'z') && (c < '0' || c > '9') && c != '-' {
+			return false
+		}
+	}
+	return true
+}
+
+// DeriveAppName derives a valid lowercase DNS application name from a problem statement.
+func DeriveAppName(problemStatement string) string {
+	lower := strings.ToLower(strings.TrimSpace(problemStatement))
+	var words []string
+	var cur strings.Builder
+	for _, r := range lower {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			cur.WriteRune(r)
+		} else if cur.Len() > 0 {
+			w := cur.String()
+			cur.Reset()
+			if w != "a" && w != "an" && w != "the" && w != "build" && w != "create" && w != "generate" && w != "for" && w != "with" {
+				words = append(words, w)
+				if len(words) == 3 {
+					break
+				}
+			}
+		}
+	}
+	if cur.Len() > 0 && len(words) < 3 {
+		w := cur.String()
+		if w != "a" && w != "an" && w != "the" && w != "build" && w != "create" && w != "generate" && w != "for" && w != "with" {
+			words = append(words, w)
+		}
+	}
+	candidate := strings.Join(words, "-")
+	if candidate == "" || candidate[0] < 'a' || candidate[0] > 'z' {
+		candidate = "generated-app"
+	} else if !strings.HasSuffix(candidate, "-app") && !strings.HasSuffix(candidate, "-service") {
+		candidate += "-app"
+	}
+	if len(candidate) > 32 {
+		candidate = strings.TrimRight(candidate[:32], "-")
+	}
+	if !IsValidAppName(candidate) {
+		return "generated-app"
+	}
+	return candidate
 }
 
 // ParseIntake checks a repository URL and ref. It accepts only http and
@@ -244,7 +392,7 @@ func ParseIntake(repoURL, ref string) (Intake, error) {
 	if len(ref) > 255 {
 		return Intake{}, IntakeError{Reason: "ref is too long"}
 	}
-	if strings.ContainsAny(ref, " \t\r\n") || strings.Contains(ref, "..") {
+	if strings.HasPrefix(ref, "-") || strings.Contains(ref, ":") || strings.ContainsAny(ref, " \t\r\n") || strings.Contains(ref, "..") {
 		return Intake{}, IntakeError{Reason: "ref is not a valid git revision"}
 	}
 	for _, r := range ref {
@@ -319,6 +467,15 @@ func IsPinnedCommit(sha string) bool {
 		}
 	}
 	return true
+}
+
+// IsBoundCommit reports whether sha is a valid bound commit for profileName.
+// For appgen sessions (which have no source repository), NoRepositoryCommit is required.
+func IsBoundCommit(profileName, sha string) bool {
+	if profileName == ProfileAppgen {
+		return sha == NoRepositoryCommit
+	}
+	return IsPinnedCommit(sha)
 }
 
 // RequireAccepted is the no-compute guard. Every build, packaging, or

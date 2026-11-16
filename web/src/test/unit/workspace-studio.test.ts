@@ -1,6 +1,7 @@
 import { areaObject } from "../../console/operator/kit.js";
 import { describe, it, expect } from "vite-plus/test";
 import {
+  WORKSPACE_ISOLATION_NOTICE,
   workspaceScope,
   currentWorkspaceDiff,
   safeWorkspaceDownload,
@@ -13,6 +14,11 @@ const row = {
   sourceDigest: "sha256:a",
 };
 describe("workspace studio binding", () => {
+  it("states container isolation now, stronger isolation planned", () => {
+    expect(WORKSPACE_ISOLATION_NOTICE).toBe(
+      "container isolation now, stronger isolation planned",
+    );
+  });
   it("binds drafts to native identity, owner and immutable source coordinates", () => {
     const scope = workspaceScope(row, "alice");
     expect(

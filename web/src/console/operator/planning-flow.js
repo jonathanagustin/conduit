@@ -93,7 +93,24 @@ async function request(
 }
 
 export async function createSession(repoUrl, ref, fetchImpl = fetch) {
-  const response = await request(fetchImpl, "POST", BASE, { repoUrl, ref });
+  let payload;
+  if (repoUrl && typeof repoUrl === "object") {
+    const profile = repoUrl.profile || "onboard";
+    if (profile === "appgen") {
+      payload = {
+        profile: "appgen",
+        ...(repoUrl.problemStatement
+          ? { problemStatement: repoUrl.problemStatement }
+          : {}),
+        ...(repoUrl.appName ? { appName: repoUrl.appName } : {}),
+      };
+    } else {
+      payload = { repoUrl: repoUrl.repoUrl || "", ref: repoUrl.ref || "" };
+    }
+  } else {
+    payload = { repoUrl, ref };
+  }
+  const response = await request(fetchImpl, "POST", BASE, payload);
   return response.json();
 }
 
@@ -356,12 +373,21 @@ export function formatAcceptedTimestamp(value) {
 /** Rows for the binding panel, straight from the recorded binding. */
 export function bindingRows(binding) {
   if (!binding) return [];
+  const isAppgen = binding.profile?.name === "appgen";
+  const intakeRows = isAppgen
+    ? [
+        ["Problem statement", binding.intake?.problemStatement || ""],
+        ["Application name", binding.intake?.appName || ""],
+      ]
+    : [
+        ["Repository", binding.intake?.repoUrl || ""],
+        ["Ref", binding.intake?.ref || ""],
+      ];
   return [
     ["Profile", `${binding.profile?.name || ""}`],
     ["Profile version", binding.profile?.version || ""],
     ["Profile hash", binding.profile?.hash || ""],
-    ["Repository", binding.intake?.repoUrl || ""],
-    ["Ref", binding.intake?.ref || ""],
+    ...intakeRows,
     ["Commit SHA", binding.resolvedCommit || ""],
     ["Model", displayModelName(binding.model)],
     ["Plan hash", binding.plan?.sha256 || ""],
@@ -372,8 +398,11 @@ export function bindingRows(binding) {
 /** Fresh UI state. No session, no events, nothing prefilled. */
 export function emptyPlanning() {
   return {
+    profile: "onboard",
     repoUrl: "",
     ref: "",
+    problemStatement: "",
+    appName: "",
     message: "",
     session: null,
     events: [],
@@ -438,16 +467,32 @@ function errorBanner(error) {
 function composer(planning) {
   const busy = Boolean(planning.busy);
   const locked = Boolean(planning.session);
+  const activeProfile =
+    planning.session?.profile?.name || planning.profile || "onboard";
+  const isAppgen = activeProfile === "appgen";
   const sendLabel =
     planning.busy === "turn" ? "Working…" : locked ? "Send message" : "Send";
-  return `<section class="kit-panel kit-pad plan-card" data-plan-composer aria-label="Composer">
-    <div class="kit-section">Plan new work</div>
-    <div class="plan-fields">
+  const intakeFields = isAppgen
+    ? `<div class="plan-fields">
+      <div><label class="plan-label" for="plan-problem">Problem statement</label>
+        <input type="text" class="kit-input" id="plan-problem" data-plan-field="problemStatement" value="${esc(planning.problemStatement)}" placeholder="Describe the HTTP service to generate" autocomplete="off"${locked ? " disabled" : ""} /></div>
+      <div><label class="plan-label" for="plan-app-name">Application name</label>
+        <input type="text" class="kit-input" id="plan-app-name" data-plan-field="appName" value="${esc(planning.appName)}" placeholder="optional lowercase DNS name" autocomplete="off"${locked ? " disabled" : ""} /></div>
+    </div>`
+    : `<div class="plan-fields">
       <div><label class="plan-label" for="plan-repo">Repository URL</label>
         <input type="text" class="kit-input" id="plan-repo" data-plan-field="repoUrl" value="${esc(planning.repoUrl)}" placeholder="https://host/org/repo" autocomplete="off"${locked ? " disabled" : ""} /></div>
       <div><label class="plan-label" for="plan-ref">Ref</label>
         <input type="text" class="kit-input" id="plan-ref" data-plan-field="ref" value="${esc(planning.ref)}" placeholder="branch, tag, or commit" autocomplete="off"${locked ? " disabled" : ""} /></div>
-    </div>
+    </div>`;
+  return `<section class="kit-panel kit-pad plan-card" data-plan-composer aria-label="Composer">
+    <div class="kit-section">Plan new work</div>
+    <div><label class="plan-label" for="plan-profile">Work profile</label>
+      <select class="kit-select" id="plan-profile" data-plan-field="profile"${locked ? " disabled" : ""}>
+        <option value="onboard"${!isAppgen ? " selected" : ""}>Onboard repository (onboard)</option>
+        <option value="appgen"${isAppgen ? " selected" : ""}>Generate app from problem statement (appgen)</option>
+      </select></div>
+    ${intakeFields}
     <label class="plan-label" for="plan-message">Message</label>
     <textarea class="kit-input plan-message" id="plan-message" data-plan-field="message" rows="3" placeholder="What should this work achieve?">${esc(planning.message)}</textarea>
     <div class="plan-actions">
@@ -652,6 +697,7 @@ function bindingPanel(session, planning = {}) {
     <div class="plan-actions">
       <button type="button" class="kit-btn kit-btn-sm" data-plan-compute${busy || computed ? " disabled" : ""}>${busy ? "Packaging…" : computed ? "Packaged into Git Workspace" : "Package into Git Workspace"}</button>
       ${computed ? `<span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span>` : ""}
+      <button type="button" class="kit-btn kit-btn-sm" data-plan-new-session>New Session</button>
     </div>
   </section>`;
 }
@@ -840,6 +886,11 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
   });
   root.addEventListener("change", (event) => {
     const target = event.target;
+    const field = target?.getAttribute?.("data-plan-field");
+    if (field === "profile") {
+      set({ profile: target.value, error: null });
+      return;
+    }
     const surface = target?.getAttribute?.("data-a2ui-surface");
     const component = target?.getAttribute?.("data-a2ui-component");
     if (surface && component)
@@ -876,8 +927,10 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
 
     if (hit("[data-plan-send]")) {
       const message = planning.message.trim();
+      const isAppgen = (planning.profile || "onboard") === "appgen";
       if (
         !planning.session &&
+        !isAppgen &&
         (!planning.repoUrl.trim() || !planning.ref.trim())
       ) {
         set({
@@ -893,11 +946,21 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       try {
         let session = store.planning.session;
         if (!session) {
-          session = await createSession(
-            planning.repoUrl.trim(),
-            planning.ref.trim(),
-            fetchImpl,
-          );
+          session = isAppgen
+            ? await createSession(
+                {
+                  profile: "appgen",
+                  problemStatement: (planning.problemStatement || "").trim(),
+                  appName: (planning.appName || "").trim(),
+                },
+                undefined,
+                fetchImpl,
+              )
+            : await createSession(
+                planning.repoUrl.trim(),
+                planning.ref.trim(),
+                fetchImpl,
+              );
           store.planning = { ...store.planning, session };
         }
         await agentRun({ message });
@@ -999,6 +1062,12 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       } catch (error) {
         fail(error);
       }
+      return;
+    }
+
+    if (hit("[data-plan-new-session]")) {
+      store.planning = emptyPlanning();
+      rerender();
     }
   });
 }

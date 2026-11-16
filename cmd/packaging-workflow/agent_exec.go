@@ -5,9 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net/url"
 	"os"
-	"os/exec"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -273,55 +271,8 @@ func mustMarshalString(v any) string {
 	return s
 }
 
-func workspaceAwareClone(stateDir string) plannerCloneFunc {
-	return func(ctx context.Context, repoURL, ref string) (repoclone.Checkout, func(), error) {
-		if strings.TrimSpace(stateDir) != "" {
-			if store, _, _, err := openWorkspaceBackend(stateDir, 0, 0, nil); err == nil {
-				if rows, listErr := store.List(ctx); listErr == nil {
-					for _, ws := range rows {
-						if ws.RepoURL == repoURL || ws.UpstreamRepo == repoURL {
-							repoDir := store.RepoDir(ws.ID)
-							if info, statErr := os.Stat(repoDir); statErr == nil && info.IsDir() {
-								sha := ws.BaseCommit
-								if sha == "" {
-									sha = ws.HeadCommit
-								}
-								if len(sha) != 40 {
-									if out, gitErr := exec.CommandContext(ctx, "git", "-C", repoDir, "rev-parse", "HEAD").Output(); gitErr == nil {
-										sha = strings.TrimSpace(string(out))
-									}
-								}
-								if len(sha) != 40 {
-									sha = "3a317b550123456789abcdef0123456789abcdef"
-								}
-								host := "github.com"
-								if parsed, parseErr := url.Parse(repoURL); parseErr == nil && parsed.Host != "" {
-									host = parsed.Host
-								}
-								return repoclone.Checkout{Dir: repoDir, SHA: sha, Host: host}, func() {}, nil
-							}
-						}
-					}
-				}
-			}
-		}
-		if demoDir := strings.TrimSpace(os.Getenv("CONDUIT_DEMO_SOURCE_DIR")); demoDir != "" {
-			if info, statErr := os.Stat(demoDir); statErr == nil && info.IsDir() {
-				sha := "3a317b550123456789abcdef0123456789abcdef"
-				if out, gitErr := exec.CommandContext(ctx, "git", "-C", demoDir, "rev-parse", "HEAD").Output(); gitErr == nil {
-					if trimmed := strings.TrimSpace(string(out)); len(trimmed) == 40 {
-						sha = trimmed
-					}
-				}
-				host := "github.com"
-				if parsed, parseErr := url.Parse(repoURL); parseErr == nil && parsed.Host != "" {
-					host = parsed.Host
-				}
-				return repoclone.Checkout{Dir: demoDir, SHA: sha, Host: host}, func() {}, nil
-			}
-		}
-		return repoclone.Clone(ctx, repoURL, ref)
-	}
+func workspaceAwareClone(_ string) plannerCloneFunc {
+	return repoclone.Clone
 }
 
 type plannerCloneFunc = func(ctx context.Context, repoURL, ref string) (repoclone.Checkout, func(), error)

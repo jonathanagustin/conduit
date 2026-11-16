@@ -6,12 +6,14 @@ import (
 	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strings"
 	"sync"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
+	appgenskill "github.com/jonathanagustin/conduit/skills/appgen"
 )
 
 // Planner runs one planning turn. A nil planner leaves turns unconfigured
@@ -39,18 +41,20 @@ const ActionAccept = "planning.accept"
 // Audit is one record for the audit chain. Accept fills the binding fields
 // and the profile and plan hashes.
 type Audit struct {
-	Action         string
-	SessionID      string
-	ProfileName    string
-	ProfileVersion string
-	ProfileHash    string
-	RepoURL        string
-	Ref            string
-	Message        string
-	ResolvedCommit string
-	Model          string
-	PlanHash       string
-	AcceptedAt     time.Time
+	Action           string
+	SessionID        string
+	ProfileName      string
+	ProfileVersion   string
+	ProfileHash      string
+	RepoURL          string
+	Ref              string
+	ProblemStatement string
+	AppName          string
+	Message          string
+	ResolvedCommit   string
+	Model            string
+	PlanHash         string
+	AcceptedAt       time.Time
 }
 
 // Auditor writes one audit record.
@@ -65,31 +69,61 @@ func (service *Service) WithAuditor(auditor Auditor) *Service {
 	return service
 }
 
+// AppgenComputer runs post-Accept application generation and packaging for an
+// accepted appgen session.
+type AppgenComputer func(ctx context.Context, session *domain.Session) error
+
+// WithAppgenCompute sets the post-Accept compute runner for appgen sessions.
+func (service *Service) WithAppgenCompute(compute AppgenComputer) *Service {
+	service.appgenCompute = compute
+	return service
+}
+
+// WithAppgenSkillSource overrides the embedded appgen SKILL.md bytes used when
+// snapshotting the appgen profile hash during planning turns.
+func (service *Service) WithAppgenSkillSource(source string) *Service {
+	service.appgenSkillSource = source
+	return service
+}
+
 // Service is a process-local planning-session store.
 type Service struct {
-	auditor     Auditor
-	planner     Planner
-	now         func() time.Time
-	mu          sync.Mutex
-	sessions    map[string]*domain.Session
-	activeTurns map[string]bool
+	auditor           Auditor
+	planner           Planner
+	appgenCompute     AppgenComputer
+	appgenSkillSource string
+	now               func() time.Time
+	mu                sync.Mutex
+	sessions          map[string]*domain.Session
+	activeTurns       map[string]bool
 }
 
 // NewService returns an empty in-memory store. A nil planner leaves turns
 // unconfigured so this contract can ship without calling a model.
 func NewService(planner Planner) *Service {
 	return &Service{
-		planner:     planner,
-		now:         func() time.Time { return time.Now().UTC() },
-		sessions:    map[string]*domain.Session{},
-		activeTurns: map[string]bool{},
+		planner:           planner,
+		appgenSkillSource: appgenskill.Source,
+		now:               func() time.Time { return time.Now().UTC() },
+		sessions:          map[string]*domain.Session{},
+		activeTurns:       map[string]bool{},
 	}
 }
 
-// Create records intake and returns a session in started. It does not
-// inspect the repository or call a model.
-func (service *Service) Create(_ context.Context, repoURL, ref string) (*domain.Session, error) {
-	intake, err := domain.ParseIntake(repoURL, ref)
+// Create records repository intake for the onboard profile and returns a
+// session in started. It does not inspect the repository or call a model.
+func (service *Service) Create(ctx context.Context, repoURL, ref string) (*domain.Session, error) {
+	return service.CreateWithInput(ctx, domain.CreateInput{
+		Profile: domain.ProfileOnboard,
+		RepoURL: repoURL,
+		Ref:     ref,
+	})
+}
+
+// CreateWithInput records either repository intake (onboard) or problem-statement
+// intake (appgen) and returns a session in started.
+func (service *Service) CreateWithInput(_ context.Context, in domain.CreateInput) (*domain.Session, error) {
+	profile, intake, questions, err := domain.ParseCreateInput(in)
 	if err != nil {
 		return nil, err
 	}
@@ -101,9 +135,9 @@ func (service *Service) Create(_ context.Context, repoURL, ref string) (*domain.
 	session := &domain.Session{
 		ID:         id,
 		Status:     domain.StatusStarted,
-		Profile:    domain.ProfileRef{Name: domain.ProfileOnboard},
+		Profile:    profile,
 		Intake:     intake,
-		NeedsInput: []domain.Question{},
+		NeedsInput: questions,
 		Answers:    []domain.Answer{},
 		Messages:   []domain.Message{},
 		Events:     []domain.Event{},
@@ -140,7 +174,8 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 		service.mu.Unlock()
 		return nil, domain.ErrAlreadyAccepted
 	}
-	if service.planner == nil {
+	isAppgen := session.Profile.Name == domain.ProfileAppgen
+	if service.planner == nil && !isAppgen {
 		service.mu.Unlock()
 		return nil, domain.ErrModelNotConfigured
 	}
@@ -150,6 +185,7 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 	}
 	service.activeTurns[id] = true
 	snapshot := domain.CloneSession(session)
+	skillSource := service.appgenSkillSource
 	service.mu.Unlock()
 	defer func() {
 		service.mu.Lock()
@@ -157,9 +193,28 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 		service.mu.Unlock()
 	}()
 
-	result, err := service.planner.Turn(ctx, snapshot, strings.TrimSpace(message))
-	if err != nil {
-		return nil, err
+	var result *TurnResult
+	if isAppgen && (service.planner == nil || domain.PendingRequired(snapshot.NeedsInput, snapshot.Answers)) {
+		result = BuildAppgenTurnResult(snapshot, strings.TrimSpace(message), skillSource)
+	} else {
+		result, err = service.planner.Turn(ctx, snapshot, strings.TrimSpace(message))
+		if err != nil {
+			return nil, err
+		}
+		if isAppgen && result != nil {
+			if result.ResolvedCommit == "" {
+				result.ResolvedCommit = domain.NoRepositoryCommit
+			}
+			if result.Profile.Name == "" {
+				result.Profile.Name = domain.ProfileAppgen
+			}
+			if result.Profile.Version == "" {
+				result.Profile.Version = appgenskill.Version
+			}
+			if result.Profile.Hash == "" {
+				result.Profile.Hash = appgenskill.SHA256From(skillSource)
+			}
+		}
 	}
 
 	service.mu.Lock()
@@ -185,7 +240,10 @@ func (service *Service) Turn(ctx context.Context, id, message string) (*domain.S
 			session.NeedsInput = result.NeedsInput
 		}
 		if result.Plan != nil {
-			session.Plan = result.Plan
+			plan := domain.Plan{Text: result.Plan.Text}
+			plan.SHA256 = domain.PlanHash(plan)
+			session.Plan = &plan
+			result.Plan = &plan
 		}
 		if result.ResolvedCommit != "" {
 			session.ResolvedCommit = result.ResolvedCommit
@@ -286,6 +344,14 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 	for _, question := range session.NeedsInput {
 		if item, ok := byID[question.ID]; ok {
 			session.Answers = append(session.Answers, item)
+			if session.Profile.Name == domain.ProfileAppgen {
+				switch question.ID {
+				case "problem_statement":
+					session.Intake.ProblemStatement = item.Value
+				case "app_name":
+					session.Intake.AppName = item.Value
+				}
+			}
 		}
 	}
 	session.Status = statusAfterTurn(session)
@@ -296,8 +362,8 @@ func (service *Service) Answer(_ context.Context, id string, answers []domain.An
 }
 
 // Accept records the binding. It refuses unless a plan exists, every
-// required Needs Input question is answered, and the commit SHA is pinned.
-// The binding is written once; a second Accept is refused.
+// required Needs Input question is answered, and the commit SHA is pinned
+// (or NoRepositoryCommit for appgen). The binding is written once; a second Accept is refused.
 func (service *Service) Accept(ctx context.Context, id string) (*domain.Session, error) {
 	service.mu.Lock()
 	defer service.mu.Unlock()
@@ -317,7 +383,7 @@ func (service *Service) Accept(ctx context.Context, id string) (*domain.Session,
 	if domain.PendingRequired(session.NeedsInput, session.Answers) {
 		return nil, domain.ErrNeedsInputPending
 	}
-	if !domain.IsPinnedCommit(session.ResolvedCommit) {
+	if !domain.IsBoundCommit(session.Profile.Name, session.ResolvedCommit) {
 		return nil, domain.ErrCommitNotPinned
 	}
 	now := service.now()
@@ -343,18 +409,20 @@ func (service *Service) Accept(ctx context.Context, id string) (*domain.Session,
 	}
 	if service.auditor != nil {
 		err := service.auditor.Record(ctx, Audit{
-			Action:         ActionAccept,
-			SessionID:      session.ID,
-			ProfileName:    binding.Profile.Name,
-			ProfileVersion: binding.Profile.Version,
-			ProfileHash:    binding.Profile.Hash,
-			RepoURL:        intake.RepoURL,
-			Ref:            intake.Ref,
-			Message:        intake.Message,
-			ResolvedCommit: binding.ResolvedCommit,
-			Model:          binding.Model,
-			PlanHash:       plan.SHA256,
-			AcceptedAt:     now,
+			Action:           ActionAccept,
+			SessionID:        session.ID,
+			ProfileName:      binding.Profile.Name,
+			ProfileVersion:   binding.Profile.Version,
+			ProfileHash:      binding.Profile.Hash,
+			RepoURL:          intake.RepoURL,
+			Ref:              intake.Ref,
+			ProblemStatement: intake.ProblemStatement,
+			AppName:          intake.AppName,
+			Message:          intake.Message,
+			ResolvedCommit:   binding.ResolvedCommit,
+			Model:            binding.Model,
+			PlanHash:         plan.SHA256,
+			AcceptedAt:       now,
 		})
 		if err != nil {
 			return nil, fmt.Errorf("record the planning.accept audit event: %w", err)
@@ -413,17 +481,28 @@ func (service *Service) appendEvent(session *domain.Session, event domain.Event)
 	session.Events = append(session.Events, event)
 }
 
-// Compute is refused until Accept. After Accept this contract still has
-// no package runner, so it reports that compute is not configured.
-func (service *Service) Compute(_ context.Context, id string) (*domain.Session, error) {
+// Compute is refused until Accept. After Accept, appgen sessions run the
+// configured appgen compute hook when present; otherwise compute reports that
+// it is not configured.
+func (service *Service) Compute(ctx context.Context, id string) (*domain.Session, error) {
 	service.mu.Lock()
-	defer service.mu.Unlock()
 	session, err := service.mutable(id)
 	if err != nil {
+		service.mu.Unlock()
 		return nil, err
 	}
 	if err := domain.RequireAccepted(session); err != nil {
+		service.mu.Unlock()
 		return nil, err
+	}
+	cloned := domain.CloneSession(session)
+	compute := service.appgenCompute
+	service.mu.Unlock()
+	if cloned.Binding != nil && cloned.Binding.Profile.Name == domain.ProfileAppgen && compute != nil {
+		if err := compute(ctx, cloned); err != nil {
+			return nil, err
+		}
+		return cloned, nil
 	}
 	return nil, domain.ErrComputeNotConfigured
 }
@@ -443,7 +522,7 @@ func statusAfterTurn(session *domain.Session) string {
 	if session.Plan != nil && strings.TrimSpace(session.Plan.Text) != "" {
 		return domain.StatusReady
 	}
-	if session.Inspection != nil {
+	if session.Inspection != nil || session.Profile.Name == domain.ProfileAppgen {
 		return domain.StatusPlanning
 	}
 	return domain.StatusInspecting
@@ -452,6 +531,9 @@ func statusAfterTurn(session *domain.Session) string {
 func validateAnswer(question domain.Question, value string) error {
 	value = strings.TrimSpace(value)
 	if (question.Required || question.ValidationError != "") && value == "" {
+		return domain.ErrInvalidAnswer
+	}
+	if question.ID == "app_name" && !domain.IsValidAppName(value) {
 		return domain.ErrInvalidAnswer
 	}
 	switch question.Type {
@@ -468,6 +550,88 @@ func validateAnswer(question domain.Question, value string) error {
 		return domain.ErrInvalidAnswer
 	}
 	return nil
+}
+
+// BuildAppgenTurnResult constructs the planning TurnResult for an appgen session
+// without cloning a source repository or running pre-Accept generation/build compute.
+func BuildAppgenTurnResult(session *domain.Session, message, skillSource string) *TurnResult {
+	if skillSource == "" {
+		skillSource = appgenskill.Source
+	}
+	profile := domain.ProfileRef{
+		Name:    domain.ProfileAppgen,
+		Version: appgenskill.Version,
+		Hash:    appgenskill.SHA256From(skillSource),
+	}
+	ps := strings.TrimSpace(session.Intake.ProblemStatement)
+	appName := strings.TrimSpace(session.Intake.AppName)
+	for _, ans := range session.Answers {
+		switch ans.ID {
+		case "problem_statement":
+			if strings.TrimSpace(ans.Value) != "" {
+				ps = strings.TrimSpace(ans.Value)
+			}
+		case "app_name":
+			if strings.TrimSpace(ans.Value) != "" {
+				appName = strings.TrimSpace(ans.Value)
+			}
+		}
+	}
+	if domain.PendingRequired(session.NeedsInput, session.Answers) || ps == "" || !domain.IsValidAppName(appName) {
+		questions := append([]domain.Question(nil), session.NeedsInput...)
+		if len(questions) == 0 {
+			_, _, questions, _ = domain.ParseCreateInput(domain.CreateInput{
+				Profile:          domain.ProfileAppgen,
+				ProblemStatement: ps,
+				AppName:          appName,
+			})
+		}
+		return &TurnResult{
+			Messages: []domain.Message{{
+				Role: domain.RoleModel,
+				Text: "Complete the problem-statement intake fields so I can prepare the application generation and packaging plan.",
+			}},
+			NeedsInput:     questions,
+			ResolvedCommit: domain.NoRepositoryCommit,
+			Model:          domain.DefaultModelLabel,
+			Profile:        profile,
+		}
+	}
+	summary := fmt.Sprintf("Generate HTTP application %s from problem statement: %s", appName, ps)
+	if message != "" {
+		summary = fmt.Sprintf("%s (%s)", summary, message)
+	}
+	planObj := map[string]any{
+		"summary":          summary,
+		"appName":          appName,
+		"problemStatement": ps,
+		"baseImage":        "cgr.dev/chainguard/static@sha256:0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+		"buildSteps":       []string{"go build -trimpath -ldflags='-s -w' -o /out/app ./main.go"},
+		"startCommand":     "/app",
+		"ports":            []int{8080},
+		"healthCheckPath":  "/healthz",
+		"envVars":          []string{"PORT=8080"},
+		"memoryRequest":    "128Mi",
+		"memoryLimit":      "256Mi",
+		"cpuRequest":       "100m",
+		"cpuLimit":         "500m",
+		"generatedFiles":   []string{"main.go", "index.html", "values.yaml"},
+		"packagedFiles":    []string{"Dockerfile", ".dockerignore", "zarf.yaml", "uds-package.yaml", "package-source.yaml"},
+		"notes":            []string{"No source repository; generated after Accept and validated through appgen and packaging gates."},
+	}
+	rawPlan, _ := json.Marshal(planObj)
+	plan := domain.Plan{Text: string(rawPlan)}
+	plan.SHA256 = domain.PlanHash(plan)
+	return &TurnResult{
+		Messages: []domain.Message{{
+			Role: domain.RoleModel,
+			Text: fmt.Sprintf("Prepared generation and packaging plan for %s from problem statement.", appName),
+		}},
+		Plan:           &plan,
+		ResolvedCommit: domain.NoRepositoryCommit,
+		Model:          domain.DefaultModelLabel,
+		Profile:        profile,
+	}
 }
 
 func newSessionID() (string, error) {

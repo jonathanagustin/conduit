@@ -55,6 +55,35 @@ func (s *ClientService) Create(ctx context.Context, repoURL, ref string) (*domai
 	return s.CreateWithID(ctx, fmt.Sprintf("ps_%d", s.seq.Add(1)), repoURL, ref)
 }
 
+// CreateWithInput starts a new durable planning session workflow for either onboard or appgen intake.
+func (s *ClientService) CreateWithInput(ctx context.Context, in domain.CreateInput) (*domain.Session, error) {
+	if s.client == nil {
+		return nil, errors.New("planning Temporal client is not configured")
+	}
+	if _, _, _, err := domain.ParseCreateInput(in); err != nil {
+		return nil, err
+	}
+	sessionID := fmt.Sprintf("ps_%d", s.seq.Add(1))
+	wfID := WorkflowID(sessionID)
+	_, err := s.client.ExecuteWorkflow(ctx, client.StartWorkflowOptions{
+		ID:                    wfID,
+		TaskQueue:             s.taskQueue,
+		WorkflowIDReusePolicy: enumspb.WORKFLOW_ID_REUSE_POLICY_REJECT_DUPLICATE,
+	}, WorkflowName, Input{
+		SessionID:        sessionID,
+		Actor:            s.actor,
+		Profile:          in.Profile,
+		RepoURL:          in.RepoURL,
+		Ref:              in.Ref,
+		ProblemStatement: in.ProblemStatement,
+		AppName:          in.AppName,
+	})
+	if err != nil {
+		return nil, MapWorkflowError(err)
+	}
+	return s.Get(ctx, sessionID)
+}
+
 // CreateWithID starts a new durable planning session workflow with an explicit session ID.
 func (s *ClientService) CreateWithID(ctx context.Context, sessionID, repoURL, ref string) (*domain.Session, error) {
 	if s.client == nil {

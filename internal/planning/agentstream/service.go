@@ -161,7 +161,7 @@ func (service *Service) Run(ctx context.Context, input RunInput, write func([]by
 	service.mu.Lock()
 	service.syncNativeLocked(state, session, -1, "")
 	service.mu.Unlock()
-	output := &publisher{threadID: input.ThreadID, runID: input.RunID, sequence: agui.NewSequence(input.ThreadID, input.RunID), audit: service.audit, write: write}
+	output := &publisher{threadID: input.ThreadID, runID: input.RunID, sequence: agui.NewSequence(input.ThreadID, input.RunID), audit: service.audit, write: write, trackActivity: !snapshot}
 	if err := output.send(ctx, map[string]any{"type": "RUN_STARTED", "threadId": input.ThreadID, "runId": input.RunID, "protocolVersion": agui.Version}); err != nil {
 		return err
 	}

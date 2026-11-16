@@ -5,9 +5,13 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"io"
+	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -17,10 +21,12 @@ import (
 
 // Runtime supervises one child process per workspace.
 type Runtime struct {
-	mu      sync.Mutex
-	command []string
-	dir     func(domain.Workspace) string
-	runs    map[string]*child
+	mu       sync.Mutex
+	command  []string
+	dir      func(domain.Workspace) string
+	runs     map[string]*child
+	egress   *domain.EgressConfig
+	resolver func(host string, port int) string
 }
 
 type child struct {
@@ -35,7 +41,7 @@ type child struct {
 }
 
 // New returns a runtime that executes command. dir, when set, is the working
-// directory. The child inherits PATH only.
+// directory. The child inherits a cleaned rootless environment with no cluster credentials.
 func New(command []string, dir func(domain.Workspace) string) *Runtime {
 	if len(command) == 0 {
 		command = []string{"sleep", "3600"}
@@ -43,7 +49,29 @@ func New(command []string, dir func(domain.Workspace) string) *Runtime {
 	return &Runtime{command: command, dir: dir, runs: map[string]*child{}}
 }
 
+// NewWithEgress returns a runtime configured with a validated workspace.egress allowlist.
+func NewWithEgress(command []string, dir func(domain.Workspace) string, egress domain.EgressConfig) (*Runtime, error) {
+	validated, err := domain.NormalizeAndValidateEgress(egress)
+	if err != nil {
+		return nil, err
+	}
+	rt := New(command, dir)
+	rt.egress = &validated
+	return rt, nil
+}
+
+// SetEndpointResolver binds logical allowed hosts (such as git-host and local-registry)
+// to concrete dial addresses for deterministic socket testing.
+func (runtime *Runtime) SetEndpointResolver(resolver func(host string, port int) string) {
+	runtime.mu.Lock()
+	defer runtime.mu.Unlock()
+	runtime.resolver = resolver
+}
+
 func (runtime *Runtime) Start(_ context.Context, workspace domain.Workspace) (domain.Runtime, error) {
+	if domain.IsNetworkPolicyEditCommand(runtime.command) {
+		return domain.Runtime{WorkspaceID: workspace.ID, Status: domain.StatusFailed, Failure: "workspace cannot modify its own network policy", Origin: domain.OriginLocalRuntime}, domain.ErrForbidden
+	}
 	runtime.mu.Lock()
 	if current, ok := runtime.runs[workspace.ID]; ok {
 		current.mu.Lock()
@@ -56,7 +84,7 @@ func (runtime *Runtime) Start(_ context.Context, workspace domain.Workspace) (do
 		}
 	}
 	cmd := exec.Command(runtime.command[0], runtime.command[1:]...)
-	cmd.Env = []string{"PATH=" + os.Getenv("PATH")}
+	cmd.Env = CommandEnv()
 	if runtime.dir != nil {
 		cmd.Dir = runtime.dir(workspace)
 	}
@@ -247,18 +275,131 @@ func (runtime *Runtime) Crash(workspaceID string) error {
 }
 
 // CommandEnv is the environment a child would receive. Tests use it to prove
-// credential variables are not inherited.
+// credential and cluster variables are not inherited and rootless builder mode is set.
 func CommandEnv() []string {
-	return []string{"PATH=" + os.Getenv("PATH")}
+	return []string{
+		"PATH=" + os.Getenv("PATH"),
+		"BUILDKIT_ROOTLESS=1",
+		"BUILDAH_ISOLATION=chroot",
+		"STORAGE_DRIVER=vfs",
+		"CONDUIT_ISOLATION_MODE=container",
+	}
 }
 
-// InheritedSecret reports whether a name would be passed to a child.
+// InheritedSecret reports whether a secret or cluster credential variable would be passed to a child.
 func InheritedSecret(env []string) bool {
 	for _, item := range env {
 		name, _, _ := strings.Cut(item, "=")
-		if strings.Contains(strings.ToLower(name), "token") || strings.Contains(strings.ToLower(name), "secret") || strings.Contains(strings.ToLower(name), "password") {
+		lower := strings.ToLower(name)
+		if strings.Contains(lower, "token") || strings.Contains(lower, "secret") || strings.Contains(lower, "password") {
+			return true
+		}
+	}
+	return HasClusterCredentials(env)
+}
+
+// HasClusterCredentials reports whether environment variables expose Kubernetes
+// cluster credentials, kubeconfigs, or a host Docker daemon socket.
+func HasClusterCredentials(env []string) bool {
+	for _, item := range env {
+		name, val, _ := strings.Cut(item, "=")
+		upper := strings.ToUpper(strings.TrimSpace(name))
+		switch upper {
+		case "KUBECONFIG", "KUBERNETES_SERVICE_HOST", "KUBERNETES_SERVICE_PORT", "KUBERNETES_PORT", "BEARER_TOKEN", "SERVICEACCOUNT_TOKEN":
+			return true
+		case "DOCKER_HOST":
+			if strings.TrimSpace(val) != "" {
+				return true
+			}
+		}
+		if strings.HasPrefix(upper, "KUBERNETES_PORT_") || strings.HasPrefix(upper, "KUBERNETES_SERVICE_") {
 			return true
 		}
 	}
 	return false
+}
+
+// VerifyNoClusterCredentialsInWorkspace checks that the workspace environment
+// and filesystem directory contain no Kubernetes service-account token,
+// kubeconfig, or host Docker socket.
+func VerifyNoClusterCredentialsInWorkspace(env []string, workDir string) error {
+	if HasClusterCredentials(env) {
+		return fmt.Errorf("%w: cluster credential environment variable present in workspace", domain.ErrForbidden)
+	}
+	if strings.TrimSpace(workDir) == "" {
+		return nil
+	}
+	for _, rel := range []string{
+		".kube/config",
+		"kubeconfig",
+		"var/run/secrets/kubernetes.io/serviceaccount/token",
+		"var/run/docker.sock",
+		"run/docker.sock",
+	} {
+		if _, err := os.Stat(filepath.Join(workDir, filepath.FromSlash(rel))); err == nil {
+			return fmt.Errorf("%w: forbidden credential or socket %s present in workspace", domain.ErrForbidden, rel)
+		}
+	}
+	return nil
+}
+
+// DialContext connects from the workspace only when the destination host, port,
+// and protocol are permitted by the workspace's default-deny egress allowlist.
+func (runtime *Runtime) DialContext(ctx context.Context, network, address string) (net.Conn, error) {
+	runtime.mu.Lock()
+	egress := runtime.egress
+	resolver := runtime.resolver
+	runtime.mu.Unlock()
+	if egress == nil {
+		return nil, fmt.Errorf("%w: workspace egress allowlist is not configured", domain.ErrEgressDenied)
+	}
+	host, portStr, err := net.SplitHostPort(address)
+	if err != nil {
+		return nil, fmt.Errorf("%w: %v", domain.ErrEgressDenied, err)
+	}
+	port, err := strconv.Atoi(portStr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: invalid port %q", domain.ErrEgressDenied, portStr)
+	}
+	proto := "TCP"
+	if strings.HasPrefix(strings.ToLower(network), "udp") {
+		proto = "UDP"
+	}
+	if err := domain.AllowsEndpoint(*egress, host, port, proto); err != nil {
+		return nil, err
+	}
+	dialAddr := address
+	if resolver != nil {
+		if mapped := strings.TrimSpace(resolver(host, port)); mapped != "" {
+			dialAddr = mapped
+		}
+	}
+	var dialer net.Dialer
+	return dialer.DialContext(ctx, network, dialAddr)
+}
+
+// ExecInWorkspace runs a command inside the isolated workspace environment and
+// denies any attempt from inside the workspace to edit its own network policy.
+func (runtime *Runtime) ExecInWorkspace(ctx context.Context, workspace domain.Workspace, argv []string) (string, error) {
+	if len(argv) == 0 {
+		return "", domain.ErrInvalid
+	}
+	if domain.IsNetworkPolicyEditCommand(argv) {
+		return "", fmt.Errorf("%w: workspace container cannot modify its own network policy", domain.ErrForbidden)
+	}
+	env := CommandEnv()
+	workDir := ""
+	if runtime.dir != nil {
+		workDir = runtime.dir(workspace)
+	}
+	if err := VerifyNoClusterCredentialsInWorkspace(env, workDir); err != nil {
+		return "", err
+	}
+	cmd := exec.CommandContext(ctx, argv[0], argv[1:]...)
+	cmd.Env = env
+	if workDir != "" {
+		cmd.Dir = workDir
+	}
+	out, err := cmd.CombinedOutput()
+	return string(out), err
 }

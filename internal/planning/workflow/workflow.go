@@ -11,6 +11,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/planning/application"
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
+	appgenskill "github.com/jonathanagustin/conduit/skills/appgen"
 	packagingskill "github.com/jonathanagustin/conduit/skills/packaging"
 )
 
@@ -57,8 +58,11 @@ const (
 type Input struct {
 	SessionID                string          `json:"sessionId"`
 	Actor                    string          `json:"actor"`
+	Profile                  string          `json:"profile,omitempty"`
 	RepoURL                  string          `json:"repoUrl"`
 	Ref                      string          `json:"ref"`
+	ProblemStatement         string          `json:"problemStatement,omitempty"`
+	AppName                  string          `json:"appName,omitempty"`
 	ContinueAsNewAfterEvents int             `json:"continueAsNewAfterEvents,omitempty"`
 	CANCount                 int             `json:"canCount,omitempty"`
 	Carry                    *domain.Session `json:"carry,omitempty"`
@@ -259,7 +263,7 @@ func SessionWorkflow(ctx workflow.Context, in Input) (*domain.Session, error) {
 				if domain.PendingRequired(session.NeedsInput, session.Answers) {
 					return temporal.NewNonRetryableApplicationError(domain.ErrNeedsInputPending.Error(), ErrTypeNeedsInputPending, nil)
 				}
-				if !domain.IsPinnedCommit(session.ResolvedCommit) {
+				if !domain.IsBoundCommit(session.Profile.Name, session.ResolvedCommit) {
 					return temporal.NewNonRetryableApplicationError(domain.ErrCommitNotPinned.Error(), ErrTypeCommitNotPinned, nil)
 				}
 				return nil
@@ -299,7 +303,13 @@ func initSession(ctx workflow.Context, in Input) (*domain.Session, error) {
 	if in.Carry != nil {
 		return domain.CloneSession(in.Carry), nil
 	}
-	intake, err := domain.ParseIntake(in.RepoURL, in.Ref)
+	profile, intake, questions, err := domain.ParseCreateInput(domain.CreateInput{
+		Profile:          in.Profile,
+		RepoURL:          in.RepoURL,
+		Ref:              in.Ref,
+		ProblemStatement: in.ProblemStatement,
+		AppName:          in.AppName,
+	})
 	if err != nil {
 		return nil, temporal.NewNonRetryableApplicationError(err.Error(), ErrTypeBadInput, nil)
 	}
@@ -308,10 +318,12 @@ func initSession(ctx workflow.Context, in Input) (*domain.Session, error) {
 		id = "ps_1"
 	}
 	now := workflow.Now(ctx).UTC()
-	profile := domain.ProfileRef{
-		Name:    domain.ProfileOnboard,
-		Version: packagingskill.Version,
-		Hash:    packagingskill.SHA256(),
+	if profile.Name == domain.ProfileAppgen {
+		profile.Version = appgenskill.Version
+		profile.Hash = appgenskill.SHA256()
+	} else {
+		profile.Version = packagingskill.Version
+		profile.Hash = packagingskill.SHA256()
 	}
 	return &domain.Session{
 		ID:         id,
@@ -319,7 +331,7 @@ func initSession(ctx workflow.Context, in Input) (*domain.Session, error) {
 		Profile:    profile,
 		Intake:     intake,
 		Messages:   []domain.Message{},
-		NeedsInput: []domain.Question{},
+		NeedsInput: questions,
 		Answers:    []domain.Answer{},
 		Events:     []domain.Event{},
 		CreatedAt:  now,
@@ -472,6 +484,14 @@ func handleAnswer(ctx workflow.Context, session *domain.Session, req AnswerReque
 	for _, question := range session.NeedsInput {
 		if item, ok := byID[question.ID]; ok {
 			session.Answers = append(session.Answers, item)
+			if session.Profile.Name == domain.ProfileAppgen {
+				switch question.ID {
+				case "problem_statement":
+					session.Intake.ProblemStatement = item.Value
+				case "app_name":
+					session.Intake.AppName = item.Value
+				}
+			}
 		}
 	}
 	session.Status = statusAfterTurn(session)
@@ -516,18 +536,20 @@ func handleAccept(ctx workflow.Context, in Input, session *domain.Session) (*dom
 		},
 	})
 	auditRecord := application.Audit{
-		Action:         application.ActionAccept,
-		SessionID:      session.ID,
-		ProfileName:    binding.Profile.Name,
-		ProfileVersion: binding.Profile.Version,
-		ProfileHash:    binding.Profile.Hash,
-		RepoURL:        intake.RepoURL,
-		Ref:            intake.Ref,
-		Message:        intake.Message,
-		ResolvedCommit: binding.ResolvedCommit,
-		Model:          binding.Model,
-		PlanHash:       binding.Plan.SHA256,
-		AcceptedAt:     now,
+		Action:           application.ActionAccept,
+		SessionID:        session.ID,
+		ProfileName:      binding.Profile.Name,
+		ProfileVersion:   binding.Profile.Version,
+		ProfileHash:      binding.Profile.Hash,
+		RepoURL:          intake.RepoURL,
+		Ref:              intake.Ref,
+		ProblemStatement: intake.ProblemStatement,
+		AppName:          intake.AppName,
+		Message:          intake.Message,
+		ResolvedCommit:   binding.ResolvedCommit,
+		Model:            binding.Model,
+		PlanHash:         binding.Plan.SHA256,
+		AcceptedAt:       now,
 	}
 	if err := workflow.ExecuteActivity(actCtx, ActAuditAccept, AuditAcceptActivityInput{
 		Actor:   in.Actor,
@@ -559,7 +581,7 @@ func statusAfterTurn(session *domain.Session) string {
 	if session.Plan != nil && strings.TrimSpace(session.Plan.Text) != "" {
 		return domain.StatusReady
 	}
-	if session.Inspection != nil {
+	if session.Inspection != nil || session.Profile.Name == domain.ProfileAppgen {
 		return domain.StatusPlanning
 	}
 	return domain.StatusInspecting
@@ -583,6 +605,9 @@ func validateAnswers(questions []domain.Question, answers []domain.Answer) error
 		}
 		val := strings.TrimSpace(ans.Value)
 		if (q.Required || q.ValidationError != "") && val == "" {
+			return temporal.NewNonRetryableApplicationError(domain.ErrInvalidAnswer.Error(), ErrTypeInvalidAnswer, nil)
+		}
+		if q.ID == "app_name" && !domain.IsValidAppName(val) {
 			return temporal.NewNonRetryableApplicationError(domain.ErrInvalidAnswer.Error(), ErrTypeInvalidAnswer, nil)
 		}
 		switch q.Type {
