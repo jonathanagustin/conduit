@@ -3109,3 +3109,189 @@ test("active Command Center uses scoped Connect overview and drops a previous ac
   );
   expect(reads).toBe(beforeIdentityLoss);
 });
+
+test("engineer focus preserves one live conversation, draft and pending request", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 1440, height: 1024 });
+  await hydrate(page);
+  await page.addInitScript(() =>
+    localStorage.setItem("conduit.console.dockWidth", "420"),
+  );
+  const writes: string[] = [];
+  let calls = 0;
+  let release!: () => void;
+  const responseReady = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  let failed = 0;
+  page.on("requestfailed", (request) => {
+    if (new URL(request.url()).pathname === "/v1/assistant/turns") failed++;
+  });
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET") writes.push(path);
+    if (path === "/v1/assistant/turns") {
+      calls++;
+      await responseReady;
+      await route.fulfill({
+        json: {
+          label: "Fixture response",
+          text: "Recorded conversation response.",
+          results: [],
+        },
+      });
+      return;
+    }
+    await route.fulfill({
+      json: { items: [], plans: [], environments: [], bundles: [], events: [] },
+    });
+  });
+  await page.goto("/console/#s09-source");
+  const studio = page.locator("[data-workspace-studio]");
+  await expect(studio).toBeVisible();
+  const entry = studio.getByRole("button", {
+    name: "Open engineer workspace",
+    exact: true,
+  });
+  await entry.click();
+  const root = page.locator("#operator-root");
+  const rail = page.locator("#right-chat-rail");
+  const composer = page.getByLabel("Message input");
+  await expect(root).toHaveAttribute("data-engineer-focus", "true");
+  await expect(composer).toBeVisible();
+  const mount = await page.locator("#assistant-thread-mount").elementHandle();
+  const input = await composer.elementHandle();
+  await composer.fill("Unsent engineering notes");
+  await page
+    .getByRole("button", { name: "Return to workbench", exact: true })
+    .click();
+  await expect(entry).toBeFocused();
+  await expect(composer).toHaveValue("Unsent engineering notes");
+  expect(await rail.evaluate((el) => el.getBoundingClientRect().width)).toBe(
+    420,
+  );
+  await rail
+    .getByRole("button", { name: "Open engineer workspace", exact: true })
+    .click();
+  expect(
+    await mount!.evaluate(
+      (el) => el === document.querySelector("#assistant-thread-mount"),
+    ),
+  ).toBe(true);
+  expect(
+    await input!.evaluate(
+      (el) => el === document.querySelector('[aria-label="Message input"]'),
+    ),
+  ).toBe(true);
+  expect(calls).toBe(0);
+  expect(writes).toEqual([]);
+  expect(
+    await page
+      .locator("#main-workspace")
+      .evaluate((el) => Boolean(el.parentElement?.inert)),
+  ).toBe(true);
+  await composer.fill("Inspect <img src=x> recorded source");
+  await page.getByRole("button", { name: "Send message", exact: true }).click();
+  await expect.poll(() => calls).toBe(1);
+  await page
+    .getByRole("button", { name: "Return to workbench", exact: true })
+    .click();
+  await rail
+    .getByRole("button", { name: "Open engineer workspace", exact: true })
+    .click();
+  expect(
+    await mount!.evaluate(
+      (el) => el === document.querySelector("#assistant-thread-mount"),
+    ),
+  ).toBe(true);
+  release();
+  await expect(
+    rail
+      .locator('[data-slot="aui_assistant-message-content"]')
+      .getByText("Recorded conversation response.", { exact: false }),
+  ).toBeVisible();
+  await expect(rail.locator("[data-engineer-outline] summary")).toContainText(
+    "1 user turn",
+  );
+  await rail.locator("[data-engineer-outline] summary").click();
+  await rail
+    .getByRole("button", {
+      name: "1. Inspect <img src=x> recorded source",
+      exact: true,
+    })
+    .click();
+  await expect(
+    rail.locator('[data-message-id][data-role="user"]'),
+  ).toBeFocused();
+  await expect(rail.locator('img[src="x"]')).toHaveCount(0);
+  expect(calls).toBe(1);
+  expect(failed).toBe(0);
+  expect(writes).toEqual(["/v1/assistant/turns"]);
+  await composer.fill("Keep this draft across Studio navigation");
+  await page.setViewportSize({ width: 375, height: 812 });
+  const bounds = await rail.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(-0.01);
+  expect(bounds!.width).toBeLessThanOrEqual(375.01);
+  await expect(composer).toBeVisible();
+  await page.screenshot({
+    path: "/workspace/scratch/engineer-focus-narrow.png",
+  });
+  await page.evaluate(() => {
+    const event = new KeyboardEvent("keydown", {
+      key: "Escape",
+      bubbles: true,
+      cancelable: true,
+    });
+    event.preventDefault();
+    window.dispatchEvent(event);
+  });
+  await expect(root).toHaveAttribute("data-engineer-focus", "true");
+  await page.keyboard.press("Escape");
+  await expect(root).toHaveAttribute("data-engineer-focus", "false");
+  expect(
+    await page
+      .locator("#main-workspace")
+      .evaluate((el) => Boolean(el.parentElement?.inert)),
+  ).toBe(false);
+  await page.setViewportSize({ width: 1364, height: 1024 });
+  await rail
+    .getByRole("button", { name: "Open engineer workspace", exact: true })
+    .click();
+  await page
+    .getByRole("navigation", { name: "Workspace studio" })
+    .getByRole("button", { name: "Preview", exact: true })
+    .click();
+  await expect(root).toHaveAttribute("data-engineer-focus", "false");
+  await expect(page.locator("[data-workspace-studio]")).toBeVisible();
+  await expect(composer).toHaveValue(
+    "Keep this draft across Studio navigation",
+  );
+  expect(
+    await page.evaluate(() =>
+      localStorage.getItem("conduit.console.dockWidth"),
+    ),
+  ).toBe("420");
+  expect(writes).toEqual(["/v1/assistant/turns"]);
+  await rail
+    .getByRole("button", { name: "Open engineer workspace", exact: true })
+    .click();
+  await page
+    .getByRole("button", { name: "Close assistant panel", exact: true })
+    .click();
+  await expect(root).toHaveAttribute("data-engineer-focus", "false");
+  await expect(rail).toBeHidden();
+  expect(
+    await page
+      .locator("#main-workspace")
+      .evaluate((el) => Boolean(el.parentElement?.inert)),
+  ).toBe(false);
+  await page.getByTitle("Toggle right chat panel").click();
+  await expect(composer).toHaveValue(
+    "Keep this draft across Studio navigation",
+  );
+  await expect(rail.locator("[data-engineer-outline] summary")).toContainText(
+    "1 user turn",
+  );
+  expect(writes).toEqual(["/v1/assistant/turns"]);
+});

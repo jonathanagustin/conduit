@@ -1,3 +1,4 @@
+import { createEngineerFocus } from "./engineer-workspace.js";
 import { createOntologyExplorer } from "./ontology-explorer.js";
 import { createAuditEventStream } from "./audit-event-stream.js";
 import { createOfflineBundleFlow } from "./offline-bundle-flow.mjs";
@@ -1247,6 +1248,7 @@ export function mountOperator(host, options) {
   }
 
   function switchScreen(scrId) {
+    closeEngineerWorkspace();
     const mapped = areaFor(scrId);
     if (mapped) {
       state.screen = mapped.area;
@@ -1298,7 +1300,38 @@ export function mountOperator(host, options) {
     writePref("conduit.console.railCollapsed", state.leftRailCollapsed);
     renderLeftRail();
   }
+  const engineerFocus = createEngineerFocus(host);
+  let engineerFocusReturn = null;
+  let engineerFocusOrigin = "";
+  function closeEngineerWorkspace() {
+    state.engineerFocus = false;
+    engineerFocus.set(false);
+  }
+  function toggleEngineerWorkspace(origin = "") {
+    const opening = !state.engineerFocus;
+    if (opening) {
+      engineerFocusReturn = document.activeElement;
+      engineerFocusOrigin = origin;
+    }
+    state.engineerFocus = opening;
+    if (opening) {
+      state.chatCollapsed = false;
+      state.dockSurface = "assistant";
+    }
+    engineerFocus.set(opening);
+    renderChatRail();
+    const target = opening
+      ? host.querySelector("[data-engineer-focus-toggle]")
+      : engineerFocusOrigin === "studio"
+        ? host.querySelector("[data-engineer-studio-entry]")
+        : engineerFocusReturn?.isConnected &&
+            !engineerFocusReturn.closest("[inert]")
+          ? engineerFocusReturn
+          : host.querySelector("[data-engineer-focus-toggle]");
+    target?.focus();
+  }
   function toggleChatRail() {
+    closeEngineerWorkspace();
     state.chatCollapsed = !state.chatCollapsed;
     renderChatRail();
     renderConduitModals();
@@ -1946,6 +1979,7 @@ export function mountOperator(host, options) {
       const btn = target && target.closest("[data-dock-surface]");
       if (!btn) return;
       state.dockSurface = btn.getAttribute("data-dock-surface");
+      if (state.dockSurface !== "assistant") closeEngineerWorkspace();
       if (state.dockSurface === "inspector") state.inspectRef = null;
       renderChatRail();
     });
@@ -5070,12 +5104,23 @@ export function mountOperator(host, options) {
   window.toggleSettingsDialog = () => settingsDialog.toggle();
 
   const onKey = (ev) => {
+    if (ev.defaultPrevented) return;
     if (settingsDialog.onKey(ev)) return;
     if (releaseGates.onKey(ev)) return;
     if ((ev.metaKey || ev.ctrlKey) && ev.key.toLowerCase() === "k") {
       ev.preventDefault();
       openCmdOmnibar();
     } else if (ev.key === "Escape") {
+      if (
+        state.engineerFocus &&
+        !state.cmdOmnibarOpen &&
+        !state.rmPromoDialogOpen &&
+        !host.querySelector('[aria-modal="true"]')
+      ) {
+        ev.preventDefault();
+        toggleEngineerWorkspace();
+        return;
+      }
       state.cmdOmnibarOpen = false;
       state.rmPromoDialogOpen = false;
       renderConduitModals();
@@ -5087,6 +5132,7 @@ export function mountOperator(host, options) {
     const id = (location.hash || "").replace(/^#/, "");
     const mapped = areaFor(id);
     if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id)) return;
+    closeEngineerWorkspace();
     if (mapped) {
       state.screen = mapped.area;
       state.areaTab = mapped.tab;
@@ -5107,6 +5153,7 @@ export function mountOperator(host, options) {
   window.closeMobileNav = closeMobileNav;
   window.toggleLeftRailCollapse = toggleLeftRailCollapse;
   window.toggleChatRail = toggleChatRail;
+  window.toggleEngineerWorkspace = toggleEngineerWorkspace;
   window.refreshHub = () => liveHub.refresh();
   window.toggleTheme = () => {
     const root = document.querySelector(".operator-root");
@@ -5145,6 +5192,7 @@ export function mountOperator(host, options) {
   settingsDialog.restore();
   renderApp();
   return () => {
+    engineerFocus.dispose();
     liveHub.stop();
     mountAuditEvents.dispose();
     removeInlineActions();

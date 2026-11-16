@@ -156,11 +156,15 @@ export function assistantChrome(state) {
     <header class="h-[38px] -mx-2.5 -mt-2.5 px-3 border-b border-[#1c242c] bg-[#0d1317] flex items-center justify-between gap-2 shrink-0">
       <div class="flex items-center gap-2 min-w-0">
         <span class="w-2 h-2 rounded-full bg-[#34d399]"></span>
-        <span class="text-[12.5px] font-semibold text-white truncate">Assistant</span>
+        <span class="text-[12.5px] font-semibold text-white truncate">${state.engineerFocus ? "Engineer workspace" : "Assistant"}</span>
         <span class="kit-badge kit-badge-muted">${mode === "explore" ? "Read only" : "Governed"}</span>
       </div>
-      <button type="button" data-onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
+      <div class="flex items-center gap-1">
+        <button type="button" data-engineer-focus-toggle data-onclick="toggleEngineerWorkspace()" class="kit-btn kit-btn-sm" aria-pressed="${Boolean(state.engineerFocus)}" aria-label="${state.engineerFocus ? "Return to workbench" : "Open engineer workspace"}">${state.engineerFocus ? "Return" : "Focus"}</button>
+        <button type="button" data-onclick="toggleChatRail()" class="h-[23px] px-1.5 rounded bg-[#12181e] border border-[#222c36] text-[#8b96a5]" aria-label="Close assistant panel">×</button>
+      </div>
     </header>
+    ${state.engineerFocus ? '<nav class="flex flex-wrap gap-1" aria-label="Workspace studio"><button type="button" class="kit-btn" data-onclick="switchScreen(\'s09-source\')">Source</button><button type="button" class="kit-btn" data-onclick="switchScreen(\'s10-diff\')">Diff</button><button type="button" class="kit-btn" data-onclick="switchScreen(\'s11-preview\')">Preview</button></nav>' : ""}
     <div class="shrink-0 space-y-2">
       <div class="text-[10px] font-semibold uppercase tracking-[0.08em] text-[#7c8794]">Mode · ${esc(state.screen || "")}</div>
       <div class="flex flex-wrap gap-1" data-assistant-modes>${modes}</div>
