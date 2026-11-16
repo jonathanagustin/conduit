@@ -47,17 +47,26 @@ subject, action, resource, decision, reason, trace identity, bounded request
 and result fields, and creation time. Audit data must exclude raw credentials
 and secret material.
 
-The repository has durable file-backed authorization events. The current
-governance service, however, discards errors returned by
-`AppendAuthorizationAudit` on both allow and deny paths. This means successful
-authorization can proceed when the audit write failed. That is an explicit
-current gap.
+The repository has durable file-backed authorization events. The shared
+`ResourceDecision.Allow` gate requires its policy-verdict append to succeed
+before it admits a mutation, including a bootstrap administrator or delegated
+carrier. A missing required audit sink refuses admission. Unknown operations
+receive no audit-outage bypass. Audit failure returns the existing authorization
+refusal, so callers cannot mutate state or start sequencing through this gate.
 
-The required target is fail-closed for governed mutation: if the decision event
-cannot be durably appended, the mutation does not proceed and no lease becomes
-available. Read-only operations may use a separately documented degraded mode,
-but they must expose that audit durability is unavailable. Retrying an append
-must be idempotent by event identity.
+The explicit `resource:read` and `debug-session-request:read` operations retain
+their existing best-effort behavior with a configured failing sink. They do not
+yet expose a degraded-audit indicator. A recorded ALLOW describes the policy
+verdict, not proof that a later mutation completed; a sink can persist and then
+report an ambiguous failure, in which case the mutation remains refused.
+
+This closes only the shared resource-decision gate's mutation gap. Direct
+administrator predicates, delegation-resolution/request-created notifications
+and other best-effort audit calls are separate paths. Existing transactional
+Change Request approval audit behavior is unchanged. The remaining target is
+fail-closed audit durability for every governed mutation and an explicit degraded
+read contract, with idempotent event identities; those broader guarantees are
+not established by this bounded gate.
 
 ## Review questions
 

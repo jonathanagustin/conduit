@@ -35,6 +35,8 @@ type GrantSource interface {
 // decision, reached a wider answer than the REST routes, and filed nothing,
 // leaving the widening with no symptom anybody could have queried for.
 //
+// Mutating ResourceDecision.Allow calls require successful persistence; its
+// two explicit read operations retain best-effort audit behavior.
 // The pairing binds ResourceDecision.Allow and nothing else. The administrator
 // predicate beside it is shared between both surfaces but writes no record, so
 // a route gated on administrator status alone still leaves none — read that
