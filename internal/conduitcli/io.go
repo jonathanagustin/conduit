@@ -56,16 +56,22 @@ func decodeDocument(path string, output any) error {
 	return nil
 }
 
-// writeOutput renders in the formats Conduit has: json, yaml, csv, and table.
-//
-// It used to accept a name, `pretty`, in the same branch as `yaml`, and --help
-// advertised "json, yaml, or pretty". The two names produced byte-identical
-// bytes, so an operator who chose `pretty` for a human-oriented rendering got
-// the machine format and nothing said the choice had been ignored. Naming the
-// formats and meaning them beats advertising one that does not exist; `pretty`
-// is now refused by the same branch that refuses any other unknown format,
-// which says so.
+// validateOutputFormat checks names before a command can open a connection or
+// mutate state. Individual commands still own CSV and table capabilities.
+func validateOutputFormat(format string) error {
+	switch strings.ToLower(strings.TrimSpace(format)) {
+	case "json", "yaml", "csv", "table":
+		return nil
+	default:
+		return fmt.Errorf("unsupported output format %q; use json, yaml, csv, or table", format)
+	}
+}
+
+// writeOutput renders JSON, YAML, CSV, or table output.
 func writeOutput(writer io.Writer, format string, value any) error {
+	if err := validateOutputFormat(format); err != nil {
+		return err
+	}
 	switch strings.ToLower(strings.TrimSpace(format)) {
 	case "json":
 		encoder := json.NewEncoder(writer)
