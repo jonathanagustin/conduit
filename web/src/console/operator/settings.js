@@ -461,7 +461,7 @@ export function createSettings(ctx) {
             <div class="text-[15px] font-bold text-white">Preferences</div>
             <div class="text-[11.5px] text-[#8b96a5]">Theme, density, clock, shortcuts, and personal tokens.</div>
           </div>
-          ${note(false, "Tokens")}
+          ${note(false, "Tokens", !state.prefTokenExamples)}
         </div>
         <div class="grid gap-3 lg:grid-cols-2">
           <div class="so-panel p-3.5 space-y-3">
@@ -517,9 +517,14 @@ export function createSettings(ctx) {
           <div class="flex flex-wrap items-center justify-between gap-2">
             <div>
               <div class="text-[13px] font-semibold text-white">Personal API tokens</div>
-              <div class="text-[11px] text-[#8b96a5]">This Hub does not issue personal tokens. The rows below are example data.</div>
+              <div class="text-[11px] text-[#8b96a5]">This Hub does not issue personal tokens.</div>
             </div>
           </div>
+          ${
+            state.prefTokenExamples
+              ? `
+          <div role="status" class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data. Changes here stay in this browser view and do not issue or revoke credentials.</div>
+          <button type="button" class="so-btn" data-onclick="setTokenExampleMode(false)">Exit token example mode</button>
           <div class="flex flex-wrap gap-2 items-end">
             <label class="text-[11px] text-[#8b96a5]">Name
               <input id="pref-token-name" class="so-input mt-1" value="${esc(state.prefTokenDraft.name)}" data-oninput="state.prefTokenDraft.name=this.value" />
@@ -535,7 +540,7 @@ export function createSettings(ctx) {
                 ${["8h", "24h", "7d", "30d"].map((value) => `<option value="${value}" ${state.prefTokenDraft.expires === value ? "selected" : ""}>${value}</option>`).join("")}
               </select>
             </label>
-            <button type="button" class="so-btn so-btn-blue" data-onclick="createExampleToken()">Create token</button>
+            <button type="button" class="so-btn so-btn-blue" data-onclick="createExampleToken()">Create example token</button>
           </div>
           <table class="so-table">
             <thead><tr><th>Name</th><th>Scope</th><th>Expiry</th><th>Status</th><th></th></tr></thead>
@@ -547,12 +552,15 @@ export function createSettings(ctx) {
                     <td>${esc(token.scope)}</td>
                     <td>${esc(token.expires)}</td>
                     <td>${esc(token.status)}</td>
-                    <td>${token.status === "Revoked" ? "" : `<button type="button" class="so-btn so-btn-sm" data-onclick="revokeExampleToken('${esc(token.id)}')">Revoke</button>`}</td>
+                    <td>${token.status === "Revoked" ? "" : `<button type="button" class="so-btn so-btn-sm" data-onclick="revokeExampleToken('${esc(token.id)}')">Revoke example</button>`}</td>
                   </tr>`,
                 )
                 .join("")}
             </tbody>
           </table>
+          `
+              : `<button type="button" class="so-btn" data-onclick="setTokenExampleMode(true)">Show token example data</button>`
+          }
         </div>
       </div>`;
   }
@@ -829,7 +837,8 @@ export function createSettings(ctx) {
         prefTheme: "dark",
         prefDensity: "compact",
         prefTimezone: "UTC",
-        prefTokens: EXAMPLE_TOKENS.map((token) => ({ ...token })),
+        prefTokenExamples: false,
+        prefTokens: [],
         prefTokenDraft: { name: "", scope: "read", expires: "8h" },
         orgTab: "org",
         orgTeams: [],
@@ -892,7 +901,16 @@ export function createSettings(ctx) {
         state.environmentBanner = value;
         applyChrome();
       };
+      target.setTokenExampleMode = (enabled) => {
+        state.prefTokenExamples = enabled === true;
+        state.prefTokens = state.prefTokenExamples
+          ? EXAMPLE_TOKENS.map((token) => ({ ...token }))
+          : [];
+        state.prefTokenDraft = { name: "", scope: "read", expires: "8h" };
+        ctx.render();
+      };
       target.createExampleToken = () => {
+        if (!state.prefTokenExamples) return;
         const name = (state.prefTokenDraft.name || "").trim();
         if (!name) return;
         state.prefTokens = [
@@ -909,6 +927,7 @@ export function createSettings(ctx) {
         ctx.render();
       };
       target.revokeExampleToken = (id) => {
+        if (!state.prefTokenExamples) return;
         state.prefTokens = state.prefTokens.map((token) =>
           token.id === id ? { ...token, status: "Revoked" } : token,
         );

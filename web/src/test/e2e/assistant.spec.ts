@@ -3530,3 +3530,83 @@ test("operator badge shows only a complete native session and clears on refusal"
   );
   expect(writes).toEqual([]);
 });
+
+test("personal token examples require opt-in and discard simulated credentials on exit", async ({
+  page,
+}) => {
+  await hydrate(page);
+  const writes: string[] = [];
+  page.on("request", (request) => {
+    if (
+      request.method() !== "GET" &&
+      new URL(request.url()).pathname.startsWith("/v1/")
+    )
+      writes.push(request.url());
+  });
+  await page.route("**/v1/**", (route) => route.fulfill({ json: {} }));
+  await page.goto("/console/");
+  await page.evaluate(() =>
+    Reflect.get(window, "switchScreen")("adm01-user-prefs"),
+  );
+  const workspace = page.locator("#main-workspace");
+  await expect(
+    workspace.getByText("This Hub does not issue personal tokens."),
+  ).toBeVisible();
+  await expect(workspace.getByText("Workstation", { exact: true })).toHaveCount(
+    0,
+  );
+  await expect(
+    workspace.getByRole("button", {
+      name: "Create example token",
+      exact: true,
+    }),
+  ).toHaveCount(0);
+  await workspace
+    .getByRole("button", { name: "Show token example data", exact: true })
+    .click();
+  await expect(workspace.getByRole("status")).toContainText(
+    "do not issue or revoke credentials",
+  );
+  await expect(
+    workspace.getByText("Workstation", { exact: true }),
+  ).toBeVisible();
+  await workspace
+    .getByLabel("Name", { exact: true })
+    .fill("Browser simulation only");
+  await workspace
+    .getByRole("button", { name: "Create example token", exact: true })
+    .click();
+  const row = workspace
+    .getByRole("row")
+    .filter({ hasText: "Browser simulation only" });
+  await expect(row).toContainText("Active");
+  await row
+    .getByRole("button", { name: "Revoke example", exact: true })
+    .click();
+  await expect(row).toContainText("Revoked");
+  await workspace
+    .getByRole("button", { name: "Exit token example mode", exact: true })
+    .click();
+  await expect(
+    workspace.getByText("Browser simulation only", { exact: true }),
+  ).toHaveCount(0);
+  await expect(workspace.locator("#pref-token-name")).toHaveCount(0);
+  await workspace
+    .getByRole("button", { name: "Show token example data", exact: true })
+    .click();
+  await expect(
+    workspace.getByText("Browser simulation only", { exact: true }),
+  ).toHaveCount(0);
+  await expect(workspace.locator("#pref-token-name")).toHaveValue("");
+  await page.reload();
+  await page.evaluate(() =>
+    Reflect.get(window, "switchScreen")("adm01-user-prefs"),
+  );
+  await expect(
+    workspace.getByRole("button", {
+      name: "Show token example data",
+      exact: true,
+    }),
+  ).toBeVisible();
+  expect(writes).toEqual([]);
+});
