@@ -51,6 +51,16 @@ func TestRecordedGenerationPassesGatesAndAudits(t *testing.T) {
 	if !strings.Contains(fileContent(result, "Dockerfile"), "FROM scratch") || strings.Contains(fileContent(result, "Dockerfile"), "package main") {
 		t.Fatal("template was not rendered separately from the source")
 	}
+	pinned := "127.0.0.1:5000/hello-http@" + publisher.image
+	if !strings.Contains(fileContent(result, "chart/values.yaml"), pinned) || !strings.Contains(fileContent(result, "zarf.yaml"), pinned) {
+		t.Fatal("chart and package were not pinned to the built image")
+	}
+	if !strings.Contains(fileContent(result, "chart/templates/deployment.yaml"), "kind: Deployment") || !strings.Contains(fileContent(result, "chart/templates/service.yaml"), "kind: Service") {
+		t.Fatal("chart is missing the workload")
+	}
+	if !strings.Contains(fileContent(result, "uds-package.yaml"), `service: "hello-http"`) {
+		t.Fatal("package does not expose the service")
+	}
 	stored, ok, err := store.Get(context.Background(), result.ID)
 	if err != nil || !ok || stored.Label != domain.LabelNoModel {
 		t.Fatalf("stored = %#v %v %v", stored, ok, err)

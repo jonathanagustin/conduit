@@ -151,10 +151,14 @@ func TestRenderIsDeterministicAndOmitsSource(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if string(first.Dockerfile) != string(second.Dockerfile) || string(first.ChartValues) != string(second.ChartValues) || string(first.Zarf) != string(second.Zarf) || string(first.Package) != string(second.Package) {
+	if string(first.Dockerfile) != string(second.Dockerfile) || string(first.ChartValues) != string(second.ChartValues) || string(first.Zarf) != string(second.Zarf) || string(first.Package) != string(second.Package) || chartText(first) != chartText(second) {
 		t.Fatal("render is not deterministic")
 	}
-	for _, doc := range [][]byte{first.Dockerfile, first.ChartValues, first.Zarf, first.Package} {
+	docs := [][]byte{first.Dockerfile, first.ChartValues, first.Zarf, first.Package}
+	for _, file := range first.Chart {
+		docs = append(docs, file.Body)
+	}
+	for _, doc := range docs {
 		if strings.Contains(string(doc), "BEGIN PRIVATE KEY") || strings.Contains(string(doc), spec.Files[0].Content) {
 			t.Fatal("rendered packaging contains source")
 		}
@@ -162,8 +166,14 @@ func TestRenderIsDeterministicAndOmitsSource(t *testing.T) {
 	if !strings.Contains(string(first.Dockerfile), "FROM scratch") || !strings.Contains(string(first.Dockerfile), "USER 65532:65532") {
 		t.Fatalf("dockerfile = %s", first.Dockerfile)
 	}
-	if !strings.Contains(string(first.ChartValues), "memory: 64Mi") || !strings.Contains(string(first.Zarf), "CONDUIT_NATIVE") {
+	if !strings.Contains(string(first.ChartValues), "memory: 64Mi") || !strings.Contains(string(first.Zarf), "CONDUIT_NATIVE") || !strings.Contains(string(first.Zarf), `localPath: "chart"`) {
 		t.Fatal("chart or package is missing the template fields")
+	}
+	if !strings.Contains(chartText(first), "kind: Deployment") || !strings.Contains(chartText(first), "kind: Service") || strings.Contains(chartText(first), "kind: ConfigMap") {
+		t.Fatal("chart does not deploy the application")
+	}
+	if !strings.Contains(string(first.Package), `service: "hello-http"`) || !strings.Contains(string(first.Package), "expose:") {
+		t.Fatalf("package = %s", first.Package)
 	}
 	source := PackagingSource(spec, "127.0.0.1:5000/hello-http:0.1.0", "sha256:"+strings.Repeat("ab", 32), "a small page")
 	if !strings.Contains(string(source), "name: hello-http") || !strings.Contains(string(source), "memory: 64Mi") {
@@ -191,6 +201,57 @@ func TestDomainDoesNotImportProcesses(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestSourceShapesAreExplicit(t *testing.T) {
+	spec := recordedSpec(t)
+	goFile := spec.Files[0]
+	spec.Files = []SourceFile{{Path: "main.py", Language: "python", Content: "print(1)\n"}}
+	if reason, ok := CheckAllowlist(spec); !ok || !strings.Contains(reason, "allowlist") {
+		t.Fatalf("python-only = %q %v", reason, ok)
+	}
+	py, err := Render(spec)
+	if err != nil || !strings.Contains(string(py.Dockerfile), PythonRuntimeImage) || !strings.Contains(string(py.Dockerfile), "USER 65532:65532") {
+		t.Fatalf("python dockerfile = %s %v", py.Dockerfile, err)
+	}
+	spec.Files = []SourceFile{{Path: "index.html", Language: "html", Content: "<p>Hello</p>\n"}}
+	if _, ok := CheckAllowlist(spec); !ok {
+		t.Fatal("rejected index.html")
+	}
+	html, err := Render(spec)
+	if err != nil || !strings.Contains(string(html.Dockerfile), "COPY index.html /index.html") || !strings.Contains(string(html.Dockerfile), "FROM scratch") {
+		t.Fatalf("html dockerfile = %s %v", html.Dockerfile, err)
+	}
+	if chartText(py) != chartText(html) {
+		t.Fatal("chart templates differ between source shapes")
+	}
+	spec.Files = []SourceFile{goFile, {Path: "main.py", Language: "python", Content: "print(1)\n"}}
+	reason, ok := CheckAllowlist(spec)
+	if ok || !strings.Contains(reason, AllowedSourceShapes) || !strings.Contains(reason, "more than one") {
+		t.Fatalf("combination = %q %v", reason, ok)
+	}
+	spec.Files = nil
+	reason, ok = CheckAllowlist(spec)
+	if ok || reason != AllowedSourceShapes {
+		t.Fatalf("empty = %q %v", reason, ok)
+	}
+	if strings.Contains(Prompt(Request{Name: "hello-http", Description: "a page"}), "main.go is required") {
+		t.Fatal("prompt still requires main.go")
+	}
+	if !strings.Contains(Prompt(Request{Name: "hello-http", Description: "a page"}), "exactly one file") {
+		t.Fatal("prompt does not state the source rule")
+	}
+}
+
+func chartText(files PackageFiles) string {
+	parts := make([]string, 0, len(files.Chart))
+	for _, file := range files.Chart {
+		if file.Path == "values.yaml" {
+			continue
+		}
+		parts = append(parts, file.Path+"\n"+string(file.Body))
+	}
+	return strings.Join(parts, "\n")
 }
 
 func mustJSON(t *testing.T, spec Spec) []byte {

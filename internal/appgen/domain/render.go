@@ -12,30 +12,78 @@ type PackageFiles struct {
 	ChartValues []byte
 	Zarf        []byte
 	Package     []byte
+	Chart       []ChartFile
 }
 
-// Render builds the image definition, chart values, and package documents
-// from a validated spec.
+// Render builds the image definition, chart, and package documents from a
+// validated spec.
 //
 // CONDUIT-INVENTED: appgen.HttpPackageTemplate
 // Displaced-by: a reviewed packaging profile that states the image definition, chart values, and package document fields for a generated HTTP application.
 func Render(spec Spec) (PackageFiles, error) {
-	if _, ok := CheckAllowlist(spec); !ok {
-		return PackageFiles{}, fmt.Errorf("%w: source files are not on the allowlist", ErrSpecInvalid)
+	shape, reason, ok := ShapeOf(spec)
+	if !ok {
+		return PackageFiles{}, fmt.Errorf("%w: %s", ErrSpecInvalid, reason)
 	}
-	memory := strings.TrimSpace(spec.Resources.Memory)
-	cpu := strings.TrimSpace(spec.Resources.CPU)
-	name := spec.Name
-	files := PackageFiles{
-		Dockerfile: []byte(fmt.Sprintf(`FROM scratch
+	docker, err := dockerfile(spec, shape)
+	if err != nil {
+		return PackageFiles{}, err
+	}
+	values := chartValues(spec)
+	chart, err := ChartFiles(spec.Name, ChartVersion, values)
+	if err != nil {
+		return PackageFiles{}, err
+	}
+	return PackageFiles{
+		Dockerfile:  docker,
+		ChartValues: values,
+		Zarf:        zarfManifest(spec),
+		Package:     packageCR(spec),
+		Chart:       chart,
+	}, nil
+}
+
+func dockerfile(spec Spec, shape Shape) ([]byte, error) {
+	switch shape {
+	case ShapeGo:
+		return []byte(fmt.Sprintf(`FROM scratch
 COPY app /app
 USER 65532:65532
 ENV PORT=%d
 EXPOSE %d
 ENTRYPOINT ["/app"]
-`, spec.Port, spec.Port)),
-		ChartValues: []byte(fmt.Sprintf(`name: %s
+`, spec.Port, spec.Port)), nil
+	case ShapeHTML:
+		return []byte(fmt.Sprintf(`FROM scratch
+COPY app /app
+COPY index.html /index.html
+USER 65532:65532
+ENV PORT=%d
+EXPOSE %d
+ENTRYPOINT ["/app"]
+`, spec.Port, spec.Port)), nil
+	case ShapePython:
+		return []byte(fmt.Sprintf(`FROM %s
+COPY main.py /app/main.py
+USER 65532:65532
+ENV PORT=%d
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV HOME=/tmp
+WORKDIR /app
+EXPOSE %d
+ENTRYPOINT ["python3", "-u", "/app/main.py"]
+`, PythonRuntimeImage, spec.Port, spec.Port)), nil
+	default:
+		return nil, fmt.Errorf("%w: %s", ErrSpecInvalid, AllowedSourceShapes)
+	}
+}
+
+func chartValues(spec Spec) []byte {
+	memory := strings.TrimSpace(spec.Resources.Memory)
+	cpu := strings.TrimSpace(spec.Resources.CPU)
+	return []byte(fmt.Sprintf(`name: %s
 port: %d
+image: ""
 resources:
   requests:
     memory: %s
@@ -43,28 +91,39 @@ resources:
   limits:
     memory: %s
     cpu: %s
-`, name, spec.Port, memory, cpu, memory, cpu)),
-	}
-	digests := fileDigestLines(spec)
-	files.Zarf = []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1alpha1
+`, spec.Name, spec.Port, memory, cpu, memory, cpu))
+}
+
+func zarfManifest(spec Spec) []byte {
+	name := spec.Name
+	return []byte(fmt.Sprintf(`apiVersion: zarf.dev/v1alpha1
 kind: ZarfPackageConfig
 metadata:
   name: "%s"
   description: "Generated HTTP application %s"
-  version: "0.1.0"
+  version: "%s"
   annotations:
     packaging.conduit.dev/template: "http-app-1"
     packaging.conduit.dev/value-tier: "CONDUIT_NATIVE"
 %scomponents:
   - name: "%s"
     required: true
+    charts:
+      - name: "%s"
+        version: "%s"
+        namespace: "%s"
+        localPath: "chart"
     manifests:
       - name: "package"
         namespace: "%s"
         files:
           - "uds-package.yaml"
-`, name, name, digests, name, name))
-	files.Package = []byte(fmt.Sprintf(`apiVersion: uds.dev/v1alpha1
+%s`, name, name, ChartVersion, fileDigestLines(spec), name, name, ChartVersion, name, name, imagePinUnset))
+}
+
+func packageCR(spec Spec) []byte {
+	name := spec.Name
+	return []byte(fmt.Sprintf(`apiVersion: uds.dev/v1alpha1
 kind: Package
 metadata:
   name: "%s"
@@ -75,13 +134,28 @@ metadata:
     packaging.conduit.dev/port: "%d"
 %sspec:
   network:
-    allow: []
+    allow:
+      - direction: "Ingress"
+        description: "kubelet probes"
+        selector:
+          "app.kubernetes.io/name": "%s"
+        remoteGenerated: "KubeNodes"
+        port: %d
+    expose:
+      - description: "http"
+        service: "%s"
+        host: "%s"
+        selector:
+          "app.kubernetes.io/name": "%s"
+        port: %d
+        targetPort: %d
   monitor:
     - portName: "http"
       targetPort: %d
       path: "/health"
-`, name, name, spec.Port, digests, spec.Port))
-	return files, nil
+      selector:
+        "app.kubernetes.io/name": "%s"
+`, name, name, spec.Port, fileDigestLines(spec), name, spec.Port, name, name, name, spec.Port, spec.Port, spec.Port, name))
 }
 
 // PackagingSource is the text the existing packaging run reads.

@@ -53,9 +53,9 @@ One route must be GET /health with status 200.
 page has title and body.
 resources has memory, such as 64Mi, and cpu, such as 50m.
 memory must not exceed 1Gi. cpu must not exceed 1.
-files is an array of at most 3 objects with path, language, and content.
-Allowed files: main.go language go, main.py language python, index.html language html.
-main.go is required. Each file is at most 4096 bytes.
+files is an array of exactly one object with path, language, and content.
+Allowed source shapes, exactly one file: main.go language go, main.py language python, or index.html language html.
+Do not send more than one of these files. Each file is at most 4096 bytes.
 Do not include a Dockerfile, chart values, a package document, or any other path.
 Description: %s`, oneLine(request.Name), oneLine(request.Description)))
 }
