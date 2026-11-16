@@ -293,6 +293,7 @@ test("live permission failure is visible and leaves polling active without recon
   );
   await expect(page.locator("#live-events-retry")).toBeVisible();
   const before = current.reads.filter((path) => path === "/v1/plans").length;
+  const packagingBefore = current.packagingRPCs.length;
   await page.clock.runFor(30000);
   await expect
     .poll(() => current.reads.filter((path) => path === "/v1/plans").length)
@@ -309,7 +310,11 @@ test("live permission failure is visible and leaves polling active without recon
     cursor: null,
   });
   expect(current.writes).toEqual([]);
-  expect(current.packagingRPCs).toEqual([]);
+  expect(current.packagingRPCs.length).toBeGreaterThan(packagingBefore);
+  expect(current.packagingRPCs.every((method) => method === "POST")).toBe(true);
+  expect(current.reads.some((path) => path === "/v1/packaging-runs")).toBe(
+    false,
+  );
 });
 
 test("Audit session feed and native KPI counts update from authorized invalidations without writes", async ({
