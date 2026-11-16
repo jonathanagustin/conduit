@@ -19,16 +19,25 @@ import (
 const agentExecModelName = "conduit-packaging-agent-v1"
 
 func addAgentExecCommand(root *cobra.Command) {
+	var provider string
 	cmd := &cobra.Command{
 		Use:   "agent-exec",
 		Short: "Execute one governed packaging agent turn from a prompt on stdin (for CONDUIT_MODEL_CMD)",
-		Args:  cobra.NoArgs,
+		Long: "Reads one prompt on stdin and writes the reply on stdout. --provider selects the engine: " +
+			"deterministic (offline, default), or claude, codex, gemini, grok to delegate the turn to that local model CLI. " +
+			"Override a provider's argv with CONDUIT_PROVIDER_<NAME>_CMD.",
+		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			raw, err := io.ReadAll(cmd.InOrStdin())
 			if err != nil {
 				return err
 			}
-			reply, err := runAgentExecPrompt(string(raw))
+			var reply string
+			if provider == "" || provider == providerDeterministic {
+				reply, err = runAgentExecPrompt(string(raw))
+			} else {
+				reply, err = runProviderPrompt(cmd.Context(), provider, string(raw))
+			}
 			if err != nil {
 				return err
 			}
@@ -36,6 +45,7 @@ func addAgentExecCommand(root *cobra.Command) {
 			return err
 		},
 	}
+	cmd.Flags().StringVar(&provider, "provider", os.Getenv("CONDUIT_AGENT_PROVIDER"), "agent engine: deterministic, claude, codex, gemini or grok")
 	root.AddCommand(cmd)
 }
 
