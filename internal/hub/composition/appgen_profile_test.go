@@ -148,11 +148,36 @@ func TestAppgenProfileMissingAppNameRaisesNeedsInput(t *testing.T) {
 	}
 }
 
+func writeZarfStub(t *testing.T) string {
+	t.Helper()
+	path := filepath.Join(t.TempDir(), "zarf")
+	script := `#!/bin/sh
+out=
+prev=
+for arg in "$@"; do
+  if [ "$prev" = "--output" ]; then
+    out=$arg
+  fi
+  prev=$arg
+done
+if [ -n "$out" ]; then
+  mkdir -p "$out"
+  printf 'archive\n' > "$out/zarf-package-test.tar.zst"
+fi
+exit 0
+`
+	if err := os.WriteFile(path, []byte(script), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	return path
+}
+
 func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *testing.T) {
 	gitRoot := t.TempDir()
 	handoffDir := t.TempDir()
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
 	t.Setenv("PACKAGING_FIXTURE_DIR", handoffDir)
+	t.Setenv("ZARF_BIN", writeZarfStub(t))
 	sandbox := &testAppgenSandbox{}
 	publisher := &testAppgenPublisher{}
 	repository := controlplane.NewMemoryRepository()

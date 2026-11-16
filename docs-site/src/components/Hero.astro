@@ -1,0 +1,59 @@
+---
+import { LinkButton } from '@astrojs/starlight/components';
+import DraftContentNotice from './DraftContentNotice.astro';
+import darkWordmark from '../assets/conduit-wordmark-dark.svg';
+import lightWordmark from '../assets/conduit-wordmark-light.svg';
+
+const assetSrc = (asset: { src: string } | string) =>
+  typeof asset === 'string' ? asset : asset.src;
+
+const { data } = Astro.locals.starlightRoute.entry;
+const { title = data.title, tagline, actions = [] } = data.hero || {};
+---
+
+<div class="hero">
+  <div class="sl-flex stack">
+    <div class="sl-flex copy">
+      <h1 id="_top" data-page-title>
+        <span class="sr-only">{title}</span>
+        <span class="project-wordmark" aria-hidden="true">
+          <img class="wordmark-dark" src={assetSrc(darkWordmark)} width="250" height="64" alt="" fetchpriority="high" />
+          <img class="wordmark-light" src={assetSrc(lightWordmark)} width="250" height="64" alt="" />
+        </span>
+      </h1>
+      {data.draft && <DraftContentNotice />}
+      {tagline && <div class="tagline">{tagline}</div>}
+    </div>
+    {actions.length > 0 && (
+      <div class="sl-flex actions">
+        {actions.map((action) => (
+          <LinkButton href={action.link} variant={action.variant} icon={action.icon?.name ?? action.icon} {...(action.attrs || {})}>
+            {action.text}
+            {action.icon?.html && <Fragment set:html={action.icon.html} />}
+          </LinkButton>
+        ))}
+      </div>
+    )}
+  </div>
+</div>
+
+<style>
+  .stack, .copy { flex-direction: column; width: 100%; align-items: center; }
+  .stack { gap: 2rem; }
+  .copy { gap: 1.5rem; }
+  .copy .tagline {
+    text-align: center;
+    max-width: 44rem;
+    text-wrap: balance;
+    font-size: clamp(1.05rem, 2vw, 1.35rem);
+    line-height: 1.45;
+    font-weight: 600;
+  }
+  h1 { width: min(100%, 22rem); margin: 0; }
+  .project-wordmark { display: block; }
+  .project-wordmark img { display: block; width: 100%; height: auto; }
+  .project-wordmark .wordmark-light { display: none; }
+  :global(:root[data-theme='light']) .wordmark-dark { display: none; }
+  :global(:root[data-theme='light']) .project-wordmark .wordmark-light { display: block; }
+  .actions { flex-wrap: wrap; align-items: center; }
+</style>

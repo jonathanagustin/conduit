@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
 const BOOTSTRAP_MARKER = "<!--conduit-console-bootstrap-->";
@@ -3382,8 +3382,9 @@ test("engineer focus preserves one live conversation, draft and pending request"
   const expandedBounds = await rail.boundingBox();
   expect(expandedBounds!.x).toBeGreaterThanOrEqual(-0.01);
   expect(expandedBounds!.x + expandedBounds!.width).toBeLessThanOrEqual(375.01);
+  mkdirSync("test-results", { recursive: true });
   await page.screenshot({
-    path: "/workspace/scratch/engineer-guidance-narrow.png",
+    path: "test-results/engineer-guidance-narrow.png",
   });
   await page.evaluate(() => {
     const event = new KeyboardEvent("keydown", {
@@ -3502,8 +3503,9 @@ test("operator badge shows only a complete native session and clears on refusal"
   expect(retryBounds!.x).toBeGreaterThanOrEqual(0);
   expect(retryBounds!.x + retryBounds!.width).toBeLessThanOrEqual(375);
 
+  mkdirSync("test-results", { recursive: true });
   await page.screenshot({
-    path: "/workspace/scratch/operator-identity-mobile.png",
+    path: "test-results/operator-identity-mobile.png",
   });
   await page.keyboard.press("Control+,");
   const settingsIdentity = page.locator("#settings-operator-identity");

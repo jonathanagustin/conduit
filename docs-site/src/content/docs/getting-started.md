@@ -1,0 +1,46 @@
+---
+title: Quick start
+description: Install the pinned toolchain, start the local demo, and open the operator console.
+sidebar:
+  label: Quick start
+  order: 1
+---
+
+Clone the repository, install the pinned toolchain, and start the local demo. Install Docker yourself and start its daemon before the demo. The installer does not install Docker and does not request administrator privileges.
+
+## Quick start
+
+```bash title="terminal"
+git clone https://github.com/jonathanagustin/conduit.git
+cd conduit
+./install.sh
+mise run demo
+```
+
+`./install.sh` runs [`scripts/install.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/install.sh). It downloads the pinned mise release asset, checks the SHA-256 checksum, and runs `mise install` against the locked toolchain. Run it again any time; work that is already done is skipped. Source `./install.sh` instead of executing it when you want mise activated in the current shell. Executing it prints the activation command.
+
+When the seed finishes, open `http://127.0.0.1:8081/console/`. The packaging walkthrough in the repository demo uses `/console/planning`.
+
+`mise run demo` runs [`scripts/demo-reset.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/demo-reset.sh) and then [`scripts/demo-seed.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/demo-seed.sh). You can run those two scripts directly.
+
+## When ports cannot be published
+
+On a Docker host that cannot publish ports because it has no iptables or bridge networking, set `DEMO_DOCKER_NETWORK=host`. The seed also switches to that mode when the default publish or image build fails for that reason.
+
+## Recorded proposals
+
+Optional: live proposals from a local command. Install that command yourself and sign in with it, then set `CONDUIT_MODEL_CMD` to that command before starting the Hub. Leave the variable unset to keep the recorded proposals and make no model call.
+
+`CONDUIT_MODEL_TIMEOUT` defaults to 45 seconds. The command does not approve a change. A passing proposal is stored as a change request that still needs a person. Credentials stay in the command's own configuration on the machine that runs the Hub.
+
+The full contract, including what is verified against a local install and what is not, is in [Local model CLI](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-model-cli.md).
+
+## Where the console is built
+
+`web/` contains the operator console. [`scripts/build-console.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/build-console.sh) writes it into `internal/consoleui/dist` using the Node and pnpm pins in `mise.toml`. The demo scripts run that build and skip it when the output is already current. Before the build, the Hub still starts and `/console/` names the command.
+
+## Read next
+
+- [How it works](/conduit/how-it-works/) for the governed path the demo walks.
+- [Repository README](https://github.com/jonathanagustin/conduit/blob/main/README.md) for the same quick start beside the demo media.
+- [Local verification](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-verification.md) for what a local test result does and does not prove.

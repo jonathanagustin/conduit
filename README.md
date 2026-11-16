@@ -1,5 +1,7 @@
 # Conduit
 
+[![Documentation](docs-site/public/badges/docs.svg)](https://jonathanagustin.github.io/conduit/)
+
 Conduit is a proprietary delivery control plane for governed software rollout
 across connected and disconnected environments. A central Hub owns desired
 state, approval, artifact admission, and durable history. Outbound-only Spoke
@@ -117,6 +119,7 @@ governance, execution, or persistence models.
   deployment repositories.
 - `docs/` contains the curated living documentation and retained evidence.
 
+Published guides are at <https://jonathanagustin.github.io/conduit/>.
 Start with the [documentation index](docs/README.md),
 [bounded-context map](docs/architecture/bounded-contexts.md), and
 [native reconciliation design](docs/architecture/reconciliation.md). Production

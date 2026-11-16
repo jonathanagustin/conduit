@@ -1,0 +1,25 @@
+---
+// A link to /#quick-start still opens that section, now on Quick start.
+---
+
+<script is:inline>
+	(function () {
+		function restoreLegacyHash() {
+			var hash = location.hash;
+			if (hash.length < 2) return;
+			var id;
+			try {
+				id = decodeURIComponent(hash.slice(1));
+			} catch {
+				return;
+			}
+			if (document.getElementById(id)) return;
+			location.replace(new URL('getting-started/' + hash, location.href).href);
+		}
+		if (document.readyState === 'loading') {
+			document.addEventListener('DOMContentLoaded', restoreLegacyHash, { once: true });
+		} else {
+			restoreLegacyHash();
+		}
+	})();
+</script>

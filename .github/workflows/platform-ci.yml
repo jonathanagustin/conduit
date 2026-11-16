@@ -354,12 +354,16 @@ jobs:
       - name: Validate mutation harness
         if: needs.scope.outputs.go == 'true'
         run: ./scripts/verify-mutant-killed.test.sh
-      # Uses Ubuntu 24.04's Python 3.12 and an isolated temporary venv with all
-      # validator dependencies pinned. These are protocol/validator regressions,
-      # not live Codex inference or Kubernetes/Helm acceptance.
+      # ubuntu-26.04 does not package Python 3.12. The gate accepts 3.12 or
+      # newer and still installs the pinned validator dependencies in a
+      # temporary venv. These are protocol regressions, not live inference
+      # or a cluster acceptance test.
       - name: Validate packaging regression gates
         if: needs.scope.outputs.go == 'true'
-        run: python3 scripts/test-packaging-gates.py
+        run: |
+          sudo apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq python3-venv
+          python3 scripts/test-packaging-gates.py
       - name: Validate PostgreSQL repository
         if: needs.scope.outputs.go == 'true'
         run: ./scripts/test-postgres-repository.sh
