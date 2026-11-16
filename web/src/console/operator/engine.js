@@ -1376,7 +1376,10 @@ export function mountOperator(host, options) {
     "ai03-events",
   ]);
   // Screens that label each section Hub or Example data themselves.
-  const SECTION_LABELLED = new Set(["adm02-org-control-panel"]);
+  const SECTION_LABELLED = new Set([
+    "adm02-org-control-panel",
+    "pt02-proposals-evals",
+  ]);
 
   /** The screen actually on view: an area's current tab, or the screen. */
   function visibleScreen() {
@@ -1394,18 +1397,32 @@ export function mountOperator(host, options) {
     const live =
       LIVE_SCREENS.has(screen) ||
       (screen === "pt01-proposal-trace" &&
-        (state.hub?.packaging || []).length > 0) ||
+        (state.hub?.packaging || []).some((run) => run?.runId)) ||
       (screen === "og01-ontology-graph" && state.graphLive === true);
     if (SECTION_LABELLED.has(screen)) {
       badge.style.display = "none";
       return;
     }
     badge.style.display = "";
-    badge.dataset.mode = live ? "live" : "example";
-    badge.textContent = live ? "LIVE" : "EXAMPLE DATA";
+    const proposalUnavailable =
+      (screen === "pt01-proposal-trace" || screen === "pt02-proposals-evals") &&
+      !live &&
+      !state.proposalExamples;
+    badge.dataset.mode = live
+      ? "live"
+      : proposalUnavailable
+        ? "unavailable"
+        : "example";
+    badge.textContent = live
+      ? "LIVE"
+      : proposalUnavailable
+        ? "UNAVAILABLE"
+        : "EXAMPLE DATA";
     badge.title = live
       ? "This view is read from the Hub"
-      : "This view shows example data, not this Hub's records";
+      : proposalUnavailable
+        ? "No recorded proposal is available; example mode is off"
+        : "This view shows example data, not this Hub's records";
   }
 
   function renderKpiStrip() {

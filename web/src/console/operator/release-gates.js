@@ -88,6 +88,19 @@ function recallExpression(mode, start, end) {
 
 export function createReleaseGates(ctx) {
   const state = ctx.state;
+  let proposalDefaults;
+
+  function proposalExampleNotice() {
+    return state.proposalExamples
+      ? `<div role="status" class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data. Trace, review and evaluation controls only simulate results; they do not run a model, approve a change or apply a Plan.</div><button type="button" class="so-btn" data-onclick="setProposalExampleMode(false)">Exit proposal example mode</button>`
+      : `<div class="so-panel p-3 space-y-2"><p>No proposal simulation is running. Example traces and evaluations require an explicit choice.</p><button type="button" class="so-btn" data-onclick="setProposalExampleMode(true)">Show proposal example data</button></div>`;
+  }
+
+  function setProposalExampleMode(enabled) {
+    state.proposalExamples = enabled === true;
+    Object.assign(state, structuredClone(proposalDefaults));
+    paint();
+  }
 
   function paint() {
     ctx.render();
@@ -180,6 +193,11 @@ export function createReleaseGates(ctx) {
   }
 
   function runProposalTrace() {
+    if (
+      !state.proposalExamples ||
+      (state.hub?.packaging || []).some((run) => run?.runId)
+    )
+      return;
     state.traceRuns += 1;
     const nextId = `PRP-${901 + state.traceRuns}`;
     const made = {
@@ -217,17 +235,16 @@ export function createReleaseGates(ctx) {
       ...made,
     });
     state.traceBanner = `Staged ${nextId} for review. No live change was applied.`;
-    ctx.recordAudit("proposal.staged");
+
     paint();
   }
 
   function setProposalStatus(id, status) {
+    if (!state.proposalExamples) return;
     const row = state.proposals.find((item) => item.id === id);
     if (!row) return;
     row.status = status;
-    ctx.recordAudit(
-      status === "Applied" ? "proposal.accepted" : "proposal.rejected",
-    );
+
     paint();
   }
 
@@ -560,7 +577,15 @@ export function createReleaseGates(ctx) {
   }
 
   function renderTrace(root) {
-    if (renderLiveProposal(root, state)) return;
+    if (renderLiveProposal(root, state)) {
+      state.proposalExamples = false;
+      Object.assign(state, structuredClone(proposalDefaults));
+      return;
+    }
+    if (!state.proposalExamples) {
+      root.innerHTML = `<div class="space-y-3"><p>No recorded packaging proposal is available in the current Hub view.</p>${proposalExampleNotice()}</div>`;
+      return;
+    }
     const blocks = [
       {
         id: "input",
@@ -597,7 +622,7 @@ export function createReleaseGates(ctx) {
     };
     root.innerHTML = `
       <div class="space-y-2.5 h-full flex flex-col">
-        <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
+        ${proposalExampleNotice()}
         ${ctx.rmApiStrip("EXAMPLE", "Step-by-step tool trace for a proposed change", "ConduitChangeRequest")}
         ${
           state.traceBanner
@@ -671,7 +696,7 @@ export function createReleaseGates(ctx) {
               </div>
             </div>
             <div class="space-y-2 pt-2.5 border-t border-[#1c242c]">
-              <button type="button" data-onclick="runProposalTrace()" class="so-btn so-btn-blue w-full">${ctx.ic("play")} <span>Run trace and stage proposal</span></button>
+              <button type="button" data-onclick="runProposalTrace()" class="so-btn so-btn-blue w-full">${ctx.ic("play")} <span>Simulate trace and staged proposal</span></button>
               <button type="button" data-onclick="state.proposalTab='evals'; switchScreen('pt02-proposals-evals')" class="so-btn w-full">${ctx.ic("flask")} <span>Open evals</span></button>
             </div>
           </div>
@@ -765,10 +790,14 @@ export function createReleaseGates(ctx) {
           </tbody></table>
         </div>`
       : "";
+    if (!state.proposalExamples) {
+      root.innerHTML = `<div class="space-y-3">${recordedTable}${proposalExampleNotice()}</div>`;
+      return;
+    }
     root.innerHTML = `
       <div class="space-y-3 flex flex-col">
         ${recordedTable}
-        <div class="so-warn-card p-2 text-[12px] text-[#eab854]">Example data</div>
+        ${proposalExampleNotice()}
         ${ctx.rmApiStrip("EXAMPLE", "Staged proposals awaiting review, and eval results", "ConduitPlan")}
         <div class="so-panel p-3 flex flex-wrap items-center justify-between gap-2">
           ${segmentedCtrl(
@@ -781,7 +810,7 @@ export function createReleaseGates(ctx) {
           )}
           <div class="flex flex-wrap items-center gap-2">
             <button type="button" data-onclick="switchScreen('pt01-proposal-trace')" class="so-btn so-btn-sm">Back to Proposal Trace</button>
-            ${state.proposalTab === "evals" ? `<button type="button" data-onclick="state.evalBoost=true; recordAudit('evals.suite_ran'); renderMainWorkspace()" class="so-btn so-btn-sm so-btn-emerald">${ctx.ic("play")} <span>Run eval suite</span></button>` : ""}
+            ${state.proposalTab === "evals" ? `<button type="button" data-onclick="runExampleEvaluations()" class="so-btn so-btn-sm so-btn-emerald">${ctx.ic("play")} <span>Simulate eval suite</span></button>` : ""}
           </div>
         </div>
         ${
@@ -818,8 +847,8 @@ export function createReleaseGates(ctx) {
                   row.status === "Pending Review"
                     ? `<div class="flex flex-wrap justify-end gap-2">
                   <button type="button" data-onclick="switchScreen('pt01-proposal-trace')" class="so-btn so-btn-sm">Open trace</button>
-                  <button type="button" data-onclick="setProposalStatus('${esc(row.id)}','Rejected')" class="so-btn so-btn-sm so-btn-outline-danger">Reject</button>
-                  <button type="button" data-onclick="setProposalStatus('${esc(row.id)}','Applied')" class="so-btn so-btn-sm so-btn-emerald">Accept</button>
+                  <button type="button" data-onclick="setProposalStatus('${esc(row.id)}','Rejected')" class="so-btn so-btn-sm so-btn-outline-danger">Simulate reject</button>
+                  <button type="button" data-onclick="setProposalStatus('${esc(row.id)}','Applied')" class="so-btn so-btn-sm so-btn-emerald">Simulate accept</button>
                 </div>`
                     : ""
                 }
@@ -1097,6 +1126,7 @@ export function createReleaseGates(ctx) {
         traceScope: "Project",
         traceBlock: "llm",
         traceFixture: "oom",
+        proposalExamples: false,
         traceRuns: 1,
         traceBanner: "",
         proposalTab: "proposals",
@@ -1133,8 +1163,30 @@ export function createReleaseGates(ctx) {
           },
         ],
       });
+      proposalDefaults = structuredClone(
+        Object.fromEntries(
+          [
+            "traceBlock",
+            "traceScope",
+            "traceStaged",
+            "traceFixture",
+            "traceRuns",
+            "traceBanner",
+            "proposalTab",
+            "proposalFilter",
+            "evalBoost",
+            "proposals",
+          ].map((key) => [key, state[key]]),
+        ),
+      );
     },
     bind(win) {
+      win.setProposalExampleMode = setProposalExampleMode;
+      win.runExampleEvaluations = () => {
+        if (!state.proposalExamples) return;
+        state.evalBoost = true;
+        paint();
+      };
       win.issueRecall = issueRecall;
       win.toggleRecall = toggleRecall;
       win.toggleSuppression = toggleSuppression;
