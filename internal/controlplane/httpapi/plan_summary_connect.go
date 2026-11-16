@@ -1,4 +1,4 @@
-// Package httpapi serves bounded native control-plane projections over Connect.
+// Package httpapi serves bounded native control-plane projections and governed commands over Connect.
 package httpapi
 
 import (
@@ -12,7 +12,6 @@ import (
 	plansv1 "github.com/jonathanagustin/conduit/gen/go/conduit/plans/v1"
 	"github.com/jonathanagustin/conduit/gen/go/conduit/plans/v1/plansv1connect"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const PlanSummaryConnectRoute = "POST /conduit.plans.v1.PlanReadService/ListPlanSummaries"
@@ -83,15 +82,11 @@ func (s *planSummaryService) ListPlanSummaries(ctx context.Context, request *pla
 		NextCursor: page.NextCursor, PreviousCursor: page.PreviousCursor, HasPrevious: page.HasPrevious,
 	}
 	for _, plan := range page.Plans {
-		created, updated := timestamppb.New(plan.CreatedAt), timestamppb.New(plan.UpdatedAt)
-		if created.CheckValid() != nil || updated.CheckValid() != nil {
+		message, err := planSummaryMessage(plan)
+		if err != nil {
 			return nil, connect.NewError(connect.CodeInternal, "Plan summary index unavailable")
 		}
-		out.Plans = append(out.Plans, &plansv1.PlanSummary{
-			Id: nativeIndexString(plan.ID), Environment: nativeIndexString(plan.Environment), Status: nativeIndexString(string(plan.Status)),
-			StepCount: int64(plan.StepCount), ApprovalCount: int64(plan.ApprovalCount), RequiredApprovals: int64(plan.RequiredApprovals),
-			CreatedAt: created, UpdatedAt: updated, Revision: plan.Revision,
-		})
+		out.Plans = append(out.Plans, message)
 	}
 	return out, nil
 }

@@ -1,0 +1,40 @@
+syntax = "proto3";
+package conduit.plans.v1;
+
+import "conduit/plans/v1/plan_summary.proto";
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/plans/v1;plansv1";
+
+// PlanApprovalService applies existing native governance, never caller authority.
+service PlanApprovalService {
+  // ApprovePlan is POST /v1/plans/{planID}/approvals. Do not retry or REST-replay.
+  rpc ApprovePlan(ApprovePlanRequest) returns (ApprovePlanResponse);
+}
+
+message ApprovePlanRequest {
+  string plan_id = 1;
+  // rationale is the native required review explanation, not an identity.
+  string rationale = 2;
+}
+
+message PlanApproval {
+  string subject = 1;
+  string rationale = 2;
+  google.protobuf.Timestamp created_at = 3;
+}
+
+// ApprovePlanResponse projects the native result without execution credentials.
+message ApprovePlanResponse {
+  PlanSummary plan = 1;
+  repeated PlanApproval approvals = 2;
+  string change_request_id = 3;
+}
+
+// PlanApprovalOutcome is an error detail, not a request or an approval permit.
+// Absent details mean an unknown outcome, never proof that no write occurred.
+message PlanApprovalOutcome {
+  string plan_id = 1;
+  bool approval_recorded = 2;
+  bool handoff_failed = 3;
+}

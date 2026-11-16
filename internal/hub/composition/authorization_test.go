@@ -83,6 +83,9 @@ const (
 // valid request below. Accepting protocol/validation errors instead would not
 // demonstrate an authorization refusal after the resource check was removed.
 func bodyFor(pattern string) string {
+	if pattern == "POST /conduit.plans.v1.PlanApprovalService/ApprovePlan" {
+		return `{"planId":"approval-authorization-probe","rationale":"reviewed fixture"}`
+	}
 	if pattern == "POST /conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents" {
 		return `{"runId":"private-run"}`
 	}
@@ -317,6 +320,14 @@ func TestEveryGrantedRouteRefusesAPrincipalHoldingNothing(t *testing.T) {
 	// routes answer 404 before they ever consult a grant, and the assertion
 	// below would be about the fixture rather than about authorization.
 	seedFixture(t, handler, repository)
+	// The approval command reads its Plan before checking Environment Operate.
+	// Supply a CR-less Plan so this row witnesses the real permission decision.
+	if _, err := repository.CreatePlan(t.Context(), controlplane.PlanRecord{
+		ID: "approval-authorization-probe", Plan: controlplane.Plan{Environment: fixtureEnvironment},
+		Status: controlplane.PlanAwaitingApproval, RequiredApprovals: 1, Revision: 1,
+	}); err != nil {
+		t.Fatal(err)
+	}
 	checked, witnessed := 0, 0
 	for _, route := range HubRouteAuthorization() {
 		if route.Decision != DecisionOperatorGrant && route.Decision != DecisionAgent {

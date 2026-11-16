@@ -2134,45 +2134,14 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		existing, err := repository.GetPlan(request.Context(), request.PathValue("planID"))
-		if err != nil {
-			writeLifecycleError(w, err)
+		record, err := ApprovePlanAsOperator(request.Context(), repository, lifecycle, governance, principal, configuration, request.PathValue("planID"), body.Rationale)
+		var handoff *PlanApprovalHandoffError
+		if errors.As(err, &handoff) {
+			writeJSON(w, http.StatusBadGateway, map[string]string{"error": handoff.Error(), "planId": handoff.PlanID})
 			return
-		}
-		var record PlanRecord
-		if existing.ChangeRequestID != "" {
-			_, record, err = governance.Approve(request.Context(), existing.ChangeRequestID, principal, body.Rationale)
-		} else {
-			// A Plan with no Change Request is approved by Lifecycle.ApprovePlan,
-			// which performs no eligibility check of any kind: no requirement, no
-			// grant, only a per-subject dedupe. Authentication alone therefore let
-			// any operator approve such a Plan, in any Environment, including one
-			// they hold nothing on.
-			//
-			// The check is the one the GET route immediately above already makes,
-			// raised to Operate because approving is an act rather than a read.
-			// It applies to this branch only: the governed branch answers to the
-			// reviewer requirements policy raised, and a reviewer may satisfy
-			// those through a role or an operation grant without holding the
-			// Environment itself -- requiring it here as well would refuse
-			// reviewers the policy deliberately admitted.
-			//
-			// Refusing the branch outright would have been wrong: Change
-			// Request-less Plans are legitimately created by the reconciliation
-			// planner and by the command path, so this is a Plan that governance
-			// never saw rather than a Plan that is broken.
-			if !requireResourceOperation(w, request, governance, principal, configuration,
-				environmentRID(existing.Plan.Environment), OperationOperate) {
-				return
-			}
-			record, err = lifecycle.ApprovePlan(request.Context(), existing.ID, principal.Username, body.Rationale)
 		}
 		if err != nil {
 			writeLifecycleError(w, err)
-			return
-		}
-		if err := notifyPlanApproved(request.Context(), configuration, record); err != nil {
-			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "plan sequencing failed: " + err.Error(), "planId": record.ID})
 			return
 		}
 		writeJSON(w, http.StatusOK, redactLeaseToken(record))
