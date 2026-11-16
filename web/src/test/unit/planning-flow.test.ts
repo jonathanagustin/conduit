@@ -486,4 +486,39 @@ describe("planning flow API", () => {
       vi.unstubAllGlobals();
     }
   });
+
+  it("renders problem-statement intake and binding rows for the appgen work profile", async () => {
+    const composerHtml = planningMarkup({
+      ...emptyPlanning(),
+      profile: "appgen",
+      problemStatement: "Build an incident status dashboard",
+      appName: "incident-status",
+    });
+    expect(composerHtml).toContain('data-plan-field="problemStatement"');
+    expect(composerHtml).toContain('data-plan-field="appName"');
+
+    const rows = bindingRows({
+      profile: { name: "appgen", version: "1.0.0", hash: "h".repeat(64) },
+      intake: {
+        repoUrl: "",
+        ref: "",
+        problemStatement: "Build an incident status dashboard",
+        appName: "incident-status",
+      },
+      resolvedCommit: "none (no source repository — problem-statement intake)",
+      model: "Configured model",
+      plan,
+      acceptedAt: "2026-01-01T00:00:00Z",
+    });
+    expect(rows).toContainEqual(["Profile", "appgen"]);
+    expect(rows).toContainEqual([
+      "Problem statement",
+      "Build an incident status dashboard",
+    ]);
+    expect(rows).toContainEqual(["Application name", "incident-status"]);
+    expect(rows).toContainEqual([
+      "Commit SHA",
+      "none (no source repository — problem-statement intake)",
+    ]);
+  });
 });

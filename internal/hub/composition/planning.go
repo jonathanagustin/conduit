@@ -64,7 +64,15 @@ func planningHandler(legacy http.Handler, repository controlplane.Repository, op
 	return planningHandlerWithTemporal(legacy, repository, options, runner, nil)
 }
 
+func planningHandlerWithAppgenCompute(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, appgenCompute planningapp.AppgenComputer) http.Handler {
+	return planningHandlerWithOptions(legacy, repository, options, runner, nil, appgenCompute)
+}
+
 func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient) http.Handler {
+	return planningHandlerWithOptions(legacy, repository, options, runner, temporalClient, nil)
+}
+
+func planningHandlerWithOptions(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient, appgenCompute planningapp.AppgenComputer) http.Handler {
 	var stores sync.Map
 	var seq atomic.Uint64
 	governanceService := controlplane.NewGovernanceService(repository)
@@ -95,7 +103,9 @@ func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Re
 			if runner != nil {
 				scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
 			}
-			inMem := planningapp.NewService(scopedRunner).WithAuditor(planningAcceptAudit{repository: repository, actor: actor})
+			inMem := planningapp.NewService(scopedRunner).
+				WithAuditor(planningAcceptAudit{repository: repository, actor: actor}).
+				WithAppgenCompute(appgenCompute)
 			httpSessions = inMem
 			runSessions = inMem
 		}
@@ -198,12 +208,18 @@ type planningAcceptAudit struct {
 }
 
 func (audit planningAcceptAudit) Record(ctx context.Context, record planningapp.Audit) error {
+	ctxMap := map[string]any{"profileName": record.ProfileName, "profileVersion": record.ProfileVersion,
+		"profileHash": record.ProfileHash, "repoUrl": record.RepoURL, "ref": record.Ref,
+		"intakeMessageSha256": packagingdomain.DigestText([]byte(record.Message)),
+		"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash}
+	if record.ProblemStatement != "" {
+		ctxMap["problemStatementSha256"] = packagingdomain.DigestText([]byte(record.ProblemStatement))
+	}
+	if record.AppName != "" {
+		ctxMap["appName"] = record.AppName
+	}
 	event := governance.NewAuthorizationCheckEvent(record.AcceptedAt, audit.actor, record.Action,
-		"planning-session/"+record.SessionID, governance.DecisionAllow, "operator accepted the bound plan",
-		map[string]any{"profileName": record.ProfileName, "profileVersion": record.ProfileVersion,
-			"profileHash": record.ProfileHash, "repoUrl": record.RepoURL, "ref": record.Ref,
-			"intakeMessageSha256": packagingdomain.DigestText([]byte(record.Message)),
-			"resolvedCommit":      record.ResolvedCommit, "model": record.Model, "planHash": record.PlanHash})
+		"planning-session/"+record.SessionID, governance.DecisionAllow, "operator accepted the bound plan", ctxMap)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
 }
@@ -237,7 +253,12 @@ func (audit planningRunAudit) Record(ctx context.Context, record agentstream.Aud
 	if record.Action == "agent.tool_denied" || record.Action == "agent.event.RUN_ERROR" {
 		decision = governance.DecisionDeny
 	}
-	event := governance.NewAuthorizationCheckEvent(time.Now().UTC(), audit.actor, record.Action, "planning-session/"+record.ThreadID, decision, "governed planning run event", map[string]any{"threadId": record.ThreadID, "runId": record.RunID, "payloadSha256": record.PayloadSHA256})
+	ctxMap := map[string]any{"threadId": record.ThreadID, "runId": record.RunID, "payloadSha256": record.PayloadSHA256}
+	if record.Activity != "" && record.ActivitySequence > 0 {
+		ctxMap["activity"] = record.Activity
+		ctxMap["activitySequence"] = record.ActivitySequence
+	}
+	event := governance.NewAuthorizationCheckEvent(time.Now().UTC(), audit.actor, record.Action, "planning-session/"+record.ThreadID, decision, "governed planning run event", ctxMap)
 	_, err := audit.repository.AppendAuthorizationAudit(ctx, event)
 	return err
 }

@@ -14,19 +14,27 @@ paths:
   /v1/planning-sessions:
     post:
       operationId: createPlanningSession
-      summary: Start a planning session from a repository URL and ref
+      summary: Start a planning session from a repository URL and ref or a problem statement
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required: [repoUrl, ref]
               properties:
+                profile:
+                  type: string
+                  enum: [onboard, appgen]
                 repoUrl:
                   type: string
                   format: uri
+                  x-go-type-skip-optional-pointer: true
                 ref:
+                  type: string
+                  x-go-type-skip-optional-pointer: true
+                problemStatement:
+                  type: string
+                appName:
                   type: string
       responses:
         "201":
@@ -336,7 +344,7 @@ components:
       properties:
         name:
           type: string
-          enum: [onboard]
+          enum: [onboard, appgen]
         version:
           type: string
         hash:
@@ -348,6 +356,12 @@ components:
         repoUrl:
           type: string
         ref:
+          type: string
+        problemStatement:
+          type: string
+        appName:
+          type: string
+        message:
           type: string
     Inspection:
       type: object

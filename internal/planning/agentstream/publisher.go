@@ -18,10 +18,12 @@ import (
 // AuditRecord contains correlation and content digests, never raw model/tool
 // bodies. The Hub audit adapter binds the authenticated owner independently.
 type AuditRecord struct {
-	ThreadID      string
-	RunID         string
-	Action        string
-	PayloadSHA256 string
+	ThreadID         string
+	RunID            string
+	Action           string
+	PayloadSHA256    string
+	Activity         string
+	ActivitySequence uint64
 }
 
 // Auditor commits one event receipt before publication or tool execution.
@@ -44,6 +46,9 @@ type publisher struct {
 	started       bool
 	state         map[string]json.RawMessage
 	broken        bool
+	trackActivity bool
+	activitySeq   uint64
+	lastActivity  string
 }
 
 func (p *publisher) send(ctx context.Context, event map[string]any) error {
@@ -65,7 +70,38 @@ func (p *publisher) send(ctx context.Context, event map[string]any) error {
 	if err != nil {
 		return err
 	}
-	if err := p.audit.Record(ctx, AuditRecord{ThreadID: p.threadID, RunID: p.runID, Action: "agent.event." + event["type"].(string), PayloadSHA256: digest(raw)}); err != nil {
+	var activity string
+	var activitySeq uint64
+	if p.trackActivity {
+		switch event["type"] {
+		case "RUN_STARTED":
+			activity = "STARTED"
+		case "TOOL_CALL_START", "TEXT_MESSAGE_START", "STATE_DELTA":
+			activity = "PLANNING"
+		case "RUN_FINISHED":
+			activity = "FINISHED"
+			if outcome, ok := event["outcome"].(map[string]any); ok && outcome["type"] == "interrupt" {
+				activity = "WAITING_INPUT"
+			}
+		case "RUN_ERROR":
+			activity = "FAILED"
+		}
+		if activity != "" && activity != p.lastActivity {
+			p.activitySeq++
+			p.lastActivity = activity
+			activitySeq = p.activitySeq
+		} else {
+			activity = ""
+		}
+	}
+	if err := p.audit.Record(ctx, AuditRecord{
+		ThreadID:         p.threadID,
+		RunID:            p.runID,
+		Action:           "agent.event." + event["type"].(string),
+		PayloadSHA256:    digest(raw),
+		Activity:         activity,
+		ActivitySequence: activitySeq,
+	}); err != nil {
 		return ErrAuditUnavailable
 	}
 	if err := p.write(raw); err != nil {

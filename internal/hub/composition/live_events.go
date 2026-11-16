@@ -2,8 +2,11 @@ package composition
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
+	"regexp"
+	"sort"
 	"strings"
 	"time"
 
@@ -84,6 +87,9 @@ func mountLiveEvents(legacy http.Handler, repository controlplane.Repository, op
 		return liveOperatorState(ctx, governanceService, options)
 	}
 	auth, err := nativeauth.New(nativeauth.Config{Resolve: resolve, Visible: func(ctx context.Context, principal governance.Principal, subject live.Subject) (bool, error) {
+		if subject.Type == "assistant-run" {
+			return assistantRunVisible(ctx, repository, principal, subject)
+		}
 		if subject.Type != "packaging-run" {
 			return controlplane.EventResourceVisible(ctx, repository, governanceService, principal, options, subject)
 		}
@@ -143,7 +149,8 @@ func mountLiveEvents(legacy http.Handler, repository controlplane.Repository, op
 				return nil, err
 			}
 		}
-		sources := map[string]liveports.CommittedSource{"native": native, "packaging": packagingSource}
+		assistantSource := assistantLiveSource{repository: repository}
+		sources := map[string]liveports.CommittedSource{"native": native, "packaging": packagingSource, "assistant": assistantSource}
 		validator, err := schema.New()
 		if err != nil {
 			return nil, err
@@ -156,7 +163,7 @@ func mountLiveEvents(legacy http.Handler, repository controlplane.Repository, op
 		if root == nil {
 			root = context.Background()
 		}
-		refresh := newLiveRefresh(root, service, []string{"native", "packaging"})
+		refresh := newLiveRefresh(root, service, []string{"native", "packaging", "assistant"})
 		stream, err = livehttp.New(livehttp.Config{Service: service, Authorize: authorize, Refresh: refresh})
 		if err != nil {
 			return nil, err
@@ -166,6 +173,174 @@ func mountLiveEvents(legacy http.Handler, repository controlplane.Repository, op
 	mux.Handle("GET /v1/events", stream)
 	mux.Handle("/", legacy)
 	return mux, nil
+}
+
+var assistantRunIDPattern = regexp.MustCompile(`^[A-Za-z0-9][A-Za-z0-9._:/-]{0,199}$`)
+
+func parseAssistantRunID(id string) (string, string, bool) {
+	if !assistantRunIDPattern.MatchString(id) {
+		return "", "", false
+	}
+	idx := strings.IndexByte(id, ':')
+	if idx <= 0 || idx >= len(id)-1 {
+		return "", "", false
+	}
+	return id[:idx], id[idx+1:], true
+}
+
+func assistantRunVisible(ctx context.Context, repository controlplane.Repository, principal governance.Principal, subject live.Subject) (bool, error) {
+	threadID, runID, ok := parseAssistantRunID(subject.ID)
+	if !ok {
+		return false, nil
+	}
+	if strings.TrimSpace(principal.Username) == "" || governance.EffectivePrincipal(principal).Username != principal.Username {
+		return false, nil
+	}
+	events, err := repository.ListAuthorizationAudit(ctx, "planning-session/"+threadID)
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return false, ctxErr
+		}
+		return false, live.ErrUnavailable
+	}
+	for _, event := range events {
+		if event.Context == nil {
+			continue
+		}
+		tID, _ := event.Context["threadId"].(string)
+		rID, _ := event.Context["runId"].(string)
+		if tID == threadID && rID == runID && event.Subject != "" {
+			return event.Subject == principal.Username, nil
+		}
+	}
+	return false, nil
+}
+
+type assistantLiveSource struct {
+	repository controlplane.Repository
+}
+
+type assistantActivityRow struct {
+	sequence uint64
+	activity string
+	at       time.Time
+}
+
+func (s assistantLiveSource) ReadCommittedEvents(ctx context.Context, positions map[string]uint64, limit int) ([]live.Record, error) {
+	if err := ctx.Err(); err != nil {
+		return nil, err
+	}
+	if limit < 1 || limit > live.MaxQueueEvents {
+		return nil, live.ErrInvalid
+	}
+	if s.repository == nil {
+		return nil, live.ErrUnavailable
+	}
+	events, err := s.repository.ListAuthorizationAudit(ctx, "")
+	if err != nil {
+		if ctxErr := ctx.Err(); ctxErr != nil {
+			return nil, ctxErr
+		}
+		return nil, live.ErrUnavailable
+	}
+	byRun := map[string][]assistantActivityRow{}
+	for _, event := range events {
+		if event.Context == nil || !strings.HasPrefix(event.Action, "agent.event.") {
+			continue
+		}
+		threadID, _ := event.Context["threadId"].(string)
+		runID, _ := event.Context["runId"].(string)
+		activity, _ := event.Context["activity"].(string)
+		seq, ok := parseActivitySequence(event.Context["activitySequence"])
+		if threadID == "" || runID == "" || !knownAssistantActivity(activity) || !ok || seq == 0 {
+			continue
+		}
+		runKey := threadID + ":" + runID
+		if !assistantRunIDPattern.MatchString(runKey) {
+			return nil, live.ErrInvalid
+		}
+		byRun[runKey] = append(byRun[runKey], assistantActivityRow{
+			sequence: seq,
+			activity: activity,
+			at:       event.CreatedAt.UTC(),
+		})
+	}
+	keys := make([]string, 0, len(byRun))
+	for k := range byRun {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	records := make([]live.Record, 0)
+	for _, runKey := range keys {
+		rows := byRun[runKey]
+		sort.Slice(rows, func(i, j int) bool { return rows[i].sequence < rows[j].sequence })
+		for i, row := range rows {
+			if row.sequence != uint64(i+1) || row.at.IsZero() {
+				return nil, live.ErrInvalid
+			}
+		}
+		last := rows[len(rows)-1].sequence
+		subject := live.Subject{Type: "assistant-run", ID: runKey}
+		producer := live.ProducerID(subject)
+		previous := positions[producer]
+		if previous > last {
+			return nil, live.ErrReset
+		}
+		for _, row := range rows {
+			if row.sequence <= previous {
+				continue
+			}
+			payload, _ := json.Marshal(struct {
+				Activity string `json:"activity"`
+			}{Activity: row.activity})
+			records = append(records, live.Record{
+				Producer: producer,
+				Position: row.sequence,
+				ID:       live.RecordID(producer, row.sequence),
+				Subject:  subject,
+				Content: live.Content{
+					OccurredAt: row.at,
+					Kind:       "assistant.activity",
+					Resource:   live.Resource{Type: "assistant-run", ID: runKey, Revision: row.sequence},
+					Data:       payload,
+				},
+			})
+		}
+	}
+	sort.Slice(records, func(i, j int) bool {
+		if records[i].Producer == records[j].Producer {
+			return records[i].Position < records[j].Position
+		}
+		return records[i].Producer < records[j].Producer
+	})
+	if len(records) > limit {
+		records = records[:limit]
+	}
+	return records, nil
+}
+
+func parseActivitySequence(raw any) (uint64, bool) {
+	switch v := raw.(type) {
+	case uint64:
+		return v, true
+	case int:
+		if v > 0 {
+			return uint64(v), true
+		}
+	case float64:
+		if v > 0 && float64(uint64(v)) == v {
+			return uint64(v), true
+		}
+	}
+	return 0, false
+}
+
+func knownAssistantActivity(activity string) bool {
+	switch activity {
+	case "STARTED", "WAITING_INPUT", "PLANNING", "FINISHED", "FAILED":
+		return true
+	}
+	return false
 }
 
 type liveContextReadiness struct{}
