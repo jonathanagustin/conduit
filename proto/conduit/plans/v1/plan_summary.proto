@@ -1,0 +1,50 @@
+syntax = "proto3";
+package conduit.plans.v1;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/plans/v1;plansv1";
+
+// PlanReadService reads existing authorized native projections, never commands.
+service PlanReadService {
+  // ListPlanSummaries reads GET /v1/plans?view=summary. It never returns a lease.
+  rpc ListPlanSummaries(ListPlanSummariesRequest) returns (ListPlanSummariesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListPlanSummariesRequest {
+  // limit is absent for the native default 100; valid explicit values are 1..200.
+  optional int32 limit = 1;
+  // cursor is the native opaque continuation, bound to the active filters.
+  string cursor = 2;
+  string environment = 3;
+  string status = 4;
+  string installation_id = 5;
+  string search = 6;
+}
+
+// PlanSummary is the existing summary projection, not a full Plan or approval.
+message PlanSummary {
+  string id = 1;
+  string environment = 2;
+  // status is open native vocabulary, including future statuses.
+  string status = 3;
+  int64 step_count = 4;
+  int64 approval_count = 5;
+  int64 required_approvals = 6;
+  google.protobuf.Timestamp created_at = 7;
+  google.protobuf.Timestamp updated_at = 8;
+  uint64 revision = 9;
+}
+
+message ListPlanSummariesResponse {
+  repeated PlanSummary plans = 1;
+  // total counts only authorized, filtered matches.
+  int64 total = 2;
+  int32 page_size = 3;
+  int32 limit = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
+  bool has_previous = 7;
+}

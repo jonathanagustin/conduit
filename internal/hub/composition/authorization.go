@@ -316,6 +316,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; reads the Accept binding on a planning session and does not approve"},
 		{Pattern: "GET /v1/planning-sessions/{sessionID}/events",
 			Decision: DecisionOperatorSelf, Detail: "requireOperatorPrincipal; reads recorded planning events, including inspection, Needs Input, and plan events, and does not approve"},
+		{Pattern: "POST /conduit.plans.v1.PlanReadService/ListPlanSummaries",
+			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; shared canReadPlan before filtering/counting and native summary seek pagination; no lease or approval"},
 		{Pattern: "GET /v1/plans",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + canReadPlan per Plan row"},
 		{Pattern: "GET /v1/plans/{planID}",
