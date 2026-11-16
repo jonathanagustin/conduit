@@ -3,7 +3,7 @@
 Conduit's `web/` package uses Vite+ 1.6.0 for the console build, preview, unit
 runner, linting, and formatting. Syncpack 15.3.3 checks manifest/catalog policy.
 Both are exact locked development dependencies. Installation uses the existing
-Node 26.13.1 and pnpm 12.18.0 pins; a global `vp` install is unnecessary.
+Node 26.13.1 and pnpm 12.20.0 pins; a global `vp` install is unnecessary.
 
 ```sh
 pnpm --dir web install --frozen-lockfile
