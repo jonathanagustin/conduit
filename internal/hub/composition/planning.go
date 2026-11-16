@@ -15,6 +15,7 @@ import (
 
 	"go.temporal.io/sdk/client"
 
+	appgenapp "github.com/jonathanagustin/conduit/internal/appgen/application"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
@@ -33,12 +34,27 @@ import (
 // sessions and SSE agent runs are backed by durable Temporal workflows.
 // Compute is refused until Accept.
 func mountPlanning(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions) (http.Handler, error) {
-	runner, err := planningPlanner(os.Getenv, repository)
+	generator, err := appGenerator(os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	appgenService := newAppGenerationService(repository, generator, nil, nil, nil, os.Getenv)
+	return mountPlanningWithAppgenService(legacy, repository, options, appgenService, os.Getenv)
+}
+
+func mountPlanningWithAppgenService(
+	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions,
+	appgenService appgenapp.Service, getenv func(string) string,
+) (http.Handler, error) {
+	if getenv == nil {
+		getenv = os.Getenv
+	}
+	runner, err := planningPlanner(getenv, repository)
 	if err != nil {
 		return nil, err
 	}
 	var temporalClient planningworkflow.WorkflowClient
-	if addr := strings.TrimSpace(os.Getenv("CONDUIT_TEMPORAL_ADDRESS")); addr != "" {
+	if addr := strings.TrimSpace(getenv("CONDUIT_TEMPORAL_ADDRESS")); addr != "" {
 		host, _, splitErr := net.SplitHostPort(addr)
 		if splitErr != nil {
 			return nil, fmt.Errorf("CONDUIT_TEMPORAL_ADDRESS: %w", splitErr)
@@ -57,7 +73,7 @@ func mountPlanning(legacy http.Handler, repository controlplane.Repository, opti
 		}
 		temporalClient = dialed
 	}
-	return planningHandlerWithTemporal(legacy, repository, options, runner, temporalClient), nil
+	return planningHandlerWithOptions(legacy, repository, options, runner, temporalClient, nil, &appgenService, getenv), nil
 }
 
 func planningHandler(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner) http.Handler {
@@ -65,14 +81,18 @@ func planningHandler(legacy http.Handler, repository controlplane.Repository, op
 }
 
 func planningHandlerWithAppgenCompute(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, appgenCompute planningapp.AppgenComputer) http.Handler {
-	return planningHandlerWithOptions(legacy, repository, options, runner, nil, appgenCompute)
+	return planningHandlerWithOptions(legacy, repository, options, runner, nil, appgenCompute, nil, os.Getenv)
 }
 
 func planningHandlerWithTemporal(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient) http.Handler {
-	return planningHandlerWithOptions(legacy, repository, options, runner, temporalClient, nil)
+	return planningHandlerWithOptions(legacy, repository, options, runner, temporalClient, nil, nil, os.Getenv)
 }
 
-func planningHandlerWithOptions(legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient, appgenCompute planningapp.AppgenComputer) http.Handler {
+func planningHandlerWithOptions(
+	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions,
+	runner planningapp.Planner, temporalClient planningworkflow.WorkflowClient,
+	appgenCompute planningapp.AppgenComputer, appgenService *appgenapp.Service, getenv func(string) string,
+) http.Handler {
 	var stores sync.Map
 	var seq atomic.Uint64
 	governanceService := controlplane.NewGovernanceService(repository)
@@ -103,9 +123,13 @@ func planningHandlerWithOptions(legacy http.Handler, repository controlplane.Rep
 			if runner != nil {
 				scopedRunner = actorPlanningRunner{runner: runner, actor: actor}
 			}
+			ownerCompute := appgenCompute
+			if ownerCompute == nil && appgenService != nil {
+				ownerCompute = appgenPlanningComputer(*appgenService, repository, principal, getenv)
+			}
 			inMem := planningapp.NewService(scopedRunner).
 				WithAuditor(planningAcceptAudit{repository: repository, actor: actor}).
-				WithAppgenCompute(appgenCompute)
+				WithAppgenCompute(ownerCompute)
 			httpSessions = inMem
 			runSessions = inMem
 		}

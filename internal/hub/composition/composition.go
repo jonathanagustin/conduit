@@ -120,13 +120,17 @@ func NewHub(
 	if hubOptions.Attachments == nil {
 		hubOptions.Attachments = newAttachmentService(repository)
 	}
+	appgenService := newAppGenerationService(
+		repository, hubOptions.AppGenerator, hubOptions.Attachments,
+		hubOptions.AppgenSandbox, hubOptions.AppgenPublisher, os.Getenv,
+	)
 	handler = mountReportingConnect(handler, repository, options)
 	handler = mountAdminStatus(handler, repository, options, hubOptions)
 	handler = mountAttachments(handler, options, hubOptions.Attachments)
-	handler = mountAppGeneration(handler, repository, options, hubOptions.AppGenerator, hubOptions.Attachments)
+	handler = mountAppGenerationWithService(handler, options, appgenService)
 	intelService := newIntelligenceService(repository, options)
 	handler = mountTimeline(mountUpgrades(mountOfflineBundles(mountSiteCheckIn(mountBlackouts(mountWaves(mountDriftFix(mountChannels(mountIntelligence(mountAssistant(mountOntology(mountPackaging(handler, repository, options, hubOptions), repository, options, hubOptions, workspaces), repository, options, hubOptions, assistant, intelCases{service: intelService}), repository, options, hubOptions, intelService), repository, options), repository, options), repository, options), repository, options), options), repository, options), repository, options), repository, options)
-	handler, err = mountPlanning(handler, repository, options)
+	handler, err = mountPlanningWithAppgenService(handler, repository, options, appgenService, os.Getenv)
 	if err != nil {
 		return nil, err
 	}
