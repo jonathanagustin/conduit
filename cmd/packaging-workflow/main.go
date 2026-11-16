@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/spf13/cobra"
 	"go.temporal.io/sdk/client"
 
@@ -26,6 +27,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingmcp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/planlifecycle"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
@@ -1028,6 +1030,83 @@ func addWorkspaceCommands(root *cobra.Command, stateDir *string) {
 	wsReapCmd.Flags().DurationVar(&reapRetention, "retention-window", 7*24*time.Hour, "retention window for volumes when branch push fails")
 	wsReapCmd.Flags().StringVar(&reapNow, "now", "", "optional RFC3339 clock override for deterministic testing")
 	root.AddCommand(wsReapCmd)
+
+	var (
+		mcpWorkspaceID string
+		mcpListTools   bool
+		mcpCallTool    string
+		mcpCallArgs    string
+	)
+	mcpCmd := &cobra.Command{
+		Use:   "mcp-serve [repo-path]",
+		Short: "Serve the packaging toolbox (inspect_repo, read_file, validate_dockerfile, validate_manifests, dry_run_gates, inspect_image) over MCP",
+		Args:  cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			ctx := context.Background()
+			repoRoot := ""
+			if len(args) == 1 {
+				repoRoot = strings.TrimSpace(args[0])
+			} else if strings.TrimSpace(mcpWorkspaceID) != "" {
+				store, _, _, err := openWorkspaceBackend(*stateDir, 0, 0, nil)
+				if err != nil {
+					return err
+				}
+				if _, err := store.Get(ctx, strings.TrimSpace(mcpWorkspaceID)); err != nil {
+					return err
+				}
+				repoRoot = store.RepoDir(strings.TrimSpace(mcpWorkspaceID))
+			}
+			var opts []packagingtools.Option
+			if repoRoot != "" {
+				opts = append(opts, packagingtools.WithRepoRoot(repoRoot))
+			}
+			server := packagingmcp.NewServer(packagingtools.New(opts...))
+
+			if mcpListTools || strings.TrimSpace(mcpCallTool) != "" {
+				serverTransport, clientTransport := mcp.NewInMemoryTransports()
+				serverSession, err := server.Connect(ctx, serverTransport)
+				if err != nil {
+					return err
+				}
+				defer serverSession.Close()
+				mcpClient := mcp.NewClient(&mcp.Implementation{Name: "packaging-workflow-cli", Version: "1.0.0"}, nil)
+				clientSession, err := mcpClient.Connect(ctx, clientTransport, nil)
+				if err != nil {
+					return err
+				}
+				defer clientSession.Close()
+
+				if mcpListTools {
+					listed, err := clientSession.ListTools(ctx, nil)
+					if err != nil {
+						return err
+					}
+					return encodeJSON(cmd.OutOrStdout(), listed)
+				}
+				var callArgs map[string]any
+				if strings.TrimSpace(mcpCallArgs) != "" {
+					if err := json.Unmarshal([]byte(mcpCallArgs), &callArgs); err != nil {
+						return fmt.Errorf("--args JSON: %w", err)
+					}
+				}
+				res, err := clientSession.CallTool(ctx, &mcp.CallToolParams{
+					Name:      strings.TrimSpace(mcpCallTool),
+					Arguments: callArgs,
+				})
+				if err != nil {
+					return err
+				}
+				return encodeJSON(cmd.OutOrStdout(), res)
+			}
+
+			return server.Run(ctx, &mcp.StdioTransport{})
+		},
+	}
+	mcpCmd.Flags().StringVar(&mcpWorkspaceID, "workspace-id", "", "bind the MCP toolbox to a durable Git workspace /repo directory")
+	mcpCmd.Flags().BoolVar(&mcpListTools, "list-tools", false, "query the MCP server for its registered tool schemas and print JSON")
+	mcpCmd.Flags().StringVar(&mcpCallTool, "call", "", "invoke one MCP tool over an in-memory MCP session and print the result JSON")
+	mcpCmd.Flags().StringVar(&mcpCallArgs, "args", "{}", "JSON object arguments for --call")
+	root.AddCommand(mcpCmd)
 }
 
 func openWorkspaceBackend(stateDir string, idle, retention time.Duration, nowFn func() time.Time) (*gitstore.Store, controlplane.Repository, *devworkspaceapp.Service, error) {

@@ -252,6 +252,16 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 		t.Fatalf("expected PENDING ChangeRequest receipt, got:\n%s", string(proposeBytes))
 	}
 
+	// 11b. Query and invoke the MCP packaging toolbox bound to the durable Git workspace w/ mcp-serve
+	mcpToolsBytes, err := execRaw("mcp-serve", "--workspace-id", "wsp_excalidraw", "--list-tools")
+	if err != nil || !strings.Contains(string(mcpToolsBytes), "inspect_repo") || !strings.Contains(string(mcpToolsBytes), "validate_manifests") {
+		t.Fatalf("mcp-serve --list-tools: err=%v\n%s", err, string(mcpToolsBytes))
+	}
+	mcpCallBytes, err := execRaw("mcp-serve", "--workspace-id", "wsp_excalidraw", "--call", "inspect_repo")
+	if err != nil || !strings.Contains(string(mcpCallBytes), "Dockerfile") || !strings.Contains(string(mcpCallBytes), "uds-package.yaml") {
+		t.Fatalf("mcp-serve --call inspect_repo: err=%v\n%s", err, string(mcpCallBytes))
+	}
+
 	// 12. Run workspace-reap past the idle timeout and verify the workspace compute is reclaimed while preserving Git history
 	futureTime := "2099-01-01T00:00:00Z"
 	reapBytes, err := execRaw("workspace-reap", "--now", futureTime)
@@ -325,5 +335,46 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	}
 	if turnedLocal.Inspection == nil || turnedLocal.Inspection.Language != "typescript" || turnedLocal.Inspection.PackageManager != "yarn" {
 		t.Fatalf("expected real repo inspection (typescript / yarn), got %+v", turnedLocal.Inspection)
+	}
+}
+
+func TestCLIMCPServeToolbox(t *testing.T) {
+	t.Parallel()
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(`{"name":"excalidraw","scripts":{"start":"yarn start"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "yarn.lock"), []byte("# yarn lockfile v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runMCP := func(args ...string) string {
+		t.Helper()
+		var out bytes.Buffer
+		cmd := newRoot()
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SetArgs(append([]string{"mcp-serve", repoDir}, args...))
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("mcp-serve %v: %v\n%s", args, err, out.String())
+		}
+		return out.String()
+	}
+
+	listed := runMCP("--list-tools")
+	for _, want := range []string{"inspect_repo", "read_file", "validate_dockerfile", "validate_manifests", "dry_run_gates", "inspect_image"} {
+		if !strings.Contains(listed, want) {
+			t.Fatalf("mcp-serve --list-tools missing %q:\n%s", want, listed)
+		}
+	}
+
+	inspected := runMCP("--call", "inspect_repo")
+	if !strings.Contains(inspected, "yarn") {
+		t.Fatalf("mcp-serve --call inspect_repo output:\n%s", inspected)
+	}
+
+	readOut := runMCP("--call", "read_file", "--args", `{"path":"package.json"}`)
+	if !strings.Contains(readOut, "excalidraw") {
+		t.Fatalf("mcp-serve --call read_file output:\n%s", readOut)
 	}
 }
