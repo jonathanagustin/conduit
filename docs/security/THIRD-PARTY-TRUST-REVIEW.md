@@ -349,3 +349,35 @@ The MIT package has no runtime dependencies or install lifecycle hooks. A frozen
 install and Syncpack checks pass, and a fresh pnpm advisory check reports zero
 advisories. The returned registry metadata advertises no build attestation;
 registry signature verification is not publisher source-to-binary provenance.
+
+## Go dependency qualification for PR #735
+
+The six updated modules clear the repository's three-day release delay. Their
+module archives and `go.mod` checksums were checked with Go's default
+`sum.golang.org` authentication enabled. Each proxy-reported source commit was
+compared with the current tag in the upstream repository; annotated tags were
+peeled to commits. These checks establish content and source-coordinate
+agreement, not publisher build provenance or a review of every upstream line.
+
+| Module | Version | Upstream commit | Declared license |
+| --- | --- | --- | --- |
+| `cel.dev/cel-go` | `v0.33.2` | `c8b1865443e0de549d289cc280aaefa91d55c1f4` | Apache-2.0 |
+| `github.com/jackc/pgx/v5` | `v5.13.0` | `1e38d71d74e94fd3b35cbe5b3415109a870d5b91` | MIT |
+| `github.com/getkin/kin-openapi` | `v0.153.0` | `671bc8b8c2f862600bc5f5fa73a00a9a3c125dc5` | MIT |
+| `github.com/santhosh-tekuri/jsonschema/v6` | `v6.0.3` | `b0fc661f4939578bc429f408c18202573dbafcc4` | Apache-2.0 |
+| `golang.org/x/sys` | `v0.50.0` | `00227f1d192842e243cba7763c1f9a1fcb1c4344` | BSD-3-Clause |
+| `github.com/docker/docker-credential-helpers` | `v0.9.13` | `e8a52cbcf9ee5e522780b1bbf111fd7503ccb749` | MIT |
+
+The credential helper is selected by both the maintained ACR compatibility
+module and the separate Cosign signing-tool graph. Updating only the nested
+module leaves the signing graph and checksums stale; both are aligned here.
+Root `go mod tidy` also removes two YAML modules no longer needed by the new
+OpenAPI graph and obsolete checksums. No new replacement or vendored source is
+introduced.
+
+Both root and signing-tool modules pass `go mod verify`. A deliberately wrong
+module checksum in an isolated throwaway module is rejected before use. The
+ACR strict-host regression, root race/contract/schema tests, source-built Cosign
+command, and advisory scans are the relevant execution checks; exact tested
+commits and their results are recorded on PR #735. Local credential-helper tests
+do not establish live Azure authentication, signing authority or publication.
