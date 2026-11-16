@@ -191,14 +191,14 @@ func appgenPlanningComputer(
 			pkgDir = tmpDir
 		}
 		for _, f := range res.Files {
-			if err := os.WriteFile(filepath.Join(pkgDir, f.Path), []byte(f.Content), 0o600); err != nil {
+			if err := writePackageFile(pkgDir, f.Path, f.Content); err != nil {
 				return err
 			}
 		}
-		if err := os.WriteFile(filepath.Join(pkgDir, ".dockerignore"), []byte(dockerIgnore), 0o600); err != nil {
+		if err := writePackageFile(pkgDir, ".dockerignore", dockerIgnore); err != nil {
 			return err
 		}
-		if err := os.WriteFile(filepath.Join(pkgDir, "package-source.yaml"), []byte(res.PackagingSource), 0o600); err != nil {
+		if err := writePackageFile(pkgDir, "package-source.yaml", res.PackagingSource); err != nil {
 			return err
 		}
 		if err := checks.Lint(ctx, pkgDir); err != nil {
@@ -264,6 +264,22 @@ func appgenPlanningComputer(
 		}
 		return nil
 	}
+}
+
+func writePackageFile(root, rel, content string) error {
+	cleaned := filepath.Clean(rel)
+	if cleaned == "." || cleaned == "" || filepath.IsAbs(cleaned) || cleaned == ".." || strings.HasPrefix(cleaned, ".."+string(filepath.Separator)) {
+		return fmt.Errorf("package path %s is not allowed", rel)
+	}
+	dest := filepath.Join(root, cleaned)
+	rootClean := filepath.Clean(root)
+	if dest != rootClean && !strings.HasPrefix(dest, rootClean+string(filepath.Separator)) {
+		return fmt.Errorf("package path %s is not allowed", rel)
+	}
+	if err := os.MkdirAll(filepath.Dir(dest), 0o755); err != nil {
+		return err
+	}
+	return os.WriteFile(dest, []byte(content), 0o600)
 }
 
 type appAudit struct {

@@ -78,6 +78,9 @@ func TestAppgenProfileStartTurnReadyAcceptAndBinding(t *testing.T) {
 	if session.Status != planningdomain.StatusReady || session.Plan == nil || session.Plan.Text == "" {
 		t.Fatalf("expected ready session with plan, got %+v", session)
 	}
+	if !strings.Contains(session.Plan.Text, `"healthCheckPath":"/health"`) || strings.Contains(session.Plan.Text, "/healthz") || !strings.Contains(session.Plan.Text, `"sourceRule":"exactly one source file"`) {
+		t.Fatalf("plan does not state the source rule and health path: %s", session.Plan.Text)
+	}
 	if session.ResolvedCommit != planningdomain.NoRepositoryCommit {
 		t.Fatalf("expected resolvedCommit %q, got %q", planningdomain.NoRepositoryCommit, session.ResolvedCommit)
 	}
@@ -278,7 +281,7 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 		t.Fatal(err)
 	}
 	repoDir := store.RepoDir("wsp_" + session.ID)
-	for _, wantFile := range []string{"main.go", "values.yaml", "Dockerfile", ".dockerignore", "zarf.yaml", "uds-package.yaml", "package-source.yaml"} {
+	for _, wantFile := range []string{"main.go", "values.yaml", "Dockerfile", ".dockerignore", "zarf.yaml", "uds-package.yaml", "package-source.yaml", "chart/Chart.yaml", "chart/values.yaml", "chart/templates/deployment.yaml", "chart/templates/service.yaml"} {
 		if _, err := os.Stat(filepath.Join(repoDir, wantFile)); err != nil {
 			t.Fatalf("missing expected generated/packaged file %s: %v", wantFile, err)
 		}
@@ -298,6 +301,18 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 	checks := workspacepkg.Checks{}
 	if reason := checks.PackageCR(string(crBytes)); reason != "" {
 		t.Fatalf("PackageCR gate failed: %s", reason)
+	}
+	pinned := "127.0.0.1:5000/hello-http@sha256:" + strings.Repeat("a", 64)
+	values, err := os.ReadFile(filepath.Join(repoDir, "chart/values.yaml"))
+	if err != nil || !strings.Contains(string(values), pinned) {
+		t.Fatalf("chart values = %s %v", values, err)
+	}
+	zarf, err := os.ReadFile(filepath.Join(repoDir, "zarf.yaml"))
+	if err != nil || !strings.Contains(string(zarf), pinned) || !strings.Contains(string(zarf), `localPath: "chart"`) {
+		t.Fatalf("zarf = %s %v", zarf, err)
+	}
+	if !strings.Contains(string(crBytes), `service: "hello-http"`) || !strings.Contains(string(crBytes), "expose:") {
+		t.Fatalf("package = %s", crBytes)
 	}
 	outEntries, err := os.ReadDir(filepath.Join(repoDir, "out"))
 	if err != nil || len(outEntries) == 0 {

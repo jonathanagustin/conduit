@@ -87,3 +87,7 @@ run = "./scripts/uds-down.sh"
 description = "Create the author and reviewer Keycloak users and write their passwords outside the repository"
 run = "./scripts/uds-keycloak-users.sh"
 
+[tasks.appgen-deploy]
+description = "Deploy a generated package on k3d or kind and request the application"
+run = "./scripts/appgen-deploy-probe.sh"
+

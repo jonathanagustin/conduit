@@ -316,6 +316,13 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 		result.ImageRef = ref
 		result.ImageDigest = imageDigest
 		result.ChartDigest = chartDigest
+		stamped, err := domain.StampImage(rendered, domain.ImageRepository(ref), imageDigest)
+		if err != nil {
+			result.Error = err.Error()
+			return service.finish(ctx, result, service.auditFrom(result, true, built.Reason, true, health.Reason))
+		}
+		rendered = stamped
+		result.Files = filesOf(spec, rendered)
 	}
 	result.RunID = spec.Name + "-1"
 	source := domain.PackagingSource(spec, result.ImageRef, result.ImageDigest, description)
@@ -471,6 +478,10 @@ func filesOf(spec domain.Spec, rendered domain.PackageFiles) []File {
 		{"uds-package.yaml", "template", rendered.Package},
 	} {
 		files = append(files, File{Path: item.path, Kind: item.kind, SHA256: domain.Digest(item.raw), Content: string(item.raw)})
+	}
+	for _, chart := range rendered.Chart {
+		raw := chart.Body
+		files = append(files, File{Path: "chart/" + chart.Path, Kind: "template", SHA256: domain.Digest(raw), Content: string(raw)})
 	}
 	return files
 }

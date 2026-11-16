@@ -14,17 +14,23 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/appgen/application"
+	"github.com/jonathanagustin/conduit/internal/appgen/domain"
 )
 
 // Docker is the local container engine.
 type Docker struct{}
 
 func (Docker) Build(ctx context.Context, input application.BuildRequest) (application.BuildResult, error) {
+	shape, err := buildShape(input)
+	if err != nil {
+		return fail(err.Error()), nil
+	}
 	dir, err := os.MkdirTemp("", "conduit-appgen-")
 	if err != nil {
 		return application.BuildResult{}, err
@@ -38,18 +44,34 @@ func (Docker) Build(ctx context.Context, input application.BuildRequest) (applic
 	if err := os.WriteFile(filepath.Join(dir, "Dockerfile"), input.Dockerfile, 0o644); err != nil {
 		return application.BuildResult{}, err
 	}
-	goMod := "module example.com/" + input.Spec.Name + "\n\ngo 1.26.0\n"
-	if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
-		return application.BuildResult{}, err
-	}
-	build := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags=-s -w", "-o", "app", ".")
-	build.Dir = dir
-	build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64", "GOPROXY=off", "GOTOOLCHAIN=local")
-	if output, err := build.CombinedOutput(); err != nil {
-		return fail("compile failed: " + firstLine(output)), nil
-	}
-	if err := os.Chmod(filepath.Join(dir, "app"), 0o755); err != nil {
-		return application.BuildResult{}, err
+	reason := "image built with no network as a non-root scratch image"
+	switch shape {
+	case domain.ShapeGo, domain.ShapeHTML:
+		if shape == domain.ShapeHTML {
+			if err := os.WriteFile(filepath.Join(dir, "static.go"), []byte(staticServerSource), 0o644); err != nil {
+				return application.BuildResult{}, err
+			}
+		}
+		goMod := "module example.com/" + input.Spec.Name + "\n\ngo 1.26.0\n"
+		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
+			return application.BuildResult{}, err
+		}
+		build := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags=-s -w", "-o", "app", ".")
+		build.Dir = dir
+		build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64", "GOPROXY=off", "GOTOOLCHAIN=local")
+		if output, err := build.CombinedOutput(); err != nil {
+			return fail("compile failed: " + firstLine(output)), nil
+		}
+		if err := os.Chmod(filepath.Join(dir, "app"), 0o755); err != nil {
+			return application.BuildResult{}, err
+		}
+	case domain.ShapePython:
+		reason = "image built with no network as a non-root interpreter image"
+		if err := ensureImage(ctx, domain.PythonRuntimeImage); err != nil {
+			return fail("python runtime image is not available: " + err.Error()), nil
+		}
+	default:
+		return fail(domain.AllowedSourceShapes), nil
 	}
 	tag := "appgen-build-" + filepath.Base(dir) + ":local"
 	output, err := exec.CommandContext(ctx, "docker", "build", "--network", "none", "--tag", tag, "--iidfile", filepath.Join(dir, "image-id"), dir).CombinedOutput()
@@ -60,7 +82,38 @@ func (Docker) Build(ctx context.Context, input application.BuildRequest) (applic
 	if err != nil || !imageIDPattern.MatchString(strings.TrimSpace(string(id))) {
 		return fail("image id was not recorded"), nil
 	}
-	return application.BuildResult{Passed: true, Reason: "image built with no network as a non-root scratch image", ImageID: strings.TrimSpace(string(id))}, nil
+	return application.BuildResult{Passed: true, Reason: reason, ImageID: strings.TrimSpace(string(id))}, nil
+}
+
+func buildShape(input application.BuildRequest) (domain.Shape, error) {
+	if len(input.Spec.Files) > 0 {
+		shape, reason, ok := domain.ShapeOf(input.Spec)
+		if !ok {
+			return "", fmt.Errorf("%s", reason)
+		}
+		return shape, nil
+	}
+	names := make([]string, 0, len(input.Sources))
+	for name := range input.Sources {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	shape, reason, ok := domain.ShapeFromPaths(names)
+	if !ok {
+		return "", fmt.Errorf("%s", reason)
+	}
+	return shape, nil
+}
+
+func ensureImage(ctx context.Context, ref string) error {
+	if exec.CommandContext(ctx, "docker", "image", "inspect", ref).Run() == nil {
+		return nil
+	}
+	output, err := exec.CommandContext(ctx, "docker", "pull", ref).CombinedOutput()
+	if err != nil {
+		return fmt.Errorf("%s", firstLine(output))
+	}
+	return nil
 }
 
 var imageIDPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
@@ -78,7 +131,8 @@ func (Docker) Check(ctx context.Context, built application.BuildResult, input ap
 	// this invocation's unpredictable name; never remove a shared app name.
 	defer exec.Command("docker", "rm", "-f", name).Run()
 	args := []string{
-		"run", "--detach", "--name", name, "--read-only", "--cap-drop", "ALL",
+		"run", "--detach", "--name", name, "--read-only", "--tmpfs", "/tmp:rw,nosuid,size=16m",
+		"--cap-drop", "ALL", "-e", "HOME=/tmp", "-e", "PYTHONDONTWRITEBYTECODE=1",
 		"--security-opt", "no-new-privileges:true", "--user", "65532:65532",
 		"--memory", memoryFlag(input.Spec.Resources.Memory), "--pids-limit", "64",
 		"--network", "bridge", "-p", fmt.Sprintf("127.0.0.1::%d", input.Spec.Port), built.ImageID,

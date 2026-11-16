@@ -387,10 +387,10 @@
     },
     {
       "id": "appgen.HttpPackageTemplate",
-      "what": "The fixed HTTP application template renders a scratch image definition, chart values, and package documents from a validated spec. The generator supplies the spec and allowlisted source files only.",
-      "why": "No captured packaging profile states the fields a generated HTTP application must carry. One template family keeps the rendered documents deterministic, and the generator cannot write the package configuration.",
+      "what": "The fixed HTTP application template renders one image definition for exactly one allowlisted source file (main.go, main.py, or index.html), a chart whose Deployment and Service run that image, and a package document that exposes the Service. The generator supplies the spec and the one source file only. The built image digest is stamped after publish.",
+      "why": "No captured packaging profile states the image definition, chart workload, or package expose fields for a generated HTTP application. One template family keeps the rendered documents deterministic, and the generator cannot write the package configuration.",
       "displacedBy": "a reviewed packaging profile that states the image definition, chart values, and package document fields for a generated HTTP application.",
-      "riskIfWrong": "The rendered documents may differ from a later profile. They are marked CONDUIT_NATIVE, are produced only after the spec gates pass, and do not approve a change or publish a release."
+      "riskIfWrong": "The rendered documents may differ from a later profile. They are marked CONDUIT_NATIVE, are produced only after the spec gates pass, and do not approve a change or publish a release. A main.py image uses one pinned interpreter digest; a later profile can replace that pin."
     },
     {
       "id": "intake.AttachmentStore",

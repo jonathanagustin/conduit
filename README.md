@@ -41,6 +41,9 @@ is pushed. The console profile for this path is `onboard`. Work intake is
 Problem-statement generation uses profile `appgen`. After `mise run demo`,
 `scripts/demo-generate.sh` runs that path. Its package gates are `zarf dev lint`
 and `zarf package create`. It also leaves a change request for a person.
+The generator accepts exactly one of `main.go`, `main.py`, or `index.html`.
+The chart deploys that application, and the package resource exposes its
+Service. `mise run appgen-deploy` requests the running Service.
 
 <details>
 <summary>Planning-only walkthrough ending at Accept (<code>COMPUTE_BEFORE_ACCEPT</code> enforced)</summary>

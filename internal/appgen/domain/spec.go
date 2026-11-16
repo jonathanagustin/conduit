@@ -148,26 +148,29 @@ func validateSchema(spec Spec) error {
 }
 
 // CheckAllowlist rejects paths and languages outside the fixed set.
+// The set is exactly one of main.go, main.py, or index.html.
 func CheckAllowlist(spec Spec) (string, bool) {
 	if len(spec.Files) == 0 {
-		return "at least one allowlisted source file is required", false
+		return AllowedSourceShapes, false
 	}
 	seen := map[string]bool{}
+	paths := make([]string, 0, len(spec.Files))
 	for _, file := range spec.Files {
 		language, ok := allowedFiles[file.Path]
 		if !ok {
-			return fmt.Sprintf("path %s is not on the allowlist", file.Path), false
+			return fmt.Sprintf("path %s is not on the allowlist; %s", file.Path, AllowedSourceShapes), false
 		}
 		if file.Language != language {
-			return fmt.Sprintf("path %s must use language %s", file.Path, language), false
+			return fmt.Sprintf("path %s must use language %s; %s", file.Path, language, AllowedSourceShapes), false
 		}
 		if seen[file.Path] {
 			return fmt.Sprintf("path %s is repeated", file.Path), false
 		}
 		seen[file.Path] = true
+		paths = append(paths, file.Path)
 	}
-	if !seen["main.go"] {
-		return "the HTTP template requires main.go", false
+	if _, reason, ok := shapeFromPaths(paths); !ok {
+		return reason, false
 	}
 	return "source paths and languages are on the allowlist", true
 }
