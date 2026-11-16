@@ -116,6 +116,9 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	state.config.Timeout = defaultTimeout
 
 	root := &cobra.Command{
+		PersistentPreRunE: func(_ *cobra.Command, _ []string) error {
+			return validateOutputFormat(state.output)
+		},
 		Use:           "conduit",
 		Short:         "Operate the Conduit Hub/Spoke delivery control plane",
 		SilenceErrors: true,
