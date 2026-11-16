@@ -668,6 +668,36 @@ func (lifecycle *Lifecycle) FinishPlan(
 	ctx context.Context, planID, leaseToken string, succeeded bool, failure, failedInstallationID string,
 	execution *PlanExecution, report *EnvironmentReport,
 ) (PlanRecord, error) {
+	if report == nil {
+		return PlanRecord{}, fmt.Errorf("%w: reported state is required", ErrInvalidTransition)
+	}
+	transactional, ok := lifecycle.repository.(TransactionalRepository)
+	if !ok {
+		return PlanRecord{}, fmt.Errorf("%w: plan finish requires one repository transaction", ErrInvalidTransition)
+	}
+	var record PlanRecord
+	err := transactional.Transaction(ctx, func(repository Repository) error {
+		scoped := *lifecycle
+		scoped.repository = repository
+		var opErr error
+		record, opErr = scoped.finishPlanOnce(ctx, planID, leaseToken, succeeded, failure, failedInstallationID, execution, report)
+		return opErr
+	})
+	if err != nil {
+		return PlanRecord{}, err
+	}
+	return record, nil
+}
+
+// finishPlanOnce writes the terminal status, the observed-state evidence, and
+// any failure suppression through the repository it is given. FinishPlan runs
+// it inside one transaction, so a failure between those writes commits none of
+// them. A plan that is already terminal keeps that status and receives any
+// evidence or suppression the first attempt did not record.
+func (lifecycle *Lifecycle) finishPlanOnce(
+	ctx context.Context, planID, leaseToken string, succeeded bool, failure, failedInstallationID string,
+	execution *PlanExecution, report *EnvironmentReport,
+) (PlanRecord, error) {
 	existing, err := lifecycle.repository.GetPlan(ctx, planID)
 	if err != nil {
 		return PlanRecord{}, err
@@ -690,7 +720,8 @@ func (lifecycle *Lifecycle) FinishPlan(
 	if err != nil {
 		return PlanRecord{}, err
 	}
-	if !succeeded && strings.TrimSpace(failedInstallationID) != "" {
+	failedInstallationID = strings.TrimSpace(failedInstallationID)
+	if !succeeded && failedInstallationID != "" {
 		found := false
 		for _, step := range existing.Plan.Steps {
 			if step.InstallationID == failedInstallationID {
@@ -704,6 +735,13 @@ func (lifecycle *Lifecycle) FinishPlan(
 	}
 	if err := validateEnvironmentReport(existing.Plan, *report, succeeded); err != nil {
 		return PlanRecord{}, err
+	}
+	switch existing.Status {
+	case PlanSucceeded, PlanFailed:
+		return lifecycle.completeRecordedPlan(ctx, existing, leaseToken, succeeded, normalizedExecution, report)
+	case PlanRunning:
+	default:
+		return PlanRecord{}, fmt.Errorf("%w: cannot finish plan in %s", ErrInvalidTransition, existing.Status)
 	}
 	record, err := lifecycle.transitionWithLease(ctx, planID, leaseToken, func(record *PlanRecord) error {
 		if record.Status == PlanCancelled {
@@ -731,35 +769,88 @@ func (lifecycle *Lifecycle) FinishPlan(
 	if err != nil {
 		return PlanRecord{}, err
 	}
-	if report != nil && (succeeded || len(report.Entities) > 0) {
-		report.Environment = record.Plan.Environment
-		report.AgentID = record.Lease.AgentID
-		report.PlanID = record.ID
-		report.ObservedAt = lifecycle.now().UTC()
-		for index := range report.Entities {
-			if report.Entities[index].ObservedAt.IsZero() {
-				report.Entities[index].ObservedAt = report.ObservedAt
+	if err := lifecycle.persistFinishEvidence(ctx, record, report, succeeded); err != nil {
+		return PlanRecord{}, err
+	}
+	return record, nil
+}
+
+func (lifecycle *Lifecycle) completeRecordedPlan(
+	ctx context.Context, existing PlanRecord, leaseToken string, succeeded bool,
+	normalizedExecution PlanExecution, report *EnvironmentReport,
+) (PlanRecord, error) {
+	want := PlanSucceeded
+	if !succeeded {
+		want = PlanFailed
+	}
+	if existing.Status != want {
+		return PlanRecord{}, fmt.Errorf("%w: cannot finish plan in %s", ErrInvalidTransition, existing.Status)
+	}
+	if !execution.HeldByToken(existing.Lease, leaseToken) {
+		return PlanRecord{}, ErrLeaseRejected
+	}
+	record := existing
+	if record.Execution == nil {
+		normalizedExecution.AgentID = record.Lease.AgentID
+		normalizedExecution.Attempt = record.Lease.Attempt
+		updated, err := lifecycle.updatePlan(ctx, record.ID, func(current *PlanRecord) error {
+			if current.Status != want {
+				return fmt.Errorf("%w: cannot finish plan in %s", ErrInvalidTransition, current.Status)
 			}
+			current.Execution = &normalizedExecution
+			return nil
+		})
+		if err != nil {
+			return PlanRecord{}, err
 		}
-		if record.Command != nil {
-			if previous, previousErr := lifecycle.repository.GetEnvironmentReport(ctx, record.Plan.Environment); previousErr == nil {
-				mergeCommandReport(report, previous, record.Plan)
-			} else if !errors.Is(previousErr, ErrNotFound) {
-				return PlanRecord{}, fmt.Errorf("load reported state for command merge: %w", previousErr)
+		record = updated
+	}
+	if err := lifecycle.persistFinishEvidence(ctx, record, report, succeeded); err != nil {
+		return PlanRecord{}, err
+	}
+	return record, nil
+}
+
+func (lifecycle *Lifecycle) persistFinishEvidence(
+	ctx context.Context, record PlanRecord, report *EnvironmentReport, succeeded bool,
+) error {
+	if report != nil && (succeeded || len(report.Entities) > 0 || len(report.Secrets) > 0) {
+		if existing, err := lifecycle.repository.GetEnvironmentReport(ctx, record.Plan.Environment); err == nil && existing.PlanID == record.ID {
+			// This plan's observed state is already committed.
+		} else if err != nil && !errors.Is(err, ErrNotFound) {
+			return fmt.Errorf("load reported state: %w", err)
+		} else {
+			report.Environment = record.Plan.Environment
+			if record.Lease != nil {
+				report.AgentID = record.Lease.AgentID
 			}
-		}
-		if _, err := lifecycle.repository.PutEnvironmentReport(ctx, *report); err != nil {
-			return PlanRecord{}, fmt.Errorf("persist reported state: %w", err)
+			report.PlanID = record.ID
+			report.ObservedAt = lifecycle.now().UTC()
+			for index := range report.Entities {
+				if report.Entities[index].ObservedAt.IsZero() {
+					report.Entities[index].ObservedAt = report.ObservedAt
+				}
+			}
+			if record.Command != nil {
+				if previous, previousErr := lifecycle.repository.GetEnvironmentReport(ctx, record.Plan.Environment); previousErr == nil {
+					mergeCommandReport(report, previous, record.Plan)
+				} else if !errors.Is(previousErr, ErrNotFound) {
+					return fmt.Errorf("load reported state for command merge: %w", previousErr)
+				}
+			}
+			if _, err := lifecycle.repository.PutEnvironmentReport(ctx, *report); err != nil {
+				return fmt.Errorf("persist reported state: %w", err)
+			}
 		}
 	}
 	if !succeeded {
-		if err := lifecycle.createPlanFailureSuppression(
-			ctx, record.Plan, record.ID, record.FailedInstallation, record.Failure,
-		); err != nil {
-			return PlanRecord{}, fmt.Errorf("create automatic Plan-failure suppression: %w", err)
+		installation := record.FailedInstallation
+		reason := record.Failure
+		if err := lifecycle.createPlanFailureSuppression(ctx, record.Plan, record.ID, installation, reason); err != nil {
+			return fmt.Errorf("create automatic Plan-failure suppression: %w", err)
 		}
 	}
-	return record, nil
+	return nil
 }
 
 func mergeCommandReport(report *EnvironmentReport, previous EnvironmentReport, plan Plan) {
