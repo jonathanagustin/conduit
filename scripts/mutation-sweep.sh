@@ -112,10 +112,13 @@ done
 # detected. NoCoverage mutants are excluded from efficacy and shown as the gap
 # in coverage, exactly as gremlins' mutator coverage is for Go.
 if [[ -f web/stryker.config.json ]]; then
-command -v pnpm >/dev/null || {
-  echo "pnpm is required for the web Stryker sweep; install the pinned pnpm as CI does" >&2
+# pnpm runs Stryker. The candidate lint lane does not install it, and an
+# unconfigured frontend (no Stryker config, empty web baseline) has nothing
+# for it to run. Ask for it only once a sweep will actually invoke Stryker.
+if ! command -v pnpm >/dev/null 2>&1; then
+  echo "FAIL mutation sweep: pnpm is required to run the configured Stryker sweep; install the pinned pnpm as CI does" >&2
   exit 1
-}
+fi
 report="web/reports/mutation/mutation.json"
 echo "sweeping web console with Stryker..."
 set +e
