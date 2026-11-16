@@ -6,7 +6,6 @@ import (
 	"errors"
 	"net/http"
 	"strings"
-	"unicode/utf8"
 
 	"connectrpc.com/connect/v2"
 	"connectrpc.com/connect/v2/connecthttp"
@@ -89,18 +88,10 @@ func (s *planSummaryService) ListPlanSummaries(ctx context.Context, request *pla
 			return nil, connect.NewError(connect.CodeInternal, "Plan summary index unavailable")
 		}
 		out.Plans = append(out.Plans, &plansv1.PlanSummary{
-			Id: nativePlanString(plan.ID), Environment: nativePlanString(plan.Environment), Status: nativePlanString(string(plan.Status)),
+			Id: nativeIndexString(plan.ID), Environment: nativeIndexString(plan.Environment), Status: nativeIndexString(string(plan.Status)),
 			StepCount: int64(plan.StepCount), ApprovalCount: int64(plan.ApprovalCount), RequiredApprovals: int64(plan.RequiredApprovals),
 			CreatedAt: created, UpdatedAt: updated, Revision: plan.Revision,
 		})
 	}
 	return out, nil
-}
-
-// Match the replacement of malformed stored UTF-8 in decoded native JSON.
-func nativePlanString(value string) string {
-	if utf8.ValidString(value) {
-		return value
-	}
-	return string([]rune(value))
 }

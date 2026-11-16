@@ -655,18 +655,10 @@ func NewHandler(repository Repository, options ...HandlerOptions) http.Handler {
 		if !ok {
 			return
 		}
-		records, err := ListProductCatalog(request.Context(), repository)
+		visible, err := listAuthorizedProductCatalog(request.Context(), repository, governance, principal, configuration)
 		if err != nil {
 			writeLifecycleError(w, err)
 			return
-		}
-		visible := make([]ProductCatalogRecord, 0, len(records))
-		administrator := isGovernanceAdministrator(request.Context(), governance, principal, configuration)
-		for _, record := range records {
-			if administrator ||
-				governance.Authorize(request.Context(), effectivePrincipal(principal), productRID(record.Product), OperationReadResource) {
-				visible = append(visible, record)
-			}
 		}
 		view := request.URL.Query().Get("view")
 		if view != "" && view != "full" && view != "summary" {

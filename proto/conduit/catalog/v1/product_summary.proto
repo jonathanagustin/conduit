@@ -1,0 +1,39 @@
+syntax = "proto3";
+package conduit.catalog.v1;
+
+option go_package = "github.com/jonathanagustin/conduit/gen/go/conduit/catalog/v1;catalogv1";
+
+// ProductReadService reads existing authorized native catalog projections.
+service ProductReadService {
+  // ListProductSummaries reads GET /v1/products?view=summary, never publications.
+  rpc ListProductSummaries(ListProductSummariesRequest) returns (ListProductSummariesResponse) {
+    option idempotency_level = NO_SIDE_EFFECTS;
+  }
+}
+
+message ListProductSummariesRequest {
+  // Absent uses the native default 100; explicit limits must be 1..200.
+  optional int32 limit = 1;
+  // Native opaque cursor, bound to the normalized search filter.
+  string cursor = 2;
+  string search = 3;
+}
+
+// ProductSummary is the native catalog summary, not a Release or publication.
+message ProductSummary {
+  string product = 1;
+  int64 release_count = 2;
+  // Uses the native catalog's ordering; it is not a new semver resolver.
+  string latest_version = 3;
+}
+
+message ListProductSummariesResponse {
+  repeated ProductSummary products = 1;
+  // Counts only visible, filtered products, before pagination.
+  int64 total = 2;
+  int32 page_size = 3;
+  int32 limit = 4;
+  string next_cursor = 5;
+  string previous_cursor = 6;
+  bool has_previous = 7;
+}

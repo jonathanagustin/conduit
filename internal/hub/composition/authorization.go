@@ -322,6 +322,8 @@ func HubRouteAuthorization() []RouteAuthorization {
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + canReadPlan per Plan row"},
 		{Pattern: "GET /v1/plans/{planID}",
 			Decision: DecisionOperatorGrant, Detail: "requireOperatorPrincipal + requireResourceOperation"},
+		{Pattern: "POST /conduit.catalog.v1.ProductReadService/ListProductSummaries",
+			Decision: DecisionOperatorFiltered, Detail: "native operatorClaims + ResolvePrincipal; shared Product visibility before filtering/counting and native summary seek pagination; no write or approval"},
 		{Pattern: "GET /v1/products",
 			Decision: DecisionOperatorFiltered, Detail: "requireOperatorPrincipal + governance.Authorize(read) per Product row"},
 		{Pattern: "GET /v1/products/{productID}/download-releases",
