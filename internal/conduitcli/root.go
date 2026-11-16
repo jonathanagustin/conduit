@@ -331,6 +331,10 @@ func newService(ctx context.Context, configuration ConnectionConfig) (Service, f
 		return nil, nil, err
 	}
 	service := operator.NewService(adapter)
+	if err := adapter.SetPlanReadTransport(configuration.PlanReadTransport); err != nil {
+		connection.cleanup()
+		return nil, nil, err
+	}
 	if err := adapter.SetPackagingReadTransport(configuration.PackagingReadTransport); err != nil {
 		connection.cleanup()
 		return nil, nil, err
@@ -428,6 +432,7 @@ func planCommand(state *commandState) *cobra.Command {
 			})
 		},
 	}
+	list.Flags().StringVar(&state.config.PlanReadTransport, "read-transport", "rest", "Plan summary transport: rest or connect; failures are not replayed")
 	list.Flags().StringVar(&environment, "environment", "", "Environment id")
 	list.Flags().StringVar(&status, "status", "", "Plan status")
 	list.Flags().StringVar(&installationID, "installation-id", "", "installation targeted by a Plan step")

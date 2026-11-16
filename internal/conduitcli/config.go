@@ -26,6 +26,7 @@ const defaultTimeout = 30 * time.Second
 // transport construction. It contains paths to trust material, never material
 // contents, and deliberately has no permissive map-based configuration.
 type ConnectionConfig struct {
+	PlanReadTransport      string
 	PackagingReadTransport string
 	SpaceID                string
 	Server                 string
@@ -52,6 +53,9 @@ type clientConnection struct {
 }
 
 func (configuration ConnectionConfig) validate() (*url.URL, error) {
+	if configuration.PlanReadTransport != "" && configuration.PlanReadTransport != "rest" && configuration.PlanReadTransport != "connect" {
+		return nil, errors.New("--read-transport must be rest or connect")
+	}
 	if configuration.PackagingReadTransport != "" && configuration.PackagingReadTransport != "rest" && configuration.PackagingReadTransport != "connect" {
 		return nil, errors.New("--read-transport must be rest or connect")
 	}

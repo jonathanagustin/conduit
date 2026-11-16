@@ -57,6 +57,9 @@ type packagingRunPage struct {
 }
 
 func (adapter *HTTPControlPlane) ListPlans(ctx context.Context, query PlanListQuery) (PlanListResult, error) {
+	if adapter.planReadTransport == "connect" {
+		return adapter.listPlanSummariesConnect(ctx, query)
+	}
 	values := url.Values{}
 	values.Set("view", "summary")
 	values.Set("limit", "200")

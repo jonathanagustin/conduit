@@ -3,7 +3,8 @@
 `conduit.plans.v1.PlanReadService/ListPlanSummaries` dual-serves the existing
 `GET /v1/plans?view=summary` projection. This is a Conduit-native read contract.
 It does not implement full Plan reads, approval, cancellation or execution.
-REST remains mounted, and no console or CLI caller is switched by this slice.
+REST remains mounted. The console remains on REST; CLI `plan list` can explicitly
+select Connect as described below.
 
 ## Shared native query
 
@@ -56,3 +57,17 @@ carriers are tested independently. Existing native full/summary index tests
 remain applicable to the shared query. Run `scripts/verify-proto.sh`, native/RPC
 race tests, vet, route-authorization verification and complete exact-head local
 CI before merge. Broader migration remains #391, #392, #393 and #394.
+
+## CLI summary index
+
+`conduit plan list --read-transport connect` selects this generated Go client.
+The default is `rest`, and `--read-transport rest` explicitly selects the existing
+REST path. Both modes use the configured operator identity, trust roots and HTTP
+timeout, retain the native summary filters and follow opaque cursors. Typed
+refusals, cancellation, deadlines and unsupported methods do not replay through
+the other transport. A repeated continuation is an error.
+
+The RPC adapter returns the existing CLI summary DTO and output formats, with
+exact uint64 revisions and nanosecond timestamps. Page metadata, timestamps and
+native integer conversions are checked before output. Each response retains
+the existing one-MiB read bound. Plan detail, approve and cancel remain REST.
