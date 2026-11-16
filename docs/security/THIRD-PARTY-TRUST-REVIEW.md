@@ -326,3 +326,26 @@ BuildKit v0.34.0 `--call=check` passes on all four tracked Containerfiles with
 this frontend, using an isolated tracked-tree context. This checks frontend
 parsing and build configuration against the pinned base-image metadata without
 executing application build steps; it is not a completed image build.
+
+## react-resizable-panels 4.22.0 qualification
+
+The npm release cleared the three-day Renovate delay. Its declared `gitHead`
+and upstream `4.22.0` tag agree on
+`cea43d2aa1126d53bd2a3e32dc43798f46f2414a`. The downloaded archive matches the
+lockfile's SHA-512 integrity. The npm registry's ECDSA signatures verify over the
+exact package name, version and integrity using its published, unexpired registry
+key `SHA256:DhQ8wR5APBvFHLF/+Tc+AYvPOdTpcIDqOhxsBHRwC7U`. Modified signed payloads
+and an altered archive fail the corresponding signature/integrity checks.
+
+This authenticates the registry's package coordinates through its HTTPS key
+source; it is not publisher build provenance. The returned version metadata
+contains no build attestation, and source-coordinate agreement does not prove
+that the registry archive was built from that commit. The distributed package
+retains MIT licensing, has no runtime dependencies or install lifecycle scripts,
+and declares React 18/19 peers compatible with the current React 19 pins.
+The lock update changes only this package's importer version, package integrity
+and snapshot key; peer versions and other package coordinates are unchanged.
+The MIT package has no runtime dependencies or install lifecycle hooks. A frozen
+install and Syncpack checks pass, and a fresh pnpm advisory check reports zero
+advisories. The returned registry metadata advertises no build attestation;
+registry signature verification is not publisher source-to-binary provenance.
