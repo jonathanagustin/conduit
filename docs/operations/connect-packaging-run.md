@@ -85,3 +85,6 @@ bigint in the generated TypeScript API. This change generates the client
 contract but leaves the console's existing list path on REST; detail, overview
 and Audit reads already use their generated clients. The broader migration
 issues #391–#394 remain open.
+
+The [Hub cutover plan](connect-cutover.md) records the remaining route map,
+command-parity requirements, CLI migration and REST deprecation criteria.
