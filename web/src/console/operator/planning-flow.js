@@ -782,7 +782,7 @@ function bindingPanel(session, planning = {}) {
       ${computed ? `<span class="kit-badge kit-badge-ok code-id" data-plan-computed-workspace>${esc(wsId)} · Dockerfile · zarf.yaml · uds-package.yaml</span>` : ""}
       ${digest ? `<span class="kit-badge kit-badge-ok code-id" data-plan-image-digest>pinned ${esc(digest)}</span>` : ""}
       ${outcome ? `<span class="kit-badge kit-badge-muted code-id" data-plan-validation>${esc(outcome)}</span>` : ""}
-      ${changeID ? `<button type="button" class="kit-btn kit-btn-sm" data-plan-review>Review ${esc(changeID)}</button>` : ""}
+      ${changeID ? `<button type="button" class="kit-btn kit-btn-sm" data-plan-open-change>Review ${esc(changeID)}</button>` : ""}
       <button type="button" class="kit-btn kit-btn-sm" data-plan-new-session>New Session</button>
     </div>
     ${computed ? workspaceSummaryBlock(planning) : ""}
@@ -1210,7 +1210,7 @@ export function bindPlanning(root, store, rerender, fetchImpl = fetch) {
       return;
     }
 
-    if (hit("[data-plan-review]")) {
+    if (hit("[data-plan-open-change]")) {
       const open = globalThis.switchScreen;
       if (typeof open === "function") open("rm07-change-requests");
       return;

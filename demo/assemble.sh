@@ -8,7 +8,7 @@ mkdir -p demo/out
 python3 demo/style.py card demo/out/title.mp4 "Conduit" "Governed packaging from source"
 python3 demo/style.py card demo/out/end.mp4 "Pinned image" "Dockerfile, gates, and review stay in the workspace" "sha256 recorded by the engine"
 scale="[0:v]scale=1920:1080:force_original_aspect_ratio=decrease,pad=1920:1080:(ow-iw)/2:(oh-ih)/2,setsar=1,fps=30[v]"
-ffmpeg -y -i "${browser}" -filter_complex "${scale}" -an -c:v libx264 -pix_fmt yuv420p demo/out/browser-scaled.mp4
+ffmpeg -y -i "${browser}" -filter_complex "${scale}" -map "[v]" -an -c:v libx264 -pix_fmt yuv420p demo/out/browser-scaled.mp4
 title_d="$(ffprobe -v error -show_entries format=duration -of csv=p=0 demo/out/title.mp4)"
 browser_d="$(ffprobe -v error -show_entries format=duration -of csv=p=0 demo/out/browser-scaled.mp4)"
 offset1="$(python3 -c "print(max(float('${title_d}') - 0.4, 0))")"
