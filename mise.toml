@@ -1,5 +1,5 @@
 [tools]
-aws = "2.40.0"
+aws = "2.40.2"
 claude = "2.1.322"
 codex = "0.148.0"
 direnv = "2.38.2"
