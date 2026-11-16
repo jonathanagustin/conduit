@@ -86,14 +86,6 @@ func newAppGenerationService(
 	return service
 }
 
-func mountAppGeneration(
-	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, generator appdomain.AppGenerator,
-	stored *attachapp.Service,
-) http.Handler {
-	service := newAppGenerationService(repository, generator, stored, nil, nil, os.Getenv)
-	return mountAppGenerationWithService(legacy, options, service)
-}
-
 func mountAppGenerationWithService(
 	legacy http.Handler, options controlplane.HandlerOptions, service application.Service,
 ) http.Handler {
