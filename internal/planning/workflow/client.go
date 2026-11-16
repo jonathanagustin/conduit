@@ -2,6 +2,7 @@ package workflow
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"go.temporal.io/sdk/client"
 	"go.temporal.io/sdk/converter"
 
+	"github.com/jonathanagustin/conduit/internal/planning/application"
 	"github.com/jonathanagustin/conduit/internal/planning/domain"
 )
 
@@ -127,6 +129,10 @@ func (s *ClientService) Turn(ctx context.Context, id, message string) (*domain.S
 	if s.client == nil {
 		return nil, errors.New("planning Temporal client is not configured")
 	}
+	var prevCalls int
+	if before, err := s.Get(ctx, id); err == nil && before != nil && before.Inspection != nil {
+		prevCalls = len(before.Inspection.ToolCalls)
+	}
 	handle, err := s.client.UpdateWorkflow(ctx, client.UpdateWorkflowOptions{
 		WorkflowID:   WorkflowID(id),
 		UpdateName:   UpdateTurn,
@@ -139,6 +145,16 @@ func (s *ClientService) Turn(ctx context.Context, id, message string) (*domain.S
 	var session domain.Session
 	if err := handle.Get(ctx, &session); err != nil {
 		return nil, mapNotFound(MapWorkflowError(err))
+	}
+	if session.Inspection != nil && len(session.Inspection.ToolCalls) > prevCalls {
+		for _, toolName := range session.Inspection.ToolCalls[prevCalls:] {
+			if callID, obsErr := application.ToolStarted(ctx, toolName, json.RawMessage(`{}`)); obsErr == nil && callID != "" {
+				_ = application.ToolFinished(ctx, callID, true)
+			}
+		}
+	}
+	if len(session.NeedsInput) > 0 {
+		_ = application.QuestionsObserved(ctx, session.NeedsInput)
 	}
 	return &session, nil
 }
