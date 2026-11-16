@@ -283,3 +283,24 @@ is not verified here. Neither platform is executed. The existing musl aliases
 point to the same upstream Linux archives; this review does not establish musl
 compatibility. Artifact identity and a version check do not establish that the
 bundled dependency closure is benign or that every AWS service operation works.
+
+## Claude CLI 2.1.323 qualification
+
+The [2.1.323 release](https://github.com/anthropics/claude-code/releases/tag/v2.1.323)
+was published after its tag resolved to
+`89eb88e3357be13ae7fcf8966144ad32f44def33` and cleared the three-day Renovate
+delay. All seven mise platform checksums match its `SHASUMS256.txt`. The manifest's
+detached GPG signature verifies with fingerprint
+`31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE`, checked against the key and fingerprint
+published in [the publisher's setup guide](https://code.claude.com/docs/en/setup).
+This authenticates the manifest through the publisher HTTPS trust source;
+independent web-of-trust certification is not claimed. A modified manifest fails
+signature verification.
+
+The downloaded Linux x86_64 archive matches SHA-256
+`522255678548859b9799b7b098c03a3aa286c9a9ede01957e35f4713ccc43631`.
+Its executable reports `2.1.323 (Claude Code)` under an empty home with no inherited
+credentials and nonessential traffic/updating disabled. This is a version check,
+not a model request or agent execution. Other platform artifacts are covered by
+the signed checksum coordinates, not local execution. No source-to-binary
+attestation or review of the complete bundled dependency closure is claimed.
