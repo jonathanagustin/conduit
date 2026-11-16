@@ -7,7 +7,28 @@ import (
 
 // Prompt is the instruction sent to a generator. The response must be one JSON object.
 func Prompt(request Request) string {
-	return strings.TrimSpace(base(request) + attachmentContext(request.Attachments))
+	return strings.TrimSpace(base(request) + planContext(request) + attachmentContext(request.Attachments))
+}
+
+// planContext binds generation to the accepted plan and the conversation that
+// reviewed it. Requirements that arrived after the original problem statement
+// are in one of those two places.
+func planContext(request Request) string {
+	if strings.TrimSpace(request.AcceptedPlan) == "" && len(request.Conversation) == 0 {
+		return ""
+	}
+	var out strings.Builder
+	fmt.Fprintf(&out, "\nAccepted plan revision %s digest %s. Implement this plan, including requirements added during review.", oneLine(request.PlanRevisionID), oneLine(request.PlanDigest))
+	if strings.TrimSpace(request.AcceptedPlan) != "" {
+		fmt.Fprintf(&out, "\n--- accepted plan ---\n%s\n--- end accepted plan ---", request.AcceptedPlan)
+	}
+	if len(request.Conversation) > 0 {
+		out.WriteString("\nPlanning conversation:")
+		for _, turn := range request.Conversation {
+			fmt.Fprintf(&out, "\n%s: %s", oneLine(turn.Role), turn.Text)
+		}
+	}
+	return out.String()
 }
 
 // attachmentContext lists the bound files as read-only reference text.

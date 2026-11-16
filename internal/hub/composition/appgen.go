@@ -120,14 +120,26 @@ func appgenPlanningComputer(
 		getenv = func(string) string { return "" }
 	}
 	return func(ctx context.Context, session *planningdomain.Session) error {
-		if session == nil || session.Binding == nil {
-			return planningdomain.ErrComputeBeforeAccept
+		contract, err := planningdomain.AcceptedGenerationFrom(session)
+		if err != nil {
+			return err
+		}
+		conversation := make([]appdomain.ConversationMessage, 0, len(contract.Conversation))
+		for _, message := range contract.Conversation {
+			if strings.TrimSpace(message.Text) == "" {
+				continue
+			}
+			conversation = append(conversation, appdomain.ConversationMessage{Role: message.Role, Text: message.Text})
 		}
 		res, err := service.Generate(ctx, application.Input{
-			Actor:       strings.TrimSpace(principal.Username),
-			Name:        session.Binding.Intake.AppName,
-			Description: session.Binding.Intake.ProblemStatement,
-			Confirm:     true,
+			Actor:          strings.TrimSpace(principal.Username),
+			Name:           session.Binding.Intake.AppName,
+			Description:    session.Binding.Intake.ProblemStatement,
+			Confirm:        true,
+			PlanRevisionID: contract.RevisionID,
+			PlanDigest:     contract.Digest,
+			AcceptedPlan:   contract.PlanText,
+			Conversation:   conversation,
 		})
 		if err != nil {
 			return err

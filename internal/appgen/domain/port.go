@@ -6,6 +6,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"errors"
 )
 
@@ -25,7 +26,17 @@ var (
 	ErrModelTimeout     = errors.New("local model CLI timed out")
 	ErrModelFailed      = errors.New("local model CLI failed")
 	ErrSpecInvalid      = errors.New("app spec is not valid")
+	// ErrAcceptedPlanDigest means generation was asked to implement a plan
+	// whose recorded digest does not match the plan text.
+	ErrAcceptedPlanDigest = errors.New("accepted plan digest does not match the recorded plan text")
 )
+
+// ConversationMessage is one turn of the planning conversation that produced
+// the accepted plan. Role is operator or model.
+type ConversationMessage struct {
+	Role string
+	Text string
+}
 
 // Request is the operator's description of one HTTP application.
 type Request struct {
@@ -34,6 +45,14 @@ type Request struct {
 	// Attachments are bound, read-only context the operator attached to the
 	// intake request. The generator may read them. It still returns a spec only.
 	Attachments []Attachment
+	// PlanRevisionID and PlanDigest identify the accepted planning revision.
+	// AcceptedPlan is that revision's text. Conversation is the planning
+	// transcript, including requirements added after the original problem statement.
+	// All three plan fields are empty for a generation that is not bound to a session.
+	PlanRevisionID string
+	PlanDigest     string
+	AcceptedPlan   string
+	Conversation   []ConversationMessage
 }
 
 // Attachment is one stored intake file. SHA256 is lowercase hex of Content.
@@ -60,6 +79,16 @@ type AppGenerator interface {
 func Digest(raw []byte) string {
 	sum := sha256.Sum256(raw)
 	return hex.EncodeToString(sum[:])
+}
+
+// AcceptedPlanDigest is the sha256 of the canonical plan text. It is the same
+// canonical form the planning binding records, so a generation input can be
+// checked against that binding without trusting a caller-supplied hash.
+func AcceptedPlanDigest(text string) string {
+	canonical, _ := json.Marshal(struct {
+		Text string `json:"text"`
+	}{Text: text})
+	return Digest(canonical)
 }
 
 // Label reports whether the exchange called a configured command.

@@ -57,6 +57,9 @@ type Result struct {
 
 // Input is one operator request. Confirm is the governed write.
 // AttachmentSHA256 names stored intake files to bind as read-only context.
+// PlanRevisionID, PlanDigest, and AcceptedPlan are set together when generation
+// implements an accepted planning revision. Conversation carries the planning
+// transcript, including requirements that were not in the original description.
 type Input struct {
 	// Actor is the authenticated operator. It is not taken from the request body.
 	Actor            string
@@ -64,6 +67,10 @@ type Input struct {
 	Description      string
 	Confirm          bool
 	AttachmentSHA256 []string
+	PlanRevisionID   string
+	PlanDigest       string
+	AcceptedPlan     string
+	Conversation     []domain.ConversationMessage
 }
 
 // Attachments loads stored intake files by digest for one operator. A
@@ -189,6 +196,9 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	if actor == "" {
 		return Result{}, errors.New("generation owner is required")
 	}
+	if err := requireAcceptedPlan(input); err != nil {
+		return Result{}, err
+	}
 	if service.Generator == nil {
 		return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: domain.ErrModelUnavailable.Error()}, nil
 	}
@@ -207,7 +217,11 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	for _, item := range bound {
 		digests = append(digests, item.SHA256)
 	}
-	spec, provenance, err := service.Generator.Generate(ctx, domain.Request{Name: name, Description: description, Attachments: bound})
+	spec, provenance, err := service.Generator.Generate(ctx, domain.Request{
+		Name: name, Description: description, Attachments: bound,
+		PlanRevisionID: input.PlanRevisionID, PlanDigest: input.PlanDigest,
+		AcceptedPlan: input.AcceptedPlan, Conversation: append([]domain.ConversationMessage(nil), input.Conversation...),
+	})
 	result := Result{
 		ID: service.identity(actor, name, provenance.PromptSHA256), Label: domain.Label(provenance),
 		Name: name, Description: description, Owner: actor, Provenance: provenance, AttachmentSHA256: digests,
@@ -384,6 +398,19 @@ func (service Service) auditFrom(result Result, buildPassed bool, buildReason st
 		ResponseSHA256: result.Provenance.ResponseSHA256, BuildPassed: buildPassed, BuildReason: buildReason,
 		HealthPassed: healthPassed, HealthReason: healthReason, Outcome: outcome, Reason: reason,
 	}
+}
+
+func requireAcceptedPlan(input Input) error {
+	revision := strings.TrimSpace(input.PlanRevisionID)
+	digest := strings.TrimSpace(input.PlanDigest)
+	plan := input.AcceptedPlan
+	if revision == "" && digest == "" && strings.TrimSpace(plan) == "" {
+		return nil
+	}
+	if revision == "" || digest == "" || strings.TrimSpace(plan) == "" || domain.AcceptedPlanDigest(plan) != digest {
+		return domain.ErrAcceptedPlanDigest
+	}
+	return nil
 }
 
 func (service Service) identity(actor, name, prompt string) string {

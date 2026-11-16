@@ -287,3 +287,31 @@ func TestAuditErrorIsReturned(t *testing.T) {
 		t.Fatal("audit failure was ignored")
 	}
 }
+
+func TestGenerationRefusesAPlanDigestThatDoesNotMatchTheText(t *testing.T) {
+	generator := &stubGen{}
+	service := Service{Generator: generator}
+	_, err := service.Generate(context.Background(), Input{
+		Actor: "ada", Name: "hello-http", Description: "a small page", Confirm: true,
+		PlanRevisionID: "ps_accepted", PlanDigest: strings.Repeat("ab", 32), AcceptedPlan: `{"summary":"catalog export"}`,
+	})
+	if !errors.Is(err, domain.ErrAcceptedPlanDigest) {
+		t.Fatalf("error = %v", err)
+	}
+	if generator.calls != 0 {
+		t.Fatalf("generator calls = %d", generator.calls)
+	}
+	digest := domain.AcceptedPlanDigest(`{"summary":"catalog export"}`)
+	generator.err = errors.New("captured")
+	_, err = service.Generate(context.Background(), Input{
+		Actor: "ada", Name: "hello-http", Description: "a small page", Confirm: true,
+		PlanRevisionID: "ps_accepted", PlanDigest: digest, AcceptedPlan: `{"summary":"catalog export"}`,
+		Conversation: []domain.ConversationMessage{{Role: "operator", Text: "catalog export"}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if generator.calls != 1 {
+		t.Fatalf("matching digest did not reach generation: %d", generator.calls)
+	}
+}
