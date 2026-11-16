@@ -48,8 +48,15 @@ export function stageChunks(events) {
   }
   return { chunks, ordered, firstSequence: firstSequence ?? 0 };
 }
+/**
+ * @param {string} runId
+ * @param {(query: {runId: string, cursor: string}) => Promise<any>} read
+ */
+/**
+ * @param {string} runId
+ * @param {(query: {runId: string, cursor: string}) => Promise<any>} read
+ */
 export async function readPackagingHistory(runId, read) {
-  const base = `/v1/packaging-runs/${encodeURIComponent(runId)}/events`;
   const items = [];
   const seen = new Set();
   let cursor = "";
@@ -58,9 +65,7 @@ export async function readPackagingHistory(runId, read) {
   for (let page = 0; page < 16; page++) {
     let body;
     try {
-      body = await read(
-        base + (cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""),
-      );
+      body = await read({ runId, cursor });
     } catch {
       return incomplete(
         "Recorded history could not be read completely. Refresh to retry.",
@@ -70,16 +75,17 @@ export async function readPackagingHistory(runId, read) {
       return incomplete("Recorded history exceeded the bounded view.");
     items.push(...body.items);
     total =
-      Number.isSafeInteger(body.total) && body.total >= 0
+      (typeof body.total === "bigint" && body.total >= BigInt(0)) ||
+      (Number.isSafeInteger(body.total) && body.total >= 0)
         ? body.total
         : items.length;
     if (!body.nextCursor)
       return {
         items,
         total,
-        complete: items.length === total,
+        complete: BigInt(items.length) === BigInt(total),
         note:
-          items.length !== total
+          BigInt(items.length) !== BigInt(total)
             ? "Only a partial or changed history was returned."
             : Number.isSafeInteger(items[0]?.sequence) && items[0].sequence > 1
               ? `Only retained history is available, starting at #${items[0].sequence}.`
@@ -126,7 +132,7 @@ function header(runs, run, title) {
 /**
  * @param {any[]} runs
  * @param {any[]} events
- * @param {{runId?: string, stageId?: string, history?: {note?: string, total?: number, complete?: boolean}}} options
+ * @param {{runId?: string, stageId?: string, history?: {note?: string, total?: number | bigint, complete?: boolean}}} options
  */
 export function pipelineBuilderMarkup(
   runs,
@@ -172,7 +178,7 @@ export function pipelineBuilderMarkup(
 /**
  * @param {any[]} runs
  * @param {any[]} events
- * @param {{runId?: string, stageId?: string, section?: string, history?: {note?: string, total?: number, complete?: boolean}}} options
+ * @param {{runId?: string, stageId?: string, section?: string, history?: {note?: string, total?: number | bigint, complete?: boolean}}} options
  */
 export function stagedRunMarkup(
   runs,
