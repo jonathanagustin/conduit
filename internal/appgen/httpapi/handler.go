@@ -19,23 +19,27 @@ const (
 	GetRoute    = "GET /v1/app-generations/{id}"
 )
 
-// Generator runs one confirmed generation and reads stored results.
+// Generator runs one confirmed generation and reads stored results for one operator.
 type Generator interface {
 	Generate(ctx context.Context, input application.Input) (application.Result, error)
-	Get(ctx context.Context, id string) (application.Result, bool, error)
-	List(ctx context.Context) ([]application.Result, error)
+	Get(ctx context.Context, actor, id string) (application.Result, bool, error)
+	List(ctx context.Context, actor string) ([]application.Result, error)
 }
 
 // Config is the route's dependencies.
 type Config struct {
 	Service   Generator
 	Authorize func(*http.Request) error
+	// Operator is the authenticated operator. It is resolved the same way a
+	// planning session selects its owner, and it is not taken from the body.
+	Operator func(*http.Request) (string, error)
 }
 
 // Register mounts the generation routes.
 func Register(mux *http.ServeMux, cfg Config) {
 	mux.HandleFunc(CreateRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		actor, ok := caller(cfg, writer, request)
+		if !ok {
 			return
 		}
 		var body struct {
@@ -54,7 +58,7 @@ func Register(mux *http.ServeMux, cfg Config) {
 			return
 		}
 		result, err := cfg.Service.Generate(request.Context(), application.Input{
-			Name: body.Name, Description: body.Description, Confirm: body.Confirm,
+			Actor: actor, Name: body.Name, Description: body.Description, Confirm: body.Confirm,
 			AttachmentSHA256: body.AttachmentSHA256,
 		})
 		if err != nil {
@@ -64,14 +68,15 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, result)
 	})
 	mux.HandleFunc(ListRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		actor, ok := caller(cfg, writer, request)
+		if !ok {
 			return
 		}
 		if cfg.Service == nil {
 			writeJSON(writer, http.StatusOK, map[string]any{"items": []application.Result{}})
 			return
 		}
-		items, err := cfg.Service.List(request.Context())
+		items, err := cfg.Service.List(request.Context(), actor)
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())
 			return
@@ -82,14 +87,15 @@ func Register(mux *http.ServeMux, cfg Config) {
 		writeJSON(writer, http.StatusOK, map[string]any{"items": items})
 	})
 	mux.HandleFunc(GetRoute, func(writer http.ResponseWriter, request *http.Request) {
-		if !authorized(cfg, writer, request) {
+		actor, ok := caller(cfg, writer, request)
+		if !ok {
 			return
 		}
 		if cfg.Service == nil {
 			writeError(writer, http.StatusNotFound, "generation was not found")
 			return
 		}
-		result, ok, err := cfg.Service.Get(request.Context(), request.PathValue("id"))
+		result, ok, err := cfg.Service.Get(request.Context(), actor, request.PathValue("id"))
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())
 			return
@@ -112,6 +118,22 @@ func authorized(cfg Config, writer http.ResponseWriter, request *http.Request) b
 		return false
 	}
 	return true
+}
+
+func caller(cfg Config, writer http.ResponseWriter, request *http.Request) (string, bool) {
+	if !authorized(cfg, writer, request) {
+		return "", false
+	}
+	if cfg.Operator == nil {
+		writeError(writer, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	name, err := cfg.Operator(request)
+	if err != nil || strings.TrimSpace(name) == "" {
+		writeError(writer, http.StatusUnauthorized, "unauthorized")
+		return "", false
+	}
+	return strings.TrimSpace(name), true
 }
 
 func writeError(writer http.ResponseWriter, status int, message string) {

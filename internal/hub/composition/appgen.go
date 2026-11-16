@@ -72,12 +72,14 @@ func newAppGenerationService(
 	if pub == nil {
 		pub = registry.DockerPublisher{Registry: registryAddress}
 	}
+	recordedAudit := appAudit{repository: repository}
 	service := application.Service{
 		Generator: generator,
 		Sandbox:   sbx,
 		Publish:   pub,
 		Handoff:   sourcefile.Writer{Dir: strings.TrimSpace(getenv("PACKAGING_FIXTURE_DIR"))},
-		Audit:     appAudit{repository: repository},
+		Audit:     recordedAudit,
+		Access:    recordedAudit,
 		Store:     &application.Memory{},
 	}
 	if stored != nil {
@@ -87,8 +89,9 @@ func newAppGenerationService(
 }
 
 func mountAppGenerationWithService(
-	legacy http.Handler, options controlplane.HandlerOptions, service application.Service,
+	legacy http.Handler, repository controlplane.Repository, options controlplane.HandlerOptions, service application.Service,
 ) http.Handler {
+	governanceService := controlplane.NewGovernanceService(repository)
 	mux := http.NewServeMux()
 	apphttp.Register(mux, apphttp.Config{
 		Service: service,
@@ -97,6 +100,13 @@ func mountAppGenerationWithService(
 				return err
 			}
 			return nil
+		},
+		Operator: func(request *http.Request) (string, error) {
+			principal, ok := packagingPrincipal(request, governanceService, options)
+			if !ok || strings.TrimSpace(principal.Username) == "" {
+				return "", apphttp.ErrUnauthorized
+			}
+			return principal.Username, nil
 		},
 	})
 	mux.Handle("/", legacy)
@@ -114,6 +124,7 @@ func appgenPlanningComputer(
 			return planningdomain.ErrComputeBeforeAccept
 		}
 		res, err := service.Generate(ctx, application.Input{
+			Actor:       strings.TrimSpace(principal.Username),
 			Name:        session.Binding.Intake.AppName,
 			Description: session.Binding.Intake.ProblemStatement,
 			Confirm:     true,
@@ -245,6 +256,21 @@ func appgenPlanningComputer(
 
 type appAudit struct {
 	repository controlplane.Repository
+}
+
+func (audit appAudit) Deny(ctx context.Context, event application.Denial) error {
+	if audit.repository == nil {
+		return nil
+	}
+	actor := strings.TrimSpace(event.Actor)
+	if actor == "" {
+		actor = "unknown"
+	}
+	record := governance.NewAuthorizationCheckEvent(
+		time.Now().UTC(), actor, event.Action, "app-generation/"+event.ID, governance.DecisionDeny, event.Reason, nil,
+	)
+	_, err := audit.repository.AppendAuthorizationAudit(ctx, record)
+	return err
 }
 
 func (audit appAudit) Record(ctx context.Context, event application.Audit) error {

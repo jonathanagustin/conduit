@@ -71,6 +71,9 @@ type Attachment struct {
 	Kind   string `json:"kind"`
 	Size   int    `json:"size"`
 	SHA256 string `json:"sha256"`
+	// Owners are the operators who stored these bytes. The field is not part
+	// of the HTTP body. Empty means the row predates owner records.
+	Owners []string `json:"-"`
 }
 
 // Stored is an attachment with its bytes. It is read-only context.

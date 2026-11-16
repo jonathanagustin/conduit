@@ -49,22 +49,28 @@ type Result struct {
 	PackagingSource string            `json:"packagingSource,omitempty"`
 	// AttachmentSHA256 lists the bound intake files, as lowercase sha256 hex.
 	AttachmentSHA256 []string `json:"attachmentSha256,omitempty"`
-	Error            string   `json:"error,omitempty"`
+	// Owner is the operator who created the result. Empty means the row
+	// predates owner records and is not visible to any operator.
+	Owner string `json:"owner,omitempty"`
+	Error string `json:"error,omitempty"`
 }
 
 // Input is one operator request. Confirm is the governed write.
 // AttachmentSHA256 names stored intake files to bind as read-only context.
 type Input struct {
+	// Actor is the authenticated operator. It is not taken from the request body.
+	Actor            string
 	Name             string
 	Description      string
 	Confirm          bool
 	AttachmentSHA256 []string
 }
 
-// Attachments loads stored intake files by digest. A malformed or unknown
-// digest is an error carrying a reason for the operator.
+// Attachments loads stored intake files by digest for one operator. A
+// malformed digest, or one that operator did not store, is an error carrying
+// a reason. The error does not say whether another operator stored it.
 type Attachments interface {
-	Resolve(ctx context.Context, digests []string) ([]domain.Attachment, error)
+	Resolve(ctx context.Context, actor string, digests []string) ([]domain.Attachment, error)
 }
 
 // BuildRequest is the sandboxed build input.
@@ -125,6 +131,23 @@ type Auditor interface {
 	Record(ctx context.Context, event Audit) error
 }
 
+// Denial is a refused read of a generation that belongs to another operator.
+// The HTTP response is the same not-found answer a missing id gets.
+type Denial struct {
+	Actor  string
+	ID     string
+	Action string
+	Reason string
+}
+
+// AccessAuditor records that refusal. A nil auditor still hides the row.
+type AccessAuditor interface {
+	Deny(ctx context.Context, event Denial) error
+}
+
+// ActionRead is the audit action for a refused read of one generation.
+const ActionRead = "app-generation.read"
+
 // Store keeps generation results for the read-only view.
 type Store interface {
 	Save(ctx context.Context, result Result) error
@@ -139,6 +162,7 @@ type Service struct {
 	Publish   Publisher
 	Handoff   Handoff
 	Audit     Auditor
+	Access    AccessAuditor
 	Store     Store
 	// Attachments supplies bound, read-only context for the generator.
 	Attachments Attachments
@@ -161,6 +185,10 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	if !input.Confirm {
 		return Result{Label: domain.LabelNoModel, Name: name, Description: description, ConfirmRequired: true}, nil
 	}
+	actor := strings.TrimSpace(input.Actor)
+	if actor == "" {
+		return Result{}, errors.New("generation owner is required")
+	}
 	if service.Generator == nil {
 		return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: domain.ErrModelUnavailable.Error()}, nil
 	}
@@ -169,7 +197,7 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 		if service.Attachments == nil {
 			return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: "attachments are not configured"}, nil
 		}
-		loaded, err := service.Attachments.Resolve(ctx, input.AttachmentSHA256)
+		loaded, err := service.Attachments.Resolve(ctx, actor, input.AttachmentSHA256)
 		if err != nil {
 			return Result{Label: domain.LabelNoModel, Name: name, Description: description, Error: err.Error()}, nil
 		}
@@ -181,8 +209,8 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	}
 	spec, provenance, err := service.Generator.Generate(ctx, domain.Request{Name: name, Description: description, Attachments: bound})
 	result := Result{
-		ID: service.identity(name, provenance.PromptSHA256), Label: domain.Label(provenance),
-		Name: name, Description: description, Provenance: provenance, AttachmentSHA256: digests,
+		ID: service.identity(actor, name, provenance.PromptSHA256), Label: domain.Label(provenance),
+		Name: name, Description: description, Owner: actor, Provenance: provenance, AttachmentSHA256: digests,
 	}
 	if err != nil {
 		result.Error = err.Error()
@@ -290,18 +318,38 @@ func (service Service) Generate(ctx context.Context, input Input) (Result, error
 	return service.finish(ctx, result, service.auditFrom(result, true, built.Reason, true, health.Reason))
 }
 
-func (service Service) Get(ctx context.Context, id string) (Result, bool, error) {
+func (service Service) Get(ctx context.Context, actor, id string) (Result, bool, error) {
 	if service.Store == nil {
 		return Result{}, false, errors.New("generation store is not configured")
 	}
-	return service.Store.Get(ctx, id)
+	result, ok, err := service.Store.Get(ctx, id)
+	if err != nil || !ok {
+		return Result{}, false, err
+	}
+	if !owns(actor, result.Owner) {
+		if err := service.conceal(ctx, actor, result.ID); err != nil {
+			return Result{}, false, err
+		}
+		return Result{}, false, nil
+	}
+	return result, true, nil
 }
 
-func (service Service) List(ctx context.Context) ([]Result, error) {
+func (service Service) List(ctx context.Context, actor string) ([]Result, error) {
 	if service.Store == nil {
 		return nil, errors.New("generation store is not configured")
 	}
-	return service.Store.List(ctx)
+	items, err := service.Store.List(ctx)
+	if err != nil {
+		return nil, err
+	}
+	out := make([]Result, 0, len(items))
+	for _, item := range items {
+		if owns(actor, item.Owner) {
+			out = append(out, item)
+		}
+	}
+	return out, nil
 }
 
 func (service Service) finish(ctx context.Context, result Result, event Audit) (Result, error) {
@@ -338,12 +386,12 @@ func (service Service) auditFrom(result Result, buildPassed bool, buildReason st
 	}
 }
 
-func (service Service) identity(name, prompt string) string {
+func (service Service) identity(actor, name, prompt string) string {
 	now := time.Now().UTC()
 	if service.Now != nil {
 		now = service.Now().UTC()
 	}
-	sum := sha256.Sum256([]byte(name + "\x00" + prompt + "\x00" + now.Format(time.RFC3339Nano)))
+	sum := sha256.Sum256([]byte(actor + "\x00" + name + "\x00" + prompt + "\x00" + now.Format(time.RFC3339Nano)))
 	return "gen_" + hex.EncodeToString(sum[:8])
 }
 
