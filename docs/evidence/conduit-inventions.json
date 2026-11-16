@@ -372,6 +372,13 @@
       "riskIfWrong": "The URI and enrollment shape may differ from an eventual supported protocol. Parsing is not certificate-chain verification or execution authority, and no production transport or broker is enabled by this primitive."
     },
     {
+      "id": "devworkspace.IsolatedContainer",
+      "what": "A per-workspace container on a dedicated internal network. A forwarder on that network is the only path to the operator-configured git host and local registry. The workspace process runs as uid 65534 with a read-only root, no capabilities, no host container socket, and no cluster credential mounts or environment.",
+      "why": "No published workspace runtime in this repository states how a packaging command is confined, which destinations it may reach, or how those destinations are named. Standard network policy does not match DNS names, and a host process with a filtered environment can open sockets and read host files directly. The container boundary is marked CONDUIT_NATIVE.",
+      "displacedBy": "an admitted per-workspace runtime that enforces default-deny egress and credential absence",
+      "riskIfWrong": "The forwarder could pass a destination the operator did not list, or a mount could expose a kubeconfig. The live probe fails closed on either mistake, and an unconfigured git host refuses to start. This is container isolation, not a separate machine, and it does not admit an image build."
+    },
+    {
       "id": "devworkspace.WorkspaceRecord",
       "what": "A native workspace record with a confined file tree, a local preview runtime, a least-privilege pod document, and a submit port that opens a change request.",
       "why": "The console needs an authorized working copy for a profile. No published object schema in this repository defines that record, its pod contract, or the submit seam. The record is marked CONDUIT_NATIVE. Submit calls the existing change-request command and does not approve it.",
