@@ -13,6 +13,10 @@ import {
 } from "../../api/packaging-events.js";
 
 import { HubError } from "../../api/hub-error.js";
+import {
+  fetchProductSummaries,
+  productSummariesTransport,
+} from "../../api/product-summaries.js";
 export { HubError };
 
 export type PackagingRun = {
@@ -362,14 +366,15 @@ export async function listEnvironments(): Promise<EnvironmentCard[]> {
   });
 }
 
-export async function listProducts(): Promise<ProductCard[]> {
-  const body = await send("/v1/products?view=summary&limit=20");
-  const rows = Array.isArray(body["products"]) ? body["products"] : [];
-  return rows.flatMap((row) => {
-    if (row === null || typeof row !== "object") return [];
-    const name = (row as Record<string, unknown>)["product"];
-    return typeof name === "string" && name.length > 0 ? [{ name }] : [];
-  });
+export async function listProducts(
+  signal?: AbortSignal,
+): Promise<ProductCard[]> {
+  const page = await fetchProductSummaries(
+    productSummariesTransport(window.location.origin),
+    signal,
+    { limit: 20 },
+  );
+  return page.products.map((product) => ({ name: product.product }));
 }
 
 export async function approvePlan(
