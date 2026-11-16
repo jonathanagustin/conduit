@@ -20,7 +20,10 @@ route stays mounted. The filtered index is also dual-served over Connect. Histor
 The response fields are the REST body: `tier`, `configured`, `authority`,
 `planAuthority`, `approvalAuthority`, `runId`, `phase`, `outcome`, `reason`,
 `sourceDigest`, `artifactDigest`, `proposalRevision`, `targetPlanRef`,
-`planId`, `handoffReconciled`, `lastReview`, and `duplicateReviews`.
+`planId`, `handoffReconciled`, `lastReview`, `duplicateReviews`, `templateVersion`, `toolVersions`, and
+`attachmentSha256`. Attachment digests retain their native order and values on
+both detail and index reads; they identify intake evidence and grant no approval
+or artifact publication authority.
 
 Both transports call the same reader and the same operator check. Authority
 stays `packaging-run`, plan authority stays `conduit-plan`, and approval

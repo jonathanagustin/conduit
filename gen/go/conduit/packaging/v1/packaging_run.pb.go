@@ -112,9 +112,11 @@ type GetPackagingRunResponse struct {
 	// template_version is the REST field templateVersion.
 	TemplateVersion string `protobuf:"bytes,18,opt,name=template_version,json=templateVersion,proto3" json:"template_version,omitempty"`
 	// tool_versions is the REST field toolVersions.
-	ToolVersions  string `protobuf:"bytes,19,opt,name=tool_versions,json=toolVersions,proto3" json:"tool_versions,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ToolVersions string `protobuf:"bytes,19,opt,name=tool_versions,json=toolVersions,proto3" json:"tool_versions,omitempty"`
+	// attachment_sha256 binds the same intake-file digests as the native REST read.
+	AttachmentSha256 []string `protobuf:"bytes,20,rep,name=attachment_sha256,json=attachmentSha256,proto3" json:"attachment_sha256,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *GetPackagingRunResponse) Reset() {
@@ -278,6 +280,13 @@ func (x *GetPackagingRunResponse) GetToolVersions() string {
 		return x.ToolVersions
 	}
 	return ""
+}
+
+func (x *GetPackagingRunResponse) GetAttachmentSha256() []string {
+	if x != nil {
+		return x.AttachmentSha256
+	}
+	return nil
 }
 
 // ListPackagingRunsRequest uses the native index filters and opaque cursor.
@@ -895,7 +904,7 @@ const file_conduit_packaging_v1_packaging_run_proto_rawDesc = "" +
 	"\n" +
 	"(conduit/packaging/v1/packaging_run.proto\x12\x14conduit.packaging.v1\x1a\x1fgoogle/protobuf/timestamp.proto\"/\n" +
 	"\x16GetPackagingRunRequest\x12\x15\n" +
-	"\x06run_id\x18\x01 \x01(\tR\x05runId\"\xa9\x05\n" +
+	"\x06run_id\x18\x01 \x01(\tR\x05runId\"\xd6\x05\n" +
 	"\x17GetPackagingRunResponse\x12\x12\n" +
 	"\x04tier\x18\x01 \x01(\tR\x04tier\x12\x1e\n" +
 	"\n" +
@@ -919,7 +928,8 @@ const file_conduit_packaging_v1_packaging_run_proto_rawDesc = "" +
 	"lastReview\x12+\n" +
 	"\x11duplicate_reviews\x18\x11 \x01(\x05R\x10duplicateReviews\x12)\n" +
 	"\x10template_version\x18\x12 \x01(\tR\x0ftemplateVersion\x12#\n" +
-	"\rtool_versions\x18\x13 \x01(\tR\ftoolVersions\"\xcc\x01\n" +
+	"\rtool_versions\x18\x13 \x01(\tR\ftoolVersions\x12+\n" +
+	"\x11attachment_sha256\x18\x14 \x03(\tR\x10attachmentSha256\"\xcc\x01\n" +
 	"\x18ListPackagingRunsRequest\x12\x12\n" +
 	"\x04view\x18\x01 \x01(\tR\x04view\x12\x19\n" +
 	"\x05limit\x18\x02 \x01(\x05H\x00R\x05limit\x88\x01\x01\x12\x16\n" +

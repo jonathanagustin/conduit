@@ -87,6 +87,7 @@ func packagingRunResponse(status domain.RunStatus) *packagingv1.GetPackagingRunR
 		DuplicateReviews:  int32(status.DuplicateReviews),
 		TemplateVersion:   nativeJSONString(status.TemplateVersion),
 		ToolVersions:      nativeJSONString(status.ToolVersions),
+		AttachmentSha256:  append([]string(nil), status.AttachmentSHA256...),
 	}
 }
 
