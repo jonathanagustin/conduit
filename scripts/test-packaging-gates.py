@@ -11,8 +11,8 @@ import tempfile
 
 
 def main():
-    if sys.version_info[:2] != (3, 12):
-        raise SystemExit("packaging gates require Python 3.12")
+    if sys.version_info[:2] < (3, 12):
+        raise SystemExit("packaging gates require Python 3.12 or newer")
     scripts = Path(__file__).resolve().parent
     with tempfile.TemporaryDirectory(prefix="conduit-packaging-gates-") as directory:
         environment = Path(directory) / "venv"
