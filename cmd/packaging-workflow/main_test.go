@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"strings"
@@ -58,7 +60,7 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 	if err != nil {
 		t.Fatalf("activitiesWithRepository: %v", err)
 	}
-	planActs, err := planningActivities(repository, true)
+	planActs, err := planningActivities(stateDir, repository, true)
 	if err != nil {
 		t.Fatalf("planningActivities: %v", err)
 	}
@@ -250,10 +252,133 @@ func TestCLIPlanningWorkflowEndToEndWithDevServer(t *testing.T) {
 		t.Fatalf("expected PENDING ChangeRequest receipt, got:\n%s", string(proposeBytes))
 	}
 
+	// 11b. Query and invoke the MCP packaging toolbox bound to the durable Git workspace w/ mcp-serve
+	mcpToolsBytes, err := execRaw("mcp-serve", "--workspace-id", "wsp_excalidraw", "--list-tools")
+	if err != nil || !strings.Contains(string(mcpToolsBytes), "inspect_repo") || !strings.Contains(string(mcpToolsBytes), "validate_manifests") {
+		t.Fatalf("mcp-serve --list-tools: err=%v\n%s", err, string(mcpToolsBytes))
+	}
+	mcpCallBytes, err := execRaw("mcp-serve", "--workspace-id", "wsp_excalidraw", "--call", "inspect_repo")
+	if err != nil || !strings.Contains(string(mcpCallBytes), "Dockerfile") || !strings.Contains(string(mcpCallBytes), "uds-package.yaml") {
+		t.Fatalf("mcp-serve --call inspect_repo: err=%v\n%s", err, string(mcpCallBytes))
+	}
+
 	// 12. Run workspace-reap past the idle timeout and verify the workspace compute is reclaimed while preserving Git history
 	futureTime := "2099-01-01T00:00:00Z"
 	reapBytes, err := execRaw("workspace-reap", "--now", futureTime)
 	if err != nil || !strings.Contains(string(reapBytes), "wsp_excalidraw") {
 		t.Fatalf("workspace-reap: err=%v\n%s", err, string(reapBytes))
+	}
+
+	// 13. Point plan-create at a local filesystem repository and verify it creates a new GitHub repo to start and inspects the real files
+	localSrc := filepath.Join(tmpDir, "local-excalidraw")
+	if err := os.MkdirAll(localSrc, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localSrc, "package.json"), []byte(`{"name":"excalidraw","scripts":{"start":"yarn start"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localSrc, "yarn.lock"), []byte("# yarn lockfile v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(localSrc, "tsconfig.json"), []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	ghMock := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/info/refs"):
+			w.WriteHeader(http.StatusServiceUnavailable)
+		case r.Method == http.MethodGet && r.URL.Path == "/user":
+			_ = json.NewEncoder(w).Encode(map[string]any{"login": "alice"})
+		case r.Method == http.MethodPost && r.URL.Path == "/user/repos":
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{
+				"name":      "excalidraw-demo",
+				"full_name": "alice/excalidraw-demo",
+				"html_url":  "http://" + r.Host + "/alice/excalidraw-demo",
+			})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/blobs"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("a", 40)})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/trees"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("b", 40)})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/commits"):
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"sha": strings.Repeat("c", 40)})
+		case r.Method == http.MethodPost && strings.HasSuffix(r.URL.Path, "/git/refs"):
+			var payload struct{ Ref, SHA string }
+			_ = json.NewDecoder(r.Body).Decode(&payload)
+			w.WriteHeader(http.StatusCreated)
+			_ = json.NewEncoder(w).Encode(map[string]any{"ref": payload.Ref, "object": map[string]string{"sha": payload.SHA, "type": "commit"}})
+		default:
+			w.WriteHeader(http.StatusNotFound)
+		}
+	}))
+	defer ghMock.Close()
+	t.Setenv("CONDUIT_GITHUB_TOKEN", "test-pat-for-demo")
+
+	localSession, err := execCLI(
+		"plan-create", localSrc, "main",
+		"--session-id", "ps_local_gh",
+		"--actor", "alice",
+		"--create-github-repo",
+		"--github-repo", "alice/excalidraw-demo",
+		"--github-api-url", ghMock.URL,
+	)
+	if err != nil {
+		t.Fatalf("plan-create from local filesystem with --create-github-repo: %v", err)
+	}
+	if localSession.Intake.RepoURL != ghMock.URL+"/alice/excalidraw-demo" {
+		t.Fatalf("expected loopback GitHub fixture repo %q, got %q", ghMock.URL+"/alice/excalidraw-demo", localSession.Intake.RepoURL)
+	}
+	turnedLocal, err := execCLI("plan-turn", "ps_local_gh", "Inspect local Excalidraw repo", "--actor", "alice")
+	if err != nil {
+		t.Fatalf("plan-turn on local bootstrapped repo: %v", err)
+	}
+	if turnedLocal.Inspection == nil || turnedLocal.Inspection.Language != "typescript" || turnedLocal.Inspection.PackageManager != "yarn" {
+		t.Fatalf("expected real repo inspection (typescript / yarn), got %+v", turnedLocal.Inspection)
+	}
+}
+
+func TestCLIMCPServeToolbox(t *testing.T) {
+	t.Parallel()
+	repoDir := t.TempDir()
+	if err := os.WriteFile(filepath.Join(repoDir, "package.json"), []byte(`{"name":"excalidraw","scripts":{"start":"yarn start"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(repoDir, "yarn.lock"), []byte("# yarn lockfile v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	runMCP := func(args ...string) string {
+		t.Helper()
+		var out bytes.Buffer
+		cmd := newRoot()
+		cmd.SetOut(&out)
+		cmd.SetErr(&out)
+		cmd.SetArgs(append([]string{"mcp-serve", repoDir}, args...))
+		if err := cmd.Execute(); err != nil {
+			t.Fatalf("mcp-serve %v: %v\n%s", args, err, out.String())
+		}
+		return out.String()
+	}
+
+	listed := runMCP("--list-tools")
+	for _, want := range []string{"inspect_repo", "read_file", "validate_dockerfile", "validate_manifests", "dry_run_gates", "inspect_image"} {
+		if !strings.Contains(listed, want) {
+			t.Fatalf("mcp-serve --list-tools missing %q:\n%s", want, listed)
+		}
+	}
+
+	inspected := runMCP("--call", "inspect_repo")
+	if !strings.Contains(inspected, "yarn") {
+		t.Fatalf("mcp-serve --call inspect_repo output:\n%s", inspected)
+	}
+
+	readOut := runMCP("--call", "read_file", "--args", `{"path":"package.json"}`)
+	if !strings.Contains(readOut, "excalidraw") {
+		t.Fatalf("mcp-serve --call read_file output:\n%s", readOut)
 	}
 }

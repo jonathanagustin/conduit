@@ -8,9 +8,11 @@ import (
 	"strings"
 	"testing"
 
+	packagingv1 "github.com/jonathanagustin/conduit/gen/go/conduit/packaging/v1"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	packaginghttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/httpapi"
+	"google.golang.org/protobuf/encoding/protojson"
 )
 
 type packagingCatalog struct {
@@ -126,6 +128,43 @@ func TestPackagingIndexAndHistoryFollowEnvironmentRead(t *testing.T) {
 		t.Fatalf("root index = %s", root.Body.String())
 	}
 
+	for _, actor := range []string{"", "alice", "bob", "nobody", "root"} {
+		native := driveAs(t, handler, http.MethodGet, "/v1/packaging-runs", actor, "")
+		request := httptest.NewRequest(http.MethodPost, "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns", strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Connect-Protocol-Version", "1")
+		if actor != "" {
+			request.Header.Set("X-Platform-Subject", actor)
+		}
+		wire := httptest.NewRecorder()
+		handler.ServeHTTP(wire, request)
+		if wire.Code != native.Code {
+			t.Fatalf("actor=%s REST=%d RPC=%d %s", actor, native.Code, wire.Code, wire.Body.String())
+		}
+		if wire.Code != 200 {
+			continue
+		}
+		var expected struct {
+			Total int
+			Items []domain.RunStatus
+		}
+		if err := json.Unmarshal(native.Body.Bytes(), &expected); err != nil {
+			t.Fatal(err)
+		}
+		actual := &packagingv1.ListPackagingRunsResponse{}
+		if err := protojson.Unmarshal(wire.Body.Bytes(), actual); err != nil {
+			t.Fatal(err)
+		}
+		if actual.Total != int64(expected.Total) || len(actual.Items) != len(expected.Items) {
+			t.Fatalf("actor=%s visibility diverged", actor)
+		}
+		for i, row := range actual.Items {
+			if row.RunId != expected.Items[i].RunID {
+				t.Fatalf("actor=%s foreign row", actor)
+			}
+		}
+	}
+
 	own := driveAs(t, handler, http.MethodGet, "/v1/packaging-runs/run-a/events", "alice", "")
 	if own.Code != http.StatusOK || !strings.Contains(own.Body.String(), "plan_a") || strings.Contains(own.Body.String(), "AWAITING_APPROVAL") {
 		t.Fatalf("alice events = %d %s", own.Code, own.Body.String())
@@ -137,5 +176,43 @@ func TestPackagingIndexAndHistoryFollowEnvironmentRead(t *testing.T) {
 	posted := driveAs(t, handler, http.MethodPost, "/v1/packaging-runs/run-a/events", "alice", `{}`)
 	if posted.Code == http.StatusOK {
 		t.Fatal("event history accepted a write")
+	}
+}
+
+func TestPackagingListConnectRetainsDelegatingCarrier(t *testing.T) {
+	_, repository, _ := delegationHub(t)
+	handler, err := NewHub(repository, controlplane.HandlerOptions{AllowInsecureOperatorIdentityHeaders: true, BootstrapAdministrators: []string{"alice"}}, Options{PackagingStatus: packagingCatalog{runs: []domain.RunStatus{{RunID: "private-run", TargetPlanRef: "secret-env/app"}}}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, test := range []struct {
+		actor, represented string
+		total              int64
+	}{{"alice", "", 1}, {"alice", "bob", 1}, {"robot", "alice", 0}, {"bob", "alice", 0}, {"bob", "", 0}} {
+		native := as(t, handler, "/v1/packaging-runs", test.actor, test.represented)
+		request := httptest.NewRequest(http.MethodPost, "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns", strings.NewReader(`{}`))
+		request.Header.Set("Content-Type", "application/json")
+		request.Header.Set("Connect-Protocol-Version", "1")
+		request.Header.Set("X-Platform-Subject", test.actor)
+		if test.represented != "" {
+			request.Header.Set("X-Platform-Service-Account", "true")
+			request.Header.Set("X-Platform-On-Behalf-Of", test.represented)
+		}
+		wire := httptest.NewRecorder()
+		handler.ServeHTTP(wire, request)
+		if native.Code != 200 || wire.Code != native.Code {
+			t.Fatalf("%s/%s REST=%d RPC=%d", test.actor, test.represented, native.Code, wire.Code)
+		}
+		actual := &packagingv1.ListPackagingRunsResponse{}
+		if err := protojson.Unmarshal(wire.Body.Bytes(), actual); err != nil {
+			t.Fatal(err)
+		}
+		var expected struct{ Total int64 }
+		if err := json.Unmarshal(native.Body.Bytes(), &expected); err != nil {
+			t.Fatal(err)
+		}
+		if actual.Total != test.total || actual.Total != expected.Total {
+			t.Fatalf("%s/%s got %d native %d expected %d", test.actor, test.represented, actual.Total, expected.Total, test.total)
+		}
 	}
 }

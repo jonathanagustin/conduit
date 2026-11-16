@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"sort"
 	"strings"
 
@@ -71,19 +72,28 @@ func serveList(cfg Config, writer http.ResponseWriter, request *http.Request) {
 	if !authorized(cfg, writer, request) {
 		return
 	}
-	query, err := parsePage(request.URL.Query())
-	if writeCoded(writer, err) || writeCoded(writer, validateCursor(query)) {
+	page, err := readRunPage(cfg, request, request.URL.Query())
+	if writeCoded(writer, err) {
 		return
+	}
+	writeJSON(writer, http.StatusOK, page)
+}
+
+func readRunPage(cfg Config, request *http.Request, values url.Values) (runPage, error) {
+	query, err := parsePage(values)
+	if err != nil {
+		return runPage{}, err
+	}
+	if err := validateCursor(query); err != nil {
+		return runPage{}, err
 	}
 	page := blankRunPage(cfg.Reader != nil, query.limit)
 	if cfg.Reader == nil {
-		writeJSON(writer, http.StatusOK, page)
-		return
+		return page, nil
 	}
 	runs, err := cfg.Reader.List(request.Context())
 	if err != nil {
-		writeError(writer, http.StatusBadGateway, "packaging run index is unavailable")
-		return
+		return runPage{}, StatusError{Status: http.StatusBadGateway, Message: "packaging run index is unavailable"}
 	}
 	visible := make([]domain.RunStatus, 0, len(runs))
 	for _, run := range runs {
@@ -97,19 +107,15 @@ func serveList(cfg Config, writer http.ResponseWriter, request *http.Request) {
 	}
 	sort.Slice(visible, func(i, j int) bool { return visible[i].RunID < visible[j].RunID })
 	items, meta, err := paginate(visible, func(run domain.RunStatus) string { return run.RunID }, query.fingerprint(), query.cursor, query.limit)
-	if writeCoded(writer, err) {
-		return
+	if err != nil {
+		return runPage{}, err
 	}
 	if items == nil {
 		items = []domain.RunStatus{}
 	}
-	page.Items = items
-	page.PageSize = meta.PageSize
-	page.HasPrevious = meta.HasPrevious
-	page.NextCursor = meta.NextCursor
-	page.PreviousCursor = meta.PreviousCursor
-	page.Total = len(visible)
-	writeJSON(writer, http.StatusOK, page)
+	page.Items, page.PageSize, page.HasPrevious = items, meta.PageSize, meta.HasPrevious
+	page.NextCursor, page.PreviousCursor, page.Total = meta.NextCursor, meta.PreviousCursor, len(visible)
+	return page, nil
 }
 
 func serveEvents(cfg Config, writer http.ResponseWriter, request *http.Request) {

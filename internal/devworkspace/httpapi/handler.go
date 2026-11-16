@@ -381,8 +381,15 @@ type workspaceJSON struct {
 	Owner             string `json:"owner"`
 	Title             string `json:"title"`
 	Status            string `json:"status"`
+	UpstreamRepo      string `json:"upstreamRepo,omitempty"`
+	RepoURL           string `json:"repoUrl,omitempty"`
+	Branch            string `json:"branch,omitempty"`
+	BaseCommit        string `json:"baseCommit,omitempty"`
+	HeadCommit        string `json:"headCommit,omitempty"`
 	SourceDigest      string `json:"sourceDigest,omitempty"`
 	ProposalRevision  string `json:"proposalRevision,omitempty"`
+	VolumePreserved   bool   `json:"volumePreserved,omitempty"`
+	PreservedUntil    string `json:"preservedUntil,omitempty"`
 	ArtifactDigest    string `json:"artifactDigest,omitempty"`
 	ParentID          string `json:"parentId,omitempty"`
 	TemplateVersion   string `json:"templateVersion,omitempty"`
@@ -395,10 +402,18 @@ type workspaceJSON struct {
 }
 
 func workspaceJSONFrom(row domain.Workspace) workspaceJSON {
+	preservedUntil := ""
+	if !row.PreservedUntil.IsZero() {
+		preservedUntil = row.PreservedUntil.UTC().Format("2006-01-02T15:04:05Z07:00")
+	}
 	return workspaceJSON{
 		WorkspaceID: row.ID, ProfileID: row.ProfileID, EnvironmentID: row.EnvironmentID,
-		Owner: row.Owner, Title: row.Title, Status: row.Status, SourceDigest: row.SourceDigest,
-		ProposalRevision: row.ProposalRevision, ArtifactDigest: row.ArtifactDigest, ParentID: row.ParentID,
+		Owner: row.Owner, Title: row.Title, Status: row.Status,
+		UpstreamRepo: row.UpstreamRepo, RepoURL: row.RepoURL,
+		Branch: row.Branch, BaseCommit: row.BaseCommit, HeadCommit: row.HeadCommit,
+		SourceDigest: row.SourceDigest, ProposalRevision: row.ProposalRevision,
+		VolumePreserved: row.VolumePreserved, PreservedUntil: preservedUntil,
+		ArtifactDigest: row.ArtifactDigest, ParentID: row.ParentID,
 		TemplateVersion: row.TemplateVersion, ToolVersions: row.ToolVersions,
 		ValidationOutcome: row.ValidationOutcome, ApprovalID: row.ApprovalID,
 		SignatureStatus: row.SignatureStatus, SignatureValid: domain.SignatureValid(row.SignatureStatus),

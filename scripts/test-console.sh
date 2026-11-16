@@ -12,7 +12,7 @@ trap 'rm -rf "${test_build}"' EXIT
 # Playwright-managed Chromium selected by the frozen lock before launching.
 # CI's preceding `--with-deps` step remains responsible for OS packages.
 pnpm --dir "${repo_root}/web" exec playwright install chromium
-(cd "${repo_root}" && CONDUIT_TEST_AGENT_CLIENT=1 go test -race ./internal/hub/composition -run '^TestPlanningJavaScriptClientIntegration$' -count=1)
+(cd "${repo_root}" && CONDUIT_TEST_AGENT_CLIENT=1 go test -race ./internal/hub/composition -run '^(TestPlanningJavaScriptClientIntegration|TestWorkspaceACPBridgeIntegration)$' -count=1)
 PLATFORM_CONSOLE_OUT_DIR="${test_build}" pnpm --dir "${repo_root}/web" test
 "${repo_root}/scripts/verify-console-assets.sh"
 (cd "${repo_root}" && go test -race ./internal/consoleui)
