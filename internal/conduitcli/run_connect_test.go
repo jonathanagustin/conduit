@@ -153,21 +153,6 @@ func TestRunListExplicitRESTRemainsAvailable(t *testing.T) {
 	}
 }
 
-func TestRunListConnectStopsRepeatedCursors(t *testing.T) {
-	count := 0
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		count++
-		wire, _ := proto.Marshal(&packagingv1.ListPackagingRunsResponse{Limit: 200, NextCursor: "again"})
-		w.Header().Set("Content-Type", "application/proto")
-		w.Write(wire)
-	}))
-	defer server.Close()
-	_, err := executeRunTransport(t, server.URL, "connect")
-	if err == nil || !strings.Contains(err.Error(), "repeated a page cursor") || count != 2 {
-		t.Fatalf("repeated cursor: count=%d err=%v", count, err)
-	}
-}
-
 func TestRunListConnectCancelsTheActualRequest(t *testing.T) {
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()
@@ -207,7 +192,7 @@ func TestRunListRejectsAnUnknownTransportBeforeContactingHub(t *testing.T) {
 	}
 }
 
-func TestRunListConnectStopsAtRepeatedCursor(t *testing.T) {
+func TestRunListConnectStopsRepeatedCursors(t *testing.T) {
 	var calls int
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		calls++
