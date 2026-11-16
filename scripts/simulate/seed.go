@@ -92,12 +92,12 @@ func scenario() string {
 func troubled(name string) (controlplane.Release, controlplane.Entity) {
 	product := "app.example:example-" + name
 	return controlplane.Release{
-		Product: product, Version: "0.1.0",
-		Chart: artifact("example-" + name), Images: []controlplane.Artifact{artifact("example-" + name)},
-		VulnerabilityAssessment: assessed(),
-	}, controlplane.Entity{
-		Name: "example-" + name, Product: product, Version: "0.1.0", Namespace: "example",
-	}
+			Product: product, Version: "0.1.0",
+			Chart: artifact("example-" + name), Images: []controlplane.Artifact{artifact("example-" + name)},
+			VulnerabilityAssessment: assessed(),
+		}, controlplane.Entity{
+			Name: "example-" + name, Product: product, Version: "0.1.0", Namespace: "example",
+		}
 }
 
 func desiredState() controlplane.DesiredState {
