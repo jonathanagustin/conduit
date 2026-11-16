@@ -2,7 +2,12 @@
 // kept in localStorage. Identity is read-only: the Hub session decides who the
 // operator is, and the Hub refuses an approval from a change request's author.
 
-import { DOCK_DEFAULT, readPref, writePref } from "./shell.js";
+import {
+  DOCK_DEFAULT,
+  operatorIdentity,
+  readPref,
+  writePref,
+} from "./shell.js";
 
 export const THEME_KEY = "conduit.console.theme";
 export const DENSITY_KEY = "conduit.console.density";
@@ -124,7 +129,7 @@ export function settingsMarkup({
     </section>
     <section class="kit-dialog-section">
       <h3>Identity and approvals</h3>
-      <p>Signed in as <span class="code-id">${esc(operatorName || "Operator")}</span>. The Hub session sets this.</p>
+      <p id="settings-operator-identity">${esc(operatorIdentity(operatorName).settingsLabel)}</p>
       <p class="kit-muted">A high-risk change needs an approver other than its author. The Hub refuses a self-approval and records the refusal in the audit chain.</p>
     </section>
   </div>`;

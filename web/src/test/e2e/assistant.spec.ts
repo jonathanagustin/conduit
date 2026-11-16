@@ -3438,3 +3438,95 @@ test("engineer focus preserves one live conversation, draft and pending request"
   );
   expect(writes).toEqual(["/v1/assistant/turns"]);
 });
+
+test("operator badge shows only a complete native session and clears on refusal", async ({
+  page,
+}) => {
+  await hydrate(page);
+  const name = '<img src=x onerror="attack()">';
+  let phase: "refused" | "valid" | "malformed" = "refused";
+  const writes: string[] = [];
+  await page.route("**/v1/**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (route.request().method() !== "GET") writes.push(path);
+    if (path === "/v1/session") {
+      if (phase === "refused")
+        return route.fulfill({ status: 401, json: { error: "not signed in" } });
+      return route.fulfill({
+        json:
+          phase === "malformed"
+            ? { actor: { username: "unverified" } }
+            : { actor: { username: "robot" }, effective: { username: name } },
+      });
+    }
+    return route.fulfill({
+      json: {
+        environments: [],
+        installations: [],
+        products: [],
+        changeRequests: [],
+        plans: [],
+        promotions: [],
+        items: [],
+      },
+    });
+  });
+  await page.goto("/console/#area-packaging");
+  const badge = page.locator("#operator-chip"),
+    label = page.locator("#operator-name");
+  await expect(badge).toHaveAttribute("role", "img");
+  await expect(badge).toHaveAttribute(
+    "aria-label",
+    "Operator identity unavailable",
+  );
+  await expect(label).toHaveText("Identity unavailable");
+  await expect(page.locator("#operator-initials")).toHaveText("?");
+  phase = "valid";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(label).toHaveText(name);
+  await expect(badge).toHaveAttribute("aria-label", `Operator: ${name}`);
+  await expect(badge.locator("img")).toHaveCount(0);
+  await page.setViewportSize({ width: 375, height: 812 });
+  await expect(badge).toBeVisible();
+  const bounds = await badge.boundingBox();
+  expect(bounds!.x).toBeGreaterThanOrEqual(0);
+  expect(bounds!.x + bounds!.width).toBeLessThanOrEqual(375);
+  const retry = page.getByRole("button", { name: "Retry live", exact: true });
+  await expect(retry).toBeVisible();
+  const retryBounds = await retry.boundingBox();
+  expect(retryBounds!.x).toBeGreaterThanOrEqual(0);
+  expect(retryBounds!.x + retryBounds!.width).toBeLessThanOrEqual(375);
+
+  await page.screenshot({
+    path: "/workspace/scratch/operator-identity-mobile.png",
+  });
+  await page.keyboard.press("Control+,");
+  const settingsIdentity = page.locator("#settings-operator-identity");
+  await expect(settingsIdentity).toBeVisible();
+  await expect(settingsIdentity).toContainText(name);
+  await expect(settingsIdentity.locator("img")).toHaveCount(0);
+  phase = "malformed";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(badge).toHaveAttribute(
+    "aria-label",
+    "Operator identity unavailable",
+  );
+  await expect(settingsIdentity).toHaveText(
+    "Native operator identity is unavailable.",
+  );
+  phase = "valid";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(label).toHaveText(name);
+  await expect(settingsIdentity).toContainText(name);
+  phase = "refused";
+  await page.evaluate(() => Reflect.get(window, "refreshHub")());
+  await expect(badge).toHaveAttribute(
+    "aria-label",
+    "Operator identity unavailable",
+  );
+  await expect(label).toHaveText("Identity unavailable");
+  await expect(settingsIdentity).toHaveText(
+    "Native operator identity is unavailable.",
+  );
+  expect(writes).toEqual([]);
+});
