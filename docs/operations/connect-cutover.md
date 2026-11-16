@@ -15,7 +15,7 @@ including reads. A read encoded as POST is not a governed state change.
 | REST route | Connect service and method | Current caller use |
 | --- | --- | --- |
 | `GET /v1/overview` | `conduit.reporting.v1.ReportingService/GetOverview` | Generated overview client |
-| `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for live catch-up; initial/manual reads remain REST |
+| `GET /v1/packaging-runs` | `conduit.packaging.v1.PackagingRunService/ListPackagingRuns` | Generated list for initial, manual and live refreshes |
 | `GET /v1/packaging-runs/{runID}` | `conduit.packaging.v1.PackagingRunService/GetPackagingRun` | Generated detail client |
 | `GET /v1/packaging-runs/{runID}/events` | `conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents` | Generated history client for operator refresh |
 | `GET /v1/plans?view=summary` | `conduit.plans.v1.PlanReadService/ListPlanSummaries` | Explicit CLI `plan list --read-transport connect`; default remains REST |

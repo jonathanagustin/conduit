@@ -631,15 +631,11 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.rolloutNote = "Hub did not return staged rollouts.";
     }
     try {
-      // Live catch-up uses the typed read. Initial/manual refresh retains the
-      // existing REST path during this bounded migration.
-      const body = options.live
-        ? await fetchPackagingRuns(
-            packagingRunsTransport(window.location.origin),
-            options.signal,
-          )
-        : await read("/v1/packaging-runs");
-      if (options.live && !Array.isArray(body.items))
+      const body = await fetchPackagingRuns(
+        packagingRunsTransport(window.location.origin),
+        options.signal,
+      );
+      if (!Array.isArray(body.items))
         throw new Error("Invalid packaging index");
       next.packaging = Array.isArray(body.items) ? body.items : [];
       next.packagingEventsByRun = Object.create(null);

@@ -12,8 +12,9 @@ function harness(overrides: Record<string, any> = {}) {
   vi.stubGlobal(
     "fetch",
     vi.fn(async (input: any, options: any = {}) => {
-      const path = String(input);
-      calls.push({ path, method: options.method || "GET" });
+      const request = input instanceof Request ? input : null;
+      const path = request ? new URL(request.url).pathname : String(input);
+      calls.push({ path, method: request?.method || options.method || "GET" });
       const defaults: Record<string, any> = {
         "/v1/operator-identity": { enabled: false, providers: [] },
         "/v1/teams": { teams: [] },
@@ -52,6 +53,54 @@ function harness(overrides: Record<string, any> = {}) {
 }
 afterEach(() => vi.unstubAllGlobals());
 describe("native read-only organization snapshots", () => {
+  it.each([true, false])(
+    "reads packaging source status through Connect without a REST retry (allowed=%s)",
+    async (allowed) => {
+      vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
+      const procedure =
+        "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns";
+      const h = harness({
+        [procedure]: () =>
+          new Response(
+            JSON.stringify(
+              allowed
+                ? {
+                    configured: true,
+                    items: [
+                      {
+                        runId: "native-run",
+                        phase: "review",
+                        outcome: "WAITING",
+                      },
+                    ],
+                    total: "1",
+                    pageSize: 1,
+                    limit: 20,
+                  }
+                : { code: "permission_denied", message: "refused" },
+            ),
+            {
+              status: allowed ? 200 : 403,
+              headers: { "content-type": "application/json" },
+            },
+          ),
+      });
+      h.settings.ensureLoaded();
+      await vi.waitFor(() => expect(h.state.settingsLoaded).toBe(true));
+      expect(h.state.dataSourceLive.packaging).toBe(
+        allowed
+          ? "native-run phase review, outcome WAITING"
+          : "Hub did not return packaging runs",
+      );
+      expect(h.calls.filter((call) => call.path === procedure)).toEqual([
+        { path: procedure, method: "POST" },
+      ]);
+      expect(h.calls.some((call) => call.path === "/v1/packaging-runs")).toBe(
+        false,
+      );
+    },
+  );
+
   it("keeps valid empty directories empty and separates user/group memberships", async () => {
     const h = harness();
     h.settings.ensureLoaded();

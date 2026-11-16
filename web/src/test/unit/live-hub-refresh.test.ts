@@ -8,6 +8,7 @@ import {
 type Call = { path: string; method: string };
 
 function stubHub(calls: Call[]) {
+  vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
   vi.stubGlobal("document", {
     getElementById: () => null,
     querySelector: () => null,
@@ -15,9 +16,24 @@ function stubHub(calls: Call[]) {
   });
   vi.stubGlobal(
     "fetch",
-    vi.fn(async (input: string, init?: RequestInit) => {
-      const path = String(input);
-      calls.push({ path, method: (init?.method || "GET").toUpperCase() });
+    vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+      const request = input instanceof Request ? input : null;
+      const path = request ? new URL(request.url).pathname : String(input);
+      calls.push({
+        path,
+        method: (request?.method || init?.method || "GET").toUpperCase(),
+      });
+      if (path.endsWith("/ListPackagingRuns"))
+        return new Response(
+          JSON.stringify({
+            configured: true,
+            items: [],
+            total: "0",
+            pageSize: 0,
+            limit: 20,
+          }),
+          { headers: { "content-type": "application/json" } },
+        );
       if (path === "/v1/bundles") {
         return new Response(JSON.stringify({ bundles: [{ id: "b1" }] }), {
           status: 200,
@@ -33,6 +49,103 @@ afterEach(() => {
 });
 
 describe("live hub refresh", () => {
+  it("cancels the packaging fetch without committing a partial refresh", async () => {
+    const calls: Call[] = [];
+    stubHub(calls);
+    const original = globalThis.fetch;
+    let ready!: () => void;
+    const started = new Promise<void>((resolve) => {
+      ready = resolve;
+    });
+    let request: Request | undefined;
+    vi.stubGlobal(
+      "fetch",
+      async (input: RequestInfo | URL, init?: RequestInit) => {
+        if (
+          input instanceof Request &&
+          input.url.endsWith("/ListPackagingRuns")
+        ) {
+          request = input;
+          calls.push({
+            path: new URL(input.url).pathname,
+            method: input.method,
+          });
+          ready();
+          return new Promise<Response>((_, reject) =>
+            input.signal.addEventListener(
+              "abort",
+              () => reject(new DOMException("Aborted", "AbortError")),
+              { once: true },
+            ),
+          );
+        }
+        return original(input, init);
+      },
+    );
+    const previous = { packaging: [{ runId: "previous" }] };
+    const state: Record<string, any> = { hub: previous };
+    const hub = createLiveHub({ state, render: () => {} });
+    const controller = new AbortController();
+    state.hub = previous;
+    const pending = hub.refresh({ signal: controller.signal });
+    await started;
+    controller.abort();
+    await pending;
+    expect(request?.signal.aborted).toBe(true);
+    expect(state.hub).toBe(previous);
+    expect(calls.some((call) => call.path === "/v1/packaging-runs")).toBe(
+      false,
+    );
+  });
+
+  it.each([
+    [401, "unauthenticated"],
+    [403, "permission_denied"],
+    [501, "unimplemented"],
+  ])(
+    "does not replay a refused initial or manual list over REST (%i)",
+    async (status, code) => {
+      const calls: Call[] = [];
+      stubHub(calls);
+      const fetchHub = globalThis.fetch;
+      vi.stubGlobal(
+        "fetch",
+        vi.fn(async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (
+            input instanceof Request &&
+            new URL(input.url).pathname.endsWith("/ListPackagingRuns")
+          ) {
+            calls.push({
+              path: new URL(input.url).pathname,
+              method: input.method,
+            });
+            expect(input.credentials).toBe("same-origin");
+            return new Response(JSON.stringify({ code, message: "refused" }), {
+              status,
+              headers: { "content-type": "application/json" },
+            });
+          }
+          return fetchHub(input, init);
+        }),
+      );
+      const state: Record<string, any> = {};
+      const hub = createLiveHub({ state, render: () => {} });
+      for (let refresh = 0; refresh < 2; refresh++) {
+        state.hub = { packaging: [{ runId: "stale" }] };
+        await hub.refresh();
+        expect(state.hub.packaging).toEqual([]);
+        expect(state.hub.packagingNote).toBe(
+          "Hub did not return packaging runs.",
+        );
+      }
+      expect(
+        calls.filter((call) => call.path.endsWith("/ListPackagingRuns")),
+      ).toHaveLength(2);
+      expect(calls.some((call) => call.path === "/v1/packaging-runs")).toBe(
+        false,
+      );
+    },
+  );
   it("only reads: no check-in and no write routes", async () => {
     const calls: Call[] = [];
     stubHub(calls);
@@ -48,8 +161,17 @@ describe("live hub refresh", () => {
     const posts = calls.filter((call) => call.method !== "GET");
     for (const post of posts) {
       expect(post.method).toBe("POST");
-      expect(REFRESH_READ_POSTS).toContain(post.path);
+      expect([
+        ...REFRESH_READ_POSTS,
+        "/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+      ]).toContain(post.path);
     }
+    expect(
+      calls.filter((call) => call.path.endsWith("/ListPackagingRuns")),
+    ).toHaveLength(2);
+    expect(calls.some((call) => call.path === "/v1/packaging-runs")).toBe(
+      false,
+    );
     expect(state.hub).toBeTruthy();
   });
   it("keeps selected-run history separate and follows the history cursor", async () => {
@@ -63,6 +185,17 @@ describe("live hub refresh", () => {
         calls.push({ path, method: request?.method || init?.method || "GET" });
         if (request) {
           const query = await request.json();
+          if (path.endsWith("/ListPackagingRuns"))
+            return new Response(
+              JSON.stringify({
+                configured: true,
+                items: [{ runId: "r1" }, { runId: "r2" }],
+                limit: 20,
+                pageSize: 2,
+                total: "2",
+              }),
+              { headers: { "content-type": "application/json" } },
+            );
           expect(path).toBe(
             "/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
           );

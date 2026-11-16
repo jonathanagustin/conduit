@@ -41,6 +41,22 @@ async function hydrate(page: Page): Promise<void> {
   });
 }
 
+test.beforeEach(async ({ page }) => {
+  await page.route(
+    "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+    (route) =>
+      route.fulfill({
+        json: {
+          configured: true,
+          items: [],
+          total: "0",
+          pageSize: 0,
+          limit: 20,
+        },
+      }),
+  );
+});
+
 test("refuses to start when the Hub did not render a tenant bootstrap", async ({
   page,
 }) => {
@@ -281,6 +297,26 @@ test.describe("workbench", () => {
       }
       await route.fallback();
     });
+    await page.route(
+      "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+      (route) =>
+        route.fulfill({
+          json: {
+            configured: true,
+            items: [
+              {
+                runId: "sample-app-1",
+                phase: "review",
+                planId: "plan-1",
+                tier: "CONDUIT_NATIVE",
+              },
+            ],
+            total: "1",
+            pageSize: 1,
+            limit: 20,
+          },
+        }),
+    );
     await page.route(
       "**/*PackagingRunService/GetPackagingRun",
       async (route) => {
@@ -925,6 +961,38 @@ test("packaging graph and staged chunks keep the selected run and paged history"
     }
     await route.fulfill({ json: { items: [], total: 0 } });
   });
+  await page.route(
+    "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+    async (route) => {
+      calls.push({
+        path: new URL(route.request().url()).pathname,
+        method: route.request().method(),
+      });
+      expect(route.request().postDataJSON()).toEqual({});
+      await route.fulfill({
+        json: {
+          configured: true,
+          items: [
+            {
+              runId: "run-a",
+              phase: "review",
+              outcome: "WAITING",
+              sourceDigest: "sha256:source-a",
+            },
+            {
+              runId: "run-b",
+              phase: "blocked",
+              outcome: "FAIL_REQUIRED",
+              artifactDigest: "sha256:artifact-b",
+            },
+          ],
+          total: "2",
+          pageSize: 2,
+          limit: 20,
+        },
+      });
+    },
+  );
   const historyQueries: { runId: string; cursor?: string }[] = [];
   await page.route(
     "**/conduit.packaging.v1.PackagingRunService/ListPackagingRunEvents",
@@ -1000,9 +1068,29 @@ test("packaging graph and staged chunks keep the selected run and paged history"
     .getByRole("button", { name: "Open pipeline graph", exact: true })
     .click();
   await expect(page.locator("[data-packaging-run]")).toHaveValue("run-b");
+  const beforeManual = calls.filter((call) =>
+    call.path.endsWith("/ListPackagingRuns"),
+  ).length;
+  await page.evaluate(() =>
+    (window as unknown as { refreshHub: () => Promise<void> }).refreshHub(),
+  );
+  expect(
+    calls.filter((call) => call.path.endsWith("/ListPackagingRuns")).length,
+  ).toBe(beforeManual + 1);
+  await expect(page.locator("[data-packaging-run]")).toHaveValue("run-b");
   expect(historyQueries).toContainEqual({ runId: "run-a", cursor: "cursor-a" });
   expect(calls.some((call) => call.path.includes("/events"))).toBe(false);
-  expect(calls.every((call) => call.method === "GET")).toBe(true);
+  expect(calls.some((call) => call.path === "/v1/packaging-runs")).toBe(false);
+  expect(
+    calls.filter((call) => call.path.endsWith("/ListPackagingRuns")).length,
+  ).toBeGreaterThan(0);
+  expect(
+    calls.every(
+      (call) =>
+        call.method ===
+        (call.path.endsWith("/ListPackagingRuns") ? "POST" : "GET"),
+    ),
+  ).toBe(true);
 });
 
 test("release convergence uses reported Hub evidence in the releases area", async ({
@@ -2587,6 +2675,19 @@ test("workspace studio drops stale reads and confirms real metadata coordinates"
     templateVersion: "v1",
     toolVersions: "tools-v1",
   };
+  await page.route(
+    "**/conduit.packaging.v1.PackagingRunService/ListPackagingRuns",
+    (route) =>
+      route.fulfill({
+        json: {
+          configured: true,
+          items: [{ runId: "unrelated-packaging-run", phase: "review" }],
+          total: "1",
+          pageSize: 1,
+          limit: 20,
+        },
+      }),
+  );
   const writes: { path: string; body: any }[] = [];
   let releaseA!: () => void;
   const gateA = new Promise<void>((resolve) => {
