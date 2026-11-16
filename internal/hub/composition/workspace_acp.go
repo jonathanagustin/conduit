@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"mime"
 	"net/http"
 	"os"
@@ -46,10 +47,18 @@ func assembleWorkspaceACP(
 			if webDir == "" {
 				webDir = filepath.Clean("web")
 			}
-			bridges = nodebridge.NewPool(nodebridge.Config{
-				WebDir:        webDir,
-				OfflineBundle: offline,
-			})
+			agentCommand, agentArgs, launchErr := workspaceACPAgentLaunch(getenv)
+			if launchErr != nil {
+				// No simulated fallback: an unusable agent setting leaves ACP unconfigured.
+				log.Printf("workspace ACP bridge disabled: %v", launchErr)
+			} else {
+				bridges = nodebridge.NewPool(nodebridge.Config{
+					WebDir:        webDir,
+					OfflineBundle: offline,
+					AgentCommand:  agentCommand,
+					AgentArgs:     agentArgs,
+				})
+			}
 		}
 	}
 	govService := controlplane.NewGovernanceService(repository)

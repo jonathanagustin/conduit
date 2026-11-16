@@ -151,7 +151,12 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 		}
 		timeout = parsed
 	}
-	return planner.Planner{Argv: argv, Timeout: timeout, Audit: planningAudit{repository: repository}}, nil
+	return planner.Planner{
+		Argv:    argv,
+		Timeout: timeout,
+		Audit:   planningAudit{repository: repository},
+		Clone:   hubPlanningClone(getenv("DEVWORKSPACE_GIT_ROOT")),
+	}, nil
 }
 
 type planningAudit struct {

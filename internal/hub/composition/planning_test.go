@@ -6,6 +6,8 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"os/exec"
 	"reflect"
 	"strings"
 	"sync"
@@ -285,5 +287,120 @@ func TestPlanningHandlerWithTemporalServesSessionsAndSSEAgentRuns(t *testing.T) 
 	sseBody := sseResp.Body.String()
 	if !strings.Contains(sseBody, "RUN_STARTED") || !strings.Contains(sseBody, "STATE_DELTA") || !strings.Contains(sseBody, "inspect_repo") || !strings.Contains(sseBody, "RUN_FINISHED") {
 		t.Fatalf("SSE stream missing expected events:\n%s", sseBody)
+	}
+}
+
+func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
+	tmpDir := t.TempDir()
+	binPath := tmpDir + "/packaging-workflow"
+	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
+	if out, err := buildCmd.CombinedOutput(); err != nil {
+		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
+	}
+
+	srcRepo := tmpDir + "/excalidraw-src"
+	if err := os.MkdirAll(srcRepo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(srcRepo+"/package.json", []byte(`{"name":"excalidraw","version":"0.17.6","scripts":{"start":"yarn start"}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(srcRepo+"/yarn.lock", []byte("# yarn lockfile v1\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(srcRepo+"/tsconfig.json", []byte(`{"compilerOptions":{"strict":true}}`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
+	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", srcRepo)
+	t.Setenv("DEVWORKSPACE_GIT_ROOT", tmpDir+"/devworkspaces")
+
+	repository := controlplane.NewMemoryRepository()
+	opts := controlplane.HandlerOptions{
+		AllowInsecureOperatorIdentityHeaders: true,
+		BootstrapAdministrators:              []string{"alice"},
+	}
+	spaces := assembleDevWorkspace(repository, opts, os.Getenv)
+	devMounted := mountDevWorkspace(http.NotFoundHandler(), repository, opts, spaces)
+	handler, err := mountPlanning(devMounted, repository, opts)
+	if err != nil {
+		t.Fatalf("mountPlanning: %v", err)
+	}
+
+	// 1. Create planning session for Excalidraw
+	resp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions", `{"repoUrl":"https://github.com/excalidraw/excalidraw","ref":"main"}`)
+	var created planningdomain.Session
+	if resp.Code != http.StatusCreated || json.Unmarshal(resp.Body.Bytes(), &created) != nil || created.ID == "" {
+		t.Fatalf("create session: %d %s", resp.Code, resp.Body.String())
+	}
+
+	// 2. Turn 1 via SSE /v1/agent-runs -> real agent inspects repo & elicits node_version NeedsInput
+	turn1Body, _ := json.Marshal(map[string]any{
+		"threadId":        created.ID,
+		"runId":           "run-1",
+		"protocolVersion": "1.0",
+		"messages": []any{
+			map[string]any{"id": "u1", "role": "user", "content": "Inspect Excalidraw and prepare packaging"},
+		},
+	})
+	sse1 := planningRequest(t, handler, "alice", "POST", "/v1/agent-runs", string(turn1Body))
+	if sse1.Code != http.StatusOK || !strings.Contains(sse1.Body.String(), "inspect_repo") || !strings.Contains(sse1.Body.String(), "node_version") {
+		t.Fatalf("SSE turn 1 missing inspect_repo or node_version:\n%s", sse1.Body.String())
+	}
+
+	// 3. Submit answer and run Turn 2 -> real agent produces Ready plan
+	ansResp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions/"+created.ID+"/answers", `{"answers":[{"id":"node_version","value":"20"}]}`)
+	if ansResp.Code != http.StatusOK {
+		t.Fatalf("submit answers: %d %s", ansResp.Code, ansResp.Body.String())
+	}
+	turn2Body, _ := json.Marshal(map[string]any{
+		"threadId":        created.ID,
+		"runId":           "run-2",
+		"protocolVersion": "1.0",
+		"messages": []any{
+			map[string]any{"id": "u2", "role": "user", "content": "Write the Excalidraw Zarf and UDS packaging plan"},
+		},
+	})
+	sse2 := planningRequest(t, handler, "alice", "POST", "/v1/agent-runs", string(turn2Body))
+	if sse2.Code != http.StatusOK || !strings.Contains(sse2.Body.String(), "Excalidraw") {
+		t.Fatalf("SSE turn 2 missing Excalidraw plan:\n%s", sse2.Body.String())
+	}
+
+	// 4. Accept session
+	accResp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions/"+created.ID+"/accept", `{}`)
+	if accResp.Code != http.StatusOK {
+		t.Fatalf("accept session: %d %s", accResp.Code, accResp.Body.String())
+	}
+
+	// Configuring a source root and executable planner does not configure a real
+	// image builder, image inspector or package creator. Do not fabricate success.
+	beforeAudit, err := repository.ListAuthorizationAudit(context.Background(), "planning-session/"+created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compResp := planningRequest(t, handler, "alice", "POST", "/v1/planning-sessions/"+created.ID+"/compute", `{}`)
+	if compResp.Code != http.StatusNotImplemented || !strings.Contains(compResp.Body.String(), planningdomain.CodeComputeNotConfigured) {
+		t.Fatalf("unconfigured compute: %d %s", compResp.Code, compResp.Body.String())
+	}
+	wsID := "wsp_" + created.ID
+	treeResp := planningRequest(t, handler, "alice", "GET", "/v1/dev-workspaces/"+wsID+"/tree", "")
+	if treeResp.Code != http.StatusNotFound {
+		t.Fatalf("unconfigured compute created a workspace: %d %s", treeResp.Code, treeResp.Body.String())
+	}
+	afterAudit, err := repository.ListAuthorizationAudit(context.Background(), "planning-session/"+created.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(beforeAudit, afterAudit) {
+		t.Fatal("unconfigured compute wrote a packaging audit")
+	}
+	workspaceDir := tmpDir + "/devworkspaces/workspaces/wsp_" + created.ID
+	if _, err := os.Stat(workspaceDir); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("unconfigured compute changed workspace: %v", err)
+	}
+	bindingResp := planningRequest(t, handler, "alice", "GET", "/v1/planning-sessions/"+created.ID+"/binding", "")
+	if bindingResp.Code != http.StatusOK {
+		t.Fatalf("accepted binding was lost: %d %s", bindingResp.Code, bindingResp.Body.String())
 	}
 }

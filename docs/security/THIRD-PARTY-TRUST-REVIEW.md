@@ -283,3 +283,46 @@ is not verified here. Neither platform is executed. The existing musl aliases
 point to the same upstream Linux archives; this review does not establish musl
 compatibility. Artifact identity and a version check do not establish that the
 bundled dependency closure is benign or that every AWS service operation works.
+
+## Claude CLI 2.1.323 qualification
+
+The [2.1.323 release](https://github.com/anthropics/claude-code/releases/tag/v2.1.323)
+was published after its tag resolved to
+`89eb88e3357be13ae7fcf8966144ad32f44def33` and cleared the three-day Renovate
+delay. All seven mise platform checksums match its `SHASUMS256.txt`. The manifest's
+detached GPG signature verifies with fingerprint
+`31DDDE24DDFAB679F42D7BD2BAA929FF1A7ECACE`, checked against the key and fingerprint
+published in [the publisher's setup guide](https://code.claude.com/docs/en/setup).
+This authenticates the manifest through the publisher HTTPS trust source;
+independent web-of-trust certification is not claimed. A modified manifest fails
+signature verification.
+
+The downloaded Linux x86_64 archive matches SHA-256
+`522255678548859b9799b7b098c03a3aa286c9a9ede01957e35f4713ccc43631`.
+Its executable reports `2.1.323 (Claude Code)` under an empty home with no inherited
+credentials and nonessential traffic/updating disabled. This is a version check,
+not a model request or agent execution. Other platform artifacts are covered by
+the signed checksum coordinates, not local execution. No source-to-binary
+attestation or review of the complete bundled dependency closure is claimed.
+
+## Dockerfile frontend 1.29 qualification
+
+The [upstream dockerfile/1.29.0 release](https://github.com/moby/buildkit/releases/tag/dockerfile%2F1.29.0)
+cleared the three-day Renovate delay. Its annotated tag resolves to
+`f55949dea4f03bb9d85b73e9afc9a609291289db`; GitHub reports the tag as unsigned.
+Docker Hub's `docker/dockerfile:1.29` index bytes match the pinned digest
+`sha256:572cebbc2b15e6f84c077742952674889cb63cd5e9b80abdffcbe587b6f19183`.
+Its annotations identify version 1.29.0 and the same source revision, and its
+platform manifests include Linux amd64 and arm64.
+
+The pulled amd64 frontend, run with networking disabled, a read-only filesystem
+and dropped capabilities, reports `dockerfile/1.29.0` and that exact revision.
+The four Containerfiles retain immutable digest pins and otherwise unchanged
+contents. This establishes image identity, source-coordinate agreement and an
+amd64 version check. It does not verify an image signature or build attestation,
+execute the arm64 frontend, or establish a complete application image build.
+
+BuildKit v0.34.0 `--call=check` passes on all four tracked Containerfiles with
+this frontend, using an isolated tracked-tree context. This checks frontend
+parsing and build configuration against the pinned base-image metadata without
+executing application build steps; it is not a completed image build.
