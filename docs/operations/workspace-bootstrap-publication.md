@@ -2,7 +2,7 @@
 
 Bootstrap publishes through ordinary fast-forward Git pushes. It does not force
 an existing durable branch to match a new source checkout. An explicit Git ref
-rejection stops publication and cannot trigger the GitHub API fallback. Git
+rejection stops publication and cannot trigger the GitHub API fallback. Push
 credentials are supplied through per-process configuration rather than command
 arguments; returned push errors omit captured credential-bearing output.
 
@@ -30,3 +30,24 @@ executable for the credential-argument check. They cover initial and
 fast-forward publication, divergent remote work, non-fast-forward rejection,
 authentication, lookup failures, cancellation, a competing ref creator and
 source file modes. No live repository is changed during verification.
+
+## Source ingestion safety
+
+Source ingestion prepares a new checkout in a sibling staging directory and
+promotes it only after successful import and ref resolution. Populated
+checkout destinations, destination symlinks and overlapping source/destination
+paths are rejected. Local source aliases are resolved before that comparison.
+Failure removes only this call's staging directory; it does not erase an
+existing checkout. A competing writer that populates the destination prevents
+promotion. An existing empty destination retains its permissions.
+
+Git sources resolve the requested branch, tag, full ref or commit ID to an
+actual commit. The requested `main` is checked even when the source's default
+branch differs. Missing refs fail instead of using that default. Plain
+unversioned directories support `main` or `HEAD` as a newly committed snapshot;
+other refs are unavailable. File copies stream through a source-root handle,
+retain executable bits and stop between files when cancelled.
+
+These checks protect ingestion and publication boundaries. They do not provide
+process isolation or an atomic snapshot of a concurrently edited plain source
+directory. The workspace sandbox remains a separate runtime concern.
