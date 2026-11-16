@@ -257,3 +257,29 @@ normalizes the Vitest catalog override to its existing effective `5.1.0` lock
 specifier and removes the unused catalog mirror. The refreshed web advisory
 scan reports zero findings in all severities; this does not establish that the
 package manager's entire bundled closure is benign or advisory-free.
+
+## AWS CLI 2.40.2 qualification
+
+The [2.40.2 source tag](https://github.com/aws/aws-cli/tree/2.40.2) resolves to
+`058b113d98423d9d3b17105bdbf628495a466b81`. The release cleared the three-day
+Renovate review delay. Mise's separate seven-day setting filters fuzzy version
+selection; the [pinned mise documentation](https://github.com/jdx/mise/blob/v2026.8.3/docs/security.md)
+explicitly states that exact version pins bypass that filter. No age setting or
+exception is changed by this update.
+
+The official Linux x86_64 archive has SHA-256
+`a9ac0d635e97fab65e234ae1519fa6bd2b02d72120bf965a8ff6eaf7611f1833`.
+Its detached GPG signature verifies with fingerprint
+`FB5DB77FD5C118B80511ADA8A6310ACC4672475C`, obtained from
+[AWS's installation guide](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html).
+The key is authenticated through that publisher HTTPS source, not an independent
+web-of-trust certification. A modified archive fails signature verification.
+The extracted executable reports `aws-cli/2.40.2` with Python 3.14.8 on Linux
+x86_64. Verification does not invoke cloud operations or use AWS credentials.
+
+The ARM Linux archive's checksum and AWS GPG signature also verify. The macOS
+package's downloaded checksum matches the lockfile; its Apple package signature
+is not verified here. Neither platform is executed. The existing musl aliases
+point to the same upstream Linux archives; this review does not establish musl
+compatibility. Artifact identity and a version check do not establish that the
+bundled dependency closure is benign or that every AWS service operation works.
