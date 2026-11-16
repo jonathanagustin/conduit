@@ -10,6 +10,32 @@ The repository was extracted from the former `platform/` subtree. It now owns
 its architecture, contracts, documentation, and release workflow. The exact
 source boundary is recorded in [MIGRATION.md](MIGRATION.md).
 
+## Demo
+
+![Conduit Excalidraw Packaging & App Generation Demo](docs/ui/conduit-excalidraw-demo.webp)
+
+The `1920x1080` console walkthrough above demonstrates both governed planning
+and workspace compute profiles in the operator console (`/console/planning`):
+
+1. **Source-based packaging (`packaging-v1`)** — Intake of Excalidraw at a
+   pinned commit SHA (`3402f5bc78ae5f4ffbc7e9be4be1fc2c6c1fa6ef`), live
+   `assistant.activity` inspection, `Needs Input` operator Q&A, structured plan
+   review (with a `View JSON` toggle), immutable `Accept` binding (`repo@ref`,
+   commit SHA, profile hash, and plan hash), and post-accept governed workspace
+   compute that commits the `Dockerfile`, `zarf.yaml`, and UDS `Package` CR,
+   runs Hadolint, Zarf, and schema gates, and opens a governed `ChangeRequest`.
+2. **Problem-statement application generation (`appgen-v1`)** — Intake from a
+   problem statement, operator clarification, plan acceptance, post-accept
+   application and package synthesis, `zarf dev lint .` and
+   `zarf package create` validation gates, and governed `ChangeRequest` handoff.
+
+<details>
+<summary>Planning-only walkthrough ending at Accept (<code>COMPUTE_BEFORE_ACCEPT</code> enforced)</summary>
+
+![Conduit Excalidraw Planning-Only Walkthrough](docs/ui/conduit-excalidraw-planning-only.webp)
+
+</details>
+
 ## Quick start
 
 Clone the repository, install the pinned toolchain, and start the local demo:
