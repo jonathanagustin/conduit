@@ -6,7 +6,7 @@ sidebar:
   order: 1
 ---
 
-Clone the repository, install the pinned toolchain, and start the local demo. Install Docker yourself and start its daemon before the demo. The installer does not install Docker and does not request administrator privileges.
+Clone the repository, install the pinned toolchain, and start the local demo. Install Docker and start its daemon. Install zarf v0.82.0 and put it on `PATH`, or set `ZARF_BIN`. The installer does not install Docker or zarf and does not request administrator privileges. `scripts/demo-seed.sh` exits with the zarf archive URL and checksum when zarf is missing.
 
 ## Quick start
 
@@ -19,7 +19,7 @@ mise run demo
 
 `./install.sh` runs [`scripts/install.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/install.sh). It downloads the pinned mise release asset, checks the SHA-256 checksum, and runs `mise install` against the locked toolchain. Run it again any time; work that is already done is skipped. Source `./install.sh` instead of executing it when you want mise activated in the current shell. Executing it prints the activation command.
 
-When the seed finishes, open `http://127.0.0.1:8081/console/`. The packaging walkthrough in the repository demo uses `/console/planning`.
+When the seed finishes, open `http://127.0.0.1:8081/console/#s01-intake`. The seed starts the Hub with `CONDUIT_IMAGE_BUILDER=docker`. The source-packaging reproduction is [`scripts/demo-excalidraw-e2e.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/demo-excalidraw-e2e.sh). Its printed digest is the local engine image id.
 
 `mise run demo` runs [`scripts/demo-reset.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/demo-reset.sh) and then [`scripts/demo-seed.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/demo-seed.sh). You can run those two scripts directly.
 

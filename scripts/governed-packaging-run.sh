@@ -8,11 +8,14 @@ set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
 
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
-  echo "docker is required and its daemon must be running" >&2
+  echo "Docker is required and its daemon must be running. Install Docker and start it, then run this script again." >&2
   exit 69
 fi
 if ! command -v zarf >/dev/null 2>&1 && [[ -z "${ZARF_BIN:-}" ]]; then
-  echo "zarf is required on PATH or as ZARF_BIN. The qualified binary is v0.82.0." >&2
+  echo "zarf is required for package lint and package create." >&2
+  echo "Install zarf v0.82.0 and put it on PATH, or set ZARF_BIN to that binary." >&2
+  echo "Archive: https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64" >&2
+  echo "sha256: e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf" >&2
   exit 69
 fi
 

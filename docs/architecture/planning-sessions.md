@@ -92,8 +92,9 @@ Accept records, and never rewrites:
 - the accept time
 
 `POST /compute` is refused with `COMPUTE_BEFORE_ACCEPT` until that binding exists.
-After Accept it returns `COMPUTE_NOT_CONFIGURED`; this slice does not execute a
-workspace, build, or package. The later workspace flow must consume the binding.
+After Accept it returns `COMPUTE_NOT_CONFIGURED` until `CONDUIT_IMAGE_BUILDER=docker`
+admits the local engine builder, the engine image inspector, and the zarf package
+creator. The recorded digest is the local engine image id unless the image is pushed.
 
 ## Ownership and storage
 

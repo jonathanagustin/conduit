@@ -37,7 +37,10 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 			return planningdomain.ErrComputeNotConfigured
 		}
 		if _, err := exec.LookPath("docker"); err != nil {
-			return fmt.Errorf("admitted image builder docker is not on PATH")
+			return fmt.Errorf("docker is required for the admitted image builder: install it and start its daemon")
+		}
+		if _, err := packagingtools.LookZarf(); err != nil {
+			return fmt.Errorf("zarf is required for package lint and package create: install zarf v0.82.0 or set ZARF_BIN to that binary")
 		}
 		gitRoot := strings.TrimSpace(getenv("DEVWORKSPACE_GIT_ROOT"))
 		if gitRoot == "" {

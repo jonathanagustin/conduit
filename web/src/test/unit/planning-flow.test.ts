@@ -487,6 +487,80 @@ describe("planning flow API", () => {
     }
   });
 
+  it("shows Needs Input after Send when the opening message is empty", async () => {
+    class FakeElement {
+      closest(selector: string) {
+        return selector === "[data-plan-send]" ? this : null;
+      }
+    }
+    vi.stubGlobal("Element", FakeElement);
+    try {
+      const created = session({
+        status: "started",
+        plan: null,
+        resolvedCommit: "",
+        needsInput: [],
+      });
+      const advanced = session({
+        status: "needs_input",
+        plan: null,
+        resolvedCommit: "b".repeat(40),
+        needsInput: [
+          question({
+            id: "node_version",
+            type: "select",
+            options: ["20"],
+          }),
+        ],
+      });
+      const fetchImpl = vi.fn<typeof fetch>(async (input, options) => {
+        const path = String(input);
+        if (path.endsWith("/v1/planning-sessions") && options?.method === "POST") {
+          return new Response(JSON.stringify(created), {
+            status: 201,
+            headers: { "content-type": "application/json" },
+          });
+        }
+        const body = JSON.parse(String(options?.body));
+        const events = [
+          { type: "RUN_STARTED", threadId: body.threadId, runId: body.runId },
+          { type: "STATE_SNAPSHOT", snapshot: { session: advanced, pendingClientTools: [] } },
+          { type: "MESSAGES_SNAPSHOT", messages: [] },
+          {
+            type: "RUN_FINISHED",
+            threadId: body.threadId,
+            runId: body.runId,
+            outcome: { type: "interrupt", interrupts: [{ id: "needs-input", reason: "needs_input" }] },
+          },
+        ];
+        return new Response(events.map((event) => `data: ${JSON.stringify(event)}\n\n`).join(""), {
+          headers: { "content-type": "text/event-stream" },
+        });
+      });
+      let click: (event: unknown) => Promise<void> = async () => {};
+      const root = {
+        addEventListener: (type: string, handler: typeof click) => {
+          if (type === "click") click = handler;
+        },
+      };
+      const store = {
+        planning: {
+          ...emptyPlanning(),
+          repoUrl: "https://github.com/excalidraw/excalidraw",
+          ref: "main",
+          message: "",
+        },
+      };
+      bindPlanning(root, store, () => {}, fetchImpl);
+      await click({ target: new FakeElement() });
+      expect(store.planning.session?.status).toBe("needs_input");
+      expect(store.planning.session?.needsInput?.[0]?.id).toBe("node_version");
+      expect(planningMarkup(store.planning)).toContain("data-plan-needs-input");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("renders problem-statement intake and binding rows for the appgen work profile", async () => {
     const composerHtml = planningMarkup({
       ...emptyPlanning(),

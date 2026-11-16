@@ -8,20 +8,20 @@ sidebar:
 
 The console demo walks two profiles. Both stop for Accept before workspace compute, and both hand off through a governed change request. The profile name, version, and hash are part of the Accept binding, with the repository ref, the resolved commit, and the plan hash.
 
-| Profile | Intake | What the demo shows after Accept |
+| Profile | Intake | What the reproduction does after Accept |
 | --- | --- | --- |
-| `packaging-v1` | A repository at a pinned commit | A workspace commit of `Dockerfile`, `zarf.yaml`, and a UDS `Package` custom resource, then Hadolint, Zarf, and schema gates |
-| `appgen-v1` | A problem statement | Application and package synthesis, then `zarf dev lint .` and `zarf package create` |
+| `onboard` | A repository at a pinned commit | A workspace commit of `Dockerfile`, `zarf.yaml`, and a UDS `Package` custom resource, then the dockerfile gate, the Package CR schema gate, `zarf dev lint`, and `zarf package create` |
+| `appgen` | A problem statement | Application and package synthesis, then `zarf dev lint .` and `zarf package create` |
 
-## packaging-v1
+## onboard
 
-Source-based packaging. The recorded walkthrough intakes Excalidraw at `3402f5bc78ae5f4ffbc7e9be4be1fc2c6c1fa6ef`, inspects that commit, asks Needs Input, and reviews the plan before Accept.
+Source-based packaging. [`scripts/demo-excalidraw-e2e.sh`](https://github.com/jonathanagustin/conduit/blob/main/scripts/demo-excalidraw-e2e.sh) intakes Excalidraw at `a2ec2889babf7d2295469c6d90ebe77fae57df84`, inspects that commit, asks Needs Input, and reviews the plan before Accept.
 
-After Accept, the demo's workspace path commits the image definition, the Zarf package manifest, and the UDS package resource. The gates named in that walkthrough are Hadolint, Zarf, and schema validation. The upstream image definition is not the source of truth for that run; the workspace writes the files.
+After Accept, compute commits the image definition, the Zarf package manifest, and the UDS package resource in the workspace. The upstream image definition is not the source of truth. The gates are the dockerfile check, the Package CR schema check, `zarf dev lint`, and `zarf package create`. The printed digest is the local engine image id. It is not a registry manifest digest unless the image is pushed.
 
-The planning session's own compute route does not execute this path. It returns `COMPUTE_NOT_CONFIGURED` after Accept. See [How it works](/conduit/how-it-works/#compute-before-accept-is-refused).
+`POST /v1/planning-sessions/{id}/compute` returns `COMPUTE_NOT_CONFIGURED` until the Hub is started with `CONDUIT_IMAGE_BUILDER=docker` and both docker and zarf are available. `scripts/demo-seed.sh` and `scripts/demo-excalidraw-e2e.sh` set that admission and exit with an install message when a prerequisite is missing. See [How it works](/conduit/how-it-works/#compute-before-accept-is-refused).
 
-## appgen-v1
+## appgen
 
 Problem-statement application generation. Intake is the statement, then operator clarification, plan acceptance, and post-accept synthesis of the application and the package. The validation gates named in the walkthrough are `zarf dev lint .` and `zarf package create`.
 

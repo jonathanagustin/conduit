@@ -16,20 +16,31 @@ source boundary is recorded in [MIGRATION.md](MIGRATION.md).
 
 ![Conduit Excalidraw Packaging & App Generation Demo](docs/ui/conduit-excalidraw-demo.webp)
 
-The `1920x1080` console walkthrough above demonstrates both governed planning
-and workspace compute profiles in the operator console (`/console/planning`):
+The still above is a recorded console walkthrough. The command that
+reproduces the source-packaging run is
+[`scripts/demo-excalidraw-e2e.sh`](scripts/demo-excalidraw-e2e.sh). It needs a
+running Docker daemon and `zarf` v0.82.0 on `PATH` (or `ZARF_BIN`). If either
+is missing, the script exits with the install location and checksum instead of
+reporting a package.
 
-1. **Source-based packaging (`packaging-v1`)** — Intake of Excalidraw at a
-   pinned commit SHA (`3402f5bc78ae5f4ffbc7e9be4be1fc2c6c1fa6ef`), live
-   `assistant.activity` inspection, `Needs Input` operator Q&A, structured plan
-   review (with a `View JSON` toggle), immutable `Accept` binding (`repo@ref`,
-   commit SHA, profile hash, and plan hash), and post-accept governed workspace
-   compute that commits the `Dockerfile`, `zarf.yaml`, and UDS `Package` CR,
-   runs Hadolint, Zarf, and schema gates, and opens a governed `ChangeRequest`.
-2. **Problem-statement application generation (`appgen-v1`)** — Intake from a
-   problem statement, operator clarification, plan acceptance, post-accept
-   application and package synthesis, `zarf dev lint .` and
-   `zarf package create` validation gates, and governed `ChangeRequest` handoff.
+```bash
+./scripts/demo-excalidraw-e2e.sh
+```
+
+That script checks out `https://github.com/excalidraw/excalidraw` at
+`a2ec2889babf7d2295469c6d90ebe77fae57df84`, runs planning turns with the
+deterministic writer unless `CONDUIT_MODEL_CMD` is set, records Accept, then
+runs post-accept compute. Compute commits a workspace `Dockerfile`,
+`zarf.yaml`, and UDS `Package` CR, builds the image, and runs the dockerfile
+gate, the Package CR schema gate, `zarf dev lint`, and `zarf package create`.
+It opens a change request and does not approve it. The printed digest is the
+local engine image id. It is not a registry manifest digest unless that image
+is pushed. The console profile for this path is `onboard`. Work intake is
+`/console/#s01-intake`.
+
+Problem-statement generation uses profile `appgen`. After `mise run demo`,
+`scripts/demo-generate.sh` runs that path. Its package gates are `zarf dev lint`
+and `zarf package create`. It also leaves a change request for a person.
 
 <details>
 <summary>Planning-only walkthrough ending at Accept (<code>COMPUTE_BEFORE_ACCEPT</code> enforced)</summary>
@@ -57,8 +68,13 @@ not request administrator privileges. Source `./install.sh` instead of
 executing it when you want mise activated in the current shell. Executing it
 prints the activation command.
 
-Install Docker yourself and start its daemon before the demo. When the seed
-finishes, open <http://127.0.0.1:8081/console/>.
+Install Docker and start its daemon before the demo. Install `zarf` v0.82.0
+and put it on `PATH`, or set `ZARF_BIN`. `scripts/demo-seed.sh` and
+`scripts/demo-excalidraw-e2e.sh` exit with the archive URL and checksum when
+either prerequisite is missing. The seed starts the Hub with
+`CONDUIT_IMAGE_BUILDER=docker`, which admits the local image builder, the
+engine image inspector, and the zarf package creator together. When the seed
+finishes, open <http://127.0.0.1:8081/console/#s01-intake>.
 
 `mise run demo` runs [`scripts/demo-reset.sh`](scripts/demo-reset.sh) and then
 [`scripts/demo-seed.sh`](scripts/demo-seed.sh). You can run those two scripts
