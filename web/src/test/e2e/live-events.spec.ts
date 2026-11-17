@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Page, type TestInfo } from "@playwright/test";
 
 import { APPLICATIONS } from "./hub-stub";
 
@@ -27,6 +27,8 @@ const bootstrap = {
 async function fixture(page: Page, status = 200) {
   let planStatus = "RUNNING";
   let completed = false;
+  let heldPackagingRead: { entered: () => void; wait: Promise<void> } | null =
+    null;
   const writes: string[] = [],
     reads: string[] = [],
     packagingRPCs: string[] = [];
@@ -61,6 +63,12 @@ async function fixture(page: Page, status = 200) {
         limit: 20,
       });
       packagingRPCs.push(route.request().method());
+      const held = heldPackagingRead;
+      heldPackagingRead = null;
+      if (held) {
+        held.entered();
+        await held.wait;
+      }
       await route.fulfill({
         json: {
           configured: true,
@@ -231,6 +239,18 @@ async function fixture(page: Page, status = 200) {
     writes,
     reads,
     packagingRPCs,
+    holdNextPackagingRead() {
+      let enter!: () => void;
+      let release!: () => void;
+      const entered = new Promise<void>((resolve) => {
+        enter = resolve;
+      });
+      const wait = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      heldPackagingRead = { entered: enter, wait };
+      return { entered, release };
+    },
     completeMetrics() {
       completed = true;
     },
@@ -320,9 +340,11 @@ test("live permission failure is visible and leaves polling active without recon
   );
 });
 
-test("Audit session feed and native KPI counts update from authorized invalidations without writes", async ({
-  page,
-}, testInfo) => {
+async function verifyAuditFeed(
+  page: Page,
+  testInfo: TestInfo,
+  separateBatches: boolean,
+) {
   await page.clock.install();
   const current = await fixture(page);
   await page.goto("/console/#area-packaging");
@@ -353,51 +375,72 @@ test("Audit session feed and native KPI counts update from authorized invalidati
       view.__acceptedOperations.push(...events.map((event) => event.sequence)),
     );
   });
-  await page.evaluate(() => {
-    const source = (
-      window as unknown as { __conduitLiveFixture: BrowserStream }
-    ).__conduitLiveFixture;
-    for (const sequence of [1, 1, 2]) {
-      const event = {
-        version: 1,
-        streamID: "s_browser",
-        sequence,
-        cursor: `c_${sequence}`,
-        occurredAt: "2026-11-15T12:00:00Z",
-        kind: "index.invalidated",
-        resource: { type: "index", id: "idx_operations", revision: sequence },
-        data: { areas: ["plans", "approvals", "packaging", "fleet", "kpi"] },
-      };
-      source.controller!.enqueue(
-        new TextEncoder().encode(
-          `id: ${event.cursor}\nevent: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`,
+  const delivered = () =>
+    page.evaluate(() =>
+      [
+        ...new Set(
+          (window as unknown as { __acceptedOperations: number[] })
+            .__acceptedOperations,
         ),
-      );
-    }
-  });
+      ].sort(),
+    );
+  const emit = (sequences: number[]) =>
+    page.evaluate((sequences) => {
+      const source = (
+        window as unknown as { __conduitLiveFixture: BrowserStream }
+      ).__conduitLiveFixture;
+      for (const sequence of sequences) {
+        const event = {
+          version: 1,
+          streamID: "s_browser",
+          sequence,
+          cursor: `c_${sequence}`,
+          occurredAt: "2026-11-15T12:00:00Z",
+          kind: "index.invalidated",
+          resource: { type: "index", id: "idx_operations", revision: sequence },
+          data: { areas: ["plans", "approvals", "packaging", "fleet", "kpi"] },
+        };
+        source.controller!.enqueue(
+          new TextEncoder().encode(
+            `id: ${event.cursor}\nevent: ${event.kind}\ndata: ${JSON.stringify(event)}\n\n`,
+          ),
+        );
+      }
+    }, sequences);
+  await emit(separateBatches ? [1] : [1, 1, 2]);
+  let held: ReturnType<typeof current.holdNextPackagingRead> | undefined;
+  if (separateBatches) {
+    await expect.poll(delivered).toEqual([1]);
+    held = current.holdNextPackagingRead();
+    await emit([1, 2]);
+    await held.entered;
+  }
   await expect(kpi("convergence")).toHaveText("—");
   await expect(kpi("packaging")).toHaveText("0");
   await expect(kpi("changes")).toHaveText("—");
   await expect(kpi("spokes")).toHaveText("—");
-  // The read publishes its KPI before the invalidation is acknowledged.
-  // Wait for the authorized event delivery before changing the read scope.
-  await expect
-    .poll(() =>
-      page.evaluate(() =>
-        [
-          ...new Set(
-            (window as unknown as { __acceptedOperations: number[] })
-              .__acceptedOperations,
-          ),
-        ].sort(),
-      ),
-    )
-    .toEqual([1, 2]);
-  await page.evaluate(() =>
-    (window as unknown as { switchScreen: (id: string) => void }).switchScreen(
-      "au01-audit",
-    ),
-  );
+  // A read can publish its KPI before the whole invalidation batch is acknowledged.
+  const navigation = (async () => {
+    await expect.poll(delivered).toEqual([1, 2]);
+    await page.evaluate(() =>
+      (
+        window as unknown as { switchScreen: (id: string) => void }
+      ).switchScreen("au01-audit"),
+    );
+  })();
+  let beforeRelease: string | undefined;
+  if (held) {
+    beforeRelease = await page.evaluate(
+      () => (window as unknown as { state: { screen: string } }).state.screen,
+    );
+    held.release();
+  }
+  await navigation;
+  if (held)
+    expect(
+      beforeRelease,
+      "Audit navigation must wait for both authorized batches",
+    ).toBe("area-packaging");
   const feed = page.locator("[data-live-operations]");
   await expect(feed).toBeVisible();
   await expect(feed.locator("[data-operation-sequence]")).toHaveCount(2);
@@ -423,4 +466,11 @@ test("Audit session feed and native KPI counts update from authorized invalidati
     "data-operations-state",
     "offline",
   );
-});
+}
+
+test("Audit session feed and native KPI counts update from authorized invalidations without writes", async ({
+  page,
+}, testInfo) => verifyAuditFeed(page, testInfo, false));
+test("Audit navigation waits for separately acknowledged invalidation batches", async ({
+  page,
+}, testInfo) => verifyAuditFeed(page, testInfo, true));
