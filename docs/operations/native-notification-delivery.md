@@ -72,11 +72,22 @@ entries still roll back together when an entry cannot be recorded. Regression
 tests exercise changed and empty audiences, independent concurrent connections,
 unchanged event documents and delivery counts against PostgreSQL.
 
+Saving an empty type selection with future types off records explicit opt-out
+for the same resource, owner and channel (#905). It affects subsequent fan-out
+using that updated preference; it does not cancel an already selected audience,
+historical inbox entry or queued delivery. The tuple's ID and creation time are
+retained and its revision advances, so it can be loaded and subscribed again.
+Off consent requires no team destination, including when a previous contact was
+deleted. Existing selected contacts are carried by the console, and the API
+retains its existing full-replacement semantics. Turning notifications off grants
+no resource or owner authority. This is Conduit policy and makes no private
+Apollo API compatibility claim.
+
 EMAIL selects SMTP, SLACK selects Slack, and IN_APP remains inbox-only. The
 native resolver re-reads the current resource preference and owner contacts at
 delivery time. It requires the queued preference ID, resource, owner and channel
 to match. When `contactId` is set, only that exact contact belonging to the owner
-and matching the channel is eligible. Team preferences require that selection.
+and matching the channel is eligible. Active team preferences require that selection.
 User preferences without a contact ID use the owner's matching channel contact.
 A deleted preference, missing contact, foreign contact, wrong contact kind or
 unconfigured provider never falls back to another recipient. Store read failures

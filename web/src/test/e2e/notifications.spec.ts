@@ -175,9 +175,9 @@ test("preferences disclose unavailable types before saving and allow removal of 
     "You are not subscribed to",
   );
   const save = page.getByRole("button", { name: "Save preference" });
-  await expect(save).toBeDisabled();
-  await expect(page.locator("[data-save-reason]")).toContainText(
-    "can never deliver",
+  await expect(save).toBeEnabled();
+  await expect(page.locator("[data-notifications-off]")).toContainText(
+    "Notifications off for future events",
   );
   const silent = page.locator('[data-type-not-emitted="RBAC_CHANGE"]');
   await expect(silent).toContainText("Not yet emitted by this Hub");
@@ -227,6 +227,97 @@ test("preferences disclose unavailable types before saving and allow removal of 
   });
   await expect(page.locator('[data-ntf-type="PLAN_FAILURES"]')).toBeChecked();
   await expect(save).toBeDisabled();
+});
+
+test("preferences can turn off, reload, resubscribe and remove a sole legacy selection", async ({
+  page,
+}) => {
+  const rid = "product/payments";
+  const writes: unknown[] = [];
+  let stored: Record<string, unknown> = {
+    id: "pref-consent",
+    owner,
+    resourceRid: rid,
+    channel: "IN_APP",
+    types: ["PLAN_FAILURES"],
+    allFutureTypes: false,
+    contactId: "retained-contact",
+    revision: 3,
+    typeAvailabilityScope: "ALL_KNOWN",
+    typesNotYetEmitted: ["RBAC_CHANGE"],
+  };
+  await stubHub(page, (request, url) => {
+    if (url.pathname === "/v1/session")
+      return {
+        json: session({
+          resources: url.searchParams
+            .getAll("resourceRid")
+            .map((resourceRid) => ({
+              resourceRid,
+              operations: ["resource:read"],
+            })),
+        }),
+      };
+    if (url.pathname === "/v1/notifications/contacts")
+      return { json: { owner, contacts: [] } };
+    if (url.pathname !== "/v1/notifications/preferences") return undefined;
+    if (request.method() === "GET") return { json: stored };
+    const body = request.postDataJSON();
+    writes.push(body);
+    stored = { ...stored, ...body, revision: Number(stored.revision) + 1 };
+    return { json: stored };
+  });
+  await page.goto("/console/notifications");
+  await page.locator('.kit-subnav [data-ntf-view="preferences"]').click();
+  await page.getByLabel("Resource").fill(rid);
+  const load = page.getByRole("button", { name: "Load preference" });
+  const save = page.getByRole("button", { name: "Save preference" });
+  await load.click();
+  await page.locator('[data-ntf-type="PLAN_FAILURES"]').uncheck();
+  await expect(page.locator("[data-notifications-off]")).toContainText(
+    "Existing inbox and queued notifications are retained",
+  );
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.locator("[data-preference-saved]")).toContainText(
+    "stored revision 4",
+  );
+  expect(writes[0]).toEqual({
+    resourceRid: rid,
+    channel: "IN_APP",
+    types: [],
+    allFutureTypes: false,
+    contactId: "retained-contact",
+  });
+  await load.click();
+  await expect(page.locator("[data-notifications-off]")).toBeVisible();
+  await expect(
+    page.locator('[data-ntf-type="PLAN_FAILURES"]'),
+  ).not.toBeChecked();
+  await expect(save).toBeDisabled();
+  await page.locator('[data-ntf-type="PLAN_FAILURES"]').check();
+  await save.click();
+  await expect(page.locator("[data-preference-saved]")).toContainText(
+    "stored revision 5",
+  );
+  expect(writes[1]).toMatchObject({ types: ["PLAN_FAILURES"] });
+  stored = { ...stored, types: ["RBAC_CHANGE"] };
+  await load.click();
+  await expect(save).toBeDisabled();
+  await page
+    .locator('[data-type-not-emitted="RBAC_CHANGE"]')
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await expect(save).toBeEnabled();
+  await save.click();
+  await expect(page.locator("[data-preference-saved]")).toContainText(
+    "stored revision 6",
+  );
+  expect(writes[2]).toMatchObject({
+    types: [],
+    allFutureTypes: false,
+    contactId: "retained-contact",
+  });
 });
 
 test("an older Hub's partial availability array keeps preference editing disabled", async ({

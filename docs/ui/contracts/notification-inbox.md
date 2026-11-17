@@ -94,12 +94,22 @@ older replica cannot silently admit a selection the first response refused.
 This availability and write policy is a Conduit extension; the captured Apollo
 vocabulary does not establish server-side emitter availability.
 
-**An edit the Hub would refuse is refused first.**
-`domain.Preference.Validate` rejects a preference that enables no types and has
-not opted into future ones, because it could never deliver anything. The Save
-control is disabled in that state and says why, rather than being a button whose
-only outcome is a 422. A 422 the console did not predict is shown with the
-Hub's message.
+**An empty selection can record explicit off consent.** Saving `types: []`
+with `allFutureTypes: false` turns off future notifications for the same
+(resource, owner, channel) tuple. The stored ID and creation time remain stable,
+and the revision advances. It can be loaded and subscribed again later; it is
+distinct from a missing preference's 404. Removing a sole legacy unavailable
+selection can therefore be saved without opting into other notifications.
+The editor identifies off consent before Save and retains its loaded contact.
+An inactive team preference needs no contact; active team consent still does.
+This is a registered Conduit policy, not a recovered private Apollo API rule.
+
+Off consent affects subsequent fan-out using the updated preference. It does
+not delete historical inbox entries or cancel an audience already selected,
+recorded or queued for delivery. Empty `types` with `allFutureTypes: true`
+retains its existing forward-consent meaning. Unknown named types and missing
+owner/resource authority remain refused. A 422 the console did not predict is
+shown with the Hub's message.
 
 **A save is explicit, and is refused locally when the preference moved.** The
 editor sends nothing until Save, shows what the save would add and remove, and

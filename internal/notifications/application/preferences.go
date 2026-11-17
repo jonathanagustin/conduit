@@ -14,11 +14,8 @@ import (
 // ErrNoPreference is the answer to "what has this owner asked for on this
 // resource and channel" when they have asked for nothing.
 //
-// Distinguished from an empty preference on purpose. A stored preference that
-// enables no types cannot exist -- Validate refuses one -- so "absent" and
-// "enables nothing" are different states, and a caller that renders a settings
-// page needs to know which it is looking at: one is a page never opened, the
-// other is impossible.
+// Distinguished from stored off consent: an empty selection without future
+// consent records a deliberate opt-out and retains its tuple and revision.
 var ErrNoPreference = errors.New("no notification preference is stored for that owner, resource and channel")
 
 // Preferences reads and writes one owner's settings at exactly the grain the

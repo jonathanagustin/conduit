@@ -557,8 +557,7 @@ func TestAPreferenceRoundTripsAtTheTupleTheStoreKeysOn(t *testing.T) {
 	}
 
 	// The other channel is a different tuple and has nothing stored, which is
-	// distinguishable from a tuple whose preference enables nothing -- a state
-	// the domain refuses to store at all.
+	// distinguishable from an explicitly saved off preference on that tuple.
 	missing := test.do(http.MethodGet,
 		"/v1/notifications/preferences?resourceRid="+resource+"&channel=IN_APP", "")
 	if missing.Code != http.StatusNotFound {
@@ -685,9 +684,9 @@ func TestARequestThatNamesNoChannelOrResourceIsRefusedRatherThanGuessed(t *testi
 	// package could not read: the caller said what they meant and it cannot be
 	// stored.
 	unstorable := test.do(http.MethodPut, "/v1/notifications/preferences",
-		fmt.Sprintf(`{"resourceRid":%q,"channel":"EMAIL"}`, resource))
+		fmt.Sprintf(`{"resourceRid":%q,"channel":"EMAIL","types":["UNKNOWN_TYPE"]}`, resource))
 	if unstorable.Code != http.StatusUnprocessableEntity {
-		t.Fatalf("a preference enabling nothing answered %d, want %d",
+		t.Fatalf("an unknown notification type answered %d, want %d",
 			unstorable.Code, http.StatusUnprocessableEntity)
 	}
 }

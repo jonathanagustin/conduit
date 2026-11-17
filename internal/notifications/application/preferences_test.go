@@ -69,9 +69,7 @@ func TestAPreferenceServiceWithNoStoreIsRefused(t *testing.T) {
 	}
 }
 
-// Absent and "enables nothing" are different states, and only one of them can
-// be stored, so a caller rendering a settings page has to be able to tell them
-// apart.
+// An absent tuple remains different from stored explicit off consent.
 func TestAnUnsetPreferenceIsDistinguishableFromAnEmptyOne(t *testing.T) {
 	t.Parallel()
 	preferences := newPreferences(t, &fakeStore{})
@@ -190,8 +188,9 @@ func TestThePreferenceServiceDoesNotOverruleTheDomain(t *testing.T) {
 	}
 	if _, err := preferences.Save(t.Context(), domain.Preference{
 		Owner: alice(), ResourceRID: preferenceResource, Channel: domain.ChannelEmail,
+		Types: []domain.EventType{"UNKNOWN_TYPE"},
 	}); err == nil {
-		t.Fatal("a preference enabling nothing and opting into nothing was stored")
+		t.Fatal("an unknown named type was stored")
 	}
 	if len(store.saved) != 0 {
 		t.Fatalf("a refused preference reached the store: %#v", store.saved)

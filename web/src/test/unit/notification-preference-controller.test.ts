@@ -133,6 +133,31 @@ function harness() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("notification preference save scope", () => {
+  it("saves explicit off consent after the same reviewed-target preflight", async () => {
+    const h = harness();
+    h.pref.stored = stored();
+    h.pref.draft = {
+      types: [],
+      allFutureTypes: false,
+      contactId: "selected-contact",
+    };
+    h.save();
+    expect(h.reads).toHaveLength(1);
+    expect(h.writes).toEqual([]);
+    h.release(response(stored()));
+    await settle();
+    expect(h.writes).toEqual([
+      {
+        resourceRid: "product/A",
+        channel: "IN_APP",
+        types: [],
+        allFutureTypes: false,
+        contactId: "selected-contact",
+      },
+    ]);
+    expect(h.pref.saved).toContain("Saved.");
+  });
+
   it.each(["resource", "channel", "identity", "navigation", "dispose"])(
     "aborts and refuses the old preflight after %s changes",
     async (change) => {
