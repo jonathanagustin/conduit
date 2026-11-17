@@ -162,6 +162,13 @@
       "riskIfWrong": "Command spelling and binding workflow may require migration. Native records retain provenance, Hub authorization filters reads and controls mutations, and membership grants no resource permissions."
     },
     {
+      "id": "modelgovernor.CLICommands",
+      "what": "Native `conduit ai usage` and `conduit ai transcript list|export` commands over the Hub's /v1/ai/usage and /v1/admin/ai routes.",
+      "why": "Issues #810 and #813 require an operator to read model usage against a budget and an administrator to export and verify one AI run's transcript. No captured Apollo CLI contract covers model usage or AI transcripts; the commands disclose native scope, print the Hub's documents unchanged and rely on Hub authority rather than local claims.",
+      "displacedBy": "A published or owner-approved CLI contract for reading model usage against a budget and for exporting and verifying one AI run's transcript.",
+      "riskIfWrong": "Command spelling and output shape may require migration. The commands are read-only, transcript export is administrator-only and audited by the Hub, and a failed verification exits non-zero."
+    },
+    {
       "id": "spaces.GraphQLGrouping",
       "what": "The five recovered spaceId fields resolve independently authorized persisted native assignments; Entity inherits Environment and Release inherits Product. Native Bundle RID lookup uses the authorized persisted Bundle catalogue and retains the recovered scalar bundles shape.",
       "why": "The adopted #17 decision requires real Space data rather than a default constant. Evidence establishes the five names but not a private Apollo membership source or Bundle lookup implementation. ADR 0014 defines and discloses these bounded native choices.",

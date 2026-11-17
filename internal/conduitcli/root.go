@@ -179,6 +179,7 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(approvalPolicyCommand(state))
 	root.AddCommand(runCommand(state))
 	root.AddCommand(bundleCommand(state))
+	root.AddCommand(aiCommand(state))
 	// Added last: it attaches subcommands to groups the calls above create.
 	addApolloCoverageCommands(root, state)
 	return root
