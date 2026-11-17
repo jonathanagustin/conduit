@@ -46,7 +46,9 @@ function capabilityNote(gate, escape) {
 
 /** The same reason as the disabled control's tooltip. */
 function capabilityTitle(gate, escape) {
-  return capabilityBlocks(gate) ? ` title="${escape(gate.reason)}"` : "";
+  return capabilityBlocks(gate)
+    ? ` data-dj-capability-blocked title="${escape(gate.reason)}"`
+    : "";
 }
 
 const capabilityAttrs = (gate, escape) =>
@@ -162,9 +164,9 @@ function mountPanel(
     }
     node.querySelectorAll("[data-dj-needs]").forEach((button) => {
       const needed = (button.getAttribute("data-dj-needs") || "").split(",");
-      button.disabled = needed.some(
-        (name) => !String(panel.draft[name] || "").trim(),
-      );
+      button.disabled =
+        button.hasAttribute("data-dj-capability-blocked") ||
+        needed.some((name) => !String(panel.draft[name] || "").trim());
     });
   };
   node.onchange = (event) => {
@@ -179,6 +181,7 @@ function mountPanel(
     const hit = (selector) =>
       event.target instanceof Element ? event.target.closest(selector) : null;
     const review = hit("[data-dj-review]");
+    if (review?.disabled) return;
     if (review) {
       panel.action = actionTransition(panel.action, {
         type: "review",
@@ -198,7 +201,9 @@ function mountPanel(
       paint();
       return;
     }
-    if (!hit("[data-dj-confirm]") || panel.action.phase !== "confirm") return;
+    const confirm = hit("[data-dj-confirm]");
+    if (!confirm || confirm.disabled || panel.action.phase !== "confirm")
+      return;
     const request = panel.action.request;
     panel.action = actionTransition(panel.action, { type: "confirm" });
     paint();
