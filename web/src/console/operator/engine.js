@@ -65,6 +65,7 @@ import { createAuditLedger } from "./audit-ledger.js";
 import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
+import { createCapabilities } from "./session-capabilities.js";
 import { createLiveHub } from "./live-hub.js";
 import {
   deliverySlots,
@@ -1000,6 +1001,11 @@ export function mountOperator(host, options) {
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
+  // Session capabilities (#824).
+  const capabilities = createCapabilities({
+    state,
+    render: () => renderApp({ backgroundRefresh: true }),
+  });
   const adminStatus = createAdminStatus({ navigate: switchScreen });
   const commandCenter = createCommandCenter({
     getIdentity: () => ({
@@ -1530,6 +1536,13 @@ export function mountOperator(host, options) {
     const iconRail =
       state.leftRailCollapsed ||
       window.matchMedia("(max-width: 1024px) and (min-width: 1024px)").matches;
+
+    // Capability-derived navigation (#824).
+    capabilities.sync();
+    capabilities.paintNotice(AREAS, iconRail, escAttr);
+    for (const section of sections)
+      for (const group of section.groups)
+        group.items = capabilities.navItems(group.items, AREAS);
 
     const sitesEl = document.getElementById("left-nav-sites");
     if (sitesEl) {
@@ -4921,7 +4934,18 @@ export function mountOperator(host, options) {
 
   function renderArea(root) {
     const area = AREAS[state.screen];
-    const tabs = area.tabs;
+    const gate = capabilities.gateArea(
+      state.screen,
+      area,
+      state.areaTab,
+      escAttr,
+    );
+    if (gate.blocked) {
+      root.dataset.unavailableScreen = visibleScreen();
+      root.innerHTML = gate.blocked;
+      return;
+    }
+    const tabs = gate.tabs;
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
     state.detailScreen = current.screen;
@@ -4963,6 +4987,7 @@ export function mountOperator(host, options) {
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
       ${truncationMarkup(state.hub, current.screen, escAttr)}
+      ${capabilities.grantMarkup(current.screen, escAttr)}
       <div id="area-body"></div>
     </div>`;
     const renderer = classifyRenderers({
@@ -5248,6 +5273,7 @@ export function mountOperator(host, options) {
   releaseGates.bind(window);
   ontologyGraph.bind(window);
   settings.bind(window);
+  capabilities.bind(window);
   settingsDialog.restore();
   renderApp();
   return () => {
