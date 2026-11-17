@@ -66,6 +66,7 @@ import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
 import { createLiveHub } from "./live-hub.js";
+import { classifyRenderers, screenBadge } from "./screen-registry.js";
 import { createIntelligence } from "./intelligence.js";
 import { createDevWorkspaces } from "./dev-workspaces.js";
 import {
@@ -1361,42 +1362,6 @@ export function mountOperator(host, options) {
   // =========================================================================
   // AUTHENTIC Conduit LEFT RAIL + TOP BAR + PLAIN RIGHT CHAT
   // =========================================================================
-  // Screens whose body is read from the Hub. Everything else is example data
-  // until it is wired, and says so in the header badge.
-  const LIVE_SCREENS = new Set([
-    "s19-ontology",
-    "s09-source",
-    "s11-preview",
-    "s12-lifecycle",
-    "s17-spokes-audit",
-    "s01-intake",
-    "cc-overview",
-    "pkg-runs",
-    "s08-staged-run",
-    "s07-pipeline",
-    "s02-workspaces",
-    "rm08-bundle-preview",
-    "s14-env-detail",
-    "rel-products",
-    "rm-channels",
-    "rm-waves",
-    "rm06-promotion-pipe",
-    "rm09-recalls",
-    "rm07-change-requests",
-    "flt-environments",
-    "au01-audit",
-    "adm-platform-status",
-    "ai01-logic",
-    "ai02-evals",
-    "ai04-courses",
-    "ai03-events",
-  ]);
-  // Screens that label each section Hub or Example data themselves.
-  const SECTION_LABELLED = new Set([
-    "adm02-org-control-panel",
-    "pt02-proposals-evals",
-  ]);
-
   /** The screen actually on view: an area's current tab, or the screen. */
   function visibleScreen() {
     const area = AREAS[state.screen];
@@ -1410,39 +1375,28 @@ export function mountOperator(host, options) {
     const badge = document.getElementById("example-data-badge");
     if (!badge) return;
     const screen = visibleScreen();
-    const live =
-      LIVE_SCREENS.has(screen) ||
-      (screen === "pt01-proposal-trace" &&
-        (state.hub?.packaging || []).some((run) => run?.runId)) ||
-      (screen === "og01-ontology-graph" && state.graphLive === true);
-    if (SECTION_LABELLED.has(screen)) {
+    // The classification comes from the registry the renderer tables are
+    // built from, so a screen with a renderer always has one.
+    const view = screenBadge(screen, {
+      hub: state.hub,
+      graphLive: state.graphLive,
+      unavailable:
+        ((screen === "pt01-proposal-trace" ||
+          screen === "pt02-proposals-evals") &&
+          !state.proposalExamples) ||
+        (isOperationalExample(screen) &&
+          !operationalExamples.enabled(screen)) ||
+        document.getElementById("main-workspace")?.dataset.unavailableScreen ===
+          screen,
+    });
+    if (view.hidden) {
       badge.style.display = "none";
       return;
     }
     badge.style.display = "";
-    const proposalUnavailable =
-      ((screen === "pt01-proposal-trace" ||
-        screen === "pt02-proposals-evals") &&
-        !live &&
-        !state.proposalExamples) ||
-      (isOperationalExample(screen) && !operationalExamples.enabled(screen)) ||
-      document.getElementById("main-workspace")?.dataset.unavailableScreen ===
-        screen;
-    badge.dataset.mode = live
-      ? "live"
-      : proposalUnavailable
-        ? "unavailable"
-        : "example";
-    badge.textContent = live
-      ? "LIVE"
-      : proposalUnavailable
-        ? "UNAVAILABLE"
-        : "EXAMPLE DATA";
-    badge.title = live
-      ? "This view is read from the Hub"
-      : proposalUnavailable
-        ? "No native operational data is available for this view; example mode is off"
-        : "This view shows example data, not this Hub's records";
+    badge.dataset.mode = view.mode;
+    badge.textContent = view.text;
+    badge.title = view.title;
   }
 
   function renderKpiStrip() {
@@ -4847,7 +4801,7 @@ export function mountOperator(host, options) {
     const screenChanged =
       previousScreen !== "" && previousScreen !== state.screen;
     previousScreen = state.screen;
-    const m = {
+    const m = classifyRenderers({
       "s01-intake": renderS01Intake,
       "s02-workspaces": renderS02Workspaces,
       "s03-saved-views": renderS03SavedViews,
@@ -4884,7 +4838,7 @@ export function mountOperator(host, options) {
       ...releaseGates.renderers,
       ...ontologyGraph.renderers,
       ...settings.renderers,
-    };
+    });
     const renderer = m[state.screen];
     if (!renderer) {
       root.dataset.unavailableScreen = state.screen;
@@ -4946,7 +4900,7 @@ export function mountOperator(host, options) {
       <div id="area-kit">${extra}</div>
       <div id="area-body"></div>
     </div>`;
-    const renderer = {
+    const renderer = classifyRenderers({
       "s02-workspaces": renderS02Workspaces,
       "s09-source": renderS09Source,
       "s11-preview": renderS11Preview,
@@ -5069,7 +5023,7 @@ export function mountOperator(host, options) {
       "s17-spokes-audit": renderS17SpokesAudit,
       "au01-audit": renderAuditLedger,
       "adm-platform-status": (node) => void adminStatus.render(node),
-    }[current.screen];
+    })[current.screen];
     if (renderer) {
       const body = root.querySelector("#area-body");
       if (!operationalExamples.paint(body, current.screen, renderer))

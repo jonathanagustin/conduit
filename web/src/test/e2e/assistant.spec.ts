@@ -1260,6 +1260,12 @@ test("plan inspector loads the selected environment timeline and preserves audit
   const inspector = page.locator("[data-release-plan-inspector]");
   await expect(inspector).toContainText("Recorded denial");
   await expect(inspector).toContainText("Hub-verified chain link 7");
+  // Plans detail is read from the Hub and must say so (#822).
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
+  await expect(page.locator("#example-data-badge")).toHaveAttribute(
+    "data-mode",
+    "live",
+  );
   await inspector.locator("[data-release-plan]").selectOption("native-plan-b");
   await expect(inspector).toContainText("native-plan-event-b");
   await expect(inspector).not.toContainText("native-audit-a");
@@ -1849,10 +1855,17 @@ test("change review binds confirmation to request, revision and Hub identity", a
     ),
   );
   await expect(page.locator("[data-cr-diff]")).toContainText("128Mi");
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
   await expect(page.locator("#area-body")).not.toContainText("do-not-expose");
   await page.locator('[data-area-tab="approvals"]').click();
   await expect(page.locator("[data-approvals-board]")).toContainText(
     "Recorded only",
+  );
+  // The Approvals board lists Hub plans and must say so (#822).
+  await expect(page.locator("#example-data-badge")).toHaveText("LIVE");
+  await expect(page.locator("#example-data-badge")).toHaveAttribute(
+    "data-mode",
+    "live",
   );
   await expect(page.locator("[data-approvals-board]")).toContainText(
     "native-recorded-plan",
