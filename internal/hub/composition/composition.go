@@ -17,6 +17,7 @@ import (
 	"os"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	"github.com/jonathanagustin/conduit/internal/modelhttp"
 )
 
 // NewHubHandler assembles the Hub HTTP surface from explicitly supplied ports.
@@ -51,6 +52,9 @@ func NewHubHandler(
 func NewHub(
 	repository controlplane.Repository, options controlplane.HandlerOptions, hub ...Options,
 ) (http.Handler, error) {
+	if err := modelhttp.RejectLocalCommands(os.Getenv); err != nil {
+		return nil, err
+	}
 	hubOptions := Options{}
 	if len(hub) > 0 {
 		hubOptions = hub[0]

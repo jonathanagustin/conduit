@@ -14,10 +14,8 @@ import (
 	devchange "github.com/jonathanagustin/conduit/internal/devworkspace/adapters/changerequest"
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/deterministic"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/imagebuild"
-	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
@@ -147,43 +145,7 @@ func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, er
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client}, nil
 	}
-	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return deterministic.Writer{}, nil
-	}
-	argv, err := localcmd.ParseArgv(raw)
-	if err != nil {
-		return nil, fmt.Errorf("CONDUIT_MODEL_CMD: %w", err)
-	}
-	if deterministicCommand(argv, getenv("CONDUIT_AGENT_PROVIDER")) {
-		return deterministic.Writer{}, nil
-	}
-	timeout := 45 * time.Second
-	if text := strings.TrimSpace(getenv("CONDUIT_MODEL_TIMEOUT")); text != "" {
-		parsed, err := time.ParseDuration(text)
-		if err != nil || parsed <= 0 {
-			return nil, fmt.Errorf("CONDUIT_MODEL_TIMEOUT must be a positive duration")
-		}
-		timeout = parsed
-	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv)}, nil
-}
-
-func deterministicCommand(argv []string, providerEnv string) bool {
-	joined := strings.Join(argv, " ")
-	if !strings.Contains(joined, "agent-exec") {
-		return false
-	}
-	provider := strings.TrimSpace(providerEnv)
-	for i, arg := range argv {
-		if arg == "--provider" && i+1 < len(argv) {
-			provider = argv[i+1]
-		}
-		if strings.HasPrefix(arg, "--provider=") {
-			provider = strings.TrimPrefix(arg, "--provider=")
-		}
-	}
-	return provider == "" || provider == "deterministic"
+	return deterministic.Writer{}, nil
 }
 
 func packagingSourceBuild(repoURL string, getenv func(string) string) bool {

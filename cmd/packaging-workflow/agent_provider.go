@@ -3,16 +3,13 @@ package main
 import (
 	"context"
 	"encoding/json"
-	"fmt"
-	"os"
 	"strings"
-	"time"
 
 	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
-// deterministic is the only implicit provider. Delegating to any other
-// engine requires an operator-supplied command; no vendor argv is guessed.
+// Only the deterministic offline utility remains selectable. The legacy
+// provider functions refuse both vendor and arbitrary operator labels.
 const (
 	providerDeterministic = "deterministic"
 	providerClaude        = "claude"
@@ -21,43 +18,14 @@ const (
 	providerGrok          = "grok"
 )
 
-func providerArgv(name string) ([]string, error) {
-	env := "CONDUIT_PROVIDER_" + strings.ToUpper(name) + "_CMD"
-	if raw := strings.TrimSpace(os.Getenv(env)); raw != "" {
-		argv, err := localcmd.ParseArgv(raw)
-		if err != nil {
-			return nil, fmt.Errorf("%s: %w", env, err)
-		}
-		return argv, nil
-	}
-	return nil, fmt.Errorf("provider %q has no implicit command; set %s to the command for your installed CLI", name, env)
-}
+func providerArgv(name string) ([]string, error) { return nil, localcmd.ErrLocalCommandUnsupported }
 
 const providerReplyRule = "\n\nReply with the requested output only: no commentary and no markdown fences. " +
 	"When the instructions ask for JSON, reply with exactly one JSON object.\n"
 
-// runProviderPrompt sends one prompt to the provider CLI and returns its
-// normalized reply. The prompt text is passed on stdin, never on argv.
+// runProviderPrompt refuses the retired provider delegation interface.
 func runProviderPrompt(ctx context.Context, provider, prompt string) (string, error) {
-	argv, err := providerArgv(provider)
-	if err != nil {
-		return "", err
-	}
-	timeout := 90 * time.Second
-	if raw := os.Getenv("CONDUIT_MODEL_TIMEOUT"); raw != "" {
-		if d, parseErr := time.ParseDuration(raw); parseErr == nil && d > 0 {
-			timeout = d
-		}
-	}
-	stdout, err := localcmd.Execute(ctx, argv, timeout, []byte(prompt+providerReplyRule))
-	if err != nil {
-		return "", fmt.Errorf("%s provider failed: %w", provider, err)
-	}
-	reply := normalizeProviderReply(string(stdout), strings.Contains(prompt, "JSON") || strings.Contains(prompt, "toolCalls"))
-	if reply == "" {
-		return "", fmt.Errorf("%s provider returned an empty reply", provider)
-	}
-	return reply, nil
+	return "", localcmd.ErrLocalCommandUnsupported
 }
 
 // normalizeProviderReply strips markdown fences and, when JSON is expected and

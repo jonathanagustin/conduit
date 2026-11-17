@@ -1,66 +1,28 @@
-// Package localcmd runs one local command with argv, stdin, and a timeout.
-// It does not interpret a reply and it does not approve a change.
+// Package localcmd retains argv utilities and the retired model-command API.
+// Execute is an explicit refusal and never starts a host process.
 package localcmd
 
 import (
-	"bytes"
 	"context"
 	"errors"
 	"fmt"
-	"os"
-	"os/exec"
 	"strings"
 	"time"
 	"unicode"
 )
 
 var (
-	ErrTimeout  = errors.New("command timed out")
-	ErrNotFound = errors.New("command was not found")
-	ErrFailed   = errors.New("command failed")
-	ErrEmpty    = errors.New("command is empty")
+	ErrLocalCommandUnsupported = errors.New("local model commands are unsupported; configure CONDUIT_MODEL_BASE_URL for HTTP or leave model configuration unset for offline operation")
+	ErrTimeout                 = errors.New("command timed out")
+	ErrNotFound                = errors.New("command was not found")
+	ErrFailed                  = errors.New("command failed")
+	ErrEmpty                   = errors.New("command is empty")
 )
 
-// Execute starts argv in a temporary directory and writes stdin to the process.
-// stdout is returned even when the process fails, so the caller can digest it.
+// Execute refuses the retired model subprocess transport. It never starts a
+// process, reads credentials or creates a working directory.
 func Execute(ctx context.Context, argv []string, timeout time.Duration, stdin []byte) ([]byte, error) {
-	if len(argv) == 0 || strings.TrimSpace(argv[0]) == "" {
-		return nil, ErrEmpty
-	}
-	if ctx.Err() != nil {
-		return nil, ctx.Err()
-	}
-	dir, err := os.MkdirTemp("", "conduit-local-")
-	if err != nil {
-		return nil, err
-	}
-	defer os.RemoveAll(dir)
-	if timeout <= 0 {
-		timeout = 45 * time.Second
-	}
-	runCtx, cancel := context.WithTimeout(ctx, timeout)
-	defer cancel()
-	command := exec.CommandContext(runCtx, argv[0], argv[1:]...)
-	command.Dir = dir
-	// The child gets an explicit allowlist, never the caller's environment,
-	// so it does not inherit unrelated Hub environment variables. This is
-	// not filesystem isolation: the command still runs with the Hub's UID.
-	command.Env = childEnv()
-	command.Stdin = bytes.NewReader(stdin)
-	var stdout, stderr bytes.Buffer
-	command.Stdout = &stdout
-	command.Stderr = &stderr
-	err = command.Run()
-	if errors.Is(runCtx.Err(), context.DeadlineExceeded) {
-		return stdout.Bytes(), ErrTimeout
-	}
-	if err != nil {
-		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
-			return stdout.Bytes(), fmt.Errorf("%w: %s", ErrNotFound, CommandName(argv[0]))
-		}
-		return stdout.Bytes(), fmt.Errorf("%w: %v", ErrFailed, err)
-	}
-	return stdout.Bytes(), nil
+	return nil, ErrLocalCommandUnsupported
 }
 
 // CommandName is the last path segment of a command.

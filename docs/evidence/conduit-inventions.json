@@ -16,10 +16,10 @@
   "inventions": [
     {
       "id": "modelconfig.CapabilitySelection",
-      "what": "Conduit-native capability-scoped model name/command/deadline overrides and separate configured/provider model identities on planning sessions, immutable Accept bindings, audit records and per-call assistant/app-generation provenance.",
-      "why": "No adopted upstream contract in this repository defines selection or model provenance for Conduit AI capabilities. A configured alias and provider-reported response id are different facts. Native keys preserve global configuration defaults and share one HTTP endpoint/key; explicit command overrides select CLI execution only for their capability.",
+      "what": "Conduit-native capability-scoped HTTP model name/deadline overrides and separate configured/provider model identities on planning sessions, immutable Accept bindings, audit records and per-call assistant/app-generation provenance.",
+      "why": "No adopted upstream contract in this repository defines selection or model provenance for Conduit AI capabilities. A configured alias and provider-reported response id are different facts. Native keys preserve global configuration defaults and share one HTTP endpoint/key; all former global/capability command settings are explicitly refused before HTTP or offline selection.",
       "displacedBy": "An adopted versioned capability-selection and model-provenance contract replacing these native configuration keys and Accept fields.",
-      "riskIfWrong": "The keys and additive fields may need replacement. Provider response metadata is not attestation; a CLI model name is an operator assertion. Missing provider identity stays absent, historical records are not rewritten, and selection adds no approval, publication or deployment authority."
+      "riskIfWrong": "The keys and additive fields may need replacement. Provider response metadata is not attestation; historical CLI model names remain operator assertions. Missing provider identity stays absent, historical records are not rewritten, and selection adds no approval, publication or deployment authority."
     },
     {
       "id": "grype.LocalNormalizedReport",

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -388,7 +389,7 @@ func TestCLIMCPServeToolbox(t *testing.T) {
 	}
 }
 
-func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
+func TestCLIPlanningAndComputeOverDeterministicHTTPFixture(t *testing.T) {
 	cliPath := strings.TrimSpace(os.Getenv("CONDUIT_TEMPORAL_CLI"))
 	if cliPath == "" {
 		candidate := filepath.Join("..", "..", ".cache", "temporal", "temporal")
@@ -403,12 +404,7 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	}
 
 	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "packaging-workflow")
-	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
-	}
-	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
+	modelhttpfixture.Configure(t, runAgentExecPrompt)
 
 	dbPath := filepath.Join(tmpDir, "temporal.db")
 	stateDir := filepath.Join(tmpDir, "state")
@@ -443,7 +439,7 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	if err != nil {
 		t.Fatalf("activitiesWithRepository: %v", err)
 	}
-	// Passing false for fixturePlanner ensures CONDUIT_MODEL_CMD is invoked for every turn!
+	// The explicit HTTP fixture, not plan-fixture, serves every model turn.
 	planActs, err := planningActivities(stateDir, repository, false)
 	if err != nil {
 		t.Fatalf("planningActivities: %v", err)

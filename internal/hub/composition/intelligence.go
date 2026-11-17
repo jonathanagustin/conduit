@@ -8,17 +8,14 @@ import (
 	"fmt"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strings"
 	"time"
 
-	"github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	intelhttp "github.com/jonathanagustin/conduit/internal/intelligence/httpapi"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
-	packagingcli "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
@@ -52,19 +49,7 @@ func liveEvalProposer() intelapp.Proposer {
 	} else if client != nil {
 		return intelligenceEvalProposer{runner: packagingmodelhttp.Adapter{Client: client}}
 	}
-	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return nil
-	}
-	argv, err := packagingcli.ParseArgv(raw)
-	if err != nil || len(argv) == 0 {
-		return nil
-	}
-	timeout := 45 * time.Second
-	if parsed, err := time.ParseDuration(intelligenceTimeout()); err == nil && parsed > 0 {
-		timeout = parsed
-	}
-	return intelligenceEvalProposer{runner: packagingcli.Runner{Argv: argv, Timeout: timeout}}
+	return nil
 }
 
 type intelligenceEvalProposer struct {
@@ -110,19 +95,11 @@ func mountIntelligence(legacy http.Handler, repository controlplane.Repository, 
 
 func intelligenceAdapter() string {
 	if client, err := modelHTTPClient(os.Getenv); err != nil {
-		return "recorded"
+		return "unavailable"
 	} else if client != nil {
 		return modelhttp.AdapterName
 	}
-	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
-	if raw == "" {
-		return "recorded"
-	}
-	argv, err := modelcli.ParseArgv(raw)
-	if err != nil || len(argv) == 0 {
-		return "recorded"
-	}
-	return filepath.Base(argv[0])
+	return "recorded"
 }
 
 func intelligenceTimeout() string {

@@ -29,7 +29,7 @@ reporting a package.
 
 That script checks out `https://github.com/excalidraw/excalidraw` at
 `a2ec2889babf7d2295469c6d90ebe77fae57df84`, runs planning turns with the
-deterministic writer unless `CONDUIT_MODEL_CMD` is set, records Accept, then
+explicitly configured HTTP model, records Accept, then
 runs post-accept compute. Compute commits a workspace `Dockerfile`,
 `zarf.yaml`, and UDS `Package` CR, builds the image, and runs the dockerfile
 gate, the Package CR schema gate, `zarf dev lint`, and `zarf package create`.
@@ -86,10 +86,11 @@ iptables or bridge networking, set `DEMO_DOCKER_NETWORK=host`. The seed also
 switches to that mode when the default publish or image build fails for that
 reason.
 
-Optional: live model proposals. Install a local model CLI yourself and sign
-in with it, then set `CONDUIT_MODEL_CMD` to that command before starting the
-Hub. Leave the variable unset to keep the recorded proposals and make no
-model call. See [Local model CLI](docs/operations/local-model-cli.md).
+Optional: live model proposals. Configure `CONDUIT_MODEL_BASE_URL` and
+`CONDUIT_MODEL_NAME` for an operator-managed HTTP endpoint before starting
+the Hub. Leave model configuration unset to keep recorded proposals and make
+no model call. Host model commands are refused. See
+[HTTP model endpoint](docs/operations/model-http.md).
 
 To install and verify a published release (CLI archives, SLSA provenance, SPDX
 SBOMs, digest-pinned Helm charts, container images, and air-gap Zarf packages)

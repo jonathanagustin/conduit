@@ -39,7 +39,7 @@ func TestModelFrontendHandoffStopsBeforeTheNextPhase(t *testing.T) {
 	script := writeModelScript(t, replies...)
 	observer := &frontendFixture{}
 	ctx := application.WithRunScope(t.Context(), application.RunScope{ThreadID: "fixture", RunID: "run", Frontend: observer, Questions: observer, Grounding: `{"context":"grounding-sentinel"}`})
-	service := application.NewService(Planner{Argv: []string{script}})
+	service := application.NewService(Planner{Model: script})
 	session, err := service.Create(ctx, server.URL+"/src.git", "main")
 	if err != nil {
 		t.Fatal(err)
@@ -51,14 +51,14 @@ func TestModelFrontendHandoffStopsBeforeTheNextPhase(t *testing.T) {
 	if observer.calls != 1 || session.Plan != nil {
 		t.Fatal("frontend handoff continued into plan generation")
 	}
-	count, err := os.ReadFile(filepath.Join(filepath.Dir(script), "n"))
+	count, err := os.ReadFile(filepath.Join(script.dir, "n"))
 	if err != nil {
 		t.Fatal(err)
 	}
 	if string(count) != strconv.Itoa(len(replies))+"\n" {
 		t.Fatalf("unexpected extra model call: %s", count)
 	}
-	prompt, err := os.ReadFile(filepath.Join(filepath.Dir(script), "prompt-1.txt"))
+	prompt, err := os.ReadFile(filepath.Join(script.dir, "prompt-1.txt"))
 	if err != nil {
 		t.Fatal(err)
 	}

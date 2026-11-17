@@ -1,12 +1,18 @@
 #!/usr/bin/env bash
 # Run one recorded app generation through the existing governed flow.
-# Leaves CONDUIT_MODEL_CMD unset, so the Hub serves the checked-in spec.
+# Requires offline model configuration, so the Hub serves the checked-in spec.
 # The default demo seed does not call this. Set DEMO_GENERATE=1, or run it
 # after scripts/demo-seed.sh.
 set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root}"
+for model_setting in CONDUIT_MODEL_CMD CONDUIT_ASSISTANT_MODEL_CMD CONDUIT_PLANNING_MODEL_CMD CONDUIT_PACKAGING_MODEL_CMD CONDUIT_APPGEN_MODEL_CMD CONDUIT_MODEL_BASE_URL; do
+  if [[ -n "${!model_setting:-}" ]]; then
+    echo "Recorded generation requires ${model_setting} to be unset; no configured model is silently replaced." >&2
+    exit 64
+  fi
+done
 state_dir="${CONDUIT_SEED_DIR:-/tmp/conduit-seed}"
 hub="http://127.0.0.1:8081"
 fixture="${state_dir}/packaging/fixture"
@@ -29,7 +35,7 @@ done
 sleep 1
 
 mkdir -p "${state_dir}/workspaces"
-nohup env -u CONDUIT_MODEL_CMD \
+nohup env \
   LISTEN_ADDRESS=127.0.0.1:8081 \
   DATA_DIRECTORY="${state_dir}/data" \
   DEVWORKSPACE_GIT_ROOT="${state_dir}/workspaces" \

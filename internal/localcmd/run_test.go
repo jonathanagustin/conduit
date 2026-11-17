@@ -5,7 +5,6 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
-	"runtime"
 	"testing"
 	"time"
 )
@@ -23,24 +22,15 @@ func TestParseArgvDoesNotUseAShell(t *testing.T) {
 	}
 }
 
-func TestExecuteTimeoutAndMissingCommand(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("script fixture is a shell")
+func TestExecuteNeverStartsAHostCommand(t *testing.T) {
+	marker := filepath.Join(t.TempDir(), "executed")
+	for _, argv := range [][]string{nil, {"missing-model"}, {"/bin/sh", "-c", "touch \"$1\"", "fixture", marker}} {
+		out, err := Execute(context.Background(), argv, time.Second, []byte("private prompt"))
+		if !errors.Is(err, ErrLocalCommandUnsupported) || len(out) != 0 {
+			t.Fatalf("out=%q err=%v", out, err)
+		}
 	}
-	dir := t.TempDir()
-	script := filepath.Join(dir, "sleep")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nsleep 5\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	_, err := Execute(context.Background(), []string{script}, 200*time.Millisecond, []byte("prompt"))
-	if !errors.Is(err, ErrTimeout) {
-		t.Fatalf("timeout = %v", err)
-	}
-	_, err = Execute(context.Background(), []string{filepath.Join(dir, "missing")}, time.Second, nil)
-	if !errors.Is(err, ErrNotFound) {
-		t.Fatalf("missing = %v", err)
-	}
-	if _, err := Execute(context.Background(), nil, time.Second, nil); !errors.Is(err, ErrEmpty) {
-		t.Fatalf("empty = %v", err)
+	if _, err := os.Stat(marker); !errors.Is(err, os.ErrNotExist) {
+		t.Fatalf("command ran: %v", err)
 	}
 }

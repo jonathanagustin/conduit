@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"github.com/jonathanagustin/conduit/internal/testsupport/modelhttpfixture"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -402,11 +403,7 @@ func TestPlanningCloneFollowsMovedHeadAndRejectsInvalidRefs(t *testing.T) {
 
 func TestPlanningSessionEndToEndHonorsRequestedBranchAndRejectsMovedOrInvalidRef(t *testing.T) {
 	tmpDir := t.TempDir()
-	binPath := filepath.Join(tmpDir, "packaging-workflow")
-	buildCmd := exec.Command("go", "build", "-o", binPath, "github.com/jonathanagustin/conduit/cmd/packaging-workflow")
-	if out, err := buildCmd.CombinedOutput(); err != nil {
-		t.Fatalf("go build packaging-workflow: %v\n%s", err, string(out))
-	}
+	modelhttpfixture.Configure(t, nil)
 
 	remote := newTestGitRemote(t, "excalidraw", map[string]string{
 		"package.json":  `{"name":"excalidraw","version":"0.17.0","scripts":{"start":"npm start"}}`,
@@ -450,7 +447,6 @@ func TestPlanningSessionEndToEndHonorsRequestedBranchAndRejectsMovedOrInvalidRef
 	}
 	t.Setenv("CONDUIT_DEMO_SOURCE_DIR", plainDemo)
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", gitRoot)
-	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
 	// The fixture source is a loopback server, which the default policy refuses.
 	t.Setenv("CONDUIT_SOURCE_ALLOWED_HOSTS", "127.0.0.1")
 
