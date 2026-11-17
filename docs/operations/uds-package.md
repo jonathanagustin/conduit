@@ -113,8 +113,10 @@ Postgres, a scrape succeeding, or what Zarf does when both `uds` and
   `uds-k3d` 0.21.4 (its offline variant), which the slim-dev bundle pins.
 - Slim-dev bundle
   `oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:1.17.1`.
-  Bring it up with `mise run uds-up`. That task creates a user-defined Docker
-  network named `uds-k3d` first, which is required when the Docker daemon has
+  Bring it up with `mise run uds-up`. See [local cluster selection](local-uds-cluster.md)
+  for Podman on macOS, the Docker API endpoint and isolated task kubeconfigs.
+  That task creates a user-defined network named `uds-k3d` by default,
+  which is required when the Docker daemon has
   no default bridge, and passes `--network uds-k3d` plus flannel `host-gw`
   through `K3D_EXTRA_ARGS`. Some kernels cannot create a vxlan device.
   After deploy, the task clears hostPorts on the nginx DaemonSet and sets
