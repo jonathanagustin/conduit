@@ -109,6 +109,23 @@ export async function readPages(path, key, read = readJSON, strict = false) {
   return { rows, truncated: cursor !== "", total };
 }
 
+// Older Hubs may ignore an unknown order parameter. Require the resolved order
+// on every page before displaying the result as the newest recorded events.
+export async function readAuditPages(read = readJSON) {
+  const page = await readPages(
+    "/v1/authorization-audit?view=chain&order=desc&limit=200",
+    "entries",
+    async (path) => {
+      const body = await read(path);
+      if (body.order !== "desc")
+        throw new Error("Hub did not confirm descending audit order");
+      return body;
+    },
+    true,
+  );
+  return { ...page, order: "desc" };
+}
+
 /**
  * The environment whose timeline and blackout the refresh reads: the
  * operator's selection when it names a loaded environment, otherwise the
@@ -748,13 +765,13 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       next.packagingNote = "Hub did not return packaging runs.";
     }
     try {
-      // The audit read is cursor-paged and oldest-first. Follow the cursor to
-      // the catch-up bound; past it the truncation mark says rows are missing.
-      next.audit = await pages(
-        "/v1/authorization-audit?view=chain&limit=200",
-        "entries",
-        "audit",
-      );
+      // Keep projection order for proof verification; renderers use auditOrder
+      // to show the newest records without reversing the hashed input chain.
+      const page = await readAuditPages(read);
+      next.audit = page.rows;
+      next.auditOrder = page.order;
+      if (page.truncated)
+        truncated.audit = { shown: page.rows.length, total: page.total };
     } catch {
       next.auditNote = "Hub did not return the audit chain.";
     }

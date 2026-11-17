@@ -1891,6 +1891,7 @@ export function mountOperator(host, options) {
         tab: inspector.tab,
         esc: escHtml,
         audit: Array.isArray(state.hub?.audit) ? state.hub.audit : [],
+        auditOrder: state.hub?.auditOrder || "asc",
       },
     )}</div>`;
   }
@@ -1943,6 +1944,7 @@ export function mountOperator(host, options) {
   let ledgerRoot = null;
   const auditLedger = createAuditLedger({
     getEntries: () => (Array.isArray(state.hub?.audit) ? state.hub.audit : []),
+    getOrder: () => state.hub?.auditOrder || "asc",
     rerender: () => {
       if (ledgerRoot && ledgerRoot.isConnected) auditLedger.render(ledgerRoot);
     },
