@@ -31,7 +31,7 @@ export CONDUIT_LOCAL_CI_REPORT_DIR="${report_dir}"
 printf 'Local CI commit: %s\nEvidence directory: %s\n' "${expected_sha}" "${report_dir}"
 # A nondefault profile must be supported by the candidate, even when this
 # wrapper is newer tooling from another checkout. Refuse before the full run.
-node --input-type=module - "${root}" "${report_dir}" <<'JS'
+env -u GH_TOKEN -u GITHUB_TOKEN node --input-type=module - "${root}" "${report_dir}" <<'JS'
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
