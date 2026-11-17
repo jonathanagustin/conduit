@@ -30,7 +30,7 @@ native hosted gate for the proposed head before merging browser changes.
 ## Static visual frames
 
 The visual spec selects `prefers-reduced-motion: reduce` before navigation,
-using the application's supported unanimated rendering. It retains the fixed
+using the application's supported reduced-motion rendering. It retains the fixed
 clock, Hub-read and font readiness checks, disabled screenshot animations,
 hidden caret and zero pixel tolerance. Functional and accessibility specs keep
 their existing motion settings.
@@ -41,6 +41,13 @@ layout and computed styles in the animated scene; reduced-motion captures
 produced one output per case across repeated runs. Capture-policy changes need
 independent native and QEMU baseline review. This is a static-frame contract,
 not general qualification of animation behavior or a complete local-CI receipt.
+
+The QEMU capture-policy update uses committed source
+`299220f2ef087b3e16899c4b8237892644e38a16`: three captures of all 28 views
+produced one pixel output per view. Eight prior phone expectations differed by
+six or seven pixels at the Inbox corner; their full-size replacements were
+reviewed before acceptance. This is capture provenance; final qualification
+requires a separate passing run against the reviewed expectations.
 
 ## Pointer and focus stability
 
