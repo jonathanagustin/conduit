@@ -281,6 +281,11 @@ abort "Conduit archives must have verified keyless SLSA provenance bundles" unle
     workflow.include?('cosign verify-blob-attestation') &&
     workflow.include?('--certificate-identity "${builder}"') &&
     workflow.include?('cli-dist/provenance/*')
+abort "release workflow must download and verify published release assets from a clean directory" unless
+  workflow.include?("gh release download") &&
+    workflow.include?('./scripts/verify-published-release.sh "${clean_release_dir}"') &&
+    File.executable?(File.expand_path("verify-published-release.sh", __dir__)) &&
+    File.executable?(File.expand_path("verify-published-release.test.sh", __dir__))
 abort "release must not depend on unavailable private-repository GitHub attestations" if
   workflow.include?("actions/attest@") || workflow.include?("attestations: write")
 abort "runtime builds must use the fixed Go toolchain by exact image digest" unless

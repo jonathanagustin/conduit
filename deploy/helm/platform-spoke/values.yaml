@@ -24,6 +24,11 @@ rbac:
   # deploy/helm/README.md, "The Agent's RBAC floor", before treating what this
   # renders as the limit of what the Agent can do.
   create: true
+  # Opt-in namespaced Role and RoleBinding profile for the Zarf/UDS package
+  # executor (`internal/agent/adapters/uds`), kept separate from the Helm
+  # executor's floor. Renders `<fullname>-package-executor` in each
+  # `managedNamespaces` entry and `<fullname>-zarf-state` in namespace `zarf`.
+  packageExecutor: false
   # Every namespace this Agent's Plans target -- `step.Namespace`, which is not
   # normally the Agent's own release namespace. Required when create is true,
   # because there is no honest default: the Agent usually runs in one namespace

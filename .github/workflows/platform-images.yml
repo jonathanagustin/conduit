@@ -565,6 +565,13 @@ jobs:
             platform-oci-manifest.json platform-runtime.json platform-helm-charts.json \
             dist/*.syft.json dist/*.spdx.json dist/*.grype.json helm-dist/* zarf-dist/* cli-dist/archives/* cli-dist/provenance/* cli-dist/sbom/* cli-dist/SHA256SUMS \
             --repo '${{ github.repository }}' --clobber
+          clean_release_dir="$(mktemp -d "${RUNNER_TEMP}/conduit-clean-release.XXXXXX")"
+          ./scripts/retry-github-api.sh gh release download '${{ github.ref_name }}' \
+            --repo '${{ github.repository }}' --dir "${clean_release_dir}"
+          RELEASE_VERSION="$(tr -d '\n' < VERSION)" \
+            RELEASE_COMMIT="${GITHUB_SHA}" \
+            RELEASE_CERTIFICATE_IDENTITY="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}" \
+            ./scripts/verify-published-release.sh "${clean_release_dir}"
 
   # Puts the signed air-gap packages where a UDS bundle or `zarf package deploy
   # oci://` can reference them by repository, rather than only as Release

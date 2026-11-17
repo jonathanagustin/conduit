@@ -133,7 +133,7 @@ oci_manifest() {
 
 supply_chain() {
   ruby scripts/test-safe-yaml.rb && ruby scripts/verify-trusted-supply-chain.rb && ./scripts/test-retry-keyless-signing.sh &&
-    ./scripts/test-cosign-credential-helper.sh
+    ./scripts/test-cosign-credential-helper.sh && ./scripts/verify-published-release.test.sh
 }
 
 optimizer_candidate_release() {

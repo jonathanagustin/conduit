@@ -222,4 +222,23 @@ grep -q 'is missing or empty' <<<"${verifier_output}" && {
   exit 1
 }
 
+# Release Please overflow bodies point to `release-notes.md` on the companion
+# `<headRef>--release-notes` branch when the changelog exceeds GitHub's 65536
+# byte PR body limit (#844).
+overflow_body='This release is too large to preview in the pull request body. View the full release notes here: https://github.com/owner/repo/blob/release-please--branches--main--components--conduit--release-notes/release-notes.md'
+encoded_notes="$(printf '%s' "${body}" | base64 | tr -d '\r\n')"
+printf '%s' "$(jq -n --arg body "${overflow_body}" --arg content "${encoded_notes}" '{body: $body, content: $content}')" > "${FAKE_GH_RESPONSE}"
+printf '0\n' > "${FAKE_GH_FAILURES}"
+rm -f "${FAKE_GH_ATTEMPTS}"
+run_reader
+test "${status}" = 0 || {
+  printf 'a Release Please overflow pointer was not resolved to its release-notes.md content: %s\n' "${stderr}" >&2
+  exit 1
+}
+test "${stdout}" = "${body}" || {
+  echo 'the resolved overflow body did not match the stored release-notes.md' >&2
+  exit 1
+}
+test "$(cat "${FAKE_GH_ATTEMPTS}")" = 2
+
 echo 'read-pull-request-body: all cases passed'
