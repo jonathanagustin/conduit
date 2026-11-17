@@ -410,3 +410,13 @@ before confirmation, the author's disabled approval, and exact reviewer payload.
 The Hub answers are fixtures; the reviewer is a fresh fixture session after
 reload. This is keyboard interaction coverage, not a real-issuer or full
 accessibility audit, and does not replace live-Hub journey tests.
+
+## Accessibility scan gate
+
+The normal Chromium end-to-end suite runs pinned `@axe-core/playwright` 4.11.0
+against each of the seven areas' default views in both themes. Serious and
+critical findings fail the gate; complete JSON reports retain all severities.
+No rule or DOM region is excluded. These use the synthetic empty Hub fixture,
+so loaded records, dialogs, error states and every tab still need their own
+interaction coverage. A passing scan does not establish WCAG conformance or
+replace keyboard, screen-reader and cross-browser review.

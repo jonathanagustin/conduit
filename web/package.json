@@ -55,6 +55,7 @@
     "zustand": "^5.0.16"
   },
   "devDependencies": {
+    "@axe-core/playwright": "4.11.0",
     "@babel/parser": "7.29.14",
     "@bufbuild/protoc-gen-es": "2.17.0",
     "@playwright/test": "^1.65.0",
