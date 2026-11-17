@@ -27,8 +27,7 @@ func reviewedHub(t *testing.T) (http.Handler, *notificationStore) {
 		t.Fatal(err)
 	}
 	if _, err := governance.PutGrant(ctx, controlplane.ResourceGrant{
-		ResourceRID: apolloapplication.EnvironmentRID("dev-use2"), Team: "reviewers",
-		Operations: []string{controlplane.OperationReadResource},
+		ResourceRID: "environment/dev-use2", Team: "reviewers", Roles: []string{"environment:viewer"},
 	}); err != nil {
 		t.Fatal(err)
 	}
@@ -106,7 +105,7 @@ func TestAGrantWrittenThroughTheHubBecomesARoleChangeEvent(t *testing.T) {
 	t.Parallel()
 	handler, store := reviewedHub(t)
 	response := request(t, handler, http.MethodPost, "/v1/resource-grants", "local-developer",
-		`{"resourceRid":"environment/dev-use2","team":"reviewers","roles":["environment:viewer"]}`)
+		`{"resourceRid":"environment/grant-change","team":"reviewers","roles":["environment:viewer"]}`)
 	if response.Code != http.StatusOK {
 		t.Fatalf("write grant = %d %s", response.Code, response.Body.String())
 	}
@@ -114,7 +113,7 @@ func TestAGrantWrittenThroughTheHubBecomesARoleChangeEvent(t *testing.T) {
 		t.Fatalf("a grant write recorded %d events: %#v", len(store.events), store.events)
 	}
 	event := store.events[0]
-	if event.Type != domain.EventRoleChange || event.ResourceRID != "environment/dev-use2" ||
+	if event.Type != domain.EventRoleChange || event.ResourceRID != "environment/grant-change" ||
 		event.Actor != "local-developer" || !strings.Contains(event.Summary, "environment:viewer") {
 		t.Errorf("the grant change is not described: %#v", event)
 	}

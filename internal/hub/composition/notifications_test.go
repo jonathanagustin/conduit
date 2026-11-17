@@ -18,7 +18,9 @@ import (
 	"github.com/jonathanagustin/conduit/internal/notifications/ports"
 )
 
-const environmentRID = "ri.apollo.main.environment.d41d8cd98f00"
+// These ownership fixtures use a native scope. Opaque Environment aliases are
+// tested separately against genuine inventory and ordinary native roles.
+const environmentRID = "environment/notification-test"
 
 // notificationStore is the notification component without a database, keyed on
 // the same tuple the PostgreSQL store's UNIQUE constraint uses.

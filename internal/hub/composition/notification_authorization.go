@@ -22,7 +22,7 @@ func (source notificationGrantSource) ResourceGrantsInScope(ctx context.Context,
 // NewNotificationRecipientEligibility binds background notification checks to
 // current native teams, grants and the same configured bootstrap policy as
 // request authorization. It never captures a request's OIDC claims or token.
-func NewNotificationRecipientEligibility(repository controlplane.GovernanceRepository, options controlplane.HandlerOptions) (notificationports.RecipientEligibility, error) {
+func NewNotificationRecipientEligibility(repository controlplane.Repository, options controlplane.HandlerOptions) (notificationports.RecipientEligibility, error) {
 	if repository == nil {
 		return nil, errors.New("a governance repository is required for notification recipient authorization")
 	}
@@ -33,5 +33,11 @@ func NewNotificationRecipientEligibility(repository controlplane.GovernanceRepos
 	if err != nil {
 		return nil, err
 	}
-	return notificationauthorization.NewRecipientEligibility(access)
+	eligibility, err := notificationauthorization.NewRecipientEligibility(access)
+	if err != nil {
+		return nil, err
+	}
+	return notificationRecipientResourceAuthorization{
+		resources: notificationResourceResolver{repository: repository}, next: eligibility,
+	}, nil
 }

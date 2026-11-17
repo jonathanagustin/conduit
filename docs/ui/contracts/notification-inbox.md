@@ -125,6 +125,20 @@ reason when the operation is absent. When the session does not report the
 resource, the control stays enabled and the Hub decides. Contacts belong to
 their owner rather than to a resource, so no operation gates them.
 
+**Environment identifiers share authorization, not storage keys.** Existing
+Environment events and preferences retain their opaque `EnvironmentRID` values.
+For authorization, the Hub forward-matches that value against its durable native
+Environment catalog and checks `resource:read` at `environment/<id>`. This lets an
+ordinary native Environment viewer subscribe, read events and receive new
+notifications without a second grant on an opaque ID. HTTP, background delivery
+and the requested-resource capabilities in `GET /v1/session` use the same
+resolver. Capability responses keep the queried opaque key; this metadata does
+not change authorization on mutating routes. Unknown, invalid or ambiguous
+aliases fail closed; `Event.Environment` cannot confer authority. Native scopes remain
+unchanged, and no event, subscription, inbox or delivery identity is migrated
+or backfilled. This rule is the registered Conduit extension
+`notifications.EnvironmentAuthorizationAlias`.
+
 **A contact the Hub will never deliver to is labelled.** `deliverable: false`
 (a PAGERDUTY contact today) renders as "Stored, never delivered".
 
