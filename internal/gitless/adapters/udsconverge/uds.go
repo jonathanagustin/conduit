@@ -7,9 +7,8 @@
 //
 // Both documents are validated against the pinned upstream schemas in
 // internal/udsschema before they are returned, and a document that does not
-// validate is not returned at all. There is one bundle shape in this
-// repository, the one uds-cli v0.41.0 reads and deploy/zarf/uds-bundle.yaml is
-// written in: `kind: UDSBundle` with no apiVersion, `packages`, and
+// validate is not returned at all. This adapter retains the legacy YAML
+// bundle shape that uds-cli v0.41.0 reads: `kind: UDSBundle` with no apiVersion, `packages`, and
 // `optionalComponents`.
 //
 // How a bundle pins a package (uds-cli v0.41.0, pkg/legacy/bundle/common.go,

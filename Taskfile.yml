@@ -77,12 +77,12 @@ tasks:
         --output {{.OUTPUT_DIR}}
 
   uds:create:
-    desc: Create the UDS bundle from the Zarf package zarf:create left in deploy/zarf
+    desc: Assemble an unsigned native UDS bundle from an authenticated beta package; publishes nothing
     vars:
       ARCHITECTURE: '{{.ARCHITECTURE | default "amd64"}}'
     cmd: |
       set -eu
-      "${UDS_BIN:-uds}" create deploy/zarf --architecture {{.ARCHITECTURE}} --confirm
+      ./scripts/create-uds-runtime-bundle.sh {{.ARCHITECTURE}} deploy/zarf
 
   zarf:lifecycle:
     desc: Install N-1, upgrade to N and remove the signed package on k3d. Opt-in and never yet run; needs Docker and a published release.

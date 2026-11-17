@@ -49,12 +49,12 @@ they cannot be set inconsistently by hand.
 | Rollout | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | `Recreate` |
 | Hub state | PostgreSQL, DSN from the `dsn` key of `PACKAGING_POSTGRES_SECRET` | The retained `platform-delivery-state` claim |
 | PodDisruptionBudget | Keeps one Hub serving through a voluntary disruption | Present, and permits evicting the one Pod |
-| Metrics, `uds-metrics`, `packaging-worker` | Available | Not available |
+| Metrics via `uds`, `packaging-worker` | Available | Not available |
 
 The variable's default is `file`, so that a package deployed with no variables
 still starts on a cluster with no database, and an existing file-backed install
 upgrades in place. A production deployment sets `REPOSITORY_KIND=postgres`
-and `PLANNING_TEMPORAL_ADDRESS` explicitly; [`uds-config.yaml`](uds-config.yaml)
+and `PLANNING_TEMPORAL_ADDRESS` explicitly; [`config.uds.hcl`](config.uds.hcl)
 does.
 
 A second Hub replica needs more than a shared database. Planning sessions
@@ -74,20 +74,17 @@ those three, and the equivalence gate renders the chart with them emptied.
 
 The actions validate the packaging profile and derive the profile and
 operational settings. They run on the deploying host, which therefore needs
-POSIX `sh` and `sed`; a Windows deploy host without them is not supported.
+POSIX `sh`, `sed` and `base64`; a Windows deploy host without them is not supported.
 Moving an existing install from `file` to
 `postgres` does not migrate its data, and the claim is left in place.
 
-`/metrics` needs both `--set-variables REPOSITORY_KIND=postgres` and
-`--set-variables METRICS_ADDRESS=:9090`. With those set, select `uds-metrics`
-instead of `uds`: it is the same Package custom resource plus a ServiceMonitor.
-A deploy guard refuses that component unless both are set. The `uds` and
-`uds-metrics` components share a Zarf choice group: requesting both (including
-`--components '*'`) fails selection before any component action or manifest.
-The group's default `uds-disabled` member has no assets or actions, preserving
-a plain `--confirm` install with no UDS CR. This uses the pinned Zarf v1.0.0
-`group` field; it is deprecated upstream and needs migration before a future
-schema removes it. No UDS Core installation is implied by selecting a component.
+`/metrics` needs `REPOSITORY_KIND=postgres` and `METRICS_ADDRESS=:9090`
+in the native deploy values file. Select `--components uds` and set the boolean
+`UDS_METRICS: true` to add its ServiceMonitor. The same optional component owns
+exactly one Package CR with metrics either off or on. The retired `uds-metrics`
+and `uds-disabled` names and the deprecated choice group are gone; a plain
+confirmed install selects no UDS component. Selecting `uds-observability` also
+requires the metrics setting. No UDS Core installation is implied by selection.
 
 ### Typed operational variables
 
@@ -130,7 +127,7 @@ this is not an atomic rollback of a runtime deployed earlier in that command.
 
 `uds-observability` is a further optional component: a `PrometheusRule` with
 the Hub's alert rules and a ConfigMap, labelled `grafana_dashboard: "1"`, with
-the reference dashboard. Select it together with `uds-metrics`; without the
+the reference dashboard. Select it together with `uds` and `UDS_METRICS: true`; without the
 Hub's metrics every rule but `ConduitMetricsAbsent` is blind. Its manifest is
 generated from [`deploy/observability`](../observability) by
 `scripts/verify-observability-assets.rb --write`. It has not been applied to a
@@ -235,22 +232,35 @@ to PostgreSQL and a file-backed Hub never reads them, so the component's
 
 ## UDS bundle
 
-[`uds-bundle.yaml`](uds-bundle.yaml) wraps this package with the `uds`
-component selected, for a cluster that already has UDS Core 1.17.1. It does
-not contain UDS Core. [`uds-config.yaml`](uds-config.yaml) is the example
-deployment configuration: it carries `ENVIRONMENT_ID`, `AGENT_ID`,
-`BOOTSTRAP_ADMINISTRATORS`, the profile, the Secret names and the
-`OPERATOR_OIDC_*` settings as package variables, and no secret values.
+[`bundle.uds.hcl`](bundle.uds.hcl) wraps one authenticated beta runtime package
+with `uds` selected. UDS Core 1.17.1 remains an Environment-owned prerequisite.
+[`config.uds.hcl`](config.uds.hcl) contains reviewed identifiers and Secret names,
+never credential contents. [`runtime-values.yaml`](runtime-values.yaml) forwards
+global scalar variables to native package values without changing their types.
 
 ```sh
-uds create deploy/zarf --confirm
-UDS_CONFIG=uds-config.yaml uds deploy uds-bundle-conduit-amd64-<version>.tar.zst --confirm
+# Use a signed beta archive matching VERSION, already placed in deploy/zarf.
+# Default package trust is this repository's exact release workflow identity.
+task uds:create
+# For a package signed with an Environment-owned key, explicitly set
+# UDS_PACKAGE_VERIFICATION_KEY_PATH and optionally UDS_PACKAGE_ARCHIVE instead.
+
+# Assembly publishes nothing and leaves the outer bundle unsigned.
+# Sign it separately with the Environment's bundle key before deployment.
+uds --features NextMode bundle sign "$BUNDLE" --signing-key "$BUNDLE_SIGNING_KEY"
+uds --features NextMode bundle verify "$BUNDLE" --public-key "$BUNDLE_PUBLIC_KEY"
+uds --features NextMode bundle deploy "$BUNDLE" --public-key "$BUNDLE_PUBLIC_KEY" \
+  --config deploy/zarf/config.uds.hcl
 ```
 
-The UDS CLI is pinned at v0.41.0 by checksum in the Trunk gate, which runs
-`uds create` on the bundle without a cluster. Release Please bumps the
-bundle's version with `VERSION`. The limits of what has been run are in
-[the UDS package note](../../docs/operations/uds-package.md).
+Set `BUNDLE` to the assembled archive and review the example configuration first.
+The build refuses unsigned or alpha package inputs, so an unsigned local
+`task zarf:create` result must be signed before bundling. Release Please keeps
+the HCL version aligned with `VERSION`. The Spoke uses this route only with
+`UDS_NATIVE_BUNDLES=true`; legacy remains its default without format fallback.
+The gate checks a signed image-free fixture and exact values forwarding; it
+does not qualify a cluster install. See the
+[qualification record](../../docs/operations/zarf-1.0-qualification.md).
 
 ## Environment-owned Secrets
 
@@ -287,18 +297,23 @@ package appropriate for the destination, and any Product OCI artifacts through
 the approved media process. Verify the package before deployment, initialize
 the destination if needed, then deploy:
 
+These commands require a published **beta** runtime archive; replace `X.Y.Z`
+with its release version. Older alpha archives retain their original variable
+contract and are not converted by changing CLI flags.
+
 ```sh
-sha256sum --check zarf-package-platform-runtime-amd64-0.11.0.tar.zst.sha256
-zarf package verify zarf-package-platform-runtime-amd64-0.11.0.tar.zst \
-  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v0.11.0' \
-  --certificate-oidc-issuer https://token.actions.githubusercontent.com
-zarf package deploy zarf-package-platform-runtime-amd64-0.11.0.tar.zst \
-  --verify=always \
-  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v0.11.0' \
+version=X.Y.Z
+archive="zarf-package-platform-runtime-amd64-${version}.tar.zst"
+identity="https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v${version}"
+sha256sum --check "${archive}.sha256"
+cat > runtime-values.yaml <<'VALUES'
+ENVIRONMENT_ID: example
+AGENT_ID: spoke-example
+VALUES
+zarf package deploy "$archive" --verify=always \
+  --certificate-identity "$identity" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --set-variables ENVIRONMENT_ID=example \
-  --set-variables AGENT_ID=spoke-example \
-  --confirm
+  --values runtime-values.yaml --confirm
 ```
 
 The publication workflow also pushes the same signed packages to the
@@ -306,12 +321,11 @@ repository's OCI namespace, after verifying each against the workflow's keyless
 identity, and verifies them again as read back from the registry:
 
 ```sh
-zarf package deploy oci://ghcr.io/jonathanagustin/conduit/packages/platform-runtime:0.11.0 \
+zarf package deploy "oci://ghcr.io/jonathanagustin/conduit/packages/platform-runtime:${version}" \
   --verify=always \
-  --certificate-identity 'https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v0.11.0' \
+  --certificate-identity "$identity" \
   --certificate-oidc-issuer https://token.actions.githubusercontent.com \
-  --set-variables ENVIRONMENT_ID=example \
-  --set-variables AGENT_ID=spoke-example \
+  --values runtime-values.yaml \
   --confirm
 ```
 

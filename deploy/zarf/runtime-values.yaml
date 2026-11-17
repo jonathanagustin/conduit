@@ -1,0 +1,5 @@
+# Native bundle variables retain their scalar types. The package schema
+# rejects unknown keys and invalid types before any deployment action.
+{{ range $key, $value := .vars }}
+{{ printf "%q" $key }}: {{ if eq (printf "%T" $value) "string" }}{{ printf "%q" $value }}{{ else if or (eq (printf "%T" $value) "bool") (eq (printf "%T" $value) "int") (eq (printf "%T" $value) "int64") (eq (printf "%T" $value) "float64") (eq (printf "%T" $value) "json.Number") }}{{ $value }}{{ else }}[unsupported-nonscalar-input{{ end }}
+{{ end }}

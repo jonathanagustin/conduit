@@ -8,7 +8,7 @@
 //     byte-for-byte in workspace-schemas/v1/uds-package.schema.json.
 //   - UDSBundle: uds-cli v0.41.0, uds.schema.json, retained byte-for-byte in
 //     workspace-schemas/upstream/uds-cli/v0.41.0/uds.schema.json. It is the
-//     schema deploy/zarf/uds-bundle.yaml names in its language-server directive.
+//     schema used by generated legacy YAML bundles and their frozen test fixture.
 //
 // What is compiled into the binary is not those files. It is their structure:
 // the two *.structure.json files beside this one, which are the upstream

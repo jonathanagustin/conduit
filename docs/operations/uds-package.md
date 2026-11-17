@@ -5,9 +5,15 @@ optional UDS Package custom resource. The `uds` component is not selected by
 `zarf package deploy --confirm`. Select it with `--components uds` only after
 UDS Core is already installed. The Package CR registers a Keycloak client for
 the console and allows the traffic below. A ServiceMonitor is declared only
-by the separate `uds-metrics` component; see [Metrics](#metrics).
+when `UDS_METRICS` is true on that same component; see [Metrics](#metrics).
 
-These steps were run on a connected machine. They pull the Zarf init package
+The connected walkthroughs below use historical v1alpha1 release archives.
+Their recorded variable flags are retained as evidence, not instructions for
+the current beta source. For current native package/bundle commands, use the
+[package README](../../deploy/zarf/README.md) and
+[qualification record](zarf-1.0-qualification.md).
+
+Those historical steps were run on a connected machine. They pull the Zarf init package
 and, for the UDS path, the published `k3d-core-slim-dev` bundle from a public
 registry. They are not an offline-bundle install and they do not show a disconnected
 cluster operating after the images are already present.
@@ -78,38 +84,29 @@ from this repository. Confirm them against the cluster with
 exporting zeroes would report an idle fleet. Both are deploy variables, and
 both default to off:
 
-```sh
-uds zarf package deploy zarf-package-platform-runtime-*.tar.zst \
-  --components uds-metrics \
-  --set-variables REPOSITORY_KIND=postgres \
-  --set-variables METRICS_ADDRESS=:9090 \
-  --set-variables PACKAGING_POSTGRES_SECRET=platform-postgres \
-  --confirm
+For current beta packages, put these settings in a native YAML values file:
+
+```yaml
+ENVIRONMENT_ID: example
+AGENT_ID: spoke-example
+REPOSITORY_KIND: postgres
+METRICS_ADDRESS: ':9090'
+PACKAGING_POSTGRES_SECRET: platform-postgres
+UDS_METRICS: true
 ```
 
-`REPOSITORY_KIND=postgres` reads the DSN from the `dsn` key of
-`PACKAGING_POSTGRES_SECRET`, the Secret the packaging worker already uses.
-`uds-metrics` applies the same Package CR as `uds` plus a ServiceMonitor for
-Service port `metrics` (9090, path `/metrics`). The two components carry the
-same Package object and now share the pinned Zarf v1.0.0 `uds-mode` choice
-group. The no-op `uds-disabled` default preserves a plain `--confirm` install.
-Selecting both UDS owners, or selecting every component with `*`, fails the
-real Zarf selection filter before any component runs. The deprecated `group`
-field must be migrated when the package moves to a schema that removes it.
-The metrics component's deploy action refuses unless both
-`REPOSITORY_KIND=postgres` and `METRICS_ADDRESS=:9090` are set, before applying
-its Package CR. The required runtime component can already have deployed;
-this guard does not make deployment of all components atomic.
+Select `--components uds` and pass the file with `--values`, retaining the
+release signature policy from the README. One optional component owns the
+Package CR; its metrics branch adds the ServiceMonitor. There is no choice
+group or second UDS owner. The deploy guard requires PostgreSQL and the metrics
+listener. This does not make all component deployments atomic. Optional
+`uds-observability` requires the same typed metrics setting.
 
-`zarf dev inspect manifests` substitutes the variables and the Package validates
-against the UDS Core 1.17.1 schema. Pinned real Zarf package create and deployment
-of an action-only selection fixture check the default and conflicting choices,
-variable patterns and actual deploy guards. That fixture contains no images,
-charts or manifests and uses a nonexistent temporary kubeconfig. It proves no
-cluster deployment or scrape. The remaining #838 acceptance still requires a
-recorded UDS Core scrape returning Hub series.
+Native template and action-only gates cover selection, admission and manifest
+shape. They contain no cluster resources and do not establish a live scrape.
+The remaining #838 acceptance still requires a recorded UDS Core scrape.
 
-### Alert rules and dashboard
+## Alert rules and dashboard
 
 Add `uds-observability` to `--components` beside `uds-metrics` to apply the
 Hub's `PrometheusRule` and its dashboard ConfigMap (labelled
@@ -148,7 +145,7 @@ conventions; no cluster run has shown either, and no rule has been evaluated.
   Istio CNI `AMBIENT_ENABLED=false`, which this kernel has required.
   Tear the cluster down with `mise run uds-down`.
 
-`deploy/zarf/uds-bundle.yaml` is the Conduit half of that pair. Slim-dev
+`deploy/zarf/bundle.uds.hcl` is the current native Conduit half of that pair. Slim-dev
 embeds its Core packages inside the published bundle, so this file does not
 re-pin them. Create it only after `zarf package create` has produced a
 package whose version matches `VERSION`.
@@ -326,47 +323,11 @@ curl -sk "https://keycloak.uds.dev/admin/realms/uds/clients?clientId=conduit-hub
 From inside the cluster, use the Keycloak Service instead. The 2026-11-14
 evidence did not reach this query: Keycloak was not installed.
 
-Optional bundle, after the Zarf package exists in `deploy/zarf`:
-
-```sh
-uds create deploy/zarf --confirm --output /tmp/conduit-zarf
-cp deploy/zarf/uds-config.yaml /tmp/conduit-zarf/uds-config.yaml
-# Replace every REPLACE-WITH value, then:
-UDS_CONFIG=/tmp/conduit-zarf/uds-config.yaml \
-  uds deploy /tmp/conduit-zarf/uds-bundle-conduit-amd64-*.tar.zst --confirm
-```
-
-That archive contains the Conduit package with the `uds` component selected.
-It does not contain UDS Core. Deploy slim-dev first, then this bundle.
-[`uds-config.yaml`](../../deploy/zarf/uds-config.yaml) carries the deployment
-variables the `--set-variables` flags above pass one at a time, and selects
-the production `postgres` profile, so it also needs the PostgreSQL Secret.
-The bundle declares no `overrides`: in the pinned v0.41.0 schema those set
-Helm chart values, and the package deploys manifests.
-
-The Trunk gate runs `uds create` on this bundle
-(`scripts/test-uds-bundle-create.sh`) against the package built without its
-image layers, which needs no registry or cluster. It shows the pinned CLI
-assembling the bundle, loading `uds-config.yaml`, and listing every variable
-that file sets. It does not show `uds deploy`; no workflow that runs on its
-own has a cluster.
-
-The same gate runs `TestRenderedBundlesCreateWithPinnedCLI` (#835). Zarf
-v1.0.0 builds a file-only package in a temporary loopback OCI registry, then
-UDS CLI v0.41.0 creates and inspects bundles from both `udsconverge.Render`
-and `RenderBundleFromPackages`. The generated documents are passed unchanged;
-their repository, tag and digest must survive the archive round trip. The CLI
-must also refuse a nonexistent digest and an absent optional component. Both
-executables are required when this gate opts into the integration test;
-ordinary Go tests skip it without downloading tools.
-
-The fixture is unsigned, contains no application images, and uses HTTP only
-on loopback. UDS's insecure and skip-signature-validation flags apply only to
-this fixture. The check establishes bundle creation and inspection, not
-publisher verification, deployment, UDS Core compatibility, or approval of the
-schema licences discussed in `workspace-schemas.md`.
-
-
+For a current beta runtime bundle, use the authenticated HCL build and signed
+NextMode deployment procedure in the [package README](../../deploy/zarf/README.md#uds-bundle).
+The old YAML bundle/config files are retired. The generated legacy YAML adapters
+remain supported separately; their JSON-schema reference is a frozen test
+fixture, not the current owned runtime bundle.
 
 ## Delivering a tenant's Zarf package or UDS bundle through the Spoke
 

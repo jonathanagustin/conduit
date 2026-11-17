@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -57,10 +58,12 @@ package "capture" {
   values_files = ["reviewed-values.yaml"]
 }
 `, runtime.GOARCH)))
-	writeCLIFile(t, filepath.Join(root, "reviewed-values.yaml"), []byte(`{{ range $key, $value := .vars }}
-{{ printf "%q" $key }}: {{ if eq (printf "%T" $value) "string" }}{{ printf "%q" $value }}{{ else }}{{ $value }}{{ end }}
-{{ end }}
-`))
+	ownedValues, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "deploy", "zarf", "runtime-values.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeCLIFile(t, filepath.Join(root, "reviewed-values.yaml"), ownedValues)
+
 	step := controlplane.PlanStep{Values: json.RawMessage(`{"TEXT":"0012","TEXT_FALSE":"false","BOOL":false,"COUNT":12,"LITERAL":"${1+1} %{literal} 東京"}`)}
 	configuration, err := nativeBundleConfiguration(step)
 	if err != nil {
@@ -103,5 +106,51 @@ package "capture" {
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("native UDS changed reviewed types/literals: got %s want %s", data, step.Values)
+	}
+
+	// Run the committed operator example through the same real bundle path.
+	example, err := os.ReadFile(filepath.Join("..", "..", "..", "..", "deploy", "zarf", "config.uds.hcl"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	entries := regexp.MustCompile(`(?m)^  ("[^"\n]+") = ([^\n]+)$`).FindAllSubmatch(example, -1)
+	expected := map[string]any{}
+	for _, entry := range entries {
+		var key string
+		var value any
+		if err := json.Unmarshal(entry[1], &key); err != nil {
+			t.Fatal(err)
+		}
+		if err := json.Unmarshal(entry[2], &value); err != nil {
+			t.Fatal(err)
+		}
+		expected[key] = value
+	}
+	if len(expected) == 0 {
+		t.Fatal("operator example has no values")
+	}
+	writeCLIFile(t, config, example)
+	run(uds, "--features", "NextMode", "bundle", "deploy", archive, "--skip-signature-verification", "--config", config, "--tmp-dir", root)
+	data, err = os.ReadFile(observed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	got = nil
+	if err := json.Unmarshal(data, &got); err != nil {
+		t.Fatal(err)
+	}
+	if !reflect.DeepEqual(got, expected) {
+		t.Fatal("operator example was not forwarded exactly")
+	}
+	if err := os.Remove(observed); err != nil {
+		t.Fatal(err)
+	}
+	writeCLIFile(t, config, []byte("variables = { NESTED = { field = \"not-a-scalar\" } }\n"))
+	out, err := (scopedRunner{}).Run(t.Context(), uds, "--features", "NextMode", "bundle", "deploy", archive, "--skip-signature-verification", "--config", config, "--tmp-dir", root)
+	if err == nil || !strings.Contains(strings.ToLower(string(out)), "values") {
+		t.Fatalf("nonscalar input was not refused: %v\n%s", err, out)
+	}
+	if _, err := os.Stat(observed); !os.IsNotExist(err) {
+		t.Fatal("nonscalar input reached a deployment action")
 	}
 }

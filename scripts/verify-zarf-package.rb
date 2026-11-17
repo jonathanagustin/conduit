@@ -12,7 +12,7 @@ root = File.expand_path("..", __dir__)
 zarf_directory = File.join(root, "deploy/zarf")
 manifest_path = File.join(zarf_directory, "manifests/runtime.yaml")
 uds_path = File.join(zarf_directory, "manifests/uds-package.yaml")
-bundle_path = File.join(zarf_directory, "uds-bundle.yaml")
+bundle_path = File.join(zarf_directory, "bundle.uds.hcl")
 version = File.read(File.join(root, "VERSION")).strip
 bindings = {"HUB_IMAGE" => "###ZARF_PKG_TMPL_HUB_IMAGE###", "SPOKE_AGENT_IMAGE" => "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"}
 definition = ConduitZarfRuntimeValues.definition(zarf_directory, bindings, "###ZARF_PKG_TMPL_PLATFORM_VERSION###")
@@ -44,7 +44,7 @@ uds_text = render.call(File.read(uds_path))
 metrics_text = render.call(File.read(uds_path), true)
 manifests = ConduitSafeYAML.stream(manifest_text)
 uds_package = YAML.safe_load(uds_text)
-bundle = YAML.safe_load(File.read(bundle_path))
+bundle_text = File.read(bundle_path)
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1beta1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
@@ -389,56 +389,40 @@ abort "UDS metrics Package must equal the default Package apart from its monitor
 undeclared_metrics = metrics_text.scan(/###ZARF_VAR_([A-Z0-9_]+)###/).flatten.uniq - declared_variables
 abort "UDS metrics Package uses undeclared Zarf variables: #{undeclared_metrics.join(', ')}" unless undeclared_metrics.empty?
 
-abort "UDS bundle must carry the Conduit package" unless bundle["kind"] == "UDSBundle"
-abort "UDS bundle version must track VERSION" unless bundle.dig("metadata", "version") == version
-conduit = (bundle["packages"] || []).find { |item| item["name"] == "platform-runtime" }
-abort "UDS bundle must build the local Zarf package and select the uds component" unless conduit&.dig("path") == "." && conduit["ref"] == version && conduit["optionalComponents"] == ["uds"]
-
-# The bundle's deployment variables live in uds-config.yaml (#831). UDS CLI
-# passes `variables.<package>.<NAME>` to that package as Zarf variables, and a
-# name the package does not declare is a setting that silently does nothing.
-bundle_schema = File.read(bundle_path).lines.first[%r{\A# yaml-language-server: \$schema=https://raw\.githubusercontent\.com/defenseunicorns/uds-cli/(v[0-9.]+)/uds\.schema\.json$}, 1]
-abort "UDS bundle must pin its schema to a UDS CLI release on its first line" unless bundle_schema
+abort "native UDS bundle must track VERSION" unless bundle_text[/^  version = "([^"]+)" # x-release-please-version$/, 1] == version
+abort "native UDS bundle must carry one runtime package" unless bundle_text.scan(/^package "([^"]+)" \{/).flatten == ["platform_runtime"]
+[
+  'bundle_api_version = "uds.dev/v1alpha1"', 'source = "./zarf-package-platform-runtime-${sys.arch}-${local.version}.tar.zst"',
+  'optional_components = ["uds"]', 'values_files = ["runtime-values.yaml"]',
+  'certificate_identity = "https://github.com/jonathanagustin/conduit/.github/workflows/platform-images.yml@refs/tags/v${local.version}"',
+  'certificate_oidc_issuer = "https://token.actions.githubusercontent.com"'
+].each { |binding| abort "native UDS bundle lost binding: #{binding}" unless bundle_text.include?(binding) }
+abort "native UDS package trust must not be disabled" if bundle_text.match?(/verify\s*=\s*false|skip.signature/i)
 ci_workflow = File.read(File.join(root, ".github/workflows/platform-ci.yml"), encoding: "UTF-8")
-uds_pin = ci_workflow[%r{https://github\.com/defenseunicorns/uds-cli/releases/download/(v[0-9.]+)/uds-cli_\1_Linux_amd64}, 1]
-abort "Trunk gate must install a checksum-pinned UDS CLI" unless uds_pin && ci_workflow.match?(%r{^\s+echo '[a-f0-9]{64}  /tmp/uds' \| sha256sum --check$})
-abort "UDS bundle schema (#{bundle_schema}) must be the UDS CLI release the Trunk gate pins (#{uds_pin})" unless bundle_schema == uds_pin
-# `uds create` accepts a bundle with unknown keys, so the shape is held here.
-# These are the property names of UDSBundle, UDSMetadata and Package in the
-# pinned uds.schema.json, each of which sets additionalProperties: false.
-bundle_keys = {
-  "bundle" => [bundle.keys, %w[kind metadata build packages]],
-  "metadata" => [bundle.fetch("metadata").keys, %w[name description version url uncompressed architecture authors documentation source vendor aggregateChecksum]],
-  "package" => [(bundle["packages"] || []).flat_map(&:keys), %w[name description repository path ref namespace timeout flavor optionalComponents publicKey keylessVerification imports exports overrides]]
-}
-bundle_keys.each do |where, (present, allowed)|
-  unknown_keys = present.reject { |key| key.start_with?("x-") } - allowed
-  abort "UDS bundle #{where} has keys the pinned schema does not define: #{unknown_keys.join(', ')}" unless unknown_keys.empty?
-end
-abort "UDS bundle must carry exactly the Conduit package" unless bundle["packages"].length == 1
-abort "UDS bundle must not declare chart overrides: the package deploys manifests, not charts" if conduit.key?("overrides")
-uds_config_text = File.read(File.join(root, "deploy/zarf/uds-config.yaml"), encoding: "UTF-8")
-uds_config = YAML.safe_load(uds_config_text)
-abort "uds-config.yaml may carry only variables" unless uds_config.keys == ["variables"]
-abort "uds-config.yaml must address exactly the bundle's package" unless uds_config["variables"].keys == [conduit["name"]]
-configured = uds_config.dig("variables", conduit["name"])
+abort "Trunk gate must install the pinned UDS CLI" unless ci_workflow.include?("uds-cli_v0.41.0_Linux_amd64") && ci_workflow.include?("31cd710a3f1154f81767a5268f2c887d9e33fe10b81e45ee4183c810dd5ad308  /tmp/uds")
+uds_config_text = File.read(File.join(zarf_directory, "config.uds.hcl"), encoding: "UTF-8")
+body = uds_config_text.sub(/\A(?:#[^\n]*\n)*/, "")
+abort "native bundle example must contain only scalar variables" unless body.match?(/\Avariables = \{\n(?:  "[^"\n]+" = [^\n]+\n)*\}\n\z/)
+entries = body.scan(/^  ("[^"\n]+") = ([^\n]+)$/).map { |key, value| [JSON.parse(key), JSON.parse(value)] }
+abort "native bundle example repeats a variable" unless entries.map(&:first).uniq.length == entries.length
+configured = entries.to_h
 unknown = configured.keys - declared_variables
-abort "uds-config.yaml sets variables the package does not declare: #{unknown.join(', ')}" unless unknown.empty?
+abort "native bundle example sets undeclared values: #{unknown.join(', ')}" unless unknown.empty?
 required_config = %w[ENVIRONMENT_ID AGENT_ID BOOTSTRAP_ADMINISTRATORS REPOSITORY_KIND PACKAGING_POSTGRES_SECRET PLANNING_TEMPORAL_ADDRESS
                      PACKAGING_TEMPORAL_ADDRESS PACKAGING_TEMPORAL_NAMESPACE PACKAGING_TEMPORAL_TASK_QUEUE
                      OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE]
 without_default = variables.reject { |item| item.key?("default") }.map { |item| item["name"] }
 missing = (required_config | without_default) - configured.keys
-abort "uds-config.yaml must carry the deployment variables: #{missing.join(', ')}" unless missing.empty?
-abort "uds-config.yaml must select the production profile" unless configured["REPOSITORY_KIND"] == "postgres"
-abort "uds-config.yaml must name the planning frontend the second Hub replica depends on" if configured["PLANNING_TEMPORAL_ADDRESS"].to_s.empty?
+abort "config.uds.hcl must carry the deployment variables: #{missing.join(', ')}" unless missing.empty?
+abort "config.uds.hcl must select the production profile" unless configured["REPOSITORY_KIND"] == "postgres"
+abort "config.uds.hcl must name the planning frontend the second Hub replica depends on" if configured["PLANNING_TEMPORAL_ADDRESS"].to_s.empty?
 configured.each do |name, value|
-  abort "uds-config.yaml #{name} must be a plain string" unless value.is_a?(String)
+  abort "config.uds.hcl #{name} must be a plain string" unless value.is_a?(String)
   pattern = variables.find { |item| item["name"] == name }["pattern"]
-  abort "uds-config.yaml #{name} does not match the pattern the package enforces at deploy" if pattern && !value.match?(Regexp.new(pattern))
+  abort "config.uds.hcl #{name} does not match the pattern the package enforces at deploy" if pattern && !value.match?(Regexp.new(pattern))
 end
 # No secret may sit in a file that is read as plain text and reaches Pod specs.
-abort "uds-config.yaml must not carry credential material" if
+abort "config.uds.hcl must not carry credential material" if
   uds_config_text.match?(/BEGIN [A-Z ]*(?:PRIVATE KEY|CERTIFICATE)|:\/\/[^\s\/:@]+:[^\s\/@]+@|(?:password|passwd|token|api[_-]?key)\s*[:=]\s*\S/i)
 
 # Publication of the signed package to the OCI registry (#832). It is its own

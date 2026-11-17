@@ -111,7 +111,9 @@ project licensing or authorize distribution of an editor image (#546).
 `workspace-schemas/upstream/` is not part of the editor pack. It has its own
 `manifest.json` with the source URL, SHA-256 and license hash, no editor
 association, and is not copied into an editor image. The uds-cli schema is the
-one `deploy/zarf/uds-bundle.yaml` names in its language-server directive.
+one the frozen `internal/udsschema/testdata/legacy-runtime-bundle.yaml` names
+in its schema directive. The current HCL runtime bundle uses the native CLI
+parser instead of this legacy YAML schema.
 uds-cli's source headers state `AGPL-3.0-or-later OR
 LicenseRef-Defense-Unicorns-Commercial`; the same unadjudicated question applies.
 
@@ -122,7 +124,8 @@ kept. `go test ./internal/udsschema` checks the retained bytes against the
 recorded SHA-256, regenerates both structures, and fails if either differs. It
 also judges a corpus with the untouched upstream schema and with the embedded
 structure and requires the same verdict, and checks that the pins are the
-versions `scripts/uds-up.sh` installs and `deploy/zarf/uds-bundle.yaml` declares.
+versions `scripts/uds-up.sh` and CI install, together with the frozen legacy
+reference directive.
 
 To change a pin: replace the retained upstream file and its manifest entry,
 then run

@@ -1,22 +1,8 @@
 #!/usr/bin/env bash
-# Runs the pinned `uds create` on deploy/zarf/uds-bundle.yaml and on the real
-# udsconverge renderers' output, with no cluster or container runtime. The Go
-# integration test below owns a disposable loopback registry, with no external
-# registry access, and fails rather than skips when either CLI is missing.
-#
-# A bundle needs a built Zarf package, and building the real one pulls the Hub
-# and Agent images. So this builds the same package definition with its
-# `images` lists removed: every component, variable, action and manifest is the
-# real one, and only the image layers are absent. That is enough for the UDS
-# CLI to read the package, resolve the bundle's ref and optionalComponents
-# against it, and assemble a bundle. `uds create` does not validate the bundle
-# file against its schema (it accepts an unknown key), so the file's shape is
-# held by scripts/verify-zarf-package.rb instead. What this adds is the CLI's
-# own view: the bundle builds, the CLI loads uds-config.yaml, and every
-# variable that file sets is one the built bundle lists.
-#
-# It is not a deployable bundle and proves nothing about images. The release
-# bundle is created from the signed package in the publication workflow.
+# Checks existing generated legacy bundles, executor trust/value contracts,
+# and the owned native runtime bundle. The latter uses one image-free beta
+# package signed with an ephemeral fixture key, retaining its real guards,
+# manifests and schema. No cluster or production signing/publication occurs.
 set -euo pipefail
 root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 : "${ZARF_BIN:?ZARF_BIN must name the pinned Zarf executable}"
@@ -39,55 +25,74 @@ work=$(mktemp -d)
 trap 'rm -rf "$work"' EXIT
 export HOME="$work/home" ZARF_NO_PROGRESS=true
 mkdir -p "$HOME"
-
-cp -R "$root/deploy/zarf" "$work/package"
-ruby -ryaml -e '
-  path = ARGV.fetch(0)
-  definition = YAML.safe_load(File.read(path))
-  definition.fetch("components").each { |component| component.delete("images") }
-  File.write(path, YAML.dump(definition))
-' "$work/package/zarf.yaml"
-
 hub="ghcr.io/example/platform-hub:${version}@sha256:$(printf 'a%.0s' {1..64})"
 agent="ghcr.io/example/platform-spoke-agent:${version}@sha256:$(printf 'b%.0s' {1..64})"
-"$ZARF_BIN" package create "$work/package" --architecture "$architecture" --confirm --skip-sbom \
-  --output "$work/package" --no-color \
-  --set "PLATFORM_VERSION=${version}" --set "HUB_IMAGE=${hub}" --set "SPOKE_AGENT_IMAGE=${agent}" \
-  > "$work/zarf.log" 2>&1 || { cat "$work/zarf.log" >&2; echo 'zarf package create failed for the image-less package' >&2; exit 1; }
-if [[ ! -s "$work/package/zarf-package-platform-runtime-${architecture}-${version}.tar.zst" ]]; then
-  cat "$work/zarf.log" >&2
-  echo "zarf package create did not write zarf-package-platform-runtime-${architecture}-${version}.tar.zst" >&2
-  exit 1
-fi
-
-(cd "$work/package" && "$UDS_BIN" create . --architecture "$architecture" --confirm --no-color --no-progress --no-log-file \
-  --uds-cache "$work/uds-cache" --tmpdir "$work") > "$work/uds.log" 2>&1 ||
-  { cat "$work/uds.log" >&2; echo 'uds create failed' >&2; exit 1; }
-bundle="$work/package/uds-bundle-conduit-${architecture}-${version}.tar.zst"
-if [[ ! -s "$bundle" ]]; then
-  cat "$work/uds.log" >&2
-  echo "uds create reported success without writing ${bundle##*/}" >&2
-  exit 1
-fi
-
-(cd "$work/package" && "$UDS_BIN" inspect "${bundle##*/}" --list-variables --architecture "$architecture" --no-color --no-progress --no-log-file \
-  --uds-cache "$work/uds-cache" --tmpdir "$work") > "$work/variables.log" 2>&1 ||
-  { cat "$work/variables.log" >&2; echo 'uds inspect --list-variables failed' >&2; exit 1; }
-# The CLI finds uds-config.yaml beside the bundle and parses it strictly, so
-# this is also the pinned CLI accepting the example's shape.
-"${NODE_BIN:-node}" "$root/scripts/verify-uds-cli-evidence.mjs" config "$work/variables.log" "$work/package/uds-config.yaml" || {
-  cat "$work/variables.log" >&2
-  echo 'uds did not load the uds-config.yaml beside the bundle' >&2
-  exit 1
+"$root/scripts/render-zarf-runtime.sh" "$work/package" "$version" "$hub" "$agent" > "$work/render.log" 2>&1
+ruby -ryaml -e '
+  path = ARGV.fetch(0)
+  definition = YAML.safe_load_file(path)
+  definition.fetch("components").each { |component| component.delete("images") }
+  File.write(path, YAML.dump(definition))
+' "$work/package/zarf.gen.yaml"
+"$ZARF_BIN" package create "$work/package/zarf.gen.yaml" --architecture "$architecture" --confirm --skip-sbom \
+  --output "$work/package" --no-color > "$work/zarf.log" 2>&1 || { cat "$work/zarf.log" >&2; exit 1; }
+package="$work/package/zarf-package-platform-runtime-${architecture}-${version}.tar.zst"
+[[ -s "$package" ]] || { echo 'missing image-free beta package' >&2; exit 1; }
+python3 "$root/scripts/lib/generate-fixture-key.py" "$ZARF_BIN" "$work/test-key"
+# Ephemeral local fixture signing, never production keys or publication.
+COSIGN_PASSWORD='' "$ZARF_BIN" package sign "$package" --signing-key "$work/test-key/cosign.key" --confirm > "$work/sign.log" 2>&1 || { cat "$work/sign.log" >&2; exit 1; }
+UDS_PACKAGE_ARCHIVE="$package" UDS_PACKAGE_VERIFICATION_KEY_PATH="$work/test-key/cosign.pub" \
+  "$root/scripts/create-uds-runtime-bundle.sh" "$architecture" "$work/output" > "$work/bundle.log" 2>&1 || { cat "$work/bundle.log" >&2; exit 1; }
+bundle="$work/output/uds-bundle-conduit-${architecture}-${version}.tar.zst"
+[[ -s "$bundle" ]] || { echo 'native bundle output missing' >&2; exit 1; }
+"$UDS_BIN" --features NextMode bundle inspect "$bundle" --output json --tmp-dir "$work" > "$work/inspect.json" 2> "$work/inspect.log"
+"${NODE_BIN:-node}" - "$work/inspect.json" "$version" <<'JS'
+const fs = require('node:fs');
+const value = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (value.name !== 'conduit' || value.version !== process.argv[3] || value.packages.length !== 1 ||
+    JSON.stringify(value.packages[0].valuesFiles) !== JSON.stringify(['runtime-values.yaml'])) {
+  throw new Error('native bundle lost identity or its runtime values file');
 }
-configured=()
-while IFS= read -r variable; do configured+=("$variable"); done < <(ruby -ryaml -e 'puts YAML.safe_load(File.read(ARGV.fetch(0))).fetch("variables").fetch("platform-runtime").keys' "$work/package/uds-config.yaml")
-((${#configured[@]} > 0)) || { echo 'uds-config.yaml configures no variables' >&2; exit 1; }
-for variable in "${configured[@]}"; do
-  grep -qx -- "  - name: ${variable}" "$work/variables.log" || {
-    cat "$work/variables.log" >&2
-    echo "uds-config.yaml sets ${variable}, which the created bundle does not list as a variable" >&2
-    exit 1
-  }
-done
-echo "uds create assembled uds-bundle-conduit-${architecture}-${version}.tar.zst from the image-less package; it lists all ${#configured[@]} variables uds-config.yaml sets"
+JS
+# Authenticated packaging must reject unsigned input before producing a bundle.
+"$ZARF_BIN" package create "$work/package/zarf.gen.yaml" --architecture "$architecture" --confirm --skip-sbom \
+  --output "$work/unsigned" --no-color > "$work/unsigned.log" 2>&1
+if UDS_PACKAGE_ARCHIVE="$work/unsigned/zarf-package-platform-runtime-${architecture}-${version}.tar.zst" \
+  UDS_PACKAGE_VERIFICATION_KEY_PATH="$work/test-key/cosign.pub" \
+  "$root/scripts/create-uds-runtime-bundle.sh" "$architecture" "$work/rejected" > "$work/rejected.log" 2>&1; then
+  echo 'native runtime bundle accepted an unsigned package' >&2; exit 1
+fi
+grep -q 'not signed' "$work/rejected.log"
+[[ ! -e "$work/rejected/uds-bundle-conduit-${architecture}-${version}.tar.zst" ]]
+python3 "$root/scripts/lib/generate-fixture-key.py" "$ZARF_BIN" "$work/wrong-key"
+if UDS_PACKAGE_ARCHIVE="$package" UDS_PACKAGE_VERIFICATION_KEY_PATH="$work/wrong-key/cosign.pub" \
+  "$root/scripts/create-uds-runtime-bundle.sh" "$architecture" "$work/wrong-key-output" > "$work/wrong-key.log" 2>&1; then
+  echo 'native runtime bundle accepted the wrong publisher key' >&2; exit 1
+fi
+grep -qi 'signature' "$work/wrong-key.log"
+[[ ! -e "$work/wrong-key-output/uds-bundle-conduit-${architecture}-${version}.tar.zst" ]]
+mkdir "$work/alpha"
+cat > "$work/alpha/zarf.yaml" <<ALPHA
+apiVersion: zarf.dev/v1alpha1
+kind: ZarfPackageConfig
+metadata:
+  name: platform-runtime
+  version: '${version}'
+components:
+  - name: fixture
+    required: true
+    actions:
+      onDeploy:
+        before:
+          - cmd: 'true'
+ALPHA
+"$ZARF_BIN" package create "$work/alpha" --confirm --skip-sbom --architecture "$architecture" --output "$work/alpha" > "$work/alpha-create.log" 2>&1
+alpha="$work/alpha/zarf-package-platform-runtime-${architecture}-${version}.tar.zst"
+COSIGN_PASSWORD='' "$ZARF_BIN" package sign "$alpha" --signing-key "$work/test-key/cosign.key" --confirm > "$work/alpha-sign.log" 2>&1
+if UDS_PACKAGE_ARCHIVE="$alpha" UDS_PACKAGE_VERIFICATION_KEY_PATH="$work/test-key/cosign.pub" \
+  "$root/scripts/create-uds-runtime-bundle.sh" "$architecture" "$work/alpha-output" > "$work/alpha-refusal.log" 2>&1; then
+  echo 'native runtime bundle accepted legacy alpha package inputs' >&2; exit 1
+fi
+grep -q 'requires a beta package' "$work/alpha-refusal.log"
+[[ ! -e "$work/alpha-output/uds-bundle-conduit-${architecture}-${version}.tar.zst" ]]
+echo "Native UDS assembled one authenticated image-free beta package with runtime-values.yaml; unsigned, wrong-key and alpha inputs refused. No cluster exercised."

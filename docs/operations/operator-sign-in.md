@@ -129,7 +129,7 @@ With the `uds` component, the Package CR registers `conduit-hub` as a
 confidential client whose only redirect address is
 `<CONSOLE_PUBLIC_URL>/v1/auth/callback`, and has UDS Core write the generated
 secret to `conduit-hub-sso` under the key `client-secret`.
-`deploy/zarf/uds-config.yaml` sets the file path. See
+`deploy/zarf/config.uds.hcl` sets the file path. See
 [`uds-package.md`](uds-package.md).
 
 If `OPERATOR_OIDC_CLIENT_SECRET_FILE` is set and the Secret is missing, the Hub

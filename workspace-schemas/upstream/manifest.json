@@ -11,7 +11,7 @@
       "licenseSha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
       "rootLicenseObserved": "GNU Affero General Public License v3 text; per-file applicability unadjudicated",
       "retrieved": "2026-11-17",
-      "pinnedBy": "deploy/zarf/uds-bundle.yaml (yaml-language-server schema directive)"
+      "pinnedBy": "CI UDS CLI pin and internal/udsschema/testdata/legacy-runtime-bundle.yaml (legacy schema directive)"
     }
   ]
 }
