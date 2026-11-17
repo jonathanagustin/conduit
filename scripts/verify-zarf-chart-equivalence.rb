@@ -144,7 +144,7 @@ abort "REPOSITORY_KIND must be the profile switch, constrained to file or postgr
 runtime_text = File.read(File.join(zarf_directory, "manifests/runtime.yaml"))
 worker_text = File.read(File.join(zarf_directory, "manifests/packaging-worker.yaml"))
 profiles = contract.fetch("profiles")
-abort "chart equivalence must cover exactly the file and postgres profiles" unless profiles.keys.sort == %w[file postgres]
+abort "chart equivalence must cover exactly the file, postgres and postgres-single profiles" unless profiles.keys.sort == %w[file postgres postgres-single]
 chart_labels = contract.fetch("chartOnlyLabels")
 abort "chartOnlyLabels needs keys and a reason" unless chart_labels["keys"].is_a?(Array) && chart_labels["reason"].to_s.strip.length >= 20
 abort "chartOnlyLabels must not hide the label the package selects Pods by" if chart_labels["keys"].include?("app.kubernetes.io/name")
@@ -164,7 +164,9 @@ failures = []
 Dir.mktmpdir("zarf-chart-equivalence") do |work|
   profiles.each do |profile, settings|
     kind = settings.fetch("repositoryKind")
-    abort "profile #{profile} must select itself with REPOSITORY_KIND" unless kind == profile
+    abort "profile #{profile} must select itself with REPOSITORY_KIND" unless profile.split("-").first == kind
+    shared = !settings.fetch("zarfVariables")["PLANNING_TEMPORAL_ADDRESS"].to_s.empty?
+    abort "profile #{profile} must #{profile == 'postgres' ? 'set' : 'leave empty'} PLANNING_TEMPORAL_ADDRESS" unless shared == (profile == "postgres")
     base = defaults.merge(settings.fetch("zarfVariables")).merge("REPOSITORY_KIND" => kind)
     variables = resolve_variables(components.fetch("runtime"), base)
     worker = settings["packagingWorker"]
@@ -189,8 +191,15 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
     budget = zarf_documents.find { |item| item["kind"] == "PodDisruptionBudget" }
     abort "Hub PodDisruptionBudget must select the Hub Pods and keep all but one" unless
       budget&.dig("spec") == {"maxUnavailable" => 1, "selector" => {"matchLabels" => hub.dig("spec", "selector", "matchLabels")}}
+    # What the Hub itself enforces at startup (validatePlanningReplicas): it
+    # must be told the true count, and more than one needs a shared frontend.
+    hub_env = hub.dig("spec", "template", "spec", "containers", 0, "env").to_h { |item| [item["name"], item["value"]] }
+    abort "#{profile}: Hub is told HUB_REPLICA_COUNT=#{hub_env['HUB_REPLICA_COUNT']} but runs #{hub.dig('spec', 'replicas')} replicas" unless
+      hub_env["HUB_REPLICA_COUNT"] == hub.dig("spec", "replicas").to_s
+    abort "#{profile}: more than one Hub replica without a shared planning frontend" if
+      hub.dig("spec", "replicas") > 1 && (hub_env["CONDUIT_TEMPORAL_ADDRESS"].to_s.empty? || hub_env["CONDUIT_TEMPORAL_SHARED"] != "true")
     if kind == "postgres"
-      abort "postgres profile must run two Hub replicas" unless hub.dig("spec", "replicas") == 2
+      abort "postgres profile must run two Hub replicas when planning is shared" if shared && hub.dig("spec", "replicas") != 2
       abort "postgres profile must roll without losing a serving Hub" unless
         hub.dig("spec", "strategy") == {"type" => "RollingUpdate", "rollingUpdate" => {"maxUnavailable" => 0, "maxSurge" => 1}}
       abort "postgres profile must not share a ReadWriteOnce claim between replicas" unless state == {"name" => "state", "emptyDir" => {}}
@@ -252,4 +261,4 @@ end
 exit 0 if ENV["PRINT_DIFFERENCES"] == "1"
 abort "Zarf manifests and Helm charts drifted:\n  #{failures.join("\n  ")}" unless failures.empty?
 
-puts "Zarf manifests match the Helm chart render for the file and postgres profiles, apart from #{allowed.length} listed differences"
+puts "Zarf manifests match the Helm chart render for the file, postgres and postgres-single profiles, apart from #{allowed.length} listed differences"

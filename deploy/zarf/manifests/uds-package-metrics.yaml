@@ -135,6 +135,16 @@ spec:
         remoteSelector:
           app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
         port: 7233
+      # PLANNING_TEMPORAL_ADDRESS. Two Hub replicas share planning sessions
+      # through the same operator-supplied frontend, on the same port.
+      - description: Hub to Temporal
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_TEMPORAL_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
+        port: 7233
       # CONDUIT_MODEL_BASE_URL, when it names a model served in this cluster
       # (vLLM, Ollama, LeapfrogAI). A Zarf variable cannot make a list entry
       # optional, so the entry is always here and its defaults select nothing:

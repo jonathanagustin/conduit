@@ -38,14 +38,14 @@ out. The commands and the limits of that check are in
 
 ## Profiles
 
-`REPOSITORY_KIND` is the one profile switch. The settings that must move with
-it are derived from it at deploy time by the `runtime` component's `onDeploy`
-actions, so they cannot be set inconsistently by hand.
+`REPOSITORY_KIND` is the profile switch. The settings that must move with it
+are derived at deploy time by the `runtime` component's `onDeploy` actions, so
+they cannot be set inconsistently by hand.
 
 | | `REPOSITORY_KIND=postgres` | `REPOSITORY_KIND=file` |
 | --- | --- | --- |
 | Intended use | **Production.** This is the profile the Helm chart defaults to. | Development and evaluation only. |
-| Hub replicas | 2 | 1 |
+| Hub replicas | 2 with `PLANNING_TEMPORAL_ADDRESS` set, otherwise 1 | 1 |
 | Rollout | `RollingUpdate`, `maxUnavailable: 0`, `maxSurge: 1` | `Recreate` |
 | Hub state | PostgreSQL, DSN from the `dsn` key of `PACKAGING_POSTGRES_SECRET` | The retained `platform-delivery-state` claim |
 | PodDisruptionBudget | Keeps one Hub serving through a voluntary disruption | Present, and permits evicting the one Pod |
@@ -54,7 +54,23 @@ actions, so they cannot be set inconsistently by hand.
 The variable's default is `file`, so that a package deployed with no variables
 still starts on a cluster with no database, and an existing file-backed install
 upgrades in place. A production deployment sets `REPOSITORY_KIND=postgres`
-explicitly; [`uds-config.yaml`](uds-config.yaml) does.
+and `PLANNING_TEMPORAL_ADDRESS` explicitly; [`uds-config.yaml`](uds-config.yaml)
+does.
+
+A second Hub replica needs more than a shared database. Planning sessions
+live in the Hub process unless `PLANNING_TEMPORAL_ADDRESS` names a Temporal
+frontend, and the Hub refuses to start as one of several replicas without one
+(the Helm chart refuses to render that combination). So the replica count is
+derived from both variables: `postgres` with a planning frontend runs two
+replicas; `postgres` without one runs one, still on PostgreSQL with a rolling
+update. The Hub is passed the derived count as `HUB_REPLICA_COUNT`, so its own
+startup check sees what actually runs.
+
+The package does not offer app-generation compute. The chart turns it on by
+default (`planning.compute`: a Docker image builder, a workspace root and a
+45-minute HTTP write timeout); it needs a Docker daemon and a `zarf` binary
+beside the Hub, and neither is in this package. The packaged Hub sets none of
+those three, and the equivalence gate renders the chart with them emptied.
 
 The actions are three POSIX `sh` `case` statements. They run on the host that
 runs `zarf package deploy`, which therefore needs `sh`; a Windows deploy host
@@ -97,7 +113,7 @@ or version-pinned by the package.
 | Dependency | Needed when | How it is supplied on UDS | Contract |
 | --- | --- | --- | --- |
 | PostgreSQL | `REPOSITORY_KIND=postgres` (production), `packaging-worker`, metrics | An in-cluster PostgreSQL operator or package the Environment already runs, or a managed database outside the cluster. This package names no package coordinates because none has been tested with it. | Secret named by `PACKAGING_POSTGRES_SECRET` (default `platform-postgres`) in `platform-system` with key `dsn`, one line. With the `uds` component, in-cluster Pods are selected by `POSTGRES_NAMESPACE` and `POSTGRES_NAME_LABEL`; a database outside the cluster needs its own `remoteHost` allow. |
-| Temporal | `packaging-worker` only | A Temporal frontend the Environment already runs, in-cluster or managed. No package coordinates are named, for the same reason. | `PACKAGING_TEMPORAL_ADDRESS` is the frontend `host:port`, plaintext, namespace `default`. With the `uds` component, in-cluster Pods are selected by `TEMPORAL_NAMESPACE` and `TEMPORAL_NAME_LABEL`. |
+| Temporal | Two Hub replicas (production), and `packaging-worker` | A Temporal frontend the Environment already runs, in-cluster or managed, which must persist its own history. No package coordinates are named, for the same reason. | `PLANNING_TEMPORAL_ADDRESS` is the frontend `host:port` the Hub replicas share for planning sessions (`PLANNING_TEMPORAL_NAMESPACE`, `PLANNING_TEMPORAL_TASK_QUEUE`). `PACKAGING_TEMPORAL_ADDRESS` is the frontend `host:port` for the worker, plaintext, namespace `default`. With the `uds` component, in-cluster Pods are selected by `TEMPORAL_NAMESPACE` and `TEMPORAL_NAME_LABEL` for both the Hub and the worker. |
 | Workspace editor image | Never, in this package | Not applicable. | The Hub's developer-workspace Pods default to the image `workspace-editor:local`, which is not in the package. The packaged Hub does not set `DEVWORKSPACE_PODS`, so it never starts one, and the validator refuses a manifest that does. |
 | Product charts and images | Every Plan the Spoke executes | The OCI registry the Plans name, normally the Zarf registry. | Consumer-owned; see the first paragraph. |
 

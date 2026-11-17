@@ -68,7 +68,17 @@ spec:
             - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
             - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
-            - { name: HUB_REPLICA_COUNT, value: "1" }
+            # The Hub refuses to start with more than one replica and a
+            # process-local planning store, so it is told the count this
+            # manifest actually runs: the same derived value as spec.replicas.
+            - { name: HUB_REPLICA_COUNT, value: "###ZARF_VAR_HUB_REPLICAS###" }
+            # Planning sessions. An empty address keeps them in the process,
+            # which is why an empty address also derives one replica; the
+            # other three are inert without it.
+            - { name: CONDUIT_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PLANNING_TEMPORAL_ADDRESS###" }
+            - { name: CONDUIT_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PLANNING_TEMPORAL_NAMESPACE###" }
+            - { name: CONDUIT_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PLANNING_TEMPORAL_TASK_QUEUE###" }
+            - { name: CONDUIT_TEMPORAL_SHARED, value: "true" }
             - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
             - { name: OPERATOR_OIDC_ISSUER, value: "###ZARF_VAR_OPERATOR_OIDC_ISSUER###" }
             - { name: OPERATOR_OIDC_CLIENT_ID, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_ID###" }

@@ -110,6 +110,18 @@ abort "Zarf runtime must not require a root bootstrap container" if manifest_tex
   abort "Hub #{field} must be derived from REPOSITORY_KIND as #{variable}" unless manifest_text.scan(/^  #{field}: (.*)$/).flatten.first == "###ZARF_VAR_" + variable + "###"
 end
 abort "Hub state volume must be derived from REPOSITORY_KIND" unless manifest_text.include?("\n        - name: state\n          ###ZARF_VAR_HUB_STATE_VOLUME" + "###\n")
+# Planning sessions are process-local unless a Temporal frontend is set, and
+# the Hub refuses more than one replica without one. So the Hub must be told
+# the replica count this manifest really runs, never a literal: a hard-coded
+# "1" beside two replicas silences the Hub's own guard.
+hub_env_text = manifest_text.scan(/^\s+- \{ name: ([A-Z_]+), value: (.*?) \}$/).to_h
+abort "Hub must be told the derived replica count, not a literal" unless hub_env_text["HUB_REPLICA_COUNT"] == '"###ZARF_VAR_HUB_REPLICAS' + '###"'
+{"ADDRESS" => ["", "^$|^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?:[0-9]{1,5}$"], "NAMESPACE" => ["default", nil], "TASK_QUEUE" => ["planning-sessions", nil]}.each do |suffix, (default, pattern)|
+  abort "Hub must accept CONDUIT_TEMPORAL_#{suffix} from PLANNING_TEMPORAL_#{suffix}" unless hub_env_text["CONDUIT_TEMPORAL_#{suffix}"] == %("###ZARF_VAR_PLANNING_TEMPORAL_#{suffix}) + '###"'
+  variable = definition.fetch("variables").find { |item| item["name"] == "PLANNING_TEMPORAL_#{suffix}" }
+  abort "PLANNING_TEMPORAL_#{suffix} must default to #{default.inspect}" unless variable && variable["default"] == default && (pattern.nil? || variable["pattern"] == pattern)
+end
+abort "Hub must treat the planning frontend as shared between replicas" unless hub_env_text["CONDUIT_TEMPORAL_SHARED"] == '"true"'
 budget = manifests.find { |item| item["kind"] == "PodDisruptionBudget" }
 abort "Zarf package must carry the Hub PodDisruptionBudget" unless
   budget&.dig("metadata", "name") == "platform-delivery" && budget.dig("spec", "maxUnavailable") == 1 &&
@@ -228,6 +240,11 @@ required_egress = {
     "remoteNamespace" => "###ZARF_VAR_CHART_REGISTRY_NAMESPACE###",
     "remoteSelector" => {"###ZARF_VAR_CHART_REGISTRY_LABEL_KEY###" => "###ZARF_VAR_CHART_REGISTRY_LABEL_VALUE###"}, "ports" => [443, 5000]
   },
+  "the Hub to reach the Temporal frontend that holds planning sessions" => {
+    "selector" => {"app.kubernetes.io/name" => "platform-delivery"},
+    "remoteNamespace" => "###ZARF_VAR_TEMPORAL_NAMESPACE###",
+    "remoteSelector" => {"app.kubernetes.io/name" => "###ZARF_VAR_TEMPORAL_NAME_LABEL###"}, "port" => 7233
+  },
   "the packaging worker to reach Temporal" => {
     "selector" => {"app.kubernetes.io/name" => "platform-packaging-worker"},
     "remoteNamespace" => "###ZARF_VAR_TEMPORAL_NAMESPACE###",
@@ -326,12 +343,13 @@ abort "uds-config.yaml must address exactly the bundle's package" unless uds_con
 configured = uds_config.dig("variables", conduit["name"])
 unknown = configured.keys - declared_variables
 abort "uds-config.yaml sets variables the package does not declare: #{unknown.join(', ')}" unless unknown.empty?
-required_config = %w[ENVIRONMENT_ID AGENT_ID BOOTSTRAP_ADMINISTRATORS REPOSITORY_KIND PACKAGING_POSTGRES_SECRET
+required_config = %w[ENVIRONMENT_ID AGENT_ID BOOTSTRAP_ADMINISTRATORS REPOSITORY_KIND PACKAGING_POSTGRES_SECRET PLANNING_TEMPORAL_ADDRESS
                      OPERATOR_OIDC_ISSUER OPERATOR_OIDC_CLIENT_ID OPERATOR_OIDC_USERNAME_CLAIM OPERATOR_OIDC_GROUPS_CLAIM OPERATOR_OIDC_CA_FILE]
 without_default = definition.fetch("variables").reject { |item| item.key?("default") }.map { |item| item["name"] }
 missing = (required_config | without_default) - configured.keys
 abort "uds-config.yaml must carry the deployment variables: #{missing.join(', ')}" unless missing.empty?
 abort "uds-config.yaml must select the production profile" unless configured["REPOSITORY_KIND"] == "postgres"
+abort "uds-config.yaml must name the planning frontend the second Hub replica depends on" if configured["PLANNING_TEMPORAL_ADDRESS"].to_s.empty?
 configured.each do |name, value|
   abort "uds-config.yaml #{name} must be a plain string" unless value.is_a?(String)
   pattern = definition.fetch("variables").find { |item| item["name"] == name }["pattern"]

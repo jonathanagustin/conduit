@@ -63,8 +63,27 @@ rejects 'Deployment/platform-packaging-worker spec.template.spec.containers[pack
   deploy/zarf/manifests/packaging-worker.yaml 's/args: \["packaging-worker"\]/args: ["worker"]/'
 
 # The derived profile settings, executed from zarf.yaml as Zarf would.
-rejects 'postgres profile must run two Hub replicas' "$definition" 's/postgres) echo 2 ;;/postgres) echo 3 ;;/'
-rejects 'file profile must run exactly one Hub replica' "$definition" 's/file) echo 1 ;;/file) echo 2 ;;/'
+rejects 'postgres profile must run two Hub replicas when planning is shared' "$definition" 's/postgres:shared) echo 2 ;;/postgres:shared) echo 3 ;;/'
+# A second replica without a planning frontend is the defect the chart refuses
+# to render and the Hub refuses to start with.
+rejects 'postgres-single: more than one Hub replica without a shared planning frontend' "$definition" 's/postgres:shared) echo 2 ;; postgres:|file:|file:shared) echo 1 ;;/postgres:shared|postgres:) echo 2 ;; file:|file:shared) echo 1 ;;/'
+rejects 'file: more than one Hub replica without a shared planning frontend' "$definition" 's/postgres:|file:|file:shared) echo 1 ;;/postgres:|file:shared) echo 1 ;; file:) echo 2 ;;/'
+rejects 'postgres: more than one Hub replica without a shared planning frontend' "$runtime" 's/name: CONDUIT_TEMPORAL_SHARED, value: "true"/name: CONDUIT_TEMPORAL_SHARED, value: "false"/'
+rejects 'postgres: Hub is told HUB_REPLICA_COUNT=1 but runs 2 replicas' "$runtime" 's/name: HUB_REPLICA_COUNT, value: "###ZARF_VAR_HUB_REPLICAS###"/name: HUB_REPLICA_COUNT, value: "1"/'
+rejects 'profile postgres-single must leave empty PLANNING_TEMPORAL_ADDRESS' "$contract" '/^  postgres-single:$/,/^    hubValues:$/s/^      AGENT_ID: example-agent$/      AGENT_ID: example-agent\n      PLANNING_TEMPORAL_ADDRESS: "temporal:7233"/'
+rejects 'profile postgres must set PLANNING_TEMPORAL_ADDRESS' "$contract" '/^      PLANNING_TEMPORAL_ADDRESS: planning-frontend/d'
+# The planning and model wiring is compared like for like in the postgres
+# profile, so drift there is a difference, not an allowed one.
+rejects 'postgres: Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_TEMPORAL_TASK_QUEUE].value differs is not an allowed difference' \
+  "$definition" 's/^    default: planning-sessions$/    default: planning/'
+rejects 'postgres: Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_MODEL_API_KEY_FILE].value differs is not an allowed difference' \
+  deploy/helm/platform-hub/templates/deployment.yaml 's|value: /run/conduit-model/api-key }|value: /run/model/api-key }|'
+rejects 'postgres: Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_TEMPORAL_ADDRESS].value differs is not an allowed difference' \
+  deploy/helm/platform-hub/values.yaml 's/address: planning-frontend.platform-system.svc:7233/address: planning.platform-system.svc:7233/'
+# The package does not offer app-generation compute; turning it on in the
+# manifest without the chart render following is a difference.
+rejects 'Deployment/platform-delivery spec.template.spec.containers[delivery-control-plane].env[CONDUIT_IMAGE_BUILDER] zarf-only is not an allowed difference' \
+  "$runtime" 's/^            - { name: CONDUIT_TEMPORAL_SHARED, value: "true" }$/&\n            - { name: CONDUIT_IMAGE_BUILDER, value: docker }/'
 rejects 'postgres profile must roll without losing a serving Hub' "$definition" 's/maxUnavailable: 0, maxSurge: 1/maxUnavailable: 1, maxSurge: 0/'
 rejects 'file profile must stop the old Hub before starting the new one' "$definition" 's/file) echo "{type: Recreate}"/file) echo "{type: RollingUpdate}"/'
 rejects 'postgres profile must not share a ReadWriteOnce claim between replicas' \
@@ -95,7 +114,7 @@ rejects 'chartObjectNames lists objects the charts do not render: Deployment/pla
 rejects 'allowlist entries must be unique' "$contract" '$a\  - object: Service/platform-delivery\n    path: "spec.type"\n    side: chart-only\n    profiles: [file]\n    reason: "ClusterIP is the Kubernetes default the chart writes out."'
 rejects 'chartOnlyLabels must not hide the label the package selects Pods by' "$contract" 's|^    - helm.sh/chart$|    - app.kubernetes.io/name|'
 rejects 'chartOnlyLabels lists labels the charts no longer render: example.test/unused' "$contract" 's|^    - helm.sh/chart$|    - helm.sh/chart\n    - example.test/unused|'
-rejects 'chart equivalence must cover exactly the file and postgres profiles' "$contract" 's/^  postgres:$/  production:/'
+rejects 'chart equivalence must cover exactly the file, postgres and postgres-single profiles' "$contract" 's/^  postgres:$/  production:/'
 rejects 'profile file must select itself with REPOSITORY_KIND' "$contract" 's/^    repositoryKind: file$/    repositoryKind: postgres/'
 
 echo "Zarf chart-equivalence gate rejects ${cases} mutations of the package, the charts and the reviewed difference list"

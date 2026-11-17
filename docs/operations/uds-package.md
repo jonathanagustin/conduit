@@ -42,6 +42,8 @@ cluster operating after the images are already present.
   `CHART_REGISTRY_LABEL_KEY`, `CHART_REGISTRY_LABEL_VALUE`, defaulting to
   `zarf` and `app: docker-registry`). Set them to wherever the Plans' charts
   live.
+- Egress from the Hub to that same Temporal on 7233, for the planning
+  sessions two Hub replicas share (`PLANNING_TEMPORAL_ADDRESS`).
 - Egress from the packaging worker to operator-supplied Temporal on 7233
   (`TEMPORAL_NAMESPACE`, `TEMPORAL_NAME_LABEL`, both defaulting to
   `temporal`).
