@@ -60,8 +60,8 @@ func newRoot() *cobra.Command {
 			if os.Getenv("TEMPORAL_API_KEY") != "" || (namespace != "" && namespace != "default") {
 				return fmt.Errorf("refusing Temporal Cloud credentials")
 			}
-			// Every subcommand, the worker and agent-exec included, refuses
-			// two model transports before it does anything else.
+			// Every subcommand, including the worker and offline utility,
+			// refuses retired command transport settings before doing work.
 			return refuseBothModelTransports(os.Getenv)
 		},
 	}

@@ -24,7 +24,7 @@ export function AssistantThreadBar() {
       <div
         data-assistant-threads="loading"
         role="status"
-        className="shrink-0 px-2 py-1 text-[10.5px] text-[#8b96a5]"
+        className="shrink-0 px-2 py-1 text-[10.5px] text-[var(--text-2)]"
       >
         Reading saved conversations
       </div>
@@ -34,7 +34,7 @@ export function AssistantThreadBar() {
       <div
         data-assistant-threads="stateless"
         role="status"
-        className="shrink-0 border-b border-[#4f391b] bg-[#2a2012] px-2 py-1 text-[10.5px] text-[#eab854]"
+        className="shrink-0 border-b border-[var(--warn-border)] bg-[var(--warn-fill)] px-2 py-1 text-[10.5px] text-[var(--warn-text)]"
       >
         {threads.notice}
       </div>
@@ -44,7 +44,7 @@ export function AssistantThreadBar() {
   return (
     <div
       data-assistant-threads="ready"
-      className="shrink-0 space-y-1 border-b border-[#1c242c] px-2 py-1 text-[10.5px] text-[#8b96a5]"
+      className="shrink-0 space-y-1 border-b border-[var(--border-subtle)] px-2 py-1 text-[10.5px] text-[var(--text-2)]"
     >
       <div className="flex items-center justify-between gap-2">
         <span data-assistant-thread-title className="min-w-0 truncate">
@@ -70,7 +70,11 @@ export function AssistantThreadBar() {
         </span>
       </div>
       {error ? (
-        <p role="alert" data-assistant-thread-error className="text-[#f5a3a6]">
+        <p
+          role="alert"
+          data-assistant-thread-error
+          className="text-[var(--err-text)]"
+        >
           {error}
         </p>
       ) : null}
@@ -88,7 +92,7 @@ export function AssistantThreadBar() {
               >
                 {deleting === row.id ? (
                   <>
-                    <span className="min-w-0 truncate text-[#f5a3a6]">
+                    <span className="min-w-0 truncate text-[var(--err-text)]">
                       Delete “{threadTitle(row)}” from the Hub? This cannot be
                       undone.
                     </span>
@@ -117,7 +121,7 @@ export function AssistantThreadBar() {
                   <>
                     <button
                       type="button"
-                      className="min-w-0 truncate text-left text-[#dce4ee] underline-offset-2 hover:underline disabled:no-underline"
+                      className="min-w-0 truncate text-left text-[var(--text-1)] underline-offset-2 hover:underline disabled:no-underline"
                       aria-current={row.id === threads.openId}
                       disabled={running || row.id === threads.openId}
                       onClick={() => void store.openThread(row.id)}
@@ -159,7 +163,7 @@ export function AssistantTurnFooter() {
   return (
     <div
       data-assistant-turn-meta
-      className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-[#8b96a5]"
+      className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-[10.5px] text-[var(--text-2)]"
     >
       {meta.label ? <span>{meta.label}</span> : null}
       {model ? (
@@ -171,7 +175,7 @@ export function AssistantTurnFooter() {
         <span
           role="note"
           data-assistant-model-caution
-          className="rounded border border-[#4f391b] bg-[#2a2012] px-1.5 text-[#eab854]"
+          className="rounded border border-[var(--warn-border)] bg-[var(--warn-fill)] px-1.5 text-[var(--warn-text)]"
           title="The Hub did not read this name from the provider. Treat it as unconfirmed."
         >
           Model name not verified

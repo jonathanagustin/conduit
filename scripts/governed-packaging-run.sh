@@ -2,10 +2,21 @@
 # Drive the governed packaging path.
 # With PACKAGING_REPO_URL unset, run the deterministic fixture test.
 # With PACKAGING_REPO_URL set, start a Hub and package that repository.
-# CONDUIT_MODEL_CMD defaults to the deterministic agent. Point it at a live
-# model CLI to write the Dockerfile with that CLI instead.
+# Live repository mode requires an explicit HTTP model endpoint and model name.
+# The no-repository path remains a deterministic test, not provider evidence.
 set -euo pipefail
 cd "$(dirname "${BASH_SOURCE[0]}")/.."
+
+for model_setting in CONDUIT_MODEL_CMD CONDUIT_ASSISTANT_MODEL_CMD CONDUIT_PLANNING_MODEL_CMD CONDUIT_PACKAGING_MODEL_CMD CONDUIT_APPGEN_MODEL_CMD; do
+  if [[ -n "${!model_setting:-}" ]]; then
+    echo "${model_setting} is unsupported; configure an HTTP model endpoint or use the offline fixture." >&2
+    exit 64
+  fi
+done
+if [[ -n "${PACKAGING_REPO_URL:-}" && ( -z "${CONDUIT_MODEL_BASE_URL:-}" || -z "${CONDUIT_MODEL_NAME:-}" ) ]]; then
+  echo 'Live repository packaging requires explicit CONDUIT_MODEL_BASE_URL and CONDUIT_MODEL_NAME; no model fixture is substituted.' >&2
+  exit 64
+fi
 
 if ! command -v docker >/dev/null 2>&1 || ! docker info >/dev/null 2>&1; then
   echo "Docker is required and its daemon must be running. Install Docker and start it, then run this script again." >&2
@@ -29,8 +40,6 @@ state="${PACKAGING_STATE_DIR:-$(mktemp -d "${TMPDIR:-/tmp}/conduit-packaging.XXX
 port="${PACKAGING_HUB_PORT:-8081}"
 hub="http://127.0.0.1:${port}"
 mkdir -p "${state}/workspaces" "${state}/data"
-go build -o "${state}/packaging-workflow" ./cmd/packaging-workflow
-model="${CONDUIT_MODEL_CMD:-${state}/packaging-workflow agent-exec}"
 build_mode="${CONDUIT_PACKAGING_BUILD:-}"
 if [[ -z "${build_mode}" && "${PACKAGING_REPO_URL}" == *excalidraw* ]]; then
   build_mode="source"
@@ -50,7 +59,6 @@ nohup env \
   CONDUIT_IMAGE_BUILDER=docker \
   CONDUIT_PACKAGING_BUILD="${build_mode}" \
   CONDUIT_DOCKER_BUILD_NETWORK="${CONDUIT_DOCKER_BUILD_NETWORK:-host}" \
-  CONDUIT_MODEL_CMD="${model}" \
   CONDUIT_HTTP_WRITE_TIMEOUT="${CONDUIT_HTTP_WRITE_TIMEOUT:-45m}" \
   go run ./cmd/platform-delivery >"${state}/hub.log" 2>&1 &
 echo $! >"${state}/hub.pid"

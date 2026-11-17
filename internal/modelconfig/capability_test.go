@@ -14,7 +14,7 @@ func TestCapabilitiesKeepTheirOwnModelAndCommand(t *testing.T) {
 	for _, tc := range []struct{ capability, model, command, base, timeout string }{
 		{Assistant, "assistant-model", "", values["CONDUIT_MODEL_BASE_URL"], "45s"},
 		{Planning, "planning-model", "", values["CONDUIT_MODEL_BASE_URL"], "45s"},
-		{Packaging, "package-model", values["CONDUIT_PACKAGING_MODEL_CMD"], "", "2m"},
+		{Packaging, "package-model", values["CONDUIT_PACKAGING_MODEL_CMD"], values["CONDUIT_MODEL_BASE_URL"], "2m"},
 		{Appgen, "shared", "", values["CONDUIT_MODEL_BASE_URL"], "45s"},
 	} {
 		t.Run(tc.capability, func(t *testing.T) {

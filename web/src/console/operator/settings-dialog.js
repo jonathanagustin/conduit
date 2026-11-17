@@ -54,7 +54,16 @@ export function storedTimezone() {
 /** Applies the theme to the root and the top-bar toggle label. */
 export function applyTheme(root, theme) {
   if (!root) return;
-  root.setAttribute("data-theme", theme);
+  for (const host of [
+    root,
+    root.ownerDocument?.documentElement,
+    root.ownerDocument?.body,
+  ]) {
+    if (!host) continue;
+    host.setAttribute("data-theme", theme);
+    host.classList?.toggle("dark", theme === "dark");
+    host.classList?.toggle("bp6-dark", theme === "dark");
+  }
   const button = root.ownerDocument?.getElementById("theme-toggle");
   if (button) button.textContent = theme === "light" ? "Dark" : "Light";
 }

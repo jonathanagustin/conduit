@@ -4,8 +4,8 @@ The operator console consumes the Conduit-native SSE contract in
 [ADR 0016](../decisions/0016-console-live-events.md). This is a Conduit extension,
 not a claim about private Apollo transports. The wire authority is
 `api/live-events/event.schema.json`; `tools/liveevents/generate-validator.mjs`
-produces the committed browser validator. `pnpm --dir web check:events` and both
-console build paths reject stale output. Validation runs without dynamic code
+produces the committed browser validator. `pnpm --dir web check:events` and the
+console build reject stale output. Validation runs without dynamic code
 generation under the Hub Content Security Policy.
 
 ## Read model integration
@@ -18,17 +18,13 @@ packaging-run event history. Buffered changes are coalesced into native refreshe
 invalidations never copy event payloads into business state or invoke approval.
 Existing bundle preview and verification POSTs remain read-only queries.
 
-`useLiveEvents(identity, { catchUp, invalidate })` in
-`web/src/api/use-live-events.ts` wraps the same lifecycle in
-`useSyncExternalStore` for a React view. *Corrected 2026-11-17:* nothing under
-`web/src` imports that file, so it is not the API the console uses and no view
-depends on it. The mounted console reaches live events through the Hub bridge
-described at the end of this paragraph. Callbacks receive an AbortSignal and
-must discard cancelled results. `liveAreas(event)` maps events to affected views,
-including overview, KPI, packaging, plans, approvals, fleet and assistant.
-Imperative consumers can use the Hub bridge's `subscribeLive`, `liveStatus`,
-`onLiveEvents` and `retryLive`; event notifications follow successful native reads.
-The KPI strip and Audit session feed consume these APIs. Reserved assistant activity has no new producer here.
+The mounted workbench consumes the Hub bridge's `subscribeLive`, `liveStatus`,
+`onLiveEvents` and `retryLive`; event notifications follow successful native
+reads. `liveAreas(event)` maps events to affected views, including overview, KPI,
+packaging, plans, approvals, fleet and assistant. The KPI strip and Audit session
+feed consume those bridge APIs. The unused React `useLiveEvents` wrapper was
+removed; React assistant portals do not establish a separate live-data cache.
+Reserved assistant activity has no new producer here.
 
 ## Recovery and authorization
 

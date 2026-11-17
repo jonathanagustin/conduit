@@ -101,15 +101,15 @@ export function mergeItem(items, item) {
 // attachmentList is the read-only view of stored files.
 export function attachmentList(items) {
   if (!items || items.length === 0) {
-    return `<div class="text-[11px] text-[#6d7885]" data-attachment-empty>No attachments stored.</div>`;
+    return `<div class="text-[11px] text-[var(--text-2)]" data-attachment-empty>No attachments stored.</div>`;
   }
   return `<div class="flex flex-col gap-1.5" data-attachment-list>${items
     .map(
       (
         item,
-      ) => `<div class="px-2.5 py-1.5 rounded-[5px] bg-[#0c1217] border border-[#222e3a] text-[11px]" data-attachment-row>
-        <div class="flex items-center gap-1.5"><span class="code-id text-[#f0f5fa]">${esc(item.name)}</span><span class="text-[10px] text-[#6d7885]">(${esc(item.kind)} · ${esc(formatSize(item.size))})</span></div>
-        <div class="code-id text-[10px] text-[#8b96a5] break-all" title="sha256">sha256 ${esc(item.sha256)}</div>
+      ) => `<div class="px-2.5 py-1.5 rounded-[5px] bg-[var(--bg-1)] border border-[var(--border-subtle)] text-[11px]" data-attachment-row>
+        <div class="flex items-center gap-1.5"><span class="code-id text-[var(--text-1)]">${esc(item.name)}</span><span class="text-[10px] text-[var(--text-2)]">(${esc(item.kind)} · ${esc(formatSize(item.size))})</span></div>
+        <div class="code-id text-[10px] text-[var(--text-2)] break-all" title="sha256">sha256 ${esc(item.sha256)}</div>
       </div>`,
     )
     .join("")}</div>`;
@@ -121,7 +121,7 @@ export function attachControl(reason, id = "intake") {
   return `<span class="inline-flex flex-col gap-1">
     <button type="button" class="so-btn so-btn-sm" data-attach-button="${esc(id)}">Attach</button>
     <input type="file" class="hidden" data-attach-input="${esc(id)}" accept=".yaml,.yml,.json,.txt,.md,Dockerfile" />
-    <span class="text-[10.5px] text-[#f5a3a6]" data-attach-reason role="alert">${esc(reason || "")}</span>
+    <span class="text-[10.5px] text-[var(--err-text)]" data-attach-reason role="alert">${esc(reason || "")}</span>
   </span>`;
 }
 

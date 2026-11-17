@@ -1,12 +1,12 @@
 ---
 title: Governed AI agents
-description: How the Hub governs an ACP coding-agent session and a local model CLI, including permission classes, audit receipts, and change requests.
+description: How the Hub governs an ACP coding-agent session and an HTTP model, including permission classes, audit receipts, and change requests.
 sidebar:
   label: Governed AI agents
   order: 4
 ---
 
-An ACP-speaking coding agent and a local model CLI can propose work. Neither one approves it. The notes below are the short form. The linked documents are the contracts.
+An ACP-speaking coding agent and an HTTP model can propose work. Neither one approves it. The notes below are the short form. The linked documents are the contracts.
 
 The Hub-routed workspace ACP transport is a Conduit extension. Records carry `valueTier: "CONDUIT_NATIVE"`, registered as `workspace.GovernedACPBridge` in [conduit-inventions.json](https://github.com/jonathanagustin/conduit/blob/main/docs/evidence/conduit-inventions.json).
 
@@ -56,19 +56,19 @@ The same turn is mirrored onto an AG-UI thread whose id starts with `wsp-acp-`. 
 
 The engineer conversation focus view does not open this session. Entering or leaving it submits no model turn. See [engineer conversation focus](https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/engineer-conversation-focus.md).
 
-## Local model CLI
+## HTTP model calls
 
-`CONDUIT_MODEL_CMD` is the argv of a local model CLI. Leave it unset and packaging proposals stay on the recorded adapter: no model process is started. When it is set, `internal/packagingworkflow/adapters/modelcli` writes the prompt to that command's standard input, checks one JSON object, and applies the packaging memory gate. A passing proposal is stored by an opener that does not approve it. The change request remains `PENDING_APPROVALS`. Generated output cannot approve itself.
+The Hub and standalone worker use an operator-managed HTTP model endpoint. Configure `CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME`; mounted key/CA files and a bounded timeout are described in [HTTP model endpoint](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/model-http.md). Global and capability model command settings are refused before model selection. No model subprocess runs under the Hub's identity.
 
-`POST /v1/assistant/turns` is the console assistant turn (`internal/assistant/httpapi`). It requires an authenticated operator and a message. With no model configured it returns HTTP 422 and the label `No model call`, and it does not run a command. With `CONDUIT_MODEL_CMD` set, the service sends one prompt to that command and may invoke only the tools the selected mode allows. `propose_governed_action` opens a change request and does not approve it. `governed_write` with `approve_change` refuses the author of that request.
+With no endpoint configured, recorded proposal/application paths and the deterministic package writer remain offline. Assistant and planning turns remain explicitly unconfigured where no fixture is selected. The direct `packaging-workflow agent-exec` command is an offline deterministic utility only; every delegated provider label is refused before reading its prompt. HTTP failure does not select a fixture automatically.
 
-`packaging-workflow agent-exec` is a ready-made `CONDUIT_MODEL_CMD`. Its `--provider` flag, or `CONDUIT_AGENT_PROVIDER`, selects the built-in offline engine or a local model CLI. `CONDUIT_PROVIDER_<NAME>_CMD` replaces that command's argv. The prompt is passed on standard input. Credentials stay in the command's own configuration. `CONDUIT_MODEL_TIMEOUT` defaults to 45 seconds.
+Models can request only the tools their mode permits. Generated output cannot approve itself; a proposal remains subject to the Hub's authorization, review and execution checks.
 
 ## Choosing the agent
 
 `DEVWORKSPACE_ACP_AGENT` selects a preset command for an ACP-speaking coding agent. `DEVWORKSPACE_ACP_AGENT_CMD` replaces any preset with an explicit whitespace-separated command. The chosen command still passes file writes and commands through the permission mapping above. The choice adds no authority.
 
-The same rule covers the model command: set `CONDUIT_MODEL_CMD` to the local model CLI you run, or leave it unset. Which presets this repository has exercised, and which it has not, is recorded in [Local model CLI](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-model-cli.md).
+Workspace ACP is a separate interactive coding capability; retiring model subprocess transports does not change its permission or execution boundary.
 
 The Node process is not an operating-system sandbox. Risk classification matches command and path text. It is not a complete shell analysis. Offline-bundle mode (`CONDUIT_OFFLINE_BUNDLE=1`) refuses non-loopback HTTP from the Hub client and the bridge fetch helper, and strips listed credential and proxy variables from the child environment. It does not confine every socket a subprocess might open.
 
@@ -76,5 +76,5 @@ The Node process is not an operating-system sandbox. Risk classification matches
 
 - [Workspace ACP connections](https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/workspace-acp-connections.md)
 - [Agent runs](https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/agent-runs.md)
-- [Local model CLI](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-model-cli.md)
+- [Model transport migration](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-model-cli.md)
 - [How it works](/conduit/how-it-works/)

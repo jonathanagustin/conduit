@@ -793,12 +793,14 @@ describe("ACP bridge", () => {
     dirs.push(workspace);
     const savedOpenAi = process.env["OPENAI_API_KEY"];
     const savedCodex = process.env["CODEX_API_KEY"];
+    const savedGemini = process.env["GEMINI_API_KEY"];
     process.env["ASSISTANT_ACP_COMMAND"] = process.execPath;
     process.env["ASSISTANT_ACP_ARGS"] = JSON.stringify([fakeAgent]);
     process.env["ASSISTANT_ACP_FIXTURE"] = "1";
     process.env["INITIAL_AGENT_MODE"] = "workspace-write";
     process.env["OPENAI_API_KEY"] = "sk-shouldnotleaktoofflinechild";
     process.env["CODEX_API_KEY"] = "sk-shouldnotleaktoofflinechild2";
+    process.env["GEMINI_API_KEY"] = "fixture-gemini-must-not-reach-child";
     process.env["FAKE_ACP_AUTH_METHODS"] = "api-key";
     try {
       const bridge = await createBridge({
@@ -852,6 +854,7 @@ describe("ACP bridge", () => {
         authenticated: false,
         hasOpenAiKey: false,
         hasCodexKey: false,
+        hasGeminiKey: false,
         offlineBundle: "1",
         noProxy: "*",
       });
@@ -861,6 +864,8 @@ describe("ACP bridge", () => {
       else process.env["OPENAI_API_KEY"] = savedOpenAi;
       if (savedCodex === undefined) delete process.env["CODEX_API_KEY"];
       else process.env["CODEX_API_KEY"] = savedCodex;
+      if (savedGemini === undefined) delete process.env["GEMINI_API_KEY"];
+      else process.env["GEMINI_API_KEY"] = savedGemini;
     }
   });
 });

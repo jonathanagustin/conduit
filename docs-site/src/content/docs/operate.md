@@ -89,11 +89,10 @@ lost write response can have an unknown outcome: read the authoritative state
 before submitting another mutation. Distinguish a configured worker from a live
 one, and a queued notification from an exhausted delivery.
 
-Repository CI status is separate from deployment health. The historical runner
-allocation incident [#858](https://github.com/jonathanagustin/conduit/issues/858)
-is distinct from later executed failures. [Run 44032058382](https://github.com/jonathanagustin/conduit/actions/runs/44032058382)
-allocated runners and passed its Go suite, but failed lint, the operator console
-and the aggregate Trunk verdict. The authorized
+Repository CI status is separate from deployment health. Hosted allocation resumed
+while the owner temporarily made the repository public; a successful Docs run
+is scoped evidence, not a complete current-baseline Trunk result. Follow
+[#858](https://github.com/jonathanagustin/conduit/issues/858) and the
 [local act process](https://github.com/jonathanagustin/conduit/blob/main/docs/operations/local-act.md)
-retains exact-head evidence without fabricating a hosted PASS or authorizing
-publication.
+for exact-head receipts. Neither verification nor repository visibility authorizes
+publication or deployment.

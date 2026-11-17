@@ -37,8 +37,8 @@ const FollowupSuggestionsRow: FC = () => {
   }, [updateFades]);
 
   const maskImage = `linear-gradient(to right, ${
-    fades.left ? "transparent, black 2rem" : "black"
-  }, ${fades.right ? "black calc(100% - 2rem), transparent" : "black"})`;
+    fades.left ? "transparent, var(--mask-opaque) 2rem" : "var(--mask-opaque)"
+  }, ${fades.right ? "var(--mask-opaque) calc(100% - 2rem), transparent" : "var(--mask-opaque)"})`;
 
   return (
     <div

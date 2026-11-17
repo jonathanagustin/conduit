@@ -1,19 +1,12 @@
 package localcmd
 
 import (
-	"context"
 	"os"
-	"path/filepath"
-	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
-func TestExecuteGivesTheChildOnlyAllowlistedEnvironment(t *testing.T) {
-	if runtime.GOOS == "windows" {
-		t.Skip("script fixture is a shell")
-	}
+func TestLegacyEnvironmentFilterRetainsOnlyAdmittedVariables(t *testing.T) {
 	t.Setenv("CONDUIT_DATABASE_DSN", "postgres://hub:hunter2@db/conduit")
 	t.Setenv("BUNDLE_SIGNING_KEY", "signing-secret")
 	t.Setenv("DATABASE_URL", "postgres://db-secret")
@@ -26,14 +19,7 @@ func TestExecuteGivesTheChildOnlyAllowlistedEnvironment(t *testing.T) {
 	t.Setenv("OPERATOR_EXTRA", "kept")
 	t.Setenv("OPERATOR_OTHER", "dropped")
 	t.Setenv(EnvAllowVar, " OPERATOR_EXTRA , AWS_PROFILE,")
-	script := filepath.Join(t.TempDir(), "env")
-	if err := os.WriteFile(script, []byte("#!/bin/sh\nenv\n"), 0o755); err != nil {
-		t.Fatal(err)
-	}
-	out, err := Execute(context.Background(), []string{script}, 10*time.Second, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
+	out := []byte(strings.Join(ChildEnv(os.Environ()), "\n"))
 	got := map[string]string{}
 	for _, line := range strings.Split(string(out), "\n") {
 		if key, value, ok := strings.Cut(line, "="); ok {
