@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "captured": "2026-11-13",
+  "captured": "2026-11-17",
   "sourceManifest": "docs/reference-platform/public-documentation-manifest.tsv",
   "sourceCount": 123,
   "commands": [
@@ -1561,7 +1561,7 @@
         "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_delete/",
-      "sourceSha256": "65ec7402f1ce64ad0870ef140545964b42ee1af62027c510e9969a7a18dce021"
+      "sourceSha256": "20b82a4e791940e53a8f1912c591cad55426b12f299fae3c7ac2b00bb454b59d"
     },
     {
       "command": "apollo-cli label get [Experimental]",
@@ -1591,7 +1591,7 @@
         "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_get/",
-      "sourceSha256": "f331841248195c78e7abc70955a245bbc8da99a390af82ca28f5c8b7f2a49a86"
+      "sourceSha256": "52855e33aac3fa2d3c1c691ab0a88cfd6693ae6617d95f2ccc1ea288c77e0027"
     },
     {
       "command": "apollo-cli label list [Experimental]",
@@ -1620,7 +1620,7 @@
         "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_list/",
-      "sourceSha256": "a24911d0a7c634b53e4b360e5deb894179cb2321797fcac2cc592314ff5f6d96"
+      "sourceSha256": "c26facae06b30ade27e5aca33001a563adb6f4c470c7936688e7baadacdf8fac"
     },
     {
       "command": "apollo-cli label set [Experimental]",
@@ -1652,7 +1652,7 @@
         "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_set/",
-      "sourceSha256": "bfc30b17ccda04faf68b010ef679ab53524a28cf3e8ebf165acb29aea1495c71"
+      "sourceSha256": "cb2cf262e5802c60684b393024d0a861553d8203b065e117274fa39ffa42c863"
     },
     {
       "command": "apollo-cli label [Experimental]",
@@ -1681,7 +1681,7 @@
         "--sso-callback-port"
       ],
       "source": "https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label/",
-      "sourceSha256": "36a6a1960ae5c74e61cbbdd6efe42ad3cc3cfe126d5b239132f7edd149607007"
+      "sourceSha256": "051ee6b6a116fe95b42f70f279efacd46fa51808e2ba048c44a7414c280d1852"
     },
     {
       "command": "apollo-cli module create",

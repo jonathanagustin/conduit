@@ -1,6 +1,6 @@
 {
   "note": "When the public documentation corpus was last re-crawled, and how big it was. Separate from the manifest because the manifest is a table of pages and this is a statement about the act of capturing it. scripts/verify-documentation-freshness.mjs reads this offline; scripts/verify-documentation-manifest.mjs --write updates it after a real crawl.",
-  "capturedAt": "2026-11-13",
+  "capturedAt": "2026-11-17",
   "pageCount": 284,
   "maximumAgeDays": 45,
   "refreshWith": "node scripts/verify-documentation-manifest.mjs --write",
