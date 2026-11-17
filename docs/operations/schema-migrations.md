@@ -118,6 +118,7 @@ accurate and does not have to be idempotent.
 | `notifications` | `internal/notifications/adapters/postgres` | notification events, subscription preferences, per-recipient inbox entries and their delivery state, and one contact address per (owner, kind) |
 | `gitless-resolution-log` | `internal/gitless/adapters/resolutionlogpostgres` | append-only source selector, digest, publisher, and failed-convergence history |
 | `assistant-threads` | `internal/assistant/adapters/threadpostgres` | assistant conversation threads and their messages, keyed by owner; bounded per owner, per thread and per message by `CHECK` constraints |
+| `appgen` | `internal/appgen/adapters/postgres` | app generation results, one row per generation, with the owning operator as a column |
 
 One ledger table with a `component` column rather than one table per component:
 several owners can be pointed at the same database, and a single place to look

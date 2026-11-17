@@ -81,6 +81,10 @@ type Options struct {
 	// AppgenPublisher overrides the OCI image/chart publisher used by app
 	// generation and the appgen planning work profile. Nil uses registry.DockerPublisher.
 	AppgenPublisher appgenapp.Publisher
+	// AppgenStore keeps app generation results. Nil makes NewHub read
+	// REPOSITORY_KIND: postgres opens the PostgreSQL store from
+	// POSTGRES_DSN_FILE, and anything else keeps results in process memory.
+	AppgenStore appgenapp.Store
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader

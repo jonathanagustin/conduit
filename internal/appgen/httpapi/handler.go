@@ -61,6 +61,12 @@ func Register(mux *http.ServeMux, cfg Config) {
 			Actor: actor, Name: body.Name, Description: body.Description, Confirm: body.Confirm,
 			AttachmentSHA256: body.AttachmentSHA256,
 		})
+		if errors.Is(err, application.ErrBuildExecutorUnavailable) {
+			// A deployment fact, not a failed upstream: this Hub has no
+			// build executor, and a retry will get the same answer.
+			writeError(writer, http.StatusServiceUnavailable, err.Error())
+			return
+		}
 		if err != nil {
 			writeError(writer, http.StatusBadGateway, err.Error())
 			return

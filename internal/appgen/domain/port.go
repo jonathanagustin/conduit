@@ -53,6 +53,9 @@ type Request struct {
 	PlanDigest     string
 	AcceptedPlan   string
 	Conversation   []ConversationMessage
+	// Repair is set when an earlier reply failed a gate. The prompt then
+	// carries the failure output, framed as untrusted, and the earlier reply.
+	Repair *Repair
 }
 
 // Attachment is one stored intake file. SHA256 is lowercase hex of Content.
@@ -93,7 +96,7 @@ func AcceptedPlanDigest(text string) string {
 
 // Label reports whether the exchange called a configured command.
 func Label(provenance Provenance) string {
-	if provenance.Adapter == "" || provenance.Adapter == "recorded" {
+	if provenance.Adapter == "" || provenance.Adapter == AdapterRecorded {
 		return LabelNoModel
 	}
 	return LabelLiveModel

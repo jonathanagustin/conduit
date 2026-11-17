@@ -18,6 +18,8 @@ import (
 	"syscall"
 	"time"
 
+	appgenpostgres "github.com/jonathanagustin/conduit/internal/appgen/adapters/postgres"
+	appgenapp "github.com/jonathanagustin/conduit/internal/appgen/application"
 	artifacts "github.com/jonathanagustin/conduit/internal/artifacts/domain"
 	assistantthreads "github.com/jonathanagustin/conduit/internal/assistant/adapters/threadpostgres"
 	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
@@ -281,6 +283,7 @@ func main() {
 			NotificationStore:    notifications.Store,
 			NotificationContacts: notifications.Contacts,
 			AssistantThreads:     assistantThreadsFor(notifications),
+			AppgenStore:          appGenerationsFor(notifications),
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
 		}), handlerOptions, requestLimiter),
@@ -398,6 +401,16 @@ func assistantThreadsFor(component notificationComponent) assistantapp.Threads {
 	return component.AssistantThreads
 }
 
+// appGenerationsFor returns the durable generation store when one was opened,
+// and an untyped nil otherwise, for the reason assistantThreadsFor gives. Nil
+// keeps generation results in process memory.
+func appGenerationsFor(component notificationComponent) appgenapp.Store {
+	if component.AppGenerations == nil {
+		return nil
+	}
+	return component.AppGenerations
+}
+
 type notificationComponent struct {
 	Store      notificationports.Store
 	Contacts   notificationports.Contacts
@@ -405,6 +418,9 @@ type notificationComponent struct {
 	// AssistantThreads rides with the notification store because it is opened
 	// on the same DSN and closed by the same closer.
 	AssistantThreads *assistantthreads.Store
+	// AppGenerations is opened on the same DSN and closed by the same closer,
+	// so a generation result survives a Hub restart.
+	AppGenerations *appgenpostgres.Store
 }
 
 func configureReconciliation(
@@ -477,6 +493,19 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	closeStore = func() {
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// App generation results share the same database and ledger. Each result
+	// is owned by one operator and is listed only for that operator.
+	appGenerationStore, err := appgenpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	closeStore = func() {
+		_ = appGenerationStore.Close()
 		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
 		closeReconciliationStore()
@@ -556,6 +585,7 @@ func configureReconciliation(
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
 		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries,
 		AssistantThreads: assistantThreadStore,
+		AppGenerations:   appGenerationStore,
 	}, nil
 }
 

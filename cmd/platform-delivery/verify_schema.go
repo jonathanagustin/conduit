@@ -23,6 +23,7 @@ import (
 	"io"
 
 	_ "github.com/jackc/pgx/v5/stdlib"
+	appgenpostgres "github.com/jonathanagustin/conduit/internal/appgen/adapters/postgres"
 	assistantthreads "github.com/jonathanagustin/conduit/internal/assistant/adapters/threadpostgres"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	reconciliationpostgres "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/adapters/postgres"
@@ -51,6 +52,7 @@ func hubMigrationSets() []pgmigrate.Set {
 		{Component: reconciliationpostgres.Component(), Migrations: reconciliationpostgres.Migrations()},
 		{Component: notificationspostgres.Component(), Migrations: notificationspostgres.Migrations()},
 		{Component: assistantthreads.Component, Migrations: assistantthreads.Migrations()},
+		{Component: appgenpostgres.Component, Migrations: appgenpostgres.Migrations()},
 		{Component: resolutionlogpostgres.Component(), Migrations: resolutionlogpostgres.Migrations()},
 	}
 }
