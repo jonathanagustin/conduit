@@ -1,4 +1,5 @@
 import { convergenceState } from "./release-convergence.js";
+import { newestAuditEntries } from "./audit-order.js";
 // Shared helpers for the console shell: identity, header KPIs, site summary, dock sizing,
 // and guarded preference storage.
 
@@ -315,17 +316,19 @@ export function dockSurfacesMarkup(state, helpers) {
     ? `<ul class="space-y-1">${windowRows.join("")}</ul>`
     : empty("No maintenance window or suppression is recorded.");
 
-  const entries = Array.isArray(hub.audit) ? hub.audit.slice(-8).reverse() : [];
+  const entries = newestAuditEntries(hub.audit, hub.auditOrder, 8);
   const who = (a) =>
     a && typeof a === "object" ? a.username || a.id || JSON.stringify(a) : a;
-  const live = entries.length
-    ? `<ul class="space-y-1">${entries
-        .map(
-          (e) =>
-            `<li class="text-[12px]"><span class="code-id text-white">${esc(e?.sequence)}</span> <span class="kit-muted">${esc(who(e?.actor))} · ${esc(e?.action)}</span></li>`,
-        )
-        .join("")}</ul>`
-    : empty("No audit entry is recorded.");
+  const live = hub.auditNote
+    ? empty(hub.auditNote)
+    : entries.length
+      ? `<ul class="space-y-1">${entries
+          .map(
+            (e) =>
+              `<li class="text-[12px]"><span class="code-id text-white">${esc(e?.sequence)}</span> <span class="kit-muted">${esc(who(e?.actor))} · ${esc(e?.action)}</span></li>`,
+          )
+          .join("")}</ul>`
+      : empty("No audit entry is recorded.");
 
   return { inspector, outline, windows, live };
 }

@@ -1,4 +1,5 @@
 import { createOverviewSummary } from "./overview-summary.js";
+import { newestAuditEntries } from "./audit-order.js";
 // Command Center overview: what needs attention, from the Hub's own records.
 // Decisions waiting, packaging runs that stopped, each environment's last
 // report, and the newest audit entries. Pure markup; nothing here writes.
@@ -185,9 +186,7 @@ export function overviewMarkup(
   const auditBody = hub.auditNote
     ? none(hub.auditNote, esc)
     : audit.length
-      ? `<ul class="kit-cc-list">${audit
-          .slice(-6)
-          .reverse()
+      ? `<ul class="kit-cc-list">${newestAuditEntries(audit, hub.auditOrder, 6)
           .map(
             (e) =>
               `<li><span class="code-id kit-muted">${esc(e.sequence)}</span> ${esc(e.actor || "")} · ${esc(e.action || "")}</li>`,

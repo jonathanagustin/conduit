@@ -287,10 +287,17 @@ A section that could not be computed reports `status: UNAVAILABLE` rather than
 operations and targets checked. **Allows are recorded, not only denies** — an
 audit trail holding only refusals cannot answer who was let in.
 
-The administrator-only response is paginated: `limit` defaults to 100 (maximum
-200), `cursor` continues the read, and `since`, `until` and `resourceRid` bound
-it. Follow `nextCursor` until absent. `view=chain` folds a read projection; it
-does not expose the original stored ledger. For verified JSONL archival use
+This administrator-only read uses Conduit's native pagination: `limit` defaults
+to 100 and is capped at 200; `cursor`, inclusive `since`, exclusive `until` and
+`resourceRid` bound the read. Omitted `order` or `order=asc` preserves ascending
+recorded order; `order=desc` selects the most recently recorded events first.
+`view=chain` returns a reconstructed projection folded in the requested order,
+not the stored ledger's sequences or digests. The console requests descending
+pages and keeps the returned projection order for proof checks. See
+`docs/ui/contracts/pagination.md` for cursor binding and restart behavior during
+legacy audit adoption.
+
+For verified JSONL archival use
 the Hub binary's `verify-authorization-audit --export-file=...` with an
 independently retained `--checkpoint-file`; `--archive-file=...` checks that
 archive offline. See `docs/operations/authorization-audit-integrity.md` for the

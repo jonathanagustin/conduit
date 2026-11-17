@@ -173,6 +173,42 @@ describe("inspectorMarkup", () => {
     expect(html).not.toContain("other");
   });
 
+  it("keeps the newest 20 matching descending events without changing proof inputs", () => {
+    const audit = Array.from({ length: 25 }, (_, index) =>
+      Object.freeze({
+        sequence: index + 1,
+        id: `event-${index + 1}`,
+        action: `audit-action-${String(index + 1).padStart(2, "0")}`,
+        actor: "reader",
+        resourceRid: "env/dev",
+        recordedAt: `recorded-${index + 1}`,
+        previousDigest: `previous-${index + 1}`,
+        digest: `digest-${index + 1}`,
+        payload: `exact-payload-${index + 1}`,
+      }),
+    );
+    Object.freeze(audit);
+    const before = JSON.stringify(audit);
+    const html = inspectorMarkup(model, {
+      tab: "timeline",
+      audit,
+      auditOrder: "desc",
+    });
+    expect((html.match(/<li /g) || []).length).toBe(20);
+    for (let index = 1; index <= 25; index++) {
+      const action = `audit-action-${String(index).padStart(2, "0")}`;
+      if (index <= 20) expect(html).toContain(action);
+      else expect(html).not.toContain(action);
+    }
+    expect(html.indexOf("audit-action-01")).toBeLessThan(
+      html.indexOf("audit-action-20"),
+    );
+    expect(JSON.stringify(audit)).toBe(before);
+    expect(audit.map((entry) => entry.sequence)).toEqual(
+      Array.from({ length: 25 }, (_, index) => index + 1),
+    );
+  });
+
   it("has no approve button and shows the change-request text", () => {
     const html = inspectorMarkup(
       {

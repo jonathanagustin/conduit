@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"net/url"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -30,10 +31,12 @@ type AuthorizationAuditPageQuery struct {
 	Since, Until time.Time
 	After        string
 	Limit        int
+	Desc         bool
 }
 
-// AuthorizationAuditPage is one bounded window, oldest first. Next is set only
-// when more events remain. Total counts every event the filters match.
+// AuthorizationAuditPage is one bounded window in the requested recorded
+// order. Next is set only when more events remain. Total counts every event
+// the filters match.
 type AuthorizationAuditPage struct {
 	Events []AuthorizationAuditEvent
 	Next   string
@@ -112,14 +115,18 @@ func auditEventInWindow(event AuthorizationAuditEvent, query AuthorizationAuditP
 	return query.Until.IsZero() || event.CreatedAt.Before(query.Until)
 }
 
-// pageTimedAuditEvents cuts one page from events that are already filtered
-// and sorted by auditEventBefore. When seek is set the page starts strictly
-// after the given position; otherwise it starts at the oldest event.
-func pageTimedAuditEvents(matching []AuthorizationAuditEvent, after auditPosition, seek bool, limit int) ([]AuthorizationAuditEvent, string) {
+// pageTimedAuditEvents cuts one page from events already filtered and sorted
+// by time/ID in the requested direction. When seek is set the page starts
+// strictly after the position in that direction.
+func pageTimedAuditEvents(matching []AuthorizationAuditEvent, after auditPosition, seek bool, limit int, desc bool) ([]AuthorizationAuditEvent, string) {
 	start := 0
 	if seek {
 		start = sort.Search(len(matching), func(index int) bool {
-			return auditEventBefore(AuthorizationAuditEvent{ID: after.id, CreatedAt: after.at}, matching[index])
+			position := AuthorizationAuditEvent{ID: after.id, CreatedAt: after.at}
+			if desc {
+				return auditEventBefore(matching[index], position)
+			}
+			return auditEventBefore(position, matching[index])
 		})
 	}
 	end := min(start+limit, len(matching))
@@ -157,7 +164,10 @@ func (repository *MemoryRepository) PageAuthorizationAudit(_ context.Context, qu
 		}
 	}
 	sort.Slice(matching, func(i, j int) bool { return auditEventBefore(matching[i], matching[j]) })
-	window, next := pageTimedAuditEvents(matching, after, query.After != "", query.Limit)
+	if query.Desc {
+		slices.Reverse(matching)
+	}
+	window, next := pageTimedAuditEvents(matching, after, query.After != "", query.Limit, query.Desc)
 	page := AuthorizationAuditPage{Events: make([]AuthorizationAuditEvent, 0, len(window)), Next: next, Total: len(matching)}
 	for _, event := range window {
 		page.Events = append(page.Events, cloneJSON(event))
@@ -185,7 +195,10 @@ func (repository *FileRepository) PageAuthorizationAudit(_ context.Context, quer
 	if err != nil {
 		return AuthorizationAuditPage{}, err
 	}
-	window, next := pageTimedAuditEvents(matching, after, query.After != "", query.Limit)
+	if query.Desc {
+		slices.Reverse(matching)
+	}
+	window, next := pageTimedAuditEvents(matching, after, query.After != "", query.Limit, query.Desc)
 	return AuthorizationAuditPage{Events: append([]AuthorizationAuditEvent{}, window...), Next: next, Total: len(matching)}, nil
 }
 
@@ -198,7 +211,7 @@ func (view *authorizationAuditView) PageAuthorizationAudit(ctx context.Context, 
 	if err != nil {
 		return AuthorizationAuditPage{}, err
 	}
-	bounds := auditpostgres.PageQuery{Resource: query.ResourceRID, Since: query.Since, Until: query.Until}
+	bounds := auditpostgres.PageQuery{Resource: query.ResourceRID, Since: query.Since, Until: query.Until, Desc: query.Desc}
 	total, err := view.audit.CountAuthorizationAudit(ctx, bounds)
 	if err != nil {
 		return AuthorizationAuditPage{}, err
@@ -229,6 +242,9 @@ func (view *authorizationAuditView) PageAuthorizationAudit(ctx context.Context, 
 	if after.timed && after.pending != pendingFingerprint {
 		return AuthorizationAuditPage{}, ErrInvalidAuthorizationAuditPosition
 	}
+	if query.Desc {
+		return view.pageDescendingAuthorizationAudit(ctx, query, after, bounds, pending, total, pendingFingerprint)
+	}
 	page := AuthorizationAuditPage{Events: []AuthorizationAuditEvent{}, Total: total + len(pending)}
 	seekPending := after.timed && (after.id != "" || !after.at.IsZero())
 	if !after.timed {
@@ -254,7 +270,7 @@ func (view *authorizationAuditView) PageAuthorizationAudit(ctx context.Context, 
 			return page, nil
 		}
 	}
-	window, next := pageTimedAuditEvents(pending, after, seekPending, query.Limit-len(page.Events))
+	window, next := pageTimedAuditEvents(pending, after, seekPending, query.Limit-len(page.Events), false)
 	if next != "" {
 		position, err := parseAuditPosition(next)
 		if err != nil {
@@ -264,6 +280,43 @@ func (view *authorizationAuditView) PageAuthorizationAudit(ctx context.Context, 
 		next = position.String()
 	}
 	page.Events, page.Next = append(page.Events, window...), next
+	return page, nil
+}
+
+// Descending is the reverse of the compatibility read: pending events first,
+// then the stored ledger. Once a sequence cursor is issued, pending events have
+// already been visited and must not be added to later pages again.
+func (view *authorizationAuditView) pageDescendingAuthorizationAudit(ctx context.Context, query AuthorizationAuditPageQuery, after auditPosition, bounds auditpostgres.PageQuery, pending []AuthorizationAuditEvent, total int, fingerprint string) (AuthorizationAuditPage, error) {
+	page := AuthorizationAuditPage{Events: []AuthorizationAuditEvent{}, Total: total + len(pending)}
+	if query.After == "" || after.timed {
+		slices.Reverse(pending)
+		window, next := pageTimedAuditEvents(pending, after, after.timed && (after.id != "" || !after.at.IsZero()), query.Limit, true)
+		page.Events = append(page.Events, window...)
+		if next != "" || (len(page.Events) == query.Limit && total > 0) {
+			last := page.Events[len(page.Events)-1]
+			page.Next = auditPosition{timed: true, at: last.CreatedAt, id: last.ID, pending: fingerprint}.String()
+			return page, nil
+		}
+		if len(page.Events) == query.Limit {
+			return page, nil
+		}
+	}
+	remaining := query.Limit - len(page.Events)
+	if !after.timed {
+		bounds.AfterSequence = after.sequence
+	}
+	bounds.Limit = remaining + 1
+	rows, err := view.audit.PageAuthorizationAudit(ctx, bounds)
+	if err != nil {
+		return AuthorizationAuditPage{}, err
+	}
+	if len(rows) > remaining {
+		rows = rows[:remaining]
+		page.Next = auditPosition{sequence: rows[len(rows)-1].Sequence}.String()
+	}
+	for _, row := range rows {
+		page.Events = append(page.Events, row.Event)
+	}
 	return page, nil
 }
 
@@ -293,6 +346,7 @@ type authorizationAuditFilter struct {
 	Since       string `json:"since"`
 	Until       string `json:"until"`
 	View        string `json:"view"`
+	Order       string `json:"order,omitempty"`
 }
 
 func parseAuditBound(query url.Values, name string) (time.Time, string, error) {
@@ -308,6 +362,10 @@ func parseAuditBound(query url.Values, name string) (time.Time, string, error) {
 }
 
 func parseAuthorizationAuditRead(values url.Values) (authorizationAuditRead, error) {
+	order := strings.TrimSpace(values.Get("order"))
+	if order != "" && order != "asc" && order != "desc" {
+		return authorizationAuditRead{}, errors.New("order must be asc or desc")
+	}
 	view := strings.TrimSpace(values.Get("view"))
 	if view != "" && view != "events" && view != "chain" {
 		return authorizationAuditRead{}, errors.New("view must be events or chain")
@@ -317,8 +375,11 @@ func parseAuthorizationAuditRead(values url.Values) (authorizationAuditRead, err
 		return authorizationAuditRead{}, err
 	}
 	read := authorizationAuditRead{chain: view == "chain", previous: governance.EmptyAuditCheckpoint()}
-	read.query = AuthorizationAuditPageQuery{ResourceRID: values.Get("resourceRid"), Limit: limit}
+	read.query = AuthorizationAuditPageQuery{ResourceRID: values.Get("resourceRid"), Limit: limit, Desc: order == "desc"}
 	filter := authorizationAuditFilter{ResourceRID: read.query.ResourceRID, View: "events"}
+	if read.query.Desc {
+		filter.Order = "desc"
+	}
 	if read.chain {
 		filter.View = "chain"
 	}
@@ -373,6 +434,9 @@ func readAuthorizationAuditPage(ctx context.Context, repository GovernanceReposi
 	}
 	body := map[string]any{
 		"total": page.Total, "pageSize": len(page.Events), "limit": read.query.Limit, "hasPrevious": read.hasPrevious,
+	}
+	if read.query.Desc {
+		body["order"] = "desc"
 	}
 	nextKey := page.Next
 	if read.chain {

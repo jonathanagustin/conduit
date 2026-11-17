@@ -40,6 +40,7 @@ func seedAuditTrail(t *testing.T, repository Repository, count int) []string {
 type auditPageBody struct {
 	Events []AuthorizationAuditEvent      `json:"events"`
 	Chain  []AuthorizationAuditChainEntry `json:"entries"`
+	Order  string                         `json:"order"`
 	PageMetadata
 	Total          int             `json:"total"`
 	RawPrevious    json.RawMessage `json:"previousCursor"`

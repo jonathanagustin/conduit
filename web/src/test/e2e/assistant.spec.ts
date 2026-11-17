@@ -587,6 +587,11 @@ test("Command Center uses recorded sites and drafts context without writes", asy
   ];
   await page.route("**/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path === "/v1/authorization-audit") {
+      const query = new URL(route.request().url()).searchParams;
+      expect(query.get("order")).toBe("desc");
+      expect(query.get("view")).toBe("chain");
+    }
     const bodies: Record<string, unknown> = {
       "/v1/session": {
         actor: { username: "reader" },
@@ -626,6 +631,7 @@ test("Command Center uses recorded sites and drafts context without writes", asy
       "/v1/promotions": { promotions: [] },
       "/v1/packaging-runs": { items: [] },
       "/v1/authorization-audit": {
+        order: "desc",
         entries: [{ sequence: 1, actor: "reader", action: "plan:read" }],
       },
     };
@@ -2596,6 +2602,58 @@ test("offline bundles bind verified envelope, physical-copy confirmation and rep
   expect(writes).toHaveLength(2);
 });
 
+test("inspector keeps the newest descending audit events within its 20-row bound", async ({
+  page,
+}) => {
+  const entries = Array.from({ length: 25 }, (_, index) => ({
+    sequence: index + 1,
+    id: `inspector-event-${index + 1}`,
+    actor: "reader",
+    action: `inspector-action-${String(index + 1).padStart(2, "0")}`,
+    resourceRid: "environment/dev",
+  }));
+  await page.route("**/v1/**", async (route) => {
+    const url = new URL(route.request().url());
+    if (url.pathname === "/v1/session")
+      return route.fulfill({
+        json: { actor: { username: "root" }, effective: { username: "root" } },
+      });
+    if (url.pathname === "/v1/authorization-audit") {
+      expect(url.searchParams.get("order")).toBe("desc");
+      return route.fulfill({ json: { order: "desc", entries } });
+    }
+    return route.fulfill({ status: 404, json: { error: "not configured" } });
+  });
+  await page.route("**/api/v2/ontologies/**", async (route) => {
+    if (!new URL(route.request().url()).pathname.endsWith("/loadObjects"))
+      return route.fulfill({ status: 404, json: { error: "not configured" } });
+    const body = route.request().postDataJSON();
+    return route.fulfill({
+      json: {
+        data:
+          body.objectSet.type === "searchAround"
+            ? []
+            : [{ id: "dev", name: "dev", __primaryKey: "dev" }],
+      },
+    });
+  });
+  await hydrate(page);
+  await page.goto("/console/#au01-audit");
+  await expect(page.locator(".audit-ledger")).toContainText(
+    "inspector-action-01",
+  );
+  await page.evaluate(() =>
+    Reflect.get(window, "inspectObject")("Environment", "dev"),
+  );
+  const inspector = page.locator(".kit-inspector");
+  await inspector.getByRole("tab", { name: "Timeline", exact: true }).click();
+  await expect(inspector.locator("li")).toHaveCount(20);
+  await expect(inspector).toContainText("inspector-action-01");
+  await expect(inspector).toContainText("inspector-action-20");
+  for (const omitted of [21, 22, 23, 24, 25])
+    await expect(inspector).not.toContainText(`inspector-action-${omitted}`);
+});
+
 test("audit verifies native payload bytes and keeps polled events resource scoped", async ({
   page,
 }) => {
@@ -2618,14 +2676,18 @@ test("audit verifies native payload bytes and keeps polled events resource scope
       return route.fulfill({
         json: { actor: { username: "root" }, effective: { username: "root" } },
       });
-    if (url.pathname === "/v1/authorization-audit")
+    if (url.pathname === "/v1/authorization-audit") {
+      expect(url.searchParams.get("order")).toBe("desc");
+      expect(url.searchParams.get("view")).toBe("chain");
       return route.fulfill({
         json: {
+          order: "desc",
           entries: tampered
             ? [{ ...entries[0], actor: "forged" }, entries[1]]
             : entries,
         },
       });
+    }
     return route.fulfill({ status: 404, json: { error: "not configured" } });
   });
   await page.route(

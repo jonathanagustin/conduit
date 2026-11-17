@@ -16,7 +16,7 @@ back, retry, and shared links address the same result window.
 | Promotions | `GET /v1/promotions` | `product`, `status`, `search` | default 100, maximum 200 |
 | Packaging runs | `GET /v1/packaging-runs` | `phase`, `outcome`, `planId`, `search` | `summary`: default 100, maximum 200; `full` or omitted: maximum 20. Rows are ordered by run id. |
 | Packaging-run events | `GET /v1/packaging-runs/{runID}/events` | the run id; `view` and `limit` only | same view and limit rules. Events are ordered by sequence. A step that has not been reached is absent, not a pass. |
-| Authorization audit | `GET /v1/authorization-audit` | `resourceRid`, `since`, `until`, `view` (`events` or omitted, or `chain`) | default 100, maximum 200. Oldest first. Forward-only: `previousCursor` is never issued. |
+| Authorization audit | `GET /v1/authorization-audit` | `resourceRid`, `since`, `until`, `view` (`events` or omitted, or `chain`), `order` (`asc` or omitted, or `desc`) | default 100, maximum 200. Ascending recorded order by default. Forward-only: `previousCursor` is never issued. |
 
 The authorization audit is the one index bounded in the repository query
 rather than after a full read, because the log is retained indefinitely.
@@ -38,6 +38,22 @@ another legacy write that changes that set invalidates the cursor and returns
 `422`; restart without the cursor to read the authoritative order. Legacy
 cursors issued before this binding existed are also refused. Native sequence
 cursors continue to seek the ledger as before. No snapshot spans HTTP requests.
+
+`order=desc` reverses that read order and returns `order: "desc"` in each
+response. PostgreSQL traverses native chain sequence in descending order;
+the development stores traverse event time and ID in descending order. During
+a mixed rollout the reverse compatibility order is pending legacy records
+first, then native records. A cursor is bound to its order as well as its
+filters. Omitted order and explicit `order=asc` keep existing ascending
+cursors usable. Any other order value returns `422`.
+
+For `view=chain`, projection sequence still increases from 1 in returned order,
+including a descending read. The hashes describe that reconstructed read
+projection; they are not the stored ledger's sequence or digests. Concatenated
+pages verify from projection genesis. The console requests descending pages
+to retain the most recently recorded events inside its catch-up bound, keeps
+their projection order for proof checks, and displays newest recorded events
+first. A backdated event can therefore appear before a later event timestamp.
 
 Every page returns `pageSize`, `limit`, `hasPrevious`, and optional
 `nextCursor` and `previousCursor`. Index envelopes also return the authorized,
