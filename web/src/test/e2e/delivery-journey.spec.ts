@@ -1,4 +1,5 @@
 import { expect, test, type Page, type Route } from "@playwright/test";
+import { APPLICATIONS } from "./hub-stub";
 
 // The delivery journey's writes and the planning deep link, against stubbed
 // Hub routes. These establish what the console sends and paints GIVEN an
@@ -144,6 +145,8 @@ async function stubHub(page: Page, hub: Hub) {
       return json({
         actor: { username: hub.operator },
         effective: { username: hub.operator },
+        applications: APPLICATIONS,
+        globalOperations: ["resource:read"],
       });
     if (path === "/v1/spaces") return json({ spaces: [] });
     if (path === "/v1/environments")
