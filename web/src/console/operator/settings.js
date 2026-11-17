@@ -4,6 +4,7 @@ import {
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
 import { capabilityTableMarkup } from "./session-capabilities.js";
+import { createGovernanceEditor } from "./governance-editor.mjs";
 import {
   installHubSession,
   signInAvailability,
@@ -217,6 +218,18 @@ export function createSettings(ctx) {
       state.reviewOperatorActor || "",
       state.reviewOperatorIdentities || [],
     ]);
+  const governanceEditor = createGovernanceEditor({
+    identityKey,
+    canPerform: (operation, resource) => ctx.canPerform?.(operation, resource),
+    render: () => ctx.render(),
+    saved(kind, record) {
+      const key = kind === "policy" ? "approvalPolicies" : "orgGrants";
+      state[key] = [
+        ...(state[key] || []).filter((row) => row.id !== record.id),
+        record,
+      ];
+    },
+  });
   function clearOrganization() {
     Object.assign(state, {
       orgTeams: [],
@@ -280,14 +293,7 @@ export function createSettings(ctx) {
       if (!Array.isArray(body.resourceGrants))
         throw new Error("grants unavailable");
       state.orgGrantsLive = true;
-      state.orgGrants = body.resourceGrants.map((grant) => ({
-        team: grant.team,
-        resourceRid: grant.resourceRid,
-        roles: Array.isArray(grant.roles) ? grant.roles.join(", ") : "",
-        operations: Array.isArray(grant.operations)
-          ? grant.operations.join(", ")
-          : "",
-      }));
+      state.orgGrants = body.resourceGrants;
     } catch {
       state.orgGrantsLive = false;
       state.orgGrants = [];
@@ -600,6 +606,7 @@ export function createSettings(ctx) {
   }
 
   function renderOrganization(root) {
+    governanceEditor.synchronize();
     if (state.settingsSnapshot !== identityKey()) state.settingsLoaded = false;
     if (!state.settingsLoaded || state.settingsLoading) {
       void load();
@@ -621,7 +628,7 @@ export function createSettings(ctx) {
     const tenant = consoleTenant();
     let body = "";
     if (tab === "org") {
-      body = `<section data-org-snapshot><h3>${esc(tenant.displayName || tenant.id || "This Hub")}</h3><p>${esc(tenant.id || "Tenant identity unavailable")}</p><p>This organization view is read only. Directory, grant, policy and identity sections show the returned snapshot; stored grants are not a complete effective-access calculation.</p><button type="button" class="so-btn" data-onclick="switchScreen('adm-platform-status')">Open platform measurements</button></section>`;
+      body = `<section data-org-snapshot><h3>${esc(tenant.displayName || tenant.id || "This Hub")}</h3><p>${esc(tenant.id || "Tenant identity unavailable")}</p><p>Organization metadata and teams are read only. Policies and grants have separate confirmed editors; stored grants are not a complete effective-access calculation.</p><button type="button" class="so-btn" data-onclick="switchScreen('adm-platform-status')">Open platform measurements</button></section>`;
     } else if (tab === "teams") {
       body = `
         <div class="flex justify-end mb-2">${note(state.orgTeamsLive && state.orgGrantsLive, "Directory", true)}</div>
@@ -634,7 +641,7 @@ export function createSettings(ctx) {
         <table class="so-table">
           <thead><tr><th>Team</th><th>Resource</th><th>Roles</th><th>Operations</th></tr></thead>
           <tbody>${grants.map((grant) => `<tr><td>${esc(grant.team)}</td><td class="code-id">${esc(grant.resourceRid)}</td><td>${esc(grant.roles)}</td><td>${esc(grant.operations)}</td></tr>`).join("")}</tbody>
-        </table>`;
+        </table>${governanceEditor.markup("grant", grants, state.orgGrantsLive)}`;
     } else if (tab === "policies") {
       const policies = state.approvalPolicies || [];
       body = policies.length
@@ -653,8 +660,13 @@ export function createSettings(ctx) {
               )
               .join("")}</tbody>
           </table>
-          <div class="text-[11px] text-[#8b96a5] mt-2">Read only. A policy change goes through the Hub's policy API and its own review.</div>`
+          `
         : `<div class="text-[12px] text-[#8b96a5]">${state.approvalPoliciesLive ? "No stored approval policies were returned; other review requirements can still apply." : "Hub did not return approval policies."}</div>`;
+      body += governanceEditor.markup(
+        "policy",
+        policies,
+        state.approvalPoliciesLive,
+      );
     } else if (tab === "health") {
       const ready = state.hubReady || "unknown";
       body = `
@@ -717,6 +729,9 @@ export function createSettings(ctx) {
         </div>
         <div class="so-panel p-3.5">${body}</div>
       </div>`;
+    if (tab === "teams") governanceEditor.bind(root, "grant", grants);
+    if (tab === "policies")
+      governanceEditor.bind(root, "policy", state.approvalPolicies || []);
   }
 
   function renderSignIn(root) {
