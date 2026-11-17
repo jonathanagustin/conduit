@@ -58,6 +58,8 @@ func RateLimit(hub http.Handler, options controlplane.HandlerOptions, limiter *r
 	}
 	return http.HandlerFunc(func(writer http.ResponseWriter, request *http.Request) {
 		class, key, exempt := rateLimitSubject(routes, request, options)
+		// The access log reports the class decided here; see ObserveRequests.
+		noteCallerClass(request, class)
 		if exempt {
 			hub.ServeHTTP(writer, request)
 			return

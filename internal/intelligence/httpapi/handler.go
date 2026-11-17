@@ -26,8 +26,8 @@ const (
 // API is the application service the composition root wires.
 type API interface {
 	Logic() application.Config
-	Cases() []application.Case
-	AddCase(scenario, bound, value, expected string) (application.Case, error)
+	Cases(ctx context.Context) ([]application.Case, error)
+	AddCase(ctx context.Context, scenario, bound, value, expected string) (application.Case, error)
 	Run(ctx context.Context, actor string) ([]application.CaseResult, string, error)
 	Courses() []application.Option
 	Select(ctx context.Context, actor, value, environment, installation, product string) (string, string, error)
@@ -58,7 +58,13 @@ func Register(mux *http.ServeMux, cfg Config) {
 		if !allowed(cfg, w, r) {
 			return
 		}
-		writeJSON(w, http.StatusOK, map[string]any{"cases": cfg.API.Cases()})
+		cases, err := cfg.API.Cases(r.Context())
+		if err != nil {
+			// A store fault. The detail stays in the server.
+			writeError(w, http.StatusInternalServerError, "evaluation cases could not be read")
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"cases": cases})
 	})
 	mux.HandleFunc(RunEvalRoute, func(w http.ResponseWriter, r *http.Request) {
 		if !allowed(cfg, w, r) || cfg.API == nil {
@@ -82,9 +88,13 @@ func Register(mux *http.ServeMux, cfg Config) {
 			writeError(w, http.StatusBadRequest, "request body must be a JSON object")
 			return
 		}
-		added, err := cfg.API.AddCase(body.Scenario, body.BoundObject, body.Value, body.ExpectedOutcome)
-		if err != nil {
+		added, err := cfg.API.AddCase(r.Context(), body.Scenario, body.BoundObject, body.Value, body.ExpectedOutcome)
+		switch {
+		case errors.Is(err, application.ErrCaseInvalid), errors.Is(err, application.ErrCaseLimit):
 			writeError(w, http.StatusBadRequest, err.Error())
+			return
+		case err != nil:
+			writeError(w, http.StatusInternalServerError, "the evaluation case could not be stored")
 			return
 		}
 		writeJSON(w, http.StatusCreated, added)

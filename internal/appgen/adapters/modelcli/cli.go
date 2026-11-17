@@ -16,6 +16,8 @@ type Runner struct {
 	ModelName string
 	Argv      []string
 	Timeout   time.Duration
+	// Exec is retained for source compatibility and is never invoked.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Generate(ctx context.Context, request domain.Request) (domain.Spec, domain.Provenance, error) {
@@ -31,6 +33,6 @@ func modelError(err error) error {
 	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):
 		return fmt.Errorf("%w: %v", domain.ErrModelUnavailable, err)
 	default:
-		return fmt.Errorf("%w: %v", domain.ErrModelFailed, err)
+		return fmt.Errorf("%w: %w", domain.ErrModelFailed, err)
 	}
 }

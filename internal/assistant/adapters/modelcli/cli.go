@@ -16,6 +16,8 @@ type Runner struct {
 	ModelName string
 	Argv      []string
 	Timeout   time.Duration
+	// Exec is retained for source compatibility and is never invoked.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Complete(ctx context.Context, prompt string) (string, domain.Provenance, error) {

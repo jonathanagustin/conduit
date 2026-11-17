@@ -1,0 +1,51 @@
+# An Agent's client certificate, issued and renewed by cert-manager.
+#
+# Validated for shape against the cert-manager v1.18.2 Certificate CRD schema.
+# NOT exercised on a cluster by this repository: see
+# docs/operations/agent-enrolment.md for what is and is not rehearsed.
+#
+# What Conduit requires of the certificate, and where each requirement is
+# checked:
+#
+#   - one URI SAN of the form
+#       spiffe://platform.delivery/environment/<environmentId>/agent/<agentId>
+#     with both segments DNS labels (internal/identity/domain/identity.go). The
+#     trust domain is the literal `platform.delivery`; it is not configurable.
+#     <environmentId> and <agentId> must equal the Spoke chart's `environmentId`
+#     and `agentId`.
+#   - a chain to a root in the Hub's AGENT_CLIENT_CA_FILE bundle
+#     (internal/controlplane/server_tls.go).
+#
+# The Secret it writes is `kubernetes.io/tls` with `tls.crt` and `tls.key`,
+# which is exactly what the Spoke chart mounts: `tls.clientSecretName` is
+# projected at /run/platform-tls and the Agent reads tls.crt and tls.key there
+# (deploy/helm/platform-spoke/templates/deployment.yaml).
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: platform-agent-tls
+  # The namespace the Spoke chart is released into.
+  namespace: environment-system
+spec:
+  # The Spoke chart's tls.clientSecretName.
+  secretName: platform-agent-tls
+  # Ninety days, renewed thirty days before expiry.
+  duration: 2160h
+  renewBefore: 720h
+  privateKey:
+    algorithm: ECDSA
+    size: 256
+    # A new key on every issuance. This is what makes re-enrolment after a
+    # revocation mean something: an identity revocation admits any certificate
+    # issued after it, so a certificate reissued for the leaked key would
+    # readmit whoever holds that key.
+    rotationPolicy: Always
+  usages:
+    - client auth
+    - digital signature
+  uris:
+    - spiffe://platform.delivery/environment/prod-use2/agent/primary
+  issuerRef:
+    group: cert-manager.io
+    kind: Issuer
+    name: conduit-agent-ca

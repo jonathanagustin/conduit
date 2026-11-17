@@ -64,6 +64,13 @@
       "riskIfWrong": "Moderate availability impact: fail-closed unknown authority can block fan-out or retry a queued delivery. Known refusals are recorded as terminal delivery failures, never as delivered; historical inbox entries are retained."
     },
     {
+      "id": "notifications.ProducerIntent",
+      "what": "A private PostgreSQL source-to-notification handoff: the source transaction stores one immutable event and its consent candidates (owner, channel, preference identifier, never contact addresses). A separately leased worker checks current resource-read authority before admitting the event and inbox rows. The first committed event and audience remain immutable on replay, including an empty audience.",
+      "why": "A postcommit callback using the request context loses notifications when the request is cancelled, the notification store fails or the process exits between the source commit and recording. Capturing consent through the same SQL transaction makes metadata, audit and the notification obligation succeed or roll back together, including nested savepoints. Re-reading preferences later was rejected because later subscriptions must not receive historical events. Consent is not authorization: delayed admission and external submission still require current authority. Production Hub and packaging-worker startup install the factory before source workers run; admission runs even for IN_APP-only deployments.",
+      "displacedBy": "An authoritative source-to-notification durability contract, including source and subscription ordering, consent snapshots, current recipient authority, recovery and retention semantics. No captured Apollo notification API establishes these internals.",
+      "riskIfWrong": "This Conduit-native queue adds storage and operational work. An intent write failure rolls back its source transaction before success is acknowledged. Pending work survives restart; finite retries retain exhausted records and reasons rather than claiming delivery. No historical transitions are backfilled. Current denied candidates are excluded at admission, historical inbox rows remain intact, and frozen consent does not promise external delivery after a later preference or contact change."
+    },
+    {
       "id": "notifications.Message",
       "what": "The rendered form of one inbox entry that a delivery transport sends: a subject line built from the event type and environment, a body of the emitter's summary followed by the event id, type, resource, environment, actor and time, and the destination the recipient's own contact resolved to, which is absent when they hold none.",
       "why": "Something has to decide the wording, and deciding it once in the domain is better than deciding it per adapter, where two transports would phrase the same failure differently and give an operator two facts to reconcile during an incident. Apollo's settings pages establish that email and Slack contacts receive notifications; no capture shows what the message looks like when it arrives, so every choice here -- that the subject leads with the type a subscriber filtered on, that the body repeats the identifiers needed to act without opening a console -- is Conduit's.",
@@ -176,6 +183,13 @@
       "riskIfWrong": "Command spelling and binding workflow may require migration. Native records retain provenance, Hub authorization filters reads and controls mutations, and membership grants no resource permissions."
     },
     {
+      "id": "modelgovernor.CLICommands",
+      "what": "Native `conduit ai usage` and `conduit ai transcript list|export` commands over the Hub's /v1/ai/usage and /v1/admin/ai routes.",
+      "why": "Issues #810 and #813 require an operator to read model usage against a budget and an administrator to export and verify one AI run's transcript. No captured Apollo CLI contract covers model usage or AI transcripts; the commands disclose native scope, print the Hub's documents unchanged and rely on Hub authority rather than local claims.",
+      "displacedBy": "A published or owner-approved CLI contract for reading model usage against a budget and for exporting and verifying one AI run's transcript.",
+      "riskIfWrong": "Command spelling and output shape may require migration. The commands are read-only, transcript export is administrator-only and audited by the Hub, and a failed verification exits non-zero."
+    },
+    {
       "id": "spaces.GraphQLGrouping",
       "what": "The five recovered spaceId fields resolve independently authorized persisted native assignments; Entity inherits Environment and Release inherits Product. Native Bundle RID lookup uses the authorized persisted Bundle catalogue and retains the recovered scalar bundles shape.",
       "why": "The adopted #17 decision requires real Space data rather than a default constant. Evidence establishes the five names but not a private Apollo membership source or Bundle lookup implementation. ADR 0014 defines and discloses these bounded native choices.",
@@ -184,7 +198,7 @@
     },
     {
       "id": "spaces.SelectionPublication",
-      "what": "Native spaceId query selection before Environment pagination, optional profile/global CLI selection, and immutable Product grouping reservation before selected native Helm/Terraform publication.",
+      "what": "Native spaceId query selection before search, counts, facets and pagination for Environment/Product/Bundle-backed REST indexes and exact-id expansion; optional profile/global CLI selection; and immutable Product grouping reservation before selected native Helm/Terraform publication. Plans/installations/change requests inherit Environment membership and releases/promotions use Product membership without changing existing record authority.",
       "why": "Captured CLI notes establish explicit Space selection and guest use, but not the private transport or native assignment policy. Existing grants remain the resource authority. Conduit has no primary-organization inference: an explicit readable Space and canonical artifact/product/release permissions govern guest publication.",
       "displacedBy": "A published or sanitized Apollo Space selection and publication contract establishing transport, caller access, grouping reservation and failure behavior.",
       "riskIfWrong": "The query transport and reservation policy may require migration. Assignment intent may survive a later failed publication and never asserts an artifact exists. Explicit selection cannot move an immutable existing assignment. Forbidden selection and missing publication authority fail before reservation; store failure is not an empty page."
@@ -496,6 +510,48 @@
       "why": "Zarf v0.82.0 records which package is deployed and its generation but not the variables a deployment was given, and uds v0.41.0 has no machine-readable record of a deployed bundle. Without a record of its own the executor could only echo the Plan or report the configuration as indeterminate, and the Hub accepts neither as a success, so no package Plan could finish. The Helm executor already keeps the same kind of identity in the release description.",
       "displacedBy": "a Zarf or UDS release that records the variables and source reference a deployment was given in its own deployed-package state, or a published contract for reading them back.",
       "riskIfWrong": "The record is the Spoke's account of its own action, not a read of live configuration: changes made underneath the package without a Zarf deploy are not detected, and anyone who can write ConfigMaps in the namespace can write it. For a bundle only the one named package is bound. A reader between the delete and the create sees no record and reports INDETERMINATE."
+    },
+    {
+      "id": "identity.AgentCredentialRevocation",
+      "what": "A Hub-side deny-list for Agent client certificates: a revocation record with scope SERIAL (one certificate), AGENT (one Environment/Agent identity) or ENVIRONMENT (every Agent of an Environment), a deterministic arv_ identifier derived from what is revoked, and a notBefore instant under which an identity or Environment revocation refuses certificates issued at or before it and admits ones issued after. Enforced on every route registered DecisionAgent, failing closed with 503 when the list cannot be read.",
+      "why": "#847: the Hub authenticated an Agent by a client certificate and had no way to cut one off short of replacing the CA. The pinned Apollo sources describe agents authenticating to the Hub and do not describe a revocation record, its scopes, its identifier or its re-enrolment rule. X.509 has CRL and OCSP, which need an issuer-run service this repository does not ship and cannot assume; this is the smallest control the Hub can enforce by itself.",
+      "displacedBy": "A published or sanitized Apollo agent credential revocation record defining its scope, identifier and re-enrolment semantics.",
+      "riskIfWrong": "The record schema, scope vocabulary and the notBefore re-enrolment rule would need a migration. The rule decides on a timestamp the issuer wrote: an issuer that backdates NotBefore or whose clock trails the Hub's yields a replacement that stays refused until the instant passes, and a replacement issued for the same private key readmits the key's holder. Both are stated in docs/operations/agent-enrolment.md. Revocation removes no authority from operators and is not a substitute for CA rotation when the CA itself is compromised."
+    },
+    {
+      "id": "identity.AgentRevocationHTTPSurface",
+      "what": "Conduit-native routes under /v1/environments/{environmentID}: GET and POST agent-revocations, DELETE agent-revocations/{revocationID}, and GET agent-credentials, which reports the last certificate each Agent presented (serial, validity, last seen, seconds until expiry, and the revocation that would refuse it).",
+      "why": "#847 requires the revocation control to be operable and audited, and requires certificate expiry to be visible per Agent without labelling a metric by tenant. No Apollo management wire for agent credentials is recovered. The routes reuse existing authority rather than inventing a role: manage-permissions on the Environment to change the deny-list, read on the Environment to see it, both through Governance's audited resource decision; each change is also written to the authorization audit trail as configureInfra.",
+      "displacedBy": "A published or sanitized Apollo agent credential management API establishing revocation routes, body shapes and authority.",
+      "riskIfWrong": "Routes, body shapes and the choice of manage-permissions as the bar would need migration. The surface exposes certificate serials and validity to Environment readers and never key material. A removal whose audit record cannot be written is undone; an addition whose record cannot be written stays in force and is reported as a failure."
+    },
+    {
+      "id": "identity.AgentRevocationCLI",
+      "what": "The conduit agent-credential command group: list, revocations, revoke (--serial, --agent-id or --all-agents, with --not-before and a required --reason) and unrevoke.",
+      "why": "#847 asks for an operator control, and the pinned CLI command contract has no agent credential commands. The group is a projection of identity.AgentRevocationHTTPSurface through the existing operator HTTP adapter and adds no authority of its own.",
+      "displacedBy": "A published or sanitized Apollo agent credential management CLI contract defining command paths, arguments and revocation semantics.",
+      "riskIfWrong": "Command paths and flags would be renamed. The CLI validates a revocation locally with the same domain function the Hub uses, so a divergence between them is a compile-time dependency rather than a second copy of the rule."
+    },
+    {
+      "id": "agent.KubernetesMaterialPreparer",
+      "what": "The reference EXTERNAL_MATERIAL_PREPARER executable shipped in the Agent image: the kubernetes-secret://NAME provider-reference grammar, projection of requested keys from a source Secret in one Environment-owned namespace into a Secret in a managed namespace, image pull Secrets from a dockerconfigjson source, ownership by the app.kubernetes.io/managed-by label and platform.delivery/material-* annotations, and exit statuses 1 to 7 as the failure vocabulary.",
+      "why": "#848: the Agent delegated registry and secret material to an Environment-owned executable and no implementation shipped, so every tenant had to write one. The Agent's side of the contract (internal/agent/material.go) is Conduit's own and fixes only the request; nothing recovered establishes how Apollo resolves a provider reference inside an Environment. A Kubernetes-native provider needs no dependency and composes with External Secrets Operator or any other controller that materialises a Secret.",
+      "displacedBy": "A published or sanitized Apollo agent secret-provider contract defining how an Environment resolves registry credentials and installation secrets.",
+      "riskIfWrong": "The reference grammar, the ownership metadata and the exit statuses are this implementation's and would change. The preparer keeps no history, so a rollback restores from whatever the previous reference names now; it declines image pre-pull rather than claiming it; and it acts with the Agent's ServiceAccount, so it adds no isolation between the Agent and the material it handles. ESO and Vault integration is by composition and has not been exercised."
+    },
+    {
+      "id": "assistant.MCPReadToolSurface",
+      "what": "The Hub route POST /v1/mcp: stateless Streamable HTTP speaking MCP 2025-11-25, serving the assistant's two read tools (query_ontology_objects, review_change_diff) as the authenticated operator, each call audited with origin mcp and bounded at 8 KiB.",
+      "why": "#815 asks for the assistant's read tools to be reachable from an MCP client. Nothing recovered establishes that Apollo exposes an MCP surface or what it would carry, so the tool names, argument shapes and result payload are the assistant tool port's own and the endpoint adds no authority: it reuses the assistant's read-only mode allowlist, its argument validation, authorization as the caller and its per-call audit.",
+      "displacedBy": "A published or sanitized Apollo MCP or agent-tool contract defining tools, transport and authority.",
+      "riskIfWrong": "The route, the tool names and the result shape would change and MCP clients configured against it would need reconfiguring. The surface is read-only, so a wrong guess cannot have changed state; review_change_diff is readable by any authenticated operator, which is the assistant's existing rule and would be inherited by any replacement unless tightened there."
+    },
+    {
+      "id": "modeleval.Harness",
+      "what": "The conduit-eval command and its files under docs/evidence/model-evals: the corpus schema (cases, capabilities, assertion kinds), transcripts keyed by the sha256 of the prompt bytes, the score report keyed by model id, prompt digest set and skill digest, the five score dimensions, and the replay gate rule (no unrecorded prompt, no score below the committed baseline).",
+      "why": "#814 requires an offline-first way to detect prompt and skill changes and to score a model on the planning and packaging prompts. No Apollo evaluation contract is recovered; the planning and packaging prompts are Conduit's own, so their evaluation format is too. The harness drives the product's planner and package writer rather than a copy of their prompts.",
+      "displacedBy": "A published or sanitized Apollo model evaluation contract defining cases, scoring and gating.",
+      "riskIfWrong": "The corpus, transcript and score formats and the dimension names would be replaced and every baseline re-recorded. The committed baseline is a canned offline agent's, so no decision about model quality rests on these files today; the risk is a gate that pins prompt digests under names that later read as quality scores."
     },
     {
       "id": "environments.PackageTargetArchitecture",

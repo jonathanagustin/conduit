@@ -34,6 +34,66 @@ files, never persisted in notification records or included in adapter errors.
 Mount them using the deployment's secret mechanism. No default credentials or
 new product-specific Helm values are introduced.
 
+## Source intent and recovery
+
+For a PostgreSQL Hub, migration `0004-notification-intents` stores source intent
+in the same database and SQL transaction as source metadata and its audit row.
+This covers pending review, changed grant authority, failed Plan execution,
+aborted promotion and recalls in an accepted desired state. The production
+`platform-delivery packaging-worker` installs the same source factory before
+submitting proposals (#914). The standalone file-backed packaging fixture and
+file Hubs have no notification store and make no durable notification claim.
+
+The intent freezes consent when preferences are read through that source
+transaction, including its own uncommitted preference writes. It stores the
+event, owner/channel candidates and preference identifiers, never destinations.
+Concurrent preference edits follow PostgreSQL transaction visibility; this is
+not a claim of serial ordering with every subscription edit. A later worker
+does not expand the captured set, even when it was empty. It checks current
+resource authority before admitting inbox entries; current destination and
+authority checks still govern external submission. Changing or disabling a
+subscription does not cancel an already captured IN_APP candidate or erase
+history. Native transport resolution separately rechecks the current preference.
+
+Admission starts immediately and polls every second, including deployments
+with no external transport. Each intent has a one-minute lease, at most ten
+persisted failed admission attempts, and retry delay doubling from one second,
+bounded at one hour. A process interrupted before acknowledgment leaves the
+intent available after lease expiry; immutable event recording prevents a lost
+acknowledgment from duplicating recipients. Cancelled work is not acknowledged.
+An intent insert failure aborts the source transaction before success is
+returned. Nested rollback and cancelled savepoint release leave neither source
+metadata nor intent behind. Historical source transitions are not backfilled.
+
+Pending, completed and exhausted intents remain in
+`conduit_notification_intents`; retries and exhaustion are logged by the
+admission worker. A completed intent means event/inbox admission, not external
+delivery or human receipt. A known authorization denial may yield a completed
+event with an empty audience. Unknown authority retries the whole admission
+without exposing a partial audience. Exhausted intents retain their bounded
+`last_error`; they are never silently deleted or reset. There is no automatic
+requeue endpoint, notification metric or alerting rule. After addressing the
+cause, exhausted work requires explicit operator repair; preserve its event ID
+and frozen candidates rather than re-emitting against today's preferences.
+
+An operator with database access can inspect counts without reading contact or
+event payloads:
+
+```sql
+SELECT count(*) FILTER (WHERE completed_at IS NULL AND NOT exhausted) AS pending,
+       count(*) FILTER (WHERE completed_at IS NOT NULL) AS completed,
+       count(*) FILTER (WHERE exhausted) AS exhausted
+FROM conduit_notification_intents;
+
+SELECT event_id, attempt, available_at, lease_expires_at, exhausted, last_error
+FROM conduit_notification_intents
+WHERE completed_at IS NULL
+ORDER BY available_at, event_id;
+```
+
+This private handoff is registered as `notifications.ProducerIntent`; captured
+Apollo notification settings establish no source-transaction or queue protocol.
+
 ## Routing and delivery semantics
 
 Before recording an event's audience, the Hub checks each matching owner against
@@ -50,9 +110,9 @@ current external directory is configured. A definite native grant or bootstrap
 allow remains sufficient. If only external group membership could authorize a
 user, the check fails explicitly with unavailable current group membership;
 use an appropriately granted team subscription or current native membership.
-Unknown directory/grant lookups abort recording rather than committing a
-partial audience. Post-commit announcement sites log this failure; they do not
-yet guarantee a durable retry of the source-to-notification handoff (#869).
+Unknown directory/grant lookups abort admission rather than committing a
+partial audience. PostgreSQL source intents retain that obligation for bounded
+retry rather than losing it when the originating request ends (#869).
 
 Every external transport rechecks authority after destination resolution,
 immediately before submission. A definite refusal records a terminal queue

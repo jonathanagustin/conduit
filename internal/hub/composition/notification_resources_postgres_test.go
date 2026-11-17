@@ -42,6 +42,13 @@ func TestPostgresAnnouncementsResolveEnvironmentAliasesBeforeFanoutAndSubmission
 		t.Fatalf("stored opaque preference changed: %#v %v", preference, err)
 	}
 	proposeAliasPlan(t, handler, environment, "pg-alias-pending")
+	if events, err := fixture.store.EventsForResource(t.Context(), resource, 10); err != nil || len(events) != 0 {
+		t.Fatalf("a live callback bypassed durable alias admission: %#v %v", events, err)
+	}
+	if intents, err := fixture.store.Intents(t.Context()); err != nil || intents.Pending != 1 {
+		t.Fatalf("the alias proposal did not commit its source intent: %#v %v", intents, err)
+	}
+	fixture.admit(t, options)
 	response = request(t, handler, http.MethodGet, "/v1/notifications/events?resourceRid="+resource, "alice", "")
 	if response.Code != http.StatusOK {
 		t.Fatalf("native viewer cannot read opaque events: %d %s", response.Code, response.Body)
@@ -81,8 +88,12 @@ func TestPostgresAnnouncementsResolveEnvironmentAliasesBeforeFanoutAndSubmission
 		t.Fatalf("revoked native grant still authorized external submission: %#v %#v %v", stats, transport.messages, err)
 	}
 	proposeAliasPlan(t, handler, environment, "pg-alias-revoked")
+	fixture.admit(t, options)
 	after, err := fixture.store.Inbox(t.Context(), domain.Recipient{Owner: preference.Owner, Channel: domain.ChannelEmail}, 10)
 	if err != nil || len(after) != 1 || after[0].Event.ID != inbox[0].Event.ID || after[0].PreferenceID != preference.ID {
 		t.Fatalf("revocation allowed new fanout or rewrote history: %#v %v", after, err)
+	}
+	if events, err := fixture.store.EventsForResource(t.Context(), resource, 10); err != nil || len(events) != 2 {
+		t.Fatalf("revoked alias admission did not record its empty audience: %#v %v", events, err)
 	}
 }

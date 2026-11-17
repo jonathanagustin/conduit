@@ -164,6 +164,27 @@ CREATE TABLE IF NOT EXISTS conduit_notification_contacts (
     PRIMARY KEY (owner_kind, owner_id, kind)
 );`,
 	},
+	{
+		// Producer intent is private, committed with source metadata. It does
+		// not authorize an inbox row; its candidates only freeze consent.
+		// No backfill: an upgrade must not manufacture past subscriptions.
+		Name: "0004-notification-intents",
+		Statements: `
+CREATE TABLE conduit_notification_intents (
+    event_id text PRIMARY KEY,
+    document bytea NOT NULL,
+    available_at timestamptz NOT NULL,
+    lease_token text,
+    lease_expires_at timestamptz,
+    attempt bigint NOT NULL DEFAULT 0 CHECK (attempt BETWEEN 0 AND 4294967295),
+    completed_at timestamptz,
+    exhausted boolean NOT NULL DEFAULT false,
+    last_error text NOT NULL DEFAULT ''
+);
+CREATE INDEX conduit_notification_intents_pending
+    ON conduit_notification_intents (available_at, event_id)
+    WHERE completed_at IS NULL AND exhausted = false;`,
+	},
 }
 
 // Migrations is this store's schema as the runner sees it, and Component names
@@ -179,8 +200,8 @@ func Migrations() []pgmigrate.Migration { return slices.Clone(migrations) }
 // Component is the name this store's rows carry in the shared ledger.
 func Component() string { return component }
 
-// Store is the durable notification adapter. Every Hub replica may hold one;
-// nothing here leases, because recording an event is not work to be claimed.
+// Store persists notifications and leases both source intents and outbound
+// deliveries. Every Hub replica may hold one; tokens fence competing workers.
 type Store struct {
 	database *sql.DB
 }

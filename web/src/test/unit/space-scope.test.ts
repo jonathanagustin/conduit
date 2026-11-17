@@ -1,9 +1,9 @@
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
-
 import { createLiveHub } from "../../console/operator/live-hub.js";
 import {
   activeSpaceId,
-  applySpaceScope,
+  changeSpaceSelection,
+  readSpaceSelection,
   spaceScopedPath,
   spaceSelectorMarkup,
 } from "../../console/operator/space-scope.js";
@@ -11,74 +11,138 @@ import {
 const SPACE = `space_${"a".repeat(32)}`;
 const OTHER = `space_${"b".repeat(32)}`;
 
-describe("space scope", () => {
-  it("sends spaceId only to the index route that reads it", () => {
-    expect(spaceScopedPath("/v1/environments", SPACE)).toBe(
-      `/v1/environments?spaceId=${SPACE}`,
-    );
-    expect(spaceScopedPath("/v1/environments?view=summary", SPACE)).toBe(
-      `/v1/environments?view=summary&spaceId=${SPACE}`,
-    );
-    expect(spaceScopedPath("/v1/plans", SPACE)).toBe("/v1/plans");
-    expect(spaceScopedPath("/v1/environments/dev/timeline", SPACE)).toBe(
-      "/v1/environments/dev/timeline",
-    );
-    expect(spaceScopedPath("/v1/environments", "")).toBe("/v1/environments");
+describe("server Space scope", () => {
+  it.each([
+    "/v1/environments",
+    "/v1/products",
+    "/v1/plans",
+    "/v1/fleet/installations",
+    "/v1/change-requests",
+    "/v1/promotions",
+    "/v1/bundles",
+    "/v1/environments/dev",
+    "/v1/environments/dev/entities",
+    "/v1/plans/p1",
+    "/v1/change-requests/c1",
+    "/v1/promotions/pro1",
+    "/v1/bundles/b1",
+    "/v1/products/com.example%3Aapp/releases",
+    "/v1/products/com.example%3Aapp/releases/1.0.0",
+  ])("carries persisted selection on %s", (path) => {
+    expect(
+      new URL(
+        spaceScopedPath(path, SPACE),
+        "http://hub.local",
+      ).searchParams.get("spaceId"),
+    ).toBe(SPACE);
+    const scoped = spaceScopedPath(`${path}?search=hello&cursor=opaque`, SPACE);
+    const query = new URL(scoped, "http://hub.local").searchParams;
+    expect(query.get("search")).toBe("hello");
+    expect(query.get("cursor")).toBe("opaque");
+    expect(query.getAll("spaceId")).toEqual([SPACE]);
+    expect(spaceScopedPath(path, "")).toBe(path);
   });
 
-  it("scopes nothing for a Space the Hub does not list", () => {
-    const spaces = [{ id: SPACE, name: "team-a" }];
-    expect(activeSpaceId(SPACE, spaces)).toBe(SPACE);
-    expect(activeSpaceId(OTHER, spaces)).toBe("");
-    expect(activeSpaceId("team-a", spaces)).toBe("");
-    expect(activeSpaceId(SPACE, [])).toBe("");
+  it.each([
+    "/v1/channel-subscriptions",
+    "/v1/packaging-runs",
+    "/v1/rollouts",
+    "/v1/dev-workspaces",
+    "/v1/fleet/upgrades",
+    "/v1/authorization-audit",
+    "/v1/environments/dev/timeline",
+  ])("leaves explicit unscoped context %s alone", (path) => {
+    expect(spaceScopedPath(path, SPACE)).toBe(path);
   });
 
-  it("narrows only rows that name an environment, and leaves the rest whole", () => {
-    const next = applySpaceScope(
-      {
-        environments: [{ environment: { id: "dev" } }],
-        installations: [{ environment: "dev" }, { environment: "prod" }],
-        plans: [
-          { id: "p1", plan: { environment: "dev" } },
-          { id: "p2", plan: { environment: "prod" } },
-        ],
-        changes: [{ id: "c1", environment: "prod" }],
-        products: [{ product: "a" }, { product: "b" }],
-        promotions: [{ id: "pro" }],
-      },
-      SPACE,
-    );
-    expect(next.installations).toEqual([{ environment: "dev" }]);
-    expect(next.plans.map((row: { id: string }) => row.id)).toEqual(["p1"]);
-    expect(next.changes).toEqual([]);
-    expect(next.products).toHaveLength(2);
-    expect(next.promotions).toHaveLength(1);
-    expect(next.spaceScope).toEqual({ spaceId: SPACE, environments: 1 });
-  });
-
-  it("names what is and is not scoped, escaped", () => {
+  it("retains missing and invalid remembered selections until explicitly cleared", () => {
+    expect(activeSpaceId(SPACE)).toBe(SPACE);
+    expect(activeSpaceId(OTHER)).toBe(OTHER);
+    expect(activeSpaceId("invalid")).toBe("invalid");
+    expect(
+      readSpaceSelection({
+        getItem: () => "invalid",
+        length: 1,
+        clear: vi.fn(),
+        key: vi.fn(),
+        removeItem: vi.fn(),
+        setItem: vi.fn(),
+      }),
+    ).toBe("invalid");
     const html = spaceSelectorMarkup(
-      { spaces: [{ id: SPACE, name: 'a"<b>' }] },
+      { spaces: [], spaceNote: "Unavailable" },
+      OTHER,
+    );
+    expect(html).toContain(`value="${OTHER}" selected`);
+    expect(html).toContain("SPACE UNAVAILABLE");
+    expect(html).not.toContain('value="" selected');
+    expect(html).not.toContain('aria-label="Space" disabled');
+    expect(html).toContain('<option value="">All Spaces</option>');
+  });
+
+  it("discloses scoped and global contexts without changing semantic styles", () => {
+    const html = spaceSelectorMarkup(
+      { spaces: [{ id: SPACE, name: 'a"<b>' }], pagedIndexes: true },
       SPACE,
     );
     expect(html).toContain("a&quot;&lt;b&gt;");
-    expect(html).toContain("data-space-scope");
-    expect(html).toContain("Not scoped by the Hub API: products");
-    expect(spaceSelectorMarkup({ spaces: [] }, "")).toContain("disabled");
-    expect(
-      spaceSelectorMarkup(
-        { spaces: [], spaceNote: "Hub did not return Spaces" },
-        "",
-      ),
-    ).toContain("Unavailable");
+    expect(html).toContain(
+      "Scoped by the Hub: environments, products, promotions, bundles",
+    );
+    expect(html).toContain(
+      "Not Space-scoped: channels, packaging, workspaces, rollouts, upgrades, audit",
+    );
+  });
+
+  it("resets all affected cursors and linked selections while preserving independent filters and planning state", () => {
+    const query = new URLSearchParams({
+      space: SPACE,
+      tab: "plan",
+      "plans.search": "app",
+      "products.search": "product",
+      plan: "p1",
+      change: "c1",
+      environment: "dev",
+      session: "planning-session",
+    });
+    for (const index of [
+      "environments",
+      "products",
+      "plans",
+      "installations",
+      "changes",
+      "promotions",
+    ])
+      query.set(`${index}.cursor`, `old-${index}`);
+    const state: any = {
+      indexQuery: query.toString(),
+      spaceId: SPACE,
+      releaseEnvironmentId: "dev",
+      envDetailId: "dev",
+      releasePlanId: "p1",
+      crReview: { selectedId: "c1", draft: { rationale: "old" } },
+    };
+    changeSpaceSelection(state, OTHER);
+    const next = new URLSearchParams(state.indexQuery);
+    expect([...next.keys()].filter((key) => key.endsWith(".cursor"))).toEqual(
+      [],
+    );
+    expect(next.get("space")).toBe(OTHER);
+    expect(next.get("plans.search")).toBe("app");
+    expect(next.get("products.search")).toBe("product");
+    expect(next.get("session")).toBe("planning-session");
+    expect(next.get("tab")).toBe("plan");
+    for (const key of ["plan", "change", "environment"])
+      expect(next.has(key)).toBe(false);
+    expect(state.releasePlanId).toBe("");
+    expect(state.crReview.selectedId).toBe("");
   });
 });
 
-describe("space-scoped refresh", () => {
+describe("Space-scoped refresh", () => {
   afterEach(() => vi.unstubAllGlobals());
-
-  function stub(paths: string[]) {
+  function install(spacesAvailable = true) {
+    const requests: URL[] = [];
     vi.stubGlobal("window", { location: { origin: "http://hub.local" } });
     vi.stubGlobal("document", {
       getElementById: () => null,
@@ -88,59 +152,126 @@ describe("space-scoped refresh", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (input: RequestInfo | URL) => {
-        const path = input instanceof Request ? input.url : String(input);
-        paths.push(path);
-        const json = (body: unknown) =>
-          new Response(JSON.stringify(body), { status: 200 });
-        if (path === "/v1/spaces")
-          return json({ spaces: [{ id: SPACE, name: "team-a" }] });
-        if (path.startsWith("/v1/environments?spaceId="))
-          return json({ environments: [{ environment: { id: "dev" } }] });
-        if (path === "/v1/environments")
+        const url = new URL(
+          input instanceof Request ? input.url : String(input),
+          "http://hub.local",
+        );
+        requests.push(url);
+        const json = (body: unknown, status = 200) =>
+          new Response(JSON.stringify(body), { status });
+        if (url.pathname === "/v1/spaces")
+          return spacesAvailable
+            ? json({ spaces: [{ id: SPACE }] })
+            : json({ error: "unavailable" }, 503);
+        const selected = url.searchParams.get("spaceId");
+        if (selected && selected !== SPACE)
+          return json({ error: "unknown or denied Space" }, 403);
+        if (url.pathname === "/v1/environments")
           return json({
             environments: [
-              { environment: { id: "dev" } },
-              { environment: { id: "prod" } },
+              { environment: { id: "page-first" }, reported: { entities: [] } },
             ],
+            total: 40,
+            nextCursor: "next-environments",
           });
-        if (path === "/v1/fleet/installations")
+        if (url.pathname === "/v1/environments/linked")
+          return json({ error: "outside selected Space" }, 404);
+        // This Plan's Environment is deliberately NOT in the loaded Environment
+        // page. Persisted server membership, never that page, decides inclusion.
+        if (url.pathname === "/v1/plans")
           return json({
-            installations: [{ environment: "dev" }, { environment: "prod" }],
+            plans: [{ id: "p1", plan: { environment: "later-environment" } }],
+            total: 1,
           });
-        if (path === "/v1/plans")
+        if (url.pathname === "/v1/fleet/installations")
           return json({
-            plans: [
-              { id: "p1", plan: { environment: "dev" } },
-              { id: "p2", plan: { environment: "prod" } },
-            ],
+            installations: [{ environment: "later-environment" }],
+            summary: { total: 1 },
           });
+        if (url.pathname === "/v1/products")
+          return json({ products: [], total: 0 });
+        if (url.pathname === "/v1/change-requests")
+          return json({ changeRequests: [], total: 0 });
         return json({});
       }),
     );
+    return requests;
   }
 
-  it("asks the Hub for the Space's environments and narrows the rows that name them", async () => {
-    const paths: string[] = [];
-    stub(paths);
-    const state: Record<string, any> = { spaceId: SPACE };
+  it("asks the server for selected indexes without post-filtering a loaded page", async () => {
+    const requests = install();
+    const state: any = {
+      spaceId: SPACE,
+      screen: "s14-env-detail",
+      indexQuery: `space=${SPACE}`,
+    };
     await createLiveHub({ state, render: () => {} }).refresh();
-    expect(paths).toContain(`/v1/environments?spaceId=${SPACE}`);
-    expect(paths).not.toContain("/v1/environments");
-    expect(paths).toContain("/v1/plans");
-    expect(state.hub.plans.map((row: { id: string }) => row.id)).toEqual([
-      "p1",
-    ]);
-    expect(state.hub.installations).toEqual([{ environment: "dev" }]);
-    expect(state.hub.spaceScope).toEqual({ spaceId: SPACE, environments: 1 });
+    for (const path of [
+      "/v1/environments",
+      "/v1/plans",
+      "/v1/products",
+      "/v1/fleet/installations",
+    ]) {
+      const request = requests.find((url) => url.pathname === path);
+      expect(request?.searchParams.get("spaceId"), path).toBe(SPACE);
+    }
+    expect(state.hub.plans[0].plan.environment).toBe("later-environment");
+    expect(state.hub.installations).toHaveLength(1);
+    expect(state.hub.indexPages.environments.total).toBe(40);
   });
 
-  it("reads everything unscoped when no Space is selected", async () => {
-    const paths: string[] = [];
-    stub(paths);
-    const state: Record<string, any> = { spaceId: "" };
+  it.each([false, true])(
+    "never widens a missing remembered Space when Space listing succeeds=%s",
+    async (listed) => {
+      const requests = install(listed);
+      const state: any = {
+        spaceId: OTHER,
+        screen: "flt-environments",
+        indexQuery: `space=${OTHER}`,
+      };
+      await createLiveHub({ state, render: () => {} }).refresh();
+      const reads = requests.filter((url) =>
+        ["/v1/environments", "/v1/fleet/installations"].includes(url.pathname),
+      );
+      expect(reads.length).toBeGreaterThan(0);
+      expect(
+        reads.every((url) => url.searchParams.get("spaceId") === OTHER),
+      ).toBe(true);
+      expect(state.hub.environments).toEqual([]);
+      expect(state.hub.indexPages.environments.error).toContain(
+        "did not return",
+      );
+      expect(state.spaceId).toBe(OTHER);
+    },
+  );
+
+  it("sends the selection on linked reads and does not substitute another Environment", async () => {
+    const requests = install();
+    const state: any = {
+      spaceId: SPACE,
+      screen: "s14-env-detail",
+      releaseEnvironmentId: "linked",
+      envDetailId: "linked",
+      indexQuery: `space=${SPACE}&environment=linked`,
+    };
     await createLiveHub({ state, render: () => {} }).refresh();
-    expect(paths).toContain("/v1/environments");
-    expect(state.hub.plans).toHaveLength(2);
-    expect(state.hub.spaceScope).toBeUndefined();
+    expect(
+      requests
+        .find((url) => url.pathname === "/v1/environments/linked")
+        ?.searchParams.get("spaceId"),
+    ).toBe(SPACE);
+    expect(
+      state.hub.environments.some(
+        (row: any) => row.environment.id === "linked",
+      ),
+    ).toBe(false);
+    expect(state.hub.timelineEnvironment).toBe("");
+    expect(
+      requests.some(
+        (url) =>
+          url.pathname.endsWith("/timeline") ||
+          url.pathname === "/v1/blackouts",
+      ),
+    ).toBe(false);
   });
 });

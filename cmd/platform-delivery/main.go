@@ -32,7 +32,14 @@ import (
 	reconciliationapplication "github.com/jonathanagustin/conduit/internal/delivery/reconciliation/application"
 	"github.com/jonathanagustin/conduit/internal/foundryinterop"
 	"github.com/jonathanagustin/conduit/internal/hub/composition"
+	agentcredentials "github.com/jonathanagustin/conduit/internal/identity/adapters/revocationpostgres"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/sessionpostgres"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
+	intelligencecases "github.com/jonathanagustin/conduit/internal/intelligence/adapters/casepostgres"
+	intelligenceapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
+	modelgovernancepg "github.com/jonathanagustin/conduit/internal/modelgovernor/adapters/postgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
@@ -87,7 +94,7 @@ func main() {
 			slog.Error("read packaging Temporal configuration", "error", cfgErr)
 			os.Exit(1)
 		}
-		if err := packagingruntime.RunWorker(ctx, cfg, repository); err != nil {
+		if err := runPackagingWorker(ctx, os.Getenv, cfg, repository, packagingruntime.RunWorker); err != nil {
 			slog.Error("packaging worker stopped", "error", err)
 			os.Exit(1)
 		}
@@ -141,6 +148,10 @@ func main() {
 		slog.Info("notification delivery enabled")
 		go notifications.Deliveries.Run(ctx)
 	}
+	if notifications.Intents != nil {
+		slog.Info("durable notification intent admission enabled")
+		go notifications.Intents.Run(ctx)
+	}
 	// Nil unless there is a notification store to record into, which is the
 	// same condition the notification routes mount on. A Hub without one still
 	// accepts recalls; it just has nobody to tell.
@@ -184,11 +195,13 @@ func main() {
 		slog.Warn("ALLOW_INSECURE_EPHEMERAL_BUNDLE_SIGNING_KEY is set; Bundles are signed by a key this process generated "+
 			"and no other process, replica or restart holds", "bundleSigner", bundleSigningKeyIdentifier(bundlePrivateKey))
 	}
-	operatorIdentityResolver, err := loadOIDCOperatorIdentityResolver(ctx, os.Getenv)
+	operatorIdentity, closeOperatorIdentity, err := loadOperatorIdentity(ctx, os.Getenv, operatorSessionsFor(notifications))
 	if err != nil {
 		slog.Error("configure operator OIDC identity", "error", err)
 		os.Exit(1)
 	}
+	defer closeOperatorIdentity()
+	operatorIdentityResolver := operatorIdentity.Resolver
 	if operatorIdentityResolver != nil && allowInsecureOperatorIdentity {
 		slog.Error("OIDC operator identity cannot be combined with insecure identity headers")
 		os.Exit(1)
@@ -225,9 +238,19 @@ func main() {
 	operatorSignIn := controlplane.OperatorSignIn{}
 	if operatorIdentityResolver != nil {
 		operatorSignIn = controlplane.OperatorSignInFromIssuer(ctx, os.Getenv("OPERATOR_OIDC_ISSUER"), os.Getenv("OPERATOR_OIDC_CLIENT_ID"))
+		if operatorIdentity.SignIn != nil {
+			operatorSignIn.LoginPath, operatorSignIn.LogoutPath = signinhttp.LoginPath, signinhttp.LogoutPath
+		}
 	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
-	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository)
+	// One governor for the process: the planning worker and the Hub's
+	// requests share its limits, its usage store and its audit path.
+	modelGovernance, err := composition.NewModelGovernor(ctx, repository, modelGovernanceFor(notifications), os.Getenv)
+	if err != nil {
+		slog.Error("configure model governance", "error", err)
+		os.Exit(1)
+	}
+	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository, modelGovernance.Governor)
 	if err != nil {
 		slog.Error("start planning workflow worker", "error", err)
 		os.Exit(1)
@@ -273,6 +296,7 @@ func main() {
 		// way the routes beneath it do, then spends from that caller's bucket
 		// before any of them runs.
 		Handler: composition.RateLimit(composition.NewHubHandler(repository, handlerOptions, composition.Options{
+			SignIn:               operatorIdentity.SignIn,
 			LiveEventJournal:     liveEventJournal,
 			LiveEventContext:     ctx,
 			AdminStorage:         adminStorageForRepository(repository, os.Getenv),
@@ -284,6 +308,9 @@ func main() {
 			NotificationContacts: notifications.Contacts,
 			AssistantThreads:     assistantThreadsFor(notifications),
 			AppgenStore:          appGenerationsFor(notifications),
+			AgentCredentials:     agentCredentialsFor(notifications),
+			ModelGovernance:      modelGovernance,
+			IntelligenceCases:    intelligenceCasesFor(notifications),
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
 		}), handlerOptions, requestLimiter),
@@ -292,6 +319,10 @@ func main() {
 		WriteTimeout:      httpWriteTimeout(),
 		IdleTimeout:       60 * time.Second,
 	}
+	// Outside the limiter, so a request it refuses is counted and logged too.
+	requestRecorder := composition.NewRequestRecorder()
+	server.Handler = composition.ObserveRequests(server.Handler, handlerOptions,
+		composition.RequestObservation{Recorder: requestRecorder})
 	if agentClientCAFile != "" {
 		server.TLSConfig, err = controlplane.AgentServerTLSConfig(agentClientCAFile)
 		if err != nil {
@@ -354,7 +385,9 @@ func main() {
 	// turn an authenticated surface into a partly public one. An empty
 	// METRICS_ADDRESS adds no reachable surface at all, which is what an
 	// existing deployment gets until somebody decides otherwise.
-	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter)); stopMetrics != nil {
+	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter),
+		requestMetrics(requestRecorder), notifications.Metrics,
+		agentCertificateExtension(notifications.AgentCredentials), modelCallExtension()); stopMetrics != nil {
 		defer stopMetrics()
 	}
 
@@ -411,10 +444,51 @@ func appGenerationsFor(component notificationComponent) appgenapp.Store {
 	return component.AppGenerations
 }
 
+// modelGovernanceFor returns the durable usage and transcript stores when one
+// was opened. The file repository returns the zero value, which keeps both in
+// memory, for the reason assistantThreadsFor gives.
+func modelGovernanceFor(component notificationComponent) composition.ModelGovernance {
+	if component.ModelGovernance == nil {
+		return composition.ModelGovernance{}
+	}
+	return composition.ModelGovernance{Usage: component.ModelGovernance, Transcripts: component.ModelGovernance}
+}
+
+// modelCallExtension adds the governor's model-call series to the gather.
+func modelCallExtension() metricsExtension {
+	return func(gather metricsGather) metricsGather {
+		return metricsapplication.WithModelCalls(gather, modelCallMetrics)
+	}
+}
+
+// modelCallMetrics narrows the governor's counters to what the exporter reads.
+func modelCallMetrics() []metricsapplication.ModelCallSeries {
+	samples := composition.ModelCallMetrics()
+	series := make([]metricsapplication.ModelCallSeries, 0, len(samples))
+	for _, sample := range samples {
+		series = append(series, metricsapplication.ModelCallSeries{
+			Capability: sample.Capability, Transport: sample.Transport, Outcome: sample.Outcome,
+			Calls: sample.Calls, Retries: sample.Retries, DurationSeconds: sample.DurationSeconds,
+			PromptTokens: sample.PromptTokens, CompletionTokens: sample.CompletionTokens,
+		})
+	}
+	return series
+}
+
+// intelligenceCasesFor returns the durable eval case store when one was
+// opened, and an untyped nil otherwise, for the reason above.
+func intelligenceCasesFor(component notificationComponent) intelligenceapp.CaseStore {
+	if component.IntelligenceCases == nil {
+		return nil
+	}
+	return component.IntelligenceCases
+}
+
 type notificationComponent struct {
 	Store       notificationports.Store
 	Contacts    notificationports.Contacts
 	Eligibility notificationports.RecipientEligibility
+	Intents     *notificationsapplication.IntentDrainer
 	Deliveries  *notificationsapplication.Dispatcher
 	// AssistantThreads rides with the notification store because it is opened
 	// on the same DSN and closed by the same closer.
@@ -422,6 +496,27 @@ type notificationComponent struct {
 	// AppGenerations is opened on the same DSN and closed by the same closer,
 	// so a generation result survives a Hub restart.
 	AppGenerations *appgenpostgres.Store
+	// Metrics publishes delivery counters and backlog; nil when delivery is off.
+	Metrics metricsExtension
+	// AgentCredentials is the Agent deny-list, on the same DSN and closer for
+	// the same reason: two replicas must read one deny-list.
+	AgentCredentials *agentcredentials.Store
+	// OperatorSessions is the durable session store, opened and closed the
+	// same way. Nil for the file repository, which keeps sessions in memory.
+	OperatorSessions *sessionpostgres.Store
+	// ModelGovernance is model usage and AI transcripts, on the same DSN.
+	ModelGovernance *modelgovernancepg.Store
+	// IntelligenceCases is operator-added eval cases, on the same DSN.
+	IntelligenceCases *intelligencecases.Store
+}
+
+// operatorSessionsFor returns the durable session store when one was opened,
+// and an untyped nil otherwise for the reason assistantThreadsFor gives.
+func operatorSessionsFor(component notificationComponent) identityports.SessionStore {
+	if component.OperatorSessions == nil {
+		return nil
+	}
+	return component.OperatorSessions
 }
 
 func configureReconciliation(
@@ -493,7 +588,16 @@ func configureReconciliation(
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
+	// Model usage and AI transcripts share it too: a daily budget is then
+	// checked against what every replica spent.
+	modelGovernanceStore, err := modelgovernancepg.New(ctx, dataSourceName)
+	if err != nil {
+		_ = assistantThreadStore.Close()
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
 	closeStore = func() {
+		_ = modelGovernanceStore.Close()
 		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
 		closeReconciliationStore()
@@ -506,6 +610,59 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	closeStore = func() {
+		_ = modelGovernanceStore.Close()
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// The Agent deny-list shares the database too. A revocation written through
+	// one replica is read by the other on its next Agent request, with no cache
+	// between them. The file repository has no database and keeps the deny-list
+	// in memory, which is correct only because that mode is single-replica.
+	agentCredentialStore, err := agentcredentials.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	closeStore = func() {
+		_ = modelGovernanceStore.Close()
+		_ = agentCredentialStore.Close()
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// Operator sessions share the same database and ledger, so a person who
+	// signed in at one replica is signed in at all of them and a sign-out at
+	// one reaches the rest. Opened whether or not sign-in is configured, like
+	// the thread store above: the tables are then already there when it is.
+	operatorSessionStore, err := sessionpostgres.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, errors.New("initialize PostgreSQL operator session component failed")
+	}
+	closeStore = func() {
+		_ = modelGovernanceStore.Close()
+		_ = operatorSessionStore.Close()
+		_ = agentCredentialStore.Close()
+		_ = appGenerationStore.Close()
+		_ = assistantThreadStore.Close()
+		_ = notificationStore.Close()
+		closeReconciliationStore()
+	}
+	// Operator-added eval cases share the same database and ledger, so a case
+	// survives a Hub restart and every replica scores the same list.
+	intelligenceCaseStore, err := intelligencecases.New(ctx, dataSourceName)
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, errors.New("initialize PostgreSQL intelligence eval case component failed")
+	}
+	closeStore = func() {
+		_ = intelligenceCaseStore.Close()
+		_ = modelGovernanceStore.Close()
+		_ = operatorSessionStore.Close()
+		_ = agentCredentialStore.Close()
 		_ = appGenerationStore.Close()
 		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
@@ -515,6 +672,17 @@ func configureReconciliation(
 		BootstrapAdministrators:              splitCommaSeparated(getenv("PLATFORM_BOOTSTRAP_ADMINISTRATORS")),
 		AllowInsecureOperatorIdentityHeaders: getenv("ALLOW_INSECURE_OPERATOR_IDENTITY_HEADERS") == "true",
 	})
+	if err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	if _, err := composition.ConfigureNotificationIntents(repository, notificationStore, slog.Default()); err != nil {
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
+	intentConfig := composition.DefaultIntentDrainerConfig()
+	intentConfig.OnError = func(err error) { slog.Error("notification intent admission cycle", "error", err) }
+	intents, err := composition.NewNotificationIntentDrainer(notificationStore, eligibility, notificationsapplication.SystemClock{}, intentConfig)
 	if err != nil {
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
@@ -586,16 +754,23 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	deliveryConfig.Destinations = contacts
+	deliveryRecorder := metricsapplication.NewDeliveryRecorder()
 	deliveries, err := composition.NewNotificationDispatcher(
-		notificationStore, transport, notificationsapplication.SystemClock{}, deliveryConfig)
+		composition.ObserveNotificationDeliveries(notificationStore, transport, deliveryRecorder),
+		transport, notificationsapplication.SystemClock{}, deliveryConfig)
 	if err != nil {
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	return bridge, closeStore, supervisor, readStats, notificationComponent{
-		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries, Eligibility: eligibility,
-		AssistantThreads: assistantThreadStore,
-		AppGenerations:   appGenerationStore,
+		Store: notificationStore, Contacts: notificationStore, Deliveries: deliveries, Eligibility: eligibility, Intents: intents,
+		AssistantThreads:  assistantThreadStore,
+		AppGenerations:    appGenerationStore,
+		Metrics:           notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
+		AgentCredentials:  agentCredentialStore,
+		OperatorSessions:  operatorSessionStore,
+		ModelGovernance:   modelGovernanceStore,
+		IntelligenceCases: intelligenceCaseStore,
 	}, nil
 }
 
@@ -691,6 +866,16 @@ func readSingleLineSecretFile(path, variable string) (string, error) {
 func loadOIDCOperatorIdentityResolver(
 	ctx context.Context, getenv func(string) string,
 ) (controlplane.OperatorIdentityResolver, error) {
+	configuration, err := loadOIDCOperatorIdentityConfig(getenv)
+	if err != nil || configuration == nil {
+		return nil, err
+	}
+	return controlplane.NewOIDCOperatorIdentityResolver(ctx, *configuration)
+}
+
+// loadOIDCOperatorIdentityConfig reads the issuer and the claim policy. It
+// answers nil, nil for a Hub with no OIDC configuration at all.
+func loadOIDCOperatorIdentityConfig(getenv func(string) string) (*controlplane.OIDCOperatorIdentityConfig, error) {
 	if getenv == nil {
 		return nil, errors.New("environment reader is required")
 	}
@@ -701,7 +886,8 @@ func loadOIDCOperatorIdentityResolver(
 		getenv("OPERATOR_OIDC_SERVICE_ACCOUNT_CLAIM"), getenv("OPERATOR_OIDC_AUDIENCE_CLAIM"),
 		getenv("OPERATOR_OIDC_TOKEN_PURPOSE_CLAIM"), getenv("OPERATOR_OIDC_EXPECTED_TOKEN_PURPOSE"),
 		getenv("OPERATOR_OIDC_SCOPE_CLAIM"), getenv("OPERATOR_OIDC_REQUIRED_SCOPES"),
-		getenv("OPERATOR_OIDC_SIGNING_ALGORITHMS"), getenv("OPERATOR_OIDC_CA_FILE")}
+		getenv("OPERATOR_OIDC_SIGNING_ALGORITHMS"), getenv("OPERATOR_OIDC_CA_FILE"),
+		getenv("OPERATOR_OIDC_CLIENT_SECRET_FILE"), getenv("OPERATOR_OIDC_LOGIN_SCOPES")}
 	if issuer == "" {
 		for _, value := range configuredValues {
 			if strings.TrimSpace(value) != "" {
@@ -757,7 +943,7 @@ func loadOIDCOperatorIdentityResolver(
 		return nil, err
 	}
 	configuration.HTTPClient = httpClient
-	return controlplane.NewOIDCOperatorIdentityResolver(ctx, configuration)
+	return &configuration, nil
 }
 
 func oidcHTTPClient(caFile string) (*http.Client, error) {
@@ -927,6 +1113,7 @@ func loadTrustedBundleKeys(path string) (map[string]ed25519.PublicKey, error) {
 // endpoint is exactly the kind of thing somebody debugs for an hour.
 func startMetricsListener(
 	ctx context.Context, address string, readStats metricsapplication.ReadStats, rateLimits metricsapplication.ReadRateLimits,
+	extensions ...metricsExtension,
 ) func() {
 	address = strings.TrimSpace(address)
 	if address == "" {
@@ -937,11 +1124,15 @@ func startMetricsListener(
 			"metrics are available only with REPOSITORY_KIND=postgres")
 		return nil
 	}
+	gather := metricsapplication.WithRateLimits(metricsapplication.Gather(buildinfo.Version, readStats), rateLimits)
+	for _, extend := range extensions {
+		if extend != nil {
+			gather = extend(gather)
+		}
+	}
 	server := &http.Server{
-		Addr: address,
-		Handler: httpmetrics.Handler(
-			metricsapplication.WithRateLimits(metricsapplication.Gather(buildinfo.Version, readStats), rateLimits), httpmetrics.Options{},
-		),
+		Addr:              address,
+		Handler:           httpmetrics.Handler(gather, httpmetrics.Options{}),
 		ReadHeaderTimeout: 5 * time.Second,
 	}
 	go func() {

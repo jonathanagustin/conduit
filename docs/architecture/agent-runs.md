@@ -87,6 +87,15 @@ audit prevents tool admission/publication. RUN_ERROR reports an audit outage
 if a failure receipt itself cannot be persisted; it is never a success receipt.
 Network write failure stops tool admission and leaves a truncated exchange.
 
+Separately, every model call -- each planner round and each assistant round,
+a successful text-only reply included -- writes one `ai.model_call` audit event
+with the SHA-256 of that round's exact prompt and response bytes, chained to
+the previous call of the same run. The event holds no text either. Text is
+kept only by the opt-in transcript store, redacted, for a set retention, and
+only an administrator can export it. A model call whose event cannot be
+written fails. See
+[model usage, limits and AI transcripts](../operations/ai-usage-and-transcripts.md).
+
 This adapter uses the same planning session service as the native routes. Its
 run ledger is process-local and does not resume a broken stream after a Hub
 restart. The initial bounds
@@ -358,7 +367,9 @@ far as a model call also carries `"turn"`, the partial turn document.
 | `MODEL_TIMEOUT` | 502 | the model call timed out |
 | `MODEL_REPLY_INVALID` | 502 | no valid reply object in the model's output |
 | `ROUND_CAP` | 502 | the model was still calling tools in its last round |
-| `AUDIT_UNAVAILABLE` | 503 | a tool call or reply could not be audited; the turn stopped |
+| `MODEL_BUSY` | 429 | a model concurrency limit stayed full; `Retry-After` is set |
+| `MODEL_BUDGET_EXCEEDED` | 429 | the caller's daily model budget is spent; `Retry-After` is the time to 00:00 UTC |
+| `AUDIT_UNAVAILABLE` | 503 | a tool call, model call or reply could not be audited; the turn stopped |
 | `THREAD_NOT_FOUND` | 404 | no such thread for this operator |
 | `THREAD_LIMIT` / `THREAD_FULL` | 409 | a store bound was reached |
 | `THREADS_NOT_CONFIGURED` | 503 | no conversation store |

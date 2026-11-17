@@ -35,19 +35,11 @@ jobs:
             go.sum
             tools/cosign-build/go.sum
       - name: Reconcile an exact signed digest with pull-only authority
+        env:
+          GITLESS_RUN_FOLLOWUP_PROBES: "1"
         run: ./scripts/test-gitless-clean-cluster.sh
-      # Runs after the cluster above exists, because it needs the Flux CRDs that
-      # test drops in. It validates the manifests internal/gitless renders --
-      # a structural Go test passes on a document Flux would reject, and only an
-      # API server can tell the difference.
-      - name: Validate rendered Gitless manifests against the Flux API
-        run: ./scripts/test-gitless-flux-manifests.sh
-      # The whole loop with nothing faked: a real registry, a real keyless
-      # signature, the real admission rule, and real Flux objects in a real
-      # cluster -- plus the same artifact refused under a policy naming a
-      # different publisher.
-      - name: Reconcile a real signed source end to end
-        run: ./scripts/test-gitless-acceptance.sh
+      # Flux API and keyless acceptance run inside the owning script, before its
+      # EXIT trap removes the cluster, kubeconfig, and pinned tool environment.
       - name: Publish and read back manifests against a real registry
         env:
           OCI_TEST_REGISTRY: localhost:5000

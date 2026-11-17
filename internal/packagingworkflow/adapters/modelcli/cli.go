@@ -21,6 +21,8 @@ type Runner struct {
 	// ModelName is the operator-configured model name, recorded in the
 	// provenance. The command's reply is never a source for it.
 	ModelName string
+	// Exec is retained for source compatibility and is never invoked.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Propose(ctx context.Context, input domain.PackagingContext) (domain.Proposal, domain.Provenance, error) {
@@ -36,7 +38,7 @@ func modelError(err error) error {
 	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):
 		return fmt.Errorf("%w: %v", domain.ErrModelUnavailable, err)
 	default:
-		return fmt.Errorf("%w: %v", domain.ErrModelFailed, err)
+		return fmt.Errorf("%w: %w", domain.ErrModelFailed, err)
 	}
 }
 

@@ -23,9 +23,9 @@ set -euo pipefail
 
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root}"
+source "${root}/scripts/lib/local-uds.sh"
+conduit_uds_configure "${root}"
 
-network_name="${UDS_K3D_NETWORK:-uds-k3d}"
-cluster_name="${UDS_K3D_CLUSTER:-uds}"
 # Keep this in lockstep with docs/operations/uds-package.md.
 core_version="${UDS_CORE_VERSION:-1.17.1}"
 core_ref="${UDS_CORE_REF:-oci://ghcr.io/defenseunicorns/packages/uds/bundles/k3d-core-slim-dev:${core_version}}"
@@ -40,8 +40,14 @@ Usage: $(basename "$0") [--dry-run] [--print-plan]
   --dry-run     Create nothing. Print the commands that would run, then exit.
 
 Environment:
-  UDS_K3D_NETWORK   Docker network name (default: uds-k3d)
+  CONDUIT_CONTAINER_ENGINE  Working Docker/Podman executable (auto-selected if unset)
+  DOCKER_HOST      Docker API endpoint for UDS/k3d; required for Podman
+  UDS_K3D_NETWORK   Network name (default: <cluster>-k3d; uds-k3d for uds)
   UDS_K3D_CLUSTER   k3d cluster name the slim-dev bundle creates (default: uds)
+  UDS_KUBECONFIG    Absolute task-owned file (default: .cache/uds/<cluster>.kubeconfig)
+  UDS_K3D_API_PORT  Optional bundle API port override (1-65535)
+  UDS_K3D_HTTP_PORT Optional bundle HTTP port override (1-65535)
+  UDS_K3D_HTTPS_PORT Optional bundle HTTPS port override (1-65535)
   UDS_CORE_VERSION  Slim-dev bundle version (default: 1.17.1)
   UDS_CORE_REF      Full OCI reference. Overrides UDS_CORE_VERSION when set.
   K3D_EXTRA_ARGS    Replaces the default k3d extra arguments when set.
@@ -57,10 +63,20 @@ k3d_extra_args() {
 }
 
 print_plan_lines() {
+  local kind variable
   printf 'network=%s\n' "${network_name}"
   printf 'cluster=%s\n' "${cluster_name}"
   printf 'bundle=%s\n' "${core_ref}"
+  printf 'context=%s\n' "${kubecontext}"
+  printf 'kubeconfig=%s\n' "${kubeconfig}"
+  printf 'engine_request=%s\n' "${CONDUIT_CONTAINER_ENGINE:-auto}"
   printf 'k3d_extra_args=%s\n' "$(k3d_extra_args)"
+  for kind in API HTTP HTTPS; do
+    variable="UDS_K3D_${kind}_PORT"
+    if [[ -n "${!variable:-}" ]]; then
+      printf 'k3d_%s_port=%s\n' "${kind}" "${!variable}"
+    fi
+  done
   printf 'host_adaptations=clear-nginx-hostports,ambient-off\n'
 }
 
@@ -83,21 +99,20 @@ if "${print_plan}"; then
   exit 0
 fi
 
-kubectl_bin() {
-  if command -v kubectl >/dev/null 2>&1; then
-    printf '%s' kubectl
-  else
-    printf '%s' "uds zarf tools kubectl"
-  fi
-}
-
 wait_for_api() {
-  local k tries=0
-  k="$(kubectl_bin)"
-  if command -v k3d >/dev/null 2>&1; then
-    k3d kubeconfig merge "${cluster_name}" --kubeconfig-merge-default >/dev/null || true
+  local tries=0
+  config_tmp="$(mktemp "${kubeconfig}.XXXXXX")"
+  if ! k3d kubeconfig get "${cluster_name}" >"${config_tmp}"; then
+    echo 'could not read the requested k3d cluster kubeconfig; host adaptations were not applied' >&2
+    return 1
   fi
-  while ! $k get ns >/dev/null 2>&1; do
+  if ! conduit_uds_assert_context "${config_tmp}"; then
+    echo 'the requested k3d context was not selected; host adaptations were not applied' >&2
+    return 1
+  fi
+  mv "${config_tmp}" "${kubeconfig}"
+  config_tmp=''
+  while ! conduit_uds_kubectl get ns >/dev/null 2>&1; do
     tries=$((tries + 1))
     if ((tries > 60)); then
       echo "the cluster API was not reachable after waiting" >&2
@@ -108,19 +123,18 @@ wait_for_api() {
 }
 
 clear_nginx_hostports() {
-  local k json ns
-  k="$(kubectl_bin)"
+  local json ns
   ns=""
-  if $k -n uds-dev-stack get ds nginx >/dev/null 2>&1; then
+  if conduit_uds_kubectl -n uds-dev-stack get ds nginx >/dev/null 2>&1; then
     ns=uds-dev-stack
   else
-    ns="$($k get ds -A -o jsonpath='{range .items[?(@.metadata.name=="nginx")]}{.metadata.namespace}{"\n"}{end}' | head -1 || true)"
+    ns="$(conduit_uds_kubectl get ds -A -o jsonpath='{range .items[?(@.metadata.name=="nginx")]}{.metadata.namespace}{"\n"}{end}' | head -1 || true)"
   fi
   if [[ -z "${ns}" ]]; then
     echo "nginx DaemonSet not found; skipping hostPort clear"
     return 0
   fi
-  json="$($k -n "${ns}" get ds nginx -o json)"
+  json="$(conduit_uds_kubectl -n "${ns}" get ds nginx -o json)"
   printf '%s' "${json}" | python3 -c '
 import json, sys
 doc = json.load(sys.stdin)
@@ -132,15 +146,13 @@ for key in ("containers", "initContainers"):
         for port in container.get("ports") or []:
             port.pop("hostPort", None)
 json.dump(doc, sys.stdout)
-' | $k apply -f -
+' | conduit_uds_kubectl apply -f -
   echo "Cleared hostPorts on daemonset/nginx in ${ns}"
 }
 
 disable_ambient() {
-  local k
-  k="$(kubectl_bin)"
-  if $k -n istio-system get cm istio-cni-config >/dev/null 2>&1; then
-    $k -n istio-system get cm istio-cni-config -o json | python3 -c '
+  if conduit_uds_kubectl -n istio-system get cm istio-cni-config >/dev/null 2>&1; then
+    conduit_uds_kubectl -n istio-system get cm istio-cni-config -o json | python3 -c '
 import json, sys
 doc = json.load(sys.stdin)
 data = doc.setdefault("data", {})
@@ -150,11 +162,11 @@ for name, value in list(data.items()):
     if isinstance(value, str) and "AMBIENT_ENABLED" in value:
         data[name] = value.replace("AMBIENT_ENABLED=true", "AMBIENT_ENABLED=false")
 json.dump(doc, sys.stdout)
-' | $k apply -f -
+' | conduit_uds_kubectl apply -f -
     echo "Set AMBIENT_ENABLED=false on configmap/istio-cni-config"
   fi
-  if $k -n istio-system get ds istio-cni >/dev/null 2>&1; then
-    $k -n istio-system set env ds/istio-cni AMBIENT_ENABLED=false >/dev/null
+  if conduit_uds_kubectl -n istio-system get ds istio-cni >/dev/null 2>&1; then
+    conduit_uds_kubectl -n istio-system set env ds/istio-cni AMBIENT_ENABLED=false >/dev/null
     echo "Set AMBIENT_ENABLED=false on daemonset/istio-cni"
   fi
 }
@@ -166,34 +178,37 @@ apply_host_adaptations() {
 }
 
 
-require_cmd() {
-  if ! command -v "$1" >/dev/null 2>&1; then
-    echo "$1 is required. Install the version pinned in docs/operations/uds-package.md." >&2
-    exit 1
-  fi
-}
-
+conduit_uds_bundle_args "$(k3d_extra_args)"
+conduit_uds_engine
 if "${dry_run}"; then
   print_plan_lines
-  printf 'docker network inspect %s || docker network create %s\n' "${network_name}" "${network_name}"
-  printf 'uds deploy %s --confirm --set K3D_EXTRA_ARGS=%s\n' "${core_ref}" "$(k3d_extra_args)"
+  printf '%s network inspect %s || %s network create %s\n' "${engine}" "${network_name}" "${engine}" "${network_name}"
+  printf 'uds deploy %s --confirm' "${core_ref}"
+  printf ' %s' "${bundle_args[@]}"
+  printf '\n'
+  printf 'k3d kubeconfig get %s -> %s (context %s)\n' "${cluster_name}" "${kubeconfig}" "${kubecontext}"
   printf 'apply host_adaptations=clear-nginx-hostports,ambient-off\n'
   exit 0
 fi
 
-require_cmd docker
-require_cmd uds
-
-if ! docker info >/dev/null 2>&1; then
-  echo "the Docker daemon is not reachable" >&2
-  exit 1
+conduit_uds_require uds
+conduit_uds_require k3d
+conduit_host_tool_works python3 --version || { echo 'a working Python 3 is required for host adaptations' >&2; exit 1; }
+conduit_uds_kubectl_command
+umask 077
+mkdir -p "$(dirname "${kubeconfig}")"
+export KUBECONFIG="${kubeconfig}"
+config_tmp=''
+trap '[[ -z "${config_tmp}" ]] || rm -f "${config_tmp}"' EXIT
+if [[ -s "${kubeconfig}" ]]; then
+  conduit_uds_assert_context "${kubeconfig}" || { echo 'refusing deployment with an unverified task kubeconfig' >&2; exit 1; }
 fi
 
-if ! docker network inspect "${network_name}" >/dev/null 2>&1; then
-  docker network create "${network_name}"
+if ! "${engine}" network inspect "${network_name}" >/dev/null 2>&1; then
+  "${engine}" network create "${network_name}"
 fi
 
 echo "Deploying ${core_ref}"
 echo "K3D_EXTRA_ARGS=$(k3d_extra_args)"
-uds deploy "${core_ref}" --confirm --set "K3D_EXTRA_ARGS=$(k3d_extra_args)"
+uds deploy "${core_ref}" --confirm "${bundle_args[@]}"
 apply_host_adaptations

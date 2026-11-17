@@ -12,12 +12,25 @@ import (
 )
 
 var (
+	ErrStartFailed             = errors.New("command could not be started")
 	ErrLocalCommandUnsupported = errors.New("local model commands are unsupported; configure CONDUIT_MODEL_BASE_URL for HTTP or leave model configuration unset for offline operation")
 	ErrTimeout                 = errors.New("command timed out")
 	ErrNotFound                = errors.New("command was not found")
 	ErrFailed                  = errors.New("command failed")
 	ErrEmpty                   = errors.New("command is empty")
 )
+
+// ExecFunc is the shape of Execute. An adapter holds one so that a caller can
+// put a wrapper around every run; nil means Execute.
+type ExecFunc func(ctx context.Context, argv []string, timeout time.Duration, stdin []byte) ([]byte, error)
+
+// Run calls the wrapper, or Execute when there is none.
+func (run ExecFunc) Run(ctx context.Context, argv []string, timeout time.Duration, stdin []byte) ([]byte, error) {
+	if run == nil {
+		return Execute(ctx, argv, timeout, stdin)
+	}
+	return run(ctx, argv, timeout, stdin)
+}
 
 // Execute refuses the retired model subprocess transport. It never starts a
 // process, reads credentials or creates a working directory.

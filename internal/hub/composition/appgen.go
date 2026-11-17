@@ -26,6 +26,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/devworkspace/adapters/gitstore"
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
@@ -34,7 +35,10 @@ import (
 
 func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 	getenv = modelconfig.ForCapability(getenv, modelconfig.Appgen)
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	if client, err := governedModelHTTPClient(getenv, modelgovernor.CapabilityAppgen); err != nil {
 		return nil, err
 	} else if client != nil {
 		return appmodelhttp.Adapter{Client: client}, nil

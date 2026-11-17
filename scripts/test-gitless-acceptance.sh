@@ -13,8 +13,8 @@
 # manifests to a real API server -- then does it again under a policy naming a
 # different publisher and requires nothing to reach the cluster.
 #
-# Skips cleanly without cosign, kubectl, a reachable cluster or Flux CRDs, which
-# is most environments. It needs network: the artifact it verifies is public and
+# Refuses skipped or missing acceptance bodies. It needs network: the artifact
+# it verifies is public and
 # signed by somebody else on purpose, because a policy that matched the thing it
 # constrains would accept anything.
 set -euo pipefail
@@ -23,9 +23,12 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${repo_root}"
 
 echo "gitless acceptance: running the real path"
-GITLESS_ACCEPTANCE=1 go test ./internal/gitless/ -run Acceptance -count=1 -v 2>&1 |
-  grep -Ev '^(=== RUN|=== CONT|=== PAUSE)' || {
+events="$(mktemp)"
+trap 'rm -f "${events}"' EXIT
+if ! GITLESS_ACCEPTANCE=1 go test ./internal/gitless/ -run '^TestAcceptance' -count=1 -json >"${events}"; then
+  cat "${events}" >&2
   echo "gitless acceptance: FAILED" >&2
   exit 1
-}
+fi
+"${repo_root}/scripts/verify-gitless-acceptance-events.sh" "${events}"
 echo "gitless acceptance: complete"

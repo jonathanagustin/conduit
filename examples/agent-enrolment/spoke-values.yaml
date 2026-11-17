@@ -1,0 +1,22 @@
+# Spoke chart values for an Agent whose client certificate comes from
+# cert-manager-certificate.yaml.
+#
+# Rendered by `helm template` against deploy/helm/platform-spoke and its schema
+# when this file was written; the image digest below is a placeholder and must
+# be replaced with the released Agent image digest.
+image: registry.example/platform-spoke-agent@sha256:0000000000000000000000000000000000000000000000000000000000000000
+# These two are the certificate's URI SAN, segment for segment:
+# spiffe://platform.delivery/environment/prod-use2/agent/primary
+environmentId: prod-use2
+agentId: primary
+controlPlaneURL: https://hub.example.test
+tls:
+  # The Secret the Certificate writes: tls.crt and tls.key.
+  clientSecretName: platform-agent-tls
+  # A ConfigMap holding the CA that signed the HUB's server certificate, so the
+  # Agent can verify the Hub. It is not the Agent CA.
+  externalCAConfigMapName: platform-hub-ca
+  externalCAKey: ca.pem
+rbac:
+  managedNamespaces:
+    - example-product

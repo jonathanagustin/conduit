@@ -57,4 +57,8 @@ EOF
   exit 1
 fi
 
+# This workflow is directly dispatchable: the release caller's check alone
+# cannot prevent publication of an unqualified tag.
+RELEASE_COMMIT="${GITHUB_SHA:-}" "${repo_root}/scripts/verify-cluster-qualification.sh"
+
 echo "publication ref: ${ref_name} is a release tag and agrees with VERSION ${version}"

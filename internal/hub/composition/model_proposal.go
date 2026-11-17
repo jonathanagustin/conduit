@@ -20,7 +20,10 @@ import (
 
 func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, error) {
 	getenv = modelconfig.ForCapability(getenv, modelconfig.Packaging)
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	if client, err := packagingModelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client, Tools: packagingtools.New()}, nil

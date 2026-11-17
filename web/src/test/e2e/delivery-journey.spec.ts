@@ -98,6 +98,8 @@ const changeRequest = (author: string) => ({
 
 type Hub = {
   operator: string;
+  /** What /v1/session lists at platform/root; read and operate when absent. */
+  globalOperations?: string[];
   plans: Record<string, unknown>[];
   changes: Record<string, unknown>[];
   promotions: Record<string, unknown>[];
@@ -146,7 +148,10 @@ async function stubHub(page: Page, hub: Hub) {
         actor: { username: hub.operator },
         effective: { username: hub.operator },
         applications: APPLICATIONS,
-        globalOperations: ["resource:read"],
+        globalOperations: hub.globalOperations ?? [
+          "resource:read",
+          "resource:operate",
+        ],
       });
     if (path === "/v1/spaces") return json({ spaces: [] });
     if (path === "/v1/environments")
@@ -435,6 +440,46 @@ test("a blocked promotion is painted as blocked, with the Hub's reasons", async 
     policy,
     evidence: [],
   });
+});
+
+test("a session without resource:operate is not offered a promotion, and is told why", async ({
+  page,
+}) => {
+  const hub: Hub = {
+    operator: "alice",
+    globalOperations: ["resource:read"],
+    plans: [basePlan],
+    changes: [],
+    promotions: [
+      {
+        id: "pro_0",
+        product: "app.example:api",
+        version: "0.1.0",
+        fromChannel: "DEV",
+        toChannel: "STAGING",
+        status: "BLOCKED",
+        policy: {
+          minimumHealthyEntities: 1,
+          maximumUnhealthyEntities: 0,
+          minimumHealthyDurationSeconds: 0,
+        },
+      },
+    ],
+    writes: [],
+    answer: () => null,
+  };
+  await hydrate(page);
+  await stubHub(page, hub);
+  await page.goto("/console/");
+  await openArea(page, "Releases", "Promotion");
+  const panel = page.locator('#main-workspace [data-dj-panel="promote"]');
+  const reason =
+    "Your session does not hold resource:operate on platform/root.";
+  await expect(panel.locator("[data-dj-capability]")).toHaveText(reason);
+  const review = panel.locator("[data-dj-review]");
+  await expect(review).toBeDisabled();
+  await expect(review).toHaveAttribute("title", reason);
+  expect(hub.writes).toHaveLength(0);
 });
 
 const planningSession = {

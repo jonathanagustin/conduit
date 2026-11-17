@@ -101,10 +101,56 @@ without building from source, see
 
 ## Current status
 
+`VERSION` on `main` is 0.18.0, and no tag or release carries that number.
+The newest tag is `v0.17.5`, cut on 2026-08-18. Nothing after that tag has
+been released ([#844](https://github.com/jonathanagustin/conduit/issues/844)). The gaps
+between this tree and a production deployment are kept in the
+[production-readiness record](docs/operations/PRODUCTION-READINESS.md), which
+is the authority when this section and that record disagree.
+
 Conduit has working native contexts for catalog, environments, governance,
 delivery, execution, reporting, artifacts, identity, and optimization. A large
 compatibility facade remains under `internal/controlplane`; the DDD refactor is
 not complete until behavior and consumers move behind narrow context ports.
+
+What the tree does today, beyond the Hub and Spoke loop above:
+
+- **Release artifacts.** A Release artifact is a `helm-chart`, a
+  `zarf-package`, or a `uds-bundle` (`internal/catalog/domain/release.go`).
+  The Spoke agent hands the two package kinds to a Zarf/UDS executor
+  (`internal/agent/adapters/uds`). That executor has unit tests and has never
+  run against a cluster; see
+  [#427](https://github.com/jonathanagustin/conduit/issues/427).
+- **Model-assisted paths.** The console assistant, planning turns, app
+  generation, and packaging proposals call the one configured model provider.
+  A model never approves a change: each path ends in gates and a change
+  request a person decides. The assistant keeps its threads in the Hub.
+  Planning clones are bounded by a source-host policy
+  (`CONDUIT_SOURCE_ALLOWED_HOSTS`; unset admits any host with a public
+  address). No model call against a real provider is part of any gate. See
+  [governed AI agents](https://jonathanagustin.github.io/conduit/ai-agents/),
+  [app generation](docs/operations/app-generation.md), and
+  [planning source checkouts](docs/operations/planning-source-checkouts.md).
+- **Hub protections.** Every route sits behind a per-caller token bucket
+  ([Hub rate limiting](docs/operations/hub-rate-limiting.md)), and the
+  authorization audit is a hash-chained ledger read in cursor pages
+  ([audit integrity](docs/operations/authorization-audit-integrity.md)).
+- **Notifications.** The Hub keeps a per-operator inbox and can deliver by
+  SMTP, Slack, or a generic HTTPS relay. Delivery is off until its settings
+  are supplied and needs the PostgreSQL repository
+  ([native notification delivery](docs/operations/native-notification-delivery.md)).
+- **Console.** `/console/` is one operator workbench: seven areas, an
+  assistant rail, a notification inbox, and navigation that follows the
+  session's capabilities. It can propose and approve a Plan and evaluate a
+  promotion; the rest of its writes are listed in
+  [`web/README.md`](web/README.md) and its areas in
+  [console navigation](docs/ui/console-navigation.md).
+- **Packaging for UDS.** `deploy/zarf` holds the Zarf package and a UDS
+  bundle. The Trunk gate lints the package, checks it against the Helm charts,
+  and runs `uds create`. The lifecycle workflow that installs, upgrades and
+  removes the signed package has never been run
+  ([`deploy/zarf/README.md`](deploy/zarf/README.md),
+  [UDS package](docs/operations/uds-package.md)).
 
 Apollo is a bounded integration context. Conduit targets compatibility with a
 pinned public Apollo API profile and keeps public contracts, sanitized tenant
@@ -149,7 +195,10 @@ governance, execution, or persistence models.
 Published guides are at <https://jonathanagustin.github.io/conduit/>.
 Start with the [documentation index](docs/README.md),
 [bounded-context map](docs/architecture/bounded-contexts.md), and
-[native reconciliation design](docs/architecture/reconciliation.md). Production
+[native reconciliation design](docs/architecture/reconciliation.md). The
+[production-readiness record](docs/operations/PRODUCTION-READINESS.md) says
+what is proven and what is not, and [`handoff.md`](handoff.md) carries the
+current state of the work. Production
 delivery follows the [Gitless GitOps design](docs/architecture/gitless-gitops.md):
 Git for review, manually published signed private OCI artifacts for deployment,
 and no Git credentials in production clusters.
@@ -181,7 +230,7 @@ Hosted Actions minutes are deliberately controlled, so publication, release,
 signing, and deployment workflows start only when a person dispatches them.
 Verification is automatic: the **Trunk gate** runs on every pull request against
 `main` and verifies that pull request's exact head commit, cancelling the run a
-new push supersedes. Run local verification first anyway — a runner is a slow
+new push supersedes. It skips a draft pull request. Run local verification first anyway — a runner is a slow
 place to discover a formatting error. A successful gate authorizes neither
 merge, release publication, nor tenant deployment.
 

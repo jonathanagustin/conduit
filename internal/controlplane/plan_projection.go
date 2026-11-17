@@ -44,8 +44,12 @@ type PlanSummaryPage struct {
 }
 
 func paginatePlans(records []PlanRecord, query PlanQuery, cursor string, limit int) (PlanPage, error) {
+	return paginatePlansInSpace(records, query, cursor, limit, "")
+}
+
+func paginatePlansInSpace(records []PlanRecord, query PlanQuery, cursor string, limit int, spaceID string) (PlanPage, error) {
 	filtered := filterPlans(records, query)
-	page, metadata, err := paginateOrdered(filtered, planOrderKey, fingerprintJSON(query), cursor, limit, errInvalidPlanCursor)
+	page, metadata, err := paginateOrdered(filtered, planOrderKey, fingerprintInSpace(query, spaceID), cursor, limit, errInvalidPlanCursor)
 	return PlanPage{Plans: page, Total: len(filtered), PageMetadata: metadata}, err
 }
 

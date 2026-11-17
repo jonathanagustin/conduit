@@ -458,14 +458,17 @@ func (a *moduleOverrideAuthority) CreateReview(ctx context.Context, p override.P
 		if err := working.audit(ctx, "MODULE_OVERRIDE_PROPOSED", stored.ID, p.ID); err != nil {
 			return err
 		}
+		if err := service.announceAwaitingApproval(ctx, stored); err != nil {
+			return err
+		}
 		ack = overrideports.ReviewAck{ReviewID: stored.ID, ProposalID: p.ID, Status: stored.Status}
 		opening = stored
 		return nil
 	})
-	if err == nil {
+	if err == nil && !a.repository.InTransaction() {
 		service := NewGovernanceService(a.repository)
 		service.SetAnnouncements(a.options.Announcements)
-		service.announceAwaitingApproval(ctx, opening)
+		_ = service.announceAwaitingApproval(ctx, opening)
 	}
 	return ack, err
 }

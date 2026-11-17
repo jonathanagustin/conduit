@@ -39,7 +39,7 @@ def assert_fails_closed!(helm, release, chart, extra = [])
     helm, "template", release, chart, "--namespace", "platform-system", *extra
   )
   abort "#{release} rendered without required production values" if status.success?
-  abort "#{release} missing-value failure did not identify its cause" if (stdout + stderr).strip.empty?
+  abort "#{release} missing-value failure did not identify its cause" if (stdout + stderr).b.strip.empty?
 end
 
 def validate_deployment!(deployment)
@@ -691,7 +691,8 @@ abort "default Hub mounts model credentials nobody configured" if
 abort "default Hub declares a metrics port nothing listens on" if
   hub_container.fetch("ports").any? { |port| port["name"] == "metrics" } ||
     hub_documents.find { |item| item["kind"] == "Service" }.dig("spec", "ports").any? { |port| port["name"] == "metrics" }
-abort "default Spoke configures a material preparer" if spoke_env.key?("EXTERNAL_MATERIAL_PREPARER")
+abort "default Spoke configures a material preparer" if
+  spoke_env.key?("EXTERNAL_MATERIAL_PREPARER") || spoke_env.key?("MATERIAL_PREPARER_NAMESPACES")
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.METRICS_ADDRESS=:9090"])
 
 metrics_documents = render!(
@@ -722,6 +723,111 @@ assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub),
   ["--values", hub_values, "--skip-schema-validation", "--set", "repository.kind=file", "--set", "replicaCount=1", "--set", "metrics.enabled=true"])
 assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.serviceMonitor.enabled=true"])
+
+# Alert rules and the reference dashboard (#839). Both are off by default, both
+# need the metrics listener, and both ship the generated files byte for byte:
+# their annotations and legends are Prometheus and Grafana templates that Helm
+# must pass through unevaluated.
+abort "default Hub renders alert rules or a dashboard nobody asked for" if
+  hub_documents.any? { |item| item["kind"] == "PrometheusRule" || item.dig("metadata", "name").to_s.end_with?("-dashboard") }
+observability_documents = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "metrics.enabled=true", "--set", "metrics.prometheusRule.enabled=true", "--set", "metrics.prometheusRule.labels.release=monitoring",
+   "--set", "metrics.dashboard.enabled=true"]
+)
+prometheus_rule = observability_documents.find { |item| item["kind"] == "PrometheusRule" }
+abort "metrics.prometheusRule.enabled did not render a PrometheusRule" unless
+  prometheus_rule && prometheus_rule["apiVersion"] == "monitoring.coreos.com/v1" && prometheus_rule.dig("metadata", "namespace") == "platform-system"
+abort "metrics.prometheusRule.labels were not applied" unless prometheus_rule.dig("metadata", "labels", "release") == "monitoring"
+source_rule = YAML.safe_load(File.read(File.join(root, "deploy/observability/prometheus-rules.yaml")))
+abort "the chart's PrometheusRule is not deploy/observability/prometheus-rules.yaml" unless
+  prometheus_rule.fetch("spec") == source_rule.fetch("spec")
+rendered_alerts = prometheus_rule.dig("spec", "groups").flat_map { |group| group.fetch("rules") }
+abort "Helm evaluated an alert annotation template instead of passing it to Prometheus" unless
+  rendered_alerts.any? { |rule| rule.dig("annotations", "summary").to_s.include?("{{ $labels.queue }}") }
+abort "an alert rendered without a runbook" unless
+  rendered_alerts.all? { |rule| rule.dig("annotations", "runbook_url").to_s.include?("docs/operations/runbooks.md#") }
+dashboard_config = observability_documents.find { |item| item["kind"] == "ConfigMap" && item.dig("metadata", "name").end_with?("-dashboard") }
+abort "metrics.dashboard.enabled did not render the dashboard ConfigMap with its sidecar label" unless
+  dashboard_config && dashboard_config.dig("metadata", "labels", "grafana_dashboard") == "1"
+abort "the chart's dashboard is not deploy/observability/dashboard.json" unless
+  JSON.parse(dashboard_config.dig("data", "conduit-hub.json")) == JSON.parse(File.read(File.join(root, "deploy/observability/dashboard.json")))
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.prometheusRule.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", "--set", "metrics.prometheusRule.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set", "metrics.dashboard.enabled=true"])
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation", "--set", "metrics.dashboard.enabled=true"])
+
+# Request rate limits (#842). Typed per class, and absent by default: the Hub's
+# own limits apply unless a value is set, and there is no value that turns the
+# limiter off. What the chart accepts is what cmd/platform-delivery accepts.
+abort "default Hub sets a rate limit nobody configured" if hub_env.keys.any? { |name| name.start_with?("RATE_LIMIT_") }
+limited_env = render!(
+  helm, "platform-hub", charts.fetch(:hub), hub_values,
+  ["--set", "rateLimit.operator.rps=50", "--set", "rateLimit.operator.burst=300", "--set-json", "rateLimit.agent.rps=2.5",
+   "--set", "rateLimit.anonymous.burst=7"]
+).find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec", "containers", 0).fetch("env").to_h { |item| [item["name"], item["value"]] }
+abort "rateLimit values did not become the Hub's RATE_LIMIT_* variables: #{limited_env.select { |name, _| name.start_with?("RATE_LIMIT_") }}" unless
+  limited_env.select { |name, _| name.start_with?("RATE_LIMIT_") } == {
+    "RATE_LIMIT_OPERATOR_RPS" => "50", "RATE_LIMIT_OPERATOR_BURST" => "300",
+    "RATE_LIMIT_AGENT_RPS" => "2.5", "RATE_LIMIT_ANONYMOUS_BURST" => "7"
+  }
+[
+  "rateLimit.agent.rps=0", "rateLimit.agent.rps=-1", "rateLimit.agent.rps=2000000",
+  "rateLimit.agent.burst=0", "rateLimit.agent.burst=1.5", "rateLimit.agent.burst=2000000",
+  "rateLimit.agent.enabled=false", "rateLimit.everyone.rps=1"
+].each do |refused|
+  assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-json", refused])
+end
+assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--set-string", "extraEnv.RATE_LIMIT_AGENT_RPS=100000"])
+# Browser sign-in. Off by default and absent from the render; on, the public
+# address is required, the client secret is a required Secret mounted as a file
+# and never a value, and it cannot be turned on without an issuer.
+oidc = ["--set", "operatorOIDC.enabled=true", "--set-string", "operatorOIDC.issuer=https://sso.example.test/realms/uds",
+        "--set-string", "operatorOIDC.clientID=conduit-hub"]
+sign_in_names = %w[CONSOLE_PUBLIC_URL OPERATOR_OIDC_CLIENT_SECRET_FILE OPERATOR_SESSION_MAX_LIFETIME OPERATOR_OIDC_LOGIN_SCOPES]
+hub_pod = lambda do |extra|
+  render!(helm, "platform-hub", charts.fetch(:hub), hub_values, extra)
+    .find { |item| item["kind"] == "Deployment" }.dig("spec", "template", "spec")
+end
+[[], oidc].each do |extra|
+  pod = hub_pod.call(extra)
+  abort "sign-in settings rendered while operatorOIDC.signIn is off" if
+    pod.dig("containers", 0, "env").any? { |item| sign_in_names.include?(item["name"]) } ||
+    pod.fetch("volumes").any? { |item| item["name"] == "operator-sso" }
+end
+confidential = hub_pod.call(oidc + [
+  "--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test",
+  "--set", "operatorOIDC.signIn.clientSecret.secretName=conduit-hub-sso", "--set-string", "operatorOIDC.signIn.sessionMaxLifetime=4h",
+  "--set", "operatorOIDC.signIn.loginScopes={profile,groups}"
+])
+abort "confidential sign-in did not render exactly" unless
+  confidential.dig("containers", 0, "env").select { |item| sign_in_names.include?(item["name"]) } == [
+    {"name" => "CONSOLE_PUBLIC_URL", "value" => "https://conduit.example.test"},
+    {"name" => "OPERATOR_OIDC_CLIENT_SECRET_FILE", "value" => "/run/conduit-sso/client-secret"},
+    {"name" => "OPERATOR_SESSION_MAX_LIFETIME", "value" => "4h"},
+    {"name" => "OPERATOR_OIDC_LOGIN_SCOPES", "value" => "profile groups"}
+  ]
+abort "the OIDC client secret must be a required Secret mounted read-only, by key" unless
+  confidential.fetch("volumes").find { |item| item["name"] == "operator-sso" } ==
+    {"name" => "operator-sso", "secret" => {"secretName" => "conduit-hub-sso", "optional" => false, "items" => [{"key" => "client-secret", "path" => "client-secret"}]}} &&
+  confidential.dig("containers", 0, "volumeMounts").include?({"name" => "operator-sso", "mountPath" => "/run/conduit-sso", "readOnly" => true})
+public_client = hub_pod.call(oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"])
+abort "a public client must render the public address and no secret" unless
+  public_client.dig("containers", 0, "env").select { |item| sign_in_names.include?(item["name"]) } == [{"name" => "CONSOLE_PUBLIC_URL", "value" => "https://conduit.example.test"}] &&
+  public_client.fetch("volumes").none? { |item| item["name"] == "operator-sso" }
+[
+  ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=http://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test/console"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test",
+          "--set-string", "operatorOIDC.signIn.clientSecret.value=literal"],
+].each { |extra| assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values] + extra) }
+# The template refuses the first two on its own, without the schema.
+[
+  ["--set", "operatorOIDC.signIn.enabled=true", "--set-string", "operatorOIDC.signIn.publicURL=https://conduit.example.test"],
+  oidc + ["--set", "operatorOIDC.signIn.enabled=true"],
+].each { |extra| assert_fails_closed!(helm, "platform-hub", charts.fetch(:hub), ["--values", hub_values, "--skip-schema-validation"] + extra) }
 
 # Notification credentials reach the Hub only as Secret references. An env
 # entry carrying a literal value for a credential would put it in the release
@@ -918,6 +1024,15 @@ abort "Spoke material preparer tools must be an externally supplied read-only PV
     preparer_pod.dig("spec", "template", "spec", "volumes").include?(
       {"name" => "material-preparer-tools", "persistentVolumeClaim" => {"claimName" => "material-tools", "readOnly" => true}}
     )
+# A preparer is told the namespaces this chart binds the Agent's RBAC in, and
+# no others: the reference preparer refuses a request for a namespace outside
+# that list, so the list it is handed must be the one the Roles were rendered
+# for.
+preparer_namespaces = preparer_container.fetch("env").find { |item| item["name"] == "MATERIAL_PREPARER_NAMESPACES" }
+bound_namespaces = render!(helm, "platform-spoke", charts.fetch(:spoke), spoke_values, [])
+  .select { |item| item["kind"] == "Role" }.map { |item| item.dig("metadata", "namespace") }
+abort "Spoke material preparer is not told exactly the namespaces the chart binds RBAC in" unless
+  !bound_namespaces.empty? && preparer_namespaces && preparer_namespaces["value"].split(",") == bound_namespaces
 # The Agent refuses anything but a clean absolute path; so does the schema.
 assert_fails_closed!(helm, "platform-spoke", charts.fetch(:spoke), ["--values", spoke_values, "--set-string", "materialPreparer.command=bin/prepare"])
 

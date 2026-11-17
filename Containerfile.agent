@@ -20,10 +20,17 @@ WORKDIR /source
 COPY go.mod go.sum ./
 COPY cmd cmd
 COPY internal internal
+# Two first-party binaries from this module. The second is the reference
+# material preparer: standard library only, and inert until the Spoke chart's
+# materialPreparer.command names it. See docs/operations/material-preparer.md.
 RUN CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOMAXPROCS=${GO_BUILD_JOBS:-0} \
     go build ${GO_BUILD_JOBS:+-p $GO_BUILD_JOBS} -trimpath -buildvcs=false \
     -ldflags="-s -w -X github.com/jonathanagustin/conduit/internal/buildinfo.Version=$VERSION -X github.com/jonathanagustin/conduit/internal/buildinfo.Commit=$COMMIT -X github.com/jonathanagustin/conduit/internal/buildinfo.BuildDate=$BUILD_DATE" \
-    -o /out/platform-spoke-agent ./cmd/platform-spoke-agent
+    -o /out/platform-spoke-agent ./cmd/platform-spoke-agent && \
+    CGO_ENABLED=0 GOOS=$TARGETOS GOARCH=$TARGETARCH GOMAXPROCS=${GO_BUILD_JOBS:-0} \
+    go build ${GO_BUILD_JOBS:+-p $GO_BUILD_JOBS} -trimpath -buildvcs=false \
+    -ldflags="-s -w" \
+    -o /out/platform-material-preparer ./cmd/platform-material-preparer
 
 # Helm 4.2.3 predates the oras-go 2.6.2 traversal fix. Rebuild the exact Helm
 # release source with only that fixed module version. The source archive and Go
@@ -90,6 +97,7 @@ LABEL org.opencontainers.image.title="Platform Spoke Agent" \
       org.opencontainers.image.created=$BUILD_DATE \
       org.opencontainers.image.licenses="LicenseRef-Proprietary"
 COPY --from=build --chown=65532:65532 --chmod=0755 /out/platform-spoke-agent /platform-spoke-agent
+COPY --from=build --chown=65532:65532 --chmod=0755 /out/platform-material-preparer /usr/local/bin/platform-material-preparer
 COPY --from=runtime-assembly --chown=65532:65532 --chmod=0755 /out-helm /usr/local/bin/helm
 COPY --from=runtime-assembly --chown=65532:65532 --chmod=0755 /tools/kubectl /usr/local/bin/kubectl
 ENV HELM_CACHE_HOME=/tmp/helm/cache

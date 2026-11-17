@@ -125,13 +125,17 @@ render is unchanged by their existence.
 | --- | --- | --- |
 | `metrics.enabled`, `metrics.port`, `metrics.service.port` | `METRICS_ADDRESS`, a `metrics` container port and Service port | Requires `repository.kind=postgres`: the Hub serves `/metrics` only for the PostgreSQL repository, so the chart refuses the file profile rather than render a port nothing listens on. Plain HTTP. |
 | `metrics.serviceMonitor.enabled` | a `monitoring.coreos.com/v1` ServiceMonitor | Requires `metrics.enabled` and the Prometheus Operator CRDs, which the chart does not install. |
+| `metrics.prometheusRule.enabled`, `metrics.prometheusRule.labels` | a `monitoring.coreos.com/v1` PrometheusRule holding `files/prometheus-rules.yaml` | Requires `metrics.enabled` and the Prometheus Operator CRDs. The rules are generated from `deploy/observability/prometheus-rules.yaml`; each alert links to `docs/operations/runbooks.md`. The expressions are checked for the series they name, not evaluated. |
+| `metrics.dashboard.enabled`, `metrics.dashboard.labels` | a ConfigMap holding the reference Grafana dashboard | Requires `metrics.enabled`. The labels are what a dashboard sidecar selects on; the default is `grafana_dashboard: "1"`. |
+| `rateLimit.{operator,agent,anonymous}.{rps,burst}` | `RATE_LIMIT_<CLASS>_RPS`, `RATE_LIMIT_<CLASS>_BURST` | `null` by default, which renders no variable and leaves the Hub's built-in limit in force. `rps` is a number above 0, `burst` a whole number from 1, both at most 1000000. No value turns the limiter off. A fractional `rps` on the command line needs `--set-json`. See `docs/operations/hub-rate-limiting.md`. |
 | `notifications.transport` = `webhook` | `NOTIFICATION_WEBHOOK_URL` from `notifications.webhook.urlSecretName`/`urlSecretKey` via `secretKeyRef`, optional `NOTIFICATION_WEBHOOK_TIMEOUT` | The URL is never a value: webhook URLs commonly embed a token. |
 | `notifications.transport` = `log` | `NOTIFICATION_DELIVERY_LOG=true` | For a deployment whose logs somebody already watches. |
 | `notifications.transport` = `native` | `NOTIFICATION_SMTP_*` and/or `NOTIFICATION_SLACK_TOKEN_FILE`, optional `NOTIFICATION_NATIVE_TIMEOUT` | SMTP username/password and the Slack token are Secrets mounted as read-only files; an optional SMTP CA is a ConfigMap. At least one of `native.smtp.address` (with `from`) or `native.slack.tokenSecretName` is required. |
 | `planOrchestrator.driver` = `temporal` | `PLAN_ORCHESTRATOR=temporal`, `PLAN_TEMPORAL_ADDRESS` | The Hub dials this frontend without TLS or an API key, in Temporal namespace `default`. An empty `temporalAddress` falls back to `packagingWorkflow.address`. |
 | `model.baseURL`, `model.name` | `CONDUIT_MODEL_BASE_URL`, `CONDUIT_MODEL_NAME`, optional `CONDUIT_MODEL_TIMEOUT` | One OpenAI-compatible HTTP endpoint. The API key is `model.apiKeySecret`, a Secret mounted as a read-only file; an optional CA is `model.caConfigMap`. `model.allowInsecureHTTP` is required with an `http://` URL and refused otherwise. The chart has no value for a model command. See [HTTP model endpoint](../../docs/operations/model-http.md), including which AI capabilities the shipped image cannot run. |
-| Spoke `materialPreparer.command` | `EXTERNAL_MATERIAL_PREPARER` | A clean absolute path. The Agent image ships no preparer; `materialPreparer.toolsPersistentVolumeClaimName` mounts an existing PVC read-only at `toolsMountPath` to supply one. |
+| Spoke `materialPreparer.command` | `EXTERNAL_MATERIAL_PREPARER` | A clean absolute path. `Containerfile.agent` builds the reference preparer to `/usr/local/bin/platform-material-preparer` (see [the reference material preparer](../../docs/operations/material-preparer.md)); for any other, `materialPreparer.toolsPersistentVolumeClaimName` mounts an existing PVC read-only at `toolsMountPath`. When a command is set the chart also renders `MATERIAL_PREPARER_NAMESPACES` from `rbac.managedNamespaces`. |
 | Spoke `rbac.packageExecutor` | `<fullname>-package-executor` (`Role`/`RoleBinding` per `rbac.managedNamespaces` entry) and `<fullname>-zarf-state` (`Role`/`RoleBinding` in namespace `zarf`) | Opt-in namespaced RBAC profile for the Zarf/UDS package executor (`internal/agent/adapters/uds`), kept separate from the Helm executor's floor. Requires `rbac.create=true`. |
+
 
 Every notification transport requires `repository.kind=postgres`, whose
 durable queue delivery leases from; the Hub refuses to start otherwise and so
@@ -261,6 +265,13 @@ standard issuers such as tenant-local Keycloak, and `cognito-access` is the
 low-cost AWS fallback. Values contain only public trust configuration, never a
 browser cookie, bearer token, client secret, or password. See
 `docs/architecture/identity-and-governance.md`.
+
+`operatorOIDC.signIn` turns on the Hub's own browser sign-in. It requires
+`operatorOIDC.enabled` and `signIn.publicURL`, the `https` origin people reach
+the console at; the redirect address is `<publicURL>/v1/auth/callback`. A
+confidential client names an existing Secret in `signIn.clientSecret.secretName`,
+which is mounted as a required file; leave it empty for a public client. See
+`docs/operations/operator-sign-in.md`.
 
 ## Bounded Rubix profile
 

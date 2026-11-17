@@ -1,4 +1,5 @@
 import { defineConfig, devices } from "@playwright/test";
+import { localCiBrowserLaunchOptions } from "./scripts/local-ci-browser-profile.mjs";
 
 // The live suite. Unlike playwright.config.ts, which builds the console with
 // Vite, serves it from `preview`, and intercepts every /v1 call, this one runs
@@ -47,5 +48,13 @@ export default defineConfig({
     // written and read exactly like a Hub bug.
     extraHTTPHeaders: { "X-Platform-Subject": "operator" },
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: localCiBrowserLaunchOptions(),
+      },
+    },
+  ],
 });

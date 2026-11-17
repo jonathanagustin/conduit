@@ -25,6 +25,30 @@ export const CHANNELS = Object.freeze(["EMAIL", "IN_APP", "SLACK"]);
 /** internal/notifications/domain/notifications.go — every ContactKind const. */
 export const CONTACT_KINDS = Object.freeze(["EMAIL", "PAGERDUTY", "SLACK"]);
 
+/**
+ * internal/governance/domain/authorization.go — OperationVocabulary, the only
+ * operations a /v1/session answer lists. An operation outside it (an approval
+ * token a policy demands, for one) is never in a session answer, so its
+ * absence there says nothing.
+ */
+export const HUB_SESSION_OPERATIONS = Object.freeze([
+  "artifact:create",
+  "bundle:import",
+  "change:propose",
+  "debug-session-request:create",
+  "debug-session-request:manage",
+  "debug-session-request:read",
+  "fleet:bulk-change",
+  "label:apply",
+  "module-installation:override-approve",
+  "permissions:manage",
+  "platform:act-on-behalf",
+  "product-release:create",
+  "product:create",
+  "resource:operate",
+  "resource:read",
+]);
+
 /** internal/controlplane/session.go — every SessionApplication id. */
 export const HUB_APPLICATIONS = Object.freeze([
   "change-requests",

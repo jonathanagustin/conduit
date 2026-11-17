@@ -63,18 +63,22 @@ func readAuthorizedPlanPage(
 	ctx context.Context, repository Repository, governance *GovernanceService,
 	principal Principal, options HandlerOptions, query PlanQuery, cursor string, limit int,
 ) (PlanPage, error) {
+	return readAuthorizedPlanPageInSpace(ctx, repository, governance, principal, options, query, cursor, limit, indexSpace{})
+}
+
+func readAuthorizedPlanPageInSpace(ctx context.Context, repository Repository, governance *GovernanceService, principal Principal, options HandlerOptions, query PlanQuery, cursor string, limit int, space indexSpace) (PlanPage, error) {
 	records, err := repository.ListPlans(ctx, "")
 	if err != nil {
 		return PlanPage{}, err
 	}
 	visible := make([]PlanRecord, 0, len(records))
 	for _, record := range records {
-		if !canReadPlan(ctx, repository, governance, principal, options, record) {
+		if !canReadPlan(ctx, repository, governance, principal, options, record) || !space.environment(record.Plan.Environment) {
 			continue
 		}
 		visible = append(visible, redactLeaseToken(record))
 	}
-	page, err := paginatePlans(visible, query, cursor, limit)
+	page, err := paginatePlansInSpace(visible, query, cursor, limit, space.id)
 	if err != nil {
 		return PlanPage{}, planIndexPageError{cause: err}
 	}

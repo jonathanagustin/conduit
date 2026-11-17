@@ -51,11 +51,11 @@ https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment_version/	
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_environment/	apollo-cli	apollo-cli environment	465	4	1b838b8bc3dce2d0653f481830a8678c681a8a5a54945093ccb1a542ad45182e
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart_validate/	apollo-cli	apollo-cli helm-chart validate \[Experimental]	592	4	d6fd01ec8ebbacb679429a48daecc2ee921054b7ec2fbef7e8391047a7cd1039
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_helm-chart/	apollo-cli	apollo-cli helm-chart \[Experimental]	413	4	b7953e110cd445fa40b7ecdbc62cf9eb065fc26a05e48228b69f5543dfada68b
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_delete/	apollo-cli	apollo-cli label delete \[Experimental]	517	4	65ec7402f1ce64ad0870ef140545964b42ee1af62027c510e9969a7a18dce021
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_get/	apollo-cli	apollo-cli label get \[Experimental]	528	4	f331841248195c78e7abc70955a245bbc8da99a390af82ca28f5c8b7f2a49a86
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_list/	apollo-cli	apollo-cli label list \[Experimental]	483	4	a24911d0a7c634b53e4b360e5deb894179cb2321797fcac2cc592314ff5f6d96
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_set/	apollo-cli	apollo-cli label set \[Experimental]	547	4	bfc30b17ccda04faf68b010ef679ab53524a28cf3e8ebf165acb29aea1495c71
-https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label/	apollo-cli	apollo-cli label \[Experimental]	475	4	36a6a1960ae5c74e61cbbdd6efe42ad3cc3cfe126d5b239132f7edd149607007
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_delete/	apollo-cli	apollo-cli label delete \[Experimental]	525	4	20b82a4e791940e53a8f1912c591cad55426b12f299fae3c7ac2b00bb454b59d
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_get/	apollo-cli	apollo-cli label get \[Experimental]	536	4	52855e33aac3fa2d3c1c691ab0a88cfd6693ae6617d95f2ccc1ea288c77e0027
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_list/	apollo-cli	apollo-cli label list \[Experimental]	491	4	c26facae06b30ade27e5aca33001a563adb6f4c470c7936688e7baadacdf8fac
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label_set/	apollo-cli	apollo-cli label set \[Experimental]	565	4	cb2cf262e5802c60684b393024d0a861553d8203b065e117274fa39ffa42c863
+https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_label/	apollo-cli	apollo-cli label \[Experimental]	483	4	051ee6b6a116fe95b42f70f279efacd46fa51808e2ba048c44a7414c280d1852
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_create/	apollo-cli	apollo-cli module create	436	4	146da3e089a9bcb5caf65433d63945283cf4bc68a4c7a7e3fabd76b9c06aeac2
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_diff/	apollo-cli	apollo-cli module diff \[Experimental]	466	4	8d146b0ec9ff10c2a0ef46b08a8354e9ee500ee0349c053d8f203b94c06ee797
 https://www.palantir.com/docs/apollo/apollo-cli/apollo-cli_module_evaluate/	apollo-cli	apollo-cli module evaluate \[Experimental]	452	4	0a5c6134b5f40fef95336b2129379cc21cbb1a8261994c9c63b4afe1718ae25c

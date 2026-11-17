@@ -196,12 +196,18 @@ spec:
       standardFlowEnabled: true
       baseUrl: "###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/"
       rootUrl: "###ZARF_VAR_CONSOLE_PUBLIC_URL###"
+      # The Hub is the OAuth client and this is its one callback. Exact, with
+      # no wildcard: the browser never receives a code anywhere else.
       redirectUris:
-        - "###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/*"
+        - "###ZARF_VAR_CONSOLE_PUBLIC_URL###/v1/auth/callback"
       webOrigins:
         - "###ZARF_VAR_CONSOLE_PUBLIC_URL###"
+      # The Hub mounts this Secret and reads the client secret from the
+      # client-secret key (OPERATOR_OIDC_CLIENT_SECRET_FILE).
       secretConfig:
         name: conduit-hub-sso
+        template:
+          client-secret: "clientField(secret)"
       protocolMappers:
         - name: groups
           protocol: openid-connect

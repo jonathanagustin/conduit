@@ -15,6 +15,7 @@ import (
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	intelhttp "github.com/jonathanagustin/conduit/internal/intelligence/httpapi"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
@@ -26,7 +27,7 @@ func (cases intelCases) Add(scenario, bound, value, expected string) (string, er
 	if cases.service == nil {
 		return "", fmt.Errorf("eval cases are not configured")
 	}
-	added, err := cases.service.AddCase(scenario, bound, value, expected)
+	added, err := cases.service.AddCase(context.Background(), scenario, bound, value, expected)
 	if err != nil {
 		return "", err
 	}
@@ -44,7 +45,7 @@ func newIntelligenceService(repository controlplane.Repository, options controlp
 func liveEvalProposer() intelapp.Proposer {
 	// A configuration error, including both transports set, yields no
 	// proposer here; assistantModel reports the same error at startup.
-	if client, err := modelHTTPClient(os.Getenv); err != nil {
+	if client, err := governedModelHTTPClient(os.Getenv, modelgovernor.CapabilityIntelligence); err != nil {
 		return nil
 	} else if client != nil {
 		return intelligenceEvalProposer{runner: packagingmodelhttp.Adapter{Client: client}}

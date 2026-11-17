@@ -140,7 +140,7 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 
 func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, error) {
 	getenv = modelconfig.ForCapability(getenv, modelconfig.Packaging)
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := packagingModelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client}, nil

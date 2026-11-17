@@ -24,13 +24,19 @@ golden="${repo_root}/internal/gitless/adapters/fluxconverge/testdata/rendered.go
 work="$(mktemp -d)"
 trap 'rm -rf "$work"' EXIT
 
-if ! command -v kubectl >/dev/null 2>&1; then
-  echo "gitless Flux manifests: SKIP (no kubectl)"
+unavailable() {
+  if [[ "${GITLESS_STRICT_ACCEPTANCE:-0}" == 1 ]]; then
+    echo "gitless Flux manifests: required acceptance unavailable ($*)" >&2
+    exit 1
+  fi
+  echo "gitless Flux manifests: SKIP ($*)"
   exit 0
+}
+if ! command -v kubectl >/dev/null 2>&1; then
+  unavailable 'no kubectl'
 fi
 if ! kubectl get crd ocirepositories.source.toolkit.fluxcd.io >/dev/null 2>&1; then
-  echo "gitless Flux manifests: SKIP (no Flux CRDs in the reachable cluster)"
-  exit 0
+  unavailable 'no Flux CRDs in the reachable cluster'
 fi
 
 apply() { kubectl apply --dry-run=server -f "$1" 2>&1; }

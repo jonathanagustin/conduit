@@ -5,8 +5,10 @@
 # still attached to it.
 set -euo pipefail
 
-cluster_name="${UDS_K3D_CLUSTER:-uds}"
-network_name="${UDS_K3D_NETWORK:-uds-k3d}"
+root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+cd "${root}"
+source "${root}/scripts/lib/local-uds.sh"
+conduit_uds_configure "${root}"
 dry_run=false
 print_plan=false
 
@@ -31,26 +33,25 @@ done
 if "${print_plan}" || "${dry_run}"; then
   printf 'cluster=%s\n' "${cluster_name}"
   printf 'network=%s\n' "${network_name}"
+  printf 'context=%s\n' "${kubecontext}"
+  printf 'kubeconfig=%s\n' "${kubeconfig}"
   printf 'k3d cluster delete %s\n' "${cluster_name}"
   "${print_plan}" && exit 0
   "${dry_run}" && exit 0
 fi
 
-if command -v k3d >/dev/null 2>&1; then
-  k3d cluster delete "${cluster_name}" >/dev/null 2>&1 || true
-elif command -v uds >/dev/null 2>&1; then
-  uds zarf tools kubectl config delete-context "k3d-${cluster_name}" >/dev/null 2>&1 || true
-  echo "k3d is not on PATH; delete the cluster with k3d cluster delete ${cluster_name}" >&2
-  exit 1
-else
-  echo "k3d is required to delete the cluster" >&2
+conduit_uds_require k3d
+conduit_uds_engine
+export KUBECONFIG="${kubeconfig}"
+if ! k3d cluster delete "${cluster_name}"; then
+  echo 'k3d cluster deletion failed; no further cleanup was attempted' >&2
   exit 1
 fi
 
-if command -v docker >/dev/null 2>&1 && docker network inspect "${network_name}" >/dev/null 2>&1; then
+if "${engine}" network inspect "${network_name}" >/dev/null 2>&1; then
   # Leave the network when something else is still using it.
-  containers="$(docker network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "${network_name}" | tr -d '[:space:]')"
+  containers="$("${engine}" network inspect -f '{{range .Containers}}{{.Name}} {{end}}' "${network_name}" | tr -d '[:space:]')"
   if [[ -z "${containers}" ]]; then
-    docker network rm "${network_name}" >/dev/null
+    "${engine}" network rm "${network_name}" >/dev/null
   fi
 fi

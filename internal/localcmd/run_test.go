@@ -37,3 +37,13 @@ func TestExecuteNeverStartsAHostCommand(t *testing.T) {
 		t.Fatalf("command ran: %v", err)
 	}
 }
+
+func TestExecutorWrapperCompatibilityAndNilRefusal(t *testing.T) {
+	var wrapped ExecFunc = func(context.Context, []string, time.Duration, []byte) ([]byte, error) { return []byte("wrapped"), nil }
+	if out, _ := wrapped.Run(t.Context(), nil, time.Second, nil); string(out) != "wrapped" {
+		t.Fatalf("wrapper unused: %q", out)
+	}
+	if _, err := ExecFunc(nil).Run(t.Context(), []string{"/bin/sh"}, time.Second, nil); !errors.Is(err, ErrLocalCommandUnsupported) {
+		t.Fatalf("nil wrapper bypassed refusal: %v", err)
+	}
+}

@@ -257,7 +257,7 @@ jobs:
           printf '%s\n' "$changed" | sed 's/^/  /' >&2
           matches() { printf '%s\n' "$changed" | grep -E "$1" || true; }
           go=false; cli=false; console=false; checks=false
-          if [ -n "$(matches '\.go$|(^|/)go\.(mod|sum)$|(^|/)go\.work($|\.)|(^|/)mise\.(toml|lock)$|^scripts/|^internal/|^cmd/|^api/|^tools/|^solver/|(^|/)go\.work\.sum$|^\.github/workflows/platform-ci\.yml$')" ]; then
+          if [ -n "$(matches '\.go$|(^|/)go\.(mod|sum)$|(^|/)go\.work($|\.)|(^|/)mise\.(toml|lock)$|^scripts/|^internal/|^cmd/|^api/|^tools/|^solver/|^skills/|^docs/evidence/model-evals/|(^|/)go\.work\.sum$|^\.github/workflows/platform-ci\.yml$')" ]; then
             go=true
             cli=true
           fi
@@ -406,6 +406,15 @@ jobs:
               )
           PY
           python3 scripts/test-packaging-gates.py
+      # Replays the committed model-eval transcripts through the planning and
+      # packaging prompts exactly as this commit builds them. It fails when a
+      # prompt's sha256 has no recording (a prompt, skill or fixture changed
+      # without re-recording) or a score is below the committed baseline. The
+      # committed transcripts are the offline agent's, so a pass says nothing
+      # about a real model: docs/operations/model-evals.md.
+      - name: Validate model-eval replay
+        if: needs.scope.outputs.go == 'true'
+        run: go run ./cmd/conduit-eval replay
       - name: Validate PostgreSQL repository
         if: needs.scope.outputs.go == 'true'
         run: ./scripts/test-postgres-repository.sh
@@ -776,6 +785,19 @@ jobs:
       - name: Validate Helm runtime chart
         if: needs.scope.outputs.checks == 'true'
         run: ruby scripts/verify-helm-runtime.rb
+      # An alert on a series the Hub does not export never fires, and reads
+      # exactly like an alert on a healthy system. This holds every expression
+      # in the shipped rules and dashboard to the exported-metrics manifest
+      # (which a Go test holds to the code), every alert to a runbook section,
+      # and the chart and Zarf copies to their sources. It checks names, labels
+      # and functions; it does not evaluate an expression, because no pinned
+      # promtool is installed here. Self-test first: the tree is correct, so a
+      # check that stopped reading it would print the same PASS.
+      - name: Validate observability assets
+        if: needs.scope.outputs.checks == 'true'
+        run: |
+          ./scripts/verify-observability-assets.test.sh
+          ruby scripts/verify-observability-assets.rb
       - name: Install pinned Zarf
         if: needs.scope.outputs.checks == 'true'
         run: |

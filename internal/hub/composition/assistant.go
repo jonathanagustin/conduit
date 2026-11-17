@@ -18,6 +18,7 @@ import (
 	assistanthttp "github.com/jonathanagustin/conduit/internal/assistant/httpapi"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	ontologyrepo "github.com/jonathanagustin/conduit/internal/ontology/adapters/repository"
 	ontologydomain "github.com/jonathanagustin/conduit/internal/ontology/domain"
 )
@@ -53,13 +54,17 @@ func mountAssistant(
 			return application.Actor{Username: principal.Username, Teams: principal.Teams, Groups: principal.Groups}, nil
 		},
 	})
+	mountMCP(mux, api, governanceService, options)
 	mux.Handle("/", legacy)
 	return mux
 }
 
 func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 	getenv = modelconfig.ForCapability(getenv, modelconfig.Assistant)
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if getenv == nil {
+		getenv = func(string) string { return "" }
+	}
+	if client, err := governedModelHTTPClient(getenv, modelgovernor.CapabilityAssistant); err != nil {
 		return nil, err
 	} else if client != nil {
 		return assistantmodelhttp.Adapter{Client: client}, nil
@@ -102,6 +107,10 @@ func (api assistantAPI) Invoke(ctx context.Context, actor application.Actor, mod
 }
 
 func (api assistantAPI) Converse(ctx context.Context, actor application.Actor, request application.TurnRequest, observer application.Observer) (application.Turn, error) {
+	if request.ThreadID != "" {
+		// Every model call of the turn is filed under its thread.
+		modelgovernor.Annotate(ctx, "assistant-thread/"+request.ThreadID)
+	}
 	return api.service(actor).Converse(ctx, actor, request, observer)
 }
 
@@ -312,6 +321,7 @@ func (audit toolAudit) Record(ctx context.Context, record application.AuditRecor
 		time.Now().UTC(), record.Actor, "assistant."+record.Tool, record.Resource, decision, record.Reason,
 		map[string]any{
 			"tool": record.Tool, "argsSha256": assistantdomain.Digest(record.Args), "resultSha256": assistantdomain.Digest(record.Result),
+			"origin": toolOrigin(ctx),
 		},
 	)
 	saved, err := audit.repository.AppendAuthorizationAudit(ctx, event)

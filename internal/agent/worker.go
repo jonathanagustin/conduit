@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/controlplane"
+	observability "github.com/jonathanagustin/conduit/internal/observability/domain"
 )
 
 type Receipt struct {
@@ -86,6 +87,12 @@ func (worker Worker) RunOnce(ctx context.Context) (bool, error) {
 	}
 	if leaseDuration < 10*time.Second || leaseDuration > 15*time.Minute {
 		return false, errors.New("lease duration must be between 10 seconds and 15 minutes")
+	}
+	// One trace per cycle, so that the Hub's access-log lines for this cycle's
+	// lease, start, renewals and report share a trace_id. It rides the
+	// traceparent request header; no protocol document changes.
+	if _, traced := observability.TraceFromContext(ctx); !traced {
+		ctx = observability.ContextWithTrace(ctx, observability.NewTraceContext())
 	}
 	record, err := worker.ControlPlane.Lease(ctx, worker.Environment, worker.AgentID, leaseDuration)
 	if errors.Is(err, ErrNoPlan) {

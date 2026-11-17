@@ -256,7 +256,7 @@ func TestUpgradingDoesNotQueueTheHistoryItFinds(t *testing.T) {
 func TestTheDeliveryMigrationIsAppendedRatherThanEdited(t *testing.T) {
 	t.Parallel()
 	applied := Migrations()
-	want := []string{"0001-notifications-core", "0002-notification-delivery", "0003-notification-contacts"}
+	want := []string{"0001-notifications-core", "0002-notification-delivery", "0003-notification-contacts", "0004-notification-intents"}
 	if len(applied) != len(want) {
 		t.Fatalf("the notifications component has %d migrations, want %d", len(applied), len(want))
 	}

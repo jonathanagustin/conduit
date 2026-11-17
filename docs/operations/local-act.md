@@ -27,7 +27,12 @@ execute with the local operator's permissions; run only trusted candidate code.
 Evidence is written outside the checkout to a unique temporary directory:
 `act.log` plus a success-only `receipt.json` identifying candidate commit/tree,
 tooling commit, workflow/verifier/runner/log hashes, tool versions and completion
-time. Failure or a changed checkout produces no success receipt. The receipt is
+time. The receipt also records the named Chromium profile, Node architecture,
+Go compiler-host and target settings, QEMU guest-base setting, reported `uname`
+values and Docker daemon architecture when available. Under emulation, `uname`
+may report the guest architecture; the daemon value describes the container
+server and may be remote. Failure or a changed checkout produces no success
+receipt. The receipt is
 operator-produced evidence, not an independent attestation or a hosted Actions
 run. Retain the log with the receipt; a hash alone cannot explain a failure.
 
@@ -52,3 +57,26 @@ so rebuilding the output cannot erase a live cache. The script removes its owned
 run directory on exit, including failures. Ordinary developer runs retain Vite's
 default cache. This cleanup does not remove installed dependencies, browser
 binaries, qualified inputs, source, receipts or another run's cache.
+
+For the Linux x86_64 act runner emulated on an ARM64 Podman VM, Chromium 1254's
+zygote can crash despite installed browser OS dependencies. Select the bounded
+local profile explicitly:
+
+```bash
+CONDUIT_LOCAL_CI_BROWSER_PROFILE=qemu-x86_64-no-zygote \
+  ACT_BIN=/path/to/act ./scripts/run-local-ci.sh "$(git rev-parse HEAD)"
+```
+
+The profile requires act and a Linux x86_64 Node runtime. It adds exactly
+`--no-zygote` to Chromium in the stubbed-console and live-Hub configurations:
+Chromium starts its child processes directly. Browser contexts, renderer
+processes, all assertions and zero retries remain in use. Other browser projects
+and ordinary hosted/developer launches retain their defaults. Unknown profiles
+and unsupported hosts fail rather than accepting arbitrary browser flags.
+The wrapper validates nondefault profile support in the candidate before the
+full run and records its helper and browser-configuration hashes. Older
+candidates can still use newer tooling with the default browser settings.
+This profile does not fix an unusable Go race runtime; its fail-closed preflight
+must also pass. A browser smoke probe alone is insufficient: retain the complete
+console and real-Hub results in the full exact-head act log before using a PASS
+receipt for review.
