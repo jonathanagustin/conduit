@@ -306,7 +306,7 @@ func (api *api) readPreference(writer http.ResponseWriter, request *http.Request
 		writeError(writer, http.StatusInternalServerError, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, preference)
+	writeJSON(writer, http.StatusOK, describedPreference(preference))
 }
 
 // preferenceRequest is what a caller may set. The identifier, the timestamps
@@ -359,7 +359,26 @@ func (api *api) writePreference(writer http.ResponseWriter, request *http.Reques
 		writeError(writer, http.StatusUnprocessableEntity, err)
 		return
 	}
-	writeJSON(writer, http.StatusOK, stored)
+	writeJSON(writer, http.StatusOK, describedPreference(stored))
+}
+
+// preferenceResponse is a stored preference plus the one thing about it the
+// record cannot say: which of the types it names nothing in this build raises.
+//
+// Additive on purpose. Refusing such a type at the write would have been the
+// other way to be honest, and it would have broken a contract: the console's
+// checkbox list is held to the whole vocabulary, so a refusal would turn boxes
+// the console offers into a 422, and would start rejecting preferences already
+// stored. So the preference is accepted and the response says which of its
+// types will not fire yet. Absent when every named type is raised, and absent
+// under allFutureTypes with no named types, which names none.
+type preferenceResponse struct {
+	domain.Preference
+	TypesNotYetEmitted []domain.EventType `json:"typesNotYetEmitted,omitempty"`
+}
+
+func describedPreference(preference domain.Preference) preferenceResponse {
+	return preferenceResponse{Preference: preference, TypesNotYetEmitted: domain.NotYetRaised(preference.Types)}
 }
 
 // maximumPreferenceBytes bounds a body whose largest legitimate form is a list

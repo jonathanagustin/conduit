@@ -121,6 +121,10 @@ type GovernanceService struct {
 	lifecycle  *Lifecycle
 	now        func() time.Time
 	trust      PolicyTrust
+	// announcements is zero unless SetAnnouncements was called. A service built
+	// over a transaction's repository never has it set, which is what keeps an
+	// announcement from leaving before its write commits.
+	announcements governanceAnnouncements
 }
 
 func NewGovernanceService(repository Repository) *GovernanceService {
@@ -349,6 +353,7 @@ func (service *GovernanceService) PutGrantAs(
 	if auditErr := service.auditGrantConfigured(ctx, subject, existing, stored); auditErr != nil {
 		return ResourceGrant{}, auditErr
 	}
+	service.announceGrantChanged(ctx, subject, existing, stored)
 	return stored, nil
 }
 
@@ -462,6 +467,9 @@ func (service *GovernanceService) proposePlanWithAdditionalChanges(
 	}
 	service.auditRequestCreated(ctx, request)
 	record, err = service.syncPlanAs(ctx, request, verdict)
+	if err == nil {
+		service.announceAwaitingApproval(ctx, request)
+	}
 	return record, request, err
 }
 
@@ -639,6 +647,7 @@ func (service *GovernanceService) ProposeChanges(
 	request, err = service.repository.CreateChangeRequest(ctx, request)
 	if err == nil {
 		service.auditRequestCreated(ctx, request)
+		service.announceAwaitingApproval(ctx, request)
 	}
 	return request, policyApproves, err
 }
@@ -1057,6 +1066,9 @@ func (service *GovernanceService) Reopen(
 	}
 	service.audit(ctx, principal.Username, "CHANGE_REQUEST_REOPEN", id, "ALLOW", "author reopened request", nil)
 	plan, err := service.syncPlan(ctx, request)
+	if err == nil {
+		service.announceAwaitingApproval(ctx, request)
+	}
 	return request, plan, err
 }
 

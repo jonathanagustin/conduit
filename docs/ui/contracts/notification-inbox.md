@@ -65,6 +65,15 @@ has never heard of still renders, because a row shows the string the Hub sent,
 and a stored preference naming such a type is carried through a save unchanged
 and reported rather than silently dropped.
 
+**A known type is not necessarily a raised one.** `GET` and `PUT
+/v1/notifications/preferences` answer with an additional
+`typesNotYetEmitted` array naming those of the preference's `types` that no
+emit site in this build raises (`domain.EventType.Raised`). The field is absent
+when every named type is raised. Such a type is still accepted and stored — the
+checkbox list is the vocabulary, not the set of live emitters — so the field is
+how a subscriber learns that silence on that type means "nothing raises it",
+not "nothing happened". The console does not yet render it.
+
 **An edit the Hub would refuse is refused first.**
 `domain.Preference.Validate` rejects a preference that enables no types and has
 not opted into future ones, because it could never deliver anything. The Save

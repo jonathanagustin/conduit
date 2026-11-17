@@ -49,3 +49,16 @@ type RecallOpenings interface {
 	// announced before. Reverted recalls withdraw nothing and are skipped.
 	RecallsInForce(ctx context.Context, environment string, recalls []domain.Recall) error
 }
+
+// PromotionFailures is told about every stored promotion evaluation, so that
+// something outside this context can tell a person when one failed.
+//
+// The caller hands over each evaluation rather than deciding which ones
+// matter, for the reason RecallOpenings takes the whole set: what counts as a
+// failure worth a person's attention is the implementation's rule, and a
+// caller that filtered first would hold a second copy of it. Called after the
+// evaluation is stored; the caller drops the error, because the record exists
+// by then.
+type PromotionFailures interface {
+	PromotionEvaluated(ctx context.Context, record domain.PromotionRecord) error
+}
