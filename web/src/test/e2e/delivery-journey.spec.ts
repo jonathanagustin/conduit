@@ -345,6 +345,14 @@ test("a second person approves a plan from the approvals board", async ({
   await expect(decide.locator("[data-dj-confirm]")).toHaveCount(0);
   await expect(decide.locator('[data-dj-field="rationale"]')).toBeDisabled();
   await expect(decide.locator("[data-dj-outcome]")).toHaveCount(0);
+  // Both entry points must share the pending command, including its reply.
+  await openArea(page, "Releases", "Plans");
+  await page
+    .locator("#main-workspace [data-release-plan]")
+    .selectOption("pln_new");
+  await expect(decide.locator("[data-dj-inflight]")).toBeVisible();
+  await expect(decide.locator("[data-dj-review]")).toHaveCount(0);
+  await expect(decide.locator('[data-dj-field="rationale"]')).toBeDisabled();
   unhold();
 
   await expect(decide.locator("[data-dj-outcome]")).toContainText(
@@ -357,9 +365,13 @@ test("a second person approves a plan from the approvals board", async ({
     }),
   ]);
   // The board was read again after the Hub answered.
+  await openArea(page, "Change requests", "Approvals");
   await expect(
     page.locator("#main-workspace [data-approvals-board]"),
   ).toContainText("APPROVED");
+  await decide.getByRole("button", { name: "Review another Plan" }).click();
+  await expect(decide.locator("[data-dj-outcome]")).toHaveCount(0);
+  expect(hub.writes).toHaveLength(1);
 });
 
 test("shows the Hub's refusal of a proposal inline, escaped", async ({

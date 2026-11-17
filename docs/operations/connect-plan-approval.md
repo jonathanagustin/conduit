@@ -63,7 +63,10 @@ native refusal, not a recovery mechanism.
 The active delivery panel and approvals board use the generated approval client,
 as does the legacy console helper. The operator still reviews the exact Plan ID
 and rationale, then confirms one command. The confirmation shows the Connect
-procedure and message actually sent. Reject and cancel retain their REST routes.
+procedure and message actually sent. Both entry points share the pending
+command and its reply, so navigating while it is in flight cannot expose a
+second approval form. After a successful reply, reviewing another Plan requires
+a new explicit review/confirmation. Reject and cancel retain their REST routes.
 
 Successful approval displays the returned summary status. Its versioned
 `conduit.plan-approval/v1` result retains the generated receipt; it does not

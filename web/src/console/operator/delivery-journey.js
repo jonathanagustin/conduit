@@ -444,7 +444,7 @@ export function decisionMarkup(plan, review, panel, { picker = "" } = {}) {
         `The Hub recorded the ${action.request?.summary?.find(([label]) => label === "Decision")?.[1] || "decision"}.`,
         `${body.id || "The record"} is now ${body.status || "status unavailable"}.`,
       ],
-    )}</section>`;
+    )}<button type="button" class="so-btn" data-dj-again>Review another Plan</button></section>`;
   }
   if (!plan)
     return `<section class="so-panel p-3 space-y-2" data-dj-panel="decide">${head}<p class="kit-muted" data-dj-reason>No plan awaiting approval is selected.</p></section>`;
@@ -473,7 +473,9 @@ export function mountPlanDecision(
   state,
   { planId = "", board = false, fetchImpl = fetch } = {},
 ) {
-  const key = board ? "decideBoard" : "decide";
+  // One mutable panel slot routes pending replies to whichever entry point is
+  // currently mounted, and keeps both views from offering a second command.
+  const key = "decide";
   const panel = slot(state, key);
   // Both approval entry points share the same recovery barrier. Navigation
   // cannot turn an unknown or already-recorded command into a fresh retry.
