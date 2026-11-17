@@ -14,6 +14,7 @@ import (
 	"io"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/jonathanagustin/conduit/internal/buildinfo"
 	"github.com/jonathanagustin/conduit/internal/controlplane"
@@ -73,6 +74,9 @@ type Runtime struct {
 	Stderr         io.Writer
 	Getenv         func(string) string
 	ServiceFactory serviceFactory
+	// Sleep waits between polls of a device sign-in. Nil is the real clock; a
+	// test supplies one that returns at once.
+	Sleep func(context.Context, time.Duration) error
 }
 
 type commandState struct {
@@ -152,6 +156,8 @@ func NewRoot(runtime Runtime) *cobra.Command {
 	root.AddCommand(completionCommand(root))
 	root.AddCommand(configureCommand(state))
 	root.AddCommand(profileCommand(state))
+	root.AddCommand(loginCommand(state))
+	root.AddCommand(logoutCommand(state))
 	root.AddCommand(artifactRegistryCommand(state))
 	root.AddCommand(changeRequestCommand(state))
 	root.AddCommand(planCommand(state))
