@@ -73,6 +73,9 @@ Chromium starts its child processes directly. Browser contexts, renderer
 processes, all assertions and zero retries remain in use. Other browser projects
 and ordinary hosted/developer launches retain their defaults. Unknown profiles
 and unsupported hosts fail rather than accepting arbitrary browser flags.
+The wrapper validates nondefault profile support in the candidate before the
+full run and records its helper and browser-configuration hashes. Older
+candidates can still use newer tooling with the default browser settings.
 This profile does not fix an unusable Go race runtime; its fail-closed preflight
 must also pass. A browser smoke probe alone is insufficient: retain the complete
 console and real-Hub results in the full exact-head act log before using a PASS

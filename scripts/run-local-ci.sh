@@ -29,6 +29,28 @@ fi
 report_dir="$(mktemp -d "${TMPDIR:-/tmp}/conduit-local-ci.XXXXXXXX")"
 export CONDUIT_LOCAL_CI_REPORT_DIR="${report_dir}"
 printf 'Local CI commit: %s\nEvidence directory: %s\n' "${expected_sha}" "${report_dir}"
+# A nondefault profile must be supported by the candidate, even when this
+# wrapper is newer tooling from another checkout. Refuse before the full run.
+node --input-type=module - "${root}" "${report_dir}" <<'JS'
+import { createHash } from 'node:crypto';
+import { readFileSync, writeFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+const [candidate, directory] = process.argv.slice(2);
+const profile = process.env.CONDUIT_LOCAL_CI_BROWSER_PROFILE || 'default';
+const evidence = {profile, helperSha256: null, configurationSha256: {}};
+if (process.env.CONDUIT_LOCAL_CI_BROWSER_PROFILE) {
+  const helper = join(candidate, 'web/scripts/local-ci-browser-profile.mjs');
+  const { localCiBrowserLaunchOptions } = await import(pathToFileURL(helper));
+  localCiBrowserLaunchOptions({...process.env, ACT: 'true'});
+  const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
+  evidence.helperSha256 = hash(helper);
+  for (const name of ['playwright.config.ts', 'playwright.live.config.ts']) {
+    evidence.configurationSha256[name] = hash(join(candidate, 'web', name));
+  }
+}
+writeFileSync(join(directory, 'browser-profile.json'), JSON.stringify(evidence, null, 2) + '\n', {mode: 0o600});
+JS
 # Never load act's implicit .env/.secrets files or pass a GitHub write token.
 # The host executor uses the same pinned toolchain as verify-local.sh. Docker
 # remains necessary for its PostgreSQL and isolated fixture checks.
@@ -50,7 +72,6 @@ import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { pathToFileURL } from 'node:url';
 const [commit, directory, tooling] = process.argv.slice(2);
 const hash = path => createHash('sha256').update(readFileSync(path)).digest('hex');
 const command = (name, args) => execFileSync(name, args, {encoding: 'utf8'}).trim();
@@ -58,13 +79,7 @@ const optionalCommand = (name, args) => {
   try { return execFileSync(name, args, {encoding: 'utf8', timeout: 5000, stdio: ['ignore', 'pipe', 'ignore']}).trim() || null; }
   catch { return null; }
 };
-// An older candidate can use newer tooling with the default browser settings.
-// An opted-in profile must exist in the candidate that actually ran the tests;
-// tooling's selector cannot prove an older candidate applied that profile.
-if (process.env.CONDUIT_LOCAL_CI_BROWSER_PROFILE) {
-  const { localCiBrowserLaunchOptions } = await import(pathToFileURL(join(process.cwd(), 'web/scripts/local-ci-browser-profile.mjs')));
-  localCiBrowserLaunchOptions({...process.env, ACT: 'true'});
-}
+const browserProfile = JSON.parse(readFileSync(join(directory, 'browser-profile.json'), 'utf8'));
 const receipt = {
   schemaVersion: 1, kind: 'CONDUIT_LOCAL_CI', result: 'PASS', commit,
   tree: command('git', ['rev-parse', 'HEAD^{tree}']),
@@ -77,7 +92,9 @@ const receipt = {
     go: JSON.parse(command('go', ['env', '-json', 'GOHOSTOS', 'GOHOSTARCH', 'GOOS', 'GOARCH', 'CGO_ENABLED'])),
     dockerDaemonArchitecture: optionalCommand('docker', ['info', '--format', '{{.Architecture}}']),
     qemuGuestBase: process.env.QEMU_GUEST_BASE || null,
-    chromiumProfile: process.env.CONDUIT_LOCAL_CI_BROWSER_PROFILE || 'default',
+    chromiumProfile: browserProfile.profile,
+    candidateBrowserProfileHelperSha256: browserProfile.helperSha256,
+    candidateBrowserConfigurationSha256: browserProfile.configurationSha256,
   },
   runnerCommit: command('git', ['-C', tooling, 'rev-parse', 'HEAD']),
   workflowSha256: hash(join(tooling, '.github/workflows/local-ci.yml')),
