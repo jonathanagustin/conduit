@@ -60,9 +60,10 @@
     "rbac": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["create", "managedNamespaces"],
+      "required": ["create", "packageExecutor", "managedNamespaces"],
       "properties": {
         "create": {"type": "boolean"},
+        "packageExecutor": {"type": "boolean"},
         "managedNamespaces": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/definitions/dnsName"}}
       }
     },

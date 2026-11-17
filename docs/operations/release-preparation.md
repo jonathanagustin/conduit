@@ -54,6 +54,11 @@ manifest together with VERSION, CHANGELOG.md and both Helm chart versions.
 - If publication already succeeded but reconciliation failed, rerun preparation
   on main. Label updates are idempotent, and the tag/version/ancestry checks
   repeat before pending state is cleared.
+- When a release accumulates more than 65,536 bytes of changelog notes, Release
+  Please writes the full body (including `## Outcome` and `## Tenant fidelity`)
+  to `release-notes.md` on `release-please--branches--main--components--conduit--release-notes`
+  and leaves an overflow pointer in the PR body. `scripts/read-pull-request-body.sh`
+  follows that same-repository pointer before running `scripts/verify-pr-fidelity.sh`.
 - Never move an existing release tag or reset VERSION to repair a partial
   release. Use the existing release recovery procedure.
 

@@ -69,6 +69,32 @@ body="$(
     gh api "repos/${repository}/pulls/${pull_request}" --jq '.body // ""'
 )" || fail "could not read pull request ${pull_request}'s body from the GitHub API; this is a failed read, not a verdict on the body"
 
+# Release Please replaces a pull-request body larger than GitHub's 65536-byte
+# issue-body limit with a pointer to `release-notes.md` on the companion
+# `<headRef>--release-notes` branch in this repository. Follow that exact
+# same-repository pointer so the full generated release PR body (including the
+# `## Outcome` and `## Tenant fidelity` header) reaches the verifier instead of
+# failing as a missing section (#844).
+overflow_prefix='This release is too large to preview in the pull request body. View the full release notes here: '
+if [[ "${body}" == "${overflow_prefix}"* ]]; then
+  overflow_url="${body#"${overflow_prefix}"}"
+  overflow_url="${overflow_url%"${overflow_url##*[![:space:]]}"}"
+  expected_prefix="https://github.com/${repository}/blob/"
+  expected_suffix="/release-notes.md"
+  if [[ "${overflow_url}" == "${expected_prefix}"*"${expected_suffix}" ]]; then
+    notes_branch="${overflow_url#"${expected_prefix}"}"
+    notes_branch="${notes_branch%"${expected_suffix}"}"
+    if [[ "${notes_branch}" =~ ^[A-Za-z0-9._/-]+$ && "${notes_branch}" != *..* ]]; then
+      encoded_content="$(
+        "$(dirname -- "${BASH_SOURCE[0]}")/retry-github-api.sh" \
+          gh api "repos/${repository}/contents/release-notes.md?ref=${notes_branch}" --jq '.content // ""'
+      )" || fail "could not read overflow release-notes.md on branch ${notes_branch} for pull request ${pull_request}; this is a failed read, not a verdict on the body"
+      body="$(tr -d '\r\n' <<<"${encoded_content}" | base64 -d)" ||
+        fail "could not decode overflow release-notes.md on branch ${notes_branch} for pull request ${pull_request}"
+    fi
+  fi
+fi
+
 # Whitespace-only counts as empty. A body of one newline satisfies `-n` and
 # carries no more record than none at all.
 [[ "${body}" =~ [^[:space:]] ]] ||
