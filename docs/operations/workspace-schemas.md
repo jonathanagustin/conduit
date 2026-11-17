@@ -97,3 +97,44 @@ invoke this same complete gate; it does not publish an image.
 UDS Core’s root license text is AGPL version 3; per-file schema applicability
 has not been separately adjudicated. Retaining that notice does not resolve
 project licensing or authorize distribution of an editor image (#546).
+
+## The same pins validate what Conduit generates
+
+[`internal/udsschema`](../../internal/udsschema/) validates every UDS Core
+`Package` and every `UDSBundle` Conduit renders. It uses two pins:
+
+| Document | Pin | Retained upstream bytes |
+| --- | --- | --- |
+| `Package` | UDS Core 1.17.1 | `workspace-schemas/v1/uds-package.schema.json` (the editor pack's copy) |
+| `UDSBundle` | uds-cli v0.41.0 | `workspace-schemas/upstream/uds-cli/v0.41.0/uds.schema.json` |
+
+`workspace-schemas/upstream/` is not part of the editor pack. It has its own
+`manifest.json` with the source URL, SHA-256 and license hash, no editor
+association, and is not copied into an editor image. The uds-cli schema is the
+one `deploy/zarf/uds-bundle.yaml` names in its language-server directive.
+uds-cli's source headers state `AGPL-3.0-or-later OR
+LicenseRef-Defense-Unicorns-Commercial`; the same unadjudicated question applies.
+
+The Hub and Spoke binaries do not embed those files. They embed
+`internal/udsschema/*.structure.json`: the upstream schema with `description`,
+`title`, `examples` and nested `$schema` removed and every validation keyword
+kept. `go test ./internal/udsschema` checks the retained bytes against the
+recorded SHA-256, regenerates both structures, and fails if either differs. It
+also judges a corpus with the untouched upstream schema and with the embedded
+structure and requires the same verdict, and checks that the pins are the
+versions `scripts/uds-up.sh` installs and `deploy/zarf/uds-bundle.yaml` declares.
+
+To change a pin: replace the retained upstream file and its manifest entry,
+then run
+
+```sh
+go test ./internal/udsschema -run TestStructuresAreDerivedFromThePinnedUpstreamSchemas -update
+go test ./internal/udsschema ./internal/gitless/... ./internal/packagingworkflow/...
+```
+
+and review the structure diff. Update `CoreVersion` or `CLIVersion` in
+`internal/udsschema` in the same change.
+
+Neither schema is the last word. Schema validation is not UDS Core admission,
+and it is not `uds create`: no rendered bundle has been built by the pinned
+CLI in CI.

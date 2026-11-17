@@ -1,0 +1,17 @@
+{
+  "purpose": "Upstream schemas retained byte-for-byte for validation in Go tests. They are not part of the editor pack in ../v1 and carry no editor association.",
+  "schemas": [
+    {
+      "file": "uds-cli/v0.41.0/uds.schema.json",
+      "version": "0.41.0",
+      "source": "https://raw.githubusercontent.com/defenseunicorns/uds-cli/v0.41.0/uds.schema.json",
+      "sha256": "751514b22e511fd90213d0cc1fe60eaf15f5a06e93852a776dfbd16a13dbeefe",
+      "license": "uds-cli/v0.41.0/LICENSE",
+      "licenseSource": "https://raw.githubusercontent.com/defenseunicorns/uds-cli/v0.41.0/LICENSE",
+      "licenseSha256": "8486a10c4393cee1c25392769ddd3b2d6c242d6ec7928e1414efff7dfb2f07ef",
+      "rootLicenseObserved": "GNU Affero General Public License v3 text; per-file applicability unadjudicated",
+      "retrieved": "2026-11-17",
+      "pinnedBy": "deploy/zarf/uds-bundle.yaml (yaml-language-server schema directive)"
+    }
+  ]
+}
