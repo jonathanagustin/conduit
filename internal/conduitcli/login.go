@@ -460,7 +460,16 @@ func (login personLogin) loopback(ctx context.Context) (string, error) {
 	})
 	server := &http.Server{Handler: mux, ReadHeaderTimeout: 5 * time.Second}
 	go func() { _ = server.Serve(listener) }()
-	defer server.Close()
+	defer func() {
+		// The callback publishes its answer before net/http finishes its reply.
+		// On an issuer error the caller returns immediately, so Close could
+		// tear down that active response and show an EOF in the browser.
+		shutdown, cancel := context.WithTimeout(context.Background(), time.Second)
+		defer cancel()
+		if err := server.Shutdown(shutdown); err != nil {
+			_ = server.Close()
+		}
+	}()
 
 	destination, err := url.Parse(login.endpoints.AuthorizationEndpoint)
 	if err != nil {

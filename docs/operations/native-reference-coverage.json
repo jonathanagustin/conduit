@@ -17,7 +17,7 @@
     "internal/conduitcli/grype_commands.go": "3529463521bd3bde80f698d8f0f1e99eea962a499edb9c171b13a7238fe4b8b4",
     "internal/conduitcli/io.go": "a4224c660d39ae502b61b09310c36cbc53fd738fb63ebf92f87d7ce1ac4de3a1",
     "internal/conduitcli/label_commands.go": "0aaa6876c1582fb25cd89e4c6f2676a15fa87524d2e26e8f357ca0c3ebc1599a",
-    "internal/conduitcli/login.go": "1bb09089d31e28b34eade3e37fce7803fe453e2c0fd6dacad56d480847950cf7",
+    "internal/conduitcli/login.go": "c2df1c349cf8c610643a6a68b6410f460a6f7f74a0a917ca7b50132027f80999",
     "internal/conduitcli/module_commands.go": "199469b9ce469026c13290e17db05fb1c78ef1e9aee013dcc8b17bfec47dc5e9",
     "internal/conduitcli/module_override_commands.go": "ca7423849730c755ac302f9a616d5e0fc6dfd0c5171fb9eec2aa2c364033b42b",
     "internal/conduitcli/oidc.go": "8f6828b8385bd1c98d943c95deeeb9d656b4186e0170963fe1419d7536df38d3",
