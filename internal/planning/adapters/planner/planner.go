@@ -59,6 +59,8 @@ type Planner struct {
 	Model Model
 	// Argv and Timeout configure the local command transport when Model is
 	// nil. ModelName is the operator-configured model name for it.
+	// Exec wraps every run of the local command; nil runs it directly.
+	Exec      localcmd.ExecFunc
 	Argv      []string
 	Timeout   time.Duration
 	ModelName string
@@ -213,7 +215,7 @@ func (planner Planner) configuredModel() Model {
 	if len(planner.Argv) == 0 || strings.TrimSpace(planner.Argv[0]) == "" {
 		return nil
 	}
-	return CLIModel{Argv: planner.Argv, Timeout: planner.Timeout, Name: planner.ModelName}
+	return CLIModel{Argv: planner.Argv, Timeout: planner.Timeout, Name: planner.ModelName, Exec: planner.Exec}
 }
 
 // turnLabel is the model name for the turn result. It is never read from a

@@ -8,6 +8,7 @@ import (
 	"fmt"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/domain"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
 )
 
@@ -35,6 +36,12 @@ func (adapter Adapter) ReportedModel() string { return adapter.Client.ReportedMo
 
 func modelError(err error) error {
 	switch {
+	case errors.Is(err, modelgovernor.ErrBusy):
+		return fmt.Errorf("%w: %w", domain.ErrModelBusy, err)
+	case errors.Is(err, modelgovernor.ErrBudgetExceeded):
+		return fmt.Errorf("%w: %w", domain.ErrModelBudgetExceeded, err)
+	case errors.Is(err, modelgovernor.ErrAuditUnavailable):
+		return fmt.Errorf("%w: %w", domain.ErrAuditUnavailable, err)
 	case errors.Is(err, modelhttp.ErrTimeout):
 		return fmt.Errorf("%w: %w", domain.ErrModelTimeout, err)
 	case errors.Is(err, modelhttp.ErrNotConfigured):

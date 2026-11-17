@@ -95,6 +95,11 @@ var labelNames = map[string]struct{}{
 	// or unknown. A kind of destination, never a destination -- an address,
 	// a channel name or a recipient must not arrive here.
 	"transport": {},
+	// Which AI capability made a model call, and over which kind of
+	// transport. Both are closed sets held by the exporter that uses them,
+	// which refuses any other value: an owner or a model name cannot arrive
+	// here as a label value.
+	"capability": {},
 }
 
 // Registry is a snapshot of metrics ready to render.

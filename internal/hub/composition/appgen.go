@@ -27,6 +27,7 @@ import (
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
@@ -37,7 +38,7 @@ func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := governedModelHTTPClient(getenv, modelgovernor.CapabilityAppgen); err != nil {
 		return nil, err
 	} else if client != nil {
 		return appmodelhttp.Adapter{Client: client}, nil
@@ -58,7 +59,7 @@ func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, Exec: governedExec(getenv, modelgovernor.CapabilityAppgen)}, nil
 }
 
 func newAppGenerationService(

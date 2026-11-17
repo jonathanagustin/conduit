@@ -46,6 +46,11 @@ var (
 	ErrReplyInvalid     = errors.New("model reply is not valid")
 	// ErrRoundCap means the model was still asking for tools in its last round.
 	ErrRoundCap = errors.New("the model did not answer within the round limit")
+	// ErrModelBusy is a model call refused because a concurrency limit was
+	// full; ErrModelBudgetExceeded is one refused because the owner's daily
+	// budget is spent. Neither reached a model.
+	ErrModelBusy           = errors.New("the model is busy")
+	ErrModelBudgetExceeded = errors.New("the daily model budget is spent")
 	// ErrAuditUnavailable stops a tool call or turn whose audit entry cannot be written.
 	ErrAuditUnavailable = errors.New("assistant audit is unavailable")
 )

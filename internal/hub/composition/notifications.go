@@ -53,6 +53,9 @@ type Options struct {
 	DebugSessionJournal requestports.Journal
 	// ChangeDiscussion persists native discussion separately from review records.
 	ChangeDiscussion activityports.Store
+	// ModelGovernance persists model usage and AI transcripts. Zero keeps
+	// both in this process's memory.
+	ModelGovernance ModelGovernance
 	// AssistantThreads persists assistant conversations per operator. Nil keeps
 	// them in this process's memory: lost on restart, not shared by replicas.
 	AssistantThreads assistantapp.Threads

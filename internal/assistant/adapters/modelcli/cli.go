@@ -11,6 +11,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/assistant/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 )
 
 // Runner starts one local command. The prompt is written to stdin.
@@ -18,6 +19,8 @@ import (
 type Runner struct {
 	Argv    []string
 	Timeout time.Duration
+	// Exec wraps the run; nil runs the command directly.
+	Exec localcmd.ExecFunc
 }
 
 func (runner Runner) Complete(ctx context.Context, prompt string) (string, domain.Provenance, error) {
@@ -26,7 +29,7 @@ func (runner Runner) Complete(ctx context.Context, prompt string) (string, domai
 	}
 	body := []byte(prompt)
 	provenance := domain.Provenance{Adapter: localcmd.CommandName(runner.Argv[0]), PromptSHA256: domain.Digest(body)}
-	stdout, err := localcmd.Execute(ctx, runner.Argv, runner.Timeout, body)
+	stdout, err := runner.Exec.Run(ctx, runner.Argv, runner.Timeout, body)
 	provenance.ResponseSHA256 = domain.Digest(stdout)
 	if err != nil {
 		return "", provenance, modelError(err)
@@ -36,6 +39,12 @@ func (runner Runner) Complete(ctx context.Context, prompt string) (string, domai
 
 func modelError(err error) error {
 	switch {
+	case errors.Is(err, modelgovernor.ErrBusy):
+		return fmt.Errorf("%w: %w", domain.ErrModelBusy, err)
+	case errors.Is(err, modelgovernor.ErrBudgetExceeded):
+		return fmt.Errorf("%w: %w", domain.ErrModelBudgetExceeded, err)
+	case errors.Is(err, modelgovernor.ErrAuditUnavailable):
+		return fmt.Errorf("%w: %w", domain.ErrAuditUnavailable, err)
 	case errors.Is(err, localcmd.ErrTimeout):
 		return domain.ErrModelTimeout
 	case errors.Is(err, localcmd.ErrNotFound), errors.Is(err, localcmd.ErrEmpty):

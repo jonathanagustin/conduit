@@ -103,6 +103,12 @@ func NewHub(
 	if err != nil {
 		return nil, err
 	}
+	governor, governanceStores, err := newModelGovernor(repository, hubOptions, os.Getenv)
+	if err != nil {
+		return nil, err
+	}
+	defer assemblingWith(governor)()
+	handler = mountModelGovernance(handler, repository, options, governor, governanceStores)
 	if hubOptions.ModelProposer == nil {
 		proposer, err := modelProposer(os.Getenv)
 		if err != nil {
@@ -166,5 +172,5 @@ func NewHub(
 	}
 	handler = guardAgentCredentials(handler, options, agentCredentials, time.Now, slog.Default())
 	handler = mountSignIn(handler, hubOptions.SignIn)
-	return guardUnregisteredRoutes(handler), nil
+	return guardUnregisteredRoutes(withModelGovernance(handler, repository, options, governor)), nil
 }

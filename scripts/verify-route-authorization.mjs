@@ -78,6 +78,7 @@ const SOURCES = [
   { path: "internal/ontology/httpapi", surface: "ontology" },
   { path: "internal/devworkspace/httpapi", surface: "developer workspaces" },
   { path: "internal/assistant/httpapi", surface: "assistant" },
+  { path: "internal/modelgovernor/httpapi", surface: "model usage and AI transcripts" },
   { path: "internal/intelligence/httpapi", surface: "intelligence" },
   { path: "internal/delivery/channels/httpapi", surface: "channel subscriptions" },
   { path: "internal/delivery/driftfix/httpapi", surface: "propose fix" },

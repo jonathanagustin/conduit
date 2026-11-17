@@ -227,14 +227,18 @@ const (
 	CodeReplyInvalid       = "MODEL_REPLY_INVALID"
 	CodeRoundCap           = "ROUND_CAP"
 	CodeAuditUnavailable   = "AUDIT_UNAVAILABLE"
-	CodeCancelled          = "CANCELLED"
-	CodeToolInvalid        = "TOOL_INVALID"
-	CodeThreadNotFound     = "THREAD_NOT_FOUND"
-	CodeThreadLimit        = "THREAD_LIMIT"
-	CodeThreadFull         = "THREAD_FULL"
-	CodeThreadInvalid      = "INVALID_REQUEST"
-	CodeThreadsUnavailable = "THREADS_NOT_CONFIGURED"
-	CodeTurnFailed         = "TURN_FAILED"
+	// CodeModelBusy and CodeModelBudgetExceeded are 429s: the call was
+	// refused by a limit before it reached a model.
+	CodeModelBusy           = "MODEL_BUSY"
+	CodeModelBudgetExceeded = "MODEL_BUDGET_EXCEEDED"
+	CodeCancelled           = "CANCELLED"
+	CodeToolInvalid         = "TOOL_INVALID"
+	CodeThreadNotFound      = "THREAD_NOT_FOUND"
+	CodeThreadLimit         = "THREAD_LIMIT"
+	CodeThreadFull          = "THREAD_FULL"
+	CodeThreadInvalid       = "INVALID_REQUEST"
+	CodeThreadsUnavailable  = "THREADS_NOT_CONFIGURED"
+	CodeTurnFailed          = "TURN_FAILED"
 )
 
 // ErrorCode names a failure. Cancellation is checked first: an adapter
@@ -243,6 +247,12 @@ func ErrorCode(err error) string {
 	switch {
 	case errors.Is(err, context.Canceled):
 		return CodeCancelled
+	case errors.Is(err, domain.ErrModelBusy):
+		return CodeModelBusy
+	case errors.Is(err, domain.ErrModelBudgetExceeded):
+		return CodeModelBudgetExceeded
+	case errors.Is(err, domain.ErrAuditUnavailable):
+		return CodeAuditUnavailable
 	case errors.Is(err, domain.ErrModelUnavailable):
 		return CodeModelNotConfigured
 	case errors.Is(err, domain.ErrModelTimeout), errors.Is(err, context.DeadlineExceeded):

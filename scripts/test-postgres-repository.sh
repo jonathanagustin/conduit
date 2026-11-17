@@ -108,6 +108,9 @@ CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/identity/adapters/re
 # replicas, a sign-out that reaches both, and one state redeemed exactly once
 # when both are asked at the same moment.
 CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/identity/adapters/sessionpostgres
+# Model usage and AI transcripts run the conformance suite their in-memory
+# adapters run on every `go test`, and a budget shared by two pools.
+CONDUIT_TEST_POSTGRES_DSN="${dsn}" go test -race ./internal/modelgovernor/adapters/postgres
 # This package opens two independent pools and writes concurrently; the
 # cmd/platform-delivery drill below separately proves its migration and one
 # exact resolution survive the pinned-client dump/restore path.

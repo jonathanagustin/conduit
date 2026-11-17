@@ -22,7 +22,7 @@ func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, 
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := packagingModelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client, Tools: packagingtools.New()}, nil
@@ -43,7 +43,9 @@ func modelProposer(getenv func(string) string) (packagingdomain.ChangeProposer, 
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, Tools: packagingtools.New(), ModelName: configuredModelName(getenv)}, nil
+	return modelcli.Runner{
+		Argv: argv, Timeout: timeout, Tools: packagingtools.New(), ModelName: configuredModelName(getenv), Exec: packagingExec(getenv),
+	}, nil
 }
 
 func modelService(

@@ -37,6 +37,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
 	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
+	modelgovernancepg "github.com/jonathanagustin/conduit/internal/modelgovernor/adapters/postgres"
 	notificationspostgres "github.com/jonathanagustin/conduit/internal/notifications/adapters/postgres"
 	notificationsapplication "github.com/jonathanagustin/conduit/internal/notifications/application"
 	notificationports "github.com/jonathanagustin/conduit/internal/notifications/ports"
@@ -236,7 +237,14 @@ func main() {
 		}
 	}
 	packagingReader := packagingStatusReader(ctx, os.Getenv)
-	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository)
+	// One governor for the process: the planning worker and the Hub's
+	// requests share its limits, its usage store and its audit path.
+	modelGovernance, err := composition.NewModelGovernor(ctx, repository, modelGovernanceFor(notifications), os.Getenv)
+	if err != nil {
+		slog.Error("configure model governance", "error", err)
+		os.Exit(1)
+	}
+	stopPlanning, err := composition.StartPlanningWorker(ctx, os.Getenv, repository, modelGovernance.Governor)
 	if err != nil {
 		slog.Error("start planning workflow worker", "error", err)
 		os.Exit(1)
@@ -295,6 +303,7 @@ func main() {
 			AssistantThreads:     assistantThreadsFor(notifications),
 			AppgenStore:          appGenerationsFor(notifications),
 			AgentCredentials:     agentCredentialsFor(notifications),
+			ModelGovernance:      modelGovernance,
 			PackagingStatus:      packagingReader,
 			PackagingControls:    packagingReader,
 		}), handlerOptions, requestLimiter),
@@ -371,7 +380,7 @@ func main() {
 	// existing deployment gets until somebody decides otherwise.
 	if stopMetrics := startMetricsListener(ctx, os.Getenv("METRICS_ADDRESS"), readStats, requestLimiterMetrics(requestLimiter),
 		requestMetrics(requestRecorder), notifications.Metrics,
-		agentCertificateExtension(notifications.AgentCredentials)); stopMetrics != nil {
+		agentCertificateExtension(notifications.AgentCredentials), modelCallExtension()); stopMetrics != nil {
 		defer stopMetrics()
 	}
 
@@ -428,6 +437,37 @@ func appGenerationsFor(component notificationComponent) appgenapp.Store {
 	return component.AppGenerations
 }
 
+// modelGovernanceFor returns the durable usage and transcript stores when one
+// was opened. The file repository returns the zero value, which keeps both in
+// memory, for the reason assistantThreadsFor gives.
+func modelGovernanceFor(component notificationComponent) composition.ModelGovernance {
+	if component.ModelGovernance == nil {
+		return composition.ModelGovernance{}
+	}
+	return composition.ModelGovernance{Usage: component.ModelGovernance, Transcripts: component.ModelGovernance}
+}
+
+// modelCallExtension adds the governor's model-call series to the gather.
+func modelCallExtension() metricsExtension {
+	return func(gather metricsGather) metricsGather {
+		return metricsapplication.WithModelCalls(gather, modelCallMetrics)
+	}
+}
+
+// modelCallMetrics narrows the governor's counters to what the exporter reads.
+func modelCallMetrics() []metricsapplication.ModelCallSeries {
+	samples := composition.ModelCallMetrics()
+	series := make([]metricsapplication.ModelCallSeries, 0, len(samples))
+	for _, sample := range samples {
+		series = append(series, metricsapplication.ModelCallSeries{
+			Capability: sample.Capability, Transport: sample.Transport, Outcome: sample.Outcome,
+			Calls: sample.Calls, Retries: sample.Retries, DurationSeconds: sample.DurationSeconds,
+			PromptTokens: sample.PromptTokens, CompletionTokens: sample.CompletionTokens,
+		})
+	}
+	return series
+}
+
 type notificationComponent struct {
 	Store      notificationports.Store
 	Contacts   notificationports.Contacts
@@ -446,6 +486,8 @@ type notificationComponent struct {
 	// OperatorSessions is the durable session store, opened and closed the
 	// same way. Nil for the file repository, which keeps sessions in memory.
 	OperatorSessions *sessionpostgres.Store
+	// ModelGovernance is model usage and AI transcripts, on the same DSN.
+	ModelGovernance *modelgovernancepg.Store
 }
 
 // operatorSessionsFor returns the durable session store when one was opened,
@@ -526,7 +568,16 @@ func configureReconciliation(
 		closeStore()
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
+	// Model usage and AI transcripts share it too: a daily budget is then
+	// checked against what every replica spent.
+	modelGovernanceStore, err := modelgovernancepg.New(ctx, dataSourceName)
+	if err != nil {
+		_ = assistantThreadStore.Close()
+		closeStore()
+		return nil, func() {}, nil, nil, notificationComponent{}, err
+	}
 	closeStore = func() {
+		_ = modelGovernanceStore.Close()
 		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
 		closeReconciliationStore()
@@ -539,6 +590,7 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	closeStore = func() {
+		_ = modelGovernanceStore.Close()
 		_ = appGenerationStore.Close()
 		_ = assistantThreadStore.Close()
 		_ = notificationStore.Close()
@@ -554,6 +606,7 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, err
 	}
 	closeStore = func() {
+		_ = modelGovernanceStore.Close()
 		_ = agentCredentialStore.Close()
 		_ = appGenerationStore.Close()
 		_ = assistantThreadStore.Close()
@@ -570,6 +623,7 @@ func configureReconciliation(
 		return nil, func() {}, nil, nil, notificationComponent{}, errors.New("initialize PostgreSQL operator session component failed")
 	}
 	closeStore = func() {
+		_ = modelGovernanceStore.Close()
 		_ = operatorSessionStore.Close()
 		_ = agentCredentialStore.Close()
 		_ = appGenerationStore.Close()
@@ -658,6 +712,7 @@ func configureReconciliation(
 		Metrics:          notificationDeliveryMetrics(notificationStore, transport, deliveryRecorder),
 		AgentCredentials: agentCredentialStore,
 		OperatorSessions: operatorSessionStore,
+		ModelGovernance:  modelGovernanceStore,
 	}, nil
 }
 

@@ -19,7 +19,23 @@ var (
 	ErrNotFound = errors.New("command was not found")
 	ErrFailed   = errors.New("command failed")
 	ErrEmpty    = errors.New("command is empty")
+	// ErrStartFailed marks an ErrFailed where the process never ran: the
+	// start itself failed for a reason other than a missing command. Nothing
+	// read the prompt, so running it again repeats nothing.
+	ErrStartFailed = errors.New("command could not be started")
 )
+
+// ExecFunc is the shape of Execute. An adapter holds one so that a caller can
+// put a wrapper around every run; nil means Execute.
+type ExecFunc func(ctx context.Context, argv []string, timeout time.Duration, stdin []byte) ([]byte, error)
+
+// Run calls the wrapper, or Execute when there is none.
+func (run ExecFunc) Run(ctx context.Context, argv []string, timeout time.Duration, stdin []byte) ([]byte, error) {
+	if run == nil {
+		return Execute(ctx, argv, timeout, stdin)
+	}
+	return run(ctx, argv, timeout, stdin)
+}
 
 // Execute starts argv in a temporary directory and writes stdin to the process.
 // stdout is returned even when the process fails, so the caller can digest it.
@@ -56,6 +72,10 @@ func Execute(ctx context.Context, argv []string, timeout time.Duration, stdin []
 	if err != nil {
 		if errors.Is(err, exec.ErrNotFound) || errors.Is(err, os.ErrNotExist) {
 			return stdout.Bytes(), fmt.Errorf("%w: %s", ErrNotFound, CommandName(argv[0]))
+		}
+		var exited *exec.ExitError
+		if !errors.As(err, &exited) {
+			return stdout.Bytes(), fmt.Errorf("%w: %w: %v", ErrFailed, ErrStartFailed, err)
 		}
 		return stdout.Bytes(), fmt.Errorf("%w: %v", ErrFailed, err)
 	}
