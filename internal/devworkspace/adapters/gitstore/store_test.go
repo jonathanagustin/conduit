@@ -243,3 +243,66 @@ func TestIdleReapPushesPreservationCommitAndRetainsVolumeOnPushFailure(t *testin
 		t.Fatalf("expected preserved volume directory deleted after retention window, stat err = %v", err)
 	}
 }
+
+func TestGitStoreCrossInstanceRefreshAndDuplicateBlobIsolation(t *testing.T) {
+	ctx := context.Background()
+	rootDir := t.TempDir()
+
+	readers := make([]*Store, 4)
+	for index := range readers {
+		reader, err := Open(Options{RootDir: rootDir})
+		if err != nil {
+			t.Fatalf("Open reader %d: %v", index, err)
+		}
+		readers[index] = reader
+	}
+	writerStore, err := Open(Options{RootDir: rootDir})
+	if err != nil {
+		t.Fatalf("Open writerStore: %v", err)
+	}
+
+	ws := domain.Touch(domain.Workspace{
+		ID:            "wsp_cross_sync",
+		ProfileID:     "onboard",
+		EnvironmentID: "dev",
+		Owner:         "alice",
+		Title:         "Cross Store Workspace",
+		Status:        domain.StatusRunning,
+	}, time.Now().UTC())
+	if err := writerStore.Save(ctx, ws); err != nil {
+		t.Fatalf("writerStore.Save: %v", err)
+	}
+	const sharedContent = "apiVersion: uds.dev/v1alpha1\nkind: Package\n"
+	if _, err := writerStore.WriteAndCommit(ctx, ws.ID, map[string]string{
+		"uds-package.yaml":  sharedContent,
+		"copy-package.yaml": sharedContent,
+	}, "feat: add package manifests"); err != nil {
+		t.Fatalf("writerStore.WriteAndCommit: %v", err)
+	}
+
+	// Each reader started before the workspace existed. Every access must
+	// refresh workspaces.json independently, without another read priming it.
+	page, err := readers[0].Tree().List(ctx, ws.ID, ".", "", 50)
+	if err != nil {
+		t.Fatalf("readerStore.Tree().List: %v", err)
+	}
+	if len(page.Entries) != 3 {
+		t.Fatalf("expected 3 committed entries, got %#v", page.Entries)
+	}
+	view, err := readers[1].Tree().Read(ctx, ws.ID, "uds-package.yaml", "")
+	if err != nil || view.Content != sharedContent {
+		t.Fatalf("readerStore.Tree().Read = (%#v, %v)", view, err)
+	}
+	diff, err := readers[2].Tree().Diff(ctx, ws.ID)
+	if err != nil || len(diff.Files) != 2 {
+		t.Fatalf("readerStore.Tree().Diff = (%#v, %v)", diff, err)
+	}
+	snap, err := readers[3].Tree().Snapshot(ctx, ws.ID)
+	if err != nil {
+		t.Fatalf("readerStore.Tree().Snapshot: %v", err)
+	}
+	snap["uds-package.yaml"][0] = 'X'
+	if string(snap["copy-package.yaml"]) != sharedContent {
+		t.Fatalf("duplicate Git blob SHA aliased backing byte slice: %q", string(snap["copy-package.yaml"]))
+	}
+}
