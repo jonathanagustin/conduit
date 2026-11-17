@@ -1,0 +1,12 @@
+=== RUN   TestFleetCapacity
+2026/11/17 00:39:57 WARN app generation cannot build in this deployment; POST /v1/app-generations answers 503 reason="build executor unavailable in this deployment: app generation needs the docker binary on the Hub host, and it was not found" remedy="run the Hub where the docker binary, and go for main.go and index.html, exist; the shipped FROM scratch image has neither"
+2026/11/17 00:39:57 INFO AI capability id=modelProvider status=UNCONFIGURED detail="Provider kind none: neither CONDUIT_MODEL_BASE_URL nor CONDUIT_MODEL_CMD is set"
+2026/11/17 00:39:57 INFO AI capability id=aiAssistant status=UNCONFIGURED detail="No model provider is configured; the assistant makes no model call"
+2026/11/17 00:39:57 INFO AI capability id=aiPlanning status=UNCONFIGURED detail="No model provider is configured; planning turns are refused"
+2026/11/17 00:39:57 INFO AI capability id=aiAppGeneration status=UNCONFIGURED detail="No model provider is configured; the recorded application is used and no model call is made; also binary not found: docker"
+2026/11/17 00:39:57 INFO AI capability id=aiPackagingProposals status=UNCONFIGURED detail="No model provider is configured; the recorded proposals are used and no model call is made"
+2026/11/17 00:39:57 INFO AI capability id=aiPackagingCompute status=UNCONFIGURED detail="Not usable in this deployment: CONDUIT_IMAGE_BUILDER is not docker; DEVWORKSPACE_GIT_ROOT is not set; binary not found: docker, zarf"
+    fleet_capacity_test.go:519: 50 plans completed in 0.302s (165.68/s); this measures the control-plane fixture, not deployment capacity
+--- PASS: TestFleetCapacity (0.31s)
+PASS
+ok  	github.com/jonathanagustin/conduit/internal/hub/composition	0.678s

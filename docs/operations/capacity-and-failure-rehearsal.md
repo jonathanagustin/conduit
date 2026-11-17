@@ -35,49 +35,54 @@ end-of-run Go heap. Heap is not RSS or peak memory. The fixture and Hub share
 one process, including when separate PostgreSQL pools serve two Hub handlers.
 
 The report contains completed Plans/second, per-Environment completions and
-full-response RPC latency through body close. Mean and maximum are exact;
+full-response RPC latency through body close. Client deadlines before headers
+and response-body read/close failures count as request errors. Only the
+harness's explicitly coordinated shutdown is excluded. Mean and maximum are exact;
 p50/p95/p99 are **bucket upper bounds**, not exact quantiles. Histogram storage
 is bounded for long soaks. A report is usable success evidence only with its
 matching PASS receipt and log. An interrupted run can leave a partial report.
 
 ### Recorded development samples
 
-The retained samples below predate the RPC measurement correction in PR #888.
-That implementation omitted client deadlines before headers and counted some
-response-body failures as successful HTTP responses. Their Plan progress and
-source-bound logs remain historical functional evidence; their RPC request,
-error and latency aggregates must not qualify current capacity or availability.
-Corrected measurements are being recorded separately rather than rewriting the
-original reports or receipts.
-
-The [retained record](../evidence/fleet-validation-2026-11-17/index.json)
+The [current corrected record](../evidence/fleet-validation-corrected-2026-11-17/index.json)
 contains raw reports, logs and matching receipts for source commit
-`e2a4518658cf9660938ca928b56ca1cb96bdf7c7`. These are **contended workstation
+`fabe132916c161a82b2b43800151b31589a30a65`. These are **shared workstation
 functional samples**, using macOS/arm64 on an Apple M5 Pro, Go 1.27.4 and
-`GOMAXPROCS=2`. Other checks and Podman workloads were active. Each memory
-profile starts empty; it has one in-process Hub and simulated workload
+`GOMAXPROCS=2`. Other repository checks and Podman workloads were active. Each
+memory profile starts empty, with one in-process Hub and simulated workload
 execution. No sample establishes a supported production fleet maximum.
 
 | Environments × Agents | Work | Completed Plans | Elapsed | Plans/s | Lease p95 upper bound | Finish p95 upper bound |
 | --- | --- | --- | --- | --- | --- | --- |
-| 1 × 1 | 10 generations | 10 | 0.263s | 38.00 | 5ms | 1ms |
-| 10 × 2 | 5 generations each | 50 | 0.621s | 80.50 | 50ms | 50ms |
-| 25 × 2 | 3 generations each | 75 | 6.312s | 11.88 | 500ms | 1,000ms |
-| 5 × 2 | 30s producer, 50ms polling, 5ms simulated Apply | 273 | 30.679s | 8.90 | 500ms | 250ms |
+| 1 × 1 | 10 generations | 10 | 0.293s | 34.17 | 2ms | 1ms |
+| 10 × 2 | 5 generations each | 50 | 0.302s | 165.68 | 20ms | 50ms |
+| 25 × 2 | 3 generations each | 75 | 1.571s | 47.73 | 100ms | 250ms |
+| 5 × 2 | 30s producer, 50ms polling, 5ms simulated Apply | 431 | 30.871s | 13.96 | 100ms | 250ms |
 
-All four profiles completed work in every Environment with zero measured HTTP
-errors. The 30-second profile accumulated 273 retained Plans; it checks sustained
-progress, not long-duration stability. Its 19,849 MiB of cumulative Go
+All four memory profiles completed work in every Environment with zero measured
+request errors. The 30-second profile accumulated 431 retained Plans; it checks
+sustained progress, not long-duration stability. Its 45,698 MiB of cumulative Go
 allocations and 19.0 MiB end heap measure different things. The latency and
-allocation growth justify repeating at deployment-specific history depths;
-they cannot isolate the database, polling or concurrent-work effects here.
+allocation behavior justify repeating at deployment-specific history depths;
+they cannot isolate repository, polling or concurrent-work effects here.
 
-The separate PostgreSQL promotion sample completed 69 Plans, including 15 and
-52 post-promotion completions in its two Environments. It counted 82 interrupted
-lease requests and one interrupted finish request, then recovered. It is
-functional recovery evidence, not an availability or throughput SLO. A
-15-minute soak is reproducible with the command above but is **not** claimed by
-these short recorded runs.
+The separate PostgreSQL promotion sample completed 132 Plans, including 61 and
+63 post-promotion completions in its two Environments. It recorded 41 lease
+request errors and two start request errors while recovering. An earlier
+attempt failed during the native PostgreSQL startup handshake at the existing
+five-second connection deadline, before reconciliation or fault injection.
+Its logs are retained with the successful sample. The same configuration and
+deadlines passed when rerun after the memory profiles completed; the startup
+failure's cause has not been established. This is bounded functional recovery
+evidence and does not establish an availability or throughput SLO.
+
+The [earlier record](../evidence/fleet-validation-2026-11-17/index.json) remains
+historical. Its original RPC accounting omitted client deadlines before headers
+and treated some response-body failures as successful responses. The original
+raw reports, logs and receipts are preserved; those RPC request, error and
+latency aggregates do not qualify current capacity or availability. The current
+corrected record replaces them for RPC measurement. A 15-minute soak is
+reproducible with the command above but is **not** claimed by these short runs.
 
 Configuration is supplied through `CONDUIT_CAPACITY_` variables:
 

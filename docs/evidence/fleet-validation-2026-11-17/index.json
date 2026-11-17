@@ -72,6 +72,7 @@
   "rpc_metrics_qualification": {
     "status": "historical_before_rpc_measurement_correction",
     "reason": "Client deadlines before headers were omitted and some response-body errors counted as successful responses. Preserve original reports and receipts; do not qualify capacity or availability with these RPC aggregates.",
-    "correction": "PR #888"
+    "correction": "PR #888",
+    "corrected_record": "../fleet-validation-corrected-2026-11-17/index.json"
   }
 }

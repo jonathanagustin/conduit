@@ -1,0 +1,6 @@
+=== RUN   TestFleetPostgresPromotionReconciliation
+    fleet_failover_test.go:121: open capacity PostgreSQL repository failed: connect PostgreSQL repository: failed to connect to `user=conduit database=conduit_test`: 127.0.0.1:56654 (127.0.0.1): failed to receive message: timeout: context deadline exceeded
+--- FAIL: TestFleetPostgresPromotionReconciliation (5.00s)
+FAIL
+FAIL	github.com/jonathanagustin/conduit/internal/hub/composition	5.350s
+FAIL
