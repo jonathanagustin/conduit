@@ -1,0 +1,104 @@
+{{- if .Values.auditCheckpoint.enabled -}}
+{{- $audit := .Values.auditCheckpoint -}}
+{{- if ne .Values.repository.kind "postgres" -}}
+{{- fail "auditCheckpoint.enabled requires repository.kind postgres" -}}
+{{- end -}}
+{{- if eq (required "auditCheckpoint.databaseSecretName is required" $audit.databaseSecretName) .Values.repository.postgres.secretName -}}
+{{- fail "auditCheckpoint.databaseSecretName must be a dedicated read-only Secret, separate from repository.postgres.secretName" -}}
+{{- end -}}
+{{- if le (int $audit.activeDeadlineSeconds) (int $audit.timeoutSeconds) -}}
+{{- fail "auditCheckpoint.activeDeadlineSeconds must exceed auditCheckpoint.timeoutSeconds" -}}
+{{- end -}}
+{{- $labels := include "platform-hub.labels" . | fromYaml -}}
+{{- $_ := set $labels "app.kubernetes.io/component" "audit-checkpoint" -}}
+{{- $podLabels := deepCopy .Values.podLabels -}}
+{{- $_ := set $podLabels "app.kubernetes.io/name" (include "platform-hub.name" .) -}}
+{{- $_ := set $podLabels "app.kubernetes.io/instance" .Release.Name -}}
+{{- $_ := set $podLabels "app.kubernetes.io/component" "audit-checkpoint" -}}
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: {{ printf "%s-audit-check" (include "platform-hub.fullname" . | trunc 40 | trimSuffix "-") }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- toYaml $labels | nindent 4 }}
+spec:
+  schedule: {{ required "auditCheckpoint.schedule is required" $audit.schedule | quote }}
+  timeZone: Etc/UTC
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: {{ $audit.startingDeadlineSeconds }}
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    metadata:
+      labels:
+        {{- toYaml $labels | nindent 8 }}
+    spec:
+      activeDeadlineSeconds: {{ $audit.activeDeadlineSeconds }}
+      backoffLimit: 0
+      template:
+        metadata:
+          labels:
+            {{- toYaml $podLabels | nindent 12 }}
+        spec:
+          {{- with .Values.imagePullSecrets }}
+          imagePullSecrets:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          serviceAccountName: {{ include "platform-hub.serviceAccountName" . }}
+          automountServiceAccountToken: false
+          restartPolicy: Never
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
+            fsGroup: 65532
+            {{- with .Values.runtimeSupplementalGroups }}
+            supplementalGroups:
+              {{- toYaml . | nindent 14 }}
+            {{- end }}
+            seccompProfile: {type: RuntimeDefault}
+          containers:
+            - name: audit-checkpoint
+              image: {{ required "image must be an immutable digest reference" .Values.image | quote }}
+              imagePullPolicy: {{ .Values.imagePullPolicy }}
+              command: ["/platform-delivery"]
+              args:
+                - verify-authorization-audit
+                - --checkpoint-file=/trusted/checkpoint.json
+                - {{ printf "--timeout=%ds" (int $audit.timeoutSeconds) | quote }}
+              env:
+                - {name: POSTGRES_DSN_FILE, value: /run/audit-database/dsn}
+              resources:
+                {{- toYaml $audit.resources | nindent 16 }}
+              securityContext:
+                allowPrivilegeEscalation: false
+                capabilities: {drop: ["ALL"]}
+                readOnlyRootFilesystem: true
+              volumeMounts:
+                - {name: audit-database, mountPath: /run/audit-database, readOnly: true}
+                - {name: audit-checkpoint, mountPath: /trusted, readOnly: true}
+          volumes:
+            - name: audit-database
+              secret:
+                secretName: {{ $audit.databaseSecretName }}
+                optional: false
+                defaultMode: 0440
+                items:
+                  - {key: {{ required "auditCheckpoint.databaseSecretKey is required" $audit.databaseSecretKey | quote }}, path: dsn}
+            - name: audit-checkpoint
+              configMap:
+                name: {{ required "auditCheckpoint.checkpointConfigMapName is required" $audit.checkpointConfigMapName }}
+                optional: false
+                defaultMode: 0440
+                items:
+                  - {key: {{ required "auditCheckpoint.checkpointKey is required" $audit.checkpointKey | quote }}, path: checkpoint.json}
+          {{- with .Values.nodeSelector }}
+          nodeSelector:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          {{- with .Values.tolerations }}
+          tolerations:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+{{- end }}

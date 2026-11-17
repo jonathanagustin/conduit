@@ -1,0 +1,22 @@
+# Merge with the deployment's ordinary values. Both referenced objects live
+# in the release namespace and remain deployment-owned. The database identity
+# needs SELECT on conduit_authorization_audit_events,
+# conduit_authorization_audit_head and conduit_repository_state only.
+# Supply a checkpoint established at a separately trusted point, with at least
+# one event, as the ConfigMap's checkpoint.json key. Never bootstrap it in the
+# CronJob or replace it automatically from the Job's output.
+auditCheckpoint:
+  enabled: true
+  schedule: "0 * * * *" # Etc/UTC
+  databaseSecretName: conduit-audit-reader
+  databaseSecretKey: dsn
+  checkpointConfigMapName: conduit-audit-trusted-checkpoint
+  checkpointKey: checkpoint.json
+
+# Collect Job stdout receipts under independent credentials/immutable custody;
+# failed Jobs emit no successful receipt. Review a newer receipt before
+# advancing the trusted ConfigMap. Retaining this ConfigMap in the same cluster
+# does not protect it from a cluster administrator who can change the Job too.
+# With default-deny egress, allow component=audit-checkpoint to reach DNS and
+# the deployment's PostgreSQL endpoint; it is intentionally outside the Hub
+# Service selector and is granted no Kubernetes API credential or RBAC.
