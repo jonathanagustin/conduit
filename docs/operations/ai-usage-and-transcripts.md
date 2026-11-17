@@ -74,7 +74,7 @@ Usage is kept in `conduit_model_usage_daily`, one row per UTC day, owner, capabi
 
 ## Budgets
 
-A budget is checked before the call against persisted usage for the owner's current UTC day, and resets at 00:00 UTC. Calls refused by a limit do not count; every call that reached or tried to reach a model does, failures included.
+A budget is checked against persisted usage when a request arrives and again after it acquires its owner and global slots, using the current UTC day. The slots stay held through audit and metering, so a queued request cannot reuse a budget decision made before an earlier call spent it. The budget resets at 00:00 UTC. Calls refused by a limit do not count; every call that reached or tried to reach a model does, failures included.
 
 The check is a read followed, after the call, by a write. It is not a reservation. Calls already in flight when the check is read are not counted, so an owner can pass the budget by at most the calls in flight across all replicas when the limit is crossed: with the defaults, two calls per replica, plus whatever the last calls cost in tokens, which is unknown until they return. With PostgreSQL the budget is shared by every replica. With the file repository it is per process.
 

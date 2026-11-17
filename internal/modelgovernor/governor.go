@@ -328,8 +328,19 @@ func (governor *Governor) Do(
 		governor.finish(ctx, record, started)
 		return Result{}, err
 	}
+	// Queued calls may have read usage before an earlier call spent it. Recheck
+	// only after admission and retain capacity through audit and metering, so
+	// waiting callers cannot race a completed call's usage write.
+	defer release()
+	admittedAt := governor.deps.Clock.Now()
+	record.Day = Day(admittedAt)
+	if err := governor.checkBudget(ctx, owner, admittedAt); err != nil {
+		if errors.Is(err, ErrBudgetExceeded) {
+			return refuse(OutcomeBudgetExceeded, err)
+		}
+		return refuse(OutcomeError, err)
+	}
 	result, outcome, attempts, callErr := governor.attempt(ctx, classify, invoke)
-	release()
 
 	record.Attempts = attempts
 	record.Outcome = string(outcome)
