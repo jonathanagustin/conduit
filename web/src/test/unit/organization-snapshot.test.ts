@@ -87,6 +87,18 @@ describe("native read-only organization snapshots", () => {
       });
       h.settings.ensureLoaded();
       await vi.waitFor(() => expect(h.state.settingsLoaded).toBe(true));
+      expect(h.calls.some((call) => call.path === procedure)).toBe(false);
+      h.settings.renderers["adm04-data-sources"](h.root);
+      await vi.waitFor(() =>
+        expect(h.calls.some((call) => call.path === procedure)).toBe(true),
+      );
+      await vi.waitFor(() =>
+        expect(h.state.dataSourceLive.packaging).toBe(
+          allowed
+            ? "native-run phase review, outcome WAITING"
+            : "Hub did not return packaging runs",
+        ),
+      );
       expect(h.state.dataSourceLive.packaging).toBe(
         allowed
           ? "native-run phase review, outcome WAITING"
