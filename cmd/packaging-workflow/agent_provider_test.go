@@ -8,6 +8,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/jonathanagustin/conduit/internal/localcmd"
 )
 
 func TestNormalizeProviderReply(t *testing.T) {
@@ -152,5 +154,45 @@ func TestDeterministicAgentReadsTheFramedInspectionTree(t *testing.T) {
 		if got[i] != files[i] {
 			t.Fatalf("file %d = %q, want %q", i, got[i], files[i])
 		}
+	}
+}
+
+func TestProviderNestedProcess(t *testing.T) {
+	if os.Getenv("CONDUIT_TEST_NESTED_PROVIDER") != "1" {
+		return
+	}
+	if _, err := runProviderPrompt(context.Background(), providerClaude, "hello"); err != nil {
+		t.Fatal(err)
+	}
+}
+
+func TestNestedProviderPreservesExplicitEnvironmentPolicy(t *testing.T) {
+	script := filepath.Join(t.TempDir(), "provider")
+	if err := os.WriteFile(script, []byte("#!/bin/sh\nenv > \"$0.env\"\nprintf 'ok\\n'\n"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	t.Setenv("CONDUIT_PROVIDER_CLAUDE_CMD", script)
+	t.Setenv("CONDUIT_TEST_NESTED_PROVIDER", "1")
+	t.Setenv(localcmd.EnvAllowVar, "CONDUIT_TEST_NESTED_PROVIDER,AWS_PROFILE,AWS_REGION")
+	t.Setenv("AWS_PROFILE", "model-only")
+	t.Setenv("AWS_REGION", "us-east-1")
+	t.Setenv("DATABASE_URL", "hub-secret")
+	// The first Execute is the Hub -> agent-exec hop. The helper executes
+	// the real provider runner, which applies the same policy a second time.
+	argv := []string{os.Args[0], "-test.run=^TestProviderNestedProcess$"}
+	if out, err := localcmd.Execute(context.Background(), argv, 10*time.Second, nil); err != nil {
+		t.Fatalf("nested provider: %v: %s", err, out)
+	}
+	env, err := os.ReadFile(script + ".env")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"AWS_PROFILE=model-only", "AWS_REGION=us-east-1"} {
+		if !strings.Contains(string(env), want) {
+			t.Fatalf("nested provider lost %q", want)
+		}
+	}
+	if strings.Contains(string(env), "DATABASE_URL=") {
+		t.Fatal("nested provider inherited the Hub database credential")
 	}
 }
