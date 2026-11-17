@@ -92,3 +92,10 @@ Source anchors: `internal/controlplane/session.go`,
 `web/src/console/operator/hub-vocabulary.js`,
 `web/src/test/unit/session-capabilities.test.ts`, and
 `web/src/test/e2e/session-capabilities.spec.ts`.
+
+Drift-repair controls use `change:propose` on the installation's environment.
+The environment hub and retained fleet renderer show the refusal inline and
+on disabled controls; the action rechecks before sending. The Hub enforces the
+same operation before reading drift details or opening a reviewed request.
+The retained fleet renderer is covered as a browser component; it is not a
+claim that the current navigation mounts that legacy view.

@@ -3,10 +3,12 @@ package httpapi
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/delivery/driftfix/application"
 )
 
@@ -47,6 +49,10 @@ func Register(mux *http.ServeMux, cfg Config) {
 			return
 		}
 		result, err := cfg.Propose(r, body.Environment, body.InstallationID)
+		if errors.Is(err, controlplane.ErrForbidden) {
+			writeJSON(w, http.StatusForbidden, map[string]string{"error": "forbidden: change:propose is required on the environment"})
+			return
+		}
 		if err != nil {
 			writeJSON(w, http.StatusBadGateway, map[string]string{"error": "propose-fix is unavailable"})
 			return

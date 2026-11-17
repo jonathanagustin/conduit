@@ -1,3 +1,7 @@
+import {
+  capabilityBlocks,
+  deliveryCapabilityHook,
+} from "./delivery-actions.js";
 import { workloadMarkup } from "./fleet-spokes.mjs";
 import { releaseCalendarMarkup } from "./release-calendar.js";
 import { convergenceState, convergenceMarkup } from "./release-convergence.js";
@@ -48,17 +52,23 @@ export function environmentHubMarkup(
   if (!selected)
     return `<section class="so-panel p-3">${picker}<p>No selected environment is in the visible Hub index.</p></section>`;
   const environment = selected.environment.id;
+  const gate = deliveryCapabilityHook(
+    "change:propose",
+    `environment/${environment}`,
+  );
+  const blocked = capabilityBlocks(gate);
   const installations = (
     Array.isArray(hub.installations) ? hub.installations : []
   ).filter((row) => row.environment === environment);
   return `<div data-release-environment-hub class="space-y-3"><section class="so-panel p-3 space-y-2"><h2>${esc(environment)}</h2>${picker}<p>Spoke: ${esc(selected.spoke?.state || "unknown")} · Agent: ${esc(selected.spoke?.agentId || "unavailable")}</p>
     <p>Blackout: ${blackout && blackout.environment === environment && typeof blackout.blocked === "boolean" ? (blackout.blocked ? `blocked · ${esc(blackout.reason || "reason unavailable")}` : "not blocked at the Hub evaluation time") : "unavailable"}</p>${note ? `<p role="status">${esc(note)}</p>` : ""}</section>
     ${workloadMarkup(selected)}${convergenceMarkup(installations, hub.installationNote)}
+    ${blocked && installations.some((row) => convergenceState(row) === "diverged") ? `<p role="status" data-release-repair-capability>${esc(gate.reason)}</p>` : ""}
     ${installations
       .filter((row) => convergenceState(row) === "diverged")
       .map(
         (row) =>
-          `<button type="button" class="so-btn so-btn-sm" data-release-propose-fix="${esc(row.installationId)}">Propose fix for ${esc(row.installationId)}</button>`,
+          `<button type="button" class="so-btn so-btn-sm" data-release-propose-fix="${esc(row.installationId)}"${blocked ? ` disabled title="${esc(gate.reason)}"` : ""}>Propose fix for ${esc(row.installationId)}</button>`,
       )
       .join(
         "",
@@ -136,9 +146,23 @@ export function mountEnvironmentHub(
       event.target instanceof Element
         ? event.target.closest("[data-release-propose-fix]")
         : null;
-    if (!(target instanceof HTMLButtonElement) || !onProposeFix) return;
+    if (
+      !(target instanceof HTMLButtonElement) ||
+      target.disabled ||
+      !onProposeFix
+    )
+      return;
     const environment = selectedEnvironment(hub?.environments, id)?.environment
       ?.id;
+    const gate = deliveryCapabilityHook(
+      "change:propose",
+      `environment/${environment}`,
+    );
+    if (capabilityBlocks(gate)) {
+      target.disabled = true;
+      target.title = gate.reason;
+      return;
+    }
     const installation = (hub?.installations || []).find(
       (row) =>
         row.environment === environment &&
