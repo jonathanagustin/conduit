@@ -48,15 +48,30 @@ if [[ -n "${CONSOLE_BUILD_OUT:-}" ]]; then
 fi
 
 hash_inputs() {
-  {
-    find "${root}/web" \
-      \( -path "${root}/web/node_modules" -o -path "${root}/web/dist" \
-         -o -path "${root}/web/.stryker-tmp" -o -path "${root}/web/test-results" \
-         -o -path "${root}/web/playwright-report" -o -path "${root}/web/coverage" \
-      \) -prune -o -type f -print
-    find "${root}/api/a2ui" "${root}/tools/a2ui" "${root}/api/live-events" "${root}/tools/liveevents" -type f -print
-    printf '%s\n' "${root}/scripts/build-console.sh" "${root}/mise.toml"
-  } | LC_ALL=C sort | xargs -d '\n' sha256sum | sha256sum | awk '{print $1}'
+  run_pinned node --input-type=module - "${root}" <<'JS'
+import { createHash } from 'node:crypto';
+import { readdirSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const root = process.argv[2];
+const excluded = new Set(['node_modules', 'dist', '.stryker-tmp', 'test-results', 'playwright-report', 'coverage'].map(name => 'web/' + name));
+const files = ['scripts/build-console.sh', 'mise.toml'];
+const walk = directory => {
+  for (const entry of readdirSync(join(root, directory), { withFileTypes: true })) {
+    const relative = directory + '/' + entry.name;
+    if (excluded.has(relative)) continue;
+    if (entry.isDirectory()) walk(relative);
+    else if (entry.isFile()) files.push(relative);
+  }
+};
+for (const directory of ['web', 'api/a2ui', 'tools/a2ui', 'api/live-events', 'tools/liveevents']) walk(directory);
+files.sort((left, right) => Buffer.compare(Buffer.from(left), Buffer.from(right)));
+const hash = createHash('sha256');
+for (const file of files) {
+  const digest = createHash('sha256').update(readFileSync(join(root, file))).digest('hex');
+  hash.update(file).update('\0').update(digest).update('\n');
+}
+process.stdout.write(hash.digest('hex') + '\n');
+JS
 }
 
 dist="${root}/internal/consoleui/dist"

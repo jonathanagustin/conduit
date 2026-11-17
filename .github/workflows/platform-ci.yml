@@ -708,6 +708,8 @@ jobs:
         run: |
           node scripts/prepare-self-products.test.mjs
           node scripts/verify-conduit-inventions.test.mjs
+      - name: Validate developer host tools
+        run: ./scripts/test-development-host.sh
       - name: Validate version and tag agreement
         if: needs.scope.outputs.checks == 'true'
         run: ./scripts/verify-version-matches-tag.sh
