@@ -6,8 +6,10 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
+	"encoding/pem"
 	"errors"
 	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
@@ -15,6 +17,7 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -236,6 +239,73 @@ func TestDeviceLoginStoresNothingWhenTheSignInIsRefusedOrRunsOut(t *testing.T) {
 		}
 		fixture.requireNoToken()
 	})
+}
+
+// A token or a device code is only ever sent over TLS, whatever the issuer's
+// discovery document says. The document is the issuer's word; it is checked.
+func TestLoginRefusesAnIssuerWhoseEndpointsAreNotHTTPS(t *testing.T) {
+	// plain is a server that really does answer over http, so that a client
+	// which went there is seen arriving rather than failing a TLS handshake.
+	for name, edit := range map[string]func(plain string, document map[string]any){
+		"a plain-http token endpoint": func(plain string, document map[string]any) {
+			document["token_endpoint"] = plain + "/token"
+		},
+		"a plain-http device endpoint": func(plain string, document map[string]any) {
+			document["device_authorization_endpoint"] = plain + "/device"
+		},
+		"another issuer's document": func(_ string, document map[string]any) {
+			document["issuer"] = "https://elsewhere.example.test"
+		},
+	} {
+		t.Run(name, func(t *testing.T) {
+			var posts atomic.Int32
+			plain := httptest.NewServer(http.HandlerFunc(func(writer http.ResponseWriter, _ *http.Request) {
+				posts.Add(1)
+				writer.WriteHeader(http.StatusBadRequest)
+			}))
+			t.Cleanup(plain.Close)
+			mux := http.NewServeMux()
+			server := httptest.NewTLSServer(mux)
+			t.Cleanup(server.Close)
+			mux.HandleFunc("GET /.well-known/openid-configuration", func(writer http.ResponseWriter, _ *http.Request) {
+				document := map[string]any{
+					"issuer": server.URL, "authorization_endpoint": server.URL + "/authorize",
+					"token_endpoint": server.URL + "/token", "device_authorization_endpoint": server.URL + "/device",
+				}
+				edit(plain.URL, document)
+				_ = json.NewEncoder(writer).Encode(document)
+			})
+			mux.HandleFunc("POST /", func(http.ResponseWriter, *http.Request) { posts.Add(1) })
+			directory := t.TempDir()
+			caFile := filepath.Join(directory, "ca.pem")
+			certificate := pem.EncodeToMemory(&pem.Block{Type: "CERTIFICATE", Bytes: server.Certificate().Raw})
+			if err := os.WriteFile(caFile, certificate, 0o600); err != nil {
+				t.Fatal(err)
+			}
+			tokenFile := filepath.Join(directory, "credentials", "token")
+			root := NewRoot(Runtime{
+				Stdout: &lockedBuffer{}, Stderr: &lockedBuffer{},
+				Getenv: func(name string) string {
+					if name == "CONDUIT_CONFIG_FILE" {
+						return filepath.Join(directory, "config.yaml")
+					}
+					return ""
+				},
+				Sleep: func(ctx context.Context, _ time.Duration) error { return ctx.Err() },
+			})
+			root.SetArgs([]string{"login", "--oidc-issuer", server.URL, "--oidc-client-id", "conduit-cli",
+				"--oidc-ca-file", caFile, "--bearer-token-file", tokenFile, "--login-timeout", "2s"})
+			if err := root.ExecuteContext(context.Background()); err == nil {
+				t.Fatal("login accepted the issuer")
+			}
+			if posts.Load() != 0 {
+				t.Fatal("login sent a request to an endpoint it should have refused")
+			}
+			if _, err := os.Lstat(tokenFile); !errors.Is(err, os.ErrNotExist) {
+				t.Fatalf("a token file exists: %v", err)
+			}
+		})
+	}
 }
 
 func TestLoginRefusesWhatItCannotDoSafelyBeforeAnybodySignsIn(t *testing.T) {
