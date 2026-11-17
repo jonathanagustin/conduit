@@ -43,14 +43,14 @@
       "coverage": 77.77777777777779
     },
     "internal/reporting/domain": {
-      "efficacy": 80,
+      "efficacy": 80.55555555555556,
       "nonEquivalentEfficacy": 100,
       "equivalent": 14,
-      "equivalentManifestSha256": "9f75f700b8c804741b97afbef7246ed428a17826ffdf916022789c0629217963",
-      "killed": 56,
+      "equivalentManifestSha256": "71b17676635ec326bba54bc91e04913c0af001bd59ba13b0febca014d7827b92",
+      "killed": 58,
       "lived": 14,
-      "total": 70,
-      "coverage": 98.59154929577466
+      "total": 72,
+      "coverage": 98.63013698630137
     }
   },
   "web": {}

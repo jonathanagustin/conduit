@@ -192,7 +192,7 @@ func StampImage(files PackageFiles, repository, digest string) (PackageFiles, er
 		return PackageFiles{}, fmt.Errorf("package manifest has no image pin")
 	}
 	files.ChartValues = stamped
-	files.Zarf = bytes.Replace(files.Zarf, []byte(imagePinUnset), []byte(fmt.Sprintf("    images:\n      - %q\n", ref)), 1)
+	files.Zarf = bytes.Replace(files.Zarf, []byte(imagePinUnset), []byte(fmt.Sprintf("    images:\n      - name: %q\n", ref)), 1)
 	chart := make([]ChartFile, len(files.Chart))
 	for i, file := range files.Chart {
 		chart[i] = file

@@ -20,8 +20,8 @@ import (
 var Source []byte
 
 const (
-	TemplateVersion = "fixture-1"
-	ToolVersions    = "lint=fixture-1,render=fixture-1"
+	TemplateVersion = "fixture-2"
+	ToolVersions    = "lint=fixture-2,render=fixture-2"
 	TargetPlanRef   = "env-dev/sample-app"
 )
 

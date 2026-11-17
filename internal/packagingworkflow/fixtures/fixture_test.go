@@ -42,7 +42,7 @@ func TestPinnedFixturePassesLintAndOmitsSourceBody(t *testing.T) {
 	if bytes.Contains(zarf, []byte("kind: fixture")) || bytes.Contains(cr, []byte("kind: fixture")) {
 		t.Fatal("rendered package copied the source body")
 	}
-	if !bytes.Contains(zarf, []byte("apiVersion: zarf.dev/v1alpha1")) || !bytes.Contains(zarf, []byte("kind: ZarfPackageConfig")) {
+	if !bytes.Contains(zarf, []byte("apiVersion: zarf.dev/v1beta1")) || !bytes.Contains(zarf, []byte("kind: ZarfPackageConfig")) {
 		t.Fatalf("zarf.yaml = %s", zarf)
 	}
 	for _, section := range []string{"apiVersion: uds.dev/v1alpha1", "kind: Package", "sso:", "allow:", "monitor:"} {

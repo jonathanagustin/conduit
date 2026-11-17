@@ -68,14 +68,14 @@ for (const [message, expected] of [["feat: add a capability", "0.18.0"], ["fix: 
   }
   // scripts/verify-zarf-package.rb requires the UDS bundle to equal VERSION, so
   // a release PR that leaves it behind fails Trunk on its own head. The bundle
-  // uses the generic updater: the YAML one would delete its header comments.
-  const bundle = github.files.get("deploy/zarf/uds-bundle.yaml");
+  // uses the generic updater: the HCL source requires the generic version marker updater.
+  const bundle = github.files.get("deploy/zarf/bundle.uds.hcl");
   const escaped = expected.replaceAll(".", "\\.");
-  assert.match(bundle, new RegExp(`^  version: ${escaped} # x-release-please-version$`, "m"));
-  assert.match(bundle, new RegExp(`^    ref: ${escaped} # x-release-please-version$`, "m"));
-  assert.match(bundle, new RegExp(`uds-bundle-conduit-amd64-${escaped}\\.tar\\.zst`));
-  assert.match(bundle, /^# yaml-language-server: \$schema=.*uds-cli\/v0\.41\.0\/uds\.schema\.json$/m);
-  assert.match(bundle, /k3d-core-slim-dev:1\.17\.1/);
+  assert.match(bundle, new RegExp(`^  version = "${escaped}" # x-release-please-version$`, "m"));
+  assert.match(bundle, /version = local\.version/);
+  assert.match(bundle, /zarf-package-platform-runtime-\$\{sys\.arch\}-\$\{local\.version\}\.tar\.zst/);
+  assert.match(bundle, /values_files = \["runtime-values\.yaml"\]/);
+  assert.match(bundle, /certificate_identity = "https:\/\/github\.com\/jonathanagustin\/conduit\/\.github\/workflows\/platform-images\.yml@refs\/tags\/v\$\{local\.version\}"/);
   assert.match(github.files.get("CHANGELOG.md"), new RegExp(expected.replaceAll(".", "\\.")));
   assert.doesNotMatch(prs[0].body, /generated with|beep|co-authored-by|openai|claude|codex/i);
   execFileSync(resolve(root, "scripts/verify-pr-fidelity.sh"), {input: prs[0].body});

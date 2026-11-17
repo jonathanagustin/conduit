@@ -202,4 +202,7 @@ func TestZarfDevLintAcceptsExample(t *testing.T) {
 	if err != nil {
 		t.Fatalf("zarf dev lint: %v\n%s", err, out)
 	}
+	if strings.Contains(strings.ToLower(string(out)), "deprecat") {
+		t.Fatalf("generated package uses deprecated Zarf fields: %s", out)
+	}
 }

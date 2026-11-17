@@ -263,7 +263,7 @@ func packagePrompt(input PackagingContext) string {
 	return strings.TrimSpace(fmt.Sprintf(`Reply with one JSON object and no other text.
 You may call tools by replying with {"toolCalls":[{"name":"inspect_image","arguments":{"ref":"..."}},{"name":"dry_run_gates","arguments":{"source":"...","zarf":"...","cr":"...","dockerfile":"...","dockerignore":"..."}}]}.
 When the proposal is ready, reply with {"source":"...","zarf":"...","cr":"...","dockerfile":"...","dockerignore":"...","rationale":"..."}.
-The output is a package: write a product source, zarf.yaml, the Package custom resource, and the Dockerfile. Put network allow rules, expose, and SSO on the Package only where they are relevant. Do not treat raw Kubernetes manifests as the package. Pin images by digest. Do not open a change request.
+The output is a package: write a product source, zarf.yaml, the Package custom resource, and the Dockerfile. Use apiVersion zarf.dev/v1beta1 for Zarf definitions: optional replaces required, images are name/source objects, and local charts use local.path and the Chart.yaml version. Use package values instead of legacy variables/constants or setVariables. Locally built images require source daemon; registry images require source registry. Use the observed source, never guess. The UDS Package API remains uds.dev/v1alpha1. Put network allow rules, expose, and SSO on the Package only where they are relevant. Do not treat raw Kubernetes manifests as the package. Pin images by digest. Do not open a change request.
 Packaging run: %s
 Image ref: %s
 Image digest: %s

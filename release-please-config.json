@@ -90,7 +90,7 @@
         },
         {
           "type": "generic",
-          "path": "deploy/zarf/uds-bundle.yaml"
+          "path": "deploy/zarf/bundle.uds.hcl"
         }
       ]
     }

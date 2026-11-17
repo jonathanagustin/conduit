@@ -1,0 +1,25 @@
+# Review these Environment-owned identifiers and Secret references. No secret bytes.
+# Native bundle configuration; pass explicitly with --config.
+variables = {
+  "ENVIRONMENT_ID" = "REPLACE-WITH-environment-id"
+  "AGENT_ID" = "REPLACE-WITH-agent-id"
+  "BOOTSTRAP_ADMINISTRATORS" = "REPLACE-WITH-first-administrator,REPLACE-WITH-second-administrator"
+  "REPOSITORY_KIND" = "postgres"
+  "PLANNING_TEMPORAL_ADDRESS" = "REPLACE-WITH-temporal-frontend.temporal.svc.cluster.local:7233"
+  "PACKAGING_TEMPORAL_ADDRESS" = ""
+  "PACKAGING_TEMPORAL_NAMESPACE" = "default"
+  "PACKAGING_TEMPORAL_TASK_QUEUE" = "packaging-localhost"
+  "PACKAGING_POSTGRES_SECRET" = "platform-postgres"
+  "POSTGRES_NAMESPACE" = "postgres"
+  "POSTGRES_NAME_LABEL" = "postgres"
+  "HUB_TLS_SECRET" = "platform-hub-tls"
+  "AGENT_TLS_SECRET" = "platform-agent-tls"
+  "BUNDLE_SIGNING_SECRET" = "platform-bundle-signing"
+  "CONSOLE_PUBLIC_URL" = "https://conduit.uds.dev"
+  "OPERATOR_OIDC_ISSUER" = "https://sso.uds.dev/realms/uds"
+  "OPERATOR_OIDC_CLIENT_ID" = "conduit-hub"
+  "OPERATOR_OIDC_USERNAME_CLAIM" = "preferred_username"
+  "OPERATOR_OIDC_GROUPS_CLAIM" = "groups"
+  "OPERATOR_OIDC_CA_FILE" = "/etc/ssl/platform-ca/ca-bundle.pem"
+  "OPERATOR_OIDC_CLIENT_SECRET_FILE" = "/run/conduit-sso/client-secret"
+}

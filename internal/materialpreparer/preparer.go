@@ -202,11 +202,11 @@ type secretMutation struct {
 // hundred bytes; anything near this is not one of them.
 const MaximumRequestBytes = 1 << 20
 
-// CONDUIT-INVENTED: agent.KubernetesMaterialPreparer
-// Displaced-by: a published or sanitized Apollo agent secret-provider contract defining how an Environment resolves registry credentials and installation secrets.
-//
 // Run serves one request read from input. A nil error is exit status 0; any
 // other error is a *Failure naming the status.
+//
+// CONDUIT-INVENTED: agent.KubernetesMaterialPreparer
+// Displaced-by: a published or sanitized Apollo agent secret-provider contract defining how an Environment resolves registry credentials and installation secrets.
 func Run(ctx context.Context, input io.Reader, config Config, secrets Secrets) error {
 	if secrets == nil || !dnsLabel.MatchString(config.SourceNamespace) {
 		return fail(ExitMisconfigured, "a source namespace and Kubernetes credentials are required")

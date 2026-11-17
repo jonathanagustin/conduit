@@ -140,10 +140,7 @@ func NormalizePublicOrigin(raw string) (string, error) {
 		(parsed.Path != "" && parsed.Path != "/") || strings.ContainsAny(raw, " \t\r\n\\") {
 		return "", errors.New("the console public URL must be an https origin with no path, query, fragment or userinfo")
 	}
-	host := strings.ToLower(parsed.Host)
-	if strings.HasSuffix(host, ":443") {
-		host = strings.TrimSuffix(host, ":443")
-	}
+	host := strings.TrimSuffix(strings.ToLower(parsed.Host), ":443")
 	return "https://" + host, nil
 }
 

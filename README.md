@@ -20,7 +20,7 @@ The still above is a recorded console walkthrough. The command that
 reproduces the source-packaging run is
 [`scripts/demo-excalidraw-e2e.sh`](scripts/demo-excalidraw-e2e.sh). It needs a
 running Docker daemon, an explicitly configured HTTP model endpoint
-(`CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME`), and `zarf` v0.82.0 on
+(`CONDUIT_MODEL_BASE_URL` and `CONDUIT_MODEL_NAME`), and `zarf` v1.0.0 on
 `PATH` (or `ZARF_BIN`). If either tool
 is missing, the script exits with the install location and checksum instead of
 reporting a package.
@@ -73,7 +73,7 @@ not request administrator privileges. Source `./install.sh` instead of
 executing it when you want mise activated in the current shell. Executing it
 prints the activation command.
 
-Install Docker and start its daemon before the demo. Install `zarf` v0.82.0
+Install Docker and start its daemon before the demo. Install `zarf` v1.0.0
 and put it on `PATH`, or set `ZARF_BIN`. `scripts/demo-seed.sh` and
 `scripts/demo-excalidraw-e2e.sh` exit with the archive URL and checksum when
 either prerequisite is missing. The seed starts the Hub with

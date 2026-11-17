@@ -4,6 +4,8 @@ umask 022
 root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${root}"
 cmp examples/example-foundation.json workspace-schemas/v1/fixtures/valid.foundation.plan.yaml
+node scripts/verify-zarf-target.mjs
+node --test scripts/verify-zarf-target.test.mjs
 node tools/workspace-schemas/verify.mjs
 node --test tools/workspace-schemas/verify.test.mjs
 mkdir -p "${root}/.cache"

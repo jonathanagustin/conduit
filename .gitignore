@@ -55,3 +55,6 @@ tools/workspace-schemas/node_modules/
 # Built by `task zarf:create` and `task uds:create`, which must write beside
 # zarf.yaml because the bundle references the package by `path: .`.
 deploy/zarf/*.tar.zst
+
+# Native package-template compilation; commit the reviewed template instead.
+deploy/zarf/zarf.gen.yaml

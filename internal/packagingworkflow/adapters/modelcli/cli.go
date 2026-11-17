@@ -48,10 +48,6 @@ func ParseArgv(line string) ([]string, error) {
 	return localcmd.ParseArgv(line)
 }
 
-func (runner Runner) inspectFacts(ctx context.Context, input *domain.PackagingContext) []domain.ToolCallRecord {
-	return InspectFacts(ctx, runner.Tools, input)
-}
-
 // InspectFacts adds the inspected image facts to the prompt context. Both
 // model transports use it, so the prompt does not depend on the transport.
 func InspectFacts(ctx context.Context, tools domain.Toolbox, input *domain.PackagingContext) []domain.ToolCallRecord {

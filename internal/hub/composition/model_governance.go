@@ -16,7 +16,6 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	governanceapp "github.com/jonathanagustin/conduit/internal/governance/application"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
-	"github.com/jonathanagustin/conduit/internal/localcmd"
 	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/modelgovernor/adapters/memory"
 	governorhttp "github.com/jonathanagustin/conduit/internal/modelgovernor/httpapi"
@@ -89,18 +88,9 @@ func governedModelHTTPClient(getenv func(string) string, capability modelgoverno
 	return client.With(modelgovernor.HTTPMiddleware(capability, boundGovernor())), nil
 }
 
-// governedExec runs one capability's model command through the governor.
-func governedExec(getenv func(string) string, capability modelgovernor.Capability) localcmd.ExecFunc {
-	return modelgovernor.CLIExec(capability, configuredModelName(getenv), boundGovernor())
-}
-
-// packagingModelHTTPClient and packagingExec are the two packaging transports.
+// packagingModelHTTPClient binds packaging completions to the model governor.
 func packagingModelHTTPClient(getenv func(string) string) (*modelhttp.Client, error) {
 	return governedModelHTTPClient(getenv, modelgovernor.CapabilityPackaging)
-}
-
-func packagingExec(getenv func(string) string) localcmd.ExecFunc {
-	return governedExec(getenv, modelgovernor.CapabilityPackaging)
 }
 
 // newModelGovernor reads the configuration and builds this Hub's governor.

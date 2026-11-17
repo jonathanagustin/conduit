@@ -1032,6 +1032,13 @@ test("the command palette lists only what the session enables", async ({
     globalOperations: [],
   });
   await page.goto("/console/");
+  // Absence of Fleet is also true before the session arrives. Wait for a
+  // granted application before opening the palette against its capabilities.
+  await expect(
+    page
+      .locator("#left-nav")
+      .getByRole("button", { name: "Change requests", exact: true }),
+  ).toBeVisible();
   await expect(
     page
       .locator("#left-nav")

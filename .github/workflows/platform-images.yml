@@ -361,9 +361,9 @@ jobs:
         name: Install pinned Zarf
         run: |
           curl --fail --silent --show-error --location \
-            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            https://github.com/zarf-dev/zarf/releases/download/v1.0.0/zarf_v1.0.0_Linux_amd64 \
             --output /tmp/zarf
-          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          echo 'c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
       - if: startsWith(github.ref, 'refs/tags/v')
         name: Install pinned Helm
@@ -427,16 +427,17 @@ jobs:
             printf '%s@%s\n' "${source_reference%@*}" "${manifest_digest}"
           }
           mkdir -p zarf-dist
+          build_root=$(mktemp -d)
+          trap 'rm -rf "$build_root"' EXIT
           for architecture in amd64 arm64; do
             hub_platform_reference="$(platform_reference "${hub_reference}" "${architecture}")"
             agent_platform_reference="$(platform_reference "${agent_reference}" "${architecture}")"
-            /tmp/zarf package create deploy/zarf \
+            ZARF_BIN=/tmp/zarf ./scripts/render-zarf-runtime.sh "$build_root/${architecture}" \
+              "${version}" "${hub_platform_reference}" "${agent_platform_reference}"
+            /tmp/zarf package create "$build_root/${architecture}/zarf.gen.yaml" \
               --architecture "${architecture}" \
               --confirm \
-              --output zarf-dist \
-              --set "PLATFORM_VERSION=${version}" \
-              --set "HUB_IMAGE=${hub_platform_reference}" \
-              --set "SPOKE_AGENT_IMAGE=${agent_platform_reference}"
+              --output zarf-dist
             package="zarf-dist/zarf-package-platform-runtime-${architecture}-${version}.tar.zst"
             test -f "${package}"
             # GITHUB_WORKFLOW_REF is owner/repo/.github/workflows/<file>@<ref>,
@@ -613,9 +614,9 @@ jobs:
       - name: Install pinned Zarf
         run: |
           curl --fail --silent --show-error --location \
-            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            https://github.com/zarf-dev/zarf/releases/download/v1.0.0/zarf_v1.0.0_Linux_amd64 \
             --output /tmp/zarf
-          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          echo 'c58cf0241796525d9df9a449a5a2218743efa446b540a996f355d71349852857  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
       - name: Publish signed Zarf packages to the OCI registry
         env:

@@ -3,91 +3,91 @@
   "packages": {
     "internal/reporting/domain": {
       "sources": {
-        "fleet.go": "8220eb758fac520a030c8dc2f268b0f7f148d726507740f5516c8b8cfb10a15b",
+        "fleet.go": "aa4d87f0355e3ba0c999e2096e31c49bf4a35f97e9e8d7ca03ba8bebfade7688",
         "overview.go": "c525269f455c61428b3faee632ef833c1e185c63760318d63114880a5a82e4d7"
       },
       "mutants": [
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 283,
+          "line": 284,
           "column": 33,
           "reason": "Replacing > with >= assigns the same integer maximum when ages are equal; all other comparisons and stored values are unchanged."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 352,
+          "line": 353,
           "column": 12,
           "reason": "At age zero the <= mutant writes zero over zero. Negative ages are clamped in either version and positive ages are untouched."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 408,
+          "line": 409,
           "column": 33,
           "reason": "Replacing > with >= assigns the same integer maximum when ages are equal; all other comparisons and stored values are unchanged."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 419,
+          "line": 420,
           "column": 26,
           "reason": "This comparator is reached only after the enclosing inequality proves these two keys differ. Therefore < and <= return the same result."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 422,
+          "line": 423,
           "column": 22,
           "reason": "This comparator is reached only after the enclosing inequality proves these two keys differ. Therefore < and <= return the same result."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 424,
+          "line": 425,
           "column": 27,
           "reason": "Equal comparison keys represent identical projected contributions, or the same uniquely identified installation. Reordering identical projections cannot change the returned view."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 428,
+          "line": 429,
           "column": 51,
           "reason": "This comparator is reached only after the enclosing inequality proves these two keys differ. Therefore < and <= return the same result."
         },
         {
           "file": "fleet.go",
           "type": "CONDITIONALS_BOUNDARY",
-          "line": 430,
+          "line": 431,
           "column": 53,
           "reason": "Equal comparison keys represent identical projected contributions, or the same uniquely identified installation. Reordering identical projections cannot change the returned view."
         },
         {
           "file": "fleet.go",
           "type": "INVERT_NEGATIVES",
-          "line": 455,
+          "line": 459,
           "column": 20,
           "reason": "The changed -1 sentinel is discarded when zero or multiple dimensions miss. For exactly one miss, its value is overwritten by the real dimension index before any caller reads it."
         },
         {
           "file": "fleet.go",
           "type": "ARITHMETIC_BASE",
-          "line": 455,
+          "line": 459,
           "column": 20,
           "reason": "The changed -1 sentinel is discarded when zero or multiple dimensions miss. For exactly one miss, its value is overwritten by the real dimension index before any caller reads it."
         },
         {
           "file": "fleet.go",
           "type": "INVERT_NEGATIVES",
-          "line": 463,
+          "line": 467,
           "column": 12,
           "reason": "The changed -1 sentinel is discarded when zero or multiple dimensions miss. For exactly one miss, its value is overwritten by the real dimension index before any caller reads it."
         },
         {
           "file": "fleet.go",
           "type": "ARITHMETIC_BASE",
-          "line": 463,
+          "line": 467,
           "column": 12,
           "reason": "The changed -1 sentinel is discarded when zero or multiple dimensions miss. For exactly one miss, its value is overwritten by the real dimension index before any caller reads it."
         },

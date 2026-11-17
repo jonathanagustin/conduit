@@ -161,11 +161,11 @@ func TestValidateBundleAgainstThePinnedSchema(t *testing.T) {
 	}
 }
 
-// The repository's own hand-written bundle is the reference shape. It must
-// pass the same check every rendered bundle does.
-func TestTheRepositoryBundleValidates(t *testing.T) {
+// The frozen legacy bundle remains a reference for generated YAML consumers.
+// The owned native HCL bundle is qualified separately with the pinned CLI.
+func TestTheLegacyReferenceBundleValidates(t *testing.T) {
 	t.Parallel()
-	if violations := ValidateBundle(readRepositoryFile(t, "deploy/zarf/uds-bundle.yaml")); len(violations) != 0 {
-		t.Fatalf("deploy/zarf/uds-bundle.yaml: %v", violations)
+	if violations := ValidateBundle(readRepositoryFile(t, "internal/udsschema/testdata/legacy-runtime-bundle.yaml")); len(violations) != 0 {
+		t.Fatalf("internal/udsschema/testdata/legacy-runtime-bundle.yaml: %v", violations)
 	}
 }

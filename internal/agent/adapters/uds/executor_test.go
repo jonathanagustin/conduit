@@ -86,13 +86,15 @@ func (f *fakeRunner) Run(_ context.Context, name string, args ...string) ([]byte
 		}
 	}
 	switch {
+	case hasPrefix(call, "zarf", "package", "inspect", "definition"):
+		return []byte("apiVersion: zarf.dev/v1alpha1\nkind: ZarfPackageConfig\nmetadata:\n  name: excalidraw\n"), nil
 	case hasPrefix(call, recordRead...):
 		return []byte(f.zarf), nil
 	case hasPrefix(call, "zarf", "package", "deploy"):
 		// Zarf records the digest it deployed and adds one to the generation.
 		digest := call[3][strings.LastIndex(call[3], "@")+1:]
 		f.zarf = record(digest, f.deployedVersion, f.generation()+1, "Succeeded")
-	case hasPrefix(call, "uds", "deploy"):
+	case hasPrefix(call, "uds", "deploy"), hasPrefix(call, "uds", "--features", "NextMode", "bundle", "deploy"):
 		f.zarf = record(bundledDigest, "9.9.9", f.generation()+1, "Succeeded")
 	case hasPrefix(call, "zarf", "package", "remove"), hasPrefix(call, "uds", "remove"):
 		f.zarf = ""
@@ -219,8 +221,8 @@ func verifiedDeploy(digest string, extra ...string) []string {
 }
 
 func verifiedRead(digest string) []string {
-	return []string{"zarf", "package", "verify", source(digest),
-		"--certificate-identity-regexp", identity, "--certificate-oidc-issuer-regexp", issuer}
+	return []string{"zarf", "package", "inspect", "definition", source(digest), "--verify=always",
+		"--certificate-identity-regexp", identity, "--certificate-oidc-issuer-regexp", issuer, "--log-level", "error", "--no-color"}
 }
 
 func assertCalls(t *testing.T, runner *fakeRunner, want ...[]string) {
@@ -352,7 +354,7 @@ func TestApplyRefusesBeforeRunningAnything(t *testing.T) {
 type publisherRunner struct{ *fakeRunner }
 
 func (r publisherRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
-	if name == "zarf" && len(args) > 2 && args[0] == "package" && (args[1] == "deploy" || args[1] == "verify") {
+	if name == "zarf" && len(args) > 2 && args[0] == "package" && (args[1] == "deploy" || args[1] == "verify" || args[1] == "inspect") {
 		verify := args[1] == "verify"
 		for _, arg := range args {
 			verify = verify || arg == "--verify=always"
@@ -391,7 +393,7 @@ func TestWrongPublisherIdentityCannotApply(t *testing.T) {
 				if err != nil || runner.applied == "" {
 					t.Fatalf("matching publisher could not apply: %v", err)
 				}
-			} else if err == nil || runner.applied != "" || runner.zarf != "" || len(runner.calls) != 1 || !hasPrefix(runner.calls[0], "zarf", "package", "verify") {
+			} else if err == nil || runner.applied != "" || runner.zarf != "" || len(runner.calls) != 1 || !hasPrefix(runner.calls[0], "zarf", "package", "inspect", "definition") {
 				t.Fatal("wrong publisher identity reached the cluster or deployment")
 			}
 		})

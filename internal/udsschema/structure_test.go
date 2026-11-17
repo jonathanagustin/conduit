@@ -182,15 +182,19 @@ func TestStructuresAreDerivedFromThePinnedUpstreamSchemas(t *testing.T) {
 
 // The pin is only useful if it is the version actually run. The Package schema
 // must be the UDS Core version the bring-up installs and the evidence was
-// gathered on; the bundle schema must be the one the repository's own bundle
-// declares.
+// gathered on; the legacy bundle schema must match both CI's CLI and the
+// frozen reference. Native HCL is exercised by the actual CLI gate instead.
 func TestPinsMatchTheVersionsTheRepositoryRuns(t *testing.T) {
 	if up := readRepositoryFile(t, "scripts/uds-up.sh"); !bytes.Contains(up, []byte(CoreVersion)) {
 		t.Errorf("scripts/uds-up.sh does not install UDS Core %s", CoreVersion)
 	}
 	directive := "# yaml-language-server: $schema=https://raw.githubusercontent.com/defenseunicorns/uds-cli/v" + CLIVersion + "/uds.schema.json"
-	if bundle := readRepositoryFile(t, "deploy/zarf/uds-bundle.yaml"); !bytes.HasPrefix(bundle, []byte(directive)) {
-		t.Errorf("deploy/zarf/uds-bundle.yaml is not pinned to uds-cli v%s", CLIVersion)
+	asset := "https://github.com/defenseunicorns/uds-cli/releases/download/v" + CLIVersion + "/uds-cli_v" + CLIVersion + "_Linux_amd64"
+	if ci := readRepositoryFile(t, ".github/workflows/platform-ci.yml"); !bytes.Contains(ci, []byte(asset)) {
+		t.Errorf("CI does not install the UDS CLI schema target %s", CLIVersion)
+	}
+	if bundle := readRepositoryFile(t, "internal/udsschema/testdata/legacy-runtime-bundle.yaml"); !bytes.HasPrefix(bundle, []byte(directive)) {
+		t.Errorf("internal/udsschema/testdata/legacy-runtime-bundle.yaml is not pinned to uds-cli v%s", CLIVersion)
 	}
 }
 

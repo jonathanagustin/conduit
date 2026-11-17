@@ -16,34 +16,34 @@
 # PRINT_DIFFERENCES=1 prints every difference instead of judging them.
 
 require "open3"
+require "fileutils"
 require "rbconfig"
 require "tmpdir"
 require "yaml"
 require_relative "lib/safe_yaml"
+require_relative "lib/zarf_runtime_values"
 
 root = File.expand_path("..", __dir__)
 helm = ENV.fetch("HELM_BIN", "helm")
 zarf_directory = File.join(root, "deploy/zarf")
-definition = YAML.safe_load(File.read(File.join(zarf_directory, "zarf.yaml")))
+definition = ConduitZarfRuntimeValues.definition(zarf_directory, {"HUB_IMAGE" => "fixture-hub", "SPOKE_AGENT_IMAGE" => "fixture-spoke"})
 contract = ConduitSafeYAML.file(File.join(zarf_directory, "chart-equivalence.yaml"))
 components = definition.fetch("components").to_h { |item| [item["name"], item] }
-declared = definition.fetch("variables").to_h { |item| [item["name"], item] }
+declared = JSON.parse(File.read(File.join(zarf_directory, "values.schema.json"))).fetch("properties").reject { |name, _| name == "rendered" }
 PLACEHOLDER = /###ZARF_(VAR|CONST)_([A-Z0-9_]+)###/
 
 def run!(*command, env: {})
   stdout, stderr, status = Open3.capture3(env, *command)
   abort "command failed: #{command.join(' ')}\n#{stdout}\n#{stderr}" unless status.success?
+  abort "command emitted a deprecation warning: #{command.join(' ')}\n#{stderr}" if stderr.match?(/deprecat/i)
   stdout
 end
 
-# Zarf runs each action as `sh -e -c <cmd>` with every variable exported as
-# ZARF_VAR_<NAME>, and stores trimmed stdout in each setVariables name
-# (zarf v0.82.0 src/pkg/packager/actions/actions.go). `unsetenv_others` keeps
-# this process's environment out, so a command that passes here does not pass
-# only because of a variable the gate happened to inherit.
+# Execute the shipped command after resolving only the supported template
+# expressions, without inheriting operator variables from this process.
 def run_action(action, variables)
-  env = variables.to_h { |name, value| ["ZARF_VAR_#{name}", value] }.merge("PATH" => ENV.fetch("PATH"))
-  Open3.capture3(env, "sh", "-e", "-c", action.fetch("cmd"), unsetenv_others: true)
+  command = ConduitZarfRuntimeValues.render(action.fetch("cmd"), variables, action: true)
+  Open3.capture3({"PATH" => ENV.fetch("PATH")}, "sh", "-e", "-c", command, unsetenv_others: true)
 end
 
 # Operational cases reuse a reviewed baseline, then change only typed settings.
@@ -59,15 +59,12 @@ def resolve_variables(component, variables)
   before_actions(component).each_with_object(variables.dup) do |action, resolved|
     stdout, stderr, status = run_action(action, resolved)
     abort "#{component['name']} action failed for #{variables['REPOSITORY_KIND']}: #{action['cmd']}\n#{stderr}" unless status.success?
-    (action["setVariables"] || []).each { |item| resolved[item.fetch("name")] = stdout.strip }
+    (action["setValues"] || []).each { |item| resolved[item.fetch("key").delete_prefix(".rendered.")] = stdout.strip }
   end
 end
 
 def substitute(text, variables, constants)
-  text.gsub(PLACEHOLDER) do
-    source = Regexp.last_match(1) == "VAR" ? variables : constants
-    source.fetch(Regexp.last_match(2)) { abort "manifest uses an unresolved Zarf placeholder: #{Regexp.last_match(0)}" }
-  end
+  ConduitZarfRuntimeValues.render(text, variables, constants)
 end
 
 # Lists of named mappings (env, volumes, ports, containers) become mappings by
@@ -141,8 +138,8 @@ constants = {
   "HUB_IMAGE" => "ghcr.io/example/platform-hub:0.0.0@sha256:#{'a' * 64}",
   "SPOKE_AGENT_IMAGE" => "ghcr.io/example/platform-spoke-agent:0.0.0@sha256:#{'b' * 64}"
 }
-defaults = declared.transform_values { |item| item["default"].to_s }
-derived = before_actions(components.fetch("runtime")).flat_map { |action| (action["setVariables"] || []).map { |item| item["name"] } }
+defaults = YAML.safe_load_file(File.join(zarf_directory, "values.yaml")).transform_values(&:to_s)
+derived = before_actions(components.fetch("runtime")).flat_map { |action| (action["setValues"] || []).map { |item| item.fetch("key").delete_prefix(".rendered.") } }
 abort "runtime component must derive exactly HUB_REPLICAS, HUB_STRATEGY and HUB_STATE_VOLUME" unless derived.sort == %w[HUB_OPERATIONAL_ENV HUB_OPERATIONAL_MOUNTS HUB_OPERATIONAL_VOLUMES HUB_REPLICAS HUB_STATE_VOLUME HUB_STRATEGY SPOKE_OPERATIONAL_ENV SPOKE_OPERATIONAL_MOUNTS SPOKE_OPERATIONAL_VOLUMES]
 abort "derived Hub settings must not also be operator-settable variables" unless (derived & declared.keys).empty?
 abort "REPOSITORY_KIND must be the profile switch, constrained to file or postgres" unless declared.dig("REPOSITORY_KIND", "pattern") == "^(file|postgres)$"
@@ -296,16 +293,20 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
     if ENV.key?("ZARF_BIN")
       zarf = ENV["ZARF_BIN"]
       abort "ZARF_BIN must name a Zarf executable" if zarf.to_s.empty?
-      # Pinned pflag stringToString parses CSV only with two '=' characters.
-      # Repeat the same record so arbitrary quotes/commas/newlines round-trip
-      # through that CSV branch without introducing another variable.
-      deploy_set = variables.reject { |_, value| value.empty? }.flat_map do |name, value|
-        record = %("#{name}=#{value.gsub('"', '""')}")
-        ["--deploy-set-variables", "#{record},#{record}"]
-      end
-      create_set = constants.merge("PLATFORM_VERSION" => "0.0.0").flat_map { |name, value| ["--create-set", "#{name}=#{value}"] }
-      inspected = run!(zarf, "dev", "inspect", "manifests", zarf_directory, "--architecture", "amd64", "--no-color", *create_set, *deploy_set,
+      compiled = File.join(work, "zarf.gen.yaml")
+      create_set = constants.merge("PLATFORM_VERSION" => "0.0.0").flat_map { |name, value| ["--set", "#{name}=#{value}"] }
+      template = File.join(work, "zarf.tpl.yaml")
+      FileUtils.cp(File.join(zarf_directory, "zarf.tpl.yaml"), template)
+      run!(zarf, "dev", "template", template, *create_set)
+      # Manifest paths remain relative to the compiled package definition.
+      FileUtils.cp_r(File.join(zarf_directory, "manifests"), work) unless File.directory?(File.join(work, "manifests"))
+      FileUtils.cp(File.join(zarf_directory, "values.yaml"), work)
+      FileUtils.cp(File.join(zarf_directory, "values.schema.json"), work)
+      values_file = File.join(work, "profile-values.yaml")
+      File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(variables, derived)))
+      inspected = run!(zarf, "dev", "inspect", "manifests", compiled, "--architecture", "amd64", "--no-color", "--values", values_file,
                        env: {"ZARF_NO_PROGRESS" => "true"})
+      abort "native Zarf emitted a deprecation warning" if inspected.match?(/deprecat/i)
       abort "zarf dev inspect manifests left a placeholder unresolved for #{profile}" if
         inspected.lines.reject { |line| line.lstrip.start_with?("#") }.join.match?(PLACEHOLDER)
       by_tool = ConduitSafeYAML.stream(inspected).compact.select { |item| item.is_a?(Hash) }
@@ -314,6 +315,16 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
         abort "Zarf templated #{document['kind']}/#{document.dig('metadata', 'name')} differently from this gate for #{profile}" unless match == document
       end
       if profile == "postgres"
+        [false, true].each do |metrics|
+          selected = variables.merge("UDS_METRICS" => metrics, "METRICS_ADDRESS" => ":9090")
+          File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(selected, derived)))
+          native = run!(zarf, "dev", "inspect", "manifests", compiled, "--architecture", "amd64", "--no-color", "--values", values_file)
+          owners = ConduitSafeYAML.stream(native).compact.select { |item| item.is_a?(Hash) && item["kind"] == "Package" }
+          abort "UDS metrics selection must render exactly one Package owner" unless owners.length == 1
+          abort "UDS monitor does not follow the typed metrics setting" unless owners.first.fetch("spec").key?("monitor") == metrics
+          expected_owner = YAML.safe_load(substitute(File.read(File.join(zarf_directory, "manifests/uds-package.yaml")), selected, constants))
+          abort "UDS native template differs from the parity helper" unless owners.first == expected_owner
+        end
         # Go's POSIX [:cntrl:] class is ASCII; Ruby's also matches C1
         # controls. Probe the actual pinned CLI so Ruby cannot accidentally
         # vouch for a pattern that lets YAML rewrite U+0085 at deployment.
@@ -323,23 +334,19 @@ Dir.mktmpdir("zarf-chart-equivalence") do |work|
           "PACKAGING_TEMPORAL_TASK_QUEUE" => ["queue\u0085rewrite"]
         }.each do |name, values|
           values.each do |value|
-            rejected = variables.merge(name => value).reject { |_, setting| setting.empty? }.flat_map do |key, setting|
-              ["--deploy-set-variables", %("#{key}=#{setting.gsub('"', '""')}")]
-            end
-            _stdout, stderr, status = Open3.capture3({"ZARF_NO_PROGRESS" => "true"}, zarf, "dev", "inspect", "manifests", zarf_directory,
-              "--architecture", "amd64", "--no-color", *create_set, *rejected)
+            File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(variables.merge(name => value), derived)))
+            _stdout, stderr, status = Open3.capture3({"ZARF_NO_PROGRESS" => "true"}, zarf, "dev", "inspect", "manifests", compiled,
+              "--architecture", "amd64", "--no-color", "--values", values_file)
             abort "pinned Zarf accepted unsafe #{name} configuration" if status.success?
             abort "pinned Zarf refused #{name} for an unexpected reason" unless
-              stderr.include?(%(provided value for variable "#{name}" does not match pattern))
+              stderr.include?(name) && stderr.match?(/pattern|schema/)
           end
         end
         # Zl/Zp are not Cc controls. Keep values this exact templating/parser
         # path preserves; the Temporal server remains the naming authority.
         {"PACKAGING_TEMPORAL_NAMESPACE" => "namespace\u2028preserved", "PACKAGING_TEMPORAL_TASK_QUEUE" => "queue\u2029preserved"}.each do |name, value|
-          probe = variables.merge(name => value).reject { |_, setting| setting.empty? }.flat_map do |key, setting|
-            ["--deploy-set-variables", %("#{key}=#{setting.gsub('"', '""')}")]
-          end
-          preserved = run!(zarf, "dev", "inspect", "manifests", zarf_directory, "--architecture", "amd64", "--no-color", *create_set, *probe,
+          File.write(values_file, JSON.generate(ConduitZarfRuntimeValues.nested(variables.merge(name => value), derived)))
+          preserved = run!(zarf, "dev", "inspect", "manifests", compiled, "--architecture", "amd64", "--no-color", "--values", values_file,
             env: {"ZARF_NO_PROGRESS" => "true"})
           documents = ConduitSafeYAML.stream(preserved).compact.select { |item| item.is_a?(Hash) }
           %w[platform-delivery platform-packaging-worker].each do |deployment|

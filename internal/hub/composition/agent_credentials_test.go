@@ -441,7 +441,7 @@ func TestAnAdmittedAgentsCertificateExpiryIsVisibleToOperators(t *testing.T) {
 		t.Fatalf("credentials = %#v", credentials)
 	}
 	seconds, _ := credentials[0]["secondsUntilExpiry"].(float64)
-	want := certificate.NotAfter.Sub(time.Now()).Seconds()
+	want := time.Until(certificate.NotAfter).Seconds()
 	if credentials[0]["agentId"] != "primary" || credentials[0]["serial"] != "a1b" ||
 		credentials[0]["notAfter"] != certificate.NotAfter.Format(time.RFC3339) || seconds < want-5 || seconds > want+5 {
 		t.Fatalf("credential view = %#v; want serial a1b expiring in about %.0fs", credentials[0], want)

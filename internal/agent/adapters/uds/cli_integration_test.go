@@ -47,8 +47,8 @@ func TestPinnedCLIRejectsUntrustedBundleAndIsolatesConfiguration(t *testing.T) {
 		}
 		return out
 	}
-	if out := string(run(zarf, "version")); !strings.Contains(out, "v0.82.0") {
-		t.Fatalf("expected Zarf v0.82.0, got %s", out)
+	if out := string(run(zarf, "version")); !strings.Contains(out, "v1.0.0") {
+		t.Fatalf("expected Zarf v1.0.0, got %s", out)
 	}
 	if out := string(run(uds, "version")); !strings.Contains(out, "v0.41.0") {
 		t.Fatalf("expected UDS v0.41.0, got %s", out)
@@ -102,6 +102,9 @@ components:
 	// succeeding with checksum-only verification.
 	if out, err := (scopedRunner{}).Run(t.Context(), zarf, "package", "verify", packagePath, "--key", publicPath); err == nil || !strings.Contains(string(out), "not signed") {
 		t.Fatalf("Zarf verify accepted unsigned package with an admitted key: %v\n%s", err, out)
+	}
+	if out, err := (scopedRunner{}).Run(t.Context(), zarf, "package", "inspect", "definition", packagePath, "--verify=always", "--key", publicPath, "--log-level", "error", "--no-color"); err == nil || !strings.Contains(string(out), "not signed") {
+		t.Fatalf("Zarf definition inspection accepted unsigned package with an admitted key: %v\n%s", err, out)
 	}
 	wrong, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {

@@ -12,7 +12,7 @@ import (
 
 const ScaffoldProfile = "internal-stateless/v1"
 const ExistingResourcesProfile = "internal-existing-resources/v1"
-const ZarfVersion = "0.65.1"
+const ZarfVersion = "1.0.0"
 const UDSCommit = "9c808fd0af6bd0dca138da05f4a0d4785f109c32"
 
 type ExistingClaim struct {
@@ -137,7 +137,7 @@ func GenerateScaffold(in ScaffoldInput) (Scaffold, error) {
 		"charts/uds-config/values.yaml":                M{},
 		"charts/uds-config/templates/package.yaml":     pkg,
 		"scaffold-input.json":                          in,
-		"zarf.yaml":                                    M{"kind": "ZarfPackageConfig", "metadata": M{"name": in.Name, "version": in.Version}, "components": []any{M{"name": in.Name, "required": true, "images": []string{in.Image}, "charts": []any{M{"name": "uds-" + in.Name + "-config", "namespace": in.Name, "version": in.Version, "localPath": "charts/uds-config"}, M{"name": in.Name, "namespace": in.Name, "version": in.Version, "localPath": "charts/application"}}}}},
+		"zarf.yaml":                                    M{"apiVersion": "zarf.dev/v1beta1", "kind": "ZarfPackageConfig", "metadata": M{"name": in.Name, "version": in.Version}, "components": []any{M{"name": in.Name, "optional": false, "images": []any{M{"name": in.Image}}, "charts": []any{M{"name": "uds-" + in.Name + "-config", "namespace": in.Name, "local": M{"path": "charts/uds-config"}}, M{"name": in.Name, "namespace": in.Name, "local": M{"path": "charts/application"}}}}}},
 	}
 	names := make([]string, 0, len(artifacts))
 	for name := range artifacts {

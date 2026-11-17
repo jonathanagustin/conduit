@@ -318,7 +318,7 @@ func TestAppgenProfileRefusesComputeBeforeAcceptAndGeneratesBeforePackaging(t *t
 		t.Fatalf("chart values = %s %v", values, err)
 	}
 	zarf, err := os.ReadFile(filepath.Join(repoDir, "zarf.yaml"))
-	if err != nil || !strings.Contains(string(zarf), pinned) || !strings.Contains(string(zarf), `localPath: "chart"`) {
+	if err != nil || !strings.Contains(string(zarf), pinned) || !strings.Contains(string(zarf), `path: "chart"`) {
 		t.Fatalf("zarf = %s %v", zarf, err)
 	}
 	if !strings.Contains(string(crBytes), `service: "hello-http"`) || !strings.Contains(string(crBytes), "expose:") {

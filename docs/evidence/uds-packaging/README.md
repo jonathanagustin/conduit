@@ -141,3 +141,11 @@ admission have separate levels. The checker only verifies the dataset contract;
 it does not measure application correctness. Four additional negative tests
 reject missing/duplicated case records, protocol results promoted to application
 receipts, accidental trial approval and copied-implementation declarations.
+
+## Current prototype target
+
+The generator and structural validator now target Zarf 1.0.0 and v1beta1 package
+definitions under #652. The frozen matrix-v1 entry records the earlier 0.65.1
+prototype pin; it is historical evidence, not the current generator target.
+This change does not requalify the separate UDS target or turn any NOT_RUN
+application, upgrade, restore or disconnected check into a pass.

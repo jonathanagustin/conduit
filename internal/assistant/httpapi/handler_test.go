@@ -164,8 +164,11 @@ func TestFailuresCarryAStableCode(t *testing.T) {
 }
 
 func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
+	// A bare hexadecimal username can occur inside a random thread ID. Keep
+	// the owner-leak assertion meaningful without matching legitimate entropy.
+	const owner = "operator-ada"
 	server := handler(&scripted{replies: []string{askForEnvironments, answer, `{"text":"zeta, as I said."}`}})
-	status, created, raw := call(t, server, "ada", http.MethodPost, "/v1/assistant/threads", `{}`)
+	status, created, raw := call(t, server, owner, http.MethodPost, "/v1/assistant/threads", `{}`)
 	if status != http.StatusCreated || created["title"] != "" || created["messageCount"] != float64(0) || len(created["messages"].([]any)) != 0 {
 		t.Fatalf("create = %d %s", status, raw)
 	}
@@ -173,10 +176,10 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 	if !domain.ValidThreadID(id) {
 		t.Fatalf("id = %q", id)
 	}
-	if strings.Contains(raw, "owner") || strings.Contains(raw, "ada") {
+	if strings.Contains(raw, "owner") || strings.Contains(raw, owner) {
 		t.Fatalf("the owner left the server: %s", raw)
 	}
-	status, turn, raw := call(t, server, "ada", http.MethodPost, "/v1/assistant/turns", `{"mode":"explore","message":"which environments exist?","threadId":"`+id+`"}`)
+	status, turn, raw := call(t, server, owner, http.MethodPost, "/v1/assistant/turns", `{"mode":"explore","message":"which environments exist?","threadId":"`+id+`"}`)
 	if status != http.StatusOK || turn["threadId"] != id {
 		t.Fatalf("turn = %d %s", status, raw)
 	}
@@ -202,7 +205,7 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 	}
 
 	// The owner resumes: list, read back with real arguments and results, continue.
-	status, listed, raw = call(t, server, "ada", http.MethodGet, "/v1/assistant/threads", "")
+	status, listed, raw = call(t, server, owner, http.MethodGet, "/v1/assistant/threads", "")
 	summary := listed["threads"].([]any)[0].(map[string]any)
 	if status != http.StatusOK || summary["id"] != id || summary["title"] != "which environments exist?" || summary["messageCount"] != float64(2) {
 		t.Fatalf("list = %d %s", status, raw)
@@ -210,7 +213,7 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 	if _, present := summary["messages"]; present {
 		t.Fatalf("the list carries messages: %s", raw)
 	}
-	status, read, raw := call(t, server, "ada", http.MethodGet, "/v1/assistant/threads/"+id, "")
+	status, read, raw := call(t, server, owner, http.MethodGet, "/v1/assistant/threads/"+id, "")
 	messages := read["messages"].([]any)
 	if status != http.StatusOK || len(messages) != 2 {
 		t.Fatalf("read = %d %s", status, raw)
@@ -221,17 +224,17 @@ func TestThreadRoutesAreScopedToTheirOwner(t *testing.T) {
 		record["id"] != "call_1_1" || record["arguments"].(map[string]any)["objectType"] != "Environment" || record["result"].(map[string]any)["matchedCount"] != float64(1) {
 		t.Fatalf("messages = %s", raw)
 	}
-	status, turn, raw = call(t, server, "ada", http.MethodPost, "/v1/assistant/turns", `{"mode":"explore","message":"what was it called?","threadId":"`+id+`"}`)
+	status, turn, raw = call(t, server, owner, http.MethodPost, "/v1/assistant/turns", `{"mode":"explore","message":"what was it called?","threadId":"`+id+`"}`)
 	if status != http.StatusOK || turn["text"] != "zeta, as I said." {
 		t.Fatalf("resume = %d %s", status, raw)
 	}
-	if status, _, raw = call(t, server, "ada", http.MethodDelete, "/v1/assistant/threads/"+id, ""); status != http.StatusNoContent || raw != "" {
+	if status, _, raw = call(t, server, owner, http.MethodDelete, "/v1/assistant/threads/"+id, ""); status != http.StatusNoContent || raw != "" {
 		t.Fatalf("delete = %d %s", status, raw)
 	}
-	if status, body, _ := call(t, server, "ada", http.MethodGet, "/v1/assistant/threads/"+id, ""); status != http.StatusNotFound || body["code"] != "THREAD_NOT_FOUND" {
+	if status, body, _ := call(t, server, owner, http.MethodGet, "/v1/assistant/threads/"+id, ""); status != http.StatusNotFound || body["code"] != "THREAD_NOT_FOUND" {
 		t.Fatalf("read after delete = %d", status)
 	}
-	if status, body, _ := call(t, server, "ada", http.MethodGet, "/v1/assistant/threads/not-an-id", ""); status != http.StatusNotFound || body["code"] != "THREAD_NOT_FOUND" {
+	if status, body, _ := call(t, server, owner, http.MethodGet, "/v1/assistant/threads/not-an-id", ""); status != http.StatusNotFound || body["code"] != "THREAD_NOT_FOUND" {
 		t.Fatalf("malformed id = %d", status)
 	}
 }

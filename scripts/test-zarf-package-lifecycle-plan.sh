@@ -51,4 +51,6 @@ grep -qF 'repository="oci://ghcr.io/${GITHUB_REPOSITORY}/packages"' "${images}" 
 grep -qF "platform-images.yml@refs/tags/v" "${root}/deploy/zarf/README.md" ||
   fail 'the README no longer documents the certificate identity the lifecycle lane derives'
 
+ruby "${root}/scripts/test-zarf-lifecycle-definition.rb"
+ruby "${root}/scripts/test-zarf-lifecycle-deploy.rb"
 echo 'Zarf package lifecycle plan names the release asset, the published package, and each signer'

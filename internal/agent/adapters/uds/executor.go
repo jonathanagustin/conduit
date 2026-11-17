@@ -17,28 +17,32 @@
 // values, and for a bundle the bundle itself -- is reported from the record
 // described in applied.go, never from the step.
 //
-// CLI contracts (reviewed 2026-11-16). "VERIFIED" means read from the pinned
+// CLI contracts (reviewed 2026-11-17). "VERIFIED" means read from the pinned
 // binary's --help or the pinned release's source; "ASSUMED" means the flag
 // exists but the behaviour was not exercised against a cluster.
 //
-//   - zarf v0.82.0 `package deploy SOURCE --confirm --verify=always
+//   - zarf v1.0.0 `package deploy SOURCE --confirm --verify=always
 //     [--key PATH | --certificate-identity-regexp R --certificate-oidc-issuer-regexp R]
-//     [--set-variables KEY=value]...`: VERIFIED (--help).
-//   - zarf v0.82.0 `package verify SOURCE` accepts the same key/identity/issuer
+//     [--set-variables KEY=value]...` for v1alpha1 or `--values FILE` for
+//     v1beta1: VERIFIED (--help and native scalar-type schema/manifest fixture).
+//   - zarf v1.0.0 `package verify SOURCE` accepts the same key/identity/issuer
 //     flags without --verify; a supplied key rejects an unsigned package:
 //     VERIFIED (--help and TestPinnedCLIRejectsUntrustedBundleAndIsolatesConfiguration).
-//   - zarf v0.82.0 `package remove NAME --confirm`, NAME as recorded in the
+//   - zarf v1.0.0 `package remove NAME --confirm`, NAME as recorded in the
 //     cluster: VERIFIED (--help).
-//   - zarf v0.82.0 records each deployment as Secret `zarf-package-<name>` in
-//     namespace `zarf`, key `data`, JSON with `digest`, `generation`,
+//   - zarf v1.0.0 `package inspect definition SOURCE --verify=always` with
+//     the same admitted key or publisher flags authenticates the definition
+//     before selecting the values contract: VERIFIED (native unsigned refusal).
+//   - zarf v1.0.0 records each deployment as Secret `zarf-package-<name>` in
+//     namespace `zarf`, key `data`, gzip-compressed JSON with `digest`, `generation`,
 //     `data.metadata.version`, `deployedComponents[].status`: VERIFIED
 //     (src/pkg/state/state.go, src/pkg/cluster/zarf.go). `zarf package list -o
 //     json` omits the digest (src/cmd/package.go), so it is not used.
-//   - The `digest` zarf v0.82.0 records is the OCI manifest digest it resolved
+//   - The `digest` zarf v1.0.0 records is the OCI manifest digest it resolved
 //     for the cluster's platform, and `generation` is the previous generation
 //     plus one on every deploy: VERIFIED (src/pkg/packager/pull.go
 //     SetRegistryDigest, src/pkg/packager/deploy.go, read 2026-11-17).
-//   - zarf v0.82.0 `package deploy oci://REPOSITORY@sha256:DIGEST`, a reference
+//   - zarf v1.0.0 `package deploy oci://REPOSITORY@sha256:DIGEST`, a reference
 //     with a digest and no tag, resolves and deploys that manifest: ASSUMED.
 //   - zarf init creates Secret `zarf-state` in namespace `zarf`: VERIFIED
 //     (src/pkg/state/state.go constants).
@@ -80,7 +84,7 @@ import (
 )
 
 var (
-	// ErrRefused marks a step the executor declined before running anything.
+	// ErrRefused marks a step declined before cluster mutation.
 	ErrRefused = errors.New("uds executor refused the step")
 	// ErrPreflightBlocked marks a cluster that is not ready for Zarf or UDS
 	// work. It wraps one of the two more specific errors below.
@@ -120,6 +124,9 @@ type Executor struct {
 	ZarfBin    string
 	UDSBin     string
 	KubectlBin string
+	// NativeBundles selects UDS 0.41's explicit NextMode command tree and HCL
+	// variables. False preserves the legacy bundle contract; no fallback occurs.
+	NativeBundles bool
 	// Architecture is the cluster architecture this Spoke deploys onto. It
 	// defaults to the architecture of the Spoke's own binary, which is the
 	// architecture of the node it runs on. A step whose artifact was not built
@@ -456,8 +463,24 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	}
 	// Authenticate before even probing the cluster. A rejected signature is
 	// not a failed deployment and must never enter rollback or removal.
-	if out, err := e.runAll(ctx, deploy[:len(deploy)-1]); err != nil {
-		return agent.Receipt{}, agent.DiagnosticError{Err: fmt.Errorf("verify: %w", err), Output: strings.TrimSpace(string(out))}
+	definition, err := e.runAll(ctx, deploy[:len(deploy)-1])
+	if err != nil {
+		return agent.Receipt{}, agent.DiagnosticError{Err: fmt.Errorf("verify: %w", err), Output: strings.TrimSpace(string(definition))}
+	}
+	if isBundle(step) && e.NativeBundles {
+		command, cleanup, err := prepareNativeBundleDeployment(step, deploy[len(deploy)-1])
+		if err != nil {
+			return agent.Receipt{}, err
+		}
+		defer cleanup()
+		deploy[len(deploy)-1] = command
+	} else if !isBundle(step) {
+		command, cleanup, err := e.prepareZarfDeployment(step, source, definition)
+		if err != nil {
+			return agent.Receipt{}, err
+		}
+		defer cleanup()
+		deploy[len(deploy)-1] = command
 	}
 	if err := e.preflight(ctx, isBundle(step) || e.managesUDSPackage()); err != nil {
 		return agent.Receipt{}, err
@@ -523,12 +546,15 @@ func (e Executor) failed(ctx context.Context, receipt agent.Receipt, what string
 }
 
 func (e Executor) runAll(ctx context.Context, commands [][]string) ([]byte, error) {
+	var output []byte
 	for _, command := range commands {
-		if out, err := e.runner().Run(ctx, command[0], command[1:]...); err != nil {
+		out, err := e.runner().Run(ctx, command[0], command[1:]...)
+		if err != nil {
 			return out, err
 		}
+		output = out
 	}
-	return nil, nil
+	return output, nil
 }
 
 // deployCommands builds the verified deploy of source. A bundle is verified by
@@ -539,6 +565,19 @@ func (e Executor) deployCommands(step controlplane.PlanStep, source string, with
 		key := strings.TrimSpace(e.VerificationKeyPath)
 		if key == "" || e.Publisher != (domain.PublisherPolicy{}) {
 			return nil, refuse(step, "a UDS bundle can only be verified with a public key, and exactly that must be configured")
+		}
+		if e.NativeBundles {
+			if withValues {
+				// Native bundle variables are global scalar HCL inputs. Legacy
+				// package-scoped names must not silently become unused settings.
+				if _, err := setFlags(step, "--set", zarfVariableName); err != nil {
+					return nil, err
+				}
+			}
+			prefix := []string{e.udsBin(), "--features", "NextMode", "bundle"}
+			check := append(append([]string{}, prefix...), "verify", source, "--public-key", key, "--architecture", e.architecture())
+			deploy := append(append([]string{}, prefix...), "deploy", source, "--public-key", key, "--architecture", e.architecture())
+			return [][]string{check, deploy}, nil
 		}
 		deploy := []string{e.udsBin(), "deploy", source, "--confirm"}
 		if withValues {
@@ -562,16 +601,24 @@ func (e Executor) deployCommands(step controlplane.PlanStep, source string, with
 		}
 		deploy = append(deploy, sets...)
 	}
-	// `package verify` always verifies signatures when trust material is
-	// supplied; unlike deploy, it has no --verify mode flag. The deploy still
-	// enforces --verify=always against the same immutable source.
-	check := append([]string{e.zarfBin(), "package", "verify", source}, verify[1:]...)
+	// Inspect only after mandatory signature verification. Its definition
+	// selects the legacy-variable or native-values contract before cluster I/O.
+	// Deploy independently verifies that same immutable source again.
+	check := append([]string{e.zarfBin(), "package", "inspect", "definition", source}, verify...)
+	check = append(check, "--log-level", "error", "--no-color")
 	return [][]string{check, deploy}, nil
 }
 
 func (e Executor) removeCommand(step controlplane.PlanStep, name string) ([]string, error) {
 	if !isBundle(step) {
 		return []string{e.zarfBin(), "package", "remove", name, "--confirm"}, nil
+	}
+	if e.NativeBundles {
+		key := strings.TrimSpace(e.VerificationKeyPath)
+		if key == "" || e.Publisher != (domain.PublisherPolicy{}) {
+			return nil, refuse(step, "native bundle removal requires exactly one public verification key")
+		}
+		return []string{e.udsBin(), "--features", "NextMode", "bundle", "remove", sourceFor(step), "--public-key", key, "--architecture", e.architecture()}, nil
 	}
 	return []string{e.udsBin(), "remove", sourceFor(step), "--confirm"}, nil
 }

@@ -483,7 +483,7 @@ func yq(value string) string {
 
 func renderZarf(parsed productNeeds, sourceDigest, templateVersion, toolVersions string) []byte {
 	var b strings.Builder
-	b.WriteString("apiVersion: zarf.dev/v1alpha1\n")
+	b.WriteString("apiVersion: zarf.dev/v1beta1\n")
 	b.WriteString("kind: ZarfPackageConfig\n")
 	b.WriteString("metadata:\n")
 	b.WriteString("  name: " + yq(parsed.name) + "\n")
@@ -496,7 +496,7 @@ func renderZarf(parsed productNeeds, sourceDigest, templateVersion, toolVersions
 	b.WriteString("    packaging.conduit.dev/value-tier: " + yq("CONDUIT_NATIVE") + "\n")
 	b.WriteString("components:\n")
 	b.WriteString("  - name: " + yq(parsed.name) + "\n")
-	b.WriteString("    required: true\n")
+	b.WriteString("    optional: false\n")
 	b.WriteString("    manifests:\n")
 	b.WriteString("      - name: " + yq("uds-package") + "\n")
 	b.WriteString("        namespace: " + yq(parsed.name) + "\n")
@@ -504,7 +504,7 @@ func renderZarf(parsed productNeeds, sourceDigest, templateVersion, toolVersions
 	b.WriteString("          - " + yq("uds-package.yaml") + "\n")
 	if parsed.image != "" {
 		b.WriteString("    images:\n")
-		b.WriteString("      - " + yq(parsed.image) + "\n")
+		b.WriteString("      - name: " + yq(parsed.image) + "\n")
 	}
 	return []byte(b.String())
 }

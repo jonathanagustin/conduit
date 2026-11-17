@@ -9,6 +9,8 @@ export const requiredProofTests = Object.freeze([
   crypto, `${crypto}/matching_signer`, `${crypto}/wrong_signer`, `${crypto}/unsigned`,
   `${policy}/matching_publisher`, `${policy}/wrong_identity`, `${policy}/wrong_issuer`,
   'TestDefaultRunnerIsolatesConfigurationAndPreservesExplicitAccess',
+  'TestPinnedCLINativeValuesPreserveReviewedTypes',
+  'TestPinnedCLINativeBundleValuesPreserveReviewedTypes',
 ]);
 
 // A zero process exit or a package-level PASS is not test execution evidence.
@@ -66,7 +68,7 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     const log = readFileSync(file, 'utf8');
     if (mode === 'proof') {
       verifyProof(log);
-      console.log('PASS UDS executor: actual correct-key/wrong-key/unsigned crypto, injected certificate policy, and child configuration isolation (8 exact run+pass receipts)');
+      console.log(`PASS UDS executor: actual correct-key/wrong-key/unsigned crypto, injected certificate policy, child configuration isolation and native scalar values (${requiredProofTests.length} exact run+pass receipts)`);
     } else if (mode === 'config') {
       if (!configWasLoaded(log, expected)) throw new Error('expected UDS config-loaded evidence is missing or names another path');
     } else {
