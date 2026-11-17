@@ -108,10 +108,9 @@ without building from source, see
 
 ## Current status
 
-`VERSION` on `main` is 0.18.0. The newest tag is `v0.17.5`, cut on 2026-08-18.
-Nothing after that tag has been released: 0.18.0 is the version the next
-release would carry, not a published one
-([#844](https://github.com/jonathanagustin/conduit/issues/844)). The gaps
+`VERSION` on `main` is 0.18.0, and no tag or release carries that number.
+The newest tag is `v0.17.5`, cut on 2026-08-18. Nothing after that tag has
+been released ([#844](https://github.com/jonathanagustin/conduit/issues/844)). The gaps
 between this tree and a production deployment are kept in the
 [production-readiness record](docs/operations/PRODUCTION-READINESS.md), which
 is the authority when this section and that record disagree.
