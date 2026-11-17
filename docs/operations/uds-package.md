@@ -14,10 +14,14 @@ cluster operating after the images are already present.
 
 ## What the Package CR grants
 
-- SSO client `conduit-hub`, redirect URI `https://conduit.uds.dev/console/*`
-  by default (`CONSOLE_PUBLIC_URL`). Authservice is not attached. The Hub
-  port is the Agent mTLS listener, and a proxy in front of it would break
-  the Spoke.
+- SSO client `conduit-hub`, a confidential client whose one redirect URI is
+  `https://conduit.uds.dev/v1/auth/callback` by default
+  (`CONSOLE_PUBLIC_URL` + `/v1/auth/callback`), registered exactly and with
+  no wildcard. UDS Core writes the generated client secret to the
+  `conduit-hub-sso` Secret under the key `client-secret`; the Hub mounts
+  that key read-only at `/run/conduit-sso`. Authservice is not attached.
+  The Hub port is the Agent mTLS listener, and a proxy in front of it would
+  break the Spoke.
 - Ingress from the tenant gateway (`istio-tenant-gateway` /
   `tenant-ingressgateway`) to the Hub on 8081, plus an `expose` entry on the
   tenant gateway at host `conduit`. The Hub speaks HTTPS on that port. The
@@ -97,6 +101,20 @@ substitutes the variables and the Package validates against the UDS Core
 1.17.1 schema. No cluster run has shown the Zarf-packaged Hub running against
 Postgres, a scrape succeeding, or what Zarf does when both `uds` and
 `uds-metrics` are selected.
+
+### Alert rules and dashboard
+
+Add `uds-observability` to `--components` beside `uds-metrics` to apply the
+Hub's `PrometheusRule` and its dashboard ConfigMap (labelled
+`grafana_dashboard: "1"`) into `platform-system`. The series, the alerts and
+their runbooks are described in [`hub-observability.md`](hub-observability.md)
+and [`runbooks.md`](runbooks.md).
+
+This is also checked by rendering only. The manifest is generated from
+`deploy/observability` and a gate holds it to its sources and to the series
+the Hub exports. That UDS Core's Prometheus loads a rule, and its Grafana a
+dashboard, from this namespace is assumed from the kube-prometheus-stack
+conventions; no cluster run has shown either, and no rule has been evaluated.
 
 ## Tool versions used here
 
@@ -266,7 +284,8 @@ uds zarf package deploy /tmp/conduit-zarf/zarf-package-platform-runtime-amd64-0.
   --set-variables OPERATOR_OIDC_CLIENT_ID=conduit-hub \
   --set-variables OPERATOR_OIDC_USERNAME_CLAIM=preferred_username \
   --set-variables OPERATOR_OIDC_GROUPS_CLAIM=groups \
-  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem
+  --set-variables OPERATOR_OIDC_CA_FILE=/etc/ssl/platform-ca/ca-bundle.pem \
+  --set-variables OPERATOR_OIDC_CLIENT_SECRET_FILE=/run/conduit-sso/client-secret
 
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-delivery --timeout=180s
 uds zarf tools kubectl -n platform-system rollout status deploy/platform-spoke-agent --timeout=180s
@@ -373,6 +392,12 @@ Exactly one of the publisher pair and the key path is required. `uds deploy`
 has no verification flags, so a bundle is checked with `uds inspect --key`
 first and can only be deployed by a Spoke configured with a key.
 
+Zarf packages first pass `zarf package verify` with that same admitted key or
+certificate policy. Verification runs before any cluster probe. A rejected
+signature cannot enter the deploy failure/rollback path. The later deploy still
+requires `--verify=always` against the same digest-pinned source. A failure after
+deploy starts retains the existing rollback behavior.
+
 The Spoke image does not contain `zarf` or `uds`. Mount pinned binaries and
 point `ZARF_BIN` and `UDS_BIN` at them. The chart in `deploy/helm/platform-spoke`
 does not yet expose these variables or the extra RBAC below.
@@ -393,6 +418,70 @@ executor's own calls need, in addition:
 Spoke's token: they write `zarf-package-*` Secrets in `zarf`, create
 namespaces, and apply whatever the package contains. That is the same open
 bound the Helm path has, and it is the tenant's package that sets it.
+
+### Reviewed configuration and CLI isolation
+
+Reviewed scalar JSON values become ordered `--set-variables KEY=value` arguments
+for Zarf and `--set KEY=value` arguments for UDS. A UDS variable may be scoped as
+`package-name.VARIABLE`. Duplicate JSON keys (including escaped spellings),
+trailing JSON, nested/null values, and strings the CLI cannot carry exactly are
+refused. A global variable and a package-scoped spelling of that same variable
+are refused together: the pinned UDS implementation iterates its set map and
+could otherwise apply either value last. Signed package defaults remain part of
+the approved artifact; ambient configuration does not add deployment variables.
+
+The adapter's default command runner uses a private working directory and home,
+with empty `uds-config.yaml` and `zarf-config.yaml` files at the CLIs' default
+lookup locations. It supplies no `UDS_*`, `ZARF_*`, `CLI_FEATURES`, `COSIGN_*` or
+unrelated credential environment variables. In particular, setting `UDS_CONFIG`
+to an empty file would itself add a `CONFIG` package variable, so the runner
+uses the private default file instead.
+
+Explicit `KUBECONFIG` (including its path list), `DOCKER_CONFIG`, `SSL_CERT_FILE`
+and `SSL_CERT_DIR` paths are resolved before changing directory and retained.
+Standard in-cluster Kubernetes endpoint variables and its service-account mount
+remain usable. The runner retains `PATH` for the configured tools and admitted
+credential plugins; executable, key and manifest paths retain their original
+meaning. Ambient home credentials, cloud-token environment variables and CLI
+config files are not inherited. An explicit Docker config supplies credentials
+to the approved package operation; it does not authorize another source or
+prepare a Plan's `RegistryAccess`. Steps carrying `RegistryAccess` or
+`SecretAccess` still fail closed because this executor cannot realize them.
+
+This is process configuration isolation, not an OS sandbox. A signed package
+and its tools execute with the Spoke's authority. A caller injecting `Runner`
+supplies a trusted command port and must preserve the same isolation boundary;
+the adapter cannot constrain arbitrary in-process implementations.
+
+The relevant pinned implementation evidence is
+[UDS variable precedence](https://github.com/defenseunicorns/uds-cli/blob/3190b8d5d4b066a1df04ae7dcc66c30ee79d7fe6/pkg/legacy/bundle/overrides.go),
+[UDS config lookup](https://github.com/defenseunicorns/uds-cli/blob/3190b8d5d4b066a1df04ae7dcc66c30ee79d7fe6/internal/legacy/cli/viper.go),
+[bundle signature validation](https://github.com/defenseunicorns/uds-cli/blob/3190b8d5d4b066a1df04ae7dcc66c30ee79d7fe6/pkg/legacy/bundle/common.go),
+and [Zarf config lookup](https://github.com/zarf-dev/zarf/blob/356f4b6041346854e42c71cb93c9837b48f977eb/src/cmd/viper.go).
+
+Run the bounded native conformance check with previously verified binaries:
+
+```sh
+ZARF_BIN=/verified/zarf-v0.82.0 UDS_BIN=/verified/uds-v0.41.0 \
+  scripts/test-uds-executor.sh
+```
+
+The existing `test-uds-bundle-create.sh` gate invokes this check with the same
+pinned binaries, so the hosted/local Zarf verification path cannot skip it.
+The gate requires exact JSON run/PASS pairs for each crypto/policy/environment proof;
+a zero exit before test execution is a failure, including under emulation.
+The existing pinned Node checks also reject omitted/wrong config-loaded evidence
+while accepting UDS's wrapped diagnostic/path formatting.
+
+It creates one tiny image-free package and bundle, generates an ECDSA key only
+in memory, and checks matching-key acceptance, wrong-key/unsigned rejection,
+reviewed Zarf variable rendering and poisoned ambient config isolation. The
+executor test intercepts every deployment; it opens no cluster and publishes
+nothing. The wrong certificate-identity regression uses an injected recorded
+signer contract to test policy forwarding and pre-cluster ordering. It is
+distinct from the real UDS key-signature checks: no live Fulcio/OIDC/Rekor
+keyless verification is claimed. Zarf's certificate-policy semantics are bounded
+by its pinned [verification implementation](https://github.com/zarf-dev/zarf/blob/356f4b6041346854e42c71cb93c9837b48f977eb/src/pkg/signing/cosign.go).
 
 ### What `APPLIED` means for a package
 
@@ -445,9 +534,25 @@ OIDC on when the package is deployed with the `uds` component.
 
 The Package CR does not set `enableAuthserviceSelector`. Authservice in
 front of the Hub pods would also sit on the Spoke's mTLS port, which
-shares the Hub process. The console uses the Hub's own OIDC sign-in, and
-the Hub maps the token's `preferred_username` and `groups` claims onto
-the operator principal.
+shares the Hub process. The Hub runs the browser sign-in itself: it is
+the OAuth client, it redirects to Keycloak from `/v1/auth/login`, receives
+the code at `/v1/auth/callback`, and keeps a server-side session named by
+an `HttpOnly` cookie. That happens only when `OPERATOR_OIDC_ISSUER` is set;
+`CONSOLE_PUBLIC_URL` must then be the address people use, because the
+redirect URI and the cookie's accepted origin are built from it and from
+nothing in a request. `OPERATOR_OIDC_CLIENT_SECRET_FILE` makes the Hub
+present the `conduit-hub-sso` secret; with it set and the Secret absent the
+Hub fails at start instead of signing in as a public client. The Hub maps
+the ID token's `preferred_username` and `groups` claims onto the operator
+principal. See [`operator-sign-in.md`](operator-sign-in.md).
+
+Not yet observed: a person signing in through a browser against the
+slim-dev Keycloak with insecure headers off. The sign-in is exercised
+against an in-process OIDC provider in the Go tests; the Package CR's
+redirect URI and Secret key are checked statically by
+`scripts/verify-zarf-package.rb`. Whether the tenant gateway route carries
+a browser session to the Hub's own TLS listener is the open question
+recorded under [What the Package CR grants](#what-the-package-cr-grants).
 
 ## Second-person approval users
 

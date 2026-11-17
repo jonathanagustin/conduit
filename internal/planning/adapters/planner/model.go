@@ -42,6 +42,8 @@ type CLIModel struct {
 	Timeout time.Duration
 	// Name is the operator-configured model name, or empty.
 	Name string
+	// Exec wraps the run; nil runs the command directly.
+	Exec localcmd.ExecFunc
 }
 
 func (model CLIModel) Identity() Identity {
@@ -53,7 +55,7 @@ func (model CLIModel) Identity() Identity {
 }
 
 func (model CLIModel) Complete(ctx context.Context, prompt string) (Reply, error) {
-	stdout, err := localcmd.Execute(ctx, model.Argv, model.Timeout, []byte(prompt))
+	stdout, err := model.Exec.Run(ctx, model.Argv, model.Timeout, []byte(prompt))
 	return Reply{Text: stdout}, err
 }
 
@@ -80,13 +82,13 @@ func (model HTTPModel) Complete(ctx context.Context, prompt string) (Reply, erro
 type turnModel struct {
 	Model
 	provider string
+	called   bool
 }
 
 func (model *turnModel) Complete(ctx context.Context, prompt string) (Reply, error) {
 	reply, err := model.Model.Complete(ctx, prompt)
-	if id := cleanModelID(reply.ProviderModel); id != "" {
-		model.provider = id
-	}
+	model.called = true
+	model.provider = cleanModelID(reply.ProviderModel)
 	return reply, err
 }
 

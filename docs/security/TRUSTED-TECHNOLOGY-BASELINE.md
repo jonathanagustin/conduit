@@ -31,3 +31,14 @@ receipt or attestation.
 The current production issuers, registry controls, scanner configuration,
 secret backends, and trust roots are deployment facts and are intentionally not
 asserted in this repository.
+
+## Security evidence and review
+
+The [threat model](THREAT-MODEL.md) records native Hub, Agent, Bundle, console and
+AI boundaries against a named source baseline. The [selected control
+evidence](CONTROL-EVIDENCE.md) maps bounded mechanisms and deployment
+responsibilities to a pinned NIST catalog; it does not assert accreditation or
+FIPS compliance. The [external review scope](EXTERNAL-REVIEW-SCOPE.md) is a
+commissioning brief with status **NOT COMMISSIONED**. Independent review and
+FIPS requirements remain owner decisions under
+[#846](https://github.com/jonathanagustin/conduit/issues/846).

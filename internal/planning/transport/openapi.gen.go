@@ -223,12 +223,18 @@ type Answer struct {
 
 // Binding defines model for Binding.
 type Binding struct {
-	AcceptedAt     time.Time `json:"acceptedAt"`
-	Intake         Intake    `json:"intake"`
-	Model          string    `json:"model"`
-	Plan           Plan      `json:"plan"`
-	Profile        Profile   `json:"profile"`
-	ResolvedCommit string    `json:"resolvedCommit"`
+	AcceptedAt time.Time `json:"acceptedAt"`
+
+	// ConfiguredModel Operator-configured model id; absent on legacy records.
+	ConfiguredModel *string `json:"configuredModel,omitempty"`
+	Intake          Intake  `json:"intake"`
+	Model           string  `json:"model"`
+	Plan            Plan    `json:"plan"`
+	Profile         Profile `json:"profile"`
+
+	// ProviderModel Model id from the final call response metadata; absent when not reported.
+	ProviderModel  *string `json:"providerModel,omitempty"`
+	ResolvedCommit string  `json:"resolvedCommit"`
 }
 
 // ComputeReceipt defines model for ComputeReceipt.
@@ -334,19 +340,25 @@ type Session struct {
 	Answers        []Answer        `json:"answers"`
 	Binding        *Binding        `json:"binding"`
 	ComputeReceipt *ComputeReceipt `json:"computeReceipt,omitempty"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	Events         []Event         `json:"events"`
-	Id             string          `json:"id"`
-	Inspection     *Inspection     `json:"inspection"`
-	Intake         Intake          `json:"intake"`
-	Messages       []Message       `json:"messages"`
-	Model          string          `json:"model"`
-	NeedsInput     []Question      `json:"needsInput"`
-	Plan           *Plan           `json:"plan"`
-	Profile        Profile         `json:"profile"`
-	ResolvedCommit string          `json:"resolvedCommit"`
-	Status         SessionStatus   `json:"status"`
-	UpdatedAt      time.Time       `json:"updatedAt"`
+
+	// ConfiguredModel Operator-configured model id; absent on legacy records.
+	ConfiguredModel *string     `json:"configuredModel,omitempty"`
+	CreatedAt       time.Time   `json:"createdAt"`
+	Events          []Event     `json:"events"`
+	Id              string      `json:"id"`
+	Inspection      *Inspection `json:"inspection"`
+	Intake          Intake      `json:"intake"`
+	Messages        []Message   `json:"messages"`
+	Model           string      `json:"model"`
+	NeedsInput      []Question  `json:"needsInput"`
+	Plan            *Plan       `json:"plan"`
+	Profile         Profile     `json:"profile"`
+
+	// ProviderModel Model id from the final call response metadata; absent when not reported.
+	ProviderModel  *string       `json:"providerModel,omitempty"`
+	ResolvedCommit string        `json:"resolvedCommit"`
+	Status         SessionStatus `json:"status"`
+	UpdatedAt      time.Time     `json:"updatedAt"`
 }
 
 // SessionStatus defines model for Session.Status.

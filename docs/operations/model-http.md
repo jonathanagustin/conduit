@@ -71,10 +71,12 @@ The model name the Hub records comes from two sources only: the operator's confi
 
 | Source | Where it is recorded |
 | --- | --- |
-| `CONDUIT_MODEL_NAME` | `configuredModel` in the planning audit events (`planning.inspect`, `planning.questions`, `planning.plan`) and in the packaging proposal and workspace package audit events. |
+| Effective `CONDUIT_MODEL_NAME`, including a capability override | `configuredModel` in the planning audit events (`planning.inspect`, `planning.questions`, `planning.plan`) and in the packaging proposal and workspace package audit events. |
 | The `model` field of the provider's HTTP response | `providerModel` in the same events. It is bounded to 128 bytes and control characters are dropped. |
 
-The Accept binding has one `model` field. It holds the configured name. When the provider reported a different id it holds both, as `configured (provider reported served-id)`. That same string is the `model` value in the `planning.accept` audit event. A separate field for the provider id in the binding needs a change to the planning domain types and is not made here.
+Planning sessions and immutable Accept bindings retain separate `configuredModel` and `providerModel` fields alongside the existing `model` display field. The `planning.accept` audit event records both identities separately as well. A provider that omits its id leaves it absent for that call; an earlier response cannot supply it. Historical records leave the additive fields absent.
+
+Assistant, planning, packaging and app-generation model names and deadlines can override the global defaults. See [per-capability selection](local-model-cli.md#per-capability-selection) for the environment, Helm and Zarf settings and their shared endpoint/key boundary.
 
 A provider that reports a different id than the one requested is recorded, not refused. Aliases make that normal: a request for `my-model` can be served by `my-model-2026-01`.
 
@@ -184,8 +186,8 @@ Closing the gap needs a worker image that carries those tools, or moving the clo
 - **Not streaming.** The Hub sends `"stream": false` and reads one response. The model ports are request and response, so a streamed reply would add nothing today.
 - **One user message.** The whole prompt is sent as a single `user` message. No system message, tool definitions, temperature or token limit are sent; the server's defaults apply.
 - **The Anthropic Messages API is not implemented.** Use an OpenAI-compatible gateway in front of such a model, or the model CLI.
-- **The assistant and app generation do not record the served model id.** Planning and packaging record it, as [Model identity](#model-identity) describes. The assistant and app generation ports' provenance has no field for it; their adapters expose it through `ReportedModel()` and nothing reads it yet.
-- **One model for every capability.** `CONDUIT_MODEL_NAME` applies to the assistant, planning and packaging alike. There is no per-capability or per-tenant model choice.
+- **Model identity is response metadata, not attestation.** All model adapters retain the operator-configured id and the provider-reported id for each call. A missing provider id stays absent; a previous call cannot supply it. Planning's session, immutable Accept binding and Accept audit retain both ids alongside the existing display label. A provider can misidentify itself, and a CLI's configured id remains the operator's assertion.
+- **Capability selection shares one endpoint and key.** `CONDUIT_MODEL_NAME` remains the default; `CONDUIT_ASSISTANT_MODEL_NAME`, `CONDUIT_PLANNING_MODEL_NAME`, `CONDUIT_PACKAGING_MODEL_NAME` and `CONDUIT_APPGEN_MODEL_NAME` select models on that same endpoint. Matching `_MODEL_TIMEOUT` settings override the global deadline. The chart exposes `model.capabilities.<capability>.name` and `.timeout`; Zarf exposes `<CAPABILITY>_MODEL_NAME` and `_MODEL_TIMEOUT`. Empty settings inherit the defaults. There is no per-tenant selector or endpoint/key override. Local-command overrides are described in [Local model CLI](local-model-cli.md#per-capability-selection).
 - **Not exercised against a real server.** The tests use loopback `httptest` fakes. No run against vLLM, Ollama, LeapfrogAI or a hosted API is recorded here, so confirm a provider with one local call before relying on it.
 
 ## Examples

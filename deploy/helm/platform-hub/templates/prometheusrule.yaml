@@ -1,0 +1,22 @@
+{{- if .Values.metrics.prometheusRule.enabled }}
+{{- if not .Values.metrics.enabled }}
+{{- fail "metrics.prometheusRule.enabled requires metrics.enabled" }}
+{{- end }}
+# Requires the Prometheus Operator CRDs, which this chart does not install.
+# The groups are files/prometheus-rules.yaml, generated from
+# deploy/observability/prometheus-rules.yaml and included verbatim: the alert
+# annotations use Prometheus's own {{ "{{ }}" }} templates, which Helm must not
+# evaluate. Each alert's runbook is a section of docs/operations/runbooks.md.
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: {{ include "platform-hub.fullname" . }}
+  namespace: {{ .Release.Namespace }}
+  labels:
+    {{- include "platform-hub.labels" . | nindent 4 }}
+    {{- with .Values.metrics.prometheusRule.labels }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+spec:
+  {{- .Files.Get "files/prometheus-rules.yaml" | nindent 2 }}
+{{- end }}

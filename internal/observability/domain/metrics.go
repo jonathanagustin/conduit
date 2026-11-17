@@ -81,6 +81,25 @@ var labelNames = map[string]struct{}{
 	// that uses it refuses any value outside that closed set, so a principal,
 	// an Agent or an address cannot arrive here as a label value.
 	"class": {},
+	// The REGISTERED PATTERN a request matched -- "/v1/plans/{planID}", never
+	// the path that was requested, which carries the identifier itself. The
+	// exporter that uses it holds the Hub's route register and publishes
+	// "unmatched" for anything outside it, so the label is bounded by the
+	// number of routes the Hub mounts and not by what a client can type.
+	"route": {},
+	// The HTTP method, from a closed set; anything else is "other".
+	"method": {},
+	// The class of a response status: 1xx to 5xx. Five values.
+	"code_class": {},
+	// The kind of notification transport: webhook, log, smtp, slack, in_app
+	// or unknown. A kind of destination, never a destination -- an address,
+	// a channel name or a recipient must not arrive here.
+	"transport": {},
+	// Which AI capability made a model call, and over which kind of
+	// transport. Both are closed sets held by the exporter that uses them,
+	// which refuses any other value: an owner or a model name cannot arrive
+	// here as a label value.
+	"capability": {},
 }
 
 // Registry is a snapshot of metrics ready to render.
@@ -91,7 +110,8 @@ var labelNames = map[string]struct{}{
 // database turns a monitoring request into a stuck goroutine. The caller
 // gathers, then builds this.
 type Registry struct {
-	metrics []Metric
+	metrics    []Metric
+	histograms []Histogram
 }
 
 // NewRegistry builds a registry from a gathered snapshot.
@@ -109,6 +129,9 @@ func (registry *Registry) Add(metric Metric) { registry.metrics = append(registr
 // added anywhere is checked on the path that publishes it.
 func (registry *Registry) Validate() error {
 	seen := map[string]Kind{}
+	if err := registry.validateHistograms(); err != nil {
+		return err
+	}
 	for _, metric := range registry.metrics {
 		if !validMetricName(metric.Name) {
 			return fmt.Errorf("metric name %q is not a valid exposition name", metric.Name)
@@ -125,18 +148,30 @@ func (registry *Registry) Validate() error {
 			return fmt.Errorf("metric %s is exported as both a %s and a %s", metric.Name, kind, metric.Kind)
 		}
 		seen[metric.Name] = metric.Kind
-		for label, value := range metric.Labels {
-			if _, allowed := labelNames[label]; !allowed {
-				return fmt.Errorf(
-					"metric %s carries label %q, which is not on the allowlist. Labels naming a tenant's "+
-						"environments, products or entities publish its topology to anyone who can scrape and "+
-						"grow the series count with the fleet; export an aggregate instead",
-					metric.Name, label,
-				)
-			}
-			if strings.ContainsAny(value, "\n\"\\") {
-				return fmt.Errorf("metric %s label %q has a value that cannot be escaped safely", metric.Name, label)
-			}
+		if err := validateLabels(metric.Name, metric.Labels); err != nil {
+			return err
+		}
+		if registry.histogramOwns(metric.Name) {
+			return fmt.Errorf("metric %s collides with a series a histogram of the same family renders", metric.Name)
+		}
+	}
+	return nil
+}
+
+// validateLabels is the allowlist, shared by scalars and histograms so that a
+// distribution cannot carry a label a gauge would be refused.
+func validateLabels(name string, labels map[string]string) error {
+	for label, value := range labels {
+		if _, allowed := labelNames[label]; !allowed {
+			return fmt.Errorf(
+				"metric %s carries label %q, which is not on the allowlist. Labels naming a tenant's "+
+					"environments, products or entities publish its topology to anyone who can scrape and "+
+					"grow the series count with the fleet; export an aggregate instead",
+				name, label,
+			)
+		}
+		if strings.ContainsAny(value, "\n\"\\") {
+			return fmt.Errorf("metric %s label %q has a value that cannot be escaped safely", name, label)
 		}
 	}
 	return nil
@@ -160,15 +195,33 @@ func (registry *Registry) Render() string {
 		return renderLabels(ordered[left].Labels) < renderLabels(ordered[right].Labels)
 	})
 
-	var out strings.Builder
+	families := map[string]*strings.Builder{}
+	family := func(name string) *strings.Builder {
+		if families[name] == nil {
+			families[name] = &strings.Builder{}
+		}
+		return families[name]
+	}
 	described := map[string]bool{}
 	for _, metric := range ordered {
+		out := family(metric.Name)
 		if !described[metric.Name] {
-			fmt.Fprintf(&out, "# HELP %s %s\n", metric.Name, escapeHelp(metric.Help))
-			fmt.Fprintf(&out, "# TYPE %s %s\n", metric.Name, metric.Kind)
+			fmt.Fprintf(out, "# HELP %s %s\n", metric.Name, escapeHelp(metric.Help))
+			fmt.Fprintf(out, "# TYPE %s %s\n", metric.Name, metric.Kind)
 			described[metric.Name] = true
 		}
-		fmt.Fprintf(&out, "%s%s %s\n", metric.Name, renderLabels(metric.Labels), formatValue(metric.Value))
+		fmt.Fprintf(out, "%s%s %s\n", metric.Name, renderLabels(metric.Labels), formatValue(metric.Value))
+	}
+	registry.renderHistograms(family, described)
+
+	names := make([]string, 0, len(families))
+	for name := range families {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	var out strings.Builder
+	for _, name := range names {
+		out.WriteString(families[name].String())
 	}
 	return out.String()
 }

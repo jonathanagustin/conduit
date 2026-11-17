@@ -14,6 +14,9 @@ type OperatorSignIn struct {
 	Issuer                string
 	ClientID              string
 	AuthorizationEndpoint string
+	// LoginPath and LogoutPath are this Hub's own sign-in routes. Both are
+	// empty when the Hub verifies bearer tokens but runs no browser sign-in.
+	LoginPath, LogoutPath string
 }
 
 // OperatorSignInFromIssuer reports the provider a browser can be sent to.
@@ -46,5 +49,9 @@ func operatorIdentityDocument(signIn OperatorSignIn) map[string]any {
 	if endpoint := strings.TrimSpace(signIn.AuthorizationEndpoint); endpoint != "" {
 		provider["authorizationEndpoint"] = endpoint
 	}
-	return map[string]any{"enabled": true, "providers": []any{provider}}
+	document := map[string]any{"enabled": true, "providers": []any{provider}}
+	if signIn.LoginPath != "" && signIn.LogoutPath != "" {
+		document["signIn"] = map[string]any{"loginPath": signIn.LoginPath, "logoutPath": signIn.LogoutPath}
+	}
+	return document
 }

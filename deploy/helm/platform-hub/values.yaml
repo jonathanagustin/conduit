@@ -120,6 +120,27 @@ operatorOIDC:
   signingAlgorithms:
     - RS256
   caFile: /etc/ssl/platform-ca/ca.pem
+  # Browser sign-in (docs/operations/operator-sign-in.md). The Hub becomes the
+  # OAuth client: it redirects people to the issuer above and keeps a
+  # server-side session. Requires operatorOIDC.enabled.
+  signIn:
+    enabled: false
+    # The https origin people reach the console at, with no path. It becomes
+    # the redirect address (<publicURL>/v1/auth/callback) and the only origin a
+    # session cookie is accepted from. It is never inferred from a request.
+    publicURL: ""
+    # An existing Secret holding the client secret. Leave secretName empty for
+    # a public client, which relies on PKCE alone. The secret is mounted as a
+    # file; it is never a value in this chart.
+    clientSecret:
+      secretName: ""
+      key: client-secret
+    # Longest a session may last, a Go duration between 5m and 24h. Empty is
+    # the Hub's default of 8h. A session also ends when its ID token expires.
+    sessionMaxLifetime: ""
+    # Scopes requested besides openid. Empty is the Hub's default
+    # (profile email).
+    loginScopes: []
 
 # Optional provider-neutral scanner process. Platform supplies the Grype JSON
 # normalizer at /platform-grype-scanner; the Environment supplies the scanner
@@ -186,6 +207,34 @@ metrics:
     enabled: false
     interval: 30s
     labels: {}
+  # Alert rules (files/prometheus-rules.yaml, generated from
+  # deploy/observability/prometheus-rules.yaml). Needs the Prometheus Operator
+  # CRDs. Each alert links to docs/operations/runbooks.md.
+  prometheusRule:
+    enabled: false
+    labels: {}
+  # Reference Grafana dashboard as a ConfigMap (files/dashboard.json). The
+  # labels are what a Grafana dashboard sidecar selects on; the default is the
+  # kube-prometheus-stack convention.
+  dashboard:
+    enabled: false
+    labels:
+      grafana_dashboard: "1"
+
+# Request rate limits per class of caller. Every value is null by default,
+# which renders no RATE_LIMIT_* variable and leaves the Hub's built-in limits
+# in force; a limiter always runs and cannot be switched off. Set a class's
+# rps and burst to change them. See docs/operations/hub-rate-limiting.md.
+rateLimit:
+  operator:
+    rps: null
+    burst: null
+  agent:
+    rps: null
+    burst: null
+  anonymous:
+    rps: null
+    burst: null
 
 # Notification delivery. `none` builds no transport and sends nothing. The Hub
 # accepts exactly one of webhook, log, or native (SMTP and/or Slack), and only
@@ -246,6 +295,13 @@ model:
   name: ""
   # Bounds one whole request, e.g. 90s. Empty keeps the Hub default (45s).
   timeout: ""
+  # Per-capability names and deadlines share the endpoint and key above.
+  # Empty fields inherit the global value. CLI commands require a custom runtime.
+  capabilities:
+    assistant: { name: "", timeout: "" }
+    planning: { name: "", timeout: "" }
+    packaging: { name: "", timeout: "" }
+    appgen: { name: "", timeout: "" }
   # The API key is never a chart value. It is one key of a deployment-owned
   # Secret, mounted as a file and re-read on every call. Leave the name empty
   # for a keyless in-cluster server.

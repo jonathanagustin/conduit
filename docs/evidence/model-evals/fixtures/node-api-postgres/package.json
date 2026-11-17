@@ -1,0 +1,12 @@
+{
+  "name": "ledger-api",
+  "version": "0.3.0",
+  "private": true,
+  "scripts": {
+    "start": "node src/server.js"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "pg": "^8.11.5"
+  }
+}

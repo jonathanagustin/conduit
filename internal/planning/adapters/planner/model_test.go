@@ -132,6 +132,10 @@ func TestPlanningTurnRunsOverHTTPAndRecordsProviderModel(t *testing.T) {
 	if session.Plan == nil || session.ResolvedCommit != sha {
 		t.Fatalf("plan/commit = %+v %q", session.Plan, session.ResolvedCommit)
 	}
+	if session.ConfiguredModel != "requested-model" || session.ProviderModel != "served-model-2026-01" ||
+		session.Binding.ConfiguredModel != "requested-model" || session.Binding.ProviderModel != "served-model-2026-01" {
+		t.Fatalf("separate model ids were not bound: %+v / %+v", session, session.Binding)
+	}
 	want := "requested-model (provider reported served-model-2026-01)"
 	if session.Binding.Model != want {
 		t.Fatalf("binding model = %q, want %q", session.Binding.Model, want)

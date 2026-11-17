@@ -15,6 +15,7 @@ import {
   buildPromotionEvaluation,
   catalogReleases,
   defaultProposalBase,
+  capabilityBlocks,
   deliveryCapabilityHook,
   idleAction,
   planReviewState,
@@ -35,6 +36,21 @@ export function esc(value) {
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#39;");
 }
+
+/** The stated reason a session capability withholds a write, inline. */
+function capabilityNote(gate, escape) {
+  return capabilityBlocks(gate)
+    ? `<p role="status" data-dj-capability>${escape(gate.reason)}</p>`
+    : "";
+}
+
+/** The same reason as the disabled control's tooltip. */
+function capabilityTitle(gate, escape) {
+  return capabilityBlocks(gate) ? ` title="${escape(gate.reason)}"` : "";
+}
+
+const capabilityAttrs = (gate, escape) =>
+  capabilityBlocks(gate) ? ` disabled${capabilityTitle(gate, escape)}` : "";
 
 const TONE = {
   ok: "kit-bar-ok",
@@ -67,8 +83,8 @@ export function actionChromeMarkup(action, { noun = "request" } = {}) {
       <p class="kit-muted">Nothing has been sent. Confirm sends exactly this to the Hub.</p>
       <dl class="kit-dl">${rows}</dl>
       <details><summary>Exact request</summary><pre class="code-id whitespace-pre-wrap break-all" data-dj-request>${esc(requestText(current.request))}</pre></details>
-      ${gate.allowed ? "" : `<p role="status" data-dj-capability>${esc(gate.reason)}</p>`}
-      <div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-confirm${gate.allowed ? "" : " disabled"}>Confirm and send</button> <button type="button" class="so-btn" data-dj-cancel>Cancel</button></div>
+      ${capabilityNote(gate, esc)}
+      <div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-confirm${capabilityAttrs(gate, esc)}>Confirm and send</button> <button type="button" class="so-btn" data-dj-cancel>Cancel</button></div>
     </div>`;
   }
   if (current.phase === "inflight")
@@ -305,8 +321,8 @@ export function proposalMarkup(hub, environmentId, panel) {
       <label class="md:col-span-2">Reason (required) <textarea data-dj-field="rationale" rows="2"${dis(off)}>${esc(draft.rationale || "")}</textarea></label>
     </div>
     ${view.releases.length ? "" : `<p role="status" data-dj-no-release>The Hub's catalog lists no release for ${esc(view.entity?.product || "this product")}.</p>`}
-    ${gate.allowed ? "" : `<p role="status" data-dj-capability>${esc(gate.reason)}</p>`}
-    ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="propose" data-dj-needs="generation,rationale"${dis(!ready || !view.releases.length || !gate.allowed)}>Review proposal</button></div>`}
+    ${capabilityNote(gate, esc)}
+    ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="propose" data-dj-needs="generation,rationale"${dis(!ready || !view.releases.length || capabilityBlocks(gate))}${capabilityTitle(gate, esc)}>Review proposal</button></div>`}
     ${actionChromeMarkup(action, { noun: "plan proposal" })}
   </section>`;
 }
@@ -407,12 +423,12 @@ export function decisionMarkup(plan, review, panel, { picker = "" } = {}) {
     `environment/${plan.plan?.environment || ""}`,
   );
   const ready = String(draft.rationale || "").trim() !== "";
-  const blocked = !ready || !gate.allowed;
+  const blocked = !ready || capabilityBlocks(gate);
   const form = review.canReview
     ? `<div class="so-form"><label>Reason (required)<textarea data-dj-field="rationale" rows="2"${dis(off)}>${esc(draft.rationale || "")}</textarea></label></div>
       ${review.note ? `<p class="kit-muted">${esc(review.note)}</p>` : ""}
-      ${gate.allowed ? "" : `<p role="status" data-dj-capability>${esc(gate.reason)}</p>`}
-      ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="approve" data-dj-needs="rationale"${dis(blocked)}>Approve</button> <button type="button" class="so-btn so-btn-danger" data-dj-review="reject" data-dj-needs="rationale"${dis(blocked)}>Reject</button></div>`}`
+      ${capabilityNote(gate, esc)}
+      ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="approve" data-dj-needs="rationale"${dis(blocked)}${capabilityTitle(gate, esc)}>Approve</button> <button type="button" class="so-btn so-btn-danger" data-dj-review="reject" data-dj-needs="rationale"${dis(blocked)}${capabilityTitle(gate, esc)}>Reject</button></div>`}`
     : `<p class="so-muted" data-dj-reason>${esc(review.reason)}</p><div class="so-actions"><button type="button" class="so-btn so-btn-primary" disabled title="${esc(review.reason)}">Approve</button> <button type="button" class="so-btn so-btn-danger" disabled title="${esc(review.reason)}">Reject</button></div>`;
   return `<section class="so-panel p-3 space-y-2" data-dj-panel="decide">${head}
     <p><code class="code-id">${esc(plan.id)}</code> · ${esc(plan.status)} · ${esc(plan.plan?.environment || "environment unavailable")}${plan.changeRequestId ? ` · change request <code class="code-id">${esc(plan.changeRequestId)}</code>` : ""}</p>
@@ -530,7 +546,7 @@ export function promotionMarkup(hub, panel) {
     ? promotionEvidence(hub?.installations, release)
     : [];
   const off = locked(action);
-  const gate = deliveryCapabilityHook("resource:operate", "platform");
+  const gate = deliveryCapabilityHook("resource:operate", "platform/root");
   return `<section class="so-panel p-3 space-y-2" data-dj-panel="promote">${head}
     <p class="kit-muted">Asks the Hub to evaluate one release across one channel boundary. The Hub decides: PASSED promotes, anything else is recorded with its reasons and promotes nothing.</p>
     <div class="so-form grid gap-2 md:grid-cols-2">
@@ -548,8 +564,8 @@ export function promotionMarkup(hub, panel) {
     </div>
     <p class="kit-muted" data-dj-evidence>${evidence.length ? `${evidence.length} reported installation(s) at this version will be submitted as health evidence.` : "No loaded installation reports this version, so no health evidence will be submitted."} Healthy-since times are not in the fleet index and are not sent.</p>
     ${releases.length ? "" : `<p role="status" data-dj-no-release>The Hub's catalog lists no release for ${esc(stage.product)}.</p>`}
-    ${gate.allowed ? "" : `<p role="status" data-dj-capability>${esc(gate.reason)}</p>`}
-    ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="promote"${dis(!releases.length || !gate.allowed)}>Review evaluation</button></div>`}
+    ${capabilityNote(gate, esc)}
+    ${off ? "" : `<div class="so-actions"><button type="button" class="so-btn so-btn-primary" data-dj-review="promote"${dis(!releases.length || capabilityBlocks(gate))}${capabilityTitle(gate, esc)}>Review evaluation</button></div>`}
     ${actionChromeMarkup(action, { noun: "promotion evaluation" })}
   </section>`;
 }

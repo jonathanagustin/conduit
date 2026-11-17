@@ -65,8 +65,32 @@ variables:
     description: Hub metrics listener. Leave empty for none. Set to :9090 only together with REPOSITORY_KIND=postgres; the file repository serves no metrics.
     default: ""
     pattern: "^(:9090)?$"
+  - name: RATE_LIMIT_OPERATOR_RPS
+    description: Sustained requests per second the Hub allows one operator. Leave empty for the Hub default (100). The Hub refuses to start on zero or on more than 1000000.
+    default: ""
+    pattern: "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+  - name: RATE_LIMIT_OPERATOR_BURST
+    description: Requests the Hub allows one operator at once. Leave empty for the Hub default (600). The Hub refuses to start on more than 1000000.
+    default: ""
+    pattern: "^$|^[1-9][0-9]{0,6}$"
+  - name: RATE_LIMIT_AGENT_RPS
+    description: Sustained requests per second the Hub allows one Agent. Leave empty for the Hub default (20). The Hub refuses to start on zero or on more than 1000000.
+    default: ""
+    pattern: "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+  - name: RATE_LIMIT_AGENT_BURST
+    description: Requests the Hub allows one Agent at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.
+    default: ""
+    pattern: "^$|^[1-9][0-9]{0,6}$"
+  - name: RATE_LIMIT_ANONYMOUS_RPS
+    description: Sustained requests per second the Hub allows one remote address. Leave empty for the Hub default (10). The Hub refuses to start on zero or on more than 1000000.
+    default: ""
+    pattern: "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$"
+  - name: RATE_LIMIT_ANONYMOUS_BURST
+    description: Requests the Hub allows one remote address at once. Leave empty for the Hub default (60). The Hub refuses to start on more than 1000000.
+    default: ""
+    pattern: "^$|^[1-9][0-9]{0,6}$"
   - name: CONSOLE_PUBLIC_URL
-    description: Browser origin of the Hub console. Used only by the optional uds component as the SSO redirect prefix.
+    description: Browser origin of the Hub console. The Hub builds its sign-in redirect address from it and accepts a session cookie only from it, so it must be the address people actually use. Inert while OPERATOR_OIDC_ISSUER is empty. The optional uds component registers the same address with Keycloak.
     default: https://conduit.uds.dev
     pattern: "^https://[A-Za-z0-9][A-Za-z0-9.-]*(:[0-9]{1,5})?$"
   - name: OPERATOR_OIDC_ISSUER
@@ -84,6 +108,18 @@ variables:
   - name: OPERATOR_OIDC_CA_FILE
     description: CA bundle used to verify the issuer. Leave empty when OPERATOR_OIDC_ISSUER is empty.
     default: ""
+  - name: OPERATOR_OIDC_CLIENT_SECRET
+    description: Existing Secret whose client-secret key is the OIDC client secret for browser sign-in. The optional uds component has UDS Core create it. Read only when OPERATOR_OIDC_CLIENT_SECRET_FILE is set.
+    default: conduit-hub-sso
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: OPERATOR_OIDC_CLIENT_SECRET_FILE
+    description: Set to /run/conduit-sso/client-secret to sign in as the confidential client in OPERATOR_OIDC_CLIENT_SECRET. Leave empty for a public client, which relies on PKCE alone, or when OPERATOR_OIDC_ISSUER is empty.
+    default: ""
+    pattern: "^(/run/conduit-sso/client-secret)?$"
+  - name: OPERATOR_SESSION_MAX_LIFETIME
+    description: Longest a browser session may last, as a Go duration between 5m and 24h. A session also ends when its ID token expires. Leave empty for the default of 8h, and when OPERATOR_OIDC_ISSUER is empty.
+    default: ""
+    pattern: "^([0-9]{1,4}h)?([0-9]{1,4}m)?([0-9]{1,5}s)?$"
   - name: POSTGRES_NAMESPACE
     description: Namespace of the operator-supplied Postgres. Used only by the optional uds component.
     default: postgres
@@ -140,6 +176,38 @@ variables:
     description: Model id sent in each request and recorded as the configured model. Required when MODEL_BASE_URL is set; the Hub refuses to start without it.
     default: ""
     pattern: "^\\S*$"
+  - name: ASSISTANT_MODEL_NAME
+    description: assistant model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: ASSISTANT_MODEL_TIMEOUT
+    description: assistant model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: PLANNING_MODEL_NAME
+    description: planning model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: PLANNING_MODEL_TIMEOUT
+    description: planning model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: PACKAGING_MODEL_NAME
+    description: packaging model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: PACKAGING_MODEL_TIMEOUT
+    description: packaging model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: APPGEN_MODEL_NAME
+    description: appgen model id on MODEL_BASE_URL. Empty inherits MODEL_NAME.
+    default: ""
+    pattern: "^\\S*$"
+  - name: APPGEN_MODEL_TIMEOUT
+    description: appgen model request deadline. Empty inherits MODEL_TIMEOUT.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
   - name: MODEL_TIMEOUT
     description: Bound on one whole model request, for example 90s. Leave empty for the Hub default of 45s.
     default: ""
@@ -262,3 +330,12 @@ components:
         namespace: platform-system
         files:
           - manifests/uds-package-metrics.yaml
+  - name: uds-observability
+    required: false
+    default: false
+    description: Alert rules (a PrometheusRule) and the reference Grafana dashboard (a ConfigMap labelled for the dashboard sidecar) for the Hub. Select together with uds-metrics, and only on a cluster with UDS Core; without the Hub's metrics every rule but ConduitMetricsAbsent is blind. Runbooks are docs/operations/runbooks.md.
+    manifests:
+      - name: observability
+        namespace: platform-system
+        files:
+          - manifests/observability.yaml

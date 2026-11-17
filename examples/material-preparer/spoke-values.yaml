@@ -1,0 +1,14 @@
+# Spoke chart values that turn the reference material preparer on.
+#
+# Rendered by `helm template` against deploy/helm/platform-spoke and its schema
+# when this file was written. Merge it over your Agent's own values (image,
+# environmentId, agentId, controlPlaneURL, tls).
+materialPreparer:
+  # Shipped in the Agent image. No PVC is needed for it, so
+  # toolsPersistentVolumeClaimName stays empty.
+  command: /usr/local/bin/platform-material-preparer
+rbac:
+  # Rendered to the preparer as MATERIAL_PREPARER_NAMESPACES. It serves a
+  # request only for a namespace listed here.
+  managedNamespaces:
+    - example-product

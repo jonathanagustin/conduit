@@ -369,3 +369,8 @@ kubectl -n flux-system get secrets -o json | jq -e '
 
 printf 'Gitless clean-cluster acceptance passed: digest=%s pull_only=1 wrong_signer_rejected=1 git_repositories=%s\n' \
   "${right_digest}" "${git_repository_count}"
+
+if [[ "${GITLESS_RUN_FOLLOWUP_PROBES:-0}" == 1 ]]; then
+  source "${repo_root}/scripts/lib/gitless-cluster-probes.sh"
+  run_gitless_cluster_probes "${repo_root}" "${bin_dir}" "${KUBECONFIG}"
+fi

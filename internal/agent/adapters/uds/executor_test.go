@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"reflect"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -217,6 +218,11 @@ func verifiedDeploy(digest string, extra ...string) []string {
 	}, extra...)
 }
 
+func verifiedRead(digest string) []string {
+	return []string{"zarf", "package", "verify", source(digest),
+		"--certificate-identity-regexp", identity, "--certificate-oidc-issuer-regexp", issuer}
+}
+
 func assertCalls(t *testing.T, runner *fakeRunner, want ...[]string) {
 	t.Helper()
 	if !reflect.DeepEqual(runner.calls, want) {
@@ -236,7 +242,7 @@ func TestApplyDeploysWithVerificationAndReviewedValues(t *testing.T) {
 	}
 	// The source is the Release's repository at its digest: never the Product
 	// name, never the Hub's Release digest, never a tag.
-	assertCalls(t, runner, stateProbe, recordRead, verifiedDeploy(desiredDigest,
+	assertCalls(t, runner, verifiedRead(desiredDigest), stateProbe, recordRead, verifiedDeploy(desiredDigest,
 		"--set-variables", "ADMINS=a,b", "--set-variables", "DEBUG=false",
 		"--set-variables", "DOMAIN=uds.dev", "--set-variables", "REPLICAS=3"),
 		// Only after the deploy: read back what Zarf recorded, then record
@@ -257,7 +263,7 @@ func TestApplyDeploysWithKey(t *testing.T) {
 	if _, err := exec.Apply(context.Background(), controlplane.Plan{}, installStep()); err != nil {
 		t.Fatalf("Apply: %v", err)
 	}
-	if deploy := runner.calls[2]; !reflect.DeepEqual(deploy, []string{
+	if deploy := runner.calls[3]; !reflect.DeepEqual(deploy, []string{
 		"zarf", "package", "deploy", source(desiredDigest), "--confirm", "--verify=always", "--key", "/etc/conduit/cosign.pub",
 	}) {
 		t.Fatalf("deploy = %q", deploy)
@@ -278,8 +284,30 @@ func TestApplyRefusesBeforeRunningAnything(t *testing.T) {
 		"non-variable key":      func(_ *uds.Executor, s *controlplane.PlanStep) { s.Values = json.RawMessage(`{"image.tag":"1"}`) },
 		"value the CLI resplit": func(_ *uds.Executor, s *controlplane.PlanStep) { s.Values = json.RawMessage(`{"OPTS":"a=b,c=d"}`) },
 		"values not an object":  func(_ *uds.Executor, s *controlplane.PlanStep) { s.Values = json.RawMessage(`[1]`) },
+		"duplicate variable": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Values = json.RawMessage(`{"HOST":"reviewed","HOST":"other"}`)
+		},
+		"escaped duplicate": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Values = json.RawMessage(`{"HOST":"reviewed","\u0048OST":"other"}`)
+		},
+		"trailing object": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Values = json.RawMessage(`{"HOST":"reviewed"}{"HOST":"other"}`)
+		},
+		"trailing garbage":  func(_ *uds.Executor, s *controlplane.PlanStep) { s.Values = json.RawMessage(`{"HOST":"reviewed"}x`) },
+		"incomplete object": func(_ *uds.Executor, s *controlplane.PlanStep) { s.Values = json.RawMessage(`{"HOST":"reviewed"`) },
+		"NUL in variable": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.Values = json.RawMessage(`{"HOST":"reviewed\u0000other"}`)
+		},
+		"ambiguous UDS variable": func(e *uds.Executor, s *controlplane.PlanStep) {
+			s.Chart.Kind = controlplane.ArtifactKindUDSBundle
+			e.Publisher, e.VerificationKeyPath = domain.PublisherPolicy{}, "/bundle.pub"
+			s.Values = json.RawMessage(`{"HOST":"reviewed","excalidraw.HOST":"other"}`)
+		},
 		"registry access": func(_ *uds.Executor, s *controlplane.PlanStep) {
 			s.RegistryAccess = make([]controlplane.RegistryAccess, 1)
+		},
+		"secret access": func(_ *uds.Executor, s *controlplane.PlanStep) {
+			s.SecretAccess = make([]controlplane.SecretAccess, 1)
 		},
 		"no namespace":         func(_ *uds.Executor, s *controlplane.PlanStep) { s.Namespace = "" },
 		"no package name":      func(_ *uds.Executor, s *controlplane.PlanStep) { s.Chart.PackageName = "" },
@@ -318,6 +346,58 @@ func TestApplyRefusesBeforeRunningAnything(t *testing.T) {
 	}
 }
 
+// This recorded signer is independent of the requested publisher policy. Like
+// Zarf's deploy contract, this runner verifies only when verification is
+// requested; deleting the flags therefore makes the negative test go red.
+type publisherRunner struct{ *fakeRunner }
+
+func (r publisherRunner) Run(ctx context.Context, name string, args ...string) ([]byte, error) {
+	if name == "zarf" && len(args) > 2 && args[0] == "package" && (args[1] == "deploy" || args[1] == "verify") {
+		verify := args[1] == "verify"
+		for _, arg := range args {
+			verify = verify || arg == "--verify=always"
+		}
+		if verify {
+			claims := map[string]string{"--certificate-identity-regexp": "https://github.com/example/app/.github/workflows/release.yml@refs/tags/v1.0.0", "--certificate-oidc-issuer-regexp": "https://token.actions.githubusercontent.com"}
+			for flag, claim := range claims {
+				for i := 0; i+1 < len(args); i++ {
+					if args[i] == flag && !regexp.MustCompile(args[i+1]).MatchString(claim) {
+						r.calls = append(r.calls, append([]string{name}, args...))
+						return nil, errors.New("signature certificate does not satisfy publisher policy")
+					}
+				}
+			}
+		}
+	}
+	return r.fakeRunner.Run(ctx, name, args...)
+}
+
+func TestWrongPublisherIdentityCannotApply(t *testing.T) {
+	for _, trial := range []struct {
+		name, issuer, identity string
+		accepted               bool
+	}{
+		{"matching publisher", issuer, identity, true},
+		{"wrong identity", issuer, `^https://github\.com/other/publisher/.*$`, false},
+		{"wrong issuer", `^https://other-issuer\.example$`, identity, false},
+	} {
+		t.Run(trial.name, func(t *testing.T) {
+			runner := initialised("")
+			exec := executor(runner)
+			exec.Runner = publisherRunner{runner}
+			exec.Publisher = domain.PublisherPolicy{CertificateIssuer: trial.issuer, CertificateIdentity: trial.identity}
+			_, err := exec.Apply(t.Context(), controlplane.Plan{}, installStep())
+			if trial.accepted {
+				if err != nil || runner.applied == "" {
+					t.Fatalf("matching publisher could not apply: %v", err)
+				}
+			} else if err == nil || runner.applied != "" || runner.zarf != "" || len(runner.calls) != 1 || !hasPrefix(runner.calls[0], "zarf", "package", "verify") {
+				t.Fatal("wrong publisher identity reached the cluster or deployment")
+			}
+		})
+	}
+}
+
 // The refusal names both sides, and the same step is accepted once the
 // artifact lists the architecture the Spoke deploys onto.
 func TestApplyRefusesAnArtifactBuiltForAnotherArchitecture(t *testing.T) {
@@ -347,7 +427,7 @@ func TestApplyPreflightBlocks(t *testing.T) {
 		if !errors.Is(err, uds.ErrPreflightBlocked) || !errors.Is(err, uds.ErrZarfNotInitialised) || errors.Is(err, uds.ErrUDSCRDsAbsent) {
 			t.Fatalf("Apply error = %v", err)
 		}
-		assertCalls(t, runner, stateProbe)
+		assertCalls(t, runner, verifiedRead(desiredDigest), stateProbe)
 	})
 	t.Run("UDS CRDs absent", func(t *testing.T) {
 		t.Parallel()
@@ -358,7 +438,7 @@ func TestApplyPreflightBlocks(t *testing.T) {
 		if !errors.Is(err, uds.ErrPreflightBlocked) || !errors.Is(err, uds.ErrUDSCRDsAbsent) || errors.Is(err, uds.ErrZarfNotInitialised) {
 			t.Fatalf("Apply error = %v", err)
 		}
-		assertCalls(t, runner, stateProbe, crdProbe)
+		assertCalls(t, runner, verifiedRead(desiredDigest), stateProbe, crdProbe)
 	})
 }
 
@@ -380,7 +460,7 @@ func TestApplyRecordsPriorDeploymentAndRollbackRedeploysIt(t *testing.T) {
 	if err := exec.Rollback(context.Background(), receipt); err != nil {
 		t.Fatalf("Rollback: %v", err)
 	}
-	assertCalls(t, runner, verifiedDeploy(priorDigest))
+	assertCalls(t, runner, verifiedRead(priorDigest), verifiedDeploy(priorDigest))
 
 	// The rollback was a deploy, so Zarf's generation moved past the one the
 	// applied record describes. The record is now about nothing current.
@@ -438,7 +518,7 @@ func TestFailedUpgradeRedeploysPriorInsteadOfRemoving(t *testing.T) {
 	if !errors.As(err, &diagnostic) || diagnostic.Output != "helm: timed out" {
 		t.Fatalf("Apply error = %v", err)
 	}
-	assertCalls(t, runner, stateProbe, recordRead, verifiedDeploy(desiredDigest), verifiedDeploy(priorDigest))
+	assertCalls(t, runner, verifiedRead(desiredDigest), stateProbe, recordRead, verifiedDeploy(desiredDigest), verifiedRead(priorDigest), verifiedDeploy(priorDigest))
 	if runner.applied != "" {
 		t.Fatal("a failed deploy wrote an applied record")
 	}
@@ -681,7 +761,7 @@ func TestUninstallRemovesZarfPackageByName(t *testing.T) {
 	if err := exec.Rollback(context.Background(), receipt); err != nil {
 		t.Fatalf("Rollback: %v", err)
 	}
-	assertCalls(t, runner, verifiedDeploy(priorDigest))
+	assertCalls(t, runner, verifiedRead(priorDigest), verifiedDeploy(priorDigest))
 }
 
 func bundleExecutor(runner *fakeRunner) uds.Executor {
@@ -703,7 +783,7 @@ func TestBundleDeployVerifiesThenDeploys(t *testing.T) {
 		t.Fatalf("Apply: %v", err)
 	}
 	// The kind on the step selected `uds`; nothing on the executor did.
-	assertCalls(t, runner, stateProbe, crdProbe, recordRead, inspect, []string{
+	assertCalls(t, runner, inspect, stateProbe, crdProbe, recordRead, []string{
 		"uds", "deploy", source(desiredDigest), "--confirm", "--set", "REPLICAS=2", "--set", "excalidraw.DOMAIN=uds.dev",
 	}, recordRead, appliedDelete,
 		// The record keeps the bundle's digest beside the digest Zarf recorded
@@ -725,7 +805,7 @@ func TestBundleDeployVerifiesThenDeploys(t *testing.T) {
 	if _, err := bundleExecutor(rejected).Apply(context.Background(), controlplane.Plan{}, step); err == nil {
 		t.Fatal("Apply deployed a bundle whose signature did not verify")
 	}
-	assertCalls(t, rejected, stateProbe, crdProbe, recordRead, inspect)
+	assertCalls(t, rejected, inspect)
 }
 
 func TestBundleUninstallUsesUDSRemove(t *testing.T) {

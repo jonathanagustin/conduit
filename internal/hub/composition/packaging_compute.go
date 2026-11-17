@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -140,7 +141,8 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 }
 
 func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, error) {
-	if client, err := modelHTTPClient(getenv); err != nil {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Packaging)
+	if client, err := packagingModelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
 		return packagingmodelhttp.Adapter{Client: client}, nil
@@ -164,7 +166,7 @@ func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, er
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv)}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv), Exec: packagingExec(getenv)}, nil
 }
 
 func deterministicCommand(argv []string, providerEnv string) bool {

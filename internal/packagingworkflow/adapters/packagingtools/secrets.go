@@ -65,6 +65,11 @@ var (
 	secretAssignment = regexp.MustCompile(`(?i)((?:password|passwd|pwd|secret|token|api[_-]?key|access[_-]?key|secret[_-]?key|private[_-]?key)["']?[ \t]*(?::=|[:=])[ \t]*)("[^"\n]*"|'[^'\n]*'|[^\s"',;]+)`)
 )
 
+// RedactSecrets is the filter repository content passes through before it is
+// shown to a model. The AI transcript store applies the same one before it
+// keeps a prompt or a reply.
+func RedactSecrets(content string) string { return redactSecrets(content) }
+
 // redactSecrets replaces obvious credentials in file content with
 // redactedMarker. It is a best-effort filter, not a secret scanner.
 func redactSecrets(content string) string {

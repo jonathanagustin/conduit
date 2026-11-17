@@ -30,15 +30,9 @@ const DeterministicPreset = "deterministic"
 // test keeps the two in step. Do not mark a preset verified without adding
 // the recorded run that proves it.
 func Presets() []Preset {
-	const noRun = "no run against the real CLI is recorded in this repository; the adapter is tested with a fake CLI only"
 	return []Preset{
 		{Name: DeterministicPreset, Verified: true,
 			Evidence: "built-in offline agent; exercised by the cmd/packaging-workflow tests in CI"},
-		{Name: "codex", Argv: []string{"codex", "exec", "--skip-git-repo-check", "--sandbox", "read-only", "--ephemeral", "-"},
-			Evidence: "argv is the documented contract; " + noRun},
-		{Name: "claude", Argv: []string{"claude", "-p", "--output-format", "text"}, Evidence: noRun},
-		{Name: "gemini", Argv: []string{"gemini", "-p", "Follow the instructions provided on stdin and reply with the answer only."}, Evidence: noRun},
-		{Name: "grok", Argv: []string{"grok", "-p"}, Evidence: noRun},
 	}
 }
 

@@ -30,6 +30,10 @@ type (
 func BuildFleetProjection(
 	ctx context.Context, repository Repository, query FleetQuery, now time.Time,
 ) (FleetProjection, error) {
+	return buildFleetProjection(ctx, repository, query, now, nil)
+}
+
+func buildFleetProjection(ctx context.Context, repository Repository, query FleetQuery, now time.Time, retainEnvironment func(string) bool) (FleetProjection, error) {
 	if now.IsZero() {
 		now = time.Now()
 	}
@@ -41,6 +45,23 @@ func BuildFleetProjection(
 	reports, err := repository.ListEnvironmentReports(ctx)
 	if err != nil {
 		return FleetProjection{}, err
+	}
+
+	if retainEnvironment != nil {
+		keptPlans := make([]PlanRecord, 0, len(plans))
+		for _, plan := range plans {
+			if retainEnvironment(plan.Plan.Environment) {
+				keptPlans = append(keptPlans, plan)
+			}
+		}
+		plans = keptPlans
+		keptReports := make([]EnvironmentReport, 0, len(reports))
+		for _, report := range reports {
+			if retainEnvironment(report.Environment) {
+				keptReports = append(keptReports, report)
+			}
+		}
+		reports = keptReports
 	}
 
 	// Which Environments expect gaps is a property of the Plans just loaded,
@@ -104,7 +125,11 @@ func latestPlanRecords(plans []PlanRecord) map[string]PlanRecord {
 }
 
 func paginateFleetProjection(projection FleetProjection, query FleetQuery, rawCursor string, limit int) (FleetProjection, error) {
-	fingerprint := fleetQueryFingerprint(query)
+	return paginateFleetProjectionInSpace(projection, query, rawCursor, limit, "")
+}
+
+func paginateFleetProjectionInSpace(projection FleetProjection, query FleetQuery, rawCursor string, limit int, spaceID string) (FleetProjection, error) {
+	fingerprint := fleetQueryFingerprintInSpace(query, spaceID)
 	page, metadata, err := paginateOrdered(
 		projection.Installations,
 		func(item FleetInstallation) string { return reporting.Key(item.Environment, item.InstallationID) },
@@ -119,6 +144,10 @@ func paginateFleetProjection(projection FleetProjection, query FleetQuery, rawCu
 }
 
 func fleetQueryFingerprint(query FleetQuery) string {
+	return fleetQueryFingerprintInSpace(query, "")
+}
+
+func fleetQueryFingerprintInSpace(query FleetQuery, spaceID string) string {
 	normalized := struct {
 		Environment string `json:"environment"`
 		Product     string `json:"product"`
@@ -130,5 +159,5 @@ func fleetQueryFingerprint(query FleetQuery) string {
 		MaxAge      int64  `json:"maxAgeSeconds"`
 	}{query.Environment, query.Product, query.Health, query.Rollout, query.Config, query.Lifecycle,
 		strings.ToLower(strings.TrimSpace(query.Search)), int64(query.MaxAge / time.Second)}
-	return fingerprintJSON(normalized)
+	return fingerprintInSpace(normalized, spaceID)
 }

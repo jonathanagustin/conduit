@@ -91,9 +91,10 @@ func TestSessionWorkflowLifecycleUpdatesValidatorsAndMetrics(t *testing.T) {
 				Plan:     &domain.Plan{Text: `{"summary":"Node 20 service","baseImage":"node:20-slim","buildSteps":["npm ci"],"ports":[8080],"networkAllow":[],"sso":{"required":false,"notes":""},"risks":[]}`},
 			},
 			{
-				Messages: []domain.Message{{Role: domain.RoleModel, Text: "Revised plan with SSO enabled."}},
-				Plan:     &domain.Plan{Text: `{"summary":"Node 20 service with SSO","baseImage":"node:20-slim","buildSteps":["npm ci"],"ports":[8080],"networkAllow":[],"sso":{"required":true,"notes":"oidc"},"risks":[]}`},
-				Model:    "claude-sonnet-4-20250514",
+				Messages:        []domain.Message{{Role: domain.RoleModel, Text: "Revised plan with SSO enabled."}},
+				Plan:            &domain.Plan{Text: `{"summary":"Node 20 service with SSO","baseImage":"node:20-slim","buildSteps":["npm ci"],"ports":[8080],"networkAllow":[],"sso":{"required":true,"notes":"oidc"},"risks":[]}`},
+				Model:           "claude-sonnet-4-20250514",
+				ConfiguredModel: "configured-alias", ProviderModel: "provider-version",
 			},
 		},
 	}
@@ -236,6 +237,10 @@ func TestSessionWorkflowLifecycleUpdatesValidatorsAndMetrics(t *testing.T) {
 	}
 	if final.Status != domain.StatusAccepted || final.Binding == nil {
 		t.Fatalf("final = %+v", final)
+	}
+	if final.Binding.ConfiguredModel != "configured-alias" || final.Binding.ProviderModel != "provider-version" ||
+		len(auditor.records) != 1 || auditor.records[0].ConfiguredModel != "configured-alias" || auditor.records[0].ProviderModel != "provider-version" {
+		t.Fatalf("binding or Accept audit lost distinct model ids: %+v / %+v", final.Binding, auditor.records)
 	}
 	if final.Binding.Model != "claude-sonnet-4-20250514" {
 		t.Fatalf("binding.Model = %q, want claude-sonnet-4-20250514", final.Binding.Model)

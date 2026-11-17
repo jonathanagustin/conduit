@@ -210,6 +210,24 @@ export function generationStatus(result) {
   return "recorded";
 }
 
+/**
+ * Whether a generation result is the Hub's recorded demonstration rather than
+ * model output. The Hub marks it with `recordedDemo: true`; only that exact
+ * value counts, so a result without the field is never relabelled.
+ */
+export function isRecordedDemo(result) {
+  return result?.recordedDemo === true;
+}
+
+export const RECORDED_DEMO_LABEL = "Recorded demonstration, not model output";
+
+/** The label a recorded demonstration carries wherever a result is shown. */
+export function recordedDemoMarkup(result, escape = (value) => String(value)) {
+  return isRecordedDemo(result)
+    ? ` <span class="kit-badge kit-badge-warn" data-plan-generation-demo title="No model was called for this result. The Hub served a fixed, recorded example.">${escape(RECORDED_DEMO_LABEL)}</span>`
+    : "";
+}
+
 /** Busy states that are an agent stream, and so can be stopped. */
 export const STOPPABLE = Object.freeze(["turn", "answers", "recover"]);
 
@@ -585,6 +603,8 @@ export function bindingRows(binding) {
     ...intakeRows,
     ["Commit SHA", binding.resolvedCommit || ""],
     ["Model", displayModelName(binding.model)],
+    ["Configured model", binding.configuredModel || "Not recorded"],
+    ["Provider-reported model", binding.providerModel || "Not recorded"],
     ["Plan hash", binding.plan?.sha256 || ""],
     ["Accepted", formatAcceptedTimestamp(binding.acceptedAt)],
   ];
@@ -769,12 +789,8 @@ function collectThreadMessages(planning) {
 
 function formatMessageHtml(item) {
   const raw = String(item.content ?? "");
-  if (item.role === "model") {
-    const match = /^(.*?)\s*\{"model":"([^"]+)"\}\s*$/s.exec(raw);
-    if (match) {
-      return `<span>${esc(match[1])}</span><span class="kit-badge kit-badge-muted code-id plan-model-tag">${esc(displayModelName(match[2]))}</span>`;
-    }
-  }
+  // Transcript messages have no per-message model provenance. Identity belongs
+  // to the server-owned accepted binding; answer text cannot supply it.
   return `<span>${esc(raw)}</span>`;
 }
 
@@ -1100,7 +1116,7 @@ function generationsPanel(planning) {
             `<li><span class="code-id">${esc(gate.name)}</span> · ${esc(gate.outcome)}${gate.reason ? ` · ${esc(gate.reason)}` : ""}</li>`,
         )
         .join("");
-      return `<li class="plan-line" data-plan-generation="${esc(item.id)}"><div><strong>${esc(item.name || item.label || item.id)}</strong> <span class="code-id">${esc(item.id)}</span> <span class="kit-badge kit-badge-muted" data-plan-generation-status>${esc(generationStatus(item))}</span>${item.error ? `<div>${esc(item.error)}</div>` : ""}${gates ? `<ul>${gates}</ul>` : '<div class="kit-muted">No gate result is recorded.</div>'}</div></li>`;
+      return `<li class="plan-line" data-plan-generation="${esc(item.id)}"><div><strong>${esc(item.name || item.label || item.id)}</strong> <span class="code-id">${esc(item.id)}</span> <span class="kit-badge kit-badge-muted" data-plan-generation-status>${esc(generationStatus(item))}</span>${recordedDemoMarkup(item, esc)}${item.error ? `<div>${esc(item.error)}</div>` : ""}${gates ? `<ul>${gates}</ul>` : '<div class="kit-muted">No gate result is recorded.</div>'}</div></li>`;
     })
     .join("");
   const body =

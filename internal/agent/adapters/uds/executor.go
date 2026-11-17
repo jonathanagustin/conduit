@@ -24,6 +24,9 @@
 //   - zarf v0.82.0 `package deploy SOURCE --confirm --verify=always
 //     [--key PATH | --certificate-identity-regexp R --certificate-oidc-issuer-regexp R]
 //     [--set-variables KEY=value]...`: VERIFIED (--help).
+//   - zarf v0.82.0 `package verify SOURCE` accepts the same key/identity/issuer
+//     flags without --verify; a supplied key rejects an unsigned package:
+//     VERIFIED (--help and TestPinnedCLIRejectsUntrustedBundleAndIsolatesConfiguration).
 //   - zarf v0.82.0 `package remove NAME --confirm`, NAME as recorded in the
 //     cluster: VERIFIED (--help).
 //   - zarf v0.82.0 records each deployment as Secret `zarf-package-<name>` in
@@ -46,9 +49,9 @@
 //   - uds v0.41.0 `deploy SOURCE --confirm [--set KEY=value]...` and
 //     `remove SOURCE --confirm`: VERIFIED (--help). `uds deploy` has no
 //     verification flags at all.
-//   - uds v0.41.0 `inspect SOURCE --key PATH` exits non-zero when the bundle
-//     signature does not validate against the key: ASSUMED. The flag is
-//     VERIFIED (--help); the exit behaviour is not.
+//   - uds v0.41.0 `inspect SOURCE --key PATH` accepts a matching ECDSA signature
+//     and rejects a wrong key or unsigned bundle: VERIFIED on a local generated
+//     archive (TestPinnedCLIRejectsUntrustedBundleAndIsolatesConfiguration).
 //   - `kubectl get ... --ignore-not-found` prints nothing and exits zero for an
 //     absent object: ASSUMED (standard kubectl, not exercised here).
 //   - UDS Core's Package CRD is named `packages.uds.dev`: ASSUMED from the
@@ -62,6 +65,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io"
 	"regexp"
 	"runtime"
 	"sort"
@@ -108,6 +112,9 @@ var bundleVariableName = regexp.MustCompile(`^([a-z0-9][a-z0-9\-]*\.)?[A-Z0-9_]+
 
 // Executor implements agent.Executor for Zarf packages and UDS bundles.
 type Executor struct {
+	// Runner is an explicitly trusted command port. The default runner isolates
+	// CLI configuration and credentials; injected implementations must preserve
+	// that boundary themselves.
 	Runner     agent.CommandRunner
 	ZarfBin    string
 	UDSBin     string
@@ -136,7 +143,7 @@ func (e Executor) runner() agent.CommandRunner {
 	if e.Runner != nil {
 		return e.Runner
 	}
-	return agent.ExecRunner{}
+	return scopedRunner{}
 }
 
 func binOr(configured, fallback string) string {
@@ -252,9 +259,31 @@ func setFlags(step controlplane.PlanStep, flag string, name *regexp.Regexp) ([]s
 	}
 	decoder := json.NewDecoder(bytes.NewReader(raw))
 	decoder.UseNumber()
-	var values map[string]any
-	if err := decoder.Decode(&values); err != nil {
-		return nil, refuse(step, "values are not a JSON object: %v", err)
+	opening, err := decoder.Token()
+	if err != nil || opening != json.Delim('{') {
+		return nil, refuse(step, "values must be one JSON object")
+	}
+	values := make(map[string]any)
+	for decoder.More() {
+		token, err := decoder.Token()
+		key, ok := token.(string)
+		if err != nil || !ok {
+			return nil, refuse(step, "values contain an invalid variable name")
+		}
+		if _, exists := values[key]; exists {
+			return nil, refuse(step, "value %q is repeated", key)
+		}
+		var value any
+		if err := decoder.Decode(&value); err != nil {
+			return nil, refuse(step, "values contain invalid JSON")
+		}
+		values[key] = value
+	}
+	if closing, err := decoder.Token(); err != nil || closing != json.Delim('}') {
+		return nil, refuse(step, "values contain an incomplete object")
+	}
+	if err := decoder.Decode(new(any)); err != io.EOF {
+		return nil, refuse(step, "values must contain exactly one JSON object")
 	}
 	keys := make([]string, 0, len(values))
 	for key := range values {
@@ -265,6 +294,14 @@ func setFlags(step controlplane.PlanStep, flag string, name *regexp.Regexp) ([]s
 	for _, key := range keys {
 		if !name.MatchString(key) {
 			return nil, refuse(step, "value %q is not a deployment variable name (%s)", key, name)
+		}
+		// UDS applies its --set map in map iteration order. A global variable
+		// and a package-scoped spelling of it could otherwise overwrite each
+		// other in either order, despite a deterministic argv.
+		if _, variable, scoped := strings.Cut(key, "."); scoped {
+			if _, global := values[variable]; global {
+				return nil, refuse(step, "value %q conflicts with the global variable %q", key, variable)
+			}
 		}
 		var text string
 		switch value := values[key].(type) {
@@ -279,7 +316,7 @@ func setFlags(step controlplane.PlanStep, flag string, name *regexp.Regexp) ([]s
 		}
 		// pflag's stringToString takes an argument with exactly one "=" whole,
 		// re-parses any other as CSV, and trims surrounding quotes.
-		if strings.ContainsAny(text, "=\"\r\n") {
+		if strings.ContainsAny(text, "\x00=\"\r\n") {
 			return nil, refuse(step, "value %q contains a character the CLI would re-interpret", key)
 		}
 		flags = append(flags, flag, key+"="+text)
@@ -399,6 +436,11 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	if err != nil {
 		return agent.Receipt{}, err
 	}
+	// Authenticate before even probing the cluster. A rejected signature is
+	// not a failed deployment and must never enter rollback or removal.
+	if out, err := e.runAll(ctx, deploy[:len(deploy)-1]); err != nil {
+		return agent.Receipt{}, agent.DiagnosticError{Err: fmt.Errorf("verify: %w", err), Output: strings.TrimSpace(string(out))}
+	}
 	if err := e.preflight(ctx, isBundle(step) || e.managesUDSPackage()); err != nil {
 		return agent.Receipt{}, err
 	}
@@ -408,11 +450,6 @@ func (e Executor) Apply(ctx context.Context, _ controlplane.Plan, step controlpl
 	}
 	receipt := receiptFor(step, name, prior)
 
-	// Every command before the last is a verification gate: when one fails
-	// nothing was deployed, so there is nothing to roll back.
-	if out, err := e.runAll(ctx, deploy[:len(deploy)-1]); err != nil {
-		return agent.Receipt{}, agent.DiagnosticError{Err: fmt.Errorf("verify: %w", err), Output: strings.TrimSpace(string(out))}
-	}
 	if out, err := e.runAll(ctx, deploy[len(deploy)-1:]); err != nil {
 		return agent.Receipt{}, e.failed(ctx, receipt, "deploy", err, out)
 	}
@@ -507,7 +544,11 @@ func (e Executor) deployCommands(step controlplane.PlanStep, source string, with
 		}
 		deploy = append(deploy, sets...)
 	}
-	return [][]string{deploy}, nil
+	// `package verify` always verifies signatures when trust material is
+	// supplied; unlike deploy, it has no --verify mode flag. The deploy still
+	// enforces --verify=always against the same immutable source.
+	check := append([]string{e.zarfBin(), "package", "verify", source}, verify[1:]...)
+	return [][]string{check, deploy}, nil
 }
 
 func (e Executor) removeCommand(step controlplane.PlanStep, name string) ([]string, error) {

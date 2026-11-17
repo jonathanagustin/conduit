@@ -56,6 +56,7 @@ The design and the decision are [Gitless GitOps](https://github.com/jonathanagus
 
 ## Read the design
 
+- [Threat model](https://github.com/jonathanagustin/conduit/blob/main/docs/security/THREAT-MODEL.md), [selected control evidence](https://github.com/jonathanagustin/conduit/blob/main/docs/security/CONTROL-EVIDENCE.md), and [external review scope](https://github.com/jonathanagustin/conduit/blob/main/docs/security/EXTERNAL-REVIEW-SCOPE.md) describe repository mechanisms, deployment responsibilities and a review that is not commissioned. They make no accreditation or FIPS claim.
 - [Hub and Spoke](https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/hub-spoke.md)
 - [Bounded contexts](https://github.com/jonathanagustin/conduit/blob/main/docs/architecture/bounded-contexts.md)
 - [ADR 0013](https://github.com/jonathanagustin/conduit/blob/main/docs/decisions/0013-temporal-for-packaging-workflows.md) and [ADR 0015](https://github.com/jonathanagustin/conduit/blob/main/docs/decisions/0015-temporal-orchestrates-plan-execution.md)

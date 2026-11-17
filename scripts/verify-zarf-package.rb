@@ -20,7 +20,7 @@ version = File.read(File.join(root, "VERSION")).strip
 
 abort "Zarf package API must be pinned" unless definition["apiVersion"] == "zarf.dev/v1alpha1"
 abort "Zarf package version must come from the release" unless definition.dig("metadata", "version") == "###ZARF_PKG_TMPL_PLATFORM_VERSION###"
-abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false], ["uds-metrics", false, false]]
+abort "Zarf package components drifted" unless definition.fetch("components").map { |item| [item["name"], item["required"], item["default"]] } == [["runtime", true, nil], ["packaging-worker", false, nil], ["uds", false, false], ["uds-metrics", false, false], ["uds-observability", false, false]]
 worker = definition.fetch("components").find { |item| item["name"] == "packaging-worker" }
 abort "optional packaging worker must reuse the Hub image" unless worker&.dig("images") == ["###ZARF_PKG_TMPL_HUB_IMAGE###"]
 abort "optional packaging worker must not be required" if worker["required"]
@@ -95,6 +95,20 @@ abort "Zarf package names an insecure opt-in other than the model plaintext one:
   variable = definition.fetch("variables").find { |item| item["name"] == name }
   abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
 end
+# Browser sign-in. The two settings that would make a Hub with no issuer refuse
+# to start default to empty; the client secret reaches the Hub only as a file
+# from an optional Secret, never as a variable's value.
+%w[OPERATOR_OIDC_CLIENT_SECRET_FILE OPERATOR_SESSION_MAX_LIFETIME].each do |name|
+  abort "Hub must accept #{name} from a Zarf variable" unless manifest_text.include?("name: #{name}") && manifest_text.include?("###ZARF_VAR_#{name}###")
+  variable = definition.fetch("variables").find { |item| item["name"] == name }
+  abort "#{name} must default to empty so a plain install does not require Keycloak" unless variable && variable["default"] == ""
+  abort "#{name} must carry a pattern" if variable["pattern"].to_s.empty?
+end
+abort "Hub must be told the console's public address for sign-in" unless
+  manifest_text.include?('{ name: CONSOLE_PUBLIC_URL, value: "###ZARF_VAR_CONSOLE_PUBLIC_URL###" }')
+abort "the OIDC client secret must never be a variable's value" if
+  definition.fetch("variables").any? { |item| item["name"].match?(/CLIENT_SECRET(_VALUE)?\z/) && item["name"] != "OPERATOR_OIDC_CLIENT_SECRET" } ||
+  manifest_text.match?(/name:\s*OPERATOR_OIDC_CLIENT_SECRET\s*,/)
 abort "Zarf package must require the persistent Bundle signing key" unless manifest_text.include?("BUNDLE_SIGNING_KEY_FILE")
 abort "Zarf package must use static mTLS in the disconnected baseline" unless %w[
   AGENT_CLIENT_CA_FILE TLS_CERT_FILE TLS_KEY_FILE
@@ -157,11 +171,50 @@ hub_env = hub_container.fetch("env").to_h { |item| [item["name"], item["value"]]
   abort "#{name} must default to #{default.inspect} and be constrained to #{pattern}" unless
     variable && variable["default"] == default && variable["pattern"] == pattern
 end
+# Request limits in this package (#842). Six deploy variables, all empty by
+# default, which the Hub reads as "keep the built-in limit". No variable turns
+# the limiter off, and the patterns admit only numbers.
+%w[OPERATOR AGENT ANONYMOUS].each do |limited|
+  {"RPS" => "^$|^[0-9]{1,7}(\\.[0-9]{1,3})?$", "BURST" => "^$|^[1-9][0-9]{0,6}$"}.each do |kind, pattern|
+    name = "RATE_LIMIT_#{limited}_#{kind}"
+    abort "Hub must accept #{name} from a Zarf variable" unless hub_env[name] == "###ZARF_VAR_#{name}###"
+    variable = definition.fetch("variables").find { |item| item["name"] == name }
+    abort "#{name} must default to empty and be constrained to #{pattern}" unless
+      variable && variable["default"] == "" && variable["pattern"] == pattern
+    abort "#{name} pattern admits a non-number" if %w[off none -1 1e9 unlimited].any? { |value| value.match?(Regexp.new(pattern)) }
+  end
+end
+abort "no Zarf variable may disable the request limiter" if
+  definition.fetch("variables").any? { |item| item["name"].match?(/RATE_LIMIT.*(DISABLE|ENABLE|OFF)/) }
+# Alert rules and the dashboard (#839): an optional component, off by default,
+# whose manifest is generated from deploy/observability and holds exactly a
+# PrometheusRule and a dashboard ConfigMap. scripts/verify-observability-assets.rb
+# holds the manifest to its sources; this holds the component to the manifest.
+observability_component = definition.fetch("components").find { |item| item["name"] == "uds-observability" }
+abort "uds-observability must be an optional component that is off by default" unless
+  observability_component && observability_component["required"] == false && observability_component["default"] == false
+abort "uds-observability must apply only the generated observability manifest" unless
+  observability_component.fetch("manifests") == [{"name" => "observability", "namespace" => "platform-system", "files" => ["manifests/observability.yaml"]}]
+observability_documents = YAML.load_stream(File.read(File.join(root, "deploy/zarf/manifests/observability.yaml"))).compact
+abort "the observability manifest must hold one PrometheusRule and one dashboard ConfigMap in platform-system" unless
+  observability_documents.map { |item| item["kind"] }.sort == %w[ConfigMap PrometheusRule] &&
+    observability_documents.all? { |item| item.dig("metadata", "namespace") == "platform-system" } &&
+    observability_documents.find { |item| item["kind"] == "ConfigMap" }.dig("metadata", "labels", "grafana_dashboard") == "1"
+abort "the observability manifest must not carry a Zarf variable; it is generated" if
+  File.read(File.join(root, "deploy/zarf/manifests/observability.yaml")).include?("###ZARF_")
 # Model provider in this package (#807). Every variable defaults to "no model
 # call", the key and CA are files from optional mounts whose only accepted
 # paths are the ones mounted here, and no model command is configurable: the
 # Hub image carries no model CLI.
 {
+  "CONDUIT_ASSISTANT_MODEL_NAME" => ["ASSISTANT_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_ASSISTANT_MODEL_TIMEOUT" => ["ASSISTANT_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_PLANNING_MODEL_NAME" => ["PLANNING_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_PLANNING_MODEL_TIMEOUT" => ["PLANNING_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_PACKAGING_MODEL_NAME" => ["PACKAGING_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_PACKAGING_MODEL_TIMEOUT" => ["PACKAGING_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
+  "CONDUIT_APPGEN_MODEL_NAME" => ["APPGEN_MODEL_NAME", "", "^\\S*$"],
+  "CONDUIT_APPGEN_MODEL_TIMEOUT" => ["APPGEN_MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
   "CONDUIT_MODEL_BASE_URL" => ["MODEL_BASE_URL", "", "^$|^https?://[^\\s@?#]+$"],
   "CONDUIT_MODEL_NAME" => ["MODEL_NAME", "", "^\\S*$"],
   "CONDUIT_MODEL_TIMEOUT" => ["MODEL_TIMEOUT", "", "^$|^[1-9][0-9]*(ms|s|m)$"],
@@ -199,6 +252,13 @@ abort "Hub DSN Secret must be mounted read-only where POSTGRES_DSN_FILE points" 
 abort "Hub Service must label itself for the UDS monitor" unless service&.dig("metadata", "labels", "app.kubernetes.io/name") == "platform-delivery"
 abort "Hub Service must name the metrics port" unless service&.dig("spec", "ports")&.any? { |port| port["name"] == "metrics" && port["port"] == 9090 }
 abort "Hub container must declare the metrics port" unless hub_container&.dig("ports")&.any? { |port| port["name"] == "metrics" && port["containerPort"] == 9090 }
+operator_sso = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "operator-sso" }
+abort "Hub must mount the OIDC client secret as an optional Secret, by key" unless
+  operator_sso&.dig("secret", "secretName") == "###ZARF_VAR_OPERATOR_OIDC_CLIENT_SECRET###" && operator_sso.dig("secret", "optional") &&
+  operator_sso.dig("secret", "items") == [{ "key" => "client-secret", "path" => "client-secret" }]
+operator_sso_mount = (hub.dig("spec", "template", "spec", "containers", 0, "volumeMounts") || []).find { |item| item["name"] == "operator-sso" }
+abort "Hub must mount the OIDC client secret read-only where OPERATOR_OIDC_CLIENT_SECRET_FILE points" unless
+  operator_sso_mount == { "name" => "operator-sso", "mountPath" => "/run/conduit-sso", "readOnly" => true }
 oidc_ca = (hub.dig("spec", "template", "spec", "volumes") || []).find { |item| item["name"] == "oidc-ca" }
 abort "Hub must mount the issuer CA bundle as an optional ConfigMap" unless oidc_ca&.dig("configMap", "name") == "uds-trust-bundle" && oidc_ca.dig("configMap", "optional")
 
@@ -285,7 +345,13 @@ end
 sso = uds_package.dig("spec", "sso") || []
 client = sso.find { |item| item["clientId"] == "conduit-hub" }
 abort "UDS Package must register the Hub SSO client" unless client
-abort "UDS Package must set the console redirect URI" unless client["redirectUris"] == ["###ZARF_VAR_CONSOLE_PUBLIC_URL###/console/*"]
+# The Hub is the OAuth client (docs/operations/operator-sign-in.md). Its one
+# callback is registered exactly, with no wildcard, and the secret UDS Core
+# generates is written under the key the Hub's mount reads.
+abort "UDS Package must register exactly the Hub's sign-in callback" unless client["redirectUris"] == ["###ZARF_VAR_CONSOLE_PUBLIC_URL###/v1/auth/callback"]
+abort "UDS Package must register a confidential client with the standard flow" unless client["publicClient"] == false && client["standardFlowEnabled"] == true
+abort "UDS Package must write the client secret under the key the Hub mounts" unless
+  client.dig("secretConfig", "name") == "conduit-hub-sso" && client.dig("secretConfig", "template") == { "client-secret" => "clientField(secret)" }
 abort "UDS Package must not put authservice in front of the Agent mTLS port" if client["enableAuthserviceSelector"]
 groups_mapper = (client["protocolMappers"] || []).find { |item| item["protocolMapper"] == "oidc-group-membership-mapper" && item.dig("config", "claim.name") == "groups" }
 abort "UDS Package must map Keycloak groups into the token" unless groups_mapper

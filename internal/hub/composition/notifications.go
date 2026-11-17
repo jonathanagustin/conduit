@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
+	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	"log/slog"
 	"net/http"
 	"strings"
@@ -17,7 +18,9 @@ import (
 	"github.com/jonathanagustin/conduit/internal/controlplane"
 	requestports "github.com/jonathanagustin/conduit/internal/debugsessions/ports"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
+	"github.com/jonathanagustin/conduit/internal/identity/adapters/signinhttp"
 	identity "github.com/jonathanagustin/conduit/internal/identity/domain"
+	identityports "github.com/jonathanagustin/conduit/internal/identity/ports"
 	liveports "github.com/jonathanagustin/conduit/internal/liveevents/ports"
 	notificationhttp "github.com/jonathanagustin/conduit/internal/notifications/adapters/httpapi"
 	notifications "github.com/jonathanagustin/conduit/internal/notifications/application"
@@ -36,6 +39,10 @@ import (
 // The packaging-run status route is always mounted and, with no reader,
 // answers that no worker is configured.
 type Options struct {
+	// SignIn serves the browser sign-in routes. Nil mounts the same routes
+	// answering 404: a Hub with no configured identity provider or no
+	// configured public address has no interactive sign-in.
+	SignIn *signinhttp.Handler
 	// LiveEventJournal is a single-owner durable delivery journal. Nil keeps the
 	// authenticated route unavailable. It never falls back to memory storage.
 	LiveEventJournal liveports.Journal
@@ -48,9 +55,20 @@ type Options struct {
 	DebugSessionJournal requestports.Journal
 	// ChangeDiscussion persists native discussion separately from review records.
 	ChangeDiscussion activityports.Store
+	// ModelGovernance persists model usage and AI transcripts. Zero keeps
+	// both in this process's memory.
+	ModelGovernance ModelGovernance
 	// AssistantThreads persists assistant conversations per operator. Nil keeps
 	// them in this process's memory: lost on restart, not shared by replicas.
 	AssistantThreads assistantapp.Threads
+	// AgentCredentials is the Agent deny-list and the record of the last
+	// certificate each Agent presented. Nil keeps both in this process's
+	// memory, which is correct only for a single replica: two replicas would
+	// each hold their own deny-list. The revocation check runs either way.
+	AgentCredentials identityports.AgentCredentialStore
+	// IntelligenceCases persists operator-added eval cases. Nil keeps them in
+	// this process's memory: lost on restart, not shared by replicas.
+	IntelligenceCases intelapp.CaseStore
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.
 	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.

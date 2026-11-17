@@ -30,10 +30,10 @@ func (model *scripted) Complete(_ context.Context, prompt string) (string, domai
 	if index >= len(model.replies) {
 		index = len(model.replies) - 1
 	}
-	return model.replies[index], domain.Provenance{Adapter: "script"}, nil
+	return model.replies[index], domain.Provenance{Adapter: "script", ProviderModel: model.model}, nil
 }
 
-func (model *scripted) ReportedModel() string { return model.model }
+func (model *scripted) ReportedModel() string { return "stale shared identity" }
 
 func queryCall(objectType string) string {
 	return `{"name":"query_ontology_objects","arguments":{"objectType":"` + objectType + `"}}`

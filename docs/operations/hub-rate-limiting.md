@@ -103,6 +103,16 @@ one overflow bucket of that class's shape until idle entries are swept:
 inventing identities or addresses cannot grow the Hub's memory or buy extra
 tokens. These two bounds are not configurable.
 
+## Setting the limits in a deployment
+
+- **Helm:** `rateLimit.operator`, `rateLimit.agent` and `rateLimit.anonymous`
+  on the Hub chart, each with `rps` and `burst`. They are `null` by default,
+  which renders no variable, so the defaults above apply. The chart schema
+  holds `rps` to a number above 0 and `burst` to a whole number from 1, both at
+  most 1000000, and has no key that disables the limiter.
+- **Zarf:** the package variables of the same names as the environment
+  variables, empty by default. An empty value is read as unset.
+
 ## Limits of this control
 
 - Buckets are per Hub replica and in memory. With N replicas behind a load
@@ -127,6 +137,10 @@ principal, Agent, Environment or address is ever a label value, and the
 exporter refuses a class outside that set.
 `rate(conduit_rate_limit_decisions_total{outcome="limited"}[5m]) > 0` for
 `class="agent"` means the Agent limit is too low for the fleet's polling.
+
+`ConduitAgentRateLimited` in `deploy/observability/prometheus-rules.yaml` is
+that expression as an alert; its runbook is
+[`runbooks.md`](runbooks.md#conduitagentratelimited).
 
 Source anchors: `internal/hub/ratelimit`, `internal/hub/composition/rate_limit.go`,
 `cmd/platform-delivery/rate_limit.go`, `internal/observability/application/ratelimit.go`.

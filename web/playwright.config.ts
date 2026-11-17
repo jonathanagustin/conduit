@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { fileURLToPath } from "node:url";
 import { defineConfig, devices } from "@playwright/test";
+import { localCiBrowserLaunchOptions } from "./scripts/local-ci-browser-profile.mjs";
 
 // Port is derived from this checkout so two worktrees do not share a preview
 // server. See issue #270.
@@ -30,7 +31,15 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  projects: [{ name: "chromium", use: { ...devices["Desktop Chrome"] } }],
+  projects: [
+    {
+      name: "chromium",
+      use: {
+        ...devices["Desktop Chrome"],
+        launchOptions: localCiBrowserLaunchOptions(),
+      },
+    },
+  ],
   webServer: {
     command: `pnpm build && pnpm preview --port ${PORT} --strictPort --host 127.0.0.1`,
     url: `http://127.0.0.1:${PORT}/console/`,

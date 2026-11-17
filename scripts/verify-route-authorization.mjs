@@ -78,6 +78,8 @@ const SOURCES = [
   { path: "internal/ontology/httpapi", surface: "ontology" },
   { path: "internal/devworkspace/httpapi", surface: "developer workspaces" },
   { path: "internal/assistant/httpapi", surface: "assistant" },
+  { path: "internal/modelgovernor/httpapi", surface: "model usage and AI transcripts" },
+  { path: "internal/assistant/adapters/toolmcp", surface: "assistant read tools over MCP" },
   { path: "internal/intelligence/httpapi", surface: "intelligence" },
   { path: "internal/delivery/channels/httpapi", surface: "channel subscriptions" },
   { path: "internal/delivery/driftfix/httpapi", surface: "propose fix" },
@@ -93,6 +95,8 @@ const SOURCES = [
   { path: "internal/reporting/httpapi", surface: "reporting Connect overview" },
   { path: "internal/planning/agentstream", surface: "planning agent runs" },
   { path: "internal/workspaceacp/httpapi", surface: "workspace ACP" },
+  { path: "internal/identity/adapters/revocationhttp", surface: "Agent credential revocation" },
+  { path: "internal/identity/adapters/signinhttp", surface: "operator sign-in" },
 ];
 
 const METHOD = "GET|POST|PUT|PATCH|DELETE|HEAD|OPTIONS";

@@ -8,7 +8,7 @@ import (
 )
 
 func TestOnlyThePresetWithARecordedRunIsVerified(t *testing.T) {
-	want := map[string]bool{"deterministic": true, "codex": false, "claude": false, "gemini": false, "grok": false}
+	want := map[string]bool{"deterministic": true}
 	presets := Presets()
 	if len(presets) != len(want) {
 		t.Fatalf("presets = %d, want %d", len(presets), len(want))
@@ -42,9 +42,9 @@ func TestPresetFromArgv(t *testing.T) {
 		wantOK   bool
 	}{
 		{[]string{"packaging-workflow", "agent-exec"}, "", "deterministic", true},
-		{[]string{"packaging-workflow", "agent-exec"}, "claude", "claude", true},
-		{[]string{"packaging-workflow", "agent-exec", "--provider", "grok"}, "claude", "grok", true},
-		{[]string{"/opt/bin/packaging-workflow", "agent-exec", "--provider=gemini"}, "", "gemini", true},
+		{[]string{"packaging-workflow", "agent-exec"}, "claude", "", false},
+		{[]string{"packaging-workflow", "agent-exec", "--provider", "grok"}, "claude", "", false},
+		{[]string{"/opt/bin/packaging-workflow", "agent-exec", "--provider=gemini"}, "", "", false},
 		{[]string{"packaging-workflow", "agent-exec", "--provider", "bogus"}, "", "", false},
 		{[]string{"codex", "exec", "-"}, "claude", "", false},
 		{nil, "", "", false},

@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"fmt"
+	"github.com/jonathanagustin/conduit/internal/modelconfig"
 	"log/slog"
 	"net/http"
 	"os"
@@ -27,6 +28,7 @@ import (
 	devdomain "github.com/jonathanagustin/conduit/internal/devworkspace/domain"
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	"github.com/jonathanagustin/conduit/internal/localcmd"
+	"github.com/jonathanagustin/conduit/internal/modelgovernor"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	planningapp "github.com/jonathanagustin/conduit/internal/planning/application"
@@ -34,10 +36,11 @@ import (
 )
 
 func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
+	getenv = modelconfig.ForCapability(getenv, modelconfig.Appgen)
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	if client, err := modelHTTPClient(getenv); err != nil {
+	if client, err := governedModelHTTPClient(getenv, modelgovernor.CapabilityAppgen); err != nil {
 		return nil, err
 	} else if client != nil {
 		return appmodelhttp.Adapter{Client: client}, nil
@@ -58,7 +61,7 @@ func appGenerator(getenv func(string) string) (appdomain.AppGenerator, error) {
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv), Exec: governedExec(getenv, modelgovernor.CapabilityAppgen)}, nil
 }
 
 func newAppGenerationService(
@@ -394,7 +397,7 @@ func (audit appAudit) Record(ctx context.Context, event application.Audit) error
 		time.Now().UTC(), "app-generation", "app.generate", "app-generation/"+event.ID, decision, event.Reason,
 		map[string]any{
 			"attempt": event.Attempt, "planRevisionId": event.PlanRevisionID, "planDigest": event.PlanDigest,
-			"adapter": event.Adapter, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
+			"adapter": event.Adapter, "configuredModel": event.ConfiguredModel, "providerModel": event.ProviderModel, "promptSha256": event.PromptSHA256, "responseSha256": event.ResponseSHA256,
 			"files": event.Files, "buildPassed": event.BuildPassed, "buildReason": event.BuildReason,
 			"healthPassed": event.HealthPassed, "healthReason": event.HealthReason,
 			"attachmentSha256": event.AttachmentSHA256,

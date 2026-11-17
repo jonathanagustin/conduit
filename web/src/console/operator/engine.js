@@ -68,6 +68,8 @@ import { createSettings } from "./settings.js";
 import { createCapabilities } from "./session-capabilities.js";
 import { createNotifications } from "./notifications.js";
 import { createLiveHub } from "./live-hub.js";
+import { bindDeliveryCapabilities } from "./delivery-actions.js";
+import { bindCopyButtons } from "./artifact-display.js";
 import {
   deliverySlots,
   mountPlanDecision,
@@ -1018,6 +1020,11 @@ export function mountOperator(host, options) {
     state,
     render: () => renderApp({ backgroundRefresh: true }),
   });
+  // Delivery writes ask the session before they offer a button (#824).
+  bindDeliveryCapabilities((operation, resourceRid) =>
+    capabilities.canPerform(operation, resourceRid),
+  );
+  bindCopyButtons(host);
   const notifications = createNotifications({
     state,
     render: () => renderApp({ backgroundRefresh: true }),
@@ -2214,10 +2221,6 @@ export function mountOperator(host, options) {
         action.getAttribute("data-chip-key"),
       );
       rememberResult(state, result);
-      renderChatRail();
-    });
-    window.addEventListener("conduit-assistant-result", (event) => {
-      rememberResult(state, event.detail || {});
       renderChatRail();
     });
   }
@@ -4792,8 +4795,14 @@ export function mountOperator(host, options) {
   }
 
   function paletteHits() {
+    // The palette offers what the rail offers: a view or object whose area
+    // the session does not enable is not listed (#824).
     return filterPalette(
-      paletteItems(SCREENS, state.hub),
+      paletteItems(SCREENS, state.hub).filter(
+        (item) =>
+          !item.target?.screen ||
+          capabilities.screenVisible(item.target.screen, AREAS, areaFor),
+      ),
       state.cmdOmnibarQuery,
       state.cmdCategory,
     );

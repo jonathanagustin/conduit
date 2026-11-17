@@ -29,6 +29,10 @@ root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 (cd "$root" && CONDUIT_TEST_UDS_CREATE=1 ZARF_BIN="$ZARF_BIN" UDS_BIN="$UDS_BIN" \
   go test -count=1 -run '^TestRenderedBundlesCreateWithPinnedCLI$' -v ./internal/gitless/adapters/udsconverge)
 
+# The existing hosted/local Zarf gate must exercise the actual signature and
+# configuration boundary too. Run before replacing HOME below so Go retains
+# its verified toolchain/module/build caches. This proof isolates its own CLIs.
+"$root/scripts/test-uds-executor.sh"
 version=$(tr -d '\n' < "$root/VERSION")
 architecture=amd64
 work=$(mktemp -d)
@@ -71,12 +75,13 @@ fi
   { cat "$work/variables.log" >&2; echo 'uds inspect --list-variables failed' >&2; exit 1; }
 # The CLI finds uds-config.yaml beside the bundle and parses it strictly, so
 # this is also the pinned CLI accepting the example's shape.
-grep -q 'Using config file .*uds-config.yaml' "$work/variables.log" || {
+"${NODE_BIN:-node}" "$root/scripts/verify-uds-cli-evidence.mjs" config "$work/variables.log" "$work/package/uds-config.yaml" || {
   cat "$work/variables.log" >&2
   echo 'uds did not load the uds-config.yaml beside the bundle' >&2
   exit 1
 }
-mapfile -t configured < <(ruby -ryaml -e 'puts YAML.safe_load(File.read(ARGV.fetch(0))).fetch("variables").fetch("platform-runtime").keys' "$work/package/uds-config.yaml")
+configured=()
+while IFS= read -r variable; do configured+=("$variable"); done < <(ruby -ryaml -e 'puts YAML.safe_load(File.read(ARGV.fetch(0))).fetch("variables").fetch("platform-runtime").keys' "$work/package/uds-config.yaml")
 ((${#configured[@]} > 0)) || { echo 'uds-config.yaml configures no variables' >&2; exit 1; }
 for variable in "${configured[@]}"; do
   grep -qx -- "  - name: ${variable}" "$work/variables.log" || {
