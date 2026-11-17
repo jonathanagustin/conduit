@@ -41,8 +41,12 @@ checks apply to PostgreSQL.
 `resourceRid`, under `docs/ui/contracts/pagination.md`. On PostgreSQL the limit,
 the seek and the time window are part of the SQL statement and rows come back
 in chain `sequence` order, so the Hub holds one page however long the log is.
-The time window has no index — the table has no time column and its rows are
-immutable — so a windowed read or count still scans the rows it filters.
+Time windows use expression indexes derived directly from the immutable
+payload bytes, without a writable timestamp column. The same extractor is
+used for page and count predicates at PostgreSQL microsecond resolution. See
+[`authorization-audit-time-index.md`](authorization-audit-time-index.md) for
+conversion guarantees, query-planner evidence and the required write-blocking
+migration window.
 `view=chain` remains a projection folded from genesis in read order, not the
 stored chain. The verifier below does not use this read: it walks every row
 inside one snapshot and is unaffected by paging. Other in-process readers
