@@ -67,13 +67,14 @@ tasks:
       OUTPUT_DIR: '{{.OUTPUT_DIR | default "deploy/zarf"}}'
     cmd: |
       set -eu
-      "${ZARF_BIN:-zarf}" package create deploy/zarf \
+      build_root=$(mktemp -d)
+      trap 'rm -rf "$build_root"' EXIT
+      ./scripts/render-zarf-runtime.sh "$build_root/package" \
+        "$(tr -d '\n' < VERSION)" "{{.HUB_IMAGE}}" "{{.SPOKE_AGENT_IMAGE}}"
+      "${ZARF_BIN:-zarf}" package create "$build_root/package/zarf.gen.yaml" \
         --architecture {{.ARCHITECTURE}} \
         --confirm \
-        --output {{.OUTPUT_DIR}} \
-        --set "PLATFORM_VERSION=$(tr -d '\n' < VERSION)" \
-        --set "HUB_IMAGE={{.HUB_IMAGE}}" \
-        --set "SPOKE_AGENT_IMAGE={{.SPOKE_AGENT_IMAGE}}"
+        --output {{.OUTPUT_DIR}}
 
   uds:create:
     desc: Create the UDS bundle from the Zarf package zarf:create left in deploy/zarf

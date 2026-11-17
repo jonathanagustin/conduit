@@ -427,16 +427,17 @@ jobs:
             printf '%s@%s\n' "${source_reference%@*}" "${manifest_digest}"
           }
           mkdir -p zarf-dist
+          build_root=$(mktemp -d)
+          trap 'rm -rf "$build_root"' EXIT
           for architecture in amd64 arm64; do
             hub_platform_reference="$(platform_reference "${hub_reference}" "${architecture}")"
             agent_platform_reference="$(platform_reference "${agent_reference}" "${architecture}")"
-            /tmp/zarf package create deploy/zarf \
+            ZARF_BIN=/tmp/zarf ./scripts/render-zarf-runtime.sh "$build_root/${architecture}" \
+              "${version}" "${hub_platform_reference}" "${agent_platform_reference}"
+            /tmp/zarf package create "$build_root/${architecture}/zarf.gen.yaml" \
               --architecture "${architecture}" \
               --confirm \
-              --output zarf-dist \
-              --set "PLATFORM_VERSION=${version}" \
-              --set "HUB_IMAGE=${hub_platform_reference}" \
-              --set "SPOKE_AGENT_IMAGE=${agent_platform_reference}"
+              --output zarf-dist
             package="zarf-dist/zarf-package-platform-runtime-${architecture}-${version}.tar.zst"
             test -f "${package}"
             # GITHUB_WORKFLOW_REF is owner/repo/.github/workflows/<file>@<ref>,

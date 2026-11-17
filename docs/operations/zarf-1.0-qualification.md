@@ -41,11 +41,22 @@ One optional `uds` component owns the Package CR; its typed `UDS_METRICS` settin
 selects the monitor. A plain confirmed install selects no UDS component. The
 retired `uds-metrics` name is refused rather than creating a second owner.
 
-This source migration still needs consumer integration: lifecycle commands,
-publication packaging, the Spoke executor and the pinned UDS bundle CLI must
-forward native values correctly. UDS CLI v0.41.0 imports Zarf v0.89.0 and exposes
-legacy deployment-variable flags; its compatibility with beta package values
-is not established by a Zarf 1.0 manifest check. No SDK change is inferred.
+The task and publication build callers now compile the package template into
+fresh temporary directories and pass the generated definition explicitly to
+`package create`. Publication, signing and deployment were not executed.
+Lifecycle commands, the Spoke executor and the pinned UDS bundle CLI still
+need deploy-value integration.
+
+UDS CLI v0.41.0 imports Zarf v0.89.0. Its
+[legacy YAML deployment path](https://github.com/defenseunicorns/uds-cli/blob/v0.41.0/pkg/legacy/bundle/deploy.go#L212)
+sets `DeployOptions.SetVariables` and `ValuesOverridesMap`, not native package
+`Values`. Chart overrides cannot supply the runtime manifest values. The
+[new bundle path](https://github.com/defenseunicorns/uds-cli/blob/v0.41.0/internal/zarf/deploy.go#L383)
+does parse package `values_files` and forwards native `Values`, enabling the SDK
+values feature at initialization. A successful legacy `uds create` does not
+establish deployment compatibility. Migrating the owned YAML bundle to that
+new contract, or an explicit refusal of unsupported inputs, is still required;
+no deployment compatibility is claimed from source inspection alone.
 The new init defaults, compressed state, removed storageclass/distro state and
 changed init inputs still require cluster acceptance.
 
