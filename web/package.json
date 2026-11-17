@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "node src/server/dev.mjs",
-    "build": "node scripts/check-toolchain.mjs && pnpm check:events && vp build",
+    "build": "node scripts/check-toolchain.mjs && pnpm check:events && vp build && node scripts/check-bundle-size.mjs",
     "preview": "vp preview",
     "typecheck": "tsc --noEmit",
     "test:unit": "node scripts/check-toolchain.mjs && vp test run",
@@ -15,7 +15,7 @@
     "lint:fix": "vp lint --fix && vp fmt",
     "format": "vp fmt --check",
     "format:fix": "vp fmt",
-    "check:toolchain": "node scripts/check-toolchain.mjs && node --test scripts/check-toolchain.test.mjs scripts/local-ci-browser-profile.test.mjs scripts/local-ci-token-boundary.test.mjs",
+    "check:toolchain": "node scripts/check-toolchain.mjs && node --test scripts/check-toolchain.test.mjs scripts/local-ci-browser-profile.test.mjs scripts/local-ci-token-boundary.test.mjs scripts/check-bundle-size.test.mjs",
     "check": "pnpm check:deps && pnpm check:toolchain && pnpm check:events && pnpm check:source && vp check",
     "check:deps": "syncpack lint",
     "fix:deps": "syncpack fix",

@@ -381,3 +381,19 @@ pane**: the console still routes to full-width detail screens rather than a
 ~300px docked pane beside a preserved list, which the per-screen rows above
 record as reconstructed to fixed-rail + fluid-work without a docked detail,
 since the routes exercise no selection-detail to dock.
+
+## Console asset budget
+
+Issue #827 adds a build-time gzip budget for all emitted JavaScript and CSS,
+including lazy chunks: 2,359,296 bytes total and 1,310,720 bytes per asset.
+The Linux Node 26.13.1 build at `22fb2f7` measured about 2.14 MB total and
+1.23 MB for its largest script with gzip defaults. The gate uses level 9 with
+a fixed timestamp and reports exact byte totals; these are compressed transfer
+sizes, not heap, parse time, fonts, or a production performance claim.
+
+`pnpm build` enforces the budget for normal and alternate output directories;
+`scripts/build-console.sh` also checks cached output before accepting its stamp.
+Missing output, a missing JS/CSS class, symbolic links, an oversized chunk or
+an oversized aggregate fail closed. Chunk splitting cannot bypass the total.
+Raising a limit requires a reviewed source change with a fresh measurement;
+there is no environment override.
