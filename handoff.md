@@ -1,6 +1,22 @@
 # Handoff
 
 **Updated:** 2026-11-17 (America/New_York)
+**Reviewed merged source baseline:** `9065323248da27289e8d55df877ac7eaaabd3b50` (#983).
+**Issue snapshot:** `2026-11-17T18:31:30Z`; all 56 recorded issue states reread from GitHub.
+
+The current [readiness record](docs/operations/PRODUCTION-READINESS.md) is generated from [reviewed evidence](docs/operations/readiness-evidence.json). Its commit/age limits are unchanged. The older checkpoints below remain historical, including their runner refusals and candidate-branch statements.
+
+Hosted runner allocation is working. Trunk runs 44142757468 (#981), 44144190943 (#982) and 44145323941 (#983) passed on their exact source heads. No separate aggregate run on the combined `90653232` tree or deployment PASS is asserted. Preserve required checks and exact-head logs/receipts. The owner temporarily made the repository public; this handoff changes no licensing, visibility or publication authority.
+
+Merged source now includes the owned Zarf 1.x migration, version 0.19.0 preparation without publication, drift-repair authorization, executable request-limit verification, complete session-capability audit, CLI callback shutdown repair, the console gzip budget, keyboard proposal/review and palette-refresh guards, and 14 default-area/theme accessibility scans. PostgreSQL credential and rotation evidence is recorded in [the dated verification](docs/evidence/agent-credentials-2026-11-17.md). The Linux-backed local-CI scratch recipe and separate report root are merged; Mac VM/child-bind and complete unfiltered qualification remain open in #954.
+
+Next: qualify the screenshot baseline candidate #984 on hosted Linux, then continue #827's remaining screenshot/cross-browser/live-write work. Continue the active [roadmap](docs-site/src/content/docs/roadmap.md), retaining the distinction between source, synthetic fixtures, native process rehearsals and actual deployments. The typed API-reference gap still depends on #391. Publication, release and tenant deployment retain separate manual authority.
+
+## Historical checkpoint: 2026-11-17 05:56 UTC
+
+The following earlier checkpoint is retained verbatim as historical evidence. Its source, open-branch, issue and runner claims are superseded by the current summary above.
+
+**Updated:** 2026-11-17 (America/New_York)
 **Reviewed merged source baseline:** `c8a6eb83697877aee0773502c451573cb906ea06` (#881, merged 2026-11-17T05:49:12Z).
 **Issue snapshot:** `2026-11-17T05:56:56Z`; later issue closures are distinguished from that source baseline below.
 
