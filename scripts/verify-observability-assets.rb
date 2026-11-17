@@ -16,11 +16,9 @@
 #     a series that is not in that manifest, uses a label the metrics allowlist
 #     does not carry, or calls something that is not a PromQL function.
 #
-# What this does NOT do: evaluate an expression. No pinned promtool is
-# available to the gate, so the expressions are tokenised here, not parsed by
-# Prometheus. A type error (a vector compared with a matrix), a wrong `for`
-# duration or a threshold that is never crossed all pass. The check is on
-# names, functions and structure.
+# This structural check does not evaluate expressions. The complementary
+# verify-prometheus-rules.rb gate uses pinned promtool to parse the rules and
+# exercise firing, quiet, recovery and hold-duration scenarios.
 #
 # It also holds each alert to a runbook section with the five parts an operator
 # needs, and holds the two generated copies (the chart's files/ and the Zarf
