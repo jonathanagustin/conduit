@@ -36,9 +36,13 @@ metadata:
   labels:
     app.kubernetes.io/name: platform-delivery
 spec:
-  replicas: 1
-  strategy:
-    type: Recreate
+  # Both lines are derived from REPOSITORY_KIND by the runtime component's
+  # onDeploy actions in zarf.yaml, never set by hand: file is one replica with
+  # Recreate, postgres is two with a surge-one rolling update. The values are
+  # deliberately unquoted, because replicas must be an integer and strategy a
+  # mapping once Zarf has substituted its text.
+  replicas: ###ZARF_VAR_HUB_REPLICAS###
+  strategy: ###ZARF_VAR_HUB_STRATEGY###
   selector:
     matchLabels:
       app.kubernetes.io/name: platform-delivery
@@ -64,7 +68,17 @@ spec:
             - { name: TLS_CERT_FILE, value: /run/platform-tls/tls.crt }
             - { name: TLS_KEY_FILE, value: /run/platform-tls/tls.key }
             - { name: BUNDLE_SIGNING_KEY_FILE, value: /run/platform-signing/bundle-signing-key.pem }
-            - { name: HUB_REPLICA_COUNT, value: "1" }
+            # The Hub refuses to start with more than one replica and a
+            # process-local planning store, so it is told the count this
+            # manifest actually runs: the same derived value as spec.replicas.
+            - { name: HUB_REPLICA_COUNT, value: "###ZARF_VAR_HUB_REPLICAS###" }
+            # Planning sessions. An empty address keeps them in the process,
+            # which is why an empty address also derives one replica; the
+            # other three are inert without it.
+            - { name: CONDUIT_TEMPORAL_ADDRESS, value: "###ZARF_VAR_PLANNING_TEMPORAL_ADDRESS###" }
+            - { name: CONDUIT_TEMPORAL_NAMESPACE, value: "###ZARF_VAR_PLANNING_TEMPORAL_NAMESPACE###" }
+            - { name: CONDUIT_TEMPORAL_TASK_QUEUE, value: "###ZARF_VAR_PLANNING_TEMPORAL_TASK_QUEUE###" }
+            - { name: CONDUIT_TEMPORAL_SHARED, value: "true" }
             - { name: PLATFORM_BOOTSTRAP_ADMINISTRATORS, value: "###ZARF_VAR_BOOTSTRAP_ADMINISTRATORS###" }
             - { name: OPERATOR_OIDC_ISSUER, value: "###ZARF_VAR_OPERATOR_OIDC_ISSUER###" }
             - { name: OPERATOR_OIDC_CLIENT_ID, value: "###ZARF_VAR_OPERATOR_OIDC_CLIENT_ID###" }
@@ -80,6 +94,16 @@ spec:
             # only when this is set AND the repository is postgres; with the
             # file repository it logs a warning and opens nothing.
             - { name: METRICS_ADDRESS, value: "###ZARF_VAR_METRICS_ADDRESS###" }
+            # Model provider. Every value is empty or off by default, and an
+            # empty CONDUIT_MODEL_BASE_URL makes the rest inert: the Hub makes
+            # no model call. The key is never a variable; it is read from the
+            # optional Secret mounted below. See docs/operations/model-http.md.
+            - { name: CONDUIT_MODEL_BASE_URL, value: "###ZARF_VAR_MODEL_BASE_URL###" }
+            - { name: CONDUIT_MODEL_NAME, value: "###ZARF_VAR_MODEL_NAME###" }
+            - { name: CONDUIT_MODEL_TIMEOUT, value: "###ZARF_VAR_MODEL_TIMEOUT###" }
+            - { name: CONDUIT_MODEL_API_KEY_FILE, value: "###ZARF_VAR_MODEL_API_KEY_FILE###" }
+            - { name: CONDUIT_MODEL_CA_FILE, value: "###ZARF_VAR_MODEL_CA_FILE###" }
+            - { name: CONDUIT_MODEL_ALLOW_INSECURE_HTTP, value: "###ZARF_VAR_MODEL_ALLOW_INSECURE_HTTP###" }
           ports:
             - { name: https, containerPort: 8081 }
             # Declared so the Service port has a target when metrics are on.
@@ -107,10 +131,30 @@ spec:
             - { name: hub-tls, mountPath: /run/platform-tls, readOnly: true }
             - { name: bundle-signing, mountPath: /run/platform-signing, readOnly: true }
             - { name: database, mountPath: /run/conduit-database, readOnly: true }
+            - { name: conduit-model, mountPath: /run/conduit-model, readOnly: true }
+            - { name: conduit-model-ca, mountPath: /run/conduit-model-ca, readOnly: true }
       volumes:
+        # Derived from REPOSITORY_KIND like the replica count. file mounts the
+        # retained PVC. postgres mounts a per-Pod emptyDir, because two replicas
+        # cannot share a ReadWriteOnce claim and the PostgreSQL Hub stores
+        # nothing under DATA_DIRECTORY.
         - name: state
-          persistentVolumeClaim:
-            claimName: platform-delivery-state
+          ###ZARF_VAR_HUB_STATE_VOLUME###
+        # Optional so a Hub with no model, or a keyless one, starts without
+        # them. With MODEL_API_KEY_FILE or MODEL_CA_FILE set, a missing object
+        # is a startup failure that names the file, not a silent fallback.
+        - name: conduit-model
+          secret:
+            secretName: "###ZARF_VAR_MODEL_API_KEY_SECRET###"
+            optional: true
+            items:
+              - { key: api-key, path: api-key }
+        - name: conduit-model-ca
+          configMap:
+            name: "###ZARF_VAR_MODEL_CA_CONFIGMAP###"
+            optional: true
+            items:
+              - { key: ca.pem, path: ca.pem }
         # Optional so the file-repository default starts without it. With
         # REPOSITORY_KIND=postgres a missing Secret is a startup failure that
         # names POSTGRES_DSN_FILE, not a silent fallback to the file store.
@@ -144,6 +188,23 @@ spec:
   ports:
     - { name: https, port: 8081, targetPort: https }
     - { name: metrics, port: 9090, targetPort: metrics }
+---
+# Present in both profiles because a raw manifest cannot be conditional. With
+# the two-replica postgres profile it keeps one Hub serving through a voluntary
+# disruption. With the one-replica file profile it permits evicting that one
+# Pod, which is what having no budget permits.
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: platform-delivery
+  namespace: platform-system
+  labels:
+    app.kubernetes.io/name: platform-delivery
+spec:
+  maxUnavailable: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: platform-delivery
 ---
 apiVersion: apps/v1
 kind: Deployment

@@ -49,7 +49,7 @@ variables:
     description: Existing Secret whose dsn key is the Hub Postgres DSN. Read by the Hub when REPOSITORY_KIND=postgres and by the optional packaging-worker component.
     default: platform-postgres
   - name: REPOSITORY_KIND
-    description: Hub repository. file is the single-replica baseline on the package PVC. postgres reads the DSN from PACKAGING_POSTGRES_SECRET and is required for metrics.
+    description: Selects the Hub profile. postgres is the production profile (rolling update, PodDisruptionBudget, DSN from PACKAGING_POSTGRES_SECRET, and two replicas once PLANNING_TEMPORAL_ADDRESS is set) and is required for metrics and the packaging worker. file is a single-replica development and evaluation profile on the package PVC.
     default: file
     pattern: "^(file|postgres)$"
   - name: METRICS_ADDRESS
@@ -111,6 +111,58 @@ variables:
     description: app.kubernetes.io/name value on the operator-supplied Temporal frontend Pods. Used only by the optional uds component.
     default: temporal
     pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: PLANNING_TEMPORAL_ADDRESS
+    description: host:port of the operator-supplied Temporal frontend that holds planning sessions. Required for two Hub replicas - with REPOSITORY_KIND=postgres and this set the Hub runs two replicas that share planning state; left empty the Hub runs one replica with a process-local planning store.
+    default: ""
+    pattern: "^$|^[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?:[0-9]{1,5}$"
+  - name: PLANNING_TEMPORAL_NAMESPACE
+    description: Temporal namespace for planning sessions. Read only when PLANNING_TEMPORAL_ADDRESS is set.
+    default: default
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: PLANNING_TEMPORAL_TASK_QUEUE
+    description: Temporal task queue for planning sessions. Read only when PLANNING_TEMPORAL_ADDRESS is set.
+    default: planning-sessions
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
+  - name: MODEL_BASE_URL
+    description: Base URL of an OpenAI-compatible model endpoint, for example https://models.example/v1. Leave empty for no model call. No credentials, query, or fragment.
+    default: ""
+    pattern: "^$|^https?://[^\\s@?#]+$"
+  - name: MODEL_NAME
+    description: Model id sent in each request and recorded as the configured model. Required when MODEL_BASE_URL is set; the Hub refuses to start without it.
+    default: ""
+    pattern: "^\\S*$"
+  - name: MODEL_TIMEOUT
+    description: Bound on one whole model request, for example 90s. Leave empty for the Hub default of 45s.
+    default: ""
+    pattern: "^$|^[1-9][0-9]*(ms|s|m)$"
+  - name: MODEL_API_KEY_SECRET
+    description: Existing Secret whose api-key key is the model API key. Mounted only as a file. Read only when MODEL_API_KEY_FILE is set.
+    default: platform-model-api-key
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MODEL_API_KEY_FILE
+    description: Set to /run/conduit-model/api-key to send the key from MODEL_API_KEY_SECRET. Leave empty for a keyless endpoint.
+    default: ""
+    pattern: "^(/run/conduit-model/api-key)?$"
+  - name: MODEL_CA_CONFIGMAP
+    description: Existing ConfigMap whose ca.pem key is a private CA for the model endpoint. Read only when MODEL_CA_FILE is set.
+    default: platform-model-ca
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MODEL_CA_FILE
+    description: Set to /run/conduit-model-ca/ca.pem to trust MODEL_CA_CONFIGMAP in addition to the system roots. Leave empty otherwise.
+    default: ""
+    pattern: "^(/run/conduit-model-ca/ca.pem)?$"
+  - name: MODEL_ALLOW_INSECURE_HTTP
+    description: Permit a plain http MODEL_BASE_URL. The key and every prompt then cross the cluster network unencrypted unless a service mesh encrypts that hop.
+    default: "false"
+    pattern: "^(true|false)$"
+  - name: MODEL_SERVICE_NAMESPACE
+    description: Namespace of an in-cluster model service the Hub may reach. The default names no namespace, so no egress is granted until it is set. Used only by the optional uds components.
+    default: conduit-model-unconfigured
+    pattern: "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+  - name: MODEL_SERVICE_NAME_LABEL
+    description: app.kubernetes.io/name value on the in-cluster model service Pods. Used only by the optional uds components.
+    default: conduit-model-unconfigured
+    pattern: "^[A-Za-z0-9][A-Za-z0-9._-]{0,62}$"
 
 components:
   - name: runtime
@@ -121,6 +173,29 @@ components:
         namespace: platform-system
         files:
           - manifests/runtime.yaml
+    # REPOSITORY_KIND is the profile switch. These actions derive the Hub
+    # settings that must move with it, so no operator can pair two replicas
+    # with the file repository, or with a planning store the replicas do not
+    # share: a second replica needs both PostgreSQL and
+    # PLANNING_TEMPORAL_ADDRESS. Each runs on the deploying host under POSIX sh
+    # before the manifest is templated. scripts/verify-zarf-chart-equivalence.rb
+    # executes these exact commands and compares the result with the Helm
+    # chart's render of the same profile.
+    actions:
+      onDeploy:
+        before:
+          - description: Derive the Hub replica count from REPOSITORY_KIND and PLANNING_TEMPORAL_ADDRESS
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}:${ZARF_VAR_PLANNING_TEMPORAL_ADDRESS:+shared}" in postgres:shared) echo 2 ;; postgres:|file:|file:shared) echo 1 ;; *) exit 1 ;; esac'
+            setVariables:
+              - name: HUB_REPLICAS
+          - description: Derive the Hub rollout strategy from REPOSITORY_KIND
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}" in postgres) echo "{type: RollingUpdate, rollingUpdate: {maxUnavailable: 0, maxSurge: 1}}" ;; file) echo "{type: Recreate}" ;; *) exit 1 ;; esac'
+            setVariables:
+              - name: HUB_STRATEGY
+          - description: Derive the Hub state volume from REPOSITORY_KIND
+            cmd: 'case "${ZARF_VAR_REPOSITORY_KIND}" in postgres) echo "emptyDir: {}" ;; file) echo "persistentVolumeClaim: {claimName: platform-delivery-state}" ;; *) exit 1 ;; esac'
+            setVariables:
+              - name: HUB_STATE_VOLUME
     images:
       - "###ZARF_PKG_TMPL_HUB_IMAGE###"
       - "###ZARF_PKG_TMPL_SPOKE_AGENT_IMAGE###"
@@ -135,7 +210,15 @@ components:
         name: platform-spoke-agent
   - name: packaging-worker
     required: false
-    description: Optional packaging worker. Temporal Server is operator-supplied and is not in this package. Deploy only with --components packaging-worker after overriding PACKAGING_TEMPORAL_ADDRESS.
+    description: Optional packaging worker. Temporal Server and PostgreSQL are operator-supplied and are not in this package. Deploy only with --components packaging-worker, REPOSITORY_KIND=postgres, and PACKAGING_TEMPORAL_ADDRESS overridden.
+    # The worker writes Plans to PostgreSQL. A file-backed Hub never reads
+    # them, so the combination is refused at deploy time, as the Helm chart
+    # refuses packagingWorkflow.worker.enabled with repository.kind=file.
+    actions:
+      onDeploy:
+        before:
+          - description: Refuse the packaging worker beside a file-backed Hub
+            cmd: 'test "${ZARF_VAR_REPOSITORY_KIND}" = postgres || { echo "packaging-worker requires REPOSITORY_KIND=postgres so the worker and the Hub share one Plan store" >&2; exit 1; }'
     manifests:
       - name: packaging-worker
         namespace: platform-system

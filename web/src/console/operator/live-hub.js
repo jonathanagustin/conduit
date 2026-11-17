@@ -21,6 +21,13 @@ import {
 import { emptyState } from "./empty-states.js";
 import { freshnessPill, reportTime } from "./freshness.js";
 import { channelTable } from "./channel-board.js";
+import {
+  activeSpaceId,
+  applySpaceScope,
+  mountSpaceSelector,
+  readSpaceSelection,
+  spaceScopedPath,
+} from "./space-scope.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -555,6 +562,7 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
   function paintOperator() {
     paintOperatorIdentity(state.operatorName);
     paintAvailability();
+    mountSpaceSelector(globalThis.document, state, () => refresh());
   }
 
   async function readRefresh(options, generation) {
@@ -598,14 +606,27 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
       throw new DOMException("Operator session changed", "AbortError");
     }
 
+    // Spaces first: the selection decides how environments are read.
+    if (state.spaceId === undefined) state.spaceId = readSpaceSelection();
+    try {
+      const listed = await read("/v1/spaces");
+      if (!Array.isArray(listed.spaces)) throw new Error("invalid Space index");
+      next.spaces = listed.spaces;
+    } catch {
+      next.spaces = [];
+      next.spaceNote = "Hub did not return Spaces; nothing is Space-scoped.";
+    }
+    const spaceId = activeSpaceId(state.spaceId, next.spaces);
     try {
       next.environments = await pages(
-        "/v1/environments",
+        spaceScopedPath("/v1/environments", spaceId),
         "environments",
         "environments",
       );
     } catch {
-      next.note = "Hub did not return environments.";
+      next.note = spaceId
+        ? "Hub did not return environments for the selected Space."
+        : "Hub did not return environments.";
     }
     try {
       next.installations = await pages(
@@ -777,6 +798,9 @@ export function createLiveHub({ state, render, navigate = () => {} }) {
     } catch {
       next.bundleNote = "Hub did not return a signed bundle.";
     }
+    // Only when the Hub answered the Space-scoped environment read: an
+    // unanswered read must not empty every list as if the Space were empty.
+    if (spaceId && !next.note) applySpaceScope(next, spaceId);
     if (options.signal?.aborted || generation !== refreshGeneration)
       throw new DOMException("Hub read aborted", "AbortError");
     if (started && observed) {

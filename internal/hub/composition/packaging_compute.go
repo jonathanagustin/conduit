@@ -17,6 +17,7 @@ import (
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/deterministic"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/imagebuild"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/packagingtools"
 	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/workspacepkg"
 	packagingapp "github.com/jonathanagustin/conduit/internal/packagingworkflow/application"
@@ -139,6 +140,11 @@ func packagingPlanningComputer(repository controlplane.Repository, principal con
 }
 
 func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, error) {
+	if client, err := modelHTTPClient(getenv); err != nil {
+		return nil, err
+	} else if client != nil {
+		return packagingmodelhttp.Adapter{Client: client}, nil
+	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
 		return deterministic.Writer{}, nil
@@ -158,7 +164,7 @@ func packagingWriter(getenv func(string) string) (packagingapp.PackageWriter, er
 		}
 		timeout = parsed
 	}
-	return modelcli.Runner{Argv: argv, Timeout: timeout}, nil
+	return modelcli.Runner{Argv: argv, Timeout: timeout, ModelName: configuredModelName(getenv)}, nil
 }
 
 func deterministicCommand(argv []string, providerEnv string) bool {

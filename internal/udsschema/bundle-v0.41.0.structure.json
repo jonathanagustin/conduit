@@ -1,0 +1,352 @@
+{
+  "$ref": "#/definitions/UDSBundle",
+  "$schema": "http://json-schema.org/draft-04/schema#",
+  "definitions": {
+    "BundleChartOverrides": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "namespace": {
+          "type": "string"
+        },
+        "values": {
+          "items": {
+            "$ref": "#/definitions/BundleChartValue"
+          },
+          "type": "array"
+        },
+        "valuesFiles": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "variables": {
+          "items": {
+            "$ref": "#/definitions/BundleChartVariable"
+          },
+          "type": "array"
+        }
+      },
+      "type": "object"
+    },
+    "BundleChartValue": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "path": {
+          "type": "string"
+        },
+        "value": {
+          "additionalProperties": true
+        }
+      },
+      "required": [
+        "path",
+        "value"
+      ],
+      "type": "object"
+    },
+    "BundleChartVariable": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "default": {
+          "additionalProperties": true
+        },
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        },
+        "sensitive": {
+          "type": "boolean"
+        },
+        "source": {
+          "enum": [
+            "config",
+            "env",
+            "cli",
+            "bundle"
+          ],
+          "type": "string"
+        },
+        "type": {
+          "enum": [
+            "raw",
+            "file"
+          ],
+          "type": "string"
+        }
+      },
+      "required": [
+        "path",
+        "name"
+      ],
+      "type": "object"
+    },
+    "BundleVariableExport": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    },
+    "BundleVariableImport": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "name": {
+          "type": "string"
+        },
+        "package": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "package"
+      ],
+      "type": "object"
+    },
+    "KeylessVerification": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "certificateIdentity": {
+          "type": "string"
+        },
+        "certificateIdentityRegexp": {
+          "type": "string"
+        },
+        "certificateOIDCIssuer": {
+          "type": "string"
+        },
+        "certificateOIDCIssuerRegexp": {
+          "type": "string"
+        },
+        "insecureIgnoreTlog": {
+          "type": "boolean"
+        },
+        "trustedRoot": {
+          "type": "string"
+        },
+        "useSignedTimestamps": {
+          "type": "boolean"
+        }
+      },
+      "type": "object"
+    },
+    "Package": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "description": {
+          "type": "string"
+        },
+        "exports": {
+          "items": {
+            "$ref": "#/definitions/BundleVariableExport"
+          },
+          "type": "array"
+        },
+        "flavor": {
+          "type": "string"
+        },
+        "imports": {
+          "items": {
+            "$ref": "#/definitions/BundleVariableImport"
+          },
+          "type": "array"
+        },
+        "keylessVerification": {
+          "$ref": "#/definitions/KeylessVerification"
+        },
+        "name": {
+          "type": "string"
+        },
+        "namespace": {
+          "type": "string"
+        },
+        "optionalComponents": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "overrides": {
+          "patternProperties": {
+            ".*": {
+              "patternProperties": {
+                ".*": {
+                  "$ref": "#/definitions/BundleChartOverrides"
+                }
+              },
+              "type": "object"
+            }
+          },
+          "type": "object"
+        },
+        "path": {
+          "type": "string"
+        },
+        "publicKey": {
+          "type": "string"
+        },
+        "ref": {
+          "type": "string"
+        },
+        "repository": {
+          "type": "string"
+        },
+        "timeout": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name",
+        "ref"
+      ],
+      "type": "object"
+    },
+    "UDSBuildData": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "architecture": {
+          "type": "string"
+        },
+        "terminal": {
+          "type": "string"
+        },
+        "timestamp": {
+          "type": "string"
+        },
+        "user": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "terminal",
+        "user",
+        "architecture",
+        "timestamp",
+        "version"
+      ],
+      "type": "object"
+    },
+    "UDSBundle": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "build": {
+          "$ref": "#/definitions/UDSBuildData"
+        },
+        "kind": {
+          "enum": [
+            "UDSBundle"
+          ],
+          "type": "string"
+        },
+        "metadata": {
+          "$ref": "#/definitions/UDSMetadata"
+        },
+        "packages": {
+          "items": {
+            "$ref": "#/definitions/Package"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "kind",
+        "metadata",
+        "packages"
+      ],
+      "type": "object"
+    },
+    "UDSMetadata": {
+      "additionalProperties": false,
+      "patternProperties": {
+        "^x-": {}
+      },
+      "properties": {
+        "aggregateChecksum": {
+          "type": "string"
+        },
+        "architecture": {
+          "type": "string"
+        },
+        "authors": {
+          "type": "string"
+        },
+        "description": {
+          "type": "string"
+        },
+        "documentation": {
+          "type": "string"
+        },
+        "name": {
+          "pattern": "^[a-z0-9\\-]+$",
+          "type": "string"
+        },
+        "source": {
+          "type": "string"
+        },
+        "uncompressed": {
+          "type": "boolean"
+        },
+        "url": {
+          "type": "string"
+        },
+        "vendor": {
+          "type": "string"
+        },
+        "version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "name"
+      ],
+      "type": "object"
+    }
+  }
+}

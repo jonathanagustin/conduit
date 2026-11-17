@@ -3,6 +3,7 @@ package composition
 import (
 	"context"
 	"errors"
+	assistantapp "github.com/jonathanagustin/conduit/internal/assistant/application"
 	"net/http"
 	"strings"
 	"sync"
@@ -46,6 +47,9 @@ type Options struct {
 	DebugSessionJournal requestports.Journal
 	// ChangeDiscussion persists native discussion separately from review records.
 	ChangeDiscussion activityports.Store
+	// AssistantThreads persists assistant conversations per operator. Nil keeps
+	// them in this process's memory: lost on restart, not shared by replicas.
+	AssistantThreads assistantapp.Threads
 	// ProductAssets persists native download declarations. Nil mounts no asset routes.
 	ProductAssets assetports.Store
 	// Spaces persists native grouping identities and anchors. Nil mounts no Space routes.
@@ -77,6 +81,10 @@ type Options struct {
 	// AppgenPublisher overrides the OCI image/chart publisher used by app
 	// generation and the appgen planning work profile. Nil uses registry.DockerPublisher.
 	AppgenPublisher appgenapp.Publisher
+	// AppgenStore keeps app generation results. Nil makes NewHub read
+	// REPOSITORY_KIND: postgres opens the PostgreSQL store from
+	// POSTGRES_DSN_FILE, and anything else keeps results in process memory.
+	AppgenStore appgenapp.Store
 	// PackagingStatus reads packaging-run progress. Nil keeps the route, which
 	// answers that no worker is configured. The route never accepts an approval.
 	PackagingStatus packaginghttp.Reader

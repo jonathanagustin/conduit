@@ -2,9 +2,23 @@
 // and Zarf environments (#427).
 //
 // Like fluxconverge, admission stays in internal/gitless/domain: this adapter
-// receives an already-admitted domain.Admission, refuses mutable tags, and
-// renders digest-pinned UDSBundle (uds.dev/v1alpha1) and UDS Package
-// (uds.dev/v1alpha1) manifests carrying the admitted publisher policy.
+// receives an already-admitted domain.Admission and renders a digest-pinned
+// UDSBundle and a UDS Core Package carrying the admitted publisher policy.
+//
+// Both documents are validated against the pinned upstream schemas in
+// internal/udsschema before they are returned, and a document that does not
+// validate is not returned at all. There is one bundle shape in this
+// repository, the one uds-cli v0.41.0 reads and deploy/zarf/uds-bundle.yaml is
+// written in: `kind: UDSBundle` with no apiVersion, `packages`, and
+// `optionalComponents`.
+//
+// How a bundle pins a package (uds-cli v0.41.0, pkg/legacy/bundle/common.go,
+// read 2026-11-17): the package is fetched from "<repository>:<ref>", and a
+// ref of the form "<tag>@sha256:<hex>" is taken as already resolved to that
+// manifest. A bare digest is not a ref -- it would be read as a tag -- so a
+// pinned entry needs the tag as well as the digest, and this adapter refuses
+// to render one without it. A local `path` entry has nowhere to carry a
+// checksum, so it cannot be pinned and is refused.
 package udsconverge
 
 import (
@@ -13,12 +27,14 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"regexp"
 	"strings"
 
 	yaml "go.yaml.in/yaml/v4"
 
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
 	"github.com/jonathanagustin/conduit/internal/gitless/ports"
+	"github.com/jonathanagustin/conduit/internal/udsschema"
 )
 
 // ManifestStore publishes rendered UDS bundle and Package manifests for an
@@ -36,9 +52,13 @@ type Options struct {
 	PullSecretName     string
 	Architecture       string
 	Version            string
-	ExposePort         int
-	ExposeService      string
-	ExposeHost         string
+	// PackageTag is the tag the admitted Zarf package is published under. A
+	// uds-cli bundle addresses a package by tag and pins it by appending the
+	// digest, so the tag is required; it selects nothing the digest does not.
+	PackageTag    string
+	ExposePort    int
+	ExposeService string
+	ExposeHost    string
 }
 
 func (options Options) withDefaults() Options {
@@ -61,8 +81,17 @@ func (options Options) validate() error {
 	if strings.TrimSpace(options.PullSecretName) == "" {
 		return errors.New("UDS convergence requires the read-only pull Secret name")
 	}
+	if !packageTagPattern.MatchString(options.PackageTag) {
+		return errors.New("UDS convergence requires the tag the Zarf package is published under; a bundle pins a package as <tag>@<digest>")
+	}
 	return nil
 }
+
+// An OCI tag, which is also what keeps "@" and ":" out of the rendered ref.
+var packageTagPattern = regexp.MustCompile(`^[A-Za-z0-9_][A-Za-z0-9._-]{0,127}$`)
+
+// pinnedRef is the uds-cli reference for one manifest of a tagged package.
+func pinnedRef(tag, digest string) string { return tag + "@" + digest }
 
 // Converger implements ports.Converger for UDS Core and Zarf environments.
 type Converger struct {
@@ -98,8 +127,10 @@ func (converger *Converger) Deployed(ctx context.Context, environment string) (s
 	return converger.store.CurrentDigest(ctx, environment)
 }
 
-// Render produces the two-document YAML stream (UDSBundle + uds.dev/v1alpha1
-// Package) for an admitted coordinate. It never emits a mutable tag.
+// Render produces the two-document YAML stream (UDSBundle, then the
+// uds.dev/v1alpha1 Package) for an admitted coordinate. The package is always
+// referenced as <tag>@<digest>, never by tag alone, and each document has been
+// validated against its pinned schema.
 func Render(environment string, admission domain.Admission, options Options) ([]byte, error) {
 	environment = strings.TrimSpace(environment)
 	if environment == "" {
@@ -119,29 +150,35 @@ func Render(environment string, admission domain.Admission, options Options) ([]
 	}
 
 	name := "conduit-" + environment
-	ociRef := fmt.Sprintf("oci://%s@%s", pin.Repository, pin.Digest)
 
 	bundleDoc := map[string]any{
-		"kind":       "UDSBundle",
-		"apiVersion": "uds.dev/v1alpha1",
+		"kind": udsschema.BundleKind,
 		"metadata": map[string]any{
 			"name":         name,
 			"version":      options.Version,
 			"architecture": options.Architecture,
-			"annotations": map[string]any{
-				"conduit.delivery/environment":          environment,
-				"conduit.delivery/source-digest":        pin.Digest,
-				"conduit.delivery/certificate-issuer":   policy.CertificateIssuer,
-				"conduit.delivery/certificate-identity": policy.CertificateIdentity,
-				"conduit.delivery/service-account":      options.ServiceAccountName,
-				"conduit.delivery/pull-secret":          options.PullSecretName,
+			// The bundle schema has no annotations. It does leave every object
+			// open to "x-" keys, which uds-cli ignores, so what Conduit wants
+			// to say about the bundle goes there.
+			"x-conduit": map[string]any{
+				"environment":     environment,
+				"source-digest":   pin.Digest,
+				"service-account": options.ServiceAccountName,
+				"pull-secret":     options.PullSecretName,
 			},
 		},
-		"zarf-packages": []any{
+		"packages": []any{
 			map[string]any{
 				"name":       name,
-				"repository": ociRef,
-				"ref":        pin.Digest,
+				"repository": pin.Repository,
+				"ref":        pinnedRef(options.PackageTag, pin.Digest),
+				// The admitted publisher policy is not a note beside the
+				// package any more: these are the fields uds-cli verifies the
+				// package signature against.
+				"keylessVerification": map[string]any{
+					"certificateIdentityRegexp":   policy.CertificateIdentity,
+					"certificateOIDCIssuerRegexp": policy.CertificateIssuer,
+				},
 			},
 		},
 	}
@@ -203,26 +240,52 @@ func Render(environment string, admission domain.Admission, options Options) ([]
 		"spec": pkgSpec,
 	}
 
-	var rendered bytes.Buffer
-	encoder := yaml.NewEncoder(&rendered)
+	bundle, err := encodeValidated("UDSBundle", bundleDoc, udsschema.ValidateBundle)
+	if err != nil {
+		return nil, err
+	}
+	pkg, err := encodeValidated("UDS Package", packageDoc, udsschema.ValidatePackage)
+	if err != nil {
+		return nil, err
+	}
+	return append(append(bundle, []byte("---\n")...), pkg...), nil
+}
+
+// encodeValidated renders one document and checks the rendered bytes -- not
+// the map they came from -- against its pinned schema. What is validated is
+// exactly what is returned.
+func encodeValidated(what string, doc map[string]any, validate func([]byte) []udsschema.Violation) ([]byte, error) {
+	var out bytes.Buffer
+	encoder := yaml.NewEncoder(&out)
 	encoder.SetIndent(2)
-	for _, doc := range []map[string]any{bundleDoc, packageDoc} {
-		if err := encoder.Encode(doc); err != nil {
-			return nil, fmt.Errorf("render UDS manifests: %w", err)
-		}
+	if err := encoder.Encode(doc); err != nil {
+		return nil, fmt.Errorf("render %s: %w", what, err)
 	}
 	if err := encoder.Close(); err != nil {
-		return nil, fmt.Errorf("render UDS manifests: %w", err)
+		return nil, fmt.Errorf("render %s: %w", what, err)
 	}
-	return rendered.Bytes(), nil
+	if violations := validate(out.Bytes()); len(violations) > 0 {
+		reasons := make([]string, 0, len(violations))
+		for _, violation := range violations {
+			reasons = append(reasons, violation.String())
+		}
+		return nil, fmt.Errorf("refusing to emit a %s the pinned schema rejects: %s", what, strings.Join(reasons, "; "))
+	}
+	return out.Bytes(), nil
 }
 
 // BundlePackageRef describes one Zarf package entry inside a Conduit-mapped
-// UDSBundle. Either Repository+Digest (OCI) or Path+SHA256 (local archive)
-// must be supplied.
+// UDSBundle: an OCI Repository, the Tag it is published under, and the Digest
+// that pins it.
+//
+// Path and SHA256 describe a local archive. They are still accepted as input
+// so that a caller gets a reason rather than a compile error, but such an
+// entry is refused: the uds-cli bundle schema has no field for an archive
+// checksum, so a local path cannot be pinned.
 type BundlePackageRef struct {
 	Name               string   `json:"name"`
 	Repository         string   `json:"repository,omitempty"`
+	Tag                string   `json:"tag,omitempty"`
 	Digest             string   `json:"digest,omitempty"`
 	Path               string   `json:"path,omitempty"`
 	SHA256             string   `json:"sha256,omitempty"`
@@ -230,8 +293,8 @@ type BundlePackageRef struct {
 }
 
 // RenderBundleFromPackages maps Conduit bundle/package coordinates into a
-// digest-pinned UDSBundle YAML document. Every package must be pinned by
-// sha256 digest (OCI) or sha256 archive checksum (local path).
+// digest-pinned UDSBundle YAML document, validated against the pinned uds-cli
+// schema. Every package must be an OCI repository pinned as <tag>@<digest>.
 func RenderBundleFromPackages(name, version, architecture string, packages []BundlePackageRef) ([]byte, error) {
 	name = strings.TrimSpace(name)
 	version = strings.TrimSpace(version)
@@ -257,43 +320,38 @@ func RenderBundleFromPackages(name, version, architecture string, packages []Bun
 		entry := map[string]any{"name": pkgName}
 		switch {
 		case strings.TrimSpace(pkg.Repository) != "":
-			if !strings.HasPrefix(strings.TrimSpace(pkg.Digest), "sha256:") || len(strings.TrimSpace(pkg.Digest)) != 71 {
+			digest := strings.TrimSpace(pkg.Digest)
+			if !bundleDigestPattern.MatchString(digest) {
 				return nil, fmt.Errorf("package %q repository reference requires a 64-hex sha256 digest", pkgName)
 			}
-			entry["repository"] = fmt.Sprintf("oci://%s@%s", strings.TrimPrefix(strings.TrimSpace(pkg.Repository), "oci://"), strings.TrimSpace(pkg.Digest))
-			entry["ref"] = strings.TrimSpace(pkg.Digest)
-		case strings.TrimSpace(pkg.Path) != "":
-			sum := strings.TrimPrefix(strings.TrimSpace(pkg.SHA256), "sha256:")
-			if len(sum) != 64 {
-				return nil, fmt.Errorf("package %q local path requires a 64-hex sha256 checksum", pkgName)
+			if !packageTagPattern.MatchString(pkg.Tag) {
+				return nil, fmt.Errorf("package %q requires the tag it is published under; a bundle pins a package as <tag>@<digest>", pkgName)
 			}
-			entry["path"] = strings.TrimSpace(pkg.Path)
-			entry["ref"] = "sha256:" + sum
+			repository := strings.TrimPrefix(strings.TrimSpace(pkg.Repository), "oci://")
+			if strings.Contains(repository, "@") {
+				return nil, fmt.Errorf("package %q repository must not carry a digest; the ref does", pkgName)
+			}
+			entry["repository"] = repository
+			entry["ref"] = pinnedRef(pkg.Tag, digest)
+		case strings.TrimSpace(pkg.Path) != "":
+			return nil, fmt.Errorf("package %q is a local path, which a uds-cli bundle cannot pin by checksum; publish it and reference it by repository, tag and digest", pkgName)
 		default:
-			return nil, fmt.Errorf("package %q requires either a pinned OCI repository+digest or local path+sha256", pkgName)
+			return nil, fmt.Errorf("package %q requires an OCI repository pinned by tag and digest", pkgName)
 		}
 		if len(pkg.OptionalComponents) > 0 {
-			entry["optional-components"] = pkg.OptionalComponents
+			entry["optionalComponents"] = pkg.OptionalComponents
 		}
 		entries = append(entries, entry)
 	}
 	doc := map[string]any{
-		"kind":          "UDSBundle",
-		"apiVersion":    "uds.dev/v1alpha1",
-		"metadata":      map[string]any{"name": name, "version": version, "architecture": architecture},
-		"zarf-packages": entries,
+		"kind":     udsschema.BundleKind,
+		"metadata": map[string]any{"name": name, "version": version, "architecture": architecture},
+		"packages": entries,
 	}
-	var out bytes.Buffer
-	encoder := yaml.NewEncoder(&out)
-	encoder.SetIndent(2)
-	if err := encoder.Encode(doc); err != nil {
-		return nil, err
-	}
-	if err := encoder.Close(); err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return encodeValidated("UDSBundle", doc, udsschema.ValidateBundle)
 }
+
+var bundleDigestPattern = regexp.MustCompile(`^sha256:[a-f0-9]{64}$`)
 
 // PackageStatusObservation holds the normalized state read back from a UDS
 // Core `uds.dev/v1alpha1` Package CR in-cluster.

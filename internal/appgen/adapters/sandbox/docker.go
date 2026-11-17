@@ -7,11 +7,11 @@ import (
 	"crypto/rand"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"regexp"
 	"sort"
@@ -23,14 +23,27 @@ import (
 	"github.com/jonathanagustin/conduit/internal/appgen/domain"
 )
 
-// Docker is the local container engine.
-type Docker struct{}
+// Docker is the local container engine. Every child process it starts gets
+// the explicit environment BuildEnv returns and never the Hub's own.
+type Docker struct {
+	// BuildTimeout bounds the compile and the image build together. Zero
+	// means DefaultBuildTimeout.
+	BuildTimeout time.Duration
+}
 
-func (Docker) Build(ctx context.Context, input application.BuildRequest) (application.BuildResult, error) {
+// Build compiles the sources, when the shape has any to compile, and builds
+// the image in a new temporary directory that is removed before it returns.
+func (docker Docker) Build(parent context.Context, input application.BuildRequest) (application.BuildResult, error) {
 	shape, err := buildShape(input)
 	if err != nil {
 		return fail(err.Error()), nil
 	}
+	timeout := docker.BuildTimeout
+	if timeout <= 0 {
+		timeout = DefaultBuildTimeout
+	}
+	ctx, cancel := context.WithTimeout(parent, timeout)
+	defer cancel()
 	dir, err := os.MkdirTemp("", "conduit-appgen-")
 	if err != nil {
 		return application.BuildResult{}, err
@@ -56,11 +69,14 @@ func (Docker) Build(ctx context.Context, input application.BuildRequest) (applic
 		if err := os.WriteFile(filepath.Join(dir, "go.mod"), []byte(goMod), 0o644); err != nil {
 			return application.BuildResult{}, err
 		}
-		build := exec.CommandContext(ctx, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags=-s -w", "-o", "app", ".")
-		build.Dir = dir
-		build.Env = append(os.Environ(), "CGO_ENABLED=0", "GOOS=linux", "GOARCH=amd64", "GOPROXY=off", "GOTOOLCHAIN=local")
-		if output, err := build.CombinedOutput(); err != nil {
-			return fail("compile failed: " + firstLine(output)), nil
+		if output, err := run(ctx, dir, "go", "build", "-buildvcs=false", "-trimpath", "-ldflags=-s -w", "-o", "app", "."); err != nil {
+			if missing := unavailable("go", err); missing != nil {
+				return application.BuildResult{}, missing
+			}
+			if ctx.Err() != nil && parent.Err() == nil {
+				return fail("compile exceeded the build time limit of " + timeout.String()), nil
+			}
+			return application.BuildResult{Reason: "compile failed: " + firstLine(output), Output: feedback(output)}, nil
 		}
 		if err := os.Chmod(filepath.Join(dir, "app"), 0o755); err != nil {
 			return application.BuildResult{}, err
@@ -68,15 +84,24 @@ func (Docker) Build(ctx context.Context, input application.BuildRequest) (applic
 	case domain.ShapePython:
 		reason = "image built with no network as a non-root interpreter image"
 		if err := ensureImage(ctx, domain.PythonRuntimeImage); err != nil {
+			if errors.Is(err, application.ErrBuildExecutorUnavailable) {
+				return application.BuildResult{}, err
+			}
 			return fail("python runtime image is not available: " + err.Error()), nil
 		}
 	default:
 		return fail(domain.AllowedSourceShapes), nil
 	}
 	tag := "appgen-build-" + filepath.Base(dir) + ":local"
-	output, err := exec.CommandContext(ctx, "docker", "build", "--network", "none", "--tag", tag, "--iidfile", filepath.Join(dir, "image-id"), dir).CombinedOutput()
+	output, err := run(ctx, dir, "docker", "build", "--network", "none", "--tag", tag, "--iidfile", filepath.Join(dir, "image-id"), dir)
 	if err != nil {
-		return fail("image build failed: " + firstLine(output)), nil
+		if missing := unavailable("docker", err); missing != nil {
+			return application.BuildResult{}, missing
+		}
+		if ctx.Err() != nil && parent.Err() == nil {
+			return fail("image build exceeded the build time limit of " + timeout.String()), nil
+		}
+		return application.BuildResult{Reason: "image build failed: " + firstLine(output), Output: feedback(output)}, nil
 	}
 	id, err := os.ReadFile(filepath.Join(dir, "image-id"))
 	if err != nil || !imageIDPattern.MatchString(strings.TrimSpace(string(id))) {
@@ -106,10 +131,14 @@ func buildShape(input application.BuildRequest) (domain.Shape, error) {
 }
 
 func ensureImage(ctx context.Context, ref string) error {
-	if exec.CommandContext(ctx, "docker", "image", "inspect", ref).Run() == nil {
+	_, err := run(ctx, "", "docker", "image", "inspect", ref)
+	if err == nil {
 		return nil
 	}
-	output, err := exec.CommandContext(ctx, "docker", "pull", ref).CombinedOutput()
+	if missing := unavailable("docker", err); missing != nil {
+		return missing
+	}
+	output, err := run(ctx, "", "docker", "pull", ref)
 	if err != nil {
 		return fmt.Errorf("%s", firstLine(output))
 	}
@@ -129,7 +158,11 @@ func (Docker) Check(ctx context.Context, built application.BuildResult, input ap
 	name := "appgen-check-" + hex.EncodeToString(nonce[:])
 	// A failed start can still create a container. Cleanup is restricted to
 	// this invocation's unpredictable name; never remove a shared app name.
-	defer exec.Command("docker", "rm", "-f", name).Run()
+	defer func() {
+		cleanup, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+		defer cancel()
+		_, _ = run(cleanup, "", "docker", "rm", "-f", name)
+	}()
 	args := []string{
 		"run", "--detach", "--name", name, "--read-only", "--tmpfs", "/tmp:rw,nosuid,size=16m",
 		"--cap-drop", "ALL", "-e", "HOME=/tmp", "-e", "PYTHONDONTWRITEBYTECODE=1",
@@ -137,7 +170,7 @@ func (Docker) Check(ctx context.Context, built application.BuildResult, input ap
 		"--memory", memoryFlag(input.Spec.Resources.Memory), "--pids-limit", "64",
 		"--network", "bridge", "-p", fmt.Sprintf("127.0.0.1::%d", input.Spec.Port), built.ImageID,
 	}
-	output, err := exec.CommandContext(ctx, "docker", args...).CombinedOutput()
+	output, err := run(ctx, "", "docker", args...)
 	if err != nil {
 		return application.HealthResult{Reason: "container did not start: " + firstLine(output)}, nil
 	}
@@ -150,7 +183,7 @@ func (Docker) Check(ctx context.Context, built application.BuildResult, input ap
 	}
 	// Do not accept another process's response after the owned container
 	// exited or when the daemon did not start the requested immutable image.
-	observed, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{.Image}} {{.State.Running}}", name).Output()
+	observed, err := stdout(ctx, "docker", "inspect", "--format", "{{.Image}} {{.State.Running}}", name)
 	if err != nil || strings.TrimSpace(string(observed)) != built.ImageID+" true" {
 		return application.HealthResult{Reason: "healthy response did not match the running built image"}, nil
 	}
@@ -158,13 +191,13 @@ func (Docker) Check(ctx context.Context, built application.BuildResult, input ap
 }
 
 func publishedHostPort(ctx context.Context, name string, containerPort int) (int, bool) {
-	mapped, err := exec.CommandContext(ctx, "docker", "port", name, strconv.Itoa(containerPort)+"/tcp").Output()
+	mapped, err := stdout(ctx, "docker", "port", name, strconv.Itoa(containerPort)+"/tcp")
 	if err == nil {
 		if hostPort, ok := hostPortOf(string(mapped)); ok {
 			return hostPort, true
 		}
 	}
-	inspect, err := exec.CommandContext(ctx, "docker", "inspect", "--format", "{{json .NetworkSettings.Ports}}", name).Output()
+	inspect, err := stdout(ctx, "docker", "inspect", "--format", "{{json .NetworkSettings.Ports}}", name)
 	if err != nil {
 		return 0, false
 	}

@@ -1,8 +1,10 @@
 # Notification inbox contract
 
 The console's `/console/notifications` screen reads what the Hub recorded for
-the calling principal and edits the preference that decides what it records
-next. It is a **Conduit extension**: the pinned Apollo OpenAPI under
+the calling principal, edits the preference that decides what it records next,
+and edits the contacts a preference can select. The path lands on the
+workbench's `ntf-inbox` screen (the workbench routes by hash, so the same
+screen is also `/console/#ntf-inbox`). It is a **Conduit extension**: the pinned Apollo OpenAPI under
 `docs/reference-platform/snapshots/` publishes no notification operation — the word does not
 appear in it — so no shape on this screen is claimed to be Apollo's. The routes
 are registered as `notifications.HTTPSurface` in
@@ -12,9 +14,12 @@ are registered as `notifications.HTTPSurface` in
 
 | Route | Used for |
 | --- | --- |
-| `GET /v1/notifications/inbox?channel=…` | the inbox table |
-| `GET /v1/notifications/preferences?resourceRid=…&channel=…` | the preference editor |
-| `PUT /v1/notifications/preferences` | saving an edit |
+| `GET /v1/notifications/inbox?channel=…&limit=…` | the inbox table, and the top-bar new count (`IN_APP`, limit 100) |
+| `GET /v1/notifications/preferences?resourceRid=…&channel=…` | the preference editor, and the re-read before a save |
+| `PUT /v1/notifications/preferences` | saving a preference |
+| `GET /v1/notifications/contacts` | the contact list, and the preference editor's contact choice |
+| `PUT /v1/notifications/contacts` | adding or replacing the caller's contact of one kind |
+| `DELETE /v1/notifications/contacts?kind=…` | deleting it, after a second confirming click |
 
 `GET /v1/notifications/events` is **not** consumed. It answers "what did the Hub
 raise about this resource, subscribed to or not", which is a different question
@@ -44,13 +49,17 @@ URL persistence and Hub request coverage in the browser suite.
 `application.Bound` turns every request into at most `MaximumLimit` (100), and
 the envelope's `limit` is the applied value, not the requested one, precisely so
 a caller can tell a truncated page from the end of the inbox. A page that filled
-its limit says so. A page that did not say nothing.
+its limit says so; a page that did not is stated to be the whole inbox. The
+route has no cursor, so the screen does not page: it asks for 25, offers to
+widen to 50 and then to 100, and at the Hub's maximum says that older entries
+may exist and are not reachable here. A retry after a failure repeats the limit
+that failed rather than widening it.
 
 **Empty, loading, failed and refused are four different screens.** An empty
 inbox arrives as `{"entries":null}`, because Go encodes an empty slice as null;
 it renders as an empty inbox, not as an error and not as a crash. A failed
-request renders through `QueryState` as a failure with the Hub's own message and
-a retry, and never as an empty inbox — `docs/operations/PRODUCTION-READINESS.md`
+request renders as a failure with the Hub's own message and a retry, and never
+as an empty inbox — `docs/operations/PRODUCTION-READINESS.md`
 records a prior defect where a failed request read as a degraded platform, and
 the same mistake pointed the other way is a failed request reading as "nothing
 happened". A 403 renders as a refusal. A 404 on a preference is
@@ -72,27 +81,63 @@ emit site in this build raises (`domain.EventType.Raised`). The field is absent
 when every named type is raised. Such a type is still accepted and stored — the
 checkbox list is the vocabulary, not the set of live emitters — so the field is
 how a subscriber learns that silence on that type means "nothing raises it",
-not "nothing happened". The console does not yet render it.
+not "nothing happened". The console renders each such type apart from the
+working checkboxes: disabled, labelled "Not yet emitted by this Hub", with a
+Remove control so it is not a subscription the operator cannot leave. Because
+the field covers only types already saved, an unsaved box can still name a type
+nothing raises, and the editor says that the answer appears after a save.
 
 **An edit the Hub would refuse is refused first.**
 `domain.Preference.Validate` rejects a preference that enables no types and has
 not opted into future ones, because it could never deliver anything. The Save
 control is disabled in that state and says why, rather than being a button whose
-only outcome is a 422.
+only outcome is a 422. A 422 the console did not predict is shown with the
+Hub's message.
+
+**A save is explicit, and is refused locally when the preference moved.** The
+editor sends nothing until Save, shows what the save would add and remove, and
+sends no owner and no revision: the route resolves the first and rejects unknown
+fields. The route therefore has no compare-and-set. The console re-reads the
+preference immediately before the write and refuses to save when the stored
+`revision` differs from the one it loaded. That narrows a lost update to the
+interval between the two requests; it does not close it.
+
+**Save is disabled when the session says the write would be refused.** Reading
+or writing a preference needs `resource:read` on its resource. The editor asks
+`GET /v1/session?resourceRid=…` for that resource and disables Save with the
+reason when the operation is absent. When the session does not report the
+resource, the control stays enabled and the Hub decides. Contacts belong to
+their owner rather than to a resource, so no operation gates them.
+
+**A contact the Hub will never deliver to is labelled.** `deliverable: false`
+(a PAGERDUTY contact today) renders as "Stored, never delivered".
+
+## The new count
+
+The top bar shows how many `IN_APP` entries are new. No notification event
+reaches the console on `GET /v1/events` (`api/live-events/event.schema.json`
+has no such kind), so the count is re-read on the workbench's existing refresh
+cycle rather than pushed.
+
+"New" is a browser-side mark, not Hub state: `domain.InboxEntry.ReadAt` exists
+and no route writes it. An entry is new when it occurred after the newest entry
+this browser last showed in the in-app inbox, kept in `localStorage` per owner
+the Hub resolved. A `readAt` the Hub does send wins. Because the count comes
+from one bounded page, a filled page whose every row is new is shown as "100+",
+never as an exact number, and a failed read is shown as "?", never as zero.
 
 ## Deliberate omissions
 
-- **No unread state and no "mark as read".** `domain.InboxEntry.ReadAt` exists
-  and no route writes it. A control here would silently do nothing.
+- **No "mark as read" and no cross-device read state.** Nothing on the Hub
+  stores it; a control here would silently do nothing elsewhere.
 - **No team inbox and no team preference.** The API stores team
   preferences and contacts, and native delivery honors their selected contact
-  IDs, but this screen only edits the calling user's preference.
-- **No notification count on the rail.** Nothing serves an unread count, and a
-  badge computed from a bounded page would be wrong exactly when it mattered.
+  IDs, but this screen only edits the calling user's.
 
 Source anchors: `internal/notifications/domain/notifications.go`,
 `internal/notifications/application/emitter.go`,
 `internal/notifications/adapters/httpapi/httpapi.go`,
-`web/src/api/notifications.ts`,
-`web/src/features/notifications/NotificationsPage.tsx`, and
+`web/src/console/operator/notifications.js`,
+`web/src/console/operator/hub-vocabulary.js`,
+`web/src/test/unit/notifications.test.ts`, and
 `web/src/test/e2e/notifications.spec.ts`.

@@ -33,6 +33,27 @@ inventory state rather than fabricated installed entries. Docs links to this
 guide, Studio scope and identity/governance; links open separately with no opener.
 Opening or closing disclosures sends no request and owns no conversation state.
 
+## What the Hub serves behind the conversation
+
+The console still posts one message per turn and keeps its thread in the
+browser. The Hub side of #811 is in place for it to move onto; the contract is
+in [`agent-runs.md`](agent-runs.md#assistant-turns-and-threads). In short:
+
+- A turn is a bounded tool loop. Tool results go back to the model until it
+  answers in text, for at most four model calls and eight tool calls.
+- `POST /v1/assistant/turns` takes an optional `threadId`. With one, the Hub
+  reads the earlier turns into the prompt and appends this one. Threads are
+  private to the operator who opened them.
+- The same route streams AG-UI events when asked with
+  `Accept: text/event-stream`, and closing the connection cancels the model
+  call.
+- A failure carries a stable `code` beside its message.
+
+Not done on the Hub: grounding over documentation with citations, and token
+or cost figures. The turn names the adapter that served it, and the model id
+when the adapter reports one. Summarize, Remove and Fork still have no Hub
+operation behind them.
+
 Verification includes the same mount/composer identity, preservation of unsent
 drafts and in-flight requests, real turn counts and outline focus, Escape/return,
 Studio navigation, narrow layout, and absence of model/tool writes from layout

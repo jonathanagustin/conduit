@@ -3,6 +3,7 @@ import {
   fetchPackagingRuns,
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
+import { capabilityTableMarkup } from "./session-capabilities.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -218,7 +219,6 @@ export function createSettings(ctx) {
       orgGrants: [],
       approvalPolicies: [],
       signingKeys: [],
-      sessionApplications: [],
       sessionTeams: [],
       identityProviders: [],
       orgTeamsLive: false,
@@ -312,15 +312,12 @@ export function createSettings(ctx) {
         throw new Error("session identity unavailable");
       state.sessionAvailable = true;
       state.sessionName = session.effective?.username || session.actor.username;
-      state.sessionApplications = Array.isArray(session.applications)
-        ? session.applications
-        : [];
       state.sessionTeams = Array.isArray(session?.effective?.teams)
         ? session.effective.teams
         : [];
       state.sessionDelegated = Boolean(session?.delegated);
     } catch {
-      state.sessionApplications = [];
+      state.sessionAvailable = false;
     }
     try {
       const key = await readJSON("/v1/bundles/signing-key");
@@ -622,7 +619,6 @@ export function createSettings(ctx) {
           <div class="text-[11px] text-[#8b96a5] mt-2">Read only. A policy change goes through the Hub's policy API and its own review.</div>`
         : `<div class="text-[12px] text-[#8b96a5]">${state.approvalPoliciesLive ? "No stored approval policies were returned; other review requirements can still apply." : "Hub did not return approval policies."}</div>`;
     } else if (tab === "health") {
-      const apps = state.sessionApplications || [];
       const ready = state.hubReady || "unknown";
       body = `
         <div class="grid gap-3 lg:grid-cols-2">
@@ -637,19 +633,7 @@ export function createSettings(ctx) {
             <div class="text-[11px] text-[#8b96a5]">Teams: ${esc((state.sessionTeams || []).join(", ") || (state.sessionAvailable ? "none recorded" : "unavailable"))}</div>
           </div>
         </div>
-        <table class="so-table mt-3">
-          <thead><tr><th>Application</th><th>State for this session</th></tr></thead>
-          <tbody>${
-            apps.length
-              ? apps
-                  .map(
-                    (app) =>
-                      `<tr><td class="code-id">${esc(app.id)}</td><td><span class="kit-badge kit-badge-${app.enabled ? "ok" : "info"}">${typeof app.enabled === "boolean" ? (app.enabled ? "Enabled" : "Off") : "Unknown"}</span></td></tr>`,
-                  )
-                  .join("")
-              : `<tr><td colspan="2" class="text-[#8b96a5]">Hub did not return session applications.</td></tr>`
-          }</tbody>
-        </table>`;
+        ${capabilityTableMarkup(state.capabilities, esc)}`;
     } else if (tab === "identity") {
       const providers = state.identityProviders || [];
       body = !state.identityAvailable

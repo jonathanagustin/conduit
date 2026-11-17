@@ -1,6 +1,8 @@
 import { readFileSync } from "node:fs";
 import { expect, test, type Page, type Route } from "@playwright/test";
 
+import { APPLICATIONS } from "./hub-stub";
+
 const BOOTSTRAP_MARKER = "<!--conduit-console-bootstrap-->";
 const BOOTSTRAP = {
   schemaVersion: "conduit.console.bootstrap/v1",
@@ -93,6 +95,9 @@ test.describe("workbench", () => {
     let approved = false;
     await page.route("**/health/live", (route) =>
       route.fulfill({ json: { ok: true } }),
+    );
+    await page.route("**/v1/session", (route) =>
+      route.fulfill({ json: { applications: APPLICATIONS } }),
     );
     await page.route("**/v1/environments**", (route) => {
       const url = route.request().url();
@@ -586,6 +591,7 @@ test("Command Center uses recorded sites and drafts context without writes", asy
       "/v1/session": {
         actor: { username: "reader" },
         effective: { username: "reader" },
+        applications: APPLICATIONS,
       },
       "/v1/environments": {
         environments: [
@@ -1148,6 +1154,8 @@ test("release waves show recorded gates and reasons without synthetic calendar d
   page,
 }) => {
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
     const path = new URL(route.request().url()).pathname;
     await route.fulfill({
       json:
@@ -1200,6 +1208,8 @@ test("plan inspector loads the selected environment timeline and preserves audit
 }) => {
   const requests: string[] = [];
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
     const path = new URL(route.request().url()).pathname;
     requests.push(path);
     if (path === "/v1/plans")
@@ -1279,6 +1289,8 @@ test("an index past the read bound lists what was read and says more exist", asy
   const planPages: string[] = [];
   const scoped: string[] = [];
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
     const url = new URL(route.request().url());
     if (url.pathname === "/v1/plans") {
       const cursor = Number(url.searchParams.get("cursor") || 0);
@@ -1348,11 +1360,14 @@ test("a view whose renderer throws is contained and the shell stays usable", asy
       .catch(() => {});
   });
   // A plan row the approvals board cannot read: its renderer throws.
-  await page.route("**/v1/**", (route) =>
-    new URL(route.request().url()).pathname === "/v1/plans"
+  await page.route("**/v1/**", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
+    return path === "/v1/plans"
       ? route.fulfill({ json: { plans: [null] } })
-      : route.fulfill({ json: {} }),
-  );
+      : route.fulfill({ json: {} });
+  });
   await hydrate(page);
   await page.goto("/console/");
   await page.evaluate(() =>
@@ -1597,6 +1612,8 @@ test("release planning, ramp and windows use recorded data with explicit calenda
   page,
 }) => {
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
     const url = new URL(route.request().url());
     if (url.pathname === "/v1/environments")
       return route.fulfill({
@@ -1906,6 +1923,7 @@ test("change review binds confirmation to request, revision and Hub identity", a
         json: {
           actor: { username: operator },
           effective: { username: operator },
+          applications: APPLICATIONS,
         },
       });
     if (path === "/v1/change-requests")
@@ -2062,6 +2080,7 @@ test("Intelligence stages only scoped confirmed proposals and distinguishes eval
         json: {
           actor: { username: "intel-writer" },
           effective: { username: "intel-writer" },
+          applications: APPLICATIONS,
         },
       });
     if (path === "/v1/fleet/installations")
@@ -2302,6 +2321,8 @@ test("spoke operations uses recorded workloads and opens the exact environment",
 }) => {
   const writes: string[] = [];
   await page.route("**/v1/**", async (route) => {
+    if (new URL(route.request().url()).pathname === "/v1/session")
+      return route.fulfill({ json: { applications: APPLICATIONS } });
     const url = new URL(route.request().url());
     if (route.request().method() !== "GET") writes.push(url.pathname);
     if (url.pathname === "/v1/environments")
@@ -2425,6 +2446,7 @@ test("offline bundles bind verified envelope, physical-copy confirmation and rep
         json: {
           actor: { username: "alice" },
           effective: { username: "alice" },
+          applications: APPLICATIONS,
         },
       });
     if (url.pathname === "/v1/environments")
@@ -2780,7 +2802,7 @@ test("settings-only refresh preserves a focused change-review draft", async ({
         json: {
           actor: { username: "reviewer" },
           effective: { username: "reviewer" },
-          applications: [],
+          applications: APPLICATIONS,
         },
       });
     if (path === "/v1/operator-identity")

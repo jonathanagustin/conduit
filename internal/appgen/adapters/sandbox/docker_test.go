@@ -60,22 +60,26 @@ func TestHealthIsBoundToOwnedImmutableImage(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			dir := t.TempDir()
 			log := filepath.Join(dir, "commands")
+			// The child gets an explicit environment, so the fake engine
+			// reads its settings from files beside it and not from variables.
 			script := `#!/bin/sh
-printf '%s\n' "$*" >> "$COMMAND_LOG"
+d=$(dirname "$0")
+printf '%s\n' "$*" >> "$d/commands"
 case "$1" in
-run) if [ "$FAIL_RUN" = 1 ]; then echo 'bridge unavailable'; exit 1; fi; echo owned-container ;;
-port) printf '%s\n' "$PUBLISHED_PORT" ;;
-inspect) case "$*" in *NetworkSettings*) echo '{}' ;; *) printf '%s\n' "$OBSERVED_IMAGE" ;; esac ;;
+run) if [ "$(cat "$d/fail-run")" = 1 ]; then echo 'bridge unavailable'; exit 1; fi; echo owned-container ;;
+port) cat "$d/published-port" ;;
+inspect) case "$*" in *NetworkSettings*) echo '{}' ;; *) cat "$d/observed-image" ;; esac ;;
 esac
 `
 			if err := os.WriteFile(filepath.Join(dir, "docker"), []byte(script), 0755); err != nil {
 				t.Fatal(err)
 			}
 			t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
-			t.Setenv("COMMAND_LOG", log)
-			t.Setenv("OBSERVED_IMAGE", tc.observed)
-			t.Setenv("FAIL_RUN", tc.runFail)
-			t.Setenv("PUBLISHED_PORT", tc.ports)
+			for name, value := range map[string]string{"observed-image": tc.observed, "fail-run": tc.runFail, "published-port": tc.ports} {
+				if err := os.WriteFile(filepath.Join(dir, name), []byte(value+"\n"), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
 			var names []string
 			for range 2 {
 				result, err := (Docker{}).Check(context.Background(), application.BuildResult{Passed: true, ImageID: image}, application.BuildRequest{})
@@ -153,9 +157,10 @@ func TestBuildUsesEngineRecordedImageID(t *testing.T) {
 	for name, script := range map[string]string{
 		"go": "#!/bin/sh\nprintf compiled > app\n",
 		"docker": `#!/bin/sh
-printf '%s\n' "$*" >> "$COMMAND_LOG"
+d=$(dirname "$0")
+printf '%s\n' "$*" >> "$d/commands"
 while [ "$#" -gt 0 ]; do
- if [ "$1" = --iidfile ]; then shift; printf '%s\n' "$BUILT_IMAGE" > "$1"; exit 0; fi
+ if [ "$1" = --iidfile ]; then shift; cat "$d/built-image" > "$1"; exit 0; fi
  shift
 done
 exit 1
@@ -166,10 +171,11 @@ exit 1
 		}
 	}
 	t.Setenv("PATH", dir+":"+os.Getenv("PATH"))
-	t.Setenv("COMMAND_LOG", log)
 	input := application.BuildRequest{Sources: map[string][]byte{"main.go": []byte("package main")}}
 	for _, id := range []string{image, "mutable:tag", "sha256:invalid"} {
-		t.Setenv("BUILT_IMAGE", id)
+		if err := os.WriteFile(filepath.Join(dir, "built-image"), []byte(id+"\n"), 0o644); err != nil {
+			t.Fatal(err)
+		}
 		result, err := (Docker{}).Build(context.Background(), input)
 		if err != nil || result.Passed != (id == image) {
 			t.Fatalf("build=%+v err=%v", result, err)

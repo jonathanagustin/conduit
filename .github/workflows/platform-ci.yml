@@ -776,13 +776,37 @@ jobs:
             --output /tmp/zarf
           echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
           chmod 0755 /tmp/zarf
+      # The UDS CLI the bundle's schema comment names. It is here so the gate
+      # below can run `uds create` on deploy/zarf/uds-bundle.yaml, which no
+      # workflow did before (#831). Create needs no cluster.
+      - name: Install pinned UDS CLI
+        if: needs.scope.outputs.checks == 'true'
+        run: |
+          curl --fail --location --silent --show-error \
+            https://github.com/defenseunicorns/uds-cli/releases/download/v0.41.0/uds-cli_v0.41.0_Linux_amd64 \
+            --output /tmp/uds
+          echo '31cd710a3f1154f81767a5268f2c887d9e33fe10b81e45ee4183c810dd5ad308  /tmp/uds' | sha256sum --check
+          chmod 0755 /tmp/uds
       - name: Validate Zarf air-gap package
         if: needs.scope.outputs.checks == 'true'
         env:
           ZARF_BIN: /tmp/zarf
+          UDS_BIN: /tmp/uds
         run: |
           ruby scripts/verify-zarf-package.rb
           ./scripts/test-zarf-runtime-selection.sh
+          # The package deploys manifests, not the charts: this renders both
+          # for each profile with the Helm pinned above and fails on any
+          # difference deploy/zarf/chart-equivalence.yaml does not list.
+          ruby scripts/verify-zarf-chart-equivalence.rb
+          ./scripts/test-zarf-chart-equivalence.sh
+          # `uds create` over the package built without its image layers: no
+          # registry, no cluster, no container runtime. The release bundle is
+          # created from the signed package at publication.
+          ./scripts/test-uds-bundle-create.sh
+          # The dispatch-only lifecycle lane needs a cluster and is not run
+          # here; this checks only the plan it would follow.
+          ./scripts/test-zarf-package-lifecycle-plan.sh
           ./scripts/test-uds-up.sh
           ./scripts/test-uds-keycloak-users.sh
       - name: Validate offline workspace schemas

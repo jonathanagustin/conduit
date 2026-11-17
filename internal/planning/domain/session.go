@@ -29,6 +29,10 @@ const NoRepositoryCommit = "none (no source repository — problem-statement int
 // DefaultModelLabel is the neutral label shown when the model does not report its name.
 const DefaultModelLabel = "Configured model"
 
+// UnverifiedModelLabel is bound when a model CLI ran with no operator-configured
+// model name. The model's own claim about its name is never recorded instead.
+const UnverifiedModelLabel = "unverified (model CLI, CONDUIT_MODEL_NAME not set)"
+
 // Session statuses. A session is created at started. Turns move it through
 // inspecting, needs_input, and planning. Ready means a plan is waiting for
 // Accept. Accepted means the binding is recorded.

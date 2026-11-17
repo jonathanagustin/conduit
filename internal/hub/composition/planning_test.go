@@ -305,6 +305,8 @@ func TestPlanningAcceptDoesNotInventWorkspaceCompute(t *testing.T) {
 	})
 
 	t.Setenv("CONDUIT_MODEL_CMD", binPath+" agent-exec")
+	// The fixture source is a loopback server, which the default policy refuses.
+	t.Setenv("CONDUIT_SOURCE_ALLOWED_HOSTS", "127.0.0.1")
 	t.Setenv("DEVWORKSPACE_GIT_ROOT", tmpDir+"/devworkspaces")
 
 	repository := controlplane.NewMemoryRepository()

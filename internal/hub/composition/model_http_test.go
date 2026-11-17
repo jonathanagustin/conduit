@@ -16,7 +16,12 @@ import (
 	"github.com/jonathanagustin/conduit/internal/appgen/adapters/recorded"
 	assistantcli "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
 	assistantmodelhttp "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelhttp"
+	"github.com/jonathanagustin/conduit/internal/controlplane"
 	"github.com/jonathanagustin/conduit/internal/modelhttp"
+	"github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/deterministic"
+	packagingcli "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
+	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 	"github.com/jonathanagustin/conduit/internal/planning/adapters/planner"
 )
 
@@ -114,9 +119,102 @@ func TestModelBaseURLSelectsTheHTTPAdapters(t *testing.T) {
 	if _, ok := generator.(appmodelhttp.Adapter); err != nil || !ok {
 		t.Fatalf("appgen: %T %v", generator, err)
 	}
-	// The planner has no HTTP transport: turns stay unconfigured, not guessed.
-	if runner, err := planningPlanner(getenv, nil); err != nil || runner != nil {
-		t.Fatalf("planning: %v %v", runner, err)
+	runner, err := planningPlanner(getenv, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	planningRunner, ok := runner.(planner.Planner)
+	if !ok {
+		t.Fatalf("planning: %T", runner)
+	}
+	httpModel, ok := planningRunner.Model.(planner.HTTPModel)
+	if !ok || len(planningRunner.Argv) != 0 {
+		t.Fatalf("planning model is %T with argv %v", planningRunner.Model, planningRunner.Argv)
+	}
+	if identity := httpModel.Identity(); identity.Adapter != modelhttp.AdapterName || identity.ConfiguredModel != "asked" {
+		t.Fatalf("planning identity = %+v", identity)
+	}
+	proposer, err := modelProposer(getenv)
+	if _, ok := proposer.(packagingmodelhttp.Adapter); err != nil || !ok {
+		t.Fatalf("packaging proposer: %T %v", proposer, err)
+	}
+	writer, err := packagingWriter(getenv)
+	if _, ok := writer.(packagingmodelhttp.Adapter); err != nil || !ok {
+		t.Fatalf("package writer: %T %v", writer, err)
+	}
+}
+
+func TestPackagingWiringFollowsTheTransportRule(t *testing.T) {
+	both := envOf(map[string]string{
+		"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_BASE_URL": "https://model.example/v1", "CONDUIT_MODEL_NAME": "m",
+	})
+	if proposer, err := modelProposer(both); !errors.Is(err, errModelBothConfigured) || proposer != nil {
+		t.Fatalf("proposer: %v %v", proposer, err)
+	}
+	if writer, err := packagingWriter(both); !errors.Is(err, errModelBothConfigured) || writer != nil {
+		t.Fatalf("writer: %v %v", writer, err)
+	}
+	// Neither set is unchanged: the recorded proposer and the deterministic writer.
+	proposer, err := modelProposer(envOf(nil))
+	if _, isHTTP := proposer.(packagingmodelhttp.Adapter); err != nil || isHTTP || proposer == nil {
+		t.Fatalf("proposer with no model: %T %v", proposer, err)
+	}
+	if _, isCLI := proposer.(packagingcli.Runner); isCLI {
+		t.Fatalf("proposer with no model is a command runner")
+	}
+	writer, err := packagingWriter(envOf(nil))
+	if _, ok := writer.(deterministic.Writer); err != nil || !ok {
+		t.Fatalf("writer with no model: %T %v", writer, err)
+	}
+	// A command carries the operator-configured name, and only that.
+	named := envOf(map[string]string{"CONDUIT_MODEL_CMD": "codex exec -", "CONDUIT_MODEL_NAME": " operator-chosen "})
+	proposer, err = modelProposer(named)
+	if runner, ok := proposer.(packagingcli.Runner); err != nil || !ok || runner.ModelName != "operator-chosen" {
+		t.Fatalf("proposer: %+v %v", proposer, err)
+	}
+	writer, err = packagingWriter(named)
+	if runner, ok := writer.(packagingcli.Runner); err != nil || !ok || runner.ModelName != "operator-chosen" {
+		t.Fatalf("writer: %+v %v", writer, err)
+	}
+	runner, err := planningPlanner(named, nil)
+	if planningRunner, ok := runner.(planner.Planner); err != nil || !ok || planningRunner.ModelName != "operator-chosen" || planningRunner.Model != nil {
+		t.Fatalf("planner: %+v %v", runner, err)
+	}
+}
+
+func TestPlanningAuditRecordsConfiguredAndProviderModel(t *testing.T) {
+	repository := controlplane.NewMemoryRepository()
+	err := (planningAudit{repository: repository}).Record(t.Context(), planner.Record{
+		SessionID: "session", Action: planner.ActionPlan, Outcome: "pass", Adapter: modelhttp.AdapterName,
+		ConfiguredModel: "asked", ProviderModel: "served-2026-01",
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := repository.ListAuthorizationAudit(t.Context(), "planning-session/session")
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	got := events[0].Context
+	if got["adapter"] != modelhttp.AdapterName || got["configuredModel"] != "asked" || got["providerModel"] != "served-2026-01" {
+		t.Fatalf("audit context = %+v", got)
+	}
+}
+
+func TestPackagingProposalAuditRecordsConfiguredAndProviderModel(t *testing.T) {
+	repository := controlplane.NewMemoryRepository()
+	err := (modelAudit{repository: repository}).Record(t.Context(), "run-1", packagingdomain.Provenance{
+		Adapter: modelhttp.AdapterName, ConfiguredModel: "asked", ProviderModel: "served-2026-01",
+	}, string(packagingdomain.OutcomePass), "ok")
+	if err != nil {
+		t.Fatal(err)
+	}
+	events, err := repository.ListAuthorizationAudit(t.Context(), "packaging-run/run-1")
+	if err != nil || len(events) != 1 {
+		t.Fatalf("events=%+v err=%v", events, err)
+	}
+	if got := events[0].Context; got["configuredModel"] != "asked" || got["providerModel"] != "served-2026-01" {
+		t.Fatalf("audit context = %+v", got)
 	}
 }
 

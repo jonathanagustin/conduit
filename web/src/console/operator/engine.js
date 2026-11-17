@@ -50,7 +50,7 @@ import {
 import { runsMarkup } from "./packaging-runs.js";
 import {
   bindPlanning,
-  emptyPlanning,
+  syncPlanningScreen,
   planningMarkup,
 } from "./planning-flow.js";
 import { createConduitClient } from "@conduit/ontology-client";
@@ -65,7 +65,16 @@ import { createAuditLedger } from "./audit-ledger.js";
 import { createAdminStatus } from "./admin-status.js";
 import { productRows, productsMarkup } from "./release-products.js";
 import { createSettings } from "./settings.js";
+import { createCapabilities } from "./session-capabilities.js";
+import { createNotifications } from "./notifications.js";
 import { createLiveHub } from "./live-hub.js";
+import {
+  deliverySlots,
+  mountPlanDecision,
+  mountPlanProposal,
+  mountPromotion,
+} from "./delivery-journey.js";
+import { parseScreenHash, screenHash } from "./planning-session-link.js";
 import {
   classifyRenderers,
   screenBadge,
@@ -993,6 +1002,17 @@ export function mountOperator(host, options) {
   });
   settings.extendState();
   SCREENS.push(...settings.screens);
+  // Session capabilities (#824) and the notification inbox (#819).
+  const capabilities = createCapabilities({
+    state,
+    render: () => renderApp({ backgroundRefresh: true }),
+  });
+  const notifications = createNotifications({
+    state,
+    render: () => renderApp({ backgroundRefresh: true }),
+    capabilities,
+  });
+  SCREENS.push(...notifications.screens);
   const adminStatus = createAdminStatus({ navigate: switchScreen });
   const commandCenter = createCommandCenter({
     getIdentity: () => ({
@@ -1288,7 +1308,7 @@ export function mountOperator(host, options) {
     } else {
       state.screen = scrId;
     }
-    const nextHash = "#" + (mapped ? state.screen : scrId);
+    const nextHash = screenHash(mapped ? state.screen : scrId, state);
     if (location.hash !== nextHash) history.replaceState(null, "", nextHash);
     if (!state.openTabs.includes(scrId)) {
       state.openTabs.splice(1, 0, scrId);
@@ -1507,6 +1527,7 @@ export function mountOperator(host, options) {
       { label: "Ontology", icon: "globe", id: "s19-ontology" },
       { label: "Component System", icon: "settings", id: "s18-components" },
       ...settings.navItems(),
+      ...notifications.navItems(),
     ];
     // Every section is a list of groups so the collapsed rail can flatten them.
     const sections = [
@@ -1523,6 +1544,14 @@ export function mountOperator(host, options) {
     const iconRail =
       state.leftRailCollapsed ||
       window.matchMedia("(max-width: 1024px) and (min-width: 1024px)").matches;
+
+    // Capability-derived navigation (#824) and the inbox indicator (#819).
+    capabilities.sync();
+    notifications.sync();
+    capabilities.paintNotice(AREAS, iconRail, escAttr);
+    for (const section of sections)
+      for (const group of section.groups)
+        group.items = capabilities.navItems(group.items, AREAS);
 
     const sitesEl = document.getElementById("left-nav-sites");
     if (sitesEl) {
@@ -2985,7 +3014,7 @@ export function mountOperator(host, options) {
   // SCREEN 1: CHAT-FIRST INTAKE (Matched 1:1 to Conduit f_05_08_comms_det.png!)
   // =========================================================================
   function renderS01Intake(root) {
-    if (!state.planning) state.planning = emptyPlanning();
+    syncPlanningScreen(state, renderApp);
     root.innerHTML = planningMarkup(state.planning);
     if (root.dataset.planningBound !== "1") {
       root.dataset.planningBound = "1";
@@ -3617,7 +3646,8 @@ export function mountOperator(host, options) {
   // SCREEN 14: ENVIRONMENT DETAIL
   // =========================================================================
   function renderS14EnvDetail(root) {
-    mountEnvironmentHub(root, state.hub, {
+    const [view, actions] = deliverySlots(root);
+    mountEnvironmentHub(view, state.hub, {
       selectedId: state.releaseEnvironmentId || "",
       onProposeFix: (environment, installationId) =>
         liveHub.proposeFix(environment, installationId),
@@ -3626,6 +3656,9 @@ export function mountOperator(host, options) {
         renderMainWorkspace();
       },
     });
+    mountPlanProposal(actions, state, {
+      environmentId: state.releaseEnvironmentId || "",
+    });
   }
 
   function renderS15PlanDetail(root) {
@@ -3633,8 +3666,10 @@ export function mountOperator(host, options) {
   }
 
   function renderS16ApprovalsBoard(root) {
-    root.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
-    root.onclick = (event) => {
+    const [view, actions] = deliverySlots(root);
+    mountPlanDecision(actions, state, { board: true });
+    view.innerHTML = approvalsMarkup(state.hub?.plans, state.hub?.planNote);
+    view.onclick = (event) => {
       const target =
         event.target instanceof Element
           ? event.target.closest("[data-review-plan]")
@@ -4279,12 +4314,19 @@ export function mountOperator(host, options) {
   }
 
   function renderRM03PlanDetail(root) {
-    mountPlanInspector(root, state.hub?.plans, {
+    const [view, actions] = deliverySlots(root);
+    const decide = () =>
+      mountPlanDecision(actions, state, {
+        planId: state.releasePlanId || "",
+      });
+    mountPlanInspector(view, state.hub?.plans, {
       selectedId: state.releasePlanId || "",
       onSelect: (id) => {
         state.releasePlanId = id;
+        decide();
       },
     });
+    decide();
   }
 
   function renderRM04Constraints(root) {
@@ -4328,7 +4370,9 @@ export function mountOperator(host, options) {
   }
 
   function renderRM06PromotionPipe(root) {
-    liveHub.renderPromotion(root);
+    const [view, actions] = deliverySlots(root);
+    liveHub.renderPromotion(view);
+    mountPromotion(actions, state);
     return;
     const sel =
       RM_CHANNELS.find((c) => c.id === state.rmSelectedChannel) ||
@@ -4878,6 +4922,7 @@ export function mountOperator(host, options) {
         ...releaseGates.renderers,
         ...ontologyGraph.renderers,
         ...settings.renderers,
+        ...notifications.renderers,
       });
       const renderer = m[state.screen];
       if (!renderer) {
@@ -4899,7 +4944,18 @@ export function mountOperator(host, options) {
 
   function renderArea(root) {
     const area = AREAS[state.screen];
-    const tabs = area.tabs;
+    const gate = capabilities.gateArea(
+      state.screen,
+      area,
+      state.areaTab,
+      escAttr,
+    );
+    if (gate.blocked) {
+      root.dataset.unavailableScreen = visibleScreen();
+      root.innerHTML = gate.blocked;
+      return;
+    }
+    const tabs = gate.tabs;
     const current = tabs.find((tab) => tab.id === state.areaTab) || tabs[0];
     state.areaTab = current.id;
     state.detailScreen = current.screen;
@@ -4941,6 +4997,7 @@ export function mountOperator(host, options) {
       <div data-area-object-header>${header}</div>
       <div id="area-kit">${extra}</div>
       ${truncationMarkup(state.hub, current.screen, escAttr)}
+      ${capabilities.grantMarkup(current.screen, escAttr)}
       <div id="area-body"></div>
     </div>`;
     const renderer = classifyRenderers({
@@ -5165,7 +5222,8 @@ export function mountOperator(host, options) {
   };
   window.addEventListener("keydown", onKey);
   const onHash = () => {
-    const id = (location.hash || "").replace(/^#/, "");
+    // `#screen/param`: the param (a planning session id) is the screen's own.
+    const { screen: id, param } = parseScreenHash(location.hash);
     const mapped = areaFor(id);
     if (!mapped && !AREAS[id] && !SCREENS.some((s) => s.id === id)) return;
     closeEngineerWorkspace();
@@ -5175,13 +5233,13 @@ export function mountOperator(host, options) {
     } else if (AREAS[id]) {
       state.screen = id;
       state.areaTab = AREAS[id].tabs[0].id;
-    } else if (state.screen !== id) {
+    } else if (state.screen !== id || param) {
       state.screen = id;
     } else return;
     renderApp();
   };
   window.addEventListener("hashchange", onHash);
-  const initialHash = (location.hash || "").replace(/^#/, "");
+  const initialHash = parseScreenHash(location.hash).screen;
   if (SCREENS.some((s) => s.id === initialHash)) state.screen = initialHash;
   window.switchScreen = switchScreen;
   window.closeTab = closeTab;
@@ -5225,6 +5283,7 @@ export function mountOperator(host, options) {
   releaseGates.bind(window);
   ontologyGraph.bind(window);
   settings.bind(window);
+  capabilities.bind(window);
   settingsDialog.restore();
   renderApp();
   return () => {

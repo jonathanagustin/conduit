@@ -209,3 +209,34 @@ notifications:
 planOrchestrator:
   driver: native
   temporalAddress: ""
+
+# Model provider: one OpenAI-compatible HTTP endpoint (vLLM, Ollama,
+# LeapfrogAI, or a hosted API). An empty baseURL renders nothing and the Hub
+# makes no model call. The chart configures only the HTTP transport; it has no
+# value for a model command, because the Hub image carries no model CLI.
+# See docs/operations/model-http.md, including which AI capabilities the
+# shipped image cannot run even with a model configured.
+model:
+  # The API base, e.g. https://models.example/v1. The Hub appends
+  # /chat/completions. No credentials, query, or fragment.
+  baseURL: ""
+  # The model id sent in each request and recorded as the configured model.
+  # Required with baseURL.
+  name: ""
+  # Bounds one whole request, e.g. 90s. Empty keeps the Hub default (45s).
+  timeout: ""
+  # The API key is never a chart value. It is one key of a deployment-owned
+  # Secret, mounted as a file and re-read on every call. Leave the name empty
+  # for a keyless in-cluster server.
+  apiKeySecret:
+    name: ""
+    key: api-key
+  # Optional private CA, appended to the system roots.
+  caConfigMap:
+    name: ""
+    key: ca.pem
+  # Required, and only accepted, with an http:// baseURL. The key and every
+  # prompt then cross the cluster network in plaintext unless a service mesh
+  # encrypts that hop. scripts/verify-helm-runtime.rb permits this one
+  # insecure opt-in and no other.
+  allowInsecureHTTP: false

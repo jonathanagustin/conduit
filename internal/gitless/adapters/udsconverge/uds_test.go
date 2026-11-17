@@ -9,6 +9,7 @@ import (
 
 	"github.com/jonathanagustin/conduit/internal/gitless/adapters/udsconverge"
 	"github.com/jonathanagustin/conduit/internal/gitless/domain"
+	"github.com/jonathanagustin/conduit/internal/udsschema"
 )
 
 var (
@@ -66,6 +67,7 @@ func TestUDSConvergerRendersDigestPinnedBundleAndPackage(t *testing.T) {
 		Namespace:          "excalidraw",
 		ServiceAccountName: "uds-runtime-reconciler",
 		PullSecretName:     "conduit-uds-pull",
+		PackageTag:         "1.2.3",
 		ExposePort:         8080,
 		ExposeService:      "excalidraw",
 		ExposeHost:         "excalidraw",
@@ -81,8 +83,9 @@ func TestUDSConvergerRendersDigestPinnedBundleAndPackage(t *testing.T) {
 		t.Fatalf("Deployed = %q, %v; want %q", deployed, err, digestA)
 	}
 
+	manifest := store.manifests["prod"]
 	var docs []map[string]any
-	dec := yaml.NewDecoder(strings.NewReader(string(store.manifests["prod"])))
+	dec := yaml.NewDecoder(strings.NewReader(string(manifest)))
 	for {
 		var doc map[string]any
 		if err := dec.Decode(&doc); err != nil {
@@ -93,39 +96,123 @@ func TestUDSConvergerRendersDigestPinnedBundleAndPackage(t *testing.T) {
 	if len(docs) != 2 {
 		t.Fatalf("expected 2 YAML documents (UDSBundle + Package), got %d", len(docs))
 	}
-	if docs[0]["kind"] != "UDSBundle" || docs[0]["apiVersion"] != "uds.dev/v1alpha1" {
-		t.Fatalf("doc[0] = %#v", docs[0])
+	// One bundle shape: the one uds-cli v0.41.0 reads. No apiVersion, and none
+	// of the keys the retired shape used.
+	bundle := docs[0]
+	if bundle["kind"] != "UDSBundle" {
+		t.Fatalf("doc[0] = %#v", bundle)
 	}
-	pkgs := docs[0]["zarf-packages"].([]any)
-	firstPkg := pkgs[0].(map[string]any)
-	if firstPkg["ref"] != digestA || !strings.HasSuffix(firstPkg["repository"].(string), "@"+digestA) {
-		t.Fatalf("expected digest-pinned zarf-packages entry, got %#v", firstPkg)
+	for _, retired := range []string{"apiVersion", "zarf-packages"} {
+		if _, present := bundle[retired]; present {
+			t.Fatalf("the bundle still carries %q: %#v", retired, bundle)
+		}
+	}
+	firstPkg := bundle["packages"].([]any)[0].(map[string]any)
+	if firstPkg["repository"] != repository || firstPkg["ref"] != "1.2.3@"+digestA {
+		t.Fatalf("expected the package pinned as <tag>@<digest> in its repository, got %#v", firstPkg)
+	}
+	verification := firstPkg["keylessVerification"].(map[string]any)
+	if verification["certificateIdentityRegexp"] != identPtn || verification["certificateOIDCIssuerRegexp"] != issuerPtn {
+		t.Fatalf("the admitted publisher policy is not what the bundle verifies against: %#v", verification)
 	}
 	if docs[1]["kind"] != "Package" || docs[1]["apiVersion"] != "uds.dev/v1alpha1" {
 		t.Fatalf("doc[1] = %#v", docs[1])
 	}
+
+	// Each rendered document, as bytes, validates against its pinned schema.
+	parts := strings.SplitN(string(manifest), "---\n", 2)
+	if len(parts) != 2 {
+		t.Fatalf("manifest is not two documents:\n%s", manifest)
+	}
+	if violations := udsschema.ValidateBundle([]byte(parts[0])); len(violations) != 0 {
+		t.Fatalf("rendered bundle: %v\n%s", violations, parts[0])
+	}
+	if violations := udsschema.ValidatePackage([]byte(parts[1])); len(violations) != 0 {
+		t.Fatalf("rendered Package: %v\n%s", violations, parts[1])
+	}
 }
 
-func TestRenderBundleFromPackagesRequiresDigestOrSHA256(t *testing.T) {
+func renderOptions() udsconverge.Options {
+	return udsconverge.Options{ServiceAccountName: "uds-runtime-reconciler", PullSecretName: "conduit-uds-pull", PackageTag: "1.2.3"}
+}
+
+// A bundle addresses a package by tag and pins it with the digest. Without the
+// tag the only thing left to write is a bare digest, which uds-cli would read
+// as a tag, so nothing is rendered.
+func TestRenderRefusesABundleItCannotPin(t *testing.T) {
 	t.Parallel()
-	raw, err := udsconverge.RenderBundleFromPackages("excalidraw-bundle", "0.1.0", "amd64", []udsconverge.BundlePackageRef{
-		{
-			Name:   "excalidraw",
-			Path:   "zarf-package-excalidraw-amd64-0.1.0.tar.zst",
-			SHA256: strings.Repeat("b", 64),
-		},
-	})
+	for _, tag := range []string{"", "1.2.3@sha256:abc", "has space", "a:b"} {
+		options := renderOptions()
+		options.PackageTag = tag
+		if _, err := udsconverge.Render("prod", admission(t), options); err == nil {
+			t.Errorf("rendered a bundle with package tag %q", tag)
+		}
+		if _, err := udsconverge.New(&memoryManifestStore{}, options); err == nil {
+			t.Errorf("constructed a converger with package tag %q", tag)
+		}
+	}
+}
+
+// Render validates what it is about to return. An environment name the bundle
+// schema does not allow is refused rather than emitted for uds to reject.
+func TestRenderRefusesWhatThePinnedSchemaRejects(t *testing.T) {
+	t.Parallel()
+	_, err := udsconverge.Render("Prod_East", admission(t), renderOptions())
+	if err == nil || !strings.Contains(err.Error(), "pinned schema rejects") || !strings.Contains(err.Error(), "metadata.name") {
+		t.Fatalf("Render error = %v", err)
+	}
+	if _, err := udsconverge.Render("prod-east", admission(t), renderOptions()); err != nil {
+		t.Fatalf("Render of a valid name: %v", err)
+	}
+}
+
+func TestRenderBundleFromPackagesPinsByTagAndDigest(t *testing.T) {
+	t.Parallel()
+	pinned := udsconverge.BundlePackageRef{
+		Name: "excalidraw", Repository: "oci://" + repository, Tag: "0.1.0", Digest: digestA,
+		OptionalComponents: []string{"uds"},
+	}
+	raw, err := udsconverge.RenderBundleFromPackages("excalidraw-bundle", "0.1.0", "amd64", []udsconverge.BundlePackageRef{pinned})
 	if err != nil {
 		t.Fatalf("RenderBundleFromPackages: %v", err)
 	}
-	if !strings.Contains(string(raw), "kind: UDSBundle") || !strings.Contains(string(raw), "sha256:"+strings.Repeat("b", 64)) {
-		t.Fatalf("unexpected bundle YAML:\n%s", string(raw))
+	if violations := udsschema.ValidateBundle(raw); len(violations) != 0 {
+		t.Fatalf("rendered bundle: %v\n%s", violations, raw)
+	}
+	var doc struct {
+		Kind     string `yaml:"kind"`
+		Packages []struct {
+			Repository         string   `yaml:"repository"`
+			Ref                string   `yaml:"ref"`
+			OptionalComponents []string `yaml:"optionalComponents"`
+		} `yaml:"packages"`
+	}
+	if err := yaml.Unmarshal(raw, &doc); err != nil {
+		t.Fatal(err)
+	}
+	if doc.Kind != "UDSBundle" || len(doc.Packages) != 1 || doc.Packages[0].Repository != repository ||
+		doc.Packages[0].Ref != "0.1.0@"+digestA || len(doc.Packages[0].OptionalComponents) != 1 {
+		t.Fatalf("bundle = %#v\n%s", doc, raw)
+	}
+	if strings.Contains(string(raw), "zarf-packages") || strings.Contains(string(raw), "optional-components") || strings.Contains(string(raw), "apiVersion") {
+		t.Fatalf("the retired bundle shape was rendered:\n%s", raw)
 	}
 
-	if _, err := udsconverge.RenderBundleFromPackages("excalidraw-bundle", "0.1.0", "amd64", []udsconverge.BundlePackageRef{
-		{Name: "excalidraw", Path: "zarf-package-excalidraw-amd64-0.1.0.tar.zst"},
-	}); err == nil {
-		t.Fatal("expected unpinned local package to be rejected")
+	refused := map[string]udsconverge.BundlePackageRef{
+		"no digest":                {Name: "excalidraw", Repository: repository, Tag: "0.1.0"},
+		"no tag":                   {Name: "excalidraw", Repository: repository, Digest: digestA},
+		"digest in the repository": {Name: "excalidraw", Repository: repository + "@" + digestA, Tag: "0.1.0", Digest: digestA},
+		// The bundle schema has no field for an archive checksum.
+		"local path": {Name: "excalidraw", Path: "zarf-package-excalidraw-amd64-0.1.0.tar.zst", SHA256: strings.Repeat("b", 64)},
+		"nothing":    {Name: "excalidraw"},
+	}
+	for name, pkg := range refused {
+		if _, err := udsconverge.RenderBundleFromPackages("excalidraw-bundle", "0.1.0", "amd64", []udsconverge.BundlePackageRef{pkg}); err == nil {
+			t.Errorf("%s: an unpinned package was rendered", name)
+		}
+	}
+	if _, err := udsconverge.RenderBundleFromPackages("Excalidraw Bundle", "0.1.0", "amd64", []udsconverge.BundlePackageRef{pinned}); err == nil {
+		t.Error("a bundle name the pinned schema rejects was rendered")
 	}
 }
 

@@ -135,6 +135,39 @@ spec:
         remoteSelector:
           app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
         port: 7233
+      # PLANNING_TEMPORAL_ADDRESS. Two Hub replicas share planning sessions
+      # through the same operator-supplied frontend, on the same port.
+      - description: Hub to Temporal
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_TEMPORAL_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_TEMPORAL_NAME_LABEL###"
+        port: 7233
+      # CONDUIT_MODEL_BASE_URL, when it names a model served in this cluster
+      # (vLLM, Ollama, LeapfrogAI). A Zarf variable cannot make a list entry
+      # optional, so the entry is always here and its defaults select nothing:
+      # no namespace is named `conduit-model-unconfigured`, so the policy this
+      # renders grants no egress until the operator sets
+      # MODEL_SERVICE_NAMESPACE and MODEL_SERVICE_NAME_LABEL.
+      # No port is listed. A quoted Zarf variable renders a string, and the
+      # UDS Core 1.17.1 Package schema requires `port` to be a number; model
+      # servers do not share one port (8000, 8080, 11434 and 443 are all
+      # common). The grant is bounded by source workload, namespace and Pod
+      # label instead.
+      # ASSUMPTION: an allow entry with no port admits every TCP port to the
+      # selected Pods; that is UDS Core behaviour as recalled, not read from a
+      # file in this repository.
+      # A model outside the cluster needs a `remoteHost` entry instead. None
+      # is shipped, for the reason given for the OIDC issuer above.
+      - description: Hub to the model endpoint
+        direction: Egress
+        selector:
+          app.kubernetes.io/name: platform-delivery
+        remoteNamespace: "###ZARF_VAR_MODEL_SERVICE_NAMESPACE###"
+        remoteSelector:
+          app.kubernetes.io/name: "###ZARF_VAR_MODEL_SERVICE_NAME_LABEL###"
       - description: Spoke to the Kubernetes API
         direction: Egress
         selector:

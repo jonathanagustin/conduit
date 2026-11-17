@@ -6,8 +6,11 @@ import (
 )
 
 // Prompt is the instruction sent to a generator. The response must be one JSON object.
+// The supported matrix it states is recorded in docs/operations/app-generation.md.
 func Prompt(request Request) string {
-	return strings.TrimSpace(base(request) + planContext(request) + attachmentContext(request.Attachments))
+	// A repair is added after the plan and never in place of it, so a
+	// corrected reply is asked for under the same accepted plan.
+	return strings.TrimSpace(base(request) + planContext(request) + attachmentContext(request.Attachments) + repairContext(request))
 }
 
 // planContext binds generation to the accepted plan and the conversation that

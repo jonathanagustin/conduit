@@ -490,8 +490,9 @@ func TestCLIPlanningAndComputeWithRealAgentExecSubprocess(t *testing.T) {
 	if s.Status != planningdomain.StatusNeedsInput || len(s.NeedsInput) != 1 || s.NeedsInput[0].ID != "node_version" {
 		t.Fatalf("expected NeedsInput(node_version) from real agent, got %+v", s)
 	}
-	if s.Model != agentExecModelName {
-		t.Fatalf("expected model=%q from real agent, got %q", agentExecModelName, s.Model)
+	// The agent's reply claims agentExecModelName; that text is ignored.
+	if s.Model != planningdomain.UnverifiedModelLabel {
+		t.Fatalf("expected the unverified marker %q, got %q", planningdomain.UnverifiedModelLabel, s.Model)
 	}
 	if s.Inspection == nil || s.Inspection.Language != "typescript" || s.Inspection.PackageManager != "yarn" {
 		t.Fatalf("expected real typescript/yarn inspection, got %+v", s.Inspection)

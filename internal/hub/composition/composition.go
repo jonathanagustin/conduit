@@ -129,6 +129,10 @@ func NewHub(
 		repository, hubOptions.AppGenerator, hubOptions.Attachments,
 		hubOptions.AppgenSandbox, hubOptions.AppgenPublisher, os.Getenv,
 	)
+	appgenService, err = configureAppGeneration(appgenService, hubOptions.AppgenStore, hubOptions.AppgenSandbox, os.Getenv)
+	if err != nil {
+		return nil, err
+	}
 	handler = mountReportingConnect(handler, repository, options)
 	handler = mountPlanSummaryConnect(handler, repository, options)
 	handler = mountPlanApprovalConnect(handler, repository, options)

@@ -30,7 +30,7 @@ import (
 )
 
 // mountPlanning exposes the planning-session contract. When
-// CONDUIT_MODEL_CMD is set, turns inspect the intake repository through
+// CONDUIT_MODEL_CMD or CONDUIT_MODEL_BASE_URL is set, turns inspect the intake repository through
 // inspect_repo and read_file. When CONDUIT_TEMPORAL_ADDRESS is set, planning
 // sessions and SSE agent runs are backed by durable Temporal workflows.
 // Compute is refused until Accept.
@@ -301,15 +301,22 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
-	// The planner adapter runs a local command and has no HTTP transport yet.
-	// The HTTP configuration is still validated here, so a conflict with
-	// CONDUIT_MODEL_CMD fails startup; an HTTP-only Hub leaves planning turns
-	// unconfigured, the same as no model.
+	// The source-host policy applies to every transport, so a value that does
+	// not parse stops startup before a model is chosen.
+	clone, err := hubPlanningClone(getenv)
+	if err != nil {
+		return nil, err
+	}
+	// One transport drives planning turns. Both set is a startup error and
+	// neither leaves planning unconfigured; the rule is modelHTTPClient's.
 	if client, err := modelHTTPClient(getenv); err != nil {
 		return nil, err
 	} else if client != nil {
-		slog.Warn("CONDUIT_MODEL_BASE_URL does not drive planning turns; the planner needs CONDUIT_MODEL_CMD")
-		return nil, nil
+		return planner.Planner{
+			Model: planner.HTTPModel{Client: client},
+			Audit: planningAudit{repository: repository},
+			Clone: clone,
+		}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
@@ -327,11 +334,13 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 		}
 		timeout = parsed
 	}
+	warnUnverifiedPreset(argv, getenv)
 	return planner.Planner{
-		Argv:    argv,
-		Timeout: timeout,
-		Audit:   planningAudit{repository: repository},
-		Clone:   hubPlanningClone(getenv("DEVWORKSPACE_GIT_ROOT")),
+		Argv:      argv,
+		Timeout:   timeout,
+		ModelName: configuredModelName(getenv),
+		Audit:     planningAudit{repository: repository},
+		Clone:     clone,
 	}, nil
 }
 
@@ -356,6 +365,9 @@ func (audit planningAudit) Record(ctx context.Context, record planner.Record) er
 		"adapter": record.Adapter, "promptSha256": record.PromptSHA256,
 		"responseSha256": record.ResponseSHA256, "toolCalls": record.ToolCalls,
 		"repoUrl": record.RepoURL, "resolvedCommit": record.ResolvedCommit,
+		// Both ids come from configuration and provider metadata. An empty
+		// value means that source had none; it is recorded, not guessed.
+		"configuredModel": record.ConfiguredModel, "providerModel": record.ProviderModel,
 	}
 	if threadID, runID := planningapp.RunIdentifiers(ctx); threadID != "" && runID != "" {
 		attributes["threadId"], attributes["runId"] = threadID, runID

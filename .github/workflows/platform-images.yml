@@ -565,3 +565,69 @@ jobs:
             platform-oci-manifest.json platform-runtime.json platform-helm-charts.json \
             dist/*.syft.json dist/*.spdx.json dist/*.grype.json helm-dist/* zarf-dist/* cli-dist/archives/* cli-dist/provenance/* cli-dist/sbom/* cli-dist/SHA256SUMS \
             --repo '${{ github.repository }}' --clobber
+
+  # Puts the signed air-gap packages where a UDS bundle or `zarf package deploy
+  # oci://` can reference them by repository, rather than only as Release
+  # assets (#832). A separate job so the only authority it holds is
+  # `packages: write`: it signs nothing, so it has no `id-token`, and it reads
+  # the packages the manifest job already signed and verified.
+  #
+  # Each package is verified against this workflow's keyless identity before
+  # the push and again after it, read back from the registry per architecture.
+  # The second check is the one that matters: it is the published artifact,
+  # not the file on this runner, that an operator will verify.
+  publish-zarf-package:
+    name: Publish signed Zarf packages
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: manifest
+    runs-on: ubuntu-26.04
+    permissions:
+      contents: read
+      packages: write
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8
+        with:
+          name: platform-zarf-packages
+          path: zarf-dist
+      - name: Install pinned Zarf
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            --output /tmp/zarf
+          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          chmod 0755 /tmp/zarf
+      - name: Publish signed Zarf packages to the OCI registry
+        env:
+          REGISTRY_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="$(tr -d '\n' < VERSION)"
+          test "${GITHUB_REF_NAME}" = "v${version}"
+          identity="${GITHUB_SERVER_URL}/${GITHUB_WORKFLOW_REF}"
+          issuer="https://token.actions.githubusercontent.com"
+          # The linked, repository-named namespace: GHCR links a package to
+          # this repository only when its name starts with the repository.
+          repository="oci://ghcr.io/${GITHUB_REPOSITORY}/packages"
+          printf '%s' "${REGISTRY_TOKEN}" |
+            /tmp/zarf tools registry login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          for architecture in amd64 arm64; do
+            package="zarf-package-platform-runtime-${architecture}-${version}.tar.zst"
+            (cd zarf-dist && sha256sum --check "${package}.sha256")
+            /tmp/zarf package publish "zarf-dist/${package}" "${repository}" \
+              --verify=always \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}" \
+              --confirm
+          done
+          # Read back after BOTH pushes: the second must not have replaced the
+          # first architecture under the shared version tag.
+          for architecture in amd64 arm64; do
+            /tmp/zarf package verify "${repository}/platform-runtime:${version}" \
+              --architecture "${architecture}" \
+              --certificate-identity "${identity}" \
+              --certificate-oidc-issuer "${issuer}"
+            echo "- verified \`ghcr.io/${GITHUB_REPOSITORY}/packages/platform-runtime:${version}\` (${architecture}) as published" >> "${GITHUB_STEP_SUMMARY}"
+          done

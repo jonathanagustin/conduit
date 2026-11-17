@@ -1,0 +1,81 @@
+name: UDS package lifecycle
+
+# UNEXERCISED. This workflow was written without a cluster to run it on and
+# has never been dispatched. Its script is syntax-checked and its plan output
+# is tested in the Trunk gate (scripts/test-zarf-package-lifecycle-plan.sh);
+# nothing else about it has been observed to work. Treat the first dispatch as
+# a test of the lane itself, and remove this notice only with a run to cite.
+#
+# What it is for (#832): install release N-1 of the signed Zarf package from
+# its GitHub Release asset, upgrade to release N pulled from the OCI registry
+# the publication workflow pushes to, remove it, and assert the Hub state claim
+# survives both. Every deployment uses --verify=always with the certificate
+# identity of the publication workflow at that release's tag.
+#
+# What it does not do: block node egress, show a Spoke completing a lease, run
+# the postgres profile, or deploy the UDS bundle on UDS Core.
+#
+# Manual only (ADR 0006). It publishes nothing and holds no write permission:
+# `packages: read` pulls release N, `contents: read` reads the Release asset.
+# It can only run after the publication workflow has published release N.
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: Release N to upgrade to, as X.Y.Z. Empty uses VERSION at the dispatched ref.
+        required: false
+        type: string
+      previous_version:
+        description: Release N-1 to install first, as X.Y.Z. Empty uses the latest release other than N.
+        required: false
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  lifecycle:
+    name: Install, upgrade and remove the signed package
+    runs-on: ubuntu-26.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+      packages: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install pinned k3d, kubectl and Zarf
+        run: |
+          curl --fail --silent --show-error --location \
+            https://github.com/k3d-io/k3d/releases/download/v5.7.4/k3d-linux-amd64 \
+            --output /tmp/k3d
+          echo '1ac1da365236736a8df8c32107b54aca208384ab1d9a06771443c85ad698a5eb  /tmp/k3d' | sha256sum --check
+          sudo install -m 0755 /tmp/k3d /usr/local/bin/k3d
+          curl --fail --silent --show-error --location \
+            https://dl.k8s.io/release/v1.31.5/bin/linux/amd64/kubectl --output /tmp/kubectl
+          echo 'fbecbfd375b3686002c2e81d51c390172f5ffba3d6b47920d55342cb03f557af  /tmp/kubectl' | sha256sum --check
+          sudo install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+          curl --fail --silent --show-error --location \
+            https://github.com/zarf-dev/zarf/releases/download/v0.82.0/zarf_v0.82.0_Linux_amd64 \
+            --output /tmp/zarf
+          echo 'e372002110600a458ca2a9222a34b8cdebc9c0fcd81d7e34febd3d8411d7beaf  /tmp/zarf' | sha256sum --check
+          chmod 0755 /tmp/zarf
+      - name: Install, upgrade and remove the signed package
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ZARF_BIN: /tmp/zarf
+          LIFECYCLE_VERSION: ${{ inputs.version }}
+          LIFECYCLE_PREVIOUS_VERSION: ${{ inputs.previous_version }}
+        run: |
+          # The default run shell has no pipefail, and the script's verdict
+          # must not be replaced by tee's.
+          set -o pipefail
+          printf '%s' "${GH_TOKEN}" |
+            /tmp/zarf tools registry login ghcr.io --username "${GITHUB_ACTOR}" --password-stdin
+          ./scripts/test-zarf-package-lifecycle.sh | tee "${RUNNER_TEMP}/lifecycle.log"
+          tail -1 "${RUNNER_TEMP}/lifecycle.log" >> "${GITHUB_STEP_SUMMARY}"
