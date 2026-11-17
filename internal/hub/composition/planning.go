@@ -301,6 +301,16 @@ func planningPlanner(getenv func(string) string, repository controlplane.Reposit
 	if getenv == nil {
 		getenv = func(string) string { return "" }
 	}
+	// The planner adapter runs a local command and has no HTTP transport yet.
+	// The HTTP configuration is still validated here, so a conflict with
+	// CONDUIT_MODEL_CMD fails startup; an HTTP-only Hub leaves planning turns
+	// unconfigured, the same as no model.
+	if client, err := modelHTTPClient(getenv); err != nil {
+		return nil, err
+	} else if client != nil {
+		slog.Warn("CONDUIT_MODEL_BASE_URL does not drive planning turns; the planner needs CONDUIT_MODEL_CMD")
+		return nil, nil
+	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
 		return nil, nil

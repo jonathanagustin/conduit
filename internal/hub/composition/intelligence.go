@@ -17,7 +17,9 @@ import (
 	governance "github.com/jonathanagustin/conduit/internal/governance/domain"
 	intelapp "github.com/jonathanagustin/conduit/internal/intelligence/application"
 	intelhttp "github.com/jonathanagustin/conduit/internal/intelligence/httpapi"
+	"github.com/jonathanagustin/conduit/internal/modelhttp"
 	packagingcli "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelcli"
+	packagingmodelhttp "github.com/jonathanagustin/conduit/internal/packagingworkflow/adapters/modelhttp"
 	packagingdomain "github.com/jonathanagustin/conduit/internal/packagingworkflow/domain"
 )
 
@@ -43,6 +45,13 @@ func newIntelligenceService(repository controlplane.Repository, options controlp
 }
 
 func liveEvalProposer() intelapp.Proposer {
+	// A configuration error, including both transports set, yields no
+	// proposer here; assistantModel reports the same error at startup.
+	if client, err := modelHTTPClient(os.Getenv); err != nil {
+		return nil
+	} else if client != nil {
+		return intelligenceEvalProposer{runner: packagingmodelhttp.Adapter{Client: client}}
+	}
 	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
 		return nil
@@ -59,7 +68,7 @@ func liveEvalProposer() intelapp.Proposer {
 }
 
 type intelligenceEvalProposer struct {
-	runner packagingcli.Runner
+	runner packagingdomain.ChangeProposer
 }
 
 func (proposer intelligenceEvalProposer) Propose(ctx context.Context, scenario, value string) (string, error) {
@@ -100,6 +109,11 @@ func mountIntelligence(legacy http.Handler, repository controlplane.Repository, 
 }
 
 func intelligenceAdapter() string {
+	if client, err := modelHTTPClient(os.Getenv); err != nil {
+		return "recorded"
+	} else if client != nil {
+		return modelhttp.AdapterName
+	}
 	raw := strings.TrimSpace(os.Getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
 		return "recorded"

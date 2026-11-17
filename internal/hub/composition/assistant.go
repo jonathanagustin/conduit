@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/jonathanagustin/conduit/internal/assistant/adapters/modelcli"
+	assistantmodelhttp "github.com/jonathanagustin/conduit/internal/assistant/adapters/modelhttp"
 	"github.com/jonathanagustin/conduit/internal/assistant/application"
 	assistantdomain "github.com/jonathanagustin/conduit/internal/assistant/domain"
 	assistanthttp "github.com/jonathanagustin/conduit/internal/assistant/httpapi"
@@ -51,6 +52,11 @@ func mountAssistant(
 func assistantModel(getenv func(string) string) (assistantdomain.Model, error) {
 	if getenv == nil {
 		getenv = func(string) string { return "" }
+	}
+	if client, err := modelHTTPClient(getenv); err != nil {
+		return nil, err
+	} else if client != nil {
+		return assistantmodelhttp.Adapter{Client: client}, nil
 	}
 	raw := strings.TrimSpace(getenv("CONDUIT_MODEL_CMD"))
 	if raw == "" {
