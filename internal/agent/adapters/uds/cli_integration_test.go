@@ -103,6 +103,9 @@ components:
 	if out, err := (scopedRunner{}).Run(t.Context(), zarf, "package", "verify", packagePath, "--key", publicPath); err == nil || !strings.Contains(string(out), "not signed") {
 		t.Fatalf("Zarf verify accepted unsigned package with an admitted key: %v\n%s", err, out)
 	}
+	if out, err := (scopedRunner{}).Run(t.Context(), zarf, "package", "inspect", "definition", packagePath, "--verify=always", "--key", publicPath, "--log-level", "error", "--no-color"); err == nil || !strings.Contains(string(out), "not signed") {
+		t.Fatalf("Zarf definition inspection accepted unsigned package with an admitted key: %v\n%s", err, out)
+	}
 	wrong, err := ecdsa.GenerateKey(elliptic.P256(), rand.Reader)
 	if err != nil {
 		t.Fatal(err)

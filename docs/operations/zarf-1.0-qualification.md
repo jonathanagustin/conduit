@@ -44,8 +44,10 @@ retired `uds-metrics` name is refused rather than creating a second owner.
 The task and publication build callers now compile the package template into
 fresh temporary directories and pass the generated definition explicitly to
 `package create`. Publication, signing and deployment were not executed.
-Lifecycle commands, the Spoke executor and the pinned UDS bundle CLI still
-need deploy-value integration.
+The Spoke now selects legacy variable flags or native typed values from an
+authenticated package definition before cluster I/O. Its private values file is
+removed on success, preflight refusal and deployment failure. Lifecycle commands
+and the pinned UDS bundle CLI still need deploy-value integration.
 
 UDS CLI v0.41.0 imports Zarf v0.89.0. Its
 [legacy YAML deployment path](https://github.com/defenseunicorns/uds-cli/blob/v0.41.0/pkg/legacy/bundle/deploy.go#L212)

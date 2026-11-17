@@ -401,11 +401,23 @@ Exactly one of the publisher pair and the key path is required. `uds deploy`
 has no verification flags, so a bundle is checked with `uds inspect --key`
 first and can only be deployed by a Spoke configured with a key.
 
-Zarf packages first pass `zarf package verify` with that same admitted key or
-certificate policy. Verification runs before any cluster probe. A rejected
-signature cannot enter the deploy failure/rollback path. The later deploy still
-requires `--verify=always` against the same digest-pinned source. A failure after
-deploy starts retains the existing rollback behavior.
+Zarf packages first pass `zarf package inspect definition --verify=always`
+with that same admitted key or certificate policy. The authenticated definition
+must name the reviewed package and use a supported API version. This runs before
+any cluster probe; a rejected signature or definition cannot enter rollback.
+The later deploy still requires `--verify=always` against the same digest-pinned
+source. A failure after deploy starts retains the existing rollback behavior.
+
+For v1alpha1 packages, reviewed scalar inputs retain the existing variable flags.
+For v1beta1 packages, the Spoke writes those reviewed JSON scalar types to a
+private `.yaml` values file. Strings such as `"0012"` and `"false"` remain strings;
+native booleans and numbers retain their types. Native schema validation may
+therefore refuse a numeric input where the package requires a string. The file
+is absolute so isolated CLI working directories can read it; its directory is
+private, and it is removed after success, preflight refusal or deployment
+failure. Nested inputs and characters outside the existing scalar admission
+contract remain refused. This package support does not migrate legacy UDS
+bundles to the separate NextMode command tree.
 
 The Spoke image does not contain `zarf` or `uds`. Mount pinned binaries and
 point `ZARF_BIN` and `UDS_BIN` at them. The chart in `deploy/helm/platform-spoke`
