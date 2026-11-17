@@ -50,3 +50,12 @@ A closed mobile navigation drawer has no shadow over the workbench. Its shadow
 returns only while open, and a read refresh preserves the operator's explicit
 open/close state. Mobile baseline changes for this behavior require independent
 review of native and QEMU captures; pixel tolerance remains zero.
+
+The mobile shadow repair's native captures come from source
+`1d7828c5cfde151ae0355045c5b2897e8775eea2`, hosted run `44174067804`, artifact
+`14368928276` (ZIP SHA-256
+`28eb471e66e5adc366738df04d84a01d3bed11c5987f7702c36b4cf4540431a1`).
+All 14 full-size native phone images were reviewed independently of QEMU;
+changed pixels are confined to the left 60 pixels of the 390-by-844 viewport.
+That capture run passed 365 cases and failed the 14 old phone expectations;
+it is capture provenance, not a passing qualification of the new baselines.
