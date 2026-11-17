@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "reviewedAt": "2026-11-17",
-  "baselineCommit": "436c0af4c31c85975065f4183b03ff26a964879a",
+  "baselineCommit": "2f6d6195a28ddd89a067e303bb7d4e221dc960be",
   "maximumAgeDays": 14,
   "maximumCommitsBehind": 50,
   "issueSnapshotAt": "2026-11-17T05:04:04Z",

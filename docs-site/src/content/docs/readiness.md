@@ -3,7 +3,7 @@ title: Readiness and limitations
 description: The reviewed merged baseline, evidence limits and open production prerequisites.
 ---
 
-Status date: 2026-11-17; reviewed merged baseline `436c0af4c31c85975065f4183b03ff26a964879a`.
+Status date: 2026-11-17; reviewed merged baseline `2f6d6195a28ddd89a067e303bb7d4e221dc960be`.
 
 **Overall status: production readiness is not established by this record.** This is a source and issue review, not a current-tree gate receipt or deployment authorization. Open pull requests are candidates and do not count as merged capabilities.
 

@@ -1,13 +1,13 @@
 # Handoff
 
 **Updated:** 2026-11-17 (America/New_York)
-**Reviewed merged baseline:** `436c0af4c31c85975065f4183b03ff26a964879a` (#864).
+**Reviewed merged baseline:** `2f6d6195a28ddd89a067e303bb7d4e221dc960be` (#861, after #864).
 
 The current readiness record is [PRODUCTION-READINESS.md](docs/operations/PRODUCTION-READINESS.md), generated from [reviewed evidence](docs/operations/readiness-evidence.json). No complete hosted or local act receipt for this merged baseline is asserted here. Gate definitions, focused tests and open candidate PRs do not establish that result.
 
 Hosted jobs currently cannot allocate runners because of the account billing/spending refusal confirmed in [#858](https://github.com/jonathanagustin/conduit/issues/858). The maintainer selected the complete exact-head [local act verifier](docs/operations/local-act.md); retain its success receipt with the log, compare the candidate head, and preserve server-required checks. Do not repeatedly dispatch hosted runs while that external condition is unchanged. The August outage below is historical evidence, not the explanation for this current incident.
 
-Main contains the second completeness wave and #864 native development/Podman repairs. Operator sign-in/model governance (#856), release verification (#857), audit export (#873), audit pagination (#876), notification coverage (#874), event replay (#881), and the other open branches are candidates until their actual merge is verified. In particular #869/#880/#884 notification persistence/authority findings are active work, not shipped guarantees. Re-read current GitHub issue/PR state when resuming; this list is a dated handoff snapshot.
+Main contains the second completeness wave, #864 native development/Podman repairs and #861's checksum-pinned UDS toolchain entry. Operator sign-in/model governance (#856), release verification (#857), audit export (#873), audit pagination (#876), notification coverage (#874), event replay (#881), and the other open branches are candidates until their actual merge is verified. In particular #869/#880/#884 notification persistence/authority findings are active work, not shipped guarantees. Re-read current GitHub issue/PR state when resuming; this list is a dated handoff snapshot.
 
 Next work: finish and review those candidate gates, retain the exact-head evidence, resolve only ready issues, and record any required owner decisions. The typed API-reference gap depends on #391 and is measured by the generated native reference rather than filled with guessed schemas. The owner deferred #845; this documentation refresh changes no licensing/visibility statements or distribution permission. Release, publication and tenant deployment still require their separate explicit authority. Shared container verification must remain serialized by its coordinator.
 
