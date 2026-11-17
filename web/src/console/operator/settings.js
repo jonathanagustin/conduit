@@ -4,6 +4,10 @@ import {
   packagingRunsTransport,
 } from "../../api/packaging-runs.js";
 import { capabilityTableMarkup } from "./session-capabilities.js";
+import {
+  installHubSession,
+  signInAvailability,
+} from "../../runtime/hub-session.js";
 
 function esc(value) {
   return String(value ?? "")
@@ -221,6 +225,7 @@ export function createSettings(ctx) {
       signingKeys: [],
       sessionTeams: [],
       identityProviders: [],
+      signInAvailable: false,
       orgTeamsLive: false,
       orgGrantsLive: false,
       approvalPoliciesLive: false,
@@ -249,9 +254,11 @@ export function createSettings(ctx) {
             (provider) => provider && typeof provider === "object",
           )
         : [];
+      state.signInAvailable = signInAvailability(identity).available;
     } catch {
       state.authEnabled = false;
       state.identityProviders = [];
+      state.signInAvailable = false;
     }
     try {
       const body = await readJSON("/v1/teams");
@@ -711,9 +718,13 @@ export function createSettings(ctx) {
           </select>
         </label>
         ${
-          selected && selected.authorizationEndpoint
-            ? `<button type="button" class="so-btn so-btn-blue" data-onclick="beginOperatorSignIn()">Continue to the identity provider</button>`
-            : `<div class="text-[12px] text-[#8b96a5]">This Hub did not publish a browser sign-in address.</div>`
+          state.signInAvailable
+            ? `<div class="flex items-center gap-2 flex-wrap">
+                <button type="button" class="so-btn so-btn-blue" data-sign-in data-onclick="beginOperatorSignIn()">Continue to the identity provider</button>
+                ${state.sessionName ? `<button type="button" class="so-btn" data-sign-out data-onclick="endOperatorSession()">Sign out ${esc(state.sessionName)}</button>` : ""}
+              </div>
+              ${state.signOutFailed ? `<div class="text-[12px] text-[#f0a3a3]" role="alert">Sign-out did not complete. You are still signed in; try again.</div>` : ""}`
+            : `<div class="text-[12px] text-[#8b96a5]" data-sign-in-unavailable>This Hub verifies operator tokens but does not run a browser sign-in. Reach it through your organization's access proxy, or ask the Conduit operator to configure the console's public address.</div>`
         }
       </div>`;
   }
@@ -834,6 +845,8 @@ export function createSettings(ctx) {
         environmentBanner: "",
         identityProviders: [],
         authEnabled: false,
+        signInAvailable: false,
+        signOutFailed: false,
         signInIssuer: "",
         signingKeys: [],
         signingLive: false,
@@ -921,19 +934,21 @@ export function createSettings(ctx) {
         state.dataSourceId = id;
         ctx.render();
       };
+      // The Hub runs the sign-in: it holds the state, nonce, PKCE verifier
+      // and client secret. The console only navigates to it, naming the view
+      // to come back to.
       target.beginOperatorSignIn = () => {
-        const provider =
-          (state.identityProviders || []).find(
-            (item) => item.issuer === state.signInIssuer,
-          ) || (state.identityProviders || [])[0];
-        if (!provider || !provider.authorizationEndpoint) return;
-        const url = new URL(provider.authorizationEndpoint);
-        if (provider.clientId)
-          url.searchParams.set("client_id", provider.clientId);
-        url.searchParams.set("redirect_uri", `${location.origin}/console/`);
-        url.searchParams.set("response_type", "code");
-        url.searchParams.set("scope", "openid");
-        location.assign(url.toString());
+        if (!state.signInAvailable) return;
+        installHubSession(window).signIn();
+      };
+      target.endOperatorSession = () => {
+        if (!state.signInAvailable) return;
+        installHubSession(window)
+          .signOut()
+          .catch(() => {
+            state.signOutFailed = true;
+            ctx.render();
+          });
       };
     },
   };
