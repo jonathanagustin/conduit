@@ -129,7 +129,7 @@ cosign verify-blob \
   --certificate-identity "${IDENTITY}" \
   --certificate-oidc-issuer "${ISSUER}" \
   release-assets.sha256
-sha256sum --check release-assets.sha256
+sha256sum -c release-assets.sha256
 
 ARCHIVE="conduit_${VERSION}_linux_amd64.tar.gz"
 cosign verify-blob \
@@ -202,7 +202,7 @@ helm upgrade --install platform-spoke "./platform-spoke-${VERSION}.tgz" \
 
 ```bash
 PACKAGE="zarf-package-platform-runtime-amd64-${VERSION}.tar.zst"
-sha256sum --check "${PACKAGE}.sha256"
+sha256sum -c "${PACKAGE}.sha256"
 
 zarf package verify "${PACKAGE}" \
   --certificate-identity "${IDENTITY}" \

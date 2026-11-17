@@ -32,6 +32,7 @@ inventory_checked=false
 asset_inventory='|'
 
 require_file() {
+  [[ "$1" =~ ^[A-Za-z0-9][A-Za-z0-9._-]*$ ]] || fail "invalid release asset name: $1"
   [[ -f "${release_dir}/$1" && ! -L "${release_dir}/$1" && -s "${release_dir}/$1" ]] ||
     fail "missing or empty release asset: $1"
   if [[ "${inventory_checked}" == true && "${asset_inventory}" != *"|$1|"* ]]; then

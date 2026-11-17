@@ -206,6 +206,8 @@ expect_signed_failure "unpinned_image" "is not a digest-pinned repository image"
   bash -c 'jq ".images.hub.reference = \"ghcr.io/jonathanagustin/conduit:latest\"" "$1/platform-oci-manifest.json" > "$1/tmp" && mv "$1/tmp" "$1/platform-oci-manifest.json"' _
 expect_failure "corrupted_sbom" "hub-amd64.spdx.json SHA-256" \
   bash -c 'echo tampered >> "$1/hub-amd64.spdx.json"' _
+expect_failure "corrupted_native_sbom" "hub-amd64.syft.json SHA-256 disagrees with release-assets.sha256" \
+  bash -c 'echo tampered >> "$1/hub-amd64.syft.json"' _
 expect_failure "corrupted_chart" "platform-hub-0.18.0.tgz SHA-256" \
   bash -c 'echo tampered >> "$1/platform-hub-0.18.0.tgz"' _
 expect_failure "corrupted_cli" "conduit_0.18.0_linux_amd64.tar.gz SHA-256" \
@@ -225,6 +227,8 @@ expect_failure "missing_inventory_signature" "missing or empty release asset: re
 TEST_COSIGN_BIN="${test_dir}/missing-cosign" expect_failure "missing_cosign" "Cosign is required" true
 expect_failure "unindexed_extra" "release asset is not in the signed inventory: extra.json" \
   bash -c 'echo extra > "$1/extra.json"' _
+expect_failure "joined_inventory_names" "invalid release asset name" \
+  bash -c 'first=$(sed -n "1s/^[^ ]*  //p" "$1/release-assets.sha256"); second=$(sed -n "2s/^[^ ]*  //p" "$1/release-assets.sha256"); printf unsigned > "$1/$first|$second"' _
 expect_failure "unindexed_required" "release asset is not in the signed inventory: platform-runtime.json" \
   bash -c 'sed "/  platform-runtime.json$/d" "$1/release-assets.sha256" > "$1/new-index"; mv "$1/new-index" "$1/release-assets.sha256"' _
 expect_failure "traversal_index" "invalid checksum record in release-assets.sha256" \
