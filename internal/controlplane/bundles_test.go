@@ -935,6 +935,25 @@ func TestBundleFileRepositoryPersistsRecords(t *testing.T) {
 	if err != nil || stored.ManifestDigest != built[0].ManifestDigest {
 		t.Fatalf("reopened bundle = %#v, %v", stored, err)
 	}
+	listed, err := reopened.ListBundles(ctx, "persisted")
+	if err != nil || len(listed) != 1 {
+		t.Fatalf("reopened bundle list = %#v, %v", listed, err)
+	}
+	for name, envelope := range map[string]BundleEnvelope{"get": stored, "list": listed[0]} {
+		preview, err := service.Verification(ctx, envelope)
+		if err != nil || preview.Signature.Status != SignatureVerified || !preview.Signature.Verified {
+			t.Errorf("%s persisted Bundle did not verify: %#v, %v", name, preview.Signature, err)
+		}
+		if envelope.Signature != built[0].Signature || envelope.SigningKeyID != built[0].SigningKeyID ||
+			envelope.Manifest.ID != built[0].Manifest.ID || envelope.ManifestDigest != built[0].ManifestDigest {
+			t.Errorf("%s changed the signed Bundle coordinates", name)
+		}
+		for index, resource := range envelope.Manifest.Resources {
+			if !bytes.Equal(resource.Payload, built[0].Manifest.Resources[index].Payload) {
+				t.Errorf("%s changed payload bytes for %s:%s", name, resource.Type, resource.ID)
+			}
+		}
+	}
 	storedImport, err := reopened.GetBundleImport(ctx, imported.ID)
 	if err != nil || storedImport.Status != "ADMITTED" || storedImport.ChangeRequestID == "" {
 		t.Fatalf("reopened import = %#v, %v", storedImport, err)
